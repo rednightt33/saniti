@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-09-27T08:23:59+00:00`.
+Generated from PostgreSQL schema `public` at `2026-10-11T04:41:04+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -12,18 +12,18 @@ Generated from PostgreSQL schema `public` at `2026-09-27T08:23:59+00:00`.
 | `AI_catalog_relationships` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing safe join, temporal alignment, preaggregation, and output-grain contracts. |
 | `AI_column_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing column semantics and bounded-query permissions for the seven approved tables. |
 | `AI_conversation` | Unclassified | Unknown | — | `2026-09-27 08:23:59+00:00` | Baseline only | market-ai-orc conversations kept by the server (history_mode SERVER): one row per chat box with its owner, retention and the lease that allows one active run at a time. |
-| `AI_conversation_evidence` | System | Event-driven / each checked claim (round D6) | — | `2026-10-03` | Added by hand (20261003_009) | Claims of market-ai-orc answers recomputed by the backend (Governor summary or base table), with the status, the backend value and at most 200 rows of evidence. |
-| `AI_conversation_execution` | System | Event-driven / each sandbox execution (R-STORE) | — | `2026-10-03` | Added by hand (20261003_006) | The code of each sandbox execution of a market-ai-orc conversation, so a result can be traced and reproduced after the sandbox copy expired. |
-| `AI_conversation_export` | System | Event-driven / each export (phase D) | — | `2026-10-03` | Added by hand (20261003_006) | Files exported from a market-ai-orc conversation for the user to download (CSV, XLSX or Parquet, at most 20 MB). |
-| `AI_conversation_output` | System | Event-driven / each released output (R-STORE) | — | `2026-10-03` | Added by hand (20261003_006) | Released outputs of market-ai-orc conversations (tables, JSON, text, charts) with their definition, units, lineage and the last date of the data they were computed from; the content up to 20 MB is here, a larger one in the bucket market-ai-conversation-outputs. |
-| `AI_conversation_run_memory` | System | Event-driven / each run of a conversation (EXEC-C) | — | `2026-10-06` | Added by hand (20261006_003) | What each run of a market-ai-orc conversation leaves for the runs after it: the memo later runs read, the full texts it names, the values it made citable, the model's note and its reasoning. |
+| `AI_conversation_evidence` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | Claims of market-ai-orc answers recomputed by the backend on a path separate from the model's code (SQL Governor summary or the released base table), with the status, the backend value and at most 200 rows of evidence. |
+| `AI_conversation_execution` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | The code of each sandbox execution of a market-ai-orc conversation, so a result can be traced and reproduced after the sandbox copy expired. |
+| `AI_conversation_export` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | Files exported from a market-ai-orc conversation for the user to download (CSV, XLSX or Parquet, at most 20 MB). |
+| `AI_conversation_output` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | Released outputs of market-ai-orc conversations (tables, JSON, text, charts) with their definition, units, lineage and the last date of the data they were computed from; the content up to 20 MB is here, a larger one in the bucket market-ai-conversation-outputs. |
+| `AI_conversation_run_memory` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | What each run of a market-ai-orc conversation (a turn or a step of a mode 4 turn) leaves for the runs after it: the memo later runs read in their prompt, the full texts it names (message, answer, plan, refusals with the refused drafts, design values with their origin, web facts, catalog details), the values it made citable, the model's own note and its reasoning. |
 | `AI_conversation_turn` | Unclassified | Unknown | — | `2026-09-27 08:23:59+00:00` | Baseline only | One message of a market-ai-orc conversation: the user message, the run status and the response returned to the caller. |
 | `AI_data_coverage` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | Automated actual raw-source coverage plus explicitly inferred expectations for derived Feature tables. |
 | `AI_formula_reference` | Unclassified | Unknown | — | `2026-09-24 09:22:02+00:00` | Baseline only | Global reference catalog of calculation formulas for the orchestrator; entries document a formula, not a verified or executable implementation. |
-| `AI_method_guide` | Unclassified | Unknown | — | `2026-10-02 10:05 UTC` | Baseline only | Model-facing menu and manual of the analysis paths (G1–G4) and session helpers; generated from code, hash-bound (guides_sha256). Enforcement stays in code. |
-| `AI_metric_catalog` | System | Event-driven / forward migrations (round D5) | — | `2026-10-03` | Added by hand (20261003_008) | Official metrics for market-ai-orc's query_metric (one SQL Governor summary per period); units and additivity read from AI_column_catalog. |
+| `AI_method_guide` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | Model-facing menu and manual of the analysis paths (G1-G4) and session helpers: when to use and not, inputs, limits, what the backend checks, results, common errors and tested examples; bound to the code by guides_sha256. |
+| `AI_metric_catalog` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | Official metrics market-ai-orc's query_metric answers in one SQL Governor summary: source table, measure column, rule over time, dimensions, default row filter and meaning. Units and additivity are read from AI_column_catalog. |
 | `AI_research_catalog` | Unclassified | Unknown | — | `2026-09-24 07:24:52+00:00` | Baseline only | Global reference catalog of research methods for the orchestrator; entries do not enable sandbox execution. |
-| `AI_research_library` | Unclassified | Unknown | — | `2026-09-29 18:31–18:35 UTC` | Baseline only | Model-facing description of the Multi-Angle Research methods the sandbox engines compute; generated from code, hash-bound (library_sha256). Enforcement stays in code. |
+| `AI_research_library` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | Model-facing description of the eight Multi-Angle Research methods (roles, parameters, data requirements, interpretation, misuse warning), generated from the sandbox research library and bound to it by library_sha256. |
 | `AI_research_run_audit` | Unclassified | Unknown | — | `2026-09-24 12:33:35+00:00` | Baseline only | Durable audit of market-ai-orc runs: the question, the final answer, its evidence label and gate outcome, and every experiment with its Research Governor decision, validation, evidence decision and fingerprints. |
 | `AI_table_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing master list and bounded-access contract for seven approved source and Feature tables. |
 | `Analysis_Evidence` | System | When compact evidence is recorded for an analysis | — | `2026-09-13 15:02:15+00:00` | Baseline only | Compact reproducible evidence supporting material AI analysis claims. |
@@ -32,32 +32,33 @@ Generated from PostgreSQL schema `public` at `2026-09-27T08:23:59+00:00`.
 | `Analysis_Step_Log` | System | After each AI analysis tool or compaction step | — | `2026-09-13 15:02:15+00:00` | Baseline only | Audit record for every query, tool, compaction, or analytical step in an AI request. |
 | `Analytics_Dataset_Snapshot` | System | Per bounded analytics input; remove private object after terminal grace or expiry | — | `2026-09-14 07:39:52+00:00` | Baseline only | Metadata and retention state for immutable bounded raw or Feature analytical input snapshots stored in a private Railway bucket. |
 | `Analytics_Job` | System | Per generic analytics submission, lease, result, or failure | — | `2026-09-14 07:39:52+00:00` | Baseline only | Durable queue, lease, resource contract, result, and failure audit for separately authenticated query-sandbox and statistical-validation workers. |
-| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-09-27 08:23:59.528979+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-09-27 08:23:59+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
-| `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-09-25` | `2026-09-25 10:05:52.026462+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
+| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-10-11 04:38:07.437257+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-10-09 05:36:34+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Feature04_Technical_Indicator` | Feature | Manual bounded refresh only; source corrections require full-history recalculation and output from earliest changed bar onward. No full backfill or scheduler authorized. | — | — | No Database_Table_Status row; read-only schema export | Causal daily technical indicators and independent native TA-Lib candlestick codes; formulas calculation-verified, TradingView parity NOT VERIFIED. |
+| `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-10-08` | `2026-10-09 10:06:33.150795+00:00` | Tracked automatically | Daily per-ticker price, return, volatility, volume, and drawdown features. |
 | `Feature_02_Broker_Rolling` | Feature | After validated broker-summary changes; manual v2 ticker rebuild | `2026-08-31` | `2026-09-14 14:26:33.580099+00:00` | Derived from IDX_Broker_Summary; Investor-Type Feature 02 v2 refresh is manual | Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata. |
 | `Feature_03_Stock_Broker_Daily` | Feature | After Feature 02 refresh; manual Investor-Type v2 refresh | `2026-08-31` | `2026-09-14 15:17:23.131992+00:00` | Derived from Investor-Type Feature_02_Broker_Rolling; Feature 03 v2 refresh is manual | Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate. |
-| `Feature_Calculation_Log` | System | After completed worker attempts | `2026-09-25` | `2026-09-25 10:05:52.033286+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
-| `Feature_Calculation_Queue` | System | After committed price inserts/updates and worker transitions | `2026-09-25` | `2026-09-25 10:05:51.975669+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
-| `Feature_Catalog` | Reference | After each validated Feature schema change | — | `2026-09-14 15:17:06.460831+00:00` | Tracked automatically | Versioned, machine-readable formula, interpretation, recommended-use, misuse, availability, point-in-time safety and validation-evidence contract for every validated Feature column. |
+| `Feature_Calculation_Log` | System | After completed worker attempts | `2026-10-08` | `2026-10-08 23:02:17.644559+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
+| `Feature_Calculation_Queue` | System | After committed price inserts/updates and worker transitions | `2026-10-08` | `2026-10-08 23:02:17.586587+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
+| `Feature_Catalog` | Reference | After each validated Feature schema change | — | `2026-10-11 04:38:07.437403+00:00` | Tracked automatically | Versioned, machine-readable formula, interpretation, recommended-use, misuse, availability, point-in-time safety and validation-evidence contract for every validated Feature column. |
 | `Feature_Relationship_Catalog` | Reference | After a validated Feature join contract changes | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned safe-join and grain contracts between verified Feature tables. |
-| `Feature_Status` | System | After enqueue and worker state transitions | `2026-09-25` | `2026-09-25 10:05:51.975669+00:00` | Derived from per-ticker status rows | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
+| `Feature_Status` | System | After enqueue and worker state transitions | `2026-10-08` | `2026-10-08 23:02:17.586587+00:00` | Derived from per-ticker status rows | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
 | `Golden_Analysis_Test` | System | After a versioned golden analytical expectation changes | — | `2026-09-13 15:08:56+00:00` | Baseline only | Versioned analytical regression-test definitions with reproducible conditions and tolerances. |
 | `Golden_Analysis_Test_Result` | System | After each test in a golden-suite run | — | `2026-09-13 15:08:56+00:00` | Baseline only | Per-test correctness, methodology, evidence, warning, latency and token outcome. |
 | `Golden_Analysis_Test_Run` | System | Before major releases and material model, prompt, Feature, or tool changes | — | `2026-09-13 15:08:56+00:00` | Baseline only | Historical execution record for one complete golden analytical regression suite. |
 | `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-10 07:23:34.854803+00:00` | Tracked automatically | Broker code and name, domestic/foreign type, and usage profile such as Institutional-heavy, Retail-heavy, Mixed, or Niche. |
-| `IDX_Broker_Profile_History` | Reference | Captured after every write to IDX_Broker_Profile; never deleted | — | `2026-09-28 08:22:31+00:00` | Capture trigger `reference_history_capture` (migration 20260927_006) | Point-in-time (bitemporal) history of the broker profile, from its first capture. |
+| `IDX_Broker_Profile_History` | Reference | Captured after every write to IDX_Broker_Profile; never deleted | — | `2026-10-09 05:36:34+00:00` | Baseline; exact changes tracked from this time forward | Point-in-time (bitemporal) history of the tracked IDX_Broker_Profile attributes (broker_name, broker_type, broker_classification), captured by Saniti from the first capture onward. Current knowledge is recorded_to IS NULL; superseded knowledge is kept. |
 | `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 14:41:15.160142+00:00` | Derived from table data and load log | Daily broker buy/sell values and lots by symbol, broker, investor type, and market board. |
-| `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-09-12 13:34:43.352522+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
-| `IDX_Stock_Universe_History` | Reference | Captured after every write to IDX_Stock_Universe; never deleted | — | `2026-09-28 08:22:31+00:00` | Capture trigger `reference_history_capture` (migration 20260927_006) | Point-in-time (bitemporal) history of the stock universe classification, from its first capture. |
-| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-09-26` | `2026-09-26 23:02:23.329680+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
-| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-09-25` | `2026-09-25 10:03:41.345502+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
-| `Reference_History_Capture_Log` | System | One row per reference-history capture or correction | — | `2026-09-28 08:22:31+00:00` | Written by the capture functions | Audit of reference-history captures and corrections, including failed captures. |
-| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-09-27 08:23:58.234557+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
+| `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-10-02 18:07:58.944512+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
+| `IDX_Stock_Universe_History` | Reference | Captured after every write to IDX_Stock_Universe; never deleted | — | `2026-10-09 05:36:34+00:00` | Baseline; exact changes tracked from this time forward | Point-in-time (bitemporal) history of the tracked IDX_Stock_Universe attributes (Company Name, Exchange, Security Type, Type Specs, Is Common Stock, ISIN, Sector, Industry), captured by Saniti from the first capture onward. Current knowledge is recorded_to IS NULL; superseded knowledge is kept. |
+| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-10-08` | `2026-10-08 23:02:11.337259+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
+| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-10-08` | `2026-10-09 10:04:22.765289+00:00` | Tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
+| `Reference_History_Capture_Log` | System | One row per reference-history capture or correction | — | `2026-10-09 05:36:34+00:00` | Baseline; exact changes tracked from this time forward | One row per capture of IDX_Stock_Universe or IDX_Broker_Profile into its history (trigger, initial, manual or correction): changed and new versions, keys absent from the load, and the error of a failed capture. |
+| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-10-11 04:38:07.408742+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
 | `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
-| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-09-26 23:02:28.308482+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
+| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-10-10 23:00:34.407737+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
 | `Tool_Catalog` | Reference | With each approved backend or analytics tool release | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned generic AI tool metadata, activation state, schemas, and advertised operational ceilings. |
-| `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-09-06 13:21:52.115381+00:00` | Loaded from Universe_Equity_Description.xlsx; future changes tracked automatically | Issuer descriptions and TradingView/curated sector and industry classifications. |
+| `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-10-02 18:07:58.949068+00:00` | Tracked automatically | Issuer descriptions and TradingView/curated sector and industry classifications. |
 | `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-08-31` | `2026-09-09 16:55:55.713468+00:00` | Derived from load log | Per-trading-date Stockbit broker-summary load progress, retries, and review state. |
 
 ## Logical relationships
@@ -77,10 +78,6 @@ These relationships are documented for analysis but are not enforced as PostgreS
 | `Feature_Catalog.(feature_table, feature_column)` | `Locked Feature table physical columns` | Governed semantic reference | Active catalog rows are validated by trigger against exact physical columns in the public schema. |
 | `Monitoring_Price_ALL.asset_type` | `IDX_Stock_Universe."Security Type"` | Logical grouped snapshot | Monitoring rows group expected and missing ticker counts by the universe Security Type value. |
 | `Monitoring_Price_ALL.update_for_date` | `Price_Stock_Indonesia_IDX.date` | Logical | A monitoring date describes the daily-price date targeted by an automation run. |
-| `IDX_Stock_Universe_History."Ticker"` | `IDX_Stock_Universe."Ticker"` | Captured history | Statement trigger `reference_history_capture` records every change of the tracked attributes (bitemporal); absence from a load is not a delisting. No foreign key. |
-| `IDX_Broker_Profile_History.broker_code` | `IDX_Broker_Profile.broker_code` | Captured history | Same capture as the stock universe. No foreign key. |
-| `Price, Feature 01/02/03, IDX_Broker_Summary (ticker / Symbol, date)` | `IDX_Stock_Universe_History (Ticker, pit_valid_from, pit_valid_to)` | EFFECTIVE_DATED (AI relationships 35–39) | The version in effect and already recorded on the observation date. |
-| `Feature_02_Broker_Rolling.broker`, `IDX_Broker_Summary."Broker"` (with date) | `IDX_Broker_Profile_History (broker_code, pit_valid_from, pit_valid_to)` | EFFECTIVE_DATED (AI relationships 40–41) | Same rule for broker profiles. |
 | `Telegram_Notification_Log.source_execution_id` | `Monitoring_Price_ALL.execution_id` | Logical many-to-one by execution | The notifier reads all monitoring rows for one execution before sending and recording delivery. No database foreign key is enforced. |
 
 ## AI_calculation_catalog
@@ -273,7 +270,7 @@ market-ai-orc conversations kept by the server (history_mode SERVER): one row pe
 
 ## AI_conversation_evidence
 
-Claims of market-ai-orc answers recomputed by the backend on a path separate from the model's code (SQL Governor summary or the released base table), with the status, the backend value and at most 200 rows of evidence. Created by `database/migrations/20261003_009_conversation_evidence.sql`; read and written by `market_ai_conversation_store` only; deleted with its conversation.
+Claims of market-ai-orc answers recomputed by the backend on a path separate from the model's code (SQL Governor summary or the released base table), with the status, the backend value and at most 200 rows of evidence.
 
 ### Columns
 
@@ -298,12 +295,12 @@ Claims of market-ai-orc answers recomputed by the backend on a path separate fro
 
 | Name | Type | Definition |
 |---|---|---|
-| `ai_conversation_evidence_claim_check` | Check | `CHECK (length(claim) BETWEEN 1 AND 300 AND length(value_text) BETWEEN 1 AND 40)` |
-| `ai_conversation_evidence_id_check` | Check | `CHECK (evidence_id ~ '^evd_[0-9a-f]{24}$')` |
-| `ai_conversation_evidence_json_check` | Check | `CHECK (jsonb_typeof(recipe) = 'object' AND jsonb_typeof(source) = 'object' AND jsonb_typeof(rows) = 'array' AND jsonb_array_length(rows) <= 200)` |
-| `ai_conversation_evidence_kind_check` | Check | `CHECK (kind IN ('WAREHOUSE', 'BASE_TABLE'))` |
-| `ai_conversation_evidence_request_check` | Check | `CHECK (request_id ~ '^[A-Za-z0-9._:-]{1,200}$')` |
-| `ai_conversation_evidence_status_check` | Check | `CHECK (status IN ('TERCEK', 'TIDAK_COCOK', 'TIDAK_BISA_DICEK', 'TIDAK_DICEK_BATAS'))` |
+| `ai_conversation_evidence_claim_check` | Check | `CHECK (length(claim) >= 1 AND length(claim) <= 300 AND length(value_text) >= 1 AND length(value_text) <= 40)` |
+| `ai_conversation_evidence_id_check` | Check | `CHECK (evidence_id ~ '^evd_[0-9a-f]{24}$'::text)` |
+| `ai_conversation_evidence_json_check` | Check | `CHECK (jsonb_typeof(recipe) = 'object'::text AND jsonb_typeof(source) = 'object'::text AND jsonb_typeof(rows) = 'array'::text AND jsonb_array_length(rows) <= 200)` |
+| `ai_conversation_evidence_kind_check` | Check | `CHECK (kind = ANY (ARRAY['WAREHOUSE'::text, 'BASE_TABLE'::text]))` |
+| `ai_conversation_evidence_request_check` | Check | `CHECK (request_id ~ '^[A-Za-z0-9._:-]{1,200}$'::text)` |
+| `ai_conversation_evidence_status_check` | Check | `CHECK (status = ANY (ARRAY['TERCEK'::text, 'TIDAK_COCOK'::text, 'TIDAK_BISA_DICEK'::text, 'TIDAK_DICEK_BATAS'::text]))` |
 | `AI_conversation_evidence_conversation_id_fkey` | Foreign key | `FOREIGN KEY (conversation_id) REFERENCES "AI_conversation"(conversation_id) ON DELETE CASCADE` |
 | `AI_conversation_evidence_pkey` | Primary key | `PRIMARY KEY (evidence_id)` |
 
@@ -338,12 +335,12 @@ The code of each sandbox execution of a market-ai-orc conversation, so a result 
 
 | Name | Type | Definition |
 |---|---|---|
-| `ai_conversation_execution_code_check` | Check | `CHECK ((length(code) <= 65536))` |
-| `ai_conversation_execution_id_check` | Check | `CHECK ((execution_id ~ '^exe_[0-9a-f]{24}$'::text))` |
-| `ai_conversation_execution_json_check` | Check | `CHECK ((((modules IS NULL) OR (jsonb_typeof(modules) = 'array'::text)) AND ((access IS NULL) OR (jsonb_typeof(access) = ANY (ARRAY['array'::text, 'object'::text])))))` |
-| `ai_conversation_execution_request_check` | Check | `CHECK ((request_id ~ '^[A-Za-z0-9._:-]{1,200}$'::text))` |
-| `ai_conversation_execution_session_check` | Check | `CHECK (((session_id IS NULL) OR (session_id ~ '^sess_[0-9a-f]{24}$'::text)))` |
-| `ai_conversation_execution_sha_check` | Check | `CHECK ((code_sha256 ~ '^[0-9a-f]{64}$'::text))` |
+| `ai_conversation_execution_code_check` | Check | `CHECK (length(code) <= 65536)` |
+| `ai_conversation_execution_id_check` | Check | `CHECK (execution_id ~ '^exe_[0-9a-f]{24}$'::text)` |
+| `ai_conversation_execution_json_check` | Check | `CHECK ((modules IS NULL OR jsonb_typeof(modules) = 'array'::text) AND (access IS NULL OR (jsonb_typeof(access) = ANY (ARRAY['array'::text, 'object'::text]))))` |
+| `ai_conversation_execution_request_check` | Check | `CHECK (request_id ~ '^[A-Za-z0-9._:-]{1,200}$'::text)` |
+| `ai_conversation_execution_session_check` | Check | `CHECK (session_id IS NULL OR session_id ~ '^sess_[0-9a-f]{24}$'::text)` |
+| `ai_conversation_execution_sha_check` | Check | `CHECK (code_sha256 ~ '^[0-9a-f]{64}$'::text)` |
 | `AI_conversation_execution_conversation_id_fkey` | Foreign key | `FOREIGN KEY (conversation_id) REFERENCES "AI_conversation"(conversation_id) ON DELETE CASCADE` |
 | `AI_conversation_execution_pkey` | Primary key | `PRIMARY KEY (execution_id)` |
 
@@ -379,14 +376,14 @@ Files exported from a market-ai-orc conversation for the user to download (CSV, 
 
 | Name | Type | Definition |
 |---|---|---|
-| `ai_conversation_export_format_check` | Check | `CHECK ((format = ANY (ARRAY['CSV'::text, 'XLSX'::text, 'PARQUET'::text])))` |
-| `ai_conversation_export_id_check` | Check | `CHECK ((export_id ~ '^exp_[0-9a-f]{24}$'::text))` |
-| `ai_conversation_export_includes_check` | Check | `CHECK ((jsonb_typeof(includes) = 'object'::text))` |
-| `ai_conversation_export_name_check` | Check | `CHECK ((file_name ~ '^[A-Za-z0-9._-]{1,120}$'::text))` |
-| `ai_conversation_export_request_check` | Check | `CHECK ((request_id ~ '^[A-Za-z0-9._:-]{1,200}$'::text))` |
-| `ai_conversation_export_sha_check` | Check | `CHECK ((sha256 ~ '^[0-9a-f]{64}$'::text))` |
-| `ai_conversation_export_size_check` | Check | `CHECK (((size_bytes = octet_length(content)) AND ((size_bytes >= 1) AND (size_bytes <= 20971520))))` |
-| `ai_conversation_export_source_check` | Check | `CHECK (((length(source_ref) >= 1) AND (length(source_ref) <= 200)))` |
+| `ai_conversation_export_format_check` | Check | `CHECK (format = ANY (ARRAY['CSV'::text, 'XLSX'::text, 'PARQUET'::text]))` |
+| `ai_conversation_export_id_check` | Check | `CHECK (export_id ~ '^exp_[0-9a-f]{24}$'::text)` |
+| `ai_conversation_export_includes_check` | Check | `CHECK (jsonb_typeof(includes) = 'object'::text)` |
+| `ai_conversation_export_name_check` | Check | `CHECK (file_name ~ '^[A-Za-z0-9._-]{1,120}$'::text)` |
+| `ai_conversation_export_request_check` | Check | `CHECK (request_id ~ '^[A-Za-z0-9._:-]{1,200}$'::text)` |
+| `ai_conversation_export_sha_check` | Check | `CHECK (sha256 ~ '^[0-9a-f]{64}$'::text)` |
+| `ai_conversation_export_size_check` | Check | `CHECK (size_bytes = octet_length(content) AND size_bytes >= 1 AND size_bytes <= 20971520)` |
+| `ai_conversation_export_source_check` | Check | `CHECK (length(source_ref) >= 1 AND length(source_ref) <= 200)` |
 | `AI_conversation_export_conversation_id_fkey` | Foreign key | `FOREIGN KEY (conversation_id) REFERENCES "AI_conversation"(conversation_id) ON DELETE CASCADE` |
 | `AI_conversation_export_pkey` | Primary key | `PRIMARY KEY (export_id)` |
 
@@ -431,16 +428,16 @@ Released outputs of market-ai-orc conversations (tables, JSON, text, charts) wit
 
 | Name | Type | Definition |
 |---|---|---|
-| `ai_conversation_output_checksum_check` | Check | `CHECK ((checksum_sha256 ~ '^[0-9a-f]{64}$'::text))` |
-| `ai_conversation_output_execution_check` | Check | `CHECK (((execution_id IS NULL) OR (execution_id ~ '^exe_[0-9a-f]{24}$'::text)))` |
-| `ai_conversation_output_format_check` | Check | `CHECK ((format = ANY (ARRAY['PARQUET'::text, 'CSV'::text, 'PNG'::text, 'JSON'::text, 'TEXT'::text, 'BIN'::text])))` |
-| `ai_conversation_output_id_check` | Check | `CHECK ((output_id ~ '^out_[0-9a-f]{24}$'::text))` |
-| `ai_conversation_output_json_check` | Check | `CHECK ((((definition IS NULL) OR (jsonb_typeof(definition) = 'object'::text)) AND ((units IS NULL) OR (jsonb_typeof(units) = 'object'::text)) AND ((lineage IS NULL) OR (jsonb_typeof(lineage) = 'object'::text)) AND ((columns IS NULL) OR (jsonb_typeof(columns) = 'array'::text))))` |
-| `ai_conversation_output_name_check` | Check | `CHECK (((length(name) >= 1) AND (length(name) <= 80)))` |
-| `ai_conversation_output_request_check` | Check | `CHECK ((request_id ~ '^[A-Za-z0-9._:-]{1,200}$'::text))` |
-| `ai_conversation_output_session_check` | Check | `CHECK (((session_id IS NULL) OR (session_id ~ '^sess_[0-9a-f]{24}$'::text)))` |
-| `ai_conversation_output_size_check` | Check | `CHECK (((byte_count >= 0) AND ((row_count IS NULL) OR (row_count >= 0))))` |
-| `ai_conversation_output_storage_check` | Check | `CHECK ((((storage = 'POSTGRES'::text) AND (content IS NOT NULL) AND (object_key IS NULL) AND (octet_length(content) = byte_count) AND (byte_count <= 20971520)) OR ((storage = 'BUCKET'::text) AND (content IS NULL) AND (object_key IS NOT NULL) AND (object_key ~ '^outputs/conv_[0-9a-f]{32}/out_[0-9a-f]{24}\.[a-z]{3,7}$'::text))))` |
+| `ai_conversation_output_checksum_check` | Check | `CHECK (checksum_sha256 ~ '^[0-9a-f]{64}$'::text)` |
+| `ai_conversation_output_execution_check` | Check | `CHECK (execution_id IS NULL OR execution_id ~ '^exe_[0-9a-f]{24}$'::text)` |
+| `ai_conversation_output_format_check` | Check | `CHECK (format = ANY (ARRAY['PARQUET'::text, 'CSV'::text, 'PNG'::text, 'JSON'::text, 'TEXT'::text, 'BIN'::text]))` |
+| `ai_conversation_output_id_check` | Check | `CHECK (output_id ~ '^out_[0-9a-f]{24}$'::text)` |
+| `ai_conversation_output_json_check` | Check | `CHECK ((definition IS NULL OR jsonb_typeof(definition) = 'object'::text) AND (units IS NULL OR jsonb_typeof(units) = 'object'::text) AND (lineage IS NULL OR jsonb_typeof(lineage) = 'object'::text) AND (columns IS NULL OR jsonb_typeof(columns) = 'array'::text))` |
+| `ai_conversation_output_name_check` | Check | `CHECK (length(name) >= 1 AND length(name) <= 80)` |
+| `ai_conversation_output_request_check` | Check | `CHECK (request_id ~ '^[A-Za-z0-9._:-]{1,200}$'::text)` |
+| `ai_conversation_output_session_check` | Check | `CHECK (session_id IS NULL OR session_id ~ '^sess_[0-9a-f]{24}$'::text)` |
+| `ai_conversation_output_size_check` | Check | `CHECK (byte_count >= 0 AND (row_count IS NULL OR row_count >= 0))` |
+| `ai_conversation_output_storage_check` | Check | `CHECK (storage = 'POSTGRES'::text AND content IS NOT NULL AND object_key IS NULL AND octet_length(content) = byte_count AND byte_count <= 20971520 OR storage = 'BUCKET'::text AND content IS NULL AND object_key IS NOT NULL AND object_key ~ '^outputs/conv_[0-9a-f]{32}/out_[0-9a-f]{24}\.[a-z]{3,7}$'::text)` |
 | `AI_conversation_output_conversation_id_fkey` | Foreign key | `FOREIGN KEY (conversation_id) REFERENCES "AI_conversation"(conversation_id) ON DELETE CASCADE` |
 | `AI_conversation_output_pkey` | Primary key | `PRIMARY KEY (output_id)` |
 
@@ -453,7 +450,7 @@ Released outputs of market-ai-orc conversations (tables, JSON, text, charts) wit
 
 ## AI_conversation_run_memory
 
-What each run of a market-ai-orc conversation (a turn or a step of a mode 4 turn) leaves for the runs after it (EXEC.md EXEC-C; AI_ENABLE_RUN_MEMORY). Created by `database/migrations/20261006_003_conversation_run_memory.sql`; read and written by `market_ai_conversation_store` only; deleted with its conversation. Later runs read `memo` and `sources` in `seq` order; the full texts are read with the tool `read_conversation_memory`.
+What each run of a market-ai-orc conversation (a turn or a step of a mode 4 turn) leaves for the runs after it: the memo later runs read in their prompt, the full texts it names (message, answer, plan, refusals with the refused drafts, design values with their origin, web facts, catalog details), the values it made citable, the model's own note and its reasoning.
 
 ### Columns
 
@@ -462,7 +459,7 @@ What each run of a market-ai-orc conversation (a turn or a step of a mode 4 turn
 | `run_id` | `text` | No | — | The run's request id: a turn's request_id, or <request_id>-m4a ... for a step of a mode 4 turn. |
 | `conversation_id` | `text` | No | — | The conversation the run belongs to. |
 | `turn_request_id` | `text` | No | — | The request id of the turn the run belongs to (the run's own id for a turn that is one run). |
-| `seq` | `bigint` | No | generated always as identity | The order runs ended in; later runs read the memos in this order (oldest first). |
+| `seq` | `bigint` | No | — | The order runs ended in; later runs read the memos in this order (oldest first). |
 | `status` | `text` | No | — | The run's status: COMPLETED, NEEDS_CLARIFICATION, AWAITING_CONFIRMATION, LIMITED or FAILED. |
 | `response_type` | `text` | Yes | — | ANSWER, CLARIFICATION, RESEARCH_PLAN_CONFIRMATION or LIMITATION; NULL when the run failed without a response. |
 | `error_code` | `text` | Yes | — | The run's error code (for example ANALYSIS_TIMEOUT); NULL without one. |
@@ -477,11 +474,11 @@ What each run of a market-ai-orc conversation (a turn or a step of a mode 4 turn
 
 | Name | Type | Definition |
 |---|---|---|
-| `ai_conversation_run_memory_json_check` | Check | `CHECK (jsonb_typeof(content) = 'object' AND jsonb_typeof(sources) = 'object')` |
-| `ai_conversation_run_memory_run_check` | Check | `CHECK (run_id ~ '^[A-Za-z0-9._:-]{1,200}$')` |
-| `ai_conversation_run_memory_size_check` | Check | `CHECK (length(memo) BETWEEN 1 AND 200000 AND (note IS NULL OR length(note) <= 20000) AND (reasoning IS NULL OR length(reasoning) <= 800000))` |
-| `ai_conversation_run_memory_status_check` | Check | `CHECK (status IN ('COMPLETED', 'NEEDS_CLARIFICATION', 'AWAITING_CONFIRMATION', 'LIMITED', 'FAILED'))` |
-| `ai_conversation_run_memory_turn_check` | Check | `CHECK (turn_request_id ~ '^[A-Za-z0-9._:-]{1,200}$')` |
+| `ai_conversation_run_memory_json_check` | Check | `CHECK (jsonb_typeof(content) = 'object'::text AND jsonb_typeof(sources) = 'object'::text)` |
+| `ai_conversation_run_memory_run_check` | Check | `CHECK (run_id ~ '^[A-Za-z0-9._:-]{1,200}$'::text)` |
+| `ai_conversation_run_memory_size_check` | Check | `CHECK (length(memo) >= 1 AND length(memo) <= 200000 AND (note IS NULL OR length(note) <= 20000) AND (reasoning IS NULL OR length(reasoning) <= 800000))` |
+| `ai_conversation_run_memory_status_check` | Check | `CHECK (status = ANY (ARRAY['COMPLETED'::text, 'NEEDS_CLARIFICATION'::text, 'AWAITING_CONFIRMATION'::text, 'LIMITED'::text, 'FAILED'::text]))` |
+| `ai_conversation_run_memory_turn_check` | Check | `CHECK (turn_request_id ~ '^[A-Za-z0-9._:-]{1,200}$'::text)` |
 | `AI_conversation_run_memory_conversation_id_fkey` | Foreign key | `FOREIGN KEY (conversation_id) REFERENCES "AI_conversation"(conversation_id) ON DELETE CASCADE` |
 | `AI_conversation_run_memory_pkey` | Primary key | `PRIMARY KEY (run_id)` |
 
@@ -624,7 +621,7 @@ Global reference catalog of calculation formulas for the orchestrator; entries d
 
 ## AI_method_guide
 
-Model-facing menu and manual of the analysis paths and session helpers; generated from code, hash-bound (guides_sha256). Enforcement stays in code. Created by `database/migrations/20261002_001_create_ai_method_guide.sql` (dev, 2026-10-02; generated by `scripts/generate_ai_method_guide_migration.py` from `apps/market-python-sandbox/app/method_guides.py`). SELECT only for `market_ai_catalog_reader`; the SQL Governor role has no access.
+Model-facing menu and manual of the analysis paths (G1-G4) and session helpers: when to use and not, inputs, limits, what the backend checks, results, common errors and tested examples; bound to the code by guides_sha256.
 
 ### Columns
 
@@ -645,12 +642,12 @@ Model-facing menu and manual of the analysis paths and session helpers; generate
 
 | Name | Type | Definition |
 |---|---|---|
-| `ai_method_guide_g` | Check | `CHECK (g IS NULL OR g IN ('G1', 'G2', 'G3', 'G4'))` |
-| `ai_method_guide_json` | Check | `CHECK (jsonb_typeof(guide) = 'object' AND guide->>'name' = name)` |
-| `ai_method_guide_kind` | Check | `CHECK (kind IN ('PATH', 'HELPER'))` |
-| `ai_method_guide_name` | Check | `CHECK (name ~ '^[a-z][a-z0-9_]{0,62}$')` |
-| `ai_method_guide_path_has_g` | Check | `CHECK ((kind = 'PATH') = (g IS NOT NULL))` |
-| `ai_method_guide_sha` | Check | `CHECK (guide_sha256 ~ '^[0-9a-f]{64}$' AND guides_sha256 ~ '^[0-9a-f]{64}$')` |
+| `ai_method_guide_g` | Check | `CHECK (g IS NULL OR (g = ANY (ARRAY['G1'::text, 'G2'::text, 'G3'::text, 'G4'::text])))` |
+| `ai_method_guide_json` | Check | `CHECK (jsonb_typeof(guide) = 'object'::text AND (guide ->> 'name'::text) = name)` |
+| `ai_method_guide_kind` | Check | `CHECK (kind = ANY (ARRAY['PATH'::text, 'HELPER'::text]))` |
+| `ai_method_guide_name` | Check | `CHECK (name ~ '^[a-z][a-z0-9_]{0,62}$'::text)` |
+| `ai_method_guide_path_has_g` | Check | `CHECK ((kind = 'PATH'::text) = (g IS NOT NULL))` |
+| `ai_method_guide_sha` | Check | `CHECK (guide_sha256 ~ '^[0-9a-f]{64}$'::text AND guides_sha256 ~ '^[0-9a-f]{64}$'::text)` |
 | `AI_method_guide_pkey` | Primary key | `PRIMARY KEY (name, guides_version)` |
 
 ### Indexes
@@ -661,7 +658,7 @@ Model-facing menu and manual of the analysis paths and session helpers; generate
 
 ## AI_metric_catalog
 
-Official metrics market-ai-orc's query_metric answers in one SQL Governor summary per period: source table, measure column, rule over time, dimensions, default row filter and meaning. Units and additivity are read from `AI_column_catalog`, never repeated here. Created by `database/migrations/20261003_008_ai_metric_catalog.sql`; read by `market_ai_catalog_reader` only. The six initial rows are `INFERRED` (user decisions 1, D-a and D-c of 2026-10-03; transaction value postponed).
+Official metrics market-ai-orc's query_metric answers in one SQL Governor summary: source table, measure column, rule over time, dimensions, default row filter and meaning. Units and additivity are read from AI_column_catalog.
 
 ### Columns
 
@@ -675,14 +672,14 @@ Official metrics market-ai-orc's query_metric answers in one SQL Governor summar
 | `measure_column` | `text` | No | — | The column the metric summarises. |
 | `time_function` | `text` | No | — | How the metric runs over the period: SUM, MIN, MAX, FIRST, LAST or COUNT; checked against the column's catalog rule by the Governor. |
 | `entity_column` | `text` | No | — | The column the entities of a question (tickers or symbols) filter. |
-| `default_dimensions` | `text[]` | No | `ARRAY[]::text[]` | The columns the result is split by when the question names none. |
-| `allowed_dimensions` | `text[]` | No | `ARRAY[]::text[]` | Every column the result may be split by. |
+| `default_dimensions` | `ARRAY` | No | `ARRAY[]::text[]` | The columns the result is split by when the question names none. |
+| `allowed_dimensions` | `ARRAY` | No | `ARRAY[]::text[]` | Every column the result may be split by. |
 | `default_scope` | `jsonb` | No | `'{"type": "ALL"}'::jsonb` | A canonical scope tree always applied (ALL: none). |
 | `formula` | `text` | No | — | The computation in words. |
 | `interpretation` | `text` | No | — | How to read the value. |
 | `recommended_use` | `text` | No | — | The questions the metric answers. |
 | `misuse_warning` | `text` | No | — | How the metric is misread or misused. |
-| `review_status` | `text` | No | `'INFERRED'` | INFERRED (proposed), REVIEWED or VERIFIED (confirmed by the user). |
+| `review_status` | `text` | No | `'INFERRED'::text` | INFERRED (proposed), REVIEWED or VERIFIED (confirmed by the user). |
 | `source_decision` | `text` | No | — | The user decision the metric comes from. |
 | `is_active` | `boolean` | No | `true` | Whether query_metric offers this version. |
 | `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | When the row was inserted. |
@@ -691,11 +688,11 @@ Official metrics market-ai-orc's query_metric answers in one SQL Governor summar
 
 | Name | Type | Definition |
 |---|---|---|
-| `ai_metric_catalog_dimensions` | Check | `CHECK (default_dimensions <@ allowed_dimensions AND entity_column = ANY (allowed_dimensions))` |
-| `ai_metric_catalog_function` | Check | `CHECK (time_function IN ('SUM', 'MIN', 'MAX', 'FIRST', 'LAST', 'COUNT'))` |
-| `ai_metric_catalog_id` | Check | `CHECK (metric_id ~ '^[a-z][a-z0-9_]{0,63}$' AND metric_version >= 1)` |
-| `ai_metric_catalog_review` | Check | `CHECK (review_status IN ('INFERRED', 'REVIEWED', 'VERIFIED'))` |
-| `ai_metric_catalog_scope` | Check | `CHECK (jsonb_typeof(default_scope) = 'object' AND default_scope ? 'type')` |
+| `ai_metric_catalog_dimensions` | Check | `CHECK (default_dimensions <@ allowed_dimensions AND (entity_column = ANY (allowed_dimensions)))` |
+| `ai_metric_catalog_function` | Check | `CHECK (time_function = ANY (ARRAY['SUM'::text, 'MIN'::text, 'MAX'::text, 'FIRST'::text, 'LAST'::text, 'COUNT'::text]))` |
+| `ai_metric_catalog_id` | Check | `CHECK (metric_id ~ '^[a-z][a-z0-9_]{0,63}$'::text AND metric_version >= 1)` |
+| `ai_metric_catalog_review` | Check | `CHECK (review_status = ANY (ARRAY['INFERRED'::text, 'REVIEWED'::text, 'VERIFIED'::text]))` |
+| `ai_metric_catalog_scope` | Check | `CHECK (jsonb_typeof(default_scope) = 'object'::text AND default_scope ? 'type'::text)` |
 | `AI_metric_catalog_pkey` | Primary key | `PRIMARY KEY (metric_id, metric_version)` |
 
 ### Indexes
@@ -750,7 +747,7 @@ Global reference catalog of research methods for the orchestrator; entries do no
 
 ## AI_research_library
 
-Model-facing description of the Multi-Angle Research methods the sandbox engines compute; generated from code, hash-bound (library_sha256). Enforcement stays in code. Created by `database/migrations/20260930_001_create_ai_research_library.sql` (dev, 2026-09-29); SELECT only for `market_ai_catalog_reader`.
+Model-facing description of the eight Multi-Angle Research methods (roles, parameters, data requirements, interpretation, misuse warning), generated from the sandbox research library and bound to it by library_sha256.
 
 ### Columns
 
@@ -781,11 +778,11 @@ Model-facing description of the Multi-Angle Research methods the sandbox engines
 
 | Name | Type | Definition |
 |---|---|---|
-| `ai_research_library_family` | Check | `CHECK ((method_family = ANY (ARRAY['CONDITIONAL_OUTCOME'::text, 'PERSISTENCE'::text, 'GROUP_COMPARISON'::text, 'QUANTILE_RANKING'::text, 'TEMPORAL_DEPENDENCY'::text])))` |
-| `ai_research_library_json` | Check | `CHECK (((jsonb_typeof(input_roles) = 'array'::text) AND (jsonb_typeof(required_parameters) = 'array'::text) AND (jsonb_typeof(optional_parameters) = 'array'::text) AND (jsonb_typeof(data_requirements) = 'object'::text) AND (jsonb_typeof(common_requirements) = 'array'::text) AND (jsonb_typeof(secondary_checks) = 'array'::text)))` |
-| `ai_research_library_method_id` | Check | `CHECK ((method_id ~ '^[a-z][a-z0-9_]{0,62}$'::text))` |
-| `ai_research_library_sample_unit` | Check | `CHECK ((sample_unit = ANY (ARRAY['DATES'::text, 'ENTITIES'::text, 'DATES_AUTOCORRELATION_ADJUSTED'::text])))` |
-| `ai_research_library_sha` | Check | `CHECK ((library_sha256 ~ '^[0-9a-f]{64}$'::text))` |
+| `ai_research_library_family` | Check | `CHECK (method_family = ANY (ARRAY['CONDITIONAL_OUTCOME'::text, 'PERSISTENCE'::text, 'GROUP_COMPARISON'::text, 'QUANTILE_RANKING'::text, 'TEMPORAL_DEPENDENCY'::text]))` |
+| `ai_research_library_json` | Check | `CHECK (jsonb_typeof(input_roles) = 'array'::text AND jsonb_typeof(required_parameters) = 'array'::text AND jsonb_typeof(optional_parameters) = 'array'::text AND jsonb_typeof(data_requirements) = 'object'::text AND jsonb_typeof(common_requirements) = 'array'::text AND jsonb_typeof(secondary_checks) = 'array'::text)` |
+| `ai_research_library_method_id` | Check | `CHECK (method_id ~ '^[a-z][a-z0-9_]{0,62}$'::text)` |
+| `ai_research_library_sample_unit` | Check | `CHECK (sample_unit = ANY (ARRAY['DATES'::text, 'ENTITIES'::text, 'DATES_AUTOCORRELATION_ADJUSTED'::text]))` |
+| `ai_research_library_sha` | Check | `CHECK (library_sha256 ~ '^[0-9a-f]{64}$'::text)` |
 | `AI_research_library_pkey` | Primary key | `PRIMARY KEY (method_id, engine_version)` |
 
 ### Indexes
@@ -1289,6 +1286,86 @@ Tracks the data freshness, change time, and update pattern of each table.
 | Name | Definition |
 |---|---|
 | `Database_Table_Status_pkey` | `CREATE UNIQUE INDEX "Database_Table_Status_pkey" ON public."Database_Table_Status" USING btree ("Table Name")` |
+
+## Feature04_Technical_Indicator
+
+Causal daily technical indicators and independent native TA-Lib candlestick codes; formulas calculation-verified, TradingView parity NOT VERIFIED.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `ticker` | `text` | No | — | IDX security code copied from source ticker. |
+| `trade_date` | `date` | No | — | Trading observation date copied from source date. |
+| `timeframe` | `text` | No | — | Verified daily timeframe copied exactly from source. |
+| `sma_20` | `double precision` | Yes | — | Unweighted mean of 20 observed closes. |
+| `sma_50` | `double precision` | Yes | — | Unweighted mean of 50 observed closes. |
+| `ema_12` | `double precision` | Yes | — | Fast exponentially weighted close; alpha=2/13. |
+| `ema_26` | `double precision` | Yes | — | Slow exponentially weighted close; alpha=2/27. |
+| `rsi_14` | `double precision` | Yes | — | Wilder gain/loss oscillator on 14 consecutive close changes, scaled 0–100. |
+| `macd` | `double precision` | Yes | — | Difference of the stored fast and slow EMA price baselines. |
+| `macd_signal` | `double precision` | Yes | — | Nine-period EMA of valid MACD line observations. |
+| `macd_histogram` | `double precision` | Yes | — | Difference between MACD line and its nine-period signal. |
+| `atr_14` | `double precision` | Yes | — | Wilder average of 14 true ranges using prior observed close. |
+| `bb_upper_20` | `double precision` | Yes | — | Upper 20-period Bollinger band, population standard deviation multiplier 2. |
+| `bb_middle_20` | `double precision` | Yes | — | Middle 20-period Bollinger band, identical to SMA20. |
+| `bb_lower_20` | `double precision` | Yes | — | Lower 20-period Bollinger band, population standard deviation multiplier 2. |
+| `cdl_piercing` | `integer` | Yes | — | Native TA-Lib piercing pattern recognition code from historical OHLC. |
+| `cdl_morning_star` | `integer` | Yes | — | Native TA-Lib morning star pattern recognition code from historical OHLC. |
+| `cdl_morning_doji_star` | `integer` | Yes | — | Native TA-Lib morning doji star pattern recognition code from historical OHLC. |
+| `cdl_engulfing` | `integer` | Yes | — | Native TA-Lib engulfing pattern recognition code from historical OHLC. |
+| `cdl_3_white_soldiers` | `integer` | Yes | — | Native TA-Lib 3 white soldiers pattern recognition code from historical OHLC. |
+| `cdl_hammer` | `integer` | Yes | — | Native TA-Lib hammer pattern recognition code from historical OHLC. |
+| `cdl_inverted_hammer` | `integer` | Yes | — | Native TA-Lib inverted hammer pattern recognition code from historical OHLC. |
+| `cdl_3_inside` | `integer` | Yes | — | Native TA-Lib 3 inside pattern recognition code from historical OHLC. |
+| `cdl_3_outside` | `integer` | Yes | — | Native TA-Lib 3 outside pattern recognition code from historical OHLC. |
+| `cdl_harami` | `integer` | Yes | — | Native TA-Lib harami pattern recognition code from historical OHLC. |
+| `cdl_harami_cross` | `integer` | Yes | — | Native TA-Lib harami cross pattern recognition code from historical OHLC. |
+| `cdl_dark_cloud_cover` | `integer` | Yes | — | Native TA-Lib dark cloud cover pattern recognition code from historical OHLC. |
+| `cdl_evening_star` | `integer` | Yes | — | Native TA-Lib evening star pattern recognition code from historical OHLC. |
+| `cdl_evening_doji_star` | `integer` | Yes | — | Native TA-Lib evening doji star pattern recognition code from historical OHLC. |
+| `cdl_3_black_crows` | `integer` | Yes | — | Native TA-Lib 3 black crows pattern recognition code from historical OHLC. |
+| `cdl_shooting_star` | `integer` | Yes | — | Native TA-Lib shooting star pattern recognition code from historical OHLC. |
+| `cdl_hanging_man` | `integer` | Yes | — | Native TA-Lib hanging man pattern recognition code from historical OHLC. |
+| `cdl_doji` | `integer` | Yes | — | Native TA-Lib doji pattern recognition code from historical OHLC. |
+| `cdl_dragonfly_doji` | `integer` | Yes | — | Native TA-Lib dragonfly doji pattern recognition code from historical OHLC. |
+| `cdl_gravestone_doji` | `integer` | Yes | — | Native TA-Lib gravestone doji pattern recognition code from historical OHLC. |
+| `cdl_marubozu` | `integer` | Yes | — | Native TA-Lib marubozu pattern recognition code from historical OHLC. |
+| `cdl_kicking` | `integer` | Yes | — | Native TA-Lib kicking pattern recognition code from historical OHLC. |
+| `cdl_rise_fall_3_methods` | `integer` | Yes | — | Native TA-Lib rise fall 3 methods pattern recognition code from historical OHLC. |
+| `cdl_mat_hold` | `integer` | Yes | — | Native TA-Lib mat hold pattern recognition code from historical OHLC. |
+| `cdl_hikkake` | `integer` | Yes | — | Native TA-Lib hikkake pattern recognition code from historical OHLC. |
+| `calculation_version` | `text` | No | — | Version binds formulas, seeds and pinned TA-Lib versions. |
+| `calculated_at` | `timestamp with time zone` | No | — | Timezone-aware execution time of the last changed output row. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature04_Technical_Indicator_atr_14_check` | Check | `CHECK (atr_14 IS NULL OR atr_14 > '-Infinity'::double precision AND atr_14 < 'Infinity'::double precision)` |
+| `Feature04_Technical_Indicator_atr_14_check1` | Check | `CHECK (atr_14 IS NULL OR atr_14 >= 0::double precision)` |
+| `Feature04_Technical_Indicator_bb_lower_20_check` | Check | `CHECK (bb_lower_20 IS NULL OR bb_lower_20 > '-Infinity'::double precision AND bb_lower_20 < 'Infinity'::double precision)` |
+| `Feature04_Technical_Indicator_bb_middle_20_check` | Check | `CHECK (bb_middle_20 IS NULL OR bb_middle_20 > '-Infinity'::double precision AND bb_middle_20 < 'Infinity'::double precision)` |
+| `Feature04_Technical_Indicator_bb_upper_20_check` | Check | `CHECK (bb_upper_20 IS NULL OR bb_upper_20 > '-Infinity'::double precision AND bb_upper_20 < 'Infinity'::double precision)` |
+| `Feature04_Technical_Indicator_calculation_version_check` | Check | `CHECK (btrim(calculation_version) <> ''::text)` |
+| `Feature04_Technical_Indicator_ema_12_check` | Check | `CHECK (ema_12 IS NULL OR ema_12 > '-Infinity'::double precision AND ema_12 < 'Infinity'::double precision)` |
+| `Feature04_Technical_Indicator_ema_26_check` | Check | `CHECK (ema_26 IS NULL OR ema_26 > '-Infinity'::double precision AND ema_26 < 'Infinity'::double precision)` |
+| `Feature04_Technical_Indicator_macd_check` | Check | `CHECK (macd IS NULL OR macd > '-Infinity'::double precision AND macd < 'Infinity'::double precision)` |
+| `Feature04_Technical_Indicator_macd_histogram_check` | Check | `CHECK (macd_histogram IS NULL OR macd_histogram > '-Infinity'::double precision AND macd_histogram < 'Infinity'::double precision)` |
+| `Feature04_Technical_Indicator_macd_signal_check` | Check | `CHECK (macd_signal IS NULL OR macd_signal > '-Infinity'::double precision AND macd_signal < 'Infinity'::double precision)` |
+| `Feature04_Technical_Indicator_rsi_14_check` | Check | `CHECK (rsi_14 IS NULL OR rsi_14 > '-Infinity'::double precision AND rsi_14 < 'Infinity'::double precision)` |
+| `Feature04_Technical_Indicator_rsi_14_check1` | Check | `CHECK (rsi_14 IS NULL OR rsi_14 >= 0::double precision AND rsi_14 <= 100::double precision)` |
+| `Feature04_Technical_Indicator_sma_20_check` | Check | `CHECK (sma_20 IS NULL OR sma_20 > '-Infinity'::double precision AND sma_20 < 'Infinity'::double precision)` |
+| `Feature04_Technical_Indicator_sma_50_check` | Check | `CHECK (sma_50 IS NULL OR sma_50 > '-Infinity'::double precision AND sma_50 < 'Infinity'::double precision)` |
+| `Feature04_Technical_Indicator_ticker_check` | Check | `CHECK (ticker = upper(btrim(ticker)) AND ticker <> ''::text)` |
+| `Feature04_Technical_Indicator_timeframe_check` | Check | `CHECK (timeframe = 'Daily'::text)` |
+| `Feature04_Technical_Indicator_pkey` | Primary key | `PRIMARY KEY (ticker, trade_date, timeframe)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature04_Technical_Indicator_pkey` | `CREATE UNIQUE INDEX "Feature04_Technical_Indicator_pkey" ON public."Feature04_Technical_Indicator" USING btree (ticker, trade_date, timeframe)` |
 
 ## Feature_01_Stock_Daily
 
@@ -1852,14 +1929,14 @@ Broker code and name, domestic/foreign type, and usage profile such as Instituti
 
 ## IDX_Broker_Profile_History
 
-Point-in-time history of IDX_Broker_Profile (name, broker_type, broker_classification), captured from the first capture onward: one row per broker version and knowledge version (bitemporal); superseded knowledge is kept.
+Point-in-time (bitemporal) history of the tracked IDX_Broker_Profile attributes (broker_name, broker_type, broker_classification), captured by Saniti from the first capture onward. Current knowledge is recorded_to IS NULL; superseded knowledge is kept.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `history_id` | `bigint` | No | `GENERATED ALWAYS AS IDENTITY` | Row id of one version (identity only). |
-| `broker_code` | `text` | No | — | Entity key, as in IDX_Broker_Profile. |
+| `history_id` | `bigint` | No | — | Row id of one version (identity only). |
+| `broker_code` | `text` | No | — | Two-character IDX broker code: the entity key (several rows per broker, one per version; history_id identifies a row). |
 | `broker_name` | `text` | Yes | — | IDX_Broker_Profile.broker_name of this version. |
 | `broker_type` | `text` | Yes | — | IDX_Broker_Profile.broker_type of this version. |
 | `broker_classification` | `text` | Yes | — | IDX_Broker_Profile.broker_classification of this version. |
@@ -1871,8 +1948,8 @@ Point-in-time history of IDX_Broker_Profile (name, broker_type, broker_classific
 | `recorded_from` | `timestamp with time zone` | No | — | When Saniti recorded this row (start of the knowledge period). |
 | `recorded_to` | `timestamp with time zone` | Yes | — | When Saniti superseded this row (end of the knowledge period, exclusive); NULL = current knowledge. Superseded rows are kept. |
 | `superseded_reason` | `text` | Yes | — | Why the row was superseded: CHANGE_CAPTURED, SAME_DAY_REVISION or CORRECTION; NULL for current knowledge. |
-| `pit_valid_from` | `date` | Yes | `GENERATED ALWAYS AS (GREATEST(valid_from, ((timezone('Asia/Jakarta'::text, recorded_from))::date + 1))) STORED` | First observation date this row applies to point in time: the later of valid_from and the Asia/Jakarta date after recorded_from (a value recorded on a date is used from the next date). EFFECTIVE_DATED joins use pit_valid_from <= date < pit_valid_to. |
-| `pit_valid_to` | `date` | Yes | `GENERATED ALWAYS AS (LEAST(valid_to, ((timezone('Asia/Jakarta'::text, recorded_to))::date + 1))) STORED` | Observation date from which this row no longer applies point in time (exclusive): the earlier of valid_to and the Asia/Jakarta date after recorded_to; NULL = open. A row with pit_valid_to <= pit_valid_from applies to no date. |
+| `pit_valid_from` | `date` | Yes | — | First observation date this row applies to point in time: the later of valid_from and the Asia/Jakarta date after recorded_from (a value recorded on a date is used from the next date). EFFECTIVE_DATED joins use pit_valid_from <= date < pit_valid_to. |
+| `pit_valid_to` | `date` | Yes | — | Observation date from which this row no longer applies point in time (exclusive): the earlier of valid_to and the Asia/Jakarta date after recorded_to; NULL = open. A row with pit_valid_to <= pit_valid_from applies to no date. |
 | `capture_id` | `bigint` | No | — | The Reference_History_Capture_Log row of the capture or correction that wrote this row. |
 | `source_provenance` | `jsonb` | No | — | How the row was written: source table, operation and capture id, the version it closes or replaces, or a correction's reason, source and superseded ids. |
 
@@ -1880,15 +1957,14 @@ Point-in-time history of IDX_Broker_Profile (name, broker_type, broker_classific
 
 | Name | Type | Definition |
 |---|---|---|
-| `IDX_Broker_Profile_History_available_basis_check` | Check | `CHECK ((available_basis = ANY (ARRAY['RECORDED'::text, 'DOCUMENTED_PUBLICATION'::text])))` |
-| `IDX_Broker_Profile_History_available_check` | Check | `CHECK ((available_at <= recorded_from))` |
-| `IDX_Broker_Profile_History_key_check` | Check | `CHECK ((btrim(broker_code) <> ''::text))` |
-| `IDX_Broker_Profile_History_provenance_check` | Check | `CHECK ((jsonb_typeof(source_provenance) = 'object'::text))` |
-| `IDX_Broker_Profile_History_recorded_check` | Check | `CHECK (((recorded_to IS NULL) OR (recorded_to >= recorded_from)))` |
-| `IDX_Broker_Profile_History_superseded_check` | Check | `CHECK ((((recorded_to IS NULL) AND (superseded_reason IS NULL)) OR ((recorded_to IS NOT NULL) AND (superseded_reason = ANY (ARRAY['CHANGE_CAPTURED'::text, 'SAME_DAY_REVISION'::text, 'CORRECTION'::text])))))` |
-| `IDX_Broker_Profile_History_valid_basis_check` | Check | `CHECK ((valid_basis = ANY (ARRAY['FIRST_CAPTURE'::text, 'CHANGE_CAPTURED'::text, 'DOCUMENTED'::text])))` |
-| `IDX_Broker_Profile_History_valid_check` | Check | `CHECK (((valid_to IS NULL) OR (valid_to > valid_from)))` |
-| `IDX_Broker_Profile_History_no_overlap` | Exclusion | `EXCLUDE USING gist (broker_code WITH =, daterange(valid_from, valid_to, '[)'::text) WITH &&, tstzrange(recorded_from, recorded_to, '[)'::text) WITH &&)` |
+| `IDX_Broker_Profile_History_available_basis_check` | Check | `CHECK (available_basis = ANY (ARRAY['RECORDED'::text, 'DOCUMENTED_PUBLICATION'::text]))` |
+| `IDX_Broker_Profile_History_available_check` | Check | `CHECK (available_at <= recorded_from)` |
+| `IDX_Broker_Profile_History_key_check` | Check | `CHECK (btrim(broker_code) <> ''::text)` |
+| `IDX_Broker_Profile_History_provenance_check` | Check | `CHECK (jsonb_typeof(source_provenance) = 'object'::text)` |
+| `IDX_Broker_Profile_History_recorded_check` | Check | `CHECK (recorded_to IS NULL OR recorded_to >= recorded_from)` |
+| `IDX_Broker_Profile_History_superseded_check` | Check | `CHECK (recorded_to IS NULL AND superseded_reason IS NULL OR recorded_to IS NOT NULL AND (superseded_reason = ANY (ARRAY['CHANGE_CAPTURED'::text, 'SAME_DAY_REVISION'::text, 'CORRECTION'::text])))` |
+| `IDX_Broker_Profile_History_valid_basis_check` | Check | `CHECK (valid_basis = ANY (ARRAY['FIRST_CAPTURE'::text, 'CHANGE_CAPTURED'::text, 'DOCUMENTED'::text]))` |
+| `IDX_Broker_Profile_History_valid_check` | Check | `CHECK (valid_to IS NULL OR valid_to > valid_from)` |
 | `IDX_Broker_Profile_History_capture_fkey` | Foreign key | `FOREIGN KEY (capture_id) REFERENCES "Reference_History_Capture_Log"(capture_id)` |
 | `IDX_Broker_Profile_History_pkey` | Primary key | `PRIMARY KEY (history_id)` |
 
@@ -1967,8 +2043,8 @@ Current Indonesian listed-security universe, ticker identity, and classification
 | `Currency` | `text` | No | — | Trading currency. |
 | `Fundamental Currency` | `text` | No | — | Currency used for fundamental figures. |
 | `ISIN` | `text` | No | — | International Securities Identification Number. |
-| `Sector` | `text` | No | — | Source sector classification. |
-| `Industry` | `text` | No | — | Source industry classification. |
+| `Sector` | `text` | No | — | Source sector classification. 'Undefined' means the source gives no classification for the security (D02, migration 20261003_001; it replaced the placeholder '0'). It is not a real sector or industry: count it apart, never as a category of its own. |
+| `Industry` | `text` | No | — | Source industry classification. 'Undefined' means the source gives no classification for the security (D02, migration 20261003_001; it replaced the placeholder '0'). It is not a real sector or industry: count it apart, never as a category of its own. |
 | `price_feed_daily` | `numeric` | Yes | — | No column description has been recorded. |
 
 ### Constraints
@@ -1985,14 +2061,14 @@ Current Indonesian listed-security universe, ticker identity, and classification
 
 ## IDX_Stock_Universe_History
 
-Point-in-time history of the tracked IDX_Stock_Universe attributes, captured from the first capture onward: one row per ticker version and knowledge version (bitemporal); superseded knowledge is kept.
+Point-in-time (bitemporal) history of the tracked IDX_Stock_Universe attributes (Company Name, Exchange, Security Type, Type Specs, Is Common Stock, ISIN, Sector, Industry), captured by Saniti from the first capture onward. Current knowledge is recorded_to IS NULL; superseded knowledge is kept.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `history_id` | `bigint` | No | `GENERATED ALWAYS AS IDENTITY` | Row id of one version (identity only). |
-| `Ticker` | `text` | No | — | Entity key, as in IDX_Stock_Universe. |
+| `history_id` | `bigint` | No | — | Row id of one version (identity only). |
+| `Ticker` | `text` | No | — | IDX ticker: the entity key (several rows per ticker, one per version; history_id identifies a row). |
 | `Company Name` | `text` | Yes | — | IDX_Stock_Universe.Company Name of this version. |
 | `Exchange` | `text` | Yes | — | IDX_Stock_Universe.Exchange of this version. |
 | `Security Type` | `text` | Yes | — | IDX_Stock_Universe.Security Type of this version. |
@@ -2009,8 +2085,8 @@ Point-in-time history of the tracked IDX_Stock_Universe attributes, captured fro
 | `recorded_from` | `timestamp with time zone` | No | — | When Saniti recorded this row (start of the knowledge period). |
 | `recorded_to` | `timestamp with time zone` | Yes | — | When Saniti superseded this row (end of the knowledge period, exclusive); NULL = current knowledge. Superseded rows are kept. |
 | `superseded_reason` | `text` | Yes | — | Why the row was superseded: CHANGE_CAPTURED, SAME_DAY_REVISION or CORRECTION; NULL for current knowledge. |
-| `pit_valid_from` | `date` | Yes | `GENERATED ALWAYS AS (GREATEST(valid_from, ((timezone('Asia/Jakarta'::text, recorded_from))::date + 1))) STORED` | First observation date this row applies to point in time: the later of valid_from and the Asia/Jakarta date after recorded_from (a value recorded on a date is used from the next date). EFFECTIVE_DATED joins use pit_valid_from <= date < pit_valid_to. |
-| `pit_valid_to` | `date` | Yes | `GENERATED ALWAYS AS (LEAST(valid_to, ((timezone('Asia/Jakarta'::text, recorded_to))::date + 1))) STORED` | Observation date from which this row no longer applies point in time (exclusive): the earlier of valid_to and the Asia/Jakarta date after recorded_to; NULL = open. A row with pit_valid_to <= pit_valid_from applies to no date. |
+| `pit_valid_from` | `date` | Yes | — | First observation date this row applies to point in time: the later of valid_from and the Asia/Jakarta date after recorded_from (a value recorded on a date is used from the next date). EFFECTIVE_DATED joins use pit_valid_from <= date < pit_valid_to. |
+| `pit_valid_to` | `date` | Yes | — | Observation date from which this row no longer applies point in time (exclusive): the earlier of valid_to and the Asia/Jakarta date after recorded_to; NULL = open. A row with pit_valid_to <= pit_valid_from applies to no date. |
 | `capture_id` | `bigint` | No | — | The Reference_History_Capture_Log row of the capture or correction that wrote this row. |
 | `source_provenance` | `jsonb` | No | — | How the row was written: source table, operation and capture id, the version it closes or replaces, or a correction's reason, source and superseded ids. |
 
@@ -2018,15 +2094,14 @@ Point-in-time history of the tracked IDX_Stock_Universe attributes, captured fro
 
 | Name | Type | Definition |
 |---|---|---|
-| `IDX_Stock_Universe_History_available_basis_check` | Check | `CHECK ((available_basis = ANY (ARRAY['RECORDED'::text, 'DOCUMENTED_PUBLICATION'::text])))` |
-| `IDX_Stock_Universe_History_available_check` | Check | `CHECK ((available_at <= recorded_from))` |
-| `IDX_Stock_Universe_History_key_check` | Check | `CHECK ((btrim("Ticker") <> ''::text))` |
-| `IDX_Stock_Universe_History_provenance_check` | Check | `CHECK ((jsonb_typeof(source_provenance) = 'object'::text))` |
-| `IDX_Stock_Universe_History_recorded_check` | Check | `CHECK (((recorded_to IS NULL) OR (recorded_to >= recorded_from)))` |
-| `IDX_Stock_Universe_History_superseded_check` | Check | `CHECK ((((recorded_to IS NULL) AND (superseded_reason IS NULL)) OR ((recorded_to IS NOT NULL) AND (superseded_reason = ANY (ARRAY['CHANGE_CAPTURED'::text, 'SAME_DAY_REVISION'::text, 'CORRECTION'::text])))))` |
-| `IDX_Stock_Universe_History_valid_basis_check` | Check | `CHECK ((valid_basis = ANY (ARRAY['FIRST_CAPTURE'::text, 'CHANGE_CAPTURED'::text, 'DOCUMENTED'::text])))` |
-| `IDX_Stock_Universe_History_valid_check` | Check | `CHECK (((valid_to IS NULL) OR (valid_to > valid_from)))` |
-| `IDX_Stock_Universe_History_no_overlap` | Exclusion | `EXCLUDE USING gist ("Ticker" WITH =, daterange(valid_from, valid_to, '[)'::text) WITH &&, tstzrange(recorded_from, recorded_to, '[)'::text) WITH &&)` |
+| `IDX_Stock_Universe_History_available_basis_check` | Check | `CHECK (available_basis = ANY (ARRAY['RECORDED'::text, 'DOCUMENTED_PUBLICATION'::text]))` |
+| `IDX_Stock_Universe_History_available_check` | Check | `CHECK (available_at <= recorded_from)` |
+| `IDX_Stock_Universe_History_key_check` | Check | `CHECK (btrim("Ticker") <> ''::text)` |
+| `IDX_Stock_Universe_History_provenance_check` | Check | `CHECK (jsonb_typeof(source_provenance) = 'object'::text)` |
+| `IDX_Stock_Universe_History_recorded_check` | Check | `CHECK (recorded_to IS NULL OR recorded_to >= recorded_from)` |
+| `IDX_Stock_Universe_History_superseded_check` | Check | `CHECK (recorded_to IS NULL AND superseded_reason IS NULL OR recorded_to IS NOT NULL AND (superseded_reason = ANY (ARRAY['CHANGE_CAPTURED'::text, 'SAME_DAY_REVISION'::text, 'CORRECTION'::text])))` |
+| `IDX_Stock_Universe_History_valid_basis_check` | Check | `CHECK (valid_basis = ANY (ARRAY['FIRST_CAPTURE'::text, 'CHANGE_CAPTURED'::text, 'DOCUMENTED'::text]))` |
+| `IDX_Stock_Universe_History_valid_check` | Check | `CHECK (valid_to IS NULL OR valid_to > valid_from)` |
 | `IDX_Stock_Universe_History_capture_fkey` | Foreign key | `FOREIGN KEY (capture_id) REFERENCES "Reference_History_Capture_Log"(capture_id)` |
 | `IDX_Stock_Universe_History_pkey` | Primary key | `PRIMARY KEY (history_id)` |
 
@@ -2135,13 +2210,13 @@ Daily Indonesian stock OHLCV candles sourced from TradingView.
 
 ## Reference_History_Capture_Log
 
-One row per capture of a reference table into its history (trigger, initial, manual or correction): counts of changed and new versions, keys absent from the load, and the error of a failed capture.
+One row per capture of IDX_Stock_Universe or IDX_Broker_Profile into its history (trigger, initial, manual or correction): changed and new versions, keys absent from the load, and the error of a failed capture.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `capture_id` | `bigint` | No | `GENERATED ALWAYS AS IDENTITY` | Identity of one capture or correction. |
+| `capture_id` | `bigint` | No | — | Identity of one capture or correction. |
 | `source_table` | `text` | No | — | IDX_Stock_Universe or IDX_Broker_Profile. |
 | `trigger_operation` | `text` | No | — | INSERT, UPDATE, DELETE or TRUNCATE (trigger), INITIAL (migration), MANUAL, or CORRECTION. |
 | `captured_at` | `timestamp with time zone` | No | `now()` | Transaction time of the capture; the recorded_from of the rows it wrote. |
@@ -2157,9 +2232,9 @@ One row per capture of a reference table into its history (trigger, initial, man
 
 | Name | Type | Definition |
 |---|---|---|
-| `Reference_History_Capture_Log_operation_check` | Check | `CHECK ((trigger_operation = ANY (ARRAY['INSERT'::text, 'UPDATE'::text, 'DELETE'::text, 'TRUNCATE'::text, 'INITIAL'::text, 'MANUAL'::text, 'CORRECTION'::text])))` |
-| `Reference_History_Capture_Log_source_check` | Check | `CHECK ((source_table = ANY (ARRAY['IDX_Stock_Universe'::text, 'IDX_Broker_Profile'::text])))` |
-| `Reference_History_Capture_Log_status_check` | Check | `CHECK ((((status = ANY (ARRAY['CAPTURED'::text, 'NO_CHANGE'::text])) AND (error IS NULL)) OR ((status = 'FAILED'::text) AND (error IS NOT NULL))))` |
+| `Reference_History_Capture_Log_operation_check` | Check | `CHECK (trigger_operation = ANY (ARRAY['INSERT'::text, 'UPDATE'::text, 'DELETE'::text, 'TRUNCATE'::text, 'INITIAL'::text, 'MANUAL'::text, 'CORRECTION'::text]))` |
+| `Reference_History_Capture_Log_source_check` | Check | `CHECK (source_table = ANY (ARRAY['IDX_Stock_Universe'::text, 'IDX_Broker_Profile'::text]))` |
+| `Reference_History_Capture_Log_status_check` | Check | `CHECK ((status = ANY (ARRAY['CAPTURED'::text, 'NO_CHANGE'::text])) AND error IS NULL OR status = 'FAILED'::text AND error IS NOT NULL)` |
 | `Reference_History_Capture_Log_pkey` | Primary key | `PRIMARY KEY (capture_id)` |
 
 ### Indexes
@@ -2366,8 +2441,8 @@ Issuer descriptions and TradingView/curated sector and industry classifications.
 | `TV_Sector` | `text` | No | — | TradingView sector classification. |
 | `TV_Industry` | `text` | No | — | TradingView industry classification. |
 | `ISIN` | `text` | No | — | Unique International Securities Identification Number. |
-| `Sector` | `text` | No | — | IDX or curated sector classification. |
-| `Industry` | `text` | No | — | IDX or curated industry classification. |
+| `Sector` | `text` | No | — | IDX or curated sector classification. 'Undefined' means the source gives no classification for the security (D02, migration 20261003_001; it replaced the placeholder '0'). It is not a real sector or industry: count it apart, never as a category of its own. |
+| `Industry` | `text` | No | — | IDX or curated industry classification. 'Undefined' means the source gives no classification for the security (D02, migration 20261003_001; it replaced the placeholder '0'). It is not a real sector or industry: count it apart, never as a category of its own. |
 
 ### Constraints
 
@@ -2416,84 +2491,3 @@ Per-trading-date Stockbit broker-summary load progress, retries, and review stat
 | Name | Definition |
 |---|---|
 | `stockbit_broker_summary_load_log_pkey` | `CREATE UNIQUE INDEX stockbit_broker_summary_load_log_pkey ON public.stockbit_broker_summary_load_log USING btree (target_table, trade_date)` |
-
-## Schema `ai_audit` (market-audit-store; hand-written, not generated)
-
-Created on dev on 2026-09-30 by `database/migrations/20260928_001_create_ai_audit_store.sql` (`DATABASE_CHANGELOG.md`).
-The generator above reads schema `public` only and rewrites this file, so its next run (the daily
-`database-schema-docs` workflow) drops this section; the durable description is `apps/market-audit-store/README.md`
-(section "Schema `ai_audit`"), and the columns, constraints and indexes are in the migration file. Roles: `market_ai_audit_store` (login `market_ai_audit`,
-used only by market-audit-store; SELECT/INSERT/UPDATE, INSERT/SELECT only on the append-only tables, no DELETE or
-TRUNCATE) and `market_ai_audit_outbox_writer` (member: `market_ai_orc`; INSERT of the producer columns of
-`ingest_outbox` only). Triggers `event_append_only` and `artifact_access_append_only` (`ai_audit.reject_change()`)
-refuse UPDATE and DELETE on `event` and `artifact_access`, even for the owner. No column holds model reasoning.
-
-| Table | Definition |
-|---|---|
-| `run` | One AI research run (one market-ai-orc `request_id`): identity, conversation and turn, parent run of a rerun, status OPEN → FINALIZING → COMPLETE or INCOMPLETE (retryable), retention class and expiry, model/provider, deployment and summary. |
-| `event` | Ordered, append-only observable events of a run (`seq` from 1 per run); a payload is bounded to 16 KiB, larger content is an artifact referenced by `artifact_id`. Since 2026-09-30 market-ai-orc also sends `final.rejected`, `final.forced` and `final.unrendered` (the refused drafts; full text in the run's TOOL_TRACE artifact). |
-| `artifact` | One content-addressed object of the private bucket `market-ai-audit-artifacts` (`objects/sha256/<first two>/<sha256>`), stored once and shared by every run that references it; READY only after the store verified size and sha256. |
-| `run_artifact` | Which run references which artifact, in which role (raw input Parquet, manifests, contract, code, traces, outputs, final response), for which execution and label. |
-| `execution` | One sandbox code execution: run, session, bundle, sequence, status, exact-source hash, runtime image, library evidence, seed, timezone, input order and resample traces. |
-| `runtime_image` | One sandbox runtime inventory (Python, OS, architecture, installed distributions), keyed by the sha256 of its canonical JSON. |
-| `artifact_access` | Append-only log of every short-lived read granted on an artifact: who, why, for which run, and when the URL expires. |
-| `retention_hold` | A pin or legal hold on one run or one artifact; while `released_at` is NULL nothing it covers may be deleted. |
-| `ingest_outbox` | Durable hand-off of finished market-ai-orc runs: one RUN_FINISHED row per request (idempotent on source + idempotency key), never read or changed by the orchestrator; the store records PENDING, COMPLETE, FAILED_RETRYABLE or INCOMPLETE. |
-
-## EDGE operational schema — live verified (2026-10-08)
-
-Applied `database/migrations/20261008_002_create_edge_bff.sql` after live admin preflight.
-Target: market Postgres `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`, database `railway`, PostgreSQL 18.6.
-Admin schema readback: 2026-10-08 10:13:24 UTC. This refresh covers only `edge_bff`;
-the earlier public/audit snapshot retains its own original date. Live targeted canonical-table
-columns/constraints/grants are in `verification/edge/admin_preflight_20261008.json`.
-
-Three operational tables, 28 columns, six indexes. `edge_bff_runtime` is NOLOGIN;
-`edge_bff_login` is a restricted LOGIN member of that role only (no superuser, createdb,
-createrole, replication or bypassrls). Verified DML rights on exactly these three relations
-and denial of direct access to `public."AI_conversation"`. No canonical response/reasoning is copied.
-
-### `edge_bff.sessions`
-
-| Column | Type | Nullable | Default |
-| --- | --- | --- | --- |
-| `token_hash` | `text` | NO | — |
-| `owner_key` | `text` | NO | — |
-| `created_at` | `timestamp with time zone` | NO | `CURRENT_TIMESTAMP` |
-| `expires_at` | `timestamp with time zone` | NO | — |
-| `revoked_at` | `timestamp with time zone` | YES | — |
-
-### `edge_bff.jobs`
-
-| Column | Type | Nullable | Default |
-| --- | --- | --- | --- |
-| `request_id` | `text` | NO | — |
-| `owner_key` | `text` | NO | — |
-| `submission_key` | `text` | NO | — |
-| `fingerprint` | `text` | NO | — |
-| `input` | `jsonb` | NO | — |
-| `conversation_id` | `text` | YES | — |
-| `state` | `text` | NO | `'QUEUED'::text` |
-| `state_version` | `bigint` | NO | `1` |
-| `attempt_count` | `integer` | NO | `0` |
-| `lease_token` | `text` | YES | — |
-| `lease_expires_at` | `timestamp with time zone` | YES | — |
-| `created_at` | `timestamp with time zone` | NO | `CURRENT_TIMESTAMP` |
-| `updated_at` | `timestamp with time zone` | NO | `CURRENT_TIMESTAMP` |
-| `completed_at` | `timestamp with time zone` | YES | — |
-| `run_status` | `text` | YES | — |
-| `error_code` | `text` | YES | — |
-
-### `edge_bff.conversation_ui`
-
-| Column | Type | Nullable | Default |
-| --- | --- | --- | --- |
-| `owner_key` | `text` | NO | — |
-| `conversation_id` | `text` | NO | — |
-| `title` | `text` | NO | — |
-| `bookmarked` | `boolean` | NO | `false` |
-| `pinned_request_ids` | `ARRAY` | NO | `'{}'::text[]` |
-| `created_at` | `timestamp with time zone` | NO | `CURRENT_TIMESTAMP` |
-| `updated_at` | `timestamp with time zone` | NO | `CURRENT_TIMESTAMP` |
-
-Primary/unique indexes enforce session/request identity, owner/submission deduplication, one active job per owner, and owner/conversation UI identity; a partial created_at index supports claiming. Full defaults, 40 PostgreSQL-18 constraints, indexes, role flags, memberships and grants are in `verification/edge/schema_readback_20261008.json`. No automatic terminal input/UI purge; canonical Orc retention is unchanged.

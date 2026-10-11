@@ -1,0 +1,14 @@
+{
+  "applied_migration": "20261011_001_create_feature04_technical_indicator.sql",
+  "sha256": "9c07337e2f7c2cc55e94a7ec3ba70c34b3bbc8b9c9b4b1c9ba8c9dde5413ca7c",
+  "source_before": {
+    "rows": 1318633,
+    "fingerprint": "-2165319481806142948543"
+  },
+  "source_after": {
+    "rows": 1318633,
+    "fingerprint": "-2165319481806142948543"
+  },
+  "source_unchanged": true,
+  "checked_at": "2026-10-11T04:38:07.995842+00:00"
+}

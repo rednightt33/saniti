@@ -34,6 +34,7 @@ TABLE_STATUS_RULES = {
     "Feature_01_Stock_Daily": ("Feature", "After validated daily-price changes"),
     "Feature_02_Broker_Rolling": ("Feature", "After validated broker-summary changes; manual v2 ticker rebuild"),
     "Feature_03_Stock_Broker_Daily": ("Feature", "After Feature 02 refresh; manual Investor-Type v2 refresh"),
+    "Feature04_Technical_Indicator": ("Feature", "Manual bounded technical refresh; no scheduler"),
     "Feature_Calculation_Queue": ("System", "After committed price inserts/updates and worker transitions"),
     "Feature_Status": ("System", "After enqueue and worker state transitions"),
     "Feature_Calculation_Log": ("System", "After completed worker attempts"),
@@ -86,6 +87,7 @@ TABLE_DESCRIPTIONS = {
     "Feature_01_Stock_Daily": "Daily ticker-level price, return, volatility, volume, and price-position features.",
     "Feature_02_Broker_Rolling": "Broker flow, persistence, abnormality, and accumulation by source ticker, broker, Investor Type, board, and transaction date.",
     "Feature_03_Stock_Broker_Daily": "Stock-level daily broker breadth, classified flow, dominant-broker, and concentration features separated by market board.",
+    "Feature04_Technical_Indicator": "Daily wide technical indicators and native TA-Lib candlestick codes; no full backfill or automatic writer.",
     "Feature_Calculation_Queue": "Durable work item per changed Feature 01 source candle.",
     "Feature_Status": "Current price-driven Feature 01 calculation state per ticker.",
     "Feature_Calculation_Log": "Completed Feature 01 worker attempt and retry history.",
@@ -548,6 +550,14 @@ def derive_status_rows(
                 tracking_status = "Derived from IDX_Broker_Summary; Investor-Type Feature 02 v2 refresh is manual"
             else:
                 tracking_status = "Derived from Investor-Type Feature_02_Broker_Rolling; Feature 03 v2 refresh is manual"
+        elif name == "Feature04_Technical_Indicator":
+            latest_data_date, last_changed_at = connection.execute(
+                sql.SQL('SELECT max(trade_date), max(calculated_at) FROM {}.{}').format(
+                    sql.Identifier(schema), sql.Identifier(name)
+                )
+            ).fetchone()
+            tracking_status = "Derived from existing rows; manual refresh only"
+            last_operation = "CALCULATION" if last_changed_at is not None else None
         elif name == "Feature_Calculation_Queue":
             latest_data_date, changed = connection.execute(
                 sql.SQL("SELECT max(price_date), max(updated_at) FROM {}.{}").format(

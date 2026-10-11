@@ -626,3 +626,10 @@ frontend changes on `codex/edge-bff`; runner/Orc, live database schema, model an
 - **Jump to latest overlapped the mobile composer (FIXED):** its fixed bottom offset assumed a short desktop
   composer; wrapping controls on a phone put the floating button over the composer. Measure the actual composer
   with ResizeObserver and position Jump to latest above it. Responsive browser tests verify non-overlapping bounds.
+
+### Feature04 implementation validation — 2026-10-11
+
+- **Catalog naming incompatibility (FIXED):** rolled-back DDL rehearsal rejected the exact requested name `Feature04_Technical_Indicator`: `validate_feature_catalog_target()` allowed only `^Feature_[0-9]{2}_[A-Za-z0-9_]+$`. Migration `20261011_001` adds an exact-name exception, retains physical-column and VERIFIED-table checks, and registers the routine; successful rehearsal and live semantic audit verify it. Never silently rename a user-selected physical table to fit an internal regex.
+- **Fixed Feature audit size (FIXED):** `scripts/audit_feature_catalog_semantics.py` required exactly 91 verified definitions across 3 Feature tables. The new table legitimately adds 42. Audit now checks actual active/verified equality, nonblank semantics, definition-to-schema mapping and every registered Feature column's active definition.
+- **Sandbox Python dependency compatibility (RESOLVED):** remote Python 3.14 had no NumPy 2.2.6 binary wheel. Both local and remote Feature04 environments now pin NumPy 2.3.5 and TA-Lib 0.6.8/C 0.6.4; 15 local tests and live remote calculation pass. Dependencies are isolated from deployed services.
+- **Recursive indicator short warmup (MITIGATED):** BBCA full-history versus last 50 bars differs materially (last MACD signal about 3.821 IDR, ATR about 1.768 IDR). The prepared pipeline reads full available history per requested ticker; 12 source tickers have under 250 bars and no matching longer chart history is available. Numerical TradingView parity is NOT VERIFIED, not inferred from formula agreement. Evidence: `verification/feature04/calculation_validation.json`.

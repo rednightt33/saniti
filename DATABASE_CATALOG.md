@@ -83,6 +83,7 @@ column/constraint/index reference for every row below.
 | `Feature_01_Stock_Daily` | Daily price-derived stock features | `FEATURE_01_AUTOMATION_PLAN.md` |
 | `Feature_02_Broker_Rolling` | Canonical broker rolling features by stock/broker/Investor Type/board/date | `FEATURE_02_BROKER_ROLLING_V2.md` |
 | `Feature_03_Stock_Broker_Daily` | Stock/day/board broker breadth and flow features | `FEATURE_03_STOCK_BROKER_DAILY.md` |
+| `Feature04_Technical_Indicator` | Daily wide technical indicators and independent TA-Lib candlestick codes | `FEATURE04_TECHNICAL_INDICATOR.md` |
 | `Feature_Calculation_Log` | Completed Feature 01 worker attempts and retries | `apps/feature-01-worker/README.md` |
 | `Feature_Calculation_Queue` | Durable changed-price work items for Feature 01 | `apps/feature-01-worker/README.md` |
 | `Feature_Catalog` | Versioned formula and analytical-usage authority for Feature columns | This document |
@@ -103,7 +104,7 @@ column/constraint/index reference for every row below.
 | `Universe_Equity_Description` | Issuer descriptions and sector/industry classifications | This document and `DATABASE_SCHEMA.md` |
 | `stockbit_broker_summary_load_log` | Per-date Stockbit load progress/retry history | `apps/stockbit-broker-backfill/README.md` |
 
-Do not invent active Feature Catalog entries for Feature 04 before that table exists and is validated.
+`Feature04_Technical_Indicator` was created and calculation-validated on 2026-10-11: 42 physical columns and active v1 definitions, one safe exact-date Feature01 relationship, no backfill or AI allowlist/permission change. TradingView numerical parity and point-in-time training eligibility remain NOT VERIFIED. See `FEATURE04_TECHNICAL_INDICATOR.md` and `verification/feature04/REPORT.md`. The catalog-only validator keeps its existing checks with one exact-name exception for this user-selected spelling.
 
 ## Field contract
 

@@ -1,0 +1,267 @@
+{
+  "library": {
+    "python": "0.6.8",
+    "c": "0.6.4 (Oct 20 2025 20:23:51)",
+    "numpy": "2.3.5",
+    "compatibility": 0,
+    "unstable_period": 0,
+    "patterns": {
+      "CDLPIERCING": {
+        "lookback": 11,
+        "parameters": {}
+      },
+      "CDLMORNINGSTAR": {
+        "lookback": 12,
+        "parameters": {
+          "penetration": 0.3
+        }
+      },
+      "CDLMORNINGDOJISTAR": {
+        "lookback": 12,
+        "parameters": {
+          "penetration": 0.3
+        }
+      },
+      "CDLENGULFING": {
+        "lookback": 2,
+        "parameters": {}
+      },
+      "CDL3WHITESOLDIERS": {
+        "lookback": 12,
+        "parameters": {}
+      },
+      "CDLHAMMER": {
+        "lookback": 11,
+        "parameters": {}
+      },
+      "CDLINVERTEDHAMMER": {
+        "lookback": 11,
+        "parameters": {}
+      },
+      "CDL3INSIDE": {
+        "lookback": 12,
+        "parameters": {}
+      },
+      "CDL3OUTSIDE": {
+        "lookback": 3,
+        "parameters": {}
+      },
+      "CDLHARAMI": {
+        "lookback": 11,
+        "parameters": {}
+      },
+      "CDLHARAMICROSS": {
+        "lookback": 11,
+        "parameters": {}
+      },
+      "CDLDARKCLOUDCOVER": {
+        "lookback": 11,
+        "parameters": {
+          "penetration": 0.5
+        }
+      },
+      "CDLEVENINGSTAR": {
+        "lookback": 12,
+        "parameters": {
+          "penetration": 0.3
+        }
+      },
+      "CDLEVENINGDOJISTAR": {
+        "lookback": 12,
+        "parameters": {
+          "penetration": 0.3
+        }
+      },
+      "CDL3BLACKCROWS": {
+        "lookback": 13,
+        "parameters": {}
+      },
+      "CDLSHOOTINGSTAR": {
+        "lookback": 11,
+        "parameters": {}
+      },
+      "CDLHANGINGMAN": {
+        "lookback": 11,
+        "parameters": {}
+      },
+      "CDLDOJI": {
+        "lookback": 10,
+        "parameters": {}
+      },
+      "CDLDRAGONFLYDOJI": {
+        "lookback": 10,
+        "parameters": {}
+      },
+      "CDLGRAVESTONEDOJI": {
+        "lookback": 10,
+        "parameters": {}
+      },
+      "CDLMARUBOZU": {
+        "lookback": 10,
+        "parameters": {}
+      },
+      "CDLKICKING": {
+        "lookback": 11,
+        "parameters": {}
+      },
+      "CDLRISEFALL3METHODS": {
+        "lookback": 14,
+        "parameters": {}
+      },
+      "CDLMATHOLD": {
+        "lookback": 14,
+        "parameters": {
+          "penetration": 0.5
+        }
+      },
+      "CDLHIKKAKE": {
+        "lookback": 5,
+        "parameters": {}
+      }
+    }
+  },
+  "computed_rows_local": 3185,
+  "first_valid_and_warmup": {
+    "BBCA": {
+      "sma_20": 20,
+      "sma_50": 50,
+      "ema_12": 12,
+      "ema_26": 26,
+      "rsi_14": 15,
+      "macd": 26,
+      "macd_signal": 34,
+      "macd_histogram": 34,
+      "atr_14": 15,
+      "bb_upper_20": 20,
+      "bb_middle_20": 20,
+      "bb_lower_20": 20,
+      "cdl_piercing": 12,
+      "cdl_morning_star": 13,
+      "cdl_morning_doji_star": 13,
+      "cdl_engulfing": 3,
+      "cdl_3_white_soldiers": 13,
+      "cdl_hammer": 12,
+      "cdl_inverted_hammer": 12,
+      "cdl_3_inside": 13,
+      "cdl_3_outside": 4,
+      "cdl_harami": 12,
+      "cdl_harami_cross": 12,
+      "cdl_dark_cloud_cover": 12,
+      "cdl_evening_star": 13,
+      "cdl_evening_doji_star": 13,
+      "cdl_3_black_crows": 14,
+      "cdl_shooting_star": 12,
+      "cdl_hanging_man": 12,
+      "cdl_doji": 11,
+      "cdl_dragonfly_doji": 11,
+      "cdl_gravestone_doji": 11,
+      "cdl_marubozu": 11,
+      "cdl_kicking": 12,
+      "cdl_rise_fall_3_methods": 15,
+      "cdl_mat_hold": 15,
+      "cdl_hikkake": 6,
+      "warmup_last_bar_absolute_difference": {
+        "50": {
+          "ema_12": 0.00883095423978375,
+          "ema_26": 2.3071640920352365,
+          "rsi_14": 0.20761966533481768,
+          "macd": 2.3159950462750203,
+          "macd_signal": 3.821068315209274,
+          "atr_14": 1.767873163020937
+        },
+        "250": {
+          "ema_12": 0.0,
+          "ema_26": 5.039670213591307e-06,
+          "rsi_14": 2.1656599358266249e-07,
+          "macd": 5.039670213591307e-06,
+          "macd_signal": 7.411280506630646e-06,
+          "atr_14": 3.2991707143992244e-07
+        },
+        "500": {
+          "ema_12": 0.0,
+          "ema_26": 0.0,
+          "rsi_14": 0.0,
+          "macd": 0.0,
+          "macd_signal": 0.0,
+          "atr_14": 0.0
+        }
+      }
+    },
+    "GOTO": {
+      "sma_20": 20,
+      "sma_50": 50,
+      "ema_12": 12,
+      "ema_26": 26,
+      "rsi_14": 15,
+      "macd": 26,
+      "macd_signal": 34,
+      "macd_histogram": 34,
+      "atr_14": 15,
+      "bb_upper_20": 20,
+      "bb_middle_20": 20,
+      "bb_lower_20": 20,
+      "cdl_piercing": 12,
+      "cdl_morning_star": 13,
+      "cdl_morning_doji_star": 13,
+      "cdl_engulfing": 3,
+      "cdl_3_white_soldiers": 13,
+      "cdl_hammer": 12,
+      "cdl_inverted_hammer": 12,
+      "cdl_3_inside": 13,
+      "cdl_3_outside": 4,
+      "cdl_harami": 12,
+      "cdl_harami_cross": 12,
+      "cdl_dark_cloud_cover": 12,
+      "cdl_evening_star": 13,
+      "cdl_evening_doji_star": 13,
+      "cdl_3_black_crows": 14,
+      "cdl_shooting_star": 12,
+      "cdl_hanging_man": 12,
+      "cdl_doji": 11,
+      "cdl_dragonfly_doji": 11,
+      "cdl_gravestone_doji": 11,
+      "cdl_marubozu": 11,
+      "cdl_kicking": 12,
+      "cdl_rise_fall_3_methods": 15,
+      "cdl_mat_hold": 15,
+      "cdl_hikkake": 6,
+      "warmup_last_bar_absolute_difference": {
+        "50": {
+          "ema_12": 8.958208042031401e-08,
+          "ema_26": 0.0011815439424012197,
+          "rsi_14": 0.009194917822732407,
+          "macd": 0.0011814543603207994,
+          "macd_signal": 0.0017372367265604538,
+          "atr_14": 0.0013783750071865164
+        },
+        "250": {
+          "ema_12": 0.0,
+          "ema_26": 1.2370833246677648e-08,
+          "rsi_14": 3.6714187245934227e-07,
+          "macd": 1.2370833246677648e-08,
+          "macd_signal": 1.8192404027672637e-08,
+          "atr_14": 3.479878607492992e-09
+        },
+        "500": {
+          "ema_12": 0.0,
+          "ema_26": 0.0,
+          "rsi_14": 3.552713678800501e-15,
+          "macd": 0.0,
+          "macd_signal": 0.0,
+          "atr_14": 0.0
+        }
+      }
+    }
+  },
+  "tradingview_numerical_parity": "NOT VERIFIED",
+  "training_point_in_time_eligibility": "NOT VERIFIED",
+  "unit_tests": {
+    "passed": 15,
+    "failed": 0
+  },
+  "migration_frozen_tests": {
+    "passed": 2,
+    "failed": 0
+  },
+  "source_mapping_regular_session_split_adjustment": "Verified in current ingestion code; historical adjustment vintages NOT VERIFIED"
+}

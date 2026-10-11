@@ -1,0 +1,10 @@
+{
+  "sandbox_id": "ed319b66-1954-4ca5-b661-4ab8d85b9bbb",
+  "sandbox_status": "DESTROYED",
+  "new_railway_services": 0,
+  "new_postgres_instances": 0,
+  "backfilled": false,
+  "model_training_executed": false,
+  "automated_update_deployed": false,
+  "source_modified": false
+}

@@ -56,6 +56,8 @@ warnings, evidence IDs, and query hashes during context compaction. The cumulati
 input ceiling is 150,000 tokens; the 64,000-token per-call context ceiling remains
 separate and unchanged.
 
+Feature04 technical indicators were created on 2026-10-11 as `Feature04_Technical_Indicator` (42 wide columns). The bounded Python engine is tested; the live table remains empty, with no historical backfill, schedule, deployment or AI onboarding. See [FEATURE04_TECHNICAL_INDICATOR.md](FEATURE04_TECHNICAL_INDICATOR.md) and [execution evidence](verification/feature04/REPORT.md).
+
 ## Mandatory update contract
 
 Every successful change to Railway or its PostgreSQL database must be recorded and pushed to this repository in the same task. A change is not complete until its Git commit is visible on `origin/main`.

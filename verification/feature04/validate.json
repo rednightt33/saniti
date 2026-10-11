@@ -1,0 +1,701 @@
+{
+  "library": {
+    "python": "0.6.8",
+    "c": "0.6.4 (Oct 20 2025 20:23:51)",
+    "numpy": "2.3.5",
+    "compatibility": 0,
+    "unstable_period": 0,
+    "patterns": {
+      "CDLPIERCING": {
+        "lookback": 11,
+        "parameters": {}
+      },
+      "CDLMORNINGSTAR": {
+        "lookback": 12,
+        "parameters": {
+          "penetration": 0.3
+        }
+      },
+      "CDLMORNINGDOJISTAR": {
+        "lookback": 12,
+        "parameters": {
+          "penetration": 0.3
+        }
+      },
+      "CDLENGULFING": {
+        "lookback": 2,
+        "parameters": {}
+      },
+      "CDL3WHITESOLDIERS": {
+        "lookback": 12,
+        "parameters": {}
+      },
+      "CDLHAMMER": {
+        "lookback": 11,
+        "parameters": {}
+      },
+      "CDLINVERTEDHAMMER": {
+        "lookback": 11,
+        "parameters": {}
+      },
+      "CDL3INSIDE": {
+        "lookback": 12,
+        "parameters": {}
+      },
+      "CDL3OUTSIDE": {
+        "lookback": 3,
+        "parameters": {}
+      },
+      "CDLHARAMI": {
+        "lookback": 11,
+        "parameters": {}
+      },
+      "CDLHARAMICROSS": {
+        "lookback": 11,
+        "parameters": {}
+      },
+      "CDLDARKCLOUDCOVER": {
+        "lookback": 11,
+        "parameters": {
+          "penetration": 0.5
+        }
+      },
+      "CDLEVENINGSTAR": {
+        "lookback": 12,
+        "parameters": {
+          "penetration": 0.3
+        }
+      },
+      "CDLEVENINGDOJISTAR": {
+        "lookback": 12,
+        "parameters": {
+          "penetration": 0.3
+        }
+      },
+      "CDL3BLACKCROWS": {
+        "lookback": 13,
+        "parameters": {}
+      },
+      "CDLSHOOTINGSTAR": {
+        "lookback": 11,
+        "parameters": {}
+      },
+      "CDLHANGINGMAN": {
+        "lookback": 11,
+        "parameters": {}
+      },
+      "CDLDOJI": {
+        "lookback": 10,
+        "parameters": {}
+      },
+      "CDLDRAGONFLYDOJI": {
+        "lookback": 10,
+        "parameters": {}
+      },
+      "CDLGRAVESTONEDOJI": {
+        "lookback": 10,
+        "parameters": {}
+      },
+      "CDLMARUBOZU": {
+        "lookback": 10,
+        "parameters": {}
+      },
+      "CDLKICKING": {
+        "lookback": 11,
+        "parameters": {}
+      },
+      "CDLRISEFALL3METHODS": {
+        "lookback": 14,
+        "parameters": {}
+      },
+      "CDLMATHOLD": {
+        "lookback": 14,
+        "parameters": {
+          "penetration": 0.5
+        }
+      },
+      "CDLHIKKAKE": {
+        "lookback": 5,
+        "parameters": {}
+      }
+    }
+  },
+  "source_rows_calculated": 3185,
+  "upsert_first_insert": 6,
+  "upsert_unchanged": 0,
+  "upsert_changed_values": "PASS",
+  "stored_values_match": "PASS",
+  "duplicate_keys": 0,
+  "validation_rolled_back": true,
+  "persistent_rows": 0,
+  "top_3_actual_records": [],
+  "columns": [
+    {
+      "column_name": "ticker",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "column_name": "trade_date",
+      "data_type": "date",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "column_name": "timeframe",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "column_name": "sma_20",
+      "data_type": "double precision",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "sma_50",
+      "data_type": "double precision",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "ema_12",
+      "data_type": "double precision",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "ema_26",
+      "data_type": "double precision",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "rsi_14",
+      "data_type": "double precision",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "macd",
+      "data_type": "double precision",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "macd_signal",
+      "data_type": "double precision",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "macd_histogram",
+      "data_type": "double precision",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "atr_14",
+      "data_type": "double precision",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "bb_upper_20",
+      "data_type": "double precision",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "bb_middle_20",
+      "data_type": "double precision",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "bb_lower_20",
+      "data_type": "double precision",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_piercing",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_morning_star",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_morning_doji_star",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_engulfing",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_3_white_soldiers",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_hammer",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_inverted_hammer",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_3_inside",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_3_outside",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_harami",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_harami_cross",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_dark_cloud_cover",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_evening_star",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_evening_doji_star",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_3_black_crows",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_shooting_star",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_hanging_man",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_doji",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_dragonfly_doji",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_gravestone_doji",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_marubozu",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_kicking",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_rise_fall_3_methods",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_mat_hold",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "cdl_hikkake",
+      "data_type": "integer",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "column_name": "calculation_version",
+      "data_type": "text",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "column_name": "calculated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO",
+      "column_default": null
+    }
+  ],
+  "constraints": [
+    {
+      "conname": "Feature04_Technical_Indicator_atr_14_check",
+      "contype": "c",
+      "definition": "CHECK (((atr_14 IS NULL) OR ((atr_14 > '-Infinity'::double precision) AND (atr_14 < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_atr_14_check1",
+      "contype": "c",
+      "definition": "CHECK (((atr_14 IS NULL) OR (atr_14 >= (0)::double precision)))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_bb_lower_20_check",
+      "contype": "c",
+      "definition": "CHECK (((bb_lower_20 IS NULL) OR ((bb_lower_20 > '-Infinity'::double precision) AND (bb_lower_20 < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_bb_middle_20_check",
+      "contype": "c",
+      "definition": "CHECK (((bb_middle_20 IS NULL) OR ((bb_middle_20 > '-Infinity'::double precision) AND (bb_middle_20 < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_bb_upper_20_check",
+      "contype": "c",
+      "definition": "CHECK (((bb_upper_20 IS NULL) OR ((bb_upper_20 > '-Infinity'::double precision) AND (bb_upper_20 < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_calculated_at_not_null",
+      "contype": "n",
+      "definition": "NOT NULL calculated_at"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_calculation_version_check",
+      "contype": "c",
+      "definition": "CHECK ((btrim(calculation_version) <> ''::text))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_calculation_version_not_null",
+      "contype": "n",
+      "definition": "NOT NULL calculation_version"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_ema_12_check",
+      "contype": "c",
+      "definition": "CHECK (((ema_12 IS NULL) OR ((ema_12 > '-Infinity'::double precision) AND (ema_12 < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_ema_26_check",
+      "contype": "c",
+      "definition": "CHECK (((ema_26 IS NULL) OR ((ema_26 > '-Infinity'::double precision) AND (ema_26 < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_macd_check",
+      "contype": "c",
+      "definition": "CHECK (((macd IS NULL) OR ((macd > '-Infinity'::double precision) AND (macd < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_macd_histogram_check",
+      "contype": "c",
+      "definition": "CHECK (((macd_histogram IS NULL) OR ((macd_histogram > '-Infinity'::double precision) AND (macd_histogram < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_macd_signal_check",
+      "contype": "c",
+      "definition": "CHECK (((macd_signal IS NULL) OR ((macd_signal > '-Infinity'::double precision) AND (macd_signal < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_pkey",
+      "contype": "p",
+      "definition": "PRIMARY KEY (ticker, trade_date, timeframe)"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_rsi_14_check",
+      "contype": "c",
+      "definition": "CHECK (((rsi_14 IS NULL) OR ((rsi_14 > '-Infinity'::double precision) AND (rsi_14 < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_rsi_14_check1",
+      "contype": "c",
+      "definition": "CHECK (((rsi_14 IS NULL) OR ((rsi_14 >= (0)::double precision) AND (rsi_14 <= (100)::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_sma_20_check",
+      "contype": "c",
+      "definition": "CHECK (((sma_20 IS NULL) OR ((sma_20 > '-Infinity'::double precision) AND (sma_20 < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_sma_50_check",
+      "contype": "c",
+      "definition": "CHECK (((sma_50 IS NULL) OR ((sma_50 > '-Infinity'::double precision) AND (sma_50 < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_ticker_check",
+      "contype": "c",
+      "definition": "CHECK (((ticker = upper(btrim(ticker))) AND (ticker <> ''::text)))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_ticker_not_null",
+      "contype": "n",
+      "definition": "NOT NULL ticker"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_timeframe_check",
+      "contype": "c",
+      "definition": "CHECK ((timeframe = 'Daily'::text))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_timeframe_not_null",
+      "contype": "n",
+      "definition": "NOT NULL timeframe"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_trade_date_not_null",
+      "contype": "n",
+      "definition": "NOT NULL trade_date"
+    }
+  ],
+  "indexes": [
+    {
+      "indexname": "Feature04_Technical_Indicator_pkey",
+      "indexdef": "CREATE UNIQUE INDEX \"Feature04_Technical_Indicator_pkey\" ON public.\"Feature04_Technical_Indicator\" USING btree (ticker, trade_date, timeframe)"
+    }
+  ],
+  "query_plan": {
+    "QUERY PLAN": [
+      {
+        "Plan": {
+          "Node Type": "Index Scan",
+          "Parallel Aware": false,
+          "Async Capable": false,
+          "Scan Direction": "Forward",
+          "Index Name": "Feature04_Technical_Indicator_pkey",
+          "Relation Name": "Feature04_Technical_Indicator",
+          "Alias": "Feature04_Technical_Indicator",
+          "Startup Cost": 0.14,
+          "Total Cost": 8.17,
+          "Plan Rows": 1,
+          "Plan Width": 304,
+          "Actual Startup Time": 0.016,
+          "Actual Total Time": 0.017,
+          "Actual Rows": 3.0,
+          "Actual Loops": 1,
+          "Disabled": false,
+          "Index Cond": "((ticker = 'BBCA'::text) AND (trade_date >= '2026-10-01'::date) AND (trade_date <= '2026-10-09'::date) AND (timeframe = 'Daily'::text))",
+          "Rows Removed by Index Recheck": 0,
+          "Index Searches": 1,
+          "Shared Hit Blocks": 5,
+          "Shared Read Blocks": 0,
+          "Shared Dirtied Blocks": 0,
+          "Shared Written Blocks": 0,
+          "Local Hit Blocks": 0,
+          "Local Read Blocks": 0,
+          "Local Dirtied Blocks": 0,
+          "Local Written Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0
+        },
+        "Planning": {
+          "Shared Hit Blocks": 6,
+          "Shared Read Blocks": 0,
+          "Shared Dirtied Blocks": 0,
+          "Shared Written Blocks": 0,
+          "Local Hit Blocks": 0,
+          "Local Read Blocks": 0,
+          "Local Dirtied Blocks": 0,
+          "Local Written Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0
+        },
+        "Planning Time": 0.058,
+        "Triggers": [],
+        "Execution Time": 0.026
+      }
+    ]
+  },
+  "source_sample_sha256": "926e172bc7a6c2280684424036156bec830c29fc0a28905e3c16368a842fff96",
+  "tradingview_numerical_parity": "NOT VERIFIED",
+  "training_point_in_time_eligibility": "NOT VERIFIED",
+  "pipeline_dry_run": {
+    "calculation_version": "feature04-v1-talib0.6.8-c0.6.4",
+    "library": {
+      "python": "0.6.8",
+      "c": "0.6.4 (Oct 20 2025 20:23:51)",
+      "numpy": "2.3.5",
+      "compatibility": 0,
+      "unstable_period": 0,
+      "patterns": {
+        "CDLPIERCING": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLMORNINGSTAR": {
+          "lookback": 12,
+          "parameters": {
+            "penetration": 0.3
+          }
+        },
+        "CDLMORNINGDOJISTAR": {
+          "lookback": 12,
+          "parameters": {
+            "penetration": 0.3
+          }
+        },
+        "CDLENGULFING": {
+          "lookback": 2,
+          "parameters": {}
+        },
+        "CDL3WHITESOLDIERS": {
+          "lookback": 12,
+          "parameters": {}
+        },
+        "CDLHAMMER": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLINVERTEDHAMMER": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDL3INSIDE": {
+          "lookback": 12,
+          "parameters": {}
+        },
+        "CDL3OUTSIDE": {
+          "lookback": 3,
+          "parameters": {}
+        },
+        "CDLHARAMI": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLHARAMICROSS": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLDARKCLOUDCOVER": {
+          "lookback": 11,
+          "parameters": {
+            "penetration": 0.5
+          }
+        },
+        "CDLEVENINGSTAR": {
+          "lookback": 12,
+          "parameters": {
+            "penetration": 0.3
+          }
+        },
+        "CDLEVENINGDOJISTAR": {
+          "lookback": 12,
+          "parameters": {
+            "penetration": 0.3
+          }
+        },
+        "CDL3BLACKCROWS": {
+          "lookback": 13,
+          "parameters": {}
+        },
+        "CDLSHOOTINGSTAR": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLHANGINGMAN": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLDOJI": {
+          "lookback": 10,
+          "parameters": {}
+        },
+        "CDLDRAGONFLYDOJI": {
+          "lookback": 10,
+          "parameters": {}
+        },
+        "CDLGRAVESTONEDOJI": {
+          "lookback": 10,
+          "parameters": {}
+        },
+        "CDLMARUBOZU": {
+          "lookback": 10,
+          "parameters": {}
+        },
+        "CDLKICKING": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLRISEFALL3METHODS": {
+          "lookback": 14,
+          "parameters": {}
+        },
+        "CDLMATHOLD": {
+          "lookback": 14,
+          "parameters": {
+            "penetration": 0.5
+          }
+        },
+        "CDLHIKKAKE": {
+          "lookback": 5,
+          "parameters": {}
+        }
+      }
+    },
+    "source_rows_read": 3185,
+    "source_sha256": "440a1636ea14887ffb77fda35b5eae89d822f2b92f1b0543de345c25160f9974",
+    "tickers": [
+      "BBCA",
+      "GOTO"
+    ],
+    "start": "2026-10-01",
+    "end": "2026-10-09",
+    "output_rows": 14,
+    "changed_rows": 0,
+    "mode": "DRY_RUN",
+    "tradingview_parity": "NOT VERIFIED",
+    "training_point_in_time_eligibility": "NOT VERIFIED"
+  }
+}

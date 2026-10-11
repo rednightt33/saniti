@@ -32,6 +32,17 @@ def main() -> None:
                 AND c.column_name=f.feature_column
                WHERE f.is_active GROUP BY f.feature_table ORDER BY f.feature_table'''
         ).fetchall()
+        missing_definitions = connection.execute(
+            """SELECT c.table_name, c.column_name
+               FROM information_schema.columns c
+               JOIN public."Table_Catalog" t
+                 ON t.table_schema=c.table_schema AND t.table_name=c.table_name
+               WHERE t.category='Feature' AND NOT EXISTS (
+                 SELECT 1 FROM public."Feature_Catalog" f
+                 WHERE f.feature_table=c.table_name AND f.feature_column=c.column_name
+                   AND f.is_active)
+               ORDER BY c.table_name,c.ordinal_position"""
+        ).fetchall()
         ambiguity = connection.execute(
             '''SELECT feature_table,feature_column FROM public."Feature_Catalog"
                WHERE is_active AND (
@@ -55,10 +66,12 @@ def main() -> None:
                )'''
         ).fetchall()
 
-    if summary != {"active": 91, "verified": 91, "incomplete": 0, "feature_tables": 3}:
+    if summary["active"] == 0 or summary["active"] != summary["verified"] or summary["incomplete"] != 0:
         raise RuntimeError(f"Feature semantic summary mismatch: {summary}")
     if any(row["definitions"] != row["physical_columns"] for row in coverage):
         raise RuntimeError(f"Feature semantic coverage mismatch: {coverage}")
+    if missing_definitions:
+        raise RuntimeError(f"Feature columns without active definitions: {missing_definitions}")
     if ambiguity:
         raise RuntimeError(f"Known clarity regressions returned: {ambiguity}")
     if usage_regressions:

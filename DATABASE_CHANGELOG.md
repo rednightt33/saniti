@@ -1,5 +1,17 @@
 # Database changelog
 
+## 2026-10-11 — Feature04 technical indicator table and bounded Python engine
+
+- User supplied direct execution instruction: "Create a technically correct, auditable, and XGBoost-ready feature table derived from existing Indonesian equity OHLCV data." Target exact name `Feature04_Technical_Indicator`; no source modifications, full backfill, model training, new service/database, permission change or scheduling.
+- Read-only live source verification found 1,318,633 daily TradingView/IDX bars for 844 tickers, 2018-01-02..2026-10-09, reliable `(ticker,date)` grain, one Daily timeframe and one IDX symbol per ticker; no duplicates/missing/invalid/nonfinite OHLCV or weekends. Source revision timestamps are incomplete and historical adjustment vintages are unavailable.
+- Applied forward migration `20261011_001_create_feature04_technical_indicator.sql` after a successful rolled-back rehearsal. Created exactly 42 horizontal columns and PK `(ticker,trade_date,timeframe)`. One table and its 42 columns/formulas are registered in the existing catalogs; one safe exact-date Feature01 relationship is registered. No grant, source dependency, source trigger, source data, deployment or schedule was changed.
+- The existing catalog validator's name regex excluded the user's exact spelling. Added only the `Feature04_Technical_Indicator` exception to `public.validate_feature_catalog_target()`; physical-column and VERIFIED-table guards remain. Registered the existing routine with the affected catalogs; original definition in `verification/feature04/catalog_validator_before.sql`. New-table schema/semantic audits now use actual coverage instead of a hardcoded 91-definition total.
+- Engine `features/feature04/engine.py`, bounded pipeline `pipeline.py`, reviewed definitions `specs.py`; pinned TA-Lib 0.6.8 (C 0.6.4), NumPy 2.3.5, psycopg 3.2.13. Full available per-ticker history supplies initialization; default dry-run, explicit tickers/range, bounded optional UPSERT. MACD is composed from the stored independently seeded EMA12/26, preserving `macd=ema_12-ema_26`.
+- Validation: 15 local tests passed; live 3,185-bar BBCA/GOTO calculation, 6 real rows in a rolled-back UPSERT transaction (identical rerun 0 changes, changed payload 1), no duplicate keys, exact stored-value readback, bounded dry-run 14 rows. Source all-row count/fingerprint before/after DDL matched. Target remains empty (0 records), so TOP 3 is empty; no full backfill or automatic update was executed.
+- TradingView formulas were reviewed; actual chart/export numerical parity and candlestick equivalence remain NOT VERIFIED. Point-in-time XGBoost eligibility remains NOT VERIFIED: prediction timestamp/horizon undefined, source availability/revisions and survivorship limits disclosed.
+- Evidence: `verification/feature04/REPORT.md`, `inspection.json`, `apply.json`, `validate.json`, `calculation_validation.json`; design/mapping/DDL guide `FEATURE04_TECHNICAL_INDICATOR.md`. `DATABASE_SCHEMA.md` refreshed using read-only generator helpers, without global status reconciliation or new tracking triggers. The prepared schema synchronizer now recognizes the exact Feature04 name and its trade_date/calculated_at freshness fields; it was not used to alter live pipelines.
+
+
 ## 2026-10-09 — EXEC-Y Fase 4 (M119): method guides v7 and Tool_Catalog round Q on dev
 
 User: "lanjut fase 4 dan 5 dulu" (go for EXEC-W wave B: V-f and M119).

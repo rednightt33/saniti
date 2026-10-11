@@ -1,0 +1,7183 @@
+{
+  "checked_at": "2026-10-11T04:24:05.961772+00:00",
+  "objects": [
+    {
+      "schema": "public",
+      "relname": "Price_Stock_Indonesia_IDX",
+      "relkind": "r",
+      "owner": "postgres",
+      "bytes": 238436352,
+      "estimated_rows": 1299572
+    }
+  ],
+  "columns": [
+    {
+      "column_name": "company_name",
+      "data_type": "text",
+      "udt_name": "text",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "column_name": "ticker",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "column_name": "tradingview_symbol",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "column_name": "date",
+      "data_type": "date",
+      "udt_name": "date",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "column_name": "open",
+      "data_type": "numeric",
+      "udt_name": "numeric",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "column_name": "high",
+      "data_type": "numeric",
+      "udt_name": "numeric",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "column_name": "low",
+      "data_type": "numeric",
+      "udt_name": "numeric",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "column_name": "close",
+      "data_type": "numeric",
+      "udt_name": "numeric",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "column_name": "volume",
+      "data_type": "numeric",
+      "udt_name": "numeric",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "column_name": "source",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "column_name": "query_date",
+      "data_type": "date",
+      "udt_name": "date",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "column_name": "timeframe",
+      "data_type": "character varying",
+      "udt_name": "varchar",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "column_name": "ingestion_time",
+      "data_type": "timestamp with time zone",
+      "udt_name": "timestamptz",
+      "is_nullable": "YES",
+      "column_default": "statement_timestamp()"
+    }
+  ],
+  "constraints": [
+    {
+      "conname": "Price_Stock_Indonesia_IDX_pkey",
+      "contype": "p",
+      "definition": "PRIMARY KEY (ticker, date)"
+    },
+    {
+      "conname": "price_stock_indonesia_IDX_check",
+      "contype": "c",
+      "definition": "CHECK (((low <= open) AND (open <= high)))"
+    },
+    {
+      "conname": "price_stock_indonesia_IDX_check1",
+      "contype": "c",
+      "definition": "CHECK (((low <= close) AND (close <= high)))"
+    },
+    {
+      "conname": "price_stock_indonesia_IDX_close_check",
+      "contype": "c",
+      "definition": "CHECK ((close >= (0)::numeric))"
+    },
+    {
+      "conname": "price_stock_indonesia_IDX_close_not_null",
+      "contype": "n",
+      "definition": "NOT NULL close"
+    },
+    {
+      "conname": "price_stock_indonesia_IDX_company_name_not_null",
+      "contype": "n",
+      "definition": "NOT NULL company_name"
+    },
+    {
+      "conname": "price_stock_indonesia_IDX_date_not_null",
+      "contype": "n",
+      "definition": "NOT NULL date"
+    },
+    {
+      "conname": "price_stock_indonesia_IDX_high_check",
+      "contype": "c",
+      "definition": "CHECK ((high >= (0)::numeric))"
+    },
+    {
+      "conname": "price_stock_indonesia_IDX_high_not_null",
+      "contype": "n",
+      "definition": "NOT NULL high"
+    },
+    {
+      "conname": "price_stock_indonesia_IDX_low_check",
+      "contype": "c",
+      "definition": "CHECK ((low >= (0)::numeric))"
+    },
+    {
+      "conname": "price_stock_indonesia_IDX_low_not_null",
+      "contype": "n",
+      "definition": "NOT NULL low"
+    },
+    {
+      "conname": "price_stock_indonesia_IDX_open_check",
+      "contype": "c",
+      "definition": "CHECK ((open >= (0)::numeric))"
+    },
+    {
+      "conname": "price_stock_indonesia_IDX_open_not_null",
+      "contype": "n",
+      "definition": "NOT NULL open"
+    },
+    {
+      "conname": "price_stock_indonesia_IDX_query_date_not_null",
+      "contype": "n",
+      "definition": "NOT NULL query_date"
+    },
+    {
+      "conname": "price_stock_indonesia_IDX_source_not_null",
+      "contype": "n",
+      "definition": "NOT NULL source"
+    },
+    {
+      "conname": "price_stock_indonesia_IDX_ticker_not_null",
+      "contype": "n",
+      "definition": "NOT NULL ticker"
+    },
+    {
+      "conname": "price_stock_indonesia_IDX_timeframe_not_null",
+      "contype": "n",
+      "definition": "NOT NULL timeframe"
+    },
+    {
+      "conname": "price_stock_indonesia_IDX_tradingview_symbol_not_null",
+      "contype": "n",
+      "definition": "NOT NULL tradingview_symbol"
+    },
+    {
+      "conname": "price_stock_indonesia_IDX_volume_check",
+      "contype": "c",
+      "definition": "CHECK ((volume >= (0)::numeric))"
+    },
+    {
+      "conname": "price_stock_indonesia_IDX_volume_not_null",
+      "contype": "n",
+      "definition": "NOT NULL volume"
+    }
+  ],
+  "indexes": [
+    {
+      "indexname": "Price_Stock_Indonesia_IDX_pkey",
+      "indexdef": "CREATE UNIQUE INDEX \"Price_Stock_Indonesia_IDX_pkey\" ON public.\"Price_Stock_Indonesia_IDX\" USING btree (ticker, date)"
+    },
+    {
+      "indexname": "Price_Stock_Indonesia_IDX_date_idx",
+      "indexdef": "CREATE INDEX \"Price_Stock_Indonesia_IDX_date_idx\" ON public.\"Price_Stock_Indonesia_IDX\" USING btree (date)"
+    }
+  ],
+  "catalog": [
+    {
+      "table_schema": "public",
+      "table_name": "Price_Stock_Indonesia_IDX",
+      "category": "Transactional",
+      "definition": "Daily Indonesian stock OHLCV candles sourced from TradingView.",
+      "grain": "One row per ticker and trading date",
+      "primary_key_columns": "{ticker,date}",
+      "source_system": "TradingView",
+      "source_tables": "{IDX_Stock_Universe}",
+      "source_code_paths": "{apps/idx-price-cron/price_update.py,database/migrations/20260913_002_add_price_ingestion_time.sql}",
+      "update_rule": "DAILY and RECOVERY price runs upsert exact-date candles; committed inserts/updates with non-null ingestion_time transactionally enqueue Feature 01 work.",
+      "related_functions": "{enqueue_feature_01_price_row(),public.ai_preview_table_rows(text)}",
+      "documentation_status": "VERIFIED",
+      "created_at": "2026-09-13T03:34:32.623885Z",
+      "updated_at": "2026-09-23T03:33:44.538843Z",
+      "readiness_mode": "DATA_DATE",
+      "readiness_date_column": "date",
+      "observation_date_column": "date",
+      "data_available_at_column": "ingestion_time",
+      "availability_rule": "Use the close-of-day observation no earlier than the next valid trading observation t+1. Historical ingestion_time can be NULL and does not prove same-day availability.",
+      "point_in_time_status": "PARTIAL",
+      "historical_metadata_method": "Historical OHLCV is retained, but current-universe construction and incomplete historical ingestion timestamps require survivorship and availability disclosure."
+    },
+    {
+      "table_schema": "public",
+      "table_name": "Feature_01_Stock_Daily",
+      "category": "Feature",
+      "definition": "Daily per-ticker price, return, volatility, volume, and drawdown features.",
+      "grain": "One row per ticker and trading date",
+      "primary_key_columns": "{ticker,date}",
+      "source_system": "PostgreSQL calculation",
+      "source_tables": "{Price_Stock_Indonesia_IDX,IDX_Stock_Universe}",
+      "source_code_paths": "{database/migrations/20260912_001_create_feature_01_stock_daily.sql,database/migrations/20260913_009_create_market_ai_foundation.sql,database/migrations/20260913_010_add_market_ai_historical_integrity.sql}",
+      "update_rule": "Explicit refresh routine after validated source changes; automatic price-cron integration is not active.",
+      "related_functions": "{\"refresh_feature_01_stock_daily(date,text[])\",check_analysis_data_readiness(text[]),public.ai_preview_table_rows(text)}",
+      "documentation_status": "VERIFIED",
+      "created_at": "2026-09-13T03:34:32.623885Z",
+      "updated_at": "2026-09-23T03:33:44.538843Z",
+      "readiness_mode": "DATA_DATE",
+      "readiness_date_column": "date",
+      "observation_date_column": "date",
+      "data_available_at_column": null,
+      "availability_rule": "Signal uses information through close t; earliest permitted simulated entry is the next valid trading observation t+1.",
+      "point_in_time_status": "PARTIAL",
+      "historical_metadata_method": "Price features are historical, but sector/industry are current classifications and the table may omit securities absent from the current IDX_Stock_Universe."
+    }
+  ],
+  "column_catalog": [
+    {
+      "column_name": "company_name",
+      "definition": "Listed company name.",
+      "source_column_or_expression": null,
+      "unit": null,
+      "null_rule": null,
+      "documentation_status": "PARTIAL"
+    },
+    {
+      "column_name": "ticker",
+      "definition": "Four-character IDX ticker.",
+      "source_column_or_expression": null,
+      "unit": null,
+      "null_rule": null,
+      "documentation_status": "PARTIAL"
+    },
+    {
+      "column_name": "tradingview_symbol",
+      "definition": "TradingView exchange-qualified symbol.",
+      "source_column_or_expression": null,
+      "unit": null,
+      "null_rule": null,
+      "documentation_status": "PARTIAL"
+    },
+    {
+      "column_name": "date",
+      "definition": "Trading date represented by the price row.",
+      "source_column_or_expression": null,
+      "unit": null,
+      "null_rule": null,
+      "documentation_status": "PARTIAL"
+    },
+    {
+      "column_name": "open",
+      "definition": "Opening price.",
+      "source_column_or_expression": null,
+      "unit": null,
+      "null_rule": null,
+      "documentation_status": "PARTIAL"
+    },
+    {
+      "column_name": "high",
+      "definition": "Highest price.",
+      "source_column_or_expression": null,
+      "unit": null,
+      "null_rule": null,
+      "documentation_status": "PARTIAL"
+    },
+    {
+      "column_name": "low",
+      "definition": "Lowest price.",
+      "source_column_or_expression": null,
+      "unit": null,
+      "null_rule": null,
+      "documentation_status": "PARTIAL"
+    },
+    {
+      "column_name": "close",
+      "definition": "Closing price.",
+      "source_column_or_expression": null,
+      "unit": null,
+      "null_rule": null,
+      "documentation_status": "PARTIAL"
+    },
+    {
+      "column_name": "volume",
+      "definition": "Trading volume reported by the source.",
+      "source_column_or_expression": null,
+      "unit": null,
+      "null_rule": null,
+      "documentation_status": "PARTIAL"
+    },
+    {
+      "column_name": "source",
+      "definition": "Price data source.",
+      "source_column_or_expression": null,
+      "unit": null,
+      "null_rule": null,
+      "documentation_status": "PARTIAL"
+    },
+    {
+      "column_name": "query_date",
+      "definition": "Date the source data was queried.",
+      "source_column_or_expression": null,
+      "unit": null,
+      "null_rule": null,
+      "documentation_status": "PARTIAL"
+    },
+    {
+      "column_name": "timeframe",
+      "definition": "Price-series interval.",
+      "source_column_or_expression": null,
+      "unit": null,
+      "null_rule": null,
+      "documentation_status": "PARTIAL"
+    },
+    {
+      "column_name": "ingestion_time",
+      "definition": "Timezone-aware database statement time of the latest successful insert or upsert; null for historical rows whose exact ingestion time is unknown.",
+      "source_column_or_expression": "database/migrations/20260913_002_add_price_ingestion_time.sql",
+      "unit": null,
+      "null_rule": null,
+      "documentation_status": "VERIFIED"
+    }
+  ],
+  "coverage_quality": [
+    {
+      "rows": 1318633,
+      "securities": 844,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "missing_ohlcv": 0,
+      "invalid_ohlcv": 0,
+      "nonfinite_ohlcv": 0,
+      "weekend_rows": 0,
+      "invalid_ticker": 0,
+      "unknown_ingestion": 1303726,
+      "zero_close": 0,
+      "zero_volume": 40
+    }
+  ],
+  "dimensions": [
+    {
+      "timeframe": "Daily",
+      "source": "TradingView",
+      "exchange": "IDX",
+      "rows": 1318633
+    }
+  ],
+  "per_security": [
+    {
+      "ticker": "AADI",
+      "bars": 434,
+      "min_date": "2024-12-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AALI",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ABDA",
+      "bars": 572,
+      "min_date": "2018-01-29T00:00:00Z",
+      "max_date": "2026-10-07T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ABMM",
+      "bars": 1820,
+      "min_date": "2018-01-05T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ACES",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ACRO",
+      "bars": 647,
+      "min_date": "2024-01-11T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ACST",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ADES",
+      "bars": 2108,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ADHI",
+      "bars": 2077,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-08-21T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ADMF",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ADMG",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ADMR",
+      "bars": 1135,
+      "min_date": "2022-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ADRO",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AEGS",
+      "bars": 731,
+      "min_date": "2023-09-11T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AGAR",
+      "bars": 1476,
+      "min_date": "2019-12-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AGII",
+      "bars": 2100,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AGRO",
+      "bars": 2106,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AGRS",
+      "bars": 2093,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AHAP",
+      "bars": 2067,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AIMS",
+      "bars": 1606,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-07T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AISA",
+      "bars": 1587,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AKPI",
+      "bars": 1882,
+      "min_date": "2018-01-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AKRA",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AKSI",
+      "bars": 2035,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ALDO",
+      "bars": 1893,
+      "min_date": "2018-01-24T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ALII",
+      "bars": 621,
+      "min_date": "2024-02-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ALKA",
+      "bars": 1956,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AMAG",
+      "bars": 1851,
+      "min_date": "2018-01-04T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AMAN",
+      "bars": 1576,
+      "min_date": "2020-03-13T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AMAR",
+      "bars": 1623,
+      "min_date": "2020-01-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AMFG",
+      "bars": 1902,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AMIN",
+      "bars": 1996,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AMMN",
+      "bars": 775,
+      "min_date": "2023-07-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AMMS",
+      "bars": 972,
+      "min_date": "2022-08-04T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AMOR",
+      "bars": 1596,
+      "min_date": "2020-01-14T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AMRT",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ANDI",
+      "bars": 1920,
+      "min_date": "2018-08-16T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ANJT",
+      "bars": 2032,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ANTM",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "APEX",
+      "bars": 1949,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "APIC",
+      "bars": 1978,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "APII",
+      "bars": 1929,
+      "min_date": "2018-01-04T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "APLI",
+      "bars": 2005,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "APLN",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ARCI",
+      "bars": 1264,
+      "min_date": "2021-06-28T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AREA",
+      "bars": 587,
+      "min_date": "2024-04-01T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ARGO",
+      "bars": 1375,
+      "min_date": "2018-12-04T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ARII",
+      "bars": 2013,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ARKO",
+      "bars": 997,
+      "min_date": "2022-07-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ARNA",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ARTA",
+      "bars": 1797,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ARTO",
+      "bars": 2039,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ASBI",
+      "bars": 1748,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ASDM",
+      "bars": 1721,
+      "min_date": "2018-01-04T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ASGR",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ASHA",
+      "bars": 1046,
+      "min_date": "2022-05-27T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ASII",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ASJT",
+      "bars": 2076,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ASLC",
+      "bars": 1122,
+      "min_date": "2022-01-25T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ASLI",
+      "bars": 583,
+      "min_date": "2024-01-05T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ASMI",
+      "bars": 2074,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ASPI",
+      "bars": 1559,
+      "min_date": "2020-02-17T00:00:00Z",
+      "max_date": "2026-09-30T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ASPR",
+      "bars": 296,
+      "min_date": "2025-07-04T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ASRI",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ASRM",
+      "bars": 1489,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ASSA",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ATAP",
+      "bars": 1367,
+      "min_date": "2020-12-11T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ATIC",
+      "bars": 1903,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ATLA",
+      "bars": 590,
+      "min_date": "2024-04-16T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AUTO",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AVIA",
+      "bars": 1156,
+      "min_date": "2021-12-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AWAN",
+      "bars": 821,
+      "min_date": "2023-04-18T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AXIO",
+      "bars": 1010,
+      "min_date": "2022-07-20T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AYAM",
+      "bars": 666,
+      "min_date": "2023-11-28T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "AYLS",
+      "bars": 1519,
+      "min_date": "2020-02-12T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BABP",
+      "bars": 2097,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BABY",
+      "bars": 733,
+      "min_date": "2023-09-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BACA",
+      "bars": 1990,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BACH",
+      "bars": 64,
+      "min_date": "2026-07-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BAIK",
+      "bars": 608,
+      "min_date": "2024-02-15T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BAJA",
+      "bars": 2103,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BALI",
+      "bars": 2030,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BANK",
+      "bars": 1349,
+      "min_date": "2021-02-01T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BAPA",
+      "bars": 1981,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BAPI",
+      "bars": 1391,
+      "min_date": "2019-09-16T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BATR",
+      "bars": 557,
+      "min_date": "2024-06-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BAUT",
+      "bars": 1120,
+      "min_date": "2022-01-28T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BAYU",
+      "bars": 1811,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BBCA",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BBHI",
+      "bars": 2100,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BBKP",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BBLD",
+      "bars": 1719,
+      "min_date": "2018-01-04T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BBMD",
+      "bars": 1268,
+      "min_date": "2018-01-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BBNI",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BBRI",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BBRM",
+      "bars": 1763,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BBSI",
+      "bars": 1369,
+      "min_date": "2020-09-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BBSS",
+      "bars": 1554,
+      "min_date": "2020-04-15T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BBTN",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BBYB",
+      "bars": 2083,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BCAP",
+      "bars": 1976,
+      "min_date": "2018-01-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BCIC",
+      "bars": 1085,
+      "min_date": "2020-07-28T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BCIP",
+      "bars": 2107,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BDKR",
+      "bars": 849,
+      "min_date": "2023-03-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BDMN",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BEEF",
+      "bars": 1859,
+      "min_date": "2019-01-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BEER",
+      "bars": 889,
+      "min_date": "2023-01-06T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BEKS",
+      "bars": 2110,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BELI",
+      "bars": 932,
+      "min_date": "2022-11-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BELL",
+      "bars": 2080,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BESS",
+      "bars": 1573,
+      "min_date": "2020-03-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BEST",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BFIN",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BGTG",
+      "bars": 2106,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BHIT",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BIKE",
+      "bars": 1005,
+      "min_date": "2022-03-21T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BINA",
+      "bars": 2092,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BINO",
+      "bars": 1165,
+      "min_date": "2021-11-25T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BIPI",
+      "bars": 2043,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BIPP",
+      "bars": 1948,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BIRD",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BISI",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BJBR",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BJTM",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BKDP",
+      "bars": 1986,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BKSL",
+      "bars": 2111,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BKSW",
+      "bars": 2006,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BLES",
+      "bars": 539,
+      "min_date": "2024-07-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BLOG",
+      "bars": 302,
+      "min_date": "2025-07-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BLTA",
+      "bars": 1672,
+      "min_date": "2019-03-29T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BLTZ",
+      "bars": 1141,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BLUE",
+      "bars": 1734,
+      "min_date": "2019-07-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BMAS",
+      "bars": 1936,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BMBL",
+      "bars": 886,
+      "min_date": "2023-01-11T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BMHS",
+      "bars": 1263,
+      "min_date": "2021-07-06T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BMRI",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BMSR",
+      "bars": 2063,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BMTR",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BNBA",
+      "bars": 2097,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BNBR",
+      "bars": 2045,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BNGA",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BNII",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BNLI",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BOAT",
+      "bars": 449,
+      "min_date": "2024-11-12T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BOBA",
+      "bars": 1182,
+      "min_date": "2021-11-01T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BOGA",
+      "bars": 2051,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BOLA",
+      "bars": 1760,
+      "min_date": "2019-06-17T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BOLT",
+      "bars": 1976,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BPFI",
+      "bars": 1475,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BPII",
+      "bars": 831,
+      "min_date": "2018-01-25T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BPTR",
+      "bars": 1975,
+      "min_date": "2018-07-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BRAM",
+      "bars": 1571,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-08T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BREN",
+      "bars": 708,
+      "min_date": "2023-10-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BRIS",
+      "bars": 2025,
+      "min_date": "2018-05-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BRMS",
+      "bars": 2106,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BRNA",
+      "bars": 1345,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BRPT",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BRRC",
+      "bars": 410,
+      "min_date": "2025-01-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BSBK",
+      "bars": 932,
+      "min_date": "2022-11-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BSDE",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BSIM",
+      "bars": 2042,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BSML",
+      "bars": 1149,
+      "min_date": "2021-12-16T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BSSR",
+      "bars": 2053,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BSWD",
+      "bars": 180,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-02T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BTEK",
+      "bars": 1776,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BTON",
+      "bars": 2039,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BTPN",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BTPS",
+      "bars": 2026,
+      "min_date": "2018-05-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BUAH",
+      "bars": 996,
+      "min_date": "2022-08-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BUDI",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BUKA",
+      "bars": 1241,
+      "min_date": "2021-08-06T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BUKK",
+      "bars": 2059,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BULL",
+      "bars": 2029,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BUMI",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BUVA",
+      "bars": 1577,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BVIC",
+      "bars": 2097,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BWPT",
+      "bars": 2102,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "BYAN",
+      "bars": 1849,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CAKK",
+      "bars": 1902,
+      "min_date": "2018-10-31T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CAMP",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CARE",
+      "bars": 1520,
+      "min_date": "2020-03-13T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CARS",
+      "bars": 2093,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CASA",
+      "bars": 2026,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CASH",
+      "bars": 1544,
+      "min_date": "2020-05-04T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CASS",
+      "bars": 1920,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CBDK",
+      "bars": 411,
+      "min_date": "2025-01-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CBPE",
+      "bars": 889,
+      "min_date": "2023-01-06T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CBRE",
+      "bars": 869,
+      "min_date": "2023-01-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CBUT",
+      "bars": 911,
+      "min_date": "2022-11-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CCSI",
+      "bars": 1765,
+      "min_date": "2019-06-18T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CDIA",
+      "bars": 299,
+      "min_date": "2025-07-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CEKA",
+      "bars": 2099,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CENT",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CFIN",
+      "bars": 2109,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CGAS",
+      "bars": 643,
+      "min_date": "2024-01-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CHEK",
+      "bars": 302,
+      "min_date": "2025-07-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CHEM",
+      "bars": 1017,
+      "min_date": "2022-07-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CHIP",
+      "bars": 860,
+      "min_date": "2023-02-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CINT",
+      "bars": 2055,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CITA",
+      "bars": 1884,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CITY",
+      "bars": 1869,
+      "min_date": "2018-09-28T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CLAY",
+      "bars": 1446,
+      "min_date": "2019-01-18T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CLEO",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CLPI",
+      "bars": 2106,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CMNP",
+      "bars": 2062,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CMNT",
+      "bars": 1220,
+      "min_date": "2021-09-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CMRY",
+      "bars": 1158,
+      "min_date": "2021-12-06T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CNMA",
+      "bars": 758,
+      "min_date": "2023-08-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "COCO",
+      "bars": 1745,
+      "min_date": "2019-03-20T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "COIN",
+      "bars": 295,
+      "min_date": "2025-07-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CPIN",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CPRO",
+      "bars": 2002,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CRSN",
+      "bars": 774,
+      "min_date": "2023-07-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CSAP",
+      "bars": 2045,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CSIS",
+      "bars": 2074,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CSMI",
+      "bars": 885,
+      "min_date": "2020-04-09T00:00:00Z",
+      "max_date": "2026-10-06T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CSRA",
+      "bars": 1623,
+      "min_date": "2020-01-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CTBN",
+      "bars": 1136,
+      "min_date": "2018-02-27T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CTRA",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CTTH",
+      "bars": 1915,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CUAN",
+      "bars": 821,
+      "min_date": "2023-03-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "CYBR",
+      "bars": 754,
+      "min_date": "2023-08-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DAAZ",
+      "bars": 447,
+      "min_date": "2024-11-11T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DADA",
+      "bars": 1514,
+      "min_date": "2020-02-14T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DART",
+      "bars": 1871,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DATA",
+      "bars": 562,
+      "min_date": "2024-05-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DAYA",
+      "bars": 1794,
+      "min_date": "2018-01-04T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DCII",
+      "bars": 1173,
+      "min_date": "2021-01-06T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DEFI",
+      "bars": 1049,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DEPO",
+      "bars": 1165,
+      "min_date": "2021-11-25T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DEWA",
+      "bars": 2041,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DEWI",
+      "bars": 957,
+      "min_date": "2022-07-18T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DFAM",
+      "bars": 1957,
+      "min_date": "2018-04-27T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DGIK",
+      "bars": 1966,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DGNS",
+      "bars": 1377,
+      "min_date": "2021-01-15T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DGWG",
+      "bars": 411,
+      "min_date": "2025-01-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DILD",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DIVA",
+      "bars": 1891,
+      "min_date": "2018-11-27T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DKFT",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DKHH",
+      "bars": 327,
+      "min_date": "2025-05-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DLTA",
+      "bars": 2067,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DMAS",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DMMX",
+      "bars": 1666,
+      "min_date": "2019-10-21T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DMND",
+      "bars": 1573,
+      "min_date": "2020-01-22T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DNAR",
+      "bars": 1948,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DNET",
+      "bars": 2074,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DOID",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DOOH",
+      "bars": 780,
+      "min_date": "2023-05-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DOSS",
+      "bars": 517,
+      "min_date": "2024-08-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DPUM",
+      "bars": 1526,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DRMA",
+      "bars": 1148,
+      "min_date": "2021-12-20T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DSFI",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DSNG",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DSSA",
+      "bars": 1268,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DUTI",
+      "bars": 1445,
+      "min_date": "2018-03-19T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DVLA",
+      "bars": 2035,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DWGL",
+      "bars": 2063,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "DYAN",
+      "bars": 2105,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "EAST",
+      "bars": 1751,
+      "min_date": "2019-07-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ECII",
+      "bars": 1790,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "EKAD",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ELIT",
+      "bars": 889,
+      "min_date": "2023-01-06T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ELPI",
+      "bars": 992,
+      "min_date": "2022-08-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ELSA",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ELTY",
+      "bars": 1580,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "EMAS",
+      "bars": 251,
+      "min_date": "2025-09-19T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "EMDE",
+      "bars": 1901,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "EMMI",
+      "bars": 64,
+      "min_date": "2026-07-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "EMTK",
+      "bars": 1988,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ENAK",
+      "bars": 1111,
+      "min_date": "2022-02-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ENRG",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ENZO",
+      "bars": 1420,
+      "min_date": "2020-09-14T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "EPAC",
+      "bars": 1480,
+      "min_date": "2020-07-01T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "EPMT",
+      "bars": 1875,
+      "min_date": "2018-01-19T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ERAA",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ERAL",
+      "bars": 754,
+      "min_date": "2023-08-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ERTX",
+      "bars": 2008,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ESIP",
+      "bars": 1643,
+      "min_date": "2019-11-14T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ESSA",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ESTA",
+      "bars": 1561,
+      "min_date": "2020-03-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ESTI",
+      "bars": 2064,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "EURO",
+      "bars": 953,
+      "min_date": "2022-08-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "EXCL",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "FAPA",
+      "bars": 1371,
+      "min_date": "2021-01-04T00:00:00Z",
+      "max_date": "2026-10-08T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "FAST",
+      "bars": 2024,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "FILM",
+      "bars": 1922,
+      "min_date": "2018-08-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "FIRE",
+      "bars": 2069,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "FISH",
+      "bars": 1184,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "FITT",
+      "bars": 1713,
+      "min_date": "2019-06-11T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "FLMC",
+      "bars": 883,
+      "min_date": "2021-07-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "FMII",
+      "bars": 1689,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "FOLK",
+      "bars": 733,
+      "min_date": "2023-08-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "FORE",
+      "bars": 356,
+      "min_date": "2025-04-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "FORU",
+      "bars": 1764,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "FPNI",
+      "bars": 2096,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "FUJI",
+      "bars": 1710,
+      "min_date": "2019-07-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "FUTR",
+      "bars": 829,
+      "min_date": "2023-02-27T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "FWCT",
+      "bars": 872,
+      "min_date": "2023-02-01T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GDST",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GDYR",
+      "bars": 1655,
+      "min_date": "2018-01-04T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GEMA",
+      "bars": 1889,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GEMS",
+      "bars": 1322,
+      "min_date": "2018-01-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GGRM",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GGRP",
+      "bars": 1548,
+      "min_date": "2019-09-19T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GHON",
+      "bars": 1882,
+      "min_date": "2018-04-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GIAA",
+      "bars": 1730,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GJTL",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GLVA",
+      "bars": 1626,
+      "min_date": "2019-12-23T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GMFI",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GMTD",
+      "bars": 1021,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GOLD",
+      "bars": 1996,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GOLF",
+      "bars": 539,
+      "min_date": "2024-07-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GOOD",
+      "bars": 1928,
+      "min_date": "2018-10-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GOTO",
+      "bars": 1072,
+      "min_date": "2022-04-11T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GPRA",
+      "bars": 2111,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GPSO",
+      "bars": 1189,
+      "min_date": "2021-09-06T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GRIA",
+      "bars": 753,
+      "min_date": "2023-08-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GRPH",
+      "bars": 634,
+      "min_date": "2024-01-12T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GRPM",
+      "bars": 763,
+      "min_date": "2023-07-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GSMF",
+      "bars": 1940,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GTRA",
+      "bars": 831,
+      "min_date": "2023-03-30T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GTSI",
+      "bars": 1213,
+      "min_date": "2021-09-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GULA",
+      "bars": 1000,
+      "min_date": "2022-08-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GUNA",
+      "bars": 538,
+      "min_date": "2024-07-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GWSA",
+      "bars": 2091,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "GZCO",
+      "bars": 2016,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "HADE",
+      "bars": 1462,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "HAIS",
+      "bars": 1225,
+      "min_date": "2021-09-01T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "HAJJ",
+      "bars": 829,
+      "min_date": "2023-04-05T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "HALO",
+      "bars": 867,
+      "min_date": "2023-02-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "HATM",
+      "bars": 1006,
+      "min_date": "2022-07-26T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "HBAT",
+      "bars": 746,
+      "min_date": "2023-08-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "HDFA",
+      "bars": 1857,
+      "min_date": "2018-01-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "HDIT",
+      "bars": 1720,
+      "min_date": "2019-07-12T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "HEAL",
+      "bars": 2021,
+      "min_date": "2018-05-16T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "HELI",
+      "bars": 1979,
+      "min_date": "2018-03-27T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "HERO",
+      "bars": 1967,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "HEXA",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "HGII",
+      "bars": 413,
+      "min_date": "2025-01-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "HMSP",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "HOKI",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "HOMI",
+      "bars": 1415,
+      "min_date": "2020-09-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "HOPE",
+      "bars": 1262,
+      "min_date": "2021-05-24T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "HRME",
+      "bars": 1767,
+      "min_date": "2019-04-12T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "HRTA",
+      "bars": 2111,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "HRUM",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "HUMI",
+      "bars": 741,
+      "min_date": "2023-08-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "HYGN",
+      "bars": 626,
+      "min_date": "2024-02-13T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "IATA",
+      "bars": 1885,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "IBOS",
+      "bars": 1043,
+      "min_date": "2022-04-25T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ICBP",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ICON",
+      "bars": 2040,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "IDEA",
+      "bars": 1208,
+      "min_date": "2021-09-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "IDPR",
+      "bars": 1928,
+      "min_date": "2018-01-04T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "IFII",
+      "bars": 1639,
+      "min_date": "2019-12-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "IFSH",
+      "bars": 1507,
+      "min_date": "2019-12-05T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "IGAR",
+      "bars": 2091,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "IKAI",
+      "bars": 1925,
+      "min_date": "2018-01-04T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "IKAN",
+      "bars": 1581,
+      "min_date": "2020-02-12T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "IKBI",
+      "bars": 2033,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "IKPM",
+      "bars": 690,
+      "min_date": "2023-11-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "IMAS",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "IMJS",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "IMPC",
+      "bars": 2103,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "INAI",
+      "bars": 2058,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "INCI",
+      "bars": 2047,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "INCO",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "INDF",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "INDO",
+      "bars": 1621,
+      "min_date": "2020-01-13T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "INDR",
+      "bars": 2071,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "INDS",
+      "bars": 2074,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "INDY",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "INET",
+      "bars": 744,
+      "min_date": "2023-07-24T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "INKP",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "INOV",
+      "bars": 1747,
+      "min_date": "2019-07-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "INPC",
+      "bars": 2080,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "INPP",
+      "bars": 1683,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "INPS",
+      "bars": 1915,
+      "min_date": "2018-04-06T00:00:00Z",
+      "max_date": "2026-09-16T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "INTD",
+      "bars": 1945,
+      "min_date": "2018-01-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "INTP",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "IOTF",
+      "bars": 712,
+      "min_date": "2023-10-06T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "IPAC",
+      "bars": 1203,
+      "min_date": "2021-06-30T00:00:00Z",
+      "max_date": "2026-09-10T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "IPCC",
+      "bars": 1992,
+      "min_date": "2018-07-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "IPCM",
+      "bars": 2109,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "IPOL",
+      "bars": 2108,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "IPTV",
+      "bars": 1752,
+      "min_date": "2019-07-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "IRRA",
+      "bars": 1680,
+      "min_date": "2019-10-15T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "IRSX",
+      "bars": 835,
+      "min_date": "2023-02-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ISAP",
+      "bars": 909,
+      "min_date": "2022-12-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ISAT",
+      "bars": 2109,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ISEA",
+      "bars": 538,
+      "min_date": "2024-07-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ISSP",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ITIC",
+      "bars": 1748,
+      "min_date": "2019-07-04T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ITMA",
+      "bars": 1956,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ITMG",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "JARR",
+      "bars": 984,
+      "min_date": "2022-08-04T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "JAST",
+      "bars": 1760,
+      "min_date": "2019-05-16T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "JATI",
+      "bars": 802,
+      "min_date": "2023-05-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "JAWA",
+      "bars": 1981,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "JAYA",
+      "bars": 1838,
+      "min_date": "2019-02-21T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "JECC",
+      "bars": 1245,
+      "min_date": "2018-01-05T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "JECX",
+      "bars": 65,
+      "min_date": "2026-07-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "JELI",
+      "bars": 65,
+      "min_date": "2026-07-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "JGLE",
+      "bars": 1268,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "JIHD",
+      "bars": 1819,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "JKON",
+      "bars": 1826,
+      "min_date": "2018-01-12T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "JPFA",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "JRPT",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "JSMR",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "JSPT",
+      "bars": 1194,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "JTPE",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KAEF",
+      "bars": 2103,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KAQI",
+      "bars": 373,
+      "min_date": "2025-03-06T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KBAG",
+      "bars": 1558,
+      "min_date": "2020-04-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KBLI",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KBLM",
+      "bars": 2105,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KBLV",
+      "bars": 1908,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KDSI",
+      "bars": 2028,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KDTN",
+      "bars": 916,
+      "min_date": "2022-11-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KEEN",
+      "bars": 1712,
+      "min_date": "2019-09-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KEJU",
+      "bars": 1647,
+      "min_date": "2019-11-25T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KETR",
+      "bars": 929,
+      "min_date": "2022-11-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KICI",
+      "bars": 1967,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KIJA",
+      "bars": 2105,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KING",
+      "bars": 850,
+      "min_date": "2023-02-16T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KINO",
+      "bars": 2106,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KIOS",
+      "bars": 1992,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KJEN",
+      "bars": 1574,
+      "min_date": "2019-07-01T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KKES",
+      "bars": 987,
+      "min_date": "2022-08-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KKGI",
+      "bars": 2101,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KLAS",
+      "bars": 791,
+      "min_date": "2023-06-12T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KLBF",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KLIN",
+      "bars": 982,
+      "min_date": "2022-08-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KMDS",
+      "bars": 1460,
+      "min_date": "2020-09-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KMTR",
+      "bars": 2084,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KOBX",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KOCI",
+      "bars": 705,
+      "min_date": "2023-10-06T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KOKA",
+      "bars": 679,
+      "min_date": "2023-10-11T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KONI",
+      "bars": 1708,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KOPI",
+      "bars": 2032,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KOTA",
+      "bars": 1747,
+      "min_date": "2019-07-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KPIG",
+      "bars": 2064,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KRAS",
+      "bars": 2105,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KREN",
+      "bars": 2059,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KRYA",
+      "bars": 999,
+      "min_date": "2022-07-25T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KSIX",
+      "bars": 410,
+      "min_date": "2025-01-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "KUAS",
+      "bars": 1188,
+      "min_date": "2021-10-25T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LABA",
+      "bars": 1184,
+      "min_date": "2021-06-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LABS",
+      "bars": 537,
+      "min_date": "2024-07-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LAJU",
+      "bars": 868,
+      "min_date": "2023-01-27T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LAND",
+      "bars": 1942,
+      "min_date": "2018-08-23T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LAPD",
+      "bars": 1000,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LEAD",
+      "bars": 2059,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LFLO",
+      "bars": 1296,
+      "min_date": "2021-04-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LIFE",
+      "bars": 1093,
+      "min_date": "2019-07-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LINK",
+      "bars": 2107,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LION",
+      "bars": 1848,
+      "min_date": "2018-01-05T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LIVE",
+      "bars": 626,
+      "min_date": "2024-02-12T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LMAX",
+      "bars": 751,
+      "min_date": "2023-08-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LMPI",
+      "bars": 1931,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LOPI",
+      "bars": 705,
+      "min_date": "2023-10-11T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LPCK",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LPGI",
+      "bars": 1511,
+      "min_date": "2018-01-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LPIN",
+      "bars": 1951,
+      "min_date": "2018-01-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LPKR",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LPLI",
+      "bars": 1963,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LPPF",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LPPS",
+      "bars": 2093,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LRNA",
+      "bars": 2048,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LSIP",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LTLS",
+      "bars": 2110,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LUCK",
+      "bars": 1881,
+      "min_date": "2018-11-28T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "LUCY",
+      "bars": 1269,
+      "min_date": "2021-05-05T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MAHA",
+      "bars": 764,
+      "min_date": "2023-07-25T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MAIN",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MANG",
+      "bars": 647,
+      "min_date": "2024-01-11T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MAPA",
+      "bars": 1961,
+      "min_date": "2018-07-05T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MAPB",
+      "bars": 1841,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MAPI",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MARK",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MASB",
+      "bars": 1053,
+      "min_date": "2021-06-30T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MAXI",
+      "bars": 790,
+      "min_date": "2023-06-12T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MAYA",
+      "bars": 1676,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MBAP",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MBMA",
+      "bars": 821,
+      "min_date": "2023-04-18T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MBSS",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MBTO",
+      "bars": 2080,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MCAS",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MCOL",
+      "bars": 1221,
+      "min_date": "2021-09-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MCOR",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MDIA",
+      "bars": 1731,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MDIY",
+      "bars": 424,
+      "min_date": "2024-12-17T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MDKA",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MDKI",
+      "bars": 2106,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MDLA",
+      "bars": 355,
+      "min_date": "2025-04-11T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MDLN",
+      "bars": 1806,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MEDC",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MEDS",
+      "bars": 990,
+      "min_date": "2022-08-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MEGA",
+      "bars": 1847,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MEJA",
+      "bars": 549,
+      "min_date": "2024-02-12T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MERI",
+      "bars": 300,
+      "min_date": "2025-07-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MERK",
+      "bars": 2081,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MGLV",
+      "bars": 1232,
+      "min_date": "2021-06-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MGNA",
+      "bars": 1141,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MGRO",
+      "bars": 1989,
+      "min_date": "2018-07-12T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MHKI",
+      "bars": 591,
+      "min_date": "2024-04-16T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MICE",
+      "bars": 2076,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MIDI",
+      "bars": 1664,
+      "min_date": "2018-01-18T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MIKA",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MINA",
+      "bars": 1857,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MINE",
+      "bars": 374,
+      "min_date": "2025-03-06T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MIRA",
+      "bars": 1564,
+      "min_date": "2018-01-04T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MITI",
+      "bars": 1530,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MKAP",
+      "bars": 619,
+      "min_date": "2024-02-12T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MKPI",
+      "bars": 1385,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MKTR",
+      "bars": 931,
+      "min_date": "2022-11-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MLBI",
+      "bars": 2095,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MLIA",
+      "bars": 2095,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MLPL",
+      "bars": 2104,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MLPT",
+      "bars": 1905,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MMIX",
+      "bars": 899,
+      "min_date": "2022-12-06T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MMLP",
+      "bars": 2067,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MNCN",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MOLI",
+      "bars": 1862,
+      "min_date": "2018-08-30T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MORA",
+      "bars": 978,
+      "min_date": "2022-08-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MPIX",
+      "bars": 622,
+      "min_date": "2024-02-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MPMX",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MPOW",
+      "bars": 2084,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MPPA",
+      "bars": 2106,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MPRO",
+      "bars": 1560,
+      "min_date": "2018-10-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MPXL",
+      "bars": 810,
+      "min_date": "2023-05-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MRAT",
+      "bars": 2088,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MSIE",
+      "bars": 737,
+      "min_date": "2023-08-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MSIN",
+      "bars": 1994,
+      "min_date": "2018-06-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MSJA",
+      "bars": 648,
+      "min_date": "2024-01-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MSKY",
+      "bars": 2026,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MSTI",
+      "bars": 690,
+      "min_date": "2023-11-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MTDL",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MTEL",
+      "bars": 1168,
+      "min_date": "2021-11-22T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MTLA",
+      "bars": 1999,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MTMH",
+      "bars": 1065,
+      "min_date": "2022-04-20T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MTWI",
+      "bars": 2109,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MUTU",
+      "bars": 753,
+      "min_date": "2023-08-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MYOH",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "MYOR",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NAIK",
+      "bars": 447,
+      "min_date": "2024-11-13T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NANO",
+      "bars": 1094,
+      "min_date": "2022-03-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NASA",
+      "bars": 1799,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NASI",
+      "bars": 1143,
+      "min_date": "2021-12-13T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NATO",
+      "bars": 1805,
+      "min_date": "2019-01-18T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NAYZ",
+      "bars": 851,
+      "min_date": "2023-02-06T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NCKL",
+      "bars": 825,
+      "min_date": "2023-04-12T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NELY",
+      "bars": 2052,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NEST",
+      "bars": 516,
+      "min_date": "2024-08-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NETV",
+      "bars": 1121,
+      "min_date": "2022-01-26T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NFCX",
+      "bars": 1961,
+      "min_date": "2018-07-12T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NICE",
+      "bars": 649,
+      "min_date": "2024-01-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NICK",
+      "bars": 1826,
+      "min_date": "2018-05-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NICL",
+      "bars": 1252,
+      "min_date": "2021-07-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NIKL",
+      "bars": 2106,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NINE",
+      "bars": 799,
+      "min_date": "2022-12-05T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NIRO",
+      "bars": 1969,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NISP",
+      "bars": 2099,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NOBU",
+      "bars": 1818,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NPGF",
+      "bars": 1313,
+      "min_date": "2021-04-14T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NRCA",
+      "bars": 2095,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NSSS",
+      "bars": 797,
+      "min_date": "2023-03-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NTBK",
+      "bars": 1081,
+      "min_date": "2022-02-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "NZIA",
+      "bars": 1660,
+      "min_date": "2019-09-25T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "OASA",
+      "bars": 1847,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "OBAT",
+      "bars": 411,
+      "min_date": "2025-01-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "OBMD",
+      "bars": 1155,
+      "min_date": "2021-12-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "OILS",
+      "bars": 1222,
+      "min_date": "2021-09-06T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "OKAS",
+      "bars": 2095,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "OLIV",
+      "bars": 1039,
+      "min_date": "2022-05-17T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "OMED",
+      "bars": 932,
+      "min_date": "2022-11-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "OMRE",
+      "bars": 1082,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "OPMS",
+      "bars": 1697,
+      "min_date": "2019-09-23T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PACK",
+      "bars": 817,
+      "min_date": "2023-02-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PADA",
+      "bars": 900,
+      "min_date": "2022-12-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PADI",
+      "bars": 1976,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PALM",
+      "bars": 2059,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PAMG",
+      "bars": 1753,
+      "min_date": "2019-07-05T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PANI",
+      "bars": 1904,
+      "min_date": "2018-09-18T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PANR",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PANS",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PART",
+      "bars": 540,
+      "min_date": "2024-07-05T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PBID",
+      "bars": 2111,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PBRX",
+      "bars": 1983,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PBSA",
+      "bars": 1831,
+      "min_date": "2018-01-24T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PCAR",
+      "bars": 2038,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PDES",
+      "bars": 1671,
+      "min_date": "2018-01-15T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PDPP",
+      "bars": 931,
+      "min_date": "2022-11-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PEGE",
+      "bars": 1930,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PEHA",
+      "bars": 1876,
+      "min_date": "2018-12-26T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PEVE",
+      "bars": 878,
+      "min_date": "2023-01-24T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PGAS",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PGEO",
+      "bars": 855,
+      "min_date": "2023-02-24T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PGJO",
+      "bars": 1542,
+      "min_date": "2020-01-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PGLI",
+      "bars": 1886,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PGUN",
+      "bars": 1365,
+      "min_date": "2020-07-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PICO",
+      "bars": 2024,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PIPA",
+      "bars": 800,
+      "min_date": "2023-04-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PJAA",
+      "bars": 2031,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PJHB",
+      "bars": 219,
+      "min_date": "2025-11-05T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PKPK",
+      "bars": 2035,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PLAN",
+      "bars": 1449,
+      "min_date": "2020-09-15T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PMJS",
+      "bars": 1627,
+      "min_date": "2019-12-18T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PMUI",
+      "bars": 302,
+      "min_date": "2025-07-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PNBN",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PNBS",
+      "bars": 2111,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PNGO",
+      "bars": 1438,
+      "min_date": "2020-08-31T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PNIN",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PNLF",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PNSE",
+      "bars": 1090,
+      "min_date": "2018-01-22T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "POLA",
+      "bars": 1786,
+      "min_date": "2018-11-16T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "POLI",
+      "bars": 1570,
+      "min_date": "2019-01-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "POLU",
+      "bars": 1453,
+      "min_date": "2019-06-26T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PORT",
+      "bars": 1742,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "POWR",
+      "bars": 2106,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PPGL",
+      "bars": 1452,
+      "min_date": "2020-07-20T00:00:00Z",
+      "max_date": "2026-09-04T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PPRE",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PPRI",
+      "bars": 753,
+      "min_date": "2023-08-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PPRO",
+      "bars": 1791,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PRAY",
+      "bars": 932,
+      "min_date": "2022-11-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PRDA",
+      "bars": 2085,
+      "min_date": "2018-01-04T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PRDL",
+      "bars": 63,
+      "min_date": "2026-07-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PRIM",
+      "bars": 1980,
+      "min_date": "2018-05-15T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PSAB",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PSAT",
+      "bars": 304,
+      "min_date": "2025-07-04T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PSDN",
+      "bars": 1986,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PSGO",
+      "bars": 1646,
+      "min_date": "2019-11-25T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PSKT",
+      "bars": 1699,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PSSI",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PTBA",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PTIS",
+      "bars": 1726,
+      "min_date": "2018-01-24T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PTMP",
+      "bars": 849,
+      "min_date": "2023-03-06T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PTPP",
+      "bars": 2108,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-02T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PTPS",
+      "bars": 705,
+      "min_date": "2023-10-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PTPW",
+      "bars": 1587,
+      "min_date": "2020-02-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PTRO",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PTSN",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PTSP",
+      "bars": 1222,
+      "min_date": "2018-03-26T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PUDP",
+      "bars": 1647,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PURA",
+      "bars": 1586,
+      "min_date": "2020-01-29T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PURI",
+      "bars": 1425,
+      "min_date": "2020-09-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PWON",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PYFA",
+      "bars": 1967,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "PZZA",
+      "bars": 2016,
+      "min_date": "2018-05-23T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RAAM",
+      "bars": 813,
+      "min_date": "2023-05-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RAJA",
+      "bars": 2111,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RALS",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RANC",
+      "bars": 2003,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RANS",
+      "bars": 62,
+      "min_date": "2026-07-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RATU",
+      "bars": 409,
+      "min_date": "2025-01-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RBMS",
+      "bars": 2004,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RCCC",
+      "bars": 1000,
+      "min_date": "2022-08-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RDTX",
+      "bars": 1516,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "REAL",
+      "bars": 1621,
+      "min_date": "2019-12-06T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RELF",
+      "bars": 783,
+      "min_date": "2023-06-22T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RELI",
+      "bars": 1625,
+      "min_date": "2018-02-05T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RGAS",
+      "bars": 681,
+      "min_date": "2023-11-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RICY",
+      "bars": 2035,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RIGS",
+      "bars": 2105,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RISE",
+      "bars": 1982,
+      "min_date": "2018-07-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RLCO",
+      "bars": 187,
+      "min_date": "2025-12-04T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RMKE",
+      "bars": 1144,
+      "min_date": "2021-12-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RMKO",
+      "bars": 745,
+      "min_date": "2023-07-31T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ROCK",
+      "bars": 988,
+      "min_date": "2020-09-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RODA",
+      "bars": 2062,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RONY",
+      "bars": 933,
+      "min_date": "2020-04-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ROTI",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RSCH",
+      "bars": 741,
+      "min_date": "2023-08-28T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RSGK",
+      "bars": 927,
+      "min_date": "2021-09-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RUIS",
+      "bars": 1967,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "RUNS",
+      "bars": 1220,
+      "min_date": "2021-09-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SAFE",
+      "bars": 1941,
+      "min_date": "2018-04-25T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SAGE",
+      "bars": 846,
+      "min_date": "2023-03-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SAME",
+      "bars": 2106,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SAMF",
+      "bars": 1556,
+      "min_date": "2020-03-31T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SAPX",
+      "bars": 1594,
+      "min_date": "2018-10-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SATU",
+      "bars": 1782,
+      "min_date": "2018-11-05T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SBMA",
+      "bars": 1220,
+      "min_date": "2021-09-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SCCO",
+      "bars": 1928,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SCMA",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SCNP",
+      "bars": 1434,
+      "min_date": "2020-09-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SDMU",
+      "bars": 2029,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SDPC",
+      "bars": 2064,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SDRA",
+      "bars": 1829,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SEMA",
+      "bars": 1128,
+      "min_date": "2022-01-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SFAN",
+      "bars": 1751,
+      "min_date": "2019-06-19T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SGER",
+      "bars": 1479,
+      "min_date": "2020-08-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SGRO",
+      "bars": 2067,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SHID",
+      "bars": 1653,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SHIP",
+      "bars": 2084,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SICO",
+      "bars": 1073,
+      "min_date": "2022-04-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SIDO",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SILO",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SIMP",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SINI",
+      "bars": 1540,
+      "min_date": "2019-11-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SIPD",
+      "bars": 1794,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SKBM",
+      "bars": 1893,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SKLT",
+      "bars": 1372,
+      "min_date": "2018-02-20T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SKRN",
+      "bars": 1926,
+      "min_date": "2018-10-11T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SLIS",
+      "bars": 1672,
+      "min_date": "2019-10-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SMAR",
+      "bars": 1912,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SMBR",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SMDM",
+      "bars": 2030,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SMDR",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SMGA",
+      "bars": 634,
+      "min_date": "2024-01-30T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SMGR",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SMIL",
+      "bars": 808,
+      "min_date": "2023-05-12T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SMKL",
+      "bars": 1732,
+      "min_date": "2019-07-11T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SMKM",
+      "bars": 1064,
+      "min_date": "2022-03-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SMLE",
+      "bars": 638,
+      "min_date": "2024-01-10T00:00:00Z",
+      "max_date": "2026-10-08T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SMMA",
+      "bars": 1306,
+      "min_date": "2018-01-12T00:00:00Z",
+      "max_date": "2026-10-07T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SMMT",
+      "bars": 2085,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SMRA",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SMSM",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SNLK",
+      "bars": 1328,
+      "min_date": "2021-03-29T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SOCI",
+      "bars": 2106,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SOFA",
+      "bars": 1489,
+      "min_date": "2020-07-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SOHO",
+      "bars": 1356,
+      "min_date": "2020-09-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SOLA",
+      "bars": 562,
+      "min_date": "2024-05-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SONA",
+      "bars": 995,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SOSS",
+      "bars": 1799,
+      "min_date": "2018-11-06T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SOTS",
+      "bars": 1701,
+      "min_date": "2018-12-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SPMA",
+      "bars": 2095,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SPRE",
+      "bars": 531,
+      "min_date": "2024-07-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SPTO",
+      "bars": 2018,
+      "min_date": "2018-05-14T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SQMI",
+      "bars": 1861,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SRAJ",
+      "bars": 1954,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SRSN",
+      "bars": 2104,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SRTG",
+      "bars": 2087,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SSIA",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SSMS",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SSTM",
+      "bars": 1348,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "STAA",
+      "bars": 1094,
+      "min_date": "2022-03-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "STAR",
+      "bars": 2022,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "STRK",
+      "bars": 702,
+      "min_date": "2023-10-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "STTP",
+      "bars": 1381,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SULI",
+      "bars": 1980,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SUNI",
+      "bars": 888,
+      "min_date": "2023-01-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SUPA",
+      "bars": 189,
+      "min_date": "2025-12-17T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SURE",
+      "bars": 1360,
+      "min_date": "2018-10-05T00:00:00Z",
+      "max_date": "2026-10-08T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SURI",
+      "bars": 668,
+      "min_date": "2023-12-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "SWID",
+      "bars": 1019,
+      "min_date": "2022-07-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TALF",
+      "bars": 1651,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TAMA",
+      "bars": 1519,
+      "min_date": "2020-02-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TAMU",
+      "bars": 1911,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TAPG",
+      "bars": 1319,
+      "min_date": "2021-04-12T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TARA",
+      "bars": 1840,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TAXI",
+      "bars": 1521,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TBIG",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TBLA",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TBMS",
+      "bars": 1912,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TCID",
+      "bars": 1716,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TCPI",
+      "bars": 1886,
+      "min_date": "2018-07-06T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TEBE",
+      "bars": 1545,
+      "min_date": "2019-11-18T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TFAS",
+      "bars": 1641,
+      "min_date": "2019-09-17T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TFCO",
+      "bars": 1006,
+      "min_date": "2018-01-04T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TGKA",
+      "bars": 1578,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TGUK",
+      "bars": 487,
+      "min_date": "2023-07-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TIFA",
+      "bars": 1703,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TINS",
+      "bars": 2104,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TIRA",
+      "bars": 1915,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TKIM",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TLDN",
+      "bars": 1071,
+      "min_date": "2022-04-12T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TLKM",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TMAS",
+      "bars": 2037,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TMPO",
+      "bars": 1982,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TNCA",
+      "bars": 1935,
+      "min_date": "2018-06-28T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TOBA",
+      "bars": 2067,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TOOL",
+      "bars": 996,
+      "min_date": "2022-08-09T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TOSK",
+      "bars": 628,
+      "min_date": "2024-02-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TOTL",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TOTO",
+      "bars": 2111,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TOWR",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TPIA",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TPMA",
+      "bars": 1971,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TRGU",
+      "bars": 1018,
+      "min_date": "2022-07-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TRIM",
+      "bars": 2044,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TRIN",
+      "bars": 1605,
+      "min_date": "2020-01-15T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TRIS",
+      "bars": 2034,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TRJA",
+      "bars": 1470,
+      "min_date": "2020-08-27T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TRON",
+      "bars": 840,
+      "min_date": "2023-03-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TRST",
+      "bars": 1660,
+      "min_date": "2018-01-03T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TRUK",
+      "bars": 1989,
+      "min_date": "2018-05-23T00:00:00Z",
+      "max_date": "2026-09-25T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TRUS",
+      "bars": 1872,
+      "min_date": "2018-01-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TSPC",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TUGU",
+      "bars": 1988,
+      "min_date": "2018-05-28T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "TYRE",
+      "bars": 813,
+      "min_date": "2023-05-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "UANG",
+      "bars": 1398,
+      "min_date": "2020-07-06T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "UCID",
+      "bars": 1633,
+      "min_date": "2019-12-20T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "UDNG",
+      "bars": 649,
+      "min_date": "2023-10-31T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "UFOE",
+      "bars": 1347,
+      "min_date": "2021-02-01T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ULTJ",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "UNIC",
+      "bars": 1902,
+      "min_date": "2018-01-04T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "UNIQ",
+      "bars": 1326,
+      "min_date": "2021-03-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "UNTD",
+      "bars": 628,
+      "min_date": "2024-02-07T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "UNTR",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "UNVR",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "URBN",
+      "bars": 1842,
+      "min_date": "2018-12-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "UVCR",
+      "bars": 1249,
+      "min_date": "2021-07-27T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "VAST",
+      "bars": 867,
+      "min_date": "2023-02-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "VERN",
+      "bars": 474,
+      "min_date": "2024-10-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "VICI",
+      "bars": 1393,
+      "min_date": "2020-12-17T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "VICO",
+      "bars": 2071,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "VINS",
+      "bars": 2107,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "VISI",
+      "bars": 605,
+      "min_date": "2024-02-27T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "VIVA",
+      "bars": 1888,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "VKTR",
+      "bars": 778,
+      "min_date": "2023-06-19T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "VOKS",
+      "bars": 2106,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "VRNA",
+      "bars": 1886,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "VTNY",
+      "bars": 905,
+      "min_date": "2022-12-15T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "WAPO",
+      "bars": 2032,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "WBSA",
+      "bars": 113,
+      "min_date": "2026-04-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "WEGE",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "WEHA",
+      "bars": 2112,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "WGSH",
+      "bars": 1157,
+      "min_date": "2021-12-06T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "WIDI",
+      "bars": 764,
+      "min_date": "2023-07-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "WIFI",
+      "bars": 1384,
+      "min_date": "2020-12-30T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "WIIM",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "WINE",
+      "bars": 887,
+      "min_date": "2023-01-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "WINR",
+      "bars": 1063,
+      "min_date": "2022-04-25T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "WINS",
+      "bars": 2100,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "WIRG",
+      "bars": 1076,
+      "min_date": "2022-04-04T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "WMPP",
+      "bars": 722,
+      "min_date": "2021-12-06T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "WMUU",
+      "bars": 1279,
+      "min_date": "2021-02-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "WOMF",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "WOOD",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "WOWS",
+      "bars": 1564,
+      "min_date": "2019-11-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "WTON",
+      "bars": 2113,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "XCID",
+      "bars": 2085,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "XCIS",
+      "bars": 1211,
+      "min_date": "2019-01-29T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "XSPI",
+      "bars": 80,
+      "min_date": "2019-07-04T00:00:00Z",
+      "max_date": "2026-10-06T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "YELO",
+      "bars": 1893,
+      "min_date": "2018-10-29T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "YOII",
+      "bars": 413,
+      "min_date": "2025-01-08T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "YPAS",
+      "bars": 1551,
+      "min_date": "2018-01-26T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "YULE",
+      "bars": 1578,
+      "min_date": "2018-01-02T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "YUPI",
+      "bars": 362,
+      "min_date": "2025-03-25T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ZATA",
+      "bars": 903,
+      "min_date": "2022-11-10T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ZONE",
+      "bars": 1882,
+      "min_date": "2018-12-12T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    },
+    {
+      "ticker": "ZYRX",
+      "bars": 1327,
+      "min_date": "2021-03-30T00:00:00Z",
+      "max_date": "2026-10-09T00:00:00Z",
+      "symbols": 1,
+      "timeframes": 1
+    }
+  ],
+  "duplicates": [],
+  "plan": [
+    {
+      "QUERY PLAN": "[\n  {\n    \"Plan\": {\n      \"Node Type\": \"Sort\",\n      \"Parallel Aware\": false,\n      \"Async Capable\": false,\n      \"Startup Cost\": 6885.98,\n      \"Total Cost\": 6891.73,\n      \"Plan Rows\": 2301,\n      \"Plan Width\": 42,\n      \"Actual Startup Time\": 0.646,\n      \"Actual Total Time\": 0.716,\n      \"Actual Rows\": 2113.00,\n      \"Actual Loops\": 1,\n      \"Disabled\": false,\n      \"Sort Key\": [\"date\"],\n      \"Sort Method\": \"quicksort\",\n      \"Sort Space Used\": 230,\n      \"Sort Space Type\": \"Memory\",\n      \"Shared Hit Blocks\": 70,\n      \"Shared Read Blocks\": 0,\n      \"Shared Dirtied Blocks\": 0,\n      \"Shared Written Blocks\": 0,\n      \"Local Hit Blocks\": 0,\n      \"Local Read Blocks\": 0,\n      \"Local Dirtied Blocks\": 0,\n      \"Local Written Blocks\": 0,\n      \"Temp Read Blocks\": 0,\n      \"Temp Written Blocks\": 0,\n      \"Plans\": [\n        {\n          \"Node Type\": \"Bitmap Heap Scan\",\n          \"Parent Relationship\": \"Outer\",\n          \"Parallel Aware\": false,\n          \"Async Capable\": false,\n          \"Relation Name\": \"Price_Stock_Indonesia_IDX\",\n          \"Alias\": \"Price_Stock_Indonesia_IDX\",\n          \"Startup Cost\": 62.26,\n          \"Total Cost\": 6757.49,\n          \"Plan Rows\": 2301,\n          \"Plan Width\": 42,\n          \"Actual Startup Time\": 0.096,\n          \"Actual Total Time\": 0.399,\n          \"Actual Rows\": 2113.00,\n          \"Actual Loops\": 1,\n          \"Disabled\": false,\n          \"Recheck Cond\": \"((ticker)::text = 'BBCA'::text)\",\n          \"Rows Removed by Index Recheck\": 0,\n          \"Exact Heap Blocks\": 59,\n          \"Lossy Heap Blocks\": 0,\n          \"Shared Hit Blocks\": 70,\n          \"Shared Read Blocks\": 0,\n          \"Shared Dirtied Blocks\": 0,\n          \"Shared Written Blocks\": 0,\n          \"Local Hit Blocks\": 0,\n          \"Local Read Blocks\": 0,\n          \"Local Dirtied Blocks\": 0,\n          \"Local Written Blocks\": 0,\n          \"Temp Read Blocks\": 0,\n          \"Temp Written Blocks\": 0,\n          \"Plans\": [\n            {\n              \"Node Type\": \"Bitmap Index Scan\",\n              \"Parent Relationship\": \"Outer\",\n              \"Parallel Aware\": false,\n              \"Async Capable\": false,\n              \"Index Name\": \"Price_Stock_Indonesia_IDX_pkey\",\n              \"Startup Cost\": 0.00,\n              \"Total Cost\": 61.69,\n              \"Plan Rows\": 2301,\n              \"Plan Width\": 0,\n              \"Actual Startup Time\": 0.077,\n              \"Actual Total Time\": 0.078,\n              \"Actual Rows\": 2113.00,\n              \"Actual Loops\": 1,\n              \"Disabled\": false,\n              \"Index Cond\": \"((ticker)::text = 'BBCA'::text)\",\n              \"Index Searches\": 1,\n              \"Shared Hit Blocks\": 11,\n              \"Shared Read Blocks\": 0,\n              \"Shared Dirtied Blocks\": 0,\n              \"Shared Written Blocks\": 0,\n              \"Local Hit Blocks\": 0,\n              \"Local Read Blocks\": 0,\n              \"Local Dirtied Blocks\": 0,\n              \"Local Written Blocks\": 0,\n              \"Temp Read Blocks\": 0,\n              \"Temp Written Blocks\": 0\n            }\n          ]\n        }\n      ]\n    },\n    \"Planning\": {\n      \"Shared Hit Blocks\": 0,\n      \"Shared Read Blocks\": 0,\n      \"Shared Dirtied Blocks\": 0,\n      \"Shared Written Blocks\": 0,\n      \"Local Hit Blocks\": 0,\n      \"Local Read Blocks\": 0,\n      \"Local Dirtied Blocks\": 0,\n      \"Local Written Blocks\": 0,\n      \"Temp Read Blocks\": 0,\n      \"Temp Written Blocks\": 0\n    },\n    \"Planning Time\": 0.121,\n    \"Triggers\": [\n    ],\n    \"Execution Time\": 0.804\n  }\n]"
+    }
+  ],
+  "access": [
+    {
+      "current_user": "pgweb",
+      "read_only": "on",
+      "can_create": false,
+      "can_read_source": true
+    }
+  ],
+  "triggers": [
+    {
+      "tgname": "database_table_status_change_tracker",
+      "definition": "CREATE TRIGGER database_table_status_change_tracker AFTER INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.\"Price_Stock_Indonesia_IDX\" FOR EACH STATEMENT EXECUTE FUNCTION track_database_table_change()"
+    },
+    {
+      "tgname": "Price_Stock_Indonesia_IDX_enqueue_feature_01",
+      "definition": "CREATE TRIGGER \"Price_Stock_Indonesia_IDX_enqueue_feature_01\" AFTER INSERT OR UPDATE ON public.\"Price_Stock_Indonesia_IDX\" FOR EACH ROW WHEN ((new.ingestion_time IS NOT NULL)) EXECUTE FUNCTION enqueue_feature_01_price_row()"
+    }
+  ],
+  "sample_history_summary": {
+    "securities": [
+      "BBCA",
+      "GOTO"
+    ],
+    "rows": 3185,
+    "sha256": "c03e8f9230fda1682b41dfd956116d1071aee8399e88dfc260ba7e3301ba5107",
+    "raw_history_kept_outside_repository": true
+  }
+}
