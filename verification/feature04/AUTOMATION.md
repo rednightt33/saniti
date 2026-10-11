@@ -71,3 +71,17 @@ state. Redeploy the prior price/Telegram application revisions if an application
 is needed. Keep the forward migration objects and data; do not drop queue or audit tables.
 After a fix, redeploy the worker and replay pending/failed work through the recorded
 generation and revision controls.
+
+## NULL availability clarification
+
+User: “Termasuk NULL yang seharusnya sudah tersedia”. The first worker's latest-candle
+check was replaced by complete selected-output availability validation. The validator checks
+each contiguous valid source segment, warmup lengths, native candlestick lookbacks, and the
+conditional Pine swing state. Unexpected NULL on an older bar also fails. If one member is
+unavailable incorrectly, the complete dependency bundle is withheld from writes.
+
+Regression checks cover historical EMA/pattern corruption, SMI availability, active temporary
+high availability, zero-range SMI, processed 0/1 flags, invalid-OHLCV history reset, and selected
+column retry. Read-only live validation found zero unexpected NULLs on BBCA (2,113 bars), RANS
+(62 bars), and PRDL (63 bars); RANS and PRDL EMA200 NULLs remain valid. Aggregate evidence:
+`null_availability_readback.json`. Formula version and database schema are unchanged.

@@ -26,6 +26,7 @@ from engine import (  # noqa: E402
     VERSION,
     calculate_with_diagnostics,
     dependency_closure,
+    validate_output_availability,
 )
 
 
@@ -38,12 +39,6 @@ PRICE_COLUMNS = (
     "ticker", "date", "open", "high", "low", "close", "volume", "timeframe",
     "tradingview_symbol", "source", "query_date", "ingestion_time",
 )
-LATEST_REQUIRED_AFTER = {
-    "sma_20": 20, "sma_50": 50, "ema_12": 12, "ema_26": 26,
-    "rsi_14": 15, "macd": 26, "macd_signal": 34, "macd_histogram": 34,
-    "atr_14": 15, "bb_upper_20": 20, "bb_middle_20": 20, "bb_lower_20": 20,
-    "adx_14": 28, "ema_50": 50, "ema_200": 200, "inside_bar": 2,
-}
 
 
 @dataclass(frozen=True)
@@ -218,19 +213,6 @@ def source_digest(rows: list[dict]) -> str:
     ).hexdigest()
 
 
-def unexpected_latest_nulls(rows: list[dict], selected: tuple[str, ...]) -> tuple[str, ...]:
-    """Flag NULLs only where the formula contract requires a latest value."""
-    if not rows:
-        return ()
-    latest = rows[-1]
-    return tuple(
-        column for column in selected
-        if column in LATEST_REQUIRED_AFTER
-        and len(rows) >= LATEST_REQUIRED_AFTER[column]
-        and latest[column] is None
-    )
-
-
 def upsert_columns(
     connection: psycopg.Connection, rows: list[dict], feature_columns: tuple[str, ...]
 ) -> int:
@@ -395,13 +377,14 @@ def process_one(job: Job) -> str:
             column for outcome in outcomes.values() if outcome["status"] == "FAILED"
             for column in outcome["columns"] if column in requested
         }
-        unexpected_nulls = unexpected_latest_nulls(rows, requested)
-        failed_set.update(unexpected_nulls)
-        for column in unexpected_nulls:
-            outcomes[f"validation:{column}"] = {
-                "status": "FAILED", "columns": [column],
-                "error": "Unexpected NULL on latest valid candle after required history",
-            }
+        availability_failures = validate_output_availability(
+            history, rows, requested_columns=requested
+        )
+        failed_set.update(availability_failures)
+        for column, failure in availability_failures.items():
+            outcomes[f"validation:{column}"] = failure
+        # Keep the entire dependency bundle unchanged when any member fails.
+        failed_set = set(dependency_closure(failed_set)).intersection(requested)
         successful = tuple(column for column in requested if column not in failed_set)
         failed = tuple(column for column in requested if column in failed_set)
         with connect() as connection, connection.transaction():

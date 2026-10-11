@@ -1735,6 +1735,12 @@ worker, both price services, Telegram monitor, and Telegram trigger all deployed
 BBCA canary replayed 2,113 rows / 50 outputs with zero failure and zero payload change;
 outbox and Telegram delivery reached `SENT`. Evidence: `verification/feature04/AUTOMATION.md`.
 
+**Klarifikasi lanjutan:** user: "Termasuk NULL yang seharusnya sudah tersedia". Pemeriksaan
+NULL diperluas dari candle terakhir ke semua bar hasil kalkulasi, termasuk lookback candlestick
+dan availability state SMI/swing. NULL sah setelah reset OHLCV atau sebelum state tersedia
+tetap dikecualikan. Kegagalan satu anggota menahan penulisan dependency bundle terkait.
+Uji corruption pada bar historis dan pembacaan BBCA/RANS/PRDL dicatat pada bukti yang sama.
+
 ## Verifikasi bersama
 
 **Verifikasi butir 2–7:**

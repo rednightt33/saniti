@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-10-11 — Feature04 complete NULL availability validation
+
+- User clarification: "Termasuk NULL yang seharusnya sudah tersedia". Worker validation now
+  covers historical and latest selected outputs, indicator/pattern warmup within valid source
+  segments, and conditional SMI/swing availability. A failed dependency member withholds its
+  bundle; expected NULLs remain successful. Formula version and schema are unchanged.
+- Worker-only GitHub deployment verification and commit are recorded in
+  `verification/feature04/AUTOMATION.md` after terminal readback.
+
 ## 2026-10-11 — Feature04 event-driven worker and Telegram retry controls
 
 - User approved execution after reviewing the design. Railway IaC plan for lucid-patience/dev showed exactly one add (`feature-04-worker`), zero changes, zero destroys. Existing `idx-price-cron` and recovery cron remain the only schedules.

@@ -48,6 +48,12 @@ V2_COLUMNS = V1_COLUMNS + EXTENSIONS
 COLUMNS = V2_COLUMNS + SWING_COLUMNS
 MACD_COLUMNS = ('macd', 'macd_signal', 'macd_histogram')
 BOLLINGER_COLUMNS = ('bb_upper_20', 'bb_middle_20', 'bb_lower_20')
+REQUIRED_AFTER = {
+    'sma_20': 20, 'sma_50': 50, 'ema_12': 12, 'ema_26': 26,
+    'rsi_14': 15, 'macd': 26, 'macd_signal': 34, 'macd_histogram': 34,
+    'atr_14': 15, 'bb_upper_20': 20, 'bb_middle_20': 20, 'bb_lower_20': 20,
+    'adx_14': 28, 'ema_50': 50, 'ema_200': 200, 'inside_bar': 2,
+}
 
 
 def dependency_closure(columns: Iterable[str] | None) -> tuple[str, ...]:
@@ -250,3 +256,73 @@ def calculate(rows: Iterable[dict], *, calculated_at: datetime | None = None) ->
     if failed:
         raise RuntimeError(f'Feature04 calculation group failed: {failed}')
     return output
+
+
+def validate_output_availability(
+    history: Iterable[dict], output: Iterable[dict],
+    *, requested_columns: Iterable[str] | None = None,
+) -> dict[str, dict]:
+    """Report unavailable values where valid source history requires an output.
+
+    Check every observation, counting warmup again after each invalid source row.
+    Stateful swing availability follows the Pine replay: a temporary peak or a
+    confirmed high is required only while its corresponding state exists.
+    """
+    selected = set(dependency_closure(requested_columns))
+    contract = library_contract()
+    required_after = {
+        **REQUIRED_AFTER,
+        **{column: contract['patterns'][name]['lookback'] + 1
+           for column, name in PATTERNS.items()},
+    }
+    by_key = {}
+    for row in output:
+        key = (row['ticker'], observation_date(row['trade_date']), row['timeframe'])
+        if key in by_key:
+            raise ValueError('Duplicate Feature04 output observation')
+        by_key[key] = row
+    groups = defaultdict(list)
+    seen = set()
+    for source in history:
+        row = dict(source)
+        row['date'] = observation_date(row['date'])
+        key = (row['ticker'], row['date'], row['timeframe'])
+        if key in seen or key not in by_key:
+            raise ValueError('Feature04 output must match each source observation once')
+        seen.add(key)
+        groups[(row['ticker'], row['timeframe'])].append(row)
+    if seen != set(by_key):
+        raise ValueError('Feature04 output contains observations outside source history')
+    failures = {}
+
+    def record(column, row):
+        info = failures.setdefault(column, {
+            'status': 'FAILED', 'columns': [column], 'missing_rows': 0,
+            'first_ticker': row['ticker'], 'first_date': str(row['date']),
+            'error': 'Unexpected NULL where the source/formula availability contract requires a value',
+        })
+        info['missing_rows'] += 1
+        info['last_date'] = str(row['date'])
+
+    for (ticker, timeframe), series in sorted(groups.items()):
+        series.sort(key=lambda row: row['date'])
+        for start, end in _segments([_valid(row) for row in series]):
+            segment = series[start:end]
+            swing = None
+            if selected.intersection(SWING_COLUMNS):
+                h, l, c = [np.array([float(row[key]) for row in segment], dtype=np.float64)
+                           for key in ('high', 'low', 'close')]
+                swing = calculate_swing(h, l, c, bar_offset=start)
+            for position, source in enumerate(segment):
+                actual = by_key[(ticker, source['date'], timeframe)]
+                required = {
+                    column for column, first_bar in required_after.items()
+                    if position + 1 >= first_bar
+                }
+                if swing is not None:
+                    required.update(column for column in SWING_COLUMNS
+                                    if swing[position][column] is not None)
+                for column in sorted(selected.intersection(required)):
+                    if actual.get(column) is None:
+                        record(column, source)
+    return failures

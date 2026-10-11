@@ -265,8 +265,12 @@ tickers continue.
 Formula groups expose diagnostic outcomes. MACD, Bollinger, and the complete SMI/swing state
 are indivisible dependency bundles. A Telegram column retry therefore recalculates the
 dependency closure; full-ticker retry is used for script/worker failure. Retry controls only
-appear for `FAILED`/`BLOCKED` state. Expected NULLs remain `SUCCESS`; deterministic latest
-NULLs after their required history are recorded as failures.
+appear for `FAILED`/`BLOCKED` state. Expected NULLs remain `SUCCESS`. User clarification:
+"Termasuk NULL yang seharusnya sudah tersedia". Availability validation checks every bar in
+the selected output, using each indicator's warmup, the native candlestick lookback, and the
+conditional Pine state. A missing required historical value is also a failure. Warmup resets
+after invalid OHLCV; zero-range SMI and absent provisional/confirmed swing levels stay valid
+NULLs. Any failing member withholds its entire dependency bundle from the write.
 
 Price monitoring commits before its event is sent to `telegram-monitor`. Feature04 can
 calculate concurrently, but its outbox is deliverable only after the price notification is

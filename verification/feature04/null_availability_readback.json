@@ -1,0 +1,23 @@
+[
+  {
+    "ticker": "BBCA",
+    "source_rows": 2113,
+    "output_rows": 2113,
+    "unexpected_nulls": {},
+    "latest_ema200_available": true
+  },
+  {
+    "ticker": "RANS",
+    "source_rows": 62,
+    "output_rows": 62,
+    "unexpected_nulls": {},
+    "latest_ema200_available": false
+  },
+  {
+    "ticker": "PRDL",
+    "source_rows": 63,
+    "output_rows": 63,
+    "unexpected_nulls": {},
+    "latest_ema200_available": false
+  }
+]

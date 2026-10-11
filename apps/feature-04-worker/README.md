@@ -12,8 +12,11 @@ old claim. Work for different tickers continues when one ticker fails.
 Each formula group is isolated. Valid bundles commit even when another group fails;
 `Feature04_Column_Status` records the exact failed columns. Automatic retries use bounded
 backoff and stop after five source attempts. Expected formula NULLs such as EMA200 with
-fewer than 200 bars and SMI on a zero range are successful outcomes. A latest NULL after
-the documented minimum history for deterministic indicators is an error.
+fewer than 200 bars and SMI on a zero range are successful outcomes. Availability validation
+checks every calculated observation, including candlestick lookbacks and conditional SMI/swing
+state. A NULL where the formula requires a value is an error even on an older bar. Invalid
+source rows restart warmup; their expected NULLs do not become false failures. If one member
+fails, its complete dependency bundle is withheld from writes and becomes a retry target.
 
 `Monitoring_Feature04` is finalized only when all eligible tickers are terminal. The
 durable notification outbox waits until `telegram-monitor` has recorded the price message
