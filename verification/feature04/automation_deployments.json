@@ -1,0 +1,37 @@
+{
+  "feature-04-worker": {
+    "deployment_id": "2f02c16a-4fa8-404f-a192-cdc4bd59da3b",
+    "status": "SUCCESS",
+    "created_at": "2026-10-11T08:48:04.722Z",
+    "commit_hash": "4082626384cc44df89b99004597be847362b0df7",
+    "root_directory": "/"
+  },
+  "idx-price-cron": {
+    "deployment_id": "37138769-e856-494d-8d9a-6f0bf5e13213",
+    "status": "SUCCESS",
+    "created_at": "2026-10-11T08:47:49.728Z",
+    "commit_hash": "4082626384cc44df89b99004597be847362b0df7",
+    "root_directory": "/apps/idx-price-cron"
+  },
+  "idx-price-recovery-cron": {
+    "deployment_id": "a9f666b9-9c7c-4e31-99e6-11e34ca48576",
+    "status": "SUCCESS",
+    "created_at": "2026-10-11T08:47:49.728Z",
+    "commit_hash": "4082626384cc44df89b99004597be847362b0df7",
+    "root_directory": "/apps/idx-price-cron"
+  },
+  "telegram-monitor": {
+    "deployment_id": "9e22ab6f-ef1b-447f-a03c-697a9b1ad045",
+    "status": "SUCCESS",
+    "created_at": "2026-10-11T08:47:49.727Z",
+    "commit_hash": "4082626384cc44df89b99004597be847362b0df7",
+    "root_directory": "/apps/telegram-monitor"
+  },
+  "telegram-trigger": {
+    "deployment_id": "4939858d-d472-4688-8ae9-cdadf5179bdf",
+    "status": "SUCCESS",
+    "created_at": "2026-10-11T08:47:49.727Z",
+    "commit_hash": "4082626384cc44df89b99004597be847362b0df7",
+    "root_directory": "/apps/telegram-trigger"
+  }
+}

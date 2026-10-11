@@ -5,7 +5,8 @@
 - User approved execution after reviewing the design. Railway IaC plan for lucid-patience/dev showed exactly one add (`feature-04-worker`), zero changes, zero destroys. Existing `idx-price-cron` and recovery cron remain the only schedules.
 - `feature-04-worker` is an always-on GitHub service with root build context, pinned Python/TA-Lib dependencies, `DATABASE_URL`, private `telegram-monitor` notify URL, and shared notify-secret references. It polls the durable PostgreSQL queue and never calls TradingView.
 - Price services bind changed rows to a Feature04 execution in the same transaction. `telegram-monitor` handles price and Feature04 sources; `telegram-trigger` provides owner-only status and failure-only retry without Railway Run Now.
-- Deployment IDs, terminal status, startup evidence, canary, and rollback target are recorded in `verification/feature04/AUTOMATION.md` after live validation.
+- All commit `4082626` deployments reached `SUCCESS`: worker `2f02c16a`, price daily `37138769`, recovery `a9f666b9`, monitor `9e22ab6f`, trigger `4939858d`. Startup logged the exact v3 calculation version. BBCA canary processed 2,113 bars / 50 outputs with zero failed columns and zero changed rows; run, queue, outbox and Telegram ledger all reached success/sent. Details and rollback are in `verification/feature04/AUTOMATION.md`.
+- Private sandbox `07d16159-76e6-4d0a-8d97-1dddd4a6cba4` used for migration and rollback-only trigger checks was destroyed; terminal `DESTROYED` was read back.
 
 ## 2026-10-11 — Feature04 v2 serial historical backfill, no deployed service change
 

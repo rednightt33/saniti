@@ -572,7 +572,7 @@ def derive_status_rows(
                     sql.Identifier(schema), sql.Identifier(name)
                 )
             ).fetchone()
-            tracking_status = "Derived from existing rows; manual refresh only"
+            tracking_status = "Derived from price rows; changes queued and tracked per ticker"
             last_operation = "CALCULATION" if last_changed_at is not None else None
         elif name == "feature04_backfill_log":
             latest_data_date, last_changed_at = connection.execute(

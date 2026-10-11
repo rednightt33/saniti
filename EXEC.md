@@ -1728,7 +1728,12 @@ NULL yang sah tidak dianggap failure. Retry Feature04 tidak menjalankan TradingV
 **Rollback:** hentikan worker/dispatcher dan retry enqueue; pertahankan durable queue/audit serta price cron. Jangan drop data
 atau menghapus status failure. Kembalikan deployment aplikasi bila perlu, perbaiki, lalu replay pending work.
 
-**Status:** IN PROGRESS. Persetujuan rencana bukan lagi satu-satunya otorisasi; user memberi go eksekusi eksplisit.
+**Status:** COMPLETED 2026-10-11. Migration `20261011_005` committed after rollback rehearsal;
+live readback found 7 control tables, 4 functions, one price trigger, 42,200 successful
+baseline column states, and zero initial queue rows. Commit `4082626` was pushed to `main`;
+worker, both price services, Telegram monitor, and Telegram trigger all deployed `SUCCESS`.
+BBCA canary replayed 2,113 rows / 50 outputs with zero failure and zero payload change;
+outbox and Telegram delivery reached `SENT`. Evidence: `verification/feature04/AUTOMATION.md`.
 
 ## Verifikasi bersama
 

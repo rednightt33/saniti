@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-10-11T06:27:53.015858+00:00`.
+Generated from PostgreSQL schema `public` at `2026-10-11T08:51:27+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -32,17 +32,22 @@ Generated from PostgreSQL schema `public` at `2026-10-11T06:27:53.015858+00:00`.
 | `Analysis_Step_Log` | System | After each AI analysis tool or compaction step | — | `2026-09-13 15:02:15+00:00` | Baseline only | Audit record for every query, tool, compaction, or analytical step in an AI request. |
 | `Analytics_Dataset_Snapshot` | System | Per bounded analytics input; remove private object after terminal grace or expiry | — | `2026-09-14 07:39:52+00:00` | Baseline only | Metadata and retention state for immutable bounded raw or Feature analytical input snapshots stored in a private Railway bucket. |
 | `Analytics_Job` | System | Per generic analytics submission, lease, result, or failure | — | `2026-09-14 07:39:52+00:00` | Baseline only | Durable queue, lease, resource contract, result, and failure audit for separately authenticated query-sandbox and statistical-validation workers. |
-| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-10-11 06:27:50.280245+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-10-09 05:36:34+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
-| `Feature04_Technical_Indicator` | Feature | Manual scoped or explicitly authorized all-source serial chronological replay; source corrections require full history through output end. No scheduler. | `2026-10-09` | `2026-10-11 06:25:12.523796+00:00` | Actual row readback; manual serial execution; no Database_Table_Status row | 55-column causal daily indicators, native candlestick codes, strict inside bar and Pine SMI/swing state. Authorized v3 full-history replay completed for all actual price-source tickers. TradingView chart parity NOT VERIFIED. |
-| `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-10-08` | `2026-10-09 10:06:33.150795+00:00` | Tracked automatically | Daily per-ticker price, return, volatility, volume, and drawdown features. |
+| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-10-11 08:44:55.515076+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-10-11 08:51:27+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Feature04_Calculation_Log` | System | After each Feature04 worker attempt | — | `2026-10-11 08:51:27+00:00` | Baseline only | Immutable Feature04 calculation attempt audit. |
+| `Feature04_Calculation_Queue` | System | After relevant price changes and Feature04 worker transitions | — | `2026-10-11 08:51:27+00:00` | Baseline only | Durable coalesced Feature04 work and lease state. |
+| `Feature04_Column_Status` | System | After Feature04 validation or failure | — | `2026-10-11 08:51:27+00:00` | Baseline only | Per-ticker per-output Feature04 readiness and failure state. |
+| `Feature04_Notification_Outbox` | System | After a Feature04 execution becomes terminal | — | `2026-10-11 08:51:27+00:00` | Baseline only | Durable Feature04 completion-notification work. |
+| `Feature04_Retry_Request` | System | When the owner requests an active failure retry | — | `2026-10-11 08:51:27+00:00` | Baseline only | Audited Telegram failure-only retry request. |
+| `Feature04_Technical_Indicator` | Feature | Event-driven after committed price changes; full-history per ticker | `2026-10-09` | `2026-10-11 06:25:12.523796+00:00` | Derived from price rows; changes queued and tracked per ticker | 55-column causal daily indicators, native candlestick codes, strict inside bar and Pine SMI/swing state. Authorized v3 full-history replay completed for all actual price-source tickers. TradingView chart parity NOT VERIFIED. |
+| `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-10-09` | `2026-10-09 10:06:33.150795+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
 | `Feature_02_Broker_Rolling` | Feature | After validated broker-summary changes; manual v2 ticker rebuild | `2026-08-31` | `2026-09-14 14:26:33.580099+00:00` | Derived from IDX_Broker_Summary; Investor-Type Feature 02 v2 refresh is manual | Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata. |
 | `Feature_03_Stock_Broker_Daily` | Feature | After Feature 02 refresh; manual Investor-Type v2 refresh | `2026-08-31` | `2026-09-14 15:17:23.131992+00:00` | Derived from Investor-Type Feature_02_Broker_Rolling; Feature 03 v2 refresh is manual | Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate. |
-| `Feature_Calculation_Log` | System | After completed worker attempts | `2026-10-08` | `2026-10-08 23:02:17.644559+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
-| `Feature_Calculation_Queue` | System | After committed price inserts/updates and worker transitions | `2026-10-08` | `2026-10-08 23:02:17.586587+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
+| `Feature_Calculation_Log` | System | After completed worker attempts | `2026-10-09` | `2026-10-09 10:06:33.159836+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
+| `Feature_Calculation_Queue` | System | After committed price inserts/updates and worker transitions | `2026-10-09` | `2026-10-09 10:06:33.099491+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
 | `Feature_Catalog` | Reference | After each validated Feature schema change | — | `2026-10-11 06:27:50.282091+00:00` | Tracked automatically | Versioned, machine-readable formula, interpretation, recommended-use, misuse, availability, point-in-time safety and validation-evidence contract for every validated Feature column. |
 | `Feature_Relationship_Catalog` | Reference | After a validated Feature join contract changes | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned safe-join and grain contracts between verified Feature tables. |
-| `Feature_Status` | System | After enqueue and worker state transitions | `2026-10-08` | `2026-10-08 23:02:17.586587+00:00` | Derived from per-ticker status rows | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
+| `Feature_Status` | System | After enqueue and worker state transitions | `2026-10-09` | `2026-10-09 10:06:33.099491+00:00` | Derived from per-ticker status rows | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
 | `Golden_Analysis_Test` | System | After a versioned golden analytical expectation changes | — | `2026-09-13 15:08:56+00:00` | Baseline only | Versioned analytical regression-test definitions with reproducible conditions and tolerances. |
 | `Golden_Analysis_Test_Result` | System | After each test in a golden-suite run | — | `2026-09-13 15:08:56+00:00` | Baseline only | Per-test correctness, methodology, evidence, warning, latency and token outcome. |
 | `Golden_Analysis_Test_Run` | System | Before major releases and material model, prompt, Feature, or tool changes | — | `2026-09-13 15:08:56+00:00` | Baseline only | Historical execution record for one complete golden analytical regression suite. |
@@ -51,15 +56,17 @@ Generated from PostgreSQL schema `public` at `2026-10-11T06:27:53.015858+00:00`.
 | `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 14:41:15.160142+00:00` | Derived from table data and load log | Daily broker buy/sell values and lots by symbol, broker, investor type, and market board. |
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-10-02 18:07:58.944512+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
 | `IDX_Stock_Universe_History` | Reference | Captured after every write to IDX_Stock_Universe; never deleted | — | `2026-10-09 05:36:34+00:00` | Baseline; exact changes tracked from this time forward | Point-in-time (bitemporal) history of the tracked IDX_Stock_Universe attributes (Company Name, Exchange, Security Type, Type Specs, Is Common Stock, ISIN, Sector, Industry), captured by Saniti from the first capture onward. Current knowledge is recorded_to IS NULL; superseded knowledge is kept. |
-| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-10-08` | `2026-10-08 23:02:11.337259+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
-| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-10-08` | `2026-10-09 10:04:22.765289+00:00` | Tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
+| `Monitoring_Feature04` | Monitoring | Per automatic or Telegram Feature04 execution | — | `2026-10-11 08:51:27+00:00` | Baseline only | Feature04 automatic/retry batch summary and notification ordering gate. |
+| `Monitoring_Feature04_Ticker` | Monitoring | Per eligible ticker in a Feature04 execution | — | `2026-10-11 08:51:27+00:00` | Baseline only | Per-ticker membership and outcome of a Feature04 execution. |
+| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-10-10` | `2026-10-10 23:00:29.441187+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
+| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-10-09` | `2026-10-09 10:04:22.765289+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
 | `Reference_History_Capture_Log` | System | One row per reference-history capture or correction | — | `2026-10-09 05:36:34+00:00` | Baseline; exact changes tracked from this time forward | One row per capture of IDX_Stock_Universe or IDX_Broker_Profile into its history (trigger, initial, manual or correction): changed and new versions, keys absent from the load, and the error of a failed capture. |
-| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-10-11 06:27:50.279853+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
+| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-10-11 08:44:55.512585+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
 | `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
-| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-10-10 23:00:34.407737+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
+| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-10-11 08:49:54.580675+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
 | `Tool_Catalog` | Reference | With each approved backend or analytics tool release | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned generic AI tool metadata, activation state, schemas, and advertised operational ceilings. |
 | `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-10-02 18:07:58.949068+00:00` | Tracked automatically | Issuer descriptions and TradingView/curated sector and industry classifications. |
-| `feature04_backfill_log` | Monitoring | Manual serial runner; completed output and audit committed together; failed ticker rolls back. | `2026-10-09` | `2026-10-11 06:25:12.790322+00:00` | Actual row readback; manual serial execution; no Database_Table_Status row | Atomic Feature04 per-run/ticker historical calculation audit and resumable extraction/output fingerprints. |
+| `feature04_backfill_log` | Monitoring | Atomic per-run/ticker Feature04 calculation metadata | `2026-10-09` | `2026-10-11 06:25:12.790322+00:00` | Derived from completed atomic ticker loads; manual execution only | Atomic Feature04 per-run/ticker historical calculation audit and resumable extraction/output fingerprints. |
 | `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-08-31` | `2026-09-09 16:55:55.713468+00:00` | Derived from load log | Per-trading-date Stockbit broker-summary load progress, retries, and review state. |
 
 ## Logical relationships
@@ -1288,6 +1295,235 @@ Tracks the data freshness, change time, and update pattern of each table.
 |---|---|
 | `Database_Table_Status_pkey` | `CREATE UNIQUE INDEX "Database_Table_Status_pkey" ON public."Database_Table_Status" USING btree ("Table Name")` |
 
+## Feature04_Calculation_Log
+
+Immutable Feature04 calculation attempt audit.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `id` | `bigint` | No | — | Operational id field for Feature04_Calculation_Log. |
+| `ticker` | `text` | No | — | Operational ticker field for Feature04_Calculation_Log. |
+| `timeframe` | `text` | No | — | Operational timeframe field for Feature04_Calculation_Log. |
+| `source_generation` | `bigint` | No | — | Operational source generation field for Feature04_Calculation_Log. |
+| `work_revision` | `bigint` | No | — | Operational work revision field for Feature04_Calculation_Log. |
+| `retry_request_id` | `uuid` | Yes | — | Operational retry request id field for Feature04_Calculation_Log. |
+| `requested_columns` | `ARRAY` | Yes | — | Operational requested columns field for Feature04_Calculation_Log. |
+| `successful_columns` | `ARRAY` | No | `'{}'::text[]` | Operational successful columns field for Feature04_Calculation_Log. |
+| `failed_columns` | `ARRAY` | No | `'{}'::text[]` | Operational failed columns field for Feature04_Calculation_Log. |
+| `group_outcomes` | `jsonb` | No | `'{}'::jsonb` | Operational group outcomes field for Feature04_Calculation_Log. |
+| `result` | `text` | No | — | Operational result field for Feature04_Calculation_Log. |
+| `source_start` | `date` | Yes | — | Operational source start field for Feature04_Calculation_Log. |
+| `source_end` | `date` | Yes | — | Operational source end field for Feature04_Calculation_Log. |
+| `source_rows` | `integer` | Yes | — | Operational source rows field for Feature04_Calculation_Log. |
+| `source_sha256` | `text` | Yes | — | Operational source sha256 field for Feature04_Calculation_Log. |
+| `changed_rows` | `integer` | Yes | — | Operational changed rows field for Feature04_Calculation_Log. |
+| `calculation_version` | `text` | No | — | Operational calculation version field for Feature04_Calculation_Log. |
+| `started_at` | `timestamp with time zone` | No | — | Operational started at field for Feature04_Calculation_Log. |
+| `finished_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational finished at field for Feature04_Calculation_Log. |
+| `error_code` | `text` | Yes | — | Operational error code field for Feature04_Calculation_Log. |
+| `detail` | `text` | Yes | — | Operational detail field for Feature04_Calculation_Log. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature04_Calculation_Log_changed_rows_check` | Check | `CHECK (changed_rows IS NULL OR changed_rows >= 0)` |
+| `Feature04_Calculation_Log_check` | Check | `CHECK (source_generation >= 0 AND work_revision > 0)` |
+| `Feature04_Calculation_Log_check1` | Check | `CHECK (finished_at >= started_at)` |
+| `Feature04_Calculation_Log_result_check` | Check | `CHECK (result = ANY (ARRAY['SUCCESS'::text, 'PARTIAL'::text, 'FAILED'::text, 'SUPERSEDED'::text]))` |
+| `Feature04_Calculation_Log_source_rows_check` | Check | `CHECK (source_rows IS NULL OR source_rows >= 0)` |
+| `Feature04_Calculation_Log_timeframe_check` | Check | `CHECK (timeframe = 'Daily'::text)` |
+| `Feature04_Calculation_Log_retry_fkey` | Foreign key | `FOREIGN KEY (retry_request_id) REFERENCES "Feature04_Retry_Request"(request_id)` |
+| `Feature04_Calculation_Log_pkey` | Primary key | `PRIMARY KEY (id)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature04_Calculation_Log_pkey` | `CREATE UNIQUE INDEX "Feature04_Calculation_Log_pkey" ON public."Feature04_Calculation_Log" USING btree (id)` |
+| `Feature04_Calculation_Log_ticker_time_idx` | `CREATE INDEX "Feature04_Calculation_Log_ticker_time_idx" ON public."Feature04_Calculation_Log" USING btree (ticker, started_at DESC)` |
+
+## Feature04_Calculation_Queue
+
+Durable coalesced Feature04 work and lease state.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `ticker` | `text` | No | — | Operational ticker field for Feature04_Calculation_Queue. |
+| `timeframe` | `text` | No | `'Daily'::text` | Operational timeframe field for Feature04_Calculation_Queue. |
+| `dirty_from_date` | `date` | No | — | Operational dirty from date field for Feature04_Calculation_Queue. |
+| `requested_generation` | `bigint` | No | `1` | Operational requested generation field for Feature04_Calculation_Queue. |
+| `completed_generation` | `bigint` | No | `0` | Operational completed generation field for Feature04_Calculation_Queue. |
+| `work_revision` | `bigint` | No | `1` | Operational work revision field for Feature04_Calculation_Queue. |
+| `requested_columns` | `ARRAY` | Yes | — | Operational requested columns field for Feature04_Calculation_Queue. |
+| `origin_execution_id` | `text` | Yes | — | Operational origin execution id field for Feature04_Calculation_Queue. |
+| `status` | `text` | No | `'PENDING'::text` | Operational status field for Feature04_Calculation_Queue. |
+| `attempt_count` | `bigint` | No | `0` | Operational attempt count field for Feature04_Calculation_Queue. |
+| `source_attempt_count` | `integer` | No | `0` | Operational source attempt count field for Feature04_Calculation_Queue. |
+| `next_attempt_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational next attempt at field for Feature04_Calculation_Queue. |
+| `claimed_at` | `timestamp with time zone` | Yes | — | Operational claimed at field for Feature04_Calculation_Queue. |
+| `claim_token` | `uuid` | Yes | — | Operational claim token field for Feature04_Calculation_Queue. |
+| `claim_expires_at` | `timestamp with time zone` | Yes | — | Operational claim expires at field for Feature04_Calculation_Queue. |
+| `last_error_code` | `text` | Yes | — | Operational last error code field for Feature04_Calculation_Queue. |
+| `last_error` | `text` | Yes | — | Operational last error field for Feature04_Calculation_Queue. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational created at field for Feature04_Calculation_Queue. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational updated at field for Feature04_Calculation_Queue. |
+| `completed_at` | `timestamp with time zone` | Yes | — | Operational completed at field for Feature04_Calculation_Queue. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature04_Calculation_Queue_check` | Check | `CHECK (requested_generation >= completed_generation AND completed_generation >= 0)` |
+| `Feature04_Calculation_Queue_check1` | Check | `CHECK (work_revision > 0 AND attempt_count >= 0 AND source_attempt_count >= 0)` |
+| `Feature04_Calculation_Queue_check2` | Check | `CHECK ((status = 'PROCESSING'::text) = (claimed_at IS NOT NULL AND claim_token IS NOT NULL AND claim_expires_at IS NOT NULL))` |
+| `Feature04_Calculation_Queue_requested_columns_check` | Check | `CHECK (requested_columns IS NULL OR cardinality(requested_columns) > 0)` |
+| `Feature04_Calculation_Queue_status_check` | Check | `CHECK (status = ANY (ARRAY['PENDING'::text, 'PROCESSING'::text, 'DONE'::text, 'FAILED'::text]))` |
+| `Feature04_Calculation_Queue_ticker_check` | Check | `CHECK (ticker = upper(btrim(ticker)) AND ticker <> ''::text)` |
+| `Feature04_Calculation_Queue_timeframe_check` | Check | `CHECK (timeframe = 'Daily'::text)` |
+| `Feature04_Calculation_Queue_pkey` | Primary key | `PRIMARY KEY (ticker, timeframe)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature04_Calculation_Queue_lease_idx` | `CREATE INDEX "Feature04_Calculation_Queue_lease_idx" ON public."Feature04_Calculation_Queue" USING btree (claim_expires_at) WHERE (status = 'PROCESSING'::text)` |
+| `Feature04_Calculation_Queue_pkey` | `CREATE UNIQUE INDEX "Feature04_Calculation_Queue_pkey" ON public."Feature04_Calculation_Queue" USING btree (ticker, timeframe)` |
+| `Feature04_Calculation_Queue_ready_idx` | `CREATE INDEX "Feature04_Calculation_Queue_ready_idx" ON public."Feature04_Calculation_Queue" USING btree (next_attempt_at, updated_at) WHERE (status = ANY (ARRAY['PENDING'::text, 'FAILED'::text]))` |
+
+## Feature04_Column_Status
+
+Per-ticker per-output Feature04 readiness and failure state.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `ticker` | `text` | No | — | Operational ticker field for Feature04_Column_Status. |
+| `timeframe` | `text` | No | `'Daily'::text` | Operational timeframe field for Feature04_Column_Status. |
+| `feature_column` | `text` | No | — | Operational feature column field for Feature04_Column_Status. |
+| `requested_generation` | `bigint` | No | `0` | Operational requested generation field for Feature04_Column_Status. |
+| `completed_generation` | `bigint` | No | `0` | Operational completed generation field for Feature04_Column_Status. |
+| `calculation_version` | `text` | No | — | Operational calculation version field for Feature04_Column_Status. |
+| `status` | `text` | No | — | Operational status field for Feature04_Column_Status. |
+| `dirty_from_date` | `date` | Yes | — | Operational dirty from date field for Feature04_Column_Status. |
+| `validated_through` | `date` | Yes | — | Operational validated through field for Feature04_Column_Status. |
+| `latest_value_available` | `boolean` | Yes | — | Operational latest value available field for Feature04_Column_Status. |
+| `null_reason` | `text` | Yes | — | Operational null reason field for Feature04_Column_Status. |
+| `last_attempt_id` | `bigint` | Yes | — | Operational last attempt id field for Feature04_Column_Status. |
+| `last_error_code` | `text` | Yes | — | Operational last error code field for Feature04_Column_Status. |
+| `last_error` | `text` | Yes | — | Operational last error field for Feature04_Column_Status. |
+| `last_calculated_at` | `timestamp with time zone` | Yes | — | Operational last calculated at field for Feature04_Column_Status. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational updated at field for Feature04_Column_Status. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature04_Column_Status_check` | Check | `CHECK (btrim(feature_column) <> ''::text AND btrim(calculation_version) <> ''::text)` |
+| `Feature04_Column_Status_check1` | Check | `CHECK (requested_generation >= completed_generation AND completed_generation >= 0)` |
+| `Feature04_Column_Status_status_check` | Check | `CHECK (status = ANY (ARRAY['PENDING'::text, 'PROCESSING'::text, 'SUCCESS'::text, 'FAILED'::text, 'BLOCKED'::text]))` |
+| `Feature04_Column_Status_ticker_check` | Check | `CHECK (ticker = upper(btrim(ticker)) AND ticker <> ''::text)` |
+| `Feature04_Column_Status_timeframe_check` | Check | `CHECK (timeframe = 'Daily'::text)` |
+| `Feature04_Column_Status_attempt_fkey` | Foreign key | `FOREIGN KEY (last_attempt_id) REFERENCES "Feature04_Calculation_Log"(id)` |
+| `Feature04_Column_Status_pkey` | Primary key | `PRIMARY KEY (ticker, timeframe, feature_column)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature04_Column_Status_failure_idx` | `CREATE INDEX "Feature04_Column_Status_failure_idx" ON public."Feature04_Column_Status" USING btree (status, updated_at DESC, ticker, feature_column) WHERE (status = ANY (ARRAY['FAILED'::text, 'BLOCKED'::text]))` |
+| `Feature04_Column_Status_pkey` | `CREATE UNIQUE INDEX "Feature04_Column_Status_pkey" ON public."Feature04_Column_Status" USING btree (ticker, timeframe, feature_column)` |
+
+## Feature04_Notification_Outbox
+
+Durable Feature04 completion-notification work.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `event_id` | `uuid` | No | — | Operational event id field for Feature04_Notification_Outbox. |
+| `execution_id` | `text` | No | — | Operational execution id field for Feature04_Notification_Outbox. |
+| `notification_type` | `text` | No | `'COMPLETED'::text` | Operational notification type field for Feature04_Notification_Outbox. |
+| `status` | `text` | No | `'PENDING'::text` | Operational status field for Feature04_Notification_Outbox. |
+| `attempt_count` | `integer` | No | `0` | Operational attempt count field for Feature04_Notification_Outbox. |
+| `next_attempt_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational next attempt at field for Feature04_Notification_Outbox. |
+| `claimed_at` | `timestamp with time zone` | Yes | — | Operational claimed at field for Feature04_Notification_Outbox. |
+| `claim_token` | `uuid` | Yes | — | Operational claim token field for Feature04_Notification_Outbox. |
+| `claim_expires_at` | `timestamp with time zone` | Yes | — | Operational claim expires at field for Feature04_Notification_Outbox. |
+| `sent_at` | `timestamp with time zone` | Yes | — | Operational sent at field for Feature04_Notification_Outbox. |
+| `last_error` | `text` | Yes | — | Operational last error field for Feature04_Notification_Outbox. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational created at field for Feature04_Notification_Outbox. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational updated at field for Feature04_Notification_Outbox. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature04_Notification_Outbox_attempt_count_check` | Check | `CHECK (attempt_count >= 0)` |
+| `Feature04_Notification_Outbox_check` | Check | `CHECK ((status = 'SENDING'::text) = (claimed_at IS NOT NULL AND claim_token IS NOT NULL AND claim_expires_at IS NOT NULL))` |
+| `Feature04_Notification_Outbox_status_check` | Check | `CHECK (status = ANY (ARRAY['PENDING'::text, 'SENDING'::text, 'SENT'::text, 'FAILED'::text]))` |
+| `Feature04_Notification_Outbox_execution_id_fkey` | Foreign key | `FOREIGN KEY (execution_id) REFERENCES "Monitoring_Feature04"(execution_id) ON DELETE CASCADE` |
+| `Feature04_Notification_Outbox_pkey` | Primary key | `PRIMARY KEY (event_id)` |
+| `Feature04_Notification_Outbox_execution_id_notification_typ_key` | Unique | `UNIQUE (execution_id, notification_type)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature04_Notification_Outbox_execution_id_notification_typ_key` | `CREATE UNIQUE INDEX "Feature04_Notification_Outbox_execution_id_notification_typ_key" ON public."Feature04_Notification_Outbox" USING btree (execution_id, notification_type)` |
+| `Feature04_Notification_Outbox_pkey` | `CREATE UNIQUE INDEX "Feature04_Notification_Outbox_pkey" ON public."Feature04_Notification_Outbox" USING btree (event_id)` |
+| `Feature04_Notification_Outbox_ready_idx` | `CREATE INDEX "Feature04_Notification_Outbox_ready_idx" ON public."Feature04_Notification_Outbox" USING btree (next_attempt_at, created_at) WHERE (status = ANY (ARRAY['PENDING'::text, 'FAILED'::text]))` |
+
+## Feature04_Retry_Request
+
+Audited Telegram failure-only retry request.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `request_id` | `uuid` | No | — | Operational request id field for Feature04_Retry_Request. |
+| `telegram_update_id` | `bigint` | Yes | — | Operational telegram update id field for Feature04_Retry_Request. |
+| `chat_id` | `bigint` | Yes | — | Operational chat id field for Feature04_Retry_Request. |
+| `request_scope` | `text` | No | — | Operational request scope field for Feature04_Retry_Request. |
+| `source_execution_id` | `text` | Yes | — | Operational source execution id field for Feature04_Retry_Request. |
+| `ticker` | `text` | Yes | — | Operational ticker field for Feature04_Retry_Request. |
+| `requested_columns` | `ARRAY` | Yes | — | Operational requested columns field for Feature04_Retry_Request. |
+| `source_generation` | `bigint` | No | — | Operational source generation field for Feature04_Retry_Request. |
+| `work_revision` | `bigint` | No | — | Operational work revision field for Feature04_Retry_Request. |
+| `status` | `text` | No | `'PENDING'::text` | Operational status field for Feature04_Retry_Request. |
+| `child_execution_id` | `text` | No | — | Operational child execution id field for Feature04_Retry_Request. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational created at field for Feature04_Retry_Request. |
+| `started_at` | `timestamp with time zone` | Yes | — | Operational started at field for Feature04_Retry_Request. |
+| `finished_at` | `timestamp with time zone` | Yes | — | Operational finished at field for Feature04_Retry_Request. |
+| `last_error` | `text` | Yes | — | Operational last error field for Feature04_Retry_Request. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature04_Retry_Request_check` | Check | `CHECK (request_scope = 'TICKER'::text AND requested_columns IS NULL OR request_scope = 'COLUMN'::text AND requested_columns IS NOT NULL AND cardinality(requested_columns) > 0)` |
+| `Feature04_Retry_Request_check1` | Check | `CHECK (source_generation >= 0 AND work_revision > 0)` |
+| `Feature04_Retry_Request_request_scope_check` | Check | `CHECK (request_scope = ANY (ARRAY['TICKER'::text, 'COLUMN'::text]))` |
+| `Feature04_Retry_Request_status_check` | Check | `CHECK (status = ANY (ARRAY['PENDING'::text, 'PROCESSING'::text, 'SUCCESS'::text, 'PARTIAL'::text, 'FAILED'::text, 'SUPERSEDED'::text, 'CANCELLED'::text]))` |
+| `Feature04_Retry_Request_pkey` | Primary key | `PRIMARY KEY (request_id)` |
+| `Feature04_Retry_Request_child_execution_id_key` | Unique | `UNIQUE (child_execution_id)` |
+| `Feature04_Retry_Request_telegram_update_id_key` | Unique | `UNIQUE (telegram_update_id)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature04_Retry_Request_child_execution_id_key` | `CREATE UNIQUE INDEX "Feature04_Retry_Request_child_execution_id_key" ON public."Feature04_Retry_Request" USING btree (child_execution_id)` |
+| `Feature04_Retry_Request_pkey` | `CREATE UNIQUE INDEX "Feature04_Retry_Request_pkey" ON public."Feature04_Retry_Request" USING btree (request_id)` |
+| `Feature04_Retry_Request_telegram_update_id_key` | `CREATE UNIQUE INDEX "Feature04_Retry_Request_telegram_update_id_key" ON public."Feature04_Retry_Request" USING btree (telegram_update_id)` |
+
 ## Feature04_Technical_Indicator
 
 55-column causal daily indicators, native candlestick codes, strict inside bar and Pine SMI/swing state. Authorized v3 full-history replay completed for all actual price-source tickers. TradingView chart parity NOT VERIFIED.
@@ -2139,6 +2375,90 @@ Point-in-time (bitemporal) history of the tracked IDX_Stock_Universe attributes 
 | `IDX_Stock_Universe_History_no_overlap` | `CREATE INDEX "IDX_Stock_Universe_History_no_overlap" ON public."IDX_Stock_Universe_History" USING gist ("Ticker", daterange(valid_from, valid_to, '[)'::text), tstzrange(recorded_from, recorded_to, '[)'::text))` |
 | `IDX_Stock_Universe_History_pkey` | `CREATE UNIQUE INDEX "IDX_Stock_Universe_History_pkey" ON public."IDX_Stock_Universe_History" USING btree (history_id)` |
 
+## Monitoring_Feature04
+
+Feature04 automatic/retry batch summary and notification ordering gate.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `execution_id` | `text` | No | — | Operational execution id field for Monitoring_Feature04. |
+| `source_execution_id` | `text` | Yes | — | Operational source execution id field for Monitoring_Feature04. |
+| `run_type` | `text` | No | — | Operational run type field for Monitoring_Feature04. |
+| `trigger_source` | `text` | No | — | Operational trigger source field for Monitoring_Feature04. |
+| `update_for_date` | `date` | Yes | — | Operational update for date field for Monitoring_Feature04. |
+| `price_notification_required` | `boolean` | No | `true` | Operational price notification required field for Monitoring_Feature04. |
+| `price_notification_sent_at` | `timestamp with time zone` | Yes | — | Operational price notification sent at field for Monitoring_Feature04. |
+| `eligible_tickers` | `integer` | No | `0` | Operational eligible tickers field for Monitoring_Feature04. |
+| `completed_tickers` | `integer` | No | `0` | Operational completed tickers field for Monitoring_Feature04. |
+| `failed_tickers` | `integer` | No | `0` | Operational failed tickers field for Monitoring_Feature04. |
+| `blocked_tickers` | `integer` | No | `0` | Operational blocked tickers field for Monitoring_Feature04. |
+| `status` | `text` | No | `'OPEN'::text` | Operational status field for Monitoring_Feature04. |
+| `started_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational started at field for Monitoring_Feature04. |
+| `sealed_at` | `timestamp with time zone` | Yes | — | Operational sealed at field for Monitoring_Feature04. |
+| `finished_at` | `timestamp with time zone` | Yes | — | Operational finished at field for Monitoring_Feature04. |
+| `last_error` | `text` | Yes | — | Operational last error field for Monitoring_Feature04. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational updated at field for Monitoring_Feature04. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Monitoring_Feature04_check` | Check | `CHECK (eligible_tickers >= 0 AND completed_tickers >= 0 AND failed_tickers >= 0 AND blocked_tickers >= 0)` |
+| `Monitoring_Feature04_execution_id_check` | Check | `CHECK (btrim(execution_id) <> ''::text)` |
+| `Monitoring_Feature04_run_type_check` | Check | `CHECK (run_type = ANY (ARRAY['DAILY'::text, 'RECOVERY'::text, 'RETRY_TICKER'::text, 'RETRY_COLUMN'::text, 'ADHOC'::text, 'RECONCILIATION'::text]))` |
+| `Monitoring_Feature04_status_check` | Check | `CHECK (status = ANY (ARRAY['OPEN'::text, 'READY'::text, 'PROCESSING'::text, 'SUCCESS'::text, 'PARTIAL'::text, 'NEEDS_REVIEW'::text, 'FAILED'::text, 'SKIPPED'::text]))` |
+| `Monitoring_Feature04_trigger_source_check` | Check | `CHECK (trigger_source = ANY (ARRAY['SCHEDULED'::text, 'MANUAL'::text, 'TELEGRAM'::text, 'DATABASE'::text, 'RECONCILIATION'::text]))` |
+| `Monitoring_Feature04_pkey` | Primary key | `PRIMARY KEY (execution_id)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Monitoring_Feature04_pkey` | `CREATE UNIQUE INDEX "Monitoring_Feature04_pkey" ON public."Monitoring_Feature04" USING btree (execution_id)` |
+| `Monitoring_Feature04_status_idx` | `CREATE INDEX "Monitoring_Feature04_status_idx" ON public."Monitoring_Feature04" USING btree (status, updated_at)` |
+
+## Monitoring_Feature04_Ticker
+
+Per-ticker membership and outcome of a Feature04 execution.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `execution_id` | `text` | No | — | Operational execution id field for Monitoring_Feature04_Ticker. |
+| `ticker` | `text` | No | — | Operational ticker field for Monitoring_Feature04_Ticker. |
+| `timeframe` | `text` | No | `'Daily'::text` | Operational timeframe field for Monitoring_Feature04_Ticker. |
+| `required_generation` | `bigint` | No | — | Operational required generation field for Monitoring_Feature04_Ticker. |
+| `requested_columns` | `ARRAY` | Yes | — | Operational requested columns field for Monitoring_Feature04_Ticker. |
+| `status` | `text` | No | `'PENDING'::text` | Operational status field for Monitoring_Feature04_Ticker. |
+| `completed_generation` | `bigint` | Yes | — | Operational completed generation field for Monitoring_Feature04_Ticker. |
+| `retry_request_id` | `uuid` | Yes | — | Operational retry request id field for Monitoring_Feature04_Ticker. |
+| `last_error_code` | `text` | Yes | — | Operational last error code field for Monitoring_Feature04_Ticker. |
+| `last_error` | `text` | Yes | — | Operational last error field for Monitoring_Feature04_Ticker. |
+| `started_at` | `timestamp with time zone` | Yes | — | Operational started at field for Monitoring_Feature04_Ticker. |
+| `finished_at` | `timestamp with time zone` | Yes | — | Operational finished at field for Monitoring_Feature04_Ticker. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational updated at field for Monitoring_Feature04_Ticker. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Monitoring_Feature04_Ticker_required_generation_check` | Check | `CHECK (required_generation >= 0)` |
+| `Monitoring_Feature04_Ticker_status_check` | Check | `CHECK (status = ANY (ARRAY['PENDING'::text, 'PROCESSING'::text, 'SUCCESS'::text, 'FAILED'::text, 'BLOCKED'::text, 'SUPERSEDED'::text]))` |
+| `Monitoring_Feature04_Ticker_timeframe_check` | Check | `CHECK (timeframe = 'Daily'::text)` |
+| `Monitoring_Feature04_Ticker_execution_id_fkey` | Foreign key | `FOREIGN KEY (execution_id) REFERENCES "Monitoring_Feature04"(execution_id) ON DELETE CASCADE` |
+| `Monitoring_Feature04_Ticker_retry_fkey` | Foreign key | `FOREIGN KEY (retry_request_id) REFERENCES "Feature04_Retry_Request"(request_id)` |
+| `Monitoring_Feature04_Ticker_pkey` | Primary key | `PRIMARY KEY (execution_id, ticker, timeframe)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Monitoring_Feature04_Ticker_pending_idx` | `CREATE INDEX "Monitoring_Feature04_Ticker_pending_idx" ON public."Monitoring_Feature04_Ticker" USING btree (ticker, timeframe, required_generation) WHERE (status = ANY (ARRAY['PENDING'::text, 'PROCESSING'::text]))` |
+| `Monitoring_Feature04_Ticker_pkey` | `CREATE UNIQUE INDEX "Monitoring_Feature04_Ticker_pkey" ON public."Monitoring_Feature04_Ticker" USING btree (execution_id, ticker, timeframe)` |
+
 ## Monitoring_Price_ALL
 
 Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs.
@@ -2342,6 +2662,7 @@ Inbound Telegram command audit and duplicate-prevention ledger.
 | `last_error` | `text` | Yes | — | Cooldown reason or condensed trigger failure detail. |
 | `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | UTC timestamp when the command row was created. |
 | `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | UTC timestamp when the command row was last changed. |
+| `feature04_request_id` | `uuid` | Yes | — | Optional Feature04 retry request created by this Telegram command. |
 
 ### Constraints
 
@@ -2350,6 +2671,7 @@ Inbound Telegram command audit and duplicate-prevention ledger.
 | `Telegram_Command_Log_command_not_blank` | Check | `CHECK (btrim(command) <> ''::text)` |
 | `Telegram_Command_Log_status_check` | Check | `CHECK (status = ANY (ARRAY['RECEIVED'::text, 'TRIGGERED'::text, 'BLOCKED'::text, 'FAILED'::text]))` |
 | `Telegram_Command_Log_target_not_blank` | Check | `CHECK (btrim(target_service) <> ''::text)` |
+| `Telegram_Command_Log_feature04_request_fkey` | Foreign key | `FOREIGN KEY (feature04_request_id) REFERENCES "Feature04_Retry_Request"(request_id)` |
 | `Telegram_Command_Log_pkey` | Primary key | `PRIMARY KEY (id)` |
 | `Telegram_Command_Log_update_key` | Unique | `UNIQUE (telegram_update_id)` |
 

@@ -1,0 +1,49 @@
+{
+  "run": [
+    {
+      "execution_id": "f04-canary-20261011-01",
+      "status": "SUCCESS",
+      "eligible_tickers": 1,
+      "completed_tickers": 1,
+      "failed_tickers": 0,
+      "blocked_tickers": 0,
+      "started_at": "2026-10-11T08:49:45.741629Z",
+      "finished_at": "2026-10-11T08:49:50.930208Z",
+      "ticker_status": "SUCCESS",
+      "queue_status": "DONE",
+      "requested_generation": 1,
+      "completed_generation": 1
+    }
+  ],
+  "attempt": [
+    {
+      "result": "SUCCESS",
+      "source_start": "2018-01-02T00:00:00Z",
+      "source_end": "2026-10-09T00:00:00Z",
+      "source_rows": 2113,
+      "changed_rows": 0,
+      "successful_columns": 50,
+      "failed_columns": 0,
+      "calculation_version": "feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4",
+      "started_at": "2026-10-11T08:49:50.790121Z",
+      "finished_at": "2026-10-11T08:49:50.930208Z",
+      "error_code": null
+    }
+  ],
+  "outbox": [
+    {
+      "status": "SENT",
+      "attempt_count": 1,
+      "sent_at": "2026-10-11T08:49:54.600261Z",
+      "last_error": null
+    }
+  ],
+  "telegram": [
+    {
+      "send_status": "SENT",
+      "attempt_count": 1,
+      "sent_at": "2026-10-11T08:49:54.57523Z",
+      "last_error": null
+    }
+  ]
+}
