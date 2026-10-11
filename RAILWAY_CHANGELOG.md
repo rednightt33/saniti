@@ -3293,3 +3293,10 @@ User: "lanjut fase 4 dan 5 dulu".
 ## 2026-10-11 — Feature04 SMI BBCA execution via temporary private sandbox
 
 Scope `lucid-patience` / `dev`, primary `Postgres` service `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`. Temporary private Railway sandbox `c54edee9-c495-43b2-be2d-e7ca7c98db12` used the server-resolved Postgres variable reference for a rolled-back rehearsal, forward 55-column migration, and BBCA-only 2,113-row v3 replay. No service/environment configuration, persistent compute, deployment, IaC, source writer, permissions or schedule changes. Sandbox explicitly destroyed after validation; evidence `verification/feature04/smi_execution_cleanup.json`. Credential values never stored in Git or printed. Independent Pgweb readback and feature semantic audit passed. Full report `verification/feature04/SMI_BBCA.md`; definitions of every column `FEATURE04_COLUMN_DEFINITIONS.md`.
+
+
+## 2026-10-11 — Feature04 v3 full-source SMI execution
+
+User: "Alright, proceeed untuk semua ticker." Scope `lucid-patience` (`8aef1702-030b-49cb-9df7-5ac2e0a42691`) / `dev` (`4d3e5af2-302b-4a2e-84e2-7d7476d6ff49`) / primary `Postgres` (`bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`). Temporary private sandbox `ecd8c8d5-5b5a-4d24-a0f2-62fcaa38eb66` ran the unchanged pinned Feature04 v3 engine, serial atomic backfill for 844 actual price-source tickers, global read-only validation and metadata-only coverage migration. 843 new ticker commits plus one verified BBCA skip; 1,318,633 verified rows; failed 0.
+
+No persistent service/environment configuration, IaC, permissions, source writer, deployment or scheduler changes. Source data, original indicators and BBCA payload/timestamps preserved. Credentials remained server-resolved/environment-only. Explicit sandbox destruction observed terminal DESTROYED; `verification/feature04/smi_full_execution_cleanup.json`. Full evidence `verification/feature04/SMI_ALL_TICKERS.md`.

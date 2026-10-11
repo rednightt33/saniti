@@ -13,9 +13,12 @@ metadata; source prices, grants, deployments and schedules are unchanged.
 The next user instruction authorized SMI and the eight swing-state variables from
 the supplied HH Pine script, starting with BBCA only, followed by "Sure" and a request
 for Markdown definitions of every column. `break_swing_high` is INTEGER 1/0 as requested.
-The v3 schema has 55 columns; initial v3 data is BBCA only, while other tickers keep
-v2 payloads and NULL new columns. See [all column definitions](FEATURE04_COLUMN_DEFINITIONS.md)
-and [BBCA SMI validation](verification/feature04/SMI_BBCA.md).
+The v3 schema has 55 columns. After the BBCA checkpoint, user authorized
+"Alright, proceeed untuk semua ticker." The serial v3 replay now covers every actual
+price-source ticker: 844 tickers / 1,318,633 Daily rows. Existing indicator values and
+BBCA payload/timestamps are preserved. See [all column definitions](FEATURE04_COLUMN_DEFINITIONS.md),
+[full SMI validation](verification/feature04/SMI_ALL_TICKERS.md), and
+[initial BBCA SMI checkpoint](verification/feature04/SMI_BBCA.md).
 
 ## Verified source and mapping
 
@@ -83,11 +86,14 @@ The applied creation migration remains immutable. Forward migration
 `20261011_002_extend_feature04_and_backfill_log.sql` appends adx_14, ema_50, ema_200,
 and inside_bar after the original 42 physical columns; existing columns are not reordered.
 `20261011_003_add_feature04_smi_swing.sql` appends the nine SMI/swing fields after those 46.
+`20261011_004_record_feature04_smi_full_coverage.sql` updates coverage/evidence metadata
+only after the all-source v3 load; no formula, physical-column or permission change.
 The creation migration fails if the target already exists or the verified source contract changes.
 Existing `Table_Catalog`, `Column_Catalog`, and `Feature_Catalog` receive definitions
 for the feature table and all 55 columns. All 55 active definitions use v3; 42 v1 and
-46 v2 definitions are retained inactive. Unchanged formulas are copied to v3 without
-changing existing v2 data rows. One exact-date ONE_TO_ONE relationship with
+46 v2 definitions are retained inactive. Unchanged formulas were copied to v3; the
+subsequent data replay preserves old indicator values while updating new fields and
+version/timestamp only where the payload changes. One exact-date ONE_TO_ONE relationship with
 Feature01 is registered (Daily only; no point-in-time sector validity implied). It does not activate AI tools or alter the seven-table
 AI allowlist. AI onboarding is separate; physical XGBoost-compatible layout is not training eligibility.
 
@@ -102,7 +108,7 @@ COPY staging, verified UPSERT and an atomic persistent per-ticker audit.
 Dependencies are pinned in `requirements.txt`; exact environment lock is `dependencies.lock`.
 TA-Lib Python 0.6.8 / C 0.6.4, NumPy 2.3.5, psycopg 3.2.13.
 Current engine version `feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4`;
-existing other-ticker data retains `feature04-v2-talib0.6.8-c0.6.4`. Default TA-Lib compatibility, zero unstable
+all source-ticker rows now use v3 (v2 is the earlier historical checkpoint). Default TA-Lib compatibility, zero unstable
 periods (including ADX), and library default candle settings.
 
 | Indicator | Definition / initialization | First valid bar (1-based) |
@@ -163,7 +169,8 @@ at breakout or one-shot lock is added. The trigger date is the existing trade_da
 Intrabar alert behavior cannot be reconstructed from closed Daily OHLC.
 
 Full definitions, threshold-equality behavior, zero-based source index meaning and
-null rules: `FEATURE04_COLUMN_DEFINITIONS.md`. Initial execution is limited to BBCA.
+null rules: `FEATURE04_COLUMN_DEFINITIONS.md`. The initial BBCA-only execution was followed
+by the authorized full-source-ticker v3 replay; see `verification/feature04/SMI_ALL_TICKERS.md`.
 
 ## Incremental / correction design
 

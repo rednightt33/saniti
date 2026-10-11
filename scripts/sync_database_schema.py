@@ -88,7 +88,7 @@ TABLE_DESCRIPTIONS = {
     "Feature_01_Stock_Daily": "Daily ticker-level price, return, volatility, volume, and price-position features.",
     "Feature_02_Broker_Rolling": "Broker flow, persistence, abnormality, and accumulation by source ticker, broker, Investor Type, board, and transaction date.",
     "Feature_03_Stock_Broker_Daily": "Stock-level daily broker breadth, classified flow, dominant-broker, and concentration features separated by market board.",
-    "Feature04_Technical_Indicator": "Daily technical indicators, native candlestick codes, strict inside bars and Pine SMI/swing state; v3 has 55 columns, initially BBCA only for SMI, no automatic writer.",
+    "Feature04_Technical_Indicator": "Daily technical indicators, native candlestick codes, strict inside bars and Pine SMI/swing state; v3 has 55 columns and full actual-source-ticker coverage, no automatic writer.",
     "feature04_backfill_log": "Atomic serial Feature04 ticker-load metadata and resumable source/output fingerprints.",
     "Feature_Calculation_Queue": "Durable work item per changed Feature 01 source candle.",
     "Feature_Status": "Current price-driven Feature 01 calculation state per ticker.",

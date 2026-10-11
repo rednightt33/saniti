@@ -1,6 +1,9 @@
 # Feature04 SMI and swing state — BBCA
 
 Executed 2026-10-11 in `lucid-patience / dev / Postgres`.
+This is the BBCA-only checkpoint. The subsequent authorized full-source rollout
+continues the same audit run UUID, preserves BBCA, and is documented in
+[SMI_ALL_TICKERS.md](SMI_ALL_TICKERS.md).
 Target `public."Feature04_Technical_Indicator"`; source `public."Price_Stock_Indonesia_IDX"`.
 User requested the SMI/swing components from HH.txt, starting with BBCA only, confirmed
 with "Sure", and requested Markdown definitions of every column. Encoding correction:

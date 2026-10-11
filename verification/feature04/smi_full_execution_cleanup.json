@@ -1,0 +1,13 @@
+{
+  "destroy_request": {
+    "id": "ecd8c8d5-5b5a-4d24-a0f2-62fcaa38eb66",
+    "status": "RUNNING"
+  },
+  "sandbox": {
+    "id": "ecd8c8d5-5b5a-4d24-a0f2-62fcaa38eb66",
+    "status": "DESTROYED"
+  },
+  "temporary_compute_only": true,
+  "persistent_services_changed": false,
+  "terminal_status_verified": true
+}

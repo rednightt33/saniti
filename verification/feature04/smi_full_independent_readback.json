@@ -1,0 +1,85 @@
+{
+  "checked_at": "2026-10-11T06:26:21.581791+00:00",
+  "path": "Independent Pgweb read-only role",
+  "reference": "First-input seeded closed-form EMA convolution and independent partial rolling extrema",
+  "smi_samples": [
+    {
+      "ticker": "ADRO",
+      "bars": 2113,
+      "null_smi": 0,
+      "max_abs_error": 7.105427357601002e-14
+    },
+    {
+      "ticker": "BBCA",
+      "bars": 2113,
+      "null_smi": 0,
+      "max_abs_error": 6.394884621840902e-14
+    },
+    {
+      "ticker": "BBRI",
+      "bars": 2113,
+      "null_smi": 0,
+      "max_abs_error": 5.684341886080802e-14
+    },
+    {
+      "ticker": "BMRI",
+      "bars": 2113,
+      "null_smi": 0,
+      "max_abs_error": 5.684341886080802e-14
+    },
+    {
+      "ticker": "GOTO",
+      "bars": 1072,
+      "null_smi": 0,
+      "max_abs_error": 1.8474111129762605e-13
+    },
+    {
+      "ticker": "PRDL",
+      "bars": 63,
+      "null_smi": 1,
+      "max_abs_error": 2.842170943040401e-14
+    },
+    {
+      "ticker": "RANS",
+      "bars": 62,
+      "null_smi": 1,
+      "max_abs_error": 2.842170943040401e-14
+    }
+  ],
+  "smi_sample_bars": 9649,
+  "target": [
+    {
+      "rows": 1318633,
+      "tickers": 844,
+      "smi_available": 1317585,
+      "trigger_flags_available": 1318633,
+      "triggers": 16344,
+      "non_triggers": 1302289,
+      "non_v3_rows": 0
+    }
+  ],
+  "logs": [
+    {
+      "status": "COMPLETED",
+      "tickers": 844,
+      "rows": 1318633
+    }
+  ],
+  "catalog": [
+    {
+      "version": "v1",
+      "is_active": false,
+      "definitions": 42
+    },
+    {
+      "version": "v2",
+      "is_active": false,
+      "definitions": 46
+    },
+    {
+      "version": "v3",
+      "is_active": true,
+      "definitions": 55
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "checked_at": "2026-10-11T06:25:54.601347+00:00",
+  "read_only": true,
+  "run_id": "c0157d46-7f54-477b-af7a-5b9bf63d161f",
+  "source": {
+    "rows": 1318633,
+    "tickers": 844,
+    "start": "2018-01-02",
+    "end": "2026-10-09",
+    "fingerprint": "-2165319481806142948543"
+  },
+  "original_indicator_payload": {
+    "rows": 1318633,
+    "fingerprint": "-1781600286889754125217"
+  },
+  "bbca_full_payload": {
+    "rows": 2113,
+    "fingerprint": "192032262998595248290"
+  },
+  "target": {
+    "rows": 1318633,
+    "tickers": 844,
+    "start": "2018-01-02",
+    "end": "2026-10-09",
+    "non_v3_rows": 0,
+    "smi_available": 1317585,
+    "smi_null": 1048,
+    "trigger_flags_available": 1318633,
+    "triggers": 16344,
+    "non_triggers": 1302289,
+    "tickers_with_triggers": 824,
+    "confirmed_level_available": 1236981,
+    "first_trigger": "2018-01-08",
+    "latest_trigger": "2026-10-09",
+    "smi_min": -100.00000000000085,
+    "smi_max": 100.00000000000178
+  },
+  "missing_keys": 0,
+  "extra_keys": 0,
+  "logs": [
+    {
+      "status": "COMPLETED",
+      "tickers": 844,
+      "source_rows": 1318633,
+      "changed_rows": 1318633,
+      "source_start": "2018-01-02",
+      "source_end": "2026-10-09"
+    }
+  ],
+  "sql_state_reference": {
+    "rows": 1318633,
+    "tracking_high_mismatches": 0,
+    "tracking_low_mismatches": 0,
+    "temp_high_mismatches": 0,
+    "temp_high_bar_mismatches": 0,
+    "temp_low_mismatches": 0,
+    "temp_low_bar_mismatches": 0,
+    "last_swing_high_mismatches": 0,
+    "trigger_mismatches": 0,
+    "high_confirmations": 18188,
+    "low_confirmations": 29494
+  },
+  "latest_flags": {
+    "tickers": 844,
+    "latest_trigger_tickers": 12,
+    "latest_smi_null_tickers": 0
+  },
+  "source_unchanged": true,
+  "original_indicators_unchanged": true,
+  "bbca_payload_and_timestamp_unchanged": true,
+  "result": "PASS"
+}

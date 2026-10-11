@@ -1,0 +1,211 @@
+{
+  "checked_at": "2026-10-11T06:16:50.337343+00:00",
+  "scope": "all actual source tickers; Daily; own earliest through latest",
+  "version": "feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4",
+  "source": [
+    {
+      "rows": 1318633,
+      "tickers": 844,
+      "start": "2018-01-02T00:00:00Z",
+      "end": "2026-10-09T00:00:00Z",
+      "fingerprint": "-2165319481806142948543"
+    }
+  ],
+  "history_lengths": [
+    {
+      "min_bars": 62,
+      "max_bars": 2113
+    }
+  ],
+  "versions": [
+    {
+      "calculation_version": "feature04-v2-talib0.6.8-c0.6.4",
+      "rows": 1316520,
+      "tickers": 843
+    },
+    {
+      "calculation_version": "feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4",
+      "rows": 2113,
+      "tickers": 1
+    }
+  ],
+  "original_indicator_payload": [
+    {
+      "rows": 1318633,
+      "fingerprint": "-1781600286889754125217"
+    }
+  ],
+  "bbca_full_payload": [
+    {
+      "rows": 2113,
+      "fingerprint": "192032262998595248290"
+    }
+  ],
+  "physical_columns": [
+    {
+      "column_name": "ticker"
+    },
+    {
+      "column_name": "trade_date"
+    },
+    {
+      "column_name": "timeframe"
+    },
+    {
+      "column_name": "sma_20"
+    },
+    {
+      "column_name": "sma_50"
+    },
+    {
+      "column_name": "ema_12"
+    },
+    {
+      "column_name": "ema_26"
+    },
+    {
+      "column_name": "rsi_14"
+    },
+    {
+      "column_name": "macd"
+    },
+    {
+      "column_name": "macd_signal"
+    },
+    {
+      "column_name": "macd_histogram"
+    },
+    {
+      "column_name": "atr_14"
+    },
+    {
+      "column_name": "bb_upper_20"
+    },
+    {
+      "column_name": "bb_middle_20"
+    },
+    {
+      "column_name": "bb_lower_20"
+    },
+    {
+      "column_name": "cdl_piercing"
+    },
+    {
+      "column_name": "cdl_morning_star"
+    },
+    {
+      "column_name": "cdl_morning_doji_star"
+    },
+    {
+      "column_name": "cdl_engulfing"
+    },
+    {
+      "column_name": "cdl_3_white_soldiers"
+    },
+    {
+      "column_name": "cdl_hammer"
+    },
+    {
+      "column_name": "cdl_inverted_hammer"
+    },
+    {
+      "column_name": "cdl_3_inside"
+    },
+    {
+      "column_name": "cdl_3_outside"
+    },
+    {
+      "column_name": "cdl_harami"
+    },
+    {
+      "column_name": "cdl_harami_cross"
+    },
+    {
+      "column_name": "cdl_dark_cloud_cover"
+    },
+    {
+      "column_name": "cdl_evening_star"
+    },
+    {
+      "column_name": "cdl_evening_doji_star"
+    },
+    {
+      "column_name": "cdl_3_black_crows"
+    },
+    {
+      "column_name": "cdl_shooting_star"
+    },
+    {
+      "column_name": "cdl_hanging_man"
+    },
+    {
+      "column_name": "cdl_doji"
+    },
+    {
+      "column_name": "cdl_dragonfly_doji"
+    },
+    {
+      "column_name": "cdl_gravestone_doji"
+    },
+    {
+      "column_name": "cdl_marubozu"
+    },
+    {
+      "column_name": "cdl_kicking"
+    },
+    {
+      "column_name": "cdl_rise_fall_3_methods"
+    },
+    {
+      "column_name": "cdl_mat_hold"
+    },
+    {
+      "column_name": "cdl_hikkake"
+    },
+    {
+      "column_name": "calculation_version"
+    },
+    {
+      "column_name": "calculated_at"
+    },
+    {
+      "column_name": "adx_14"
+    },
+    {
+      "column_name": "ema_50"
+    },
+    {
+      "column_name": "ema_200"
+    },
+    {
+      "column_name": "inside_bar"
+    },
+    {
+      "column_name": "smi"
+    },
+    {
+      "column_name": "tracking_high"
+    },
+    {
+      "column_name": "tracking_low"
+    },
+    {
+      "column_name": "temp_high"
+    },
+    {
+      "column_name": "temp_high_bar"
+    },
+    {
+      "column_name": "temp_low"
+    },
+    {
+      "column_name": "temp_low_bar"
+    },
+    {
+      "column_name": "last_swing_high"
+    },
+    {
+      "column_name": "break_swing_high"
+    }
+  ]
+}

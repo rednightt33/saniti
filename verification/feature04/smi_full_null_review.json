@@ -1,0 +1,10 @@
+{
+  "check": "PASS",
+  "meaning": "All unavailable SMI values precede the first nonzero range in that ticker; division by zero in the supplied script, not an uncomputed ticker",
+  "counts": {
+    "smi_null": 1048,
+    "tickers_with_leading_flat_nulls": 267,
+    "null_after_nonzero_range": 0,
+    "smi_with_zero_range": 0
+  }
+}

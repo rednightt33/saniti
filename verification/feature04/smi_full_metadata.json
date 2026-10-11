@@ -1,0 +1,12 @@
+{
+  "migration": "20261011_004_record_feature04_smi_full_coverage.sql",
+  "sha256": "304301a858b13cbc900101e5ac9b1d134e98b2d537e06db35c561f4433590cf6",
+  "rehearsal_rolled_back": true,
+  "applied": true,
+  "formula_version": "v3 unchanged",
+  "physical_columns": 55,
+  "target_data_modified_by_migration": false,
+  "active_definitions": 55,
+  "table_definition": "55-column causal daily indicators, native candlestick codes, strict inside bar and Pine SMI/swing state. Authorized v3 full-history replay completed for all actual price-source tickers. TradingView chart parity NOT VERIFIED.",
+  "checked_at": "2026-10-11T06:27:50.332994+00:00"
+}

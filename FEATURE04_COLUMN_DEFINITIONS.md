@@ -9,11 +9,16 @@ Semua perhitungan memakai riwayat ticker itu sendiri, diurutkan dari tanggal pal
 lama ke terbaru. Periode berarti jumlah candle yang tersedia, bukan hari kalender.
 Tidak ada penggabungan riwayat antar saham atau pengisian hari tanpa candle.
 
-Ekstensi SMI/swing v3 dimulai untuk **BBCA saja**, dari seluruh riwayat yang tersedia.
-Ticker lain mempertahankan hasil v2; sembilan kolom baru masih `NULL` sampai dihitung
-dalam eksekusi berikutnya yang disetujui. Versi katalog aktif v3 menjelaskan seluruh
-skema; `calculation_version` pada setiap baris menjelaskan implementasi yang benar-benar
-menghitung baris tersebut.
+Ekstensi SMI/swing v3 pertama diuji untuk **BBCA**, lalu user menyetujui kelanjutan
+untuk seluruh ticker pada 2026-10-11. Backfill v3 kini mencakup **844 ticker dan
+1.318.633 candle Daily**, dari tanggal sumber terendah masing-masing ticker sampai
+terbaru (cakupan keseluruhan 2018-01-02 sampai 2026-10-09). Seluruh baris memakai
+versi v3; hasil BBCA dan indikator lama dipertahankan. Katalog aktif v3 menjelaskan
+skema, dan `calculation_version` menjelaskan implementasi yang menghitung baris tersebut.
+Bukti: [`SMI_ALL_TICKERS.md`](verification/feature04/SMI_ALL_TICKERS.md).
+Ada 16.344 trigger historis. SMI tersedia pada 1.317.585 candle; 1.048 nilai awal
+masih `NULL` karena rentang harga awal nol. Seluruh candle memiliki flag trigger 1/0,
+dan SMI pada candle terakhir tersedia untuk setiap ticker.
 
 ## Cara membaca nilai
 
@@ -34,7 +39,7 @@ menghitung baris tersebut.
 | `ticker` | text, wajib | Kode saham IDX dari sumber, misalnya `BBCA`. Tidak memakai suffix `.JK`. Bagian primary key. |
 | `trade_date` | date, wajib | Tanggal candle perdagangan menurut tanggal sumber IDX. Bagian primary key. Untuk `break_swing_high=1`, inilah tanggal trigger. Bukan tanggal peak lama atau waktu eksekusi backfill. |
 | `timeframe` | text, wajib | Interval sumber, saat ini tepat `Daily`. Bagian primary key; bukan data intraday. |
-| `calculation_version` | text, wajib | Versi rumus, seed, dan library yang menghasilkan baris. v2: `feature04-v2-talib0.6.8-c0.6.4`; v3 SMI: `feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4`. Bukan fitur numerik untuk model. |
+| `calculation_version` | text, wajib | Versi rumus, seed, dan library yang menghasilkan baris. Versi historis v2: `feature04-v2-talib0.6.8-c0.6.4`; seluruh hasil saat ini memakai v3 SMI: `feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4`. Bukan fitur numerik untuk model. |
 | `calculated_at` | timestamptz, wajib | Waktu UTC perhitungan terakhir yang mengubah payload baris. Rerun dengan hasil identik mempertahankan timestamp. Bukan bukti kapan data tersedia secara historis. |
 
 ## Indikator numerik — 15 kolom
@@ -175,7 +180,8 @@ Beberapa rincian script yang memengaruhi interpretasi:
 
 Rumus, isolasi ticker, urutan state, threshold, crossover level dinamis, tidak adanya
 backdating, dan idempotensi diuji dalam kode dan dibaca kembali dari PostgreSQL.
-Laporan BBCA: [`SMI_BBCA.md`](verification/feature04/SMI_BBCA.md).
+Laporan seluruh ticker: [`SMI_ALL_TICKERS.md`](verification/feature04/SMI_ALL_TICKERS.md).
+Laporan uji awal BBCA: [`SMI_BBCA.md`](verification/feature04/SMI_BBCA.md).
 Kontrak engine: [`FEATURE04_TECHNICAL_INDICATOR.md`](FEATURE04_TECHNICAL_INDICATOR.md).
 
 Kesamaan numerik dengan chart/export TradingView **belum diverifikasi** karena seed awal,

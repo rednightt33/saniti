@@ -1,0 +1,6 @@
+{
+  "engine_changed": false,
+  "feature_tests_reference": "verification/feature04/smi_local_checks.json (27 passed before rollout; engine unchanged)",
+  "frozen_migration_checks_passed": 2,
+  "execution_guard_sha256": "37d62a2a455c31b3e53f9849a72081fb69bbdb81171e46d4fd5f2339c912173a"
+}
