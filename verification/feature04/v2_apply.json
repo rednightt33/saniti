@@ -1,0 +1,16 @@
+{
+  "applied_migration": "20261011_002_extend_feature04_and_backfill_log.sql",
+  "sha256": "b0cd9ec8528baf0df444c8fc57980edb805d523314b585185c57a260e99d644b",
+  "source_before": {
+    "rows": 1318633,
+    "fingerprint": "-2165319481806142948543"
+  },
+  "source_after": {
+    "rows": 1318633,
+    "fingerprint": "-2165319481806142948543"
+  },
+  "source_unchanged": true,
+  "existing_target_rows_preserved": 22,
+  "columns": 46,
+  "checked_at": "2026-10-11T05:13:42.776105+00:00"
+}

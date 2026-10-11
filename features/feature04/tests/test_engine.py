@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 import talib
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from engine import calculate, COLUMNS, PATTERNS, library_contract
+from engine import calculate, COLUMNS, FEATURE_COLUMNS, PATTERNS, library_contract
 
 
 def bars(n=100, ticker='TEST', closes=None):
@@ -33,8 +33,8 @@ def test_sma_bb_first_valid_and_population_variance():
 
 
 def test_ema_seed_recurrence_macd_composition_and_signal():
-    source=bars();result=calculate(source)
-    for length in (12,26):
+    source=bars(250);result=calculate(source)
+    for length in (12,26,50,200):
         key=f'ema_{length}';seed=sum(r['close'] for r in source[:length])/length
         assert all(r[key] is None for r in result[:length-1])
         for i in range(length-1,len(source)):
@@ -86,7 +86,7 @@ def test_causal_prefix_sorted_partition_and_missing_reset():
     other=bars(100,ticker='MORE');mixed=calculate([*source,*other],calculated_at=stamp)
     assert [r for r in mixed if r['ticker']=='TEST']==full
     source[60]['close']=None;invalid=calculate(source)
-    assert all(invalid[60][k] is None for k in COLUMNS[3:-2])
+    assert all(invalid[60][k] is None for k in FEATURE_COLUMNS)
     assert invalid[79]['sma_20'] is None and invalid[80]['sma_20'] is not None
     assert invalid[61]['cdl_engulfing'] is None
     assert len(invalid)==100
@@ -95,11 +95,11 @@ def test_causal_prefix_sorted_partition_and_missing_reset():
 @pytest.mark.parametrize('field,value',[('close',float('nan')),('high',50),('volume',-1)])
 def test_invalid_bar_is_null_not_zero(field,value):
     source=bars();source[70][field]=value;out=calculate(source)
-    assert all(out[70][k] is None for k in COLUMNS[3:-2])
+    assert all(out[70][k] is None for k in FEATURE_COLUMNS)
 
 
 def test_short_history_and_identity_guards():
-    out=calculate(bars(3));assert len(out[0])==42
+    out=calculate(bars(3));assert len(out[0])==46
     assert all(r['sma_50'] is None for r in out)
     source=bars()
     with pytest.raises(ValueError,match='Duplicate'):calculate([*source,source[0]])

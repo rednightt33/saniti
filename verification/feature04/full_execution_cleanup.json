@@ -1,0 +1,12 @@
+{
+  "sandbox_id": "1637bf99-fa9e-41c6-b25e-05427d5be158",
+  "status": "DESTROYED",
+  "source_services": "UNCHANGED",
+  "new_services": 0,
+  "new_databases": 0,
+  "deployments": 0,
+  "schedules": 0,
+  "automatic_writer": false,
+  "backfill": "COMPLETED",
+  "all_evidence_captured": true
+}

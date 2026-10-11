@@ -1,0 +1,102 @@
+{
+  "source": {
+    "rows": 1318633,
+    "fingerprint": "-2165319481806142948543"
+  },
+  "target": {
+    "rows": 1318633,
+    "tickers": 844,
+    "first_date": "2018-01-02",
+    "last_date": "2026-10-09",
+    "non_v2_rows": 0
+  },
+  "missing_keys": 0,
+  "extra_keys": 0,
+  "logs": [
+    {
+      "run_id": "96ffcd2f-74f7-4437-a002-15a6aeb4b1f9",
+      "status": "COMPLETED",
+      "tickers": 844,
+      "source_rows": 1318633,
+      "changed_rows": 1318633,
+      "first_date": "2018-01-02",
+      "last_date": "2026-10-09"
+    }
+  ],
+  "extensions": {
+    "adx_available": 1295845,
+    "adx_null": 22788,
+    "ema_50_available": 1277277,
+    "ema_50_null": 41356,
+    "ema_200_available": 1151734,
+    "ema_200_null": 166899,
+    "inside_available": 1317789,
+    "inside_null": 844,
+    "inside_detected": 145328
+  },
+  "catalog": [
+    {
+      "version": "v1",
+      "is_active": false,
+      "definitions": 42
+    },
+    {
+      "version": "v2",
+      "is_active": true,
+      "definitions": 46
+    }
+  ],
+  "size_bytes": 486858752,
+  "query_plan": {
+    "QUERY PLAN": [
+      {
+        "Plan": {
+          "Node Type": "Index Scan",
+          "Parallel Aware": false,
+          "Async Capable": false,
+          "Scan Direction": "Forward",
+          "Index Name": "Feature04_Technical_Indicator_pkey",
+          "Relation Name": "Feature04_Technical_Indicator",
+          "Alias": "Feature04_Technical_Indicator",
+          "Startup Cost": 0.43,
+          "Total Cost": 17.33,
+          "Plan Rows": 6,
+          "Plan Width": 278,
+          "Actual Startup Time": 0.047,
+          "Actual Total Time": 0.049,
+          "Actual Rows": 7.0,
+          "Actual Loops": 1,
+          "Disabled": false,
+          "Index Cond": "((ticker = 'BBCA'::text) AND (trade_date >= '2026-10-01'::date) AND (trade_date <= '2026-10-09'::date) AND (timeframe = 'Daily'::text))",
+          "Rows Removed by Index Recheck": 0,
+          "Index Searches": 1,
+          "Shared Hit Blocks": 3,
+          "Shared Read Blocks": 4,
+          "Shared Dirtied Blocks": 0,
+          "Shared Written Blocks": 0,
+          "Local Hit Blocks": 0,
+          "Local Read Blocks": 0,
+          "Local Dirtied Blocks": 0,
+          "Local Written Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0
+        },
+        "Planning": {
+          "Shared Hit Blocks": 122,
+          "Shared Read Blocks": 19,
+          "Shared Dirtied Blocks": 5,
+          "Shared Written Blocks": 0,
+          "Local Hit Blocks": 0,
+          "Local Read Blocks": 0,
+          "Local Dirtied Blocks": 0,
+          "Local Written Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0
+        },
+        "Planning Time": 0.326,
+        "Triggers": [],
+        "Execution Time": 0.068
+      }
+    ]
+  }
+}

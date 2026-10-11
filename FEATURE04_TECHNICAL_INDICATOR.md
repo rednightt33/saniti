@@ -4,6 +4,12 @@ User execution instruction received 2026-10-11: create `Feature04_Technical_Indi
 implement and validate a reusable engine, without source changes, full historical backfill,
 model training, new services/databases, permissions changes, or automatic scheduling.
 
+Subsequent user instruction on 2026-10-11 authorized the reviewed four-column extension
+and full historical backfill for every ticker actually present in the price table, one
+ticker at a time, from its earliest observation through its latest available date.
+The v2 table has 46 columns. A separate monitoring table stores atomic per-ticker load
+metadata; source prices, grants, deployments and schedules are unchanged.
+
 ## Verified source and mapping
 
 Inspection: `verification/feature04/inspection.json`, read-only live `lucid-patience / dev / Postgres`.
@@ -39,9 +45,9 @@ is NOT VERIFIED. Source selection can carry survivorship bias.
 
 ## One physical wide table
 
-Target: `public."Feature04_Technical_Indicator"`. Exactly 42 columns:
-3 identities, 12 floating-point indicators, 25 independent INTEGER patterns,
-and 2 calculation metadata fields. Primary key and its B-tree index:
+Target: `public."Feature04_Technical_Indicator"`. Exactly 46 columns in v2:
+3 identities, 15 floating-point indicators, 25 independent INTEGER patterns,
+one INTEGER inside-bar flag, and 2 calculation metadata fields. Primary key and its B-tree index:
 `(ticker,trade_date,timeframe)`. This supports ticker/date-range queries filtered by the
 single verified timeframe. No speculative extra index, foreign key into the source,
 new PostgreSQL routine, or grant is added. The existing catalog-only validator
@@ -52,18 +58,24 @@ retained in `verification/feature04/catalog_validator_before.sql`. No new source
 | Group | Columns | Types / nullability |
 |---|---|---|
 | Identity | ticker, trade_date, timeframe | TEXT, DATE, TEXT; NOT NULL |
-| Trend | sma_20, sma_50, ema_12, ema_26 | DOUBLE PRECISION; nullable |
+| Trend | sma_20, sma_50, ema_12, ema_26, ema_50, ema_200 | DOUBLE PRECISION; nullable |
+| Trend strength | adx_14 | DOUBLE PRECISION; nullable; 0–100 |
 | Momentum | rsi_14, macd, macd_signal, macd_histogram | DOUBLE PRECISION; nullable |
 | Volatility | atr_14, bb_upper_20, bb_middle_20, bb_lower_20 | DOUBLE PRECISION; nullable |
 | Patterns 1–13 | cdl_piercing, cdl_morning_star, cdl_morning_doji_star, cdl_engulfing, cdl_3_white_soldiers, cdl_hammer, cdl_inverted_hammer, cdl_3_inside, cdl_3_outside, cdl_harami, cdl_harami_cross, cdl_dark_cloud_cover, cdl_evening_star | INTEGER; nullable |
 | Patterns 14–25 | cdl_evening_doji_star, cdl_3_black_crows, cdl_shooting_star, cdl_hanging_man, cdl_doji, cdl_dragonfly_doji, cdl_gravestone_doji, cdl_marubozu, cdl_kicking, cdl_rise_fall_3_methods, cdl_mat_hold, cdl_hikkake | INTEGER; nullable |
 | Metadata | calculation_version, calculated_at | TEXT, TIMESTAMPTZ; NOT NULL |
+| Current-candle range pattern | inside_bar | INTEGER; nullable; only 0 or 1 |
 
 Complete executable DDL and per-column metadata:
 `database/migrations/20261011_001_create_feature04_technical_indicator.sql`.
-The migration fails if the target already exists or the verified source contract changes.
+The applied creation migration remains immutable. Forward migration
+`20261011_002_extend_feature04_and_backfill_log.sql` appends adx_14, ema_50, ema_200,
+and inside_bar after the original 42 physical columns; existing columns are not reordered.
+The creation migration fails if the target already exists or the verified source contract changes.
 Existing `Table_Catalog`, `Column_Catalog`, and `Feature_Catalog` receive definitions
-for the one new table and all 42 columns. One exact-date ONE_TO_ONE relationship with
+for the feature table and all 46 columns. All 46 active definitions use v2; 42 v1
+definitions are retained inactive. One exact-date ONE_TO_ONE relationship with
 Feature01 is registered (Daily only; no point-in-time sector validity implied). It does not activate AI tools or alter the seven-table
 AI allowlist. AI onboarding is separate; physical XGBoost-compatible layout is not training eligibility.
 
@@ -71,15 +83,20 @@ AI allowlist. AI onboarding is separate; physical XGBoost-compatible layout is n
 
 `features/feature04/engine.py`: pure, causal calculations, no database connection.
 `features/feature04/pipeline.py`: bounded read / optional idempotent UPSERT.
+`features/feature04/backfill.py`: authorized serial full-history ticker loads, temporary
+COPY staging, verified UPSERT and an atomic persistent per-ticker audit.
 `features/feature04/specs.py`: per-column formulas, units and usage guidance.
 Dependencies are pinned in `requirements.txt`; exact environment lock is `dependencies.lock`.
 TA-Lib Python 0.6.8 / C 0.6.4, NumPy 2.3.5, psycopg 3.2.13.
-Default TA-Lib compatibility, zero unstable periods, and library default candle settings.
+Version `feature04-v2-talib0.6.8-c0.6.4`. Default TA-Lib compatibility, zero unstable
+periods (including ADX), and library default candle settings.
 
 | Indicator | Definition / initialization | First valid bar (1-based) |
 |---|---|---|
 | SMA20 / SMA50 | Arithmetic mean of 20 / 50 valid chronological closes | 20 / 50 |
 | EMA12 / EMA26 | SMA of first 12 / 26 closes seeds recurrence; alpha 2/13 or 2/27 | 12 / 26 |
+| EMA50 / EMA200 | SMA of first 50 / 200 closes seeds recurrence; alpha 2/51 or 2/201 | 50 / 200 |
+| ADX14 | TA-Lib Wilder directional-movement/true-range smoothing and 14-period smoothing of DX; strength, not direction; native zero-denominator convention | 28 |
 | RSI14 | 14 close changes; SMA seed of gains/losses then Wilder RMA alpha 1/14; native both-zero result 0 | 15 |
 | MACD line | Stored EMA12 minus stored EMA26 | 26 |
 | MACD signal | EMA9 of valid MACD, SMA of first 9 valid MACD observations seeds it | 34 |
@@ -100,6 +117,13 @@ penetration 0.3; dark-cloud cover and mat-hold use 0.5. Candlestick lookbacks ra
 post-lookback zeros, signed detections, and native non-100 magnitudes are preserved.
 Multiple patterns can coexist; no qualitative label, rating, probability or win rate is generated.
 
+Inside bar is a separate two-candle range test: high[current] < high[previous] AND
+low[current] > low[previous]. It labels the current closed Daily candle with 1, or 0
+for an available non-detection; equal boundaries are excluded. The first valid candle
+of each segment is NULL because no usable predecessor exists. Original numeric prices
+are compared without float64 rounding. No later candle or breakout confirmation is read.
+`cdl_3_inside` remains the independent TA-Lib three-candle reversal pattern.
+
 Invalid or missing OHLCV yields NULL features for that row and restarts all feature history
 conservatively. Zero volume is valid. Missing dates are not inserted or forward-filled;
 windows count valid observed bars, not calendar days. Each ticker is sorted and isolated.
@@ -113,8 +137,8 @@ This avoids unverified fixed-window recursive state and supports exact reproduci
 relative to the available source snapshot. No cached recursive state is stored.
 An old correction requires output refresh from its earliest changed bar through the latest
 wanted bar because EMA, RSI, ATR and MACD can affect every later value. There is no automatic
-correction detection, scheduled writer, or full backfill in this task. Larger future correction
-ranges need a separately authorized controlled batch plan.
+correction detection or scheduled writer. The subsequently authorized all-source-ticker
+historical load uses full-history replay, with one atomic ticker commit.
 
 A repeatable-read transaction supplies one consistent source snapshot. The writer takes
 an advisory lock specific to Feature04; it never locks or rewrites source pipelines.
@@ -125,7 +149,7 @@ actual source-row serialization SHA256, ticker/range/row counts, versions and st
 it is an extraction fingerprint, not an immutable historical source-vintage claim.
 Concurrent source correction after the snapshot needs a subsequent refresh.
 
-The CLI defaults to dry-run and requires 1–10 explicit tickers, start/end dates (output
+The bounded refresh CLI defaults to dry-run and requires 1–10 explicit tickers, start/end dates (output
 range <=366 days), and a manifest path. At most 5,000 output rows; no all-universe option.
 An example dry-run (credentials held only in the environment):
 
@@ -146,8 +170,39 @@ There is no source history before this month in the database: SMA50, EMA26 and M
 remain NULL, while SMA20/Bollinger first become available on January 29. Warmup NULLs
 are expected availability markers, not a failed backfill. Later authorized months must
 continue reading full available history through their end while writing only their own range.
-No later month, other ticker or full-universe backfill was executed. Source rows and all
+At that first-test checkpoint no later month, other ticker or full-universe backfill had executed. Source rows and all
 unrelated target rows were preserved. Evidence: `verification/feature04/BACKFILL_BBCA_201801.md`.
+
+### Authorized full historical load and resume
+
+The separate backfill command discovers actual tickers from Price_Stock_Indonesia_IDX,
+never from current listed-universe membership. Within each ticker it reads every available
+observation in ascending date order, calculates once, and writes at most 5,000 rows in one
+repeatable-read transaction. Only one ticker is processed at a time; an advisory lock
+coordinates Feature04 writers. The ordinary refresh command retains its existing limits.
+
+`public.feature04_backfill_log` is monitoring metadata, not an additional feature layout.
+Its primary key is (run_id,ticker), with source date span/count/hash, output hash excluding
+calculated_at, version, timestamps, changed-row count and COMPLETED/FAILED status.
+Outputs are read back column by column before their COMPLETED log commits in the same
+transaction. A failed ticker rolls back; prior ticker commits remain intact. No source
+ingestion timestamp is fabricated to fit the Feature01 calculation log's timestamp contract.
+
+Resume with the same run UUID. A completed ticker is skipped only when its source hash,
+current computed payload and actual target readback still match its audit. A changed source
+snapshot is recalculated; identical payloads preserve calculated_at. The source SHA is an
+extraction fingerprint, not proof of historical publication or an immutable revision vintage.
+
+```bash
+python features/feature04/backfill.py --all-source-tickers \
+  --run-id 96ffcd2f-74f7-4437-a002-15a6aeb4b1f9 \
+  --manifest /tmp/feature04-full-backfill.json --write
+```
+
+Use --write only within an authorized execution. Default mode is read-only dry-run.
+No worker deployment, automatic trigger, schedule, new price request or model training
+is introduced. Full execution completed for 844 tickers and 1,318,633 observations, with zero missing/extra source keys.
+Evidence is in `verification/feature04/FULL_BACKFILL.md`.
 
 ## TradingView reference and current limitations
 

@@ -1,6 +1,6 @@
 """Causal daily technical features; no database writes in this module.
 
-v1 uses TA-Lib's documented default compatibility/initialization for all
+v2 preserves the v1 calculations and uses TA-Lib default compatibility/initialization for all
 indicators. TradingView formula definitions are the intended benchmark, but
 its chart seed/history and ATR first-bar treatment are NOT claimed equivalent.
 """
@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import date, datetime, timezone
+from decimal import Decimal
 from math import isfinite
 from typing import Iterable
 
@@ -15,7 +16,7 @@ import numpy as np
 import talib
 from talib import abstract
 
-VERSION = 'feature04-v1-talib0.6.8-c0.6.4'
+VERSION = 'feature04-v2-talib0.6.8-c0.6.4'
 TABLE = 'Feature04_Technical_Indicator'
 IDENTITY = ('ticker', 'trade_date', 'timeframe')
 INDICATORS = ('sma_20', 'sma_50', 'ema_12', 'ema_26', 'rsi_14', 'macd',
@@ -36,7 +37,12 @@ PATTERNS = {
  'cdl_rise_fall_3_methods': 'CDLRISEFALL3METHODS', 'cdl_mat_hold': 'CDLMATHOLD',
  'cdl_hikkake': 'CDLHIKKAKE',
 }
-COLUMNS = IDENTITY + INDICATORS + tuple(PATTERNS) + ('calculation_version', 'calculated_at')
+V1_COLUMNS = IDENTITY + INDICATORS + tuple(PATTERNS) + ('calculation_version', 'calculated_at')
+EXTENSIONS = ('adx_14', 'ema_50', 'ema_200', 'inside_bar')
+INDICATORS = INDICATORS + EXTENSIONS[:3]
+FEATURE_COLUMNS = INDICATORS + tuple(PATTERNS) + ('inside_bar',)
+# PostgreSQL appends new columns; retain the physical v1 order for old columns.
+COLUMNS = V1_COLUMNS + EXTENSIONS
 
 
 def library_contract() -> dict:
@@ -44,7 +50,7 @@ def library_contract() -> dict:
         raise RuntimeError('Calculation version requires TA-Lib Python 0.6.8 / C 0.6.4')
     if talib.get_compatibility() != 0:
         raise RuntimeError('TA-Lib default compatibility is required')
-    for name in ('EMA', 'RSI', 'ATR'):
+    for name in ('EMA', 'RSI', 'ATR', 'ADX'):
         if talib.get_unstable_period(name) != 0:
             raise RuntimeError('TA-Lib unstable periods must remain zero')
     functions = {}
@@ -132,6 +138,9 @@ def calculate(rows: Iterable[dict], *, calculated_at: datetime | None = None) ->
                 'sma_50': talib.SMA(c, timeperiod=50),
                 'ema_12': talib.EMA(c, timeperiod=12),
                 'ema_26': talib.EMA(c, timeperiod=26),
+                'ema_50': talib.EMA(c, timeperiod=50),
+                'ema_200': talib.EMA(c, timeperiod=200),
+                'adx_14': talib.ADX(h, l, c, timeperiod=14),
                 'rsi_14': talib.RSI(c, timeperiod=14),
                 'atr_14': talib.ATR(h, l, c, timeperiod=14),
             }
@@ -143,6 +152,13 @@ def calculate(rows: Iterable[dict], *, calculated_at: datetime | None = None) ->
             numeric.update(macd=macd, macd_signal=signal, macd_histogram=histogram)
             upper, middle, lower = talib.BBANDS(c, timeperiod=20, nbdevup=2.0, nbdevdn=2.0, matype=0)
             numeric.update(bb_upper_20=upper, bb_middle_20=middle, bb_lower_20=lower)
+            # Strict range containment labels this candle, using only its predecessor.
+            # Compare original numeric values rather than rounding prices to float64.
+            for j in range(1, len(segment)):
+                current, previous = segment[j], segment[j - 1]
+                high, low, previous_high, previous_low = [Decimal(str(v)) for v in
+                    (current['high'], current['low'], previous['high'], previous['low'])]
+                results[start + j]['inside_bar'] = int(high < previous_high and low > previous_low)
             for column, array in numeric.items():
                 for j, value in enumerate(array):
                     results[start + j][column] = float(value) if np.isfinite(value) else None

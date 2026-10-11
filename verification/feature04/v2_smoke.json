@@ -1,0 +1,19 @@
+{
+  "run_id": "96ffcd2f-74f7-4437-a002-15a6aeb4b1f9",
+  "first_ticker": {
+    "ticker": "BBCA",
+    "status": "COMPLETED",
+    "rows": 2113,
+    "changed_rows": 2113,
+    "source_start": "2018-01-02",
+    "source_end": "2026-10-09"
+  },
+  "resume": {
+    "ticker": "BBCA",
+    "status": "SKIPPED_VERIFIED",
+    "rows": 2113,
+    "changed_rows": 0
+  },
+  "timestamps_preserved": true,
+  "source_unchanged": true
+}

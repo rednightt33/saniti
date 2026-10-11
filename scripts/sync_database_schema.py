@@ -34,7 +34,8 @@ TABLE_STATUS_RULES = {
     "Feature_01_Stock_Daily": ("Feature", "After validated daily-price changes"),
     "Feature_02_Broker_Rolling": ("Feature", "After validated broker-summary changes; manual v2 ticker rebuild"),
     "Feature_03_Stock_Broker_Daily": ("Feature", "After Feature 02 refresh; manual Investor-Type v2 refresh"),
-    "Feature04_Technical_Indicator": ("Feature", "Manual bounded technical refresh; no scheduler"),
+    "Feature04_Technical_Indicator": ("Feature", "Manual technical refresh or authorized serial ticker backfill; no scheduler"),
+    "feature04_backfill_log": ("Monitoring", "Atomic per-run/ticker Feature04 calculation metadata"),
     "Feature_Calculation_Queue": ("System", "After committed price inserts/updates and worker transitions"),
     "Feature_Status": ("System", "After enqueue and worker state transitions"),
     "Feature_Calculation_Log": ("System", "After completed worker attempts"),
@@ -87,7 +88,8 @@ TABLE_DESCRIPTIONS = {
     "Feature_01_Stock_Daily": "Daily ticker-level price, return, volatility, volume, and price-position features.",
     "Feature_02_Broker_Rolling": "Broker flow, persistence, abnormality, and accumulation by source ticker, broker, Investor Type, board, and transaction date.",
     "Feature_03_Stock_Broker_Daily": "Stock-level daily broker breadth, classified flow, dominant-broker, and concentration features separated by market board.",
-    "Feature04_Technical_Indicator": "Daily wide technical indicators and native TA-Lib candlestick codes; no full backfill or automatic writer.",
+    "Feature04_Technical_Indicator": "Daily wide technical indicators, native TA-Lib candlestick codes and strict inside bars; v2 has 46 columns, no automatic writer.",
+    "feature04_backfill_log": "Atomic serial Feature04 ticker-load metadata and resumable source/output fingerprints.",
     "Feature_Calculation_Queue": "Durable work item per changed Feature 01 source candle.",
     "Feature_Status": "Current price-driven Feature 01 calculation state per ticker.",
     "Feature_Calculation_Log": "Completed Feature 01 worker attempt and retry history.",
@@ -557,6 +559,14 @@ def derive_status_rows(
                 )
             ).fetchone()
             tracking_status = "Derived from existing rows; manual refresh only"
+            last_operation = "CALCULATION" if last_changed_at is not None else None
+        elif name == "feature04_backfill_log":
+            latest_data_date, last_changed_at = connection.execute(
+                sql.SQL("SELECT max(source_end), max(finished_at) FROM {}.{} WHERE status='COMPLETED'").format(
+                    sql.Identifier(schema), sql.Identifier(name)
+                )
+            ).fetchone()
+            tracking_status = "Derived from completed atomic ticker loads; manual execution only"
             last_operation = "CALCULATION" if last_changed_at is not None else None
         elif name == "Feature_Calculation_Queue":
             latest_data_date, changed = connection.execute(

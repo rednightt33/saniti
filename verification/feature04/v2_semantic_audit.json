@@ -1,0 +1,31 @@
+{
+  "overall": "PASS",
+  "summary": {
+    "active": 137,
+    "verified": 137,
+    "incomplete": 0,
+    "feature_tables": 4
+  },
+  "coverage": [
+    {
+      "feature_table": "Feature_01_Stock_Daily",
+      "definitions": 29,
+      "physical_columns": 29
+    },
+    {
+      "feature_table": "Feature_02_Broker_Rolling",
+      "definitions": 38,
+      "physical_columns": 38
+    },
+    {
+      "feature_table": "Feature_03_Stock_Broker_Daily",
+      "definitions": 24,
+      "physical_columns": 24
+    },
+    {
+      "feature_table": "Feature04_Technical_Indicator",
+      "definitions": 46,
+      "physical_columns": 46
+    }
+  ]
+}

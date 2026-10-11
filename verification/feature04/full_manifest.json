@@ -1,0 +1,19 @@
+{
+  "run_id": "96ffcd2f-74f7-4437-a002-15a6aeb4b1f9",
+  "calculation_version": "feature04-v2-talib0.6.8-c0.6.4",
+  "mode": "WRITE",
+  "status": "COMPLETED",
+  "completed_tickers": 843,
+  "skipped_verified_tickers": 1,
+  "failed_tickers": 0,
+  "processed_rows": 1318633,
+  "changed_rows": 1316520,
+  "last_ticker": "ZYRX",
+  "started_at": "2026-10-11T05:14:35.251858+00:00",
+  "tradingview_parity": "NOT VERIFIED",
+  "training_point_in_time_eligibility": "NOT VERIFIED",
+  "total_tickers": 844,
+  "expected_rows": 1318633,
+  "elapsed_seconds": 258.114,
+  "finished_at": "2026-10-11T05:18:53.365769+00:00"
+}

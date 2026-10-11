@@ -84,6 +84,7 @@ column/constraint/index reference for every row below.
 | `Feature_02_Broker_Rolling` | Canonical broker rolling features by stock/broker/Investor Type/board/date | `FEATURE_02_BROKER_ROLLING_V2.md` |
 | `Feature_03_Stock_Broker_Daily` | Stock/day/board broker breadth and flow features | `FEATURE_03_STOCK_BROKER_DAILY.md` |
 | `Feature04_Technical_Indicator` | Daily wide technical indicators and independent TA-Lib candlestick codes | `FEATURE04_TECHNICAL_INDICATOR.md` |
+| `feature04_backfill_log` | Atomic per-run/ticker historical-load metadata and resume fingerprints | `FEATURE04_TECHNICAL_INDICATOR.md` |
 | `Feature_Calculation_Log` | Completed Feature 01 worker attempts and retries | `apps/feature-01-worker/README.md` |
 | `Feature_Calculation_Queue` | Durable changed-price work items for Feature 01 | `apps/feature-01-worker/README.md` |
 | `Feature_Catalog` | Versioned formula and analytical-usage authority for Feature columns | This document |
@@ -104,7 +105,7 @@ column/constraint/index reference for every row below.
 | `Universe_Equity_Description` | Issuer descriptions and sector/industry classifications | This document and `DATABASE_SCHEMA.md` |
 | `stockbit_broker_summary_load_log` | Per-date Stockbit load progress/retry history | `apps/stockbit-broker-backfill/README.md` |
 
-`Feature04_Technical_Indicator` was created and calculation-validated on 2026-10-11: 42 physical columns and active v1 definitions, one safe exact-date Feature01 relationship. The first bounded backfill test committed 22 BBCA rows for January 2018; no full backfill or AI allowlist/permission change. TradingView numerical parity and point-in-time training eligibility remain NOT VERIFIED. See `FEATURE04_TECHNICAL_INDICATOR.md`, `verification/feature04/REPORT.md`, and `verification/feature04/BACKFILL_BBCA_201801.md`. The catalog-only validator keeps its existing checks with one exact-name exception for this user-selected spelling.
+`Feature04_Technical_Indicator` v2 has 46 physical columns and active definitions, adding ADX14, close EMA50/EMA200 and strict current-candle inside_bar; 42 v1 definitions are retained inactive. One safe exact-date Feature01 relationship is unchanged. The first bounded BBCA January 2018 test is historical evidence; the subsequent authorized full-source-ticker serial load is documented in `verification/feature04/FULL_BACKFILL.md`. `feature04_backfill_log` records atomic output/audit commits and resume hashes without copying price or feature rows. No AI allowlist or permission change. TradingView numerical parity and point-in-time training eligibility remain NOT VERIFIED. See `FEATURE04_TECHNICAL_INDICATOR.md`. The catalog-only validator keeps its existing checks with one exact-name exception for the requested table spelling.
 
 ## Field contract
 

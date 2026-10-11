@@ -4,17 +4,18 @@ import sys
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'features/feature04'))
-from engine import COLUMNS, IDENTITY, INDICATORS, PATTERNS, TABLE
+from engine import V1_COLUMNS as COLUMNS, IDENTITY, INDICATORS as ALL_INDICATORS, PATTERNS, TABLE
 from specs import specifications
 from sql_text import sql_literal
 def lit(value):return "'"+sql_literal(value)+"'"
+INDICATORS = tuple(c for c in ALL_INDICATORS if c in COLUMNS)
 
 MIGRATION=ROOT/'database/migrations/20261011_001_create_feature04_technical_indicator.sql'
 SOURCES=['features/feature04/engine.py','features/feature04/pipeline.py','FEATURE04_TECHNICAL_INDICATOR.md','verification/feature04/calculation_validation.json']
 def arr(values):return 'ARRAY['+','.join(lit(v) for v in values)+']::text[]'
 
 def render():
-    specs=specifications()
+    specs={k:v for k,v in specifications().items() if k in COLUMNS}
     # Naming exception required by the user's exact target name. Preserve all
     # existing physical-column and VERIFIED-table guards in the catalog trigger.
     validator_before=(ROOT/'verification/feature04/catalog_validator_before.sql').read_text()
@@ -73,4 +74,10 @@ VALUES('public',{lit(TABLE)},'Feature',{lit('Causal daily technical indicators a
     return '\n'.join(lines)+'\n'
 
 if __name__=='__main__':
-    MIGRATION.write_text(render());print(MIGRATION.name)
+    rendered=render()
+    if MIGRATION.exists():
+        if MIGRATION.read_text()!=rendered:
+            raise RuntimeError('Applied v1 migration is immutable; create a forward migration')
+    else:
+        MIGRATION.write_text(rendered)
+    print(MIGRATION.name)

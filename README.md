@@ -56,7 +56,7 @@ warnings, evidence IDs, and query hashes during context compaction. The cumulati
 input ceiling is 150,000 tokens; the 64,000-token per-call context ceiling remains
 separate and unchanged.
 
-Feature04 technical indicators were created on 2026-10-11 as `Feature04_Technical_Indicator` (42 wide columns). The first bounded backfill test stored 22 BBCA daily rows for January 2018; an identical rerun changed 0 rows. No full historical backfill, schedule, deployment or AI onboarding has run. See [FEATURE04_TECHNICAL_INDICATOR.md](FEATURE04_TECHNICAL_INDICATOR.md), [creation evidence](verification/feature04/REPORT.md), and [backfill evidence](verification/feature04/BACKFILL_BBCA_201801.md).
+Feature04 v2 is `Feature04_Technical_Indicator` (46 wide columns), including ADX14, close EMA50/EMA200 and strict current-candle inside bars. The authorized serial historical backfill covers all 844 tickers present in the price source: 1,318,633 Daily rows, 2018-01-02 through 2026-10-09, with zero missing/extra keys and no source changes. Atomic per-ticker audit/resume metadata lives in `feature04_backfill_log`. No schedule, deployment or AI onboarding was added. See [FEATURE04_TECHNICAL_INDICATOR.md](FEATURE04_TECHNICAL_INDICATOR.md) and [full backfill evidence](verification/feature04/FULL_BACKFILL.md).
 
 ## Mandatory update contract
 

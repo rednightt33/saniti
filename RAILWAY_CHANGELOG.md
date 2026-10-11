@@ -1,5 +1,11 @@
 # Railway changelog
 
+## 2026-10-11 — Feature04 v2 serial historical backfill, no deployed service change
+
+- Ephemeral PRIVATE sandbox `1637bf99-fa9e-41c6-b25e-05427d5be158` in lucid-patience/dev used a server-side Postgres DATABASE_URL reference, isolated pinned dependencies, and the repository's Feature04 code. No new service/database, deploy, service variable, cron, domain, project configuration, or running AI pipeline change.
+- Applied/rehearsed Feature04 v2, then one-ticker-at-a-time backfill: 844 source tickers, 1,318,633 rows, zero failures or missing/extra keys. Main run 12:14:35–12:18:53 Asia/Jakarta (258.114 seconds); the preceding BBCA smoke was verified/skipped on resume. Aggregate evidence in `verification/feature04/FULL_BACKFILL.md`; persistent per-ticker audit in `public.feature04_backfill_log`.
+- Destroyed the task sandbox after completed load, independent readback and read-only schema export; terminal DESTROYED verified in `verification/feature04/full_execution_cleanup.json`. No recurring writer was created.
+
 ## 2026-10-11 — Feature04 bounded BBCA backfill execution sandbox
 
 - Used ephemeral PRIVATE sandbox `aba2fcb9-deb7-4645-a701-7fa33164832f` in lucid-patience/dev with a server-side Postgres DATABASE_URL reference to execute the authorized January 2018 BBCA test. No deployed service, variable, schedule, domain or project configuration changed.

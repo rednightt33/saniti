@@ -1,0 +1,10 @@
+{
+  "feature04_pytest_tests": 21,
+  "feature04_pytest_result": "PASS",
+  "standalone_frozen_migration_checks": 2,
+  "frozen_migration_checks_result": "PASS",
+  "generators_match_applied_files": true,
+  "aggregate_evidence_consistency": "PASS",
+  "syntax": "PASS",
+  "credential_scan": "PASS: attached token excluded; no database URLs or token values introduced"
+}

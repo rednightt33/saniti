@@ -96,8 +96,12 @@ full-history replay, and do not claim a universal 250/500-bar parity guarantee.
 See the main feature guide for exact numerical seeds, first-valid positions, function defaults,
 incremental/correction design, versioned source manifests, official references, and training risks.
 No reference numerical TradingView values or candlestick equivalence were assumed.
+
 ## Subsequent bounded backfill
 
 The creation validation above is the original empty-table snapshot. A later authorized
 BBCA January 2018 test committed 22 rows; see `BACKFILL_BBCA_201801.md` for current
 bounded-load evidence. No full backfill was executed.
+
+The subsequent v2 full-source-ticker backfill completed 844 tickers and 1,318,633 rows;
+see `FULL_BACKFILL.md` for the current 46-column schema and full-load evidence.
