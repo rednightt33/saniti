@@ -29,7 +29,7 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 | 10 | G2-B, S20, minimal 4 hipotesis, analisis faktor | 2026-10-02 (`G2_G3_REACTIVATION_PLAN.md` langkah 8, FINAL) | Belum; 4 keputusan rinci masih terbuka | 10 |
 | 11 | P9 kamus nilai dan alat "cari nilai" | Keputusan desain user 2026-10-01 | Belum; perlu cek ulang cakupan | 11 |
 | 12 | Prosedur tabel baru (FX, indeks, makro) | 2026-10-01 "record now, run later" | Menunggu pemicu: tabel baru | Saat ada tabel baru |
-| 13 | Feature04 otomatis setelah update harga, retry ticker/indikator gagal lewat Telegram | 2026-10-11 (desain umum dan permintaan implementation plan) | Implementation plan disusun; menunggu go eksekusi | Setelah go user |
+| 13 | Feature04 otomatis setelah update harga, retry ticker/indikator gagal lewat Telegram | 2026-10-11 (implementation plan disetujui) | Disetujui sebagai rencana; eksekusi/deployment belum dimulai | Setelah perintah go eksekusi |
 
 Eksekusi yang sudah disetujui (dulu butir 1–7 dan 1b–1k) ada di `EXEC.md`.
 
@@ -174,6 +174,10 @@ worker melanjutkan ticker lain, dan menu retry hanya mengambil ticker yang gagal
 diagnosis per indikator memakai retry full-ticker; tidak menebak kolom gagal dari NULL atau menandai semua ticker gagal.
 Contoh: BBCA FAILED, BBRI SUCCESS, BMRI SUCCESS -> ulang script untuk BBCA saja, dengan full available BBCA history;
 BBRI/BMRI tidak masuk request tersebut. CLI backfill lama yang berhenti pada failure pertama tidak menjadi entrypoint worker.
+
+**Persetujuan implementation plan, 2026-10-11:** user: "Ok agree, baagimana service telegram monitor dan telegram trigger dipakai".
+Persetujuan ini menetapkan desain dan pembagian service di bawah; belum merupakan perintah untuk membuat migration,
+service Railway, deployment, menjalankan price job, atau mengirim pesan Telegram live.
 
 ### Kondisi yang diverifikasi
 
@@ -332,7 +336,7 @@ duplikasi. Tidak menjanjikan exactly-once delivery ke API Telegram.
 Desain secara umum dicatat disetujui; urutan price Telegram SENT kemudian hasil Feature04 ditetapkan.
 Detail terbuka: filter eligibility bila berbeda dari default. Implementasi/deployment menunggu perintah eksekusi user.
 
-### Implementation plan: otomatisasi + retry gagal di Telegram (draft, 2026-10-11)
+### Implementation plan: otomatisasi + retry gagal di Telegram (disetujui 2026-10-11)
 
 #### Hasil inspeksi tambahan, read-only
 
@@ -444,6 +448,20 @@ Reset retry budget manual berlaku untuk request/kelompok yang dipilih, tidak unt
 
 #### Monitoring retry dan urutan Telegram
 
+Pembagian service yang disetujui:
+
+| Service | Peran Feature04 | Tidak dikerjakan service ini |
+|---|---|---|
+| `telegram-trigger` | Menerima webhook/command owner, menampilkan menu status dan retry, memvalidasi callback/preview, dedup click, lalu memanggil routine DB terbatas untuk enqueue retry. Command price/recovery lama tetap memakai Railway Run Now. | Tidak menghitung indikator, tidak menulis Feature04, dan retry Feature04 tidak menjalankan price cron. |
+| `feature-04-worker` (baru) | Membaca queue otomatis/retry, claim per ticker, replay history, menulis bundle kolom yang valid, memperbarui status/log/run/outbox, dan melanjutkan ticker berikutnya bila satu ticker gagal. | Tidak menerima Telegram webhook dan tidak mengambil data TradingView. |
+| `telegram-monitor` | Menerima private notify untuk execution/run yang sudah committed, membaca monitoring/outbox, memformat dan mengirim hasil price/Feature04, serta mencatat delivery dedup. | Tidak menghitung ulang indikator dan tidak memutuskan scope retry. |
+
+Kedua service Telegram tetap event-driven tanpa cron. `telegram-trigger` bangun karena webhook Telegram; `telegram-monitor`
+bangun karena private notify dari price job/worker. Worker Feature04 satu-satunya service baru dan berjalan terus sebagai
+consumer queue. Menu retry hanya membuat durable request; worker yang mengeksekusinya. Acknowledgement "diterima" berasal
+dari trigger, sedangkan hasil final berasal dari monitor. Secret bot tetap di service Telegram; worker hanya memerlukan
+database dan shared private-notify credential, tanpa token Telegram.
+
 Retry menjadi child run bertipe `RETRY_TICKER` atau `RETRY_COLUMN`, menaut ke parent price/Feature04 run.
 Parent summary historis tidak ditimpa; error attempt lama tetap ada, current status dan child recovery diperbarui.
 Pesan awal: "Permintaan ulang diterima" dengan jumlah ticker/indikator dan scope terkait. Pesan akhir memakai child run ID
@@ -486,4 +504,4 @@ monitor memberi status belum selesai sampai semua dependencies valid. Migrasi ti
 
 Kedua ambiguitas material sudah diputuskan user (2026-10-11, "both ya"): error nyata termasuk unexpected NULL yang terbukti,
 NULL sah dikecualikan, dan dependency closure wajib. Pilihan batch/ticker disediakan menu, default latest unresolved.
-Implementation plan memakai keputusan tersebut; belum ada perintah go eksekusi.
+Implementation plan memakai keputusan tersebut dan disetujui user pada 2026-10-11; belum ada perintah go eksekusi/deployment.
