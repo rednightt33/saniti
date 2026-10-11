@@ -1,5 +1,13 @@
 # Database changelog
 
+## 2026-10-11 — Feature04 first-month BBCA backfill test
+
+- User: "Ok, coba test backfill. 1 bulan saja dulu. Mari coba 1 ticker." Direction: "Dari belakang ke depan", confirmed "Ya, mulai bulan paling lama". Selected BBCA, earliest available month January 2018, output range 2018-01-01..31 in lucid-patience/dev/Postgres.
+- Existing bounded Python pipeline read 22 chronological source observations and committed 22 daily rows to `public."Feature04_Technical_Indicator"` (actual dates 2018-01-02..31). Version `feature04-v1-talib0.6.8-c0.6.4`; no source fetch, schema migration, source write, full backfill, scheduler or deployed service change.
+- All 42 stored columns matched recalculation (calculated_at checked for preservation rather than regenerated-value equality). Identical rerun changed 0 rows and preserved timestamps; 22 distinct keys, no duplicates. Full BBCA source and all target rows outside the approved month had matching before/after fingerprints. Independent readback through pgweb confirmed the committed result.
+- Expected initial-history NULLs: SMA20/Bollinger available on 3 rows from January 29; EMA12 on 11 from January 17; RSI14/ATR14 on 8 from January 22. SMA50, EMA26, MACD, signal and histogram remain NULL throughout this 22-bar month. No fabricated earlier history or future prices were used to initialize indicators.
+- TradingView numerical parity and point-in-time training eligibility remain NOT VERIFIED. Evidence: `verification/feature04/BACKFILL_BBCA_201801.md` and aggregate manifest `backfill_bbca_201801.json`; no row-by-row database mirror in GitHub. The execution sandbox was read back DESTROYED.
+
 ## 2026-10-11 — Feature04 technical indicator table and bounded Python engine
 
 - User supplied direct execution instruction: "Create a technically correct, auditable, and XGBoost-ready feature table derived from existing Indonesian equity OHLCV data." Target exact name `Feature04_Technical_Indicator`; no source modifications, full backfill, model training, new service/database, permission change or scheduling.

@@ -1291,6 +1291,8 @@ Tracks the data freshness, change time, and update pattern of each table.
 
 Causal daily technical indicators and independent native TA-Lib candlestick codes; formulas calculation-verified, TradingView parity NOT VERIFIED.
 
+Data readback 2026-10-11: 22 committed BBCA/Daily rows for 2018-01-02..31, the authorized first-month test only. Schema unchanged. Initial warmup NULLs retained; identical rerun changed 0 rows. See `verification/feature04/BACKFILL_BBCA_201801.md`.
+
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |

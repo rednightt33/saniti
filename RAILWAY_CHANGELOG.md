@@ -1,5 +1,10 @@
 # Railway changelog
 
+## 2026-10-11 — Feature04 bounded BBCA backfill execution sandbox
+
+- Used ephemeral PRIVATE sandbox `aba2fcb9-deb7-4645-a701-7fa33164832f` in lucid-patience/dev with a server-side Postgres DATABASE_URL reference to execute the authorized January 2018 BBCA test. No deployed service, variable, schedule, domain or project configuration changed.
+- After committed database verification, destroyed the sandbox and read back terminal `DESTROYED`. Result: 22 Feature04 rows, identical rerun 0 changes; evidence in `verification/feature04/backfill_bbca_201801.json`.
+
 ## 2026-10-09 — M139 and M140 deployed from main (EXEC-Z)
 
 - `main` `977b525`: market-python-sandbox `92eabc87` SUCCESS (a failed `run_python` reports its outputs as `discarded_outputs`), market-ai-orc `d6177468` SUCCESS (the typed-figure repair names the equal values). Orc startup unchanged: model and mode selected, provider policy OK, no `*_inactive`. No variable, model, provider, mode or switch changed. Rollback: sandbox `e46c0ba5`, orc `540227e6`.

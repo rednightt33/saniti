@@ -134,8 +134,20 @@ python features/feature04/pipeline.py --tickers BBCA GOTO \
   --start 2026-10-01 --end 2026-10-09 --manifest /tmp/feature04-run.json
 ```
 
-`--write` is an explicit bounded write mode for a future authorized refresh. No scheduler,
+`--write` is an explicit bounded write mode for an authorized refresh. No scheduler,
 service deployment or source-price request is required to calculate existing observations.
+
+### First committed bounded backfill test
+
+User approved one ticker and one month on 2026-10-11, starting from the oldest source data.
+BBCA January 2018 produced 22 committed Daily rows, 2018-01-02 through 2018-01-31;
+all stored values were read back and an identical rerun changed 0 rows, preserving timestamps.
+There is no source history before this month in the database: SMA50, EMA26 and MACD
+remain NULL, while SMA20/Bollinger first become available on January 29. Warmup NULLs
+are expected availability markers, not a failed backfill. Later authorized months must
+continue reading full available history through their end while writing only their own range.
+No later month, other ticker or full-universe backfill was executed. Source rows and all
+unrelated target rows were preserved. Evidence: `verification/feature04/BACKFILL_BBCA_201801.md`.
 
 ## TradingView reference and current limitations
 

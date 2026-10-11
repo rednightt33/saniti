@@ -1,0 +1,658 @@
+{
+  "checked_at": "2026-10-11T04:52:05.751958+00:00",
+  "scope": {
+    "project": "lucid-patience",
+    "environment": "dev",
+    "database_service": "Postgres",
+    "table": "public.Feature04_Technical_Indicator",
+    "ticker": "BBCA",
+    "start": "2018-01-01",
+    "end": "2018-01-31",
+    "direction": "oldest_to_newest"
+  },
+  "dry_run": {
+    "calculation_version": "feature04-v1-talib0.6.8-c0.6.4",
+    "library": {
+      "python": "0.6.8",
+      "c": "0.6.4 (Oct 20 2025 20:23:51)",
+      "numpy": "2.3.5",
+      "compatibility": 0,
+      "unstable_period": 0,
+      "patterns": {
+        "CDLPIERCING": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLMORNINGSTAR": {
+          "lookback": 12,
+          "parameters": {
+            "penetration": 0.3
+          }
+        },
+        "CDLMORNINGDOJISTAR": {
+          "lookback": 12,
+          "parameters": {
+            "penetration": 0.3
+          }
+        },
+        "CDLENGULFING": {
+          "lookback": 2,
+          "parameters": {}
+        },
+        "CDL3WHITESOLDIERS": {
+          "lookback": 12,
+          "parameters": {}
+        },
+        "CDLHAMMER": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLINVERTEDHAMMER": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDL3INSIDE": {
+          "lookback": 12,
+          "parameters": {}
+        },
+        "CDL3OUTSIDE": {
+          "lookback": 3,
+          "parameters": {}
+        },
+        "CDLHARAMI": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLHARAMICROSS": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLDARKCLOUDCOVER": {
+          "lookback": 11,
+          "parameters": {
+            "penetration": 0.5
+          }
+        },
+        "CDLEVENINGSTAR": {
+          "lookback": 12,
+          "parameters": {
+            "penetration": 0.3
+          }
+        },
+        "CDLEVENINGDOJISTAR": {
+          "lookback": 12,
+          "parameters": {
+            "penetration": 0.3
+          }
+        },
+        "CDL3BLACKCROWS": {
+          "lookback": 13,
+          "parameters": {}
+        },
+        "CDLSHOOTINGSTAR": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLHANGINGMAN": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLDOJI": {
+          "lookback": 10,
+          "parameters": {}
+        },
+        "CDLDRAGONFLYDOJI": {
+          "lookback": 10,
+          "parameters": {}
+        },
+        "CDLGRAVESTONEDOJI": {
+          "lookback": 10,
+          "parameters": {}
+        },
+        "CDLMARUBOZU": {
+          "lookback": 10,
+          "parameters": {}
+        },
+        "CDLKICKING": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLRISEFALL3METHODS": {
+          "lookback": 14,
+          "parameters": {}
+        },
+        "CDLMATHOLD": {
+          "lookback": 14,
+          "parameters": {
+            "penetration": 0.5
+          }
+        },
+        "CDLHIKKAKE": {
+          "lookback": 5,
+          "parameters": {}
+        }
+      }
+    },
+    "source_rows_read": 22,
+    "source_sha256": "c458d35f4b22031d0cb524c77e59692336d9f9e8bd85712699f9c2b0e00fbbc4",
+    "tickers": [
+      "BBCA"
+    ],
+    "start": "2018-01-01",
+    "end": "2018-01-31",
+    "output_rows": 22,
+    "changed_rows": 0,
+    "mode": "DRY_RUN",
+    "tradingview_parity": "NOT VERIFIED",
+    "training_point_in_time_eligibility": "NOT VERIFIED"
+  },
+  "first_write": {
+    "calculation_version": "feature04-v1-talib0.6.8-c0.6.4",
+    "library": {
+      "python": "0.6.8",
+      "c": "0.6.4 (Oct 20 2025 20:23:51)",
+      "numpy": "2.3.5",
+      "compatibility": 0,
+      "unstable_period": 0,
+      "patterns": {
+        "CDLPIERCING": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLMORNINGSTAR": {
+          "lookback": 12,
+          "parameters": {
+            "penetration": 0.3
+          }
+        },
+        "CDLMORNINGDOJISTAR": {
+          "lookback": 12,
+          "parameters": {
+            "penetration": 0.3
+          }
+        },
+        "CDLENGULFING": {
+          "lookback": 2,
+          "parameters": {}
+        },
+        "CDL3WHITESOLDIERS": {
+          "lookback": 12,
+          "parameters": {}
+        },
+        "CDLHAMMER": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLINVERTEDHAMMER": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDL3INSIDE": {
+          "lookback": 12,
+          "parameters": {}
+        },
+        "CDL3OUTSIDE": {
+          "lookback": 3,
+          "parameters": {}
+        },
+        "CDLHARAMI": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLHARAMICROSS": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLDARKCLOUDCOVER": {
+          "lookback": 11,
+          "parameters": {
+            "penetration": 0.5
+          }
+        },
+        "CDLEVENINGSTAR": {
+          "lookback": 12,
+          "parameters": {
+            "penetration": 0.3
+          }
+        },
+        "CDLEVENINGDOJISTAR": {
+          "lookback": 12,
+          "parameters": {
+            "penetration": 0.3
+          }
+        },
+        "CDL3BLACKCROWS": {
+          "lookback": 13,
+          "parameters": {}
+        },
+        "CDLSHOOTINGSTAR": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLHANGINGMAN": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLDOJI": {
+          "lookback": 10,
+          "parameters": {}
+        },
+        "CDLDRAGONFLYDOJI": {
+          "lookback": 10,
+          "parameters": {}
+        },
+        "CDLGRAVESTONEDOJI": {
+          "lookback": 10,
+          "parameters": {}
+        },
+        "CDLMARUBOZU": {
+          "lookback": 10,
+          "parameters": {}
+        },
+        "CDLKICKING": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLRISEFALL3METHODS": {
+          "lookback": 14,
+          "parameters": {}
+        },
+        "CDLMATHOLD": {
+          "lookback": 14,
+          "parameters": {
+            "penetration": 0.5
+          }
+        },
+        "CDLHIKKAKE": {
+          "lookback": 5,
+          "parameters": {}
+        }
+      }
+    },
+    "source_rows_read": 22,
+    "source_sha256": "c458d35f4b22031d0cb524c77e59692336d9f9e8bd85712699f9c2b0e00fbbc4",
+    "tickers": [
+      "BBCA"
+    ],
+    "start": "2018-01-01",
+    "end": "2018-01-31",
+    "output_rows": 22,
+    "changed_rows": 22,
+    "mode": "WRITE",
+    "tradingview_parity": "NOT VERIFIED",
+    "training_point_in_time_eligibility": "NOT VERIFIED"
+  },
+  "identical_rerun": {
+    "calculation_version": "feature04-v1-talib0.6.8-c0.6.4",
+    "library": {
+      "python": "0.6.8",
+      "c": "0.6.4 (Oct 20 2025 20:23:51)",
+      "numpy": "2.3.5",
+      "compatibility": 0,
+      "unstable_period": 0,
+      "patterns": {
+        "CDLPIERCING": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLMORNINGSTAR": {
+          "lookback": 12,
+          "parameters": {
+            "penetration": 0.3
+          }
+        },
+        "CDLMORNINGDOJISTAR": {
+          "lookback": 12,
+          "parameters": {
+            "penetration": 0.3
+          }
+        },
+        "CDLENGULFING": {
+          "lookback": 2,
+          "parameters": {}
+        },
+        "CDL3WHITESOLDIERS": {
+          "lookback": 12,
+          "parameters": {}
+        },
+        "CDLHAMMER": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLINVERTEDHAMMER": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDL3INSIDE": {
+          "lookback": 12,
+          "parameters": {}
+        },
+        "CDL3OUTSIDE": {
+          "lookback": 3,
+          "parameters": {}
+        },
+        "CDLHARAMI": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLHARAMICROSS": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLDARKCLOUDCOVER": {
+          "lookback": 11,
+          "parameters": {
+            "penetration": 0.5
+          }
+        },
+        "CDLEVENINGSTAR": {
+          "lookback": 12,
+          "parameters": {
+            "penetration": 0.3
+          }
+        },
+        "CDLEVENINGDOJISTAR": {
+          "lookback": 12,
+          "parameters": {
+            "penetration": 0.3
+          }
+        },
+        "CDL3BLACKCROWS": {
+          "lookback": 13,
+          "parameters": {}
+        },
+        "CDLSHOOTINGSTAR": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLHANGINGMAN": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLDOJI": {
+          "lookback": 10,
+          "parameters": {}
+        },
+        "CDLDRAGONFLYDOJI": {
+          "lookback": 10,
+          "parameters": {}
+        },
+        "CDLGRAVESTONEDOJI": {
+          "lookback": 10,
+          "parameters": {}
+        },
+        "CDLMARUBOZU": {
+          "lookback": 10,
+          "parameters": {}
+        },
+        "CDLKICKING": {
+          "lookback": 11,
+          "parameters": {}
+        },
+        "CDLRISEFALL3METHODS": {
+          "lookback": 14,
+          "parameters": {}
+        },
+        "CDLMATHOLD": {
+          "lookback": 14,
+          "parameters": {
+            "penetration": 0.5
+          }
+        },
+        "CDLHIKKAKE": {
+          "lookback": 5,
+          "parameters": {}
+        }
+      }
+    },
+    "source_rows_read": 22,
+    "source_sha256": "c458d35f4b22031d0cb524c77e59692336d9f9e8bd85712699f9c2b0e00fbbc4",
+    "tickers": [
+      "BBCA"
+    ],
+    "start": "2018-01-01",
+    "end": "2018-01-31",
+    "output_rows": 22,
+    "changed_rows": 0,
+    "mode": "WRITE",
+    "tradingview_parity": "NOT VERIFIED",
+    "training_point_in_time_eligibility": "NOT VERIFIED"
+  },
+  "persistent_rows": 22,
+  "actual_first_date": "2018-01-02",
+  "actual_last_date": "2018-01-31",
+  "duplicate_keys": 0,
+  "rerun_preserved_values_and_timestamps": true,
+  "before": {
+    "source_bbca": {
+      "rows": 2113,
+      "sha256": "8c7a986d97708c8083527a9a7e23cd71a30c021b17247a796bef0772e1856776"
+    },
+    "target_outside_scope": {
+      "rows": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  },
+  "after": {
+    "source_bbca": {
+      "rows": 2113,
+      "sha256": "8c7a986d97708c8083527a9a7e23cd71a30c021b17247a796bef0772e1856776"
+    },
+    "target_outside_scope": {
+      "rows": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  },
+  "availability": {
+    "sma_20": {
+      "available": 3,
+      "null": 19,
+      "first_valid_date": "2018-01-29"
+    },
+    "sma_50": {
+      "available": 0,
+      "null": 22,
+      "first_valid_date": null
+    },
+    "ema_12": {
+      "available": 11,
+      "null": 11,
+      "first_valid_date": "2018-01-17"
+    },
+    "ema_26": {
+      "available": 0,
+      "null": 22,
+      "first_valid_date": null
+    },
+    "rsi_14": {
+      "available": 8,
+      "null": 14,
+      "first_valid_date": "2018-01-22"
+    },
+    "macd": {
+      "available": 0,
+      "null": 22,
+      "first_valid_date": null
+    },
+    "macd_signal": {
+      "available": 0,
+      "null": 22,
+      "first_valid_date": null
+    },
+    "macd_histogram": {
+      "available": 0,
+      "null": 22,
+      "first_valid_date": null
+    },
+    "atr_14": {
+      "available": 8,
+      "null": 14,
+      "first_valid_date": "2018-01-22"
+    },
+    "bb_upper_20": {
+      "available": 3,
+      "null": 19,
+      "first_valid_date": "2018-01-29"
+    },
+    "bb_middle_20": {
+      "available": 3,
+      "null": 19,
+      "first_valid_date": "2018-01-29"
+    },
+    "bb_lower_20": {
+      "available": 3,
+      "null": 19,
+      "first_valid_date": "2018-01-29"
+    },
+    "cdl_piercing": {
+      "available": 11,
+      "null": 11,
+      "first_valid_date": "2018-01-17"
+    },
+    "cdl_morning_star": {
+      "available": 10,
+      "null": 12,
+      "first_valid_date": "2018-01-18"
+    },
+    "cdl_morning_doji_star": {
+      "available": 10,
+      "null": 12,
+      "first_valid_date": "2018-01-18"
+    },
+    "cdl_engulfing": {
+      "available": 20,
+      "null": 2,
+      "first_valid_date": "2018-01-04"
+    },
+    "cdl_3_white_soldiers": {
+      "available": 10,
+      "null": 12,
+      "first_valid_date": "2018-01-18"
+    },
+    "cdl_hammer": {
+      "available": 11,
+      "null": 11,
+      "first_valid_date": "2018-01-17"
+    },
+    "cdl_inverted_hammer": {
+      "available": 11,
+      "null": 11,
+      "first_valid_date": "2018-01-17"
+    },
+    "cdl_3_inside": {
+      "available": 10,
+      "null": 12,
+      "first_valid_date": "2018-01-18"
+    },
+    "cdl_3_outside": {
+      "available": 19,
+      "null": 3,
+      "first_valid_date": "2018-01-05"
+    },
+    "cdl_harami": {
+      "available": 11,
+      "null": 11,
+      "first_valid_date": "2018-01-17"
+    },
+    "cdl_harami_cross": {
+      "available": 11,
+      "null": 11,
+      "first_valid_date": "2018-01-17"
+    },
+    "cdl_dark_cloud_cover": {
+      "available": 11,
+      "null": 11,
+      "first_valid_date": "2018-01-17"
+    },
+    "cdl_evening_star": {
+      "available": 10,
+      "null": 12,
+      "first_valid_date": "2018-01-18"
+    },
+    "cdl_evening_doji_star": {
+      "available": 10,
+      "null": 12,
+      "first_valid_date": "2018-01-18"
+    },
+    "cdl_3_black_crows": {
+      "available": 9,
+      "null": 13,
+      "first_valid_date": "2018-01-19"
+    },
+    "cdl_shooting_star": {
+      "available": 11,
+      "null": 11,
+      "first_valid_date": "2018-01-17"
+    },
+    "cdl_hanging_man": {
+      "available": 11,
+      "null": 11,
+      "first_valid_date": "2018-01-17"
+    },
+    "cdl_doji": {
+      "available": 12,
+      "null": 10,
+      "first_valid_date": "2018-01-16"
+    },
+    "cdl_dragonfly_doji": {
+      "available": 12,
+      "null": 10,
+      "first_valid_date": "2018-01-16"
+    },
+    "cdl_gravestone_doji": {
+      "available": 12,
+      "null": 10,
+      "first_valid_date": "2018-01-16"
+    },
+    "cdl_marubozu": {
+      "available": 12,
+      "null": 10,
+      "first_valid_date": "2018-01-16"
+    },
+    "cdl_kicking": {
+      "available": 11,
+      "null": 11,
+      "first_valid_date": "2018-01-17"
+    },
+    "cdl_rise_fall_3_methods": {
+      "available": 8,
+      "null": 14,
+      "first_valid_date": "2018-01-22"
+    },
+    "cdl_mat_hold": {
+      "available": 8,
+      "null": 14,
+      "first_valid_date": "2018-01-22"
+    },
+    "cdl_hikkake": {
+      "available": 17,
+      "null": 5,
+      "first_valid_date": "2018-01-09"
+    }
+  },
+  "tradingview_parity": "NOT VERIFIED",
+  "training_point_in_time_eligibility": "NOT VERIFIED",
+  "independent_readback": [
+    {
+      "rows": 22,
+      "distinct_keys": 22,
+      "first_date": "2018-01-02T00:00:00Z",
+      "last_date": "2018-01-31T00:00:00Z",
+      "version": "feature04-v1-talib0.6.8-c0.6.4",
+      "outside_scope": 0,
+      "sma_20_available": 3,
+      "ema_12_available": 11,
+      "rsi_14_available": 8,
+      "sma_50_available": 0,
+      "macd_available": 0
+    }
+  ],
+  "execution_cleanup": {
+    "sandbox_id": "aba2fcb9-deb7-4645-a701-7fa33164832f",
+    "status": "DESTROYED",
+    "new_services": 0,
+    "new_databases": 0,
+    "deployed_service_changes": 0
+  },
+  "all_feature_identity_version_values_match_calculation": true
+}

@@ -104,7 +104,7 @@ column/constraint/index reference for every row below.
 | `Universe_Equity_Description` | Issuer descriptions and sector/industry classifications | This document and `DATABASE_SCHEMA.md` |
 | `stockbit_broker_summary_load_log` | Per-date Stockbit load progress/retry history | `apps/stockbit-broker-backfill/README.md` |
 
-`Feature04_Technical_Indicator` was created and calculation-validated on 2026-10-11: 42 physical columns and active v1 definitions, one safe exact-date Feature01 relationship, no backfill or AI allowlist/permission change. TradingView numerical parity and point-in-time training eligibility remain NOT VERIFIED. See `FEATURE04_TECHNICAL_INDICATOR.md` and `verification/feature04/REPORT.md`. The catalog-only validator keeps its existing checks with one exact-name exception for this user-selected spelling.
+`Feature04_Technical_Indicator` was created and calculation-validated on 2026-10-11: 42 physical columns and active v1 definitions, one safe exact-date Feature01 relationship. The first bounded backfill test committed 22 BBCA rows for January 2018; no full backfill or AI allowlist/permission change. TradingView numerical parity and point-in-time training eligibility remain NOT VERIFIED. See `FEATURE04_TECHNICAL_INDICATOR.md`, `verification/feature04/REPORT.md`, and `verification/feature04/BACKFILL_BBCA_201801.md`. The catalog-only validator keeps its existing checks with one exact-name exception for this user-selected spelling.
 
 ## Field contract
 
