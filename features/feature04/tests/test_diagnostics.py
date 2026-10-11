@@ -43,6 +43,7 @@ def test_dependency_closure_keeps_stateful_bundles_coherent():
     assert set(MACD_COLUMNS).issubset(dependency_closure(['ema_12']))
     assert set(SWING_COLUMNS) == set(dependency_closure(['break_swing_high']))
     assert dependency_closure(['adx_14']) == ('adx_14',)
+    assert dependency_closure(['close']) == ('close',)
 
 
 def test_one_failed_group_keeps_other_groups_available():
@@ -102,8 +103,9 @@ def test_available_smi_and_active_temp_peak_cannot_be_null():
 
 def test_invalid_source_restarts_warmup_without_a_false_failure():
     source = bars()
-    source[210]['close'] = None
+    source[210]['volume'] = None
     output = calculate(source)
+    assert output[210]['close'] == source[210]['close']
     assert output[-1]['ema_200'] is None
     assert validate_output_availability(source, output) == {}
     output[240]['adx_14'] = None

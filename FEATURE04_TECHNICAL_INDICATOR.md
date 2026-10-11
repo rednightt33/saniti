@@ -31,6 +31,14 @@ The completed bootstrap adds 24 classified bond tickers / 60,409 rows, making th
 target 1,379,042 rows across 868 asset/ticker partitions. Source-key coverage is exact for
 both assets; execution evidence is in [BONDS.md](verification/feature04/BONDS.md).
 
+The latest approved forward migration renames the physical target to
+`Feature_04_Technical_Indicator`, which follows the governed Feature naming convention,
+and appends a required `close` value matched on each row's `trade_date`. The table now has
+57 columns. The legacy physical name remains only in immutable migrations and historical
+evidence. Indicator formulas and calculation version v3 do not change; `close` is a direct
+source field rather than a derived formula. See
+[RENAME_CLOSE.md](verification/feature04/RENAME_CLOSE.md).
+
 ## Verified source and mapping
 
 Inspection: `verification/feature04/inspection.json`, read-only live `lucid-patience / dev / Postgres`.
@@ -43,7 +51,7 @@ Bond source: `public."Price_Fixed_Income"`, restricted to `metric_type='price'` 
 | ticker | ticker | varchar(4), NOT NULL | Trimmed upper-case IDX code; one exchange-qualified symbol per ticker |
 | trade_date | date | date, NOT NULL | Observed daily candle date, Asia/Jakarta exchange date |
 | timeframe | timeframe | varchar(32), NOT NULL | Actual value `Daily`; copied, never synthesized |
-| OHLC | open, high, low, close | numeric(24,8), NOT NULL | Source price inputs, converted to float64 for calculation |
+| OHLC | open, high, low, close | numeric, NOT NULL | Source price inputs, converted to float64 for calculation; close is also stored directly on the matching target trade_date |
 | Volume | volume | numeric(30,8), NOT NULL | Source volume used for input QC; not an indicator input in this feature set |
 | Symbol / exchange | tradingview_symbol | varchar(32), NOT NULL | Actual exchange `IDX`; verify `IDX:` + ticker |
 | Provider | source | varchar(64), NOT NULL | Actual value `TradingView` |
@@ -69,19 +77,20 @@ is NOT VERIFIED. Source selection can carry survivorship bias.
 
 ## One physical wide table
 
-Target: `public."Feature04_Technical_Indicator"`. Exactly 56 columns after the cross-asset extension:
-4 identities, 15 floating-point indicators, 25 independent INTEGER patterns,
+Target: `public."Feature_04_Technical_Indicator"`. Exactly 57 columns:
+4 identities, one required direct closing price, 15 floating-point indicators, 25 independent INTEGER patterns,
 one INTEGER inside-bar flag, nine SMI/swing fields, and 2 calculation metadata fields. Primary key and its B-tree index:
 `(ticker,trade_date,timeframe,asset_type)`. This supports asset/ticker/date-range queries filtered by the
 single normalized `Daily` timeframe. No speculative extra index, foreign key into the source,
-new PostgreSQL routine, or grant is added. The existing catalog-only validator
-`public.validate_feature_catalog_target()` gains one exact-name exception for this table;
-its physical-column and VERIFIED-table checks are unchanged. The original function is
-retained in `verification/feature04/catalog_validator_before.sql`. No new source dependency constrains source writes.
+new speculative index, foreign key into the source, routine, or grant is added. The renamed
+table matches the generic catalog naming rule, so `public.validate_feature_catalog_target()`
+returns to its standard regex plus physical-column and VERIFIED-table checks. The original
+function is retained in `verification/feature04/catalog_validator_before.sql`.
 
 | Group | Columns | Types / nullability |
 |---|---|---|
 | Identity | ticker, trade_date, timeframe, asset_type | TEXT, DATE, TEXT, TEXT; NOT NULL |
+| Direct source price | close | DOUBLE PRECISION; NOT NULL; exact classified source row on ticker/trade_date |
 | Trend | sma_20, sma_50, ema_12, ema_26, ema_50, ema_200 | DOUBLE PRECISION; nullable |
 | Trend strength | adx_14 | DOUBLE PRECISION; nullable; 0–100 |
 | Momentum | rsi_14, macd, macd_signal, macd_histogram | DOUBLE PRECISION; nullable |
@@ -102,9 +111,11 @@ and inside_bar after the original 42 physical columns; existing columns are not 
 `20261011_003_add_feature04_smi_swing.sql` appends the nine SMI/swing fields after those 46.
 `20261011_004_record_feature04_smi_full_coverage.sql` updates coverage/evidence metadata
 only after the all-source v3 load; no formula, physical-column or permission change.
+`20261011_008_rename_feature04_add_close.sql` renames the live target, appends and source-backfills
+`close`, updates active catalog references, and restores the generic Feature-name validator.
 The creation migration fails if the target already exists or the verified source contract changes.
 Existing `Table_Catalog`, `Column_Catalog`, and `Feature_Catalog` receive definitions
-for the feature table and all 56 columns. All 56 active definitions use v4 semantics; 42 v1 and
+for the feature table and all 57 columns. All 57 active definitions use v4 semantics; 42 v1 and
 46 v2 definitions are retained inactive. Unchanged formulas were copied to v3; the
 subsequent data replay preserves old indicator values while updating new fields and
 version/timestamp only where the payload changes. One exact-date ONE_TO_ONE relationship with
@@ -161,7 +172,9 @@ are compared without float64 rounding. No later candle or breakout confirmation 
 Invalid or missing OHLC yields NULL features for that row and restarts all feature history
 conservatively. Equity requires nonnegative volume; bond price candles permit NULL volume
 because the verified fixed-income source does not publish it and none of these formulas uses
-volume. Zero volume is valid. Missing dates are not inserted or forward-filled;
+volume. The direct `close` field is still copied when another input makes derived indicators
+unavailable; an invalid or missing close fails that ticker calculation because stored close is
+required. Zero volume is valid. Missing dates are not inserted or forward-filled;
 windows count valid observed bars, not calendar days. Each ticker is sorted and isolated.
 No future price or forward target is read into an observation's calculations.
 

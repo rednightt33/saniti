@@ -1771,6 +1771,30 @@ dan notifikasi final `SENT`. Validasi menemukan nol key source hilang/ekstra pad
 maupun bonds, nol salah klasifikasi, serta 56/56 definisi Feature04 aktif. Bukti:
 `verification/feature04/BONDS.md` dan `cross_asset_validation.json`.
 
+### EXEC-F04-RENAME-CLOSE: nama tabel governed dan close per trade_date
+
+**Otorisasi 2026-10-11:** user meminta `feature04_technical_indicator` diganti menjadi
+`Feature_04_Technical_Indicator`, seluruh script terkait diselaraskan, kolom `close`
+ditambahkan berdasarkan `trade_date`, lalu meminta semua dokumentasi terkait diperbarui.
+Nama operasional queue/monitor/function `Feature04_*` tetap karena nama itu adalah kontrol
+workflow, bukan nama tabel hasil yang diminta untuk diganti.
+
+**Scope:** forward migration tanpa mengubah migrasi yang sudah diterapkan; rename tabel dan
+constraint/index terkait; backfill `close` dari sumber equity atau bonds yang ditentukan oleh
+`asset_type`; pembaruan engine, worker, bounded pipeline/backfill, selectable retry columns,
+status kolom, catalog, safe relationship, schema export, dokumentasi dan evidence. Formula
+indikator dan calculation version v3 tetap. Script generator migrasi lama dan evidence lama
+tetap menyebut nama lama sebagai audit history, bukan runtime aktif.
+
+**Urutan eksekusi:** uji engine; inspeksi queue dan catalog live; rehearsal penuh dengan
+ROLLBACK; apply migration dan readback nilai close terhadap kedua sumber; semantic audit;
+deploy worker; canary satu equity dan satu bonds; refresh schema; catat evidence/changelog;
+hapus runner sementara; commit dan push `main`; verifikasi deployment exact `SUCCESS` dan
+branch sama dengan `origin/main`.
+
+**Status:** IN PROGRESS 2026-10-11. Implementasi lokal dan 38 uji Feature04 sudah lulus;
+hasil rehearsal, migrasi live, deploy, dan bukti akhir dicatat setelah masing-masing selesai.
+
 ## Verifikasi bersama
 
 **Verifikasi butir 2–7:**

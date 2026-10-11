@@ -38,7 +38,8 @@ def test_inside_bar_current_candle_strict_edges_and_reset():
     source[4]['volume']=-1
     out=calculate(source)
     assert [r['inside_bar'] for r in out]==[None,1,0,0,None,None]
-    assert all(out[4][c] is None for c in FEATURE_COLUMNS)
+    assert all(out[4][c] is None for c in FEATURE_COLUMNS if c != 'close')
+    assert out[4]['close'] == source[4]['close']
 
 def test_inside_bar_uses_original_decimal_boundaries():
     source=bars(2)
@@ -53,7 +54,7 @@ def test_all_extensions_causal_and_partitioned():
     assert calculate(source[:200],calculated_at=stamp)==full[:200]
     mix=calculate([*bars(20,ticker='MORE'),*reversed(source)],calculated_at=stamp)
     assert [r for r in mix if r['ticker']=='TEST']==full
-    assert len(COLUMNS)==len(set(COLUMNS))==56
+    assert len(COLUMNS)==len(set(COLUMNS))==57
 
 def test_resume_hash_excludes_only_calculation_timestamp():
     source=bars(40);first=calculate(source)

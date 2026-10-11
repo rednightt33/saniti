@@ -1,5 +1,14 @@
 # Database changelog
 
+## 2026-10-11 — Feature04 governed rename and source close
+
+- User approved physical target name `Feature_04_Technical_Indicator`, required all related runtime scripts to follow it, added `close` by `trade_date`, and requested all related documentation be updated. Applied forward migrations `20261011_008_rename_feature04_add_close.sql` (`66bceac1…babf`) and `20261011_009_complete_feature04_close_status.sql` (`3d9a1deb…f639`) after successful rolled-back rehearsals. Previously applied migrations and historical evidence remain immutable under the old spelling.
+- The renamed table has 57 columns and retains primary key `(ticker,trade_date,timeframe,asset_type)`. `close DOUBLE PRECISION NOT NULL` is copied by exact ticker/date from the universe-classified equity source or fixed-income `price`/`1D` source, with finite/nonnegative checks. Formulas and engine calculation version v3 are unchanged.
+- Live readback preserved 1,379,042 rows / 868 asset-ticker partitions: 1,318,633 equity rows across 844 tickers and 60,409 bonds rows across 24 tickers. There are zero NULL close values, zero equity source mismatch and zero bonds source mismatch. Old physical/catalog/relationship/constraint/index references are zero.
+- Catalog coverage is 57/57 physical/column/active-feature definitions; semantic audit PASS is 148/148 active definitions across four Feature tables. The Feature01 relationship explicitly filters Feature04 to equity, and the standard governed Feature-name validator has been restored.
+- Initial queue-derived readiness inserted close status for only the 25 instruments currently represented in the queue. The readback caught this immediately; migration 009 instead derives all instruments from the target and completed 868/868 successful close statuses. Total Feature04 status rows are 44,268 (`868 × 51`), with zero nonterminal queue rows.
+- Evidence: `verification/feature04/RENAME_CLOSE.md` and `rename_close_validation.json`. `DATABASE_SCHEMA.md` was refreshed by read-only introspection.
+
 ## 2026-10-11 — Feature04 cross-asset fixed-income price support
 
 - User required the same OHLC-based Feature04 metrics for `Price_Fixed_Income` price rows, an `asset_type` identity, and classification exclusively from live universe membership. Applied forward migrations `20261011_006_extend_feature04_to_bonds.sql` (`9a9e14e…4c45`) and `20261011_007_document_fixed_income_feature04.sql` (`c6ea3a00…6488`) after successful rolled-back rehearsals.

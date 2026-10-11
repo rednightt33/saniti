@@ -42,7 +42,7 @@ def refresh(connection, tickers: list[str], start: date, end: date, *, write=Fal
     connection.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
     if write:
         # Only coordinates this engine; source ingestion is deliberately untouched.
-        connection.execute("SELECT pg_advisory_xact_lock(hashtextextended('Feature04_Technical_Indicator',0))")
+        connection.execute("SELECT pg_advisory_xact_lock(hashtextextended('Feature_04_Technical_Indicator',0))")
     else:
         connection.execute('SET TRANSACTION READ ONLY')
     history = connection.execute('''

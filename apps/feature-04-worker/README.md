@@ -1,6 +1,6 @@
 # Feature04 worker
 
-Always-on Railway worker for cross-asset `Feature04_Technical_Indicator`. It consumes the durable
+Always-on Railway worker for cross-asset `Feature_04_Technical_Indicator`. It consumes the durable
 `Feature04_Calculation_Queue`; it has no cron schedule and does not fetch market data.
 
 Committed insert, update, or delete changes on either supported price source coalesce into
@@ -14,6 +14,8 @@ universe tables: `IDX_Stock_Universe` for equity and `Universe_Fixed_income` for
 The worker reads equity candles from `Price_Stock_Indonesia_IDX` and bond candles from
 `Price_Fixed_Income` where `metric_type='price'` and `"Timeframe"='1D'`. No ticker roster
 is embedded in code. Bond `NULL` volume is valid because the indicator bundle uses OHLC.
+Each full refresh also copies the exact source `close` for every target `trade_date`.
+`close` participates in the same per-column status and failure-only retry mechanism.
 
 Each formula group is isolated. Valid bundles commit even when another group fails;
 `Feature04_Column_Status` records the exact failed columns. Automatic retries use bounded

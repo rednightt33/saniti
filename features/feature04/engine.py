@@ -19,7 +19,7 @@ from talib import abstract
 from swing import SWING_COLUMNS, calculate_swing
 
 VERSION = 'feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4'
-TABLE = 'Feature04_Technical_Indicator'
+TABLE = 'Feature_04_Technical_Indicator'
 ASSET_TYPES = ('equity', 'bonds')
 IDENTITY = ('ticker', 'trade_date', 'timeframe', 'asset_type')
 INDICATORS = ('sma_20', 'sma_50', 'ema_12', 'ema_26', 'rsi_14', 'macd',
@@ -43,11 +43,12 @@ PATTERNS = {
 V1_COLUMNS = IDENTITY[:3] + INDICATORS + tuple(PATTERNS) + ('calculation_version', 'calculated_at')
 EXTENSIONS = ('adx_14', 'ema_50', 'ema_200', 'inside_bar')
 INDICATORS = INDICATORS + EXTENSIONS[:3]
-FEATURE_COLUMNS = INDICATORS + tuple(PATTERNS) + ('inside_bar',) + SWING_COLUMNS
+DIRECT_COLUMNS = ('close',)
+FEATURE_COLUMNS = INDICATORS + tuple(PATTERNS) + ('inside_bar',) + SWING_COLUMNS + DIRECT_COLUMNS
 # PostgreSQL appends new columns; retain the physical v1 order for old columns.
 V2_COLUMNS = V1_COLUMNS + EXTENSIONS
-# PostgreSQL appends asset_type in the forward migration; retain physical order.
-COLUMNS = V2_COLUMNS + SWING_COLUMNS + ('asset_type',)
+# PostgreSQL appends asset_type and then close in forward migrations; retain physical order.
+COLUMNS = V2_COLUMNS + SWING_COLUMNS + ('asset_type',) + DIRECT_COLUMNS
 MACD_COLUMNS = ('macd', 'macd_signal', 'macd_histogram')
 BOLLINGER_COLUMNS = ('bb_upper_20', 'bb_middle_20', 'bb_lower_20')
 REQUIRED_AFTER = {
@@ -204,6 +205,15 @@ def calculate_with_diagnostics(
             out.update(ticker=ticker, trade_date=r['date'], timeframe=timeframe,
                        asset_type=asset_type,
                        calculation_version=VERSION, calculated_at=stamp)
+
+        def copy_close():
+            for source, result in zip(series, results):
+                value = float(source['close'])
+                if not isfinite(value) or value < 0:
+                    raise ValueError('Source close must be finite and nonnegative')
+                result['close'] = value
+
+        run_group('source_close', DIRECT_COLUMNS, copy_close)
         for start, end in _segments([_valid(r) for r in series]):
             segment = series[start:end]
             o, h, l, c = [np.array([float(r[k]) for r in segment], dtype=np.float64)
@@ -322,6 +332,11 @@ def validate_output_availability(
 
     for (asset_type, ticker, timeframe), series in sorted(groups.items()):
         series.sort(key=lambda row: row['date'])
+        if 'close' in selected:
+            for source in series:
+                actual = by_key[(asset_type, ticker, source['date'], timeframe)]
+                if actual.get('close') is None:
+                    record('close', source)
         for start, end in _segments([_valid(row) for row in series]):
             segment = series[start:end]
             swing = None

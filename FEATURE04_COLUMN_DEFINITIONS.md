@@ -1,8 +1,8 @@
 # Definisi setiap kolom Feature04 Technical Indicator
 
-Tabel PostgreSQL: `public."Feature04_Technical_Indicator"`. Ada **56 kolom**:
-4 identitas, 15 indikator numerik lama, 25 pola candlestick TA-Lib, 1 inside bar,
-9 kolom SMI/swing, dan 2 metadata perhitungan.
+Tabel PostgreSQL: `public."Feature_04_Technical_Indicator"`. Ada **57 kolom**:
+4 identitas, 1 harga penutupan sumber, 15 indikator numerik, 25 pola candlestick TA-Lib,
+1 inside bar, 9 kolom SMI/swing, dan 2 metadata perhitungan.
 
 Satu baris mewakili **satu asset type × ticker × tanggal perdagangan × timeframe Daily**.
 Semua perhitungan memakai riwayat ticker itu sendiri, diurutkan dari tanggal paling
@@ -33,6 +33,11 @@ sumber price/1D bonds dan equity memiliki pasangan target tanpa key ekstra. Rumu
 warmup, SMI, dan arti flag tetap sama; lihat
 [`BONDS.md`](verification/feature04/BONDS.md).
 
+Migrasi terbaru mengganti nama fisik tabel ke `Feature_04_Technical_Indicator` dan
+menambahkan `close` berdasarkan pasangan ticker dan `trade_date` yang sama persis pada
+sumber sesuai `asset_type`. Bukti rename dan kecocokan nilai ada di
+[`RENAME_CLOSE.md`](verification/feature04/RENAME_CLOSE.md).
+
 ## Cara membaca nilai
 
 - `NULL` berarti nilai belum tersedia atau tidak berlaku menurut aturan kolom.
@@ -40,6 +45,8 @@ warmup, SMI, dan arti flag tetap sama; lihat
 - `0` pada flag berarti candle **sudah dihitung** dan kondisi tidak terpenuhi.
   `break_swing_high` memakai **integer 1/0**, bukan boolean atau kode 100.
 - Harga dan indikator dengan satuan harga mengikuti unit harga sumber masing-masing asset.
+- `close` wajib tersedia dan merupakan salinan langsung harga penutupan sumber pada `trade_date`,
+  bukan hasil kalkulasi indikator.
 - Input OHLC yang tidak valid menghasilkan `NULL` untuk semua fitur pada baris itu
   dan mereset riwayat perhitungan berikutnya. Equity juga mewajibkan volume nonnegatif;
   bond boleh memiliki volume `NULL` karena formula Feature04 tidak memakai volume.
@@ -56,6 +63,12 @@ warmup, SMI, dan arti flag tetap sama; lihat
 | `asset_type` | text, wajib | Klasifikasi `equity` atau `bonds` dari membership universe saat kalkulasi. Bagian primary key dan batas partisi riwayat; tidak boleh ditentukan dari daftar ticker di kode. |
 | `calculation_version` | text, wajib | Versi rumus, seed, dan library yang menghasilkan baris. Versi historis v2: `feature04-v2-talib0.6.8-c0.6.4`; seluruh hasil saat ini memakai v3 SMI: `feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4`. Bukan fitur numerik untuk model. |
 | `calculated_at` | timestamptz, wajib | Waktu UTC perhitungan terakhir yang mengubah payload baris. Rerun dengan hasil identik mempertahankan timestamp. Bukan bukti kapan data tersedia secara historis. |
+
+## Harga sumber langsung — 1 kolom
+
+| Kolom | Tipe / satuan | Definisi | Ketersediaan |
+|---|---|---|---|
+| `close` | double precision, wajib / unit harga sumber | Harga penutupan dari `Price_Stock_Indonesia_IDX.close` untuk equity, atau `Price_Fixed_Income.close` dengan `metric_type='price'` dan `Timeframe='1D'` untuk bonds. Dicocokkan tepat menurut `asset_type`, ticker, dan `trade_date`. | Setiap baris target; nilai sumber yang hilang/tidak valid menggagalkan kalkulasi ticker. |
 
 ## Indikator numerik — 15 kolom
 

@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "features" / "feature04
 from engine import (  # noqa: E402
     COLUMNS,
     FEATURE_COLUMNS,
+    TABLE,
     VERSION,
     calculate_with_diagnostics,
     dependency_closure,
@@ -244,7 +245,7 @@ def upsert_columns(
         ON CONFLICT (ticker,trade_date,timeframe,asset_type) DO UPDATE SET {}
         WHERE ROW({}) IS DISTINCT FROM ROW({})"""
     ).format(
-        sql.Identifier("Feature04_Technical_Indicator"),
+        sql.Identifier(TABLE),
         sql.SQL(",").join(map(sql.Identifier, insert_columns)),
         sql.SQL(",").join(sql.Placeholder() for _ in insert_columns),
         sql.SQL(",").join(

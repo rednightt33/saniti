@@ -85,21 +85,34 @@ def test_causal_prefix_sorted_partition_and_missing_reset():
     assert calculate(reversed(source),calculated_at=stamp)==full
     other=bars(100,ticker='MORE');mixed=calculate([*source,*other],calculated_at=stamp)
     assert [r for r in mixed if r['ticker']=='TEST']==full
-    source[60]['close']=None;invalid=calculate(source)
-    assert all(invalid[60][k] is None for k in FEATURE_COLUMNS)
+    source[60]['volume']=-1;invalid=calculate(source)
+    assert all(invalid[60][k] is None for k in FEATURE_COLUMNS if k != 'close')
+    assert invalid[60]['close'] == source[60]['close']
     assert invalid[79]['sma_20'] is None and invalid[80]['sma_20'] is not None
     assert invalid[61]['cdl_engulfing'] is None
     assert len(invalid)==100
 
 
-@pytest.mark.parametrize('field,value',[('close',float('nan')),('high',50),('volume',-1)])
+@pytest.mark.parametrize('field,value',[('high',50),('volume',-1)])
 def test_invalid_bar_is_null_not_zero(field,value):
     source=bars();source[70][field]=value;out=calculate(source)
-    assert all(out[70][k] is None for k in FEATURE_COLUMNS)
+    assert all(out[70][k] is None for k in FEATURE_COLUMNS if k != 'close')
+    assert out[70]['close'] == source[70]['close']
+
+
+def test_close_is_copied_by_trade_date_and_invalid_close_fails():
+    source = bars(3)
+    output = calculate(reversed(source))
+    assert [(row['trade_date'], row['close']) for row in output] == [
+        (row['date'], row['close']) for row in source
+    ]
+    source[1]['close'] = float('nan')
+    with pytest.raises(RuntimeError, match='source_close'):
+        calculate(source)
 
 
 def test_short_history_and_identity_guards():
-    out=calculate(bars(3));assert len(out[0])==56
+    out=calculate(bars(3));assert len(out[0])==57
     assert all(r['sma_50'] is None for r in out)
     source=bars()
     with pytest.raises(ValueError,match='Duplicate'):calculate([*source,source[0]])
@@ -134,5 +147,6 @@ def test_asset_type_is_required_and_equity_still_requires_volume():
     missing_volume = bars(2)
     missing_volume[0]['volume'] = None
     output = calculate(missing_volume)
-    assert all(output[0][column] is None for column in FEATURE_COLUMNS)
+    assert all(output[0][column] is None for column in FEATURE_COLUMNS if column != 'close')
+    assert output[0]['close'] == missing_volume[0]['close']
     assert output[1]['inside_bar'] is None

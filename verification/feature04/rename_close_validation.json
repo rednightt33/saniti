@@ -1,0 +1,58 @@
+{
+  "checked_at": "2026-10-11T14:42:52.782721+00:00",
+  "table": {
+    "name": "Feature_04_Technical_Indicator",
+    "rows": 1379042,
+    "equity_rows": 1318633,
+    "bonds_rows": 60409,
+    "equity_tickers": 844,
+    "bonds_tickers": 24,
+    "first_date": "2016-01-01",
+    "last_date": "2026-10-09",
+    "physical_columns": 57,
+    "close_nulls": 0,
+    "min_close": 1.0,
+    "max_close": 359900.0
+  },
+  "source_exactness": {
+    "equity_close_mismatch": 0,
+    "bonds_close_mismatch": 0
+  },
+  "catalog": {
+    "column_definitions": 57,
+    "active_feature_definitions": 57,
+    "selectable_output_columns": 51,
+    "overall_active_definitions": 148,
+    "overall_calculation_verified": 148,
+    "semantic_audit": "PASS"
+  },
+  "readiness": {
+    "close_success_statuses": 868,
+    "all_column_statuses": 44268,
+    "nonterminal_queue_rows": 0
+  },
+  "stale_old_name_references": {
+    "physical_table": 0,
+    "table_catalog": 0,
+    "column_catalog": 0,
+    "feature_catalog": 0,
+    "feature_relationship_catalog": 0,
+    "constraints": 0,
+    "indexes": 0
+  },
+  "migration_rehearsal": {
+    "migration_008_sha256": "66bceac194de7edc86a0e39a6c99c0fbe5af7248a1eb2902698d618cfd49babf",
+    "rows_before": 1379042,
+    "rows_after_rollback": 1379042,
+    "fingerprint_before": "2112974081807992232108",
+    "fingerprint_after_rollback": "2112974081807992232108",
+    "rollback_preserved": true
+  },
+  "status_followup": {
+    "reason": "Only 25 current queue rows existed; target coverage is 868 asset/ticker partitions.",
+    "migration_009_sha256": "3d9a1debeabadf5bae40e5affc27819b87743be30f8ca5d8dc5ce48cd9d4f639",
+    "before_close_statuses": 25,
+    "after_close_statuses": 868,
+    "rehearsal_rollback_preserved": true
+  }
+}

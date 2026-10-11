@@ -34,7 +34,7 @@ TABLE_STATUS_RULES = {
     "Feature_01_Stock_Daily": ("Feature", "After validated daily-price changes"),
     "Feature_02_Broker_Rolling": ("Feature", "After validated broker-summary changes; manual v2 ticker rebuild"),
     "Feature_03_Stock_Broker_Daily": ("Feature", "After Feature 02 refresh; manual Investor-Type v2 refresh"),
-    "Feature04_Technical_Indicator": ("Feature", "Event-driven after committed equity or bond price changes; full-history per asset/ticker"),
+    "Feature_04_Technical_Indicator": ("Feature", "Event-driven after committed equity or bond price changes; full-history per asset/ticker"),
     "feature04_backfill_log": ("Monitoring", "Atomic per-run/ticker Feature04 calculation metadata"),
     "Feature04_Calculation_Queue": ("System", "After relevant price changes and Feature04 worker transitions"),
     "Feature04_Column_Status": ("System", "After Feature04 validation or failure"),
@@ -98,7 +98,7 @@ TABLE_DESCRIPTIONS = {
     "Feature_01_Stock_Daily": "Daily ticker-level price, return, volatility, volume, and price-position features.",
     "Feature_02_Broker_Rolling": "Broker flow, persistence, abnormality, and accumulation by source ticker, broker, Investor Type, board, and transaction date.",
     "Feature_03_Stock_Broker_Daily": "Stock-level daily broker breadth, classified flow, dominant-broker, and concentration features separated by market board.",
-    "Feature04_Technical_Indicator": "Cross-asset daily technical indicators, native candlestick codes, strict inside bars and Pine SMI/swing state, partitioned by universe-derived asset type and ticker.",
+    "Feature_04_Technical_Indicator": "57-column cross-asset Daily close and technical indicators, native candlestick codes, strict inside bars and Pine SMI/swing state, partitioned by universe-derived asset type and ticker.",
     "feature04_backfill_log": "Atomic serial Feature04 ticker-load metadata and resumable source/output fingerprints.",
     "Feature04_Calculation_Queue": "Durable coalesced Feature04 work and lease state per ticker.",
     "Feature04_Column_Status": "Readiness, expected availability, and failure state per Feature04 output and ticker.",
@@ -572,7 +572,7 @@ def derive_status_rows(
                 tracking_status = "Derived from IDX_Broker_Summary; Investor-Type Feature 02 v2 refresh is manual"
             else:
                 tracking_status = "Derived from Investor-Type Feature_02_Broker_Rolling; Feature 03 v2 refresh is manual"
-        elif name == "Feature04_Technical_Indicator":
+        elif name == "Feature_04_Technical_Indicator":
             latest_data_date, last_changed_at = connection.execute(
                 sql.SQL('SELECT max(trade_date), max(calculated_at) FROM {}.{}').format(
                     sql.Identifier(schema), sql.Identifier(name)

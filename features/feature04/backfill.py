@@ -23,7 +23,7 @@ SOURCE_QUERY='''SELECT p.ticker,p.date,p.open,p.high,p.low,p.close,p.volume,p.ti
  WHERE p.ticker=%s AND EXISTS(
    SELECT 1 FROM public."IDX_Stock_Universe" u WHERE u."Ticker"=p.ticker
  ) ORDER BY p.date'''
-TARGET_QUERY='''SELECT * FROM public."Feature04_Technical_Indicator"
+TARGET_QUERY='''SELECT * FROM public."Feature_04_Technical_Indicator"
  WHERE ticker=%s AND asset_type='equity' ORDER BY trade_date,timeframe'''
 PAYLOAD=tuple(c for c in COLUMNS if c!='calculated_at')
 
@@ -67,7 +67,7 @@ def process_ticker(connection, ticker, run_id, *, write=False):
     with connection.transaction():
         connection.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
         if write:
-            locked=connection.execute("SELECT pg_try_advisory_xact_lock(hashtextextended('Feature04_Technical_Indicator',0)) AS locked").fetchone()['locked']
+            locked=connection.execute("SELECT pg_try_advisory_xact_lock(hashtextextended('Feature_04_Technical_Indicator',0)) AS locked").fetchone()['locked']
             if not locked:
                 raise RuntimeError('Another Feature04 writer holds the advisory lock')
         else:

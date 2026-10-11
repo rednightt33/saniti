@@ -1,5 +1,11 @@
 # Railway changelog
 
+## 2026-10-11 — Feature04 rename/close migration runner
+
+- A temporary private `f04-rename-close-job` service used only a server-side `DATABASE_URL=${{Postgres.DATABASE_URL}}` reference. It ran migration 008 rehearsal `60ad5c5a-9613-474e-87d4-39786240a4f8` and apply `ff630d5c-e9b5-4d24-becb-6d1ea7a1995f`, then migration 009 rehearsal `371e17af-278d-48b0-93a0-248c0cdd8e4e` and apply `779f2808-811c-4a35-ae34-8c629aad7f1f`. Every rehearsal rolled back cleanly; both apply readbacks passed.
+- A private sandbox `0077bb1b-6e27-4ef8-b5eb-26f61e637c39` performs read-only semantic audit/schema export and later canary checks. Direct Postgres TCP and Railway sandbox WebSocket exec are blocked from Codex; sandbox commands use the Railway HTTPS API. Both temporary resources remain only through final verification and are deleted during close-out.
+- No persistent service, variable, domain, replica, schedule, model, provider, price source, Telegram flow, or `.railway/railway.ts` resource is intended to change. The existing worker deployment is updated from `main` because its runtime target name and 51-output contract changed.
+
 ## 2026-10-11 — Feature04 bonds worker and fixed-income Telegram bridge
 
 - GitHub commit `b7b4471` deployed `SUCCESS`: feature worker `26a26a7c-e5fc-4e4d-bcb0-0c15c5c74353`, telegram-monitor `752235bb-2dd3-46e6-b25c-f3a1ad1d6d8b`, and telegram-trigger `050c74c0-6d98-4081-9117-b805ab7c79fc`.
