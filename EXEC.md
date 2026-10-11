@@ -1743,6 +1743,29 @@ Uji corruption pada bar historis dan pembacaan BBCA/RANS/PRDL dicatat pada bukti
 Suite terkait: 67 lulus. Perbaikan worker commit `557ef11` ter-deploy `SUCCESS` pada
 `51838910-b0f0-4256-8f79-8c998ee28b9a`; formula version dan skema database tidak berubah.
 
+### EXEC-F04-BONDS: perluasan Feature04 ke harga fixed income
+
+**Otorisasi 2026-10-11:** user meminta OHLC dan metrik yang sama dari
+`Price_Fixed_Income` untuk dimasukkan ke Feature04, menetapkan `asset_type`, melarang
+hardcode ticker, dan menyetujui eksekusi dengan "Ok" setelah desain dikonfirmasi.
+
+**Scope:** `asset_type=equity` hanya untuk membership `IDX_Stock_Universe`, dan
+`asset_type=bonds` hanya untuk membership `Universe_Fixed_income`; bond source dibatasi
+`metric_type='price'` dan `Timeframe='1D'`. Perluasan mencakup skema, worker, retry
+ticker/kolom, katalog, backfill seluruh ticker eligible, serta Telegram tracking. Cron
+fixed-income daily dan recovery tetap terpisah dari cron IDX; keduanya dihubungkan melalui
+monitoring row dan durable outbox agar pesan harga fixed income terkirim sebelum pesan
+Feature04.
+
+**Urutan eksekusi:** rolled-back rehearsal; forward migration; rollback-only trigger
+checks; deploy worker/monitor/trigger; enqueue backfill dari query universe; tunggu setiap
+ticker terminal; validasi cakupan dan formula; perbarui schema/evidence/changelog; commit
+dan push `main`. Ticker absent/ambigu dari universe harus fail closed. Tidak ada source
+fetch, perubahan schedule, atau daftar ticker di kode.
+
+**Status:** IN PROGRESS 2026-10-11. Rehearsal penuh migration `20261011_006` PASS dan
+rollback terverifikasi; apply, deploy, backfill, serta final readback sedang dijalankan.
+
 ## Verifikasi bersama
 
 **Verifikasi butir 2–7:**

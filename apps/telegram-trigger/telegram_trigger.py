@@ -129,14 +129,14 @@ def feature04_failure_status(database_url: str) -> tuple[str, dict]:
     with psycopg.connect(database_url) as connection:
         rows = connection.execute(
             """
-            SELECT q.ticker,q.status,
+            SELECT q.asset_type,q.ticker,q.status,
                    coalesce(array_agg(s.feature_column ORDER BY s.feature_column)
                      FILTER(WHERE s.status IN ('FAILED','BLOCKED')),'{}'::text[]) failed_columns
             FROM public."Feature04_Calculation_Queue" q
             LEFT JOIN public."Feature04_Column_Status" s
-              ON s.ticker=q.ticker AND s.timeframe=q.timeframe
+              ON s.asset_type=q.asset_type AND s.ticker=q.ticker AND s.timeframe=q.timeframe
             WHERE q.timeframe='Daily' AND (q.status='FAILED' OR s.status IN ('FAILED','BLOCKED'))
-            GROUP BY q.ticker,q.status ORDER BY q.ticker
+            GROUP BY q.asset_type,q.ticker,q.status ORDER BY q.asset_type,q.ticker
             """
         ).fetchall()
     if not rows:
@@ -145,14 +145,17 @@ def feature04_failure_status(database_url: str) -> tuple[str, dict]:
         }
     lines = [f"⚠️ Feature04 failures: {len(rows)} ticker"]
     keyboard: list[list[dict]] = []
-    for ticker, queue_status, columns in rows[:20]:
+    for asset_type, ticker, queue_status, columns in rows[:20]:
         labels = ", ".join(columns) if columns else "script/ticker"
-        lines.append(f"• {ticker}: {labels}")
-        keyboard.append([{"text": f"Retry {ticker} (full)", "callback_data": f"f04:t:{ticker}"}])
+        lines.append(f"• {asset_type}/{ticker}: {labels}")
+        keyboard.append([{
+            "text": f"Retry {asset_type}/{ticker} (full)",
+            "callback_data": f"f04:t:{asset_type}:{ticker}",
+        }])
         for column in list(columns)[:8]:
             keyboard.append([{
-                "text": f"Retry {ticker} / {column}",
-                "callback_data": f"f04:c:{ticker}:{column}",
+                "text": f"Retry {asset_type}/{ticker} / {column}",
+                "callback_data": f"f04:c:{asset_type}:{ticker}:{column}",
             }])
     keyboard.append([{"text": "↻ Refresh", "callback_data": "f04:status"}])
     if len(rows) > 20:
@@ -164,10 +167,12 @@ def request_feature04_retry(
     database_url: str, update_id: int, chat_id: str, action: str
 ) -> tuple[str, str]:
     parts = action.split(":")
-    if len(parts) not in (3, 4) or parts[1] not in {"t", "c"}:
+    if len(parts) not in (4, 5) or parts[1] not in {"t", "c"}:
         raise ValueError("invalid Feature04 retry action")
-    ticker = parts[2]
-    columns = None if parts[1] == "t" else [parts[3]]
+    asset_type, ticker = parts[2], parts[3]
+    if asset_type not in {"equity", "bonds"}:
+        raise ValueError("invalid Feature04 asset type")
+    columns = None if parts[1] == "t" else [parts[4]]
     with psycopg.connect(database_url) as connection:
         request_id = connection.execute(
             "SELECT public.request_feature04_retry(%s,%s,%s,%s,NULL)",
@@ -185,7 +190,10 @@ def request_feature04_retry(
         )
         connection.commit()
     scope = columns[0] if columns else "full ticker"
-    return str(request_id), f"⏳ Feature04 retry dimasukkan: {ticker} / {scope}. Hasil final akan menyusul."
+    return str(request_id), (
+        f"⏳ Feature04 retry dimasukkan: {asset_type}/{ticker} / {scope}. "
+        "Hasil final akan menyusul."
+    )
 
 
 def telegram_api_call(

@@ -43,6 +43,7 @@ PRICE_COLUMNS = (
 
 @dataclass(frozen=True)
 class Job:
+    asset_type: str
     ticker: str
     dirty_from_date: date
     requested_generation: int
@@ -98,20 +99,20 @@ def claim_one() -> Job | str | None:
             connection.execute(
                 """
                 INSERT INTO public."Feature04_Calculation_Log"(
-                  ticker,timeframe,source_generation,work_revision,requested_columns,
+                  asset_type,ticker,timeframe,source_generation,work_revision,requested_columns,
                   failed_columns,group_outcomes,result,calculation_version,started_at,error_code,detail)
-                VALUES(%s,'Daily',%s,%s,%s,%s,%s::jsonb,'FAILED',%s,%s,
+                VALUES(%s,%s,'Daily',%s,%s,%s,%s,%s::jsonb,'FAILED',%s,%s,
                        'LEASE_EXPIRED','Claim lease expired on the final allowed attempt')
                 """,
                 (
-                    candidate["ticker"], candidate["requested_generation"], candidate["work_revision"],
+                    candidate["asset_type"], candidate["ticker"], candidate["requested_generation"], candidate["work_revision"],
                     candidate["requested_columns"], list(dependency_closure(candidate["requested_columns"])),
                     json.dumps({"worker": {"status": "FAILED", "error": "lease expired"}}),
                     VERSION, candidate["claimed_at"],
                 ),
             )
             terminal_failure(
-                connection, candidate["ticker"], int(candidate["requested_generation"]),
+                connection, candidate["asset_type"], candidate["ticker"], int(candidate["requested_generation"]),
                 int(candidate["work_revision"]), "LEASE_EXPIRED",
                 "Maximum attempts exhausted after claim lease expiry",
             )
@@ -120,14 +121,14 @@ def claim_one() -> Job | str | None:
             connection.execute(
                 """
                 INSERT INTO public."Feature04_Calculation_Log"(
-                  ticker,timeframe,source_generation,work_revision,requested_columns,
+                  asset_type,ticker,timeframe,source_generation,work_revision,requested_columns,
                   failed_columns,group_outcomes,result,calculation_version,started_at,
                   error_code,detail)
-                VALUES(%s,'Daily',%s,%s,%s,%s,%s::jsonb,'FAILED',%s,%s,
+                VALUES(%s,%s,'Daily',%s,%s,%s,%s,%s::jsonb,'FAILED',%s,%s,
                        'LEASE_EXPIRED','Claim lease expired before validated completion')
                 """,
                 (
-                    candidate["ticker"], candidate["requested_generation"], candidate["work_revision"],
+                    candidate["asset_type"], candidate["ticker"], candidate["requested_generation"], candidate["work_revision"],
                     candidate["requested_columns"],
                     list(dependency_closure(candidate["requested_columns"])),
                     json.dumps({"worker": {"status": "FAILED", "error": "lease expired"}}),
@@ -142,25 +143,26 @@ def claim_one() -> Job | str | None:
                 source_attempt_count=source_attempt_count+1,claimed_at=clock_timestamp(),
                 claim_token=%s,claim_expires_at=clock_timestamp()+make_interval(mins=>%s),
                 completed_at=NULL,last_error_code=NULL,last_error=NULL,updated_at=CURRENT_TIMESTAMP
-            WHERE ticker=%s AND timeframe='Daily' RETURNING claimed_at,attempt_count,source_attempt_count
+            WHERE asset_type=%s AND ticker=%s AND timeframe='Daily'
+            RETURNING claimed_at,attempt_count,source_attempt_count
             """,
-            (token, LEASE_MINUTES, candidate["ticker"]),
+            (token, LEASE_MINUTES, candidate["asset_type"], candidate["ticker"]),
         ).fetchone()
         selected_columns = list(dependency_closure(candidate["requested_columns"]))
         connection.execute(
             """
             INSERT INTO public."Feature04_Column_Status"(
-              ticker,timeframe,feature_column,requested_generation,completed_generation,
+              asset_type,ticker,timeframe,feature_column,requested_generation,completed_generation,
               calculation_version,status,dirty_from_date,updated_at)
-            SELECT %s,'Daily',column_name,%s,0,%s,'PROCESSING',%s,CURRENT_TIMESTAMP
+            SELECT %s,%s,'Daily',column_name,%s,0,%s,'PROCESSING',%s,CURRENT_TIMESTAMP
             FROM unnest(%s::text[]) column_name
-            ON CONFLICT(ticker,timeframe,feature_column) DO UPDATE SET
+            ON CONFLICT(asset_type,ticker,timeframe,feature_column) DO UPDATE SET
               status='PROCESSING',requested_generation=EXCLUDED.requested_generation,
               calculation_version=EXCLUDED.calculation_version,
               dirty_from_date=EXCLUDED.dirty_from_date,updated_at=CURRENT_TIMESTAMP
             """,
             (
-                candidate["ticker"], candidate["requested_generation"], VERSION,
+                candidate["asset_type"], candidate["ticker"], candidate["requested_generation"], VERSION,
                 candidate["dirty_from_date"], selected_columns,
             ),
         )
@@ -168,20 +170,22 @@ def claim_one() -> Job | str | None:
             """
             UPDATE public."Feature04_Retry_Request" SET status='PROCESSING',
               started_at=coalesce(started_at,CURRENT_TIMESTAMP)
-            WHERE ticker=%s AND source_generation=%s AND work_revision=%s AND status='PENDING'
+            WHERE asset_type=%s AND ticker=%s AND source_generation=%s AND work_revision=%s AND status='PENDING'
             """,
-            (candidate["ticker"], candidate["requested_generation"], candidate["work_revision"]),
+            (candidate["asset_type"], candidate["ticker"], candidate["requested_generation"], candidate["work_revision"]),
         )
         connection.execute(
             """
             UPDATE public."Monitoring_Feature04_Ticker"
             SET status='PROCESSING',started_at=coalesce(started_at,CURRENT_TIMESTAMP),updated_at=CURRENT_TIMESTAMP
-            WHERE ticker=%s AND timeframe='Daily' AND status='PENDING' AND required_generation<=%s
+            WHERE asset_type=%s AND ticker=%s AND timeframe='Daily'
+              AND status='PENDING' AND required_generation<=%s
             """,
-            (candidate["ticker"], candidate["requested_generation"]),
+            (candidate["asset_type"], candidate["ticker"], candidate["requested_generation"]),
         )
         return Job(
-            ticker=candidate["ticker"], dirty_from_date=candidate["dirty_from_date"],
+            asset_type=candidate["asset_type"], ticker=candidate["ticker"],
+            dirty_from_date=candidate["dirty_from_date"],
             requested_generation=int(candidate["requested_generation"]),
             work_revision=int(candidate["work_revision"]),
             requested_columns=tuple(candidate["requested_columns"]) if candidate["requested_columns"] else None,
@@ -192,16 +196,28 @@ def claim_one() -> Job | str | None:
         )
 
 
-def load_history(connection: psycopg.Connection, ticker: str) -> list[dict]:
+def load_history(connection: psycopg.Connection, asset_type: str, ticker: str) -> list[dict]:
     rows = connection.execute(
-        sql.SQL("SELECT {} FROM public.{} WHERE ticker=%s AND timeframe='Daily' ORDER BY date").format(
-            sql.SQL(",").join(map(sql.Identifier, PRICE_COLUMNS)),
-            sql.Identifier("Price_Stock_Indonesia_IDX"),
-        ),
-        (ticker,),
+        """
+        SELECT p.ticker,p.date,p.open,p.high,p.low,p.close,p.volume,p.timeframe,
+               p.tradingview_symbol,p.source,p.query_date,p.ingestion_time,
+               'equity'::text AS asset_type
+        FROM public."Price_Stock_Indonesia_IDX" p
+        WHERE %s='equity' AND p.ticker=%s AND p.timeframe='Daily'
+          AND EXISTS(SELECT 1 FROM public."IDX_Stock_Universe" u WHERE u."Ticker"=p.ticker)
+        UNION ALL
+        SELECT p.ticker,p.date,p.open,p.high,p.low,p.close,p.volume,'Daily'::text,
+               p.tradingview_symbol,p.source,p.query_date,p.ingestion_time,
+               'bonds'::text AS asset_type
+        FROM public."Price_Fixed_Income" p
+        WHERE %s='bonds' AND p.ticker=%s AND p.metric_type='price' AND p."Timeframe"='1D'
+          AND EXISTS(SELECT 1 FROM public."Universe_Fixed_income" u WHERE u.ticker=p.ticker)
+        ORDER BY date
+        """,
+        (asset_type, ticker, asset_type, ticker),
     ).fetchall()
     if not rows:
-        raise RuntimeError(f"No Daily price history for {ticker}")
+        raise RuntimeError(f"No classified Daily price history for {asset_type}/{ticker}")
     if len(rows) > 5000:
         raise RuntimeError(f"Price history exceeds 5000-row controlled limit for {ticker}")
     return [dict(row) for row in rows]
@@ -218,14 +234,14 @@ def upsert_columns(
 ) -> int:
     if not rows or not feature_columns:
         return 0
-    insert_columns = ("ticker", "trade_date", "timeframe") + feature_columns + (
+    insert_columns = ("ticker", "trade_date", "timeframe", "asset_type") + feature_columns + (
         "calculation_version", "calculated_at",
     )
     updated = feature_columns + ("calculation_version", "calculated_at")
     compared = feature_columns + ("calculation_version",)
     statement = sql.SQL(
         """INSERT INTO public.{} AS target ({}) VALUES ({})
-        ON CONFLICT (ticker,trade_date,timeframe) DO UPDATE SET {}
+        ON CONFLICT (ticker,trade_date,timeframe,asset_type) DO UPDATE SET {}
         WHERE ROW({}) IS DISTINCT FROM ROW({})"""
     ).format(
         sql.Identifier("Feature04_Technical_Indicator"),
@@ -248,9 +264,9 @@ def current_claim(connection: psycopg.Connection, job: Job) -> bool:
         """
         SELECT status,claim_token,requested_generation,work_revision
         FROM public."Feature04_Calculation_Queue"
-        WHERE ticker=%s AND timeframe='Daily' FOR UPDATE
+        WHERE asset_type=%s AND ticker=%s AND timeframe='Daily' FOR UPDATE
         """,
-        (job.ticker,),
+        (job.asset_type, job.ticker),
     ).fetchone()
     return bool(
         row and row["status"] == "PROCESSING" and row["claim_token"] == job.claim_token
@@ -311,21 +327,21 @@ def write_attempt(
 ) -> int:
     retry = connection.execute(
         """SELECT request_id FROM public."Feature04_Retry_Request"
-           WHERE ticker=%s AND source_generation=%s AND work_revision=%s
+           WHERE asset_type=%s AND ticker=%s AND source_generation=%s AND work_revision=%s
            ORDER BY created_at DESC LIMIT 1""",
-        (job.ticker, job.requested_generation, job.work_revision),
+        (job.asset_type, job.ticker, job.requested_generation, job.work_revision),
     ).fetchone()
     return connection.execute(
         """
         INSERT INTO public."Feature04_Calculation_Log"(
-          ticker,timeframe,source_generation,work_revision,retry_request_id,requested_columns,
+          asset_type,ticker,timeframe,source_generation,work_revision,retry_request_id,requested_columns,
           successful_columns,failed_columns,group_outcomes,result,source_start,source_end,
           source_rows,source_sha256,changed_rows,calculation_version,started_at,error_code,detail)
-        VALUES(%s,'Daily',%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        VALUES(%s,%s,'Daily',%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         RETURNING id
         """,
         (
-            job.ticker, job.requested_generation, job.work_revision,
+            job.asset_type, job.ticker, job.requested_generation, job.work_revision,
             retry["request_id"] if retry else None, list(requested), list(successful), list(failed),
             json.dumps(outcomes), result, history[0]["date"], history[-1]["date"], len(history),
             digest, changed, VERSION, job.started_at, error_code, detail,
@@ -334,7 +350,7 @@ def write_attempt(
 
 
 def terminal_failure(
-    connection: psycopg.Connection, ticker: str, generation: int, revision: int,
+    connection: psycopg.Connection, asset_type: str, ticker: str, generation: int, revision: int,
     error_code: str, detail: str,
 ) -> None:
     connection.execute(
@@ -342,26 +358,28 @@ def terminal_failure(
         UPDATE public."Feature04_Calculation_Queue" SET status='FAILED',claimed_at=NULL,
           claim_token=NULL,claim_expires_at=NULL,next_attempt_at='infinity'::timestamptz,
           last_error_code=%s,last_error=%s,updated_at=CURRENT_TIMESTAMP
-        WHERE ticker=%s AND timeframe='Daily' AND requested_generation=%s AND work_revision=%s
+        WHERE asset_type=%s AND ticker=%s AND timeframe='Daily'
+          AND requested_generation=%s AND work_revision=%s
         """,
-        (error_code, detail, ticker, generation, revision),
+        (error_code, detail, asset_type, ticker, generation, revision),
     )
     connection.execute(
         """
         UPDATE public."Feature04_Column_Status" SET status='FAILED',last_error_code=%s,
           last_error=%s,updated_at=CURRENT_TIMESTAMP
-        WHERE ticker=%s AND timeframe='Daily' AND requested_generation=%s AND status='PROCESSING'
+        WHERE asset_type=%s AND ticker=%s AND timeframe='Daily'
+          AND requested_generation=%s AND status='PROCESSING'
         """,
-        (error_code, detail, ticker, generation),
+        (error_code, detail, asset_type, ticker, generation),
     )
     connection.execute(
         """
         UPDATE public."Monitoring_Feature04_Ticker" SET status='FAILED',last_error_code=%s,
           last_error=%s,finished_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP
-        WHERE ticker=%s AND timeframe='Daily' AND required_generation<=%s
+        WHERE asset_type=%s AND ticker=%s AND timeframe='Daily' AND required_generation<=%s
           AND status IN ('PENDING','PROCESSING')
         """,
-        (error_code, detail, ticker, generation),
+        (error_code, detail, asset_type, ticker, generation),
     )
     finalize_runs(connection)
 
@@ -369,7 +387,7 @@ def terminal_failure(
 def process_one(job: Job) -> str:
     try:
         with connect() as read_connection:
-            history = load_history(read_connection, job.ticker)
+            history = load_history(read_connection, job.asset_type, job.ticker)
         digest = source_digest(history)
         requested = dependency_closure(job.requested_columns)
         rows, outcomes = calculate_with_diagnostics(history, requested_columns=requested)
@@ -413,9 +431,10 @@ def process_one(job: Job) -> str:
                       completed_generation=%s,calculation_version=%s,dirty_from_date=NULL,
                       validated_through=%s,last_attempt_id=%s,last_error_code=NULL,last_error=NULL,
                       last_calculated_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP
-                    WHERE ticker=%s AND timeframe='Daily' AND feature_column=ANY(%s)
+                    WHERE asset_type=%s AND ticker=%s AND timeframe='Daily' AND feature_column=ANY(%s)
                     """,
-                    (job.requested_generation, VERSION, history[-1]["date"], attempt_id, job.ticker, list(successful)),
+                    (job.requested_generation, VERSION, history[-1]["date"], attempt_id,
+                     job.asset_type, job.ticker, list(successful)),
                 )
                 for column in successful:
                     value_available = rows[-1][column] is not None
@@ -424,9 +443,9 @@ def process_one(job: Job) -> str:
                         UPDATE public."Feature04_Column_Status"
                         SET latest_value_available=%s,
                             null_reason=CASE WHEN %s THEN NULL ELSE 'EXPECTED_FORMULA_NULL' END
-                        WHERE ticker=%s AND timeframe='Daily' AND feature_column=%s
+                        WHERE asset_type=%s AND ticker=%s AND timeframe='Daily' AND feature_column=%s
                         """,
-                        (value_available, value_available, job.ticker, column),
+                        (value_available, value_available, job.asset_type, job.ticker, column),
                     )
             if failed:
                 connection.execute(
@@ -434,9 +453,9 @@ def process_one(job: Job) -> str:
                     UPDATE public."Feature04_Column_Status" SET status='FAILED',last_attempt_id=%s,
                       last_error_code='FORMULA_GROUP_FAILED',last_error='See Feature04_Calculation_Log',
                       updated_at=CURRENT_TIMESTAMP
-                    WHERE ticker=%s AND timeframe='Daily' AND feature_column=ANY(%s)
+                    WHERE asset_type=%s AND ticker=%s AND timeframe='Daily' AND feature_column=ANY(%s)
                     """,
-                    (attempt_id, job.ticker, list(failed)),
+                    (attempt_id, job.asset_type, job.ticker, list(failed)),
                 )
             if failed and job.source_attempt_count < MAX_SOURCE_ATTEMPTS:
                 delay = min(RETRY_CAP_SECONDS, RETRY_BASE_SECONDS * (2 ** (job.source_attempt_count - 1)))
@@ -445,14 +464,15 @@ def process_one(job: Job) -> str:
                     UPDATE public."Feature04_Calculation_Queue" SET status='FAILED',claimed_at=NULL,
                       claim_token=NULL,claim_expires_at=NULL,next_attempt_at=CURRENT_TIMESTAMP+make_interval(secs=>%s),
                       last_error_code='FORMULA_GROUP_FAILED',last_error='One or more formula groups failed',
-                      updated_at=CURRENT_TIMESTAMP WHERE ticker=%s AND timeframe='Daily'
+                      updated_at=CURRENT_TIMESTAMP
+                    WHERE asset_type=%s AND ticker=%s AND timeframe='Daily'
                     """,
-                    (delay, job.ticker),
+                    (delay, job.asset_type, job.ticker),
                 )
                 return result
             if failed:
                 terminal_failure(
-                    connection, job.ticker, job.requested_generation, job.work_revision,
+                    connection, job.asset_type, job.ticker, job.requested_generation, job.work_revision,
                     "FORMULA_GROUP_FAILED", "Maximum attempts exhausted for failed formula groups",
                 )
                 return result
@@ -461,18 +481,19 @@ def process_one(job: Job) -> str:
                 UPDATE public."Feature04_Calculation_Queue" SET status='DONE',
                   completed_generation=requested_generation,claimed_at=NULL,claim_token=NULL,
                   claim_expires_at=NULL,completed_at=CURRENT_TIMESTAMP,last_error_code=NULL,last_error=NULL,
-                  updated_at=CURRENT_TIMESTAMP WHERE ticker=%s AND timeframe='Daily'
+                  updated_at=CURRENT_TIMESTAMP
+                WHERE asset_type=%s AND ticker=%s AND timeframe='Daily'
                 """,
-                (job.ticker,),
+                (job.asset_type, job.ticker),
             )
             connection.execute(
                 """
                 UPDATE public."Monitoring_Feature04_Ticker" SET status='SUCCESS',
                   completed_generation=%s,finished_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP
-                WHERE ticker=%s AND timeframe='Daily' AND required_generation<=%s
+                WHERE asset_type=%s AND ticker=%s AND timeframe='Daily' AND required_generation<=%s
                   AND status IN ('PENDING','PROCESSING')
                 """,
-                (job.requested_generation, job.ticker, job.requested_generation),
+                (job.requested_generation, job.asset_type, job.ticker, job.requested_generation),
             )
             finalize_runs(connection)
         emit("feature04_completed", ticker=job.ticker, changed_rows=changed, columns=len(successful))
@@ -483,8 +504,8 @@ def process_one(job: Job) -> str:
         with connect() as connection, connection.transaction():
             row = connection.execute(
                 """SELECT claim_token,source_attempt_count FROM public."Feature04_Calculation_Queue"
-                   WHERE ticker=%s AND timeframe='Daily' FOR UPDATE""",
-                (job.ticker,),
+                   WHERE asset_type=%s AND ticker=%s AND timeframe='Daily' FOR UPDATE""",
+                (job.asset_type, job.ticker),
             ).fetchone()
             if not row or row["claim_token"] != job.claim_token:
                 return "SUPERSEDED"
@@ -492,14 +513,14 @@ def process_one(job: Job) -> str:
             attempt_id = connection.execute(
                 """
                 INSERT INTO public."Feature04_Calculation_Log"(
-                  ticker,timeframe,source_generation,work_revision,requested_columns,
+                  asset_type,ticker,timeframe,source_generation,work_revision,requested_columns,
                   failed_columns,group_outcomes,result,calculation_version,started_at,
                   error_code,detail)
-                VALUES(%s,'Daily',%s,%s,%s,%s,%s::jsonb,'FAILED',%s,%s,
+                VALUES(%s,%s,'Daily',%s,%s,%s,%s,%s::jsonb,'FAILED',%s,%s,
                        'WORKER_EXCEPTION',%s) RETURNING id
                 """,
                 (
-                    job.ticker, job.requested_generation, job.work_revision, list(requested),
+                    job.asset_type, job.ticker, job.requested_generation, job.work_revision, list(requested),
                     list(requested), json.dumps({"worker": {"status": "FAILED", "error": detail}}),
                     VERSION, job.started_at, detail,
                 ),
@@ -508,13 +529,13 @@ def process_one(job: Job) -> str:
                 """
                 UPDATE public."Feature04_Column_Status" SET last_attempt_id=%s,
                   last_error_code='WORKER_EXCEPTION',last_error=%s,updated_at=CURRENT_TIMESTAMP
-                WHERE ticker=%s AND timeframe='Daily' AND feature_column=ANY(%s)
+                WHERE asset_type=%s AND ticker=%s AND timeframe='Daily' AND feature_column=ANY(%s)
                 """,
-                (attempt_id, detail, job.ticker, list(requested)),
+                (attempt_id, detail, job.asset_type, job.ticker, list(requested)),
             )
             if row["source_attempt_count"] >= MAX_SOURCE_ATTEMPTS:
                 terminal_failure(
-                    connection, job.ticker, job.requested_generation, job.work_revision,
+                    connection, job.asset_type, job.ticker, job.requested_generation, job.work_revision,
                     "WORKER_EXCEPTION", detail,
                 )
             else:
@@ -524,9 +545,9 @@ def process_one(job: Job) -> str:
                     UPDATE public."Feature04_Calculation_Queue" SET status='FAILED',claimed_at=NULL,
                       claim_token=NULL,claim_expires_at=NULL,next_attempt_at=CURRENT_TIMESTAMP+make_interval(secs=>%s),
                       last_error_code='WORKER_EXCEPTION',last_error=%s,updated_at=CURRENT_TIMESTAMP
-                    WHERE ticker=%s AND timeframe='Daily'
+                    WHERE asset_type=%s AND ticker=%s AND timeframe='Daily'
                     """,
-                    (delay, detail, job.ticker),
+                    (delay, detail, job.asset_type, job.ticker),
                 )
         return "FAILED"
 
@@ -535,11 +556,16 @@ def claim_outbox(connection: psycopg.Connection) -> dict | None:
     with connection.transaction():
         row = connection.execute(
             """
-            SELECT o.event_id,o.execution_id FROM public."Feature04_Notification_Outbox" o
+            SELECT o.event_id,o.execution_id,o.notification_type,m.source_execution_id
+            FROM public."Feature04_Notification_Outbox" o
             JOIN public."Monitoring_Feature04" m USING(execution_id)
             WHERE o.status IN ('PENDING','FAILED') AND o.next_attempt_at<=CURRENT_TIMESTAMP
-              AND (NOT m.price_notification_required OR m.price_notification_sent_at IS NOT NULL)
-            ORDER BY o.created_at FOR UPDATE OF o SKIP LOCKED LIMIT 1
+              AND (o.notification_type='PRICE_FIXED_INCOME'
+                   OR (o.notification_type='COMPLETED'
+                       AND (NOT m.price_notification_required OR m.price_notification_sent_at IS NOT NULL)))
+            ORDER BY CASE WHEN o.notification_type='PRICE_FIXED_INCOME' THEN 0 ELSE 1 END,
+                     o.created_at
+            FOR UPDATE OF o SKIP LOCKED LIMIT 1
             """
         ).fetchone()
         if not row:
@@ -565,8 +591,10 @@ def dispatch_one() -> bool:
         event = claim_outbox(connection)
     if not event:
         return False
+    is_fixed_price = event["notification_type"] == "PRICE_FIXED_INCOME"
     payload = json.dumps({
-        "source_table": "Monitoring_Feature04", "execution_id": event["execution_id"]
+        "source_table": "Monitoring_Fixed_Income" if is_fixed_price else "Monitoring_Feature04",
+        "execution_id": event["source_execution_id"] if is_fixed_price else event["execution_id"],
     }).encode()
     try:
         request = Request(

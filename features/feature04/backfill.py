@@ -17,11 +17,14 @@ from psycopg import sql
 from psycopg.rows import dict_row
 from engine import COLUMNS, TABLE, VERSION, calculate
 
-SOURCE_QUERY='''SELECT ticker,date,open,high,low,close,volume,timeframe,
- tradingview_symbol,source,query_date,ingestion_time
- FROM public."Price_Stock_Indonesia_IDX" WHERE ticker=%s ORDER BY date'''
+SOURCE_QUERY='''SELECT p.ticker,p.date,p.open,p.high,p.low,p.close,p.volume,p.timeframe,
+ p.tradingview_symbol,p.source,p.query_date,p.ingestion_time,'equity'::text AS asset_type
+ FROM public."Price_Stock_Indonesia_IDX" p
+ WHERE p.ticker=%s AND EXISTS(
+   SELECT 1 FROM public."IDX_Stock_Universe" u WHERE u."Ticker"=p.ticker
+ ) ORDER BY p.date'''
 TARGET_QUERY='''SELECT * FROM public."Feature04_Technical_Indicator"
- WHERE ticker=%s ORDER BY trade_date,timeframe'''
+ WHERE ticker=%s AND asset_type='equity' ORDER BY trade_date,timeframe'''
 PAYLOAD=tuple(c for c in COLUMNS if c!='calculated_at')
 
 def digest(rows, *, output=False):
@@ -46,11 +49,12 @@ def bulk_upsert(connection, rows):
     with connection.cursor().copy(sql.SQL('COPY feature04_stage ({}) FROM STDIN').format(columns)) as copy:
         for row in rows:
             copy.write_row([row[c] for c in COLUMNS])
-    nonkey=COLUMNS[3:]
+    keys={'ticker','trade_date','timeframe','asset_type'}
+    nonkey=tuple(c for c in COLUMNS if c not in keys)
     payload=tuple(c for c in nonkey if c!='calculated_at')
     statement=sql.SQL('''INSERT INTO public.{} AS target ({})
      SELECT {} FROM feature04_stage ORDER BY trade_date
-     ON CONFLICT(ticker,trade_date,timeframe) DO UPDATE SET {}
+     ON CONFLICT(ticker,trade_date,timeframe,asset_type) DO UPDATE SET {}
      WHERE ROW({}) IS DISTINCT FROM ROW({})''').format(
         sql.Identifier(TABLE),columns,columns,
         sql.SQL(',').join(sql.SQL('{}=EXCLUDED.{}').format(sql.Identifier(c),sql.Identifier(c)) for c in nonkey),

@@ -22,7 +22,8 @@ from psycopg.types.json import Jsonb
 
 MONITORING_TABLE = 'public."Monitoring_Price_ALL"'
 LOG_TABLE = 'public."Telegram_Notification_Log"'
-SUPPORTED_SOURCES = {"Monitoring_Price_ALL", "Monitoring_Feature04"}
+PRICE_MONITORING_SOURCES = {"Monitoring_Price_ALL", "Monitoring_Fixed_Income"}
+SUPPORTED_SOURCES = PRICE_MONITORING_SOURCES | {"Monitoring_Feature04"}
 MAX_REQUEST_BYTES = 16_384
 MAX_TELEGRAM_TEXT = 4_000
 JAKARTA_TZ = ZoneInfo("Asia/Jakarta")
@@ -145,6 +146,35 @@ def fetch_monitoring_summary(
     )
 
 
+def fetch_fixed_income_summary(
+    connection: psycopg.Connection, execution_id: str
+) -> MonitoringSummary | None:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT run_type,trigger_source,target_date,expected_series,queried_series,
+                   updated_series,missing_series,missing_series_list,status,
+                   started_at,finished_at,last_error
+            FROM public."Monitoring_Fixed_Income" WHERE execution_id=%s::uuid
+            """,
+            (execution_id,),
+        )
+        row = cursor.fetchone()
+    if row is None:
+        return None
+    missing = tuple(sorted(
+        f"{item.get('ticker', '?')}/{item.get('metric_type', '?')}"
+        for item in (row[7] or []) if isinstance(item, dict)
+    ))
+    return MonitoringSummary(
+        execution_id=execution_id, exchange="FIXED INCOME", run_type=str(row[0]),
+        trigger_source=str(row[1]), update_for_date=row[2], expected_symbols=int(row[3]),
+        queried_symbols=int(row[4]), updated_symbols=int(row[5]), missing_symbols=int(row[6]),
+        missing_tickers=missing, status=str(row[8]), started_at=row[9], finished_at=row[10],
+        duration_seconds=max(0.0, (row[10] - row[9]).total_seconds()), last_error=row[11],
+    )
+
+
 def fetch_feature04_summary(
     connection: psycopg.Connection, execution_id: str
 ) -> Feature04Summary | None:
@@ -162,15 +192,15 @@ def fetch_feature04_summary(
             return None
         cursor.execute(
             """
-            SELECT ticker,requested_columns,status,last_error_code
+            SELECT asset_type,ticker,requested_columns,status,last_error_code
             FROM public."Monitoring_Feature04_Ticker"
             WHERE execution_id=%s AND status IN ('FAILED','BLOCKED') ORDER BY ticker
             """,
             (execution_id,),
         )
         failures = tuple(
-            f"{item[0]}" + (f" [{','.join(item[1])}]" if item[1] else "")
-            + (f" ({item[3]})" if item[3] else "")
+            f"{item[0]}/{item[1]}" + (f" [{','.join(item[2])}]" if item[2] else "")
+            + (f" ({item[4]})" if item[4] else "")
             for item in cursor.fetchall()
         )
     finished = row[9] or datetime.now(timezone.utc)
@@ -432,21 +462,23 @@ class TelegramMonitor:
             raise ValueError("invalid execution_id")
 
         with psycopg.connect(self.database_url) as connection:
-            summary = (
-                fetch_monitoring_summary(connection, execution_id)
-                if source_table == "Monitoring_Price_ALL"
-                else fetch_feature04_summary(connection, execution_id)
-            )
+            if source_table == "Monitoring_Price_ALL":
+                summary = fetch_monitoring_summary(connection, execution_id)
+            elif source_table == "Monitoring_Fixed_Income":
+                summary = fetch_fixed_income_summary(connection, execution_id)
+            else:
+                summary = fetch_feature04_summary(connection, execution_id)
             if summary is None:
                 raise KeyError("execution_id not found")
             state, log_id = claim_delivery(connection, source_table, execution_id)
             if state != "claimed":
-                if state == "duplicate" and source_table == "Monitoring_Price_ALL":
+                if state == "duplicate" and source_table in PRICE_MONITORING_SOURCES:
                     connection.execute(
                         """UPDATE public."Monitoring_Feature04"
                            SET price_notification_sent_at=coalesce(price_notification_sent_at,CURRENT_TIMESTAMP),
-                               updated_at=CURRENT_TIMESTAMP WHERE source_execution_id=%s""",
-                        (execution_id,),
+                               updated_at=CURRENT_TIMESTAMP
+                           WHERE source_monitor_table=%s AND source_execution_id=%s""",
+                        (source_table, execution_id),
                     )
                     connection.commit()
                 return state, log_id
@@ -464,12 +496,13 @@ class TelegramMonitor:
                             self.send_message(self.token, self.chat_id, message)
                         )
                 mark_sent(connection, log_id, message_ids)
-                if source_table == "Monitoring_Price_ALL":
+                if source_table in PRICE_MONITORING_SOURCES:
                     connection.execute(
                         """UPDATE public."Monitoring_Feature04"
                            SET price_notification_sent_at=coalesce(price_notification_sent_at,CURRENT_TIMESTAMP),
-                               updated_at=CURRENT_TIMESTAMP WHERE source_execution_id=%s""",
-                        (execution_id,),
+                               updated_at=CURRENT_TIMESTAMP
+                           WHERE source_monitor_table=%s AND source_execution_id=%s""",
+                        (source_table, execution_id),
                     )
                     connection.commit()
                 return "sent", log_id

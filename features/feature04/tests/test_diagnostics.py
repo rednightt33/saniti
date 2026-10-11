@@ -19,7 +19,7 @@ def bars(n=250):
     days = [day for day in days if day.weekday() < 5][:n]
     return [
         dict(
-            ticker='TEST', date=day, timeframe='Daily',
+            ticker='TEST', date=day, timeframe='Daily', asset_type='equity',
             tradingview_symbol='IDX:TEST', source='TradingView',
             open=100 + i, high=102 + i, low=98 + i, close=101 + i,
             volume=1000 + i,

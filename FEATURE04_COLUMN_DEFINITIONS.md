@@ -1,13 +1,20 @@
 # Definisi setiap kolom Feature04 Technical Indicator
 
-Tabel PostgreSQL: `public."Feature04_Technical_Indicator"`. Ada **55 kolom**:
-3 identitas, 15 indikator numerik lama, 25 pola candlestick TA-Lib, 1 inside bar,
+Tabel PostgreSQL: `public."Feature04_Technical_Indicator"`. Ada **56 kolom**:
+4 identitas, 15 indikator numerik lama, 25 pola candlestick TA-Lib, 1 inside bar,
 9 kolom SMI/swing, dan 2 metadata perhitungan.
 
-Satu baris mewakili **satu ticker × tanggal perdagangan × timeframe Daily**.
+Satu baris mewakili **satu asset type × ticker × tanggal perdagangan × timeframe Daily**.
 Semua perhitungan memakai riwayat ticker itu sendiri, diurutkan dari tanggal paling
 lama ke terbaru. Periode berarti jumlah candle yang tersedia, bukan hari kalender.
-Tidak ada penggabungan riwayat antar saham atau pengisian hari tanpa candle.
+Tidak ada penggabungan riwayat antar ticker atau asset type, atau pengisian hari tanpa candle.
+
+`asset_type` tidak berasal dari daftar ticker hardcode. Ticker yang ada di
+`IDX_Stock_Universe` diklasifikasikan `equity`; ticker yang ada di
+`Universe_Fixed_income` diklasifikasikan `bonds`. Ticker yang tidak ada atau ada pada
+kedua universe ditolak agar tidak salah klasifikasi. Equity memakai
+`Price_Stock_Indonesia_IDX`; bonds memakai `Price_Fixed_Income` khusus
+`metric_type='price'` dan timeframe sumber `1D`, yang dinormalisasi menjadi `Daily`.
 
 Ekstensi SMI/swing v3 pertama diuji untuk **BBCA**, lalu user menyetujui kelanjutan
 untuk seluruh ticker pada 2026-10-11. Backfill v3 kini mencakup **844 ticker dan
@@ -26,19 +33,21 @@ dan SMI pada candle terakhir tersedia untuk setiap ticker.
   Pada pola TA-Lib, warmup yang belum cukup juga `NULL`.
 - `0` pada flag berarti candle **sudah dihitung** dan kondisi tidak terpenuhi.
   `break_swing_high` memakai **integer 1/0**, bukan boolean atau kode 100.
-- Harga dan indikator dengan satuan harga mengikuti harga sumber IDX dalam IDR.
-- Input OHLCV yang tidak valid menghasilkan `NULL` untuk semua fitur pada baris itu
-  dan mereset riwayat perhitungan berikutnya. Volume nol tetap valid.
+- Harga dan indikator dengan satuan harga mengikuti unit harga sumber masing-masing asset.
+- Input OHLC yang tidak valid menghasilkan `NULL` untuk semua fitur pada baris itu
+  dan mereset riwayat perhitungan berikutnya. Equity juga mewajibkan volume nonnegatif;
+  bond boleh memiliki volume `NULL` karena formula Feature04 tidak memakai volume.
 - Kolom dihitung pada candle Daily yang sudah selesai. Nilai historis dapat berubah
   bila harga sumber dikoreksi dan riwayat dihitung ulang.
 
-## Identitas dan metadata — 5 kolom
+## Identitas dan metadata — 6 kolom
 
 | Kolom | Tipe | Definisi dan penggunaan |
 |---|---|---|
-| `ticker` | text, wajib | Kode saham IDX dari sumber, misalnya `BBCA`. Tidak memakai suffix `.JK`. Bagian primary key. |
+| `ticker` | text, wajib | Kode instrumen pada sumber/universe, misalnya `BBCA` atau ticker fixed income. Bagian primary key. |
 | `trade_date` | date, wajib | Tanggal candle perdagangan menurut tanggal sumber IDX. Bagian primary key. Untuk `break_swing_high=1`, inilah tanggal trigger. Bukan tanggal peak lama atau waktu eksekusi backfill. |
 | `timeframe` | text, wajib | Interval sumber, saat ini tepat `Daily`. Bagian primary key; bukan data intraday. |
+| `asset_type` | text, wajib | Klasifikasi `equity` atau `bonds` dari membership universe saat kalkulasi. Bagian primary key dan batas partisi riwayat; tidak boleh ditentukan dari daftar ticker di kode. |
 | `calculation_version` | text, wajib | Versi rumus, seed, dan library yang menghasilkan baris. Versi historis v2: `feature04-v2-talib0.6.8-c0.6.4`; seluruh hasil saat ini memakai v3 SMI: `feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4`. Bukan fitur numerik untuk model. |
 | `calculated_at` | timestamptz, wajib | Waktu UTC perhitungan terakhir yang mengubah payload baris. Rerun dengan hasil identik mempertahankan timestamp. Bukan bukti kapan data tersedia secara historis. |
 

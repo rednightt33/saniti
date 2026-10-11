@@ -17,10 +17,11 @@ def upsert(connection, rows: list[dict]) -> int:
         return 0
     if len(rows) > 5000:
         raise ValueError('At most 5000 output rows per controlled execution')
-    nonkey = COLUMNS[3:]
+    key_columns = {'ticker', 'trade_date', 'timeframe', 'asset_type'}
+    nonkey = tuple(column for column in COLUMNS if column not in key_columns)
     payload = tuple(c for c in nonkey if c != 'calculated_at')
     statement = sql.SQL('''INSERT INTO public.{} AS target ({}) VALUES ({})
-      ON CONFLICT (ticker, trade_date, timeframe) DO UPDATE SET {}
+      ON CONFLICT (ticker, trade_date, timeframe, asset_type) DO UPDATE SET {}
       WHERE ROW({}) IS DISTINCT FROM ROW({})''').format(
         sql.Identifier(TABLE), sql.SQL(',').join(map(sql.Identifier, COLUMNS)),
         sql.SQL(',').join(sql.Placeholder() for _ in COLUMNS),
@@ -44,12 +45,28 @@ def refresh(connection, tickers: list[str], start: date, end: date, *, write=Fal
         connection.execute("SELECT pg_advisory_xact_lock(hashtextextended('Feature04_Technical_Indicator',0))")
     else:
         connection.execute('SET TRANSACTION READ ONLY')
-    history = connection.execute('''SELECT ticker,date,open,high,low,close,volume,timeframe,
-             tradingview_symbol,source,query_date,ingestion_time
-             FROM public."Price_Stock_Indonesia_IDX"
-             WHERE ticker=ANY(%s) AND date<=%s ORDER BY ticker,date''', (tickers, end)).fetchall()
+    history = connection.execute('''
+             SELECT p.ticker,p.date,p.open,p.high,p.low,p.close,p.volume,p.timeframe,
+                    p.tradingview_symbol,p.source,p.query_date,p.ingestion_time,
+                    'equity'::text AS asset_type
+             FROM public."Price_Stock_Indonesia_IDX" p
+             WHERE p.ticker=ANY(%s) AND p.date<=%s
+               AND EXISTS(SELECT 1 FROM public."IDX_Stock_Universe" u WHERE u."Ticker"=p.ticker)
+             UNION ALL
+             SELECT p.ticker,p.date,p.open,p.high,p.low,p.close,p.volume,'Daily'::text,
+                    p.tradingview_symbol,p.source,p.query_date,p.ingestion_time,
+                    'bonds'::text AS asset_type
+             FROM public."Price_Fixed_Income" p
+             WHERE p.ticker=ANY(%s) AND p.date<=%s AND p.metric_type='price' AND p."Timeframe"='1D'
+               AND EXISTS(SELECT 1 FROM public."Universe_Fixed_income" u WHERE u.ticker=p.ticker)
+             ORDER BY ticker,date,asset_type''', (tickers, end, tickers, end)).fetchall()
     if set(tickers) != {r['ticker'] for r in history}:
         raise ValueError('At least one requested ticker has no source history')
+    classified = {}
+    for row in history:
+        classified.setdefault(row['ticker'], set()).add(row['asset_type'])
+    if any(len(asset_types) != 1 for asset_types in classified.values()):
+        raise ValueError('A ticker must resolve to exactly one approved asset universe')
     features = calculate(history)
     selected = [r for r in features if start <= r['trade_date'] <= end]
     if len(selected) > 5000:

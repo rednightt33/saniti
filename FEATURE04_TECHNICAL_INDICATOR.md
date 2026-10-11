@@ -13,17 +13,27 @@ metadata; source prices, grants, deployments and schedules are unchanged.
 The next user instruction authorized SMI and the eight swing-state variables from
 the supplied HH Pine script, starting with BBCA only, followed by "Sure" and a request
 for Markdown definitions of every column. `break_swing_high` is INTEGER 1/0 as requested.
-The v3 schema has 55 columns. After the BBCA checkpoint, user authorized
+The v3 schema had 55 columns. After the BBCA checkpoint, user authorized
 "Alright, proceeed untuk semua ticker." The serial v3 replay now covers every actual
 price-source ticker: 844 tickers / 1,318,633 Daily rows. Existing indicator values and
 BBCA payload/timestamps are preserved. See [all column definitions](FEATURE04_COLUMN_DEFINITIONS.md),
 [full SMI validation](verification/feature04/SMI_ALL_TICKERS.md), and
 [initial BBCA SMI checkpoint](verification/feature04/SMI_BBCA.md).
 
+The next approved extension makes the same Feature04 formulas available for fixed-income
+price candles. Migration `20261011_006_extend_feature04_to_bonds.sql` appends
+`asset_type`, making 56 physical columns, and changes the identity to
+`(ticker, trade_date, timeframe, asset_type)`. Classification is data-driven on every
+enqueue/load: membership in `IDX_Stock_Universe` means `equity`; membership in
+`Universe_Fixed_income` means `bonds`; absent or ambiguous membership fails closed.
+No ticker list is embedded in Python or SQL.
+
 ## Verified source and mapping
 
 Inspection: `verification/feature04/inspection.json`, read-only live `lucid-patience / dev / Postgres`.
-Source: `public."Price_Stock_Indonesia_IDX"`, owner `postgres`, primary key `(ticker,date)`.
+Equity source: `public."Price_Stock_Indonesia_IDX"`, owner `postgres`, primary key `(ticker,date)`.
+Bond source: `public."Price_Fixed_Income"`, restricted to `metric_type='price'` and
+`"Timeframe"='1D'`, with primary key `(tradingview_symbol,date,metric_type,"Timeframe")`.
 
 | Target / input | Verified source | PostgreSQL type | Meaning |
 |---|---|---|---|
@@ -36,6 +46,7 @@ Source: `public."Price_Stock_Indonesia_IDX"`, owner `postgres`, primary key `(ti
 | Provider | source | varchar(64), NOT NULL | Actual value `TradingView` |
 | Source last write | ingestion_time | timestamptz, nullable | Last database insert/upsert time; not an immutable revision ID |
 | Query date | query_date | date, NOT NULL | Source query date, not historical publication proof |
+| Asset class | universe membership | text, NOT NULL | `equity` from `IDX_Stock_Universe`; `bonds` from `Universe_Fixed_income` |
 
 There were 1,318,633 rows, 844 securities, 2018-01-02 through 2026-10-09,
 238,436,352 bytes including indexes, and 62–2,113 observations per ticker.
@@ -55,11 +66,11 @@ is NOT VERIFIED. Source selection can carry survivorship bias.
 
 ## One physical wide table
 
-Target: `public."Feature04_Technical_Indicator"`. Exactly 55 columns in v3:
-3 identities, 15 floating-point indicators, 25 independent INTEGER patterns,
+Target: `public."Feature04_Technical_Indicator"`. Exactly 56 columns after the cross-asset extension:
+4 identities, 15 floating-point indicators, 25 independent INTEGER patterns,
 one INTEGER inside-bar flag, nine SMI/swing fields, and 2 calculation metadata fields. Primary key and its B-tree index:
-`(ticker,trade_date,timeframe)`. This supports ticker/date-range queries filtered by the
-single verified timeframe. No speculative extra index, foreign key into the source,
+`(ticker,trade_date,timeframe,asset_type)`. This supports asset/ticker/date-range queries filtered by the
+single normalized `Daily` timeframe. No speculative extra index, foreign key into the source,
 new PostgreSQL routine, or grant is added. The existing catalog-only validator
 `public.validate_feature_catalog_target()` gains one exact-name exception for this table;
 its physical-column and VERIFIED-table checks are unchanged. The original function is
@@ -67,7 +78,7 @@ retained in `verification/feature04/catalog_validator_before.sql`. No new source
 
 | Group | Columns | Types / nullability |
 |---|---|---|
-| Identity | ticker, trade_date, timeframe | TEXT, DATE, TEXT; NOT NULL |
+| Identity | ticker, trade_date, timeframe, asset_type | TEXT, DATE, TEXT, TEXT; NOT NULL |
 | Trend | sma_20, sma_50, ema_12, ema_26, ema_50, ema_200 | DOUBLE PRECISION; nullable |
 | Trend strength | adx_14 | DOUBLE PRECISION; nullable; 0–100 |
 | Momentum | rsi_14, macd, macd_signal, macd_histogram | DOUBLE PRECISION; nullable |
@@ -90,7 +101,7 @@ and inside_bar after the original 42 physical columns; existing columns are not 
 only after the all-source v3 load; no formula, physical-column or permission change.
 The creation migration fails if the target already exists or the verified source contract changes.
 Existing `Table_Catalog`, `Column_Catalog`, and `Feature_Catalog` receive definitions
-for the feature table and all 55 columns. All 55 active definitions use v3; 42 v1 and
+for the feature table and all 56 columns. All 56 active definitions use v4 semantics; 42 v1 and
 46 v2 definitions are retained inactive. Unchanged formulas were copied to v3; the
 subsequent data replay preserves old indicator values while updating new fields and
 version/timestamp only where the payload changes. One exact-date ONE_TO_ONE relationship with
@@ -144,8 +155,10 @@ of each segment is NULL because no usable predecessor exists. Original numeric p
 are compared without float64 rounding. No later candle or breakout confirmation is read.
 `cdl_3_inside` remains the independent TA-Lib three-candle reversal pattern.
 
-Invalid or missing OHLCV yields NULL features for that row and restarts all feature history
-conservatively. Zero volume is valid. Missing dates are not inserted or forward-filled;
+Invalid or missing OHLC yields NULL features for that row and restarts all feature history
+conservatively. Equity requires nonnegative volume; bond price candles permit NULL volume
+because the verified fixed-income source does not publish it and none of these formulas uses
+volume. Zero volume is valid. Missing dates are not inserted or forward-filled;
 windows count valid observed bars, not calendar days. Each ticker is sorted and isolated.
 No future price or forward target is read into an observation's calculations.
 
@@ -276,6 +289,19 @@ Price monitoring commits before its event is sent to `telegram-monitor`. Feature
 calculate concurrently, but its outbox is deliverable only after the price notification is
 recorded sent. The second message is emitted after all eligible tickers are terminal.
 Delivery errors retry outside the calculation transaction.
+
+Fixed income keeps its independent Railway schedules: `fixed-income-daily` runs at
+`0 10 * * *`, and `fixed-income-recovery` runs at `0 23 * * *`. Their source code is not
+coupled to Feature04. A row trigger on relevant `Price_Fixed_Income` price/1D changes
+coalesces the affected bond ticker into the same worker queue. A separate trigger on the
+committed `Monitoring_Fixed_Income` record opens and seals the corresponding Feature04 run,
+attaches only price series written during that source execution, and creates a durable
+`PRICE_FIXED_INCOME` notification event. The worker dispatches that price event to
+`telegram-monitor`; only after Telegram records it as sent may the related Feature04
+completion event be dispatched. Thus each fixed-income cron is tracked in this order:
+source monitor committed, fixed-income price Telegram sent, eligible bond calculations
+terminal, Feature04 Telegram sent. Price or Telegram failure never rolls back committed
+source data, and one bond failure does not block other tickers.
 
 ## TradingView reference and current limitations
 

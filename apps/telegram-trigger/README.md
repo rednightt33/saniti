@@ -24,6 +24,9 @@ Security and duplicate handling:
 - Feature04 retry requests are inserted atomically in PostgreSQL and wake the always-on
   worker; they do not invoke Railway Run Now. `feature04_request_id` links the Telegram
   command audit to the retry execution.
+- Feature04 failure rows and retry callbacks include `asset_type` (`equity` or `bonds`).
+  PostgreSQL independently resolves universe membership before accepting a retry; the
+  callback label is not trusted as classification and no ticker roster is hardcoded.
 
 Required Railway variables:
 

@@ -12,7 +12,7 @@ def bars(n=100, ticker='TEST', closes=None):
     days = [date(2024, 1, 1) + timedelta(days=i) for i in range(n*2)]
     days = [d for d in days if d.weekday() < 5][:n]
     prices = closes if closes is not None else [100 + i + 3*np.sin(i) for i in range(n)]
-    return [dict(ticker=ticker,date=d,timeframe='Daily',tradingview_symbol='IDX:'+ticker,
+    return [dict(ticker=ticker,date=d,timeframe='Daily',asset_type='equity',tradingview_symbol='IDX:'+ticker,
                  open=float(c),high=float(c)+2,low=float(c)-2,close=float(c),volume=0)
             for d,c in zip(days,prices)]
 
@@ -99,7 +99,7 @@ def test_invalid_bar_is_null_not_zero(field,value):
 
 
 def test_short_history_and_identity_guards():
-    out=calculate(bars(3));assert len(out[0])==55
+    out=calculate(bars(3));assert len(out[0])==56
     assert all(r['sma_50'] is None for r in out)
     source=bars()
     with pytest.raises(ValueError,match='Duplicate'):calculate([*source,source[0]])
@@ -113,3 +113,26 @@ def test_history_correction_cannot_change_earlier_features():
     source[60].update(open=180,high=182,low=178,close=180);new=calculate(source,calculated_at=stamp)
     assert old[:60]==new[:60]
     assert old[90]['ema_26']!=new[90]['ema_26']
+
+
+def test_bond_ohlc_allows_missing_volume_and_keeps_asset_partition():
+    source = bars(60, ticker='ID10Y')
+    for row in source:
+        row.update(asset_type='bonds', tradingview_symbol='TVC:ID10', volume=None)
+    result = calculate(source)
+    assert len(result) == 60
+    assert {row['asset_type'] for row in result} == {'bonds'}
+    assert result[19]['sma_20'] is not None
+    assert result[27]['adx_14'] is not None
+
+
+def test_asset_type_is_required_and_equity_still_requires_volume():
+    missing_type = bars(2)
+    del missing_type[0]['asset_type']
+    with pytest.raises(ValueError, match='asset_type'):
+        calculate(missing_type)
+    missing_volume = bars(2)
+    missing_volume[0]['volume'] = None
+    output = calculate(missing_volume)
+    assert all(output[0][column] is None for column in FEATURE_COLUMNS)
+    assert output[1]['inside_bar'] is None

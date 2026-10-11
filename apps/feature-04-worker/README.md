@@ -1,13 +1,19 @@
 # Feature04 worker
 
-Always-on Railway worker for `Feature04_Technical_Indicator`. It consumes the durable
+Always-on Railway worker for cross-asset `Feature04_Technical_Indicator`. It consumes the durable
 `Feature04_Calculation_Queue`; it has no cron schedule and does not fetch market data.
 
-Committed insert, update, or delete changes on `Price_Stock_Indonesia_IDX` coalesce into
+Committed insert, update, or delete changes on either supported price source coalesce into
 one full-history job per ticker. The worker reads that ticker from its earliest Daily bar
 through the latest, calculates the dependency-closed Feature04 bundle, and fences the write
 with the queue's source generation and work revision. A newer price change supersedes the
 old claim. Work for different tickers continues when one ticker fails.
+
+Queue identity is `(asset_type,ticker,timeframe)`. Classification comes from the live
+universe tables: `IDX_Stock_Universe` for equity and `Universe_Fixed_income` for bonds.
+The worker reads equity candles from `Price_Stock_Indonesia_IDX` and bond candles from
+`Price_Fixed_Income` where `metric_type='price'` and `"Timeframe"='1D'`. No ticker roster
+is embedded in code. Bond `NULL` volume is valid because the indicator bundle uses OHLC.
 
 Each formula group is isolated. Valid bundles commit even when another group fails;
 `Feature04_Column_Status` records the exact failed columns. Automatic retries use bounded
@@ -22,6 +28,10 @@ fails, its complete dependency bundle is withheld from writes and becomes a retr
 durable notification outbox waits until `telegram-monitor` has recorded the price message
 as sent, then requests the separate Feature04 Telegram result. Telegram delivery failure
 never rolls back calculated data.
+
+For the independent fixed-income daily and recovery crons, the outbox first sends the
+related `Monitoring_Fixed_Income` result through `telegram-monitor`. The Feature04
+completion remains gated until that price notification is recorded sent.
 
 Required Railway variables:
 

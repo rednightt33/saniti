@@ -20,7 +20,8 @@ from swing import SWING_COLUMNS, calculate_swing
 
 VERSION = 'feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4'
 TABLE = 'Feature04_Technical_Indicator'
-IDENTITY = ('ticker', 'trade_date', 'timeframe')
+ASSET_TYPES = ('equity', 'bonds')
+IDENTITY = ('ticker', 'trade_date', 'timeframe', 'asset_type')
 INDICATORS = ('sma_20', 'sma_50', 'ema_12', 'ema_26', 'rsi_14', 'macd',
               'macd_signal', 'macd_histogram', 'atr_14', 'bb_upper_20',
               'bb_middle_20', 'bb_lower_20')
@@ -39,13 +40,14 @@ PATTERNS = {
  'cdl_rise_fall_3_methods': 'CDLRISEFALL3METHODS', 'cdl_mat_hold': 'CDLMATHOLD',
  'cdl_hikkake': 'CDLHIKKAKE',
 }
-V1_COLUMNS = IDENTITY + INDICATORS + tuple(PATTERNS) + ('calculation_version', 'calculated_at')
+V1_COLUMNS = IDENTITY[:3] + INDICATORS + tuple(PATTERNS) + ('calculation_version', 'calculated_at')
 EXTENSIONS = ('adx_14', 'ema_50', 'ema_200', 'inside_bar')
 INDICATORS = INDICATORS + EXTENSIONS[:3]
 FEATURE_COLUMNS = INDICATORS + tuple(PATTERNS) + ('inside_bar',) + SWING_COLUMNS
 # PostgreSQL appends new columns; retain the physical v1 order for old columns.
 V2_COLUMNS = V1_COLUMNS + EXTENSIONS
-COLUMNS = V2_COLUMNS + SWING_COLUMNS
+# PostgreSQL appends asset_type in the forward migration; retain physical order.
+COLUMNS = V2_COLUMNS + SWING_COLUMNS + ('asset_type',)
 MACD_COLUMNS = ('macd', 'macd_signal', 'macd_histogram')
 BOLLINGER_COLUMNS = ('bb_upper_20', 'bb_middle_20', 'bb_lower_20')
 REQUIRED_AFTER = {
@@ -104,8 +106,16 @@ def observation_date(value) -> date:
 
 def _valid(row) -> bool:
     try:
-        o, h, l, c, v = [float(row[k]) for k in ('open', 'high', 'low', 'close', 'volume')]
-        return all(isfinite(x) and x >= 0 for x in (o, h, l, c, v)) and l <= o <= h and l <= c <= h
+        o, h, l, c = [float(row[k]) for k in ('open', 'high', 'low', 'close')]
+        if not (all(isfinite(x) and x >= 0 for x in (o, h, l, c))
+                and l <= o <= h and l <= c <= h):
+            return False
+        if row['asset_type'] == 'bonds':
+            return row.get('volume') is None or (
+                isfinite(float(row['volume'])) and float(row['volume']) >= 0
+            )
+        v = float(row['volume'])
+        return isfinite(v) and v >= 0
     except (KeyError, TypeError, ValueError, OverflowError):
         return False
 
@@ -147,6 +157,9 @@ def calculate_with_diagnostics(
         ticker = r['ticker']
         if not isinstance(ticker, str) or not ticker or ticker != ticker.strip().upper():
             raise ValueError('Ticker must be nonempty, trimmed and upper-case')
+        asset_type = r.get('asset_type')
+        if asset_type not in ASSET_TYPES:
+            raise ValueError('asset_type must be classified from an approved universe')
         if r['timeframe'] != 'Daily':
             raise ValueError('Only verified source timeframe Daily is supported')
         if 'source' in r and r['source'] != 'TradingView':
@@ -154,15 +167,17 @@ def calculate_with_diagnostics(
         day = observation_date(r['date'])
         if day.isoweekday() > 5:
             raise ValueError('Weekend source bar is unsupported')
-        symbol = r.get('tradingview_symbol', 'IDX:' + ticker)
-        if symbol != 'IDX:' + ticker:
-            raise ValueError('Source ticker/exchange mapping differs from IDX:ticker')
-        key = (ticker, day, r['timeframe'])
+        symbol = r.get('tradingview_symbol')
+        if asset_type == 'equity' and symbol != 'IDX:' + ticker:
+            raise ValueError('Equity source ticker/exchange mapping differs from IDX:ticker')
+        if asset_type == 'bonds' and (not isinstance(symbol, str) or not symbol.strip()):
+            raise ValueError('Bond source requires a nonempty TradingView symbol')
+        key = (asset_type, ticker, day, r['timeframe'])
         if key in keys:
             raise ValueError('Duplicate security/date/timeframe observation')
         keys.add(key)
         r['date'] = day
-        groups[(ticker, r['timeframe'])].append(r)
+        groups[(asset_type, ticker, r['timeframe'])].append(r)
     output = []
     outcomes: dict[str, dict] = {}
 
@@ -182,11 +197,12 @@ def calculate_with_diagnostics(
                 'columns': list(columns),
                 'error': f'{type(exc).__name__}: {exc}'[:1000],
             }
-    for (ticker, timeframe), series in sorted(groups.items()):
+    for (asset_type, ticker, timeframe), series in sorted(groups.items()):
         series.sort(key=lambda r: r['date'])
         results = [dict.fromkeys(COLUMNS) for _ in series]
         for r, out in zip(series, results):
             out.update(ticker=ticker, trade_date=r['date'], timeframe=timeframe,
+                       asset_type=asset_type,
                        calculation_version=VERSION, calculated_at=stamp)
         for start, end in _segments([_valid(r) for r in series]):
             segment = series[start:end]
@@ -277,7 +293,7 @@ def validate_output_availability(
     }
     by_key = {}
     for row in output:
-        key = (row['ticker'], observation_date(row['trade_date']), row['timeframe'])
+        key = (row['asset_type'], row['ticker'], observation_date(row['trade_date']), row['timeframe'])
         if key in by_key:
             raise ValueError('Duplicate Feature04 output observation')
         by_key[key] = row
@@ -286,11 +302,11 @@ def validate_output_availability(
     for source in history:
         row = dict(source)
         row['date'] = observation_date(row['date'])
-        key = (row['ticker'], row['date'], row['timeframe'])
+        key = (row['asset_type'], row['ticker'], row['date'], row['timeframe'])
         if key in seen or key not in by_key:
             raise ValueError('Feature04 output must match each source observation once')
         seen.add(key)
-        groups[(row['ticker'], row['timeframe'])].append(row)
+        groups[(row['asset_type'], row['ticker'], row['timeframe'])].append(row)
     if seen != set(by_key):
         raise ValueError('Feature04 output contains observations outside source history')
     failures = {}
@@ -304,7 +320,7 @@ def validate_output_availability(
         info['missing_rows'] += 1
         info['last_date'] = str(row['date'])
 
-    for (ticker, timeframe), series in sorted(groups.items()):
+    for (asset_type, ticker, timeframe), series in sorted(groups.items()):
         series.sort(key=lambda row: row['date'])
         for start, end in _segments([_valid(row) for row in series]):
             segment = series[start:end]
@@ -314,7 +330,7 @@ def validate_output_availability(
                            for key in ('high', 'low', 'close')]
                 swing = calculate_swing(h, l, c, bar_offset=start)
             for position, source in enumerate(segment):
-                actual = by_key[(ticker, source['date'], timeframe)]
+                actual = by_key[(asset_type, ticker, source['date'], timeframe)]
                 required = {
                     column for column, first_bar in required_after.items()
                     if position + 1 >= first_bar

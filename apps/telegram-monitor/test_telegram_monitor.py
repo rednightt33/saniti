@@ -9,6 +9,7 @@ from telegram_monitor import (
     format_header,
     format_timing,
     build_feature04_messages,
+    fetch_fixed_income_summary,
 )
 
 
@@ -35,6 +36,22 @@ def summary(**overrides) -> MonitoringSummary:
 
 
 class TelegramMonitorTests(unittest.TestCase):
+    def test_fixed_income_summary_maps_series_and_missing_metric(self):
+        class Cursor:
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def execute(self, *args): return None
+            def fetchone(self):
+                started = datetime(2026, 10, 9, 10, 0, tzinfo=timezone.utc)
+                return ('DAILY', 'SCHEDULED', date(2026, 10, 9), 48, 48, 47, 1,
+                        [{'ticker': 'ID10Y', 'metric_type': 'price'}], 'PARTIAL',
+                        started, started.replace(minute=1), None)
+        class Connection:
+            def cursor(self): return Cursor()
+        value = fetch_fixed_income_summary(Connection(), '00000000-0000-0000-0000-000000000001')
+        self.assertEqual(value.exchange, 'FIXED INCOME')
+        self.assertEqual(value.missing_tickers, ('ID10Y/price',))
+
     def test_failure_status_has_priority(self):
         self.assertEqual(aggregate_status(["SUCCESS", "PARTIAL", "FAILED"]), "FAILED")
 

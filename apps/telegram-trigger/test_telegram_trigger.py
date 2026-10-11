@@ -57,10 +57,10 @@ class TelegramTriggerTests(unittest.TestCase):
     def test_extracts_feature04_column_retry(self):
         action = extract_feature04_action({
             "update_id": 202,
-            "callback_query": {"id": "cb", "data": "f04:c:BBCA.JK:adx_14",
+            "callback_query": {"id": "cb", "data": "f04:c:equity:BBCA.JK:adx_14",
                                "message": {"chat": {"id": 123}}},
         })
-        self.assertEqual(action, (202, "123", "f04:c:BBCA.JK:adx_14", "cb"))
+        self.assertEqual(action, (202, "123", "f04:c:equity:BBCA.JK:adx_14", "cb"))
 
     def test_feature04_retry_does_not_call_railway(self):
         retried = []
@@ -72,7 +72,7 @@ class TelegramTriggerTests(unittest.TestCase):
         )
         result = service.handle_update({
             "update_id": 203,
-            "callback_query": {"id": "cb", "data": "f04:t:BBCA.JK",
+            "callback_query": {"id": "cb", "data": "f04:t:equity:BBCA.JK",
                                "message": {"chat": {"id": 123}}},
         })
         self.assertEqual(result, "feature04_retry")
