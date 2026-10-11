@@ -1,0 +1,781 @@
+{
+  "checked_at": "2026-10-11T07:34:45.263472+00:00",
+  "scope": "lucid-patience/dev/primary Postgres",
+  "operation": "SELECT only",
+  "access": [
+    {
+      "current_user": "pgweb",
+      "read_only": "on"
+    }
+  ],
+  "control_objects": [
+    {
+      "name": "Feature04_Calculation_Queue",
+      "existing_object": null
+    },
+    {
+      "name": "Feature04_Calculation_Log",
+      "existing_object": null
+    },
+    {
+      "name": "Monitoring_Feature04",
+      "existing_object": null
+    },
+    {
+      "name": "Monitoring_Feature04_Ticker",
+      "existing_object": null
+    },
+    {
+      "name": "Feature04_Notification_Outbox",
+      "existing_object": null
+    },
+    {
+      "name": "Feature04_Column_Status",
+      "existing_object": null
+    },
+    {
+      "name": "Feature04_Retry_Request",
+      "existing_object": null
+    },
+    {
+      "name": "Telegram_Command_Log",
+      "existing_object": "\"Telegram_Command_Log\""
+    },
+    {
+      "name": "feature04_backfill_log",
+      "existing_object": "feature04_backfill_log"
+    }
+  ],
+  "columns": [
+    {
+      "column_name": "ticker",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "column_name": "trade_date",
+      "data_type": "date",
+      "is_nullable": "NO"
+    },
+    {
+      "column_name": "timeframe",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "column_name": "sma_20",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "sma_50",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "ema_12",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "ema_26",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "rsi_14",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "macd",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "macd_signal",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "macd_histogram",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "atr_14",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "bb_upper_20",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "bb_middle_20",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "bb_lower_20",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_piercing",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_morning_star",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_morning_doji_star",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_engulfing",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_3_white_soldiers",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_hammer",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_inverted_hammer",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_3_inside",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_3_outside",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_harami",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_harami_cross",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_dark_cloud_cover",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_evening_star",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_evening_doji_star",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_3_black_crows",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_shooting_star",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_hanging_man",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_doji",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_dragonfly_doji",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_gravestone_doji",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_marubozu",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_kicking",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_rise_fall_3_methods",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_mat_hold",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_hikkake",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "calculation_version",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "column_name": "calculated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "column_name": "adx_14",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "ema_50",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "ema_200",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "inside_bar",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "smi",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "tracking_high",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "tracking_low",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "temp_high",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "temp_high_bar",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "temp_low",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "temp_low_bar",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "last_swing_high",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "break_swing_high",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    }
+  ],
+  "feature_constraints": [
+    {
+      "conname": "Feature04_Technical_Indicator_atr_14_check",
+      "definition": "CHECK (((atr_14 IS NULL) OR ((atr_14 > '-Infinity'::double precision) AND (atr_14 < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_atr_14_check1",
+      "definition": "CHECK (((atr_14 IS NULL) OR (atr_14 >= (0)::double precision)))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_bb_lower_20_check",
+      "definition": "CHECK (((bb_lower_20 IS NULL) OR ((bb_lower_20 > '-Infinity'::double precision) AND (bb_lower_20 < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_bb_middle_20_check",
+      "definition": "CHECK (((bb_middle_20 IS NULL) OR ((bb_middle_20 > '-Infinity'::double precision) AND (bb_middle_20 < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_bb_upper_20_check",
+      "definition": "CHECK (((bb_upper_20 IS NULL) OR ((bb_upper_20 > '-Infinity'::double precision) AND (bb_upper_20 < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_calculated_at_not_null",
+      "definition": "NOT NULL calculated_at"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_calculation_version_check",
+      "definition": "CHECK ((btrim(calculation_version) <> ''::text))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_calculation_version_not_null",
+      "definition": "NOT NULL calculation_version"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_ema_12_check",
+      "definition": "CHECK (((ema_12 IS NULL) OR ((ema_12 > '-Infinity'::double precision) AND (ema_12 < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_ema_26_check",
+      "definition": "CHECK (((ema_26 IS NULL) OR ((ema_26 > '-Infinity'::double precision) AND (ema_26 < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_macd_check",
+      "definition": "CHECK (((macd IS NULL) OR ((macd > '-Infinity'::double precision) AND (macd < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_macd_histogram_check",
+      "definition": "CHECK (((macd_histogram IS NULL) OR ((macd_histogram > '-Infinity'::double precision) AND (macd_histogram < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_macd_signal_check",
+      "definition": "CHECK (((macd_signal IS NULL) OR ((macd_signal > '-Infinity'::double precision) AND (macd_signal < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_pkey",
+      "definition": "PRIMARY KEY (ticker, trade_date, timeframe)"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_rsi_14_check",
+      "definition": "CHECK (((rsi_14 IS NULL) OR ((rsi_14 > '-Infinity'::double precision) AND (rsi_14 < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_rsi_14_check1",
+      "definition": "CHECK (((rsi_14 IS NULL) OR ((rsi_14 >= (0)::double precision) AND (rsi_14 <= (100)::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_sma_20_check",
+      "definition": "CHECK (((sma_20 IS NULL) OR ((sma_20 > '-Infinity'::double precision) AND (sma_20 < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_sma_50_check",
+      "definition": "CHECK (((sma_50 IS NULL) OR ((sma_50 > '-Infinity'::double precision) AND (sma_50 < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_ticker_check",
+      "definition": "CHECK (((ticker = upper(btrim(ticker))) AND (ticker <> ''::text)))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_ticker_not_null",
+      "definition": "NOT NULL ticker"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_timeframe_check",
+      "definition": "CHECK ((timeframe = 'Daily'::text))"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_timeframe_not_null",
+      "definition": "NOT NULL timeframe"
+    },
+    {
+      "conname": "Feature04_Technical_Indicator_trade_date_not_null",
+      "definition": "NOT NULL trade_date"
+    },
+    {
+      "conname": "feature04_adx_14_valid",
+      "definition": "CHECK (((adx_14 IS NULL) OR ((adx_14 >= (0)::double precision) AND (adx_14 <= (100)::double precision))))"
+    },
+    {
+      "conname": "feature04_break_swing_high_valid",
+      "definition": "CHECK (((break_swing_high IS NULL) OR (break_swing_high = ANY (ARRAY[0, 1]))))"
+    },
+    {
+      "conname": "feature04_ema_200_finite",
+      "definition": "CHECK (((ema_200 IS NULL) OR ((ema_200 > '-Infinity'::double precision) AND (ema_200 < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "feature04_ema_50_finite",
+      "definition": "CHECK (((ema_50 IS NULL) OR ((ema_50 > '-Infinity'::double precision) AND (ema_50 < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "feature04_inside_bar_binary",
+      "definition": "CHECK (((inside_bar IS NULL) OR (inside_bar = ANY (ARRAY[0, 1]))))"
+    },
+    {
+      "conname": "feature04_last_swing_high_valid",
+      "definition": "CHECK (((last_swing_high IS NULL) OR ((last_swing_high > '-Infinity'::double precision) AND (last_swing_high < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "feature04_smi_valid",
+      "definition": "CHECK (((smi IS NULL) OR ((smi > '-Infinity'::double precision) AND (smi < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "feature04_temp_high_bar_valid",
+      "definition": "CHECK (((temp_high_bar IS NULL) OR (temp_high_bar >= 0)))"
+    },
+    {
+      "conname": "feature04_temp_high_valid",
+      "definition": "CHECK (((temp_high IS NULL) OR ((temp_high > '-Infinity'::double precision) AND (temp_high < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "feature04_temp_low_bar_valid",
+      "definition": "CHECK (((temp_low_bar IS NULL) OR (temp_low_bar >= 0)))"
+    },
+    {
+      "conname": "feature04_temp_low_valid",
+      "definition": "CHECK (((temp_low IS NULL) OR ((temp_low > '-Infinity'::double precision) AND (temp_low < 'Infinity'::double precision))))"
+    },
+    {
+      "conname": "feature04_tracking_high_valid",
+      "definition": "CHECK (((tracking_high IS NULL) OR (tracking_high = ANY (ARRAY[0, 1]))))"
+    },
+    {
+      "conname": "feature04_tracking_low_valid",
+      "definition": "CHECK (((tracking_low IS NULL) OR (tracking_low = ANY (ARRAY[0, 1]))))"
+    }
+  ],
+  "indexes": [
+    {
+      "indexname": "Feature04_Technical_Indicator_pkey",
+      "indexdef": "CREATE UNIQUE INDEX \"Feature04_Technical_Indicator_pkey\" ON public.\"Feature04_Technical_Indicator\" USING btree (ticker, trade_date, timeframe)"
+    },
+    {
+      "indexname": "Price_Stock_Indonesia_IDX_date_idx",
+      "indexdef": "CREATE INDEX \"Price_Stock_Indonesia_IDX_date_idx\" ON public.\"Price_Stock_Indonesia_IDX\" USING btree (date)"
+    },
+    {
+      "indexname": "Price_Stock_Indonesia_IDX_pkey",
+      "indexdef": "CREATE UNIQUE INDEX \"Price_Stock_Indonesia_IDX_pkey\" ON public.\"Price_Stock_Indonesia_IDX\" USING btree (ticker, date)"
+    },
+    {
+      "indexname": "Telegram_Command_Log_pkey",
+      "indexdef": "CREATE UNIQUE INDEX \"Telegram_Command_Log_pkey\" ON public.\"Telegram_Command_Log\" USING btree (id)"
+    },
+    {
+      "indexname": "Telegram_Command_Log_service_time_idx",
+      "indexdef": "CREATE INDEX \"Telegram_Command_Log_service_time_idx\" ON public.\"Telegram_Command_Log\" USING btree (target_service, requested_at DESC)"
+    },
+    {
+      "indexname": "Telegram_Command_Log_status_idx",
+      "indexdef": "CREATE INDEX \"Telegram_Command_Log_status_idx\" ON public.\"Telegram_Command_Log\" USING btree (status, requested_at DESC)"
+    },
+    {
+      "indexname": "Telegram_Command_Log_update_key",
+      "indexdef": "CREATE UNIQUE INDEX \"Telegram_Command_Log_update_key\" ON public.\"Telegram_Command_Log\" USING btree (telegram_update_id)"
+    },
+    {
+      "indexname": "feature04_backfill_log_pkey",
+      "indexdef": "CREATE UNIQUE INDEX feature04_backfill_log_pkey ON public.feature04_backfill_log USING btree (run_id, ticker)"
+    }
+  ],
+  "source_coverage": [
+    {
+      "rows": 1318633,
+      "tickers": 844,
+      "first_date": "2018-01-02T00:00:00Z",
+      "last_date": "2026-10-09T00:00:00Z",
+      "unknown_ingestion": 1303726
+    }
+  ],
+  "feature_coverage": [
+    {
+      "calculation_version": "feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4",
+      "rows": 1318633,
+      "tickers": 844,
+      "first_date": "2018-01-02T00:00:00Z",
+      "last_date": "2026-10-09T00:00:00Z",
+      "smi_null": 1048,
+      "break_null": 0
+    }
+  ],
+  "backfill_status": [
+    {
+      "calculation_version": "feature04-v2-talib0.6.8-c0.6.4",
+      "status": "COMPLETED",
+      "ticker_runs": 844,
+      "source_rows": 1318633,
+      "changed_rows": 1318633,
+      "last_finished": "2026-10-11T05:18:53.342827Z"
+    },
+    {
+      "calculation_version": "feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4",
+      "status": "COMPLETED",
+      "ticker_runs": 844,
+      "source_rows": 1318633,
+      "changed_rows": 1318633,
+      "last_finished": "2026-10-11T06:25:12.790322Z"
+    }
+  ],
+  "command_scope": [
+    {
+      "command": "RUN_PRICE",
+      "target_service": "idx-price-cron",
+      "status": "TRIGGERED",
+      "requests": 4,
+      "last_requested": "2026-09-10T10:06:29.927873Z"
+    },
+    {
+      "command": "RUN_RECOVERY",
+      "target_service": "idx-price-recovery-cron",
+      "status": "FAILED",
+      "requests": 1,
+      "last_requested": "2026-09-09T07:38:45.239295Z"
+    },
+    {
+      "command": "RUN_RECOVERY",
+      "target_service": "idx-price-recovery-cron",
+      "status": "TRIGGERED",
+      "requests": 7,
+      "last_requested": "2026-09-11T14:19:34.624991Z"
+    }
+  ],
+  "command_constraints": [
+    {
+      "conname": "Telegram_Command_Log_chat_id_not_null",
+      "definition": "NOT NULL chat_id"
+    },
+    {
+      "conname": "Telegram_Command_Log_command_not_blank",
+      "definition": "CHECK ((btrim(command) <> ''::text))"
+    },
+    {
+      "conname": "Telegram_Command_Log_command_not_null",
+      "definition": "NOT NULL command"
+    },
+    {
+      "conname": "Telegram_Command_Log_created_at_not_null",
+      "definition": "NOT NULL created_at"
+    },
+    {
+      "conname": "Telegram_Command_Log_id_not_null",
+      "definition": "NOT NULL id"
+    },
+    {
+      "conname": "Telegram_Command_Log_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "conname": "Telegram_Command_Log_requested_at_not_null",
+      "definition": "NOT NULL requested_at"
+    },
+    {
+      "conname": "Telegram_Command_Log_status_check",
+      "definition": "CHECK ((status = ANY (ARRAY['RECEIVED'::text, 'TRIGGERED'::text, 'BLOCKED'::text, 'FAILED'::text])))"
+    },
+    {
+      "conname": "Telegram_Command_Log_status_not_null",
+      "definition": "NOT NULL status"
+    },
+    {
+      "conname": "Telegram_Command_Log_target_not_blank",
+      "definition": "CHECK ((btrim(target_service) <> ''::text))"
+    },
+    {
+      "conname": "Telegram_Command_Log_target_service_not_null",
+      "definition": "NOT NULL target_service"
+    },
+    {
+      "conname": "Telegram_Command_Log_telegram_update_id_not_null",
+      "definition": "NOT NULL telegram_update_id"
+    },
+    {
+      "conname": "Telegram_Command_Log_update_key",
+      "definition": "UNIQUE (telegram_update_id)"
+    },
+    {
+      "conname": "Telegram_Command_Log_updated_at_not_null",
+      "definition": "NOT NULL updated_at"
+    }
+  ],
+  "recent_notifications": [
+    {
+      "source_table": "Monitoring_Price_ALL",
+      "send_status": "SENT",
+      "notifications": 75
+    }
+  ],
+  "catalog_validation": [
+    {
+      "version": "v1",
+      "is_active": false,
+      "semantic_review_status": "CALCULATION_VERIFIED",
+      "columns": 42
+    },
+    {
+      "version": "v2",
+      "is_active": false,
+      "semantic_review_status": "CALCULATION_VERIFIED",
+      "columns": 46
+    },
+    {
+      "version": "v3",
+      "is_active": true,
+      "semantic_review_status": "CALCULATION_VERIFIED",
+      "columns": 55
+    }
+  ],
+  "ticker_read_plan": [
+    {
+      "QUERY PLAN": "[\n  {\n    \"Plan\": {\n      \"Node Type\": \"Sort\",\n      \"Parallel Aware\": false,\n      \"Async Capable\": false,\n      \"Startup Cost\": 6885.98,\n      \"Total Cost\": 6891.73,\n      \"Plan Rows\": 2301,\n      \"Plan Width\": 63,\n      \"Actual Startup Time\": 2.042,\n      \"Actual Total Time\": 2.111,\n      \"Actual Rows\": 2113.00,\n      \"Actual Loops\": 1,\n      \"Disabled\": false,\n      \"Sort Key\": [\"date\"],\n      \"Sort Method\": \"quicksort\",\n      \"Sort Space Used\": 279,\n      \"Sort Space Type\": \"Memory\",\n      \"Shared Hit Blocks\": 23,\n      \"Shared Read Blocks\": 47,\n      \"Shared Dirtied Blocks\": 0,\n      \"Shared Written Blocks\": 0,\n      \"Local Hit Blocks\": 0,\n      \"Local Read Blocks\": 0,\n      \"Local Dirtied Blocks\": 0,\n      \"Local Written Blocks\": 0,\n      \"Temp Read Blocks\": 0,\n      \"Temp Written Blocks\": 0,\n      \"Plans\": [\n        {\n          \"Node Type\": \"Bitmap Heap Scan\",\n          \"Parent Relationship\": \"Outer\",\n          \"Parallel Aware\": false,\n          \"Async Capable\": false,\n          \"Relation Name\": \"Price_Stock_Indonesia_IDX\",\n          \"Alias\": \"Price_Stock_Indonesia_IDX\",\n          \"Startup Cost\": 62.26,\n          \"Total Cost\": 6757.49,\n          \"Plan Rows\": 2301,\n          \"Plan Width\": 63,\n          \"Actual Startup Time\": 1.094,\n          \"Actual Total Time\": 1.747,\n          \"Actual Rows\": 2113.00,\n          \"Actual Loops\": 1,\n          \"Disabled\": false,\n          \"Recheck Cond\": \"((ticker)::text = 'BBCA'::text)\",\n          \"Rows Removed by Index Recheck\": 0,\n          \"Exact Heap Blocks\": 59,\n          \"Lossy Heap Blocks\": 0,\n          \"Shared Hit Blocks\": 23,\n          \"Shared Read Blocks\": 47,\n          \"Shared Dirtied Blocks\": 0,\n          \"Shared Written Blocks\": 0,\n          \"Local Hit Blocks\": 0,\n          \"Local Read Blocks\": 0,\n          \"Local Dirtied Blocks\": 0,\n          \"Local Written Blocks\": 0,\n          \"Temp Read Blocks\": 0,\n          \"Temp Written Blocks\": 0,\n          \"Plans\": [\n            {\n              \"Node Type\": \"Bitmap Index Scan\",\n              \"Parent Relationship\": \"Outer\",\n              \"Parallel Aware\": false,\n              \"Async Capable\": false,\n              \"Index Name\": \"Price_Stock_Indonesia_IDX_pkey\",\n              \"Startup Cost\": 0.00,\n              \"Total Cost\": 61.69,\n              \"Plan Rows\": 2301,\n              \"Plan Width\": 0,\n              \"Actual Startup Time\": 0.107,\n              \"Actual Total Time\": 0.108,\n              \"Actual Rows\": 2113.00,\n              \"Actual Loops\": 1,\n              \"Disabled\": false,\n              \"Index Cond\": \"((ticker)::text = 'BBCA'::text)\",\n              \"Index Searches\": 1,\n              \"Shared Hit Blocks\": 0,\n              \"Shared Read Blocks\": 11,\n              \"Shared Dirtied Blocks\": 0,\n              \"Shared Written Blocks\": 0,\n              \"Local Hit Blocks\": 0,\n              \"Local Read Blocks\": 0,\n              \"Local Dirtied Blocks\": 0,\n              \"Local Written Blocks\": 0,\n              \"Temp Read Blocks\": 0,\n              \"Temp Written Blocks\": 0\n            }\n          ]\n        }\n      ]\n    },\n    \"Planning\": {\n      \"Shared Hit Blocks\": 0,\n      \"Shared Read Blocks\": 0,\n      \"Shared Dirtied Blocks\": 0,\n      \"Shared Written Blocks\": 0,\n      \"Local Hit Blocks\": 0,\n      \"Local Read Blocks\": 0,\n      \"Local Dirtied Blocks\": 0,\n      \"Local Written Blocks\": 0,\n      \"Temp Read Blocks\": 0,\n      \"Temp Written Blocks\": 0\n    },\n    \"Planning Time\": 0.113,\n    \"Triggers\": [\n    ],\n    \"Execution Time\": 2.198\n  }\n]"
+    }
+  ],
+  "latest_null_counts": [
+    {
+      "ticker_rows": 844,
+      "missing_feature_rows": 0,
+      "sma_20": 0,
+      "sma_50": 0,
+      "ema_12": 0,
+      "ema_26": 0,
+      "rsi_14": 0,
+      "macd": 0,
+      "macd_signal": 0,
+      "macd_histogram": 0,
+      "atr_14": 0,
+      "bb_upper_20": 0,
+      "bb_middle_20": 0,
+      "bb_lower_20": 0,
+      "cdl_piercing": 0,
+      "cdl_morning_star": 0,
+      "cdl_morning_doji_star": 0,
+      "cdl_engulfing": 0,
+      "cdl_3_white_soldiers": 0,
+      "cdl_hammer": 0,
+      "cdl_inverted_hammer": 0,
+      "cdl_3_inside": 0,
+      "cdl_3_outside": 0,
+      "cdl_harami": 0,
+      "cdl_harami_cross": 0,
+      "cdl_dark_cloud_cover": 0,
+      "cdl_evening_star": 0,
+      "cdl_evening_doji_star": 0,
+      "cdl_3_black_crows": 0,
+      "cdl_shooting_star": 0,
+      "cdl_hanging_man": 0,
+      "cdl_doji": 0,
+      "cdl_dragonfly_doji": 0,
+      "cdl_gravestone_doji": 0,
+      "cdl_marubozu": 0,
+      "cdl_kicking": 0,
+      "cdl_rise_fall_3_methods": 0,
+      "cdl_mat_hold": 0,
+      "cdl_hikkake": 0,
+      "adx_14": 0,
+      "ema_50": 0,
+      "ema_200": 11,
+      "inside_bar": 0,
+      "smi": 0,
+      "tracking_high": 0,
+      "tracking_low": 0,
+      "temp_high": 771,
+      "temp_high_bar": 771,
+      "temp_low": 490,
+      "temp_low_bar": 490,
+      "last_swing_high": 5,
+      "break_swing_high": 0
+    }
+  ],
+  "latest_ema200_unavailable": [
+    {
+      "ticker": "BACH",
+      "trade_date": "2026-10-09T00:00:00Z",
+      "ema_200": null,
+      "source_bars": 64
+    },
+    {
+      "ticker": "BSWD",
+      "trade_date": "2026-10-02T00:00:00Z",
+      "ema_200": null,
+      "source_bars": 180
+    },
+    {
+      "ticker": "EMMI",
+      "trade_date": "2026-10-09T00:00:00Z",
+      "ema_200": null,
+      "source_bars": 64
+    },
+    {
+      "ticker": "JECX",
+      "trade_date": "2026-10-09T00:00:00Z",
+      "ema_200": null,
+      "source_bars": 65
+    },
+    {
+      "ticker": "JELI",
+      "trade_date": "2026-10-09T00:00:00Z",
+      "ema_200": null,
+      "source_bars": 65
+    },
+    {
+      "ticker": "PRDL",
+      "trade_date": "2026-10-09T00:00:00Z",
+      "ema_200": null,
+      "source_bars": 63
+    },
+    {
+      "ticker": "RANS",
+      "trade_date": "2026-10-09T00:00:00Z",
+      "ema_200": null,
+      "source_bars": 62
+    },
+    {
+      "ticker": "RLCO",
+      "trade_date": "2026-10-09T00:00:00Z",
+      "ema_200": null,
+      "source_bars": 187
+    },
+    {
+      "ticker": "SUPA",
+      "trade_date": "2026-10-09T00:00:00Z",
+      "ema_200": null,
+      "source_bars": 189
+    },
+    {
+      "ticker": "WBSA",
+      "trade_date": "2026-10-09T00:00:00Z",
+      "ema_200": null,
+      "source_bars": 113
+    },
+    {
+      "ticker": "XSPI",
+      "trade_date": "2026-10-06T00:00:00Z",
+      "ema_200": null,
+      "source_bars": 80
+    }
+  ]
+}

@@ -29,7 +29,7 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 | 10 | G2-B, S20, minimal 4 hipotesis, analisis faktor | 2026-10-02 (`G2_G3_REACTIVATION_PLAN.md` langkah 8, FINAL) | Belum; 4 keputusan rinci masih terbuka | 10 |
 | 11 | P9 kamus nilai dan alat "cari nilai" | Keputusan desain user 2026-10-01 | Belum; perlu cek ulang cakupan | 11 |
 | 12 | Prosedur tabel baru (FX, indeks, makro) | 2026-10-01 "record now, run later" | Menunggu pemicu: tabel baru | Saat ada tabel baru |
-| 13 | Feature04 otomatis setelah update harga; Telegram price lebih dulu, hasil indikator sesudah selesai | 2026-10-11 (desain secara umum) | Menunggu perintah eksekusi; filter eligibility bila ada | Setelah go user |
+| 13 | Feature04 otomatis setelah update harga, retry ticker/indikator gagal lewat Telegram | 2026-10-11 (desain umum dan permintaan implementation plan) | Implementation plan disusun; menunggu go eksekusi | Setelah go user |
 
 Eksekusi yang sudah disetujui (dulu butir 1–7 dan 1b–1k) ada di `EXEC.md`.
 
@@ -159,6 +159,11 @@ Urutan notifikasi dicatat di bawah. Ini persetujuan rencana; belum ada perintah 
 dengan `transaction_read_only=on`, pembacaan kode, dan Railway describe; tidak menjalankan price job atau mengirim Telegram.
 Bukti: `verification/feature04/automation_design_inspection.json` dan `automation_design_railway.json` dalam direktori yang sama.
 
+**Tambahan scope, 2026-10-11:** user: "buat opsi di telegram, untuk re calculate hanya untuk yang gagal, baik ticker level /
+column indicstor level. then inspect database, buat implementation plan. ada yg ambigu?".
+Implementation plan di bawah mencakup otomatisasi dan menu retry. Permintaan ini diperlakukan sebagai penyusunan rencana;
+kode runtime, migration, service dan pengiriman Telegram belum diubah.
+
 ### Kondisi yang diverifikasi
 
 - Railway `lucid-patience` / `dev`, database utama `Postgres`; service price, Feature01 dan Telegram memakai `rednightt33/saniti@main`.
@@ -234,8 +239,11 @@ Jika output belum current atau versi kalkulasi berbeda, re-ingestion identik tet
 6. Upsert suffix dari `dirty_from_date` sampai tanggal terbaru, reconcile key yang hilang/berubah, validasi seluruh payload
    yang ditulis, lalu commit output + completion generation + attempt SUCCESS bersama. Payload identik mempertahankan
    `calculated_at`. NULL yang sah bukan failed calculation. Source hash memakai input rumus, bukan ingestion metadata.
-   Snapshot lama atau exception tidak boleh menulis sebagian output maupun menandai DONE.
-7. Freshness dinilai dari `completed_generation=requested_generation` dan versi engine yang sesuai, bukan tanggal maksimum saja.
+   Snapshot lama atau error fatal membatalkan transaksi. Sesuai tambahan retry indikator, error per kelompok formula dapat
+   diisolasi: hanya kelompok yang selesai dan tervalidasi boleh commit, bersama status/audit per kolom; kelompok gagal tidak
+   menulis output. Ticker dengan kelompok gagal tetap PARTIAL/FAILED, tidak DONE. Detail freshness parsial ada di implementation plan.
+7. Freshness dinilai dari generation dan versi engine yang sesuai untuk **seluruh 50 kolom fitur**, bukan tanggal maksimum saja.
+   `completed_generation=requested_generation` pada ticker hanya valid setelah semua kolom mencapai SUCCESS, termasuk NULL sah.
    Formula tetap v3, 55 kolom yang ada, termasuk `break_swing_high` INTEGER 1/0 pada bar valid.
 
 ### Batch monitoring dan Telegram
@@ -252,15 +260,17 @@ execution lama. Run final ketika semua member mencapai hasil terminal: SUCCESS, 
 pisahkan status kalkulasi dari status PARTIAL/NEEDS_REVIEW price run. Bedakan validasi output berhasil dari freshness current.
 Batch yang macet melewati 30 menit mendapat satu alert keterlambatan; hasil akhir nanti tetap dikirim.
 
-Usulan lima tabel baru (semua nama belum dibuat):
+Usulan tujuh tabel baru setelah tambahan retry kolom (semua nama belum dibuat):
 
 | Objek | Grain / fungsi |
 |---|---|
 | `Feature04_Calculation_Queue` | Satu row per ticker/timeframe; work coalescing dan status freshness. |
-| `Feature04_Calculation_Log` | Satu completed attempt; SUCCESS/FAILED/SUPERSEDED, generation, source/output hash, durasi dan changed rows. |
+| `Feature04_Calculation_Log` | Satu completed attempt; SUCCESS/PARTIAL/FAILED/SUPERSEDED, generation, scope kolom, outcomes per kelompok, source/output hash, durasi dan changed rows. |
 | `Monitoring_Feature04` | Satu run per source execution; price scope, updated/missing, calculation scope, counts, status dan waktu. |
-| `Monitoring_Feature04_Ticker` | Satu ticker/timeframe per run; required generation, outcome dan error. |
+| `Monitoring_Feature04_Ticker` | Satu ticker/timeframe per run; required generation, requested columns, outcome dan error. |
 | `Feature04_Notification_Outbox` | Satu event per run/type, atau ADHOC ticker/generation/error; payload reference, lease, next retry dan delivery state. |
+| `Feature04_Column_Status` | Satu ticker/timeframe/feature column; source generation, calculation version, readiness/error dan legitimate NULL evidence. |
+| `Feature04_Retry_Request` | Satu owner request/preview token; selected failure scope, parent run, dedup identity, lifecycle dan child retry run. |
 
 Commit run terminal + outbox event atomik; dispatcher dalam worker mengirim hanya referensi run/event ke notifier.
 Perlu memperluas allowlist/formatter `telegram-monitor` karena sekarang hanya menerima `Monitoring_Price_ALL`.
@@ -310,3 +320,159 @@ duplikasi. Tidak menjanjikan exactly-once delivery ke API Telegram.
 
 Desain secara umum dicatat disetujui; urutan price Telegram SENT kemudian hasil Feature04 ditetapkan.
 Detail terbuka: filter eligibility bila berbeda dari default. Implementasi/deployment menunggu perintah eksekusi user.
+
+### Implementation plan: otomatisasi + retry gagal di Telegram (draft, 2026-10-11)
+
+#### Hasil inspeksi tambahan, read-only
+
+Bukti baru: `verification/feature04/retry_design_inspection.json` dan `retry_design_railway.json`.
+
+- Feature04: 55 kolom fisik = 3 identity + 50 feature outputs + 2 metadata. Seluruh 1.318.633 baris / 844 ticker memakai v3;
+  v3 backfill log mempunyai 844 COMPLETED, tidak mempunyai FAILED. Ini keberhasilan backfill yang tercatat, bukan bukti bahwa
+  setiap kolom sudah mempunyai status operasional individual; status tersebut belum ada.
+- Ketujuh objek kontrol Feature04 usulan belum ada. Engine `calculate()` monolitik: error satu call dapat menghentikan ticker.
+  Log lama bergrain run/ticker, bukan column; tidak bisa menyimpulkan kegagalan kolom dari NULL.
+- Latest bar per ticker: tidak ada missing Feature row. EMA200 NULL pada 11 ticker dengan 62–189 bar (<200).
+  SMI latest tersedia untuk semua ticker; 1.048 historical NULL adalah leading zero-range yang sebelumnya divalidasi.
+  Latest `temp_high` NULL 771 ticker, `temp_low` NULL 490, `last_swing_high` NULL 5; ketidaktersediaan state ini mengikuti
+  formula, bukan daftar retry. Pola candlestick nol dan breakout nol juga hasil sah.
+- `Telegram_Command_Log` baru menyimpan RUN_PRICE/RUN_RECOVERY; satu FAILED RUN_RECOVERY lama adalah kegagalan command
+  Railway, **bukan** kegagalan Feature04. Bot menu sekarang hanya dua price controls. Retry Feature04 tidak boleh menjalankan keduanya.
+- PK target `(ticker,trade_date,timeframe)` dan source `(ticker,date)` sudah mendukung akses ticker. Read BBCA 2.113 observasi
+  memakai bitmap scan PK + in-memory sort, execution 2,198 ms pada pemeriksaan ini; tidak perlu index harga spekulatif.
+  Index kontrol baru tetap perlu EXPLAIN setelah fixture/rehearsal, sebelum deploy.
+
+#### Definisi gagal, scope dan perilaku menu
+
+Default yang diajukan ke user: retry hanya error kalkulasi/validasi yang terstruktur, termasuk NULL yang terbukti
+unexpected berdasarkan aturan availability. NULL warmup, zero-range SMI, inactive tracking dan pre-confirmation swing
+bukan failure. SOURCE_INVALID ditampilkan "Perlu perbaikan data harga"; tombol recalculation tidak akan memperbaiki source.
+Pertanyaan klasifikasi failure sudah diajukan; jawabannya dicatat bila user memberi pilihan berbeda.
+
+Menu `/feature4`, label untuk pengguna:
+
+```text
+Feature 4
+  [Lihat status]
+  [Ulang ticker gagal]
+  [Ulang indikator gagal]
+
+Ulang ticker gagal
+  Pilih batch bermasalah (default batch terbaru yang masih punya failure aktif)
+  Pilih [Semua ticker gagal di batch ini] atau satu ticker
+  Ringkasan pilihan -> [Jalankan] [Batal]
+
+Ulang indikator gagal
+  Pilih batch -> ticker -> hanya indikator yang statusnya gagal
+  Pilih [Semua indikator gagal] atau satu indikator/kelompok terkait
+  Ringkasan pilihan, termasuk indikator terkait yang harus ikut -> [Jalankan] [Batal]
+```
+
+- Daftar paginated; tampilkan hanya failure yang masih berlaku, bukan kegagalan lama yang sudah pulih. Batch/ticker boleh
+  dipilih; tidak otomatis mencakup seluruh sejarah atau seluruh market. Retry ticker menghitung seluruh feature untuk
+  ticker yang dipilih; ticker sukses lain tidak disentuh. Retry indikator memperbarui hanya scope kolom gagal + dependency closure.
+- Preview dibuat read-only dengan token opaque server-side, TTL 15 menit, terikat owner Chat ID, batch, ticker,
+  error attempt, source generation dan versi. Telegram callback membawa ID/action pendek (<64 bytes), bukan nama SQL.
+  `Jalankan` transaksi atomik: dedup telegram_update_id/request token, cek failure/generation saat ini, lalu enqueue dan audit.
+  Duplicate click mengembalikan request yang sama; request aktif dengan scope yang sama tidak membuka job ganda.
+- Jika sudah pulih: "Sudah selesai, tidak perlu diulang". Jika source/failed scope berubah sejak preview: tunjukkan status
+  terbaru dan minta pilih ulang; jangan diam-diam memperluas scope. Bila tidak ada failure: "Tidak ada kalkulasi gagal".
+  PENDING/PROCESSING tidak dianggap failure; expired lease dipulihkan worker, bukan double claim dari tombol.
+- Auto retry lima attempt/generation tetap berjalan. Manual retry yang valid membuka retry cycle baru dengan cap lima
+  attempt, menjaga lifetime attempt monotonik dan audit lama. Cooldown/dedup berdasarkan scope, bukan global price-service
+  cooldown yang akan memblokir perbaikan ticker berbeda. SOURCE_INVALID/BLOCKED_DEPENDENCY menyatakan akar masalahnya.
+- Telegram-trigger hanya enqueue melalui routine EXECUTE dengan izin terbatas; tidak menulis Feature values, menjalankan
+  arbitrary SQL, atau memanggil TradingView/Railway Run Now untuk retry Feature04. Semua handler tetap memeriksa webhook
+  secret dan owner Chat ID. Existing command log dapat memakai TRIGGERED sebagai "request accepted/enqueued" dengan
+  request ID di kolom reference baru; `railway_reference` tetap khusus price command.
+
+#### Dependency dan per-column freshness
+
+| Pilihan gagal | Scope kalkulasi/penulisan yang konsisten |
+|---|---|
+| ADX14, RSI14, ATR14, SMA20/50, EMA50/200, inside bar | Formula mandiri; full-history replay untuk warmup/state, write kolom terpilih. |
+| EMA12 atau EMA26 | EMA terpilih serta downstream MACD, MACD signal, MACD histogram. EMA upstream lain dibaca/dihitung sebagai dependency, ditulis hanya bila juga gagal/stale. |
+| MACD/MACD signal/MACD histogram | Kelompok tiga MACD; EMA12/26 dihitung sebagai upstream, tidak overwrite yang current. |
+| Salah satu Bollinger band | Ketiga band dalam satu kelompok; SMA20 dihitung/dites sebagai dependency dan identitas middle-band. |
+| SMI atau salah satu state/break swing | Sembilan kolom SMI/swing dalam satu replay causal. Tidak memperbarui SMI saja sambil meninggalkan state lama. |
+| Satu pola candlestick | Hanya pola tersebut dengan candle settings/lookback asli; pola lain tidak diubah. |
+
+Hitung dependency upstream dari source; jangan memakai nilai target lama sebagai seed. Closure juga menyertakan dependents
+yang menjadi stale bila upstream berubah; tampilkan closure sebelum enqueue. Shared formula calls menghasilkan coherent
+multi-column bundle. Kolom identity/metadata tidak boleh dipilih sebagai indikator; allowlist 50 outputs dari engine.
+Provider/symbol mapping juga divalidasi; perubahan yang memengaruhi source contract harus invalidate pekerjaan, walaupun OHLCV sama.
+
+`Feature04_Column_Status` mempunyai PK `(ticker,timeframe,feature_column)` (sekitar 42.200 row untuk 844 ticker),
+bukan 66 juta row per candle/column. Simpan requested/completed generation, source-input fingerprint,
+version, dirty_from/validated-through, status PENDING/PROCESSING/SUCCESS/FAILED/BLOCKED, error code/message,
+last attempt/retry cycle dan latest availability + expected NULL counts/reasons. Attempt log menyimpan outcome/range
+per kelompok/column sebagai structured JSON. SUCCESS berarti validated output current, termasuk expected NULL.
+Actual unexpected NULL/mismatch/nonfinite post-availability = VALIDATION_FAILED; unavailable upstream = dependency failure
+yang menunjuk root, bukan 50 error independen. Library/source/DB fatal failure dicatat di ticker attempt, kolom BLOCKED.
+Validator memakai aturan per-segmen valid, native pattern codes dan toleransi float; tidak menganggap kode 80/200 atau
+SMI floating overshoot kecil sebagai error. Definisi formula tetap v3.
+
+Untuk generation sama dan versi sama, hasil kelompok sukses boleh commit walaupun kelompok lain gagal; kelompok gagal
+tidak ditimpa, statusnya FAILED/stale. Retry indikator menulis hanya selected closure dari dirty date sampai latest.
+Field target lama pada kelompok gagal bukan current: **status kolom wajib dipakai untuk readiness**; existing row-level
+`calculation_version`/`calculated_at` tidak membuktikan semua kolom fresh. Ticker SUCCESS hanya jika seluruh 50 kolom SUCCESS
+pada generation/version yang diperlukan; NULL sah tidak menghalangi sukses. Ini revisi kontrak atomisitas awal per-ticker:
+set write terpilih + status/log commit atomik, masing-masing dependency bundle lengkap, bukan partially written bundle.
+Formula-version upgrade tetap wajib full-ticker atomic recalculation; column retry tidak membuat mixed formula versions.
+Generation berubah saat retry: hasil dibuang SUPERSEDED; queue otomatis full refresh menangani source terbaru,
+request lama tidak boleh melaporkan seleksi kolom lama sebagai pemulihan source baru. Retry source unchanged tidak perlu
+menambah source generation, tetapi memakai work/request revision terpisah agar gagal lama tidak menutup attempt baru.
+
+Queue per ticker menambahkan requested column mask, work revision dan retry-cycle reference; claim memotret ketiganya.
+Perubahan source selalu membuka scope ALL, sehingga prioritasnya mengalahkan retry parsial source lama. Scope dua request
+boleh digabung hanya jika generation/version sama dan masing-masing membership tetap mencatat pilihan asli.
+Trigger price cukup menaikkan ticker generation; tidak perlu memperbarui 50 status rows per candle dalam transaksi harga.
+Readiness/failure views membandingkan completed column generation terhadap requested ticker generation; failure dari source
+lama tidak ditampilkan sebagai failure aktif source baru. Worker membuat status PENDING untuk scope yang sedang diproses.
+Reset retry budget manual berlaku untuk request/kelompok yang dipilih, tidak untuk indikator gagal lain yang tidak dipilih.
+
+#### Monitoring retry dan urutan Telegram
+
+Retry menjadi child run bertipe `RETRY_TICKER` atau `RETRY_COLUMN`, menaut ke parent price/Feature04 run.
+Parent summary historis tidak ditimpa; error attempt lama tetap ada, current status dan child recovery diperbarui.
+Pesan awal: "Permintaan ulang diterima" dengan jumlah ticker/indikator dan scope terkait. Pesan akhir memakai child run ID
+untuk dedup; laporkan selected scope yang pulih, yang masih gagal dan status keseluruhan ticker/batch.
+Contoh: "ADX BBCA berhasil dihitung ulang; ticker masih PARTIAL karena SMI belum pulih" tidak boleh menjadi
+"Feature04 fully calculated". Request selesai berbeda dari ticker semuanya current.
+Auto batch dan child run tetap menunggu parent price Telegram SENT dengan message ID sebelum pesan hasil Feature04.
+Acknowledgement command boleh langsung. ADHOC/rekonsiliasi tanpa price run memakai event origin sendiri, tidak menunggu
+price execution yang tidak ada. Telegram failure tidak membuka ulang kalkulasi yang sudah sukses; outbox hanya retry delivery.
+
+#### Fase implementasi dan kriteria selesai
+
+| Fase | Perubahan konkret | Validasi / exit gate |
+|---|---|---|
+| 1. Kontrak & engine diagnostics | Registry dependency/50 columns + group result/error/availability di `features/feature04`; refactor memakai rumus/seed yang sama, strict `calculate()` tetap kompatibel. | Existing engine tests + exact equal outputs old/new pada fixtures dan source snapshot BBCA/GOTO serta ticker history pendek/flat; fault injection ADX dan SMI menunjukkan isolasi error/closure. |
+| 2. Database control | Forward migration baru untuk tujuh tabel, routines enqueue/claim/retry/status, column/request revisions, price trigger dan permission roles; katalog seluruh tabel/kolom/routines. Forward alter `Telegram_Command_Log` tambah nullable `feature04_request_id`, tanpa mengubah histori price command. | Rollback DDL rehearsal, constraint/grant checks, source+enqueue atomic rollback, request dedup dan generation race; measured queue/failure/lease query plans. |
+| 3. Worker | `apps/feature-04-worker`: serial ticker, full causal replay, selective bundle writes, per-column status, retry/backoff/leases, source and work revision checks, startup reconciliation dan notification outbox. | Commit/readback closure sesuai source; unrelated fields/tickers/timestamps unchanged; fatal DB exception rollback; duplicate/restart/superseded claims; 5.000-row guard. |
+| 4. Price/monitor integration | Transaction-local execution ID, batch membership/sealing di `apps/idx-price-cron/price_update.py`; allowlist/format/status acknowledgement dan inline Feature04 menu di `apps/telegram-monitor`. | Partial/empty price batch, strict price-message SENT gate, restart between commit/POST, delivery 202/SENDING/FAILED, suppressed-message gate; mock Telegram, tanpa live send. |
+| 5. Telegram control | `/feature4` + paginated failure views, token preview, run/cancel, atomic request enqueue/audit di `apps/telegram-trigger`; fungsi DB allowlisted, tidak lewat Railway Run Now. | Owner/webhook checks, forged/expired callback, stale selection, repeat Telegram update/click, no-failure no-op, per-scope cooldown; successful scopes excluded. |
+| 6. Canary BBCA | Deploy satu worker dengan allowlist sementara BBCA dan per-column bootstrap dari source terbaru; test ticker retry dan ADX/SMI column retry via controlled fixtures/rollback rehearsal. | Readback semua 50 outputs, force group failure yang tidak merusak source, retry selected closure only; existing Feature01/price unaffected; live owner Telegram test hanya setelah tahap eksekusi diotorisasi. |
+| 7. Semua eligible & docs | Lepas canary setelah pass; durable queue capture sebelum activation, baseline verify 844 ticker, reconcile drift. Catat service/watch paths/IaC dan version/readiness contract. | Semua queue/column statuses benar, 844 source coverage tepat tanpa menyamakan max date dengan freshness; error output tak dianggap current; operational monitoring+retry delivery diverifikasi, tepat deployment SUCCESS. |
+
+File baru/utama yang direncanakan: worker Dockerfile/requirements/README/tests; shared Feature04 dependency/diagnostic
+modules + tests; forward SQL migration (nomor ditentukan dari main saat implementasi, semua applied migrations immutable);
+price/telegram handler dan tests; `.railway/railway.ts`; `FEATURE04_TECHNICAL_INDICATOR.md`, `FEATURE04_COLUMN_DEFINITIONS.md`,
+`DATABASE_SCHEMA.md`, `DATABASE_CATALOG.md`, `DATABASE_CHANGELOG.md`, `RAILWAY_CHANGELOG.md`, `PROJECT_CONTEXT.md`, error ledger
+dan verification evidence. AI allowlist/provider tidak masuk scope. Build harus membawa shared engine dan watch path-nya.
+
+Acceptance khusus retry: (a) ticker A gagal, ticker B sukses tidak ikut recalculated; (b) ADX gagal hanya ADX ditulis,
+(c) SMI gagal kesembilan state columns coherent, (d) EMA12 pulih dan MACD downstream ikut valid, (e) untouched columns
+preserve value/calculated_at jika row payload tidak berubah, (f) valid NULL tidak menjadi infinite retry,
+(g) unexpected NULL yang dibuktikan masuk failure, (h) same-generation manual retry membedakan cycle dari source version,
+(i) new price ketika retry berlangsung tidak kehilangan refresh, (j) run selesai dengan selected indicators pulih tidak
+mengklaim ticker seluruhnya sukses, (k) parent price notification mendahului Feature04 result, (l) DB/Telegram outage
+tidak mengulang TradingView atau menghapus failure history.
+
+Rollback: pause worker/retry enqueue endpoint, pertahankan durable price queue capture dan semua audit; restore deployment
+handler bila perlu. Jangan menghapus status ketika output sebagian belum current. Replay pending setelah perbaikan;
+monitor memberi status belum selesai sampai semua dependencies valid. Migrasi tidak dibatalkan dengan menghapus tabel/data.
+
+Ambiguitas yang material: definisi "gagal" vs NULL sah (pertanyaan diajukan), scope dependency terkait untuk column retry,
+dan pilihan batch/ticker (menu menyediakan pilihan, default latest unresolved). Rekomendasi adalah error nyata saja,
+closure dependency wajib dan per-column readiness. Implementation plan ini siap direview; belum ada perintah go eksekusi.

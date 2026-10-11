@@ -1,0 +1,130 @@
+{
+  "project": {
+    "id": "8aef1702-030b-49cb-9df7-5ac2e0a42691",
+    "name": "lucid-patience",
+    "workspaceName": "rednightt33's Projects"
+  },
+  "environment": {
+    "id": "4d3e5af2-302b-4a2e-84e2-7d7476d6ff49",
+    "name": "dev",
+    "isEphemeral": false
+  },
+  "staged": null,
+  "services": [
+    {
+      "id": "43c86c6f-3221-4403-83c3-cd3056441558",
+      "name": "idx-price-cron",
+      "state": "live",
+      "source": {
+        "image": null,
+        "repo": "rednightt33/saniti",
+        "branch": "main"
+      },
+      "regions": [
+        "sfo"
+      ],
+      "numReplicas": 1,
+      "cronSchedule": "0 10 * * *",
+      "volumeMounts": [],
+      "latestDeployment": {
+        "id": "ae37f76e-caa2-4397-b93d-c5e588d95fe4",
+        "status": "SUCCESS",
+        "createdAt": "2026-09-12T17:47:22.699Z",
+        "url": null
+      },
+      "stagedChangeCount": 0
+    },
+    {
+      "id": "5a3f820c-2bb2-494b-b771-15fa6a5eb48a",
+      "name": "telegram-trigger",
+      "state": "live",
+      "source": {
+        "image": null,
+        "repo": "rednightt33/saniti",
+        "branch": "main"
+      },
+      "regions": [
+        "sfo"
+      ],
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "volumeMounts": [],
+      "latestDeployment": {
+        "id": "f5bf0056-460f-437f-b2bd-4d0a8334e73d",
+        "status": "SLEEPING",
+        "createdAt": "2026-09-09T15:02:55.356Z",
+        "url": null
+      },
+      "stagedChangeCount": 0
+    },
+    {
+      "id": "a8e6e32a-fcd8-4c33-9ecc-1488a4b2db05",
+      "name": "idx-price-recovery-cron",
+      "state": "live",
+      "source": {
+        "image": null,
+        "repo": "rednightt33/saniti",
+        "branch": "main"
+      },
+      "regions": [
+        "sfo"
+      ],
+      "numReplicas": 1,
+      "cronSchedule": "0 23 * * *",
+      "volumeMounts": [],
+      "latestDeployment": {
+        "id": "08c05d86-fc2b-44d1-9a9a-d4e2ea7fb74e",
+        "status": "SUCCESS",
+        "createdAt": "2026-09-12T17:47:22.699Z",
+        "url": null
+      },
+      "stagedChangeCount": 0
+    },
+    {
+      "id": "a6b4e061-721f-4173-82f8-07ccb45740fc",
+      "name": "telegram-monitor",
+      "state": "live",
+      "source": {
+        "image": null,
+        "repo": "rednightt33/saniti",
+        "branch": "main"
+      },
+      "regions": [
+        "sfo"
+      ],
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "volumeMounts": [],
+      "latestDeployment": {
+        "id": "9c25be22-9fba-48fc-81a3-1a1b555dd59d",
+        "status": "SLEEPING",
+        "createdAt": "2026-09-09T15:00:43.981Z",
+        "url": null
+      },
+      "stagedChangeCount": 0
+    },
+    {
+      "id": "de4e34ee-435b-408f-a77f-63e6698a2dab",
+      "name": "feature-01-worker",
+      "state": "live",
+      "source": {
+        "image": null,
+        "repo": "rednightt33/saniti",
+        "branch": "main"
+      },
+      "regions": [
+        "sfo"
+      ],
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "volumeMounts": [],
+      "latestDeployment": {
+        "id": "5465b07b-5919-4dc1-a513-871ba7ca4ad2",
+        "status": "SUCCESS",
+        "createdAt": "2026-09-13T04:34:24.359Z",
+        "url": null
+      },
+      "stagedChangeCount": 0
+    }
+  ]
+}
