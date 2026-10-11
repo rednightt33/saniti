@@ -37,6 +37,7 @@ PRICE_TIMEFRAME = "Daily"
 PRICE_TABLE = 'public."Price_Stock_Indonesia_IDX"'
 UNIVERSE_TABLE = 'public."IDX_Stock_Universe"'
 MONITORING_TABLE = 'public."Monitoring_Price_ALL"'
+FEATURE04_MONITORING_TABLE = 'public."Monitoring_Feature04"'
 PRINT_LOCK = threading.Lock()
 RUN_LOCK_KEY = "saniti.idx-price-cron"
 RECOVERY_WINDOW_START_MINUTE = 5 * 60 + 45
@@ -573,6 +574,53 @@ def bulk_upsert_prices(
     return verified
 
 
+def prepare_feature04_monitoring(
+    connection: psycopg.Connection,
+    records: list[dict],
+    execution_id: str,
+) -> None:
+    """Open the Feature04 run and bind price triggers to it in this transaction."""
+    first = records[0]
+    feature_execution_id = f"f04-{execution_id}"
+    connection.execute(
+        f"""
+        INSERT INTO {FEATURE04_MONITORING_TABLE}(
+          execution_id,source_execution_id,run_type,trigger_source,update_for_date,
+          price_notification_required,eligible_tickers,status,started_at,updated_at)
+        VALUES(%s,%s,%s,%s,%s,true,0,'OPEN',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+        ON CONFLICT(execution_id) DO NOTHING
+        """,
+        (
+            feature_execution_id, execution_id, first["run_type"], first["trigger_source"],
+            first["update_for_date"],
+        ),
+    )
+    connection.execute(
+        "SELECT set_config('saniti.feature04_execution_id',%s,true)",
+        (feature_execution_id,),
+    )
+
+
+def seal_feature04_monitoring(connection: psycopg.Connection, execution_id: str) -> None:
+    feature_execution_id = f"f04-{execution_id}"
+    connection.execute(
+        f"""
+        UPDATE {FEATURE04_MONITORING_TABLE} AS monitor SET
+          eligible_tickers=members.total,
+          status=CASE WHEN members.total=0 THEN 'SKIPPED' ELSE 'READY' END,
+          sealed_at=CURRENT_TIMESTAMP,
+          finished_at=CASE WHEN members.total=0 THEN CURRENT_TIMESTAMP ELSE NULL END,
+          updated_at=CURRENT_TIMESTAMP
+        FROM (
+          SELECT count(*)::int AS total
+          FROM public."Monitoring_Feature04_Ticker" WHERE execution_id=%s
+        ) members
+        WHERE monitor.execution_id=%s
+        """,
+        (feature_execution_id, feature_execution_id),
+    )
+
+
 def write_monitoring_rows(
     connection: psycopg.Connection,
     records: list[dict],
@@ -1018,7 +1066,9 @@ def main() -> int:
             return 0
 
         try:
+            prepare_feature04_monitoring(connection, records, execution_id)
             verified = bulk_upsert_prices(connection, rows, target_date)
+            seal_feature04_monitoring(connection, execution_id)
             commit_monitoring_and_notify(connection, records, execution_id)
         except Exception as exc:
             connection.rollback()

@@ -244,9 +244,34 @@ python features/feature04/backfill.py --all-source-tickers \
 ```
 
 Use --write only within an authorized execution. Default mode is read-only dry-run.
-No worker deployment, automatic trigger, schedule, new price request or model training
-is introduced. Full execution completed for 844 tickers and 1,318,633 observations, with zero missing/extra source keys.
+Full execution completed for 844 tickers and 1,318,633 observations, with zero missing/extra source keys.
 Evidence is in `verification/feature04/FULL_BACKFILL.md`.
+
+## Automatic calculation and failure-only retry
+
+Migration `20261011_005_automate_feature04.sql` adds a transactional price trigger,
+coalesced per-ticker queue, per-column readiness, immutable attempt log, execution/ticker
+monitoring, Telegram retry audit, and notification outbox. The existing scheduled price
+services remain the clock. The new always-on `feature-04-worker` has no cron and never
+queries TradingView.
+
+Every relevant committed price change increments the ticker's source generation and keeps
+the earliest dirty date. The worker replays the ticker's complete available history because
+recursive indicators and swing state can propagate an old correction through the latest
+bar. A generation/revision check immediately before UPSERT prevents a stale calculation
+from becoming current. One ticker failure is retried and reported independently while other
+tickers continue.
+
+Formula groups expose diagnostic outcomes. MACD, Bollinger, and the complete SMI/swing state
+are indivisible dependency bundles. A Telegram column retry therefore recalculates the
+dependency closure; full-ticker retry is used for script/worker failure. Retry controls only
+appear for `FAILED`/`BLOCKED` state. Expected NULLs remain `SUCCESS`; deterministic latest
+NULLs after their required history are recorded as failures.
+
+Price monitoring commits before its event is sent to `telegram-monitor`. Feature04 can
+calculate concurrently, but its outbox is deliverable only after the price notification is
+recorded sent. The second message is emitted after all eligible tickers are terminal.
+Delivery errors retry outside the calculation transaction.
 
 ## TradingView reference and current limitations
 

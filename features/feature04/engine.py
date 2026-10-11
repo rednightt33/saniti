@@ -46,6 +46,29 @@ FEATURE_COLUMNS = INDICATORS + tuple(PATTERNS) + ('inside_bar',) + SWING_COLUMNS
 # PostgreSQL appends new columns; retain the physical v1 order for old columns.
 V2_COLUMNS = V1_COLUMNS + EXTENSIONS
 COLUMNS = V2_COLUMNS + SWING_COLUMNS
+MACD_COLUMNS = ('macd', 'macd_signal', 'macd_histogram')
+BOLLINGER_COLUMNS = ('bb_upper_20', 'bb_middle_20', 'bb_lower_20')
+
+
+def dependency_closure(columns: Iterable[str] | None) -> tuple[str, ...]:
+    """Return the output bundle that must remain coherent for a retry.
+
+    ``None`` means a normal full-ticker refresh. Identity and metadata fields
+    are deliberately excluded from the selectable surface.
+    """
+    if columns is None:
+        return FEATURE_COLUMNS
+    requested = set(columns)
+    unknown = requested.difference(FEATURE_COLUMNS)
+    if unknown:
+        raise ValueError(f'Unknown Feature04 columns: {sorted(unknown)}')
+    if requested.intersection(MACD_COLUMNS) or requested.intersection({'ema_12', 'ema_26'}):
+        requested.update(MACD_COLUMNS)
+    if requested.intersection(BOLLINGER_COLUMNS):
+        requested.update(BOLLINGER_COLUMNS)
+    if requested.intersection(SWING_COLUMNS):
+        requested.update(SWING_COLUMNS)
+    return tuple(column for column in FEATURE_COLUMNS if column in requested)
 
 
 def library_contract() -> dict:
@@ -91,7 +114,13 @@ def _segments(valid):
             start = None
 
 
-def calculate(rows: Iterable[dict], *, calculated_at: datetime | None = None) -> list[dict]:
+def calculate_with_diagnostics(
+    rows: Iterable[dict],
+    *,
+    requested_columns: Iterable[str] | None = None,
+    calculated_at: datetime | None = None,
+    fail_groups: Iterable[str] = (),
+) -> tuple[list[dict], dict[str, dict]]:
     """Partition and sort daily observations, never fill missing dates.
 
     An invalid/missing OHLCV row is retained with NULL features and resets all
@@ -99,6 +128,9 @@ def calculate(rows: Iterable[dict], *, calculated_at: datetime | None = None) ->
     are unavailable, so become NULL. Genuine post-lookback zeroes stay INTEGER 0.
     """
     contract = library_contract()
+    selected = dependency_closure(requested_columns)
+    selected_set = set(selected)
+    injected_failures = set(fail_groups)
     stamp = calculated_at or datetime.now(timezone.utc)
     if stamp.tzinfo is None or stamp.utcoffset() is None:
         raise ValueError('calculated_at must be timezone-aware')
@@ -126,6 +158,24 @@ def calculate(rows: Iterable[dict], *, calculated_at: datetime | None = None) ->
         r['date'] = day
         groups[(ticker, r['timeframe'])].append(r)
     output = []
+    outcomes: dict[str, dict] = {}
+
+    def run_group(name: str, columns: tuple[str, ...], operation) -> None:
+        if not selected_set.intersection(columns):
+            return
+        if outcomes.get(name, {}).get('status') == 'FAILED':
+            return
+        try:
+            if name in injected_failures:
+                raise RuntimeError(f'injected failure for {name}')
+            operation()
+            outcomes[name] = {'status': 'SUCCESS', 'columns': list(columns)}
+        except Exception as exc:
+            outcomes[name] = {
+                'status': 'FAILED',
+                'columns': list(columns),
+                'error': f'{type(exc).__name__}: {exc}'[:1000],
+            }
     for (ticker, timeframe), series in sorted(groups.items()):
         series.sort(key=lambda r: r['date'])
         results = [dict.fromkeys(COLUMNS) for _ in series]
@@ -136,42 +186,67 @@ def calculate(rows: Iterable[dict], *, calculated_at: datetime | None = None) ->
             segment = series[start:end]
             o, h, l, c = [np.array([float(r[k]) for r in segment], dtype=np.float64)
                            for k in ('open', 'high', 'low', 'close')]
-            for j, state in enumerate(calculate_swing(h, l, c, bar_offset=start)):
-                results[start + j].update(state)
-            numeric = {
-                'sma_20': talib.SMA(c, timeperiod=20),
-                'sma_50': talib.SMA(c, timeperiod=50),
-                'ema_12': talib.EMA(c, timeperiod=12),
-                'ema_26': talib.EMA(c, timeperiod=26),
-                'ema_50': talib.EMA(c, timeperiod=50),
-                'ema_200': talib.EMA(c, timeperiod=200),
-                'adx_14': talib.ADX(h, l, c, timeperiod=14),
-                'rsi_14': talib.RSI(c, timeperiod=14),
-                'atr_14': talib.ATR(h, l, c, timeperiod=14),
-            }
-            macd = numeric['ema_12'] - numeric['ema_26']
-            signal = np.full(len(c), np.nan)
-            if len(c) >= 26:
-                signal[25:] = talib.EMA(macd[25:], timeperiod=9)
-            histogram = macd - signal
-            numeric.update(macd=macd, macd_signal=signal, macd_histogram=histogram)
-            upper, middle, lower = talib.BBANDS(c, timeperiod=20, nbdevup=2.0, nbdevdn=2.0, matype=0)
-            numeric.update(bb_upper_20=upper, bb_middle_20=middle, bb_lower_20=lower)
-            # Strict range containment labels this candle, using only its predecessor.
-            # Compare original numeric values rather than rounding prices to float64.
-            for j in range(1, len(segment)):
-                current, previous = segment[j], segment[j - 1]
-                high, low, previous_high, previous_low = [Decimal(str(v)) for v in
-                    (current['high'], current['low'], previous['high'], previous['low'])]
-                results[start + j]['inside_bar'] = int(high < previous_high and low > previous_low)
-            for column, array in numeric.items():
+            def assign_numeric(column, array):
                 for j, value in enumerate(array):
                     results[start + j][column] = float(value) if np.isfinite(value) else None
+
+            for column, function, arguments in (
+                ('sma_20', talib.SMA, (c,)), ('sma_50', talib.SMA, (c,)),
+                ('ema_12', talib.EMA, (c,)), ('ema_26', talib.EMA, (c,)),
+                ('ema_50', talib.EMA, (c,)), ('ema_200', talib.EMA, (c,)),
+                ('adx_14', talib.ADX, (h, l, c)), ('rsi_14', talib.RSI, (c,)),
+                ('atr_14', talib.ATR, (h, l, c)),
+            ):
+                period = int(column.rsplit('_', 1)[1])
+                run_group(column, (column,), lambda col=column, fn=function, args=arguments, p=period:
+                          assign_numeric(col, fn(*args, timeperiod=p)))
+
+            def calculate_macd_bundle():
+                ema12 = talib.EMA(c, timeperiod=12)
+                ema26 = talib.EMA(c, timeperiod=26)
+                macd = ema12 - ema26
+                signal = np.full(len(c), np.nan)
+                if len(c) >= 26:
+                    signal[25:] = talib.EMA(macd[25:], timeperiod=9)
+                for column, array in zip(MACD_COLUMNS, (macd, signal, macd - signal)):
+                    assign_numeric(column, array)
+            run_group('macd_bundle', MACD_COLUMNS, calculate_macd_bundle)
+
+            def calculate_bollinger_bundle():
+                arrays = talib.BBANDS(c, timeperiod=20, nbdevup=2.0, nbdevdn=2.0, matype=0)
+                for column, array in zip(BOLLINGER_COLUMNS, arrays):
+                    assign_numeric(column, array)
+            run_group('bollinger_bundle', BOLLINGER_COLUMNS, calculate_bollinger_bundle)
+
+            def calculate_inside_bar():
+                for j in range(1, len(segment)):
+                    current, previous = segment[j], segment[j - 1]
+                    high, low, previous_high, previous_low = [Decimal(str(v)) for v in
+                        (current['high'], current['low'], previous['high'], previous['low'])]
+                    results[start + j]['inside_bar'] = int(high < previous_high and low > previous_low)
+            run_group('inside_bar', ('inside_bar',), calculate_inside_bar)
+
+            def calculate_swing_bundle():
+                for j, state in enumerate(calculate_swing(h, l, c, bar_offset=start)):
+                    results[start + j].update(state)
+            run_group('smi_swing_bundle', SWING_COLUMNS, calculate_swing_bundle)
+
             for column, name in PATTERNS.items():
-                lookback = contract['patterns'][name]['lookback']
-                array = getattr(talib, name)(o, h, l, c, **contract['patterns'][name]['parameters'])
-                for j, value in enumerate(array):
-                    if j >= lookback:
-                        results[start + j][column] = int(value)
+                def calculate_pattern(col=column, fn_name=name):
+                    lookback = contract['patterns'][fn_name]['lookback']
+                    array = getattr(talib, fn_name)(o, h, l, c, **contract['patterns'][fn_name]['parameters'])
+                    for j, value in enumerate(array):
+                        if j >= lookback:
+                            results[start + j][col] = int(value)
+                run_group('pattern:' + column, (column,), calculate_pattern)
         output.extend(results)
+    return output, outcomes
+
+
+def calculate(rows: Iterable[dict], *, calculated_at: datetime | None = None) -> list[dict]:
+    """Calculate the complete v3 payload and fail atomically on any formula error."""
+    output, outcomes = calculate_with_diagnostics(rows, calculated_at=calculated_at)
+    failed = {name: value for name, value in outcomes.items() if value['status'] == 'FAILED'}
+    if failed:
+        raise RuntimeError(f'Feature04 calculation group failed: {failed}')
     return output

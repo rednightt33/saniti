@@ -9,6 +9,11 @@ commits its monitoring rows. It does not poll the database and has no cron
 schedule. The IDX DAILY and RECOVERY jobs call `POST /notify` with their shared
 `execution_id`; duplicate calls are suppressed by `Telegram_Notification_Log`.
 
+The same endpoint accepts `Monitoring_Feature04`. Feature04 messages report eligible,
+completed, failed, and blocked ticker counts plus failed ticker/column details. For an
+automatic price run, the price delivery sets `Monitoring_Feature04.price_notification_sent_at`;
+the Feature04 worker dispatches its durable outbox only after that gate is set.
+
 ## Required Railway variables
 
 - `DATABASE_URL`

@@ -100,8 +100,92 @@ def menu_markup() -> dict:
         "inline_keyboard": [
             [{"text": "▶️ Run IDX Price", "callback_data": "run_price"}],
             [{"text": "🛠 Run IDX Recovery", "callback_data": "run_recovery"}],
+            [{"text": "📊 Feature04 Status / Retry", "callback_data": "f04:status"}],
         ]
     }
+
+
+def extract_feature04_action(update: dict) -> tuple[int, str, str, str | None] | None:
+    try:
+        update_id = int(update["update_id"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    callback = update.get("callback_query")
+    if isinstance(callback, dict):
+        data = str(callback.get("data", ""))
+        chat = (callback.get("message") or {}).get("chat") or {}
+        if data.startswith("f04:") and chat.get("id") is not None:
+            return update_id, str(chat["id"]), data, str(callback.get("id", "")) or None
+    message = update.get("message")
+    if isinstance(message, dict):
+        chat = message.get("chat") or {}
+        text = str(message.get("text", "")).strip().split()[0].split("@", 1)[0].lower()
+        if text in {"/feature4", "/feature04"} and chat.get("id") is not None:
+            return update_id, str(chat["id"]), "f04:status", None
+    return None
+
+
+def feature04_failure_status(database_url: str) -> tuple[str, dict]:
+    with psycopg.connect(database_url) as connection:
+        rows = connection.execute(
+            """
+            SELECT q.ticker,q.status,
+                   coalesce(array_agg(s.feature_column ORDER BY s.feature_column)
+                     FILTER(WHERE s.status IN ('FAILED','BLOCKED')),'{}'::text[]) failed_columns
+            FROM public."Feature04_Calculation_Queue" q
+            LEFT JOIN public."Feature04_Column_Status" s
+              ON s.ticker=q.ticker AND s.timeframe=q.timeframe
+            WHERE q.timeframe='Daily' AND (q.status='FAILED' OR s.status IN ('FAILED','BLOCKED'))
+            GROUP BY q.ticker,q.status ORDER BY q.ticker
+            """
+        ).fetchall()
+    if not rows:
+        return "✅ Feature04: tidak ada ticker/indikator yang gagal.", {
+            "inline_keyboard": [[{"text": "↻ Refresh", "callback_data": "f04:status"}]]
+        }
+    lines = [f"⚠️ Feature04 failures: {len(rows)} ticker"]
+    keyboard: list[list[dict]] = []
+    for ticker, queue_status, columns in rows[:20]:
+        labels = ", ".join(columns) if columns else "script/ticker"
+        lines.append(f"• {ticker}: {labels}")
+        keyboard.append([{"text": f"Retry {ticker} (full)", "callback_data": f"f04:t:{ticker}"}])
+        for column in list(columns)[:8]:
+            keyboard.append([{
+                "text": f"Retry {ticker} / {column}",
+                "callback_data": f"f04:c:{ticker}:{column}",
+            }])
+    keyboard.append([{"text": "↻ Refresh", "callback_data": "f04:status"}])
+    if len(rows) > 20:
+        lines.append(f"…dan {len(rows)-20} ticker lain; gunakan refresh setelah batch ini.")
+    return "\n".join(lines), {"inline_keyboard": keyboard}
+
+
+def request_feature04_retry(
+    database_url: str, update_id: int, chat_id: str, action: str
+) -> tuple[str, str]:
+    parts = action.split(":")
+    if len(parts) not in (3, 4) or parts[1] not in {"t", "c"}:
+        raise ValueError("invalid Feature04 retry action")
+    ticker = parts[2]
+    columns = None if parts[1] == "t" else [parts[3]]
+    with psycopg.connect(database_url) as connection:
+        request_id = connection.execute(
+            "SELECT public.request_feature04_retry(%s,%s,%s,%s,NULL)",
+            (int(chat_id), update_id, ticker, columns),
+        ).fetchone()[0]
+        connection.execute(
+            f"""
+            INSERT INTO {COMMAND_LOG_TABLE}(
+              telegram_update_id,chat_id,command,target_service,status,triggered_at,
+              railway_reference,feature04_request_id)
+            VALUES(%s,%s,%s,'feature-04-worker','TRIGGERED',CURRENT_TIMESTAMP,%s,%s)
+            """,
+            (update_id, int(chat_id), "FEATURE04_RETRY_COLUMN" if columns else "FEATURE04_RETRY_TICKER",
+             str(request_id), request_id),
+        )
+        connection.commit()
+    scope = columns[0] if columns else "full ticker"
+    return str(request_id), f"⏳ Feature04 retry dimasukkan: {ticker} / {scope}. Hasil final akan menyusul."
 
 
 def telegram_api_call(
@@ -286,6 +370,8 @@ class TelegramTrigger:
         railway_trigger: Callable[[str, str], bool] = trigger_railway_run,
         messenger: Callable[[str, str, str, dict | None], int] = send_message,
         callback_answer: Callable[[str, str, str], None] = answer_callback,
+        feature_status: Callable[[str], tuple[str, dict]] = feature04_failure_status,
+        feature_retry: Callable[[str, int, str, str], tuple[str, str]] = request_feature04_retry,
     ) -> None:
         self.database_url = database_url
         self.bot_token = bot_token
@@ -298,6 +384,8 @@ class TelegramTrigger:
         self.railway_trigger = railway_trigger
         self.messenger = messenger
         self.callback_answer = callback_answer
+        self.feature_status = feature_status
+        self.feature_retry = feature_retry
 
     def best_effort_message(
         self, chat_id: str, text: str, reply_markup: dict | None = None
@@ -343,6 +431,31 @@ class TelegramTrigger:
                 menu_markup(),
             )
             return "menu_sent"
+
+        feature_action = extract_feature04_action(update)
+        if feature_action is not None:
+            update_id, chat_id, action, callback_id = feature_action
+            if chat_id != self.allowed_chat_id:
+                return "unauthorized"
+            try:
+                if action == "f04:status":
+                    text, markup = self.feature_status(self.database_url)
+                    self.best_effort_callback(callback_id, "Feature04 status refreshed")
+                    self.best_effort_message(chat_id, text, markup)
+                    return "feature04_status"
+                _request_id, text = self.feature_retry(
+                    self.database_url, update_id, chat_id, action
+                )
+                self.best_effort_callback(callback_id, "Feature04 retry queued")
+                self.best_effort_message(chat_id, text)
+                return "feature04_retry"
+            except psycopg.errors.UniqueViolation:
+                self.best_effort_callback(callback_id, "Already processed")
+                return "duplicate"
+            except Exception as exc:
+                self.best_effort_callback(callback_id, "Retry ditolak")
+                self.best_effort_message(chat_id, f"⚠️ Feature04: {str(exc)[:300]}")
+                return "feature04_rejected"
 
         incoming = extract_incoming_command(update)
         if incoming is None:

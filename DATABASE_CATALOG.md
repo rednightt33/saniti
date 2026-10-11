@@ -107,6 +107,15 @@ column/constraint/index reference for every row below.
 
 `Feature04_Technical_Indicator` v3 has 55 physical columns and active definitions: the unchanged 46-column v2 set plus Pine SMI and eight post-bar swing-state fields. After the initial BBCA checkpoint, authorized v3 replay covers all 844 actual price-source tickers / 1,318,633 Daily rows, with INTEGER 1/0 break_swing_high; original indicator values and BBCA payload/timestamps are preserved. The 42 v1 and 46 v2 definitions are retained inactive. Full plain-language definitions are in `FEATURE04_COLUMN_DEFINITIONS.md`, and full SMI evidence in `verification/feature04/SMI_ALL_TICKERS.md` (initial BBCA checkpoint in `verification/feature04/SMI_BBCA.md`). One safe exact-date Feature01 relationship is unchanged. The first bounded BBCA January 2018 test is historical evidence; the subsequent authorized full-source-ticker serial load is documented in `verification/feature04/FULL_BACKFILL.md`. `feature04_backfill_log` records atomic output/audit commits and resume hashes without copying price or feature rows. No AI allowlist or permission change. TradingView numerical parity and point-in-time training eligibility remain NOT VERIFIED. See `FEATURE04_TECHNICAL_INDICATOR.md`. The catalog-only validator keeps its existing checks with one exact-name exception for the requested table spelling.
 
+Feature04 automation adds `Feature04_Calculation_Queue`, `Feature04_Column_Status`,
+`Feature04_Calculation_Log`, `Monitoring_Feature04`, `Monitoring_Feature04_Ticker`,
+`Feature04_Retry_Request`, and `Feature04_Notification_Outbox`. These are operational
+state and audit tables, not model features. A committed price trigger coalesces work by
+ticker; `feature-04-worker` owns calculation/status writes. Telegram can create only
+failure-backed retry requests. The Feature04 outbox is gated by successful price-message
+delivery for automatic runs. Their physical definitions and keys are generated in
+`DATABASE_SCHEMA.md`; behavior is specified in `FEATURE04_TECHNICAL_INDICATOR.md`.
+
 ## Field contract
 
 `Table_Catalog` has primary key `(table_schema, table_name)`. `category`, `definition`, and `grain` describe the table. `primary_key_columns` holds the ordered physical key. `source_system` and `source_tables` identify provenance. `source_code_paths` points to supporting repository code/migrations. `update_rule` states when/how rows change. `related_functions` lists table-related PostgreSQL routines. `documentation_status` grades the semantic claim. `readiness_mode`/`readiness_date_column` define live freshness. `observation_date_column`, `data_available_at_column`, `availability_rule`, `point_in_time_status`, and `historical_metadata_method` keep freshness distinct from decision-time and historical-universe validity.

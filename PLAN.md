@@ -29,7 +29,7 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 | 10 | G2-B, S20, minimal 4 hipotesis, analisis faktor | 2026-10-02 (`G2_G3_REACTIVATION_PLAN.md` langkah 8, FINAL) | Belum; 4 keputusan rinci masih terbuka | 10 |
 | 11 | P9 kamus nilai dan alat "cari nilai" | Keputusan desain user 2026-10-01 | Belum; perlu cek ulang cakupan | 11 |
 | 12 | Prosedur tabel baru (FX, indeks, makro) | 2026-10-01 "record now, run later" | Menunggu pemicu: tabel baru | Saat ada tabel baru |
-| 13 | Feature04 otomatis setelah update harga, retry ticker/indikator gagal lewat Telegram | 2026-10-11 (implementation plan disetujui) | Disetujui sebagai rencana; eksekusi/deployment belum dimulai | Setelah perintah go eksekusi |
+| 13 | Feature04 otomatis setelah update harga, retry ticker/indikator gagal lewat Telegram | 2026-10-11 (implementation plan disetujui) | Sedang dieksekusi di `EXEC.md` EXEC-F04 | Berjalan |
 
 Eksekusi yang sudah disetujui (dulu butir 1–7 dan 1b–1k) ada di `EXEC.md`.
 

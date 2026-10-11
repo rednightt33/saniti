@@ -2,11 +2,13 @@ import unittest
 from datetime import date, datetime, timezone
 
 from telegram_monitor import (
+    Feature04Summary,
     MonitoringSummary,
     aggregate_status,
     build_messages,
     format_header,
     format_timing,
+    build_feature04_messages,
 )
 
 
@@ -78,6 +80,21 @@ class TelegramMonitorTests(unittest.TestCase):
         self.assertGreater(len(messages), 1)
         self.assertTrue(all(len(message) <= 200 for message in messages))
         self.assertIn("Missing (cont.):", messages[1])
+
+    def test_feature04_message_lists_terminal_ticker_failures(self):
+        value = Feature04Summary(
+            execution_id="f04-run", run_type="DAILY", trigger_source="SCHEDULED",
+            update_for_date=date(2026, 9, 9), eligible_tickers=844,
+            completed_tickers=843, failed_tickers=1, blocked_tickers=0,
+            failed_details=("BBCA.JK [adx_14] (FORMULA_GROUP_FAILED)",), status="PARTIAL",
+            started_at=datetime(2026, 9, 9, 10, 1, tzinfo=timezone.utc),
+            finished_at=datetime(2026, 9, 9, 10, 2, tzinfo=timezone.utc),
+            duration_seconds=60, last_error=None,
+        )
+        text = build_feature04_messages(value)[0]
+        self.assertIn("Feature04 DAILY PARTIAL", text)
+        self.assertIn("843/844 tickers calculated", text)
+        self.assertIn("BBCA.JK [adx_14]", text)
 
 
 if __name__ == "__main__":

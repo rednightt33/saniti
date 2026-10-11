@@ -1706,6 +1706,30 @@ pertama dan giliran lanjutan. Kode menimpa penilaian model, padahal pertanyaan b
 
 ---
 
+### EXEC-F04: otomatisasi Feature04 dan retry failure melalui Telegram
+
+**Otorisasi 2026-10-11:** user: "Ok, jalankan." dan kemudian "Ok, kita akan jalankan. Baca semua MD, perubahan ini perlu dicatat dimana saja".
+
+**Scope yang disetujui:** implementasi `feature-04-worker` baru; enqueue setelah perubahan harga; isolasi failure per ticker;
+status/retry per indikator dengan dependency closure; menu Telegram untuk retry ticker/indikator yang benar-benar gagal;
+pesan price harus terkirim sebelum hasil Feature04; dan pencatatan lengkap pada schema/catalog/changelog/Railway/docs/evidence.
+NULL yang sah tidak dianggap failure. Retry Feature04 tidak menjalankan TradingView atau price cron.
+
+**Urutan eksekusi:**
+
+1. Audit seluruh Markdown, live schema, runtime service, dan migration yang relevan.
+2. Tambahkan forward migration untuk queue, status kolom, attempt/run/member/retry/outbox, enqueue routines, trigger, catalog, dan grants.
+3. Refactor engine agar dependency bundle dapat dihitung/divalidasi tanpa mengubah output v3 yang sudah tervalidasi.
+4. Buat worker serial per ticker dengan lease, retry, generation race protection, partial bundle commit, dan monitoring/outbox.
+5. Hubungkan price execution ID dan sealing batch; perluas Telegram trigger/monitor untuk status/retry dan urutan delivery.
+6. Uji lokal, rehearsal migration, canary BBCA, apply live, deploy service secara terisolasi, lalu verifikasi exact deployment/data state.
+7. Perbarui seluruh dokumentasi/evidence, hapus butir 13 dari `PLAN.md` setelah selesai, commit, push `main`, dan verify origin.
+
+**Rollback:** hentikan worker/dispatcher dan retry enqueue; pertahankan durable queue/audit serta price cron. Jangan drop data
+atau menghapus status failure. Kembalikan deployment aplikasi bila perlu, perbaiki, lalu replay pending work.
+
+**Status:** IN PROGRESS. Persetujuan rencana bukan lagi satu-satunya otorisasi; user memberi go eksekusi eksplisit.
+
 ## Verifikasi bersama
 
 **Verifikasi butir 2–7:**

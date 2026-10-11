@@ -1,0 +1,70 @@
+{
+  "objects": [
+    {
+      "relname": "Feature04_Calculation_Log",
+      "relkind": "r"
+    },
+    {
+      "relname": "Feature04_Calculation_Queue",
+      "relkind": "r"
+    },
+    {
+      "relname": "Feature04_Column_Status",
+      "relkind": "r"
+    },
+    {
+      "relname": "Feature04_Notification_Outbox",
+      "relkind": "r"
+    },
+    {
+      "relname": "Feature04_Retry_Request",
+      "relkind": "r"
+    },
+    {
+      "relname": "Monitoring_Feature04",
+      "relkind": "r"
+    },
+    {
+      "relname": "Monitoring_Feature04_Ticker",
+      "relkind": "r"
+    }
+  ],
+  "bootstrap": [
+    {
+      "queue_rows": 0,
+      "status_rows": 42200,
+      "status_tickers": 844,
+      "status_columns": 50,
+      "non_success": 0
+    }
+  ],
+  "trigger": [
+    {
+      "tgname": "Price_Stock_Indonesia_IDX_enqueue_feature04",
+      "definition": "CREATE TRIGGER \"Price_Stock_Indonesia_IDX_enqueue_feature04\" AFTER INSERT OR DELETE OR UPDATE ON public.\"Price_Stock_Indonesia_IDX\" FOR EACH ROW EXECUTE FUNCTION enqueue_feature04_price_row()"
+    }
+  ],
+  "functions": [
+    {
+      "proname": "enqueue_feature04_group",
+      "prosecdef": false
+    },
+    {
+      "proname": "enqueue_feature04_price_row",
+      "prosecdef": false
+    },
+    {
+      "proname": "feature04_output_columns",
+      "prosecdef": false
+    },
+    {
+      "proname": "request_feature04_retry",
+      "prosecdef": true
+    }
+  ],
+  "catalog": [
+    {
+      "tables": 7
+    }
+  ]
+}

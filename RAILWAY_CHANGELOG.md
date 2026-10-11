@@ -1,5 +1,12 @@
 # Railway changelog
 
+## 2026-10-11 — Feature04 event-driven worker and Telegram retry controls
+
+- User approved execution after reviewing the design. Railway IaC plan for lucid-patience/dev showed exactly one add (`feature-04-worker`), zero changes, zero destroys. Existing `idx-price-cron` and recovery cron remain the only schedules.
+- `feature-04-worker` is an always-on GitHub service with root build context, pinned Python/TA-Lib dependencies, `DATABASE_URL`, private `telegram-monitor` notify URL, and shared notify-secret references. It polls the durable PostgreSQL queue and never calls TradingView.
+- Price services bind changed rows to a Feature04 execution in the same transaction. `telegram-monitor` handles price and Feature04 sources; `telegram-trigger` provides owner-only status and failure-only retry without Railway Run Now.
+- Deployment IDs, terminal status, startup evidence, canary, and rollback target are recorded in `verification/feature04/AUTOMATION.md` after live validation.
+
 ## 2026-10-11 — Feature04 v2 serial historical backfill, no deployed service change
 
 - Ephemeral PRIVATE sandbox `1637bf99-fa9e-41c6-b25e-05427d5be158` in lucid-patience/dev used a server-side Postgres DATABASE_URL reference, isolated pinned dependencies, and the repository's Feature04 code. No new service/database, deploy, service variable, cron, domain, project configuration, or running AI pipeline change.

@@ -6,9 +6,13 @@ monitoring results.
 
 Commands:
 
-- `/start` displays the two approved buttons.
+- `/start` displays the two price controls and Feature04 status/retry entry.
 - `/run_price` or **Run IDX Price** invokes `idx-price-cron`.
 - `/run_recovery` or **Run IDX Recovery** invokes `idx-price-recovery-cron`.
+- `/feature4`, `/feature04`, or **Feature04 Status / Retry** lists only actual failed or
+  blocked ticker/column states. A full-ticker button replays the failed script for that
+  ticker; a column button expands to the mandatory dependency bundle. Healthy work and
+  expected warmup/formula NULLs cannot be retried through this menu.
 
 Security and duplicate handling:
 
@@ -17,6 +21,9 @@ Security and duplicate handling:
 - Service IDs are fixed environment variables; user input can never name an arbitrary Railway service.
 - `Telegram_Command_Log.telegram_update_id` prevents Telegram webhook retries from starting a second job.
 - A per-service cooldown blocks rapid distinct clicks while a recent Run Now request may still be active.
+- Feature04 retry requests are inserted atomically in PostgreSQL and wake the always-on
+  worker; they do not invoke Railway Run Now. `feature04_request_id` links the Telegram
+  command audit to the retry execution.
 
 Required Railway variables:
 

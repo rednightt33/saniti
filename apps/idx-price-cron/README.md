@@ -38,6 +38,11 @@ Railway evaluates cron schedules in UTC.
 - If a weekday DAILY run dies before writing monitoring, recovery derives its scope from universe tickers still absent from the price table for that date.
 - After the monitoring transaction commits, the service sends its `execution_id` to the separate `telegram-monitor` service. Temporary cold-start or network failures are retried four times.
 - Telegram delivery is downstream: a notification failure is logged but never rolls back price or monitoring data and never causes another TradingView query.
+- In the same transaction as the price upsert, the service opens `Monitoring_Feature04`
+  and binds changed price rows to that execution. The database trigger coalesces those rows
+  per ticker. After commit, `feature-04-worker` calculates eligible tickers. The price
+  Telegram message is sent first; the Feature04 outbox remains gated until that delivery
+  is recorded.
 
 ## Runtime
 

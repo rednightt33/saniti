@@ -7,6 +7,7 @@ from telegram_trigger import (
     IncomingCommand,
     TelegramTrigger,
     extract_incoming_command,
+    extract_feature04_action,
     menu_markup,
     trigger_railway_run,
 )
@@ -51,7 +52,32 @@ class TelegramTriggerTests(unittest.TestCase):
 
     def test_menu_contains_only_allowlisted_commands(self):
         callbacks = [row[0]["callback_data"] for row in menu_markup()["inline_keyboard"]]
-        self.assertEqual(callbacks, ["run_price", "run_recovery"])
+        self.assertEqual(callbacks, ["run_price", "run_recovery", "f04:status"])
+
+    def test_extracts_feature04_column_retry(self):
+        action = extract_feature04_action({
+            "update_id": 202,
+            "callback_query": {"id": "cb", "data": "f04:c:BBCA.JK:adx_14",
+                               "message": {"chat": {"id": 123}}},
+        })
+        self.assertEqual(action, (202, "123", "f04:c:BBCA.JK:adx_14", "cb"))
+
+    def test_feature04_retry_does_not_call_railway(self):
+        retried = []
+        triggered = []
+        service = TelegramTrigger(
+            "db", "bot", "123", "railway", {},
+            feature_retry=lambda *args: retried.append(args) or ("id", "queued"),
+            railway_trigger=lambda *args: triggered.append(args),
+        )
+        result = service.handle_update({
+            "update_id": 203,
+            "callback_query": {"id": "cb", "data": "f04:t:BBCA.JK",
+                               "message": {"chat": {"id": 123}}},
+        })
+        self.assertEqual(result, "feature04_retry")
+        self.assertEqual(len(retried), 1)
+        self.assertEqual(triggered, [])
 
     def test_railway_request_uses_project_token_and_instance_id(self):
         captured = {}

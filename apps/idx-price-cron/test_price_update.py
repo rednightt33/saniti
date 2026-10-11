@@ -12,6 +12,8 @@ from price_update import (
     candle_for_target,
     monitoring_records,
     notify_telegram_monitor,
+    prepare_feature04_monitoring,
+    seal_feature04_monitoring,
     previous_weekday,
     process_exit_code,
     resolve_mode,
@@ -29,6 +31,23 @@ def symbol(ordinal: int, ticker: str, asset_type: str = "stock") -> Symbol:
 
 
 class PriceUpdateTests(unittest.TestCase):
+    def test_feature04_monitoring_is_bound_to_price_transaction(self):
+        calls = []
+
+        class Connection:
+            def execute(self, statement, params=None):
+                calls.append((statement, params))
+
+        records = [{
+            "run_type": "DAILY", "trigger_source": "SCHEDULED",
+            "update_for_date": date(2026, 9, 11),
+        }]
+        prepare_feature04_monitoring(Connection(), records, "price-run")
+        seal_feature04_monitoring(Connection(), "price-run")
+        self.assertTrue(any("set_config" in statement for statement, _ in calls))
+        self.assertTrue(any("Monitoring_Feature04_Ticker" in statement for statement, _ in calls))
+        self.assertTrue(all("f04-price-run" in params for _, params in calls))
+
     def test_bulk_upsert_sets_database_ingestion_time_for_insert_and_update(self):
         executed = []
         copied_rows = []

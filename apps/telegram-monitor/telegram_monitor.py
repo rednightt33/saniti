@@ -22,7 +22,7 @@ from psycopg.types.json import Jsonb
 
 MONITORING_TABLE = 'public."Monitoring_Price_ALL"'
 LOG_TABLE = 'public."Telegram_Notification_Log"'
-SUPPORTED_SOURCE = "Monitoring_Price_ALL"
+SUPPORTED_SOURCES = {"Monitoring_Price_ALL", "Monitoring_Feature04"}
 MAX_REQUEST_BYTES = 16_384
 MAX_TELEGRAM_TEXT = 4_000
 JAKARTA_TZ = ZoneInfo("Asia/Jakarta")
@@ -55,6 +55,24 @@ class MonitoringSummary:
     updated_symbols: int
     missing_symbols: int
     missing_tickers: tuple[str, ...]
+    status: str
+    started_at: datetime
+    finished_at: datetime
+    duration_seconds: float
+    last_error: str | None
+
+
+@dataclass(frozen=True)
+class Feature04Summary:
+    execution_id: str
+    run_type: str
+    trigger_source: str
+    update_for_date: date | None
+    eligible_tickers: int
+    completed_tickers: int
+    failed_tickers: int
+    blocked_tickers: int
+    failed_details: tuple[str, ...]
     status: str
     started_at: datetime
     finished_at: datetime
@@ -124,6 +142,44 @@ def fetch_monitoring_summary(
         finished_at=finished_at,
         duration_seconds=max(0.0, (finished_at - started_at).total_seconds()),
         last_error=errors[0] if errors else None,
+    )
+
+
+def fetch_feature04_summary(
+    connection: psycopg.Connection, execution_id: str
+) -> Feature04Summary | None:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT run_type,trigger_source,update_for_date,eligible_tickers,completed_tickers,
+                   failed_tickers,blocked_tickers,status,started_at,finished_at,last_error
+            FROM public."Monitoring_Feature04" WHERE execution_id=%s
+            """,
+            (execution_id,),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        cursor.execute(
+            """
+            SELECT ticker,requested_columns,status,last_error_code
+            FROM public."Monitoring_Feature04_Ticker"
+            WHERE execution_id=%s AND status IN ('FAILED','BLOCKED') ORDER BY ticker
+            """,
+            (execution_id,),
+        )
+        failures = tuple(
+            f"{item[0]}" + (f" [{','.join(item[1])}]" if item[1] else "")
+            + (f" ({item[3]})" if item[3] else "")
+            for item in cursor.fetchall()
+        )
+    finished = row[9] or datetime.now(timezone.utc)
+    return Feature04Summary(
+        execution_id=execution_id, run_type=str(row[0]), trigger_source=str(row[1]),
+        update_for_date=row[2], eligible_tickers=int(row[3]), completed_tickers=int(row[4]),
+        failed_tickers=int(row[5]), blocked_tickers=int(row[6]), failed_details=failures,
+        status=str(row[7]), started_at=row[8], finished_at=finished,
+        duration_seconds=max(0.0, (finished-row[8]).total_seconds()), last_error=row[10],
     )
 
 
@@ -197,6 +253,41 @@ def build_messages(
                 break
             included.append(remaining.pop(0))
         messages.append(base + ", ".join(included))
+        first = False
+    return messages
+
+
+def build_feature04_messages(
+    summary: Feature04Summary, max_length: int = MAX_TELEGRAM_TEXT
+) -> list[str]:
+    emoji = STATUS_EMOJI.get(summary.status, "ℹ️")
+    date_text = summary.update_for_date.strftime("%d %b %Y") if summary.update_for_date else "ad hoc"
+    header = (
+        f"{emoji} Feature04 {summary.run_type} {summary.status} • {date_text} • "
+        f"{summary.completed_tickers}/{summary.eligible_tickers} tickers calculated • "
+        f"{summary.failed_tickers} failed • {summary.blocked_tickers} blocked • "
+        f"{format_duration(summary.duration_seconds)}"
+    )
+    timing = (
+        f"Triggered at: {summary.started_at.astimezone(JAKARTA_TZ).strftime('%d %b %Y %H:%M')} WIB • "
+        f"Finished at: {summary.finished_at.astimezone(JAKARTA_TZ).strftime('%d %b %Y %H:%M')} WIB"
+    )
+    base = header + "\n\n" + timing
+    if not summary.failed_details:
+        return [base]
+    messages: list[str] = []
+    remaining = list(summary.failed_details)
+    first = True
+    while remaining:
+        prefix = "Failed: " if first else "Failed (cont.): "
+        current = base + "\n\n" + prefix if first else prefix
+        included: list[str] = []
+        while remaining:
+            candidate = ", ".join(included + [remaining[0]])
+            if len(current) + len(candidate) > max_length and included:
+                break
+            included.append(remaining.pop(0))
+        messages.append(current + ", ".join(included))
         first = False
     return messages
 
@@ -335,27 +426,52 @@ class TelegramMonitor:
         self.send_message = send_message
 
     def notify(self, source_table: str, execution_id: str) -> tuple[str, int]:
-        if source_table != SUPPORTED_SOURCE:
+        if source_table not in SUPPORTED_SOURCES:
             raise ValueError("unsupported source_table")
         if not EXECUTION_ID_PATTERN.fullmatch(execution_id):
             raise ValueError("invalid execution_id")
 
         with psycopg.connect(self.database_url) as connection:
-            summary = fetch_monitoring_summary(connection, execution_id)
+            summary = (
+                fetch_monitoring_summary(connection, execution_id)
+                if source_table == "Monitoring_Price_ALL"
+                else fetch_feature04_summary(connection, execution_id)
+            )
             if summary is None:
                 raise KeyError("execution_id not found")
             state, log_id = claim_delivery(connection, source_table, execution_id)
             if state != "claimed":
+                if state == "duplicate" and source_table == "Monitoring_Price_ALL":
+                    connection.execute(
+                        """UPDATE public."Monitoring_Feature04"
+                           SET price_notification_sent_at=coalesce(price_notification_sent_at,CURRENT_TIMESTAMP),
+                               updated_at=CURRENT_TIMESTAMP WHERE source_execution_id=%s""",
+                        (execution_id,),
+                    )
+                    connection.commit()
                 return state, log_id
 
             message_ids: list[int] = []
             try:
                 if summary.status != "SUCCESS" or env_flag("TELEGRAM_NOTIFY_SUCCESS"):
-                    for message in build_messages(summary):
+                    messages = (
+                        build_messages(summary)
+                        if isinstance(summary, MonitoringSummary)
+                        else build_feature04_messages(summary)
+                    )
+                    for message in messages:
                         message_ids.append(
                             self.send_message(self.token, self.chat_id, message)
                         )
                 mark_sent(connection, log_id, message_ids)
+                if source_table == "Monitoring_Price_ALL":
+                    connection.execute(
+                        """UPDATE public."Monitoring_Feature04"
+                           SET price_notification_sent_at=coalesce(price_notification_sent_at,CURRENT_TIMESTAMP),
+                               updated_at=CURRENT_TIMESTAMP WHERE source_execution_id=%s""",
+                        (execution_id,),
+                    )
+                    connection.commit()
                 return "sent", log_id
             except Exception as exc:
                 mark_failed(connection, log_id, f"{type(exc).__name__}: {exc}")

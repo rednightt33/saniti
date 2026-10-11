@@ -1,5 +1,14 @@
 # Database changelog
 
+## 2026-10-11 — Feature04 automatic per-ticker calculation and failure-only retry
+
+- User approved the reviewed design with "Ok, jalankan" and required documentation after all Markdown files were read. Applied forward migration `20261011_005_automate_feature04.sql`, SHA256 `0293c4bb2cecf4940a72635afa466647c47d03bb0c39fccc428c978f503b6967`, to lucid-patience/dev primary Postgres after a complete rolled-back rehearsal.
+- Added seven control/monitoring tables: coalesced ticker queue, per-column readiness, immutable attempt log, execution summary, execution ticker members, Telegram retry requests, and a notification outbox. Added a nullable Feature04 retry link to `Telegram_Command_Log`, four helper functions, and one relevant-change trigger on `Price_Stock_Indonesia_IDX`.
+- Bootstrap readback: 42,200 `Feature04_Column_Status` rows = 844 tickers × 50 feature outputs, all `SUCCESS`; zero work queued. Existing 1,318,633 Feature04 rows and prices were not recalculated by the migration. Expected EMA200/SMI NULL availability remains successful state.
+- Price changes now increment source generation per ticker and coalesce the earliest dirty date. Worker writes are fenced by generation and work revision. Automatic formula failure retries only that ticker; diagnostic column retry expands MACD, Bollinger, or SMI/swing dependencies. Telegram retry rejects healthy tickers/columns.
+- Price notification ordering uses `Monitoring_Feature04.price_notification_sent_at`; terminal Feature04 outbox delivery waits for that gate. Calculation commits never depend on Telegram availability. No new database, price schedule, AI catalog/allowlist, model, or source fetch was added.
+- Evidence: `verification/feature04/automation_live_readback.json` and `verification/feature04/AUTOMATION.md`.
+
 ## 2026-10-11 — Feature04 v2 and complete serial source-ticker backfill
 
 - User requested ADX, EMA50, EMA200 and current-candle inside bar, reviewed feasibility, then instructed: "Oh ok, alright coba backfill untuk seluruh ticker yang ada di table price stock indonesia... kita jalankan per ticker ya. Mulai dari date terendah = date latest." Interpreted consistently with the prior confirmed oldest-first direction: each actual source ticker's minimum date through latest available date.
