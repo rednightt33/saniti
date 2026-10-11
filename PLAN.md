@@ -168,6 +168,13 @@ kode runtime, migration, service dan pengiriman Telegram belum diubah.
 termasuk NULL yang terbukti salah, dengan NULL sah dikecualikan; dan (2) retry kolom wajib mencakup dependency terkait,
 dengan cakupan ditampilkan sebelum dijalankan. Kedua keputusan ditetapkan; belum merupakan perintah go implementasi/deployment.
 
+**Klarifikasi failure per ticker, 2026-10-11:** user: "jika scriptnya failure saja untuk that ticker. possible?".
+Failure boundary worker berada pada satu ticker: exception script saat memproses BBCA dicatat sebagai failure BBCA,
+worker melanjutkan ticker lain, dan menu retry hanya mengambil ticker yang gagal. Exception script yang belum mempunyai
+diagnosis per indikator memakai retry full-ticker; tidak menebak kolom gagal dari NULL atau menandai semua ticker gagal.
+Contoh: BBCA FAILED, BBRI SUCCESS, BMRI SUCCESS -> ulang script untuk BBCA saja, dengan full available BBCA history;
+BBRI/BMRI tidak masuk request tersebut. CLI backfill lama yang berhenti pada failure pertama tidak menjadi entrypoint worker.
+
 ### Kondisi yang diverifikasi
 
 - Railway `lucid-patience` / `dev`, database utama `Postgres`; service price, Feature01 dan Telegram memakai `rednightt33/saniti@main`.
