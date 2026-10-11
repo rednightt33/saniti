@@ -1763,8 +1763,13 @@ ticker terminal; validasi cakupan dan formula; perbarui schema/evidence/changelo
 dan push `main`. Ticker absent/ambigu dari universe harus fail closed. Tidak ada source
 fetch, perubahan schedule, atau daftar ticker di kode.
 
-**Status:** IN PROGRESS 2026-10-11. Rehearsal penuh migration `20261011_006` PASS dan
-rollback terverifikasi; apply, deploy, backfill, serta final readback sedang dijalankan.
+**Status:** COMPLETED 2026-10-11. Migration `20261011_006` dan dokumentasi
+`20261011_007` lulus rehearsal/rollback lalu diterapkan. Commit `b7b4471` membuat worker,
+Telegram monitor, dan Telegram trigger mencapai deployment `SUCCESS`. Bootstrap
+`f04-bonds-bootstrap-20261011` menyelesaikan 24/24 ticker, 60.409 bar, nol failure/partial,
+dan notifikasi final `SENT`. Validasi menemukan nol key source hilang/ekstra pada equity
+maupun bonds, nol salah klasifikasi, serta 56/56 definisi Feature04 aktif. Bukti:
+`verification/feature04/BONDS.md` dan `cross_asset_validation.json`.
 
 ## Verifikasi bersama
 

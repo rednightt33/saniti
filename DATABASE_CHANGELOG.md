@@ -1,5 +1,14 @@
 # Database changelog
 
+## 2026-10-11 — Feature04 cross-asset fixed-income price support
+
+- User required the same OHLC-based Feature04 metrics for `Price_Fixed_Income` price rows, an `asset_type` identity, and classification exclusively from live universe membership. Applied forward migrations `20261011_006_extend_feature04_to_bonds.sql` (`9a9e14e…4c45`) and `20261011_007_document_fixed_income_feature04.sql` (`c6ea3a00…6488`) after successful rolled-back rehearsals.
+- `Feature04_Technical_Indicator` now has 56 columns and primary key `(ticker,trade_date,timeframe,asset_type)`. Existing 1,318,633 rows / 844 tickers became `equity`; new rows become `bonds` only when their ticker is in `Universe_Fixed_income`. Missing or dual universe membership raises an error. No ticker list is hardcoded.
+- Added fixed-income price and monitor triggers. Only `metric_type='price'` / `Timeframe='1D'` enters Feature04. A committed `Monitoring_Fixed_Income` row binds eligible bond tickers and creates the fixed-income price notification gate; the independent fixed-income cron schedules and source data were not changed.
+- Bootstrap `f04-bonds-bootstrap-20261011` completed 24/24 tickers, 60,409 rows, zero failed/partial attempts, and 1,200 successful per-column states. Final table: 1,379,042 rows across 844 equity and 24 bond tickers. Both asset classes have zero missing/extra source keys and zero classification mismatch.
+- Formula invariants passed on every bond row: zero inside-bar, MACD, histogram, or Bollinger-middle mismatch; `break_swing_high` is always INTEGER 1/0; ADX14 has 648 expected warmup NULLs and EMA200 has 4,776. Feature semantic audit: 147/147 active definitions verified, Feature04 56/56 physical coverage.
+- Evidence: `verification/feature04/BONDS.md` and `cross_asset_validation.json`. `DATABASE_SCHEMA.md` was refreshed from read-only introspection; fixed-income status/catalog documentation was registered without global status reconciliation.
+
 ## 2026-10-11 — Feature04 automatic per-ticker calculation and failure-only retry
 
 - User approved the reviewed design with "Ok, jalankan" and required documentation after all Markdown files were read. Applied forward migration `20261011_005_automate_feature04.sql`, SHA256 `0293c4bb2cecf4940a72635afa466647c47d03bb0c39fccc428c978f503b6967`, to lucid-patience/dev primary Postgres after a complete rolled-back rehearsal.

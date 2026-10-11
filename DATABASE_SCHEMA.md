@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-10-11T08:51:27+00:00`.
+Generated from PostgreSQL schema `public` at `2026-10-11T14:01:53+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -34,12 +34,12 @@ Generated from PostgreSQL schema `public` at `2026-10-11T08:51:27+00:00`.
 | `Analytics_Job` | System | Per generic analytics submission, lease, result, or failure | — | `2026-09-14 07:39:52+00:00` | Baseline only | Durable queue, lease, resource contract, result, and failure audit for separately authenticated query-sandbox and statistical-validation workers. |
 | `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-10-11 08:44:55.515076+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
 | `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-10-11 08:51:27+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
-| `Feature04_Calculation_Log` | System | After each Feature04 worker attempt | — | `2026-10-11 08:51:27+00:00` | Baseline only | Immutable Feature04 calculation attempt audit. |
-| `Feature04_Calculation_Queue` | System | After relevant price changes and Feature04 worker transitions | — | `2026-10-11 08:51:27+00:00` | Baseline only | Durable coalesced Feature04 work and lease state. |
-| `Feature04_Column_Status` | System | After Feature04 validation or failure | — | `2026-10-11 08:51:27+00:00` | Baseline only | Per-ticker per-output Feature04 readiness and failure state. |
-| `Feature04_Notification_Outbox` | System | After a Feature04 execution becomes terminal | — | `2026-10-11 08:51:27+00:00` | Baseline only | Durable Feature04 completion-notification work. |
-| `Feature04_Retry_Request` | System | When the owner requests an active failure retry | — | `2026-10-11 08:51:27+00:00` | Baseline only | Audited Telegram failure-only retry request. |
-| `Feature04_Technical_Indicator` | Feature | Event-driven after committed price changes; full-history per ticker | `2026-10-09` | `2026-10-11 06:25:12.523796+00:00` | Derived from price rows; changes queued and tracked per ticker | 55-column causal daily indicators, native candlestick codes, strict inside bar and Pine SMI/swing state. Authorized v3 full-history replay completed for all actual price-source tickers. TradingView chart parity NOT VERIFIED. |
+| `Feature04_Calculation_Log` | System | After each Feature04 worker attempt | — | `2026-10-11 08:51:27+00:00` | Baseline only | Immutable Feature04 worker attempt history with per-group success/failure and retry lineage. |
+| `Feature04_Calculation_Queue` | System | After relevant price changes and Feature04 worker transitions | — | `2026-10-11 08:51:27+00:00` | Baseline only | Durable coalesced Feature04 work per ticker/timeframe; generation tracks source change and work_revision tracks retry scope. |
+| `Feature04_Column_Status` | System | After Feature04 validation or failure | — | `2026-10-11 08:51:27+00:00` | Baseline only | Current readiness/failure state for each Feature04 output column per ticker; expected NULL is a successful availability outcome. |
+| `Feature04_Notification_Outbox` | System | After a Feature04 execution becomes terminal | — | `2026-10-11 08:51:27+00:00` | Baseline only | Durable Feature04 completion delivery request; calculation success never depends on Telegram availability. |
+| `Feature04_Retry_Request` | System | When the owner requests an active failure retry | — | `2026-10-11 08:51:27+00:00` | Baseline only | Audited owner Telegram retry request for one failed ticker or failed indicator bundle. |
+| `Feature04_Technical_Indicator` | Feature | Event-driven after committed equity or bond price changes; full-history per asset/ticker | `2026-10-09` | `2026-10-11 13:55:17.102127+00:00` | Derived from price rows; changes queued and tracked per ticker | 56-column cross-asset daily technical Feature04. Identity is asset_type/ticker/trade_date/Daily; asset_type is resolved from approved equity or fixed-income universe membership. |
 | `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-10-09` | `2026-10-09 10:06:33.150795+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
 | `Feature_02_Broker_Rolling` | Feature | After validated broker-summary changes; manual v2 ticker rebuild | `2026-08-31` | `2026-09-14 14:26:33.580099+00:00` | Derived from IDX_Broker_Summary; Investor-Type Feature 02 v2 refresh is manual | Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata. |
 | `Feature_03_Stock_Broker_Daily` | Feature | After Feature 02 refresh; manual Investor-Type v2 refresh | `2026-08-31` | `2026-09-14 15:17:23.131992+00:00` | Derived from Investor-Type Feature_02_Broker_Rolling; Feature 03 v2 refresh is manual | Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate. |
@@ -56,9 +56,11 @@ Generated from PostgreSQL schema `public` at `2026-10-11T08:51:27+00:00`.
 | `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 14:41:15.160142+00:00` | Derived from table data and load log | Daily broker buy/sell values and lots by symbol, broker, investor type, and market board. |
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-10-02 18:07:58.944512+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
 | `IDX_Stock_Universe_History` | Reference | Captured after every write to IDX_Stock_Universe; never deleted | — | `2026-10-09 05:36:34+00:00` | Baseline; exact changes tracked from this time forward | Point-in-time (bitemporal) history of the tracked IDX_Stock_Universe attributes (Company Name, Exchange, Security Type, Type Specs, Is Common Stock, ISIN, Sector, Industry), captured by Saniti from the first capture onward. Current knowledge is recorded_to IS NULL; superseded knowledge is kept. |
-| `Monitoring_Feature04` | Monitoring | Per automatic or Telegram Feature04 execution | — | `2026-10-11 08:51:27+00:00` | Baseline only | Feature04 automatic/retry batch summary and notification ordering gate. |
-| `Monitoring_Feature04_Ticker` | Monitoring | Per eligible ticker in a Feature04 execution | — | `2026-10-11 08:51:27+00:00` | Baseline only | Per-ticker membership and outcome of a Feature04 execution. |
+| `Monitoring_Feature04` | Monitoring | Per automatic or Telegram Feature04 execution | — | `2026-10-11 08:51:27+00:00` | Baseline only | Feature04 batch/retry run summary and price-notification ordering gate. |
+| `Monitoring_Feature04_Ticker` | Monitoring | Per eligible ticker in a Feature04 execution | — | `2026-10-11 08:51:27+00:00` | Baseline only | Per-ticker membership and terminal result for one Feature04 run. |
+| `Monitoring_Fixed_Income` | Monitoring | One row after each fixed-income daily or recovery execution | `2026-10-11` | `2026-10-11 10:04:30.478506+00:00` | Derived from fixed-income cron monitoring rows | Operational result for one independent fixed-income daily or recovery cron execution. |
 | `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-10-10` | `2026-10-10 23:00:29.441187+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
+| `Price_Fixed_Income` | Transactional | Daily and recovery fixed-income price/yield schedules | `2026-10-09` | `2026-10-11 09:38:18+00:00` | Latest date and write time derived from fixed-income observations | TradingView fixed-income OHLC observations separated by metric_type and Timeframe; Feature04 consumes price/1D only. |
 | `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-10-09` | `2026-10-09 10:04:22.765289+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
 | `Reference_History_Capture_Log` | System | One row per reference-history capture or correction | — | `2026-10-09 05:36:34+00:00` | Baseline; exact changes tracked from this time forward | One row per capture of IDX_Stock_Universe or IDX_Broker_Profile into its history (trigger, initial, manual or correction): changed and new versions, keys absent from the load, and the error of a failed capture. |
 | `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-10-11 08:44:55.512585+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
@@ -66,6 +68,7 @@ Generated from PostgreSQL schema `public` at `2026-10-11T08:51:27+00:00`.
 | `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-10-11 08:49:54.580675+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
 | `Tool_Catalog` | Reference | With each approved backend or analytics tool release | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned generic AI tool metadata, activation state, schemas, and advertised operational ceilings. |
 | `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-10-02 18:07:58.949068+00:00` | Tracked automatically | Issuer descriptions and TradingView/curated sector and industry classifications. |
+| `Universe_Fixed_income` | Reference | Periodic / when the fixed-income universe changes | — | `2026-10-11 14:01:27.117686+00:00` | Baseline only | Approved fixed-income instruments and their TradingView price/yield series classification. |
 | `feature04_backfill_log` | Monitoring | Atomic per-run/ticker Feature04 calculation metadata | `2026-10-09` | `2026-10-11 06:25:12.790322+00:00` | Derived from completed atomic ticker loads; manual execution only | Atomic Feature04 per-run/ticker historical calculation audit and resumable extraction/output fingerprints. |
 | `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-08-31` | `2026-09-09 16:55:55.713468+00:00` | Derived from load log | Per-trading-date Stockbit broker-summary load progress, retries, and review state. |
 
@@ -1297,38 +1300,40 @@ Tracks the data freshness, change time, and update pattern of each table.
 
 ## Feature04_Calculation_Log
 
-Immutable Feature04 calculation attempt audit.
+Immutable Feature04 worker attempt history with per-group success/failure and retry lineage.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `id` | `bigint` | No | — | Operational id field for Feature04_Calculation_Log. |
-| `ticker` | `text` | No | — | Operational ticker field for Feature04_Calculation_Log. |
-| `timeframe` | `text` | No | — | Operational timeframe field for Feature04_Calculation_Log. |
-| `source_generation` | `bigint` | No | — | Operational source generation field for Feature04_Calculation_Log. |
-| `work_revision` | `bigint` | No | — | Operational work revision field for Feature04_Calculation_Log. |
-| `retry_request_id` | `uuid` | Yes | — | Operational retry request id field for Feature04_Calculation_Log. |
-| `requested_columns` | `ARRAY` | Yes | — | Operational requested columns field for Feature04_Calculation_Log. |
-| `successful_columns` | `ARRAY` | No | `'{}'::text[]` | Operational successful columns field for Feature04_Calculation_Log. |
-| `failed_columns` | `ARRAY` | No | `'{}'::text[]` | Operational failed columns field for Feature04_Calculation_Log. |
-| `group_outcomes` | `jsonb` | No | `'{}'::jsonb` | Operational group outcomes field for Feature04_Calculation_Log. |
-| `result` | `text` | No | — | Operational result field for Feature04_Calculation_Log. |
-| `source_start` | `date` | Yes | — | Operational source start field for Feature04_Calculation_Log. |
-| `source_end` | `date` | Yes | — | Operational source end field for Feature04_Calculation_Log. |
-| `source_rows` | `integer` | Yes | — | Operational source rows field for Feature04_Calculation_Log. |
-| `source_sha256` | `text` | Yes | — | Operational source sha256 field for Feature04_Calculation_Log. |
-| `changed_rows` | `integer` | Yes | — | Operational changed rows field for Feature04_Calculation_Log. |
-| `calculation_version` | `text` | No | — | Operational calculation version field for Feature04_Calculation_Log. |
-| `started_at` | `timestamp with time zone` | No | — | Operational started at field for Feature04_Calculation_Log. |
-| `finished_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational finished at field for Feature04_Calculation_Log. |
-| `error_code` | `text` | Yes | — | Operational error code field for Feature04_Calculation_Log. |
-| `detail` | `text` | Yes | — | Operational detail field for Feature04_Calculation_Log. |
+| `id` | `bigint` | No | — | No column description has been recorded. |
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `timeframe` | `text` | No | — | No column description has been recorded. |
+| `source_generation` | `bigint` | No | — | No column description has been recorded. |
+| `work_revision` | `bigint` | No | — | No column description has been recorded. |
+| `retry_request_id` | `uuid` | Yes | — | No column description has been recorded. |
+| `requested_columns` | `ARRAY` | Yes | — | No column description has been recorded. |
+| `successful_columns` | `ARRAY` | No | `'{}'::text[]` | No column description has been recorded. |
+| `failed_columns` | `ARRAY` | No | `'{}'::text[]` | No column description has been recorded. |
+| `group_outcomes` | `jsonb` | No | `'{}'::jsonb` | No column description has been recorded. |
+| `result` | `text` | No | — | No column description has been recorded. |
+| `source_start` | `date` | Yes | — | No column description has been recorded. |
+| `source_end` | `date` | Yes | — | No column description has been recorded. |
+| `source_rows` | `integer` | Yes | — | No column description has been recorded. |
+| `source_sha256` | `text` | Yes | — | No column description has been recorded. |
+| `changed_rows` | `integer` | Yes | — | No column description has been recorded. |
+| `calculation_version` | `text` | No | — | No column description has been recorded. |
+| `started_at` | `timestamp with time zone` | No | — | No column description has been recorded. |
+| `finished_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `error_code` | `text` | Yes | — | No column description has been recorded. |
+| `detail` | `text` | Yes | — | No column description has been recorded. |
+| `asset_type` | `text` | No | — | No column description has been recorded. |
 
 ### Constraints
 
 | Name | Type | Definition |
 |---|---|---|
+| `Feature04_Calculation_Log_asset_type_check` | Check | `CHECK (asset_type = ANY (ARRAY['equity'::text, 'bonds'::text]))` |
 | `Feature04_Calculation_Log_changed_rows_check` | Check | `CHECK (changed_rows IS NULL OR changed_rows >= 0)` |
 | `Feature04_Calculation_Log_check` | Check | `CHECK (source_generation >= 0 AND work_revision > 0)` |
 | `Feature04_Calculation_Log_check1` | Check | `CHECK (finished_at >= started_at)` |
@@ -1343,41 +1348,43 @@ Immutable Feature04 calculation attempt audit.
 | Name | Definition |
 |---|---|
 | `Feature04_Calculation_Log_pkey` | `CREATE UNIQUE INDEX "Feature04_Calculation_Log_pkey" ON public."Feature04_Calculation_Log" USING btree (id)` |
-| `Feature04_Calculation_Log_ticker_time_idx` | `CREATE INDEX "Feature04_Calculation_Log_ticker_time_idx" ON public."Feature04_Calculation_Log" USING btree (ticker, started_at DESC)` |
+| `Feature04_Calculation_Log_ticker_time_idx` | `CREATE INDEX "Feature04_Calculation_Log_ticker_time_idx" ON public."Feature04_Calculation_Log" USING btree (asset_type, ticker, started_at DESC)` |
 
 ## Feature04_Calculation_Queue
 
-Durable coalesced Feature04 work and lease state.
+Durable coalesced Feature04 work per ticker/timeframe; generation tracks source change and work_revision tracks retry scope.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `ticker` | `text` | No | — | Operational ticker field for Feature04_Calculation_Queue. |
-| `timeframe` | `text` | No | `'Daily'::text` | Operational timeframe field for Feature04_Calculation_Queue. |
-| `dirty_from_date` | `date` | No | — | Operational dirty from date field for Feature04_Calculation_Queue. |
-| `requested_generation` | `bigint` | No | `1` | Operational requested generation field for Feature04_Calculation_Queue. |
-| `completed_generation` | `bigint` | No | `0` | Operational completed generation field for Feature04_Calculation_Queue. |
-| `work_revision` | `bigint` | No | `1` | Operational work revision field for Feature04_Calculation_Queue. |
-| `requested_columns` | `ARRAY` | Yes | — | Operational requested columns field for Feature04_Calculation_Queue. |
-| `origin_execution_id` | `text` | Yes | — | Operational origin execution id field for Feature04_Calculation_Queue. |
-| `status` | `text` | No | `'PENDING'::text` | Operational status field for Feature04_Calculation_Queue. |
-| `attempt_count` | `bigint` | No | `0` | Operational attempt count field for Feature04_Calculation_Queue. |
-| `source_attempt_count` | `integer` | No | `0` | Operational source attempt count field for Feature04_Calculation_Queue. |
-| `next_attempt_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational next attempt at field for Feature04_Calculation_Queue. |
-| `claimed_at` | `timestamp with time zone` | Yes | — | Operational claimed at field for Feature04_Calculation_Queue. |
-| `claim_token` | `uuid` | Yes | — | Operational claim token field for Feature04_Calculation_Queue. |
-| `claim_expires_at` | `timestamp with time zone` | Yes | — | Operational claim expires at field for Feature04_Calculation_Queue. |
-| `last_error_code` | `text` | Yes | — | Operational last error code field for Feature04_Calculation_Queue. |
-| `last_error` | `text` | Yes | — | Operational last error field for Feature04_Calculation_Queue. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational created at field for Feature04_Calculation_Queue. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational updated at field for Feature04_Calculation_Queue. |
-| `completed_at` | `timestamp with time zone` | Yes | — | Operational completed at field for Feature04_Calculation_Queue. |
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `timeframe` | `text` | No | `'Daily'::text` | No column description has been recorded. |
+| `dirty_from_date` | `date` | No | — | No column description has been recorded. |
+| `requested_generation` | `bigint` | No | `1` | No column description has been recorded. |
+| `completed_generation` | `bigint` | No | `0` | No column description has been recorded. |
+| `work_revision` | `bigint` | No | `1` | No column description has been recorded. |
+| `requested_columns` | `ARRAY` | Yes | — | No column description has been recorded. |
+| `origin_execution_id` | `text` | Yes | — | No column description has been recorded. |
+| `status` | `text` | No | `'PENDING'::text` | No column description has been recorded. |
+| `attempt_count` | `bigint` | No | `0` | No column description has been recorded. |
+| `source_attempt_count` | `integer` | No | `0` | No column description has been recorded. |
+| `next_attempt_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `claimed_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
+| `claim_token` | `uuid` | Yes | — | No column description has been recorded. |
+| `claim_expires_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
+| `last_error_code` | `text` | Yes | — | No column description has been recorded. |
+| `last_error` | `text` | Yes | — | No column description has been recorded. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `completed_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
+| `asset_type` | `text` | No | — | No column description has been recorded. |
 
 ### Constraints
 
 | Name | Type | Definition |
 |---|---|---|
+| `Feature04_Calculation_Queue_asset_type_check` | Check | `CHECK (asset_type = ANY (ARRAY['equity'::text, 'bonds'::text]))` |
 | `Feature04_Calculation_Queue_check` | Check | `CHECK (requested_generation >= completed_generation AND completed_generation >= 0)` |
 | `Feature04_Calculation_Queue_check1` | Check | `CHECK (work_revision > 0 AND attempt_count >= 0 AND source_attempt_count >= 0)` |
 | `Feature04_Calculation_Queue_check2` | Check | `CHECK ((status = 'PROCESSING'::text) = (claimed_at IS NOT NULL AND claim_token IS NOT NULL AND claim_expires_at IS NOT NULL))` |
@@ -1385,81 +1392,83 @@ Durable coalesced Feature04 work and lease state.
 | `Feature04_Calculation_Queue_status_check` | Check | `CHECK (status = ANY (ARRAY['PENDING'::text, 'PROCESSING'::text, 'DONE'::text, 'FAILED'::text]))` |
 | `Feature04_Calculation_Queue_ticker_check` | Check | `CHECK (ticker = upper(btrim(ticker)) AND ticker <> ''::text)` |
 | `Feature04_Calculation_Queue_timeframe_check` | Check | `CHECK (timeframe = 'Daily'::text)` |
-| `Feature04_Calculation_Queue_pkey` | Primary key | `PRIMARY KEY (ticker, timeframe)` |
+| `Feature04_Calculation_Queue_pkey` | Primary key | `PRIMARY KEY (asset_type, ticker, timeframe)` |
 
 ### Indexes
 
 | Name | Definition |
 |---|---|
 | `Feature04_Calculation_Queue_lease_idx` | `CREATE INDEX "Feature04_Calculation_Queue_lease_idx" ON public."Feature04_Calculation_Queue" USING btree (claim_expires_at) WHERE (status = 'PROCESSING'::text)` |
-| `Feature04_Calculation_Queue_pkey` | `CREATE UNIQUE INDEX "Feature04_Calculation_Queue_pkey" ON public."Feature04_Calculation_Queue" USING btree (ticker, timeframe)` |
+| `Feature04_Calculation_Queue_pkey` | `CREATE UNIQUE INDEX "Feature04_Calculation_Queue_pkey" ON public."Feature04_Calculation_Queue" USING btree (asset_type, ticker, timeframe)` |
 | `Feature04_Calculation_Queue_ready_idx` | `CREATE INDEX "Feature04_Calculation_Queue_ready_idx" ON public."Feature04_Calculation_Queue" USING btree (next_attempt_at, updated_at) WHERE (status = ANY (ARRAY['PENDING'::text, 'FAILED'::text]))` |
 
 ## Feature04_Column_Status
 
-Per-ticker per-output Feature04 readiness and failure state.
+Current readiness/failure state for each Feature04 output column per ticker; expected NULL is a successful availability outcome.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `ticker` | `text` | No | — | Operational ticker field for Feature04_Column_Status. |
-| `timeframe` | `text` | No | `'Daily'::text` | Operational timeframe field for Feature04_Column_Status. |
-| `feature_column` | `text` | No | — | Operational feature column field for Feature04_Column_Status. |
-| `requested_generation` | `bigint` | No | `0` | Operational requested generation field for Feature04_Column_Status. |
-| `completed_generation` | `bigint` | No | `0` | Operational completed generation field for Feature04_Column_Status. |
-| `calculation_version` | `text` | No | — | Operational calculation version field for Feature04_Column_Status. |
-| `status` | `text` | No | — | Operational status field for Feature04_Column_Status. |
-| `dirty_from_date` | `date` | Yes | — | Operational dirty from date field for Feature04_Column_Status. |
-| `validated_through` | `date` | Yes | — | Operational validated through field for Feature04_Column_Status. |
-| `latest_value_available` | `boolean` | Yes | — | Operational latest value available field for Feature04_Column_Status. |
-| `null_reason` | `text` | Yes | — | Operational null reason field for Feature04_Column_Status. |
-| `last_attempt_id` | `bigint` | Yes | — | Operational last attempt id field for Feature04_Column_Status. |
-| `last_error_code` | `text` | Yes | — | Operational last error code field for Feature04_Column_Status. |
-| `last_error` | `text` | Yes | — | Operational last error field for Feature04_Column_Status. |
-| `last_calculated_at` | `timestamp with time zone` | Yes | — | Operational last calculated at field for Feature04_Column_Status. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational updated at field for Feature04_Column_Status. |
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `timeframe` | `text` | No | `'Daily'::text` | No column description has been recorded. |
+| `feature_column` | `text` | No | — | No column description has been recorded. |
+| `requested_generation` | `bigint` | No | `0` | No column description has been recorded. |
+| `completed_generation` | `bigint` | No | `0` | No column description has been recorded. |
+| `calculation_version` | `text` | No | — | No column description has been recorded. |
+| `status` | `text` | No | — | No column description has been recorded. |
+| `dirty_from_date` | `date` | Yes | — | No column description has been recorded. |
+| `validated_through` | `date` | Yes | — | No column description has been recorded. |
+| `latest_value_available` | `boolean` | Yes | — | No column description has been recorded. |
+| `null_reason` | `text` | Yes | — | No column description has been recorded. |
+| `last_attempt_id` | `bigint` | Yes | — | No column description has been recorded. |
+| `last_error_code` | `text` | Yes | — | No column description has been recorded. |
+| `last_error` | `text` | Yes | — | No column description has been recorded. |
+| `last_calculated_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `asset_type` | `text` | No | — | No column description has been recorded. |
 
 ### Constraints
 
 | Name | Type | Definition |
 |---|---|---|
+| `Feature04_Column_Status_asset_type_check` | Check | `CHECK (asset_type = ANY (ARRAY['equity'::text, 'bonds'::text]))` |
 | `Feature04_Column_Status_check` | Check | `CHECK (btrim(feature_column) <> ''::text AND btrim(calculation_version) <> ''::text)` |
 | `Feature04_Column_Status_check1` | Check | `CHECK (requested_generation >= completed_generation AND completed_generation >= 0)` |
 | `Feature04_Column_Status_status_check` | Check | `CHECK (status = ANY (ARRAY['PENDING'::text, 'PROCESSING'::text, 'SUCCESS'::text, 'FAILED'::text, 'BLOCKED'::text]))` |
 | `Feature04_Column_Status_ticker_check` | Check | `CHECK (ticker = upper(btrim(ticker)) AND ticker <> ''::text)` |
 | `Feature04_Column_Status_timeframe_check` | Check | `CHECK (timeframe = 'Daily'::text)` |
 | `Feature04_Column_Status_attempt_fkey` | Foreign key | `FOREIGN KEY (last_attempt_id) REFERENCES "Feature04_Calculation_Log"(id)` |
-| `Feature04_Column_Status_pkey` | Primary key | `PRIMARY KEY (ticker, timeframe, feature_column)` |
+| `Feature04_Column_Status_pkey` | Primary key | `PRIMARY KEY (asset_type, ticker, timeframe, feature_column)` |
 
 ### Indexes
 
 | Name | Definition |
 |---|---|
-| `Feature04_Column_Status_failure_idx` | `CREATE INDEX "Feature04_Column_Status_failure_idx" ON public."Feature04_Column_Status" USING btree (status, updated_at DESC, ticker, feature_column) WHERE (status = ANY (ARRAY['FAILED'::text, 'BLOCKED'::text]))` |
-| `Feature04_Column_Status_pkey` | `CREATE UNIQUE INDEX "Feature04_Column_Status_pkey" ON public."Feature04_Column_Status" USING btree (ticker, timeframe, feature_column)` |
+| `Feature04_Column_Status_failure_idx` | `CREATE INDEX "Feature04_Column_Status_failure_idx" ON public."Feature04_Column_Status" USING btree (status, updated_at DESC, asset_type, ticker, feature_column) WHERE (status = ANY (ARRAY['FAILED'::text, 'BLOCKED'::text]))` |
+| `Feature04_Column_Status_pkey` | `CREATE UNIQUE INDEX "Feature04_Column_Status_pkey" ON public."Feature04_Column_Status" USING btree (asset_type, ticker, timeframe, feature_column)` |
 
 ## Feature04_Notification_Outbox
 
-Durable Feature04 completion-notification work.
+Durable Feature04 completion delivery request; calculation success never depends on Telegram availability.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `event_id` | `uuid` | No | — | Operational event id field for Feature04_Notification_Outbox. |
-| `execution_id` | `text` | No | — | Operational execution id field for Feature04_Notification_Outbox. |
-| `notification_type` | `text` | No | `'COMPLETED'::text` | Operational notification type field for Feature04_Notification_Outbox. |
-| `status` | `text` | No | `'PENDING'::text` | Operational status field for Feature04_Notification_Outbox. |
-| `attempt_count` | `integer` | No | `0` | Operational attempt count field for Feature04_Notification_Outbox. |
-| `next_attempt_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational next attempt at field for Feature04_Notification_Outbox. |
-| `claimed_at` | `timestamp with time zone` | Yes | — | Operational claimed at field for Feature04_Notification_Outbox. |
-| `claim_token` | `uuid` | Yes | — | Operational claim token field for Feature04_Notification_Outbox. |
-| `claim_expires_at` | `timestamp with time zone` | Yes | — | Operational claim expires at field for Feature04_Notification_Outbox. |
-| `sent_at` | `timestamp with time zone` | Yes | — | Operational sent at field for Feature04_Notification_Outbox. |
-| `last_error` | `text` | Yes | — | Operational last error field for Feature04_Notification_Outbox. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational created at field for Feature04_Notification_Outbox. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational updated at field for Feature04_Notification_Outbox. |
+| `event_id` | `uuid` | No | — | No column description has been recorded. |
+| `execution_id` | `text` | No | — | No column description has been recorded. |
+| `notification_type` | `text` | No | `'COMPLETED'::text` | No column description has been recorded. |
+| `status` | `text` | No | `'PENDING'::text` | No column description has been recorded. |
+| `attempt_count` | `integer` | No | `0` | No column description has been recorded. |
+| `next_attempt_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `claimed_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
+| `claim_token` | `uuid` | Yes | — | No column description has been recorded. |
+| `claim_expires_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
+| `sent_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
+| `last_error` | `text` | Yes | — | No column description has been recorded. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
 
 ### Constraints
 
@@ -1482,32 +1491,34 @@ Durable Feature04 completion-notification work.
 
 ## Feature04_Retry_Request
 
-Audited Telegram failure-only retry request.
+Audited owner Telegram retry request for one failed ticker or failed indicator bundle.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `request_id` | `uuid` | No | — | Operational request id field for Feature04_Retry_Request. |
-| `telegram_update_id` | `bigint` | Yes | — | Operational telegram update id field for Feature04_Retry_Request. |
-| `chat_id` | `bigint` | Yes | — | Operational chat id field for Feature04_Retry_Request. |
-| `request_scope` | `text` | No | — | Operational request scope field for Feature04_Retry_Request. |
-| `source_execution_id` | `text` | Yes | — | Operational source execution id field for Feature04_Retry_Request. |
-| `ticker` | `text` | Yes | — | Operational ticker field for Feature04_Retry_Request. |
-| `requested_columns` | `ARRAY` | Yes | — | Operational requested columns field for Feature04_Retry_Request. |
-| `source_generation` | `bigint` | No | — | Operational source generation field for Feature04_Retry_Request. |
-| `work_revision` | `bigint` | No | — | Operational work revision field for Feature04_Retry_Request. |
-| `status` | `text` | No | `'PENDING'::text` | Operational status field for Feature04_Retry_Request. |
-| `child_execution_id` | `text` | No | — | Operational child execution id field for Feature04_Retry_Request. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational created at field for Feature04_Retry_Request. |
-| `started_at` | `timestamp with time zone` | Yes | — | Operational started at field for Feature04_Retry_Request. |
-| `finished_at` | `timestamp with time zone` | Yes | — | Operational finished at field for Feature04_Retry_Request. |
-| `last_error` | `text` | Yes | — | Operational last error field for Feature04_Retry_Request. |
+| `request_id` | `uuid` | No | — | No column description has been recorded. |
+| `telegram_update_id` | `bigint` | Yes | — | No column description has been recorded. |
+| `chat_id` | `bigint` | Yes | — | No column description has been recorded. |
+| `request_scope` | `text` | No | — | No column description has been recorded. |
+| `source_execution_id` | `text` | Yes | — | No column description has been recorded. |
+| `ticker` | `text` | Yes | — | No column description has been recorded. |
+| `requested_columns` | `ARRAY` | Yes | — | No column description has been recorded. |
+| `source_generation` | `bigint` | No | — | No column description has been recorded. |
+| `work_revision` | `bigint` | No | — | No column description has been recorded. |
+| `status` | `text` | No | `'PENDING'::text` | No column description has been recorded. |
+| `child_execution_id` | `text` | No | — | No column description has been recorded. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `started_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
+| `finished_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
+| `last_error` | `text` | Yes | — | No column description has been recorded. |
+| `asset_type` | `text` | Yes | — | No column description has been recorded. |
 
 ### Constraints
 
 | Name | Type | Definition |
 |---|---|---|
+| `Feature04_Retry_Request_asset_type_check` | Check | `CHECK (asset_type IS NULL OR (asset_type = ANY (ARRAY['equity'::text, 'bonds'::text])))` |
 | `Feature04_Retry_Request_check` | Check | `CHECK (request_scope = 'TICKER'::text AND requested_columns IS NULL OR request_scope = 'COLUMN'::text AND requested_columns IS NOT NULL AND cardinality(requested_columns) > 0)` |
 | `Feature04_Retry_Request_check1` | Check | `CHECK (source_generation >= 0 AND work_revision > 0)` |
 | `Feature04_Retry_Request_request_scope_check` | Check | `CHECK (request_scope = ANY (ARRAY['TICKER'::text, 'COLUMN'::text]))` |
@@ -1526,72 +1537,74 @@ Audited Telegram failure-only retry request.
 
 ## Feature04_Technical_Indicator
 
-55-column causal daily indicators, native candlestick codes, strict inside bar and Pine SMI/swing state. Authorized v3 full-history replay completed for all actual price-source tickers. TradingView chart parity NOT VERIFIED.
+56-column cross-asset daily technical Feature04. Identity is asset_type/ticker/trade_date/Daily; asset_type is resolved from approved equity or fixed-income universe membership.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `ticker` | `text` | No | — | IDX security code copied from source ticker. |
-| `trade_date` | `date` | No | — | Trading observation date copied from source date. |
-| `timeframe` | `text` | No | — | Verified daily timeframe copied exactly from source. |
-| `sma_20` | `double precision` | Yes | — | Unweighted mean of 20 observed closes. |
-| `sma_50` | `double precision` | Yes | — | Unweighted mean of 50 observed closes. |
-| `ema_12` | `double precision` | Yes | — | Fast exponentially weighted close; alpha=2/13. |
-| `ema_26` | `double precision` | Yes | — | Slow exponentially weighted close; alpha=2/27. |
-| `rsi_14` | `double precision` | Yes | — | Wilder gain/loss oscillator on 14 consecutive close changes, scaled 0–100. |
-| `macd` | `double precision` | Yes | — | Difference of the stored fast and slow EMA price baselines. |
-| `macd_signal` | `double precision` | Yes | — | Nine-period EMA of valid MACD line observations. |
-| `macd_histogram` | `double precision` | Yes | — | Difference between MACD line and its nine-period signal. |
-| `atr_14` | `double precision` | Yes | — | Wilder average of 14 true ranges using prior observed close. |
-| `bb_upper_20` | `double precision` | Yes | — | Upper 20-period Bollinger band, population standard deviation multiplier 2. |
-| `bb_middle_20` | `double precision` | Yes | — | Middle 20-period Bollinger band, identical to SMA20. |
-| `bb_lower_20` | `double precision` | Yes | — | Lower 20-period Bollinger band, population standard deviation multiplier 2. |
-| `cdl_piercing` | `integer` | Yes | — | Native TA-Lib piercing pattern recognition code from historical OHLC. |
-| `cdl_morning_star` | `integer` | Yes | — | Native TA-Lib morning star pattern recognition code from historical OHLC. |
-| `cdl_morning_doji_star` | `integer` | Yes | — | Native TA-Lib morning doji star pattern recognition code from historical OHLC. |
-| `cdl_engulfing` | `integer` | Yes | — | Native TA-Lib engulfing pattern recognition code from historical OHLC. |
-| `cdl_3_white_soldiers` | `integer` | Yes | — | Native TA-Lib 3 white soldiers pattern recognition code from historical OHLC. |
-| `cdl_hammer` | `integer` | Yes | — | Native TA-Lib hammer pattern recognition code from historical OHLC. |
-| `cdl_inverted_hammer` | `integer` | Yes | — | Native TA-Lib inverted hammer pattern recognition code from historical OHLC. |
-| `cdl_3_inside` | `integer` | Yes | — | Native TA-Lib 3 inside pattern recognition code from historical OHLC. |
-| `cdl_3_outside` | `integer` | Yes | — | Native TA-Lib 3 outside pattern recognition code from historical OHLC. |
-| `cdl_harami` | `integer` | Yes | — | Native TA-Lib harami pattern recognition code from historical OHLC. |
-| `cdl_harami_cross` | `integer` | Yes | — | Native TA-Lib harami cross pattern recognition code from historical OHLC. |
-| `cdl_dark_cloud_cover` | `integer` | Yes | — | Native TA-Lib dark cloud cover pattern recognition code from historical OHLC. |
-| `cdl_evening_star` | `integer` | Yes | — | Native TA-Lib evening star pattern recognition code from historical OHLC. |
-| `cdl_evening_doji_star` | `integer` | Yes | — | Native TA-Lib evening doji star pattern recognition code from historical OHLC. |
-| `cdl_3_black_crows` | `integer` | Yes | — | Native TA-Lib 3 black crows pattern recognition code from historical OHLC. |
-| `cdl_shooting_star` | `integer` | Yes | — | Native TA-Lib shooting star pattern recognition code from historical OHLC. |
-| `cdl_hanging_man` | `integer` | Yes | — | Native TA-Lib hanging man pattern recognition code from historical OHLC. |
-| `cdl_doji` | `integer` | Yes | — | Native TA-Lib doji pattern recognition code from historical OHLC. |
-| `cdl_dragonfly_doji` | `integer` | Yes | — | Native TA-Lib dragonfly doji pattern recognition code from historical OHLC. |
-| `cdl_gravestone_doji` | `integer` | Yes | — | Native TA-Lib gravestone doji pattern recognition code from historical OHLC. |
-| `cdl_marubozu` | `integer` | Yes | — | Native TA-Lib marubozu pattern recognition code from historical OHLC. |
-| `cdl_kicking` | `integer` | Yes | — | Native TA-Lib kicking pattern recognition code from historical OHLC. |
-| `cdl_rise_fall_3_methods` | `integer` | Yes | — | Native TA-Lib rise fall 3 methods pattern recognition code from historical OHLC. |
-| `cdl_mat_hold` | `integer` | Yes | — | Native TA-Lib mat hold pattern recognition code from historical OHLC. |
-| `cdl_hikkake` | `integer` | Yes | — | Native TA-Lib hikkake pattern recognition code from historical OHLC. |
-| `calculation_version` | `text` | No | — | Version binds formulas, seeds and pinned TA-Lib versions. |
-| `calculated_at` | `timestamp with time zone` | No | — | Timezone-aware execution time of the last changed output row. |
-| `adx_14` | `double precision` | Yes | — | Wilder average directional index measuring trend strength on a 0–100 scale. |
-| `ema_50` | `double precision` | Yes | — | Fifty-observation exponentially weighted close; alpha=2/51. |
-| `ema_200` | `double precision` | Yes | — | Two-hundred-observation exponentially weighted close; alpha=2/201. |
-| `inside_bar` | `integer` | Yes | — | Strict current-candle range containment within the previous valid observed candle. |
-| `smi` | `double precision` | Yes | — | Stochastic Momentum Index: double-smoothed close displacement from the midpoint of a rolling 14-bar high/low range. |
-| `tracking_high` | `integer` | Yes | — | High-search state after all current-bar Pine blocks execute. |
-| `tracking_low` | `integer` | Yes | — | Low-search state after all current-bar Pine blocks execute. |
-| `temp_high` | `double precision` | Yes | — | Provisional highest high in the current active SMI-above-40 tracking interval. |
-| `temp_high_bar` | `integer` | Yes | — | Zero-based source observation index of the currently tracked temporary high. |
-| `temp_low` | `double precision` | Yes | — | Provisional lowest low in the current active SMI-below-minus-40 tracking interval. |
-| `temp_low_bar` | `integer` | Yes | — | Zero-based source observation index of the currently tracked temporary low. |
-| `last_swing_high` | `double precision` | Yes | — | Latest swing-high price available after its SMI-downcross confirmation, carried forward. |
-| `break_swing_high` | `integer` | Yes | — | Integer event flag for the supplied Pine close/last-swing-high crossover. |
+| `ticker` | `text` | No | — | IDX security code copied from source ticker. ticker |
+| `trade_date` | `date` | No | — | Trading observation date copied from source date. date |
+| `timeframe` | `text` | No | — | Verified daily timeframe copied exactly from source. timeframe = Daily |
+| `sma_20` | `double precision` | Yes | — | Unweighted mean of 20 observed closes. TA-Lib SMA(close,20) |
+| `sma_50` | `double precision` | Yes | — | Unweighted mean of 50 observed closes. TA-Lib SMA(close,50) |
+| `ema_12` | `double precision` | Yes | — | Fast exponentially weighted close; alpha=2/13. Seed=SMA(first12 closes); EMA[t]=EMA[t-1]+2/13*(close[t]-EMA[t-1]) |
+| `ema_26` | `double precision` | Yes | — | Slow exponentially weighted close; alpha=2/27. Seed=SMA(first26 closes); EMA[t]=EMA[t-1]+2/27*(close[t]-EMA[t-1]) |
+| `rsi_14` | `double precision` | Yes | — | Wilder gain/loss oscillator on 14 consecutive close changes, scaled 0–100. TA-Lib RSI(close,14): SMA seed of 14 gains/losses; RMA alpha=1/14; 100*gain/(gain+loss); both-zero uses native 0 |
+| `macd` | `double precision` | Yes | — | Difference of the stored fast and slow EMA price baselines. ema_12 - ema_26; independently SMA-seeded EMAs, not TA-Lib MACD internal fast reseeding |
+| `macd_signal` | `double precision` | Yes | — | Nine-period EMA of valid MACD line observations. Seed=SMA(first9 valid macd); signal[t]=signal[t-1]+0.2*(macd[t]-signal[t-1]) |
+| `macd_histogram` | `double precision` | Yes | — | Difference between MACD line and its nine-period signal. macd - macd_signal |
+| `atr_14` | `double precision` | Yes | — | Wilder average of 14 true ranges using prior observed close. TA-Lib ATR(high,low,close,14): TR=max(high-low,abs(high-prev_close),abs(low-prev_close)); first TR excludes bar1; SMA seed then RMA alpha=1/14 |
+| `bb_upper_20` | `double precision` | Yes | — | Upper 20-period Bollinger band, population standard deviation multiplier 2. SMA20(close) + 2*sqrt(sum((close-SMA20)^2)/20) |
+| `bb_middle_20` | `double precision` | Yes | — | Middle 20-period Bollinger band, identical to SMA20. SMA20(close) |
+| `bb_lower_20` | `double precision` | Yes | — | Lower 20-period Bollinger band, population standard deviation multiplier 2. SMA20(close) - 2*sqrt(sum((close-SMA20)^2)/20) |
+| `cdl_piercing` | `integer` | Yes | — | Native TA-Lib piercing pattern recognition code from historical OHLC. TA-Lib CDLPIERCING(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
+| `cdl_morning_star` | `integer` | Yes | — | Native TA-Lib morning star pattern recognition code from historical OHLC. TA-Lib CDLMORNINGSTAR(open,high,low,close), default candle settings; parameters={'penetration': 0.3}; native signed integers including non-100 codes retained |
+| `cdl_morning_doji_star` | `integer` | Yes | — | Native TA-Lib morning doji star pattern recognition code from historical OHLC. TA-Lib CDLMORNINGDOJISTAR(open,high,low,close), default candle settings; parameters={'penetration': 0.3}; native signed integers including non-100 codes retained |
+| `cdl_engulfing` | `integer` | Yes | — | Native TA-Lib engulfing pattern recognition code from historical OHLC. TA-Lib CDLENGULFING(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
+| `cdl_3_white_soldiers` | `integer` | Yes | — | Native TA-Lib 3 white soldiers pattern recognition code from historical OHLC. TA-Lib CDL3WHITESOLDIERS(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
+| `cdl_hammer` | `integer` | Yes | — | Native TA-Lib hammer pattern recognition code from historical OHLC. TA-Lib CDLHAMMER(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
+| `cdl_inverted_hammer` | `integer` | Yes | — | Native TA-Lib inverted hammer pattern recognition code from historical OHLC. TA-Lib CDLINVERTEDHAMMER(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
+| `cdl_3_inside` | `integer` | Yes | — | Native TA-Lib 3 inside pattern recognition code from historical OHLC. TA-Lib CDL3INSIDE(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
+| `cdl_3_outside` | `integer` | Yes | — | Native TA-Lib 3 outside pattern recognition code from historical OHLC. TA-Lib CDL3OUTSIDE(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
+| `cdl_harami` | `integer` | Yes | — | Native TA-Lib harami pattern recognition code from historical OHLC. TA-Lib CDLHARAMI(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
+| `cdl_harami_cross` | `integer` | Yes | — | Native TA-Lib harami cross pattern recognition code from historical OHLC. TA-Lib CDLHARAMICROSS(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
+| `cdl_dark_cloud_cover` | `integer` | Yes | — | Native TA-Lib dark cloud cover pattern recognition code from historical OHLC. TA-Lib CDLDARKCLOUDCOVER(open,high,low,close), default candle settings; parameters={'penetration': 0.5}; native signed integers including non-100 codes retained |
+| `cdl_evening_star` | `integer` | Yes | — | Native TA-Lib evening star pattern recognition code from historical OHLC. TA-Lib CDLEVENINGSTAR(open,high,low,close), default candle settings; parameters={'penetration': 0.3}; native signed integers including non-100 codes retained |
+| `cdl_evening_doji_star` | `integer` | Yes | — | Native TA-Lib evening doji star pattern recognition code from historical OHLC. TA-Lib CDLEVENINGDOJISTAR(open,high,low,close), default candle settings; parameters={'penetration': 0.3}; native signed integers including non-100 codes retained |
+| `cdl_3_black_crows` | `integer` | Yes | — | Native TA-Lib 3 black crows pattern recognition code from historical OHLC. TA-Lib CDL3BLACKCROWS(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
+| `cdl_shooting_star` | `integer` | Yes | — | Native TA-Lib shooting star pattern recognition code from historical OHLC. TA-Lib CDLSHOOTINGSTAR(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
+| `cdl_hanging_man` | `integer` | Yes | — | Native TA-Lib hanging man pattern recognition code from historical OHLC. TA-Lib CDLHANGINGMAN(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
+| `cdl_doji` | `integer` | Yes | — | Native TA-Lib doji pattern recognition code from historical OHLC. TA-Lib CDLDOJI(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
+| `cdl_dragonfly_doji` | `integer` | Yes | — | Native TA-Lib dragonfly doji pattern recognition code from historical OHLC. TA-Lib CDLDRAGONFLYDOJI(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
+| `cdl_gravestone_doji` | `integer` | Yes | — | Native TA-Lib gravestone doji pattern recognition code from historical OHLC. TA-Lib CDLGRAVESTONEDOJI(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
+| `cdl_marubozu` | `integer` | Yes | — | Native TA-Lib marubozu pattern recognition code from historical OHLC. TA-Lib CDLMARUBOZU(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
+| `cdl_kicking` | `integer` | Yes | — | Native TA-Lib kicking pattern recognition code from historical OHLC. TA-Lib CDLKICKING(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
+| `cdl_rise_fall_3_methods` | `integer` | Yes | — | Native TA-Lib rise fall 3 methods pattern recognition code from historical OHLC. TA-Lib CDLRISEFALL3METHODS(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
+| `cdl_mat_hold` | `integer` | Yes | — | Native TA-Lib mat hold pattern recognition code from historical OHLC. TA-Lib CDLMATHOLD(open,high,low,close), default candle settings; parameters={'penetration': 0.5}; native signed integers including non-100 codes retained |
+| `cdl_hikkake` | `integer` | Yes | — | Native TA-Lib hikkake pattern recognition code from historical OHLC. TA-Lib CDLHIKKAKE(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
+| `calculation_version` | `text` | No | — | Version binds formulas, seeds and pinned TA-Lib versions. engine.VERSION |
+| `calculated_at` | `timestamp with time zone` | No | — | Timezone-aware execution time of the last changed output row. UTC execution timestamp; unchanged UPSERT preserves existing timestamp |
+| `adx_14` | `double precision` | Yes | — | Wilder average directional index measuring trend strength on a 0–100 scale. TA-Lib ADX(high,low,close,14); directional movement and true range Wilder-smoothed over 14, DX=100*abs(+DI-(-DI))/(+DI+(-DI)), then 14-period Wilder ADX; native zero-denominator convention; unstable period 0 |
+| `ema_50` | `double precision` | Yes | — | Fifty-observation exponentially weighted close; alpha=2/51. Seed=SMA(first50 closes); EMA[t]=EMA[t-1]+2/51*(close[t]-EMA[t-1]) |
+| `ema_200` | `double precision` | Yes | — | Two-hundred-observation exponentially weighted close; alpha=2/201. Seed=SMA(first200 closes); EMA[t]=EMA[t-1]+2/201*(close[t]-EMA[t-1]) |
+| `inside_bar` | `integer` | Yes | — | Strict current-candle range containment within the previous valid observed candle. 1 if high[t]<high[t-1] AND low[t]>low[t-1], else 0; compare original numeric prices; no future candle |
+| `smi` | `double precision` | Yes | — | Stochastic Momentum Index: double-smoothed close displacement from the midpoint of a rolling 14-bar high/low range. 200*EMA5(EMA5(close-(highest14(high)+lowest14(low))/2))/EMA5(EMA5(highest14(high)-lowest14(low))); first-input EMA seed, alpha=1/3, partial extrema windows at startup NULL for an uncomputed ticker, invalid OHLCV, or a zero double-smoothed range; no zero imputation. |
+| `tracking_high` | `integer` | Yes | — | High-search state after all current-bar Pine blocks execute. Set 1 on SMI crossover above +40, reset 0 on SMI crossunder below +40; initial 0; recross above +40 resets the temporary peak Uncomputed/invalid row NULL; valid processed row is INTEGER 1 while tracking or 0 otherwise, including initialization. |
+| `tracking_low` | `integer` | Yes | — | Low-search state after all current-bar Pine blocks execute. Set 1 on SMI crossunder below -40, reset 0 on SMI crossover above -40; initial 0; recross below -40 resets the temporary trough Uncomputed/invalid row NULL; valid processed row is INTEGER 1 while tracking or 0 otherwise, including initialization. |
+| `temp_high` | `double precision` | Yes | — | Provisional highest high in the current active SMI-above-40 tracking interval. Initialize high on +40 upcross; update only if tracking_high and SMI>40 and high>temp_high; clear on +40 downcross after copying to last_swing_high NULL outside active high tracking, including immediately after confirmation; uncomputed/invalid rows NULL. |
+| `temp_high_bar` | `integer` | Yes | — | Zero-based source observation index of the currently tracked temporary high. bar_index on temp_high initialization or strictly higher high; index 0 is earliest available source row for this ticker and timeframe; NULL when temp_high is cleared NULL together with temp_high; uncomputed/invalid rows NULL. Zero is a valid first-bar index. |
+| `temp_low` | `double precision` | Yes | — | Provisional lowest low in the current active SMI-below-minus-40 tracking interval. Initialize low on -40 downcross; update only if tracking_low and SMI<-40 and low<temp_low; clear on -40 upcross NULL outside active low tracking, including immediately after confirmation; uncomputed/invalid rows NULL. |
+| `temp_low_bar` | `integer` | Yes | — | Zero-based source observation index of the currently tracked temporary low. bar_index on temp_low initialization or strictly lower low; index 0 is earliest available source row for this ticker and timeframe; NULL when temp_low is cleared NULL together with temp_low; uncomputed/invalid rows NULL. Zero is a valid first-bar index. |
+| `last_swing_high` | `double precision` | Yes | — | Latest swing-high price available after its SMI-downcross confirmation, carried forward. When tracking_high and SMI[t]<40 and SMI[t-1]>=40, copy tracked temp_high before clearing it; retain until the next high confirmation NULL before the first confirmed high or after invalid-row state reset; uncomputed rows NULL. |
+| `break_swing_high` | `integer` | Yes | — | Integer event flag for the supplied Pine close/last-swing-high crossover. 1 iff last_swing_high[t] and last_swing_high[t-1] exist AND close[t]>last_swing_high[t] AND close[t-1]<=last_swing_high[t-1]; otherwise 0 on a valid processed bar Valid processed row INTEGER 1 on a crossover, otherwise INTEGER 0, including before any confirmed high. NULL only for uncomputed/invalid rows. |
+| `asset_type` | `text` | No | — | Universe-derived asset class: equity from IDX_Stock_Universe; bonds from Universe_Fixed_income. |
 
 ### Constraints
 
 | Name | Type | Definition |
 |---|---|---|
+| `Feature04_Technical_Indicator_asset_type_check` | Check | `CHECK (asset_type = ANY (ARRAY['equity'::text, 'bonds'::text]))` |
 | `Feature04_Technical_Indicator_atr_14_check` | Check | `CHECK (atr_14 IS NULL OR atr_14 > '-Infinity'::double precision AND atr_14 < 'Infinity'::double precision)` |
 | `Feature04_Technical_Indicator_atr_14_check1` | Check | `CHECK (atr_14 IS NULL OR atr_14 >= 0::double precision)` |
 | `Feature04_Technical_Indicator_bb_lower_20_check` | Check | `CHECK (bb_lower_20 IS NULL OR bb_lower_20 > '-Infinity'::double precision AND bb_lower_20 < 'Infinity'::double precision)` |
@@ -1622,13 +1635,13 @@ Audited Telegram failure-only retry request.
 | `feature04_temp_low_valid` | Check | `CHECK (temp_low IS NULL OR temp_low > '-Infinity'::double precision AND temp_low < 'Infinity'::double precision)` |
 | `feature04_tracking_high_valid` | Check | `CHECK (tracking_high IS NULL OR (tracking_high = ANY (ARRAY[0, 1])))` |
 | `feature04_tracking_low_valid` | Check | `CHECK (tracking_low IS NULL OR (tracking_low = ANY (ARRAY[0, 1])))` |
-| `Feature04_Technical_Indicator_pkey` | Primary key | `PRIMARY KEY (ticker, trade_date, timeframe)` |
+| `Feature04_Technical_Indicator_pkey` | Primary key | `PRIMARY KEY (ticker, trade_date, timeframe, asset_type)` |
 
 ### Indexes
 
 | Name | Definition |
 |---|---|
-| `Feature04_Technical_Indicator_pkey` | `CREATE UNIQUE INDEX "Feature04_Technical_Indicator_pkey" ON public."Feature04_Technical_Indicator" USING btree (ticker, trade_date, timeframe)` |
+| `Feature04_Technical_Indicator_pkey` | `CREATE UNIQUE INDEX "Feature04_Technical_Indicator_pkey" ON public."Feature04_Technical_Indicator" USING btree (ticker, trade_date, timeframe, asset_type)` |
 
 ## Feature_01_Stock_Daily
 
@@ -2377,29 +2390,30 @@ Point-in-time (bitemporal) history of the tracked IDX_Stock_Universe attributes 
 
 ## Monitoring_Feature04
 
-Feature04 automatic/retry batch summary and notification ordering gate.
+Feature04 batch/retry run summary and price-notification ordering gate.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `execution_id` | `text` | No | — | Operational execution id field for Monitoring_Feature04. |
-| `source_execution_id` | `text` | Yes | — | Operational source execution id field for Monitoring_Feature04. |
-| `run_type` | `text` | No | — | Operational run type field for Monitoring_Feature04. |
-| `trigger_source` | `text` | No | — | Operational trigger source field for Monitoring_Feature04. |
-| `update_for_date` | `date` | Yes | — | Operational update for date field for Monitoring_Feature04. |
-| `price_notification_required` | `boolean` | No | `true` | Operational price notification required field for Monitoring_Feature04. |
-| `price_notification_sent_at` | `timestamp with time zone` | Yes | — | Operational price notification sent at field for Monitoring_Feature04. |
-| `eligible_tickers` | `integer` | No | `0` | Operational eligible tickers field for Monitoring_Feature04. |
-| `completed_tickers` | `integer` | No | `0` | Operational completed tickers field for Monitoring_Feature04. |
-| `failed_tickers` | `integer` | No | `0` | Operational failed tickers field for Monitoring_Feature04. |
-| `blocked_tickers` | `integer` | No | `0` | Operational blocked tickers field for Monitoring_Feature04. |
-| `status` | `text` | No | `'OPEN'::text` | Operational status field for Monitoring_Feature04. |
-| `started_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational started at field for Monitoring_Feature04. |
-| `sealed_at` | `timestamp with time zone` | Yes | — | Operational sealed at field for Monitoring_Feature04. |
-| `finished_at` | `timestamp with time zone` | Yes | — | Operational finished at field for Monitoring_Feature04. |
-| `last_error` | `text` | Yes | — | Operational last error field for Monitoring_Feature04. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational updated at field for Monitoring_Feature04. |
+| `execution_id` | `text` | No | — | No column description has been recorded. |
+| `source_execution_id` | `text` | Yes | — | No column description has been recorded. |
+| `run_type` | `text` | No | — | No column description has been recorded. |
+| `trigger_source` | `text` | No | — | No column description has been recorded. |
+| `update_for_date` | `date` | Yes | — | No column description has been recorded. |
+| `price_notification_required` | `boolean` | No | `true` | No column description has been recorded. |
+| `price_notification_sent_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
+| `eligible_tickers` | `integer` | No | `0` | No column description has been recorded. |
+| `completed_tickers` | `integer` | No | `0` | No column description has been recorded. |
+| `failed_tickers` | `integer` | No | `0` | No column description has been recorded. |
+| `blocked_tickers` | `integer` | No | `0` | No column description has been recorded. |
+| `status` | `text` | No | `'OPEN'::text` | No column description has been recorded. |
+| `started_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `sealed_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
+| `finished_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
+| `last_error` | `text` | Yes | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `source_monitor_table` | `text` | No | `'Monitoring_Price_ALL'::text` | No column description has been recorded. |
 
 ### Constraints
 
@@ -2408,6 +2422,7 @@ Feature04 automatic/retry batch summary and notification ordering gate.
 | `Monitoring_Feature04_check` | Check | `CHECK (eligible_tickers >= 0 AND completed_tickers >= 0 AND failed_tickers >= 0 AND blocked_tickers >= 0)` |
 | `Monitoring_Feature04_execution_id_check` | Check | `CHECK (btrim(execution_id) <> ''::text)` |
 | `Monitoring_Feature04_run_type_check` | Check | `CHECK (run_type = ANY (ARRAY['DAILY'::text, 'RECOVERY'::text, 'RETRY_TICKER'::text, 'RETRY_COLUMN'::text, 'ADHOC'::text, 'RECONCILIATION'::text]))` |
+| `Monitoring_Feature04_source_monitor_table_check` | Check | `CHECK (source_monitor_table = ANY (ARRAY['Monitoring_Price_ALL'::text, 'Monitoring_Fixed_Income'::text]))` |
 | `Monitoring_Feature04_status_check` | Check | `CHECK (status = ANY (ARRAY['OPEN'::text, 'READY'::text, 'PROCESSING'::text, 'SUCCESS'::text, 'PARTIAL'::text, 'NEEDS_REVIEW'::text, 'FAILED'::text, 'SKIPPED'::text]))` |
 | `Monitoring_Feature04_trigger_source_check` | Check | `CHECK (trigger_source = ANY (ARRAY['SCHEDULED'::text, 'MANUAL'::text, 'TELEGRAM'::text, 'DATABASE'::text, 'RECONCILIATION'::text]))` |
 | `Monitoring_Feature04_pkey` | Primary key | `PRIMARY KEY (execution_id)` |
@@ -2421,43 +2436,83 @@ Feature04 automatic/retry batch summary and notification ordering gate.
 
 ## Monitoring_Feature04_Ticker
 
-Per-ticker membership and outcome of a Feature04 execution.
+Per-ticker membership and terminal result for one Feature04 run.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `execution_id` | `text` | No | — | Operational execution id field for Monitoring_Feature04_Ticker. |
-| `ticker` | `text` | No | — | Operational ticker field for Monitoring_Feature04_Ticker. |
-| `timeframe` | `text` | No | `'Daily'::text` | Operational timeframe field for Monitoring_Feature04_Ticker. |
-| `required_generation` | `bigint` | No | — | Operational required generation field for Monitoring_Feature04_Ticker. |
-| `requested_columns` | `ARRAY` | Yes | — | Operational requested columns field for Monitoring_Feature04_Ticker. |
-| `status` | `text` | No | `'PENDING'::text` | Operational status field for Monitoring_Feature04_Ticker. |
-| `completed_generation` | `bigint` | Yes | — | Operational completed generation field for Monitoring_Feature04_Ticker. |
-| `retry_request_id` | `uuid` | Yes | — | Operational retry request id field for Monitoring_Feature04_Ticker. |
-| `last_error_code` | `text` | Yes | — | Operational last error code field for Monitoring_Feature04_Ticker. |
-| `last_error` | `text` | Yes | — | Operational last error field for Monitoring_Feature04_Ticker. |
-| `started_at` | `timestamp with time zone` | Yes | — | Operational started at field for Monitoring_Feature04_Ticker. |
-| `finished_at` | `timestamp with time zone` | Yes | — | Operational finished at field for Monitoring_Feature04_Ticker. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational updated at field for Monitoring_Feature04_Ticker. |
+| `execution_id` | `text` | No | — | No column description has been recorded. |
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `timeframe` | `text` | No | `'Daily'::text` | No column description has been recorded. |
+| `required_generation` | `bigint` | No | — | No column description has been recorded. |
+| `requested_columns` | `ARRAY` | Yes | — | No column description has been recorded. |
+| `status` | `text` | No | `'PENDING'::text` | No column description has been recorded. |
+| `completed_generation` | `bigint` | Yes | — | No column description has been recorded. |
+| `retry_request_id` | `uuid` | Yes | — | No column description has been recorded. |
+| `last_error_code` | `text` | Yes | — | No column description has been recorded. |
+| `last_error` | `text` | Yes | — | No column description has been recorded. |
+| `started_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
+| `finished_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `asset_type` | `text` | No | — | No column description has been recorded. |
 
 ### Constraints
 
 | Name | Type | Definition |
 |---|---|---|
+| `Monitoring_Feature04_Ticker_asset_type_check` | Check | `CHECK (asset_type = ANY (ARRAY['equity'::text, 'bonds'::text]))` |
 | `Monitoring_Feature04_Ticker_required_generation_check` | Check | `CHECK (required_generation >= 0)` |
 | `Monitoring_Feature04_Ticker_status_check` | Check | `CHECK (status = ANY (ARRAY['PENDING'::text, 'PROCESSING'::text, 'SUCCESS'::text, 'FAILED'::text, 'BLOCKED'::text, 'SUPERSEDED'::text]))` |
 | `Monitoring_Feature04_Ticker_timeframe_check` | Check | `CHECK (timeframe = 'Daily'::text)` |
 | `Monitoring_Feature04_Ticker_execution_id_fkey` | Foreign key | `FOREIGN KEY (execution_id) REFERENCES "Monitoring_Feature04"(execution_id) ON DELETE CASCADE` |
 | `Monitoring_Feature04_Ticker_retry_fkey` | Foreign key | `FOREIGN KEY (retry_request_id) REFERENCES "Feature04_Retry_Request"(request_id)` |
-| `Monitoring_Feature04_Ticker_pkey` | Primary key | `PRIMARY KEY (execution_id, ticker, timeframe)` |
+| `Monitoring_Feature04_Ticker_pkey` | Primary key | `PRIMARY KEY (execution_id, asset_type, ticker, timeframe)` |
 
 ### Indexes
 
 | Name | Definition |
 |---|---|
-| `Monitoring_Feature04_Ticker_pending_idx` | `CREATE INDEX "Monitoring_Feature04_Ticker_pending_idx" ON public."Monitoring_Feature04_Ticker" USING btree (ticker, timeframe, required_generation) WHERE (status = ANY (ARRAY['PENDING'::text, 'PROCESSING'::text]))` |
-| `Monitoring_Feature04_Ticker_pkey` | `CREATE UNIQUE INDEX "Monitoring_Feature04_Ticker_pkey" ON public."Monitoring_Feature04_Ticker" USING btree (execution_id, ticker, timeframe)` |
+| `Monitoring_Feature04_Ticker_pending_idx` | `CREATE INDEX "Monitoring_Feature04_Ticker_pending_idx" ON public."Monitoring_Feature04_Ticker" USING btree (asset_type, ticker, timeframe, required_generation) WHERE (status = ANY (ARRAY['PENDING'::text, 'PROCESSING'::text]))` |
+| `Monitoring_Feature04_Ticker_pkey` | `CREATE UNIQUE INDEX "Monitoring_Feature04_Ticker_pkey" ON public."Monitoring_Feature04_Ticker" USING btree (execution_id, asset_type, ticker, timeframe)` |
+
+## Monitoring_Fixed_Income
+
+Operational result for one independent fixed-income daily or recovery cron execution.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `execution_id` | `uuid` | No | — | No column description has been recorded. |
+| `run_type` | `text` | No | — | No column description has been recorded. |
+| `trigger_source` | `text` | No | — | No column description has been recorded. |
+| `target_date` | `date` | No | — | No column description has been recorded. |
+| `timeframe` | `text` | No | — | No column description has been recorded. |
+| `started_at` | `timestamp with time zone` | No | — | No column description has been recorded. |
+| `finished_at` | `timestamp with time zone` | No | — | No column description has been recorded. |
+| `expected_series` | `integer` | No | — | No column description has been recorded. |
+| `queried_series` | `integer` | No | — | No column description has been recorded. |
+| `updated_series` | `integer` | No | — | No column description has been recorded. |
+| `missing_series` | `integer` | No | — | No column description has been recorded. |
+| `missing_series_list` | `jsonb` | No | — | No column description has been recorded. |
+| `status` | `text` | No | — | No column description has been recorded. |
+| `last_error` | `text` | Yes | — | No column description has been recorded. |
+| `service_name` | `text` | Yes | — | No column description has been recorded. |
+| `created_at` | `timestamp with time zone` | No | `statement_timestamp()` | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Monitoring_Fixed_Income_pkey` | Primary key | `PRIMARY KEY (execution_id)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Monitoring_Fixed_Income_pkey` | `CREATE UNIQUE INDEX "Monitoring_Fixed_Income_pkey" ON public."Monitoring_Fixed_Income" USING btree (execution_id)` |
+| `monitoring_fixed_income_target_idx` | `CREATE INDEX monitoring_fixed_income_target_idx ON public."Monitoring_Fixed_Income" USING btree (target_date, run_type, started_at DESC)` |
 
 ## Monitoring_Price_ALL
 
@@ -2512,6 +2567,46 @@ Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs
 | `Monitoring_Price_ALL_execution_idx` | `CREATE INDEX "Monitoring_Price_ALL_execution_idx" ON public."Monitoring_Price_ALL" USING btree (update_for_date DESC, query_time DESC)` |
 | `Monitoring_Price_ALL_execution_key` | `CREATE UNIQUE INDEX "Monitoring_Price_ALL_execution_key" ON public."Monitoring_Price_ALL" USING btree (execution_id, exchange, asset_type, timeframe)` |
 | `Monitoring_Price_ALL_pkey` | `CREATE UNIQUE INDEX "Monitoring_Price_ALL_pkey" ON public."Monitoring_Price_ALL" USING btree (id)` |
+
+## Price_Fixed_Income
+
+TradingView fixed-income OHLC observations separated by metric_type and Timeframe; Feature04 consumes price/1D only.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `Country` | `text` | No | — | No column description has been recorded. |
+| `instrument_name` | `text` | No | — | No column description has been recorded. |
+| `ticker` | `character varying` | No | — | No column description has been recorded. |
+| `tradingview_symbol` | `character varying` | No | — | No column description has been recorded. |
+| `date` | `date` | No | — | No column description has been recorded. |
+| `open` | `numeric` | No | — | No column description has been recorded. |
+| `high` | `numeric` | No | — | No column description has been recorded. |
+| `low` | `numeric` | No | — | No column description has been recorded. |
+| `close` | `numeric` | No | — | No column description has been recorded. |
+| `volume` | `numeric` | Yes | — | No column description has been recorded. |
+| `source` | `character varying` | No | — | No column description has been recorded. |
+| `query_date` | `date` | No | — | No column description has been recorded. |
+| `ingestion_time` | `timestamp with time zone` | No | — | No column description has been recorded. |
+| `metric_type` | `character varying` | No | — | No column description has been recorded. |
+| `value_unit` | `character varying` | No | — | No column description has been recorded. |
+| `Timeframe` | `character varying` | No | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Price_Fixed_Income_metric_type_check` | Check | `CHECK (metric_type::text = ANY (ARRAY['price'::character varying, 'yield_to_maturity'::character varying]::text[]))` |
+| `Price_Fixed_Income_pkey` | Primary key | `PRIMARY KEY (tradingview_symbol, date, metric_type, "Timeframe")` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Price_Fixed_Income_date_idx` | `CREATE INDEX "Price_Fixed_Income_date_idx" ON public."Price_Fixed_Income" USING btree (date)` |
+| `Price_Fixed_Income_pkey` | `CREATE UNIQUE INDEX "Price_Fixed_Income_pkey" ON public."Price_Fixed_Income" USING btree (tradingview_symbol, date, metric_type, "Timeframe")` |
+| `Price_Fixed_Income_ticker_metric_idx` | `CREATE INDEX "Price_Fixed_Income_ticker_metric_idx" ON public."Price_Fixed_Income" USING btree (ticker, metric_type)` |
 
 ## Price_Stock_Indonesia_IDX
 
@@ -2806,6 +2901,40 @@ Issuer descriptions and TradingView/curated sector and industry classifications.
 |---|---|
 | `Universe_Equity_Description_isin_key` | `CREATE UNIQUE INDEX "Universe_Equity_Description_isin_key" ON public."Universe_Equity_Description" USING btree ("ISIN")` |
 | `Universe_Equity_Description_pkey` | `CREATE UNIQUE INDEX "Universe_Equity_Description_pkey" ON public."Universe_Equity_Description" USING btree ("Ticker")` |
+
+## Universe_Fixed_income
+
+Approved fixed-income instruments and their TradingView price/yield series classification.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `region` | `text` | No | — | No column description has been recorded. |
+| `country` | `text` | No | — | No column description has been recorded. |
+| `instrument_name` | `text` | No | — | No column description has been recorded. |
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `exchange` | `text` | No | — | No column description has been recorded. |
+| `security_type` | `text` | No | — | No column description has been recorded. |
+| `type_specs` | `text` | No | — | No column description has been recorded. |
+| `is_common_stock` | `boolean` | No | — | No column description has been recorded. |
+| `tradingview_country` | `text` | No | — | No column description has been recorded. |
+| `metric_type` | `text` | No | — | No column description has been recorded. |
+| `tenor` | `text` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `statement_timestamp()` | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Universe_Fixed_income_metric_type_check` | Check | `CHECK (metric_type = ANY (ARRAY['price'::text, 'yield_to_maturity'::text]))` |
+| `Universe_Fixed_income_pkey` | Primary key | `PRIMARY KEY (ticker, metric_type)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Universe_Fixed_income_pkey` | `CREATE UNIQUE INDEX "Universe_Fixed_income_pkey" ON public."Universe_Fixed_income" USING btree (ticker, metric_type)` |
 
 ## feature04_backfill_log
 

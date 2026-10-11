@@ -27,6 +27,12 @@ Ada 16.344 trigger historis. SMI tersedia pada 1.317.585 candle; 1.048 nilai awa
 masih `NULL` karena rentang harga awal nol. Seluruh candle memiliki flag trigger 1/0,
 dan SMI pada candle terakhir tersedia untuk setiap ticker.
 
+Ekstensi lintas aset menambahkan **24 ticker bonds dan 60.409 candle Daily** dari
+2016-01-01 sampai 2026-10-09, sehingga target berisi **1.379.042 baris**. Seluruh key
+sumber price/1D bonds dan equity memiliki pasangan target tanpa key ekstra. Rumus,
+warmup, SMI, dan arti flag tetap sama; lihat
+[`BONDS.md`](verification/feature04/BONDS.md).
+
 ## Cara membaca nilai
 
 - `NULL` berarti nilai belum tersedia atau tidak berlaku menurut aturan kolom.

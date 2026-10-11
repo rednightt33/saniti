@@ -1,0 +1,61 @@
+{
+  "validated_at_utc": "2026-10-11T13:55:21Z",
+  "environment": "lucid-patience/dev/Postgres",
+  "migration": {
+    "schema_sha256": "9a9e14e9ba18e6b706cd573c01ee8be5a1f24823e3b4012316a50f8e8a144c45",
+    "documentation_sha256": "c6ea3a0073dad10af18984633dda6084d67c9b2361e7ac6d85ef2da4df826488",
+    "rolled_back_rehearsals": "PASS"
+  },
+  "classification": {
+    "rule": "IDX_Stock_Universe => equity; Universe_Fixed_income => bonds; absent or dual membership rejected",
+    "hardcoded_tickers": false,
+    "universe_overlap": 0,
+    "classification_mismatches": 0
+  },
+  "target": {
+    "equity": {"tickers": 844, "rows": 1318633, "min_date": "2018-01-02", "max_date": "2026-10-09"},
+    "bonds": {"tickers": 24, "rows": 60409, "min_date": "2016-01-01", "max_date": "2026-10-09"},
+    "total_rows": 1379042
+  },
+  "coverage": {
+    "bond_source_missing_target": 0,
+    "bond_target_extra": 0,
+    "equity_source_missing_target": 0,
+    "equity_target_extra": 0
+  },
+  "bond_calculation": {
+    "execution_id": "f04-bonds-bootstrap-20261011",
+    "status": "SUCCESS",
+    "successful_tickers": 24,
+    "failed_tickers": 0,
+    "partial_attempts": 0,
+    "source_rows": 60409,
+    "changed_rows": 60409,
+    "column_status_success": 1200,
+    "adx14_warmup_nulls": 648,
+    "ema200_warmup_nulls": 4776,
+    "inside_bar_mismatches": 0,
+    "macd_identity_mismatches": 0,
+    "macd_histogram_identity_mismatches": 0,
+    "bollinger_middle_identity_mismatches": 0,
+    "invalid_break_swing_high_flags": 0
+  },
+  "automation": {
+    "price_row_trigger_rollback_test": "PASS",
+    "monitor_run_trigger_rollback_test": "PASS",
+    "monitor_test_eligible_bond_tickers": 24,
+    "monitor_test_event": "PRICE_FIXED_INCOME/PENDING",
+    "bootstrap_feature_notification": "SENT",
+    "fixed_income_crons_changed": false
+  },
+  "deployments": {
+    "commit": "b7b447177e645688786d616915bf88ee683f85a6",
+    "feature_04_worker": "26a26a7c-e5fc-4e4d-bcb0-0c15c5c74353 SUCCESS",
+    "telegram_monitor": "752235bb-2dd3-46e6-b25c-f3a1ad1d6d8b SUCCESS",
+    "telegram_trigger": "050c74c0-6d98-4081-9117-b805ab7c79fc SUCCESS"
+  },
+  "tests": {
+    "local": "56 passed",
+    "feature_catalog_semantic_audit": "147 active/verified; Feature04 56/56; PASS"
+  }
+}

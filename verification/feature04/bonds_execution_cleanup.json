@@ -1,0 +1,9 @@
+{
+  "sandbox_id": "228a0500-dca4-45c5-b493-058b3bc6e105",
+  "environment": "lucid-patience/dev",
+  "network_isolation": "PRIVATE",
+  "terminal_status": "DESTROYED",
+  "purpose": "Feature04 bonds migration rehearsal/apply, rollback trigger checks, backfill validation, and read-only schema export",
+  "persistent_service_created": false,
+  "credential_value_recorded": false
+}

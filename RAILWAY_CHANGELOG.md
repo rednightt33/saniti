@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-10-11 — Feature04 bonds worker and fixed-income Telegram bridge
+
+- GitHub commit `b7b4471` deployed `SUCCESS`: feature worker `26a26a7c-e5fc-4e4d-bcb0-0c15c5c74353`, telegram-monitor `752235bb-2dd3-46e6-b25c-f3a1ad1d6d8b`, and telegram-trigger `050c74c0-6d98-4081-9117-b805ab7c79fc`.
+- No service, cron, variable, domain, replica, or fixed-income updater deployment was added or changed. `fixed-income-daily` remains `0 10 * * *`; recovery remains `0 23 * * *`. Database triggers and the existing always-on Feature04 worker bridge the separate source executions.
+- The worker now partitions queue/status/log work by universe-derived asset type and accepts bond NULL volume. Telegram monitor accepts `Monitoring_Fixed_Income` and acknowledges only matching source table/execution; Telegram trigger displays and retries failed `asset_type/ticker` or columns.
+- Bootstrap processed 24 bond tickers serially and sent its Feature04 completion notification. Future fixed-income runs use durable order: source monitor committed → fixed-income price Telegram sent → all eligible Feature04 ticker jobs terminal → Feature04 Telegram sent.
+- Temporary private sandbox `228a0500-dca4-45c5-b493-058b3bc6e105` was used for rehearsal, migrations, rollback-only trigger checks, and read-only validation; cleanup is recorded with the execution evidence.
+
 ## 2026-10-11 — Feature04 complete NULL availability validation
 
 - User clarification: "Termasuk NULL yang seharusnya sudah tersedia". Worker validation now

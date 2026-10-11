@@ -34,7 +34,7 @@ TABLE_STATUS_RULES = {
     "Feature_01_Stock_Daily": ("Feature", "After validated daily-price changes"),
     "Feature_02_Broker_Rolling": ("Feature", "After validated broker-summary changes; manual v2 ticker rebuild"),
     "Feature_03_Stock_Broker_Daily": ("Feature", "After Feature 02 refresh; manual Investor-Type v2 refresh"),
-    "Feature04_Technical_Indicator": ("Feature", "Event-driven after committed price changes; full-history per ticker"),
+    "Feature04_Technical_Indicator": ("Feature", "Event-driven after committed equity or bond price changes; full-history per asset/ticker"),
     "feature04_backfill_log": ("Monitoring", "Atomic per-run/ticker Feature04 calculation metadata"),
     "Feature04_Calculation_Queue": ("System", "After relevant price changes and Feature04 worker transitions"),
     "Feature04_Column_Status": ("System", "After Feature04 validation or failure"),
@@ -58,6 +58,9 @@ TABLE_STATUS_RULES = {
     "Telegram_Notification_Log": ("System", "Event-driven / after a monitored job completes"),
     "Universe_Equity_Description": ("Reference", "Periodic / when equity descriptions change"),
     "Price_Stock_Indonesia_IDX": ("Transactional", "Periodic / when daily IDX prices are refreshed"),
+    "Universe_Fixed_income": ("Reference", "Periodic / when the fixed-income universe changes"),
+    "Price_Fixed_Income": ("Transactional", "Daily and recovery fixed-income price/yield schedules"),
+    "Monitoring_Fixed_Income": ("Monitoring", "One row after each fixed-income daily or recovery execution"),
     "stockbit_broker_summary_load_log": ("System", "Continuous / alongside broker-summary loads"),
 }
 TRACKED_CHANGE_TABLES = (
@@ -95,7 +98,7 @@ TABLE_DESCRIPTIONS = {
     "Feature_01_Stock_Daily": "Daily ticker-level price, return, volatility, volume, and price-position features.",
     "Feature_02_Broker_Rolling": "Broker flow, persistence, abnormality, and accumulation by source ticker, broker, Investor Type, board, and transaction date.",
     "Feature_03_Stock_Broker_Daily": "Stock-level daily broker breadth, classified flow, dominant-broker, and concentration features separated by market board.",
-    "Feature04_Technical_Indicator": "Daily technical indicators, native candlestick codes, strict inside bars and Pine SMI/swing state; v3 is refreshed per ticker after committed price changes.",
+    "Feature04_Technical_Indicator": "Cross-asset daily technical indicators, native candlestick codes, strict inside bars and Pine SMI/swing state, partitioned by universe-derived asset type and ticker.",
     "feature04_backfill_log": "Atomic serial Feature04 ticker-load metadata and resumable source/output fingerprints.",
     "Feature04_Calculation_Queue": "Durable coalesced Feature04 work and lease state per ticker.",
     "Feature04_Column_Status": "Readiness, expected availability, and failure state per Feature04 output and ticker.",
@@ -119,6 +122,9 @@ TABLE_DESCRIPTIONS = {
     "Telegram_Notification_Log": "Delivery ledger used by telegram-monitor to prevent duplicate notifications.",
     "Universe_Equity_Description": "Reference descriptions and sector classifications for the Indonesian equity universe.",
     "Price_Stock_Indonesia_IDX": "Daily Indonesian stock OHLCV prices sourced from TradingView.",
+    "Universe_Fixed_income": "Approved fixed-income instruments and their price/yield series classification.",
+    "Price_Fixed_Income": "TradingView fixed-income OHLC observations separated by metric type and timeframe.",
+    "Monitoring_Fixed_Income": "Operational result for one fixed-income daily or recovery cron execution.",
     "stockbit_broker_summary_load_log": "Audit log used to resume and verify Stockbit broker-summary loads by date.",
 }
 COLUMN_DESCRIPTIONS = {
@@ -633,6 +639,24 @@ def derive_status_rows(
                 last_changed_at = refreshed_at
                 last_operation = "BASELINE"
             tracking_status = "Latest date derived; future changes tracked automatically"
+        elif name == "Price_Fixed_Income":
+            latest_data_date, changed = connection.execute(
+                sql.SQL('SELECT max("date"), max(ingestion_time) FROM {}.{}').format(
+                    sql.Identifier(schema), sql.Identifier(name)
+                )
+            ).fetchone()
+            last_changed_at = changed or last_changed_at or refreshed_at
+            tracking_status = "Latest date and write time derived from fixed-income observations"
+            last_operation = "LOAD"
+        elif name == "Monitoring_Fixed_Income":
+            latest_data_date, changed = connection.execute(
+                sql.SQL("SELECT max(target_date), max(finished_at) FROM {}.{}").format(
+                    sql.Identifier(schema), sql.Identifier(name)
+                )
+            ).fetchone()
+            last_changed_at = changed or last_changed_at or refreshed_at
+            tracking_status = "Derived from fixed-income cron monitoring rows"
+            last_operation = "INSERT"
         elif name == "Monitoring_Price_ALL":
             latest_data_date, last_changed_at = connection.execute(
                 sql.SQL(

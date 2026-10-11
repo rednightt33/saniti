@@ -27,6 +27,9 @@ price candles. Migration `20261011_006_extend_feature04_to_bonds.sql` appends
 enqueue/load: membership in `IDX_Stock_Universe` means `equity`; membership in
 `Universe_Fixed_income` means `bonds`; absent or ambiguous membership fails closed.
 No ticker list is embedded in Python or SQL.
+The completed bootstrap adds 24 classified bond tickers / 60,409 rows, making the live
+target 1,379,042 rows across 868 asset/ticker partitions. Source-key coverage is exact for
+both assets; execution evidence is in [BONDS.md](verification/feature04/BONDS.md).
 
 ## Verified source and mapping
 
@@ -192,8 +195,9 @@ calculates once in chronological order, and writes only the explicit output rang
 This avoids unverified fixed-window recursive state and supports exact reproducibility
 relative to the available source snapshot. No cached recursive state is stored.
 An old correction requires output refresh from its earliest changed bar through the latest
-wanted bar because EMA, RSI, ATR and MACD can affect every later value. There is no automatic
-correction detection or scheduled writer. The subsequently authorized all-source-ticker
+wanted bar because EMA, RSI, ATR and MACD can affect every later value. Committed relevant
+source changes are now detected by database triggers and replayed by the always-on worker;
+Feature04 itself still has no schedule. The subsequently authorized all-source-ticker
 historical load uses full-history replay, with one atomic ticker commit.
 
 A repeatable-read transaction supplies one consistent source snapshot. The writer takes
