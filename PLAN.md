@@ -164,6 +164,10 @@ column indicstor level. then inspect database, buat implementation plan. ada yg 
 Implementation plan di bawah mencakup otomatisasi dan menu retry. Permintaan ini diperlakukan sebagai penyusunan rencana;
 kode runtime, migration, service dan pengiriman Telegram belum diubah.
 
+**Keputusan dua ambiguitas, 2026-10-11:** user: "both ya" untuk (1) definisi gagal sebagai error kalkulasi/validasi,
+termasuk NULL yang terbukti salah, dengan NULL sah dikecualikan; dan (2) retry kolom wajib mencakup dependency terkait,
+dengan cakupan ditampilkan sebelum dijalankan. Kedua keputusan ditetapkan; belum merupakan perintah go implementasi/deployment.
+
 ### Kondisi yang diverifikasi
 
 - Railway `lucid-patience` / `dev`, database utama `Postgres`; service price, Feature01 dan Telegram memakai `rednightt33/saniti@main`.
@@ -344,10 +348,10 @@ Bukti baru: `verification/feature04/retry_design_inspection.json` dan `retry_des
 
 #### Definisi gagal, scope dan perilaku menu
 
-Default yang diajukan ke user: retry hanya error kalkulasi/validasi yang terstruktur, termasuk NULL yang terbukti
+Definisi disetujui user (2026-10-11, "both ya"): retry hanya error kalkulasi/validasi yang terstruktur, termasuk NULL yang terbukti
 unexpected berdasarkan aturan availability. NULL warmup, zero-range SMI, inactive tracking dan pre-confirmation swing
 bukan failure. SOURCE_INVALID ditampilkan "Perlu perbaikan data harga"; tombol recalculation tidak akan memperbaiki source.
-Pertanyaan klasifikasi failure sudah diajukan; jawabannya dicatat bila user memberi pilihan berbeda.
+NULL yang sah tidak masuk daftar retry. Dependency closure untuk indikator yang saling terkait juga sudah disetujui.
 
 Menu `/feature4`, label untuk pengguna:
 
@@ -473,6 +477,6 @@ Rollback: pause worker/retry enqueue endpoint, pertahankan durable price queue c
 handler bila perlu. Jangan menghapus status ketika output sebagian belum current. Replay pending setelah perbaikan;
 monitor memberi status belum selesai sampai semua dependencies valid. Migrasi tidak dibatalkan dengan menghapus tabel/data.
 
-Ambiguitas yang material: definisi "gagal" vs NULL sah (pertanyaan diajukan), scope dependency terkait untuk column retry,
-dan pilihan batch/ticker (menu menyediakan pilihan, default latest unresolved). Rekomendasi adalah error nyata saja,
-closure dependency wajib dan per-column readiness. Implementation plan ini siap direview; belum ada perintah go eksekusi.
+Kedua ambiguitas material sudah diputuskan user (2026-10-11, "both ya"): error nyata termasuk unexpected NULL yang terbukti,
+NULL sah dikecualikan, dan dependency closure wajib. Pilihan batch/ticker disediakan menu, default latest unresolved.
+Implementation plan memakai keputusan tersebut; belum ada perintah go eksekusi.
