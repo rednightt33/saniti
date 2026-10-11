@@ -1,0 +1,305 @@
+{
+  "checked_at": "2026-10-11T06:50:04.627795+00:00",
+  "access": [
+    {
+      "current_user": "pgweb",
+      "read_only": "on"
+    }
+  ],
+  "triggers": [
+    {
+      "tgname": "Price_Stock_Indonesia_IDX_enqueue_feature_01",
+      "definition": "CREATE TRIGGER \"Price_Stock_Indonesia_IDX_enqueue_feature_01\" AFTER INSERT OR UPDATE ON public.\"Price_Stock_Indonesia_IDX\" FOR EACH ROW WHEN ((new.ingestion_time IS NOT NULL)) EXECUTE FUNCTION enqueue_feature_01_price_row()"
+    },
+    {
+      "tgname": "database_table_status_change_tracker",
+      "definition": "CREATE TRIGGER database_table_status_change_tracker AFTER INSERT OR DELETE OR UPDATE OR TRUNCATE ON public.\"Price_Stock_Indonesia_IDX\" FOR EACH STATEMENT EXECUTE FUNCTION track_database_table_change()"
+    }
+  ],
+  "universe_types": [
+    {
+      "Exchange": "IDX",
+      "Security Type": "stock",
+      "tickers": 844
+    }
+  ],
+  "queue_status": [
+    {
+      "feature_table": "Feature_01_Stock_Daily",
+      "status": "DONE",
+      "items": 14907,
+      "first_date": "2026-01-21T00:00:00Z",
+      "last_date": "2026-10-09T00:00:00Z",
+      "last_update": "2026-10-09T10:06:33.099491Z"
+    }
+  ],
+  "feature_status": [
+    {
+      "feature_table": "Feature_01_Stock_Daily",
+      "status": "SUCCESS",
+      "tickers": 841,
+      "oldest_latest": "2026-09-16T00:00:00Z",
+      "latest_date": "2026-10-09T00:00:00Z"
+    }
+  ],
+  "recent_price_runs": [
+    {
+      "execution_id": "785d2b52-473b-482a-8703-1f120ccacbd9",
+      "run_type": "RECOVERY",
+      "trigger_source": "SCHEDULED",
+      "update_for_date": "2026-10-09T00:00:00Z",
+      "started_at": "2026-10-10T23:00:29.403189Z",
+      "finished_at": "2026-10-10T23:00:31.51222Z",
+      "expected": 844,
+      "queried": 17,
+      "updated": 0,
+      "missing": 17,
+      "statuses": "{NEEDS_REVIEW}"
+    },
+    {
+      "execution_id": "f3aca257-5524-4aed-87c7-8e19aa7e11b8",
+      "run_type": "DAILY",
+      "trigger_source": "SCHEDULED",
+      "update_for_date": "2026-10-10T00:00:00Z",
+      "started_at": "2026-10-10T10:00:04.851269Z",
+      "finished_at": "2026-10-10T10:00:04.914397Z",
+      "expected": 844,
+      "queried": 0,
+      "updated": 0,
+      "missing": 0,
+      "statuses": "{SKIPPED}"
+    },
+    {
+      "execution_id": "b463f180-e34e-4132-8a11-b566c288f481",
+      "run_type": "RECOVERY",
+      "trigger_source": "SCHEDULED",
+      "update_for_date": "2026-10-09T00:00:00Z",
+      "started_at": "2026-10-09T23:00:09.332637Z",
+      "finished_at": "2026-10-09T23:00:11.721225Z",
+      "expected": 844,
+      "queried": 17,
+      "updated": 0,
+      "missing": 17,
+      "statuses": "{NEEDS_REVIEW}"
+    },
+    {
+      "execution_id": "0a6596c8-ad2a-4848-945d-90f14f0ee70b",
+      "run_type": "DAILY",
+      "trigger_source": "SCHEDULED",
+      "update_for_date": "2026-10-09T00:00:00Z",
+      "started_at": "2026-10-09T10:03:01.044398Z",
+      "finished_at": "2026-10-09T10:04:21.880951Z",
+      "expected": 844,
+      "queried": 844,
+      "updated": 827,
+      "missing": 17,
+      "statuses": "{PARTIAL}"
+    },
+    {
+      "execution_id": "e314eda4-6b5e-42a9-8605-42fc9498e200",
+      "run_type": "RECOVERY",
+      "trigger_source": "SCHEDULED",
+      "update_for_date": "2026-10-08T00:00:00Z",
+      "started_at": "2026-10-08T23:02:11.27973Z",
+      "finished_at": "2026-10-08T23:02:14.191256Z",
+      "expected": 844,
+      "queried": 22,
+      "updated": 1,
+      "missing": 21,
+      "statuses": "{NEEDS_REVIEW}"
+    },
+    {
+      "execution_id": "5accff5b-2329-4c19-a914-64f9a637d8d7",
+      "run_type": "DAILY",
+      "trigger_source": "SCHEDULED",
+      "update_for_date": "2026-10-08T00:00:00Z",
+      "started_at": "2026-10-08T10:03:19.647Z",
+      "finished_at": "2026-10-08T10:05:14.747006Z",
+      "expected": 844,
+      "queried": 844,
+      "updated": 822,
+      "missing": 22,
+      "statuses": "{PARTIAL}"
+    },
+    {
+      "execution_id": "ab67a580-643c-4f82-a79a-e4a2ce5336af",
+      "run_type": "RECOVERY",
+      "trigger_source": "SCHEDULED",
+      "update_for_date": "2026-10-07T00:00:00Z",
+      "started_at": "2026-10-07T23:04:33.116829Z",
+      "finished_at": "2026-10-07T23:04:35.448164Z",
+      "expected": 844,
+      "queried": 15,
+      "updated": 0,
+      "missing": 15,
+      "statuses": "{NEEDS_REVIEW}"
+    },
+    {
+      "execution_id": "20b67a60-74b7-401a-b058-04dedda23ffb",
+      "run_type": "DAILY",
+      "trigger_source": "SCHEDULED",
+      "update_for_date": "2026-10-07T00:00:00Z",
+      "started_at": "2026-10-07T10:00:15.888451Z",
+      "finished_at": "2026-10-07T10:01:36.404018Z",
+      "expected": 844,
+      "queried": 844,
+      "updated": 829,
+      "missing": 15,
+      "statuses": "{PARTIAL}"
+    }
+  ],
+  "notifications": [
+    {
+      "source_table": "Monitoring_Price_ALL",
+      "source_execution_id": "785d2b52-473b-482a-8703-1f120ccacbd9",
+      "notification_type": "COMPLETED",
+      "send_status": "SENT",
+      "attempt_count": 1,
+      "sent_at": "2026-10-10T23:00:34.400945Z",
+      "updated_at": "2026-10-10T23:00:34.400945Z"
+    },
+    {
+      "source_table": "Monitoring_Price_ALL",
+      "source_execution_id": "f3aca257-5524-4aed-87c7-8e19aa7e11b8",
+      "notification_type": "COMPLETED",
+      "send_status": "SENT",
+      "attempt_count": 1,
+      "sent_at": "2026-10-10T10:00:08.011913Z",
+      "updated_at": "2026-10-10T10:00:08.011913Z"
+    },
+    {
+      "source_table": "Monitoring_Price_ALL",
+      "source_execution_id": "b463f180-e34e-4132-8a11-b566c288f481",
+      "notification_type": "COMPLETED",
+      "send_status": "SENT",
+      "attempt_count": 1,
+      "sent_at": "2026-10-09T23:00:14.761499Z",
+      "updated_at": "2026-10-09T23:00:14.761499Z"
+    },
+    {
+      "source_table": "Monitoring_Price_ALL",
+      "source_execution_id": "0a6596c8-ad2a-4848-945d-90f14f0ee70b",
+      "notification_type": "COMPLETED",
+      "send_status": "SENT",
+      "attempt_count": 1,
+      "sent_at": "2026-10-09T10:04:26.097322Z",
+      "updated_at": "2026-10-09T10:04:26.097322Z"
+    },
+    {
+      "source_table": "Monitoring_Price_ALL",
+      "source_execution_id": "e314eda4-6b5e-42a9-8605-42fc9498e200",
+      "notification_type": "COMPLETED",
+      "send_status": "SENT",
+      "attempt_count": 1,
+      "sent_at": "2026-10-08T23:02:17.30015Z",
+      "updated_at": "2026-10-08T23:02:17.30015Z"
+    },
+    {
+      "source_table": "Monitoring_Price_ALL",
+      "source_execution_id": "5accff5b-2329-4c19-a914-64f9a637d8d7",
+      "notification_type": "COMPLETED",
+      "send_status": "SENT",
+      "attempt_count": 1,
+      "sent_at": "2026-10-08T10:05:18.172183Z",
+      "updated_at": "2026-10-08T10:05:18.172183Z"
+    },
+    {
+      "source_table": "Monitoring_Price_ALL",
+      "source_execution_id": "ab67a580-643c-4f82-a79a-e4a2ce5336af",
+      "notification_type": "COMPLETED",
+      "send_status": "SENT",
+      "attempt_count": 1,
+      "sent_at": "2026-10-07T23:04:38.449258Z",
+      "updated_at": "2026-10-07T23:04:38.449258Z"
+    },
+    {
+      "source_table": "Monitoring_Price_ALL",
+      "source_execution_id": "20b67a60-74b7-401a-b058-04dedda23ffb",
+      "notification_type": "COMPLETED",
+      "send_status": "SENT",
+      "attempt_count": 1,
+      "sent_at": "2026-10-07T10:01:41.975747Z",
+      "updated_at": "2026-10-07T10:01:41.975747Z"
+    }
+  ],
+  "coverage": [
+    {
+      "dataset": "price",
+      "rows": 1318633,
+      "tickers": 844,
+      "latest_date": "2026-10-09T00:00:00Z",
+      "latest_ingestion": "2026-10-09T10:04:21.943907Z"
+    },
+    {
+      "dataset": "feature04",
+      "rows": 1318633,
+      "tickers": 844,
+      "latest_date": "2026-10-09T00:00:00Z",
+      "latest_ingestion": "2026-10-11T06:25:12.523796Z"
+    }
+  ],
+  "queue_constraints": [
+    {
+      "conname": "Feature_Calculation_Queue_feature_check",
+      "definition": "CHECK ((feature_table = 'Feature_01_Stock_Daily'::text))"
+    },
+    {
+      "conname": "Feature_Status_feature_check",
+      "definition": "CHECK ((feature_table = 'Feature_01_Stock_Daily'::text))"
+    }
+  ],
+  "notification_constraints": [
+    {
+      "conname": "Telegram_Notification_Log_attempt_count_check",
+      "definition": "CHECK ((attempt_count >= 0))"
+    },
+    {
+      "conname": "Telegram_Notification_Log_attempt_count_not_null",
+      "definition": "NOT NULL attempt_count"
+    },
+    {
+      "conname": "Telegram_Notification_Log_created_at_not_null",
+      "definition": "NOT NULL created_at"
+    },
+    {
+      "conname": "Telegram_Notification_Log_delivery_key",
+      "definition": "UNIQUE (source_table, source_execution_id, notification_type)"
+    },
+    {
+      "conname": "Telegram_Notification_Log_id_not_null",
+      "definition": "NOT NULL id"
+    },
+    {
+      "conname": "Telegram_Notification_Log_notification_type_not_null",
+      "definition": "NOT NULL notification_type"
+    },
+    {
+      "conname": "Telegram_Notification_Log_pkey",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "conname": "Telegram_Notification_Log_send_status_not_null",
+      "definition": "NOT NULL send_status"
+    },
+    {
+      "conname": "Telegram_Notification_Log_source_execution_id_not_null",
+      "definition": "NOT NULL source_execution_id"
+    },
+    {
+      "conname": "Telegram_Notification_Log_source_table_not_null",
+      "definition": "NOT NULL source_table"
+    },
+    {
+      "conname": "Telegram_Notification_Log_status_check",
+      "definition": "CHECK ((send_status = ANY (ARRAY['PENDING'::text, 'SENDING'::text, 'SENT'::text, 'FAILED'::text])))"
+    },
+    {
+      "conname": "Telegram_Notification_Log_telegram_message_ids_not_null",
+      "definition": "NOT NULL telegram_message_ids"
+    },
+    {
+      "conname": "Telegram_Notification_Log_updated_at_not_null",
+      "definition": "NOT NULL updated_at"
+    }
+  ]
+}
