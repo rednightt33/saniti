@@ -6,8 +6,9 @@
   covers historical and latest selected outputs, indicator/pattern warmup within valid source
   segments, and conditional SMI/swing availability. A failed dependency member withholds its
   bundle; expected NULLs remain successful. Formula version and schema are unchanged.
-- Worker-only GitHub deployment verification and commit are recorded in
-  `verification/feature04/AUTOMATION.md` after terminal readback.
+- Worker-only GitHub deployment `51838910-b0f0-4256-8f79-8c998ee28b9a` reached `SUCCESS`
+  from `main` commit `557ef11`. Regression suite: 67 passed. Evidence:
+  `verification/feature04/AUTOMATION.md` and `null_availability_deployment.json`.
 
 ## 2026-10-11 — Feature04 event-driven worker and Telegram retry controls
 

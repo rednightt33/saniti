@@ -1740,6 +1740,8 @@ NULL diperluas dari candle terakhir ke semua bar hasil kalkulasi, termasuk lookb
 dan availability state SMI/swing. NULL sah setelah reset OHLCV atau sebelum state tersedia
 tetap dikecualikan. Kegagalan satu anggota menahan penulisan dependency bundle terkait.
 Uji corruption pada bar historis dan pembacaan BBCA/RANS/PRDL dicatat pada bukti yang sama.
+Suite terkait: 67 lulus. Perbaikan worker commit `557ef11` ter-deploy `SUCCESS` pada
+`51838910-b0f0-4256-8f79-8c998ee28b9a`; formula version dan skema database tidak berubah.
 
 ## Verifikasi bersama
 

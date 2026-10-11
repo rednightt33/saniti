@@ -85,3 +85,8 @@ high availability, zero-range SMI, processed 0/1 flags, invalid-OHLCV history re
 column retry. Read-only live validation found zero unexpected NULLs on BBCA (2,113 bars), RANS
 (62 bars), and PRDL (63 bars); RANS and PRDL EMA200 NULLs remain valid. Aggregate evidence:
 `null_availability_readback.json`. Formula version and database schema are unchanged.
+
+The complete relevant regression suite passed 67 tests. Worker deployment
+`51838910-b0f0-4256-8f79-8c998ee28b9a` from `main` commit
+`557ef1194d43e09638927ada7fb54f7dbb13f07b` reached terminal `SUCCESS`;
+exact readback is in `null_availability_deployment.json`.
