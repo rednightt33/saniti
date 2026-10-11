@@ -3288,3 +3288,8 @@ User: "lanjut fase 4 dan 5 dulu".
 - Migrations `20261009_005` (method guides v7) and `_006` (Tool_Catalog round Q) applied through `mmig-job` (deleted).
 - New optional sandbox variable `PY_SANDBOX_WORKING_TABLE_BYTES` (not set on dev: the default, half of
   `PY_SANDBOX_MAX_INTERMEDIATE_BYTES`, applies). No variable, model, provider, mode or Railway configuration change.
+
+
+## 2026-10-11 — Feature04 SMI BBCA execution via temporary private sandbox
+
+Scope `lucid-patience` / `dev`, primary `Postgres` service `bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`. Temporary private Railway sandbox `c54edee9-c495-43b2-be2d-e7ca7c98db12` used the server-resolved Postgres variable reference for a rolled-back rehearsal, forward 55-column migration, and BBCA-only 2,113-row v3 replay. No service/environment configuration, persistent compute, deployment, IaC, source writer, permissions or schedule changes. Sandbox explicitly destroyed after validation; evidence `verification/feature04/smi_execution_cleanup.json`. Credential values never stored in Git or printed. Independent Pgweb readback and feature semantic audit passed. Full report `verification/feature04/SMI_BBCA.md`; definitions of every column `FEATURE04_COLUMN_DEFINITIONS.md`.

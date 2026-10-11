@@ -1,7 +1,7 @@
-"""Explicit all-source-ticker backfill, serial and resumable, with atomic ticker commits.
+"""Explicit scoped/all-source backfill, serial and resumable, with atomic ticker commits.
 
 This separate command leaves the bounded refresh CLI's range/ticker limits intact.
-Default dry-run. --all-source-tickers, --run-id, --manifest and --write are explicit.
+Default dry-run. --tickers OR --all-source-tickers, --run-id and --manifest required.
 """
 from __future__ import annotations
 import argparse
@@ -116,11 +116,16 @@ def write_manifest(path, manifest):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--all-source-tickers',action='store_true',required=True)
+    scope=parser.add_mutually_exclusive_group(required=True)
+    scope.add_argument('--all-source-tickers',action='store_true')
+    scope.add_argument('--tickers',nargs='+',help='Explicit source ticker codes, without .JK')
     parser.add_argument('--run-id',type=UUID,required=True)
     parser.add_argument('--manifest',type=Path,required=True)
     parser.add_argument('--write',action='store_true')
     args=parser.parse_args()
+    if args.tickers and (len(args.tickers)>10 or len(set(args.tickers))!=len(args.tickers)
+                         or any(not t or t!=t.strip().upper() or t.endswith('.JK') for t in args.tickers)):
+        parser.error('--tickers requires 1–10 distinct canonical source codes without .JK')
     beginning=monotonic()
     manifest={'run_id':str(args.run_id),'calculation_version':VERSION,
               'mode':'WRITE' if args.write else 'DRY_RUN','status':'RUNNING',
@@ -132,8 +137,14 @@ def main():
         with psycopg.connect(os.environ['DATABASE_URL'],autocommit=True,row_factory=dict_row,
                              options='-c statement_timeout=60000 -c lock_timeout=5000') as connection:
             # Freeze the actual source universe for this invocation; do not use current IDX membership.
-            universe=connection.execute('''SELECT ticker,count(*) AS rows,min(date) AS first_date,max(date) AS last_date
-             FROM public."Price_Stock_Indonesia_IDX" GROUP BY ticker ORDER BY ticker''').fetchall()
+            statement='''SELECT ticker,count(*) AS rows,min(date) AS first_date,max(date) AS last_date
+             FROM public."Price_Stock_Indonesia_IDX"'''
+            if args.tickers:
+                statement+=' WHERE ticker=ANY(%s)'
+            universe=connection.execute(statement+' GROUP BY ticker ORDER BY ticker',
+                                        (args.tickers,) if args.tickers else ()).fetchall()
+            if args.tickers and set(args.tickers)!={r['ticker'] for r in universe}:
+                raise ValueError('At least one requested ticker has no source history')
             manifest.update(total_tickers=len(universe),expected_rows=sum(r['rows'] for r in universe))
             write_manifest(args.manifest,manifest)
             for item in universe:

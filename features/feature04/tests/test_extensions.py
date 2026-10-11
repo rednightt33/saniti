@@ -53,7 +53,7 @@ def test_all_extensions_causal_and_partitioned():
     assert calculate(source[:200],calculated_at=stamp)==full[:200]
     mix=calculate([*bars(20,ticker='MORE'),*reversed(source)],calculated_at=stamp)
     assert [r for r in mix if r['ticker']=='TEST']==full
-    assert len(COLUMNS)==len(set(COLUMNS))==46
+    assert len(COLUMNS)==len(set(COLUMNS))==55
 
 def test_resume_hash_excludes_only_calculation_timestamp():
     source=bars(40);first=calculate(source)

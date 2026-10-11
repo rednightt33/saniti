@@ -7,8 +7,15 @@ model training, new services/databases, permissions changes, or automatic schedu
 Subsequent user instruction on 2026-10-11 authorized the reviewed four-column extension
 and full historical backfill for every ticker actually present in the price table, one
 ticker at a time, from its earliest observation through its latest available date.
-The v2 table has 46 columns. A separate monitoring table stores atomic per-ticker load
+The v2 table had 46 columns. A separate monitoring table stores atomic per-ticker load
 metadata; source prices, grants, deployments and schedules are unchanged.
+
+The next user instruction authorized SMI and the eight swing-state variables from
+the supplied HH Pine script, starting with BBCA only, followed by "Sure" and a request
+for Markdown definitions of every column. `break_swing_high` is INTEGER 1/0 as requested.
+The v3 schema has 55 columns; initial v3 data is BBCA only, while other tickers keep
+v2 payloads and NULL new columns. See [all column definitions](FEATURE04_COLUMN_DEFINITIONS.md)
+and [BBCA SMI validation](verification/feature04/SMI_BBCA.md).
 
 ## Verified source and mapping
 
@@ -45,9 +52,9 @@ is NOT VERIFIED. Source selection can carry survivorship bias.
 
 ## One physical wide table
 
-Target: `public."Feature04_Technical_Indicator"`. Exactly 46 columns in v2:
+Target: `public."Feature04_Technical_Indicator"`. Exactly 55 columns in v3:
 3 identities, 15 floating-point indicators, 25 independent INTEGER patterns,
-one INTEGER inside-bar flag, and 2 calculation metadata fields. Primary key and its B-tree index:
+one INTEGER inside-bar flag, nine SMI/swing fields, and 2 calculation metadata fields. Primary key and its B-tree index:
 `(ticker,trade_date,timeframe)`. This supports ticker/date-range queries filtered by the
 single verified timeframe. No speculative extra index, foreign key into the source,
 new PostgreSQL routine, or grant is added. The existing catalog-only validator
@@ -66,16 +73,21 @@ retained in `verification/feature04/catalog_validator_before.sql`. No new source
 | Patterns 14–25 | cdl_evening_doji_star, cdl_3_black_crows, cdl_shooting_star, cdl_hanging_man, cdl_doji, cdl_dragonfly_doji, cdl_gravestone_doji, cdl_marubozu, cdl_kicking, cdl_rise_fall_3_methods, cdl_mat_hold, cdl_hikkake | INTEGER; nullable |
 | Metadata | calculation_version, calculated_at | TEXT, TIMESTAMPTZ; NOT NULL |
 | Current-candle range pattern | inside_bar | INTEGER; nullable; only 0 or 1 |
+| SMI / swing prices | smi, temp_high, temp_low, last_swing_high | DOUBLE PRECISION; nullable |
+| Swing states / trigger | tracking_high, tracking_low, break_swing_high | INTEGER; nullable; only 0 or 1 |
+| Provisional peak/trough positions | temp_high_bar, temp_low_bar | INTEGER; nullable; zero-based source bar indices |
 
 Complete executable DDL and per-column metadata:
 `database/migrations/20261011_001_create_feature04_technical_indicator.sql`.
 The applied creation migration remains immutable. Forward migration
 `20261011_002_extend_feature04_and_backfill_log.sql` appends adx_14, ema_50, ema_200,
 and inside_bar after the original 42 physical columns; existing columns are not reordered.
+`20261011_003_add_feature04_smi_swing.sql` appends the nine SMI/swing fields after those 46.
 The creation migration fails if the target already exists or the verified source contract changes.
 Existing `Table_Catalog`, `Column_Catalog`, and `Feature_Catalog` receive definitions
-for the feature table and all 46 columns. All 46 active definitions use v2; 42 v1
-definitions are retained inactive. One exact-date ONE_TO_ONE relationship with
+for the feature table and all 55 columns. All 55 active definitions use v3; 42 v1 and
+46 v2 definitions are retained inactive. Unchanged formulas are copied to v3 without
+changing existing v2 data rows. One exact-date ONE_TO_ONE relationship with
 Feature01 is registered (Daily only; no point-in-time sector validity implied). It does not activate AI tools or alter the seven-table
 AI allowlist. AI onboarding is separate; physical XGBoost-compatible layout is not training eligibility.
 
@@ -86,9 +98,11 @@ AI allowlist. AI onboarding is separate; physical XGBoost-compatible layout is n
 `features/feature04/backfill.py`: authorized serial full-history ticker loads, temporary
 COPY staging, verified UPSERT and an atomic persistent per-ticker audit.
 `features/feature04/specs.py`: per-column formulas, units and usage guidance.
+`features/feature04/swing.py`: Pine first-input-seeded SMI and literal closed-bar state replay.
 Dependencies are pinned in `requirements.txt`; exact environment lock is `dependencies.lock`.
 TA-Lib Python 0.6.8 / C 0.6.4, NumPy 2.3.5, psycopg 3.2.13.
-Version `feature04-v2-talib0.6.8-c0.6.4`. Default TA-Lib compatibility, zero unstable
+Current engine version `feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4`;
+existing other-ticker data retains `feature04-v2-talib0.6.8-c0.6.4`. Default TA-Lib compatibility, zero unstable
 periods (including ADX), and library default candle settings.
 
 | Indicator | Definition / initialization | First valid bar (1-based) |
@@ -128,6 +142,28 @@ Invalid or missing OHLCV yields NULL features for that row and restarts all feat
 conservatively. Zero volume is valid. Missing dates are not inserted or forward-filled;
 windows count valid observed bars, not calendar days. Each ticker is sorted and isolated.
 No future price or forward target is read into an observation's calculations.
+
+### SMI and closed-bar swing replay
+
+SMI uses rolling high/low length 14, double EMA smoothing 5/5, and thresholds ±40.
+Its internal EMAs seed with the first available input and rolling extrema use partial
+windows at startup, matching the supplied Pine formula rather than TA-Lib EMA seeding.
+All nine fields are the state after the current bar's blocks execute. A high is confirmed
+only on SMI crossing below +40; the peak's earlier date is never retroactively marked
+as a confirmed feature. Temporary prices/indices clear on confirmation; the last
+confirmed high remains until replaced, including after a breakout. The original script
+does not retain a last confirmed low.
+
+`break_swing_high` is 1 when today's close exceeds today's confirmed high and yesterday's
+close was at or below yesterday's confirmed high; both levels must exist. Otherwise
+it is 0 on a valid processed bar. Before the first confirmation it is 0, not NULL;
+uncomputed tickers/invalid OHLCV remain NULL. A changing level can contribute to a
+cross, and multiple triggers of the same level are allowed. No additional SMI filter
+at breakout or one-shot lock is added. The trigger date is the existing trade_date.
+Intrabar alert behavior cannot be reconstructed from closed Daily OHLC.
+
+Full definitions, threshold-equality behavior, zero-based source index meaning and
+null rules: `FEATURE04_COLUMN_DEFINITIONS.md`. Initial execution is limited to BBCA.
 
 ## Incremental / correction design
 
@@ -175,8 +211,9 @@ unrelated target rows were preserved. Evidence: `verification/feature04/BACKFILL
 
 ### Authorized full historical load and resume
 
-The separate backfill command discovers actual tickers from Price_Stock_Indonesia_IDX,
-never from current listed-universe membership. Within each ticker it reads every available
+The separate backfill command accepts explicit --tickers (1–10 canonical source codes)
+or discovers all actual tickers with --all-source-tickers, never from current listed-universe
+membership. The two scope options are mutually exclusive. Within each ticker it reads every available
 observation in ascending date order, calculates once, and writes at most 5,000 rows in one
 repeatable-read transaction. Only one ticker is processed at a time; an advisory lock
 coordinates Feature04 writers. The ordinary refresh command retains its existing limits.

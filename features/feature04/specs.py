@@ -1,6 +1,18 @@
 """Reviewed per-column formulas and usage; consumed by the forward migration generator."""
 from engine import COLUMNS, PATTERNS, library_contract
 
+SWING_NULL_RULES = {
+ 'smi': 'NULL for an uncomputed ticker, invalid OHLCV, or a zero double-smoothed range; no zero imputation.',
+ 'tracking_high': 'Uncomputed/invalid row NULL; valid processed row is INTEGER 1 while tracking or 0 otherwise, including initialization.',
+ 'tracking_low': 'Uncomputed/invalid row NULL; valid processed row is INTEGER 1 while tracking or 0 otherwise, including initialization.',
+ 'temp_high': 'NULL outside active high tracking, including immediately after confirmation; uncomputed/invalid rows NULL.',
+ 'temp_high_bar': 'NULL together with temp_high; uncomputed/invalid rows NULL. Zero is a valid first-bar index.',
+ 'temp_low': 'NULL outside active low tracking, including immediately after confirmation; uncomputed/invalid rows NULL.',
+ 'temp_low_bar': 'NULL together with temp_low; uncomputed/invalid rows NULL. Zero is a valid first-bar index.',
+ 'last_swing_high': 'NULL before the first confirmed high or after invalid-row state reset; uncomputed rows NULL.',
+ 'break_swing_high': 'Valid processed row INTEGER 1 on a crossover, otherwise INTEGER 0, including before any confirmed high. NULL only for uncomputed/invalid rows.',
+}
+
 
 def specifications():
     contract=library_contract()
@@ -35,5 +47,52 @@ def specifications():
                     f"{info['lookback']+1} valid OHLCV bars; lookback={info['lookback']}",'signed pattern code',
                     f'Use {title} recognition as an independent numerical covariate, allowing coexisting patterns.',
                     'Zero means available non-detection; NULL means unavailable. Sign is native library convention, not a probability or proof of IDX predictive value. TradingView candlestick equivalence NOT VERIFIED.')
+    specs.update({
+      'smi': ('Price Positioning','Stochastic Momentum Index: double-smoothed close displacement from the midpoint of a rolling 14-bar high/low range.',
+              '200*EMA5(EMA5(close-(highest14(high)+lowest14(low))/2))/EMA5(EMA5(highest14(high)-lowest14(low))); first-input EMA seed, alpha=1/3, partial extrema windows at startup',
+              'First valid OHLCV bar with nonzero smoothed range; full available history','index points',
+              'Describe close position within the smoothed range and drive the supplied ±40 swing state transitions.',
+              'This SMI is not RSI, stochastic %K, or a separate SMI signal line; Pine chart history/adjustment parity NOT VERIFIED.'),
+      'tracking_high': ('Price Positioning','High-search state after all current-bar Pine blocks execute.',
+                        'Set 1 on SMI crossover above +40, reset 0 on SMI crossunder below +40; initial 0; recross above +40 resets the temporary peak',
+                        'Previous and current SMI to detect a threshold cross','binary state',
+                        'Identify bars in an active high-tracking interval.',
+                        'Not a confirmed swing-high event or price-breakout signal; SMI equal to +40 does not itself end tracking.'),
+      'tracking_low': ('Price Positioning','Low-search state after all current-bar Pine blocks execute.',
+                       'Set 1 on SMI crossunder below -40, reset 0 on SMI crossover above -40; initial 0; recross below -40 resets the temporary trough',
+                       'Previous and current SMI to detect a threshold cross','binary state',
+                       'Identify bars in an active low-tracking interval.',
+                       'Not a confirmed swing-low event or breakout direction; the original script does not retain lastSwingLow.'),
+      'temp_high': ('Price','Provisional highest high in the current active SMI-above-40 tracking interval.',
+                    'Initialize high on +40 upcross; update only if tracking_high and SMI>40 and high>temp_high; clear on +40 downcross after copying to last_swing_high',
+                    'Active tracking history only','IDR',
+                    'Inspect the candidate peak while high tracking is active.',
+                    'Provisional level; the confirmation bar high is excluded, equal highs keep the first occurrence, and confirmation clears this column.'),
+      'temp_high_bar': ('Metadata','Zero-based source observation index of the currently tracked temporary high.',
+                        'bar_index on temp_high initialization or strictly higher high; index 0 is earliest available source row for this ticker and timeframe; NULL when temp_high is cleared',
+                        'Full available ordered ticker history','bar index',
+                        'Locate the provisional peak within this ticker history.',
+                        'Not a date or a stable global/chart identifier; prepending source history shifts indices. Never backdate a confirmed feature to this bar.'),
+      'temp_low': ('Price','Provisional lowest low in the current active SMI-below-minus-40 tracking interval.',
+                   'Initialize low on -40 downcross; update only if tracking_low and SMI<-40 and low<temp_low; clear on -40 upcross',
+                   'Active tracking history only','IDR',
+                   'Inspect the candidate trough while low tracking is active.',
+                   'Provisional level; the confirmation bar low is excluded. No last_swing_low level is retained in the supplied script.'),
+      'temp_low_bar': ('Metadata','Zero-based source observation index of the currently tracked temporary low.',
+                       'bar_index on temp_low initialization or strictly lower low; index 0 is earliest available source row for this ticker and timeframe; NULL when temp_low is cleared',
+                       'Full available ordered ticker history','bar index',
+                       'Locate the provisional trough within this ticker history.',
+                       'Not a date or stable chart identifier; prepended history shifts indices. A displayed historical label does not prove the trough was confirmed then.'),
+      'last_swing_high': ('Price','Latest swing-high price available after its SMI-downcross confirmation, carried forward.',
+                         'When tracking_high and SMI[t]<40 and SMI[t-1]>=40, copy tracked temp_high before clearing it; retain until the next high confirmation',
+                         'One completed high-tracking interval','IDR',
+                         'Use the most recently confirmed swing level as known at the current close.',
+                         'Becomes available on confirmation date, not the earlier peak date. It is not cleared after a breakout, and the level may move up or down.'),
+      'break_swing_high': ('Price Positioning','Integer event flag for the supplied Pine close/last-swing-high crossover.',
+                          '1 iff last_swing_high[t] and last_swing_high[t-1] exist AND close[t]>last_swing_high[t] AND close[t-1]<=last_swing_high[t-1]; otherwise 0 on a valid processed bar',
+                          'Current and previous closes/confirmed levels','binary event',
+                          'Filter value 1 and use trade_date as the closed Daily trigger date; SUM counts trigger bars among computed rows.',
+                          'A wick alone does not trigger. Literal Pine compares changing current/prior levels, so a lowered newly confirmed level can contribute to a trigger. No one-shot lock or SMI-at-break filter; repeated triggers are possible. Not a trade instruction or win probability.'),
+    })
     assert set(specs)==set(COLUMNS)
     return specs

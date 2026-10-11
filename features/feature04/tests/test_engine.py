@@ -99,7 +99,7 @@ def test_invalid_bar_is_null_not_zero(field,value):
 
 
 def test_short_history_and_identity_guards():
-    out=calculate(bars(3));assert len(out[0])==46
+    out=calculate(bars(3));assert len(out[0])==55
     assert all(r['sma_50'] is None for r in out)
     source=bars()
     with pytest.raises(ValueError,match='Duplicate'):calculate([*source,source[0]])

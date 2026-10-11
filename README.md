@@ -56,7 +56,7 @@ warnings, evidence IDs, and query hashes during context compaction. The cumulati
 input ceiling is 150,000 tokens; the 64,000-token per-call context ceiling remains
 separate and unchanged.
 
-Feature04 v2 is `Feature04_Technical_Indicator` (46 wide columns), including ADX14, close EMA50/EMA200 and strict current-candle inside bars. The authorized serial historical backfill covers all 844 tickers present in the price source: 1,318,633 Daily rows, 2018-01-02 through 2026-10-09, with zero missing/extra keys and no source changes. Atomic per-ticker audit/resume metadata lives in `feature04_backfill_log`. No schedule, deployment or AI onboarding was added. See [FEATURE04_TECHNICAL_INDICATOR.md](FEATURE04_TECHNICAL_INDICATOR.md) and [full backfill evidence](verification/feature04/FULL_BACKFILL.md).
+Feature04 is `Feature04_Technical_Indicator` (55 wide columns). Its existing v2 indicators cover 844 tickers / 1,318,633 Daily rows; v3 adds Pine SMI 14/5/5 with ±40 thresholds and eight swing-state fields, initially calculated for BBCA only. `break_swing_high` is integer 1/0 on the trigger's `trade_date`. Other tickers retain v2 values and NULL new columns. See [definitions of all 55 columns](FEATURE04_COLUMN_DEFINITIONS.md), [implementation contract](FEATURE04_TECHNICAL_INDICATOR.md), [BBCA SMI evidence](verification/feature04/SMI_BBCA.md), and [prior full backfill](verification/feature04/FULL_BACKFILL.md). Atomic load metadata lives in `feature04_backfill_log`; no schedule, service deployment or AI onboarding was added.
 
 ## Mandatory update contract
 

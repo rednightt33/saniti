@@ -1,0 +1,18 @@
+{
+  "applied": "20261011_003_add_feature04_smi_swing.sql",
+  "sha256": "d96fd3273ca0ef35e5dc9e685296fbb6304a3d348bf625d18147d0215303ac31",
+  "source_and_other_tickers_before": {
+    "source": {
+      "rows": 1318633,
+      "fingerprint": "-2165319481806142948543"
+    },
+    "other_v2_payload": {
+      "rows": 1316520,
+      "fingerprint": "-3845472531244130756455"
+    }
+  },
+  "source_and_other_tickers_unchanged": true,
+  "existing_bbca_rows_preserved": 2113,
+  "all_new_columns_null_after_ddl": true,
+  "checked_at": "2026-10-11T05:54:30.353563+00:00"
+}

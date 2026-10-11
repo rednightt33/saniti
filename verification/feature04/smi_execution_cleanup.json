@@ -1,0 +1,9 @@
+{
+  "sandbox": {
+    "id": "c54edee9-c495-43b2-be2d-e7ca7c98db12",
+    "status": "DESTROYED"
+  },
+  "temporary_compute_only": true,
+  "persistent_services_changed": false,
+  "terminal_status_verified_after_destroy_request": true
+}

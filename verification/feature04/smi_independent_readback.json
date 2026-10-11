@@ -1,0 +1,335 @@
+{
+  "checked_at": "2026-10-11T05:56:59.698957+00:00",
+  "independent_read_path": "Pgweb read-only role",
+  "smi_reference": "closed-form first-seeded EMA convolution with independent partial rolling extrema",
+  "bbca_rows": 2113,
+  "smi_max_abs_error": 6.394884621840902e-14,
+  "columns": [
+    {
+      "column_name": "ticker",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "column_name": "trade_date",
+      "data_type": "date",
+      "is_nullable": "NO"
+    },
+    {
+      "column_name": "timeframe",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "column_name": "sma_20",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "sma_50",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "ema_12",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "ema_26",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "rsi_14",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "macd",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "macd_signal",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "macd_histogram",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "atr_14",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "bb_upper_20",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "bb_middle_20",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "bb_lower_20",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_piercing",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_morning_star",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_morning_doji_star",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_engulfing",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_3_white_soldiers",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_hammer",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_inverted_hammer",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_3_inside",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_3_outside",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_harami",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_harami_cross",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_dark_cloud_cover",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_evening_star",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_evening_doji_star",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_3_black_crows",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_shooting_star",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_hanging_man",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_doji",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_dragonfly_doji",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_gravestone_doji",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_marubozu",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_kicking",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_rise_fall_3_methods",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_mat_hold",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "cdl_hikkake",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "calculation_version",
+      "data_type": "text",
+      "is_nullable": "NO"
+    },
+    {
+      "column_name": "calculated_at",
+      "data_type": "timestamp with time zone",
+      "is_nullable": "NO"
+    },
+    {
+      "column_name": "adx_14",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "ema_50",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "ema_200",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "inside_bar",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "smi",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "tracking_high",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "tracking_low",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "temp_high",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "temp_high_bar",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "temp_low",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "temp_low_bar",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "last_swing_high",
+      "data_type": "double precision",
+      "is_nullable": "YES"
+    },
+    {
+      "column_name": "break_swing_high",
+      "data_type": "integer",
+      "is_nullable": "YES"
+    }
+  ],
+  "bbca": [
+    {
+      "rows": 2113,
+      "smi_available": 2113,
+      "triggers": 47,
+      "non_triggers": 2066,
+      "latest_trigger": "2026-09-08T00:00:00Z"
+    }
+  ],
+  "latest": [
+    {
+      "trade_date": "2026-10-09T00:00:00Z",
+      "smi": -67.37398550834574,
+      "last_swing_high": 6850,
+      "break_swing_high": 0
+    }
+  ],
+  "other_tickers": [
+    {
+      "rows": 1316520,
+      "tickers": 843,
+      "computed_trigger_flags": 0,
+      "computed_smi": 0
+    }
+  ],
+  "catalog": [
+    {
+      "version": "v1",
+      "is_active": false,
+      "definitions": 42
+    },
+    {
+      "version": "v2",
+      "is_active": false,
+      "definitions": 46
+    },
+    {
+      "version": "v3",
+      "is_active": true,
+      "definitions": 55
+    }
+  ],
+  "log": [
+    {
+      "run_id": "c0157d46-7f54-477b-af7a-5b9bf63d161f",
+      "ticker": "BBCA",
+      "status": "COMPLETED",
+      "source_rows": 2113,
+      "changed_rows": 2113
+    }
+  ]
+}

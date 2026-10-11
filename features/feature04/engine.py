@@ -1,7 +1,8 @@
 """Causal daily technical features; no database writes in this module.
 
-v2 preserves the v1 calculations and uses TA-Lib default compatibility/initialization for all
-indicators. TradingView formula definitions are the intended benchmark, but
+v3 preserves v1/v2 calculations and adds Pine-seeded SMI and closed-bar swing state.
+The existing indicators use TA-Lib default compatibility/initialization.
+TradingView formula definitions are the intended benchmark, but
 its chart seed/history and ATR first-bar treatment are NOT claimed equivalent.
 """
 from __future__ import annotations
@@ -15,8 +16,9 @@ from typing import Iterable
 import numpy as np
 import talib
 from talib import abstract
+from swing import SWING_COLUMNS, calculate_swing
 
-VERSION = 'feature04-v2-talib0.6.8-c0.6.4'
+VERSION = 'feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4'
 TABLE = 'Feature04_Technical_Indicator'
 IDENTITY = ('ticker', 'trade_date', 'timeframe')
 INDICATORS = ('sma_20', 'sma_50', 'ema_12', 'ema_26', 'rsi_14', 'macd',
@@ -40,9 +42,10 @@ PATTERNS = {
 V1_COLUMNS = IDENTITY + INDICATORS + tuple(PATTERNS) + ('calculation_version', 'calculated_at')
 EXTENSIONS = ('adx_14', 'ema_50', 'ema_200', 'inside_bar')
 INDICATORS = INDICATORS + EXTENSIONS[:3]
-FEATURE_COLUMNS = INDICATORS + tuple(PATTERNS) + ('inside_bar',)
+FEATURE_COLUMNS = INDICATORS + tuple(PATTERNS) + ('inside_bar',) + SWING_COLUMNS
 # PostgreSQL appends new columns; retain the physical v1 order for old columns.
-COLUMNS = V1_COLUMNS + EXTENSIONS
+V2_COLUMNS = V1_COLUMNS + EXTENSIONS
+COLUMNS = V2_COLUMNS + SWING_COLUMNS
 
 
 def library_contract() -> dict:
@@ -133,6 +136,8 @@ def calculate(rows: Iterable[dict], *, calculated_at: datetime | None = None) ->
             segment = series[start:end]
             o, h, l, c = [np.array([float(r[k]) for r in segment], dtype=np.float64)
                            for k in ('open', 'high', 'low', 'close')]
+            for j, state in enumerate(calculate_swing(h, l, c, bar_offset=start)):
+                results[start + j].update(state)
             numeric = {
                 'sma_20': talib.SMA(c, timeperiod=20),
                 'sma_50': talib.SMA(c, timeperiod=50),

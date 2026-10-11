@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-10-11T05:19:24.377406+00:00`.
+Generated from PostgreSQL schema `public` at `2026-10-11T05:55:55.358115+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -32,15 +32,15 @@ Generated from PostgreSQL schema `public` at `2026-10-11T05:19:24.377406+00:00`.
 | `Analysis_Step_Log` | System | After each AI analysis tool or compaction step | — | `2026-09-13 15:02:15+00:00` | Baseline only | Audit record for every query, tool, compaction, or analytical step in an AI request. |
 | `Analytics_Dataset_Snapshot` | System | Per bounded analytics input; remove private object after terminal grace or expiry | — | `2026-09-14 07:39:52+00:00` | Baseline only | Metadata and retention state for immutable bounded raw or Feature analytical input snapshots stored in a private Railway bucket. |
 | `Analytics_Job` | System | Per generic analytics submission, lease, result, or failure | — | `2026-09-14 07:39:52+00:00` | Baseline only | Durable queue, lease, resource contract, result, and failure audit for separately authenticated query-sandbox and statistical-validation workers. |
-| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-10-11 05:13:42.194270+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
+| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-10-11 05:54:28.042009+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
 | `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-10-09 05:36:34+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
-| `Feature04_Technical_Indicator` | Feature | Manual bounded refresh or explicitly authorized serial full-history per-ticker backfill; source corrections require chronological replay through output end. No scheduler. | `2026-10-09` | `2026-10-11 05:18:53.090740+00:00` | Actual row readback; manual serial execution; no Database_Table_Status row | Causal daily technical indicators, independent native TA-Lib codes, and strict current-candle inside bar; 46 columns, v2 calculation-verified. TradingView parity NOT VERIFIED. |
+| `Feature04_Technical_Indicator` | Feature | Manual scoped chronological replay; SMI v3 initially BBCA only. Existing serial/bounded writers calculate v3 only when explicitly invoked within authorized scope; no scheduler. | `2026-10-09` | `2026-10-11 05:55:02.473918+00:00` | Actual row readback; manual serial execution; no Database_Table_Status row | 55-column causal daily indicators, native candlestick codes, strict inside bar and Pine SMI/swing state. Initial SMI extension calculated for BBCA only; other rows retain v2. TradingView chart parity NOT VERIFIED. |
 | `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-10-08` | `2026-10-09 10:06:33.150795+00:00` | Tracked automatically | Daily per-ticker price, return, volatility, volume, and drawdown features. |
 | `Feature_02_Broker_Rolling` | Feature | After validated broker-summary changes; manual v2 ticker rebuild | `2026-08-31` | `2026-09-14 14:26:33.580099+00:00` | Derived from IDX_Broker_Summary; Investor-Type Feature 02 v2 refresh is manual | Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata. |
 | `Feature_03_Stock_Broker_Daily` | Feature | After Feature 02 refresh; manual Investor-Type v2 refresh | `2026-08-31` | `2026-09-14 15:17:23.131992+00:00` | Derived from Investor-Type Feature_02_Broker_Rolling; Feature 03 v2 refresh is manual | Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate. |
 | `Feature_Calculation_Log` | System | After completed worker attempts | `2026-10-08` | `2026-10-08 23:02:17.644559+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
 | `Feature_Calculation_Queue` | System | After committed price inserts/updates and worker transitions | `2026-10-08` | `2026-10-08 23:02:17.586587+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
-| `Feature_Catalog` | Reference | After each validated Feature schema change | — | `2026-10-11 05:13:42.190791+00:00` | Tracked automatically | Versioned, machine-readable formula, interpretation, recommended-use, misuse, availability, point-in-time safety and validation-evidence contract for every validated Feature column. |
+| `Feature_Catalog` | Reference | After each validated Feature schema change | — | `2026-10-11 05:54:28.042194+00:00` | Tracked automatically | Versioned, machine-readable formula, interpretation, recommended-use, misuse, availability, point-in-time safety and validation-evidence contract for every validated Feature column. |
 | `Feature_Relationship_Catalog` | Reference | After a validated Feature join contract changes | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned safe-join and grain contracts between verified Feature tables. |
 | `Feature_Status` | System | After enqueue and worker state transitions | `2026-10-08` | `2026-10-08 23:02:17.586587+00:00` | Derived from per-ticker status rows | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
 | `Golden_Analysis_Test` | System | After a versioned golden analytical expectation changes | — | `2026-09-13 15:08:56+00:00` | Baseline only | Versioned analytical regression-test definitions with reproducible conditions and tolerances. |
@@ -54,12 +54,12 @@ Generated from PostgreSQL schema `public` at `2026-10-11T05:19:24.377406+00:00`.
 | `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-10-08` | `2026-10-08 23:02:11.337259+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
 | `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-10-08` | `2026-10-09 10:04:22.765289+00:00` | Tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
 | `Reference_History_Capture_Log` | System | One row per reference-history capture or correction | — | `2026-10-09 05:36:34+00:00` | Baseline; exact changes tracked from this time forward | One row per capture of IDX_Stock_Universe or IDX_Broker_Profile into its history (trigger, initial, manual or correction): changed and new versions, keys absent from the load, and the error of a failed capture. |
-| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-10-11 05:13:42.192772+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
+| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-10-11 05:54:28.017177+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
 | `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
 | `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-10-10 23:00:34.407737+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
 | `Tool_Catalog` | Reference | With each approved backend or analytics tool release | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned generic AI tool metadata, activation state, schemas, and advertised operational ceilings. |
 | `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-10-02 18:07:58.949068+00:00` | Tracked automatically | Issuer descriptions and TradingView/curated sector and industry classifications. |
-| `feature04_backfill_log` | Monitoring | Manual serial runner; completed output and audit committed together; failed ticker rolls back. | `2026-10-09` | `2026-10-11 05:18:53.342827+00:00` | Actual row readback; manual serial execution; no Database_Table_Status row | Atomic Feature04 per-run/ticker historical calculation audit and resumable extraction/output fingerprints. |
+| `feature04_backfill_log` | Monitoring | Manual serial runner; completed output and audit committed together; failed ticker rolls back. | `2026-10-09` | `2026-10-11 05:55:03.021736+00:00` | Actual row readback; manual serial execution; no Database_Table_Status row | Atomic Feature04 per-run/ticker historical calculation audit and resumable extraction/output fingerprints. |
 | `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-08-31` | `2026-09-09 16:55:55.713468+00:00` | Derived from load log | Per-trading-date Stockbit broker-summary load progress, retries, and review state. |
 
 ## Logical relationships
@@ -1290,7 +1290,7 @@ Tracks the data freshness, change time, and update pattern of each table.
 
 ## Feature04_Technical_Indicator
 
-Causal daily technical indicators, independent native TA-Lib codes, and strict current-candle inside bar; 46 columns, v2 calculation-verified. TradingView parity NOT VERIFIED.
+55-column causal daily indicators, native candlestick codes, strict inside bar and Pine SMI/swing state. Initial SMI extension calculated for BBCA only; other rows retain v2. TradingView chart parity NOT VERIFIED.
 
 ### Columns
 
@@ -1342,6 +1342,15 @@ Causal daily technical indicators, independent native TA-Lib codes, and strict c
 | `ema_50` | `double precision` | Yes | — | Fifty-observation exponentially weighted close; alpha=2/51. |
 | `ema_200` | `double precision` | Yes | — | Two-hundred-observation exponentially weighted close; alpha=2/201. |
 | `inside_bar` | `integer` | Yes | — | Strict current-candle range containment within the previous valid observed candle. |
+| `smi` | `double precision` | Yes | — | Stochastic Momentum Index: double-smoothed close displacement from the midpoint of a rolling 14-bar high/low range. |
+| `tracking_high` | `integer` | Yes | — | High-search state after all current-bar Pine blocks execute. |
+| `tracking_low` | `integer` | Yes | — | Low-search state after all current-bar Pine blocks execute. |
+| `temp_high` | `double precision` | Yes | — | Provisional highest high in the current active SMI-above-40 tracking interval. |
+| `temp_high_bar` | `integer` | Yes | — | Zero-based source observation index of the currently tracked temporary high. |
+| `temp_low` | `double precision` | Yes | — | Provisional lowest low in the current active SMI-below-minus-40 tracking interval. |
+| `temp_low_bar` | `integer` | Yes | — | Zero-based source observation index of the currently tracked temporary low. |
+| `last_swing_high` | `double precision` | Yes | — | Latest swing-high price available after its SMI-downcross confirmation, carried forward. |
+| `break_swing_high` | `integer` | Yes | — | Integer event flag for the supplied Pine close/last-swing-high crossover. |
 
 ### Constraints
 
@@ -1365,9 +1374,18 @@ Causal daily technical indicators, independent native TA-Lib codes, and strict c
 | `Feature04_Technical_Indicator_ticker_check` | Check | `CHECK (ticker = upper(btrim(ticker)) AND ticker <> ''::text)` |
 | `Feature04_Technical_Indicator_timeframe_check` | Check | `CHECK (timeframe = 'Daily'::text)` |
 | `feature04_adx_14_valid` | Check | `CHECK (adx_14 IS NULL OR adx_14 >= 0::double precision AND adx_14 <= 100::double precision)` |
+| `feature04_break_swing_high_valid` | Check | `CHECK (break_swing_high IS NULL OR (break_swing_high = ANY (ARRAY[0, 1])))` |
 | `feature04_ema_200_finite` | Check | `CHECK (ema_200 IS NULL OR ema_200 > '-Infinity'::double precision AND ema_200 < 'Infinity'::double precision)` |
 | `feature04_ema_50_finite` | Check | `CHECK (ema_50 IS NULL OR ema_50 > '-Infinity'::double precision AND ema_50 < 'Infinity'::double precision)` |
 | `feature04_inside_bar_binary` | Check | `CHECK (inside_bar IS NULL OR (inside_bar = ANY (ARRAY[0, 1])))` |
+| `feature04_last_swing_high_valid` | Check | `CHECK (last_swing_high IS NULL OR last_swing_high > '-Infinity'::double precision AND last_swing_high < 'Infinity'::double precision)` |
+| `feature04_smi_valid` | Check | `CHECK (smi IS NULL OR smi > '-Infinity'::double precision AND smi < 'Infinity'::double precision)` |
+| `feature04_temp_high_bar_valid` | Check | `CHECK (temp_high_bar IS NULL OR temp_high_bar >= 0)` |
+| `feature04_temp_high_valid` | Check | `CHECK (temp_high IS NULL OR temp_high > '-Infinity'::double precision AND temp_high < 'Infinity'::double precision)` |
+| `feature04_temp_low_bar_valid` | Check | `CHECK (temp_low_bar IS NULL OR temp_low_bar >= 0)` |
+| `feature04_temp_low_valid` | Check | `CHECK (temp_low IS NULL OR temp_low > '-Infinity'::double precision AND temp_low < 'Infinity'::double precision)` |
+| `feature04_tracking_high_valid` | Check | `CHECK (tracking_high IS NULL OR (tracking_high = ANY (ARRAY[0, 1])))` |
+| `feature04_tracking_low_valid` | Check | `CHECK (tracking_low IS NULL OR (tracking_low = ANY (ARRAY[0, 1])))` |
 | `Feature04_Technical_Indicator_pkey` | Primary key | `PRIMARY KEY (ticker, trade_date, timeframe)` |
 
 ### Indexes

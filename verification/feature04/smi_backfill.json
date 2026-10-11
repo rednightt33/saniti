@@ -1,0 +1,58 @@
+{
+  "run_id": "c0157d46-7f54-477b-af7a-5b9bf63d161f",
+  "first": {
+    "ticker": "BBCA",
+    "status": "COMPLETED",
+    "rows": 2113,
+    "changed_rows": 2113,
+    "source_start": "2018-01-02",
+    "source_end": "2026-10-09"
+  },
+  "resume": {
+    "ticker": "BBCA",
+    "status": "SKIPPED_VERIFIED",
+    "rows": 2113,
+    "changed_rows": 0
+  },
+  "summary": {
+    "rows": 2113,
+    "smi_available": 2113,
+    "triggers": 47,
+    "first_trigger": "2018-07-18",
+    "latest_trigger": "2026-09-08",
+    "first_high_confirmation": "2018-02-06",
+    "smi_min": -87.56294880220098,
+    "smi_max": 90.42246155139844
+  },
+  "versions": [
+    {
+      "calculation_version": "feature04-v2-talib0.6.8-c0.6.4",
+      "rows": 1316520,
+      "tickers": 843
+    },
+    {
+      "calculation_version": "feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4",
+      "rows": 2113,
+      "tickers": 1
+    }
+  ],
+  "columns": 55,
+  "sql_trigger_mismatches": 0,
+  "source_and_other_tickers_before": {
+    "source": {
+      "rows": 1318633,
+      "fingerprint": "-2165319481806142948543"
+    },
+    "other_v2_payload": {
+      "rows": 1316520,
+      "fingerprint": "-3845472531244130756455"
+    }
+  },
+  "source_and_other_tickers_unchanged": true,
+  "other_ticker_new_nonnull_rows": 0,
+  "old_bbca_indicators_unchanged": true,
+  "rerun_preserved_timestamps": true,
+  "source_sha256": "ced3ffc4d7fef71b1511febb2b151cca3c4054e9e04657e1998ddd332424e349",
+  "output_sha256": "5453547c45c71402c0e3f8a64bebf2111d0c52d61c20b25071f15a12752372a0",
+  "checked_at": "2026-10-11T05:55:06.291050+00:00"
+}

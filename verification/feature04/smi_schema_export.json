@@ -1,0 +1,9 @@
+{
+  "public_tables": 53,
+  "target_columns": 55,
+  "log_columns": 13,
+  "schema_bytes": 228678,
+  "mode": "READ_ONLY",
+  "status_reconciliation": "NOT EXECUTED",
+  "tracking_triggers": "UNCHANGED"
+}

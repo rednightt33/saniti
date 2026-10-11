@@ -1,0 +1,10 @@
+{
+  "feature_tests_passed": 27,
+  "migration_generators_reproduced": 3,
+  "frozen_migration_checks_passed": 2,
+  "column_documentation_count": 55,
+  "version": "feature04-v3-smi14-5-5-th40-talib0.6.8-c0.6.4",
+  "pine_source_sha256": "3747698023fa26d13bec9d52ebc68a52e48246fc8109628bc0d50c9d8c8d654b",
+  "pine_upload_sha256": "f124591d89dac6bcaf074229d1643ea09e7d6f6e0cb6c2c2a0002544b74e04b1",
+  "pine_reference_line_endings": "CRLF upload normalized to LF; script content unchanged"
+}

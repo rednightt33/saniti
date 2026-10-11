@@ -1,0 +1,125 @@
+//@version=6
+indicator("Nic - HH LL", overlay=true)
+
+// ==============================
+// INPUT
+// ==============================
+smiKLen      = input.int(14, "SMI K Length")
+smiDLen      = input.int(5,  "SMI D Length")
+smiEmaLen    = input.int(5,  "SMI EMA Length")
+smiThreshold = input.int(40, "SMI Threshold (±)", minval=10, maxval=80)
+
+// ==============================
+// SMI
+// ==============================
+hh  = ta.highest(high, smiKLen)
+ll  = ta.lowest(low, smiKLen)
+m   = (hh + ll) / 2
+rel = close - m
+
+smi = 200 * ta.ema(ta.ema(rel, smiDLen), smiEmaLen) /
+      ta.ema(ta.ema(hh - ll, smiDLen), smiEmaLen)
+
+// ==============================
+// STATE
+// ==============================
+var bool trackingHigh = false
+var bool trackingLow  = false
+
+var float tempHigh = na
+var int   tempHighBar = na
+
+var float tempLow = na
+var int   tempLowBar = na
+
+// simpan swing terakhir
+var float lastSwingHigh = na
+
+// ==============================
+// SWING HIGH LOGIC
+// ==============================
+
+// mulai tracking high
+if ta.crossover(smi, smiThreshold)
+    trackingHigh := true
+    tempHigh := high
+    tempHighBar := bar_index
+
+// update highest
+if trackingHigh and smi > smiThreshold
+    if high > tempHigh
+        tempHigh := high
+        tempHighBar := bar_index
+
+// confirm swing high
+if trackingHigh and ta.crossunder(smi, smiThreshold)
+    label.new(
+        tempHighBar,
+        tempHigh,
+        "Swing High",
+        xloc=xloc.bar_index,
+        style=label.style_label_down,
+        color=color.red,
+        textcolor=color.white,
+        size=size.small
+    )
+
+    // simpan swing high terakhir
+    lastSwingHigh := tempHigh
+
+    trackingHigh := false
+    tempHigh := na
+    tempHighBar := na
+
+// ==============================
+// SWING LOW LOGIC
+// ==============================
+if ta.crossunder(smi, -smiThreshold)
+    trackingLow := true
+    tempLow := low
+    tempLowBar := bar_index
+
+if trackingLow and smi < -smiThreshold
+    if low < tempLow
+        tempLow := low
+        tempLowBar := bar_index
+
+if trackingLow and ta.crossover(smi, -smiThreshold)
+    label.new(
+        tempLowBar,
+        tempLow,
+        "Swing Low",
+        xloc=xloc.bar_index,
+        style=label.style_label_up,
+        color=color.blue,
+        textcolor=color.white,
+        size=size.small
+    )
+
+    trackingLow := false
+    tempLow := na
+    tempLowBar := na
+
+// ==============================
+// BREAKOUT LOGIC
+// ==============================
+breakSwingHigh = not na(lastSwingHigh) and ta.crossover(close, lastSwingHigh)
+
+// optional visual
+plotshape(
+    breakSwingHigh,
+    title="Break Swing High",
+    location=location.abovebar,
+    style=shape.triangleup,
+    color=color.green,
+    size=size.small
+)
+
+// ==============================
+// ALERT
+// ==============================
+alertcondition(
+    breakSwingHigh,
+    title="Break Swing High",
+    message="PRICE BREAK SWING HIGH | {{ticker}} | TF {{interval}}"
+)

@@ -1707,3 +1707,14 @@ only the three EDGE relations. Actual restricted-login connection succeeded; can
 was denied. Added the migration hash to APPLIED.sha256; no applied migration was rewritten.
 No original market/canonical table, data, catalog, routine, retention, or web Postgres change.
 Evidence: `verification/edge/admin_preflight_20261008.json`, `verification/edge/schema_readback_20261008.json`.
+
+
+## 2026-10-11 — Feature04 v3 Pine SMI/swing extension, BBCA only
+
+User: "Bisa buat itu di table feature 04, termasuk SMI dan signal kapan break swing high trigger? Mulai dari BBCA saja ya. Konfirmasi", then "Sure, please create MD di git menjelaskan setiap kolom pada feature 4 technical indicator ini ya dari segi definisi." Encoding correction: "Buat 1 saja atau 0 kalau false".
+
+Applied forward migration `20261011_003_add_feature04_smi_swing.sql` (SHA256 `d96fd3273ca0ef35e5dc9e685296fbb6304a3d348bf625d18147d0215303ac31`): append smi, tracking_high/low, temp_high/low and their bar indices, last_swing_high, and INTEGER 1/0 break_swing_high. Existing 46 columns/order preserved; total 55. Table/Column catalogs updated and 55 v3 Feature definitions activated atomically, retaining 42 v1 and 46 v2 inactive. Global semantic audit 146/146 calculation-verified, incomplete 0. Safe Feature01 join unchanged.
+
+Full-history closed Daily BBCA replay, 2,113 bars 2018-01-02..2026-10-09, produces 47 trigger bars (first 2018-07-18, latest 2026-09-08); other valid BBCA trigger flags 0. Old BBCA indicators unchanged; version/timestamp and new fields updated only for BBCA. Source 1,318,633-row fingerprint and all original payload/timestamps of 843 other tickers / 1,316,520 rows preserved; their new columns NULL. Per-ticker atomic audit run `c0157d46-7f54-477b-af7a-5b9bf63d161f` has one COMPLETED entry. Identical resume changes 0 rows and preserves timestamps. No Git row mirror.
+
+27 feature tests, rolled-back DDL/data rehearsal, binary constraint rejection, all-column committed readback, independent SQL crossover reference (0 mismatches), independent closed-form EMA convolution on 2,113 live rows (error <1e-10), and frozen migration checks pass. Read-only schema export only, no global synchronizer/source pipeline/permissions/AI onboarding/scheduling changes. Formula behavior follows supplied Pine, including changing levels and threshold resets; chart-export and training point-in-time parity remain NOT VERIFIED. See `FEATURE04_COLUMN_DEFINITIONS.md` and `verification/feature04/SMI_BBCA.md`.
