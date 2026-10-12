@@ -47,6 +47,9 @@ The dry run rebuilds state from full history and shadow-compares the recent suff
 stored table without writing. The write run changes state only. It does not rewrite Feature04
 output.
 
+Pause the continuous worker while either bootstrap command runs. Restore `python worker.py`
+only after checkpoint counts and shadow parity have passed.
+
 For the independent fixed-income daily and recovery crons, the outbox first sends the
 related `Monitoring_Fixed_Income` result through `telegram-monitor`. The Feature04
 completion remains gated until that price notification is recorded sent.
