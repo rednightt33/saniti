@@ -68,7 +68,7 @@ window.EdgeLabels = {
     evidencePrefix:"Bukti: ", choices:"Pilihan", choicesDisabled:"Pilihan hanya untuk jawaban terakhir saat tidak ada proses berjalan",
     paused:"Jawaban ini dijeda", pausedRegion:"Jawaban dijeda", pauseHint:"Atau tulis instruksi lain di kolom pesan.",
     needsInput:"Tulis bagian yang ingin diubah di kolom pesan", claimNote:"catatan",
-    sourcesEvidence:"Bukti", sourcesNews:"Berita", sourcesClaims:"Klaim yang ditandai", sourcesRecord:"Catatan data percakapan",
+    sourcesEvidence:"Bukti", sourcesNews:"Berita", sourcesClaims:"Klaim yang ditandai", sourcesHurdles:"Hambatan proses", sourcesRecord:"Catatan data percakapan",
     sourcesEmpty:"No source or evidence metadata returned for this response.",
     approveMessage:"Setujui rencana riset", cancelMessage:"Batalkan rencana riset"
   }

@@ -601,6 +601,9 @@ class ExecutionMetadata(BaseModel):
     mode: ModeExecution | None = None
     # the kejedot index (app/friction.py): rejected tool calls, gate repairs, repeated data orders, capacity refusals
     friction: dict[str, int] | None = None
+    # EXEC-FRICTION (M142): the run's refusals as the backend recorded them, in plain words for the user, in order:
+    # [{stage, name, code, outcome, overcome, text}]; omitted when there were none
+    hurdles: list[dict[str, Any]] | None = None
     # EXEC-W A1 (M121, app/stop_policy.py): the answer paused instead of ending; its cause and the choices it asked
     pause: dict[str, Any] | None = None
     # EXEC-Y Fase 1 (S1): the user pressed Stop while this answer ran (app/stop.py); omitted otherwise
@@ -612,7 +615,7 @@ class ExecutionMetadata(BaseModel):
         shape."""
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("analysis_path", "mode", "analysis_final_statuses", "friction", "pause", "stopped"):
+            for key in ("analysis_path", "mode", "analysis_final_statuses", "friction", "hurdles", "pause", "stopped"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data

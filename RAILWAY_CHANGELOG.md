@@ -1,5 +1,22 @@
 # Railway changelog
 
+## 2026-10-12 — EXEC-IMPL-1012 Fase 1 (EXEC-JOINKEY, EXEC-RELEASE) deployed from main
+
+User go 2026-10-12 ("ok", `EXEC.md` EXEC-IMPL-1012). Rollback references recorded before any change: orc
+`d6177468`, sandbox `92eabc87`, governor `ad4da9bb`, edge-bff `3c71972f`.
+- Temporary service `mmig-job` (`e69b0117`, empty service, CLI upload of a one-shot Python job; variables
+  `DATABASE_URL=${{Postgres.DATABASE_URL}}` as a reference, never printed, and `MODE`): DRYRUN `5bf2ef8b` rolled
+  back, APPLY `d82ed879` committed `20261012_006` (method guides v8) and `20261012_007` (Tool_Catalog round R)
+  (`DATABASE_CHANGELOG.md`). Deleted with `railway service delete`; read back absent (25 services).
+- `main` `597b77f`: market-python-sandbox **bd1d9ea0-28dd-4648-bbe9-0e381e97ae9a**, market-ai-orc
+  **5be18680-1537-4572-9f38-afa7ff8c352c** and market-sql-governor **5ac8bb3c-f3c1-4181-92c5-b558793c05e2** (test
+  fixture only, runtime code unchanged) reached **SUCCESS**; edge-bff SKIPPED.
+- The orchestrator started (11:05:44 UTC) before the new sandbox (11:07:42) and logged `method_guides_inactive`
+  (sandbox guides 7, orc 8): the guides are checked once at startup. `railway restart` of the same orc deployment at
+  11:16 UTC; startup without `method_guides_inactive`. Lesson: when a push changes both services' method guides, restart
+  the orchestrator after the sandbox is SUCCESS.
+- No variable, model, provider, mode or configuration change.
+
 ## 2026-10-12 — Feature04 compact Telegram monitor rollout
 
 - Commit `35fee3f` deployed the Feature04 notification changes from Git main. Exact

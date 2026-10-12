@@ -79,5 +79,8 @@ def test_the_kejedot_index_counts_rejections_capacity_and_repeated_orders() -> N
         {"source_table": "IDX_Broker_Summary", "scope_sha256": "s2"}]}}
     friction.count_tool(counts, "submit_data_need_spec", ok("submit_data_need_spec", other), record)
     friction.count_tool(counts, "run_python", ok("run_python", {"status": "OK"}), record)
+    # EXEC-FRICTION: a failed code run is shown as data by the envelope, counted as a failed execution
+    friction.count_tool(counts, "run_python", ok("run_python", {"status": "SCRIPT_ERROR", "error_type": "KeyError"}),
+                        record)
     assert counts == {"rejected_tool_calls": 2, "gate_repairs": 0, "repeated_data_orders": 1,
-                      "capacity_refusals": 1}
+                      "capacity_refusals": 1, "failed_executions": 1}

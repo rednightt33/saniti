@@ -42,7 +42,46 @@ WORDS = {
     # the outcome of a web lookup (research_web, find_web_fact)
     "OK": "ditemukan", "PARTIAL": "sebagian", "NOT_FOUND": "tidak ditemukan",
     "BUDGET_EXHAUSTED": "batas biaya habis", "CONFIRMED": "terkonfirmasi", "CONFLICTING": "sumbernya berbeda",
+    # EXEC-FRICTION (M142): why a step or a draft was refused (execution.hurdles)
+    "RELATIONSHIP_KEY_MISMATCH": "kunci penggabungan tabel tidak sesuai",
+    "INVALID_REQUEST_ID": "nama permintaan data tidak sesuai aturan",
+    "AGGREGATE_COLUMNS_MISMATCH": "kolom ringkasan tidak sesuai aturan", "AGGREGATE_INVALID": "ringkasan tidak sesuai aturan",
+    "REVISION_REQUIRED": "permintaan perlu diperbaiki", "INVALID_ARGUMENTS": "isian langkah tidak sesuai format",
+    "SCRIPT_ERROR": "kode berhenti karena galat", "TIMEOUT": "waktu habis", "TOOL_TIMEOUT": "waktu habis",
+    "SESSION_CAPACITY_EXCEEDED": "kapasitas ruang analisis penuh", "NOT_FEASIBLE": "tidak bisa dijalankan",
+    "TYPED_FIGURES": "angka ditulis tanpa rujukan", "PROVENANCE": "ada angka tanpa sumber",
+    "DEFINITION": "definisi tidak cocok dengan hasil sebelumnya", "REFERENCE": "rujukan angka tidak dikenali",
+    "FINAL_REASK": "bentuk jawaban perlu diulang", "FINAL_REJECTED": "bentuk jawaban tidak sesuai",
 }
+
+# ---- the hurdles of a run (EXEC-FRICTION, M142): what the backend refused, in the order it happened ----
+HURDLE_STEPS = {
+    "submit_data_need_spec": "Permintaan data", "check_data_feasibility": "Cek kelayakan data",
+    "check_research_feasibility": "Cek kelayakan riset", "prepare_data_bundle": "Penyiapan data",
+    "open_analysis_session": "Pembukaan ruang analisis", "run_python": "Kode analisis",
+    "complete_analysis": "Penutupan analisis", "research_web": "Pencarian web", "query_metric": "Pengambilan metrik",
+    "lookup_reference": "Pencarian data referensi", "export_result": "Ekspor tabel",
+}
+HURDLE_TOOL_STEP = "Satu langkah kerja"
+HURDLE_REFUSED = "{step} ditolak ({why})"
+HURDLE_FAILED = "{step} gagal dijalankan ({why})"
+HURDLE_GATE = "Pemeriksaan jawaban menolak draf ({why})"
+HURDLE_FORMAT = "Bentuk jawaban diminta ulang ({why})"
+HURDLE_OVERCOME = ", lalu diperbaiki."
+HURDLE_OPEN = ", belum teratasi."
+
+
+def hurdle_text(stage: str, name: str | None, code: str | None, outcome: str | None, overcome: bool) -> str:
+    """One hurdle in plain words: which step, why, and whether it was overcome."""
+    why = ", ".join(words(part.strip()) for part in str(code or name or "").split(",") if part.strip()) or words(outcome)
+    if stage == "GATE":
+        line = HURDLE_GATE.format(why=words(name) if not code else why)
+    elif stage == "FORMAT":
+        line = HURDLE_FORMAT.format(why=words(name))
+    else:
+        step = HURDLE_STEPS.get(str(name or ""), HURDLE_TOOL_STEP)
+        line = (HURDLE_FAILED if outcome == "FAILED" else HURDLE_REFUSED).format(step=step, why=why)
+    return line + (HURDLE_OVERCOME if overcome else HURDLE_OPEN)
 
 
 def words(code: object) -> str:

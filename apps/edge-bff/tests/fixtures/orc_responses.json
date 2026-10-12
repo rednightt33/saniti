@@ -7933,5 +7933,77 @@
     }
    }
   ]
+ },
+ "hurdles": {
+  "request_id": "edge-hurdles",
+  "status": "COMPLETED",
+  "response": {
+   "response_type": "ANSWER",
+   "answer": "Database querying and Python analysis are not available yet.",
+   "clarification_question": null,
+   "assumptions": [],
+   "limitations": [],
+   "research_plan": null,
+   "methodology": null
+  },
+  "execution": {
+   "provider": "openrouter",
+   "model": "deepseek/deepseek-v4.1-flash",
+   "provider_response_id": "resp_final",
+   "iterations": 4,
+   "tool_call_count": 3,
+   "input_tokens": 400,
+   "output_tokens": 80,
+   "reasoning_tokens": 20,
+   "total_tokens": 480,
+   "cached_input_tokens": 0,
+   "cache_write_tokens": 0,
+   "cost": null,
+   "duration_ms": 22,
+   "tools_withdrawn_reason": null,
+   "analyses": [],
+   "validation_gate": "NOT_APPLICABLE",
+   "number_provenance": {
+    "checked": 0,
+    "unsupported": []
+   },
+   "methodology_provenance": null,
+   "research": null,
+   "analysis_final_status": null,
+   "research_plan": null,
+   "mode": {
+    "mode": 1,
+    "name": "AUTO",
+    "source": "SWITCH"
+   },
+   "friction": {
+    "rejected_tool_calls": 1,
+    "gate_repairs": 0,
+    "repeated_data_orders": 0,
+    "capacity_refusals": 0,
+    "failed_executions": 1
+   },
+   "hurdles": [
+    {
+     "stage": "TOOL",
+     "name": "submit_data_need_spec",
+     "code": "RELATIONSHIP_KEY_MISMATCH",
+     "outcome": "REFUSED",
+     "overcome": true,
+     "text": "Permintaan data ditolak (kunci penggabungan tabel tidak sesuai), lalu diperbaiki."
+    },
+    {
+     "stage": "TOOL",
+     "name": "run_python",
+     "code": "SCRIPT_ERROR",
+     "outcome": "FAILED",
+     "overcome": false,
+     "text": "Kode analisis gagal dijalankan (kode berhenti karena galat), belum teratasi."
+    }
+   ]
+  },
+  "error": null,
+  "evidence_label": null,
+  "continuation": null
  }
 }

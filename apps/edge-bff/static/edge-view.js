@@ -123,6 +123,10 @@
     if (proof.length) sections.push({title:`${ui.sourcesEvidence} (${proof.length})`, items:proof.map(sourceItem)});
     if (news.length) sections.push({title:`${ui.sourcesNews} (${news.length})`, items:news.map(sourceItem)});
     if (annotations.length) sections.push({title:`${ui.sourcesClaims} (${annotations.length})`, items:annotations.map(sourceItem)});
+    // EXEC-FRICTION (M142): what the backend refused on the way to this answer, as Orc wrote it in plain words
+    const hurdles = (raw.execution?.hurdles || []).filter(item => item?.text);
+    if (hurdles.length) sections.push({title:`${ui.sourcesHurdles} (${hurdles.length})`,
+      items:hurdles.map(item => ({title:item.text, code:false, status:null, rows:{}}))});
     // P4: only the parts edge-labels.js names are summarised for the reader; the whole record stays in Detail teknis
     const named = L().record || {};
     const summary = record && Object.fromEntries(Object.entries(record).filter(([key, value]) => named[key] && !empty(value))

@@ -842,6 +842,10 @@ class _Mode4Run:
             **totals, "cost": round(sum(costs), 6) if costs else None,
             "duration_ms": int((self.inner.clock() - self.started) * 1000),
             "analyses": [a for e in runs for a in e.analyses],
+            # EXEC-FRICTION: every sub-run's hurdles in order, and the kejedot index summed over them
+            "hurdles": [h for e in runs for h in (e.hurdles or [])] or None,
+            "friction": {key: sum((e.friction or {}).get(key, 0) for e in runs)
+                         for key in dict.fromkeys(k for e in runs for k in (e.friction or {}))} or None,
             "analysis_path": AnalysisPathExecution(requested="MODE4",
                                                    mismatches_refused=sum(e.analysis_path.mismatches_refused
                                                                           for e in runs if e.analysis_path))}

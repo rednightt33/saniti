@@ -20,6 +20,8 @@ The page is edited as one HTML file and its API wiring is not locked to the view
 | Words | `static/edge-labels.js` | wording, a label, a code's words, a status name |
 | Look and layout | `static/index.html` (markup, CSS, renderers) | anything visual; renderers read the view model only |
 
+- The Details panel (`EdgeView.sources`) lists Orc's `execution.hurdles` as "Hambatan proses", in Orc's own words
+  (EXEC-FRICTION, M142); nothing when there were none.
 - `EdgeView.toView(envelope)` returns display-ready parts (status, meta, answer, clarification, pause, plan, findings,
   lists, methodology, artifacts; `EdgeView.sources` for the Details panel). Its `version` changes when a part changes
   shape. A field the view does not know yet still shows through the generic view, named from its key.

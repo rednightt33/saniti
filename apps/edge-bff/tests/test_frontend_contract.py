@@ -173,3 +173,15 @@ def test_news_pages_are_listed_in_their_own_sources_part(views):
     assert [s['title'] for s in sections] == ['Berita (1)']
     item = sections[0]['items'][0]
     assert item['title'] == 'BI tahan suku bunga' and item['rows']['source_url'] == 'https://kontan.co.id/a'
+
+
+def test_the_backends_hurdles_are_listed_in_the_details_panel(views):
+    """EXEC-FRICTION (M142): what Orc refused on the way to the answer, as Orc worded it; nothing when none."""
+    sections = views['hurdles']['sources']['sections']
+    hurdles = next(section for section in sections if section['title'].startswith('Hambatan proses'))
+    assert hurdles['title'] == 'Hambatan proses (2)'
+    assert [item['title'] for item in hurdles['items']] == [
+        'Permintaan data ditolak (kunci penggabungan tabel tidak sesuai), lalu diperbaiki.',
+        'Kode analisis gagal dijalankan (kode berhenti karena galat), belum teratasi.']
+    assert not any(section['title'].startswith('Hambatan proses')
+                   for out in views.values() if out is not views['hurdles'] for section in out['sources']['sections'])

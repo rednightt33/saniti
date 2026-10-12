@@ -2286,7 +2286,14 @@ frontend, and Telegram.
   naming it. A typed figure equal, at its own decimals, to exactly one referable value of the run is taken as that
   value's reference (EXEC-R R3, `ai_reference_auto`); two or more equal values leave it typed.
 - **Kejedot index (D0):** `execution.friction` (`rejected_tool_calls`, `gate_repairs`, `repeated_data_orders`,
-  `capacity_refusals`) in the response and the `ai_run_completed` log.
+  `capacity_refusals`, and since EXEC-FRICTION `failed_executions`: code runs that ended SCRIPT_ERROR or TIMEOUT) in
+  the response and the `ai_run_completed` log.
+- **Hurdles (EXEC-FRICTION, M142):** `execution.hurdles`, omitted when empty: every refusal of a tool, a gate or the
+  answer's format in the order it happened, `{stage, name, code, outcome, overcome, text}`; `text` is plain Indonesian
+  from `app/user_texts.py` (`hurdle_text`) for EDGE's Details panel. A tool refusal is overcome when the same tool later
+  succeeds; a gate or format refusal when it was sent back for repair and not forced. One rule decides what counts as
+  refused or failed (`app/friction.py` `refusal`), for the hurdles, `failed_executions` and the run memory's refusal
+  ledger alike; a refused data need is named by its issue codes. Mode 4 lists every step's hurdles and sums `friction`.
 
 ## Railway deployment
 

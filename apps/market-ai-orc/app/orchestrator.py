@@ -2130,6 +2130,11 @@ class RunState:
     # memo_note, the web entries and JSON outputs it made citable, the design values a plan took from an earlier
     # result (10.6); and the sources it received from earlier runs (not kept again)
     refusals: list[dict[str, Any]] = field(default_factory=list)
+    # EXEC-FRICTION (M142): every refusal of a tool, gate or format in order, kept whether or not run memory is on, and
+    # the tools that later succeeded (name, sequence), so execution.hurdles can say whether each one was overcome
+    hurdles: list[dict[str, Any]] = field(default_factory=list)
+    hurdle_seq: int = 0
+    ok_tools: list[tuple[str, int]] = field(default_factory=list)
     reasoning: list[str] = field(default_factory=list)
     reasoning_chars: int = 0
     memo_note: str | None = None
@@ -2550,6 +2555,7 @@ class AgentOrchestrator:
             duration_ms=result.execution.duration_ms,
             repair_ledger=state.repairs or None,
             friction=self._friction(state),
+            hurdles=self._hurdles(state),
             pause=state.pause,
         )
         log_event("ai_model_usage_summary", **self._usage_summary(state))
@@ -2733,6 +2739,8 @@ class AgentOrchestrator:
     def _remember_refusal(self, state: RunState, stage: str, name: str, code: str | None, outcome: str,
                           message: str, draft: str | None = None, arguments: Any = None) -> None:
         """EXEC-C item 2: every refusal of the run, whole, for the runs after it."""
+        state.hurdle_seq += 1
+        state.hurdles.append({"stage": stage, "name": name, "code": code, "outcome": outcome, "seq": state.hurdle_seq})
         if self.run_memory is None:
             return
         entry: dict[str, Any] = {"stage": stage, "name": name, "code": code, "outcome": outcome,
@@ -2748,27 +2756,17 @@ class AgentOrchestrator:
 
     def _remember_tool_refusal(self, state: RunState, name: str, raw_arguments: Any, outcome: ToolOutcome) -> None:
         """A tool call refused or failed (an argument error, a rejection, a failed execution), with its message and
-        the arguments it was given."""
-        if self.run_memory is None:
+        the arguments it was given; what counts is kejedot.refusal (EXEC-FRICTION). A call that was not refused is
+        remembered as a success of that tool, so an earlier refusal of it reads as overcome."""
+        found = kejedot.refusal(outcome)
+        if found is None:
+            state.hurdle_seq += 1
+            state.ok_tools.append((name, state.hurdle_seq))
             return
-        code, message = None, None
-        if not outcome.ok:
-            error = outcome.output.get("error") if isinstance(outcome.output.get("error"), dict) else {}
-            code, message = outcome.error_code or error.get("code"), error.get("message")
-        else:
-            result = outcome.output.get("result")
-            if not isinstance(result, dict):
-                return
-            status = str(result.get("status") or result.get("decision") or result.get("execution_status") or "")
-            error = result.get("error") if isinstance(result.get("error"), dict) else {}
-            if status not in ("REJECTED", "FAILED", "ERROR", "INVALID", "SCRIPT_ERROR", "TIMEOUT", "NOT_FEASIBLE",
-                              "INCOMPLETE", "INVALID_SPEC") and not error:
-                return
-            code = error.get("code") or result.get("code") or status
-            message = error.get("message") or result.get("message") or result.get("reason") \
-                or dumps({k: result[k] for k in ("issues", "problems", "stderr_tail") if k in result})[:4000]
-        self._remember_refusal(state, "TOOL", name, str(code) if code else None, "REFUSED", str(message or ""),
-                               arguments=raw_arguments)
+        code = found["code"]
+        outcome_name = "FAILED" if found["kind"] == "FAILED_EXECUTION" else "REFUSED"
+        self._remember_refusal(state, "TOOL", name, str(code) if code else None, outcome_name,
+                               str(found["message"] or ""), arguments=raw_arguments)
 
     def _keep_reasoning(self, state: RunState, response: dict[str, Any]) -> None:
         """EXEC-C Q1 (b): the reasoning of each model call, kept with the run's memory (never sent back)."""
@@ -6408,12 +6406,31 @@ class AgentOrchestrator:
             analysis_path=AnalysisPathExecution(requested=state.forced_path, mismatches_refused=state.path_refusals)
             if state.forced_path else None,
             friction=self._friction(state),
+            hurdles=self._hurdles(state),
             pause=state.pause,
         )
 
     @staticmethod
     def _friction(state: RunState) -> dict[str, int]:
         return {**state.friction, "gate_repairs": state.gate_rejections}
+
+    @staticmethod
+    def _hurdles(state: RunState) -> list[dict[str, Any]] | None:
+        """EXEC-FRICTION (M142): the run's refusals as the backend recorded them, in plain words, each with whether it
+        was overcome (a tool that later succeeded; a gate or format refusal sent back for repair, not forced)."""
+        items = []
+        for hurdle in state.hurdles:
+            if hurdle["stage"] == "TOOL":
+                overcome = any(n == hurdle["name"] and seq > hurdle["seq"] for n, seq in state.ok_tools)
+            else:
+                overcome = hurdle["outcome"] in ("REJECTED_FOR_REPAIR", "ASKED_AGAIN") and not any(
+                    h["stage"] == hurdle["stage"] and h["name"] == hurdle["name"] and h["seq"] > hurdle["seq"]
+                    and h["outcome"] not in ("REJECTED_FOR_REPAIR", "ASKED_AGAIN") for h in state.hurdles)
+            items.append({"stage": hurdle["stage"], "name": hurdle["name"], "code": hurdle["code"],
+                          "outcome": hurdle["outcome"], "overcome": overcome,
+                          "text": texts.hurdle_text(hurdle["stage"], hurdle["name"], hurdle["code"],
+                                                    hurdle["outcome"], overcome)})
+        return items or None
 
     @staticmethod
     def _plan_execution(state: RunState) -> ResearchPlanExecution | None:
