@@ -12,7 +12,7 @@ old claim. Work for different tickers continues when one ticker fails.
 Queue identity is `(asset_type,ticker,timeframe)`. Classification comes from the live
 universe tables: `IDX_Stock_Universe` for equity and `Universe_Fixed_income` for bonds.
 The worker reads equity candles from `Price_Stock_Indonesia_IDX` and bond candles from
-`Price_Fixed_Income` where `metric_type='price'` and `"Timeframe"='1D'`. No ticker roster
+`Price_Fixed_Income` where `metric_type='price'`, `"Timeframe"='1D'`, and `is_final=true`. No ticker roster
 is embedded in code. Bond `NULL` volume is valid because the indicator bundle uses OHLC.
 Each full refresh also copies the exact source `close` for every target `trade_date`.
 `close` participates in the same per-column status and failure-only retry mechanism.

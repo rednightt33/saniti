@@ -50,7 +50,9 @@ sumber sesuai `asset_type`. Bukti rename dan kecocokan nilai ada di
 - Input OHLC yang tidak valid menghasilkan `NULL` untuk semua fitur pada baris itu
   dan mereset riwayat perhitungan berikutnya. Equity juga mewajibkan volume nonnegatif;
   bond boleh memiliki volume `NULL` karena formula Feature04 tidak memakai volume.
-- Kolom dihitung pada candle Daily yang sudah selesai. Nilai historis dapat berubah
+- Kolom bond hanya dihitung dari `Price_Fixed_Income` `price`/`1D` dengan
+  `is_final=true`; timestamp bar sumber dan waktu penutupan market disimpan pada tabel
+  harga. Kolom dihitung pada candle Daily yang sudah selesai. Nilai historis dapat berubah
   bila harga sumber dikoreksi dan riwayat dihitung ulang.
 
 ## Identitas dan metadata — 6 kolom

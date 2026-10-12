@@ -212,6 +212,7 @@ def load_history(connection: psycopg.Connection, asset_type: str, ticker: str) -
                'bonds'::text AS asset_type
         FROM public."Price_Fixed_Income" p
         WHERE %s='bonds' AND p.ticker=%s AND p.metric_type='price' AND p."Timeframe"='1D'
+          AND p.is_final
           AND EXISTS(SELECT 1 FROM public."Universe_Fixed_income" u WHERE u.ticker=p.ticker)
         ORDER BY date
         """,

@@ -45,11 +45,11 @@ class TelegramMonitorTests(unittest.TestCase):
                 started = datetime(2026, 10, 9, 10, 0, tzinfo=timezone.utc)
                 return ('DAILY', 'SCHEDULED', date(2026, 10, 9), 48, 48, 47, 1,
                         [{'ticker': 'ID10Y', 'metric_type': 'price'}], 'PARTIAL',
-                        started, started.replace(minute=1), None)
+                        started, started.replace(minute=1), None, 'ID')
         class Connection:
             def cursor(self): return Cursor()
         value = fetch_fixed_income_summary(Connection(), '00000000-0000-0000-0000-000000000001')
-        self.assertEqual(value.exchange, 'FIXED INCOME')
+        self.assertEqual(value.exchange, 'FIXED INCOME/ID')
         self.assertEqual(value.missing_tickers, ('ID10Y/price',))
 
     def test_failure_status_has_priority(self):

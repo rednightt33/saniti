@@ -307,9 +307,13 @@ calculate concurrently, but its outbox is deliverable only after the price notif
 recorded sent. The second message is emitted after all eligible tickers are terminal.
 Delivery errors retry outside the calculation transaction.
 
-Fixed income keeps its independent Railway schedules: `fixed-income-daily` runs at
-`0 10 * * *`, and `fixed-income-recovery` runs at `0 23 * * *`. Their source code is not
-coupled to Feature04. A row trigger on relevant `Price_Fixed_Income` price/1D changes
+Fixed income has four independent Railway roles from the Git-owned
+`apps/fixed-income-price-cron` source: Indonesia close/recovery at `0 10 * * *` and
+`0 11 * * *` UTC, plus US close/recovery at `0 23 * * *` and `0 0 * * *` UTC.
+`Fixed_Income_Market_Schedule` owns country, timezone, local close, and finality delay;
+`Universe_Fixed_income` owns every source symbol and unit. Recovery re-queries the full
+latest completed market session, including existing rows, so source corrections are seen.
+A row trigger on material final `Price_Fixed_Income` price/1D changes
 coalesces the affected bond ticker into the same worker queue. A separate trigger on the
 committed `Monitoring_Fixed_Income` record opens and seals the corresponding Feature04 run,
 attaches only price series written during that source execution, and creates a durable
@@ -318,7 +322,9 @@ attaches only price series written during that source execution, and creates a d
 completion event be dispatched. Thus each fixed-income cron is tracked in this order:
 source monitor committed, fixed-income price Telegram sent, eligible bond calculations
 terminal, Feature04 Telegram sent. Price or Telegram failure never rolls back committed
-source data, and one bond failure does not block other tickers.
+source data, and one bond failure does not block other tickers. Feature04 source reads and
+the trigger both require `is_final=true`; an identical recovery performs no material write
+and therefore no indicator recalculation.
 
 ## TradingView reference and current limitations
 

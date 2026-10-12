@@ -154,7 +154,7 @@ def fetch_fixed_income_summary(
             """
             SELECT run_type,trigger_source,target_date,expected_series,queried_series,
                    updated_series,missing_series,missing_series_list,status,
-                   started_at,finished_at,last_error
+                   started_at,finished_at,last_error,market_code
             FROM public."Monitoring_Fixed_Income" WHERE execution_id=%s::uuid
             """,
             (execution_id,),
@@ -167,7 +167,9 @@ def fetch_fixed_income_summary(
         for item in (row[7] or []) if isinstance(item, dict)
     ))
     return MonitoringSummary(
-        execution_id=execution_id, exchange="FIXED INCOME", run_type=str(row[0]),
+        execution_id=execution_id,
+        exchange=f"FIXED INCOME/{row[12] or 'LEGACY'}",
+        run_type=str(row[0]),
         trigger_source=str(row[1]), update_for_date=row[2], expected_symbols=int(row[3]),
         queried_symbols=int(row[4]), updated_symbols=int(row[5]), missing_symbols=int(row[6]),
         missing_tickers=missing, status=str(row[8]), started_at=row[9], finished_at=row[10],

@@ -669,3 +669,22 @@ frontend changes on `codex/edge-bff`; runner/Orc, live database schema, model an
 - **Close absent from the wide output (FIXED):** indicators used source close internally, but consumers could not retrieve the exact observed close from the Feature04 row. The engine now treats `close` as a direct, independently retryable output and the migration backfilled it by exact `asset_type`/ticker/`trade_date` from equity or fixed-income price rows. Stored close is required, finite and nonnegative; invalid close fails only that ticker job. Other invalid OHLCV inputs may make derived features NULL while the valid direct close remains available. Live readback found zero NULLs and zero equity/bonds source mismatches.
 - **Queue-derived readiness undercount (FIXED):** migration 008 initially created close status from `Feature04_Calculation_Queue`, which currently holds 25 instruments rather than all 868 target partitions. The immediate readback exposed 25 close statuses. Migration 009 derives instrument coverage from the target and joins existing per-instrument status metadata, producing 868/868 successful close statuses and 44,268 total output statuses. Use the governed target grain, not an operational queue's current occupancy, for full baseline coverage.
 - **Railway execution transport constraint (MITIGATED):** this Codex environment can call Railway's HTTPS control plane but blocks public Postgres TCP and Railway sandbox WebSocket exec. Use a short-lived private Railway service with only a server-side `DATABASE_URL` reference for rehearsal/apply/readback, then delete it and reconcile IaC. Never print or copy the database URL locally.
+
+### Fixed-income daily finality and market clocks — 2026-10-12
+
+- **Combined close schedule could retain a provisional US row (FIX IN PROGRESS):** the
+  prior daily job ran at 17:00 WIB for Indonesia and the United States. That is after the
+  Indonesia close but before the stated US close. The 06:00 WIB recovery queried only
+  missing series, so an existing early US row was not corrected. Move the updater into
+  Git, partition jobs by market, model the close using market timezone plus delay, and make
+  recovery re-query the complete latest session. Material UPSERTs remain idempotent.
+- **Source finality was not observable (FIXED IN DATABASE):** `Price_Fixed_Income` had no
+  provider bar timestamp, close instant, or final flag, so zero Feature04/source mismatch
+  did not prove the source row was a completed close. Migration `20261012_001` adds this
+  evidence and gates Feature04 on `is_final=true`. Legacy rows retain NULL
+  `source_bar_time`; recent sessions are re-queried after deployment.
+- **Uploaded Railway source was not recoverable (MITIGATED):** the two old cron services
+  had CLI-upload snapshots without a Git repository and Railway exposes no supported
+  source-file download for that snapshot. The observable schema, universe mapping,
+  monitoring contract and TradingView protocol were reconstructed into tested Git source;
+  the old deployment remains the rollback point until canaries pass.

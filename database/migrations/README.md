@@ -1,5 +1,10 @@
 # Database migrations
 
+`20261012_001_finalize_fixed_income_markets.sql` adds data-driven fixed-income market
+clocks and universe source mappings, final-candle evidence, market-specific monitoring,
+and the `is_final` gate used by Feature04. It was rehearsed with a full rollback before
+being applied to `lucid-patience/dev`.
+
 Each applied schema change must have one forward-only SQL file named:
 
 ```text

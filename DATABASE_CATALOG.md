@@ -116,6 +116,14 @@ failure-backed retry requests. The Feature04 outbox is gated by successful price
 delivery for automatic runs. Their physical definitions and keys are generated in
 `DATABASE_SCHEMA.md`; behavior is specified in `FEATURE04_TECHNICAL_INDICATOR.md`.
 
+Fixed-income ingestion is market-partitioned. `Fixed_Income_Market_Schedule` stores the
+current timezone, local close and finality delay for Indonesia and the United States.
+`Universe_Fixed_income` stores the exact TradingView symbol and value unit for every
+ticker/metric pair. `Price_Fixed_Income` retains the provider bar timestamp, configured
+market close, final flag and verification time. Legacy history is marked as completed
+session data but has NULL `source_bar_time`; the current jobs populate complete evidence.
+Feature04 consumes only final `price`/`1D` rows.
+
 ## Field contract
 
 `Table_Catalog` has primary key `(table_schema, table_name)`. `category`, `definition`, and `grain` describe the table. `primary_key_columns` holds the ordered physical key. `source_system` and `source_tables` identify provenance. `source_code_paths` points to supporting repository code/migrations. `update_rule` states when/how rows change. `related_functions` lists table-related PostgreSQL routines. `documentation_status` grades the semantic claim. `readiness_mode`/`readiness_date_column` define live freshness. `observation_date_column`, `data_available_at_column`, `availability_rule`, `point_in_time_status`, and `historical_metadata_method` keep freshness distinct from decision-time and historical-universe validity.

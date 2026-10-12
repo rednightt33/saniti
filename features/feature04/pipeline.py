@@ -58,6 +58,7 @@ def refresh(connection, tickers: list[str], start: date, end: date, *, write=Fal
                     'bonds'::text AS asset_type
              FROM public."Price_Fixed_Income" p
              WHERE p.ticker=ANY(%s) AND p.date<=%s AND p.metric_type='price' AND p."Timeframe"='1D'
+               AND p.is_final
                AND EXISTS(SELECT 1 FROM public."Universe_Fixed_income" u WHERE u.ticker=p.ticker)
              ORDER BY ticker,date,asset_type''', (tickers, end, tickers, end)).fetchall()
     if set(tickers) != {r['ticker'] for r in history}:

@@ -1,5 +1,30 @@
 # Database changelog
 
+## 2026-10-12 — Market-specific final fixed-income closes
+
+- User approved the Indonesia/US closing-price design and then authorized execution with
+  "Ok, pls proceed." Migration `20261012_001_finalize_fixed_income_markets.sql`
+  (`0b406080…b7fc`) completed a full rolled-back rehearsal before live apply.
+- Added `Fixed_Income_Market_Schedule`: Indonesia uses `Asia/Jakarta`, 16:00 close plus a
+  60-minute finality delay; the United States uses `America/New_York`, 17:00 close plus a
+  60-minute delay. This preserves DST semantics while both Railway jobs run after the
+  latest possible close in WIB.
+- `Universe_Fixed_income` now owns the exact TradingView symbol and unit for every one of
+  its 48 ticker/metric series. Values were initialized from the unique historical mapping;
+  the migration rejected ambiguous/missing mappings. No ticker roster exists in the app.
+- Added `source_bar_time`, `market_close_at`, `is_final`, and `finalized_at` to
+  `Price_Fixed_Income`; added market/final/change counts to `Monitoring_Fixed_Income`.
+  Live readback: 121,649/121,649 existing price/yield rows initialized as completed
+  sessions, zero missing close/finalization metadata, 48/48 mapped universe series, two
+  enabled market rows, and zero active Feature04 claims.
+- Feature04 source reads and database triggers now require final `price`/`1D` rows. A
+  recovery can replace a material source correction but an identical final candle performs
+  no write and enqueues no indicator replay. Catalog definitions and finality lineage were
+  updated in the same transaction.
+- Evidence: `verification/feature04/FIXED_INCOME_FINALITY.md`. Recent-session source
+  re-query and post-cutover Feature04 readback are recorded there after the Git/Railway
+  rollout.
+
 ## 2026-10-11 — Feature04 governed rename and source close
 
 - User approved physical target name `Feature_04_Technical_Indicator`, required all related runtime scripts to follow it, added `close` by `trade_date`, and requested all related documentation be updated. Applied forward migrations `20261011_008_rename_feature04_add_close.sql` (`66bceac1…babf`) and `20261011_009_complete_feature04_close_status.sql` (`3d9a1deb…f639`) after successful rolled-back rehearsals. Previously applied migrations and historical evidence remain immutable under the old spelling.

@@ -1801,6 +1801,24 @@ nol failure, nol perubahan idempoten dan nol mismatch close. Runner sementara di
 sandbox `DESTROYED`, config ditarik ulang, dan plan Railway menyatakan up to date. Bukti:
 `verification/feature04/RENAME_CLOSE.md` dan `rename_close_validation.json`.
 
+### EXEC-F04-FIXED-INCOME-FINALITY: market-specific closing jobs
+
+**Otorisasi 2026-10-12:** user menyetujui desain pemisahan closing Indonesia/US
+(`"Ok, setuju dengan design"`), meminta konfirmasi source Railway versus Git, lalu setelah
+konfirmasi memberi go eksekusi: `"Ok, pls proceed."`
+
+**Scope:** pindahkan source fixed-income updater ke Git; ticker/simbol/unit dibaca dari
+`Universe_Fixed_income`; jam tutup dan timezone dibaca dari tabel konfigurasi; pisahkan
+daily/recovery Indonesia dan US; simpan bukti final candle; recovery membaca ulang seluruh
+latest completed session; hanya perubahan final `price`/`1D` yang memicu Feature04;
+pertahankan urutan Telegram price lalu Feature04; lakukan re-query lima sesi terakhir,
+canary kedua market, dokumentasi, migrasi, katalog, dan rekonsiliasi Railway.
+
+**Status:** IN PROGRESS. Migrasi `20261012_001` lulus rehearsal/rollback dan diterapkan;
+readback awal 121.649/121.649 row final, 48 mapping universe lengkap, dua market aktif,
+dan nol claim Feature04 aktif. Source Git dan 25 tes terkait sudah lulus; cutover cron,
+re-query, canary, push final, dan cleanup sedang dijalankan.
+
 ## Verifikasi bersama
 
 **Verifikasi butir 2–7:**
