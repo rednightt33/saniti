@@ -1,5 +1,12 @@
 # Railway changelog
 
+## 2026-10-12 — EDGE: Download links and typing (EXEC-EXPORT, EXEC-TYPING)
+
+User: "2 dan 3 OK untuk jalankan masukan EXEC". Rollback reference: edge-bff `7c2ad4f9`.
+- `main` `e0cf486`: edge-bff **f069c6a7-7be0-4608-bc3b-9abba8a331ed** reached **SUCCESS**; the served page carries the
+  `/api/` link exclusion. market-ai-orc SKIPPED (no orc change).
+- No variable, service, model, provider, mode or configuration change.
+
 ## 2026-10-12 — EXEC-EXPORT read-only download probe
 
 User: "Also terkait excel, lihat edge_ddb3367765be54339bd3408fec055423 terkait eexport data excel."
