@@ -1,0 +1,15 @@
+{
+ "prefix": "ma-ab-style-20261012b",
+ "workers": 2,
+ "audit_wait_seconds": 0,
+ "items": [
+  {"id": "ab1_chat", "message": "Apa saja yang bisa kamu bantu soal data saham di sini?",
+   "expect": "EXEC-IMPL-1012 Run B (EXEC-STYLE prompt): AUTO, first-message router expected CHAT"},
+  {"id": "ab2_fact", "message": "Apa arti net buy asing dan kenapa investor memperhatikannya?",
+   "expect": "EXEC-IMPL-1012 Run B (EXEC-STYLE prompt): AUTO, first-message router expected FACT"},
+  {"id": "ab3_analysis", "analysis_path": "ANALYSIS", "message": "Bandingkan return BBCA dan BBRI selama sebulan terakhir data yang tersedia.",
+   "expect": "EXEC-IMPL-1012 Run B (EXEC-STYLE prompt): ANALYSIS"},
+  {"id": "ab4_price_broker", "analysis_path": "ANALYSIS", "message": "Bagaimana harga BBRI bergerak di hari-hari net buy asingnya besar, sebulan terakhir data?",
+   "expect": "EXEC-IMPL-1012 Run B (EXEC-STYLE prompt): ANALYSIS; live check EXEC-JOINKEY (price-broker relationship #23 passes the first revision), EXEC-FRICTION (hurdles match the logs)"}
+ ]
+}

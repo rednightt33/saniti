@@ -1,5 +1,17 @@
 # Railway changelog
 
+## 2026-10-12 — EXEC-IMPL-1012 Fase 3 (Run A, EXEC-STYLE, Run B)
+
+User go 2026-10-12 ("ok", `EXEC.md` EXEC-IMPL-1012). Rollback references: orc `79f13a5e`, edge-bff `b559daad`.
+- Run A: `orc-test-runner` deployment **637ce45b-b14b-4027-b5ee-27333194f2b0** (CLI upload, suite
+  `ma-ab-style-20261012a`, four questions against orc `79f13a5e`); 4/4 completed.
+- `main` `6adc09b` (EXEC-STYLE): market-ai-orc **1ac6bcc5-0e7c-495c-8f83-66c10d5efcbe** and edge-bff
+  **7c2ad4f9-1a74-4b90-b6d6-5823ea0f1c84** reached **SUCCESS**; orc `/ready` 200, no `*_inactive` event; EDGE serves
+  the folded assumptions and limitations. New prompt snapshot `v004 exec-style` (the prompt cache prefix changes once).
+- Run B: `orc-test-runner` deployment **1c9499e9-fb94-41e7-b43c-49962b9b6b22** (suite `ma-ab-style-20261012b`, the same
+  four questions against orc `1ac6bcc5`).
+- No migration, variable, model, provider, mode or configuration change.
+
 ## 2026-10-12 — EXEC-IMPL-1012 Fase 2 (EXEC-FRICTION) deployed from main
 
 User go 2026-10-12 ("ok", `EXEC.md` EXEC-IMPL-1012). Rollback references: orc `5be18680`, edge-bff `3c71972f`.

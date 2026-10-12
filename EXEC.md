@@ -2047,3 +2047,19 @@ balik; penolakan gerbang naik di run B; biaya melewati batas; langkah di luar re
 - Fase 3b: prompt +1,93% terhadap prompt saat ini (`SIZE_BUDGET` 1,10 → 1,12 terhadap fixture pass 2; batas konteks
   tes `test_orchestrator.py` 20.600 → 20.800 token seperti perubahan prompt sebelumnya), snapshot `v004 exec-style`,
   `AI_ROUTER.md` diregenerasi. Tes: orc 1.632 lulus, EDGE 62 lulus.
+- Fase 3b ter-deploy dari `main` `6adc09b` (orc `1ac6bcc5`, edge-bff `7c2ad4f9`, keduanya SUCCESS).
+- Fase 3c, **Run B** (`ma-ab-style-20261012b`, prompt EXEC-STYLE): biaya sekitar USD 0,066 (A + B sekitar USD 0,176).
+
+  | Run B | Status | Karakter | Huruf tebal | Pembuka tebal | Baris tabel | Asumsi | Batasan |
+  |---|---|---|---|---|---|---|---|
+  | 1 obrolan (CHAT) | COMPLETED | 2.493 | 0 | tidak | 0 | 0 | 1 |
+  | 2 fakta (FACT) | COMPLETED | 1.737 | 0 | tidak | 0 | 2 | 0 |
+  | 3 analisis | COMPLETED | 1.110 | 0 | tidak | 4 | 3 | 4 |
+  | 4 harga + net beli asing | **LIMITED** | 2.487 | 0 | tidak | 7 | 5 | 6 |
+
+  Huruf tebal 22 → 0, pembuka tebal 3 → 0, asumsi + batasan 35 → 21. Panjang obrolan belum turun (2.301 → 2.493,
+  target sekitar 800); fakta turun (2.663 → 1.737). Penolakan gerbang: A 2 (keduanya teratasi), B 2 di pertanyaan 4
+  (satu perbaikan, lalu LIMITATION paksa). **Berhenti dan lapor** (kondisi berhenti: hasil gerbang memburuk di Run B).
+  Penyebabnya bug gerbang yang sudah ada (M143: kata skala "juta"/"miliar" sesudah rujukan ke kolom yang sudah
+  berskala), bukan perubahan gaya; usulan perbaikan menunggu keputusan user. Laporan lengkap A/B (8 jawaban) di luar
+  repo (jawaban AI tidak disimpan di repo publik).
