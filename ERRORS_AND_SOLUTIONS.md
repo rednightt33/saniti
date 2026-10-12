@@ -796,19 +796,28 @@ User: "Saat ini feature export excel masih belum works", "lihat edge_ddb3367765b
 front end dimana saya tidak bisa typing, atau hanya bisa typing 1 huruf per 1 huruf". Investigated read-only; no
 change yet.
 
-- **Excel download link never downloads (OPEN, root cause verified):** `edge_ddb33677…` (orc `7ad66425`, 2026-10-09)
+- **Excel download link never downloads (FIXED in code 2026-10-12, user go "2 dan 3 OK untuk jalankan"):** `edge_ddb33677…` (orc `7ad66425`, 2026-10-09)
   created both files (`bbri_foreign_flow_daily.xlsx`, 17,349 bytes; `_monthly.xlsx`, 7,676 bytes). A read-only probe
   from `orc-test-runner` (deployment `128b7cdd`, GET only) downloaded both from orc with HTTP 200, bytes matching
   their sha256, and valid XLSX (four sheets each), so orc and the result store work. In EDGE, `applyProps` rewrites
   every `<a href="/…">` through `staticUrl()` into an in-page hash route, so the Download link becomes
   `/monitor#/api/v1/exports/exp_…`: a click changes the hash and no request is sent (reproduced in Chromium with the
   EDGE test harness: href `…/monitor#/api/v1/exports/exp_…`, 0 export requests). The rewrite came with the supplied
-  frontend (`84b7ef7`, 2026-10-08); no test clicked the link. Proposed fix: keep `/api/` links as real URLs (no hash
-  rewrite) and a browser test that clicks Download and receives the file.
-- **Typing lags in a long conversation (OPEN, cause measured, not reproduced as lost focus):** every keystroke
+  frontend (`84b7ef7`, 2026-10-08); no test clicked the link. Fix: `/api/` links are excluded from both rewrites
+  (`applyProps` and the anchor pass at the end of `refresh`); `test_download_link_requests_the_exported_file` clicks
+  Download and receives the file (fails on the old code).
+- **Typing lags in a long conversation (FIXED in code 2026-10-12):** every keystroke
   updates the composer state, and EDGE's renderer rebuilds the whole page (every answer's Markdown and tables) and
   patches it. Measured in Chromium (server CPU): about 17 ms per keystroke on an empty page, 76–211 ms with 15
   answers and 45 tables; on a slower laptop or phone this grows to a visible lag per letter. Focus was kept in every
   scenario tried (empty page, five answers, typing while an answer runs). Proposed fix: typing updates only the
   composer (a full refresh only when the box turns empty or non-empty), and rendered answers are reused between
-  refreshes. Needs the user's device, browser and conversation to confirm it is the same symptom.
+  refreshes. Needs the user's device, browser and conversation to confirm it is the same symptom. Fix: a keystroke only
+  stores the text; the page redraws only when the box turns empty or non-empty (`test_typing_does_not_redraw_the_page`:
+  no element created while typing).
+- **Letters lost while an answer runs or arrives (FIXED in code 2026-10-12, root cause verified):** a redraw while an
+  answer was running or arriving made `patchChildren` move the message box (`insertBefore` of the node matched by its
+  ref); a moved element loses focus, so the next letters went nowhere. Reproduced on the old code: of "halo dunia apa
+  kabar lagi" only "a" or "h" arrived. Fix: `refresh` gives the element that had focus its focus and caret back after
+  patching, before the effects that move focus on purpose. `test_typing_while_an_answer_arrives_keeps_focus` (fails on
+  the old code); EDGE 65 tests passed.

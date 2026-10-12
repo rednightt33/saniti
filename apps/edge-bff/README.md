@@ -24,6 +24,9 @@ The page is edited as one HTML file and its API wiring is not locked to the view
   (EXEC-FRICTION, M142); nothing when there were none.
 - An answer's assumptions and limitations (`lists`) are folded under the answer as "Asumsi (n)" and "Batasan (n)"
   (EXEC-STYLE S3); nothing when a list is empty.
+- Links that start with `/api/` (the export downloads) stay real requests; every other root link is kept portable
+  through `staticUrl` (EXEC-EXPORT). After each redraw the element that had focus gets it back with its caret, and a
+  keystroke in the message box redraws only when the box turns empty or non-empty (EXEC-TYPING).
 - `EdgeView.toView(envelope)` returns display-ready parts (status, meta, answer, clarification, pause, plan, findings,
   lists, methodology, artifacts; `EdgeView.sources` for the Details panel). Its `version` changes when a part changes
   shape. A field the view does not know yet still shows through the generic view, named from its key.

@@ -437,3 +437,90 @@ def test_mobile_research_plan_and_clarification(server, browser_page):
     page.get_by_role('menuitem', name='Sign out', exact=True).click()
     page.get_by_role('button', name='Sign In', exact=True).wait_for()
     capture(page, 'mobile-login')
+
+
+def test_download_link_requests_the_exported_file(dummy_orc, browser_page):
+    """EXEC-EXPORT (2026-10-12): the Download link was rewritten into an in-page route (#/api/v1/exports/…), so a click
+    never requested the file. The link stays a real API request and the browser receives the file."""
+    origin, orc = dummy_orc
+    page = browser_page
+    original = orc.run
+    export_id = 'exp_' + 'a' * 24
+    def run(owner, request_id, payload):
+        result = original(owner, request_id, payload)
+        result['artifacts'] = [{'export_id': export_id, 'file_name': 'bbri.xlsx', 'format': 'XLSX'}]
+        return result
+    orc.run = run
+    page.route('**/api/v1/exports/' + export_id, lambda route: route.fulfill(
+        status=200, body=b'PK\x03\x04 dummy', headers={
+            'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'content-disposition': 'attachment; filename="bbri.xlsx"'}))
+    sign_in(page, origin)
+    submit(page, 'Dummy export')
+    saved(page)
+    link = page.get_by_role('link', name='Download bbri.xlsx', exact=True)
+    href = link.get_attribute('href')
+    assert '#' not in href and href.endswith('/api/v1/exports/' + export_id)
+    with page.expect_download() as download:
+        link.click()
+    assert download.value.suggested_filename == 'bbri.xlsx'
+
+
+def test_typing_does_not_redraw_the_page(dummy_orc, browser_page):
+    """EXEC-TYPING (2026-10-12): every keystroke rebuilt the whole page (all answers and tables), 76-211 ms per letter
+    with 15 answers. Typing now stores the text; only a change between empty and non-empty redraws (the box style and
+    the Submit button), and Enter sends the text typed last."""
+    origin, orc = dummy_orc
+    page = browser_page
+    sign_in(page, origin)
+    submit(page, 'Dummy first')
+    saved(page)
+    box = page.get_by_placeholder('Ask a research question…')
+    box.click()
+    page.keyboard.type('h')  # empty -> non-empty redraws once
+    page.wait_for_load_state('networkidle')
+    page.wait_for_timeout(1000)  # the history reload after an answer redraws once on its own
+    page.evaluate("""() => { window.__created = 0; const create = document.createElement.bind(document);
+        document.createElement = (...args) => { window.__created += 1; return create(...args); }; }""")
+    page.keyboard.type('alo dunia', delay=20)
+    page.wait_for_timeout(100)
+    assert page.evaluate('window.__created') == 0
+    assert box.input_value() == 'halo dunia'
+    assert page.evaluate('document.activeElement === document.querySelector(".composer textarea")')
+    assert page.get_by_role('button', name='Submit', exact=True).is_enabled()
+    page.keyboard.press('Enter')
+    saved(page, 2)
+    assert orc.calls[-1][2]['message'] == 'halo dunia'
+    assert box.input_value() == ''
+    assert page.get_by_role('button', name='Submit', exact=True).is_disabled()
+
+
+def test_typing_while_an_answer_arrives_keeps_focus(dummy_orc, browser_page):
+    """EXEC-TYPING (user 2026-10-12: "tidak bisa typing, atau hanya bisa typing 1 huruf per 1 huruf"): a redraw while
+    an answer ran or arrived moved the message box, a moved element loses focus, and the next letters went nowhere.
+    The element that had focus gets it back with its caret after every redraw."""
+    origin, orc = dummy_orc
+    page = browser_page
+    entered, release = threading.Event(), threading.Event()
+    original = orc.run
+    def blocked(*args):
+        entered.set()
+        assert release.wait(15)
+        return original(*args)
+    orc.run = blocked
+    sign_in(page, origin)
+    submit(page, 'Dummy running')
+    assert entered.wait(10)
+    box = page.get_by_placeholder('Ask a research question…')
+    box.click()
+    for letter in 'halo dunia':
+        page.keyboard.type(letter)
+        page.wait_for_timeout(40)
+    release.set()  # the answer arrives while the user keeps typing
+    for letter in ' apa kabar':
+        page.keyboard.type(letter)
+        page.wait_for_timeout(60)
+    saved(page)
+    page.keyboard.type('!')
+    assert box.input_value() == 'halo dunia apa kabar!'
+    assert page.evaluate('document.activeElement === document.querySelector(".composer textarea")')

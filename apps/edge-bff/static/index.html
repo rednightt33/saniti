@@ -10040,7 +10040,7 @@ function applyProps(node,props) {
     if(value==null || (value===false&&!attr.startsWith('aria-')&&!attr.startsWith('data-')))node.removeAttribute(attr);
     else {
       let text=value===true&&!attr.startsWith('aria-')&&!attr.startsWith('data-')?'':String(value);
-      if((attr==='src'&&node.tagName==='IFRAME'||attr==='href'&&node.tagName==='A')&&text.startsWith('/'))text=staticUrl(text);
+      if((attr==='src'&&node.tagName==='IFRAME'||attr==='href'&&node.tagName==='A')&&text.startsWith('/')&&!text.startsWith('/api/'))text=staticUrl(text); // EXEC-EXPORT: an API link (a download) stays a real request
       else if(attr==='href'&&node.tagName==='A'&&text.startsWith('#')&&!text.startsWith('#/'))text=staticUrl(routeLocation().pathname+routeLocation().search+text);
       if(node.getAttribute(attr)!==text)node.setAttribute(attr,text);
     }
@@ -10089,9 +10089,17 @@ function patchChildren(parent,next) {
 }
 function refresh() {
   for(const view of views.values())view.seen=false;
+  // EXEC-TYPING: patching may move the focused element (a moved node loses focus), e.g. the message box while an
+  // answer arrives; the element that had focus gets it back with its caret, before the effects that move focus on purpose
+  const focused=document.activeElement;let caret=null;
+  try{if(focused&&typeof focused.selectionStart==='number')caret=[focused.selectionStart,focused.selectionEnd,focused.selectionDirection];}catch{}
   const tree=element(App,null);
   const container=document.createDocumentFragment();container.appendChild(tree);
   patchChildren(document.getElementById('root'),container);
+  if(focused&&focused!==document.body&&focused.isConnected&&document.activeElement!==focused){
+    focused.focus({preventScroll:true});
+    if(caret)try{focused.setSelectionRange(...caret);}catch{}
+  }
   for(const [id,view] of views){if(!view.seen){dispose(view);views.delete(id)}}
   for(const view of views.values())for(const {name,setup,deps} of view.pending){
     view.lifecycle[name]?.cleanup?.();
@@ -10101,7 +10109,7 @@ function refresh() {
   for(const frame of document.querySelectorAll('iframe')){
     const src=frame.getAttribute('src');if(src?.startsWith('/'))frame.src=staticUrl(src);
   }
-  for(const link of document.querySelectorAll('a[href^="/"]'))link.href=staticUrl(link.getAttribute('href'));
+  for(const link of document.querySelectorAll('a[href^="/"]:not([href^="/api/"])'))link.href=staticUrl(link.getAttribute('href')); // EXEC-EXPORT: API links stay real requests
 }
 addEventListener('hashchange',()=>dispatchEvent(new PopStateEvent('popstate')));
 
@@ -10395,6 +10403,9 @@ function Monitor({ go }) {
     const autoOpenRunId = initialValue(viewRecord, "autoOpenRunId", () => null), setAutoOpenRunId = next => updateValue(viewRecord, "autoOpenRunId", next);
     const selectedRunId = initialValue(viewRecord, "selectedRunId", () => ((() => { const seed = null; return typeof seed === "function" ? seed() : seed; })())), setSelectedRunId = next => updateValue(viewRecord, "selectedRunId", next);
     const prompt = initialValue(viewRecord, "prompt", () => ((() => { const seed = ""; return typeof seed === "function" ? seed() : seed; })())), setPrompt = next => updateValue(viewRecord, "prompt", next);
+    // EXEC-TYPING: a keystroke stores the text; only a change between empty and non-empty (the box style and the
+    // Submit button) redraws the page, so typing stays fast in a long conversation
+    const typePrompt = next => { const previous = viewRecord.state.prompt || ""; if (Boolean(previous.trim()) !== Boolean(next.trim())) setPrompt(next); else viewRecord.state.prompt = next; };
     const query = initialValue(viewRecord, "query", () => ((() => { const seed = ""; return typeof seed === "function" ? seed() : seed; })())), setQuery = next => updateValue(viewRecord, "query", next);
     const searchQuery = initialValue(viewRecord, "searchQuery", () => ((() => { const seed = ""; return typeof seed === "function" ? seed() : seed; })())), setSearchQuery = next => updateValue(viewRecord, "searchQuery", next);
     const listFilter = initialValue(viewRecord, "listFilter", () => ((() => { const seed = "All"; return typeof seed === "function" ? seed() : seed; })())), setListFilter = next => updateValue(viewRecord, "listFilter", next);
@@ -10505,7 +10516,7 @@ function Monitor({ go }) {
     // EXEC-Y Fase 1 (S3): afterStop sends while a run is active: that run stops and this message runs next in its
     // conversation. Enter never does this; only the Stop & send button.
     const submit=async (extra={},messageOverride=null,{plain=false,afterStop=false}={})=>{
-      const question=(messageOverride || prompt).trim();if(!question || submitting || (active && !afterStop))return;
+      const question=(messageOverride || viewRecord.state.prompt || "").trim();if(!question || submitting || (active && !afterStop))return;
       setSubmitting(true);setApiError("");
       const holder=afterStop && executionRun ? items.find(c=>c.runs.some(r=>r.id===executionRun.id)) : null;
       const target=holder ? holder.id : selectedId;
@@ -10636,7 +10647,7 @@ function Monitor({ go }) {
                                 file.state === "uploading" ? "Uploading" : file.state === "ready" ? "Ready" : "Failed")),
                         element("button", { onClick: () => setAttachments(current => current.filter(item => item.name !== file.name)), "aria-label": `Remove ${file.name}` },
                             element(Icon, { name: "close" })))),
-                    element("textarea", { ref: composerRef, rows: 1, value: prompt, onChange: event => { setPrompt(event.target.value); event.target.style.height = "auto"; event.target.style.height = `${Math.min(event.target.scrollHeight, 140)}px`; }, placeholder: context ? `Ask anything about ${context.symbol}…` : "Ask a research question…", onKeyDown: event => { if (event.key === "Enter" && !event.shiftKey) {
+                    element("textarea", { ref: composerRef, rows: 1, value: prompt, onChange: event => { typePrompt(event.target.value); event.target.style.height = "auto"; event.target.style.height = `${Math.min(event.target.scrollHeight, 140)}px`; }, placeholder: context ? `Ask anything about ${context.symbol}…` : "Ask a research question…", onKeyDown: event => { if (event.key === "Enter" && !event.shiftKey) {
                             event.preventDefault();
                             submit();
                         } } }),

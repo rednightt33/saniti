@@ -54,8 +54,9 @@ gabungkan ya", pilihan "File baru EXEC.md"). Pekerjaan yang disetujui tetapi bel
 EXEC-STYLE, dengan rencana implementasi bersama EXEC-IMPL-1012 (3 fase). Sesudah A/B, EXEC-STYLE kembali ke gaya Run A
 tanpa kewajiban asumsi/batasan (keputusan user 2026-10-12).
 
-**Investigasi (2026-10-12):** EXEC-EXPORT (akar masalah ditemukan: tautan unduh EDGE), EXEC-TYPING (mengetik
-tersendat). **Menunggu konfirmasi:** perbaikan keduanya, EXEC-SORT (review prototipe), M143 (pilihan perbaikan).
+**Berjalan (go 2026-10-12, "2 dan 3 OK untuk jalankan masukan EXEC"):** EXEC-EXPORT dan EXEC-TYPING (perbaikan EDGE).
+**Menunggu konfirmasi pemahaman:** EXEC-SORT (spesifikasi dari screenshot user), EXEC-UI-1012 (dokumen user: panel kiri,
+bagian yang bisa dilipat, judul ringkas), M143 (pilihan perbaikan).
 
 **Berjalan (2026-10-08):** EXEC-X (M124 + M125 A/B, tampilan jawaban EDGE). Dibangun di cabang
 `claude/code-session-2k3oeg` (HTML user sebagai sumber utama, API dipisah dari tampilan, teks backend bahasa biasa);
@@ -2023,6 +2024,9 @@ Status: **investigasi, belum ada perubahan.** Temuan read-only sejauh ini:
   `/api/v1/exports/exp_…` menjadi rute halaman `#/api/v1/exports/exp_…`, jadi klik tidak pernah meminta file
   (direproduksi di Chromium). Usulan perbaikan: tautan `/api/` tidak diubah; tes browser mengklik Download dan
   menerima file. Menunggu konfirmasi (`ERRORS_AND_SOLUTIONS.md`, EDGE download and typing).
+- **Go 2026-10-12:** "2 dan 3 OK untuk jalankan masukan EXEC". Dibangun: tautan yang diawali `/api/` tidak lagi diubah
+  menjadi rute halaman, di dua tempat (`applyProps` dan penyesuaian tautan sesudah `refresh`). Tes browser
+  `test_download_link_requests_the_exported_file` mengklik Download dan menerima file (gagal pada kode lama).
 
 ### EXEC-TYPING: mengetik di kotak pesan EDGE tersendat
 
@@ -2031,6 +2035,14 @@ huruf." Status: **investigasi; menunggu detail perangkat dan konfirmasi perbaika
 menggambar ulang seluruh halaman (semua jawaban dan tabel): sekitar 17 ms per huruf di halaman kosong, 76–211 ms
 dengan 15 jawaban dan 45 tabel (diukur di Chromium). Fokus tidak hilang di semua skenario yang dicoba. Usulan: mengetik
 hanya memperbarui kotak pesan, dan jawaban yang sudah tampil tidak digambar ulang.
+- **Go 2026-10-12:** "2 dan 3 OK untuk jalankan masukan EXEC". Saat membangun, penyebab utama ditemukan dan
+  direproduksi: penggambaran ulang yang terjadi **saat jawaban sedang diproses atau baru tiba** memindahkan kotak pesan
+  di halaman, dan elemen yang dipindah kehilangan fokus, jadi huruf berikutnya hilang (kode lama: dari "halo dunia apa
+  kabar lagi" hanya "a" atau "h" yang masuk). Dibangun: (1) sesudah setiap penggambaran ulang, elemen yang tadinya fokus
+  mendapat fokus kembali beserta posisi kursornya; (2) mengetik hanya menyimpan teks, halaman digambar ulang hanya saat
+  kotak berubah kosong/berisi (tombol Submit), dan Enter mengirim teks terakhir. Tes browser:
+  `test_typing_while_an_answer_arrives_keeps_focus`, `test_typing_does_not_redraw_the_page` (keduanya gagal pada kode
+  lama). Tes EDGE: 65 lulus.
 
 ### EXEC-SORT: tabel di jawaban bisa diurutkan dengan klik judul kolom
 
@@ -2044,6 +2056,29 @@ mandiri dikirim 2026-10-12, di luar repo). Usulan:
   sel kosong selalu di bawah; teks diurutkan menurut abjad bahasa Indonesia.
 - Baris total (sel pertama "Total"/"Jumlah") tetap di bawah.
 - Tes: kontrak frontend dan uji visual EDGE; deploy edge-bff saja.
+
+**Keputusan user 2026-10-12 (sesudah prototipe):** "untuk design sekarang (yang live) sudah OK, jangan dirubah lagi, hanya
+tambahkan opsi untuk sort seperti terlampir. Tampilan pakai existing (hanya sortable feature dan display icon seperti
+pada screenshot) .. masukan EXEC". Spesifikasi yang dibaca dari screenshot (menunggu konfirmasi pemahaman):
+- Tampilan tabel tetap seperti yang live (warna, huruf, judul kolom); prototipe hanya acuan perilaku, bukan tampilan.
+- Judul kolom yang disorot mouse: latar judul sedikit lebih gelap dan ikon ⇅ di kanan nama kolom.
+- Klik pertama: urut turun, ikon ↓; klik kedua: urut naik, ikon ↑; ikon arah tetap tampil di kolom yang aktif, kolom
+  lain tanpa ikon. Klik ketiga: kembali ke urutan asli (usulan, belum terlihat di screenshot).
+- Tanpa menu ⋮ di atas tabel (ada di screenshot, tidak diminta).
+- Cara membaca angka, sel kosong di bawah, baris Total tetap di bawah dan keyboard seperti di prototipe.
+
+### EXEC-UI-1012: panel kiri, bagian yang bisa dilipat, judul ringkas (dokumen user)
+
+**Permintaan user 2026-10-12** (dokumen "By default dibuka saja saat ini kebanyakan masih ditutup.docx", masing-masing
+"masukan EXEC, clarify if needed"). Status: **menunggu konfirmasi pemahaman.**
+1. "By default panel kiri boleh bisa dibuka saja instead of ditutup" (screenshot: daftar percakapan di panel kiri; hanya
+   percakapan yang dipilih menampilkan dua baris, judul dan cuplikan, yang lain satu baris).
+2. "Asumsi, batasan, metodologi bisa dibuat bisa ditutup saja? Sama seperti detail backend ... Font size, font colour
+   keep as is, Cuma tambahkan segitiga ke kiri ... to allow collapse and expanse section." (screenshot: "▼ Detail
+   backend" terbuka dan "▶ Detail backend" tertutup). Judul dokumen: bagian seperti ini terbuka saat pertama tampil.
+3. "title panel kiri boleh dibedakan, tidak perlu 1:1 exactly seperti pertanyaa user. AI router bisa rephrase. Dan ini
+   nanti akan ke affect ke 2 bagian yang saya tandai" (screenshot: judul di panel kiri dan judul besar di atas jawaban;
+   contoh "kasih saya data BBCA harga…" menjadi "BBCA Share Price" atau "BBCA Price").
 
 ### EXEC-IMPL-1012: rencana implementasi EXEC-JOINKEY, EXEC-RELEASE, EXEC-FRICTION, EXEC-STYLE (berjalan)
 
