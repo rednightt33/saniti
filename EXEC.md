@@ -50,7 +50,8 @@ gabungkan ya", pilihan "File baru EXEC.md"). Pekerjaan yang disetujui tetapi bel
 
 ## Ringkasan
 
-**Menunggu "go" (2026-10-12):** EXEC-JOINKEY (G25), EXEC-RELEASE (sisa M139) dan EXEC-FRICTION (P0, M142).
+**Menunggu "go" (2026-10-12):** EXEC-JOINKEY (G25), EXEC-RELEASE (sisa M139), EXEC-FRICTION (P0, M142) dan
+EXEC-STYLE, dengan rencana implementasi bersama EXEC-IMPL-1012 (3 fase).
 
 **Berjalan (2026-10-08):** EXEC-X (M124 + M125 A/B, tampilan jawaban EDGE). Dibangun di cabang
 `claude/code-session-2k3oeg` (HTML user sebagai sumber utama, API dipisah dari tampilan, teks backend bahasa biasa);
@@ -1889,8 +1890,19 @@ rekomendasimu masukan exec". Status: **menunggu go**. Bukti: run `edge_87c8c408�
   (`left`/`right`: pasangan kunci tanpa pasangan waktu, dihitung dengan aturan yang sama dengan validator) dan
   `join_rule` menyebut bahwa data need memakai `request_key_columns`, sedangkan waktu dipasangkan lewat
   `left_time_column`/`right_time_column`. Kolom katalog asli tetap ditampilkan.
-- **Tes:** sandbox: relasi dengan kolom waktu di kunci ditolak dengan `expected_value` yang benar, relasi yang benar
-  tetap lolos; orc: `request_key_columns` sama dengan hasil fungsi validator untuk semua relasi fixture (satu fungsi
+- **Perbaikan 3 (sandbox, keputusan user 2026-10-12: "1. Ok masukan exec"):** bila pasangan kunci yang diminta
+  sama dengan pasangan katalog **ditambah persis** pasangan kolom waktu katalog, dan `join_semantics` EXACT_DATE atau
+  AS_OF, validator menerima dan mencatat peringatan `RELATIONSHIP_TIME_KEY_DROPPED`; semantik lain tetap ditolak
+  dengan `expected_value`. Aman: kontrak yang disetujui memakai pasangan dari katalog (`b.pairs` di
+  `approved_contract`), jadi hash kontrak tidak berubah dan Governor (`extract.py`, cek yang sama) menerima kontrak.
+- **Aturan lama yang diubah:** README sandbox, docstring `tools/data_need.py` dan deskripsi alat
+  `submit_data_need_spec` menulis "never suggests a replacement" (fase 1 DataNeed, 2026-09-25). Diubah menjadi:
+  validator tidak pernah memilihkan data lain (tabel, cakupan, periode), tetapi menyebut bentuk yang sudah pasti dari
+  katalog. Deskripsi alat berubah, jadi versi baru di Tool_Catalog lewat
+  `scripts/generate_tool_catalog_migration.py` (ronde R) dan `AI_TOOLS.md` diregenerasi.
+- **Tes:** sandbox: relasi dengan kolom waktu di kunci ditolak dengan `expected_value` yang benar (semantik selain
+  EXACT_DATE/AS_OF), diterima dengan peringatan untuk EXACT_DATE/AS_OF dan kontraknya identik dengan permintaan
+  tanpa kolom waktu, relasi yang benar tetap lolos; orc: `request_key_columns` sama dengan hasil fungsi validator untuk semua relasi fixture (satu fungsi
   bersama atau tes kontrak, aturan M68); suite orc dan sandbox lengkap.
 - **Dokumen:** `AI_TOOLS.md` bila deskripsi alat berubah; README orc (Catalog discovery) dan sandbox; ERRORS G25.
 - **Deploy dan cek live:** sandbox dan orc (setelah konfirmasi push); satu run dev yang menggabungkan harga dengan
@@ -1909,7 +1921,11 @@ exec". Status: **menunggu go**.
   dirilis, harus di-emit ulang di eksekusi yang berhasil.
 - **Versi panduan:** `GUIDES_VERSION` 8, kedua salinan file identik, migrasi `AI_method_guide` v8 (pola
   `20261009_005_ai_method_guides_v7.sql`), sandbox dan orc di-deploy bersama karena hash panduan harus sama.
-- **Tes:** tes identik dua salinan dan hash; tes sandbox M139 yang ada tetap lulus; `AI_TOOLS.md` diregenerasi.
+- **Deskripsi alat `run_python` (`tools/session.py`):** kalimat "label NOT_RELEASED until released" dan hasil
+  SCRIPT_ERROR ditambah: tabel dari eksekusi yang gagal dibuang dan tidak pernah dirilis, emit ulang di eksekusi yang
+  berhasil. Versi baru Tool_Catalog di ronde R yang sama dengan EXEC-JOINKEY.
+- **Tes:** tes identik dua salinan dan hash; tes sandbox M139 yang ada tetap lulus; tes drift Tool_Catalog;
+  `AI_TOOLS.md` diregenerasi.
 - **Cek live (sekaligus cek live M139 yang tertunda):** satu run dev dengan eksekusi kode yang gagal setelah emit tabel:
   model membuat ulang tabel di eksekusi berikutnya sebelum `complete_analysis`, tanpa putaran tambahan.
 
@@ -1921,9 +1937,89 @@ laporan diri AI menambah dua hambatan yang tidak terjadi dan melewatkan empat pe
 - **Orc:** `execution` mendapat `hurdles` (dihilangkan bila kosong): daftar hambatan run ini, satu butir per penolakan
   alat atau gerbang yang sudah dicatat run memory (langkah, jenis, kode, kalimat bahasa Indonesia dari
   `app/user_texts.py`, diperbaiki atau tidak). Mode 4 menggabungkan butir semua langkah. `friction` tetap.
+- **Temuan infra (2026-10-12) yang ikut diperbaiki:** buku penolakan run memory (`_remember_tool_refusal`) tidak
+  mencatat status `REVISION_REQUIRED` (penolakan data need, termasuk `RELATIONSHIP_KEY_MISMATCH` 9 Okt: memo backend
+  run `edge_87c8c408…` mencatat 3 penolakan, TYPED_FIGURES dan SCRIPT_ERROR ×2), sedangkan `friction`
+  (`tools/envelope.py`) menghitung `REVISION_REQUIRED` tetapi tidak `SCRIPT_ERROR`. Satu pengelompok status untuk
+  keduanya; `hurdles`, memo dan `friction` membaca catatan yang sama.
 - **EDGE:** bagian "Hambatan proses" di panel Detail (bentuk di `static/edge-view.js`, kata di `static/edge-labels.js`,
   tampilan di `static/index.html`); kosong berarti tidak tampil.
 - **Tes:** orc: run dengan penolakan alat dan gerbang menghasilkan `hurdles` yang sama dengan memo run; EDGE:
   `test_orc_contract.py` dengan keluaran orc asli (aturan M68), `test_answer_view.py`, `test_visual.py`.
 - **Dokumen:** README orc (API contract) dan EDGE; `tests/fixtures/orc_responses.json` diperbarui dari orc asli.
 - **Deploy dan cek live:** orc lalu EDGE; satu percakapan dev dengan penolakan nyata tampil di Detail, sama dengan log.
+
+### EXEC-STYLE: jawaban natural, struktur mengikuti jenis pertanyaan
+
+**Keputusan user 2026-10-12:** "Ok, yang adopsi dan sebagian --> masukan EXEC." dan "A/B test hanya sebagian saja 4
+pertanyaan maksimal --> masukan exec". Konsekuensi diterima: "snapshot system prompt baru, batas ukuran prompt +2% harus
+dicek, dan cache prompt di-reset sekali. --> tidak apa." Tabel tetap seperti sekarang ("hanya terkait table tidak apa
+leave as is"). Status: **menunggu go**. Bukti: run `edge_01fccf…` (reasoning "Also add assumptions/limitations"; tabel
+6 baris untuk pertanyaan obrolan), 11 dari 13 run percakapan `conv_9d6092c4…` mencatat `ai_answer_long`; benchmark
+eksternal (Anthropic prompting best practices, OpenAI GPT-5.1/5.2 prompting guides dan Model Spec, Tam dkk. EMNLP 2024).
+- **S1 struktur per jenis (adopsi):** di `WRITING FOR THE READER` (`orchestrator.py`) urutan kesimpulan → angka →
+  arti → catatan hanya untuk jawaban yang melaporkan hasil analisis. Catatan langkah router (`conversation_router.py`
+  `NOTES`: CONVERSATIONAL, CLARIFY; catatan FACT router pesan pertama) mendapat satu kalimat gaya: jawab seperti
+  percakapan, prosa singkat, tanpa judul dan huruf tebal. Catatan langkah ada di luar awalan prompt yang di-cache.
+  Bagian tebal mode 4 penuh (**Jawaban/Hasil riset/Usulan**, `mode4.py`) tetap.
+- **S2 contoh beragam (adopsi):** `READER_EXAMPLE` (satu contoh dengan pembuka tebal) diganti tiga contoh pendek:
+  obrolan, fakta, hasil analisis yang belum meyakinkan; tanpa huruf tebal; tanpa digit baru (tes pass 2); instruksi
+  ditulis positif ("tulis paragraf yang mengalir").
+- **S3 asumsi/batasan bila material (sebagian):** aturan 14 dan kontrak jawaban: daftar asumsi dan batasan kosong
+  kecuali mengubah seberapa jauh jawaban bisa dipercaya. Skema tidak berubah; yang diwajibkan kode tetap (LIMITATION
+  minimal satu batasan, batas konteks, baris jalur analisis, asumsi fakta web, anotasi klaim P17, metodologi).
+  EDGE: Asumsi dan Batasan tampil terlipat di bawah jawaban dengan jumlahnya (`index.html`, kata di
+  `edge-labels.js`).
+- **S4 panjang bertingkat (adopsi):** aturan 13 dalam kata-kata (tes pass 2 melarang digit baru): obrolan beberapa
+  kalimat, fakta satu paragraf, hasil analisis sekitar dua setengah ribu karakter; aturan tabel sepuluh baris tetap.
+  `ai_answer_long` mencatat target per jenis langkah (`current_answer_target`).
+- **S5 prosa di bagian pembaca (sebagian):** hanya `WRITING FOR THE READER` ditulis sebagai prosa; aturan alat dan
+  gerbang tetap berupa daftar.
+- **Tidak diadopsi:** parameter `verbosity` (tidak ada endpoint DeepSeek di OpenRouter yang mendukungnya; dengan
+  `require_parameters: true` semua penyedia gugur, dicek dari API endpoint OpenRouter 2026-10-12); melepas skema JSON
+  ketat (gerbang membaca field jawaban); "tawarkan detail" di teks (sudah lewat `follow_ups`).
+- **Dokumen dan tes:** `scripts/snapshot_system_prompt.py record` (keputusan dan perubahan di atas),
+  `tests/test_prompt_history.py`, `tests/test_prompt_pass2.py` (`SIZE_BUDGET` diukur dulu; dinaikkan bila perlu, sudah
+  disetujui), `AI_ROUTER.md` diregenerasi (catatan langkah berubah, kriteria rute tidak, jadi benchmark router tidak
+  wajib), README orc (Answer length).
+- **A/B (maksimal 4 pertanyaan):** pertanyaan yang sama sebelum (A) dan sesudah (B) deploy gaya, lewat
+  `orc-test-runner`. Ukuran: panjang terhadap tingkatnya, jawaban dengan asumsi/batasan tidak kosong, pembuka tebal,
+  penolakan gerbang (tidak boleh naik), penilaian natural oleh user.
+
+### EXEC-IMPL-1012: rencana implementasi EXEC-JOINKEY, EXEC-RELEASE, EXEC-FRICTION, EXEC-STYLE (menunggu "go")
+
+**Permintaan user 2026-10-12:** "cek infra kita, dan EXEC yang sudah saya approve, buat implementation plan berdasarkan
+ini before full proceed." Hasil pemeriksaan infra (read-only) yang membentuk rencana:
+- ORC, sandbox, Governor dan EDGE men-deploy dari GitHub `main` dengan watch path per folder: **push kode ke `main`
+  adalah deploy**. Dokumen di root repo tidak memicu deploy.
+- Panduan metode hanya disajikan bila tabel `AI_method_guide`, sandbox dan file orc memuat hash yang sama: migrasi v8
+  diterapkan sebelum push; sandbox dan orc ter-deploy dari satu push; selama keduanya belum SUCCESS, menu panduan
+  sementara tidak tersedia (bukan error jawaban).
+- Kontrak yang disetujui memakai pasangan kunci dari katalog, jadi Perbaikan 3 tidak mengubah hash atau Governor.
+- Deskripsi `submit_data_need_spec` dan `run_python` berubah: satu ronde Tool_Catalog (R) dengan generator dan tes drift.
+- Catatan penolakan run memory dan `friction` tidak konsisten (lihat EXEC-FRICTION).
+
+| Fase | Isi | Layanan yang ter-deploy | Lulus bila |
+|---|---|---|---|
+| 0 | Branch kode dari `main` terbaru; venv orc, sandbox, EDGE; jalankan suite tes yang ada (patokan hijau); ukur rasio ukuran prompt terhadap `SIZE_BUDGET`; catat deployment aktif orc, sandbox, EDGE sebagai titik rollback; cek sisa kredit OpenRouter | — | Patokan tercatat |
+| 1 | EXEC-JOINKEY (perbaikan 1–3) + EXEC-RELEASE: kode sandbox dan orc, panduan v8 di dua salinan, migrasi `AI_method_guide` v8 dan Tool_Catalog ronde R, `AI_TOOLS.md`, README, ERRORS G25/M139. Tes lengkap orc dan sandbox. Terapkan dua migrasi di dev (cara yang sama dengan migrasi sebelumnya), baca balik, lalu push | sandbox, orc | Tes hijau; migrasi terbaca balik; kedua deployment SUCCESS; `/ready` bersih |
+| 2 | EXEC-FRICTION: satu pengelompok status penolakan, `execution.hurdles`, kalimat di `user_texts.py`, EDGE (view, labels, html), fixture dari orc asli, README, ERRORS M142. Tes orc dan EDGE (kontrak, tampilan, visual) | orc, EDGE | Tes hijau; kedua deployment SUCCESS; halaman EDGE terbuka tanpa error |
+| 3a | **Run A** (4 pertanyaan, prompt lama, kode fase 1–2): sekaligus cek live EXEC-JOINKEY, EXEC-FRICTION dan, bila terjadi kode gagal, EXEC-RELEASE | — | Semua giliran selesai; data harga + broker lolos revisi pertama; hambatan tampil sama dengan log |
+| 3b | EXEC-STYLE S1–S5: prompt, catatan router, aturan 13, contoh, `ai_answer_long` per jenis, EDGE terlipat; snapshot prompt, `AI_ROUTER.md`, tes prompt. Push | orc, EDGE | Tes hijau; kedua deployment SUCCESS |
+| 3c | **Run B** (4 pertanyaan yang sama) dan laporan A/B ke user | — | Penolakan gerbang tidak naik; ukuran A/B dilaporkan; keputusan user |
+
+**Empat pertanyaan A/B** (mode lewat `analysis_path` agar biaya terkendali):
+1. obrolan: "Apa saja yang bisa kamu bantu soal data saham di sini?" (CHAT);
+2. fakta: "Apa arti net buy asing dan kenapa investor memperhatikannya?" (FACT);
+3. analisis: "Bandingkan return BBCA dan BBRI selama sebulan terakhir data yang tersedia." (ANALYSIS);
+4. analisis gabungan harga + broker: "Bagaimana harga BBRI bergerak di hari-hari net buy asingnya besar, sebulan
+   terakhir data?" (ANALYSIS; menguji kunci gabungan harga ↔ broker, relasi #23).
+
+**Biaya dan batas:** 8 run; perkiraan ≤ USD 0,40. Kredit dicek sebelum fase 3a; berhenti dan lapor bila sisa < USD 0,30
+sebelum sebuah run (aturan yang sama dengan 2026-10-06).
+
+**Berhenti dan lapor bila:** tes merah yang bukan dari perubahan ini; deployment tidak SUCCESS; migrasi tidak terbaca
+balik; penolakan gerbang naik di run B; biaya melewati batas; langkah di luar rencana ini diperlukan.
+
+**Rollback:** redeploy deployment yang dicatat di fase 0 (orc, sandbox, EDGE); prompt kembali lewat
+`prompts/SYSTEM_PROMPT_HISTORY.md`; migrasi bersifat menambah (baris panduan v7 dan versi alat lama tetap ada).
