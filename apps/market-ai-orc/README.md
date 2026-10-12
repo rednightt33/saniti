@@ -1248,6 +1248,11 @@ the labels follow the sandbox's result whatever the switch.
 
 With `AI_ENABLE_FIRST_TURN_ROUTER` the first message of a conversation is routed before anything runs; the routes, their criteria, the backend's rules (caller's `analysis_path`, fallback, the mode 4 guard) and the exact instructions are generated from `app/conversation_router.py` into [AI_ROUTER.md](../../AI_ROUTER.md). M79: in mode 4 the research steps run only when the analysis step's answer has figures from data.
 
+Short title (EXEC-UI-1012 C, user decision 2026-10-12: "sesuai bahasa penanya dan only first question"): the
+first-message router also returns `title`, the conversation's name in two to five words in the language of the user's
+message (`TITLE_RULE`); the router record (`mode4.router.title`, whitespace folded, at most 80 characters) carries it
+to EDGE, which names the conversation and heads its first answer with it. Later turns have no title.
+
 Tool desks (EXEC-T, 2026-10-06): with the DataNeed flow every process has its desk in `app/tool_desks.py` (CHAT, FACT, READ, ANALYSIS, PLAN, CONTINUE, approved hypothesis run, approved multi-angle run). A tool the process must not have is not offered, is refused when called ("not available in this step"), is not named by `get_system_capabilities`, and is cut from a method manual opened in that step; ResearchGuard, the research run executor and the exclusive web switches stay as a second line. The matrix is generated into [AI_TOOLS.md](../../AI_TOOLS.md).
 
 ### Conversation router (4d)

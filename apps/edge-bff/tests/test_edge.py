@@ -229,3 +229,56 @@ def test_a_waiting_message_can_itself_be_stopped(settings,store):
         s=c.get('/api/v1/runs/'+second).json();assert s['state']=='FAILED' and s['error_code']=='STOPPED_BY_USER'
         assert store.claim(90) is None and not orc.calls
         assert c.post('/api/v1/runs',headers=h,json={'message':'Next','submission_key':'b','after_stop':True}).json()['request_id']==second  # idempotent
+
+
+def test_a_deleted_conversation_is_hidden_from_the_list_only(settings,store):
+    """EXEC-DELETE (user 2026-10-12: "hanya sembunyikan di front end tapi backend bisa akses if needed"): DELETE hides
+    the conversation from the list (the CSRF token is required, a running conversation is refused); its messages stay
+    readable and Orc is never asked to delete anything. EXEC-UI-1012 B1: the list carries each latest question."""
+    orc=FakeOrc()
+    with TestClient(create_app(settings,store,orc)) as c:
+        h=login(c)
+        id=c.post('/api/v1/runs',headers=h,json={'message':'First question','submission_key':'a'}).json()['request_id']
+        asyncio.run(Worker(settings,store,orc).process(store.claim(90)))
+        conv=c.get('/api/v1/runs/'+id).json()['conversation_id']
+        assert c.get('/api/v1/conversations').json()['items'][0]['last_message']=='First question'
+        c.post('/api/v1/runs',headers=h,json={'message':'Follow-up','conversation_id':conv,'submission_key':'b'})
+        assert c.delete('/api/v1/conversations/'+conv,headers=h).status_code==409  # its answer is still coming
+        asyncio.run(Worker(settings,store,orc).process(store.claim(90)))
+        assert c.get('/api/v1/conversations').json()['items'][0]['last_message']=='Follow-up'
+        assert c.delete('/api/v1/conversations/'+conv,headers=ORIGIN).status_code==403
+        r=c.delete('/api/v1/conversations/'+conv,headers=h);assert r.status_code==200 and r.json()['hidden_at']
+        assert c.get('/api/v1/conversations').json()['items']==[]
+        assert len(c.get('/api/v1/conversations/'+conv+'/messages').json()['messages'])==2  # backend still reads it
+        assert c.delete('/api/v1/conversations/conv_'+'0'*32,headers=h).status_code==404
+
+
+def test_the_first_question_names_the_conversation_with_the_router_title(settings,store):
+    """EXEC-UI-1012 C (user 2026-10-12: "sesuai bahasa penanya dan only first question"): the short title Orc's
+    first-message router wrote names the conversation; a follow-up without one leaves it, and a title the user set is
+    never overwritten. Without a router title the first 80 characters of the question stay."""
+    class Titled(FakeOrc):
+        def run(self,owner,id,payload):
+            result=super().run(owner,id,payload)
+            if payload['message'].startswith('kasih saya'):
+                result['mode4']={'router':{'route':'ANALYSIS','title':'  Harga   Saham BBCA '}}
+            return result
+    orc=Titled()
+    with TestClient(create_app(settings,store,orc)) as c:
+        h=login(c)
+        id=c.post('/api/v1/runs',headers=h,json={'message':'kasih saya data BBCA harga sebulan terakhir','submission_key':'a'}).json()['request_id']
+        asyncio.run(Worker(settings,store,orc).process(store.claim(90)))
+        conv=c.get('/api/v1/runs/'+id).json()['conversation_id']
+        assert c.get('/api/v1/conversations').json()['items'][0]['title']=='Harga Saham BBCA'
+        assert [x['conversation_id'] for x in c.get('/api/v1/conversations?q=sebulan').json()['items']]==[conv]  # the question still finds it
+        c.post('/api/v1/runs',headers=h,json={'message':'Bandingkan dengan BBRI','conversation_id':conv,'submission_key':'b'})
+        asyncio.run(Worker(settings,store,orc).process(store.claim(90)))
+        assert c.get('/api/v1/conversations').json()['items'][0]['title']=='Harga Saham BBCA'
+        id=c.post('/api/v1/runs',headers=h,json={'message':'Tanpa judul router','submission_key':'c'}).json()['request_id']
+        asyncio.run(Worker(settings,store,orc).process(store.claim(90)))
+        other=c.get('/api/v1/runs/'+id).json()['conversation_id']
+        assert store.conversation(settings.owner,other)['title']=='Tanpa judul router'
+        store.preferences(settings.owner,conv,title='Judul saya')
+        c.post('/api/v1/runs',headers=h,json={'message':'kasih saya lagi','conversation_id':conv,'submission_key':'d'})
+        asyncio.run(Worker(settings,store,orc).process(store.claim(90)))
+        assert store.conversation(settings.owner,conv)['title']=='Judul saya'

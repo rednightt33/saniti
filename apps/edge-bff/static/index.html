@@ -8522,6 +8522,12 @@ th button:hover .sort-indicator,th button:focus-visible .sort-indicator {
 }
 /* Center the bookmark SVG; the row icon rule otherwise adds an auto left margin. */
 .conversation .conversation-bookmark>.icon {margin:0;width:13px;height:13px;display:block;justify-self:center;align-self:center;}
+/* EXEC-DELETE: the trash button sits next to the bookmark with the same size and colours */
+.conversation-delete:disabled {opacity:.35;cursor:default;}
+.conversation-delete:disabled:hover {background:transparent;color:var(--muted-foreground);}
+.dialog.confirm-dialog {width:min(420px, calc(100vw - 32px));}
+.confirm-dialog-actions {display:flex;justify-content:flex-end;gap:8px;padding:12px 16px 16px;}
+.btn.danger {background:var(--destructive, #d4183d);border-color:var(--destructive, #d4183d);color:#fff;}
 .conversation-bookmark-anchor>.icon-btn:first-child .icon {fill:none;}
 .conversation-bookmark-anchor>.icon-btn:first-child.selected .icon {fill:currentColor;}
 .conversation-state.completed {
@@ -9709,6 +9715,15 @@ html.dark .edge-flow-done{background:#1e9a59;}
 .edge-md-table .data-table .num {text-align:right;white-space:nowrap;}
 .edge-md-table .data-table td {white-space:normal;min-width:72px;vertical-align:top;}
 .edge-md-table .data-table td:first-child {min-width:140px;}
+/* EXEC-SORT: the title cell keeps its look; hover darkens it and shows the sort icon, the sorted column shows its arrow */
+.edge-md-table .data-table th.edge-sortable {padding:0;}
+.edge-md-table .data-table th.edge-sortable:hover {background:color-mix(in srgb, var(--secondary), var(--foreground) 7%);}
+.edge-sort {all:unset;box-sizing:border-box;display:flex;align-items:center;gap:6px;width:100%;padding:10px 13px;cursor:pointer;font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;}
+.edge-md-table .data-table th.num .edge-sort {justify-content:flex-end;}
+.edge-sort:focus-visible {outline:2px solid var(--ring, currentColor);outline-offset:-2px;}
+.edge-sort-icon {display:inline-flex;opacity:0;flex:none;}
+.edge-sort-icon .icon {margin:0;}
+th.edge-sortable:hover .edge-sort-icon,.edge-sort:focus-visible .edge-sort-icon,th.edge-sortable.sorted .edge-sort-icon {opacity:1;}
 .edge-claim {text-decoration:underline dotted var(--warning);text-underline-offset:3px;cursor:help;}
 .edge-claim:focus-visible {outline:2px solid var(--ring);outline-offset:2px;border-radius:2px;}
 .edge-muted {color:var(--muted-foreground);}
@@ -10190,6 +10205,8 @@ const paths = {
     "arrow-down": element("path", { d: "M12 5v14m5-5-5 5-5-5" }),
     play: element("path", { d: "m8 5 11 7-11 7Z" }),
     sort: element("path", { d: "m8 9 4-4 4 4M8 15l4 4 4-4" }),
+    "sort-arrows": element("path", { d: "M8 18V6M5 9l3-3 3 3M16 6v12m-3-3 3 3 3-3" }),
+    trash: element("path", { d: "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" }),
     info: element(fragment, null,
         element("circle", { cx: "12", cy: "12", r: "9" }),
         element("path", { d: "M12 11v5M12 8h.01" })),
@@ -10491,6 +10508,9 @@ function Monitor({ go }) {
     const pendingReply=initialValue(viewRecord,"pendingReply",()=>null),setPendingReply=next=>updateValue(viewRecord,"pendingReply",next);
     const inputHint=initialValue(viewRecord,"inputHint",()=>null),setInputHint=next=>updateValue(viewRecord,"inputHint",next);
     const selectConversation = async id => {setHistoryOpen(false);setLoadingConversation(true);setApiError("");setSelectedId(id);setSelectedRunId(null);setPendingReply(null);try{const loaded=await Edge.messages(id);setItems(current=>current.map(x=>x.id===id?loaded:x));}catch(e){setApiError(e.message);}finally{setLoadingConversation(false);}};
+    // EXEC-DELETE (user 2026-10-12): the trash button asks first, then hides the conversation from this list only
+    const hideTarget = initialValue(viewRecord, "hideTarget", () => null), setHideTarget = next => updateValue(viewRecord, "hideTarget", next);
+    const hideConversation=async item=>{try{await Edge.hideConversation(item.id);setHideTarget(null);setItems(current=>current.filter(x=>x.id!==item.id));if(selectedId===item.id)newConversation();}catch(e){setHideTarget(null);setApiError(e.message);}};
     const toggleBookmark=async (id=selectedId)=>{const item=items.find(x=>x.id===id);if(!item || id.startsWith("draft:"))return;try{const ui=await Edge.bookmark(id,!item.bookmarked);updateConversation(id,x=>({...x,bookmarked:ui.bookmarked}));}catch(e){setApiError(e.message);}};
     const newConversation=()=>{setHistoryOpen(false);setSelectedId(null);setSelectedRunId(null);setPrompt("");setPendingReply(null);setApiError("");requestAnimationFrame(()=>composerRef.current?.focus());};
     const updateRun=(conversationId,runId,update)=>updateConversation(conversationId,x=>({...x,runs:x.runs.map(r=>r.id===runId?update(r):r)}));
@@ -10583,7 +10603,11 @@ function Monitor({ go }) {
                         items.filter(item => item.bookmarked).length)),
                 element("div", { className: "conversation-list" },
                     !filtered.length && element("div", { className: "conversation-empty" }, query ? "No matching conversations" : listFilter === "Bookmarked" ? "No bookmarked conversations" : "No conversations"),
-                    element(ConversationHistoryList, { items: filtered, selectedId: selectedId, select: selectConversation, toggleBookmark: toggleBookmark })),
+                    element(ConversationHistoryList, { items: filtered, selectedId: selectedId, select: selectConversation, toggleBookmark: toggleBookmark, requestHide: setHideTarget }),
+                    hideTarget && element(DialogShell, { title: "Delete conversation?", description: `\u201c${hideTarget.title}\u201d will be removed from your list.`, close: () => setHideTarget(null), className: "confirm-dialog" },
+                        element("div", { className: "confirm-dialog-actions" },
+                            element(Button, { kind: "secondary", onClick: () => setHideTarget(null) }, "Cancel"),
+                            element("button", { type: "button", className: "btn primary danger", "data-dialog-initial-focus": true, onClick: () => hideConversation(hideTarget) }, "Delete")))),
                 element("div", { className: "sidebar-foot" },
                     element("span", { className: "status-dot demo" }),
                     element("span", null, "Private workspace"),
@@ -10680,7 +10704,7 @@ function Monitor({ go }) {
             (historyOpen || mobileDetailsOpen) && element("button",{className:"edge-panel-backdrop",tabIndex:-1,"aria-label":"Close panel",onClick:()=>{setHistoryOpen(false);setMobileDetailsOpen(false);}}),
             expandedTable && element(ResearchTableDialog, { run: expandedTable, close: () => setExpandedTable(null) })));
 }
-function ConversationHistoryList({ items, selectedId, select, toggleBookmark }) {
+function ConversationHistoryList({ items, selectedId, select, toggleBookmark, requestHide }) {
     return element(fragment, null, ["Today", "Yesterday", "Previous 7 Days", "Older"].map(group => { const conversations = items.filter(item => conversationGroup(item.updatedAt) === group); return conversations.length ? element("div", { className: "conversation-group", key: group },
         element("span", null, group),
         conversations.map(item => { const itemRun = latestRun(item); return element("div", { key: item.id, role: "button", tabIndex: 0, "aria-selected": item.id === selectedId, className: `conversation ${item.id === selectedId ? "active" : ""}`, onClick: () => select(item.id), onKeyDown: event => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
@@ -10690,9 +10714,11 @@ function ConversationHistoryList({ items, selectedId, select, toggleBookmark }) 
             element("i", { className: `conversation-state ${itemRun?.status ?? "draft"}` }),
             element("span", null,
                 element("strong", null, item.title),
-                element("small", null, item.messages.findLast(message => message.role === "user")?.content)),
+                element("small", null, item.messages.findLast(message => message.role === "user")?.content ?? item.lastMessage)),
             element("button", { className: `conversation-bookmark ${item.bookmarked ? "active" : ""}`, "aria-label": `${item.bookmarked ? "Remove" : "Add"} bookmark`, "aria-pressed":Boolean(item.bookmarked), onClick: event => { event.stopPropagation(); toggleBookmark(item.id); } },
-                element(Icon, { name: "bookmark" }))); })) : null; }));
+                element(Icon, { name: "bookmark" })),
+            element("button", { className: "conversation-bookmark conversation-delete", "aria-label": `Delete ${item.title}`, title: "Delete conversation", disabled: ["submitted", "running", "streaming"].includes(itemRun?.status) || item.id.startsWith("draft:"), onClick: event => { event.stopPropagation(); requestHide?.(item); } },
+                element(Icon, { name: "trash" }))); })) : null; }));
 }
 
 function formatMessageJakarta(iso) {
@@ -10912,10 +10938,8 @@ function renderMarkdown(text, ctx = {}) {
       // "Rp 83,27 triliun" left in one column): figures right when every cell of the column is one, words left
       const figure = value => MD_NUMERIC.test(value) || (/\d/.test(value) && value.length <= 40 && value.trim().split(/\s+/).length <= 5);
       const numeric = head.map((_, column) => { const values = rows.map(row => (row[column] ?? "").trim()).filter(Boolean); return values.length > 0 && values.every(figure); });
-      const cell = (tag, value, column) => element(tag, align[column] ? {style:{textAlign:align[column]}} : numeric[column] ? {className:"num"} : null, mdInline(value, ctx));
-      blocks.push(element("div", {className:"edge-md-table"}, element("table", {className:"data-table"},
-        element("thead", null, element("tr", null, head.map((value, column) => cell("th", value, column)))),
-        element("tbody", null, rows.map(row => element("tr", null, head.map((_, column) => cell("td", row[column] ?? "", column))))))));
+      ctx.tables = (ctx.tables || 0) + 1;
+      blocks.push(element(MdTable, {key:`t${ctx.tables}-${mdHash(line + "\n" + rows.map(row => row.join("|")).join("\n"))}`, head, align, rows, numeric, ctx}));
       continue;
     }
     if (/^\s*>/.test(line)) {
@@ -10932,6 +10956,64 @@ function renderMarkdown(text, ctx = {}) {
   }
   return blocks;
 }
+// ---- EXEC-SORT (user 2026-10-12): a table in an answer sorts by a click on its column title ----
+// first click descending, second ascending, third the original order; the look of the table is unchanged
+const SORT_SCALE = {ribu:1e3, rb:1e3, juta:1e6, jt:1e6, miliar:1e9, milyar:1e9, triliun:1e12};
+const SORT_MONTHS = {jan:0, feb:1, mar:2, apr:3, mei:4, may:4, jun:5, jul:6, agu:7, agt:7, aug:7, sep:8, okt:9, oct:9, nov:10, des:11, dec:11};
+const SORT_NUMBER = /^([+-])?\s*(?:rp\.?\s*)?([+-])?\s*(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d+))?\s*(%|pp|kali|x)?\s*([a-z]+)?\.?$/i;
+const SORT_TOTAL = /^(total|jumlah|rata-rata keseluruhan)\b/i;
+const sortCollator = new Intl.Collator("id", {numeric:true, sensitivity:"base"});
+function mdHash(text) { let h = 0; for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) | 0; return (h >>> 0).toString(36); }
+function sortValue(raw) {
+  const text = String(raw ?? "").replace(/[*_`]/g, "").replace(/\u00a0/g, " ").replace(/[\u2212\u2013\u2014]/g, "-").trim();
+  if (!text) return {kind:"empty"};
+  let m = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return {kind:"date", value:Date.UTC(+m[1], +m[2] - 1, +m[3])};
+  m = text.match(/^(\d{1,2})\s+([a-z]{3})[a-z]*\.?\s+(\d{4})$/i);
+  if (m && m[2].toLowerCase() in SORT_MONTHS) return {kind:"date", value:Date.UTC(+m[3], SORT_MONTHS[m[2].toLowerCase()], +m[1])};
+  m = text.match(SORT_NUMBER);
+  if (m && (!m[6] || m[6].toLowerCase() in SORT_SCALE)) {
+    let value = Number(m[3].replace(/\./g, "") + (m[4] ? "." + m[4] : "")) * (SORT_SCALE[(m[6] || "").toLowerCase()] || 1);
+    if ((m[1] || m[2]) === "-") value = -value;
+    return {kind:"number", value};
+  }
+  return {kind:"text", value:text};
+}
+function MdTable({head, align, rows, numeric, ctx}) {
+  const view = currentView;
+  const sort = initialValue(view, "sort", () => ({column:null, dir:null}));
+  const setSort = next => updateValue(view, "sort", next);
+  const indexed = rows.map((row, index) => ({row, index}));
+  const pinned = indexed.filter(item => SORT_TOTAL.test(String(item.row[0] ?? "").replace(/[*_`]/g, "").trim()));
+  const free = indexed.filter(item => !pinned.includes(item));
+  const kinds = head.map((_, column) => {
+    const found = new Set(free.map(item => sortValue(item.row[column]).kind).filter(kind => kind !== "empty"));
+    return found.size === 1 && (found.has("number") || found.has("date")) ? [...found][0] : "text";
+  });
+  const compare = (a, b, column, dir) => {
+    const x = sortValue(a.row[column]), y = sortValue(b.row[column]);
+    if (x.kind === "empty" || y.kind === "empty") return x.kind === y.kind ? a.index - b.index : x.kind === "empty" ? 1 : -1;
+    const result = kinds[column] !== "text" && typeof x.value === "number" && typeof y.value === "number"
+      ? x.value - y.value : sortCollator.compare(String(x.value), String(y.value));
+    return result === 0 ? a.index - b.index : (dir === "ascending" ? result : -result);
+  };
+  const ordered = sort.column == null ? free : [...free].sort((a, b) => compare(a, b, sort.column, sort.dir));
+  const next = column => sort.column !== column ? {column, dir:"descending"} : sort.dir === "descending" ? {column, dir:"ascending"} : {column:null, dir:null};
+  const cellProps = (column, extra = {}) => ({...extra, ...(align[column] ? {style:{textAlign:align[column]}} : numeric[column] ? {className:[extra.className, "num"].filter(Boolean).join(" ")} : {})});
+  const title = (value, column) => {
+    const active = sort.column === column;
+    return element("th", cellProps(column, {className:`edge-sortable${active ? " sorted" : ""}`, "aria-sort":active ? sort.dir : "none"}),
+      element("button", {type:"button", className:"edge-sort", onClick:() => setSort(next(column)),
+        "aria-label":`${String(value).replace(/[*_`]/g, "")}: ${active && sort.dir === "descending" ? "urutkan naik" : active ? "kembalikan urutan asli" : "urutkan turun"}`},
+        element("span", null, mdInline(value, ctx)),
+        element("span", {className:"edge-sort-icon"}, element(Icon, {name:active ? (sort.dir === "descending" ? "arrow-down" : "arrow-up") : "sort-arrows", size:13}))));
+  };
+  return element("div", {className:"edge-md-table"}, element("table", {className:"data-table"},
+    element("thead", null, element("tr", null, head.map((value, column) => title(value, column)))),
+    element("tbody", null, [...ordered, ...pinned].map(item => element("tr", {key:`r${item.index}`},
+      head.map((_, column) => element("td", cellProps(column), mdInline(item.row[column] ?? "", ctx))))))));
+}
+
 function Markdown({text, claims, className = ""}) {
   return element("div", {className:`edge-md ${className}`}, renderMarkdown(text, {claims}));
 }

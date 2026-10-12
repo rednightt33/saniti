@@ -55,8 +55,8 @@ EXEC-STYLE, dengan rencana implementasi bersama EXEC-IMPL-1012 (3 fase). Sesudah
 tanpa kewajiban asumsi/batasan (keputusan user 2026-10-12).
 
 **Berjalan (go 2026-10-12, "2 dan 3 OK untuk jalankan masukan EXEC"):** EXEC-EXPORT dan EXEC-TYPING (perbaikan EDGE).
-**Menunggu go (pemahaman dikonfirmasi user 2026-10-12):** EXEC-SORT, EXEC-UI-1012 (B1, C) dan EXEC-DELETE (hapus
-percakapan). **Menunggu keputusan:** M143.
+**Berjalan (go 2026-10-12, jawaban user atas tiga pertanyaan hapus):** EXEC-SORT, EXEC-UI-1012 (B1, C) dan
+EXEC-DELETE. **Menunggu keputusan:** M143.
 
 **Berjalan (2026-10-08):** EXEC-X (M124 + M125 A/B, tampilan jawaban EDGE). Dibangun di cabang
 `claude/code-session-2k3oeg` (HTML user sebagai sumber utama, API dipisah dari tampilan, teks backend bahasa biasa);
@@ -2103,6 +2103,14 @@ manual. Usulan:
   objek bucket dihapus dulu, sama seperti pembersihan retensi). EDGE: endpoint yang memanggil orc lalu menghapus baris
   `edge_bff.conversation_ui` dan job percakapan itu.
 - Catatan audit (`AI_research_run_audit`, market-audit-store) tetap (jejak audit), kecuali user memutuskan lain.
+
+**Keputusan user 2026-10-12:** "1 pakai B hanya smebunyikan di front end tapi backend bisa akses if needed", "2 Ok"
+(dialog konfirmasi), "3 Ok" (catatan audit tetap). Dibangun: tombol tong sampah di sebelah bookmark (nonaktif selagi
+percakapan berjalan), dialog "Delete conversation?", `DELETE /api/v1/conversations/{id}` mengisi
+`edge_bff.conversation_ui.hidden_at` (migrasi `20261012_008`, diterapkan di dev dan dibaca balik) dan menolak percakapan
+yang masih berjalan (409); orc tidak diubah dan tetap menyimpan percakapan sesuai retensinya (30 hari sesudah aktivitas
+terakhir). Bersama itu dibangun EXEC-SORT (`MdTable`), B1 (`last_message`) dan C (`title` router pesan pertama, dipakai
+EDGE hanya untuk pertanyaan pertama; judul yang diubah user tidak ditimpa). Tes: orc 1.634, EDGE 70 lulus.
 
 ### EXEC-IMPL-1012: rencana implementasi EXEC-JOINKEY, EXEC-RELEASE, EXEC-FRICTION, EXEC-STYLE (berjalan)
 

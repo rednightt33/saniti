@@ -32,7 +32,7 @@ class Store:
         with self.connect() as c:
             c.execute('SELECT 1 FROM edge_bff.jobs LIMIT 0')
             c.execute('SELECT 1 FROM edge_bff.sessions LIMIT 0')
-            c.execute('SELECT 1 FROM edge_bff.conversation_ui LIMIT 0')
+            c.execute('SELECT hidden_at FROM edge_bff.conversation_ui LIMIT 0')
 
     def session_create(self, hashed, owner, seconds):
         with self.connect() as c:
@@ -146,6 +146,12 @@ class Store:
                 state_version=state_version+1,updated_at=now() WHERE request_id=%s RETURNING *''',
                 (token, seconds, row['request_id'])).fetchone()
 
+    def active_conversation(self, owner, conversation_id):
+        """A job of this conversation that has not ended (EXEC-DELETE refuses to hide it)."""
+        with self.connect() as c:
+            return c.execute("""SELECT request_id FROM edge_bff.jobs WHERE owner_key=%s AND conversation_id=%s
+                AND state IN ('QUEUED','RUNNING','RECOVERING') LIMIT 1""", (owner, conversation_id)).fetchone()
+
     def active(self, owner):
         with self.connect() as c:
             return c.execute("SELECT request_id FROM edge_bff.jobs WHERE owner_key=%s AND state IN ('QUEUED','RUNNING','RECOVERING')", (owner,)).fetchone()
@@ -169,7 +175,7 @@ class Store:
                 WHERE request_id=%s AND lease_token=%s AND lease_expires_at>now() AND state NOT IN ('FINISHED','FAILED','INTERRUPTED')''',
                 (row['request_id'], row['lease_token'])).rowcount)
 
-    def transition(self, row, state, *, conversation_id=None, run_status=None, error_code=None):
+    def transition(self, row, state, *, conversation_id=None, run_status=None, error_code=None, title=None):
         terminal = state in TERMINAL
         with self.connect() as c:
             changed = c.execute('''UPDATE edge_bff.jobs SET state=%s,conversation_id=COALESCE(%s,conversation_id),
@@ -181,7 +187,7 @@ class Store:
                 (state, conversation_id, run_status, error_code, terminal, terminal, terminal,
                  row['request_id'], row['lease_token'])).fetchone()
             if changed and changed['conversation_id']:
-                self._index(c, changed)
+                self._index(c, changed, title)
             if changed and terminal:
                 self._promote(c, changed)
             if changed:
@@ -189,16 +195,38 @@ class Store:
                                         'state':changed['state'], 'version':changed['state_version']}))
             return changed
 
-    def _index(self, c, row):
+    def _index(self, c, row, title=None):
+        """The conversation's row in the list. EXEC-UI-1012 C: the first-message router's short title replaces the
+        provisional one (the first 80 characters of the question) once; a title the user set is never overwritten."""
+        provisional = row['input']['message'][:80]
         c.execute('''INSERT INTO edge_bff.conversation_ui(owner_key,conversation_id,title)
-            VALUES (%s,%s,%s) ON CONFLICT (owner_key,conversation_id) DO UPDATE SET updated_at=now()''',
-            (row['owner_key'], row['conversation_id'], row['input']['message'][:80]))
+            VALUES (%s,%s,%s) ON CONFLICT (owner_key,conversation_id) DO UPDATE SET updated_at=now(),
+            title=CASE WHEN %s::text IS NOT NULL AND conversation_ui.title=%s THEN %s ELSE conversation_ui.title END''',
+            (row['owner_key'], row['conversation_id'], title or provisional, title, provisional, title))
 
     def list_conversations(self, owner, query='', bookmarked=False, offset=0, limit=30):
+        """The visible conversations (EXEC-DELETE: a hidden one is left out), each with its latest question for the
+        list's second line (EXEC-UI-1012 B1)."""
         with self.connect() as c:
-            return c.execute('''SELECT * FROM edge_bff.conversation_ui WHERE owner_key=%s
-                AND title ILIKE %s AND (NOT %s OR bookmarked) ORDER BY updated_at DESC,conversation_id
-                LIMIT %s OFFSET %s''', (owner, '%'+query+'%', bookmarked, limit, offset)).fetchall()
+            return c.execute('''SELECT u.*, (SELECT j.input->>'message' FROM edge_bff.jobs j
+                    WHERE j.owner_key=u.owner_key AND j.conversation_id=u.conversation_id
+                    ORDER BY j.created_at DESC LIMIT 1) AS last_message
+                FROM edge_bff.conversation_ui u WHERE u.owner_key=%s AND u.hidden_at IS NULL
+                AND (u.title ILIKE %s OR EXISTS (SELECT 1 FROM edge_bff.jobs q WHERE q.owner_key=u.owner_key
+                     AND q.conversation_id=u.conversation_id AND q.input->>'message' ILIKE %s))
+                AND (NOT %s OR u.bookmarked) ORDER BY u.updated_at DESC,u.conversation_id
+                LIMIT %s OFFSET %s''', (owner, '%'+query+'%', '%'+query+'%', bookmarked, limit, offset)).fetchall()
+
+    def hide(self, owner, conversation_id):
+        """EXEC-DELETE (user 2026-10-12: "hanya sembunyikan di front end tapi backend bisa akses if needed"): the
+        conversation leaves the list; Orc keeps its history and results under its own retention."""
+        with self.connect() as c:
+            row = c.execute('''UPDATE edge_bff.conversation_ui SET hidden_at=COALESCE(hidden_at,now())
+                WHERE owner_key=%s AND conversation_id=%s RETURNING conversation_id, hidden_at''',
+                (owner, conversation_id)).fetchone()
+            if not row:
+                raise StoreError('CONVERSATION_NOT_FOUND', 404)
+            return row
 
     def conversation(self, owner, conversation_id):
         with self.connect() as c:

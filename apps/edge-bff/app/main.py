@@ -324,6 +324,13 @@ def create_app(settings=None, store=None, orc=None):
             raise StoreError('CONVERSATION_EXPIRED', 410)
         return jsonable_encoder({'conversation':ui, **data})
 
+    @app.delete('/api/v1/conversations/{conversation_id}')
+    async def hide_conversation(conversation_id: str, _=Depends(write)):
+        """EXEC-DELETE: hide a conversation from the list; a running one is refused (its answer is still coming)."""
+        if await asyncio.to_thread(store.active_conversation, settings.owner, conversation_id):
+            raise StoreError('CONVERSATION_RUNNING', 409)
+        return jsonable_encoder(await asyncio.to_thread(store.hide, settings.owner, conversation_id))
+
     @app.patch('/api/v1/conversations/{conversation_id}/preferences')
     async def preferences(conversation_id: str, body: ConversationPreferences, _=Depends(write)):
         await asyncio.to_thread(store.conversation, settings.owner, conversation_id)

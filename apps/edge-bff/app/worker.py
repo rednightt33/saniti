@@ -7,6 +7,14 @@ from .client import OrcError
 logger = logging.getLogger('edge_bff.worker')
 
 
+def router_title(response):
+    """EXEC-UI-1012 C: the short title Orc's first-message router wrote (only a conversation's first question has
+    one), folded to one line and at most 80 characters; None when absent."""
+    router = ((response or {}).get('mode4') or {}).get('router') or {}
+    title = ' '.join(str(router.get('title') or '').split())[:80]
+    return title or None
+
+
 class Worker:
     def __init__(self, settings, store, orc):
         self.settings, self.store, self.orc = settings, store, orc
@@ -68,7 +76,7 @@ class Worker:
                     if found['turn_status'] == 'COMPLETED':
                         if found.get('response'):
                             await self.call(self.store.transition, row, 'FINISHED', conversation_id=conv,
-                                            run_status=found.get('run_status'))
+                                            run_status=found.get('run_status'), title=router_title(found.get('response')))
                         else:
                             await self.call(self.store.transition, row, 'FAILED', conversation_id=conv, error_code='RESULT_NOT_SAVED')
                         return
@@ -105,7 +113,8 @@ class Worker:
                         await self.call(self.store.transition, row, 'FAILED', error_code='RESULT_NOT_SAVED')
                         return
                     await self.call(self.store.transition, row, 'FINISHED',
-                                    conversation_id=result['conversation']['conversation_id'], run_status=result['status'])
+                                    conversation_id=result['conversation']['conversation_id'], run_status=result['status'],
+                                    title=router_title(result))
                     return
             except OrcError as error:
                 # 409 can mean existing active execution after an idempotent recovery replay.

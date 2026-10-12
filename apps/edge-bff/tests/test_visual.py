@@ -524,3 +524,100 @@ def test_typing_while_an_answer_arrives_keeps_focus(dummy_orc, browser_page):
     page.keyboard.type('!')
     assert box.input_value() == 'halo dunia apa kabar!'
     assert page.evaluate('document.activeElement === document.querySelector(".composer textarea")')
+
+
+def test_answer_table_sorts_by_its_column_titles(dummy_orc, browser_page):
+    """EXEC-SORT (user 2026-10-12, "A. correct"): a click on a column title sorts descending, the second ascending, the
+    third restores the original order; the hovered title shows the sort icon, the sorted one its arrow; a Total row
+    stays last; numbers are read in Indonesian (Rp, miliar/triliun, %, −) and an empty cell goes last."""
+    origin, orc = dummy_orc
+    page = browser_page
+    original = orc.run
+    table = ('| Saham | Net asing | Return |\n|---|---|---|\n| BBRI | Rp 628,5 miliar | 2,87% |\n'
+             '| BBCA | −Rp 1,2 triliun | −2,10% |\n| BMRI | Rp 176,6 miliar |  |\n| TLKM | Rp 1.506 miliar | 0,35% |\n'
+             '| Total | Rp 1.111,0 miliar | |\n')
+    def run(owner, request_id, payload):
+        result = original(owner, request_id, payload)
+        result['response']['answer'] = 'Ringkasan.\n\n' + table + '\nSelesai.'
+        return result
+    orc.run = run
+    sign_in(page, origin)
+    submit(page, 'Dummy table')
+    saved(page)
+    grid = page.locator('article.result .edge-md-table table')
+    first = lambda: grid.locator('tbody tr td:first-child').all_inner_texts()
+    assert first() == ['BBRI', 'BBCA', 'BMRI', 'TLKM', 'Total']
+    title = grid.locator('th').nth(1)
+    title.hover()
+    assert title.locator('.edge-sort-icon').evaluate('n => getComputedStyle(n).opacity') == '1'
+    assert grid.locator('th').nth(0).locator('.edge-sort-icon').evaluate('n => getComputedStyle(n).opacity') == '0'
+    title.locator('button').click()
+    assert first() == ['TLKM', 'BBRI', 'BMRI', 'BBCA', 'Total']
+    assert title.get_attribute('aria-sort') == 'descending'
+    title.locator('button').click()
+    assert first() == ['BBCA', 'BMRI', 'BBRI', 'TLKM', 'Total']
+    assert title.get_attribute('aria-sort') == 'ascending'
+    grid.locator('th').nth(2).locator('button').click()  # another column: descending, empty cell last
+    assert first() == ['BBRI', 'TLKM', 'BBCA', 'BMRI', 'Total']
+    submit(page, 'Dummy table again')  # a redraw keeps the first answer's order
+    saved(page, 2)
+    assert first()[:5] == ['BBRI', 'TLKM', 'BBCA', 'BMRI', 'Total']
+    grid.first.locator('th').nth(2).locator('button').click()
+    grid.first.locator('th').nth(2).locator('button').click()
+    assert grid.first.locator('tbody tr td:first-child').all_inner_texts() == ['BBRI', 'BBCA', 'BMRI', 'TLKM', 'Total']
+    assert grid.first.locator('th').nth(2).get_attribute('aria-sort') == 'none'
+
+
+def test_left_panel_shows_each_question_and_hides_a_deleted_conversation(dummy_orc, browser_page):
+    """EXEC-UI-1012 B1 ("B1. (i)"): every conversation in the left panel shows its latest question under the title,
+    not only the selected one. EXEC-DELETE ("pakai B hanya sembunyikan di front end tapi backend bisa akses if
+    needed", confirmation "Ok"): the trash button next to the bookmark asks first, then hides the conversation from the
+    list; it stays hidden after a reload, and Cancel keeps it."""
+    origin, orc = dummy_orc
+    page = browser_page
+    sign_in(page, origin)
+    submit(page, 'Dummy first question')
+    saved(page)
+    page.get_by_role('button', name='New conversation').first.click()
+    submit(page, 'Dummy second question')
+    saved(page)
+    page.reload()
+    page.get_by_placeholder('Ask a research question…').wait_for()
+    rows = page.locator('.conversation-list .conversation')
+    page.wait_for_function('() => document.querySelectorAll(".conversation-list .conversation").length === 2')
+    assert sorted(rows.locator('small').all_inner_texts()) == ['Dummy first question', 'Dummy second question']
+    first = rows.filter(has_text='Dummy first question')
+    first.get_by_role('button', name='Delete Dummy first question').click()
+    dialog = page.get_by_role('dialog')
+    assert 'will be removed from your list' in dialog.inner_text()
+    dialog.get_by_role('button', name='Cancel', exact=True).click()
+    assert rows.count() == 2
+    first.get_by_role('button', name='Delete Dummy first question').click()
+    page.get_by_role('dialog').get_by_role('button', name='Delete', exact=True).click()
+    page.wait_for_function('() => document.querySelectorAll(".conversation-list .conversation").length === 1')
+    page.reload()
+    page.get_by_placeholder('Ask a research question…').wait_for()
+    page.wait_for_function('() => document.querySelectorAll(".conversation-list .conversation").length === 1')
+    assert rows.locator('small').all_inner_texts() == ['Dummy second question']
+
+
+def test_the_first_answer_is_headed_by_the_router_title(dummy_orc, browser_page):
+    """EXEC-UI-1012 C: the first question's answer and the left panel show the router's short title; the YOU bubble
+    keeps the user's words."""
+    origin, orc = dummy_orc
+    page = browser_page
+    original = orc.run
+    def run(owner, request_id, payload):
+        result = original(owner, request_id, payload)
+        result['mode4'] = {'router': {'route': 'ANALYSIS', 'title': 'Harga Saham BBCA'}}
+        return result
+    orc.run = run
+    sign_in(page, origin)
+    submit(page, 'Dummy kasih saya data BBCA harga sebulan terakhir')
+    saved(page)
+    assert page.locator('article.result h1').inner_text() == 'Harga Saham BBCA'
+    assert 'Dummy kasih saya data BBCA harga sebulan terakhir' in page.locator('main').inner_text()
+    page.reload()
+    page.get_by_placeholder('Ask a research question…').wait_for()
+    page.wait_for_function('() => document.querySelectorAll(".conversation-list .conversation").length === 1')
+    assert page.locator('.conversation-list .conversation strong').inner_text() == 'Harga Saham BBCA'

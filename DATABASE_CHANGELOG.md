@@ -1,5 +1,19 @@
 # Database changelog
 
+## 2026-10-12 — EXEC-DELETE: hidden conversations in EDGE on dev
+
+User decision 2026-10-12: "1 pakai B hanya smebunyikan di front end tapi backend bisa akses if needed", "2 Ok", "3 Ok"
+(`EXEC.md` EXEC-DELETE).
+- **`20261012_008_edge_bff_conversation_hidden.sql`**: adds nullable `edge_bff.conversation_ui.hidden_at timestamptz`
+  (when the user deleted the conversation in EDGE; hidden from the list only). Operational schema `edge_bff` (EDGE
+  sessions, jobs and UI metadata), outside the public data tables, `DATABASE_SCHEMA.md` and the catalogs, like
+  `20261008_002`. No data, Orc history, result, export or audit row changes.
+- **Part A check:** operational UI metadata; Part A does not apply.
+- Applied by the temporary service `mmig-job` (deleted afterwards, read back absent): DRYRUN `8cae3675` rolled back
+  (read back: no `hidden_at`); APPLY `9af9d306` committed (sha256 `e8cbdb79…`). Read back: `hidden_at` timestamptz
+  nullable, `edge_bff_runtime` may update it, 20 rows unchanged. Checksum appended to
+  `database/migrations/APPLIED.sha256`.
+
 ## 2026-10-12 — EXEC-IMPL-1012 Fase 1: method guides v8 and Tool_Catalog round R on dev
 
 User go 2026-10-12 ("ok", `EXEC.md` EXEC-IMPL-1012, EXEC-JOINKEY and EXEC-RELEASE).

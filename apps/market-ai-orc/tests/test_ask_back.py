@@ -283,6 +283,26 @@ def test_a_failed_router_call_is_retried_once_and_the_reading_is_returned() -> N
     assert route is None and "attempts" not in record
 
 
+def test_the_first_router_names_the_conversation_in_the_users_words() -> None:
+    """EXEC-UI-1012 C (user 2026-10-12: "sesuai bahasa penanya dan only first question"): the first-message router
+    returns a short title in the user's language; the record carries it (whitespace folded, at most 80 characters)
+    for EDGE, with and without ask-back. An empty title adds nothing."""
+    titled = {**ROUTE_JSON, "title": "  Harga   Saham BBRI "}
+    orchestrator = AgentOrchestrator(make_settings(**ASK_ON), ScriptedClient([final_response(titled)]), ToolRegistry())
+    route, _, record = orchestrator.classify_first("q", "kasih saya data harga BBRI minggu ini")
+    assert route == "ANALYSIS" and record["title"] == "Harga Saham BBRI"
+    assert "title" in router.FIRST_SCHEMA_ASK_BACK["required"] and "title" in router.FIRST_SCHEMA["required"]
+    assert "title" in router.FIRST_INSTRUCTIONS and "title" in router.FIRST_INSTRUCTIONS_ASK_BACK
+    plain = AgentOrchestrator(make_settings(**ROUTER_ON),
+                              ScriptedClient([final_response({"route": "CHAT", "reason": "r", "title": "Sapaan"})]),
+                              ToolRegistry())
+    assert plain.classify_first("q", "halo")[2]["title"] == "Sapaan"
+    empty = AgentOrchestrator(make_settings(**ROUTER_ON),
+                              ScriptedClient([final_response({"route": "CHAT", "reason": "r", "title": " "})]),
+                              ToolRegistry())
+    assert "title" not in empty.classify_first("q", "halo")[2]
+
+
 def test_the_reading_and_a_quick_summary_reach_the_working_step_as_notes() -> None:
     orchestrator = AgentOrchestrator(make_settings(**ASK_ON), object(), ToolRegistry())
     state = RunState(request_id="q", started=0.0, input_items=[{"role": "user", "content": "m"}])

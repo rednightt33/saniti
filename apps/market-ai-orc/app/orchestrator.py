@@ -3390,6 +3390,8 @@ class AgentOrchestrator:
             "first_message_route", router.first_schema(self.ask_back), router.FirstRoute,
             "first_message_router_failed", attempts=2 if self.ask_back else 1,
             max_tokens=router.router_max_output_tokens(self.ask_back))
+        if parsed is not None and parsed.title.strip():  # EXEC-UI-1012 C: the conversation's name (first message only)
+            record["title"] = " ".join(parsed.title.split())[:80]
         if parsed is not None and self.ask_back:  # EXEC-3: the reading every later step uses
             record.update(understood_intent=parsed.understood_intent, assumptions=parsed.assumptions,
                           question=parsed.question, options=[o.model_dump() for o in parsed.options],

@@ -27,6 +27,16 @@ The page is edited as one HTML file and its API wiring is not locked to the view
 - Links that start with `/api/` (the export downloads) stay real requests; every other root link is kept portable
   through `staticUrl` (EXEC-EXPORT). After each redraw the element that had focus gets it back with its caret, and a
   keystroke in the message box redraws only when the box turns empty or non-empty (EXEC-TYPING).
+- A table in an answer sorts by a click on a column title: descending (↓), ascending (↑), then the original order; the
+  hovered title shows ⇅; a Total row stays last; Indonesian numbers, money scales and dates are read (`MdTable`,
+  EXEC-SORT). The table's look is unchanged.
+- The left panel shows each conversation's latest question under its title (`last_message` from the job table,
+  EXEC-UI-1012 B1). The conversation's title is Orc's first-message router title when there is one (only the first
+  question; a title the user set is kept), else the first 80 characters of the question (EXEC-UI-1012 C). Search
+  matches the title or any of the conversation's questions.
+- The trash button next to the bookmark asks first, then hides the conversation from the list
+  (`DELETE /api/v1/conversations/{id}` sets `edge_bff.conversation_ui.hidden_at`, migration `20261012_008`); Orc keeps
+  its history and results under its own retention, and a running conversation is refused (409) (EXEC-DELETE).
 - `EdgeView.toView(envelope)` returns display-ready parts (status, meta, answer, clarification, pause, plan, findings,
   lists, methodology, artifacts; `EdgeView.sources` for the Details panel). Its `version` changes when a part changes
   shape. A field the view does not know yet still shows through the generic view, named from its key.

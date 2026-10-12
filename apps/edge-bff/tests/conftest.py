@@ -17,6 +17,7 @@ def database():
     try:
         with psycopg.connect(url,autocommit=True) as c:
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261008_002_create_edge_bff.sql').read_text())
+            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261012_008_edge_bff_conversation_hidden.sql').read_text())
             c.execute('CREATE TABLE public.market_private(secret text)')
         yield url
     finally:

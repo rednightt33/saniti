@@ -7,7 +7,7 @@
   }
   const reset = () => { auth = null; followers.forEach(close => close()); followers.clear(); dispatchEvent(new Event('edge-auth')); };
   async function api(path, body, method = body === undefined ? 'GET' : 'POST') {
-    const headers = body === undefined ? {} : { 'Content-Type':'application/json', 'X-CSRF-Token':auth?.csrf_token || '' };
+    const headers = method === 'GET' ? {} : { 'X-CSRF-Token':auth?.csrf_token || '', ...(body === undefined ? {} : {'Content-Type':'application/json'}) };
     const res = await fetch('/api/v1' + path, { method, headers, credentials:'same-origin', ...(body === undefined ? {} : {body:JSON.stringify(body)}) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -40,8 +40,10 @@
   async function conversations() {
     let offset = 0, result = [];
     do { const page = await api('/conversations?limit=100&offset=' + offset); result.push(...page.items); offset = page.next_offset; } while (offset !== null);
-    return result.map(ui => ({id:ui.conversation_id,title:ui.title,bookmarked:ui.bookmarked,createdAt:ui.created_at,updatedAt:ui.updated_at,messages:[],runs:[]}));
+    return result.map(ui => ({id:ui.conversation_id,title:ui.title,bookmarked:ui.bookmarked,createdAt:ui.created_at,updatedAt:ui.updated_at,lastMessage:ui.last_message||null,messages:[],runs:[]}));
   }
+  // EXEC-UI-1012 C: the first question's answer is headed by the short title Orc's first-message router wrote
+  const routerTitle = response => String(response?.mode4?.router?.title || '').split(/\s+/).join(' ').trim().slice(0, 80) || null;
   function adaptRun(turn, ui = {}) {
     const raw = turn.response;
     const final = raw?.response;
@@ -49,7 +51,7 @@
     return {id:turn.request_id,question:turn.user_message || ui.title || 'Research response',createdAt:turn.created_at,completedAt:turn.completed_at,
       status:turn.status === 'RUNNING' ? 'running' : failed ? 'failed' : 'completed',domainStatus:raw?.status || turn.run_status,paused:Boolean(raw?.execution?.pause),stopped:Boolean(raw?.execution?.stopped),
       mode:'Standard',attachments:[],pinned:(ui.pinned_request_ids || []).includes(turn.request_id),
-      error:raw?.error?.code || turn.error_code,raw,result:final ? {title:turn.user_message?.slice(0,80) || ui.title || 'Research response',condition:final.answer || final.clarification_question || '',final} : null,
+      error:raw?.error?.code || turn.error_code,raw,result:final ? {title:routerTitle(raw) || turn.user_message?.slice(0,80) || ui.title || 'Research response',condition:final.answer || final.clarification_question || '',final} : null,
       sources:[...(raw?.evidence || []), ...(raw?.annotations || []), ...(raw?.data_record ? [{name:'Data record',record:raw.data_record}] : [])],
       steps:[{id:'saved-state',label:turn.status === 'RUNNING' ? 'AI request running' : 'Saved response: ' + statusLabel('completed', raw?.status || turn.run_status, raw?.execution?.pause),status:turn.status === 'RUNNING' ? 'running' : failed ? 'failed' : 'completed',detail:'Persisted lifecycle state'}]};
   }
@@ -64,7 +66,7 @@
     status:snapshot.error_code === 'STOPPED_BY_USER' ? 'cancelled' : terminal(snapshot) ? snapshot.state === 'FINISHED' && snapshot.run_status !== 'FAILED' && !snapshot.expired ? 'completed' : 'failed' : snapshot.state === 'QUEUED' ? 'submitted' : 'running',
     domainStatus:snapshot.run_status,paused:Boolean((snapshot.response || previous.raw)?.execution?.pause),stopped:Boolean((snapshot.response || previous.raw)?.execution?.stopped),error:snapshot.expired ? 'Conversation expired; the saved response is no longer available.' : snapshot.error_code || snapshot.response?.error?.code,
     completedAt:snapshot.completed_at,raw:snapshot.response || previous.raw,
-    result:snapshot.response?.response ? {title:previous.question.slice(0,80),condition:snapshot.response.response.answer || snapshot.response.response.clarification_question || '',final:snapshot.response.response} : previous.result,
+    result:snapshot.response?.response ? {title:routerTitle(snapshot.response) || previous.question.slice(0,80),condition:snapshot.response.response.answer || snapshot.response.response.clarification_question || '',final:snapshot.response.response} : previous.result,
     sources:snapshot.response ? [...(snapshot.response.evidence || []),...(snapshot.response.annotations || []),...(snapshot.response.data_record ? [{name:'Data record',record:snapshot.response.data_record}] : [])] : previous.sources,
     steps:[{id:'state',label:{QUEUED:'Queued',RUNNING:'AI request running',RECOVERING:'Recovering delivery',FINISHED:'Saved response: '+statusLabel('completed',snapshot.run_status,snapshot.response?.execution?.pause),FAILED:'Request failed',INTERRUPTED:'Delivery interrupted'}[snapshot.state],status:terminal(snapshot) ? snapshot.state === 'FINISHED' && snapshot.run_status !== 'FAILED' && !snapshot.expired ? 'completed' : 'failed' : 'running',detail:snapshot.updated_at}]
   });
@@ -77,6 +79,7 @@
     createRun: body => api('/runs',body),
     stopRun: id => api('/runs/'+encodeURIComponent(id)+'/stop',{}),
     bookmark: (id,bookmarked) => api('/conversations/'+encodeURIComponent(id)+'/preferences',{bookmarked},'PATCH'),
+    hideConversation: id => api('/conversations/'+encodeURIComponent(id),undefined,'DELETE'),
     pin: (id,pinned) => api('/runs/'+encodeURIComponent(id)+'/preferences',{pinned},'PATCH'),
     exportUrl: id => /^exp_[0-9a-f]{24}$/.test(id) ? '/api/v1/exports/'+id : null,
     safeUrl: url => { try { const u = new URL(url); return ['http:','https:'].includes(u.protocol) && !u.hostname.endsWith('.railway.internal') ? u.href : null; } catch { return null; } }
