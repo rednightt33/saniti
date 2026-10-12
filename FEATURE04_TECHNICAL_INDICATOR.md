@@ -211,6 +211,11 @@ slice. Tests compare corrections at every position in the five-session window wi
 full-history reference. Numeric acceptance is absolute `1e-10` plus relative `1e-12`;
 NULLs and integer flags must match exactly.
 
+Candlestick functions use the same fixed 15-bar TA-Lib input window in full repair and
+checkpoint execution. This removes classification changes caused only by floating totals
+accumulated from an unrelated older prefix while retaining TA-Lib's default candle settings
+and exact integer outputs.
+
 Full-history replay remains the reference oracle and explicit bootstrap/repair path. It is
 never an automatic daily fallback. A missing/incompatible checkpoint, digest mismatch, or
 suffix beyond the configured correction window fails `REPAIR_REQUIRED`. State is written

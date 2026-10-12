@@ -19,6 +19,16 @@
   output calculation version changed.
 - Initial readback before state bootstrap: one enabled equity policy, 1,318,633/1,318,633
   final equity rows, zero checkpoint rows, and zero processing claims.
+- The all-instrument shadow proved checkpoint/full-reference parity for 868/868 instruments
+  with strict numeric tolerance and exact NULL/integer flags. State v3 also removed
+  TA-Lib candlestick dependence on an unrelated old prefix by using the same fixed 15-bar
+  window in full repair and incremental execution.
+- Bootstrap wrote 6,076 checkpoints (868 instruments × seven retained sessions). The
+  table-driven five-session activation completed 868/868 attempts, zero failures, and
+  exactly five source rows per attempt. A repeat of the identical request completed with
+  total `changed_rows=0`; queue readback was 868 `DONE` and checkpoint count remained 6,076.
+- Evidence: `verification/feature04/INCREMENTAL_FINALITY.md` and
+  `verification/feature04/incremental_finality.json`.
 
 ## 2026-10-12 — Market-specific final fixed-income closes
 

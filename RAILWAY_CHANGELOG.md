@@ -17,7 +17,18 @@
   checkpoint bootstrap.
 - Temporary private service `feature04-incremental-ops` performed baseline inspection,
   rolled-back rehearsal, migration apply, and independent readback using only the existing
-  server-side database reference. It is removed after rollout and IaC reconciliation.
+  server-side database reference. Its dev-only deletion is staged; the connector rejected
+  the environment apply with `INVALID_ARGUMENT`, while cross-environment deletion remains
+  intentionally unapproved.
+- Full shadow deployment `d1e41d3b-eefa-4ad8-aa82-ed2d10376431` checked 868 instruments
+  with zero incremental/full mismatches. Checkpoint deployment
+  `30f3e66b-3a67-4843-9497-a6625cb0dcad` wrote 6,076 snapshots. Final continuous worker
+  deployment `c6abb05e-4341-4b6f-a060-2ef8962238d9` runs commit `962ba88` with
+  `python worker.py`, restart `ALWAYS`, and no cron.
+- Live five-session activation and its identical repeat each completed 868/868 jobs with
+  zero failures and five source rows per attempt; the repeat changed zero rows. The final
+  queue is 868 `DONE`, with 6,076 checkpoints. IaC already declares the final worker and
+  recovery commands.
 
 ## 2026-10-12 — Fixed-income Git cutover and market-specific final closes
 

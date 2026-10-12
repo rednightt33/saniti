@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-10-12T02:39:08+00:00`.
+Refreshed from the applied public-schema migration and live readback at `2026-10-12T05:44:10+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -34,7 +34,9 @@ Generated from PostgreSQL schema `public` at `2026-10-12T02:39:08+00:00`.
 | `Analytics_Job` | System | Per generic analytics submission, lease, result, or failure | — | `2026-09-14 07:39:52+00:00` | Baseline only | Durable queue, lease, resource contract, result, and failure audit for separately authenticated query-sandbox and statistical-validation workers. |
 | `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-10-12 02:22:41.938133+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
 | `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-10-12 02:39:08+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Equity_Market_Schedule` | Reference | When an equity market close, finality delay or correction window changes | — | `2026-10-12 04:59:16+00:00` | Baseline only | Equity market timezone, closing clock, final-candle delay and correction-session policy. |
 | `Feature04_Calculation_Log` | System | After each Feature04 worker attempt | — | `2026-10-11 08:51:27+00:00` | Baseline only | Immutable Feature04 calculation attempt audit. |
+| `Feature04_Calculation_State` | System | After Feature04 checkpoint bootstrap or successful suffix calculation | `2026-10-09` | `2026-10-12 05:43:20+00:00` | Derived from final source observations | Recent versioned per-instrument calculation checkpoints for exact bounded Feature04 suffix updates. |
 | `Feature04_Calculation_Queue` | System | After relevant price changes and Feature04 worker transitions | — | `2026-10-11 08:51:27+00:00` | Baseline only | Durable coalesced Feature04 work and lease state. |
 | `Feature04_Column_Status` | System | After Feature04 validation or failure | — | `2026-10-11 08:51:27+00:00` | Baseline only | Per-ticker per-output Feature04 readiness and failure state. |
 | `Feature04_Notification_Outbox` | System | After a Feature04 execution becomes terminal | — | `2026-10-11 08:51:27+00:00` | Baseline only | Durable Feature04 completion-notification work. |
@@ -42,7 +44,7 @@ Generated from PostgreSQL schema `public` at `2026-10-12T02:39:08+00:00`.
 | `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-10-09` | `2026-10-09 10:06:33.150795+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
 | `Feature_02_Broker_Rolling` | Feature | After validated broker-summary changes; manual v2 ticker rebuild | `2026-08-31` | `2026-09-14 14:26:33.580099+00:00` | Derived from IDX_Broker_Summary; Investor-Type Feature 02 v2 refresh is manual | Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata. |
 | `Feature_03_Stock_Broker_Daily` | Feature | After Feature 02 refresh; manual Investor-Type v2 refresh | `2026-08-31` | `2026-09-14 15:17:23.131992+00:00` | Derived from Investor-Type Feature_02_Broker_Rolling; Feature 03 v2 refresh is manual | Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate. |
-| `Feature_04_Technical_Indicator` | Feature | Event-driven after committed equity or bond price changes; full-history per asset/ticker | `2026-10-09` | `2026-10-12 02:30:43.530026+00:00` | Derived from price rows; changes queued and tracked per ticker | Cross-asset Daily closing price and causal technical indicators from universe-classified equity or bonds OHLC. |
+| `Feature_04_Technical_Indicator` | Feature | Event-driven after committed final price changes; exact affected suffix per asset/ticker | `2026-10-09` | `2026-10-12 05:43:20+00:00` | Derived from final price rows; changes queued and tracked per ticker | Cross-asset Daily closing price and causal technical indicators from universe-classified equity or bonds OHLC. |
 | `Feature_Calculation_Log` | System | After completed worker attempts | `2026-10-09` | `2026-10-09 10:06:33.159836+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
 | `Feature_Calculation_Queue` | System | After committed price inserts/updates and worker transitions | `2026-10-09` | `2026-10-09 10:06:33.099491+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
 | `Feature_Catalog` | Reference | After each validated Feature schema change | — | `2026-10-12 02:04:32.840328+00:00` | Tracked automatically | Versioned, machine-readable formula, interpretation, recommended-use, misuse, availability, point-in-time safety and validation-evidence contract for every validated Feature column. |
@@ -64,7 +66,7 @@ Generated from PostgreSQL schema `public` at `2026-10-12T02:39:08+00:00`.
 | `Monitoring_Fixed_Income` | Monitoring | One row after each fixed-income daily or recovery execution | `2026-10-11` | `2026-10-12 02:30:28.508014+00:00` | Derived from fixed-income cron monitoring rows | One market-specific fixed-income daily or recovery execution summary. |
 | `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-10-11` | `2026-10-11 23:00:25.791923+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
 | `Price_Fixed_Income` | Transactional | Daily and recovery fixed-income price/yield schedules | `2026-10-09` | `2026-10-12 02:29:42.035219+00:00` | Latest date and write time derived from fixed-income observations | Final daily fixed-income OHLC observations with source-bar and market-close finality evidence. |
-| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-10-09` | `2026-10-09 10:04:22.765289+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
+| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-10-09` | `2026-10-12 04:59:16+00:00` | Latest date and finality evidence derived | Final daily Indonesian stock OHLCV candles sourced from TradingView. |
 | `Reference_History_Capture_Log` | System | One row per reference-history capture or correction | — | `2026-10-09 05:36:34+00:00` | Baseline; exact changes tracked from this time forward | One row per capture of IDX_Stock_Universe or IDX_Broker_Profile into its history (trigger, initial, manual or correction): changed and new versions, keys absent from the load, and the error of a failed capture. |
 | `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-10-12 02:22:41.935764+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
 | `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
@@ -1326,6 +1328,42 @@ Tracks the data freshness, change time, and update pattern of each table.
 |---|---|
 | `Database_Table_Status_pkey` | `CREATE UNIQUE INDEX "Database_Table_Status_pkey" ON public."Database_Table_Status" USING btree ("Table Name")` |
 
+## Equity_Market_Schedule
+
+Equity market timezone, closing clock, final-candle delay and correction-session policy.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `market_code` | `text` | No | — | Canonical equity market code. |
+| `exchange` | `text` | No | — | TradingView exchange code for the market. |
+| `timezone_name` | `text` | No | — | IANA timezone used to interpret the local session close. |
+| `session_close_local` | `time without time zone` | No | — | Local official daily-session close. |
+| `finality_delay_minutes` | `integer` | No | — | Delay after close before a daily candle can be accepted as final. |
+| `correction_lookback_sessions` | `integer` | No | `5` | Number of recent completed sessions reverified and eligible for normal suffix repair. |
+| `enabled` | `boolean` | No | `true` | Whether this market policy is active. |
+| `updated_at` | `timestamp with time zone` | No | `statement_timestamp()` | Time of the latest policy write. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Equity_Market_Schedule_code_check` | Check | `CHECK (market_code = upper(btrim(market_code)) AND market_code <> ''::text)` |
+| `Equity_Market_Schedule_exchange_check` | Check | `CHECK (exchange = upper(btrim(exchange)) AND exchange <> ''::text)` |
+| `Equity_Market_Schedule_timezone_check` | Check | `CHECK (timezone_name = btrim(timezone_name) AND timezone_name <> ''::text)` |
+| `Equity_Market_Schedule_delay_check` | Check | `CHECK (finality_delay_minutes >= 0 AND finality_delay_minutes <= 360)` |
+| `Equity_Market_Schedule_correction_window_check` | Check | `CHECK (correction_lookback_sessions >= 1 AND correction_lookback_sessions <= 20)` |
+| `Equity_Market_Schedule_pkey` | Primary key | `PRIMARY KEY (market_code)` |
+| `Equity_Market_Schedule_exchange_key` | Unique | `UNIQUE (exchange)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Equity_Market_Schedule_exchange_key` | `CREATE UNIQUE INDEX "Equity_Market_Schedule_exchange_key" ON public."Equity_Market_Schedule" USING btree (exchange)` |
+| `Equity_Market_Schedule_pkey` | `CREATE UNIQUE INDEX "Equity_Market_Schedule_pkey" ON public."Equity_Market_Schedule" USING btree (market_code)` |
+
 ## Feature04_Calculation_Log
 
 Immutable Feature04 calculation attempt audit.
@@ -1356,6 +1394,8 @@ Immutable Feature04 calculation attempt audit.
 | `error_code` | `text` | Yes | — | Operational error code field for Feature04_Calculation_Log. |
 | `detail` | `text` | Yes | — | Operational detail field for Feature04_Calculation_Log. |
 | `asset_type` | `text` | No | — | Universe-derived asset class: equity from IDX_Stock_Universe; bonds from Universe_Fixed_income. |
+| `checkpoint_date` | `date` | Yes | — | Trusted checkpoint immediately before the recalculated suffix. |
+| `dirty_from_date` | `date` | Yes | — | Earliest source observation recalculated by this attempt. |
 
 ### Constraints
 
@@ -1368,6 +1408,7 @@ Immutable Feature04 calculation attempt audit.
 | `Feature04_Calculation_Log_result_check` | Check | `CHECK (result = ANY (ARRAY['SUCCESS'::text, 'PARTIAL'::text, 'FAILED'::text, 'SUPERSEDED'::text]))` |
 | `Feature04_Calculation_Log_source_rows_check` | Check | `CHECK (source_rows IS NULL OR source_rows >= 0)` |
 | `Feature04_Calculation_Log_timeframe_check` | Check | `CHECK (timeframe = 'Daily'::text)` |
+| `Feature04_Calculation_Log_incremental_range_check` | Check | `CHECK (checkpoint_date IS NULL OR dirty_from_date IS NULL OR checkpoint_date < dirty_from_date)` |
 | `Feature04_Calculation_Log_retry_fkey` | Foreign key | `FOREIGN KEY (retry_request_id) REFERENCES "Feature04_Retry_Request"(request_id)` |
 | `Feature04_Calculation_Log_pkey` | Primary key | `PRIMARY KEY (id)` |
 
@@ -1377,6 +1418,47 @@ Immutable Feature04 calculation attempt audit.
 |---|---|
 | `Feature04_Calculation_Log_pkey` | `CREATE UNIQUE INDEX "Feature04_Calculation_Log_pkey" ON public."Feature04_Calculation_Log" USING btree (id)` |
 | `Feature04_Calculation_Log_ticker_time_idx` | `CREATE INDEX "Feature04_Calculation_Log_ticker_time_idx" ON public."Feature04_Calculation_Log" USING btree (asset_type, ticker, started_at DESC)` |
+
+## Feature04_Calculation_State
+
+Recent versioned per-instrument calculation checkpoints for exact bounded Feature04 suffix updates.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `asset_type` | `text` | No | — | Universe-derived asset class: equity or bonds. |
+| `ticker` | `text` | No | — | Canonical universe ticker. |
+| `timeframe` | `text` | No | `'Daily'::text` | Supported observation interval. |
+| `checkpoint_date` | `date` | No | — | Source date represented by the post-row state snapshot. |
+| `state_version` | `text` | No | — | Serialization and state-machine compatibility version. |
+| `calculation_version` | `text` | No | — | Feature04 formula/library contract version. |
+| `source_position` | `integer` | No | — | One-based position of the checkpoint observation in the valid source stream. |
+| `source_chain_sha256` | `text` | No | — | Cumulative digest of source observations through the checkpoint. |
+| `state_payload` | `jsonb` | No | — | Recursive, rolling, pattern, SMI and swing state after the checkpoint row. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Initial checkpoint creation time. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Latest replacement time. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature04_Calculation_State_asset_type_check` | Check | `CHECK (asset_type = ANY (ARRAY['equity'::text, 'bonds'::text]))` |
+| `Feature04_Calculation_State_ticker_check` | Check | `CHECK (ticker = upper(btrim(ticker)) AND ticker <> ''::text)` |
+| `Feature04_Calculation_State_timeframe_check` | Check | `CHECK (timeframe = 'Daily'::text)` |
+| `Feature04_Calculation_State_state_version_check` | Check | `CHECK (btrim(state_version) <> ''::text AND btrim(calculation_version) <> ''::text)` |
+| `Feature04_Calculation_State_source_position_check` | Check | `CHECK (source_position > 0)` |
+| `Feature04_Calculation_State_source_chain_sha256_check` | Check | `CHECK (source_chain_sha256 ~ '^[0-9a-f]{64}$'::text)` |
+| `Feature04_Calculation_State_state_payload_check` | Check | `CHECK (state_payload ->> 'last_date'::text = checkpoint_date::text)` |
+| `Feature04_Calculation_State_state_payload_check1` | Check | `CHECK (state_payload ->> 'source_chain_sha256'::text = source_chain_sha256)` |
+| `Feature04_Calculation_State_pkey` | Primary key | `PRIMARY KEY (asset_type, ticker, timeframe, checkpoint_date)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature04_Calculation_State_latest_idx` | `CREATE INDEX "Feature04_Calculation_State_latest_idx" ON public."Feature04_Calculation_State" USING btree (asset_type, ticker, timeframe, checkpoint_date DESC)` |
+| `Feature04_Calculation_State_pkey` | `CREATE UNIQUE INDEX "Feature04_Calculation_State_pkey" ON public."Feature04_Calculation_State" USING btree (asset_type, ticker, timeframe, checkpoint_date)` |
 
 ## Feature04_Calculation_Queue
 
@@ -2090,6 +2172,7 @@ Fixed-income market timezone, closing clock, final-candle delay and source-label
 | `enabled` | `boolean` | No | `true` | Fixed-income market schedule configuration. |
 | `updated_at` | `timestamp with time zone` | No | `statement_timestamp()` | Fixed-income market schedule configuration. |
 | `source_date_mapping` | `text` | No | — | Rule that maps the raw TradingView UTC daily-bar label to this market session date. |
+| `correction_lookback_sessions` | `integer` | No | `5` | Number of recent completed market sessions reverified and eligible for normal suffix repair. |
 
 ### Constraints
 
@@ -2098,6 +2181,7 @@ Fixed-income market timezone, closing clock, final-candle delay and source-label
 | `Fixed_Income_Market_Schedule_code_check` | Check | `CHECK (market_code = upper(btrim(market_code)) AND market_code <> ''::text)` |
 | `Fixed_Income_Market_Schedule_delay_check` | Check | `CHECK (finality_delay_minutes >= 0 AND finality_delay_minutes <= 360)` |
 | `Fixed_Income_Market_Schedule_source_date_mapping_check` | Check | `CHECK (source_date_mapping = ANY (ARRAY['CURRENT_OR_PREVIOUS_BUSINESS_DAY'::text, 'NEXT_BUSINESS_DAY'::text]))` |
+| `Fixed_Income_Market_Schedule_correction_window_check` | Check | `CHECK (correction_lookback_sessions >= 1 AND correction_lookback_sessions <= 20)` |
 | `Fixed_Income_Market_Schedule_timezone_check` | Check | `CHECK (timezone_name = btrim(timezone_name) AND timezone_name <> ''::text)` |
 | `Fixed_Income_Market_Schedule_pkey` | Primary key | `PRIMARY KEY (market_code)` |
 | `Fixed_Income_Market_Schedule_country_key` | Unique | `UNIQUE (country)` |
@@ -2759,7 +2843,7 @@ Final daily fixed-income OHLC observations with source-bar and market-close fina
 
 ## Price_Stock_Indonesia_IDX
 
-Daily Indonesian stock OHLCV candles sourced from TradingView.
+Final daily Indonesian stock OHLCV candles sourced from TradingView.
 
 ### Columns
 
@@ -2778,6 +2862,11 @@ Daily Indonesian stock OHLCV candles sourced from TradingView.
 | `query_date` | `date` | No | — | Date the source data was queried. |
 | `timeframe` | `character varying` | No | — | Price-series interval. |
 | `ingestion_time` | `timestamp with time zone` | Yes | `statement_timestamp()` | Timezone-aware database statement time of the latest successful insert or upsert; null for historical rows whose exact ingestion time is unknown. |
+| `market_code` | `text` | No | — | Equity market policy used for close and finality. |
+| `source_bar_time` | `timestamp with time zone` | Yes | — | Original provider daily-bar timestamp; NULL for legacy rows where it was not retained. |
+| `market_close_at` | `timestamp with time zone` | No | — | Configured market close instant for this observation date. |
+| `is_final` | `boolean` | No | `false` | Whether the exact daily candle was accepted after the configured finality delay. |
+| `finalized_at` | `timestamp with time zone` | No | — | Time this completed candle was verified. |
 
 ### Constraints
 
@@ -2790,6 +2879,8 @@ Daily Indonesian stock OHLCV candles sourced from TradingView.
 | `price_stock_indonesia_IDX_low_check` | Check | `CHECK (low >= 0::numeric)` |
 | `price_stock_indonesia_IDX_open_check` | Check | `CHECK (open >= 0::numeric)` |
 | `price_stock_indonesia_IDX_volume_check` | Check | `CHECK (volume >= 0::numeric)` |
+| `Price_Stock_Indonesia_IDX_finality_check` | Check | `CHECK (NOT is_final OR finalized_at >= market_close_at)` |
+| `Price_Stock_Indonesia_IDX_market_fkey` | Foreign key | `FOREIGN KEY (market_code) REFERENCES "Equity_Market_Schedule"(market_code)` |
 | `Price_Stock_Indonesia_IDX_pkey` | Primary key | `PRIMARY KEY (ticker, date)` |
 
 ### Indexes
@@ -2797,6 +2888,7 @@ Daily Indonesian stock OHLCV candles sourced from TradingView.
 | Name | Definition |
 |---|---|
 | `Price_Stock_Indonesia_IDX_date_idx` | `CREATE INDEX "Price_Stock_Indonesia_IDX_date_idx" ON public."Price_Stock_Indonesia_IDX" USING btree (date)` |
+| `Price_Stock_Indonesia_IDX_final_idx` | `CREATE INDEX "Price_Stock_Indonesia_IDX_final_idx" ON public."Price_Stock_Indonesia_IDX" USING btree (ticker, date DESC) WHERE (is_final AND ((timeframe)::text = 'Daily'::text))` |
 | `Price_Stock_Indonesia_IDX_pkey` | `CREATE UNIQUE INDEX "Price_Stock_Indonesia_IDX_pkey" ON public."Price_Stock_Indonesia_IDX" USING btree (ticker, date)` |
 
 ## Reference_History_Capture_Log

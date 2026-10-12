@@ -1,6 +1,6 @@
 {
-  "recorded_at_utc": "2026-10-12T04:59:16Z",
-  "scope": "lucid-patience/dev Feature04 incremental finality rollout",
+  "recorded_at_utc": "2026-10-12T05:44:10Z",
+  "scope": "lucid-patience/dev Feature04 exact incremental finality rollout",
   "baseline": {
     "equity_tickers": 844,
     "equity_source_rows": 1318633,
@@ -14,8 +14,8 @@
     "recent_full_replay_wall_seconds_max": 0.335
   },
   "local_validation": {
-    "state_version": "feature04-state-v2",
-    "feature04_tests_passed": 46,
+    "state_version": "feature04-state-v3",
+    "feature04_tests_passed": 47,
     "idx_cron_tests_passed": 16,
     "fixed_income_cron_tests_passed": 23,
     "numeric_absolute_tolerance": 1e-10,
@@ -36,9 +36,32 @@
     "post_apply_processing_claims": 0
   },
   "rollout": {
-    "first_shadow_attempt": "stopped before writes on ID01Y Bollinger floating-order mismatch",
-    "checkpoint_bootstrap": "pending",
-    "deployments": "pending",
-    "live_canary": "pending"
+    "full_shadow_deployment": "d1e41d3b-eefa-4ad8-aa82-ed2d10376431",
+    "full_shadow_instruments": 868,
+    "full_shadow_formula_mismatches": 0,
+    "full_shadow_elapsed_seconds": 311.724,
+    "stored_suffix_drift_values": 3,
+    "checkpoint_bootstrap_deployment": "30f3e66b-3a67-4843-9497-a6625cb0dcad",
+    "checkpoint_bootstrap_instruments": 868,
+    "checkpoint_rows": 6076,
+    "checkpoint_retention_per_instrument": 7,
+    "worker_deployment": "c6abb05e-4341-4b6f-a060-2ef8962238d9",
+    "normalization_jobs_success": 868,
+    "normalization_jobs_failed": 0,
+    "normalization_source_rows_min": 5,
+    "normalization_source_rows_max": 5,
+    "normalization_changed_rows": 2533,
+    "idempotency_jobs_success": 868,
+    "idempotency_jobs_failed": 0,
+    "idempotency_changed_rows": 0,
+    "queue_done": 868,
+    "price_producer_deployments": {
+      "idx_daily": "c390b9fb-d4d1-4dfa-b60f-d459c905c334",
+      "idx_recovery": "a74c1c92-cc58-481c-8be2-9dca045065f2",
+      "id_daily": "724eb4bf-2add-44d6-bd3f-cb33241751e5",
+      "id_recovery": "cb8b71cf-db8a-4cf6-9ca1-bd16a4cef737",
+      "us_daily": "cee1bfb6-40bc-4f69-a1c1-bb0c28fb6331",
+      "us_recovery": "f4692031-6172-48ab-8524-66ce0ae26b36"
+    }
   }
 }

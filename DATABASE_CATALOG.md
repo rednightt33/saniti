@@ -121,6 +121,9 @@ asset type, ticker, Daily timeframe and checkpoint date. `Equity_Market_Schedule
 `Fixed_Income_Market_Schedule.correction_lookback_sessions` control finality and the normal
 five-session correction boundary. Checkpoints are invalidated on or after a material source
 change and replaced only with a successful suffix transaction.
+The live retention is seven sessions per instrument (6,076 rows across 868 instruments):
+five correction sessions plus two boundary snapshots. Candlestick state uses one canonical
+15-bar TA-Lib window so full repair and suffix execution produce the same integer flags.
 
 Fixed-income ingestion is market-partitioned. `Fixed_Income_Market_Schedule` stores the
 current timezone, local close and finality delay for Indonesia and the United States.

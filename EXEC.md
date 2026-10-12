@@ -1845,4 +1845,8 @@ disinkronkan, service/sandbox sementara dihapus, dan Railway plan up to date. Bu
 
 **Urutan eksekusi:** implementasi dan local parity; rolled-back migration rehearsal; pause worker; apply migration; bootstrap/shadow checkpoints; deploy price producers dan worker; controlled canary correction/identity; verify exact deployments dan live data; refresh evidence/schema/changelog; commit dan push `main`.
 
-**Status:** IN PROGRESS.
+**Status:** COMPLETED 2026-10-12. Migration rehearsal/apply passed; 868/868 full shadows
+matched; 6,076 checkpoints were bootstrapped; the live worker processed exactly five rows
+for 868/868 instruments with zero failures; an identical rerun changed zero rows. Final
+worker deployment is `c6abb05e-4341-4b6f-a060-2ef8962238d9`; evidence is under
+`verification/feature04/INCREMENTAL_FINALITY.md`.

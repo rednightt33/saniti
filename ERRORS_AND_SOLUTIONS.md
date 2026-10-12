@@ -737,3 +737,10 @@ frontend changes on `codex/edge-bff`; runner/Orc, live database schema, model an
   present. Full repair and incremental execution now call the same TA-Lib function over the
   same fixed 15-bar window for every classified candle. State version v3 invalidates older
   checkpoints; integer pattern flags remain exact and the validation tolerance is unchanged.
+- **Dev-only temporary Function deletion could not be applied (OPEN CLEANUP):** Railway
+  accepted a staged deletion for `feature04-incremental-ops`, but `accept-deploy` and direct
+  environment-scoped deletion returned connector `INVALID_ARGUMENT`. The broader
+  all-environment delete was correctly blocked because only dev cleanup was authorized.
+  The service is restart `NEVER`, has no schedule or volume, and the dev deletion remains
+  staged. Apply that scoped patch when the connector accepts it; do not widen deletion
+  scope without explicit approval.
