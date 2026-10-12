@@ -178,9 +178,36 @@ ADDED |= {
     "DENSE: an absent row is missing data.",
     "A count of days names what it counts: trading days, or days with activity such as a foreign trade.",
 }
+# EXEC-STYLE S1-S4 (user decisions 2026-10-12: "Ok, yang adopsi dan sebagian --> masukan EXEC."; the prompt may grow
+# about two percent): the answer's shape follows the question, rule 13 in tiers (in words), rule 14 and the contract
+# keep assumptions and limitations for what changes the reading, three examples without a bold opener
+S_REMOVED = {
+    'For example, an answer in Indonesian for an inconclusive test: "**Belum bisa disimpulkan.** Lonjakan volume BBRI hanya terjadi {{finding.vol_spike.sample.effective|int}} kali dalam periode ini, terlalu sedikit untuk tahu apakah harganya cenderung naik sesudahnya.',
+    "Keep the final answer focused and proportional to the user's question: the answer within about two and a half thousand characters and a table in it within ten rows unless the user asks for more (the full table stays in its released output).",
+    'Return conclusions, relevant assumptions, limitations, and tool-supported findings only.',
+    'Then give the two or three figures that carry it, each with what it is compared with, then what it means for the reader, then the caveats that change how far it can be trusted.',
+    "Write every text the user reads (answer, clarification_question, assumptions, limitations, methodology, a plan's text and research_findings) so that such a reader understands it on the first reading: Lead with the conclusion in one or two sentences.",
+    'Write the way people talk: short sentences, everyday words, active verbs.',
+    'limitations: list of strings;',
+}
+S_ADDED = {
+    'A definition: "Net buy asing adalah selisih nilai beli dan jual investor asing pada satu saham dalam sehari, dan diperhatikan karena dana asing yang besar bisa ikut menggerakkan harga".',
+    'A question about what you can do: "Saya bisa membaca harga harian, beli dan jual investor asing, dan peringkat broker, lalu membandingkan saham atau menguji ide kamu".',
+    'An answer that reports an analysis result leads with the conclusion in one or two sentences, then gives the two or three figures that carry it, each with what it is compared with, then what it means for the reader, then the caveats that change how far it can be trusted.',
+    'An inconclusive test: "Belum bisa disimpulkan, karena lonjakan volume BBRI hanya terjadi {{finding.vol_spike.sample.effective|int}} kali dalam periode ini, terlalu sedikit untuk tahu apakah harganya cenderung naik sesudahnya.',
+    'Examples in Indonesian.',
+    "Keep the final answer focused and proportional to the user's question: a conversational reply in a few sentences, a definition or a fact in one paragraph, an analysis result within about two and a half thousand characters, and a table in it within ten rows unless the user asks for more (the full table stays in its released output).",
+    'Let the question set the shape of the answer: a conversational reply or a definition needs no headings or bold text.',
+    'Return conclusions and tool-supported findings;',
+    "Write every text the user reads (answer, clarification_question, assumptions, limitations, methodology, a plan's text and research_findings) so that such a reader understands it on the first reading.",
+    'Write the way people talk: short sentences, everyday words, active verbs, in paragraphs that flow.',
+    'add an assumption or a limitation only when it changes how the answer is read or how far it can be trusted.',
+    'limitations: list of strings (each empty unless rule fourteen needs an entry);',
+}
+REMOVED, ADDED = (REMOVED | (S_REMOVED - ADDED)) - S_ADDED, (ADDED - S_REMOVED) | (S_ADDED - REMOVED)
 # the reader section added about six percent (the budget was two percent over the pass-2 fixture); EXEC-Y Fase 3's
-# four sentences about half a percent more
-SIZE_BUDGET = 1.10
+# four sentences about half a percent more; EXEC-STYLE about two percent more
+SIZE_BUDGET = 1.12
 
 SECTIONS = ["GENERAL RULES", "TOOL USE", "TOOL RESULTS", "FINAL RESPONSE", "WRITING FOR THE READER", "DATA DISCOVERY", "DATA SOURCES",
             "DATA NEED", "MODES", "TIME BASIS", "NAMED-PERIOD RETURNS", "WEEKLY AND MONTHLY", "CONVERSATION REUSE",

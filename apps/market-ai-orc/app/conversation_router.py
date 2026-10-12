@@ -312,6 +312,9 @@ def context(record: dict[str, Any] | None, history: list[Any], pending_plan: dic
     return seen
 
 
+# EXEC-STYLE S1 (user decision 2026-10-12): a conversational, clarifying or factual step answers in conversational
+# prose; the order conclusion, figures, meaning, caveats is for answers that report an analysis result
+STYLE_NOTE = " Answer the way you would in a conversation: short prose, without headings or bold text."
 # The note each single-step class gives the analysis run (application context, not from the user).
 NOTES = {
     "CLARIFY": ("Application note (conversation router), not from the user: the user asks what an earlier result means. "
@@ -320,9 +323,9 @@ NOTES = {
                 "manuals; read the catalog for a column's meaning, unit or grain. A request to show or export an existing "
                 "table (the findings included, research_findings_table) is done with get_session_output or "
                 "export_result. No new data is extracted and nothing is computed in this turn; if the answer needs a "
-                "new calculation, say so and offer it."),
+                "new calculation, say so and offer it." + STYLE_NOTE),
     "CONVERSATIONAL": ("Application note (conversation router), not from the user: answer the user directly from the "
-                       "conversation and the method manuals. No data tools are needed."),
+                       "conversation and the method manuals. No data tools are needed." + STYLE_NOTE),
     "INSIGHT": ("Application note (conversation router), not from the user: the user asks why, or what stands out, "
                 "about an earlier result. Answer with a computed breakdown of the data and outputs this conversation "
                 "already used (the free_code guide's insight section: change between periods, top and bottom "
@@ -488,7 +491,7 @@ def first_route_path(route: str | None, caller_path: str | None) -> tuple[str, s
 NOTES["FACT"] = ("Application note (first-message router), not from the user: the user asks for a definition or a "
                  "fact. Answer from the data catalog, the method manuals and the web fact tool; no warehouse data is "
                  "extracted and nothing is computed in this turn. If the answer needs market data, say so and offer "
-                 "the analysis.")
+                 "the analysis." + STYLE_NOTE)
 
 
 # ---------------------------------------------------------------- ask back: the question, the choice, the notes

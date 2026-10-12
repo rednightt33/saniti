@@ -1,0 +1,10 @@
+{
+ "version": 4,
+ "date": "2026-10-12",
+ "name": "exec-style",
+ "decision": "Ok, yang adopsi dan sebagian --> masukan EXEC. (2026-10-12); go: ok",
+ "change": "EXEC-STYLE S1-S4: the reader section as prose, the conclusion-figures-meaning-caveats order only for answers that report an analysis result; rule 13 length tiers in words (conversational reply a few sentences, definition or fact one paragraph, analysis result about two and a half thousand characters); rule 14 and the answer contract keep assumptions and limitations for what changes how the answer is read or trusted; three short examples (chat, definition, inconclusive test) without a bold opener",
+ "prompt_chars": 38522,
+ "prompt_sha256": "58d6ec180d2feac3737b81c13f39aeab283e514ba5cf9bb14d35b7fb2bbebd38",
+ "schema_sha256": "48bceaa503bc5008b5d949b461b36c7c322017f50354b2138f48c5e02d2b1a03"
+}

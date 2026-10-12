@@ -63,21 +63,28 @@ HURDLE_STEPS = {
     "lookup_reference": "Pencarian data referensi", "export_result": "Ekspor tabel",
 }
 HURDLE_TOOL_STEP = "Satu langkah kerja"
-HURDLE_REFUSED = "{step} ditolak ({why})"
-HURDLE_FAILED = "{step} gagal dijalankan ({why})"
-HURDLE_GATE = "Pemeriksaan jawaban menolak draf ({why})"
-HURDLE_FORMAT = "Bentuk jawaban diminta ulang ({why})"
+HURDLE_REFUSED = "{step} ditolak{why}"
+HURDLE_FAILED = "{step} gagal dijalankan{why}"
+HURDLE_GATE = "Pemeriksaan jawaban menolak draf{why}"
+HURDLE_FORMAT = "Bentuk jawaban diminta ulang{why}"
+# a bare status says nothing the sentence does not already say: no reason is shown (Run A 2026-10-12: "(rejected)")
+HURDLE_BARE_STATUSES = frozenset({"REJECTED", "ERROR", "FAILED", "INCOMPLETE"})
 HURDLE_OVERCOME = ", lalu diperbaiki."
 HURDLE_OPEN = ", belum teratasi."
 
 
 def hurdle_text(stage: str, name: str | None, code: str | None, outcome: str | None, overcome: bool) -> str:
     """One hurdle in plain words: which step, why, and whether it was overcome."""
-    why = ", ".join(words(part.strip()) for part in str(code or name or "").split(",") if part.strip()) or words(outcome)
+    def reason(text: str) -> str:
+        return f" ({text})" if text else ""
+
+    parts = [part.strip() for part in str(code or name or "").split(",") if part.strip()]
+    why = reason(", ".join(words(part) for part in parts if part.upper() not in HURDLE_BARE_STATUSES)
+                 or ("" if parts else words(outcome)))
     if stage == "GATE":
-        line = HURDLE_GATE.format(why=words(name) if not code else why)
+        line = HURDLE_GATE.format(why=reason(words(name)) if not code else why)
     elif stage == "FORMAT":
-        line = HURDLE_FORMAT.format(why=words(name))
+        line = HURDLE_FORMAT.format(why=reason(words(name)))
     else:
         step = HURDLE_STEPS.get(str(name or ""), HURDLE_TOOL_STEP)
         line = (HURDLE_FAILED if outcome == "FAILED" else HURDLE_REFUSED).format(step=step, why=why)

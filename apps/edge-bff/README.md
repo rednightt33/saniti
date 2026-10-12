@@ -22,6 +22,8 @@ The page is edited as one HTML file and its API wiring is not locked to the view
 
 - The Details panel (`EdgeView.sources`) lists Orc's `execution.hurdles` as "Hambatan proses", in Orc's own words
   (EXEC-FRICTION, M142); nothing when there were none.
+- An answer's assumptions and limitations (`lists`) are folded under the answer as "Asumsi (n)" and "Batasan (n)"
+  (EXEC-STYLE S3); nothing when a list is empty.
 - `EdgeView.toView(envelope)` returns display-ready parts (status, meta, answer, clarification, pause, plan, findings,
   lists, methodology, artifacts; `EdgeView.sources` for the Details panel). Its `version` changes when a part changes
   shape. A field the view does not know yet still shows through the generic view, named from its key.

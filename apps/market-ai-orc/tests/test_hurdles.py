@@ -77,3 +77,12 @@ def test_a_run_without_refusals_has_no_hurdles() -> None:
                   final_response(ANSWER)], {"run_python": [{"status": "OK"}]})
     assert result.execution.hurdles is None
     assert "hurdles" not in result.execution.model_dump()
+
+
+def test_a_bare_status_is_not_shown_as_the_reason() -> None:
+    """Run A 2026-10-12: a lookup refused with only the status REJECTED read "ditolak (rejected)"."""
+    from app.user_texts import hurdle_text
+    assert hurdle_text("TOOL", "get_dimension_values", "REJECTED", "REFUSED", False) == \
+        "Satu langkah kerja ditolak, belum teratasi."
+    assert hurdle_text("TOOL", "submit_data_need_spec", "RELATIONSHIP_KEY_MISMATCH", "REFUSED", True) == \
+        "Permintaan data ditolak (kunci penggabungan tabel tidak sesuai), lalu diperbaiki."

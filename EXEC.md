@@ -2026,3 +2026,24 @@ balik; penolakan gerbang naik di run B; biaya melewati batas; langkah di luar re
 
 **Rollback:** redeploy deployment yang dicatat di fase 0 (orc, sandbox, EDGE); prompt kembali lewat
 `prompts/SYSTEM_PROMPT_HISTORY.md`; migrasi bersifat menambah (baris panduan v7 dan versi alat lama tetap ada).
+
+**Progres 2026-10-12:**
+- Fase 1 (`597b77f`) dan Fase 2 (`cbe1860`): deployment SUCCESS (detail `RAILWAY_CHANGELOG.md`).
+- Fase 3a, **Run A** (`ma-ab-style-20261012a`, prompt lama, orc `79f13a5e`): 4/4 selesai, biaya sekitar USD 0,110.
+  Pertanyaan 1 dan 2 lewat `AUTO` (router pesan pertama memilih CHAT dan FACT; `analysis_path` hanya menerima AUTO,
+  ANALYSIS, RESEARCH, MODE4), 3 dan 4 lewat ANALYSIS. Cek live: EXEC-JOINKEY lulus (permintaan data harga + net beli
+  asing lolos pada pengajuan pertama), EXEC-RELEASE lulus (satu run_python gagal, diulang, tabel yang dirilis dari run
+  yang berhasil), EXEC-FRICTION lulus (hambatan sama dengan log). Temuan: penolakan dengan status polos REJECTED tertulis
+  "ditolak (rejected)"; diperbaiki di Fase 3b (status polos tanpa alasan).
+
+  | Run A | Karakter | Huruf tebal | Pembuka tebal | Baris tabel | Asumsi | Batasan |
+  |---|---|---|---|---|---|---|
+  | 1 obrolan (CHAT) | 2.301 | 15 | tidak | 0 | 2 | 3 |
+  | 2 fakta (FACT) | 2.663 | 5 | ya | 6 | 3 | 1 |
+  | 3 analisis | 1.231 | 1 | ya | 8 | 3 | 7 |
+  | 4 harga + net beli asing | 1.995 | 1 | ya | 5 | 6 | 10 |
+
+  Penolakan gerbang Run A: 2 (perbaikan angka tanpa rujukan di 3 dan 4), keduanya teratasi.
+- Fase 3b: prompt +1,93% terhadap prompt saat ini (`SIZE_BUDGET` 1,10 → 1,12 terhadap fixture pass 2; batas konteks
+  tes `test_orchestrator.py` 20.600 → 20.800 token seperti perubahan prompt sebelumnya), snapshot `v004 exec-style`,
+  `AI_ROUTER.md` diregenerasi. Tes: orc 1.632 lulus, EDGE 62 lulus.

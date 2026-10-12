@@ -11003,7 +11003,8 @@ function PauseCard({pause, enabled, act}) {
 function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
  const v=EdgeView.toView(run.raw,{domainStatus:run.domainStatus,planIndex}), claims=new Map(v.claims);
  const items=values=>element("ul",{className:"edge-list"},values.map(x=>element("li",null,typeof x==="string"?mdInline(x,{claims}):DataValue({value:x}))));
- const list=part=>element("section",{className:"content-block edge-block"},element(SectionTitle,null,part.label),items(part.items));
+ // EXEC-STYLE S3: assumptions and limitations sit folded under the answer, with their count
+ const list=part=>element("details",{key:part.label,className:"content-block edge-block edge-more edge-notes"},element("summary",null,`${part.label} (${part.items.length})`),items(part.items));
  const notes=v.plan&&[v.plan.notes.assumptions,v.plan.notes.limitations].some(part=>part.items.length)?element("div",{className:"edge-plan-notes"},
    [v.plan.notes.assumptions,v.plan.notes.limitations].map(part=>part.items.length>0&&element("div",null,element("span",{className:"edge-eyebrow"},part.label),items(part.items)))):null;
  return element("article",{className:"result",id:run.id+"-response",tabIndex:-1},

@@ -1,13 +1,15 @@
 {
- "prefix": "ma-plain-20261008a",
- "workers": 3,
+ "prefix": "ma-ab-style-20261012a",
+ "workers": 2,
  "audit_wait_seconds": 0,
  "items": [
-  {"id": "g4_hypothesis_bbca", "analysis_path": "RESEARCH", "message": "Apakah hari dengan net beli asing positif di BBCA diikuti return 1 hari lebih tinggi daripada hari lainnya?",
-   "expect": "M125 C after: plan and findings answer in plain Indonesian, no table/column/code names; same question as gtA and golden_c"},
-  {"id": "g11_plan_turns", "turns": ["Apakah saham bank yang turun 3% atau lebih dalam sehari cenderung naik dalam 5 hari berikutnya? Buatkan rencana ujinya.", "Setuju, jalankan rencana ujinya."],
-   "expect": "M125 C after: plan confirmation (gt_f g11 had 20 internal names) and the answer read plainly"},
-  {"id": "g13_fact_bumn", "message": "Apakah BBCA dan BRIS termasuk bank BUMN? Sebutkan sumbernya.",
-   "expect": "M125 C after: fact answer with sources, no internal names (qa had 8 and 7)"}
+  {"id": "ab1_chat", "message": "Apa saja yang bisa kamu bantu soal data saham di sini?",
+   "expect": "EXEC-IMPL-1012 Run A (old prompt): AUTO, first-message router expected CHAT"},
+  {"id": "ab2_fact", "message": "Apa arti net buy asing dan kenapa investor memperhatikannya?",
+   "expect": "EXEC-IMPL-1012 Run A (old prompt): AUTO, first-message router expected FACT"},
+  {"id": "ab3_analysis", "analysis_path": "ANALYSIS", "message": "Bandingkan return BBCA dan BBRI selama sebulan terakhir data yang tersedia.",
+   "expect": "EXEC-IMPL-1012 Run A (old prompt): ANALYSIS"},
+  {"id": "ab4_price_broker", "analysis_path": "ANALYSIS", "message": "Bagaimana harga BBRI bergerak di hari-hari net buy asingnya besar, sebulan terakhir data?",
+   "expect": "EXEC-IMPL-1012 Run A (old prompt): ANALYSIS; live check EXEC-JOINKEY (price-broker relationship #23 passes the first revision), EXEC-FRICTION (hurdles match the logs)"}
  ]
 }
