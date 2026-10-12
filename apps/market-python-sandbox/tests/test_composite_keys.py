@@ -273,3 +273,34 @@ def test_preaggregation_is_required_then_matches_the_reference_totals() -> None:
     assert {(r.ticker, r.market_board, r.date): r.net_value_1d for r in grouped.itertuples()} == reference
     joined = saniti.join(31, grouped, stock)
     assert len(joined) == 2 and joined["net_value_1d"].sum() == flows()["net_value_1d"].sum()
+
+
+# ---------------------------------------------------------------- G25: the time pair and the expected key pairs
+
+def test_the_catalogs_own_time_pair_under_exact_date_is_dropped_with_a_warning() -> None:
+    with_time = five_keys(left_columns=["Date", *BS_KEYS], right_columns=["date", *F02_KEYS])
+    outcome, plain = run(broker_spec(with_time)), run(broker_spec(five_keys()))
+    assert outcome.status == "APPROVED", outcome.issues
+    assert [w["code"] for w in outcome.warnings].count("RELATIONSHIP_TIME_KEY_DROPPED") == 1
+    assert data_contract_sha256(outcome.approved) == data_contract_sha256(plain.approved)
+    assert outcome.approved["relationships"] == plain.approved["relationships"]
+
+
+def test_a_key_mismatch_names_the_expected_entity_pairs() -> None:
+    outcome = run(broker_spec(five_keys(left_columns=BS_KEYS[:3], right_columns=F02_KEYS[:3])))
+    issue = next(i for i in outcome.issues if i["code"] == "RELATIONSHIP_KEY_MISMATCH")
+    assert issue["expected_value"] == ("Symbol = ticker, Broker = broker, Investor Type = investor_type, "
+                                       "Market Board = market_board")
+    assert "time" in issue["note"] and "Date" not in issue["expected_value"]
+
+
+def test_a_time_pair_that_is_not_the_catalogs_is_still_refused() -> None:
+    wrong = five_keys(left_columns=["Date", *BS_KEYS], right_columns=["broker", *F02_KEYS])
+    outcome = run(broker_spec(wrong))
+    assert outcome.status == "REVISION_REQUIRED" and "RELATIONSHIP_KEY_MISMATCH" in codes(outcome)
+
+
+def test_the_time_pair_under_current_state_is_still_refused_with_the_expected_pairs() -> None:
+    outcome = run(ytd_spec(relationships=[current_state(left_column="date")]))
+    issue = next(i for i in outcome.issues if i["code"] == "RELATIONSHIP_KEY_MISMATCH")
+    assert "expected_value" in issue and "date" not in issue["expected_value"]

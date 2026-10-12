@@ -90,7 +90,11 @@ current flow; while the flag is off, its routes answer 404 and the service keeps
   - There is no formula, calculation, indicator, method, ranking or output grain.
 - The DataNeedValidator checks four layers: schema, catalog binding (Governor catalog contract), cross-request
   relationships, and planning feasibility. It answers `APPROVED`, `REVISION_REQUIRED` or `CATALOG_UNAVAILABLE`.
-  Every issue is `{data_request_id, code, field_path, rejected_value}`; the validator never suggests a replacement.
+  Every issue is `{data_request_id, code, field_path, rejected_value}`. The validator never chooses other data
+  (tables, scope, periods); only where the catalog fixes the one valid form does an issue add `expected_value` and a
+  `note`: a `RELATIONSHIP_KEY_MISMATCH` names the entity key pairs (G25). A relationship that lists the catalog's own
+  time pair as a key under EXACT_DATE or AS_OF is accepted with warning `RELATIONSHIP_TIME_KEY_DROPPED`: it is the same
+  join, and the approved contract always uses the catalog's pairs.
 - Revisions: the first revision of a request group is 1 and each next one is the highest judged revision + 1. An
   identical resubmission replays its answer. A different document under a used revision, or a skipped number, is
   `REVISION_CONFLICT`. A catalog outage or a conflict does not use up a revision number. Every submission is

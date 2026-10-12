@@ -2030,7 +2030,9 @@ it on 13 comparable questions, no cache hit, and two extra details calls after g
     `completeness` per table (`columns_returned`, `columns_total`, `complete`); when cut, `incomplete: true` and
     `recovery_calls` with the exact arguments that read the rest.
   - `RELATIONSHIPS` adds `supported_join_semantics`, `left_time_column`, `right_time_column`,
-    `effective_from_column` and `effective_to_column`.
+    `effective_from_column`, `effective_to_column` and `request_key_columns` (`left` / `right`: the catalog's key
+    pairs without the pair of time columns, the form a data need's `left_columns` / `right_columns` take; the
+    sandbox's DataNeedValidator applies the same rule, `tests/test_entity_key_pairs.py`; G25).
   - A NULL catalog value is returned as `null` and `null_meaning` says it is not recorded: a null
     `resample_aggregation` is never a default `LAST`. Where the catalog has no such rules at all:
     `resample_rules_recorded: false` or `join_semantics_recorded: false`.

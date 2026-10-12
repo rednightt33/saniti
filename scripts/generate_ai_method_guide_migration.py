@@ -37,13 +37,16 @@ VERSION_CHANGES = {
     7: "EXEC.md EXEC-W wave B / EXEC-Y Fase 4 (M119, go 2026-10-09): a session loads the tables it\n-- emitted by "
        "name, keeps working tables (save_table / load_table), and event_study and backtest name\n-- every table they "
        "emitted",
+    8: "EXEC.md EXEC-RELEASE (M139 remainder, go 2026-10-12 \"ok\"): a table emitted by a run_python\n-- that "
+       "failed is discarded and never released; emit it again in a run that succeeds",
 }
 VERSION_TARGETS = {2: ROOT / "database/migrations/20261003_002_ai_method_guides_v2.sql",
                    3: ROOT / "database/migrations/20261003_004_ai_method_guides_v3.sql",
                    4: ROOT / "database/migrations/20261003_010_ai_method_guides_v4.sql",
                    5: ROOT / "database/migrations/20261005_002_ai_method_guides_v5.sql",
                    6: ROOT / "database/migrations/20261006_002_ai_method_guides_v6.sql",
-                   7: ROOT / "database/migrations/20261009_005_ai_method_guides_v7.sql"}
+                   7: ROOT / "database/migrations/20261009_005_ai_method_guides_v7.sql",
+                   8: ROOT / "database/migrations/20261012_006_ai_method_guides_v8.sql"}
 COLUMNS = [
     ("name", "text", "Guide name (free_code, event_study, hypothesis_plan, multi_angle or a session helper's guide)."),
     ("guides_version", "integer", "Version of the method guides content."),

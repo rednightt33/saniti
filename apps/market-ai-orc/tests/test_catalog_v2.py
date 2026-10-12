@@ -179,6 +179,12 @@ def test_relationships_carry_the_recorded_join_semantics(migrated_db: str) -> No
     assert "join_semantics_note" in result["sections"]["RELATIONSHIPS"]
     # visibility still applies: the disallowed and the denied relationship stay hidden
     assert len(entries) == 2
+    # G25: the data need's key columns, the entity keys without the time pair
+    for entry in entries:
+        keys = entry["request_key_columns"]
+        assert len(keys["left"]) == len(keys["right"]) == len(entry["left_columns"]) - 1
+        assert entry["left_time_column"] not in keys["left"] and entry["right_time_column"] not in keys["right"]
+    assert "request_key_columns" in result["sections"]["RELATIONSHIPS"]["join_semantics_note"]
 
 
 def test_a_catalog_without_the_join_semantics_columns_says_so_instead_of_inventing_them(legacy_db: str) -> None:

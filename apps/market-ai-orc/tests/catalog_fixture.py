@@ -233,6 +233,8 @@ def _value_expression(name: str, data_type: str, nullable: bool, key: list[str])
         return "(g * 0.125)::double precision"
     if data_type == "timestamp with time zone":
         return "timestamptz '2026-09-22 00:00:00+00'"
+    if data_type == "boolean":
+        return "false"
     raise AssertionError(f"unhandled type {data_type}")
 
 

@@ -882,6 +882,14 @@ def _columns_v2(rows: list[dict[str, Any]], tables: list[str], column_filter: li
     return section
 
 
+def entity_key_pairs(left_columns: list[str], right_columns: list[str], left_time_column: str | None,
+                     right_time_column: str | None) -> list[tuple[str, str]]:
+    """The key pairs a data need names: every catalog pair except the pair of time columns (G25). The sandbox's
+    DataNeedValidator applies the same rule (app/data_need.py entity_key_pairs; tests compare both)."""
+    return [(lc, rc) for lc, rc in zip(left_columns, right_columns)
+            if not (lc == left_time_column and rc == right_time_column)]
+
+
 def _relationships_v2(rows: list[dict[str, Any]], budget: int) -> dict[str, Any]:
     total = int(rows[0]["total_matching"]) if rows else 0
     recorded = any(row.get("join_semantics_recorded") for row in rows)
@@ -891,6 +899,9 @@ def _relationships_v2(rows: list[dict[str, Any]], budget: int) -> dict[str, Any]
         if recorded:
             entry["supported_join_semantics"] = list(row.get("supported_join_semantics") or [])
             entry.update({name: row.get(name) for name in JOIN_FIELDS_V2})
+            pairs = entity_key_pairs(list(row.get("left_columns") or []), list(row.get("right_columns") or []),
+                                     row.get("left_time_column"), row.get("right_time_column"))
+            entry["request_key_columns"] = {"left": [p[0] for p in pairs], "right": [p[1] for p in pairs]}
         entries.append(entry)
     kept, _ = _fit(entries, budget)
     result: dict[str, Any] = {
@@ -903,7 +914,8 @@ def _relationships_v2(rows: list[dict[str, Any]], budget: int) -> dict[str, Any]
         result["join_semantics_note"] = (
             "A data need may use only a relationship's supported_join_semantics (empty: not joinable). EXACT_DATE and "
             "AS_OF use left_time_column/right_time_column; EFFECTIVE_DATED uses effective_from_column/"
-            "effective_to_column. A null field is not recorded in the catalog, not a default.")
+            "effective_to_column. A null field is not recorded in the catalog, not a default. A data need's key "
+            "columns are request_key_columns (the entity keys); the time columns are never listed as keys.")
     elif rows:
         result["join_semantics_recorded"] = False
     if len(kept) < total:

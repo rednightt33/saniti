@@ -5,7 +5,8 @@ expression tree, time ranges, frequencies, buffers, ordering) and the catalog re
 no formula, calculation, indicator, method, ranking or output grain: all analytical logic is written later in a
 sandbox session. The sandbox's DataNeedValidator is authoritative (apps/market-python-sandbox/app/data_need.py) and
 answers APPROVED, REVISION_REQUIRED or CATALOG_UNAVAILABLE with structured issues
-{data_request_id, code, field_path, rejected_value} and never suggests a replacement.
+{data_request_id, code, field_path, rejected_value}. It never chooses other data (tables, scope, periods); an issue
+names expected_value only where the catalog fixes the one valid form (relationship key pairs, G25).
 
 Model-facing schema: strict tools inline every nested model and cannot express recursion, so the scope tree is
 unrolled to the validator's maximum depth of 4 (ScopeNode -> ScopeNode2 -> ScopeNode3 -> ScopePredicate). The same
@@ -177,8 +178,9 @@ class Relationship(Strict):
     effective_to_column: str | None = Field(description="EFFECTIVE_DATED only: catalog column; else null.")
 
 
-KEY_COLUMNS_DESCRIPTION = ("Every entity key column of the catalog relationship on this side, in the order of its "
-                           "left_columns / right_columns without the time column (a composite key such as ticker, "
+KEY_COLUMNS_DESCRIPTION = ("Every entity key column of the catalog relationship on this side (the catalog's "
+                           "request_key_columns), in the order of its left_columns / right_columns without the time "
+                           "column (a composite key such as ticker, "
                            "broker, investor_type and market_board names all of them).")
 
 
@@ -448,8 +450,9 @@ SUBMIT_DESCRIPTION = (
     "request on the reference table with its own scope, joined by an INNER relationship; never a manual ticker "
     "list. The validator answers APPROVED (need_id; next: prepare the data bundle), REVISION_REQUIRED (issues with "
     "data_request_id, code, field_path and rejected_value; fix each and resubmit with revision + 1, same "
-    "request_group_id and data_request_ids), or CATALOG_UNAVAILABLE (stop and report temporarily). It never suggests "
-    "a replacement: read the catalog again instead of guessing. mode RESEARCH also needs research_governance "
+    "request_group_id and data_request_ids), or CATALOG_UNAVAILABLE (stop and report temporarily). It never chooses "
+    "other data for you: read the catalog again instead of guessing; only where the catalog fixes the one valid form "
+    "(relationship key pairs) does an issue name expected_value. mode RESEARCH also needs research_governance "
     "(hypothesis, objective, the condition, outcome and baseline as plain-language declarations, candidate_count, "
     "pairwise_comparisons, multiple_testing_policy, optional holdout range and minimum sample); the Research "
     "Governor answers APPROVED, REPLAN_REQUIRED or REJECTED with a reason code. When research needs an approved "

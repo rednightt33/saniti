@@ -1,5 +1,23 @@
 # Database changelog
 
+## 2026-10-12 — EXEC-IMPL-1012 Fase 1: method guides v8 and Tool_Catalog round R on dev
+
+User go 2026-10-12 ("ok", `EXEC.md` EXEC-IMPL-1012, EXEC-JOINKEY and EXEC-RELEASE).
+- **`20261012_006_ai_method_guides_v8.sql`** (generated, `scripts/generate_ai_method_guide_migration.py`): nine
+  `AI_method_guide` rows of guides version 8 (earlier versions kept): a table emitted by a run_python that failed is
+  discarded and never released; emit it again in a run that succeeds (M139 remainder).
+- **`20261012_007_round_r_tool_catalog.sql`** (generated, round `round_r`): four inactive `Tool_Catalog` rows,
+  `submit_data_need_spec` v12, `check_data_feasibility` v7, `check_research_feasibility` v6 (a relationship's key
+  columns are the catalog's `request_key_columns`; an issue names `expected_value` where the catalog fixes the one
+  valid form; G25) and `run_python` v7 (`discarded_outputs`; M139), copied from the previous versions with the
+  code's input schema and purpose.
+- **Part A check:** model-facing metadata; Part A does not apply.
+- Applied by the temporary service `mmig-job` (`e69b0117`, deleted afterwards, read back absent): DRYRUN
+  `5bf2ef8b` rolled back (read back: no version 8 guide, no new tool row); APPLY `d82ed879` committed (sha256
+  `2fd44178…`, `c04f103a…`). Read back: guides version 8 with 9 rows and one guides hash next to version 7;
+  `submit_data_need_spec` v12, `check_data_feasibility` v7, `check_research_feasibility` v6, `run_python` v7, all
+  inactive. Checksums appended to `database/migrations/APPLIED.sha256`.
+
 ## 2026-10-12 — Feature04 compact Telegram monitor and bounded retry
 
 - User authorized execution with `"Okay gas."` after confirming the Feature04-only

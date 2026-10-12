@@ -113,6 +113,8 @@ def _value(table: str, name: str, kind: str) -> str:
         return f"(1000 + abs({seed}) % 9000 + (abs({seed}) % 100) / 100.0)::{kind}"
     if kind in ("smallint", "integer", "bigint"):
         return f"(abs({seed}) % 20)::{kind}"
+    if kind == "boolean":
+        return "false"
     if kind == "date":
         return "DATE '2026-09-01'"
     if kind.startswith("timestamp"):

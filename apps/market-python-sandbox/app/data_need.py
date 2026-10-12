@@ -169,13 +169,19 @@ class Issues:
     def __init__(self) -> None:
         self.items: list[dict[str, Any]] = []
 
-    def add(self, request_id: str | None, code: str, path: str, value: Any) -> None:
+    def add(self, request_id: str | None, code: str, path: str, value: Any, *, expected: str | None = None,
+            note: str | None = None) -> None:
+        """expected_value only where the catalog fixes the one valid form (G25); never a choice of other data."""
         if isinstance(value, (dict, list)):
             rendered = canonical_json(value)
             value = rendered if len(rendered) <= 200 else rendered[:197] + "..."
         elif isinstance(value, str) and len(value) > 200:
             value = value[:197] + "..."
         entry = {"data_request_id": request_id, "code": code, "field_path": path, "rejected_value": value}
+        if expected is not None:
+            entry["expected_value"] = expected
+        if note is not None:
+            entry["note"] = note
         if entry not in self.items:
             self.items.append(entry)
 
@@ -526,6 +532,19 @@ def relationship_keys(rel: dict[str, Any]) -> list[tuple[str, str]]:
     if isinstance(rel.get("left_columns"), list):
         return list(zip(rel["left_columns"], rel.get("right_columns") or []))
     return [(rel["left_column"], rel["right_column"])]
+
+
+def entity_key_pairs(left_columns: list[str], right_columns: list[str], left_time_column: str | None,
+                     right_time_column: str | None) -> list[tuple[str, str]]:
+    """The key pairs a data need names for a catalog relationship: every catalog pair except the pair of time columns,
+    which EXACT_DATE and AS_OF match through left_time_column / right_time_column (G25). market-ai-orc's catalog shows
+    the same pairs as request_key_columns (its tests compare both)."""
+    return [(lc, rc) for lc, rc in zip(left_columns, right_columns)
+            if not (lc == left_time_column and rc == right_time_column)]
+
+
+KEY_NOTE = ("A data need names the entity key pairs only; EXACT_DATE and AS_OF pair the time columns through "
+            "left_time_column / right_time_column.")
 
 
 def key_fields(pairs: list[tuple[str, str]]) -> dict[str, Any]:
@@ -942,15 +961,25 @@ def cross_request(spec: dict[str, Any], contract: dict[str, Any], issues: Issues
             (entry["right_columns"], entry["left_columns"])
         ltime, rtime = (entry.get("left_time_column"), entry.get("right_time_column")) if forward else \
             (entry.get("right_time_column"), entry.get("left_time_column"))
-        pairs = [(lc, rc) for lc, rc in zip(lcols, rcols) if not (lc == ltime and rc == rtime)]
+        pairs = entity_key_pairs(lcols, rcols, ltime, rtime)
         requested = relationship_keys(rel)
         if sorted(requested) != sorted(pairs):
-            # every entity key of the catalog relationship: a missing one would mix partitions (Domestic and Foreign,
-            # Regular and Nego rows), an extra one is not a documented key
-            field = "left_columns" if isinstance(rel.get("left_columns"), list) else "left_column"
-            issues.add(rid, "RELATIONSHIP_KEY_MISMATCH", f"{path}.{field}",
-                       ", ".join(f"{a} = {b}" for a, b in requested))
-            continue
+            if rel["join_semantics"] in ("EXACT_DATE", "AS_OF") and ltime and rtime \
+                    and sorted(requested) == sorted(pairs + [(ltime, rtime)]):
+                # G25 fix 3: the catalog's own time pair listed as a key means the same join as without it; the
+                # approved contract uses the catalog pairs (approved_contract), so nothing else changes
+                warnings.append({"code": "RELATIONSHIP_TIME_KEY_DROPPED", "relationship_id": rel["relationship_id"],
+                                 "data_request_id": rid,
+                                 "message": f"The time pair {ltime} = {rtime} was dropped from the key pairs. "
+                                            + KEY_NOTE})
+            else:
+                # every entity key of the catalog relationship: a missing one would mix partitions (Domestic and
+                # Foreign, Regular and Nego rows), an extra one is not a documented key
+                field = "left_columns" if isinstance(rel.get("left_columns"), list) else "left_column"
+                issues.add(rid, "RELATIONSHIP_KEY_MISMATCH", f"{path}.{field}",
+                           ", ".join(f"{a} = {b}" for a, b in requested),
+                           expected=", ".join(f"{a} = {b}" for a, b in pairs), note=KEY_NOTE)
+                continue
         semantics = rel["join_semantics"]
         left_timed = tables.get(left["source_table"], {}).get("time_column")
         if semantics in ("AS_OF", "EFFECTIVE_DATED") and not forward:

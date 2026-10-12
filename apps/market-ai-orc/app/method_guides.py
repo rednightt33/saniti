@@ -21,7 +21,7 @@ import hashlib
 import json
 from typing import Any
 
-GUIDES_VERSION = 7  # 2 (2026-10-02, HIGH ALERT): output definitions, event flow, approved success rule; 3 (2026-10-03, P26): thresholds with units, the approved outcome unit; 4 (2026-10-03, D6): base tables for claims, get_evidence; 5 (2026-10-05, P32/P33): counts over the approved ranges (in_period), activity z-scores without the current observation, backtest; 6 (2026-10-06, EXEC-E): get_evidence removed, cited figures by address; 7 (2026-10-09, M119): the session's own tables by name, working tables, the tables each helper emitted
+GUIDES_VERSION = 8  # 2 (2026-10-02, HIGH ALERT): output definitions, event flow, approved success rule; 3 (2026-10-03, P26): thresholds with units, the approved outcome unit; 4 (2026-10-03, D6): base tables for claims, get_evidence; 5 (2026-10-05, P32/P33): counts over the approved ranges (in_period), activity z-scores without the current observation, backtest; 6 (2026-10-06, EXEC-E): get_evidence removed, cited figures by address; 7 (2026-10-09, M119): the session's own tables by name, working tables, the tables each helper emitted; 8 (2026-10-12, EXEC-RELEASE): a failed run_python discards its tables
 
 # How the backend checks a result (ERRORS_AND_SOLUTIONS S23), from weakest to strongest.
 VERIFICATION_LEVELS = {
@@ -69,7 +69,9 @@ GUIDES: list[dict[str, Any]] = [
                    "A table of an earlier result is loaded with load_output(output_id) (carried() lists them with "
                    "their labels); a figure built on it is never better checked than its label.",
                    "A table this session emitted in an earlier run_python is loaded the same way, by output_id or "
-                   "name (label NOT_RELEASED until complete_analysis releases it). A frame needed again later is "
+                   "name (label NOT_RELEASED until complete_analysis releases it). A table emitted by a run_python that "
+                   "failed is discarded, never released: emit it again in a run that succeeds. A frame needed again "
+                   "later is "
                    "kept with save_table(name, frame) and read with load_table(name): working tables share the "
                    "session's working_table_bytes, are never released and never cited; emit_table what you cite.",
                    "complete_analysis needs every approved request and range read in a successful execution and at "

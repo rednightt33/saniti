@@ -33,8 +33,11 @@ registering the new versions of the tools whose contract changed in that round.
   group is against the source table; EXEC-Y Fase 3).
 - round_p (20261009_004, applied): export_result v4 (source_columns: the source column of each copied column, so a renamed
   column keeps its meaning and its count; live check of EXEC-Y Fase 3).
-- round_q (20261009_006): run_python v6 (M119: a session loads the tables it emitted by output_id or name, and
+- round_q (20261009_006, applied): run_python v6 (M119: a session loads the tables it emitted by output_id or name, and
   keeps working tables with save_table / load_table; EXEC-Y Fase 4).
+- round_r (20261012_007): submit_data_need_spec v12 (request_key_columns, expected_value, the time pair dropped under
+  EXACT_DATE / AS_OF; G25), check_data_feasibility v7 and check_research_feasibility v6 (the same key-column
+  description) and run_python v7 (discarded_outputs of a failed run are never released; M139).
 
 Registered from the code with every switch of the dev environment on (the registry of scripts/generate_ai_tools_doc.py,
 one source for both). An applied migration is frozen (database/migrations/APPLIED.sha256); market-ai-orc's
@@ -370,8 +373,27 @@ ROUNDS = {
         "limits": {"working_tables": "PY_SANDBOX_WORKING_TABLE_BYTES, default half of the session's intermediate "
                                      "disk; a table above the quota is refused and nothing is written"},
     },
+    "round_r": {
+        "target": ROOT / "database/migrations/20261012_007_round_r_tool_catalog.sql",
+        "versions": {"submit_data_need_spec": ("v11", "v12"), "check_data_feasibility": ("v6", "v7"),
+                     "check_research_feasibility": ("v5", "v6"), "run_python": ("v6", "v7")},
+        "contracts": {"submit_data_need_spec": ("purpose", "expected_value"),
+                      "check_data_feasibility": ("input_schema", "request_key_columns"),
+                      "check_research_feasibility": ("input_schema", "request_key_columns"),
+                      "run_python": ("purpose", "discarded_outputs")},
+        "title": "G25 key pairs and M139 discarded tables",
+        "header": "EXEC.md EXEC-JOINKEY and EXEC-RELEASE (EXEC-IMPL-1012, go 2026-10-12 \"ok\")",
+        "design": "EXEC.md EXEC-JOINKEY, EXEC-RELEASE; ERRORS_AND_SOLUTIONS.md G25, M139",
+        "limits_design": "EXEC.md EXEC-JOINKEY, EXEC-RELEASE; ERRORS_AND_SOLUTIONS.md G25, M139",
+        "summary": ["submit_data_need_spec v12: a relationship's key columns are the catalog's request_key_columns (the",
+                    "entity keys, never the time columns); a RELATIONSHIP_KEY_MISMATCH names expected_value, and the",
+                    "catalog's own time pair listed under EXACT_DATE or AS_OF is dropped with a warning (G25).",
+                    "check_data_feasibility v7 and check_research_feasibility v6: the same key-column description.",
+                    "run_python v7: the tables a failed run emitted are discarded_outputs, never released (M139)."],
+        "limits": {},
+    },
 }
-NEWEST = "round_q"
+NEWEST = "round_r"
 
 
 def _tools_doc():
