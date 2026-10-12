@@ -50,6 +50,8 @@ gabungkan ya", pilihan "File baru EXEC.md"). Pekerjaan yang disetujui tetapi bel
 
 ## Ringkasan
 
+**Menunggu "go" (2026-10-12):** EXEC-JOINKEY (G25), EXEC-RELEASE (sisa M139) dan EXEC-FRICTION (P0, M142).
+
 **Berjalan (2026-10-08):** EXEC-X (M124 + M125 A/B, tampilan jawaban EDGE). Dibangun di cabang
 `claude/code-session-2k3oeg` (HTML user sebagai sumber utama, API dipisah dari tampilan, teks backend bahasa biasa);
 uji lulus (orc 1.563, EDGE 46). Belum di `main`, belum deploy: menunggu OK user atas pratinjau.
@@ -1870,3 +1872,58 @@ flow, price cron schedules, formulas, and Railway topology stay unchanged.
 `20261012_004_feature04_telegram_monitor.sql` passed rollback rehearsal and live readback;
 68 relevant tests passed. Git/Railway exact deployment IDs and temporary-runner cleanup are
 recorded in `verification/feature04/TELEGRAM_MONITOR.md` after rollout.
+
+### EXEC-JOINKEY: kunci gabungan hanya entitas, kolom tanggal tidak ikut (G25)
+
+**Keputusan user 2026-10-12:** "kuncingabungan hanya entitas, kolom tanggal tidak ikut —> yes pls fix sesuai
+rekomendasimu masukan exec". Status: **menunggu go**. Bukti: run `edge_87c8c408…-m4n` (2026-10-09 10:24, orc
+`540227e6`), ERRORS G25.
+- **Masalah:** bagian RELATIONSHIPS katalog menampilkan relasi #23 dengan `left_columns`/`right_columns`
+  `[ticker, date]` dan `join_rule` "left_columns[i] joins right_columns[i]", sedangkan `submit_data_need_spec` (v2,
+  `AI_ENABLE_COMPOSITE_KEYS=true`) meminta pasangan kunci entitas **tanpa** kolom waktu (deskripsi field). Model menyalin
+  katalog; validator sandbox menolak `RELATIONSHIP_KEY_MISMATCH` dengan `rejected_value` saja, tanpa nilai yang benar.
+- **Perbaikan 1 (sandbox, `app/data_need.py`):** isu `RELATIONSHIP_KEY_MISMATCH` pada pasangan kunci membawa
+  `expected_value` (contoh `"ticker = ticker"`) dan satu kalimat sebab (kolom waktu diterapkan oleh `join_semantics`,
+  bukan kunci). `Issues.add` menerima `expected` opsional; kode isu dan aturan validasi tidak berubah.
+- **Perbaikan 2 (orc, `app/tools/catalog.py`):** tiap entri RELATIONSHIPS mendapat `request_key_columns`
+  (`left`/`right`: pasangan kunci tanpa pasangan waktu, dihitung dengan aturan yang sama dengan validator) dan
+  `join_rule` menyebut bahwa data need memakai `request_key_columns`, sedangkan waktu dipasangkan lewat
+  `left_time_column`/`right_time_column`. Kolom katalog asli tetap ditampilkan.
+- **Tes:** sandbox: relasi dengan kolom waktu di kunci ditolak dengan `expected_value` yang benar, relasi yang benar
+  tetap lolos; orc: `request_key_columns` sama dengan hasil fungsi validator untuk semua relasi fixture (satu fungsi
+  bersama atau tes kontrak, aturan M68); suite orc dan sandbox lengkap.
+- **Dokumen:** `AI_TOOLS.md` bila deskripsi alat berubah; README orc (Catalog discovery) dan sandbox; ERRORS G25.
+- **Deploy dan cek live:** sandbox dan orc (setelah konfirmasi push); satu run dev yang menggabungkan harga dengan
+  broker: data need lolos pada revisi pertama tanpa `RELATIONSHIP_KEY_MISMATCH`.
+
+### EXEC-RELEASE: hasil baru sah setelah analisis ditutup (M139 sisa)
+
+**Keputusan user 2026-10-12:** "hasil baru sah setelah analisis ditutup —> yes pls fix seusai rekomendasi mu masukan
+exec". Status: **menunggu go**.
+- **Sudah ada (EXEC-Z, deploy `977b525`, 2026-10-09):** `run_python` yang gagal menaruh tabelnya di
+  `discarded_outputs` dengan catatan bahwa `complete_analysis` tidak akan merilisnya.
+- **Sisa yang diperbaiki:** panduan metode (`app/method_guides.py`, identik di orc dan sandbox, v7) masih menulis
+  "label NOT_RELEASED until complete_analysis releases it" tanpa membedakan eksekusi gagal. Kalimat ini sama dengan
+  anggapan model di run `edge_87c8c408…` ("not released until completion"). Ubah menjadi: tabel dari eksekusi yang
+  berhasil berlabel NOT_RELEASED sampai `complete_analysis`; tabel dari eksekusi yang gagal dibuang dan tidak pernah
+  dirilis, harus di-emit ulang di eksekusi yang berhasil.
+- **Versi panduan:** `GUIDES_VERSION` 8, kedua salinan file identik, migrasi `AI_method_guide` v8 (pola
+  `20261009_005_ai_method_guides_v7.sql`), sandbox dan orc di-deploy bersama karena hash panduan harus sama.
+- **Tes:** tes identik dua salinan dan hash; tes sandbox M139 yang ada tetap lulus; `AI_TOOLS.md` diregenerasi.
+- **Cek live (sekaligus cek live M139 yang tertunda):** satu run dev dengan eksekusi kode yang gagal setelah emit tabel:
+  model membuat ulang tabel di eksekusi berikutnya sebelum `complete_analysis`, tanpa putaran tambahan.
+
+### EXEC-FRICTION: hambatan proses tampil di EDGE dari data backend (P0, M142)
+
+**Keputusan user 2026-10-12:** "P0 oke, masukan exec". Status: **menunggu go**. Bukti: run `edge_01fccf…-m4q` (M142):
+laporan diri AI menambah dua hambatan yang tidak terjadi dan melewatkan empat penolakan gerbang yang terjadi.
+- **Tujuan:** pengguna melihat hambatan sebuah jawaban dari catatan backend, bukan dari cerita AI.
+- **Orc:** `execution` mendapat `hurdles` (dihilangkan bila kosong): daftar hambatan run ini, satu butir per penolakan
+  alat atau gerbang yang sudah dicatat run memory (langkah, jenis, kode, kalimat bahasa Indonesia dari
+  `app/user_texts.py`, diperbaiki atau tidak). Mode 4 menggabungkan butir semua langkah. `friction` tetap.
+- **EDGE:** bagian "Hambatan proses" di panel Detail (bentuk di `static/edge-view.js`, kata di `static/edge-labels.js`,
+  tampilan di `static/index.html`); kosong berarti tidak tampil.
+- **Tes:** orc: run dengan penolakan alat dan gerbang menghasilkan `hurdles` yang sama dengan memo run; EDGE:
+  `test_orc_contract.py` dengan keluaran orc asli (aturan M68), `test_answer_view.py`, `test_visual.py`.
+- **Dokumen:** README orc (API contract) dan EDGE; `tests/fixtures/orc_responses.json` diperbarui dari orc asli.
+- **Deploy dan cek live:** orc lalu EDGE; satu percakapan dev dengan penolakan nyata tampil di Detail, sama dengan log.
