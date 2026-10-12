@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "features" / "feature04"))
 
-from engine import FEATURE_COLUMNS
+from engine import FEATURE_COLUMNS, calculate
 from incremental import calculate_incremental, build_recent_checkpoints
 from worker import Job, connect, load_history, replace_checkpoints
 
@@ -44,9 +44,23 @@ def validate_recent(
     suffix_size = min(lookback_sessions, len(history) - 1)
     checkpoint = states[-suffix_size - 1]
     suffix = history[-suffix_size:]
-    calculated, outcomes, _, _ = calculate_incremental(suffix, checkpoint=checkpoint)
+    stamp = datetime.now(timezone.utc)
+    reference = calculate(history, calculated_at=stamp)[-suffix_size:]
+    calculated, outcomes, _, _ = calculate_incremental(
+        suffix, checkpoint=checkpoint, calculated_at=stamp
+    )
     if any(value["status"] != "SUCCESS" for value in outcomes.values()):
         raise RuntimeError(f"Incremental shadow formula failure for {asset_type}/{ticker}")
+    for actual, expected in zip(calculated, reference):
+        if actual["trade_date"] != expected["trade_date"]:
+            raise RuntimeError(f"Incremental/full date mismatch for {asset_type}/{ticker}")
+        for column in FEATURE_COLUMNS:
+            if not equal_value(actual[column], expected[column]):
+                raise RuntimeError(
+                    f"Incremental/full mismatch {asset_type}/{ticker}/"
+                    f"{actual['trade_date']}/{column}: {actual[column]!r} != "
+                    f"{expected[column]!r}"
+                )
     stored = connection.execute(
         'SELECT * FROM public."Feature_04_Technical_Indicator" '
         "WHERE asset_type=%s AND ticker=%s AND timeframe='Daily' AND trade_date>= %s "
@@ -58,13 +72,13 @@ def validate_recent(
             f"Shadow row-count mismatch for {asset_type}/{ticker}: "
             f"{len(calculated)} calculated vs {len(stored)} stored"
         )
-    for actual, expected in zip(calculated, stored):
-        if actual["trade_date"] != expected["trade_date"]:
+    for expected, actual in zip(reference, stored):
+        if expected["trade_date"] != actual["trade_date"]:
             raise RuntimeError(f"Shadow date mismatch for {asset_type}/{ticker}")
         for column in FEATURE_COLUMNS:
-            if not equal_value(actual[column], expected[column]):
+            if not equal_value(expected[column], actual[column]):
                 raise RuntimeError(
-                    f"Shadow mismatch {asset_type}/{ticker}/{actual['trade_date']}/{column}: "
+                    f"Stored/full mismatch {asset_type}/{ticker}/{actual['trade_date']}/{column}: "
                     f"{actual[column]!r} != {expected[column]!r}"
                 )
 
