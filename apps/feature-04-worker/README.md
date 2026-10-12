@@ -55,6 +55,9 @@ The 2026-10-12 rollout dry run proved incremental/full parity for all 868 eligib
 instruments. It found three stored candlestick flags in the active suffix that were produced
 by the former prefix-dependent floating path; those rows are repaired through the normal
 five-session queue before final acceptance.
+The checkpoint write produced 6,076 snapshots (868 instruments × 7 retained sessions),
+then a table-driven rollout request queued the five most recent sessions for all 868
+instruments before the continuous worker was restored.
 
 For the independent fixed-income daily and recovery crons, the outbox first sends the
 related `Monitoring_Fixed_Income` result through `telegram-monitor`. The Feature04
