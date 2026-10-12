@@ -621,3 +621,82 @@ def test_the_first_answer_is_headed_by_the_router_title(dummy_orc, browser_page)
     page.get_by_placeholder('Ask a research question…').wait_for()
     page.wait_for_function('() => document.querySelectorAll(".conversation-list .conversation").length === 1')
     assert page.locator('.conversation-list .conversation strong').inner_text() == 'Harga Saham BBCA'
+
+
+def test_details_sections_resize_by_drag_and_collapse(dummy_orc, browser_page):
+    """EXEC-DETAILS (user 2026-10-12): the line between Pinned responses and Response History is pressed and dragged
+    up or down (kept after a reload); each section title collapses and expands its section."""
+    origin, orc = dummy_orc
+    page = browser_page
+    page.set_viewport_size({'width': 1440, 'height': 900})
+    sign_in(page, origin)
+    for i in range(3):
+        submit(page, f'Dummy pin {i}')
+        saved(page, i + 1)
+    for i in range(3):
+        page.get_by_role('button', name='Pin', exact=True).first.click()
+        page.wait_for_function('(n) => document.querySelectorAll(".edge-pin-card").length === n', arg=i + 1)
+    pins = page.locator('.edge-pins')
+    page.wait_for_function('() => document.querySelectorAll(".edge-pin-card").length === 3')
+    before = pins.bounding_box()['height']
+    handle = page.get_by_role('separator', name='Resize pinned responses')
+    box = handle.bounding_box()
+    page.mouse.move(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+    page.mouse.down()
+    page.mouse.move(box['x'] + box['width'] / 2, box['y'] + 150, steps=8)
+    page.mouse.up()
+    after = pins.bounding_box()['height']
+    assert after > before + 120
+    page.reload()
+    page.get_by_placeholder('Ask a research question…').wait_for()
+    page.locator('.conversation-list .conversation').first.click()
+    page.wait_for_function('() => document.querySelectorAll(".edge-pin-card").length === 3')
+    assert abs(page.locator('.edge-pins').bounding_box()['height'] - after) < 3
+    page.get_by_role('separator', name='Resize pinned responses').focus()
+    page.keyboard.press('ArrowUp')
+    assert page.locator('.edge-pins').bounding_box()['height'] < after - 20
+    toggle = page.get_by_role('button', name='Pinned responses')
+    assert toggle.get_attribute('aria-expanded') == 'true'
+    toggle.click()
+    assert toggle.get_attribute('aria-expanded') == 'false' and page.locator('.edge-pin-card').count() == 0
+    assert page.get_by_role('separator', name='Resize pinned responses').count() == 0
+    history = page.get_by_role('button', name='Response History')
+    history.click()
+    assert history.get_attribute('aria-expanded') == 'false' and page.locator('.edge-flow-accordion').count() == 0
+    history.click()
+    toggle.click()
+    assert page.locator('.edge-pin-card').count() == 3 and page.locator('.edge-flow-accordion').count() == 3
+
+
+def test_details_split_drags_by_touch_on_a_phone(dummy_orc, browser_page):
+    """EXEC-DETAILS: on a phone the line between Pinned responses and Response History follows a finger, and with
+    both sections collapsed their titles stay together at the top."""
+    origin, orc = dummy_orc
+    ctx = browser_page.context.browser.new_context(viewport={'width': 390, 'height': 844}, has_touch=True, is_mobile=True)
+    page = ctx.new_page()
+    try:
+        sign_in(page, origin)
+        for i in range(2):
+            submit(page, f'Dummy touch {i}')
+            saved(page, i + 1)
+            page.get_by_role('button', name='Pin', exact=True).first.click()
+        page.get_by_role('button', name='Show Details', exact=True).click()
+        page.wait_for_function('() => document.querySelectorAll(".edge-pin-card").length === 2')
+        pins = page.locator('.edge-pins')
+        before = pins.bounding_box()['height']
+        box = page.locator('.edge-pins-resizer').bounding_box()
+        x, y = box['x'] + box['width'] / 2, box['y'] + box['height'] / 2
+        cdp = ctx.new_cdp_session(page)
+        cdp.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': [{'x': x, 'y': y}]})
+        for step in range(1, 9):
+            cdp.send('Input.dispatchTouchEvent', {'type': 'touchMove', 'touchPoints': [{'x': x, 'y': y + step * 15}]})
+        cdp.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
+        page.wait_for_timeout(200)
+        assert pins.bounding_box()['height'] > before + 90
+        page.get_by_role('button', name='Pinned responses').tap()
+        page.get_by_role('button', name='Response History').tap()
+        heads = [page.get_by_role('button', name=n).bounding_box()['y'] for n in ('Pinned responses', 'Response History')]
+        assert 0 < heads[1] - heads[0] < 80
+        assert not page.evaluate('() => document.documentElement.scrollWidth > window.innerWidth')
+    finally:
+        ctx.close()

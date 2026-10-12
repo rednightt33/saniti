@@ -37,6 +37,9 @@ The page is edited as one HTML file and its API wiring is not locked to the view
 - The trash button next to the bookmark asks first, then hides the conversation from the list
   (`DELETE /api/v1/conversations/{id}` sets `edge_bff.conversation_ui.hidden_at`, migration `20261012_008`); Orc keeps
   its history and results under its own retention, and a running conversation is refused (409) (EXEC-DELETE).
+- In Details, the line between Pinned responses and Response History is dragged (pointer events: touch or mouse; arrow
+  keys) and its height kept in this browser (`edge-pins-height`); each section title collapses its section
+  (`edge-pins-open`, `edge-flow-open`) (EXEC-DETAILS).
 - `EdgeView.toView(envelope)` returns display-ready parts (status, meta, answer, clarification, pause, plan, findings,
   lists, methodology, artifacts; `EdgeView.sources` for the Details panel). Its `version` changes when a part changes
   shape. A field the view does not know yet still shows through the generic view, named from its key.

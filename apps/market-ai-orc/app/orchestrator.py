@@ -1285,6 +1285,10 @@ DATANEED_GATE_INSTRUCTION = (
     "DataNeedSpec, or complete the analysis), or return response_type \"LIMITATION\" that states what was not "
     "completed."
 )
+# M144 (user 2026-10-12: "M144 Ok masukan exec"): FACT, CLARIFY and CONVERSATIONAL steps explain and compute nothing
+# (their notes forbid it and their tools cannot), so the ROUTING gate does not ask them for an analysis; their figures
+# still pass the provenance gate
+EXPLAIN_ONLY_KINDS = frozenset({"FACT", "CLARIFY", "CONVERSATIONAL"})
 DATANEED_ROUTING_INSTRUCTION = (
     "The request asks for {families}, which only an analysis completed with complete_analysis can answer; numbers "
     "must not be calculated by you. Use submit_data_need_spec, prepare_data_bundle, open_analysis_session, "
@@ -5215,6 +5219,8 @@ class AgentOrchestrator:
         missing = sorted(families) if not usable else []
         if not missing and plain_average and not usable and not average_fact:
             missing = ["AVERAGE"]
+        if state.plan_meta.get("turn_kind") in EXPLAIN_ONLY_KINDS:
+            missing = []  # M144: a step that explains and computes nothing by design is not asked for an analysis
         if missing and final.response_type == "ANSWER":
             names = ", ".join(missing)
             self._gate_once(state, "ROUTING", ROUTING_INSTRUCTION.format(families=names), needs=LEGACY_ANALYSIS_TOOLS)
@@ -5266,6 +5272,8 @@ class AgentOrchestrator:
         missing = sorted(families) if not usable else []
         if not missing and plain_average and not usable and not average_fact:
             missing = ["AVERAGE"]
+        if state.plan_meta.get("turn_kind") in EXPLAIN_ONLY_KINDS:
+            missing = []  # M144: a step that explains and computes nothing by design is not asked for an analysis
         if missing and final.response_type == "ANSWER":
             names = ", ".join(missing)
             self._gate_once(state, "ROUTING", DATANEED_ROUTING_INSTRUCTION.format(families=names),

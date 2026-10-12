@@ -9574,6 +9574,18 @@ html:not(.dark) .monitor-layout .user-message .message-attachments span {color:#
 .edge-details-resizer:hover:after,.edge-details-resizer:focus-visible:after {background:var(--muted-foreground);}
 
 .edge-pins {overscroll-behavior:contain;}
+/* EXEC-DETAILS: collapsible section titles and the drag line between the two sections */
+.edge-section-toggle {all:unset;box-sizing:border-box;display:flex;align-items:center;gap:6px;width:100%;cursor:pointer;font:inherit;color:inherit;}
+.edge-section-toggle>.edge-disclosure-chevron {margin-left:auto;transition:transform 120ms ease;}
+.edge-section-toggle[aria-expanded="true"]>.edge-disclosure-chevron {transform:rotate(180deg);}
+.edge-section-toggle:focus-visible {outline:2px solid var(--ring, currentColor);outline-offset:2px;border-radius:4px;}
+.details-panel.pins-collapsed .edge-pins {flex:none!important;height:auto!important;min-height:0;overflow:hidden;}
+.details-panel.pins-collapsed .edge-pins-head {margin-bottom:0;}
+.details-panel.flow-collapsed .edge-details-upper {flex:none;}
+.details-panel.flow-collapsed:not(.pins-collapsed) .edge-pins {flex:1 1 auto!important;height:auto!important;}
+.edge-pins-resizer {position:relative;flex:none;height:12px;margin:-6px 0;z-index:5;cursor:row-resize;touch-action:none;outline:none;}
+.edge-pins-resizer:after {content:"";position:absolute;left:50%;top:50%;width:36px;height:4px;margin:-2px 0 0 -18px;border-radius:2px;background:var(--border);transition:background 120ms ease;}
+.edge-pins-resizer:hover:after,.edge-pins-resizer:focus-visible:after,.edge-pins-resizer.dragging:after {background:var(--muted-foreground);}
 .edge-details-upper {overscroll-behavior:contain;}
 
 .market-search-anchor {position:relative;display:inline-flex;}
@@ -10441,6 +10453,14 @@ function Monitor({ go }) {
       document.addEventListener("keydown",key);
       return()=>{document.removeEventListener("keydown",key);requestAnimationFrame(()=>previous?.isConnected&&previous.focus());};
     },[narrow,historyOpen,mobileDetailsOpen]);
+    // EXEC-DETAILS (user 2026-10-12): the Pinned responses / Response History split can be dragged, and each part
+    // collapses; the choice is kept in this browser only
+    const stored = (key, fallback) => { try { const value = localStorage.getItem(key); return value === null ? fallback : JSON.parse(value); } catch { return fallback; } };
+    const keep = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch {} };
+    const pinsHeight = initialValue(viewRecord, "pinsHeight", () => stored("edge-pins-height", null)), setPinsHeight = next => updateValue(viewRecord, "pinsHeight", next);
+    const pinsOpen = initialValue(viewRecord, "pinsOpen", () => stored("edge-pins-open", true) !== false), flowOpen = initialValue(viewRecord, "flowOpen", () => stored("edge-flow-open", true) !== false);
+    const togglePins = () => { keep("edge-pins-open", !pinsOpen); updateValue(viewRecord, "pinsOpen", !pinsOpen); };
+    const toggleFlow = () => { keep("edge-flow-open", !flowOpen); updateValue(viewRecord, "flowOpen", !flowOpen); };
     const detailsWidth = initialValue(viewRecord,"detailsWidth",()=>Math.min(560,Math.max(280,Number(localStorage.getItem("edge-details-width"))||320))), setDetailsWidth=next=>updateValue(viewRecord,"detailsWidth",next);
     const collapsed = initialValue(viewRecord, "collapsed", () => ((() => { const seed = () => localStorage.getItem("edge-monitor-collapsed") === "true"; return typeof seed === "function" ? seed() : seed; })())), setCollapsed = next => updateValue(viewRecord, "collapsed", next);
     const sidebarWidth = initialValue(viewRecord, "sidebarWidth", () => ((() => { const seed = () => Math.min(360, Math.max(180, Number(localStorage.getItem("edge-monitor-width")) || 230)); return typeof seed === "function" ? seed() : seed; })())), setSidebarWidth = next => updateValue(viewRecord, "sidebarWidth", next);
@@ -10693,14 +10713,15 @@ function Monitor({ go }) {
                             element(Button, { kind: "ghost", icon: "sliders", disabled: true, title: "Data Scope is not available yet" }, "Data Scope"),
                             element(IconButton, { icon: "attach", disabled: true, title: "Attachments are not available yet" })),
                         active && !submitting ? (prompt.trim() ? element(Button, { kind: "primary", icon: "send", onClick: () => submit({}, null, {afterStop: true}) }, edgeUi().stopAndSend) : element(Button, { kind: "primary", disabled: stoppingId === executionRun.id, icon: "stop", onClick: stopRun }, stoppingId === executionRun.id ? edgeUi().stopping : edgeUi().stop)) : element(Button, { kind: "primary", disabled: active || submitting || !prompt.trim(), icon: "send", onClick: () => submit() }, submitting ? "Processing…" : "Submit")))),
-            detailsOpen && element("aside", { id:"edge-details",className: "details-panel",role:narrow&&mobileDetailsOpen?"dialog":undefined,"aria-modal":narrow&&mobileDetailsOpen?true:undefined,"aria-label":"Response details",inert:narrow&&historyOpen },
+            detailsOpen && element("aside", { id:"edge-details",className: `details-panel${pinsOpen ? "" : " pins-collapsed"}${flowOpen || detailsTab !== "Flow" ? "" : " flow-collapsed"}`,role:narrow&&mobileDetailsOpen?"dialog":undefined,"aria-modal":narrow&&mobileDetailsOpen?true:undefined,"aria-label":"Response details",inert:narrow&&historyOpen },
                 element(DetailsResizeHandle,{width:detailsWidth,setWidth:setDetailsWidth}),
                 element("div", { className: "details-head" },
                     element("strong", null, "Details"),
                     element(IconButton, { icon: "close", onClick: () => {setMobileDetailsOpen(false);setDetailsOpen(false);}, title: "Close details" })),
                 element(Tabs, { items: ["Flow", "Sources"], active: detailsTab, onChange: value => { setDetailsTab(value); setSourceDetail(null); } }),
-                element(PinnedResponses, { runs:selected?.runs ?? [], unpin:id=>togglePin(selected.runs.find(r=>r.id===id),false), jump:id=>{setSelectedRunId(id);setAutoFollow(false);requestAnimationFrame(()=>{const node=document.getElementById(id+"-response"),container=scrollRef.current;if(node&&container){container.scrollTo({top:container.scrollTop+node.getBoundingClientRect().top-container.getBoundingClientRect().top-24,behavior:"smooth"});node.focus({preventScroll:true});}})} }),
-                element("div", {className:"edge-details-upper",ref:historyScrollRef}, run ? detailsTab === "Sources" ? element(Sources,{run}) : element(ResponseFlows, { runs:selected?.runs ?? [], autoOpenRunId }) : element("div", { className: "details-empty" }, "No research run selected."))),
+                element(PinnedResponses, { open:pinsOpen, toggle:togglePins, height:pinsHeight, runs:selected?.runs ?? [], unpin:id=>togglePin(selected.runs.find(r=>r.id===id),false), jump:id=>{setSelectedRunId(id);setAutoFollow(false);requestAnimationFrame(()=>{const node=document.getElementById(id+"-response"),container=scrollRef.current;if(node&&container){container.scrollTo({top:container.scrollTop+node.getBoundingClientRect().top-container.getBoundingClientRect().top-24,behavior:"smooth"});node.focus({preventScroll:true});}})} }),
+                pinsOpen && (flowOpen || detailsTab !== "Flow") && element(PinsResizeHandle, { height:pinsHeight, setHeight:value => { setPinsHeight(value); keep("edge-pins-height", value); } }),
+                element("div", {className:"edge-details-upper",ref:historyScrollRef}, run ? detailsTab === "Sources" ? element(Sources,{run}) : element(ResponseFlows, { runs:selected?.runs ?? [], autoOpenRunId, open:flowOpen, toggle:toggleFlow }) : element("div", { className: "details-empty" }, "No research run selected."))),
             (historyOpen || mobileDetailsOpen) && element("button",{className:"edge-panel-backdrop",tabIndex:-1,"aria-label":"Close panel",onClick:()=>{setHistoryOpen(false);setMobileDetailsOpen(false);}}),
             expandedTable && element(ResearchTableDialog, { run: expandedTable, close: () => setExpandedTable(null) })));
 }
@@ -10807,14 +10828,43 @@ function ResponseFlowItem({run,initiallyOpen=false}) {
             element("small",null,formatMessageJakarta(run.completedAt ?? run.createdAt)," · ",run.status)),element(DisclosureChevron)),
         element(Flow,{run}));
 }
-function ResponseFlows({runs,autoOpenRunId}) {
-    return element("div",{className:"edge-flow-list"},element("div",{className:"edge-history-head"},"Response History"),runs.map(run=>element(ResponseFlowItem,{key:run.id,run,initiallyOpen:run.id===autoOpenRunId})));
+// EXEC-DETAILS: a section title that collapses and expands its section
+function SectionToggle({label,open,toggle,controls}) {
+    return element("button",{type:"button",className:"edge-section-toggle","aria-expanded":open,"aria-controls":controls,onClick:toggle},
+        element("span",null,label),element(DisclosureChevron));
 }
-function PinnedResponses({runs,unpin,jump}) {
+function ResponseFlows({runs,autoOpenRunId,open=true,toggle}) {
+    return element("div",{className:"edge-flow-list"},element("div",{className:"edge-history-head"},element(SectionToggle,{label:"Response History",open,toggle,controls:"edge-flow-items"})),
+        open&&element("div",{id:"edge-flow-items"},runs.map(run=>element(ResponseFlowItem,{key:run.id,run,initiallyOpen:run.id===autoOpenRunId}))));
+}
+function PinnedResponses({runs,unpin,jump,open=true,toggle,height}) {
     const pinned=runs.filter(run=>run.pinned&&run.result);
-    return element("section",{className:"edge-pins","aria-label":"Pinned responses"},
-        element("div",{className:"edge-pins-head"},"Pinned responses"),
-        pinned.length?pinned.map(run=>element(PinnedResponseCard,{key:run.id,run,unpin:()=>unpin(run.id),jump:()=>jump(run.id)})):element("p",{className:"edge-pins-empty"},"No pinned responses"));
+    return element("section",{className:"edge-pins","aria-label":"Pinned responses",style:open&&height?{flex:`0 0 ${height}px`,height:`${height}px`}:undefined},
+        element("div",{className:"edge-pins-head"},element(SectionToggle,{label:"Pinned responses",open,toggle,controls:"edge-pins-items"})),
+        open&&element("div",{id:"edge-pins-items"},pinned.length?pinned.map(run=>element(PinnedResponseCard,{key:run.id,run,unpin:()=>unpin(run.id),jump:()=>jump(run.id)})):element("p",{className:"edge-pins-empty"},"No pinned responses")));
+}
+// EXEC-DETAILS: press and drag the line between Pinned responses and Response History up or down (touch or mouse);
+// arrow keys move it too
+function PinsResizeHandle({height,setHeight}) {
+    const view=currentView,drag=cachedValue(view,"drag",()=>({cleanup:null}),[]);
+    const bounds=handle=>{const panel=handle.closest(".details-panel"),pins=panel?.querySelector(".edge-pins"),top=pins?.getBoundingClientRect().top??0;
+        return {pins,min:90,max:Math.max(120,(panel?.getBoundingClientRect().bottom??600)-top-120)};};
+    const start=event=>{
+        if(event.button!==0)return;
+        event.preventDefault();drag.cleanup?.();
+        const handle=event.currentTarget,{pins,min,max}=bounds(handle),startY=event.clientY,startHeight=pins?.getBoundingClientRect().height??180;
+        handle.setPointerCapture?.(event.pointerId);
+        let next=startHeight;
+        const move=e=>{next=Math.round(Math.min(max,Math.max(min,startHeight+e.clientY-startY)));if(pins){pins.style.flex=`0 0 ${next}px`;pins.style.height=`${next}px`;}};
+        const end=()=>{drag.cleanup?.();setHeight(next);};
+        const oldSelect=document.body.style.userSelect;document.body.style.userSelect="none";handle.classList.add("dragging");
+        drag.cleanup=()=>{document.removeEventListener("pointermove",move);document.removeEventListener("pointerup",end);document.removeEventListener("pointercancel",end);document.body.style.userSelect=oldSelect;handle.classList.remove("dragging");drag.cleanup=null;};
+        document.addEventListener("pointermove",move);document.addEventListener("pointerup",end);document.addEventListener("pointercancel",end);
+    };
+    const key=event=>{if(event.key!=="ArrowUp"&&event.key!=="ArrowDown")return;event.preventDefault();
+        const {pins,min,max}=bounds(event.currentTarget),current=height??Math.round(pins?.getBoundingClientRect().height??180);
+        setHeight(Math.min(max,Math.max(min,current+(event.key==="ArrowDown"?24:-24))));};
+    return element("div",{className:"edge-pins-resizer",role:"separator","aria-orientation":"horizontal","aria-label":"Resize pinned responses",tabIndex:0,onPointerDown:start,onKeyDown:key});
 }
 function PinnedResponseCard({run,unpin,jump}) {
     const view=currentView,expanded=initialValue(view,"expanded",()=>false),setExpanded=next=>updateValue(view,"expanded",next);

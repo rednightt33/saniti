@@ -256,6 +256,26 @@ def test_a_statistic_needs_a_completed_analysis() -> None:
     assert result.response.response_type == "LIMITATION"
 
 
+def test_a_definition_step_is_not_asked_for_an_analysis() -> None:
+    """M144 (user 2026-10-12): "apa itu indikator RSI" routed FACT was forced to LIMITATION by the ROUTING gate; a
+    FACT, CLARIFY or CONVERSATIONAL step explains and computes nothing, so its answer stays. Outside those steps the
+    same question still needs a completed analysis."""
+    from app import conversation_router as turn_router
+    question = "tolong jelaskan singkat apa itu indikator RSI untuk saham"
+    explained = answer("RSI mengukur kecepatan dan kekuatan gerak harga, bukan arah harga.")
+    for kind in ("FACT", "CLARIFY", "CONVERSATIONAL"):
+        token = turn_router.current_turn_kind.set(kind)
+        try:
+            result, _ = run([final_response(explained)], Tools([]), message=question)
+        finally:
+            turn_router.current_turn_kind.reset(token)
+        assert result.response.response_type == "ANSWER", kind
+    result, scripted = run([final_response(explained), final_response(answer("RSI tidak dihitung.", kind="LIMITATION"))],
+                           Tools([]), message=question)
+    assert "submit_data_need_spec" in scripted.payloads[-1]["input"][-1]["content"]
+    assert result.response.response_type == "LIMITATION"
+
+
 def test_causal_and_predictive_claims_are_marked_even_for_research() -> None:
     # P17 (user decision 2026-10-01): the answer is kept and the claim marked in italics, with an annotation
     claim = answer("RSI di bawah 30 memprediksi kenaikan 12,35% sebulan kemudian.")

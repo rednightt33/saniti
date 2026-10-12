@@ -51,7 +51,7 @@ WORDS = {
     "SESSION_CAPACITY_EXCEEDED": "kapasitas ruang analisis penuh", "NOT_FEASIBLE": "tidak bisa dijalankan",
     "TYPED_FIGURES": "angka ditulis tanpa rujukan", "PROVENANCE": "ada angka tanpa sumber",
     "DEFINITION": "definisi tidak cocok dengan hasil sebelumnya", "REFERENCE": "rujukan angka tidak dikenali",
-    "FINAL_REASK": "bentuk jawaban perlu diulang", "FINAL_REJECTED": "bentuk jawaban tidak sesuai",
+    "ROUTING": "jawaban perlu hasil analisis", "FINAL_REASK": "bentuk jawaban perlu diulang", "FINAL_REJECTED": "bentuk jawaban tidak sesuai",
 }
 
 # ---- the hurdles of a run (EXEC-FRICTION, M142): what the backend refused, in the order it happened ----

@@ -2115,6 +2115,22 @@ EDGE hanya untuk pertanyaan pertama; judul yang diubah user tidak ditimpa). Tes:
   singkat apa itu indikator RSI untuk saham" → judul "Penjelasan Indikator RSI" (rute FACT). Temuan baru M144 (gerbang
   ROUTING memaksa LIMITATION pada jawaban definisi RSI; sudah ada sebelumnya, menunggu keputusan user).
 
+### EXEC-DETAILS: panel Details di EDGE (geser batas, lipat bagian) dan M144
+
+**Permintaan user 2026-10-12:** "M144 Ok masukan exec"; "2. also boleh untuk pinned response dan response history yang
+saya kuningij kalau di press then bisadrag atas bawah bawah"; "3. minta juga opsi untuk collapse dan expand pinned
+response dan response history"; "1-3 tolong setelah perubahan ini applied, cek vidually dan interactionally to ensure
+well carried". Dibangun:
+- Garis antara Pinned responses dan Response History bisa ditekan dan digeser ke atas/bawah (sentuh, mouse, atau
+  tombol panah); tingginya disimpan di browser ini. Judul kedua bagian bisa dilipat/dibuka (chevron, `aria-expanded`);
+  bila keduanya terlipat, kedua judul tetap berdampingan di atas.
+- M144: gerbang ROUTING tidak meminta analisis pada langkah FACT, CLARIFY dan CONVERSATIONAL; teks hambatan "(routing)"
+  menjadi kata biasa.
+- Cek visual dan interaksi (Chromium, desktop 1440 dan ponsel 390 dengan layar sentuh): geser dengan mouse dan jari,
+  bertahan sesudah muat ulang, lipat/buka, tanpa geser horizontal. Tes: EDGE 72, orc 1.635 lulus.
+- Butir 1 (tampilan ponsel saat scroll ke bawah): belum bisa direproduksi berbeda di emulator; menunggu penjelasan
+  user tentang bagian yang salah.
+
 ### EXEC-IMPL-1012: rencana implementasi EXEC-JOINKEY, EXEC-RELEASE, EXEC-FRICTION, EXEC-STYLE (berjalan)
 
 **Permintaan user 2026-10-12:** "cek infra kita, dan EXEC yang sudah saya approve, buat implementation plan berdasarkan
