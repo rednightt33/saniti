@@ -568,10 +568,14 @@ def bulk_upsert_prices(connection: psycopg.Connection, rows: list[dict]) -> tupl
     if not deduplicated:
         return 0, 0
     with connection.cursor() as cursor:
-        cursor.execute(
-            f"CREATE TEMP TABLE fixed_income_stage (LIKE {PRICE_TABLE} INCLUDING DEFAULTS) ON COMMIT DROP"
-        )
         columns_sql = ", ".join(f'"{name}"' for name in PRICE_COLUMNS)
+        # The source table has required lifecycle columns such as ingestion_time.
+        # Stage only the explicit loader payload so COPY does not inherit source
+        # constraints for columns that the final INSERT computes itself.
+        cursor.execute(
+            f"CREATE TEMP TABLE fixed_income_stage ON COMMIT DROP AS "
+            f"SELECT {columns_sql} FROM {PRICE_TABLE} WITH NO DATA"
+        )
         with cursor.copy(f"COPY fixed_income_stage ({columns_sql}) FROM STDIN") as copy:
             for row in deduplicated.values():
                 copy.write_row(tuple(row[column] for column in PRICE_COLUMNS))
