@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-10-12 — EXEC-DURATION deployed from main
+
+User: "tolong tambahkan berapa lama each run_id progress, tampilkan di edge sebelah tokens/ reported cost dan dibagian
+response history". Rollback reference: edge-bff `23a9d7f4`.
+- `main` `cc0dd74`: edge-bff **04aacf39-0b0e-4baa-85b8-0305edef54a4** reached **SUCCESS**; the served `edge-view.js`
+  carries `durationText`. market-ai-orc unchanged.
+- Read-only probe `orc-test-runner` **93f98e63-763e-4cc1-bf1a-c42284a127d5** (GET of three stored requests; M145).
+- No variable, service, model, provider, mode or configuration change.
+
 ## 2026-10-12 — EXEC-DETAILS and M144 deployed from main
 
 User: "M144 Ok masukan exec" and the Details requests 2 and 3. Rollback references: orc `d608732c`, edge-bff `9db6483d`.
