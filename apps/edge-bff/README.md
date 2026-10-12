@@ -40,6 +40,8 @@ The page is edited as one HTML file and its API wiring is not locked to the view
 - In Details, the line between Pinned responses and Response History is dragged (pointer events: touch or mouse; arrow
   keys) and its height kept in this browser (`edge-pins-height`); each section title collapses its section
   (`edge-pins-open`, `edge-flow-open`) (EXEC-DETAILS).
+- Each finished answer shows how long it took (Orc's `execution.duration_ms`, else the saved start-to-finish time)
+  next to its tokens and in its Response History line (EXEC-DURATION).
 - `EdgeView.toView(envelope)` returns display-ready parts (status, meta, answer, clarification, pause, plan, findings,
   lists, methodology, artifacts; `EdgeView.sources` for the Details panel). Its `version` changes when a part changes
   shape. A field the view does not know yet still shows through the generic view, named from its key.

@@ -2133,6 +2133,22 @@ well carried". Dibangun:
 - Deploy `main` `2a74fc4`: orc `dc757f0b` dan edge-bff `23a9d7f4` SUCCESS. Galeri bentuk output jawaban (permintaan
   user: "separate html on how those looks like currently") dikirim sebagai file terpisah, dirender dari EDGE yang live.
 
+### EXEC-DURATION: lama proses tiap run di EDGE
+
+**Permintaan user 2026-10-12:** "tolong tambahkan berapa lama each run_id progress, tampilkan di edge sebelah tokens/
+reported cost dan dibagian response history". Dibangun: lama proses dari `execution.duration_ms` orc (cadangan: waktu
+mulai-selesai yang tersimpan) tampil sebagai "⏱ 6m 36s" di baris metadata jawaban (sesudah tokens) dan di baris Response
+History ("… · completed · 6m 36s"); run yang masih berjalan tidak diberi durasi. Tes `test_each_answer_shows_how_long_it_took`;
+EDGE 73 lulus.
+
+**Investigasi 2026-10-12 ("ini kenapa research failed", "pertanyaan tersebut took almost 8 minutes, kepentok dimana"):**
+- Gagal: `edge_e0ee24d0…` berakhir INTERNAL_ERROR karena `RemoteProtocolError` dari panggilan model yang tidak diulang
+  (M145, usulan perbaikan menunggu keputusan user).
+- Lama: run terpanjang `edge_517a29…` 6m 36s di orc: panggilan model pertama 161 s (menalar 14 ribu token untuk
+  merencanakan permintaan data), data dan Python beberapa detik sampai sekitar 30 s, menulis jawaban sekitar 3 menit
+  (tiga cek rujukan 11 s, 54 s, 59 s, satu draf ditolak gerbang PROVENANCE lalu dua panggilan perbaikan 35 s).
+  `edge_3511fb…` 5m 48s: pola sama (perencanaan 97 s, penulisan dan cek rujukan sekitar 3 menit).
+
 ### EXEC-IMPL-1012: rencana implementasi EXEC-JOINKEY, EXEC-RELEASE, EXEC-FRICTION, EXEC-STYLE (berjalan)
 
 **Permintaan user 2026-10-12:** "cek infra kita, dan EXEC yang sudah saya approve, buat implementation plan berdasarkan

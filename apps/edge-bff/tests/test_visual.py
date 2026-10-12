@@ -700,3 +700,27 @@ def test_details_split_drags_by_touch_on_a_phone(dummy_orc, browser_page):
         assert not page.evaluate('() => document.documentElement.scrollWidth > window.innerWidth')
     finally:
         ctx.close()
+
+
+def test_each_answer_shows_how_long_it_took(dummy_orc, browser_page):
+    """EXEC-DURATION (user 2026-10-12: "tambahkan berapa lama each run_id progress, tampilkan di edge sebelah tokens/
+    reported cost dan dibagian response history"): Orc's execution.duration_ms is shown next to the tokens and in the
+    Response History line."""
+    origin, orc = dummy_orc
+    page = browser_page
+    page.set_viewport_size({'width': 1440, 'height': 900})
+    original = orc.run
+    def run(owner, request_id, payload):
+        result = original(owner, request_id, payload)
+        result.setdefault('execution', {})['duration_ms'] = 395718 if 'lama' in payload['message'] else 42400
+        return result
+    orc.run = run
+    sign_in(page, origin)
+    submit(page, 'Dummy lama')
+    saved(page)
+    assert page.locator('article.result .edge-duration').inner_text().endswith('6m 36s')
+    submit(page, 'Dummy cepat')
+    saved(page, 2)
+    assert page.locator('article.result .edge-duration').nth(1).inner_text().endswith('42s')
+    history = page.locator('.edge-flow-accordion summary small').all_inner_texts()
+    assert any(text.endswith('· 6m 36s') for text in history) and any(text.endswith('· 42s') for text in history)

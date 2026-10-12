@@ -135,6 +135,16 @@
       record:empty(record) ? null : {title:ui.sourcesRecord, summary, raw:record, technicalLabel:ui.technical}};
   }
 
+  // EXEC-DURATION (user 2026-10-12): how long a run took, from Orc's execution.duration_ms
+  function durationText(ms) {
+    if (typeof ms !== 'number' || !Number.isFinite(ms) || ms < 0) return null;
+    const seconds = Math.round(ms / 1000);
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60), rest = seconds % 60;
+    if (minutes < 60) return rest ? `${minutes}m ${rest}s` : `${minutes}m`;
+    return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  }
+
   // ---- the whole answer ----
   function toView(envelope, {domainStatus, planIndex} = {}) {
     const ui = L().ui, final = envelope?.response || {}, execution = envelope?.execution || {}, pause = execution.pause;
@@ -146,7 +156,7 @@
     return {
       version:VERSION,
       status:status(envelope, domainStatus),
-      meta:{requestId:envelope?.request_id ?? null, model:execution.model ?? null, tokens:execution.total_tokens, cost:execution.cost ?? null},
+      meta:{requestId:envelope?.request_id ?? null, model:execution.model ?? null, tokens:execution.total_tokens, cost:execution.cost ?? null, duration:durationText(execution.duration_ms)},
       evidence:envelope?.evidence_label ? {code:envelope.evidence_label, label:ui.evidencePrefix + (L().evidence[envelope.evidence_label] ?? envelope.evidence_label)} : null,
       claims:(envelope?.annotations || []).filter(item => item?.quote).map(item => [String(item.quote).trim(), item.note || item.kind]),
       answer:answer || null,
@@ -189,5 +199,5 @@
     }
     return index;
   }
-  window.EdgeView = {VERSION, toView, sources, planIndex, format:{empty, label, number, valueText, verdict}};
+  window.EdgeView = {VERSION, toView, sources, planIndex, durationText, format:{empty, label, number, valueText, verdict}};
 })();

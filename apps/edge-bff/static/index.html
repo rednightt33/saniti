@@ -10820,12 +10820,16 @@ function DetailsResizeHandle({width,setWidth}) {
 function DisclosureChevron() {
     return element("svg",{className:"edge-disclosure-chevron",viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:1.6,strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":"true"},element("path",{d:"m6 9 6 6 6-6"}));
 }
+// EXEC-DURATION: a finished run's processing time (Orc's duration), else its saved start-to-finish time
+const runDuration=run=>{if(run.status==="running"||run.status==="submitted")return null;
+    const orc=run.raw?.execution?.duration_ms;if(typeof orc==="number")return EdgeView.durationText(orc);
+    const start=Date.parse(run.createdAt),end=Date.parse(run.completedAt);return Number.isFinite(start)&&Number.isFinite(end)&&end>=start?EdgeView.durationText(end-start):null;};
 function ResponseFlowItem({run,initiallyOpen=false}) {
     const view=currentView,expanded=initialValue(view,"expanded",()=>initiallyOpen);
     return element("details",{id:`edge-history-${run.id}`,className:"edge-flow-accordion",open:expanded,onToggle:event=>updateValue(view,"expanded",event.currentTarget.open)},
         element("summary",null,element("div",null,
             element("strong",{title:run.result?.title ?? run.question},run.result?.title ?? run.question),
-            element("small",null,formatMessageJakarta(run.completedAt ?? run.createdAt)," · ",run.status)),element(DisclosureChevron)),
+            element("small",null,formatMessageJakarta(run.completedAt ?? run.createdAt)," · ",run.status,runDuration(run)?" · "+runDuration(run):"")),element(DisclosureChevron)),
         element(Flow,{run}));
 }
 // EXEC-DETAILS: a section title that collapses and expands its section
@@ -11153,7 +11157,7 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
  return element("article",{className:"result",id:run.id+"-response",tabIndex:-1},
   element("div",{className:"result-kicker"},element(Icon,{name:"spark"}),"EDGE AI · "+v.status.label,element("i",{className:`edge-dot ${v.status.tone}`,"aria-hidden":"true"})),
   element("h1",null,run.result.title),
-  element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",null,v.meta.model),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
+  element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",null,v.meta.model),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.duration&&element("span",{className:"edge-duration",title:"Lama proses"},"\u23F1 "+v.meta.duration),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
   v.evidence&&element("div",{className:"edge-tags"},element("span",{className:"edge-badge neutral",title:v.evidence.code},v.evidence.label)),
   v.answer&&element("div",{className:"content-block edge-answer"},element(Markdown,{text:v.answer,claims})),
   v.clarification&&element("section",{className:"content-block edge-choice-panel"},element(Markdown,{text:v.clarification.text,claims}),
