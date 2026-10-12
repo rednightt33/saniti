@@ -65,10 +65,14 @@ class TelegramTriggerTests(unittest.TestCase):
     def test_feature04_retry_does_not_call_railway(self):
         retried = []
         triggered = []
+        acknowledgements = []
         service = TelegramTrigger(
             "db", "bot", "123", "railway", {},
             feature_retry=lambda *args: retried.append(args) or ("id", "queued"),
             railway_trigger=lambda *args: triggered.append(args),
+            messenger=lambda *args: 77,
+            feature_ack=lambda *args: acknowledgements.append(args),
+            callback_answer=lambda *args: None,
         )
         result = service.handle_update({
             "update_id": 203,
@@ -78,6 +82,24 @@ class TelegramTriggerTests(unittest.TestCase):
         self.assertEqual(result, "feature04_retry")
         self.assertEqual(len(retried), 1)
         self.assertEqual(triggered, [])
+        self.assertEqual(acknowledgements, [("db", "id", 77)])
+
+    def test_feature04_failed_ack_is_recorded_as_missing_message(self):
+        acknowledgements = []
+        service = TelegramTrigger(
+            "db", "bot", "123", "railway", {},
+            feature_retry=lambda *args: ("id", "queued"),
+            messenger=lambda *args: (_ for _ in ()).throw(RuntimeError("down")),
+            feature_ack=lambda *args: acknowledgements.append(args),
+            callback_answer=lambda *args: None,
+        )
+        result = service.handle_update({
+            "update_id": 204,
+            "callback_query": {"id": "cb", "data": "f04:t:equity:BBCA.JK",
+                               "message": {"chat": {"id": 123}}},
+        })
+        self.assertEqual(result, "feature04_retry")
+        self.assertEqual(acknowledgements, [("db", "id", None)])
 
     def test_railway_request_uses_project_token_and_instance_id(self):
         captured = {}

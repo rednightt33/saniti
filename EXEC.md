@@ -1850,3 +1850,23 @@ matched; 6,076 checkpoints were bootstrapped; the live worker processed exactly 
 for 868/868 instruments with zero failures; an identical rerun changed zero rows. Final
 worker deployment is `c6abb05e-4341-4b6f-a060-2ef8962238d9`; evidence is under
 `verification/feature04/INCREMENTAL_FINALITY.md`.
+
+### EXEC-F04-TELEGRAM-MONITOR: one daily result and failure-only bounded retry
+
+**Otorisasi 2026-10-12:** user narrowed the issue to the Feature04 monitor and requested:
+`"kalau feature 4 sudah selesai di calculate, berapa yang sukses, berapa yang gagal"`,
+with a failed ticker/indicator recalculation option over the latest five days. After the
+design and existing final-candle behavior were confirmed, user authorized execution with
+`"Okay gas."`
+
+**Scope:** Feature04-only Telegram changes. Scheduled DAILY and RECOVERY for the same
+market/trade date update one compact final message containing eligible, success, failed, and
+blocked counts. Failure details are capped at ten and link to `/feature04`. Ticker/column
+retry remains failure-only, derives the latest five final sessions from market policy, uses
+the preceding checkpoint, and edits its acknowledgement on completion. The price Telegram
+flow, price cron schedules, formulas, and Railway topology stay unchanged.
+
+**Status:** implementation and database migration completed. Migration
+`20261012_004_feature04_telegram_monitor.sql` passed rollback rehearsal and live readback;
+68 relevant tests passed. Git/Railway exact deployment IDs and temporary-runner cleanup are
+recorded in `verification/feature04/TELEGRAM_MONITOR.md` after rollout.

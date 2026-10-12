@@ -1,0 +1,25 @@
+{
+  "authorized_at": "2026-10-12",
+  "migration": "20261012_004_feature04_telegram_monitor.sql",
+  "migration_sha256": "cc9768a3c10d82d9ede1939e381d304c1f1620a603b19fa886ac041e200ebda1",
+  "rehearsal_deployment_id": "e4c44a8c-12d2-4073-a22d-b7230544e919",
+  "apply_deployment_id": "84cb9310-42b8-4562-ba18-4e597bdf67f0",
+  "readback_deployment_id": "0ad9188a-bf33-402c-9e7c-382437fbcb9c",
+  "catalog_migration": "20261012_005_document_feature04_delivery_key.sql",
+  "catalog_migration_sha256": "1ff8e3f0842327b3df99bf9b3563f47b45bbe7636d2cb3f84a46c399836afd58",
+  "catalog_rehearsal_deployment_id": "48babe35-9412-4b4d-94e2-8f98aa87db46",
+  "catalog_apply_deployment_id": "6e7db0c4-33c9-49d6-bdd6-e36510713790",
+  "schema_readback": {
+    "column_exists": true,
+    "constraint_exists": true,
+    "function_exists": true,
+    "catalog_exists": true
+  },
+  "retry_window_samples": [
+    {"asset_type": "equity", "ticker": "AADI", "dirty_date": "2026-10-05", "session_count": 5},
+    {"asset_type": "bonds", "ticker": "ID01MY", "dirty_date": "2026-10-05", "session_count": 5}
+  ],
+  "tests": {"passed": 68, "failed": 0},
+  "formula_changed": false,
+  "source_data_changed": false
+}

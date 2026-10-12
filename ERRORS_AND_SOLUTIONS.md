@@ -746,3 +746,32 @@ frontend changes on `codex/edge-bff`; runner/Orc, live database schema, model an
   the same deletion. Railway requires two-factor verification to apply or clear that stale
   destructive patch, which the API/MCP token cannot provide. Clear it in the Railway
   dashboard before staging unrelated dev changes.
+
+### Feature04 Telegram monitor and bounded retry — 2026-10-12
+
+- **One Feature04 completion message per execution caused bursts (FIXED):** DAILY and
+  RECOVERY each had a valid execution ID, so the delivery ledger correctly deduplicated
+  repeated callbacks but still sent a separate Feature04 message for every execution. The
+  monitor now assigns scheduled results a logical `market/trade_date` key, aggregates each
+  ticker at its newest generation, and edits the existing message when a later scheduled
+  phase completes. Manual/ad-hoc execution identity remains unchanged.
+- **Large failure output became multiple Telegram messages (FIXED):** the formatter split
+  the failure list at Telegram's text limit. Feature04 now emits one compact final message,
+  reports eligible/success/failed/blocked counts, shows at most ten failure details, and
+  opens `/feature04` for the complete failure-only retry menu.
+- **Retry completion could race its acknowledgement (FIXED):** the worker could dispatch a
+  fast child completion before `sendMessage` returned, which forced a second result message.
+  `Feature04_Retry_Request` now stores the acknowledgement message ID; the outbox waits for
+  that marker, then the monitor edits it. Zero explicitly records failed acknowledgement
+  delivery and permits a safe replacement message.
+- **Failure retry inherited an old historical dirty date (FIXED):** the prior routine kept
+  the queue's earliest failure boundary, which could replay far more history than a recent
+  correction needed. The database now derives the oldest date among the latest configured
+  five final sessions per ticker and deletes checkpoints from that boundary. The worker uses
+  the preceding checkpoint, so recursive indicators remain exact without replay from 2016.
+- **Bun migration rehearsal rejected a top-level transaction string (RESOLVED):** the first
+  temporary Function passed `BEGIN`/`ROLLBACK` inside a multi-statement Bun SQL query and
+  failed with `ERR_POSTGRES_UNSAFE_TRANSACTION` before any statement ran. Split the parsed
+  migration into statements and execute them through `sql.begin`, then throw deliberately
+  to roll back. The corrected rehearsal proved both new objects absent after rollback before
+  live apply.

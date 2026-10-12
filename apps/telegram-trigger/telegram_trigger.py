@@ -196,6 +196,21 @@ def request_feature04_retry(
     )
 
 
+def record_feature04_ack(
+    database_url: str, request_id: str, message_id: int | None
+) -> None:
+    with psycopg.connect(database_url) as connection:
+        changed = connection.execute(
+            """UPDATE public."Feature04_Retry_Request"
+               SET acknowledgement_message_id=%s
+               WHERE request_id=%s::uuid AND acknowledgement_message_id IS NULL""",
+            (message_id or 0, request_id),
+        ).rowcount
+        if changed != 1:
+            raise RuntimeError("Feature04 retry acknowledgement was not recorded")
+        connection.commit()
+
+
 def telegram_api_call(
     token: str,
     method: str,
@@ -380,6 +395,7 @@ class TelegramTrigger:
         callback_answer: Callable[[str, str, str], None] = answer_callback,
         feature_status: Callable[[str], tuple[str, dict]] = feature04_failure_status,
         feature_retry: Callable[[str, int, str, str], tuple[str, str]] = request_feature04_retry,
+        feature_ack: Callable[[str, str, int | None], None] = record_feature04_ack,
     ) -> None:
         self.database_url = database_url
         self.bot_token = bot_token
@@ -394,12 +410,13 @@ class TelegramTrigger:
         self.callback_answer = callback_answer
         self.feature_status = feature_status
         self.feature_retry = feature_retry
+        self.feature_ack = feature_ack
 
     def best_effort_message(
         self, chat_id: str, text: str, reply_markup: dict | None = None
-    ) -> None:
+    ) -> int | None:
         try:
-            self.messenger(self.bot_token, chat_id, text, reply_markup)
+            return self.messenger(self.bot_token, chat_id, text, reply_markup)
         except Exception as exc:
             print(
                 json.dumps(
@@ -410,6 +427,7 @@ class TelegramTrigger:
                 ),
                 flush=True,
             )
+            return None
 
     def best_effort_callback(self, callback_query_id: str | None, text: str) -> None:
         if not callback_query_id:
@@ -451,11 +469,12 @@ class TelegramTrigger:
                     self.best_effort_callback(callback_id, "Feature04 status refreshed")
                     self.best_effort_message(chat_id, text, markup)
                     return "feature04_status"
-                _request_id, text = self.feature_retry(
+                request_id, text = self.feature_retry(
                     self.database_url, update_id, chat_id, action
                 )
                 self.best_effort_callback(callback_id, "Feature04 retry queued")
-                self.best_effort_message(chat_id, text)
+                message_id = self.best_effort_message(chat_id, text)
+                self.feature_ack(self.database_url, request_id, message_id)
                 return "feature04_retry"
             except psycopg.errors.UniqueViolation:
                 self.best_effort_callback(callback_id, "Already processed")

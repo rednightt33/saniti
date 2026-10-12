@@ -732,10 +732,13 @@ def claim_outbox(connection: psycopg.Connection) -> dict | None:
             SELECT o.event_id,o.execution_id,o.notification_type,m.source_execution_id
             FROM public."Feature04_Notification_Outbox" o
             JOIN public."Monitoring_Feature04" m USING(execution_id)
+            LEFT JOIN public."Feature04_Retry_Request" r
+              ON r.child_execution_id=o.execution_id
             WHERE o.status IN ('PENDING','FAILED') AND o.next_attempt_at<=CURRENT_TIMESTAMP
               AND (o.notification_type='PRICE_FIXED_INCOME'
                    OR (o.notification_type='COMPLETED'
-                       AND (NOT m.price_notification_required OR m.price_notification_sent_at IS NOT NULL)))
+                       AND (NOT m.price_notification_required OR m.price_notification_sent_at IS NOT NULL)
+                       AND (r.request_id IS NULL OR r.acknowledgement_message_id IS NOT NULL)))
             ORDER BY CASE WHEN o.notification_type='PRICE_FIXED_INCOME' THEN 0 ELSE 1 END,
                      o.created_at
             FOR UPDATE OF o SKIP LOCKED LIMIT 1

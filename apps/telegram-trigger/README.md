@@ -23,7 +23,11 @@ Security and duplicate handling:
 - A per-service cooldown blocks rapid distinct clicks while a recent Run Now request may still be active.
 - Feature04 retry requests are inserted atomically in PostgreSQL and wake the always-on
   worker; they do not invoke Railway Run Now. `feature04_request_id` links the Telegram
-  command audit to the retry execution.
+  command audit to the retry execution. The bot stores the acknowledgement's Telegram
+  message ID, and `telegram-monitor` edits that same message with the terminal result.
+- A retry always starts at the oldest of the latest configured five final market sessions.
+  It uses the compatible checkpoint immediately before that date; it never replays the
+  ticker from its first historical observation.
 - Feature04 failure rows and retry callbacks include `asset_type` (`equity` or `bonds`).
   PostgreSQL independently resolves universe membership before accepting a retry; the
   callback label is not trusted as classification and no ticker roster is hardcoded.

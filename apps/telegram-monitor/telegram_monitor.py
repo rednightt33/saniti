@@ -66,6 +66,8 @@ class MonitoringSummary:
 @dataclass(frozen=True)
 class Feature04Summary:
     execution_id: str
+    delivery_key: str
+    market_key: str
     run_type: str
     trigger_source: str
     update_for_date: date | None
@@ -79,6 +81,7 @@ class Feature04Summary:
     finished_at: datetime
     duration_seconds: float
     last_error: str | None
+    retry_ack_message_id: int | None = None
 
 
 def env_flag(name: str, default: bool = True) -> bool:
@@ -184,7 +187,8 @@ def fetch_feature04_summary(
         cursor.execute(
             """
             SELECT run_type,trigger_source,update_for_date,eligible_tickers,completed_tickers,
-                   failed_tickers,blocked_tickers,status,started_at,finished_at,last_error
+                   failed_tickers,blocked_tickers,status,started_at,finished_at,last_error,
+                   source_monitor_table,source_execution_id
             FROM public."Monitoring_Feature04" WHERE execution_id=%s
             """,
             (execution_id,),
@@ -193,25 +197,109 @@ def fetch_feature04_summary(
         if row is None:
             return None
         cursor.execute(
-            """
-            SELECT asset_type,ticker,requested_columns,status,last_error_code
-            FROM public."Monitoring_Feature04_Ticker"
-            WHERE execution_id=%s AND status IN ('FAILED','BLOCKED') ORDER BY ticker
-            """,
+            """SELECT acknowledgement_message_id
+               FROM public."Feature04_Retry_Request" WHERE child_execution_id=%s""",
             (execution_id,),
         )
-        failures = tuple(
-            f"{item[0]}/{item[1]}" + (f" [{','.join(item[2])}]" if item[2] else "")
-            + (f" ({item[4]})" if item[4] else "")
-            for item in cursor.fetchall()
+        retry = cursor.fetchone()
+        retry_ack = int(retry[0]) if retry and retry[0] is not None else None
+
+        market_key = "ADHOC"
+        if row[11] == "Monitoring_Fixed_Income" and row[12]:
+            cursor.execute(
+                """SELECT market_code FROM public."Monitoring_Fixed_Income"
+                   WHERE execution_id=%s::uuid""",
+                (row[12],),
+            )
+            market = cursor.fetchone()
+            market_key = f"{market[0]}_BONDS" if market and market[0] else "BONDS"
+        else:
+            cursor.execute(
+                """SELECT array_agg(DISTINCT asset_type ORDER BY asset_type)
+                   FROM public."Monitoring_Feature04_Ticker" WHERE execution_id=%s""",
+                (execution_id,),
+            )
+            asset_types = (cursor.fetchone() or [None])[0] or []
+            market_key = "IDX_EQUITY" if asset_types == ["equity"] else (
+                "BONDS" if asset_types == ["bonds"] else "ADHOC"
+            )
+
+        aggregate = row[1] == "SCHEDULED" and row[2] is not None and market_key != "ADHOC"
+        if aggregate:
+            if row[11] == "Monitoring_Fixed_Income":
+                cursor.execute(
+                    """
+                    SELECT m.execution_id,m.run_type,m.status,m.started_at,m.finished_at,m.last_error
+                    FROM public."Monitoring_Feature04" m
+                    JOIN public."Monitoring_Fixed_Income" f
+                      ON m.source_monitor_table='Monitoring_Fixed_Income'
+                     AND m.source_execution_id=f.execution_id::text
+                    WHERE m.trigger_source='SCHEDULED' AND m.update_for_date=%s
+                      AND f.market_code=%s
+                      AND m.status IN ('SUCCESS','PARTIAL','FAILED','SKIPPED','NEEDS_REVIEW')
+                    """,
+                    (row[2], market_key.removesuffix("_BONDS")),
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT m.execution_id,m.run_type,m.status,m.started_at,m.finished_at,m.last_error
+                    FROM public."Monitoring_Feature04" m
+                    WHERE m.trigger_source='SCHEDULED' AND m.update_for_date=%s
+                      AND m.source_monitor_table='Monitoring_Price_ALL'
+                      AND m.status IN ('SUCCESS','PARTIAL','FAILED','SKIPPED','NEEDS_REVIEW')
+                    """,
+                    (row[2],),
+                )
+            executions = cursor.fetchall()
+        else:
+            executions = [(execution_id,row[0],row[7],row[8],row[9],row[10])]
+
+        execution_ids = [item[0] for item in executions]
+        cursor.execute(
+            """
+            SELECT execution_id,asset_type,ticker,requested_columns,status,last_error_code,
+                   required_generation,updated_at
+            FROM public."Monitoring_Feature04_Ticker"
+            WHERE execution_id=ANY(%s)
+            ORDER BY asset_type,ticker,required_generation DESC,updated_at DESC
+            """,
+            (execution_ids,),
         )
-    finished = row[9] or datetime.now(timezone.utc)
+        latest: dict[tuple[str, str], tuple] = {}
+        for member in cursor.fetchall():
+            latest.setdefault((str(member[1]), str(member[2])), member)
+
+    statuses = [str(member[4]) for member in latest.values()]
+    completed = sum(status == "SUCCESS" for status in statuses)
+    failed = sum(status == "FAILED" for status in statuses)
+    blocked = sum(status == "BLOCKED" for status in statuses)
+    if latest:
+        status = "SUCCESS" if failed + blocked == 0 else ("PARTIAL" if completed else "FAILED")
+    else:
+        status = aggregate_status([str(item[2]) for item in executions])
+    failures = tuple(
+        f"{member[1]}/{member[2]}"
+        + (f" [{','.join(member[3])}]" if member[3] else "")
+        + (f" ({member[5]})" if member[5] else "")
+        for member in latest.values() if member[4] in ("FAILED", "BLOCKED")
+    )
+    started = min(item[3] for item in executions if item[3] is not None)
+    finished = max((item[4] or datetime.now(timezone.utc)) for item in executions)
+    run_types = [name for name in ("DAILY", "RECOVERY", "RETRY_TICKER", "RETRY_COLUMN", "ADHOC", "RECONCILIATION")
+                 if any(str(item[1]) == name for item in executions)]
+    delivery_key = (
+        f"scheduled:{market_key}:{row[2].isoformat()}" if aggregate else execution_id
+    )
     return Feature04Summary(
-        execution_id=execution_id, run_type=str(row[0]), trigger_source=str(row[1]),
-        update_for_date=row[2], eligible_tickers=int(row[3]), completed_tickers=int(row[4]),
-        failed_tickers=int(row[5]), blocked_tickers=int(row[6]), failed_details=failures,
-        status=str(row[7]), started_at=row[8], finished_at=finished,
-        duration_seconds=max(0.0, (finished-row[8]).total_seconds()), last_error=row[10],
+        execution_id=execution_id, delivery_key=delivery_key, market_key=market_key,
+        run_type="+".join(run_types) or str(row[0]), trigger_source=str(row[1]),
+        update_for_date=row[2], eligible_tickers=len(latest), completed_tickers=completed,
+        failed_tickers=failed, blocked_tickers=blocked, failed_details=failures,
+        status=status, started_at=started, finished_at=finished,
+        duration_seconds=max(0.0, (finished-started).total_seconds()),
+        last_error=next((str(item[5]) for item in executions if item[5]), None),
+        retry_ack_message_id=retry_ack,
     )
 
 
@@ -295,9 +383,9 @@ def build_feature04_messages(
     emoji = STATUS_EMOJI.get(summary.status, "ℹ️")
     date_text = summary.update_for_date.strftime("%d %b %Y") if summary.update_for_date else "ad hoc"
     header = (
-        f"{emoji} Feature04 {summary.run_type} {summary.status} • {date_text} • "
-        f"{summary.completed_tickers}/{summary.eligible_tickers} tickers calculated • "
-        f"{summary.failed_tickers} failed • {summary.blocked_tickers} blocked • "
+        f"{emoji} Feature04 {summary.market_key} {summary.run_type} {summary.status} • {date_text} • FINAL\n"
+        f"Eligible: {summary.eligible_tickers} • Success: {summary.completed_tickers} • "
+        f"Failed: {summary.failed_tickers} • Blocked: {summary.blocked_tickers} • "
         f"{format_duration(summary.duration_seconds)}"
     )
     timing = (
@@ -305,39 +393,33 @@ def build_feature04_messages(
         f"Finished at: {summary.finished_at.astimezone(JAKARTA_TZ).strftime('%d %b %Y %H:%M')} WIB"
     )
     base = header + "\n\n" + timing
-    if not summary.failed_details:
-        return [base]
-    messages: list[str] = []
-    remaining = list(summary.failed_details)
-    first = True
-    while remaining:
-        prefix = "Failed: " if first else "Failed (cont.): "
-        current = base + "\n\n" + prefix if first else prefix
-        included: list[str] = []
-        while remaining:
-            candidate = ", ".join(included + [remaining[0]])
-            if len(current) + len(candidate) > max_length and included:
-                break
-            included.append(remaining.pop(0))
-        messages.append(current + ", ".join(included))
-        first = False
-    return messages
+    if summary.failed_details:
+        shown = list(summary.failed_details[:10])
+        suffix = f"\n…and {len(summary.failed_details)-10} more" if len(summary.failed_details) > 10 else ""
+        base += "\n\nFailed:\n" + "\n".join(f"• {item}" for item in shown) + suffix
+    return [base[:max_length]]
+
+
+def feature04_markup(summary: Feature04Summary) -> dict | None:
+    if summary.failed_tickers + summary.blocked_tickers == 0:
+        return None
+    return {"inline_keyboard": [[{
+        "text": "📊 View / Retry failures", "callback_data": "f04:status"
+    }]]}
 
 
 def send_telegram_message(
     token: str,
     chat_id: str,
     text: str,
+    reply_markup: dict | None = None,
     *,
     opener=urlopen,
 ) -> int:
-    payload = json.dumps(
-        {
-            "chat_id": chat_id,
-            "text": text,
-            "disable_web_page_preview": True,
-        }
-    ).encode("utf-8")
+    body = {"chat_id": chat_id, "text": text, "disable_web_page_preview": True}
+    if reply_markup is not None:
+        body["reply_markup"] = reply_markup
+    payload = json.dumps(body).encode("utf-8")
     request = Request(
         f"https://api.telegram.org/bot{token}/sendMessage",
         data=payload,
@@ -354,6 +436,34 @@ def send_telegram_message(
         raise RuntimeError(f"Telegram connection failed: {exc}") from exc
     if not result.get("ok"):
         raise RuntimeError(f"Telegram rejected message: {result}")
+    return int(result["result"]["message_id"])
+
+
+def edit_telegram_message(
+    token: str, chat_id: str, message_id: int, text: str,
+    reply_markup: dict | None = None, *, opener=urlopen,
+) -> int:
+    body = {
+        "chat_id": chat_id, "message_id": message_id, "text": text,
+        "disable_web_page_preview": True,
+    }
+    if reply_markup is not None:
+        body["reply_markup"] = reply_markup
+    request = Request(
+        f"https://api.telegram.org/bot{token}/editMessageText",
+        data=json.dumps(body).encode("utf-8"),
+        headers={"Content-Type": "application/json"}, method="POST",
+    )
+    try:
+        with opener(request, timeout=20) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:500]
+        raise RuntimeError(f"Telegram HTTP {exc.code}: {detail}") from exc
+    except (URLError, TimeoutError, OSError) as exc:
+        raise RuntimeError(f"Telegram connection failed: {exc}") from exc
+    if not result.get("ok"):
+        raise RuntimeError(f"Telegram rejected edit: {result}")
     return int(result["result"]["message_id"])
 
 
@@ -413,6 +523,49 @@ def claim_delivery(
         return "claimed", int(log_id)
 
 
+def claim_feature04_delivery(
+    connection: psycopg.Connection, delivery_key: str
+) -> tuple[str, int, int | None]:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"""
+            INSERT INTO {LOG_TABLE}(
+                source_table,source_execution_id,notification_type,
+                send_status,attempt_count,updated_at
+            ) VALUES('Monitoring_Feature04',%s,'COMPLETED','SENDING',1,CURRENT_TIMESTAMP)
+            ON CONFLICT(source_table,source_execution_id,notification_type) DO NOTHING
+            RETURNING id
+            """,
+            (delivery_key,),
+        )
+        inserted = cursor.fetchone()
+        if inserted:
+            connection.commit()
+            return "send", int(inserted[0]), None
+        cursor.execute(
+            f"""
+            SELECT id,send_status,telegram_message_ids,
+                   updated_at>CURRENT_TIMESTAMP-INTERVAL '10 minutes' AS is_fresh
+            FROM {LOG_TABLE}
+            WHERE source_table='Monitoring_Feature04' AND source_execution_id=%s
+              AND notification_type='COMPLETED' FOR UPDATE
+            """,
+            (delivery_key,),
+        )
+        log_id,status,message_ids,is_fresh = cursor.fetchone()
+        if status == "SENDING" and is_fresh:
+            connection.commit()
+            return "in_progress",int(log_id),None
+        target = int(message_ids[-1]) if message_ids else None
+        cursor.execute(
+            f"""UPDATE {LOG_TABLE} SET send_status='SENDING',attempt_count=attempt_count+1,
+                last_error=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=%s""",
+            (log_id,),
+        )
+        connection.commit()
+        return ("edit" if target is not None else "send"),int(log_id),target
+
+
 def mark_sent(
     connection: psycopg.Connection, log_id: int, message_ids: list[int]
 ) -> None:
@@ -450,12 +603,14 @@ class TelegramMonitor:
         database_url: str,
         token: str,
         chat_id: str,
-        send_message: Callable[[str, str, str], int] = send_telegram_message,
+        send_message: Callable[..., int] = send_telegram_message,
+        edit_message: Callable[..., int] = edit_telegram_message,
     ) -> None:
         self.database_url = database_url
         self.token = token
         self.chat_id = chat_id
         self.send_message = send_message
+        self.edit_message = edit_message
 
     def notify(self, source_table: str, execution_id: str) -> tuple[str, int]:
         if source_table not in SUPPORTED_SOURCES:
@@ -472,8 +627,19 @@ class TelegramMonitor:
                 summary = fetch_feature04_summary(connection, execution_id)
             if summary is None:
                 raise KeyError("execution_id not found")
-            state, log_id = claim_delivery(connection, source_table, execution_id)
-            if state != "claimed":
+            if isinstance(summary, Feature04Summary):
+                state, log_id, edit_target = claim_feature04_delivery(
+                    connection, summary.delivery_key
+                )
+                if state == "in_progress":
+                    return state, log_id
+                if summary.retry_ack_message_id is not None:
+                    edit_target = summary.retry_ack_message_id or None
+                    state = "edit" if edit_target is not None else "send"
+            else:
+                state, log_id = claim_delivery(connection, source_table, execution_id)
+                edit_target = None
+            if state not in ("claimed", "send", "edit"):
                 if state == "duplicate" and source_table in PRICE_MONITORING_SOURCES:
                     connection.execute(
                         """UPDATE public."Monitoring_Feature04"
@@ -487,16 +653,24 @@ class TelegramMonitor:
 
             message_ids: list[int] = []
             try:
-                if summary.status != "SUCCESS" or env_flag("TELEGRAM_NOTIFY_SUCCESS"):
-                    messages = (
-                        build_messages(summary)
-                        if isinstance(summary, MonitoringSummary)
-                        else build_feature04_messages(summary)
-                    )
-                    for message in messages:
-                        message_ids.append(
-                            self.send_message(self.token, self.chat_id, message)
-                        )
+                if (summary.status != "SUCCESS" or env_flag("TELEGRAM_NOTIFY_SUCCESS")
+                        or (isinstance(summary, Feature04Summary) and state == "edit")):
+                    if isinstance(summary, Feature04Summary):
+                        message = build_feature04_messages(summary)[0]
+                        markup = feature04_markup(summary)
+                        if state == "edit" and edit_target is not None:
+                            message_ids.append(self.edit_message(
+                                self.token,self.chat_id,edit_target,message,markup
+                            ))
+                        else:
+                            message_ids.append(self.send_message(
+                                self.token,self.chat_id,message,markup
+                            ))
+                    else:
+                        for message in build_messages(summary):
+                            message_ids.append(
+                                self.send_message(self.token, self.chat_id, message)
+                            )
                 mark_sent(connection, log_id, message_ids)
                 if source_table in PRICE_MONITORING_SOURCES:
                     connection.execute(
@@ -507,7 +681,7 @@ class TelegramMonitor:
                         (source_table, execution_id),
                     )
                     connection.commit()
-                return "sent", log_id
+                return ("edited" if state == "edit" else "sent"), log_id
             except Exception as exc:
                 mark_failed(connection, log_id, f"{type(exc).__name__}: {exc}")
                 raise

@@ -316,6 +316,14 @@ calculate concurrently, but its outbox is deliverable only after the price notif
 recorded sent. The second message is emitted after all eligible tickers are terminal.
 Delivery errors retry outside the calculation transaction.
 
+Scheduled DAILY and RECOVERY Feature04 results for the same configured market and trade date
+use one Telegram delivery identity. The first terminal result sends a compact final message;
+a later terminal result edits it. The summary reports eligible/success/failed/blocked counts,
+shows no more than ten failure details, and opens `/feature04` for the complete retry menu.
+Ticker and column retries derive exactly the latest configured five final sessions, load the
+compatible checkpoint immediately before that boundary, and edit their acknowledgement with
+the terminal result. They never replay source history from 2016.
+
 Fixed income has four independent Railway roles from the Git-owned
 `apps/fixed-income-price-cron` source: Indonesia close/recovery at `0 10 * * *` and
 `0 11 * * *` UTC, plus US close/recovery at `0 23 * * *` and `0 0 * * *` UTC.

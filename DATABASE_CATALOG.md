@@ -100,7 +100,7 @@ column/constraint/index reference for every row below.
 | `Price_Stock_Indonesia_IDX` | TradingView daily OHLCV source rows | `apps/idx-price-cron/README.md` |
 | `Table_Catalog` | Table meaning, grain, provenance, update, and routine registry | This document |
 | `Telegram_Command_Log` | Inbound command audit and duplicate prevention | `apps/telegram-trigger/README.md` |
-| `Telegram_Notification_Log` | Outbound notification state and duplicate prevention | `apps/telegram-monitor/README.md` |
+| `Telegram_Notification_Log` | Outbound send/edit state and logical delivery deduplication | `apps/telegram-monitor/README.md` |
 | `Tool_Catalog` | Generic AI tool contracts and advertised limits | `AI_ANALYST_IMPLEMENTATION_PLAN.md` |
 | `Universe_Equity_Description` | Issuer descriptions and sector/industry classifications | This document and `DATABASE_SCHEMA.md` |
 | `stockbit_broker_summary_load_log` | Per-date Stockbit load progress/retry history | `apps/stockbit-broker-backfill/README.md` |
@@ -112,8 +112,11 @@ Feature04 automation adds `Feature04_Calculation_Queue`, `Feature04_Column_Statu
 `Feature04_Retry_Request`, and `Feature04_Notification_Outbox`. These are operational
 state and audit tables, not model features. A committed price trigger coalesces work by
 ticker; `feature-04-worker` owns calculation/status writes. Telegram can create only
-failure-backed retry requests. The Feature04 outbox is gated by successful price-message
-delivery for automatic runs. Their physical definitions and keys are generated in
+failure-backed retry requests. Each retry records the editable Telegram acknowledgement and
+derives its start from the latest configured five final sessions. The Feature04 outbox is
+gated by successful price-message delivery for automatic runs and by acknowledgement
+recording for retries. Scheduled DAILY/RECOVERY results share a market/date delivery key.
+Their physical definitions and keys are generated in
 `DATABASE_SCHEMA.md`; behavior is specified in `FEATURE04_TECHNICAL_INDICATOR.md`.
 
 `Feature04_Calculation_State` stores recent versioned calculation checkpoints. Its grain is

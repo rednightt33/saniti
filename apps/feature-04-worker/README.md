@@ -33,6 +33,12 @@ durable notification outbox waits until `telegram-monitor` has recorded the pric
 as sent, then requests the separate Feature04 Telegram result. Telegram delivery failure
 never rolls back calculated data.
 
+For a Telegram retry, the database derives the oldest date in the latest configured five
+final sessions and invalidates checkpoints from that boundary. The worker claims the
+completion outbox only after `telegram-trigger` records the acknowledgement message ID (or
+records zero when acknowledgement delivery failed). This lets the monitor edit the original
+acknowledgement without racing a separate completion message.
+
 `Feature04_Calculation_State` stores recent recursive and rolling state by
 `(asset_type,ticker,timeframe,checkpoint_date)`. Retention and the maximum normal suffix are
 derived from each market's `correction_lookback_sessions`; the initial bootstrap is an

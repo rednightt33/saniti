@@ -1,3 +1,4 @@
+import json
 import unittest
 from datetime import date, datetime, timezone
 
@@ -9,6 +10,8 @@ from telegram_monitor import (
     format_header,
     format_timing,
     build_feature04_messages,
+    edit_telegram_message,
+    feature04_markup,
     fetch_fixed_income_summary,
 )
 
@@ -36,6 +39,30 @@ def summary(**overrides) -> MonitoringSummary:
 
 
 class TelegramMonitorTests(unittest.TestCase):
+    def test_edit_message_uses_original_message_and_retry_markup(self):
+        captured = {}
+
+        class Response:
+            def __enter__(self): return self
+            def __exit__(self, *args): return False
+            def read(self): return b'{"ok":true,"result":{"message_id":77}}'
+
+        def opener(request, timeout):
+            captured["url"] = request.full_url
+            captured["body"] = json.loads(request.data)
+            captured["timeout"] = timeout
+            return Response()
+
+        message_id = edit_telegram_message(
+            "token", "123", 77, "final",
+            {"inline_keyboard": [[{"text": "Retry", "callback_data": "f04:status"}]]},
+            opener=opener,
+        )
+        self.assertEqual(message_id, 77)
+        self.assertTrue(captured["url"].endswith("/bottoken/editMessageText"))
+        self.assertEqual(captured["body"]["message_id"], 77)
+        self.assertEqual(captured["body"]["reply_markup"]["inline_keyboard"][0][0]["callback_data"], "f04:status")
+
     def test_fixed_income_summary_maps_series_and_missing_metric(self):
         class Cursor:
             def __enter__(self): return self
@@ -100,7 +127,8 @@ class TelegramMonitorTests(unittest.TestCase):
 
     def test_feature04_message_lists_terminal_ticker_failures(self):
         value = Feature04Summary(
-            execution_id="f04-run", run_type="DAILY", trigger_source="SCHEDULED",
+            execution_id="f04-run", delivery_key="scheduled:IDX_EQUITY:2026-09-09",
+            market_key="IDX_EQUITY", run_type="DAILY", trigger_source="SCHEDULED",
             update_for_date=date(2026, 9, 9), eligible_tickers=844,
             completed_tickers=843, failed_tickers=1, blocked_tickers=0,
             failed_details=("BBCA.JK [adx_14] (FORMULA_GROUP_FAILED)",), status="PARTIAL",
@@ -109,9 +137,31 @@ class TelegramMonitorTests(unittest.TestCase):
             duration_seconds=60, last_error=None,
         )
         text = build_feature04_messages(value)[0]
-        self.assertIn("Feature04 DAILY PARTIAL", text)
-        self.assertIn("843/844 tickers calculated", text)
+        self.assertIn("Feature04 IDX_EQUITY DAILY PARTIAL", text)
+        self.assertIn("Eligible: 844 • Success: 843", text)
+        self.assertIn("FINAL", text)
         self.assertIn("BBCA.JK [adx_14]", text)
+        self.assertEqual(
+            feature04_markup(value)["inline_keyboard"][0][0]["callback_data"],
+            "f04:status",
+        )
+
+    def test_feature04_failure_details_are_capped_in_one_message(self):
+        failures = tuple(f"equity/T{i:02d}.JK [adx_14]" for i in range(15))
+        value = Feature04Summary(
+            execution_id="f04-run", delivery_key="scheduled:IDX_EQUITY:2026-09-09",
+            market_key="IDX_EQUITY", run_type="RECOVERY", trigger_source="SCHEDULED",
+            update_for_date=date(2026, 9, 9), eligible_tickers=15,
+            completed_tickers=0, failed_tickers=15, blocked_tickers=0,
+            failed_details=failures, status="FAILED",
+            started_at=datetime(2026, 9, 9, 10, 1, tzinfo=timezone.utc),
+            finished_at=datetime(2026, 9, 9, 10, 2, tzinfo=timezone.utc),
+            duration_seconds=60, last_error=None,
+        )
+        messages = build_feature04_messages(value)
+        self.assertEqual(len(messages), 1)
+        self.assertIn("…and 5 more", messages[0])
+        self.assertNotIn("T10.JK", messages[0])
 
 
 if __name__ == "__main__":

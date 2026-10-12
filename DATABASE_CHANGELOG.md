@@ -1,5 +1,32 @@
 # Database changelog
 
+## 2026-10-12 — Feature04 compact Telegram monitor and bounded retry
+
+- User authorized execution with `"Okay gas."` after confirming the Feature04-only
+  monitoring design. Migration `20261012_004_feature04_telegram_monitor.sql`
+  (`cc9768a3…bda1`) completed an intentional rollback rehearsal and was then applied to
+  `lucid-patience/dev`.
+- Added nullable `Feature04_Retry_Request.acknowledgement_message_id` with a nonnegative
+  check. A positive ID is edited with the terminal retry result; zero records a failed
+  acknowledgement send so completion can safely send a replacement.
+- Added `feature04_retry_dirty_date(asset_type,ticker)`. It reads the enabled market policy
+  and returns the oldest date among that ticker's latest configured final sessions (five in
+  all current markets). `request_feature04_retry` now uses that exact boundary, deletes
+  checkpoints on/after it, and never requests history from 2016.
+- Live schema readback confirmed the new column, constraint, function, and VERIFIED column
+  catalog row. Equity `AADI` and bond `ID01MY` both resolved to `2026-10-05`, exactly the
+  minimum of their five latest final source dates. No formula, Feature table column, source
+  row, universe membership, market schedule, or calculation version changed.
+- The first temporary Bun rehearsal attempted top-level `BEGIN`/`ROLLBACK` in one SQL
+  string and was rejected before execution. The corrected runner split the migration into
+  statements and used `sql.begin`; rollback readback proved no object remained before the
+  successful apply.
+- Follow-up catalog migration `20261012_005_document_feature04_delivery_key.sql`
+  (`1ff8e3f0…fd58`) passed rollback rehearsal (`48babe35-…`) and applied successfully
+  (`6e7db0c4-…`). It documents that `Telegram_Notification_Log.source_execution_id` also
+  carries the logical Feature04 market/date delivery key; the physical type and constraint
+  remain unchanged.
+
 ## 2026-10-12 — Feature04 exact incremental state and equity finality
 
 - User authorized execution with `"Ok jalankan."` after approving the checkpoint design.

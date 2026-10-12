@@ -1,6 +1,6 @@
 # Database schema
 
-Refreshed from the applied public-schema migration and live readback at `2026-10-12T05:44:10+00:00`.
+Refreshed from the applied public-schema migration and live readback at `2026-10-12T09:21:56+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -40,7 +40,7 @@ Refreshed from the applied public-schema migration and live readback at `2026-10
 | `Feature04_Calculation_Queue` | System | After relevant price changes and Feature04 worker transitions | — | `2026-10-11 08:51:27+00:00` | Baseline only | Durable coalesced Feature04 work and lease state. |
 | `Feature04_Column_Status` | System | After Feature04 validation or failure | — | `2026-10-11 08:51:27+00:00` | Baseline only | Per-ticker per-output Feature04 readiness and failure state. |
 | `Feature04_Notification_Outbox` | System | After a Feature04 execution becomes terminal | — | `2026-10-11 08:51:27+00:00` | Baseline only | Durable Feature04 completion-notification work. |
-| `Feature04_Retry_Request` | System | When the owner requests an active failure retry | — | `2026-10-11 08:51:27+00:00` | Baseline only | Audited Telegram failure-only retry request. |
+| `Feature04_Retry_Request` | System | When the owner requests an active failure retry or its Telegram acknowledgement is recorded | — | `2026-10-11 08:51:27+00:00` | Baseline only | Audited failure-only Telegram retry request, bounded five-session scope, editable acknowledgement, and child execution. |
 | `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-10-09` | `2026-10-09 10:06:33.150795+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
 | `Feature_02_Broker_Rolling` | Feature | After validated broker-summary changes; manual v2 ticker rebuild | `2026-08-31` | `2026-09-14 14:26:33.580099+00:00` | Derived from IDX_Broker_Summary; Investor-Type Feature 02 v2 refresh is manual | Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata. |
 | `Feature_03_Stock_Broker_Daily` | Feature | After Feature 02 refresh; manual Investor-Type v2 refresh | `2026-08-31` | `2026-09-14 15:17:23.131992+00:00` | Derived from Investor-Type Feature_02_Broker_Rolling; Feature 03 v2 refresh is manual | Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate. |
@@ -119,7 +119,7 @@ These relationships are documented for analysis but are not enforced as PostgreS
 | `Feature_Catalog.(feature_table, feature_column)` | `Locked Feature table physical columns` | Governed semantic reference | Active catalog rows are validated by trigger against exact physical columns in the public schema. |
 | `Monitoring_Price_ALL.asset_type` | `IDX_Stock_Universe."Security Type"` | Logical grouped snapshot | Monitoring rows group expected and missing ticker counts by the universe Security Type value. |
 | `Monitoring_Price_ALL.update_for_date` | `Price_Stock_Indonesia_IDX.date` | Logical | A monitoring date describes the daily-price date targeted by an automation run. |
-| `Telegram_Notification_Log.source_execution_id` | `Monitoring_Price_ALL.execution_id` | Logical many-to-one by execution | The notifier reads all monitoring rows for one execution before sending and recording delivery. No database foreign key is enforced. |
+| `Telegram_Notification_Log.source_execution_id` | Source monitor or Feature04 logical delivery key | Logical delivery identity | Price/manual results use one source execution; scheduled Feature04 uses market/trade date and retry uses its child execution. No database foreign key is enforced. |
 
 ## AI_calculation_catalog
 
@@ -1601,7 +1601,7 @@ Durable Feature04 completion-notification work.
 
 ## Feature04_Retry_Request
 
-Audited Telegram failure-only retry request.
+Audited failure-only Telegram retry request with a bounded five-session scope and editable acknowledgement.
 
 ### Columns
 
@@ -1623,12 +1623,14 @@ Audited Telegram failure-only retry request.
 | `finished_at` | `timestamp with time zone` | Yes | — | Operational finished at field for Feature04_Retry_Request. |
 | `last_error` | `text` | Yes | — | Operational last error field for Feature04_Retry_Request. |
 | `asset_type` | `text` | Yes | — | Universe-derived asset class: equity from IDX_Stock_Universe; bonds from Universe_Fixed_income. |
+| `acknowledgement_message_id` | `bigint` | Yes | — | Telegram acknowledgement message edited with the terminal retry result; zero means acknowledgement delivery failed. |
 
 ### Constraints
 
 | Name | Type | Definition |
 |---|---|---|
 | `Feature04_Retry_Request_asset_type_check` | Check | `CHECK (asset_type IS NULL OR (asset_type = ANY (ARRAY['equity'::text, 'bonds'::text])))` |
+| `Feature04_Retry_Request_ack_message_check` | Check | `CHECK (acknowledgement_message_id IS NULL OR acknowledgement_message_id >= 0)` |
 | `Feature04_Retry_Request_check` | Check | `CHECK (request_scope = 'TICKER'::text AND requested_columns IS NULL OR request_scope = 'COLUMN'::text AND requested_columns IS NOT NULL AND cardinality(requested_columns) > 0)` |
 | `Feature04_Retry_Request_check1` | Check | `CHECK (source_generation >= 0 AND work_revision > 0)` |
 | `Feature04_Retry_Request_request_scope_check` | Check | `CHECK (request_scope = ANY (ARRAY['TICKER'::text, 'COLUMN'::text]))` |
@@ -3022,7 +3024,7 @@ Inbound Telegram command audit and duplicate-prevention ledger.
 
 ## Telegram_Notification_Log
 
-Outbound Telegram delivery state and anti-duplicate ledger.
+Outbound Telegram delivery and edit ledger for execution-level price results and logical Feature04 market/date or retry results.
 
 ### Columns
 
@@ -3030,7 +3032,7 @@ Outbound Telegram delivery state and anti-duplicate ledger.
 |---|---|---|---|---|
 | `id` | `bigint` | No | — | Generated Telegram delivery-log identifier. |
 | `source_table` | `text` | No | — | Monitoring table from which notification details are read. |
-| `source_execution_id` | `text` | No | — | The execution_id from the source monitoring table; one completed run is sent once. |
+| `source_execution_id` | `text` | No | — | Delivery identity: source execution ID for price/manual results, or logical market/date/retry key for Feature04. |
 | `notification_type` | `text` | No | `'COMPLETED'::text` | Notification event type; currently COMPLETED. |
 | `send_status` | `text` | No | `'PENDING'::text` | Delivery state: PENDING, SENDING, SENT, or FAILED. |
 | `attempt_count` | `integer` | No | `0` | Number of claimed Telegram delivery attempts. |
