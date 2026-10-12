@@ -2111,6 +2111,9 @@ percakapan berjalan), dialog "Delete conversation?", `DELETE /api/v1/conversatio
 yang masih berjalan (409); orc tidak diubah dan tetap menyimpan percakapan sesuai retensinya (30 hari sesudah aktivitas
 terakhir). Bersama itu dibangun EXEC-SORT (`MdTable`), B1 (`last_message`) dan C (`title` router pesan pertama, dipakai
 EDGE hanya untuk pertanyaan pertama; judul yang diubah user tidak ditimpa). Tes: orc 1.634, EDGE 70 lulus.
+- Deploy `main` `00f808f` (2026-10-12): orc `d608732c` dan edge-bff `9db6483d` SUCCESS. Cek live judul: "tolong jelaskan
+  singkat apa itu indikator RSI untuk saham" → judul "Penjelasan Indikator RSI" (rute FACT). Temuan baru M144 (gerbang
+  ROUTING memaksa LIMITATION pada jawaban definisi RSI; sudah ada sebelumnya, menunggu keputusan user).
 
 ### EXEC-IMPL-1012: rencana implementasi EXEC-JOINKEY, EXEC-RELEASE, EXEC-FRICTION, EXEC-STYLE (berjalan)
 

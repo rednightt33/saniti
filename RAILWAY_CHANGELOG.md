@@ -1,5 +1,18 @@
 # Railway changelog
 
+## 2026-10-12 — EXEC-SORT, EXEC-UI-1012 (B1, C) and EXEC-DELETE deployed from main
+
+User: "1 pakai B hanya smebunyikan di front end tapi backend bisa akses if needed / 2 Ok / 3 Ok" (with "A. correct",
+"B1. (i)", "C. sesuai bahasa penanya dan only first question"). Rollback references: orc `dbc11d42`, edge-bff `f069c6a7`.
+- Migration `20261012_008` (EDGE `hidden_at`) applied first through the temporary service `mmig-job` (DRYRUN
+  `8cae3675`, APPLY `9af9d306`; deleted, read back absent) (`DATABASE_CHANGELOG.md`).
+- `main` `00f808f`: market-ai-orc **d608732c-aa6b-4694-8953-fa0f70c483f2** and edge-bff
+  **9db6483d-f9f0-47d7-8f33-4219b79337c4** reached **SUCCESS**; EDGE `/ready` 200 (it reads `hidden_at`).
+- Live check of the title: `orc-test-runner` **9405cdb5-c546-497e-883a-1177e981c71c** (suite `ma-title-20261012a`, one
+  question, USD 0.008): router route FACT, title "Penjelasan Indikator RSI". The answer itself was forced to LIMITATION
+  by the ROUTING gate (M144, existing, not from this change).
+- No variable, model, provider, mode or configuration change.
+
 ## 2026-10-12 — EDGE: Download links and typing (EXEC-EXPORT, EXEC-TYPING)
 
 User: "2 dan 3 OK untuk jalankan masukan EXEC". Rollback reference: edge-bff `7c2ad4f9`.
