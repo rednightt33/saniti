@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-10-12 — EXEC-STYLE after the A/B: Run A style without required assumptions or limitations
+
+User: "We'll go with option A deh, tapi tanpa kewajiban AI harus kash asumsi, batasan saat reply ke useer. Tabel juga
+boleh lebih dari 1 tabel as long as diperlukan." Rollback reference: orc `1ac6bcc5`.
+- `main` `f30e710`: market-ai-orc **dbc11d42-1e19-4352-bac9-510f2bfbc163** reached **SUCCESS** (`/ready` 200, no
+  `*_inactive` event); edge-bff SKIPPED (no EDGE change). Prompt snapshot `v005 exec-style-run-a` (the prompt cache
+  prefix changes once).
+- No migration, variable, model, provider, mode or configuration change.
+
 ## 2026-10-12 — EXEC-IMPL-1012 Fase 3 (Run A, EXEC-STYLE, Run B)
 
 User go 2026-10-12 ("ok", `EXEC.md` EXEC-IMPL-1012). Rollback references: orc `79f13a5e`, edge-bff `b559daad`.
