@@ -116,6 +116,12 @@ failure-backed retry requests. The Feature04 outbox is gated by successful price
 delivery for automatic runs. Their physical definitions and keys are generated in
 `DATABASE_SCHEMA.md`; behavior is specified in `FEATURE04_TECHNICAL_INDICATOR.md`.
 
+`Feature04_Calculation_State` stores recent versioned calculation checkpoints. Its grain is
+asset type, ticker, Daily timeframe and checkpoint date. `Equity_Market_Schedule` and
+`Fixed_Income_Market_Schedule.correction_lookback_sessions` control finality and the normal
+five-session correction boundary. Checkpoints are invalidated on or after a material source
+change and replaced only with a successful suffix transaction.
+
 Fixed-income ingestion is market-partitioned. `Fixed_Income_Market_Schedule` stores the
 current timezone, local close and finality delay for Indonesia and the United States.
 `Universe_Fixed_income` stores the exact TradingView symbol and value unit for every

@@ -1,5 +1,25 @@
 # Database changelog
 
+## 2026-10-12 — Feature04 exact incremental state and equity finality
+
+- User authorized execution with `"Ok jalankan."` after approving the checkpoint design.
+  Migration `20261012_003_incremental_feature04_finality.sql` (`a4aa1bf5…46af9`)
+  completed a full rolled-back rehearsal and was then applied to `lucid-patience/dev`.
+- Added `Equity_Market_Schedule` with IDX `Asia/Jakarta` close 16:00, 60-minute finality
+  delay, and five-session correction policy. Added `market_code`, provider timestamp,
+  close instant, final flag, and finalization time to `Price_Stock_Indonesia_IDX`.
+  Historical rows retain NULL provider timestamps; all 1,318,633 existing rows were marked
+  legacy final with close/finalization evidence.
+- Added `Feature04_Calculation_State` and incremental range fields on the attempt log.
+  Enqueue invalidates checkpoints on/after the changed source date; a completed queue starts
+  at the new dirty date. Telegram retry keeps the failed dirty range instead of asking for
+  source minimum history.
+- Feature definitions and table/column catalogs now state that only final sources are
+  eligible and a compatible checkpoint precedes the recalculated suffix. No formula or
+  output calculation version changed.
+- Initial readback before state bootstrap: one enabled equity policy, 1,318,633/1,318,633
+  final equity rows, zero checkpoint rows, and zero processing claims.
+
 ## 2026-10-12 — Market-specific final fixed-income closes
 
 - User approved the Indonesia/US closing-price design and then authorized execution with

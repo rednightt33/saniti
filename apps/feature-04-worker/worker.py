@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import sys
@@ -18,6 +17,7 @@ from urllib.request import Request, urlopen
 import psycopg
 from psycopg import sql
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "features" / "feature04"))
 from engine import (  # noqa: E402
@@ -25,9 +25,12 @@ from engine import (  # noqa: E402
     FEATURE_COLUMNS,
     TABLE,
     VERSION,
-    calculate_with_diagnostics,
     dependency_closure,
-    validate_output_availability,
+)
+from incremental import (  # noqa: E402
+    STATE_VERSION,
+    calculate_incremental,
+    validate_incremental_availability,
 )
 
 
@@ -55,6 +58,10 @@ class Job:
     source_attempt_count: int
     claim_token: uuid.UUID
     started_at: datetime
+
+
+class RepairRequired(RuntimeError):
+    """A daily suffix cannot be calculated without an explicit state repair."""
 
 
 def connect() -> psycopg.Connection:
@@ -205,6 +212,7 @@ def load_history(connection: psycopg.Connection, asset_type: str, ticker: str) -
                'equity'::text AS asset_type
         FROM public."Price_Stock_Indonesia_IDX" p
         WHERE %s='equity' AND p.ticker=%s AND p.timeframe='Daily'
+          AND p.is_final
           AND EXISTS(SELECT 1 FROM public."IDX_Stock_Universe" u WHERE u."Ticker"=p.ticker)
         UNION ALL
         SELECT p.ticker,p.date,p.open,p.high,p.low,p.close,p.volume,'Daily'::text,
@@ -225,10 +233,147 @@ def load_history(connection: psycopg.Connection, asset_type: str, ticker: str) -
     return [dict(row) for row in rows]
 
 
-def source_digest(rows: list[dict]) -> str:
-    return hashlib.sha256(
-        json.dumps(rows, sort_keys=True, default=str, separators=(",", ":")).encode()
-    ).hexdigest()
+def load_checkpoint_and_suffix(
+    connection: psycopg.Connection, job: Job
+) -> tuple[dict, date, list[dict], int]:
+    policy = connection.execute(
+        """
+        SELECT correction_lookback_sessions FROM (
+          SELECT s.correction_lookback_sessions
+          FROM public."Equity_Market_Schedule" s
+          WHERE %s='equity' AND s.market_code='IDX' AND s.enabled
+          UNION ALL
+          SELECT DISTINCT s.correction_lookback_sessions
+          FROM public."Universe_Fixed_income" u
+          JOIN public."Fixed_Income_Market_Schedule" s ON s.country=u.country
+          WHERE %s='bonds' AND u.ticker=%s AND u.metric_type='price' AND s.enabled
+        ) configured
+        """,
+        (job.asset_type, job.asset_type, job.ticker),
+    ).fetchall()
+    if len(policy) != 1:
+        raise RepairRequired(
+            f"Expected one correction policy for {job.asset_type}/{job.ticker}; found {len(policy)}"
+        )
+    lookback_sessions = int(policy[0]["correction_lookback_sessions"])
+    checkpoint = connection.execute(
+        """
+        WITH previous_source AS (
+          SELECT max(source_date) AS checkpoint_date FROM (
+            SELECT p.date AS source_date
+            FROM public."Price_Stock_Indonesia_IDX" p
+            WHERE %s='equity' AND p.ticker=%s AND p.timeframe='Daily' AND p.is_final
+              AND p.date<%s
+            UNION ALL
+            SELECT p.date
+            FROM public."Price_Fixed_Income" p
+            WHERE %s='bonds' AND p.ticker=%s AND p.metric_type='price'
+              AND p."Timeframe"='1D' AND p.is_final AND p.date<%s
+          ) source_dates
+        )
+        SELECT s.checkpoint_date,s.state_payload,s.source_chain_sha256
+        FROM previous_source p
+        JOIN public."Feature04_Calculation_State" s
+          ON s.asset_type=%s AND s.ticker=%s AND s.timeframe='Daily'
+         AND s.checkpoint_date=p.checkpoint_date
+         AND s.state_version=%s AND s.calculation_version=%s
+        """,
+        (
+            job.asset_type, job.ticker, job.dirty_from_date,
+            job.asset_type, job.ticker, job.dirty_from_date,
+            job.asset_type, job.ticker, STATE_VERSION, VERSION,
+        ),
+    ).fetchone()
+    if checkpoint is None:
+        raise RepairRequired(
+            f"No compatible checkpoint immediately before {job.dirty_from_date} for "
+            f"{job.asset_type}/{job.ticker}"
+        )
+    state = dict(checkpoint["state_payload"])
+    if state.get("last_date") != checkpoint["checkpoint_date"].isoformat():
+        raise RepairRequired("Checkpoint payload date does not match its database key")
+    if state.get("source_chain_sha256") != checkpoint["source_chain_sha256"]:
+        raise RepairRequired("Checkpoint source digest does not match its database record")
+    rows = connection.execute(
+        """
+        SELECT p.ticker,p.date,p.open,p.high,p.low,p.close,p.volume,p.timeframe,
+               p.tradingview_symbol,p.source,p.query_date,p.ingestion_time,
+               'equity'::text AS asset_type
+        FROM public."Price_Stock_Indonesia_IDX" p
+        WHERE %s='equity' AND p.ticker=%s AND p.timeframe='Daily' AND p.is_final
+          AND p.date>%s
+          AND EXISTS(SELECT 1 FROM public."IDX_Stock_Universe" u WHERE u."Ticker"=p.ticker)
+        UNION ALL
+        SELECT p.ticker,p.date,p.open,p.high,p.low,p.close,p.volume,'Daily'::text,
+               p.tradingview_symbol,p.source,p.query_date,p.ingestion_time,
+               'bonds'::text AS asset_type
+        FROM public."Price_Fixed_Income" p
+        WHERE %s='bonds' AND p.ticker=%s AND p.metric_type='price' AND p."Timeframe"='1D'
+          AND p.is_final AND p.date>%s
+          AND EXISTS(SELECT 1 FROM public."Universe_Fixed_income" u WHERE u.ticker=p.ticker)
+        ORDER BY date
+        """,
+        (
+            job.asset_type, job.ticker, checkpoint["checkpoint_date"],
+            job.asset_type, job.ticker, checkpoint["checkpoint_date"],
+        ),
+    ).fetchall()
+    history = [dict(row) for row in rows]
+    if len(history) > lookback_sessions:
+        raise RepairRequired(
+            f"Incremental suffix has {len(history)} rows; maximum normal window is "
+            f"{lookback_sessions}"
+        )
+    return state, checkpoint["checkpoint_date"], history, lookback_sessions + 2
+
+
+def replace_checkpoints(
+    connection: psycopg.Connection, job: Job, checkpoints: list[dict], retention: int
+) -> None:
+    for state in checkpoints:
+        checkpoint_date = date.fromisoformat(state["last_date"])
+        connection.execute(
+            """
+            INSERT INTO public."Feature04_Calculation_State"(
+              asset_type,ticker,timeframe,checkpoint_date,state_version,
+              calculation_version,source_position,source_chain_sha256,state_payload,updated_at
+            ) VALUES(%s,%s,'Daily',%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP)
+            ON CONFLICT(asset_type,ticker,timeframe,checkpoint_date) DO UPDATE SET
+              state_version=EXCLUDED.state_version,
+              calculation_version=EXCLUDED.calculation_version,
+              source_position=EXCLUDED.source_position,
+              source_chain_sha256=EXCLUDED.source_chain_sha256,
+              state_payload=EXCLUDED.state_payload,updated_at=CURRENT_TIMESTAMP
+            """,
+            (
+                job.asset_type, job.ticker, checkpoint_date, STATE_VERSION, VERSION,
+                state["position"], state["source_chain_sha256"], Jsonb(state),
+            ),
+        )
+    connection.execute(
+        """
+        DELETE FROM public."Feature04_Calculation_State" old
+        WHERE old.asset_type=%s AND old.ticker=%s AND old.timeframe='Daily'
+          AND old.checkpoint_date NOT IN (
+            SELECT checkpoint_date FROM public."Feature04_Calculation_State"
+            WHERE asset_type=%s AND ticker=%s AND timeframe='Daily'
+            ORDER BY checkpoint_date DESC LIMIT %s
+          )
+        """,
+        (job.asset_type, job.ticker, job.asset_type, job.ticker, retention),
+    )
+
+
+def delete_missing_outputs(
+    connection: psycopg.Connection, job: Job, source_dates: list[date]
+) -> int:
+    return connection.execute(
+        sql.SQL(
+            """DELETE FROM public.{} WHERE asset_type=%s AND ticker=%s AND timeframe='Daily'
+               AND trade_date>=%s AND NOT (trade_date=ANY(%s))"""
+        ).format(sql.Identifier(TABLE)),
+        (job.asset_type, job.ticker, job.dirty_from_date, source_dates),
+    ).rowcount
 
 
 def upsert_columns(
@@ -325,6 +470,7 @@ def write_attempt(
     connection: psycopg.Connection, job: Job, *, requested: tuple[str, ...],
     successful: tuple[str, ...], failed: tuple[str, ...], outcomes: dict,
     result: str, history: list[dict], digest: str, changed: int,
+    checkpoint_date: date | None = None,
     error_code: str | None = None, detail: str | None = None,
 ) -> int:
     retry = connection.execute(
@@ -338,15 +484,19 @@ def write_attempt(
         INSERT INTO public."Feature04_Calculation_Log"(
           asset_type,ticker,timeframe,source_generation,work_revision,retry_request_id,requested_columns,
           successful_columns,failed_columns,group_outcomes,result,source_start,source_end,
-          source_rows,source_sha256,changed_rows,calculation_version,started_at,error_code,detail)
-        VALUES(%s,%s,'Daily',%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+          source_rows,source_sha256,changed_rows,calculation_version,started_at,error_code,detail,
+          checkpoint_date,dirty_from_date)
+        VALUES(%s,%s,'Daily',%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         RETURNING id
         """,
         (
             job.asset_type, job.ticker, job.requested_generation, job.work_revision,
             retry["request_id"] if retry else None, list(requested), list(successful), list(failed),
-            json.dumps(outcomes), result, history[0]["date"], history[-1]["date"], len(history),
-            digest, changed, VERSION, job.started_at, error_code, detail,
+            json.dumps(outcomes), result,
+            history[0]["date"] if history else None,
+            history[-1]["date"] if history else checkpoint_date,
+            len(history), digest, changed, VERSION, job.started_at, error_code, detail,
+            checkpoint_date, job.dirty_from_date,
         ),
     ).fetchone()["id"]
 
@@ -389,16 +539,20 @@ def terminal_failure(
 def process_one(job: Job) -> str:
     try:
         with connect() as read_connection:
-            history = load_history(read_connection, job.asset_type, job.ticker)
-        digest = source_digest(history)
+            checkpoint, checkpoint_date, history, checkpoint_retention = load_checkpoint_and_suffix(
+                read_connection, job
+            )
         requested = dependency_closure(job.requested_columns)
-        rows, outcomes = calculate_with_diagnostics(history, requested_columns=requested)
+        rows, outcomes, final_state, checkpoints = calculate_incremental(
+            history, checkpoint=checkpoint, requested_columns=requested
+        )
+        digest = final_state["source_chain_sha256"]
         failed_set = {
             column for outcome in outcomes.values() if outcome["status"] == "FAILED"
             for column in outcome["columns"] if column in requested
         }
-        availability_failures = validate_output_availability(
-            history, rows, requested_columns=requested
+        availability_failures = validate_incremental_availability(
+            history, rows, checkpoints, requested_columns=requested
         )
         failed_set.update(availability_failures)
         for column, failure in availability_failures.items():
@@ -414,15 +568,20 @@ def process_one(job: Job) -> str:
                     connection, job, requested=requested, successful=(), failed=(),
                     outcomes={"worker": {"status": "SUPERSEDED"}}, result="SUPERSEDED",
                     history=history, digest=digest, changed=0,
+                    checkpoint_date=checkpoint_date,
                     error_code="SUPERSEDED", detail="Queue generation or work revision changed",
                 )
                 emit("feature04_superseded", ticker=job.ticker)
                 return "SUPERSEDED"
-            changed = upsert_columns(connection, rows, successful)
+            changed = delete_missing_outputs(
+                connection, job, [row["date"] for row in history]
+            )
+            changed += upsert_columns(connection, rows, successful)
             result = "SUCCESS" if not failed else ("PARTIAL" if successful else "FAILED")
             attempt_id = write_attempt(
                 connection, job, requested=requested, successful=successful, failed=failed,
                 outcomes=outcomes, result=result, history=history, digest=digest, changed=changed,
+                checkpoint_date=checkpoint_date,
                 error_code="FORMULA_GROUP_FAILED" if failed else None,
                 detail=json.dumps({k: v for k, v in outcomes.items() if v["status"] == "FAILED"})[:1000] or None,
             )
@@ -435,11 +594,12 @@ def process_one(job: Job) -> str:
                       last_calculated_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP
                     WHERE asset_type=%s AND ticker=%s AND timeframe='Daily' AND feature_column=ANY(%s)
                     """,
-                    (job.requested_generation, VERSION, history[-1]["date"], attempt_id,
+                    (job.requested_generation, VERSION,
+                     history[-1]["date"] if history else checkpoint_date, attempt_id,
                      job.asset_type, job.ticker, list(successful)),
                 )
                 for column in successful:
-                    value_available = rows[-1][column] is not None
+                    value_available = bool(rows and rows[-1][column] is not None)
                     connection.execute(
                         """
                         UPDATE public."Feature04_Column_Status"
@@ -478,6 +638,7 @@ def process_one(job: Job) -> str:
                     "FORMULA_GROUP_FAILED", "Maximum attempts exhausted for failed formula groups",
                 )
                 return result
+            replace_checkpoints(connection, job, checkpoints, checkpoint_retention)
             connection.execute(
                 """
                 UPDATE public."Feature04_Calculation_Queue" SET status='DONE',
@@ -498,7 +659,11 @@ def process_one(job: Job) -> str:
                 (job.requested_generation, job.asset_type, job.ticker, job.requested_generation),
             )
             finalize_runs(connection)
-        emit("feature04_completed", ticker=job.ticker, changed_rows=changed, columns=len(successful))
+        emit(
+            "feature04_completed", ticker=job.ticker, changed_rows=changed,
+            columns=len(successful), checkpoint_date=checkpoint_date,
+            source_rows=len(history), dirty_from_date=job.dirty_from_date,
+        )
         return "SUCCESS"
     except Exception as error:
         detail = error_detail(error)
@@ -512,6 +677,7 @@ def process_one(job: Job) -> str:
             if not row or row["claim_token"] != job.claim_token:
                 return "SUPERSEDED"
             requested = dependency_closure(job.requested_columns)
+            exception_code = "REPAIR_REQUIRED" if isinstance(error, RepairRequired) else "WORKER_EXCEPTION"
             attempt_id = connection.execute(
                 """
                 INSERT INTO public."Feature04_Calculation_Log"(
@@ -519,12 +685,12 @@ def process_one(job: Job) -> str:
                   failed_columns,group_outcomes,result,calculation_version,started_at,
                   error_code,detail)
                 VALUES(%s,%s,'Daily',%s,%s,%s,%s,%s::jsonb,'FAILED',%s,%s,
-                       'WORKER_EXCEPTION',%s) RETURNING id
+                       %s,%s) RETURNING id
                 """,
                 (
                     job.asset_type, job.ticker, job.requested_generation, job.work_revision, list(requested),
                     list(requested), json.dumps({"worker": {"status": "FAILED", "error": detail}}),
-                    VERSION, job.started_at, detail,
+                    VERSION, job.started_at, exception_code, detail,
                 ),
             ).fetchone()["id"]
             connection.execute(
@@ -535,7 +701,12 @@ def process_one(job: Job) -> str:
                 """,
                 (attempt_id, detail, job.asset_type, job.ticker, list(requested)),
             )
-            if row["source_attempt_count"] >= MAX_SOURCE_ATTEMPTS:
+            if isinstance(error, RepairRequired):
+                terminal_failure(
+                    connection, job.asset_type, job.ticker, job.requested_generation,
+                    job.work_revision, "REPAIR_REQUIRED", detail,
+                )
+            elif row["source_attempt_count"] >= MAX_SOURCE_ATTEMPTS:
                 terminal_failure(
                     connection, job.asset_type, job.ticker, job.requested_generation, job.work_revision,
                     "WORKER_EXCEPTION", detail,

@@ -71,6 +71,7 @@ class MarketSchedule:
     finality_delay_minutes: int
     source_date_mapping: str
     enabled: bool
+    correction_lookback_sessions: int
 
     @property
     def timezone(self) -> ZoneInfo:
@@ -376,7 +377,8 @@ def read_schedule(connection: psycopg.Connection, market_code: str) -> MarketSch
     row = connection.execute(
         f"""
         SELECT market_code,country,timezone_name,session_close_local,
-               finality_delay_minutes,source_date_mapping,enabled
+               finality_delay_minutes,source_date_mapping,enabled,
+               correction_lookback_sessions
         FROM {SCHEDULE_TABLE} WHERE market_code=%s
         """,
         (market_code,),

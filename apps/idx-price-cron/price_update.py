@@ -57,6 +57,11 @@ PRICE_COLUMNS = (
     "source",
     "query_date",
     "timeframe",
+    "market_code",
+    "source_bar_time",
+    "market_close_at",
+    "is_final",
+    "finalized_at",
 )
 
 
@@ -158,6 +163,19 @@ class FetchOutcome:
     row: dict | None
     latest_date: date | None
     error: str | None
+
+
+@dataclass(frozen=True)
+class MarketSchedule:
+    market_code: str
+    timezone_name: str
+    session_close_local: object
+    finality_delay_minutes: int
+    correction_lookback_sessions: int
+
+    @property
+    def timezone(self) -> ZoneInfo:
+        return ZoneInfo(self.timezone_name)
 
 
 def session_id(prefix: str) -> str:
@@ -339,6 +357,7 @@ def request_symbol(
                         "source": "TradingView",
                         "query_date": query_date,
                         "timeframe": PRICE_TIMEFRAME,
+                        "source_bar_time": datetime.fromtimestamp(timestamp, timezone.utc),
                     }
             elif method == "series_completed" and series_id in params:
                 completed = True
@@ -387,6 +406,41 @@ def read_universe(connection: psycopg.Connection) -> list[Symbol]:
     if not symbols:
         raise RuntimeError("IDX_Stock_Universe contains no usable symbols")
     return symbols
+
+
+def read_market_schedule(connection: psycopg.Connection) -> MarketSchedule:
+    row = connection.execute(
+        """
+        SELECT market_code,timezone_name,session_close_local,
+               finality_delay_minutes,correction_lookback_sessions
+        FROM public."Equity_Market_Schedule"
+        WHERE market_code='IDX' AND enabled
+        """
+    ).fetchone()
+    if row is None:
+        raise RuntimeError("Enabled IDX market schedule is absent")
+    schedule = MarketSchedule(*row)
+    _ = schedule.timezone
+    return schedule
+
+
+def market_close_at(schedule: MarketSchedule, session_date: date) -> datetime:
+    return datetime.combine(
+        session_date, schedule.session_close_local, schedule.timezone
+    ).astimezone(timezone.utc)
+
+
+def latest_completed_session(schedule: MarketSchedule, now: datetime) -> date:
+    local_now = now.astimezone(schedule.timezone)
+    candidate = local_now.date()
+    while candidate.weekday() >= 5:
+        candidate -= timedelta(days=1)
+    final_after = datetime.combine(
+        candidate, schedule.session_close_local, schedule.timezone
+    ) + timedelta(minutes=schedule.finality_delay_minutes)
+    if local_now < final_after:
+        candidate = previous_weekday(candidate)
+    return candidate
 
 
 def partition(items: list[Symbol], count: int) -> list[list[Symbol]]:
@@ -872,6 +926,11 @@ def parse_args() -> argparse.Namespace:
         "--mode", choices=("auto", "daily", "recovery", "manual"), default="auto"
     )
     parser.add_argument("--target-date", type=date.fromisoformat)
+    parser.add_argument(
+        "--reverify-all",
+        action="store_true",
+        help="Recovery mode: re-query the full eligible universe for the target session.",
+    )
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--request-bars", type=int, default=5)
     parser.add_argument("--timeout", type=float, default=45)
@@ -900,21 +959,25 @@ def main() -> int:
     if not database_url:
         raise SystemExit("DATABASE_URL is required")
 
-    now_jakarta = datetime.now(JAKARTA)
+    now = datetime.now(timezone.utc)
+    now_jakarta = now.astimezone(JAKARTA)
     mode = resolve_mode(args.mode, now_jakarta)
     trigger_source = resolve_trigger_source(mode, now_jakarta)
     run_type = "RECOVERY" if mode == "recovery" else "DAILY"
-    target_date = args.target_date or (
-        now_jakarta.date()
-        if mode in {"daily", "manual"}
-        else previous_weekday(now_jakarta.date())
-    )
-    started_at = datetime.now(timezone.utc)
+    started_at = now
     query_date = now_jakarta.date()
     query_time = started_at
     execution_id = str(uuid.uuid4())
 
     with psycopg.connect(database_url) as connection:
+        schedule = read_market_schedule(connection)
+        target_date = args.target_date or latest_completed_session(schedule, now)
+        close_at = market_close_at(schedule, target_date)
+        final_after = close_at + timedelta(minutes=schedule.finality_delay_minutes)
+        if now < final_after:
+            raise RuntimeError(
+                f"Target session {target_date} is not final until {final_after.isoformat()}"
+            )
         universe = read_universe(connection)
         if args.limit:
             universe = universe[: args.limit]
@@ -927,6 +990,7 @@ def main() -> int:
                     "trigger_source": trigger_source,
                     "execution_id": execution_id,
                     "target_date": target_date.isoformat(),
+                    "market_close_at": close_at.isoformat(),
                     "universe_symbols": len(universe),
                     "scheduled_time_zone": "Asia/Jakarta",
                 }
@@ -974,7 +1038,7 @@ def main() -> int:
             print(json.dumps({"event": "run_skipped", "reason": "weekend"}))
             return 0
 
-        if mode == "recovery" and not args.dry_run and is_already_successful(
+        if mode == "recovery" and not args.reverify_all and not args.dry_run and is_already_successful(
             connection, target_date, run_type, trigger_source
         ):
             print(json.dumps({"event": "run_skipped", "reason": "already_successful"}))
@@ -982,7 +1046,7 @@ def main() -> int:
 
         queried = (
             universe
-            if mode in {"daily", "manual"}
+            if mode in {"daily", "manual"} or args.reverify_all
             else get_recovery_symbols(connection, universe, target_date)
         )
 
@@ -1009,6 +1073,14 @@ def main() -> int:
         query_time = datetime.now(timezone.utc)
         outcomes = fetch_all(queried, target_date, query_date, args)
         rows = [outcome.row for outcome in outcomes if outcome.row is not None]
+        finalized_at = datetime.now(timezone.utc)
+        for row in rows:
+            row.update(
+                market_code=schedule.market_code,
+                market_close_at=close_at,
+                is_final=True,
+                finalized_at=finalized_at,
+            )
 
         if mode in {"daily", "manual"} and not rows:
             valid_prior_bars = [

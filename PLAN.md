@@ -31,6 +31,7 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 | 12 | Prosedur tabel baru (FX, indeks, makro) | 2026-10-01 "record now, run later" | Menunggu pemicu: tabel baru | Saat ada tabel baru |
 | 13 | Feature04 otomatis setelah update harga, retry ticker/indikator gagal lewat Telegram | 2026-10-11 (implementation plan disetujui) | Selesai; dipindahkan ke `EXEC.md` EXEC-F04 | Selesai 2026-10-11 |
 | 14 | Ringkasan Telegram price + Feature04 sekali per market/trade date atau sekali per backfill batch | 2026-10-12 ("Ok gitu saja, cek infra dan buat plan.") | Desain dan infra sudah diperiksa; menunggu persetujuan rencana eksekusi | 14 |
+| 15 | Finality equity, pemeriksaan koreksi lima sesi, dan Feature04 incremental dengan checkpoint state | 2026-10-12 ("Ok jalankan.") | Sedang dieksekusi; dipindahkan ke `EXEC.md` EXEC-F04-INCREMENTAL-FINALITY | 15 |
 
 Eksekusi yang sudah disetujui (dulu butir 1–7 dan 1b–1k) ada di `EXEC.md`.
 

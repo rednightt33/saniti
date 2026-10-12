@@ -1,0 +1,42 @@
+{
+  "recorded_at_utc": "2026-10-12T04:59:16Z",
+  "scope": "lucid-patience/dev Feature04 incremental finality rollout",
+  "baseline": {
+    "equity_tickers": 844,
+    "equity_source_rows": 1318633,
+    "equity_history_rows_min": 62,
+    "equity_history_rows_max": 2113,
+    "bond_tickers": 24,
+    "bond_source_rows": 60409,
+    "bond_history_rows_min": 1003,
+    "bond_history_rows_max": 2752,
+    "recent_full_replay_wall_seconds_min": 0.129,
+    "recent_full_replay_wall_seconds_max": 0.335
+  },
+  "local_validation": {
+    "feature04_tests_passed": 46,
+    "idx_cron_tests_passed": 16,
+    "fixed_income_cron_tests_passed": 23,
+    "numeric_absolute_tolerance": 1e-10,
+    "numeric_relative_tolerance": 1e-12,
+    "five_correction_positions_compared_with_full_reference": true,
+    "null_and_integer_flags_exact": true
+  },
+  "migration": {
+    "file": "database/migrations/20261012_003_incremental_feature04_finality.sql",
+    "sha256": "a4aa1bf5e1953d19cda7b5b858ba1513b29237a588e172f2b8160f380bd46af9",
+    "rollback_rehearsal": "passed",
+    "applied": true,
+    "post_apply_state_table": "Feature04_Calculation_State",
+    "post_apply_equity_rows": 1318633,
+    "post_apply_final_equity_rows": 1318633,
+    "post_apply_enabled_equity_policies": 1,
+    "post_apply_checkpoints_before_bootstrap": 0,
+    "post_apply_processing_claims": 0
+  },
+  "rollout": {
+    "checkpoint_bootstrap": "pending",
+    "deployments": "pending",
+    "live_canary": "pending"
+  }
+}

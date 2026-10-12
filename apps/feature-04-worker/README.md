@@ -3,15 +3,17 @@
 Always-on Railway worker for cross-asset `Feature_04_Technical_Indicator`. It consumes the durable
 `Feature04_Calculation_Queue`; it has no cron schedule and does not fetch market data.
 
-Committed insert, update, or delete changes on either supported price source coalesce into
-one full-history job per ticker. The worker reads that ticker from its earliest Daily bar
-through the latest, calculates the dependency-closed Feature04 bundle, and fences the write
-with the queue's source generation and work revision. A newer price change supersedes the
-old claim. Work for different tickers continues when one ticker fails.
+Committed final insert, update, or delete changes on either supported price source coalesce
+into one job per ticker at the earliest changed session. The worker requires an exact,
+version-compatible checkpoint immediately before that date and calculates only the affected
+suffix through latest. It fences the write and new checkpoints with the queue's source
+generation and work revision. A newer price change supersedes the old claim. Missing, stale,
+or out-of-window state stops with `REPAIR_REQUIRED`; daily work never falls back to a
+full-history replay.
 
 Queue identity is `(asset_type,ticker,timeframe)`. Classification comes from the live
 universe tables: `IDX_Stock_Universe` for equity and `Universe_Fixed_income` for bonds.
-The worker reads equity candles from `Price_Stock_Indonesia_IDX` and bond candles from
+The worker reads final equity candles from `Price_Stock_Indonesia_IDX` and bond candles from
 `Price_Fixed_Income` where `metric_type='price'`, `"Timeframe"='1D'`, and `is_final=true`. No ticker roster
 is embedded in code. Bond `NULL` volume is valid because the indicator bundle uses OHLC.
 Each full refresh also copies the exact source `close` for every target `trade_date`.
@@ -30,6 +32,20 @@ fails, its complete dependency bundle is withheld from writes and becomes a retr
 durable notification outbox waits until `telegram-monitor` has recorded the price message
 as sent, then requests the separate Feature04 Telegram result. Telegram delivery failure
 never rolls back calculated data.
+
+`Feature04_Calculation_State` stores recent recursive and rolling state by
+`(asset_type,ticker,timeframe,checkpoint_date)`. Retention and the maximum normal suffix are
+derived from each market's `correction_lookback_sessions`; the initial bootstrap is an
+explicit operator command:
+
+```text
+python bootstrap_states.py --dry-run
+python bootstrap_states.py
+```
+
+The dry run rebuilds state from full history and shadow-compares the recent suffix with the
+stored table without writing. The write run changes state only. It does not rewrite Feature04
+output.
 
 For the independent fixed-income daily and recovery crons, the outbox first sends the
 related `Monitoring_Fixed_Income` result through `telegram-monitor`. The Feature04

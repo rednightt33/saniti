@@ -1836,3 +1836,13 @@ disinkronkan, service/sandbox sementara dihapus, dan Railway plan up to date. Bu
   - h_add t2 dan threshold t2/t3 lolos;
   - median panggilan per putaran turun ≥ 30%;
   - "BBRI" ditanya balik.
+
+### EXEC-F04-INCREMENTAL-FINALITY: exact checkpoint suffix dan recovery lima sesi
+
+**Otorisasi 2026-10-12:** setelah menyetujui implementation plan, user memberi perintah eksekusi: `"Ok jalankan."`
+
+**Scope:** finality evidence equity; recovery berbasis konfigurasi untuk lima completed market sessions pada IDX, ID bonds, dan US bonds; state checkpoint versioned per ticker; normal worker menghitung hanya suffix dari earliest changed session sampai latest; tidak ada fallback full-history otomatis; explicit bootstrap membangun state dan shadow-compare seluruh indikator; retry ticker/kolom mempertahankan dirty range; migrasi, katalog, dokumentasi, Railway IaC, tests, live readback, commit, dan push `main`.
+
+**Urutan eksekusi:** implementasi dan local parity; rolled-back migration rehearsal; pause worker; apply migration; bootstrap/shadow checkpoints; deploy price producers dan worker; controlled canary correction/identity; verify exact deployments dan live data; refresh evidence/schema/changelog; commit dan push `main`.
+
+**Status:** IN PROGRESS.

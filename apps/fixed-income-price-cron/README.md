@@ -23,15 +23,17 @@ Start commands are explicit:
 
 ```text
 python fixed_income_update.py --market ID --mode daily
-python fixed_income_update.py --market ID --mode recovery
+python recovery_window.py --market ID
 python fixed_income_update.py --market US --mode daily
-python fixed_income_update.py --market US --mode recovery
+python recovery_window.py --market US
 ```
 
-Both recovery roles query the complete market universe for the latest completed session,
-including rows that already exist. This allows a corrected final candle to replace an
-earlier value. The material UPSERT predicate avoids writes when the final payload is
-identical, so an idempotent recovery does not enqueue Feature04.
+Both recovery roles read `correction_lookback_sessions` from the market schedule and query
+the complete market universe for each of the latest five observed completed sessions,
+oldest first. An absent latest completed candidate is checked as well. This allows a
+corrected final candle to replace an earlier value. The material UPSERT predicate avoids
+writes when the final payload is identical, so an idempotent recovery does not enqueue
+Feature04.
 
 ## Final-candle contract
 

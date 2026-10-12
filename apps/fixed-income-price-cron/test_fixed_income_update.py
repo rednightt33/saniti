@@ -16,6 +16,12 @@ assert SPEC.loader is not None
 sys.modules[SPEC.name] = module
 SPEC.loader.exec_module(module)
 
+RECOVERY_PATH = Path(__file__).with_name("recovery_window.py")
+RECOVERY_SPEC = importlib.util.spec_from_file_location("fixed_recovery_window", RECOVERY_PATH)
+recovery_module = importlib.util.module_from_spec(RECOVERY_SPEC)
+assert RECOVERY_SPEC.loader is not None
+RECOVERY_SPEC.loader.exec_module(recovery_module)
+
 
 def schedule(
     code="ID",
@@ -24,7 +30,14 @@ def schedule(
     delay=60,
     mapping="CURRENT_OR_PREVIOUS_BUSINESS_DAY",
 ):
-    return module.MarketSchedule(code, "Indonesia", zone, close, delay, mapping, True)
+    return module.MarketSchedule(code, "Indonesia", zone, close, delay, mapping, True, 5)
+
+
+def test_recovery_window_includes_unobserved_latest_candidate():
+    observed = [date(2026, 9, day) for day in (7, 8, 9, 10, 11)]
+    assert recovery_module.correction_target_dates(
+        observed, date(2026, 9, 14), 5
+    ) == [*observed, date(2026, 9, 14)]
 
 
 def test_latest_completed_session_waits_for_close_delay():

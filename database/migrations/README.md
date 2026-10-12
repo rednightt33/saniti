@@ -10,6 +10,12 @@ daily-bar label convention in `Fixed_Income_Market_Schedule.source_date_mapping`
 rehearsed with rollback deployment `70bbf1e9-5d9d-4f79-a232-33e9b53adb9e` and applied by
 deployment `32f7d785-2b8c-4aa8-997d-1f873d0a9850`.
 
+`20261012_003_incremental_feature04_finality.sql` adds equity finality evidence and market
+policy, configurable five-session recovery, recent exact Feature04 state checkpoints, and
+dirty-range audit fields. It replaces the equity enqueue/retry routines so completed queue
+rows begin at the new changed session and missing state fails closed. It was rehearsed with
+a full rollback before being applied to `lucid-patience/dev`.
+
 Each applied schema change must have one forward-only SQL file named:
 
 ```text

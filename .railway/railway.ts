@@ -44,7 +44,7 @@ export default defineRailway(() => {
   const fixedIncomePriceUsRecoveryCron = service("fixed-income-price-us-recovery-cron", {
     source: saniti,
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/fixed-income-price-cron/**"] },
-    start: "python fixed_income_update.py --market US --mode recovery",
+    start: "python recovery_window.py --market US",
     replicas: { "sfo": 1 },
     deploy: { cronSchedule: "0 0 * * *", restartPolicyType: "NEVER" },
     networking: { privateNetworkEndpoint: "fixed-income-price-us-recovery-c" },
@@ -121,7 +121,7 @@ export default defineRailway(() => {
   const fixedIncomePriceRecoveryCron = service("fixed-income-price-recovery-cron", {
     source: saniti,
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/fixed-income-price-cron/**"] },
-    start: "python fixed_income_update.py --market ID --mode recovery",
+    start: "python recovery_window.py --market ID",
     replicas: { "sfo": 1 },
     deploy: { cronSchedule: "0 11 * * *", restartPolicyType: "NEVER" },
     env: { DATABASE_URL: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_URL: preserve(), TRADINGVIEW_VERIFY_TLS: preserve() },
@@ -139,7 +139,7 @@ export default defineRailway(() => {
   const idxPriceRecoveryCron = service("idx-price-recovery-cron", {
     source: saniti2,
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/idx-price-cron/**"] },
-    start: "python price_update.py --mode recovery",
+    start: "python recovery_window.py",
     replicas: { "sfo": 1 },
     deploy: { cronSchedule: "0 23 * * *", restartPolicyType: "NEVER" },
     env: { DATABASE_URL: preserve(), TELEGRAM_NOTIFY_ATTEMPTS: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_TIMEOUT: preserve(), TELEGRAM_NOTIFY_URL: preserve() },

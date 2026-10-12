@@ -701,3 +701,27 @@ frontend changes on `codex/edge-bff`; runner/Orc, live database schema, model an
   monitoring contract and TradingView protocol were reconstructed into tested Git source.
   All four active jobs now deploy from `rednightt33/saniti` main; exact deployments and
   canaries passed, temporary resources were removed, and Railway IaC is reconciled.
+
+### Feature04 incremental finality — 2026-10-12
+
+- **Daily worker replayed entire ticker history (FIXED):** queue rows already retained
+  `dirty_from_date`, but completed rows kept their original minimum and the worker ignored
+  the field, reading 1,003–2,752 rows in the measured recent bond attempts. Add exact
+  versioned checkpoints for recursive/rolling state, reset a completed queue to the new
+  changed date, and calculate only the configured recent suffix. Missing/stale state now
+  fails `REPAIR_REQUIRED`; no automatic full-history fallback is permitted.
+- **Equity finality was only a schedule convention (FIXED):** manual or early writes had no
+  database evidence that an IDX candle was complete. Add the data-driven equity market
+  schedule plus source timestamp, close instant, final flag, and finalization time. Feature04
+  reads/triggers only final Daily equity rows.
+- **Recovery checked one date per process (FIXED):** prior five-session verification required
+  explicit runs. Recovery wrappers now derive the session count from each market schedule
+  and invoke the existing exact-date loaders oldest first for IDX, ID bonds, and US bonds.
+  Universe membership remains table-driven.
+- **One-shot Railway function restarted an already committed migration (CONTAINED):** the
+  temporary Bun function initially inherited `ALWAYS` restart. Its first transaction applied
+  migration `20261012_003`; restart attempts hit the migration's state-exists guard and made
+  no second change. Set temporary database-operation services to restart `NEVER` before a
+  write, retain a clear first-statement guard, and perform independent readback. Live
+  readback found all 1,318,633 equity rows final and zero active claims/checkpoints before
+  bootstrap.

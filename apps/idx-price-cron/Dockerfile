@@ -9,5 +9,6 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY price_update.py .
+COPY recovery_window.py .
 
 CMD ["python", "price_update.py", "--mode", "auto"]

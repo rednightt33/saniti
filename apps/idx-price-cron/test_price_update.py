@@ -2,15 +2,17 @@ import io
 import os
 import unittest
 from contextlib import redirect_stderr
-from datetime import date, datetime
+from datetime import date, datetime, time, timezone
 from zoneinfo import ZoneInfo
 
 from price_update import (
     FetchOutcome,
+    MarketSchedule,
     Symbol,
     bulk_upsert_prices,
     candle_for_target,
     monitoring_records,
+    latest_completed_session,
     notify_telegram_monitor,
     prepare_feature04_monitoring,
     seal_feature04_monitoring,
@@ -21,6 +23,7 @@ from price_update import (
     run_entrypoint,
 )
 from unittest.mock import patch
+from recovery_window import correction_target_dates
 
 
 JAKARTA = ZoneInfo("Asia/Jakarta")
@@ -31,6 +34,16 @@ def symbol(ordinal: int, ticker: str, asset_type: str = "stock") -> Symbol:
 
 
 class PriceUpdateTests(unittest.TestCase):
+    def test_recovery_window_includes_five_observed_sessions(self):
+        observed = [date(2026, 9, day) for day in (7, 8, 9, 10, 11)]
+        self.assertEqual(
+            correction_target_dates(observed, date(2026, 9, 14), 5),
+            observed + [date(2026, 9, 14)],
+        )
+        self.assertEqual(
+            correction_target_dates(observed, date(2026, 9, 11), 5), observed
+        )
+
     def test_feature04_monitoring_is_bound_to_price_transaction(self):
         calls = []
 
@@ -96,6 +109,11 @@ class PriceUpdateTests(unittest.TestCase):
             "source": "TradingView",
             "query_date": date(2026, 9, 13),
             "timeframe": "Daily",
+            "market_code": "IDX",
+            "source_bar_time": datetime(2026, 9, 11, tzinfo=timezone.utc),
+            "market_close_at": datetime(2026, 9, 11, 9, tzinfo=timezone.utc),
+            "is_final": True,
+            "finalized_at": datetime(2026, 9, 11, 10, tzinfo=timezone.utc),
         }
 
         self.assertEqual(
@@ -107,7 +125,22 @@ class PriceUpdateTests(unittest.TestCase):
         self.assertIn("statement_timestamp()", insert_sql)
         self.assertIn("ingestion_time = EXCLUDED.ingestion_time", insert_sql)
         self.assertEqual(len(copied_rows), 1)
-        self.assertEqual(len(copied_rows[0]), 12)
+        self.assertEqual(len(copied_rows[0]), 17)
+
+    def test_latest_completed_session_waits_for_finality_delay(self):
+        schedule = MarketSchedule("IDX", "Asia/Jakarta", time(16), 60, 5)
+        self.assertEqual(
+            latest_completed_session(
+                schedule, datetime(2026, 9, 14, 9, 30, tzinfo=timezone.utc)
+            ),
+            date(2026, 9, 11),
+        )
+        self.assertEqual(
+            latest_completed_session(
+                schedule, datetime(2026, 9, 14, 10, 1, tzinfo=timezone.utc)
+            ),
+            date(2026, 9, 14),
+        )
 
     def test_notifier_is_optional(self):
         with patch.dict(os.environ, {}, clear=True):

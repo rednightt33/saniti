@@ -9,16 +9,23 @@ Railway evaluates cron schedules in UTC.
 | Railway service | UTC schedule | Jakarta time | Start command | Purpose |
 | --- | --- | --- | --- | --- |
 | `idx-price-cron` | `0 10 * * *` | 17:00 daily | `python price_update.py --mode daily` | Query the full live ticker universe for today's candle. |
-| `idx-price-recovery-cron` | `0 23 * * *` | 06:00 the following day | `python price_update.py --mode recovery` | Retry only the previous weekday's missing tickers from the latest scheduled DAILY execution. |
+| `idx-price-recovery-cron` | `0 23 * * *` | 06:00 the following day | `python recovery_window.py` | Reverify the configured recent completed sessions for the full live universe. |
 
 `Run now` follows the selected service's explicit role:
 
 - On `idx-price-cron`, it queries every current `IDX_Stock_Universe."Ticker"` for today's date.
-- On `idx-price-recovery-cron`, it retries only the previous weekday's missing tickers. Saturday, Sunday, and Monday executions target Friday. If none are missing, it returns `SKIPPED` without querying TradingView.
+- On `idx-price-recovery-cron`, it reads `correction_lookback_sessions` from
+  `Equity_Market_Schedule` and re-queries the full universe for each of the latest five
+  observed sessions, oldest first. A latest completed candidate absent from storage is also
+  checked so a missing new session can be created.
 
 ## Candle-date and duplicate safety
 
-- A TradingView row is accepted only when its candle timestamp resolves to the exact target date in Asia/Jakarta.
+- The target date is the latest session whose configured IDX close plus finality delay has
+  passed. A TradingView row is accepted only when its candle timestamp resolves to that exact
+  target date in Asia/Jakarta.
+- Accepted rows retain `source_bar_time`, `market_close_at`, `is_final=true`, and
+  `finalized_at`. Feature04 reads and reacts only to final Daily rows.
 - A prior/last-available candle is never relabeled or written as today's candle.
 - If TradingView has no current-date candle yet, no prior candle is written. The run is recorded as `SKIPPED` with `NO_CURRENT_CANDLE` when the market broadly returns only prior candles.
 - Exact-date rows that are available may still be written during a partial run; unavailable tickers remain in the monitoring missing list.
@@ -33,7 +40,8 @@ Railway evaluates cron schedules in UTC.
 - `trigger_source` is inferred as `SCHEDULED` inside the service's narrow schedule window and `MANUAL` outside it because Railway does not expose an official runtime variable that distinguishes **Run now** from a scheduled cron start.
 - Expected symbols come from the live `IDX_Stock_Universe`, grouped by `Exchange` and `Security Type`.
 - `query_time` records the UTC timestamp immediately before TradingView requests begin.
-- There is no automatic third TradingView query. Missing symbols after recovery are marked `NEEDS_REVIEW`.
+- There is no automatic query outside DAILY and the configured recovery window. Missing
+  symbols after recovery are marked `NEEDS_REVIEW`.
 - Weekend runs are recorded as `SKIPPED` without querying TradingView.
 - If a weekday DAILY run dies before writing monitoring, recovery derives its scope from universe tickers still absent from the price table for that date.
 - After the monitoring transaction commits, the service sends its `execution_id` to the separate `telegram-monitor` service. Temporary cold-start or network failures are retried four times.

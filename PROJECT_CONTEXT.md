@@ -113,12 +113,12 @@ idx-price-cron at 17:00 Asia/Jakarta, or Run now -> all IDX_Stock_Universe ticke
 -> bulk upsert Price_Stock_Indonesia_IDX -> Monitoring_Price_ALL -> send execution_id to telegram-monitor
 -> Telegram message -> Telegram_Notification_Log records SENT
 
-idx-price-recovery-cron at 06:00 Asia/Jakarta, or Run now -> previous-weekday DAILY missing tickers only -> TradingView
+idx-price-recovery-cron at 06:00 Asia/Jakarta, or Run now -> configured five completed sessions x full universe -> TradingView
 -> bulk upsert Price_Stock_Indonesia_IDX -> Monitoring_Price_ALL -> send execution_id to telegram-monitor
 -> Telegram message with remaining missing tickers -> Telegram_Notification_Log records SENT
 ```
 
-Railway evaluates separate UTC schedules: `idx-price-cron` uses `0 10 * * *`, and `idx-price-recovery-cron` uses `0 23 * * *`. Both use explicit modes and exit after each execution. Weekend recovery targets Friday. A price row is accepted only when the TradingView candle timestamp matches the exact target date; a prior candle is never used as today's value. The `(ticker, date)` primary key makes repeated runs replace only the same daily row. A shared PostgreSQL advisory lock prevents concurrent runs. Every execution has its own monitoring `execution_id`; the system never performs an automatic third TradingView query.
+Railway evaluates separate UTC schedules: `idx-price-cron` uses `0 10 * * *`, and `idx-price-recovery-cron` uses `0 23 * * *`. Both exit after each execution. `Equity_Market_Schedule` owns the IDX timezone, close, finality delay and five-session correction window. Only an exact candle after close plus delay is stored final. Recovery re-verifies the full universe over the configured observed-session window; a prior candle is never relabeled. The `(ticker, date)` primary key and material trigger isolate corrections. A shared PostgreSQL advisory lock prevents concurrent runs.
 
 Automated fixed-income final closes:
 
@@ -132,7 +132,7 @@ US daily 23:00 UTC / recovery 00:00 UTC -> 17:00 America/New_York close + 60 min
 
 All four jobs use the same Git application. Market clocks and TradingView daily-label
 conventions come from `Fixed_Income_Market_Schedule`; symbols and units come from
-`Universe_Fixed_income`. Recovery re-queries the complete latest session. An identical
+`Universe_Fixed_income`. Recovery re-queries the configured five-session window. An identical
 rerun writes nothing and opens a skipped Feature04 execution.
 
 After a committed price insert/update with non-null `ingestion_time`, the PostgreSQL trigger opens a Feature 01 queue item for that ticker/date in the same transaction. The always-on `feature-01-worker` polls the queue, runs the incremental SQL refresh, validates affected rows, and updates `Feature_Calculation_Queue`, `Feature_Status`, and `Feature_Calculation_Log`. It has no cron schedule and never queries TradingView. A historical price correction can refresh up to 120 subsequent trading observations. Its `SUCCESS` status measures price-driven freshness only; universe classification changes need a separate refresh path.
@@ -171,7 +171,7 @@ Telegram owner -> telegram-trigger webhook -> validate webhook secret and Chat I
   symbol and unit; it is the runtime roster for all four fixed-income jobs.
 - `Price_Fixed_Income`: final fixed-income OHLC observations with original source-bar time,
   market-close instant and finalization evidence.
-- `Feature_04_Technical_Indicator`: 57-column cross-asset table with universe-derived `asset_type`, exact source `close` by `trade_date`, technical indicators, candlestick/inside-bar flags, and Pine SMI/swing state. It covers 844 equity tickers / 1,318,633 rows and 24 bonds tickers / 60,409 price rows. Committed price changes enqueue `feature-04-worker` per asset/ticker for full-history replay with generation fencing, isolated formula diagnostics, bounded retry, per-column readiness, and ordered Telegram completion after the corresponding price message. Telegram offers failure-only full-ticker or dependency-closed column retry. No AI allowlist onboarding. See `FEATURE04_TECHNICAL_INDICATOR.md`.
+- `Feature_04_Technical_Indicator`: 57-column cross-asset table with universe-derived `asset_type`, exact source `close` by `trade_date`, technical indicators, candlestick/inside-bar flags, and Pine SMI/swing state. It covers 844 equity tickers / 1,318,633 rows and 24 bonds tickers / 60,409 price rows. Material final price changes enqueue `feature-04-worker` per asset/ticker; exact checkpoints let it calculate only the changed suffix, with generation fencing, isolated diagnostics, bounded retry, per-column readiness, and ordered Telegram completion. Missing/stale state requires explicit repair and never triggers automatic full-history work. Telegram offers failure-only full-ticker or dependency-closed column retry. No AI allowlist onboarding. See `FEATURE04_TECHNICAL_INDICATOR.md`.
 - `feature04_backfill_log`: atomic per-run/ticker load audit with source/output fingerprints and resumable COMPLETED/FAILED states; source ingestion timestamps are not fabricated.
 - `Feature_01_Stock_Daily`: SQL-side daily ticker features for price returns, volatility, volume, and drawdown; its incremental refresh routine is called by the Feature 01 worker.
 - `Feature_02_Broker_Rolling`: canonical Investor-Type v2 broker flow and rolling signals for all symbols in `IDX_Broker_Summary`, partitioned by broker, source Domestic/Foreign Investor Type, and Regular/Nego/Tunai board; windows count ticker transaction dates across all source boards/types. The validated historical backfill is SQL-side, but no automatic Feature 02 refresh worker is deployed. The v1 heap was dropped after cutover. See `FEATURE_02_BROKER_ROLLING_V2.md`.

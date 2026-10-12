@@ -203,15 +203,18 @@ by the authorized full-source-ticker v3 replay; see `verification/feature04/SMI_
 
 ## Incremental / correction design
 
-Every refresh reads all available history for each requested ticker through output end,
-calculates once in chronological order, and writes only the explicit output range.
-This avoids unverified fixed-window recursive state and supports exact reproducibility
-relative to the available source snapshot. No cached recursive state is stored.
-An old correction requires output refresh from its earliest changed bar through the latest
-wanted bar because EMA, RSI, ATR and MACD can affect every later value. Committed relevant
-source changes are now detected by database triggers and replayed by the always-on worker;
-Feature04 itself still has no schedule. The subsequently authorized all-source-ticker
-historical load uses full-history replay, with one atomic ticker commit.
+Normal refresh uses an exact versioned checkpoint immediately before the earliest changed
+session and calculates only that suffix through latest. The checkpoint carries the mature
+or initializing state for every recursive/rolling formula, candlestick lookback, SMI, and
+swing state, so EMA200 continues from its prior value without reseeding from a 205-row
+slice. Tests compare corrections at every position in the five-session window with the
+full-history reference. Numeric acceptance is absolute `1e-10` plus relative `1e-12`;
+NULLs and integer flags must match exactly.
+
+Full-history replay remains the reference oracle and explicit bootstrap/repair path. It is
+never an automatic daily fallback. A missing/incompatible checkpoint, digest mismatch, or
+suffix beyond the configured correction window fails `REPAIR_REQUIRED`. State is written
+transactionally with the validated suffix and queue completion.
 
 A repeatable-read transaction supplies one consistent source snapshot. The writer takes
 an advisory lock specific to Feature04; it never locks or rewrites source pipelines.
@@ -285,11 +288,12 @@ monitoring, Telegram retry audit, and notification outbox. The existing schedule
 services remain the clock. The new always-on `feature-04-worker` has no cron and never
 queries TradingView.
 
-Every relevant committed price change increments the ticker's source generation and keeps
-the earliest dirty date. The worker replays the ticker's complete available history because
-recursive indicators and swing state can propagate an old correction through the latest
-bar. A generation/revision check immediately before UPSERT prevents a stale calculation
-from becoming current. One ticker failure is retried and reported independently while other
+Every relevant committed final price change increments the ticker's source generation and
+keeps the earliest dirty date while work is pending. A completed queue starts the next job
+at its new changed date rather than retaining the original historical minimum. The worker
+loads the prior checkpoint and at most `correction_lookback_sessions` source rows. A
+generation/revision check immediately before UPSERT prevents a stale calculation from
+becoming current. One ticker failure is retried and reported independently while other
 tickers continue.
 
 Formula groups expose diagnostic outcomes. MACD, Bollinger, and the complete SMI/swing state
@@ -312,7 +316,8 @@ Fixed income has four independent Railway roles from the Git-owned
 `0 11 * * *` UTC, plus US close/recovery at `0 23 * * *` and `0 0 * * *` UTC.
 `Fixed_Income_Market_Schedule` owns country, timezone, local close, and finality delay;
 `Universe_Fixed_income` owns every source symbol and unit. Recovery re-queries the full
-latest completed market session, including existing rows, so source corrections are seen.
+universe for the latest five completed market sessions, including existing rows, so recent
+source corrections are seen.
 A row trigger on material final `Price_Fixed_Income` price/1D changes
 coalesces the affected bond ticker into the same worker queue. A separate trigger on the
 committed `Monitoring_Fixed_Income` record opens and seals the corresponding Feature04 run,
