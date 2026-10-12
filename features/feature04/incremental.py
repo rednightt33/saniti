@@ -33,7 +33,7 @@ from engine import (
 from swing import SMI_D_LENGTH, SMI_EMA_LENGTH, SMI_K_LENGTH, SMI_THRESHOLD, SWING_COLUMNS
 
 
-STATE_VERSION = "feature04-state-v1"
+STATE_VERSION = "feature04-state-v2"
 EMA_PERIODS = (12, 26, 50, 200)
 MAX_CLOSE_BUFFER = 50
 MAX_PATTERN_LOOKBACK = max(
@@ -54,6 +54,9 @@ def new_state() -> dict:
         "position": 0,
         "segment_count": 0,
         "close_buffer": [],
+        "sma": {"20": {"sum": 0.0, "buffer": []},
+                "50": {"sum": 0.0, "buffer": []}},
+        "bbands": {"sum": 0.0, "sum_squares": 0.0, "buffer": []},
         "pattern_buffer": [],
         "previous_valid": None,
         "ema": {str(period): _ema_state() for period in EMA_PERIODS},
@@ -120,7 +123,7 @@ def validate_state(state: dict) -> dict:
 def _reset_segment(state: dict) -> None:
     fresh = new_state()
     for key in (
-        "segment_count", "close_buffer", "pattern_buffer", "previous_valid", "ema",
+        "segment_count", "close_buffer", "sma", "bbands", "pattern_buffer", "previous_valid", "ema",
         "macd_signal", "rsi", "atr", "adx", "smi", "swing",
     ):
         state[key] = fresh[key]
@@ -137,6 +140,39 @@ def _update_seeded_ema(state: dict, value: float, period: int) -> float | None:
     alpha = 2.0 / (period + 1.0)
     state["value"] = state["value"] + alpha * (value - state["value"])
     return state["value"]
+
+
+def _update_rolling_mean(state: dict, value: float, period: int) -> float | None:
+    """Match TA-Lib SMA's add/output/subtract order across checkpoints."""
+    buffer = deque(state["buffer"])
+    state["sum"] += value
+    buffer.append(value)
+    if len(buffer) < period:
+        state["buffer"] = list(buffer)
+        return None
+    result = state["sum"] / period
+    state["sum"] -= buffer.popleft()
+    state["buffer"] = list(buffer)
+    return result
+
+
+def _update_bbands(state: dict, value: float, period: int = 20) -> tuple[float, float, float] | None:
+    """Match TA-Lib's rolling mean/variance update order for BBANDS."""
+    buffer = deque(state["buffer"])
+    state["sum"] += value
+    state["sum_squares"] += value * value
+    buffer.append(value)
+    if len(buffer) < period:
+        state["buffer"] = list(buffer)
+        return None
+    middle = state["sum"] / period
+    variance = state["sum_squares"] / period - middle * middle
+    deviation = variance ** 0.5 if variance > 0.0 else 0.0
+    oldest = buffer.popleft()
+    state["sum"] -= oldest
+    state["sum_squares"] -= oldest * oldest
+    state["buffer"] = list(buffer)
+    return middle + 2.0 * deviation, middle, middle - 2.0 * deviation
 
 
 def _pine_ema(value: float, previous: float | None, length: int) -> float:
@@ -385,8 +421,9 @@ def calculate_incremental(
 
         for period, column in ((20, "sma_20"), (50, "sma_50")):
             def sma_operation(p=period, col=column):
-                if not state_only and len(close_buffer) >= p:
-                    result[col] = float(talib.SMA(np.asarray(close_buffer, dtype=np.float64), p)[-1])
+                value = _update_rolling_mean(state["sma"][str(p)], close, p)
+                if not state_only:
+                    result[col] = value
             group(column, (column,), sma_operation)
 
         ema_values: dict[int, float | None] = {}
@@ -430,13 +467,10 @@ def calculate_incremental(
         group("macd_bundle", MACD_COLUMNS, macd_operation)
 
         def bollinger_operation():
-            if not state_only and len(close_buffer) >= 20:
-                arrays = talib.BBANDS(
-                    np.asarray(close_buffer, dtype=np.float64), timeperiod=20,
-                    nbdevup=2.0, nbdevdn=2.0, matype=0,
-                )
-                for column, values in zip(BOLLINGER_COLUMNS, arrays):
-                    result[column] = float(values[-1])
+            values = _update_bbands(state["bbands"], close)
+            if not state_only and values is not None:
+                for column, value in zip(BOLLINGER_COLUMNS, values):
+                    result[column] = value
         group("bollinger_bundle", BOLLINGER_COLUMNS, bollinger_operation)
 
         def inside_operation():

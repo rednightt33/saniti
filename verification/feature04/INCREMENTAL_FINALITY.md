@@ -14,6 +14,11 @@ Corrections at each of the five latest positions match the full-history referenc
 Feature04 output. NULLs and integer flags compare exactly; numeric values use absolute
 `1e-10` plus relative `1e-12` tolerance.
 
+The first live shadow attempt correctly stopped before writes on ID01Y: a Bollinger value
+recomputed from a short array differed from the full TA-Lib run by `2.116e-10`. State v2
+therefore carries TA-Lib-compatible rolling sum and sum-of-squares order across checkpoints;
+the acceptance bound was not relaxed.
+
 Migration `20261012_003_incremental_feature04_finality.sql` completed a live transaction
 ending in rollback before apply. Independent post-apply readback found the new state table,
 one enabled IDX market policy, all 1,318,633 equity rows final, zero initial checkpoints,

@@ -725,3 +725,8 @@ frontend changes on `codex/edge-bff`; runner/Orc, live database schema, model an
   write, retain a clear first-statement guard, and perform independent readback. Live
   readback found all 1,318,633 equity rows final and zero active claims/checkpoints before
   bootstrap.
+- **Checkpoint Bollinger recomputation changed floating-point order (FIXED):** the first
+  shadow pass stopped on ID01Y because recomputing the trailing window differed from the
+  full TA-Lib run by `2.116e-10`, just above the agreed tolerance. Preserve TA-Lib's
+  add/output/subtract rolling sum and sum-of-squares state across checkpoints. State version
+  v2 keeps the strict tolerance; the failed dry run wrote no checkpoint or Feature04 row.

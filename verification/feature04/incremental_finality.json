@@ -14,6 +14,7 @@
     "recent_full_replay_wall_seconds_max": 0.335
   },
   "local_validation": {
+    "state_version": "feature04-state-v2",
     "feature04_tests_passed": 46,
     "idx_cron_tests_passed": 16,
     "fixed_income_cron_tests_passed": 23,
@@ -35,6 +36,7 @@
     "post_apply_processing_claims": 0
   },
   "rollout": {
+    "first_shadow_attempt": "stopped before writes on ID01Y Bollinger floating-order mismatch",
     "checkpoint_bootstrap": "pending",
     "deployments": "pending",
     "live_canary": "pending"
