@@ -240,3 +240,35 @@ User 2026-10-09: "lanjut fase 4 dan 5 dulu" (belum diputuskan).
 
 Desain Feature04 setelah update harga dipindahkan ke `PLAN.md` butir 13 pada 2026-10-11 setelah user menyetujui
 secara umum dan mengonfirmasi urutan Telegram price lalu hasil kalkulasi Feature04. Implementasi belum dimulai.
+
+## Perplexity Search API sebagai backend pencarian `market-web-governor` (usulan 2026-10-12, belum dikerjakan)
+
+User 2026-10-12: "masukan perplexity API ke future plan". Riset dari dokumen resmi Perplexity dan OpenRouter
+(dibaca 2026-10-12); belum ada key, kode, atau uji live.
+
+- **Sekarang:** semua pencarian web governor (`/v1/orc/web`, `/v1/fact`, Exa di `/v1/ask`, web need) memakai
+  `openrouter:web_search` engine Exa lewat satu panggilan model yang hanya menjalankan query. `config.py` mengunci
+  `WEB_PROVIDER=openrouter`, dan `orc_web.py`, `fact.py`, `ask.py` menulis `"engine": "exa"` langsung di kode.
+- **Opsi A, engine `perplexity` di OpenRouter** (sudah ada di `ENGINES`): USD 0,005 per request (Exa 0,007), tetapi
+  filter tanggal tetap tidak diteruskan OpenRouter dan panggilan model pembungkus tetap ada. Tidak menyelesaikan W07/W16.
+- **Opsi B, `POST https://api.perplexity.ai/search` langsung (usulan utama):** tanpa model; USD 5 per 1.000 request
+  (`search_type: fast` USD 1 per 1.000); `search_after_date_filter` / `search_before_date_filter`,
+  `last_updated_*_filter`, `search_recency_filter`, `country`, `search_language_filter`, `search_domain_filter`
+  (maksimal 20, allowlist atau denylist tidak bisa dicampur); tiap hasil membawa `title`, `url`, `snippet`, `date`,
+  `last_updated`; panjang teks lewat `max_tokens_per_page`. Batas 50 query per detik, tidak tergantung tier.
+  Menjawab W07 (tanggal terbit) dan W16 (jendela pra-event) bila filter terbukti bekerja pada hasil.
+- **Opsi C, model Sonar / Agent API:** tidak diusulkan; model yang memilih query dan menulis jawaban bertentangan
+  dengan prinsip governor (query dan bukti dipegang kode, kutipan verbatim).
+- **Yang perlu disiapkan:** akun API Perplexity, kredit dan alert billing (pelajaran W11); secret
+  `PERPLEXITY_API_KEY` hanya di `market-web-governor`; keputusan route pertama (usul `/v1/orc/web`, lalu `/v1/fact`,
+  lalu pengganti Google News RSS di `/v1/ask`) dan Standard atau Fast; konfirmasi retensi data Search API ke Perplexity
+  (dokumen menyatakan zero data retention untuk Sonar API).
+- **Kode (usulan):** antarmuka `SearchBackend` yang mengembalikan `{url, title, text, date, last_updated}`, dengan
+  `OpenRouterExaSearch` (yang ada) dan `PerplexitySearch`; `WEB_SEARCH_BACKEND` (default `openrouter_exa`); hapus
+  `"engine": "exa"` yang terkunci di kode; biaya dihitung di kode karena respons tidak membawa biaya; tanggal
+  MM/DD/YYYY; deadline, retry dan pemetaan 401/402/429 seperti adapter sekarang; blocklist tetap di kode.
+- **Uji:** fixture unit test; A/B Exa vs Perplexity pada 20 kasus `tests/fixtures/orc_web_cases.json`
+  (web-governor-test-runner fase `orc_web`): recall, kutipan yang lolos cek verbatim, cakupan tanggal, latensi, biaya;
+  uji efek filter tanggal dari hasil, bukan dari request yang diterima (pelajaran W16), misalnya kasus pra-event ULTJ;
+  cek apakah filter domain `.go.id` bekerja.
+- **Rollout:** dev saja, flag default mati; rollback dengan mengganti `WEB_SEARCH_BACKEND`.
