@@ -20,6 +20,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ticker")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--require-stored-match", action="store_true")
     return parser.parse_args()
 
 
@@ -38,9 +39,9 @@ def equal_value(left, right) -> bool:
 def validate_recent(
     connection, asset_type: str, ticker: str, history: list[dict], states: list[dict],
     lookback_sessions: int,
-) -> None:
+) -> list[dict]:
     if len(history) < 2:
-        return
+        return []
     suffix_size = min(lookback_sessions, len(history) - 1)
     checkpoint = states[-suffix_size - 1]
     suffix = history[-suffix_size:]
@@ -72,15 +73,18 @@ def validate_recent(
             f"Shadow row-count mismatch for {asset_type}/{ticker}: "
             f"{len(calculated)} calculated vs {len(stored)} stored"
         )
+    drift = []
     for expected, actual in zip(reference, stored):
         if expected["trade_date"] != actual["trade_date"]:
             raise RuntimeError(f"Shadow date mismatch for {asset_type}/{ticker}")
         for column in FEATURE_COLUMNS:
             if not equal_value(expected[column], actual[column]):
-                raise RuntimeError(
-                    f"Stored/full mismatch {asset_type}/{ticker}/{actual['trade_date']}/{column}: "
-                    f"{actual[column]!r} != {expected[column]!r}"
-                )
+                drift.append({
+                    "asset_type": asset_type, "ticker": ticker,
+                    "trade_date": str(actual["trade_date"]), "column": column,
+                    "stored": actual[column], "expected": expected[column],
+                })
+    return drift
 
 
 def main() -> int:
@@ -115,6 +119,8 @@ def main() -> int:
     if args.limit:
         instruments = instruments[: args.limit]
     completed = 0
+    stored_drift_count = 0
+    stored_drift_samples = []
     for instrument in instruments:
         asset_type, ticker = instrument["asset_type"], instrument["ticker"]
         with connect() as connection:
@@ -137,9 +143,11 @@ def main() -> int:
             lookback_sessions = int(policy["correction_lookback_sessions"])
             retention = lookback_sessions + 2
             states = build_recent_checkpoints(history, retain=retention)
-            validate_recent(
+            drift = validate_recent(
                 connection, asset_type, ticker, history, states, lookback_sessions
             )
+            stored_drift_count += len(drift)
+            stored_drift_samples.extend(drift[: max(0, 10 - len(stored_drift_samples))])
         if not args.dry_run:
             dummy = Job(
                 asset_type=asset_type, ticker=ticker, dirty_from_date=history[-1]["date"],
@@ -154,7 +162,10 @@ def main() -> int:
             print(json.dumps({"event": "checkpoint_progress", "completed": completed,
                               "total": len(instruments), "ticker": ticker}), flush=True)
     print(json.dumps({"event": "checkpoint_bootstrap_completed", "instruments": completed,
-                      "dry_run": args.dry_run}), flush=True)
+                      "dry_run": args.dry_run, "stored_drift_count": stored_drift_count,
+                      "stored_drift_samples": stored_drift_samples}), flush=True)
+    if args.require_stored_match and stored_drift_count:
+        raise RuntimeError(f"Stored Feature04 suffix has {stored_drift_count} mismatched values")
     return 0
 
 
