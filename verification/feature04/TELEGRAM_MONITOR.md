@@ -39,7 +39,7 @@ PYTHONPATH=/tmp/feature04-telegram-testdeps python -m pytest -q \
   features/feature04/tests \
   apps/telegram-monitor/test_telegram_monitor.py \
   apps/telegram-trigger/test_telegram_trigger.py
-68 passed in 1.49s
+68 passed in 1.76s
 ```
 
 `py_compile` passed for the worker, monitor, and trigger. `git diff --check` passed. The test
@@ -48,6 +48,13 @@ acknowledgement fallback, and existing Feature04 engine behavior.
 
 ## Rollout
 
-Exact Git commit and Railway deployment IDs are appended after the Git-connected services
-reach `SUCCESS`. The temporary database Function is deleted after that readback; it has no
-cron, domain, or volume.
+- Git main commit: `35fee3f`
+- Feature04 worker: `cc083003-e92f-4c2e-9b24-0ddba6055dbc` (`SUCCESS`)
+- Telegram monitor: `bbdef14e-de3a-4dc3-8918-1112402f5c4e` (`SUCCESS`, `/health` passed)
+- Telegram trigger: `621f630c-2419-4792-84d0-beb628a6c0b4` (`SUCCESS`, `/health` passed)
+
+The rollout did not send a synthetic Telegram notification; the next normal terminal
+Feature04 execution exercises the delivery path without adding test noise to the owner chat.
+Temporary Function `feature04-telegram-ops` was deleted project-wide. Final inventory shows
+no such service and no detached volume. No permanent service, cron, variable, domain,
+replica, price flow, formula, or source data changed.

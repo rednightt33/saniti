@@ -779,3 +779,11 @@ frontend changes on `codex/edge-bff`; runner/Orc, live database schema, model an
   migration into statements and execute them through `sql.begin`, then throw deliberately
   to roll back. The corrected rehearsal proved both new objects absent after rollback before
   live apply.
+- **Railway CLI unavailable in this execution workspace (CONTAINED):** the required
+  post-change `railway config pull --force` / `railway config plan` commands could not start
+  because the executable is not installed. The Railway connector independently confirmed
+  the temporary Function is absent, no volume was detached, the three exact deployments are
+  live, and the only staged work is the already documented stale 2FA-protected patch. The
+  temporary service left no permanent IaC target, so `.railway/railway.ts` requires no
+  topology change. Re-run config pull/plan from a Railway-CLI-enabled workspace after the
+  stale patch is cleared.

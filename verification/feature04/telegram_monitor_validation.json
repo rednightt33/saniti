@@ -20,6 +20,14 @@
     {"asset_type": "bonds", "ticker": "ID01MY", "dirty_date": "2026-10-05", "session_count": 5}
   ],
   "tests": {"passed": 68, "failed": 0},
+  "git_commit": "35fee3f",
+  "railway_deployments": {
+    "feature_04_worker": "cc083003-e92f-4c2e-9b24-0ddba6055dbc",
+    "telegram_monitor": "bbdef14e-de3a-4dc3-8918-1112402f5c4e",
+    "telegram_trigger": "621f630c-2419-4792-84d0-beb628a6c0b4"
+  },
+  "temporary_service_deleted": true,
+  "synthetic_telegram_message_sent": false,
   "formula_changed": false,
   "source_data_changed": false
 }

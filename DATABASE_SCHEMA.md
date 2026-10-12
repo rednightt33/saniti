@@ -1,6 +1,6 @@
 # Database schema
 
-Refreshed from the applied public-schema migration and live readback at `2026-10-12T09:21:56+00:00`.
+Refreshed from the applied public-schema migration and live readback at `2026-10-12T09:29:57+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 

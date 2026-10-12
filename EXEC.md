@@ -1869,10 +1869,11 @@ retry remains failure-only, derives the latest five final sessions from market p
 the preceding checkpoint, and edits its acknowledgement on completion. The price Telegram
 flow, price cron schedules, formulas, and Railway topology stay unchanged.
 
-**Status:** implementation and database migration completed. Migration
-`20261012_004_feature04_telegram_monitor.sql` passed rollback rehearsal and live readback;
-68 relevant tests passed. Git/Railway exact deployment IDs and temporary-runner cleanup are
-recorded in `verification/feature04/TELEGRAM_MONITOR.md` after rollout.
+**Status:** COMPLETED 2026-10-12. Migrations `20261012_004` and `20261012_005` passed
+rollback rehearsal, apply, and live readback; 68 relevant tests passed. Commit `35fee3f`
+deployed exact `SUCCESS` versions of worker (`cc083003-…`), monitor (`bbdef14e-…`), and
+trigger (`621f630c-…`). The temporary runner was deleted with no volume, and no permanent
+service or schedule was added. Evidence: `verification/feature04/TELEGRAM_MONITOR.md`.
 
 ### EXEC-JOINKEY: kunci gabungan hanya entitas, kolom tanggal tidak ikut (G25)
 

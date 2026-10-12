@@ -1,5 +1,26 @@
 # Railway changelog
 
+## 2026-10-12 — Feature04 compact Telegram monitor rollout
+
+- Commit `35fee3f` deployed the Feature04 notification changes from Git main. Exact
+  deployments reached `SUCCESS`: worker `cc083003-e92f-4c2e-9b24-0ddba6055dbc`,
+  telegram-monitor `bbdef14e-de3a-4dc3-8918-1112402f5c4e`, and telegram-trigger
+  `621f630c-2419-4792-84d0-beb628a6c0b4`. Both HTTP services passed `/health`; the
+  always-on worker started successfully.
+- No permanent service, cron, variable, domain, volume, replica, price job, model, or
+  provider changed. Scheduled Feature04 delivery now reuses a market/trade-date ledger key;
+  retry completion waits for and edits its Telegram acknowledgement.
+- Temporary private Function `feature04-telegram-ops` ran the migration rollback/apply and
+  read-only verification. It had no cron, domain, or volume and was deleted project-wide;
+  inventory confirms it is absent. The pre-existing stale deletion patch
+  `d04c12f2-f5de-40b5-8473-4e8a97745bad` remains staged and still requires dashboard 2FA
+  to clear; it is unrelated to this rollout and is not live.
+- The local execution workspace does not have the Railway CLI, so `config pull --force` and
+  `config plan` could not start. Connector inventory provides the final reconciliation:
+  23 live services, the temporary Function absent, the three target deployments exact, and
+  only the pre-existing stale patch pending. `.railway/railway.ts` has no permanent topology
+  change from this work.
+
 ## 2026-10-12 — Feature04 incremental finality rollout
 
 - Commit `9dda917` deployed the exact checkpoint engine, equity finality producer, and
