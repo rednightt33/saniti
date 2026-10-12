@@ -43,9 +43,10 @@ python bootstrap_states.py --dry-run
 python bootstrap_states.py
 ```
 
-The dry run rebuilds state from full history and shadow-compares the recent suffix with the
-stored table without writing. The write run changes state only. It does not rewrite Feature04
-output.
+The dry run rebuilds state from full history, proves the recent incremental suffix against
+the full formula reference, and reports any drift in the stored table without writing. Add
+`--require-stored-match` for the post-repair acceptance run. The write run changes state only;
+it does not rewrite Feature04 output.
 
 Pause the continuous worker while either bootstrap command runs. Restore `python worker.py`
 only after checkpoint counts and shadow parity have passed.
