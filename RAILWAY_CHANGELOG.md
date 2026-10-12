@@ -17,9 +17,11 @@
   checkpoint bootstrap.
 - Temporary private service `feature04-incremental-ops` performed baseline inspection,
   rolled-back rehearsal, migration apply, and independent readback using only the existing
-  server-side database reference. Its dev-only deletion is staged; the connector rejected
-  the environment apply with `INVALID_ARGUMENT`, while cross-environment deletion remains
-  intentionally unapproved.
+  server-side database reference. After explicit user approval, its project-wide deletion
+  succeeded; service inventory confirms it is absent and no volume was detached. Railway
+  still shows the earlier dev-only deletion as a stale pending patch. Committing that patch
+  requires two-factor verification in the Railway dashboard and cannot be completed by the
+  API/MCP token.
 - Full shadow deployment `d1e41d3b-eefa-4ad8-aa82-ed2d10376431` checked 868 instruments
   with zero incremental/full mismatches. Checkpoint deployment
   `30f3e66b-3a67-4843-9497-a6625cb0dcad` wrote 6,076 snapshots. Final continuous worker

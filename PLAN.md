@@ -46,8 +46,9 @@ terlihat segera tanpa membuat rangkaian pesan baru, dan backfill memakai satu ri
 
 ### Hasil inspeksi infra dan akar masalah
 
-Railway `lucid-patience` / `dev` tidak mempunyai staged change atau pending deployment. Enam price cron dan tiga service
-terkait yang live adalah:
+Railway `lucid-patience` / `dev` mempunyai satu stale pending deletion patch untuk service operasi sementara yang sudah
+terhapus di level proyek; patch administratif itu memerlukan verifikasi dua faktor di dashboard dan tidak mengubah
+topologi live. Enam price cron dan tiga service terkait yang live adalah:
 
 | Market | DAILY | RECOVERY | Waktu recovery WIB |
 |---|---|---|---:|
