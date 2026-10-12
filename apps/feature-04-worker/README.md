@@ -51,6 +51,11 @@ it does not rewrite Feature04 output.
 Pause the continuous worker while either bootstrap command runs. Restore `python worker.py`
 only after checkpoint counts and shadow parity have passed.
 
+The 2026-10-12 rollout dry run proved incremental/full parity for all 868 eligible
+instruments. It found three stored candlestick flags in the active suffix that were produced
+by the former prefix-dependent floating path; those rows are repaired through the normal
+five-session queue before final acceptance.
+
 For the independent fixed-income daily and recovery crons, the outbox first sends the
 related `Monitoring_Fixed_Income` result through `telegram-monitor`. The Feature04
 completion remains gated until that price notification is recorded sent.
