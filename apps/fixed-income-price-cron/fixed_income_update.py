@@ -32,6 +32,7 @@ from websocket import WebSocketTimeoutException, create_connection
 WS_URL = "wss://data.tradingview.com/socket.io/websocket"
 ORIGIN = "https://www.tradingview.com"
 TIMEFRAME = "1D"
+DATE_MAPPING_VERSION = "schedule-driven-session-label-v3"
 PRICE_TABLE = 'public."Price_Fixed_Income"'
 UNIVERSE_TABLE = 'public."Universe_Fixed_income"'
 SCHEDULE_TABLE = 'public."Fixed_Income_Market_Schedule"'
@@ -68,6 +69,7 @@ class MarketSchedule:
     timezone_name: str
     session_close_local: clock_time
     finality_delay_minutes: int
+    source_date_mapping: str
     enabled: bool
 
     @property
@@ -235,12 +237,27 @@ def latest_completed_session(schedule: MarketSchedule, now: datetime) -> date:
     return candidate
 
 
-def resolve_bar_date(timestamp: int, provider_timezone: str) -> date:
+def resolve_bar_date(
+    timestamp: int, provider_timezone: str, source_date_mapping: str
+) -> date:
     try:
-        zone = ZoneInfo(provider_timezone)
+        ZoneInfo(provider_timezone)
     except Exception as exc:
         raise ValueError(f"TradingView returned invalid timezone {provider_timezone!r}") from exc
-    return datetime.fromtimestamp(timestamp, timezone.utc).astimezone(zone).date()
+    # TradingView's fixed-income 1D protocol uses the UTC calendar component as
+    # its raw chart label. Markets encode that label differently, so the mapping
+    # is stored with the market schedule instead of being selected by ticker.
+    source_label_date = datetime.fromtimestamp(timestamp, timezone.utc).date()
+    if source_date_mapping == "CURRENT_OR_PREVIOUS_BUSINESS_DAY":
+        while source_label_date.weekday() >= 5:
+            source_label_date -= timedelta(days=1)
+        return source_label_date
+    if source_date_mapping == "NEXT_BUSINESS_DAY":
+        source_label_date += timedelta(days=1)
+        while source_label_date.weekday() >= 5:
+            source_label_date += timedelta(days=1)
+        return source_label_date
+    raise ValueError(f"Unsupported source date mapping {source_date_mapping!r}")
 
 
 def request_series(
@@ -253,6 +270,7 @@ def request_series(
     target_date: date,
     close_at: datetime,
     finalized_at: datetime,
+    source_date_mapping: str,
 ) -> tuple[list[dict], str]:
     alias = f"symbol_{series.ordinal}_{random.randrange(1_000_000)}"
     series_id = f"s{series.ordinal}"
@@ -318,7 +336,9 @@ def request_series(
     rows: list[dict] = []
     for timestamp in sorted(received):
         values = received[timestamp]
-        candle_date = resolve_bar_date(timestamp, provider_timezone)
+        candle_date = resolve_bar_date(
+            timestamp, provider_timezone, source_date_mapping
+        )
         rows.append(
             {
                 "Country": series.country,
@@ -356,7 +376,7 @@ def read_schedule(connection: psycopg.Connection, market_code: str) -> MarketSch
     row = connection.execute(
         f"""
         SELECT market_code,country,timezone_name,session_close_local,
-               finality_delay_minutes,enabled
+               finality_delay_minutes,source_date_mapping,enabled
         FROM {SCHEDULE_TABLE} WHERE market_code=%s
         """,
         (market_code,),
@@ -424,6 +444,7 @@ def fetch_worker(
     query_date: date,
     close_at: datetime,
     finalized_at: datetime,
+    source_date_mapping: str,
     bars_requested: int,
     timeout: float,
     delay: float,
@@ -447,6 +468,7 @@ def fetch_worker(
                 target_date,
                 close_at,
                 finalized_at,
+                source_date_mapping,
             )
             dates = tuple(sorted({row["date"] for row in rows}))
             row = candle_for_target(rows, target_date)
@@ -496,6 +518,7 @@ def fetch_all(
     query_date: date,
     close_at: datetime,
     finalized_at: datetime,
+    source_date_mapping: str,
     args: argparse.Namespace,
 ) -> list[FetchOutcome]:
     chunks = partition(universe, args.workers)
@@ -510,6 +533,7 @@ def fetch_all(
                 query_date,
                 close_at,
                 finalized_at,
+                source_date_mapping,
                 args.request_bars,
                 args.timeout,
                 args.delay,
@@ -781,6 +805,7 @@ def main() -> int:
                     "trigger_source": trigger_source,
                     "target_date": target_date.isoformat(),
                     "market_close_at": close_at.isoformat(),
+                    "date_mapping_version": DATE_MAPPING_VERSION,
                     "series": len(universe),
                 }
             ),
@@ -814,10 +839,16 @@ def main() -> int:
             now.astimezone(schedule.timezone).date(),
             close_at,
             finalized_at,
+            schedule.source_date_mapping,
             args,
         )
         rows = [item.row for item in outcomes if item.row is not None]
         if args.dry_run:
+            available_date_counts: dict[str, int] = {}
+            for item in outcomes:
+                for available_date in item.available_dates:
+                    key = available_date.isoformat()
+                    available_date_counts[key] = available_date_counts.get(key, 0) + 1
             print(
                 json.dumps(
                     {
@@ -826,6 +857,7 @@ def main() -> int:
                         "target_date": target_date.isoformat(),
                         "queried": len(outcomes),
                         "final": len(rows),
+                        "available_date_counts": dict(sorted(available_date_counts.items())),
                         "errors": summarize_errors(outcomes),
                     }
                 ),

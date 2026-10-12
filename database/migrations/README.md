@@ -5,6 +5,11 @@ clocks and universe source mappings, final-candle evidence, market-specific moni
 and the `is_final` gate used by Feature04. It was rehearsed with a full rollback before
 being applied to `lucid-patience/dev`.
 
+`20261012_002_configure_fixed_income_source_dates.sql` records each market's TradingView
+daily-bar label convention in `Fixed_Income_Market_Schedule.source_date_mapping`. It was
+rehearsed with rollback deployment `70bbf1e9-5d9d-4f79-a232-33e9b53adb9e` and applied by
+deployment `32f7d785-2b8c-4aa8-997d-1f873d0a9850`.
+
 Each applied schema change must have one forward-only SQL file named:
 
 ```text

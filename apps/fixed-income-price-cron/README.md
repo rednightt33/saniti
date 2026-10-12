@@ -35,8 +35,14 @@ identical, so an idempotent recovery does not enqueue Feature04.
 
 ## Final-candle contract
 
-- The provider-resolved timezone converts the original TradingView bar timestamp to its
-  source session date. A prior candle is never relabeled as the target date.
+- The loader validates the provider-resolved timezone and starts from the UTC calendar
+  component that TradingView's fixed-income `1D` protocol returns as its raw chart label.
+- `Fixed_Income_Market_Schedule.source_date_mapping` defines the provider convention for
+  each market. Indonesia maps weekend labels to the preceding business day; the US maps
+  each raw label to the next business day. The worker does not select this behavior by
+  ticker or country.
+- The original timestamp remains in `source_bar_time`, and only a candle that resolves to
+  the exact target business date can be accepted.
 - `market_close_at` is calculated from the selected market row and observation date.
 - The job refuses to load a target session before `market_close_at` plus
   `finality_delay_minutes`.

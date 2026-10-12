@@ -44,6 +44,16 @@ before claiming current final-close verification.
   exact provider-timezone session mapping, strict target-date selection, nullable bond
   volume, invalid OHLC, TLS fail-closed behavior, monitoring states, framing, and retained
   provider timestamps.
+- The Indonesia dry-run exposed TradingView's bond convention: Friday observations carry
+  a weekend raw label. The configured `CURRENT_OR_PREVIOUS_BUSINESS_DAY` rule maps it to
+  Friday while preserving the original timestamp.
+- The US dry-run exposed a different convention: each raw UTC label belongs to the next
+  business session. The configured `NEXT_BUSINESS_DAY` rule maps Thursday to Friday and
+  Friday to Monday. Market behavior comes from `Fixed_Income_Market_Schedule`, not a ticker
+  or country branch in application code.
+- Final dry-run deployments `75565757-5da3-4e75-b09a-172e57b52f8b` (Indonesia) and
+  `38b5c160-0cbe-4579-9917-8f12c86792d9` (US) each found every expected 2026-10-09 series:
+  22/22 and 26/26 respectively.
 - Feature04 worker and bounded pipeline read bonds only where `metric_type='price'`,
   `Timeframe='1D'`, and `is_final=true`.
 

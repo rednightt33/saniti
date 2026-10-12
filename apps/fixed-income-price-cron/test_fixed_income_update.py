@@ -17,8 +17,14 @@ sys.modules[SPEC.name] = module
 SPEC.loader.exec_module(module)
 
 
-def schedule(code="ID", zone="Asia/Jakarta", close=time(16), delay=60):
-    return module.MarketSchedule(code, "Indonesia", zone, close, delay, True)
+def schedule(
+    code="ID",
+    zone="Asia/Jakarta",
+    close=time(16),
+    delay=60,
+    mapping="CURRENT_OR_PREVIOUS_BUSINESS_DAY",
+):
+    return module.MarketSchedule(code, "Indonesia", zone, close, delay, mapping, True)
 
 
 def test_latest_completed_session_waits_for_close_delay():
@@ -59,12 +65,46 @@ def test_scheduled_detection_allows_fixed_utc_cron_across_us_dst():
 
 def test_provider_timezone_resolves_session_date():
     timestamp = int(datetime(2026, 10, 9, 13, 30, tzinfo=timezone.utc).timestamp())
-    assert module.resolve_bar_date(timestamp, "America/New_York") == date(2026, 10, 9)
+    assert module.resolve_bar_date(
+        timestamp, "America/New_York", "CURRENT_OR_PREVIOUS_BUSINESS_DAY"
+    ) == date(2026, 10, 9)
+
+
+def test_us_daily_label_uses_utc_calendar_component():
+    timestamp = int(datetime(2026, 10, 9, 0, 0, tzinfo=timezone.utc).timestamp())
+    assert module.resolve_bar_date(
+        timestamp, "America/New_York", "CURRENT_OR_PREVIOUS_BUSINESS_DAY"
+    ) == date(2026, 10, 9)
+
+
+def test_weekend_bond_bar_timestamp_maps_to_friday_observation():
+    timestamp = int(datetime(2026, 10, 11, 0, 0, tzinfo=timezone.utc).timestamp())
+    assert module.resolve_bar_date(
+        timestamp, "Etc/UTC", "CURRENT_OR_PREVIOUS_BUSINESS_DAY"
+    ) == date(2026, 10, 9)
+
+
+def test_us_source_label_maps_to_next_business_day():
+    thursday = int(datetime(2026, 10, 8, 0, 0, tzinfo=timezone.utc).timestamp())
+    friday = int(datetime(2026, 10, 2, 0, 0, tzinfo=timezone.utc).timestamp())
+    assert module.resolve_bar_date(
+        thursday, "America/New_York", "NEXT_BUSINESS_DAY"
+    ) == date(2026, 10, 9)
+    assert module.resolve_bar_date(
+        friday, "America/New_York", "NEXT_BUSINESS_DAY"
+    ) == date(2026, 10, 5)
 
 
 def test_invalid_provider_timezone_fails_closed():
     with pytest.raises(ValueError, match="invalid timezone"):
-        module.resolve_bar_date(0, "Not/A_Zone")
+        module.resolve_bar_date(
+            0, "Not/A_Zone", "CURRENT_OR_PREVIOUS_BUSINESS_DAY"
+        )
+
+
+def test_unknown_source_date_mapping_fails_closed():
+    with pytest.raises(ValueError, match="Unsupported source date mapping"):
+        module.resolve_bar_date(0, "Etc/UTC", "UNKNOWN")
 
 
 def test_candle_selection_requires_exact_target_date():
@@ -140,7 +180,7 @@ class FakeSocket:
 
 def test_request_series_keeps_source_timestamp_and_exact_session(monkeypatch):
     monkeypatch.setattr(module.random, "randrange", lambda _n: 1)
-    timestamp = int(datetime(2026, 10, 9, 13, 30, tzinfo=timezone.utc).timestamp())
+    timestamp = int(datetime(2026, 10, 8, 0, 0, tzinfo=timezone.utc).timestamp())
     resolved = module.frame(
         "symbol_resolved",
         ["cs", "symbol_1_1", {"timezone": "America/New_York"}],
@@ -163,6 +203,7 @@ def test_request_series_keeps_source_timestamp_and_exact_session(monkeypatch):
         date(2026, 10, 9),
         datetime(2026, 10, 9, 21, 0, tzinfo=timezone.utc),
         final_at,
+        "NEXT_BUSINESS_DAY",
     )
     assert provider_zone == "America/New_York"
     assert rows[0]["date"] == date(2026, 10, 9)
