@@ -55,8 +55,8 @@ EXEC-STYLE, dengan rencana implementasi bersama EXEC-IMPL-1012 (3 fase). Sesudah
 tanpa kewajiban asumsi/batasan (keputusan user 2026-10-12).
 
 **Berjalan (go 2026-10-12, "2 dan 3 OK untuk jalankan masukan EXEC"):** EXEC-EXPORT dan EXEC-TYPING (perbaikan EDGE).
-**Menunggu konfirmasi pemahaman:** EXEC-SORT (spesifikasi dari screenshot user), EXEC-UI-1012 (dokumen user: panel kiri,
-bagian yang bisa dilipat, judul ringkas), M143 (pilihan perbaikan).
+**Menunggu go (pemahaman dikonfirmasi user 2026-10-12):** EXEC-SORT, EXEC-UI-1012 (B1, C) dan EXEC-DELETE (hapus
+percakapan). **Menunggu keputusan:** M143.
 
 **Berjalan (2026-10-08):** EXEC-X (M124 + M125 A/B, tampilan jawaban EDGE). Dibangun di cabang
 `claude/code-session-2k3oeg` (HTML user sebagai sumber utama, API dipisah dari tampilan, teks backend bahasa biasa);
@@ -2063,7 +2063,7 @@ pada screenshot) .. masukan EXEC". Spesifikasi yang dibaca dari screenshot (menu
 - Tampilan tabel tetap seperti yang live (warna, huruf, judul kolom); prototipe hanya acuan perilaku, bukan tampilan.
 - Judul kolom yang disorot mouse: latar judul sedikit lebih gelap dan ikon ⇅ di kanan nama kolom.
 - Klik pertama: urut turun, ikon ↓; klik kedua: urut naik, ikon ↑; ikon arah tetap tampil di kolom yang aktif, kolom
-  lain tanpa ikon. Klik ketiga: kembali ke urutan asli (usulan, belum terlihat di screenshot).
+  lain tanpa ikon. Klik ketiga: kembali ke urutan asli (dikonfirmasi user: "A. correct").
 - Tanpa menu ⋮ di atas tabel (ada di screenshot, tidak diminta).
 - Cara membaca angka, sel kosong di bawah, baris Total tetap di bawah dan keyboard seperti di prototipe.
 
@@ -2079,6 +2079,30 @@ pada screenshot) .. masukan EXEC". Spesifikasi yang dibaca dari screenshot (menu
 3. "title panel kiri boleh dibedakan, tidak perlu 1:1 exactly seperti pertanyaa user. AI router bisa rephrase. Dan ini
    nanti akan ke affect ke 2 bagian yang saya tandai" (screenshot: judul di panel kiri dan judul besar di atas jawaban;
    contoh "kasih saya data BBCA harga…" menjadi "BBCA Share Price" atau "BBCA Price").
+
+**Jawaban user atas klarifikasi (2026-10-12):** "B1. (i)" (setiap percakapan di panel kiri menampilkan dua baris: judul
+dan cuplikan pertanyaan, bukan hanya yang dipilih); "B2. leave as is, konsisi sekarang sudah benar" (Asumsi/Batasan
+terlipat dengan jumlahnya tetap seperti sekarang; tidak ada perubahan); "C. sesuai bahasa penanya dan only first
+question" (judul ringkas dalam bahasa penanya, hanya untuk pertanyaan pertama percakapan). Usulan implementasi:
+- B1: daftar percakapan EDGE (`list_conversations`) ikut membawa pertanyaan terakhir tiap percakapan dari tabel job
+  EDGE (tanpa perubahan skema); baris kedua yang sudah ada tampil untuk setiap item.
+- C: router pesan pertama orc menambah satu field `title` (dua sampai lima kata, bahasa penanya); EDGE memakainya
+  sebagai judul percakapan dan judul besar jawaban pertama; tanpa judul router (router gagal atau jalur dipilih
+  pemanggil) tetap 80 karakter pertama pertanyaan. Bubble "YOU" tetap kata-kata user; percakapan lama tidak berubah.
+  `AI_ROUTER.md` diregenerasi; kriteria rute tidak berubah.
+
+### EXEC-DELETE: hapus percakapan dari panel kiri
+
+**Permintaan user 2026-10-12:** "saya juga minta opsi untuk delete conversation ya, tombol tong sampah disebelah
+bookmarked left panel on every chat". Status: **menunggu keputusan dan go.** Kondisi sekarang: orc hanya menghapus
+percakapan otomatis 30 hari sesudah aktivitas terakhir (`AI_CONVERSATION_RETENTION_DAYS`, default); belum ada hapus
+manual. Usulan:
+- UI: ikon tong sampah di sebelah bookmark pada setiap percakapan; dialog konfirmasi sebelum menghapus; tidak tersedia
+  selagi percakapan masih berjalan.
+- orc: endpoint baru hapus satu percakapan milik owner (giliran, tabel hasil, file ekspor ikut terhapus lewat cascade;
+  objek bucket dihapus dulu, sama seperti pembersihan retensi). EDGE: endpoint yang memanggil orc lalu menghapus baris
+  `edge_bff.conversation_ui` dan job percakapan itu.
+- Catatan audit (`AI_research_run_audit`, market-audit-store) tetap (jejak audit), kecuali user memutuskan lain.
 
 ### EXEC-IMPL-1012: rencana implementasi EXEC-JOINKEY, EXEC-RELEASE, EXEC-FRICTION, EXEC-STYLE (berjalan)
 
