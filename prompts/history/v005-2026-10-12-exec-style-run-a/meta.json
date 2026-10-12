@@ -1,0 +1,10 @@
+{
+ "version": 5,
+ "date": "2026-10-12",
+ "name": "exec-style-run-a",
+ "decision": "well saya lebih suka Run A tapi tanpa kewajiban AI untuk kasih asumsi, batasan. ... dalam 1 jawaban boleh lebih dari 1 tabel as long as membantu user (tidak wajib harus lebih dari 1) (2026-10-12)",
+ "change": "After the A/B: back to the Run A reader section, example and single length target (v003 text); kept from v004: rule 14 and the answer contract (an assumption or a limitation only when it changes how the answer is read or trusted); rule 13 now says each table within ten rows and allows more than one table when that helps the reader",
+ "prompt_chars": 37979,
+ "prompt_sha256": "1aeee73d55c73a351ab19d0d1d40ce0dc9c0b36b91c7da231cf932a715d94155",
+ "schema_sha256": "48bceaa503bc5008b5d949b461b36c7c322017f50354b2138f48c5e02d2b1a03"
+}

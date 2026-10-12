@@ -46,8 +46,8 @@ from . import modes
 from . import news as news_research
 from . import stop
 from .conversations import assistant_text
-from .orchestrator import KIND_TARGET_CHARS, MODE4_PART_TARGET_CHARS, AgentOrchestrator, current_answer_target, \
-    current_time_budget, log_event
+from .orchestrator import MODE4_PART_TARGET_CHARS, AgentOrchestrator, current_answer_target, current_time_budget, \
+    log_event
 from .provenance import LABEL_ORDER
 from .research_plan import ContinuationIn, ContinuationOut
 from .research_plan_v2 import ContinuationInV2, ContinuationOutV2, current_angle_bounds, plan_digest_v2
@@ -379,8 +379,7 @@ class _Mode4Run:
         referent = current_turn_referent.set(reading.get("referent"))
         intent = router.current_intent.set(self.intent if step in INTENT_STEPS else None)
         turn = current_turn_id.set(self.base_id)  # item 12: one web budget for every step of this message
-        # EXEC-P2 P2e: each part of the reply; EXEC-STYLE S4: a conversational, factual or clarifying step its own tier
-        target = current_answer_target.set(KIND_TARGET_CHARS.get(turn_kind or "", MODE4_PART_TARGET_CHARS))
+        target = current_answer_target.set(MODE4_PART_TARGET_CHARS)  # EXEC-P2 P2e: each part of the reply
         try:
             result = self.inner.run(sub_request, self.key, data_record=self.record)
         finally:

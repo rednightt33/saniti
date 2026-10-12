@@ -418,8 +418,8 @@ def blob_registry() -> ToolRegistry:
 # About 1.7k tokens of instructions/tools/schema; each 21,000-byte result adds ~7k tokens.
 # M125 C (2026-10-08): the reader section added about five hundred tokens to the system prompt; the budget keeps
 # the same room for the two pages the tests read; EXEC-Y Fase 3 (2026-10-09) about a hundred more (row_presence, day
-# counts); EXEC-STYLE (2026-10-12) about two hundred more (length tiers, three short examples)
-BUDGET = {"AI_MAX_CONTEXT_TOKENS": "20800", "AI_MAX_OUTPUT_TOKENS": "1000"}
+# counts); EXEC-STYLE (2026-10-12) about a hundred more (rule 13 tables, rule 14 and the contract)
+BUDGET = {"AI_MAX_CONTEXT_TOKENS": "20700", "AI_MAX_OUTPUT_TOKENS": "1000"}
 LIMITATION = {
     "response_type": "LIMITATION",
     "answer": "Only part of the requested records could be read.",

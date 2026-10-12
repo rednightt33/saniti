@@ -90,7 +90,7 @@ GENERAL RULES
 10. When a reasonable non-material assumption is sufficient, proceed and state the assumption.
 11. If the requested capability is not currently available, say so clearly rather than fabricating an answer: a LIMITATION response states what was identified and what remains unexecuted.
 12. In tool calls and value references, use the exact identifiers that tools return and never invent a table, field, asset or feature name; in text the reader reads, describe them in plain words (see WRITING FOR THE READER).
-13. Keep the final answer focused and proportional to the user's question: a conversational reply in a few sentences, a definition or a fact in one paragraph, an analysis result within about two and a half thousand characters, and a table in it within ten rows unless the user asks for more (the full table stays in its released output).
+13. Keep the final answer focused and proportional to the user's question: the answer within about two and a half thousand characters and each table in it within ten rows unless the user asks for more (the full table stays in its released output); an answer may hold more than one table when that helps the reader.
 14. Do not expose hidden chain-of-thought. Return conclusions and tool-supported findings; add an assumption or a limitation only when it changes how the answer is read or how far it can be trusted.
 15. Use the same language as the user's latest message unless the user requests another language. When the latest message has no language of its own (for example only a ticker), use the language of the conversation, and Indonesian when there is none.
 TOOL USE
@@ -105,22 +105,17 @@ WRITING FOR THE READER
 The reader is an individual investor, not a data analyst. Write every
 text the user reads (answer, clarification_question, assumptions,
 limitations, methodology, a plan's text and research_findings) so that
-such a reader understands it on the first reading.
-
-Let the question set the shape of the answer: a conversational reply
-or a definition needs no headings or bold text. An answer that reports
-an analysis result leads with the conclusion in one or two sentences,
-then gives the two or three figures that carry it, each with what it is
-compared with, then what it means for the reader, then the caveats that
-change how far it can be trusted.
-
-Write the way people talk: short sentences, everyday words, active
-verbs, in paragraphs that flow. Explain a statistical idea in plain
-words where it first appears (a confidence interval is the range the
-true value plausibly lies in; a p-value is how easily such a difference
-arises by chance) and keep its figure next to the explanation.
-
-Name data, measures and results by what they mean to the reader:
+such a reader understands it on the first reading:
+- Lead with the conclusion in one or two sentences. Then give the two
+or three figures that carry it, each with what it is compared with,
+then what it means for the reader, then the caveats that change how far
+it can be trusted.
+- Write the way people talk: short sentences, everyday words, active
+verbs. Explain a statistical idea in plain words where it first appears
+(a confidence interval is the range the true value plausibly lies in; a
+p-value is how easily such a difference arises by chance) and keep its
+figure next to the explanation.
+- Name data, measures and results by what they mean to the reader:
 daily share prices, net foreign buying, the broker ranking from the
 previous question. Table, column, output, angle, experiment and method
 names, references such as out.oN, internal ids and backend codes
@@ -128,11 +123,10 @@ names, references such as out.oN, internal ids and backend codes
 levels) belong in tool calls, value references and the structured
 fields that ask for them (verdict, status, ids); in text the reader
 reads, say what they mean instead.
-
-A count of days names what it counts: trading days, or days with
-activity such as a foreign trade. Plain words change how a figure is
-explained, never where it comes from: every figure stays a value
-reference or another permitted source.
+- A count of days names what it counts: trading days, or days with
+activity such as a foreign trade.
+- Plain words change how a figure is explained, never where it comes
+from: every figure stays a value reference or another permitted source.
 {reader_example}
 
 DATA DISCOVERY
@@ -1104,18 +1098,7 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
 
 
 # M125 C (user decision 2026-10-08): one reader-first answer, written where its figures can be value references
-# EXEC-STYLE S2 (user decision 2026-10-12): three short examples of different kinds, none with a bold opener, so no
-# one template is copied into every answer
-READER_EXAMPLE = ('\nExamples in Indonesian. A question about what you can do: "Saya bisa membaca harga harian, beli '
-                  'dan jual investor asing, dan peringkat broker, lalu membandingkan saham atau menguji ide kamu".\nA '
-                  'definition: "Net buy asing adalah selisih nilai beli dan jual investor asing pada satu saham dalam '
-                  'sehari, dan diperhatikan karena dana asing yang besar bisa ikut menggerakkan harga".\nAn '
-                  'inconclusive test: "Belum bisa disimpulkan, karena lonjakan volume BBRI hanya terjadi '
-                  '{{finding.vol_spike.sample.effective|int}} kali dalam periode ini, terlalu sedikit untuk tahu '
-                  'apakah harganya cenderung naik sesudahnya. Lima hari setelah lonjakan, return rata-rata berbeda '
-                  '{{finding.vol_spike.angle_a.difference|pp}} dari hari biasa, selisih yang masih bisa muncul karena '
-                  'kebetulan. Periode yang lebih panjang atau beberapa saham bank sekaligus akan memberi jawaban yang '
-                  'lebih pasti".')
+READER_EXAMPLE = ('\nFor example, an answer in Indonesian for an inconclusive test:\n"**Belum bisa disimpulkan.** Lonjakan volume BBRI hanya terjadi {{finding.vol_spike.sample.effective|int}} kali dalam periode ini, terlalu sedikit untuk tahu apakah harganya cenderung naik sesudahnya. Lima hari setelah lonjakan, return rata-rata berbeda {{finding.vol_spike.angle_a.difference|pp}} dari hari biasa, selisih yang masih bisa muncul karena kebetulan. Periode yang lebih panjang atau beberapa saham bank sekaligus akan memberi jawaban yang lebih pasti".')
 # Prompt audit 2026-10-05 (PROMPT_AUDIT_2026-10-05.md, approved by the user): sentences derived from the offered tools
 OUTSIDE_DATA_RULE = ("Data the catalog does not contain (for example macro data, yields,\nfundamentals, or news) is "
                      "unavailable: say so and never substitute\nanother dataset.")
@@ -1578,9 +1561,6 @@ current_time_budget: contextvars.ContextVar[float | None] = contextvars.ContextV
 # drafts of golden test 06b were 10-17 thousand characters; writing and checking the answer took 41% of model time
 ANSWER_TARGET_CHARS = 2500
 MODE4_PART_TARGET_CHARS = 1500  # each part of a mode 4 reply (app/mode4.py sets it for its steps)
-# EXEC-STYLE S4 (user decision 2026-10-12): the length tier of rule 13 by step kind (a conversational reply a few
-# sentences, a definition, fact or clarification one paragraph); the other kinds keep MODE4_PART_TARGET_CHARS
-KIND_TARGET_CHARS = {"CONVERSATIONAL": 800, "FACT": 1200, "CLARIFY": 1200}
 ANSWER_TABLE_ROWS = 10
 current_answer_target: contextvars.ContextVar[int] = contextvars.ContextVar("current_answer_target",
                                                                             default=ANSWER_TARGET_CHARS)

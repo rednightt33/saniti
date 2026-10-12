@@ -1214,15 +1214,13 @@ rows unless the user asks for more (in words: the prompt is a number source). Th
 has a table over `ANSWER_TABLE_ROWS` (10); a mode 4 step is measured against `MODE4_PART_TARGET_CHARS` (1,500). It never
 refuses: the target is measured in the golden test (06b's longest drafts were 10-17 thousand characters).
 
-EXEC-STYLE (user decision 2026-10-12): rule 13 gives the length by kind of answer, in words: a conversational reply a
-few sentences, a definition or a fact one paragraph, an analysis result about two and a half thousand characters. A
-mode 4 step of kind CONVERSATIONAL, FACT or CLARIFY is measured against `KIND_TARGET_CHARS` (800, 1,200, 1,200) and
-`ai_answer_long` names the `turn_kind`. The router notes of those kinds (`conversation_router.STYLE_NOTE`) ask for
-conversational prose without headings or bold text; WRITING FOR THE READER keeps the order conclusion, figures,
-meaning, caveats for answers that report an analysis result, and its examples (`READER_EXAMPLE`: a chat reply, a
-definition, an inconclusive test) have no bold opener. Rule 14 and the answer contract keep assumptions and
-limitations for what changes how the answer is read or trusted; the lines the backend adds itself are unchanged.
-EDGE shows assumptions and limitations folded under the answer with their count.
+EXEC-STYLE (user decisions 2026-10-12, after an A/B of four questions: "saya lebih suka Run A tapi tanpa kewajiban AI
+untuk kasih asumsi, batasan"): the reader section, its example and the single length target stay as before the A/B.
+Rule 14 and the answer contract ask for an assumption or a limitation only when it changes how the answer is read or
+how far it can be trusted; the lines the backend writes itself (the AI's choices, web lookups, the analysis-path line)
+stay. Rule 13 holds each table within ten rows and allows more than one table when that helps the reader.
+`ai_answer_long` also names the step's `turn_kind`. EDGE shows assumptions and limitations folded under the answer with
+their count.
 
 ### Repeated units next to a reference (P22)
 

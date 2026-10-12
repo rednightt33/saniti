@@ -51,7 +51,11 @@ gabungkan ya", pilihan "File baru EXEC.md"). Pekerjaan yang disetujui tetapi bel
 ## Ringkasan
 
 **Berjalan (go 2026-10-12, "ok"):** EXEC-JOINKEY (G25), EXEC-RELEASE (sisa M139), EXEC-FRICTION (P0, M142) dan
-EXEC-STYLE, dengan rencana implementasi bersama EXEC-IMPL-1012 (3 fase).
+EXEC-STYLE, dengan rencana implementasi bersama EXEC-IMPL-1012 (3 fase). Sesudah A/B, EXEC-STYLE kembali ke gaya Run A
+tanpa kewajiban asumsi/batasan (keputusan user 2026-10-12).
+
+**Investigasi (2026-10-12):** EXEC-EXPORT (ekspor Excel belum jalan). **Menunggu konfirmasi:** EXEC-SORT (tabel bisa
+diurutkan dengan klik judul kolom), M143 (pilihan perbaikan).
 
 **Berjalan (2026-10-08):** EXEC-X (M124 + M125 A/B, tampilan jawaban EDGE). Dibangun di cabang
 `claude/code-session-2k3oeg` (HTML user sebagai sumber utama, API dipisah dari tampilan, teks backend bahasa biasa);
@@ -1986,6 +1990,46 @@ eksternal (Anthropic prompting best practices, OpenAI GPT-5.1/5.2 prompting guid
 - **A/B (maksimal 4 pertanyaan):** pertanyaan yang sama sebelum (A) dan sesudah (B) deploy gaya, lewat
   `orc-test-runner`. Ukuran: panjang terhadap tingkatnya, jawaban dengan asumsi/batasan tidak kosong, pembuka tebal,
   penolakan gerbang (tidak boleh naik), penilaian natural oleh user.
+
+**Keputusan user sesudah A/B (2026-10-12):** "well saya lebih suka Run A tapi tanpa kewajiban AI untuk kasih asumsi,
+batasan. Also table is a good thing." lalu "We'll go with option A deh, tapi tanpa kewajiban AI harus kash asumsi,
+batasan saat reply ke useer. Tabel juga boleh lebih dari 1 tabel as long as diperlukan." Atas usulan: baris yang ditulis
+sistem "OK terlipat, masukan exec"; kalimat tabel "tidak usah, pakai metode existing di A + dalam 1 jawaban boleh lebih
+dari 1 tabel as long as membantu user. (tidak wajib harus lebih dari 1)". Yang dijalankan:
+- Kembali ke Run A: bagian WRITING FOR THE READER, contoh jawaban dan satu target panjang (sekitar 2.500 karakter)
+  seperti sebelum A/B; catatan gaya router dan target per jenis langkah dihapus (S1, S2, S4 dibatalkan).
+- Tetap dari S3: aturan 14 dan kontrak jawaban: asumsi atau batasan hanya bila mengubah cara membaca jawaban atau
+  seberapa jauh jawaban bisa dipercaya; tidak ada kewajiban mengisinya.
+- Baris yang ditulis sistem (pilihan AI, pencarian web, baris jalur analisis) tetap ada, tampil terlipat di EDGE dengan
+  jumlahnya.
+- Aturan 13: setiap tabel maksimal sepuluh baris; satu jawaban boleh memuat lebih dari satu tabel bila membantu
+  pembaca (tidak wajib).
+- Snapshot prompt `v005 exec-style-run-a` (prompt +0,5% dari Run A). Run C tidak dijalankan (belum diminta).
+
+### EXEC-EXPORT: ekspor Excel belum jalan (investigasi)
+
+**Permintaan user 2026-10-12:** "Saat ini feature export excel masih belum works. Investigate --> masukan exec".
+Status: **investigasi, belum ada perubahan.** Temuan read-only sejauh ini:
+- orc menyalakan ekspor saat start (`result_store_active`, tanpa `export_inactive`); alat `export_result` ditawarkan.
+- Log orc 9–12 Oktober: hanya satu run yang memanggil `export_result` (`edge_4a0c52b6…`, 9 Oktober, COMPLETED, cek live
+  EXEC-Y). Tidak ada permintaan Excel lain yang gagal di orc pada periode itu.
+- EDGE tidak mencatat log akses HTTP, jadi klik unduh (`/api/v1/exports/{id}` → orc `/v1/exports/{id}/download`) tidak
+  bisa ditelusuri dari log; kegagalan unduh tidak terlihat.
+- Butuh dari user: contoh yang gagal (ID `edge_…` atau waktu dan pertanyaannya) dan gejalanya (tombol unduh tidak muncul,
+  klik gagal, atau file rusak). Alternatif: satu uji live lewat `orc-test-runner` (minta Excel lalu unduh lewat orc),
+  perkiraan biaya di bawah USD 0,05, dengan izin user.
+
+### EXEC-SORT: tabel di jawaban bisa diurutkan dengan klik judul kolom
+
+**Permintaan user 2026-10-12:** "Untuk tabel, bisa saya minta fitur sortable kalau klik header? Konfirmasi."
+Status: **menunggu konfirmasi desain.** Usulan:
+- Hanya di EDGE (browser): tabel Markdown di jawaban (`renderMarkdown` → `data-table`). Backend, angka dan jawaban AI
+  tidak berubah.
+- Klik judul kolom: naik → turun → urutan asli; tanda panah di judul; `aria-sort`; bisa dengan keyboard.
+- Angka dibaca format Indonesia: "1.975,4", "−466,3", "2,87%", "Rp 79,42 miliar", "349 juta" (kata skala), tanggal;
+  sel kosong selalu di bawah; teks diurutkan menurut abjad bahasa Indonesia.
+- Baris total (sel pertama "Total"/"Jumlah") tetap di bawah.
+- Tes: kontrak frontend dan uji visual EDGE; deploy edge-bff saja.
 
 ### EXEC-IMPL-1012: rencana implementasi EXEC-JOINKEY, EXEC-RELEASE, EXEC-FRICTION, EXEC-STYLE (berjalan)
 

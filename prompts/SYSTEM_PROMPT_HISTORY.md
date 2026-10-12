@@ -25,6 +25,7 @@ whenever the rendered prompt or schema changes (AGENTS.md, Mandatory workflow).
 | v002 | 2026-10-08 | [reader-rules](history/v002-2026-10-08-reader-rules/system_prompt.md) | 37,462 | `367d6103d2e3` | `48bceaa503bc` | 2026-10-08: "Naikan batas"; "Lanjut tulis prompt. Pakai best practice prompt. Pastikan tidak ada prompt yg contradict di system prompt." |
 | v003 | 2026-10-09 | [row-presence-and-day-counts](history/v003-2026-10-09-row-presence-and-day-counts/system_prompt.md) | 37,793 | `19b8a23befb7` | `48bceaa503bc` | 2026-10-09: "E1 ok 2-4 masukan exec"; go "gas" (EXEC-Y Fase 3) |
 | v004 | 2026-10-12 | [exec-style](history/v004-2026-10-12-exec-style/system_prompt.md) | 38,522 | `58d6ec180d2f` | `48bceaa503bc` | Ok, yang adopsi dan sebagian --> masukan EXEC. (2026-10-12); go: ok |
+| v005 | 2026-10-12 | [exec-style-run-a](history/v005-2026-10-12-exec-style-run-a/system_prompt.md) | 37,979 | `1aeee73d55c7` | `48bceaa503bc` | well saya lebih suka Run A tapi tanpa kewajiban AI untuk kasih asumsi, batasan. ... dalam 1 jawaban boleh lebih dari 1 tabel as long as membantu user (tidak wajib harus lebih dari 1) (2026-10-12) |
 
 ## Changes
 
@@ -43,3 +44,7 @@ EXEC-Y Fase 3 E1 bagian 2 dan 4. DATA DISCOVERY: arti row_presence dari katalog 
 ### v004 exec-style (2026-10-12)
 
 EXEC-STYLE S1-S4: the reader section as prose, the conclusion-figures-meaning-caveats order only for answers that report an analysis result; rule 13 length tiers in words (conversational reply a few sentences, definition or fact one paragraph, analysis result about two and a half thousand characters); rule 14 and the answer contract keep assumptions and limitations for what changes how the answer is read or trusted; three short examples (chat, definition, inconclusive test) without a bold opener
+
+### v005 exec-style-run-a (2026-10-12)
+
+After the A/B: back to the Run A reader section, example and single length target (v003 text); kept from v004: rule 14 and the answer contract (an assumption or a limitation only when it changes how the answer is read or trusted); rule 13 now says each table within ten rows and allows more than one table when that helps the reader
