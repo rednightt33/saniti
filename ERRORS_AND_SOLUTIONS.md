@@ -789,3 +789,26 @@ frontend changes on `codex/edge-bff`; runner/Orc, live database schema, model an
   temporary service left no permanent IaC target, so `.railway/railway.ts` requires no
   topology change. Re-run config pull/plan from a Railway-CLI-enabled workspace after the
   stale patch is cleared.
+
+### EDGE download and typing — 2026-10-12
+
+User: "Saat ini feature export excel masih belum works", "lihat edge_ddb3367765be54339bd3408fec055423", and "ada bug di
+front end dimana saya tidak bisa typing, atau hanya bisa typing 1 huruf per 1 huruf". Investigated read-only; no
+change yet.
+
+- **Excel download link never downloads (OPEN, root cause verified):** `edge_ddb33677…` (orc `7ad66425`, 2026-10-09)
+  created both files (`bbri_foreign_flow_daily.xlsx`, 17,349 bytes; `_monthly.xlsx`, 7,676 bytes). A read-only probe
+  from `orc-test-runner` (deployment `128b7cdd`, GET only) downloaded both from orc with HTTP 200, bytes matching
+  their sha256, and valid XLSX (four sheets each), so orc and the result store work. In EDGE, `applyProps` rewrites
+  every `<a href="/…">` through `staticUrl()` into an in-page hash route, so the Download link becomes
+  `/monitor#/api/v1/exports/exp_…`: a click changes the hash and no request is sent (reproduced in Chromium with the
+  EDGE test harness: href `…/monitor#/api/v1/exports/exp_…`, 0 export requests). The rewrite came with the supplied
+  frontend (`84b7ef7`, 2026-10-08); no test clicked the link. Proposed fix: keep `/api/` links as real URLs (no hash
+  rewrite) and a browser test that clicks Download and receives the file.
+- **Typing lags in a long conversation (OPEN, cause measured, not reproduced as lost focus):** every keystroke
+  updates the composer state, and EDGE's renderer rebuilds the whole page (every answer's Markdown and tables) and
+  patches it. Measured in Chromium (server CPU): about 17 ms per keystroke on an empty page, 76–211 ms with 15
+  answers and 45 tables; on a slower laptop or phone this grows to a visible lag per letter. Focus was kept in every
+  scenario tried (empty page, five answers, typing while an answer runs). Proposed fix: typing updates only the
+  composer (a full refresh only when the box turns empty or non-empty), and rendered answers are reused between
+  refreshes. Needs the user's device, browser and conversation to confirm it is the same symptom.

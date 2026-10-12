@@ -54,8 +54,8 @@ gabungkan ya", pilihan "File baru EXEC.md"). Pekerjaan yang disetujui tetapi bel
 EXEC-STYLE, dengan rencana implementasi bersama EXEC-IMPL-1012 (3 fase). Sesudah A/B, EXEC-STYLE kembali ke gaya Run A
 tanpa kewajiban asumsi/batasan (keputusan user 2026-10-12).
 
-**Investigasi (2026-10-12):** EXEC-EXPORT (ekspor Excel belum jalan). **Menunggu konfirmasi:** EXEC-SORT (tabel bisa
-diurutkan dengan klik judul kolom), M143 (pilihan perbaikan).
+**Investigasi (2026-10-12):** EXEC-EXPORT (akar masalah ditemukan: tautan unduh EDGE), EXEC-TYPING (mengetik
+tersendat). **Menunggu konfirmasi:** perbaikan keduanya, EXEC-SORT (review prototipe), M143 (pilihan perbaikan).
 
 **Berjalan (2026-10-08):** EXEC-X (M124 + M125 A/B, tampilan jawaban EDGE). Dibangun di cabang
 `claude/code-session-2k3oeg` (HTML user sebagai sumber utama, API dipisah dari tampilan, teks backend bahasa biasa);
@@ -2018,11 +2018,25 @@ Status: **investigasi, belum ada perubahan.** Temuan read-only sejauh ini:
 - Butuh dari user: contoh yang gagal (ID `edge_…` atau waktu dan pertanyaannya) dan gejalanya (tombol unduh tidak muncul,
   klik gagal, atau file rusak). Alternatif: satu uji live lewat `orc-test-runner` (minta Excel lalu unduh lewat orc),
   perkiraan biaya di bawah USD 0,05, dengan izin user.
+- **Akar masalah (2026-10-12, user: "lihat edge_ddb3367765be54339bd3408fec055423"):** file Excel dibuat dengan benar
+  dan bisa diunduh dari orc (probe read-only: HTTP 200, sha256 cocok, XLSX valid). Tombol "Download" di EDGE mengubah
+  `/api/v1/exports/exp_…` menjadi rute halaman `#/api/v1/exports/exp_…`, jadi klik tidak pernah meminta file
+  (direproduksi di Chromium). Usulan perbaikan: tautan `/api/` tidak diubah; tes browser mengklik Download dan
+  menerima file. Menunggu konfirmasi (`ERRORS_AND_SOLUTIONS.md`, EDGE download and typing).
+
+### EXEC-TYPING: mengetik di kotak pesan EDGE tersendat
+
+**Laporan user 2026-10-12:** "ada bug di front end dimana saya tidak bisa typing, atau hanya bisa typing 1 huruf per 1
+huruf." Status: **investigasi; menunggu detail perangkat dan konfirmasi perbaikan.** Setiap huruf membuat EDGE
+menggambar ulang seluruh halaman (semua jawaban dan tabel): sekitar 17 ms per huruf di halaman kosong, 76–211 ms
+dengan 15 jawaban dan 45 tabel (diukur di Chromium). Fokus tidak hilang di semua skenario yang dicoba. Usulan: mengetik
+hanya memperbarui kotak pesan, dan jawaban yang sudah tampil tidak digambar ulang.
 
 ### EXEC-SORT: tabel di jawaban bisa diurutkan dengan klik judul kolom
 
 **Permintaan user 2026-10-12:** "Untuk tabel, bisa saya minta fitur sortable kalau klik header? Konfirmasi."
-Status: **menunggu konfirmasi desain.** Usulan:
+Status: **menunggu review prototipe** (user: "boleh kasih saya standalone HTML dulu untuk direview?"; prototipe HTML
+mandiri dikirim 2026-10-12, di luar repo). Usulan:
 - Hanya di EDGE (browser): tabel Markdown di jawaban (`renderMarkdown` → `data-table`). Backend, angka dan jawaban AI
   tidak berubah.
 - Klik judul kolom: naik → turun → urutan asli; tanda panah di judul; `aria-sort`; bisa dengan keyboard.
