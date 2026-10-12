@@ -50,7 +50,7 @@ gabungkan ya", pilihan "File baru EXEC.md"). Pekerjaan yang disetujui tetapi bel
 
 ## Ringkasan
 
-**Menunggu "go" (2026-10-12):** EXEC-JOINKEY (G25), EXEC-RELEASE (sisa M139), EXEC-FRICTION (P0, M142) dan
+**Berjalan (go 2026-10-12, "ok"):** EXEC-JOINKEY (G25), EXEC-RELEASE (sisa M139), EXEC-FRICTION (P0, M142) dan
 EXEC-STYLE, dengan rencana implementasi bersama EXEC-IMPL-1012 (3 fase).
 
 **Berjalan (2026-10-08):** EXEC-X (M124 + M125 A/B, tampilan jawaban EDGE). Dibangun di cabang
@@ -1986,10 +1986,12 @@ eksternal (Anthropic prompting best practices, OpenAI GPT-5.1/5.2 prompting guid
   `orc-test-runner`. Ukuran: panjang terhadap tingkatnya, jawaban dengan asumsi/batasan tidak kosong, pembuka tebal,
   penolakan gerbang (tidak boleh naik), penilaian natural oleh user.
 
-### EXEC-IMPL-1012: rencana implementasi EXEC-JOINKEY, EXEC-RELEASE, EXEC-FRICTION, EXEC-STYLE (menunggu "go")
+### EXEC-IMPL-1012: rencana implementasi EXEC-JOINKEY, EXEC-RELEASE, EXEC-FRICTION, EXEC-STYLE (berjalan)
 
 **Permintaan user 2026-10-12:** "cek infra kita, dan EXEC yang sudah saya approve, buat implementation plan berdasarkan
-ini before full proceed." Hasil pemeriksaan infra (read-only) yang membentuk rencana:
+ini before full proceed." **Go 2026-10-12:** "ok" atas tiga pertanyaan: push dokumen ke `main`, jalankan rencana ini
+dengan lanjut otomatis antar fase bila lulus (berhenti hanya pada kondisi berhenti di bawah), dan empat pertanyaan A/B
+di bawah. Hasil pemeriksaan infra (read-only) yang membentuk rencana:
 - ORC, sandbox, Governor dan EDGE men-deploy dari GitHub `main` dengan watch path per folder: **push kode ke `main`
   adalah deploy**. Dokumen di root repo tidak memicu deploy.
 - Panduan metode hanya disajikan bila tabel `AI_method_guide`, sandbox dan file orc memuat hash yang sama: migrasi v8
