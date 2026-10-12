@@ -1,5 +1,24 @@
 # Railway changelog
 
+## 2026-10-12 — Feature04 incremental finality rollout
+
+- Commit `9dda917` deployed the exact checkpoint engine, equity finality producer, and
+  configurable recovery wrappers from Git. Initial exact deployments reached `SUCCESS`:
+  Feature04 worker `e1dcb031-e040-4d44-98f1-f7004b27ba01`; IDX daily
+  `c390b9fb-d4d1-4dfa-b60f-d459c905c334`; IDX recovery
+  `a74c1c92-cc58-481c-8be2-9dca045065f2`; ID daily
+  `724eb4bf-2add-44d6-bd3f-cb33241751e5`; ID recovery
+  `cb8b71cf-db8a-4cf6-9ca1-bd16a4cef737`; US daily
+  `cee1bfb6-40bc-4fda-9802-d68227a3f46d`; and US recovery
+  `f4692031-6172-48ab-8524-66ce0ae26b36`.
+- Recovery schedules are unchanged. The three recovery start commands now use
+  `recovery_window.py`, which reads each market's correction-session policy and runs the
+  exact-date loader sequentially. The worker remains an always-on consumer after explicit
+  checkpoint bootstrap.
+- Temporary private service `feature04-incremental-ops` performed baseline inspection,
+  rolled-back rehearsal, migration apply, and independent readback using only the existing
+  server-side database reference. It is removed after rollout and IaC reconciliation.
+
 ## 2026-10-12 — Fixed-income Git cutover and market-specific final closes
 
 - Replaced the unrecoverable CLI-upload updater with Git source

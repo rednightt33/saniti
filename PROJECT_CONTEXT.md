@@ -31,6 +31,7 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - US fixed-income recovery cron service ID: `1e80a4b8-adff-4f42-88f4-82bc1a2b98bc`
 - Feature 01 worker service: `feature-01-worker`
 - Feature 01 worker service ID: `de4e34ee-435b-408f-a77f-63e6698a2dab`
+- Feature 04 worker service ID: `bb1fcecc-a7b1-404f-b2af-9c3ab65a614f`
 - AI data coverage cron service: `ai-data-coverage` (daily at 07:30 Asia/Jakarta / `30 0 * * *` UTC)
 - AI data coverage cron service ID: `d2e57c12-cebf-4434-a66a-ba2d6d2f176d`
 - Telegram notification service: `telegram-monitor`
