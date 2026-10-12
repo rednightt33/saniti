@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-10-12 — EXEC-IMPL-1012 Fase 2 (EXEC-FRICTION) deployed from main
+
+User go 2026-10-12 ("ok", `EXEC.md` EXEC-IMPL-1012). Rollback references: orc `5be18680`, edge-bff `3c71972f`.
+- `main` `cbe1860`: market-ai-orc **79f13a5e-98c1-4662-95b0-ed77af19d344** and edge-bff
+  **b559daad-a718-47f2-9f4c-5b65e939f86b** reached **SUCCESS**. orc `/ready` 200, no `method_guides_inactive` (method
+  guides unchanged in this phase); EDGE serves `edge-labels.js` with `sourcesHurdles` ("Hambatan proses").
+- No migration, variable, model, provider, mode or configuration change.
+
 ## 2026-10-12 — EXEC-IMPL-1012 Fase 1 (EXEC-JOINKEY, EXEC-RELEASE) deployed from main
 
 User go 2026-10-12 ("ok", `EXEC.md` EXEC-IMPL-1012). Rollback references recorded before any change: orc
