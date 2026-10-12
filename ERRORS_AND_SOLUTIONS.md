@@ -672,19 +672,32 @@ frontend changes on `codex/edge-bff`; runner/Orc, live database schema, model an
 
 ### Fixed-income daily finality and market clocks — 2026-10-12
 
-- **Combined close schedule could retain a provisional US row (FIX IN PROGRESS):** the
+- **Combined close schedule could retain a provisional US row (FIXED):** the
   prior daily job ran at 17:00 WIB for Indonesia and the United States. That is after the
   Indonesia close but before the stated US close. The 06:00 WIB recovery queried only
   missing series, so an existing early US row was not corrected. Move the updater into
   Git, partition jobs by market, model the close using market timezone plus delay, and make
-  recovery re-query the complete latest session. Material UPSERTs remain idempotent.
-- **Source finality was not observable (FIXED IN DATABASE):** `Price_Fixed_Income` had no
+  recovery re-query the complete latest session. Four Git cron services now implement the
+  split; ten live re-query executions and one zero-change recovery passed.
+- **Source finality was not observable (FIXED):** `Price_Fixed_Income` had no
   provider bar timestamp, close instant, or final flag, so zero Feature04/source mismatch
   did not prove the source row was a completed close. Migration `20261012_001` adds this
   evidence and gates Feature04 on `is_final=true`. Legacy rows retain NULL
-  `source_bar_time`; recent sessions are re-queried after deployment.
-- **Uploaded Railway source was not recoverable (MITIGATED):** the two old cron services
+  `source_bar_time`; all 240 rows in the five-session validation window now retain the
+  provider timestamp and finality evidence.
+- **TradingView fixed-income date labels differ by market (FIXED):** provider timezone
+  conversion shifted US midnight labels backward, while Indonesia Friday observations
+  arrived on weekend labels. `source_date_mapping` stores the convention per market:
+  Indonesia uses current/previous business day and US uses next business day. Both exact
+  target-date canaries passed; no ticker or country branch exists in the app.
+- **COPY staging inherited unrelated NOT NULL columns (FIXED):** creating the temporary
+  stage with `LIKE Price_Fixed_Income` inherited required `ingestion_time`, although the
+  final INSERT computes that column. Stage only the explicit loader columns with `CREATE
+  TABLE AS ... WITH NO DATA`; the retried ten-run re-query completed successfully and the
+  corrected commit is deployed to all four services.
+- **Uploaded Railway source was not recoverable (RESOLVED):** the two old cron services
   had CLI-upload snapshots without a Git repository and Railway exposes no supported
   source-file download for that snapshot. The observable schema, universe mapping,
-  monitoring contract and TradingView protocol were reconstructed into tested Git source;
-  the old deployment remains the rollback point until canaries pass.
+  monitoring contract and TradingView protocol were reconstructed into tested Git source.
+  All four active jobs now deploy from `rednightt33/saniti` main; exact deployments and
+  canaries passed, temporary resources were removed, and Railway IaC is reconciled.

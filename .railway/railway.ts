@@ -1,7 +1,8 @@
 import { bucket, defineRailway, github, image, postgres, preserve, project, service, volume } from "railway/iac";
 
 export default defineRailway(() => {
-  const saniti = github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/idx-price-cron" });
+  const saniti = github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/fixed-income-price-cron" });
+  const saniti2 = github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/idx-price-cron" });
 
   const PostgresE8GM = postgres("Postgres-E8GM", { region: "sfo" });
   PostgresE8GM.networking = { privateNetworkEndpoint: "postgres-e8gm" };
@@ -40,6 +41,15 @@ export default defineRailway(() => {
     volumeMounts: { "/data": marketWebGovernorData },
     env: { OPENROUTER_API_KEY: preserve(), PORT: preserve(), RAILWAY_RUN_UID: preserve(), WEB_CLASSIFIER_CHECK_SLOT: preserve(), WEB_CLASSIFIER_SLOT: preserve(), WEB_CLEANUP_INTERVAL_SECONDS: preserve(), WEB_DEFAULT_SLOT: preserve(), WEB_EVENT_STORE_URL: preserve(), WEB_GOVERNOR_API_KEY: preserve(), WEB_GOVERNOR_STORE_PATH: preserve(), WEB_MAX_CRITERIA: preserve(), WEB_MAX_EVIDENCE_ITEMS: preserve(), WEB_MAX_EXCERPT_CHARACTERS: preserve(), WEB_MAX_OUTPUT_CHARACTERS: preserve(), WEB_MAX_RESULTS_PER_SEARCH: preserve(), WEB_MAX_SEARCHES: preserve(), WEB_OPENROUTER_ENGINE: preserve(), WEB_OPENROUTER_MAX_OUTPUT_TOKENS: preserve(), WEB_OPENROUTER_MAX_RETRIES: preserve(), WEB_OPENROUTER_MODEL: preserve(), WEB_OPENROUTER_TIMEOUT_SECONDS: preserve(), WEB_PROVIDER: preserve(), WEB_RETENTION_HOURS: preserve(), WEB_SLOT_1_LABEL: preserve(), WEB_SLOT_2_LABEL: preserve(), WEB_SLOT_2_MODEL: preserve(), WEB_SLOT_3_LABEL: preserve(), WEB_SLOT_3_MODEL: preserve() },
   });
+  const fixedIncomePriceUsRecoveryCron = service("fixed-income-price-us-recovery-cron", {
+    source: saniti,
+    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/fixed-income-price-cron/**"] },
+    start: "python fixed_income_update.py --market US --mode recovery",
+    replicas: { "sfo": 1 },
+    deploy: { cronSchedule: "0 0 * * *", restartPolicyType: "NEVER" },
+    networking: { privateNetworkEndpoint: "fixed-income-price-us-recovery-c" },
+    env: { DATABASE_URL: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_URL: preserve(), TRADINGVIEW_VERIFY_TLS: preserve() },
+  });
   const marketPythonSandbox = service("market-python-sandbox", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-python-sandbox" }),
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/market-python-sandbox/**"] },
@@ -50,6 +60,14 @@ export default defineRailway(() => {
     deploy: { restartPolicyType: "ALWAYS" },
     volumeMounts: { "/data": marketPythonSandboxData },
     env: { AUDIT_STORE_SANDBOX_KEY: preserve(), AUDIT_STORE_URL: preserve(), PORT: preserve(), PY_SANDBOX_API_KEY: preserve(), PY_SANDBOX_AUDIT_STORE_ENABLED: preserve(), PY_SANDBOX_BUNDLE_MAX_ROWS: preserve(), PY_SANDBOX_BUNDLE_RETENTION_HOURS: preserve(), PY_SANDBOX_DATANEED_ENABLED: preserve(), PY_SANDBOX_DERIVED_FREQUENCY_ENABLED: preserve(), PY_SANDBOX_ENABLE_CONVERSATION_REUSE: preserve(), PY_SANDBOX_MAX_ANALYSES_PER_REQUEST: preserve(), PY_SANDBOX_MAX_CPU_SECONDS_PER_REQUEST: preserve(), PY_SANDBOX_MAX_MEMORY_MB: preserve(), PY_SANDBOX_MAX_SESSIONS: preserve(), PY_SANDBOX_MAX_SPECS_PER_REQUEST: preserve(), PY_SANDBOX_MODULES_AUDIT_ENABLED: preserve(), PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED: preserve(), PY_SANDBOX_OPEN_WAIT_SECONDS: preserve(), PY_SANDBOX_RESEARCH_FINDINGS_ENABLED: preserve(), PY_SANDBOX_RESEARCH_MIN_ANGLES: preserve(), PY_SANDBOX_RESULT_RETENTION_HOURS: preserve(), SQL_GOVERNOR_DATASET_ACCESS_KEY: preserve(), SQL_GOVERNOR_URL: preserve() },
+  });
+  const fixedIncomePriceUsCron = service("fixed-income-price-us-cron", {
+    source: saniti,
+    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/fixed-income-price-cron/**"] },
+    start: "python fixed_income_update.py --market US --mode daily",
+    replicas: { "sfo": 1 },
+    deploy: { cronSchedule: "0 23 * * *", restartPolicyType: "NEVER" },
+    env: { DATABASE_URL: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_URL: preserve(), TRADINGVIEW_VERIFY_TLS: preserve() },
   });
   const marketAiOrc = service("market-ai-orc", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/market-ai-orc" }),
@@ -62,7 +80,7 @@ export default defineRailway(() => {
     env: { AI_AUDIT_STORE_ENABLED: preserve(), AI_AUDIT_STORE_REQUIRED: preserve(), AI_CAPTURE_REASONING: preserve(), AI_ENABLE_ADDRESS_MENU: preserve(), AI_ENABLE_ANALYSIS_PATH: preserve(), AI_ENABLE_ASK_BACK: preserve(), AI_ENABLE_CATALOG_DISCOVERY_V2: preserve(), AI_ENABLE_CATALOG_PROTOCOL: preserve(), AI_ENABLE_COMPOSITE_KEYS: preserve(), AI_ENABLE_CONVERSATION_REUSE: preserve(), AI_ENABLE_CONVERSATION_ROUTER: preserve(), AI_ENABLE_CONVERSATION_STORE: preserve(), AI_ENABLE_DATANEED: preserve(), AI_ENABLE_DERIVED_FREQUENCY: preserve(), AI_ENABLE_EDIT_REPAIR: preserve(), AI_ENABLE_EVENT_STUDY: preserve(), AI_ENABLE_EVIDENCE: preserve(), AI_ENABLE_EXPORT: preserve(), AI_ENABLE_FIRST_TURN_ROUTER: preserve(), AI_ENABLE_HYPOTHESIS_PLAN: preserve(), AI_ENABLE_LINEAGE_TOOL: preserve(), AI_ENABLE_LOOKUP_FACT: preserve(), AI_ENABLE_MERGED_STEPS: preserve(), AI_ENABLE_METHODOLOGY: preserve(), AI_ENABLE_METHOD_GUIDES: preserve(), AI_ENABLE_MODE4: preserve(), AI_ENABLE_MULTI_ANGLE_RESEARCH: preserve(), AI_ENABLE_PLAN_FEASIBILITY: preserve(), AI_ENABLE_POINT_IN_TIME: preserve(), AI_ENABLE_PREFLIGHT_PARTS: preserve(), AI_ENABLE_QUERY_METRIC: preserve(), AI_ENABLE_REFERENCE_LOOKUP: preserve(), AI_ENABLE_RESEARCH_FINDINGS: preserve(), AI_ENABLE_RESULT_STORE: preserve(), AI_ENABLE_RUN_MEMORY: preserve(), AI_ENABLE_STANDARD_PERIOD_RETURN: preserve(), AI_ENABLE_TOOL_ENVELOPE: preserve(), AI_ENABLE_VALUE_REFERENCES: preserve(), AI_ENABLE_WEB_FACT: preserve(), AI_ENABLE_WEB_RESEARCH: preserve(), AI_FINAL_CONTRACT_IN_PROMPT: preserve(), AI_LOG_PROVIDER: preserve(), AI_MAX_ANALYSIS_SECONDS: preserve(), AI_MAX_CONTEXT_TOKENS: preserve(), AI_MAX_HISTORY_TOKENS: preserve(), AI_MAX_OUTPUT_TOKENS: preserve(), AI_MAX_TOOL_CALLS: preserve(), AI_MAX_TOOL_ITERATIONS: preserve(), AI_MODEL: preserve(), AI_MODEL_2: preserve(), AI_MODEL_2_REASONING_FORM: preserve(), AI_MODEL_SWITCH: preserve(), AI_MODE_SWITCH: preserve(), AI_PLANNER_PARALLEL_PARTS: preserve(), AI_PROVIDER_MAX_CACHE_PRICE_RATIO: preserve(), AI_PROVIDER_MIN_THROUGHPUT: preserve(), AI_REASONING_EFFORT: preserve(), AI_REPLAY_REASONING: preserve(), AI_REQUEST_TIMEOUT_SECONDS: preserve(), AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION: preserve(), AI_RESEARCH_PLAN_SIGNING_KEY: preserve(), AUDIT_OUTBOX_DATABASE_URL: preserve(), CATALOG_DATABASE_URL: preserve(), CONVERSATION_DATABASE_URL: preserve(), MARKET_AI_CONVERSATION_DB_PASSWORD: preserve(), MARKET_AI_ORC_API_KEY: preserve(), MARKET_AI_ORC_DB_PASSWORD: preserve(), OPENROUTER_API_KEY: preserve(), PORT: preserve(), PY_SANDBOX_API_KEY: preserve(), PY_SANDBOX_URL: preserve(), RESEARCH_AUDIT_DATABASE_URL: preserve(), RESULT_BUCKET_ACCESS_KEY_ID: preserve(), RESULT_BUCKET_ENDPOINT: preserve(), RESULT_BUCKET_NAME: preserve(), RESULT_BUCKET_REGION: preserve(), RESULT_BUCKET_SECRET_ACCESS_KEY: preserve(), SQL_GOVERNOR_API_KEY: preserve(), SQL_GOVERNOR_URL: preserve(), WEB_GOVERNOR_API_KEY: preserve(), WEB_GOVERNOR_URL: preserve() },
   });
   const idxPriceCron = service("idx-price-cron", {
-    source: saniti,
+    source: saniti2,
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/idx-price-cron/**"] },
     start: "python price_update.py --mode daily",
     replicas: { "sfo": 1 },
@@ -101,10 +119,12 @@ export default defineRailway(() => {
     env: { AUDIT_BUCKET_ACCESS_KEY_ID: preserve(), AUDIT_BUCKET_ENDPOINT: preserve(), AUDIT_BUCKET_NAME: preserve(), AUDIT_BUCKET_REGION: preserve(), AUDIT_BUCKET_SECRET_ACCESS_KEY: preserve(), AUDIT_DATABASE_URL: preserve(), AUDIT_STORE_GOVERNOR_KEY: preserve(), AUDIT_STORE_READER_KEY: preserve(), AUDIT_STORE_SANDBOX_KEY: preserve(), MARKET_AI_AUDIT_DB_PASSWORD: preserve(), PORT: preserve() },
   });
   const fixedIncomePriceRecoveryCron = service("fixed-income-price-recovery-cron", {
-    start: "python fixed_income_update.py --mode recovery",
+    source: saniti,
+    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/fixed-income-price-cron/**"] },
+    start: "python fixed_income_update.py --market ID --mode recovery",
     replicas: { "sfo": 1 },
-    deploy: { cronSchedule: "0 23 * * *", restartPolicyType: "NEVER" },
-    env: { DATABASE_URL: preserve(), TRADINGVIEW_VERIFY_TLS: preserve() },
+    deploy: { cronSchedule: "0 11 * * *", restartPolicyType: "NEVER" },
+    env: { DATABASE_URL: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_URL: preserve(), TRADINGVIEW_VERIFY_TLS: preserve() },
   });
   const telegramMonitor = service("telegram-monitor", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/telegram-monitor" }),
@@ -117,7 +137,7 @@ export default defineRailway(() => {
     env: { DATABASE_URL: preserve(), TELEGRAM_BOT_TOKEN: preserve(), TELEGRAM_CHAT_ID: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_SUCCESS: preserve() },
   });
   const idxPriceRecoveryCron = service("idx-price-recovery-cron", {
-    source: saniti,
+    source: saniti2,
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/idx-price-cron/**"] },
     start: "python price_update.py --mode recovery",
     replicas: { "sfo": 1 },
@@ -159,10 +179,12 @@ export default defineRailway(() => {
     env: { DATABASE_URL: preserve() },
   });
   const fixedIncomePriceCron = service("fixed-income-price-cron", {
-    start: "python fixed_income_update.py --mode daily",
+    source: saniti,
+    build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/fixed-income-price-cron/**"] },
+    start: "python fixed_income_update.py --market ID --mode daily",
     replicas: { "sfo": 1 },
     deploy: { cronSchedule: "0 10 * * *", restartPolicyType: "NEVER" },
-    env: { DATABASE_URL: preserve(), TRADINGVIEW_VERIFY_TLS: preserve() },
+    env: { DATABASE_URL: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_URL: preserve(), TRADINGVIEW_VERIFY_TLS: preserve() },
   });
   const dbOpsRunner = service("db-ops-runner", {
     source: image("ghcr.io/railwayapp/function-bun:1.4.0"),
@@ -173,6 +195,6 @@ export default defineRailway(() => {
   });
 
   return project("lucid-patience", {
-    resources: [orcTestRunner, marketSqlGovernor, marketWebGovernor, marketPythonSandbox, marketAiOrc, idxPriceCron, pgweb, PostgresE8GM, telegramTrigger, webGovernorTestRunner, marketAuditStore, fixedIncomePriceRecoveryCron, telegramMonitor, idxPriceRecoveryCron, feature04Worker, Postgres, edgeBff, aiDataCoverage, feature01Worker, fixedIncomePriceCron, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, postgresVolumeOz3T, marketWebGovernorData, marketSqlDatasets, marketAiConversationOutputs, marketAiAuditArtifacts],
+    resources: [orcTestRunner, marketSqlGovernor, marketWebGovernor, fixedIncomePriceUsRecoveryCron, marketPythonSandbox, fixedIncomePriceUsCron, marketAiOrc, idxPriceCron, pgweb, PostgresE8GM, telegramTrigger, webGovernorTestRunner, marketAuditStore, fixedIncomePriceRecoveryCron, telegramMonitor, idxPriceRecoveryCron, feature04Worker, Postgres, edgeBff, aiDataCoverage, feature01Worker, fixedIncomePriceCron, dbOpsRunner, postgresVolumeThQL, postgresVolume, marketPythonSandboxData, postgresVolumeOz3T, marketWebGovernorData, marketSqlDatasets, marketAiConversationOutputs, marketAiAuditArtifacts],
   });
 });

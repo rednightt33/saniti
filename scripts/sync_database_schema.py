@@ -56,6 +56,7 @@ TABLE_STATUS_RULES = {
     "Monitoring_Price_ALL": ("System", "Twice daily alongside IDX price automation"),
     "Telegram_Command_Log": ("System", "Event-driven / when an authorized Telegram command is received"),
     "Telegram_Notification_Log": ("System", "Event-driven / after a monitored job completes"),
+    "Fixed_Income_Market_Schedule": ("Reference", "When a market close or source-label convention changes"),
     "Universe_Equity_Description": ("Reference", "Periodic / when equity descriptions change"),
     "Price_Stock_Indonesia_IDX": ("Transactional", "Periodic / when daily IDX prices are refreshed"),
     "Universe_Fixed_income": ("Reference", "Periodic / when the fixed-income universe changes"),

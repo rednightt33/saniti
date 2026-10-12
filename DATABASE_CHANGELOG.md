@@ -24,6 +24,21 @@
 - Evidence: `verification/feature04/FIXED_INCOME_FINALITY.md`. Recent-session source
   re-query and post-cutover Feature04 readback are recorded there after the Git/Railway
   rollout.
+- Applied forward-only migration
+  `20261012_002_configure_fixed_income_source_dates.sql` (`bc12e2ef…4f8a`) after rollback
+  rehearsal. `Fixed_Income_Market_Schedule.source_date_mapping` stores the observed
+  TradingView label convention: Indonesia current/previous business day and US next
+  business day. The app selects the rule from the schedule row, without a ticker/country
+  branch.
+- Live re-query for 2026-10-05..09 completed 10/10 runs: every ID run verified 22/22
+  series and every US run 26/26, all with zero missing. The 240 rows across price/yield now
+  have `source_bar_time`, final state, and market-close evidence. An identical US recovery
+  verified 26 rows with `changed_series=0`.
+- All 24 affected price tickers reached Feature04 `SUCCESS`; 120/120 five-session feature
+  rows exist and their close equals the final source close. Queue readback is 24 `DONE`,
+  all price and Feature04 Telegram ledgers are `SENT`, and the zero-change run produced a
+  `SKIPPED` Feature04 execution. Semantic audit passed 148/148 active definitions with
+  57/57 Feature04 coverage; `DATABASE_SCHEMA.md` was regenerated from live introspection.
 
 ## 2026-10-11 — Feature04 governed rename and source close
 

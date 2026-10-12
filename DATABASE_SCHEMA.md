@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-10-11T14:43:29+00:00`.
+Generated from PostgreSQL schema `public` at `2026-10-12T02:39:08+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -8,69 +8,97 @@ Generated from PostgreSQL schema `public` at `2026-10-11T14:43:29+00:00`.
 
 | Table Name | Category | Update Pattern | Latest Data Date | Last Changed At | Tracking | Definition |
 |---|---|---|---|---|---|---|
-| `AI_calculation_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing calculation contracts derived from active Feature Catalog definitions. |
-| `AI_catalog_relationships` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing safe join and output-grain contracts across approved tables. |
-| `AI_column_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing column meanings and bounded-query permissions for approved tables. |
-| `AI_conversation` | Unclassified | Unknown | — | `2026-09-27 08:23:59+00:00` | Baseline only | One market-ai-orc chat box (history_mode SERVER): owner, retention and the single-active-run lease. |
-| `AI_conversation_evidence` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | A claim of a market-ai-orc answer recomputed by the backend (Governor summary or base table), with its status and at most 200 rows of evidence, kept for the life of the conversation (round 2026-10-03 D6). |
-| `AI_conversation_execution` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | The code of one sandbox execution of a market-ai-orc conversation, kept for the life of the conversation (R-STORE). |
-| `AI_conversation_export` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | A file exported from a market-ai-orc conversation for download (phase D), at most 20 MB. |
-| `AI_conversation_output` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | A released output of a market-ai-orc conversation, kept for the life of the conversation (R-STORE). |
-| `AI_conversation_run_memory` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | What each run of a market-ai-orc conversation leaves for the runs after it (EXEC-C): memo, full texts, citable sources, the model's note and its reasoning; deleted with the conversation. |
-| `AI_conversation_turn` | Unclassified | Unknown | — | `2026-09-27 08:23:59+00:00` | Baseline only | One message of a market-ai-orc conversation and the response returned for it (history_mode SERVER). |
-| `AI_data_coverage` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | Automated raw-source coverage and explicitly inferred derived-table expectations; Feature 01-03 are never scanned by the coverage job. |
-| `AI_formula_reference` | Unclassified | Unknown | — | `2026-09-24 09:22:02+00:00` | Baseline only | Reference calculation formulas for the orchestrator; documented definitions, not verified or executable implementations. |
-| `AI_method_guide` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | Model-facing menu and manual of the analysis paths and session helpers; generated from code, hash-bound (guides_sha256). Enforcement stays in code. |
-| `AI_metric_catalog` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | Official metrics for query_metric (one Governor summary per period); units and additivity are read from AI_column_catalog, never repeated here. |
-| `AI_research_catalog` | Unclassified | Unknown | — | `2026-09-24 07:24:52+00:00` | Baseline only | Reference methods for the orchestrator; REFERENCE_ONLY does not imply installed sandbox code or validation. |
-| `AI_research_library` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | Model-facing description of the Multi-Angle Research methods the sandbox engines compute; generated from code, hash-bound (library_sha256). Enforcement stays in code. |
-| `AI_research_run_audit` | Unclassified | Unknown | — | `2026-09-24 12:33:35+00:00` | Baseline only | One audit row per market-ai-orc run: question, final answer, evidence label, and experiments with their governor, validation and evidence decisions. Written once (INSERT only). |
-| `AI_table_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing master list for the seven approved Indonesian equity data tables. |
+| `AI_calculation_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing calculation contracts derived from active, validated Feature definitions. |
+| `AI_catalog_relationships` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing safe join, temporal alignment, preaggregation, and output-grain contracts. |
+| `AI_column_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing column semantics and bounded-query permissions for the seven approved tables. |
+| `AI_conversation` | Unclassified | Unknown | — | `2026-09-27 08:23:59+00:00` | Baseline only | market-ai-orc conversations kept by the server (history_mode SERVER): one row per chat box with its owner, retention and the lease that allows one active run at a time. |
+| `AI_conversation_evidence` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | Claims of market-ai-orc answers recomputed by the backend on a path separate from the model's code (SQL Governor summary or the released base table), with the status, the backend value and at most 200 rows of evidence. |
+| `AI_conversation_execution` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | The code of each sandbox execution of a market-ai-orc conversation, so a result can be traced and reproduced after the sandbox copy expired. |
+| `AI_conversation_export` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | Files exported from a market-ai-orc conversation for the user to download (CSV, XLSX or Parquet, at most 20 MB). |
+| `AI_conversation_output` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | Released outputs of market-ai-orc conversations (tables, JSON, text, charts) with their definition, units, lineage and the last date of the data they were computed from; the content up to 20 MB is here, a larger one in the bucket market-ai-conversation-outputs. |
+| `AI_conversation_run_memory` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | What each run of a market-ai-orc conversation (a turn or a step of a mode 4 turn) leaves for the runs after it: the memo later runs read in their prompt, the full texts it names (message, answer, plan, refusals with the refused drafts, design values with their origin, web facts, catalog details), the values it made citable, the model's own note and its reasoning. |
+| `AI_conversation_turn` | Unclassified | Unknown | — | `2026-09-27 08:23:59+00:00` | Baseline only | One message of a market-ai-orc conversation: the user message, the run status and the response returned to the caller. |
+| `AI_data_coverage` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | Automated actual raw-source coverage plus explicitly inferred expectations for derived Feature tables. |
+| `AI_formula_reference` | Unclassified | Unknown | — | `2026-09-24 09:22:02+00:00` | Baseline only | Global reference catalog of calculation formulas for the orchestrator; entries document a formula, not a verified or executable implementation. |
+| `AI_method_guide` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | Model-facing menu and manual of the analysis paths (G1-G4) and session helpers: when to use and not, inputs, limits, what the backend checks, results, common errors and tested examples; bound to the code by guides_sha256. |
+| `AI_metric_catalog` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | Official metrics market-ai-orc's query_metric answers in one SQL Governor summary: source table, measure column, rule over time, dimensions, default row filter and meaning. Units and additivity are read from AI_column_catalog. |
+| `AI_research_catalog` | Unclassified | Unknown | — | `2026-09-24 07:24:52+00:00` | Baseline only | Global reference catalog of research methods for the orchestrator; entries do not enable sandbox execution. |
+| `AI_research_library` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | Model-facing description of the eight Multi-Angle Research methods (roles, parameters, data requirements, interpretation, misuse warning), generated from the sandbox research library and bound to it by library_sha256. |
+| `AI_research_run_audit` | Unclassified | Unknown | — | `2026-09-24 12:33:35+00:00` | Baseline only | Durable audit of market-ai-orc runs: the question, the final answer, its evidence label and gate outcome, and every experiment with its Research Governor decision, validation, evidence decision and fingerprints. |
+| `AI_table_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing master list and bounded-access contract for seven approved source and Feature tables. |
 | `Analysis_Evidence` | System | When compact evidence is recorded for an analysis | — | `2026-09-13 15:02:15+00:00` | Baseline only | Compact reproducible evidence supporting material AI analysis claims. |
-| `Analysis_Model_Call` | System | One row after every provider model response; retained reasoning is purged by policy | — | `2026-09-14 03:49:36+00:00` | Baseline only | One durable audit row per provider model call. Provider-returned reasoning is retained temporarily; concise decision summary and usage remain for long-term audit. |
-| `Analysis_Request` | System | One lifecycle per submitted AI analysis | — | `2026-09-13 15:02:15+00:00` | Baseline only | Durable AI analysis lifecycle, compact result, version snapshot, methodology metadata, and token usage. |
-| `Analysis_Step_Log` | System | After each AI analysis tool or compaction step | — | `2026-09-13 15:02:15+00:00` | Baseline only | Audit record for each AI query, tool, compaction, or analytical step. |
-| `Analytics_Dataset_Snapshot` | System | Per bounded analytics input; remove private object after terminal grace or expiry | — | `2026-09-14 07:39:52+00:00` | Baseline only | Metadata for immutable private bounded raw/Feature analytical input objects. Only the backend reads PostgreSQL; worker input objects expire quickly. |
-| `Analytics_Job` | System | Per generic analytics submission, lease, result, or failure | — | `2026-09-14 07:39:52+00:00` | Baseline only | Durable isolated-worker queue. execution_class prevents a query-sandbox credential from claiming statistical jobs and vice versa. |
-| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-10-11 14:38:13.427711+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-10-11 14:43:29+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
-| `Feature04_Calculation_Log` | System | After each Feature04 worker attempt | — | `2026-10-11 08:51:27+00:00` | Baseline only | Immutable Feature04 worker attempt history with per-group success/failure and retry lineage. |
-| `Feature04_Calculation_Queue` | System | After relevant price changes and Feature04 worker transitions | — | `2026-10-11 08:51:27+00:00` | Baseline only | Durable coalesced Feature04 work per ticker/timeframe; generation tracks source change and work_revision tracks retry scope. |
-| `Feature04_Column_Status` | System | After Feature04 validation or failure | — | `2026-10-11 08:51:27+00:00` | Baseline only | Current readiness/failure state for each Feature04 output column per ticker; expected NULL is a successful availability outcome. |
-| `Feature04_Notification_Outbox` | System | After a Feature04 execution becomes terminal | — | `2026-10-11 08:51:27+00:00` | Baseline only | Durable Feature04 completion delivery request; calculation success never depends on Telegram availability. |
-| `Feature04_Retry_Request` | System | When the owner requests an active failure retry | — | `2026-10-11 08:51:27+00:00` | Baseline only | Audited owner Telegram retry request for one failed ticker or failed indicator bundle. |
-| `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-10-09` | `2026-10-09 10:06:33.150795+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily ticker-level price, return, volatility, volume, and price-position features derived from IDX prices and the current stock universe. |
-| `Feature_02_Broker_Rolling` | Feature | After validated broker-summary changes; manual v2 ticker rebuild | `2026-08-31` | `2026-09-14 14:26:33.580099+00:00` | Derived from IDX_Broker_Summary; Investor-Type Feature 02 v2 refresh is manual | Canonical Feature 02 v2: one source ticker, broker, investor type, board and transaction date per row. Investor type is source investor identity, not broker domicile. |
-| `Feature_03_Stock_Broker_Daily` | Feature | After Feature 02 refresh; manual Investor-Type v2 refresh | `2026-08-31` | `2026-09-14 15:17:23.131992+00:00` | Derived from Investor-Type Feature_02_Broker_Rolling; Feature 03 v2 refresh is manual | Feature 03 v2 stock-level broker structure by ticker and board. Domestic/Foreign flows use source Investor Type; broker-profile classifications are current metadata. Boards never mix. |
-| `Feature_04_Technical_Indicator` | Feature | Event-driven after committed equity or bond price changes; full-history per asset/ticker | `2026-10-09` | `2026-10-11 13:55:17.102127+00:00` | Derived from price rows; changes queued and tracked per ticker | 57-column cross-asset Daily technical Feature04. Identity is asset_type/ticker/trade_date/timeframe; close is copied from the exact classified source row and the other measures are calculated per asset/ticker history. |
-| `Feature_Calculation_Log` | System | After completed worker attempts | `2026-10-09` | `2026-10-09 10:06:33.159836+00:00` | Derived from attempt log rows | Completed attempt history for Feature 01 calculation queue items, including retries and superseded claims. |
-| `Feature_Calculation_Queue` | System | After committed price inserts/updates and worker transitions | `2026-10-09` | `2026-10-09 10:06:33.099491+00:00` | Derived from queue rows | Durable Feature 01 work item per changed price candle; DONE means feature calculation succeeded, not price ingestion. |
-| `Feature_Catalog` | Reference | After each validated Feature schema change | — | `2026-10-11 14:38:13.428279+00:00` | Tracked automatically | Machine-readable semantic and usage contract for validated Feature-table columns. |
+| `Analysis_Model_Call` | System | One row after every provider model response; retained reasoning is purged by policy | — | `2026-09-14 03:49:36+00:00` | Baseline only | Per-provider-call audit containing usage, progressive tool exposure, a concise decision summary, and temporarily retained provider-returned reasoning. |
+| `Analysis_Request` | System | One lifecycle per submitted AI analysis | — | `2026-09-13 15:02:15+00:00` | Baseline only | Durable AI analysis request lifecycle, structured result, progressive tool exposure state, and token usage. |
+| `Analysis_Step_Log` | System | After each AI analysis tool or compaction step | — | `2026-09-13 15:02:15+00:00` | Baseline only | Audit record for every query, tool, compaction, or analytical step in an AI request. |
+| `Analytics_Dataset_Snapshot` | System | Per bounded analytics input; remove private object after terminal grace or expiry | — | `2026-09-14 07:39:52+00:00` | Baseline only | Metadata and retention state for immutable bounded raw or Feature analytical input snapshots stored in a private Railway bucket. |
+| `Analytics_Job` | System | Per generic analytics submission, lease, result, or failure | — | `2026-09-14 07:39:52+00:00` | Baseline only | Durable queue, lease, resource contract, result, and failure audit for separately authenticated query-sandbox and statistical-validation workers. |
+| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-10-12 02:22:41.938133+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-10-12 02:39:08+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Feature04_Calculation_Log` | System | After each Feature04 worker attempt | — | `2026-10-11 08:51:27+00:00` | Baseline only | Immutable Feature04 calculation attempt audit. |
+| `Feature04_Calculation_Queue` | System | After relevant price changes and Feature04 worker transitions | — | `2026-10-11 08:51:27+00:00` | Baseline only | Durable coalesced Feature04 work and lease state. |
+| `Feature04_Column_Status` | System | After Feature04 validation or failure | — | `2026-10-11 08:51:27+00:00` | Baseline only | Per-ticker per-output Feature04 readiness and failure state. |
+| `Feature04_Notification_Outbox` | System | After a Feature04 execution becomes terminal | — | `2026-10-11 08:51:27+00:00` | Baseline only | Durable Feature04 completion-notification work. |
+| `Feature04_Retry_Request` | System | When the owner requests an active failure retry | — | `2026-10-11 08:51:27+00:00` | Baseline only | Audited Telegram failure-only retry request. |
+| `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-10-09` | `2026-10-09 10:06:33.150795+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
+| `Feature_02_Broker_Rolling` | Feature | After validated broker-summary changes; manual v2 ticker rebuild | `2026-08-31` | `2026-09-14 14:26:33.580099+00:00` | Derived from IDX_Broker_Summary; Investor-Type Feature 02 v2 refresh is manual | Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata. |
+| `Feature_03_Stock_Broker_Daily` | Feature | After Feature 02 refresh; manual Investor-Type v2 refresh | `2026-08-31` | `2026-09-14 15:17:23.131992+00:00` | Derived from Investor-Type Feature_02_Broker_Rolling; Feature 03 v2 refresh is manual | Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate. |
+| `Feature_04_Technical_Indicator` | Feature | Event-driven after committed equity or bond price changes; full-history per asset/ticker | `2026-10-09` | `2026-10-12 02:30:43.530026+00:00` | Derived from price rows; changes queued and tracked per ticker | Cross-asset Daily closing price and causal technical indicators from universe-classified equity or bonds OHLC. |
+| `Feature_Calculation_Log` | System | After completed worker attempts | `2026-10-09` | `2026-10-09 10:06:33.159836+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
+| `Feature_Calculation_Queue` | System | After committed price inserts/updates and worker transitions | `2026-10-09` | `2026-10-09 10:06:33.099491+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
+| `Feature_Catalog` | Reference | After each validated Feature schema change | — | `2026-10-12 02:04:32.840328+00:00` | Tracked automatically | Versioned, machine-readable formula, interpretation, recommended-use, misuse, availability, point-in-time safety and validation-evidence contract for every validated Feature column. |
 | `Feature_Relationship_Catalog` | Reference | After a validated Feature join contract changes | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned safe-join and grain contracts between verified Feature tables. |
-| `Feature_Status` | System | After enqueue and worker state transitions | `2026-10-09` | `2026-10-09 10:06:33.099491+00:00` | Derived from per-ticker status rows | Current per-ticker Feature 01 calculation state; SUCCESS requires all committed source changes to be processed. |
-| `Golden_Analysis_Test` | System | After a versioned golden analytical expectation changes | — | `2026-09-13 15:08:56+00:00` | Baseline only | Versioned analytical correctness and safety expectations; evaluation compares data and methodology rather than exact prose. |
-| `Golden_Analysis_Test_Result` | System | After each test in a golden-suite run | — | `2026-09-13 15:08:56+00:00` | Baseline only | Per-test observed metrics, warnings, methodology checks, evidence and token usage. |
-| `Golden_Analysis_Test_Run` | System | Before major releases and material model, prompt, Feature, or tool changes | — | `2026-09-13 15:08:56+00:00` | Baseline only | One complete regression-suite execution with immutable release/model/prompt/tool/Feature version context. |
-| `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-10 07:23:34.854803+00:00` | Tracked automatically | Reference list of IDX broker codes, names, and domestic/foreign classification. |
-| `IDX_Broker_Profile_History` | Reference | Captured after every write to IDX_Broker_Profile; never deleted | — | `2026-10-09 05:36:34+00:00` | Baseline; exact changes tracked from this time forward | Point-in-time history of IDX_Broker_Profile (name, broker_type, broker_classification), captured from the first capture onward: one row per broker version and knowledge version (bitemporal); superseded knowledge is kept. |
-| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 14:41:15.160142+00:00` | Derived from table data and load log | Daily broker buy/sell activity by symbol, broker, investor type, and market board. |
-| `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-10-02 18:07:58.944512+00:00` | Tracked automatically | Reference universe of Indonesian listed securities and TradingView fundamentals. |
-| `IDX_Stock_Universe_History` | Reference | Captured after every write to IDX_Stock_Universe; never deleted | — | `2026-10-09 05:36:34+00:00` | Baseline; exact changes tracked from this time forward | Point-in-time history of the tracked IDX_Stock_Universe attributes, captured from the first capture onward: one row per ticker version and knowledge version (bitemporal); superseded knowledge is kept. |
-| `Monitoring_Feature04` | Monitoring | Per automatic or Telegram Feature04 execution | — | `2026-10-11 08:51:27+00:00` | Baseline only | Feature04 batch/retry run summary and price-notification ordering gate. |
-| `Monitoring_Feature04_Ticker` | Monitoring | Per eligible ticker in a Feature04 execution | — | `2026-10-11 08:51:27+00:00` | Baseline only | Per-ticker membership and terminal result for one Feature04 run. |
-| `Monitoring_Fixed_Income` | Monitoring | One row after each fixed-income daily or recovery execution | `2026-10-11` | `2026-10-11 10:04:30.478506+00:00` | Derived from fixed-income cron monitoring rows | Operational result for one independent fixed-income daily or recovery cron execution. |
-| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-10-11` | `2026-10-11 10:02:52.080137+00:00` | Derived from monitoring rows | Operational results for daily and recovery IDX price-update runs. |
-| `Price_Fixed_Income` | Transactional | Daily and recovery fixed-income price/yield schedules | `2026-10-09` | `2026-10-11 09:38:18+00:00` | Latest date and write time derived from fixed-income observations | TradingView fixed-income OHLC observations separated by metric_type and Timeframe; Feature04 consumes price/1D only. |
-| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-10-09` | `2026-10-09 10:04:22.765289+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV prices sourced from TradingView. |
-| `Reference_History_Capture_Log` | System | One row per reference-history capture or correction | — | `2026-10-09 05:36:34+00:00` | Baseline; exact changes tracked from this time forward | One row per capture of a reference table into its history (trigger, initial, manual or correction): counts of changed and new versions, keys absent from the load, and the error of a failed capture. |
-| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-10-11 14:38:13.425352+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
-| `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger for telegram-trigger. |
-| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-10-11 13:55:21.706787+00:00` | Tracked automatically | Delivery ledger used by telegram-monitor to prevent duplicate notifications. |
-| `Tool_Catalog` | Reference | With each approved backend or analytics tool release | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned tool registry and advertised operational ceilings. Backend and worker configuration remain the enforcement authority. |
-| `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-10-02 18:07:58.949068+00:00` | Tracked automatically | Reference descriptions and sector classifications for the Indonesian equity universe. |
-| `Universe_Fixed_income` | Reference | Periodic / when the fixed-income universe changes | — | `2026-10-11 14:01:27.117686+00:00` | Baseline only | Approved fixed-income instruments and their TradingView price/yield series classification. |
-| `feature04_backfill_log` | Monitoring | Atomic per-run/ticker Feature04 calculation metadata | `2026-10-09` | `2026-10-11 06:25:12.790322+00:00` | Derived from completed atomic ticker loads; manual execution only | Atomic per-run/ticker Feature04 historical load metadata and resume fingerprints; no copied price or feature rows. Source hash is an extraction fingerprint, not point-in-time availability. |
-| `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-08-31` | `2026-09-09 16:55:55.713468+00:00` | Derived from load log | Audit log used to resume and verify Stockbit broker-summary loads by date. |
+| `Feature_Status` | System | After enqueue and worker state transitions | `2026-10-09` | `2026-10-09 10:06:33.099491+00:00` | Derived from per-ticker status rows | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
+| `Fixed_Income_Market_Schedule` | Reference | When a market close or source-label convention changes | — | `2026-10-12 02:33:20+00:00` | Baseline only | Fixed-income market timezone, closing clock, final-candle delay and source-label date mapping. |
+| `Golden_Analysis_Test` | System | After a versioned golden analytical expectation changes | — | `2026-09-13 15:08:56+00:00` | Baseline only | Versioned analytical regression-test definitions with reproducible conditions and tolerances. |
+| `Golden_Analysis_Test_Result` | System | After each test in a golden-suite run | — | `2026-09-13 15:08:56+00:00` | Baseline only | Per-test correctness, methodology, evidence, warning, latency and token outcome. |
+| `Golden_Analysis_Test_Run` | System | Before major releases and material model, prompt, Feature, or tool changes | — | `2026-09-13 15:08:56+00:00` | Baseline only | Historical execution record for one complete golden analytical regression suite. |
+| `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-10 07:23:34.854803+00:00` | Tracked automatically | Broker code and name, domestic/foreign type, and usage profile such as Institutional-heavy, Retail-heavy, Mixed, or Niche. |
+| `IDX_Broker_Profile_History` | Reference | Captured after every write to IDX_Broker_Profile; never deleted | — | `2026-10-09 05:36:34+00:00` | Baseline; exact changes tracked from this time forward | Point-in-time (bitemporal) history of the tracked IDX_Broker_Profile attributes (broker_name, broker_type, broker_classification), captured by Saniti from the first capture onward. Current knowledge is recorded_to IS NULL; superseded knowledge is kept. |
+| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 14:41:15.160142+00:00` | Derived from table data and load log | Daily broker buy/sell values and lots by symbol, broker, investor type, and market board. |
+| `IDX_Broker_Summary_Freq` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `IDX_Net_Foreign_Summary` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-10-02 18:07:58.944512+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
+| `IDX_Stock_Universe_History` | Reference | Captured after every write to IDX_Stock_Universe; never deleted | — | `2026-10-09 05:36:34+00:00` | Baseline; exact changes tracked from this time forward | Point-in-time (bitemporal) history of the tracked IDX_Stock_Universe attributes (Company Name, Exchange, Security Type, Type Specs, Is Common Stock, ISIN, Sector, Industry), captured by Saniti from the first capture onward. Current knowledge is recorded_to IS NULL; superseded knowledge is kept. |
+| `Monitoring_Feature04` | Monitoring | Per automatic or Telegram Feature04 execution | — | `2026-10-11 08:51:27+00:00` | Baseline only | Feature04 automatic/retry batch summary and notification ordering gate. |
+| `Monitoring_Feature04_Ticker` | Monitoring | Per eligible ticker in a Feature04 execution | — | `2026-10-11 08:51:27+00:00` | Baseline only | Per-ticker membership and outcome of a Feature04 execution. |
+| `Monitoring_Fixed_Income` | Monitoring | One row after each fixed-income daily or recovery execution | `2026-10-11` | `2026-10-12 02:30:28.508014+00:00` | Derived from fixed-income cron monitoring rows | One market-specific fixed-income daily or recovery execution summary. |
+| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-10-11` | `2026-10-11 23:00:25.791923+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
+| `Price_Fixed_Income` | Transactional | Daily and recovery fixed-income price/yield schedules | `2026-10-09` | `2026-10-12 02:29:42.035219+00:00` | Latest date and write time derived from fixed-income observations | Final daily fixed-income OHLC observations with source-bar and market-close finality evidence. |
+| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-10-09` | `2026-10-09 10:04:22.765289+00:00` | Latest date derived; future changes tracked automatically | Daily Indonesian stock OHLCV candles sourced from TradingView. |
+| `Reference_History_Capture_Log` | System | One row per reference-history capture or correction | — | `2026-10-09 05:36:34+00:00` | Baseline; exact changes tracked from this time forward | One row per capture of IDX_Stock_Universe or IDX_Broker_Profile into its history (trigger, initial, manual or correction): changed and new versions, keys absent from the load, and the error of a failed capture. |
+| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-10-12 02:22:41.935764+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
+| `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
+| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-10-12 02:32:28.134150+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
+| `Tool_Catalog` | Reference | With each approved backend or analytics tool release | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned generic AI tool metadata, activation state, schemas, and advertised operational ceilings. |
+| `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-10-02 18:07:58.949068+00:00` | Tracked automatically | Issuer descriptions and TradingView/curated sector and industry classifications. |
+| `Universe_Fixed_income` | Reference | Periodic / when the fixed-income universe changes | — | `2026-10-11 14:01:27.117686+00:00` | Baseline only | Approved fixed-income series with explicit source symbol, unit and market-country membership. |
+| `feature04_backfill_log` | Monitoring | Atomic per-run/ticker Feature04 calculation metadata | `2026-10-09` | `2026-10-11 06:25:12.790322+00:00` | Derived from completed atomic ticker loads; manual execution only | Atomic Feature04 per-run/ticker historical calculation audit and resumable extraction/output fingerprints. |
+| `idx_broker_summary_freq_2016` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_broker_summary_freq_2017` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_broker_summary_freq_2018` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_broker_summary_freq_2019` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_broker_summary_freq_2020` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_broker_summary_freq_2021` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_broker_summary_freq_2022` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_broker_summary_freq_2023` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_broker_summary_freq_2024` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_broker_summary_freq_2025` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_broker_summary_freq_2026` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_broker_summary_freq_2027` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_net_foreign_summary_2016` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_net_foreign_summary_2017` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_net_foreign_summary_2018` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_net_foreign_summary_2019` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_net_foreign_summary_2020` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_net_foreign_summary_2021` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_net_foreign_summary_2022` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_net_foreign_summary_2023` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_net_foreign_summary_2024` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_net_foreign_summary_2025` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_net_foreign_summary_2026` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_net_foreign_summary_2027` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `idx_stockbit_backfill_status` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-08-31` | `2026-09-09 16:55:55.713468+00:00` | Derived from load log | Per-trading-date Stockbit broker-summary load progress, retries, and review state. |
 
 ## Logical relationships
 
@@ -93,28 +121,28 @@ These relationships are documented for analysis but are not enforced as PostgreS
 
 ## AI_calculation_catalog
 
-AI-facing calculation contracts derived from active Feature Catalog definitions.
+AI-facing calculation contracts derived from active, validated Feature definitions.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `calculation_name` | `text` | No | — | No column description has been recorded. |
-| `version` | `text` | No | — | No column description has been recorded. |
-| `target_table` | `text` | No | — | No column description has been recorded. |
-| `target_columns` | `ARRAY` | No | — | No column description has been recorded. |
-| `definition` | `text` | No | — | No column description has been recorded. |
-| `required_inputs` | `jsonb` | No | — | No column description has been recorded. |
-| `parameters` | `jsonb` | No | `'{}'::jsonb` | No column description has been recorded. |
-| `defaults` | `jsonb` | No | `'{}'::jsonb` | No column description has been recorded. |
-| `implementation_ref` | `ARRAY` | No | — | No column description has been recorded. |
-| `alignment_rules` | `text` | No | — | No column description has been recorded. |
-| `missing_data_policy` | `text` | No | — | No column description has been recorded. |
-| `output_definition` | `jsonb` | No | — | No column description has been recorded. |
-| `validation_evidence` | `ARRAY` | No | — | No column description has been recorded. |
-| `status` | `text` | No | `'ACTIVE'::text` | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `calculation_name` | `text` | No | — | Governed calculation_name field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `version` | `text` | No | — | Governed version field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `target_table` | `text` | No | — | Governed target_table field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `target_columns` | `ARRAY` | No | — | Governed target_columns field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `definition` | `text` | No | — | Governed definition field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `required_inputs` | `jsonb` | No | — | Governed required_inputs field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `parameters` | `jsonb` | No | `'{}'::jsonb` | Governed parameters field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `defaults` | `jsonb` | No | `'{}'::jsonb` | Governed defaults field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `implementation_ref` | `ARRAY` | No | — | Governed implementation_ref field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `alignment_rules` | `text` | No | — | Governed alignment_rules field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `missing_data_policy` | `text` | No | — | Governed missing_data_policy field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `output_definition` | `jsonb` | No | — | Governed output_definition field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `validation_evidence` | `ARRAY` | No | — | Governed validation_evidence field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `status` | `text` | No | `'ACTIVE'::text` | Governed status field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed created_at field of AI_calculation_catalog; see the creating migration for its exact contract. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed updated_at field of AI_calculation_catalog; see the creating migration for its exact contract. |
 
 ### Constraints
 
@@ -135,31 +163,31 @@ AI-facing calculation contracts derived from active Feature Catalog definitions.
 
 ## AI_catalog_relationships
 
-AI-facing safe join and output-grain contracts across approved tables.
+AI-facing safe join, temporal alignment, preaggregation, and output-grain contracts.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `relationship_id` | `bigint` | No | — | No column description has been recorded. |
-| `left_table` | `text` | No | — | No column description has been recorded. |
-| `left_columns` | `ARRAY` | No | — | No column description has been recorded. |
-| `right_table` | `text` | No | — | No column description has been recorded. |
-| `right_columns` | `ARRAY` | No | — | No column description has been recorded. |
-| `relationship_type` | `text` | No | — | No column description has been recorded. |
-| `temporal_rule` | `text` | No | — | No column description has been recorded. |
-| `safe_output_grain` | `text` | No | — | No column description has been recorded. |
-| `requires_preaggregation` | `boolean` | No | `false` | No column description has been recorded. |
-| `description` | `text` | No | — | No column description has been recorded. |
-| `version` | `text` | No | `'v1'::text` | No column description has been recorded. |
-| `is_allowed` | `boolean` | No | `true` | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `supported_join_semantics` | `ARRAY` | No | `'{}'::text[]` | Join semantics a DataNeedSpec may request for this relationship: CURRENT_STATE, EXACT_DATE, AS_OF, EFFECTIVE_DATED. |
-| `left_time_column` | `text` | Yes | — | Time column of left_table that EXACT_DATE and AS_OF joins align on. |
-| `right_time_column` | `text` | Yes | — | Time column of right_table that EXACT_DATE and AS_OF joins align on (AS_OF: latest value at or before the observation). |
-| `effective_from_column` | `text` | Yes | — | Inclusive start of validity of a right_table row for EFFECTIVE_DATED joins. |
-| `effective_to_column` | `text` | Yes | — | Exclusive end of validity of a right_table row for EFFECTIVE_DATED joins; NULL means still valid. |
+| `relationship_id` | `bigint` | No | — | Governed relationship_id field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `left_table` | `text` | No | — | Governed left_table field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `left_columns` | `ARRAY` | No | — | Governed left_columns field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `right_table` | `text` | No | — | Governed right_table field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `right_columns` | `ARRAY` | No | — | Governed right_columns field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `relationship_type` | `text` | No | — | Governed relationship_type field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `temporal_rule` | `text` | No | — | Governed temporal_rule field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `safe_output_grain` | `text` | No | — | Governed safe_output_grain field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `requires_preaggregation` | `boolean` | No | `false` | Governed requires_preaggregation field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `description` | `text` | No | — | Governed description field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `version` | `text` | No | `'v1'::text` | Governed version field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `is_allowed` | `boolean` | No | `true` | Governed is_allowed field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed created_at field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed updated_at field of AI_catalog_relationships; see the creating migration for its exact contract. |
+| `supported_join_semantics` | `ARRAY` | No | `'{}'::text[]` | Join semantics a DataNeedSpec may request for this relationship (CURRENT_STATE, EXACT_DATE, AS_OF, EFFECTIVE_DATED); empty means the DataNeed planner cannot use it. |
+| `left_time_column` | `text` | Yes | — | Time column of left_table used by EXACT_DATE and AS_OF joins. |
+| `right_time_column` | `text` | Yes | — | Time column of right_table used by EXACT_DATE and AS_OF joins. |
+| `effective_from_column` | `text` | Yes | — | Inclusive validity start of a right_table row for EFFECTIVE_DATED joins. |
+| `effective_to_column` | `text` | Yes | — | Exclusive validity end of a right_table row for EFFECTIVE_DATED joins; NULL in the data means still valid. |
 
 ### Constraints
 
@@ -186,37 +214,37 @@ AI-facing safe join and output-grain contracts across approved tables.
 
 ## AI_column_catalog
 
-AI-facing column meanings and bounded-query permissions for approved tables.
+AI-facing column semantics and bounded-query permissions for the seven approved tables.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `table_name` | `text` | No | — | No column description has been recorded. |
-| `column_name` | `text` | No | — | No column description has been recorded. |
-| `ordinal_position` | `integer` | No | — | No column description has been recorded. |
-| `description` | `text` | Yes | — | No column description has been recorded. |
-| `data_type` | `text` | No | — | No column description has been recorded. |
-| `semantic_type` | `text` | No | — | No column description has been recorded. |
-| `unit` | `text` | Yes | — | No column description has been recorded. |
-| `nullable` | `boolean` | No | — | No column description has been recorded. |
-| `is_primary_key` | `boolean` | No | — | No column description has been recorded. |
-| `source_column_or_expression` | `text` | Yes | — | No column description has been recorded. |
-| `is_sensitive` | `boolean` | No | `false` | No column description has been recorded. |
-| `ai_allowed` | `boolean` | No | `true` | No column description has been recorded. |
-| `allowed_aggregations` | `ARRAY` | No | `'{}'::text[]` | No column description has been recorded. |
-| `filter_allowed` | `boolean` | No | `true` | No column description has been recorded. |
-| `group_by_allowed` | `boolean` | No | `false` | No column description has been recorded. |
-| `example_value` | `text` | Yes | — | No column description has been recorded. |
-| `coverage_required` | `boolean` | No | `false` | No column description has been recorded. |
-| `documentation_status` | `text` | No | — | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `resample_aggregation` | `text` | Yes | — | Exact rule for aggregating this column to a coarser frequency (FIRST, LAST, MAX, MIN, SUM); NULL = not established, never pushed down. |
+| `table_name` | `text` | No | — | Governed table_name field of AI_column_catalog; see the creating migration for its exact contract. |
+| `column_name` | `text` | No | — | Governed column_name field of AI_column_catalog; see the creating migration for its exact contract. |
+| `ordinal_position` | `integer` | No | — | Governed ordinal_position field of AI_column_catalog; see the creating migration for its exact contract. |
+| `description` | `text` | Yes | — | Governed description field of AI_column_catalog; see the creating migration for its exact contract. |
+| `data_type` | `text` | No | — | Governed data_type field of AI_column_catalog; see the creating migration for its exact contract. |
+| `semantic_type` | `text` | No | — | Governed semantic_type field of AI_column_catalog; see the creating migration for its exact contract. |
+| `unit` | `text` | Yes | — | Governed unit field of AI_column_catalog; see the creating migration for its exact contract. |
+| `nullable` | `boolean` | No | — | Governed nullable field of AI_column_catalog; see the creating migration for its exact contract. |
+| `is_primary_key` | `boolean` | No | — | Governed is_primary_key field of AI_column_catalog; see the creating migration for its exact contract. |
+| `source_column_or_expression` | `text` | Yes | — | Governed source_column_or_expression field of AI_column_catalog; see the creating migration for its exact contract. |
+| `is_sensitive` | `boolean` | No | `false` | Governed is_sensitive field of AI_column_catalog; see the creating migration for its exact contract. |
+| `ai_allowed` | `boolean` | No | `true` | Governed ai_allowed field of AI_column_catalog; see the creating migration for its exact contract. |
+| `allowed_aggregations` | `ARRAY` | No | `'{}'::text[]` | Governed allowed_aggregations field of AI_column_catalog; see the creating migration for its exact contract. |
+| `filter_allowed` | `boolean` | No | `true` | Governed filter_allowed field of AI_column_catalog; see the creating migration for its exact contract. |
+| `group_by_allowed` | `boolean` | No | `false` | Governed group_by_allowed field of AI_column_catalog; see the creating migration for its exact contract. |
+| `example_value` | `text` | Yes | — | Governed example_value field of AI_column_catalog; see the creating migration for its exact contract. |
+| `coverage_required` | `boolean` | No | `false` | Governed coverage_required field of AI_column_catalog; see the creating migration for its exact contract. |
+| `documentation_status` | `text` | No | — | Governed documentation_status field of AI_column_catalog; see the creating migration for its exact contract. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed created_at field of AI_column_catalog; see the creating migration for its exact contract. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed updated_at field of AI_column_catalog; see the creating migration for its exact contract. |
+| `resample_aggregation` | `text` | Yes | — | Exact aggregation rule to a coarser frequency (FIRST, LAST, MAX, MIN, SUM); NULL means no established rule, so resampling is never pushed down. |
 | `cross_entity_aggregation` | `text` | Yes | — | Rule for aggregating the column across entities of a finer grain (SUM, MIN, MAX); NULL means the column is not additive across entities and is never summed. Used by saniti.preaggregate before a relationship join and, since migration 20261002_002 (G18 phase 1), by a DataNeed request's aggregate: the SQL Governor computes SUM across entities only for a SUM rule (re-derived from its own catalog contract). Read through the Governor catalog contract and shown by get_catalog_details. |
-| `value_time_basis` | `text` | No | — | HISTORICAL: the value belongs to its row's date (or version). CURRENT_STATE: today's reference value repeated on every row (current classification); a point-in-time DataNeedSpec may not read or filter it. |
-| `description_id` | `text` | Yes | — | The column meaning in Indonesian, translated from description; description stays the source text. |
-| `description_id_status` | `text` | Yes | — | DRAFT (machine translation, not yet reviewed) or REVIEWED; NULL when there is no translation. |
+| `value_time_basis` | `text` | No | — | HISTORICAL (the value belongs to its row's date or version) or CURRENT_STATE (today's reference value on every row); a point-in-time DataNeedSpec may not read or filter a CURRENT_STATE column. |
+| `description_id` | `text` | Yes | — | The column meaning in Indonesian, translated once from description by the production model; description stays the source text. |
+| `description_id_status` | `text` | Yes | — | DRAFT (machine translation, not yet reviewed) or REVIEWED; NULL exactly when description_id is NULL. |
 
 ### Constraints
 
@@ -242,22 +270,22 @@ AI-facing column meanings and bounded-query permissions for approved tables.
 
 ## AI_conversation
 
-One market-ai-orc chat box (history_mode SERVER): owner, retention and the single-active-run lease.
+market-ai-orc conversations kept by the server (history_mode SERVER): one row per chat box with its owner, retention and the lease that allows one active run at a time.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `conversation_id` | `text` | No | — | No column description has been recorded. |
-| `owner_key` | `text` | No | — | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `expires_at` | `timestamp with time zone` | No | — | No column description has been recorded. |
-| `next_turn_index` | `integer` | No | `0` | No column description has been recorded. |
-| `active_request_id` | `text` | Yes | — | No column description has been recorded. |
-| `lease_generation` | `bigint` | No | `0` | No column description has been recorded. |
-| `lease_expires_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `state` | `jsonb` | No | `'{}'::jsonb` | No column description has been recorded. |
+| `conversation_id` | `text` | No | — | Server-generated id of the chat box (conv_ + 32 hex). Not a credential: every lookup also checks owner_key. |
+| `owner_key` | `text` | No | — | The owner given by the trusted server-side caller in the X-Saniti-Owner header (default when absent); never taken from the model. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | When the conversation was created. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Last activity: a turn started or finished. |
+| `expires_at` | `timestamp with time zone` | No | — | When the cleanup may delete the conversation and its turns: updated_at plus AI_CONVERSATION_RETENTION_DAYS. |
+| `next_turn_index` | `integer` | No | `0` | The turn_index the next message receives. |
+| `active_request_id` | `text` | Yes | — | request_id of the running turn; NULL when no turn runs. |
+| `lease_generation` | `bigint` | No | `0` | Incremented by every turn start; a turn may finish only with the generation it started with (fencing). |
+| `lease_expires_at` | `timestamp with time zone` | Yes | — | When a running turn's lease lapses and another message may take over; NULL when no turn runs. |
+| `state` | `jsonb` | No | `'{}'::jsonb` | Structured conversation state kept by the orchestrator (for example the latest Research Plan reference); never model-written text. |
 
 ### Constraints
 
@@ -281,26 +309,26 @@ One market-ai-orc chat box (history_mode SERVER): owner, retention and the singl
 
 ## AI_conversation_evidence
 
-A claim of a market-ai-orc answer recomputed by the backend (Governor summary or base table), with its status and at most 200 rows of evidence, kept for the life of the conversation (round 2026-10-03 D6).
+Claims of market-ai-orc answers recomputed by the backend on a path separate from the model's code (SQL Governor summary or the released base table), with the status, the backend value and at most 200 rows of evidence.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `evidence_id` | `text` | No | — | No column description has been recorded. |
-| `conversation_id` | `text` | No | — | No column description has been recorded. |
-| `request_id` | `text` | No | — | No column description has been recorded. |
-| `claim` | `text` | No | — | No column description has been recorded. |
-| `value_text` | `text` | No | — | No column description has been recorded. |
-| `kind` | `text` | No | — | No column description has been recorded. |
-| `recipe` | `jsonb` | No | — | No column description has been recorded. |
-| `status` | `text` | No | — | No column description has been recorded. |
-| `backend_value` | `double precision` | Yes | — | No column description has been recorded. |
-| `difference` | `double precision` | Yes | — | No column description has been recorded. |
-| `source` | `jsonb` | No | `'{}'::jsonb` | No column description has been recorded. |
-| `rows` | `jsonb` | No | `'[]'::jsonb` | No column description has been recorded. |
-| `rows_matched` | `bigint` | Yes | — | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `evidence_id` | `text` | No | — | Id of the check (evd_ + 24 hex); export_result takes it as a source. |
+| `conversation_id` | `text` | No | — | The conversation the claim belongs to. |
+| `request_id` | `text` | No | — | The market-ai-orc request that checked the claim. |
+| `claim` | `text` | No | — | The claim in words, as the model stated it (at most 300 characters). |
+| `value_text` | `text` | No | — | The number as written in the answer (for example 1,25 miliar or 116); compared with the rounding it shows. |
+| `kind` | `text` | No | — | WAREHOUSE (recomputed by a SQL Governor summary) or BASE_TABLE (recomputed from a released base table). |
+| `recipe` | `jsonb` | No | — | How the backend recomputed the claim: table, filters, measure and period, or the base table, conditions and measure. |
+| `status` | `text` | No | — | TERCEK (matches within the rounding shown), TIDAK_COCOK, TIDAK_BISA_DICEK (the recipe was refused) or TIDAK_DICEK_BATAS (over the per-answer limit). |
+| `backend_value` | `double precision` | Yes | — | The value the backend computed; NULL when it could not. |
+| `difference` | `double precision` | Yes | — | backend_value minus the claimed value; NULL when not compared. |
+| `source` | `jsonb` | No | `'{}'::jsonb` | Where the evidence came from: output id and reference, or source table, Governor query id and period. |
+| `rows` | `jsonb` | No | `'[]'::jsonb` | At most 200 rows of evidence a user can read (the matching base rows or the summary rows). |
+| `rows_matched` | `bigint` | Yes | — | Rows that matched the recipe before the 200-row limit. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | When the claim was checked. |
 
 ### Constraints
 
@@ -324,23 +352,23 @@ A claim of a market-ai-orc answer recomputed by the backend (Governor summary or
 
 ## AI_conversation_execution
 
-The code of one sandbox execution of a market-ai-orc conversation, kept for the life of the conversation (R-STORE).
+The code of each sandbox execution of a market-ai-orc conversation, so a result can be traced and reproduced after the sandbox copy expired.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `execution_id` | `text` | No | — | No column description has been recorded. |
-| `conversation_id` | `text` | No | — | No column description has been recorded. |
-| `request_id` | `text` | No | — | No column description has been recorded. |
-| `session_id` | `text` | Yes | — | No column description has been recorded. |
-| `code` | `text` | No | — | No column description has been recorded. |
-| `code_truncated` | `boolean` | No | `false` | No column description has been recorded. |
-| `code_sha256` | `text` | No | — | No column description has been recorded. |
-| `modules` | `jsonb` | Yes | — | No column description has been recorded. |
-| `access` | `jsonb` | Yes | — | No column description has been recorded. |
-| `status` | `text` | Yes | — | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `execution_id` | `text` | No | — | The sandbox execution_id (exe_ + 24 hex). |
+| `conversation_id` | `text` | No | — | The conversation the execution belongs to. |
+| `request_id` | `text` | No | — | The market-ai-orc request that ran the code. |
+| `session_id` | `text` | Yes | — | The sandbox session that ran the code. |
+| `code` | `text` | No | — | The code that ran (its first 65,536 characters when code_truncated). |
+| `code_truncated` | `boolean` | No | `false` | True when the code was longer than 65,536 characters and only its start is stored. |
+| `code_sha256` | `text` | No | — | SHA-256 of the whole code, as the sandbox recorded it. |
+| `modules` | `jsonb` | Yes | — | Modules the code imported, as the sandbox reported them. |
+| `access` | `jsonb` | Yes | — | The data the code read (requests, ranges, carried tables), as the sandbox reported it. |
+| `status` | `text` | Yes | — | The execution status the sandbox returned (OK, SCRIPT_ERROR, TIMEOUT, ...). |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | When the execution was stored. |
 
 ### Constraints
 
@@ -364,24 +392,24 @@ The code of one sandbox execution of a market-ai-orc conversation, kept for the 
 
 ## AI_conversation_export
 
-A file exported from a market-ai-orc conversation for download (phase D), at most 20 MB.
+Files exported from a market-ai-orc conversation for the user to download (CSV, XLSX or Parquet, at most 20 MB).
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `export_id` | `text` | No | — | No column description has been recorded. |
-| `conversation_id` | `text` | No | — | No column description has been recorded. |
-| `request_id` | `text` | No | — | No column description has been recorded. |
-| `source_ref` | `text` | No | — | No column description has been recorded. |
-| `format` | `text` | No | — | No column description has been recorded. |
-| `file_name` | `text` | No | — | No column description has been recorded. |
-| `mime_type` | `text` | No | — | No column description has been recorded. |
-| `size_bytes` | `bigint` | No | — | No column description has been recorded. |
-| `sha256` | `text` | No | — | No column description has been recorded. |
-| `content` | `bytea` | No | — | No column description has been recorded. |
-| `includes` | `jsonb` | No | `'{}'::jsonb` | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `export_id` | `text` | No | — | Id of the export (exp_ + 24 hex). |
+| `conversation_id` | `text` | No | — | The conversation the export belongs to. |
+| `request_id` | `text` | No | — | The market-ai-orc request that created the export. |
+| `source_ref` | `text` | No | — | What was exported: an output ref or id, or an evidence reference. |
+| `format` | `text` | No | — | CSV, XLSX or PARQUET. |
+| `file_name` | `text` | No | — | The download file name. |
+| `mime_type` | `text` | No | — | The media type sent with the download. |
+| `size_bytes` | `bigint` | No | — | Size of the file in bytes (at most 20 MB). |
+| `sha256` | `text` | No | — | SHA-256 of the file. |
+| `content` | `bytea` | No | — | The file. |
+| `includes` | `jsonb` | No | `'{}'::jsonb` | What the file contains besides the rows (definitions, lineage). |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | When the export was created. |
 
 ### Constraints
 
@@ -407,33 +435,33 @@ A file exported from a market-ai-orc conversation for download (phase D), at mos
 
 ## AI_conversation_output
 
-A released output of a market-ai-orc conversation, kept for the life of the conversation (R-STORE).
+Released outputs of market-ai-orc conversations (tables, JSON, text, charts) with their definition, units, lineage and the last date of the data they were computed from; the content up to 20 MB is here, a larger one in the bucket market-ai-conversation-outputs.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `output_id` | `text` | No | — | No column description has been recorded. |
-| `conversation_id` | `text` | No | — | No column description has been recorded. |
-| `request_id` | `text` | No | — | No column description has been recorded. |
-| `session_id` | `text` | Yes | — | No column description has been recorded. |
-| `execution_id` | `text` | Yes | — | No column description has been recorded. |
-| `name` | `text` | No | — | No column description has been recorded. |
-| `output_type` | `text` | No | — | No column description has been recorded. |
-| `format` | `text` | No | — | No column description has been recorded. |
-| `label` | `text` | Yes | — | No column description has been recorded. |
-| `definition` | `jsonb` | Yes | — | No column description has been recorded. |
-| `units` | `jsonb` | Yes | — | No column description has been recorded. |
-| `lineage` | `jsonb` | Yes | — | No column description has been recorded. |
-| `data_as_of` | `date` | Yes | — | No column description has been recorded. |
-| `row_count` | `bigint` | Yes | — | No column description has been recorded. |
-| `columns` | `jsonb` | Yes | — | No column description has been recorded. |
-| `byte_count` | `bigint` | No | — | No column description has been recorded. |
-| `checksum_sha256` | `text` | No | — | No column description has been recorded. |
-| `storage` | `text` | No | — | No column description has been recorded. |
-| `content` | `bytea` | Yes | — | No column description has been recorded. |
-| `object_key` | `text` | Yes | — | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `output_id` | `text` | No | — | The sandbox output_id (out_ + 24 hex); the same id the data record and load_output use. |
+| `conversation_id` | `text` | No | — | The conversation the output belongs to. |
+| `request_id` | `text` | No | — | The market-ai-orc request that released the output. |
+| `session_id` | `text` | Yes | — | The sandbox session that produced the output. |
+| `execution_id` | `text` | Yes | — | The sandbox execution that produced the output (see AI_conversation_execution). |
+| `name` | `text` | No | — | The output name given in emit_table / emit_json (at most 80 characters). |
+| `output_type` | `text` | No | — | The sandbox output type (TABLE, JSON, TEXT, CHART or FILE). |
+| `format` | `text` | No | — | The stored file format: PARQUET, CSV, PNG, JSON, TEXT or BIN. |
+| `label` | `text` | Yes | — | The evidence label the sandbox gave the output (for example DATA_COVERAGE_VERIFIED). |
+| `definition` | `jsonb` | Yes | — | How the output was made: filters, period, entities, thresholds and notes, as declared when it was released. |
+| `units` | `jsonb` | Yes | — | Unit of each column that has one (FRACTION, PERCENT or P_VALUE). |
+| `lineage` | `jsonb` | Yes | — | Where the output came from: need_id, bundle_id, execution code hash and reference date. |
+| `data_as_of` | `date` | Yes | — | The last date of the data the output was computed from (the largest actual end date of its bundle ranges); a recomputation of the conversation uses the same date unless the user asks for newer data. |
+| `row_count` | `bigint` | Yes | — | Rows of a table output; NULL for other outputs. |
+| `columns` | `jsonb` | Yes | — | Column names of a table output, in order; NULL for other outputs. |
+| `byte_count` | `bigint` | No | — | Size of the stored file in bytes. |
+| `checksum_sha256` | `text` | No | — | SHA-256 of the stored file; checked when the file is loaded into a new session. |
+| `storage` | `text` | No | — | POSTGRES (content holds the file, at most 20 MB) or BUCKET (object_key names it in market-ai-conversation-outputs). |
+| `content` | `bytea` | Yes | — | The file when storage is POSTGRES; NULL otherwise. |
+| `object_key` | `text` | Yes | — | The bucket key (outputs/<conversation_id>/<output_id>.<ext>) when storage is BUCKET; NULL otherwise. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | When the output was stored. |
 
 ### Constraints
 
@@ -461,25 +489,25 @@ A released output of a market-ai-orc conversation, kept for the life of the conv
 
 ## AI_conversation_run_memory
 
-What each run of a market-ai-orc conversation leaves for the runs after it (EXEC-C): memo, full texts, citable sources, the model's note and its reasoning; deleted with the conversation.
+What each run of a market-ai-orc conversation (a turn or a step of a mode 4 turn) leaves for the runs after it: the memo later runs read in their prompt, the full texts it names (message, answer, plan, refusals with the refused drafts, design values with their origin, web facts, catalog details), the values it made citable, the model's own note and its reasoning.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `run_id` | `text` | No | — | No column description has been recorded. |
-| `conversation_id` | `text` | No | — | No column description has been recorded. |
-| `turn_request_id` | `text` | No | — | No column description has been recorded. |
-| `seq` | `bigint` | No | — | No column description has been recorded. |
-| `status` | `text` | No | — | No column description has been recorded. |
-| `response_type` | `text` | Yes | — | No column description has been recorded. |
-| `error_code` | `text` | Yes | — | No column description has been recorded. |
-| `memo` | `text` | No | — | No column description has been recorded. |
-| `content` | `jsonb` | No | — | No column description has been recorded. |
-| `sources` | `jsonb` | No | `'{}'::jsonb` | No column description has been recorded. |
-| `note` | `text` | Yes | — | No column description has been recorded. |
-| `reasoning` | `text` | Yes | — | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `run_id` | `text` | No | — | The run's request id: a turn's request_id, or <request_id>-m4a ... for a step of a mode 4 turn. |
+| `conversation_id` | `text` | No | — | The conversation the run belongs to. |
+| `turn_request_id` | `text` | No | — | The request id of the turn the run belongs to (the run's own id for a turn that is one run). |
+| `seq` | `bigint` | No | — | The order runs ended in; later runs read the memos in this order (oldest first). |
+| `status` | `text` | No | — | The run's status: COMPLETED, NEEDS_CLARIFICATION, AWAITING_CONFIRMATION, LIMITED or FAILED. |
+| `response_type` | `text` | Yes | — | ANSWER, CLARIFICATION, RESEARCH_PLAN_CONFIRMATION or LIMITATION; NULL when the run failed without a response. |
+| `error_code` | `text` | Yes | — | The run's error code (for example ANALYSIS_TIMEOUT); NULL without one. |
+| `memo` | `text` | No | — | The run's memo as later runs of the conversation read it in their prompt (written by the backend from the run's events plus the model's note); never changed. |
+| `content` | `jsonb` | No | — | The full texts the memo names: message, answer (with assumptions, limitations and methodology), plan, refusals with the drafts they refused, design values with their origin, web entries, catalog details, code executions, error. |
+| `sources` | `jsonb` | No | `'{}'::jsonb` | The values the run made citable (fact, metric, reference, web, the content of a JSON output) with their evidence label, units and origin; later runs register them again under the same address. |
+| `note` | `text` | Yes | — | The note the model wrote for later runs in its final response (memo_note); NULL when it wrote none. |
+| `reasoning` | `text` | Yes | — | The run's reasoning text (each model call in order), read only with read_conversation_memory; NULL when the provider returned none. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | When the run ended and its memory was stored. |
 
 ### Constraints
 
@@ -502,26 +530,26 @@ What each run of a market-ai-orc conversation leaves for the runs after it (EXEC
 
 ## AI_conversation_turn
 
-One message of a market-ai-orc conversation and the response returned for it (history_mode SERVER).
+One message of a market-ai-orc conversation: the user message, the run status and the response returned to the caller.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `request_id` | `text` | No | — | No column description has been recorded. |
-| `conversation_id` | `text` | No | — | No column description has been recorded. |
-| `turn_index` | `integer` | No | — | No column description has been recorded. |
-| `request_fingerprint` | `text` | No | — | No column description has been recorded. |
-| `user_message` | `text` | No | — | No column description has been recorded. |
-| `status` | `text` | No | — | No column description has been recorded. |
-| `lease_generation` | `bigint` | No | — | No column description has been recorded. |
-| `run_status` | `text` | Yes | — | No column description has been recorded. |
-| `response_type` | `text` | Yes | — | No column description has been recorded. |
-| `assistant_text` | `text` | Yes | — | No column description has been recorded. |
-| `response` | `jsonb` | Yes | — | No column description has been recorded. |
-| `error_code` | `text` | Yes | — | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `completed_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
+| `request_id` | `text` | No | — | The market-ai-orc request_id of the turn; unique across all conversations. |
+| `conversation_id` | `text` | No | — | The conversation the turn belongs to. |
+| `turn_index` | `integer` | No | — | Position of the turn in its conversation, from 0. |
+| `request_fingerprint` | `text` | No | — | SHA-256 of the request content; a retry with the same request_id must match it. |
+| `user_message` | `text` | No | — | The user's message. |
+| `status` | `text` | No | — | RUNNING, COMPLETED (a response was returned), FAILED (the run raised no response) or INTERRUPTED (the lease lapsed before the turn finished). |
+| `lease_generation` | `bigint` | No | — | The conversation lease generation the turn started with. |
+| `run_status` | `text` | Yes | — | The status returned to the caller (COMPLETED, NEEDS_CLARIFICATION, AWAITING_CONFIRMATION, LIMITED, FAILED); NULL while running. |
+| `response_type` | `text` | Yes | — | ANSWER, CLARIFICATION, RESEARCH_PLAN_CONFIRMATION or LIMITATION; NULL without a response. |
+| `assistant_text` | `text` | Yes | — | The text that later turns see as the assistant message: the answer, or the clarification question for a CLARIFICATION. |
+| `response` | `jsonb` | Yes | — | The complete response returned to the caller, so a retry of the same request_id returns it without a new run. |
+| `error_code` | `text` | Yes | — | Error code of a failed or interrupted turn; NULL otherwise. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | When the turn started. |
+| `completed_at` | `timestamp with time zone` | Yes | — | When the turn finished; NULL while RUNNING. |
 
 ### Constraints
 
@@ -547,32 +575,32 @@ One message of a market-ai-orc conversation and the response returned for it (hi
 
 ## AI_data_coverage
 
-Automated raw-source coverage and explicitly inferred derived-table expectations; Feature 01-03 are never scanned by the coverage job.
+Automated actual raw-source coverage plus explicitly inferred expectations for derived Feature tables.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `coverage_id` | `bigint` | No | — | No column description has been recorded. |
-| `dataset_name` | `text` | No | — | No column description has been recorded. |
-| `coverage_scope` | `text` | No | — | No column description has been recorded. |
-| `entity_id` | `text` | Yes | — | No column description has been recorded. |
-| `reference_dataset_name` | `text` | Yes | — | No column description has been recorded. |
-| `coverage_mode` | `text` | No | — | No column description has been recorded. |
-| `actual_min_date` | `date` | Yes | — | No column description has been recorded. |
-| `actual_max_date` | `date` | Yes | — | No column description has been recorded. |
-| `expected_min_date` | `date` | Yes | — | No column description has been recorded. |
-| `expected_max_date` | `date` | Yes | — | No column description has been recorded. |
-| `source_row_count` | `bigint` | Yes | — | No column description has been recorded. |
-| `source_key_count` | `bigint` | Yes | — | No column description has been recorded. |
-| `pipeline_status` | `text` | No | — | No column description has been recorded. |
-| `verification_status` | `text` | No | — | No column description has been recorded. |
-| `quality_status` | `text` | No | — | No column description has been recorded. |
-| `check_error` | `text` | Yes | — | No column description has been recorded. |
-| `last_checked_at` | `timestamp with time zone` | No | — | No column description has been recorded. |
-| `last_full_checked_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `coverage_id` | `bigint` | No | — | Governed coverage_id field of AI_data_coverage; see the creating migration for its exact contract. |
+| `dataset_name` | `text` | No | — | Governed dataset_name field of AI_data_coverage; see the creating migration for its exact contract. |
+| `coverage_scope` | `text` | No | — | Governed coverage_scope field of AI_data_coverage; see the creating migration for its exact contract. |
+| `entity_id` | `text` | Yes | — | Governed entity_id field of AI_data_coverage; see the creating migration for its exact contract. |
+| `reference_dataset_name` | `text` | Yes | — | Governed reference_dataset_name field of AI_data_coverage; see the creating migration for its exact contract. |
+| `coverage_mode` | `text` | No | — | Governed coverage_mode field of AI_data_coverage; see the creating migration for its exact contract. |
+| `actual_min_date` | `date` | Yes | — | Governed actual_min_date field of AI_data_coverage; see the creating migration for its exact contract. |
+| `actual_max_date` | `date` | Yes | — | Governed actual_max_date field of AI_data_coverage; see the creating migration for its exact contract. |
+| `expected_min_date` | `date` | Yes | — | Governed expected_min_date field of AI_data_coverage; see the creating migration for its exact contract. |
+| `expected_max_date` | `date` | Yes | — | Governed expected_max_date field of AI_data_coverage; see the creating migration for its exact contract. |
+| `source_row_count` | `bigint` | Yes | — | Governed source_row_count field of AI_data_coverage; see the creating migration for its exact contract. |
+| `source_key_count` | `bigint` | Yes | — | Governed source_key_count field of AI_data_coverage; see the creating migration for its exact contract. |
+| `pipeline_status` | `text` | No | — | Governed pipeline_status field of AI_data_coverage; see the creating migration for its exact contract. |
+| `verification_status` | `text` | No | — | Governed verification_status field of AI_data_coverage; see the creating migration for its exact contract. |
+| `quality_status` | `text` | No | — | Governed quality_status field of AI_data_coverage; see the creating migration for its exact contract. |
+| `check_error` | `text` | Yes | — | Governed check_error field of AI_data_coverage; see the creating migration for its exact contract. |
+| `last_checked_at` | `timestamp with time zone` | No | — | Governed last_checked_at field of AI_data_coverage; see the creating migration for its exact contract. |
+| `last_full_checked_at` | `timestamp with time zone` | Yes | — | Governed last_full_checked_at field of AI_data_coverage; see the creating migration for its exact contract. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed created_at field of AI_data_coverage; see the creating migration for its exact contract. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed updated_at field of AI_data_coverage; see the creating migration for its exact contract. |
 
 ### Constraints
 
@@ -602,20 +630,20 @@ Automated raw-source coverage and explicitly inferred derived-table expectations
 
 ## AI_formula_reference
 
-Reference calculation formulas for the orchestrator; documented definitions, not verified or executable implementations.
+Global reference catalog of calculation formulas for the orchestrator; entries document a formula, not a verified or executable implementation.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `calculation_id` | `text` | No | — | No column description has been recorded. |
-| `calculation_name` | `text` | No | — | No column description has been recorded. |
-| `description` | `text` | No | — | No column description has been recorded. |
-| `required_inputs` | `text` | No | — | Semicolon-delimited logical input roles, not actual PostgreSQL column names. |
-| `formula_method` | `text` | No | — | Renamed from the source workbook column "formula / method" to a valid identifier. |
-| `parameters` | `text` | No | — | No column description has been recorded. |
-| `output` | `text` | No | — | No column description has been recorded. |
-| `implementation` | `text` | No | — | No column description has been recorded. |
+| `calculation_id` | `text` | No | — | Stable unique formula ID. |
+| `calculation_name` | `text` | No | — | Display name for agent and human review. |
+| `description` | `text` | No | — | What the formula computes. |
+| `required_inputs` | `text` | No | — | Semicolon-delimited logical input roles, NOT actual Postgres column names. |
+| `formula_method` | `text` | No | — | The documented formula or method text; renamed from source column "formula / method". |
+| `parameters` | `text` | No | — | Documented parameter names/defaults as free text; enforcement belongs in code. |
+| `output` | `text` | No | — | Name of the documented output value. |
+| `implementation` | `text` | No | — | Suggested implementation stack; NOT evidence of installed/registered tooling. |
 
 ### Constraints
 
@@ -632,22 +660,22 @@ Reference calculation formulas for the orchestrator; documented definitions, not
 
 ## AI_method_guide
 
-Model-facing menu and manual of the analysis paths and session helpers; generated from code, hash-bound (guides_sha256). Enforcement stays in code.
+Model-facing menu and manual of the analysis paths (G1-G4) and session helpers: when to use and not, inputs, limits, what the backend checks, results, common errors and tested examples; bound to the code by guides_sha256.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `name` | `text` | No | — | No column description has been recorded. |
-| `guides_version` | `integer` | No | — | No column description has been recorded. |
-| `kind` | `text` | No | — | No column description has been recorded. |
-| `g` | `text` | Yes | — | No column description has been recorded. |
-| `guide` | `jsonb` | No | — | No column description has been recorded. |
-| `guide_sha256` | `text` | No | — | No column description has been recorded. |
-| `guides_sha256` | `text` | No | — | No column description has been recorded. |
-| `is_active` | `boolean` | No | `true` | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `name` | `text` | No | — | Guide name (free_code, event_study, hypothesis_plan, multi_angle or a session helper's guide). |
+| `guides_version` | `integer` | No | — | Version of the method guides content. |
+| `kind` | `text` | No | — | PATH (an analysis path G1-G4) or HELPER (a session helper). |
+| `g` | `text` | Yes | — | The analysis path G1, G2, G3 or G4; NULL for a helper guide. |
+| `guide` | `jsonb` | No | — | JSON object: when to use and not, inputs with defaults, limits, what the backend checks and does not, results, common errors and examples. |
+| `guide_sha256` | `text` | No | — | Hash of this guide; the conversation data record keeps it to carry the version a model opened. |
+| `guides_sha256` | `text` | No | — | Hash of all guides; market-ai-orc serves them only when it equals the sandbox's and its own. |
+| `is_active` | `boolean` | No | `true` | Whether the guide is offered to the model. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Row creation time. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Last update time. |
 
 ### Constraints
 
@@ -669,31 +697,31 @@ Model-facing menu and manual of the analysis paths and session helpers; generate
 
 ## AI_metric_catalog
 
-Official metrics for query_metric (one Governor summary per period); units and additivity are read from AI_column_catalog, never repeated here.
+Official metrics market-ai-orc's query_metric answers in one SQL Governor summary: source table, measure column, rule over time, dimensions, default row filter and meaning. Units and additivity are read from AI_column_catalog.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `metric_id` | `text` | No | — | No column description has been recorded. |
-| `metric_version` | `integer` | No | `1` | No column description has been recorded. |
-| `label` | `text` | No | — | No column description has been recorded. |
-| `description` | `text` | No | — | No column description has been recorded. |
-| `source_table` | `text` | No | — | No column description has been recorded. |
-| `measure_column` | `text` | No | — | No column description has been recorded. |
-| `time_function` | `text` | No | — | No column description has been recorded. |
-| `entity_column` | `text` | No | — | No column description has been recorded. |
-| `default_dimensions` | `ARRAY` | No | `ARRAY[]::text[]` | No column description has been recorded. |
-| `allowed_dimensions` | `ARRAY` | No | `ARRAY[]::text[]` | No column description has been recorded. |
-| `default_scope` | `jsonb` | No | `'{"type": "ALL"}'::jsonb` | No column description has been recorded. |
-| `formula` | `text` | No | — | No column description has been recorded. |
-| `interpretation` | `text` | No | — | No column description has been recorded. |
-| `recommended_use` | `text` | No | — | No column description has been recorded. |
-| `misuse_warning` | `text` | No | — | No column description has been recorded. |
-| `review_status` | `text` | No | `'INFERRED'::text` | No column description has been recorded. |
-| `source_decision` | `text` | No | — | No column description has been recorded. |
-| `is_active` | `boolean` | No | `true` | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `metric_id` | `text` | No | — | Stable name of the metric the model passes to query_metric. |
+| `metric_version` | `integer` | No | `1` | Version of the metric definition; a change is a new version. |
+| `label` | `text` | No | — | Indonesian label shown to users. |
+| `description` | `text` | No | — | What the metric measures, in plain words. |
+| `source_table` | `text` | No | — | The governed table the metric is computed from. |
+| `measure_column` | `text` | No | — | The column the metric summarises. |
+| `time_function` | `text` | No | — | How the metric runs over the period: SUM, MIN, MAX, FIRST, LAST or COUNT; checked against the column's catalog rule by the Governor. |
+| `entity_column` | `text` | No | — | The column the entities of a question (tickers or symbols) filter. |
+| `default_dimensions` | `ARRAY` | No | `ARRAY[]::text[]` | The columns the result is split by when the question names none. |
+| `allowed_dimensions` | `ARRAY` | No | `ARRAY[]::text[]` | Every column the result may be split by. |
+| `default_scope` | `jsonb` | No | `'{"type": "ALL"}'::jsonb` | A canonical scope tree always applied (ALL: none). |
+| `formula` | `text` | No | — | The computation in words. |
+| `interpretation` | `text` | No | — | How to read the value. |
+| `recommended_use` | `text` | No | — | The questions the metric answers. |
+| `misuse_warning` | `text` | No | — | How the metric is misread or misused. |
+| `review_status` | `text` | No | `'INFERRED'::text` | INFERRED (proposed), REVIEWED or VERIFIED (confirmed by the user). |
+| `source_decision` | `text` | No | — | The user decision the metric comes from. |
+| `is_active` | `boolean` | No | `true` | Whether query_metric offers this version. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | When the row was inserted. |
 
 ### Constraints
 
@@ -715,31 +743,31 @@ Official metrics for query_metric (one Governor summary per period); units and a
 
 ## AI_research_catalog
 
-Reference methods for the orchestrator; REFERENCE_ONLY does not imply installed sandbox code or validation.
+Global reference catalog of research methods for the orchestrator; entries do not enable sandbox execution.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `method_id` | `text` | No | — | No column description has been recorded. |
-| `method_name` | `text` | No | — | No column description has been recorded. |
-| `category` | `text` | No | — | No column description has been recorded. |
-| `purpose` | `text` | No | — | No column description has been recorded. |
-| `example_question` | `text` | No | — | No column description has been recorded. |
-| `analysis_kind` | `text` | No | — | No column description has been recorded. |
-| `input_grain` | `text` | No | — | No column description has been recorded. |
-| `required_inputs_json` | `jsonb` | No | — | Logical input roles, not PostgreSQL table or column identifiers. |
-| `optional_inputs_json` | `jsonb` | No | — | No column description has been recorded. |
-| `future_outcome_required` | `boolean` | No | — | No column description has been recorded. |
-| `supports_numeric_directly` | `boolean` | No | — | No column description has been recorded. |
-| `preprocessing` | `text` | No | — | No column description has been recorded. |
-| `parameter_keys_json` | `jsonb` | No | — | No column description has been recorded. |
-| `expected_outputs_json` | `jsonb` | No | — | No column description has been recorded. |
-| `validation_requirements_json` | `jsonb` | No | — | No column description has been recorded. |
-| `main_risks` | `text` | No | — | No column description has been recorded. |
-| `compute_strategy` | `text` | No | — | No column description has been recorded. |
-| `tool_or_library_examples` | `text` | No | — | No column description has been recorded. |
-| `implementation_status` | `text` | No | — | No column description has been recorded. |
+| `method_id` | `text` | No | — | Stable unique method ID. |
+| `method_name` | `text` | No | — | Display name for agent and human review. |
+| `category` | `text` | No | — | Broad method family. |
+| `purpose` | `text` | No | — | Method objective, not proof of enabled tooling. |
+| `example_question` | `text` | No | — | Illustrative natural-language request. |
+| `analysis_kind` | `text` | No | — | Evidence type: descriptive, exploratory, conditional_outcome or inference. |
+| `input_grain` | `text` | No | — | Observation granularity required by analysis. |
+| `required_inputs_json` | `jsonb` | No | — | JSON array of logical input roles, NOT actual Postgres column names. |
+| `optional_inputs_json` | `jsonb` | No | — | JSON array of additional logical input roles. |
+| `future_outcome_required` | `boolean` | No | — | True if a forward or outcome variable is part of this method. |
+| `supports_numeric_directly` | `boolean` | No | — | False if categorical/binary encoding is required. |
+| `preprocessing` | `text` | No | — | Preparation, time alignment and signal availability requirements. |
+| `parameter_keys_json` | `jsonb` | No | — | JSON array of unresolved analysis parameter names; no silently imposed numeric defaults. |
+| `expected_outputs_json` | `jsonb` | No | — | JSON array of expected result field names. |
+| `validation_requirements_json` | `jsonb` | No | — | JSON array of method-specific checks; enforcement belongs in code. |
+| `main_risks` | `text` | No | — | Likely data, model or interpretation failure modes. |
+| `compute_strategy` | `text` | No | — | Execution hint, not a resource guarantee. |
+| `tool_or_library_examples` | `text` | No | — | Potential libraries; NOT evidence of installed/registered tools. |
+| `implementation_status` | `text` | No | — | REFERENCE_ONLY until developer implements, tests and registers a usable tool. |
 
 ### Constraints
 
@@ -758,32 +786,32 @@ Reference methods for the orchestrator; REFERENCE_ONLY does not imply installed 
 
 ## AI_research_library
 
-Model-facing description of the Multi-Angle Research methods the sandbox engines compute; generated from code, hash-bound (library_sha256). Enforcement stays in code.
+Model-facing description of the eight Multi-Angle Research methods (roles, parameters, data requirements, interpretation, misuse warning), generated from the sandbox research library and bound to it by library_sha256.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `method_id` | `text` | No | — | No column description has been recorded. |
-| `engine_version` | `integer` | No | — | No column description has been recorded. |
-| `library_version` | `integer` | No | — | No column description has been recorded. |
-| `method_family` | `text` | No | — | No column description has been recorded. |
-| `question_shape` | `text` | No | — | No column description has been recorded. |
-| `input_roles` | `jsonb` | No | — | No column description has been recorded. |
-| `required_parameters` | `jsonb` | No | — | No column description has been recorded. |
-| `optional_parameters` | `jsonb` | No | — | No column description has been recorded. |
-| `data_requirements` | `jsonb` | No | — | No column description has been recorded. |
-| `common_requirements` | `jsonb` | No | — | No column description has been recorded. |
-| `sample_unit` | `text` | No | — | No column description has been recorded. |
-| `secondary_checks` | `jsonb` | No | — | No column description has been recorded. |
-| `decision_rules_ref` | `text` | No | — | No column description has been recorded. |
-| `interpretation` | `text` | No | — | No column description has been recorded. |
-| `misuse_warning` | `text` | No | — | No column description has been recorded. |
-| `example_question` | `text` | No | — | No column description has been recorded. |
-| `library_sha256` | `text` | No | — | No column description has been recorded. |
-| `is_active` | `boolean` | No | `true` | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `method_id` | `text` | No | — | Registered method id (research_plan/v2 method_id). |
+| `engine_version` | `integer` | No | — | Version of the statistical engines the row describes. |
+| `library_version` | `integer` | No | — | Version of the research library content. |
+| `method_family` | `text` | No | — | One of the five method families; an agreement between angles needs two families. |
+| `question_shape` | `text` | No | — | The question the method answers, in general form. |
+| `input_roles` | `jsonb` | No | — | JSON array of input roles (role, type, required, meaning); logical roles, not column names. |
+| `required_parameters` | `jsonb` | No | — | JSON array of the parameters an angle of this method must set, with their rules. |
+| `optional_parameters` | `jsonb` | No | — | JSON array of the parameters an angle may set, with their rules. |
+| `data_requirements` | `jsonb` | No | — | JSON object: entity column, label constancy, outcome kind, minimum entities per date and notes; the feasibility check enforces them. |
+| `common_requirements` | `jsonb` | No | — | JSON array of the requirements every method shares (one row per entity and date, declarations, forward returns). |
+| `sample_unit` | `text` | No | — | Unit of the effective sample: DATES, ENTITIES or DATES_AUTOCORRELATION_ADJUSTED. |
+| `secondary_checks` | `jsonb` | No | — | JSON array of checks that must pass for SUPPORTED (for example monotonicity). |
+| `decision_rules_ref` | `text` | No | — | Where the status rules are defined; enforcement is research_engines.decide in code. |
+| `interpretation` | `text` | No | — | What the method's estimate means. |
+| `misuse_warning` | `text` | No | — | How the result is commonly misread. |
+| `example_question` | `text` | No | — | An illustrative question the method answers. |
+| `library_sha256` | `text` | No | — | Hash of the whole library; market-ai-orc enables multi-angle research only when it equals the sandbox's and its own. |
+| `is_active` | `boolean` | No | `true` | Whether the method is offered to the model. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Row creation time. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Last update time. |
 
 ### Constraints
 
@@ -804,33 +832,33 @@ Model-facing description of the Multi-Angle Research methods the sandbox engines
 
 ## AI_research_run_audit
 
-One audit row per market-ai-orc run: question, final answer, evidence label, and experiments with their governor, validation and evidence decisions. Written once (INSERT only).
+Durable audit of market-ai-orc runs: the question, the final answer, its evidence label and gate outcome, and every experiment with its Research Governor decision, validation, evidence decision and fingerprints.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `request_id` | `text` | No | — | No column description has been recorded. |
-| `recorded_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `status` | `text` | No | — | No column description has been recorded. |
-| `response_type` | `text` | Yes | — | No column description has been recorded. |
-| `evidence_label` | `text` | Yes | — | No column description has been recorded. |
-| `validation_gate` | `text` | No | — | No column description has been recorded. |
-| `error_code` | `text` | Yes | — | No column description has been recorded. |
-| `question_sha256` | `text` | No | — | No column description has been recorded. |
-| `question` | `text` | No | — | No column description has been recorded. |
-| `answer_sha256` | `text` | Yes | — | No column description has been recorded. |
-| `answer` | `text` | Yes | — | No column description has been recorded. |
-| `limitations` | `jsonb` | No | `'[]'::jsonb` | No column description has been recorded. |
-| `number_provenance` | `jsonb` | Yes | — | No column description has been recorded. |
-| `experiments` | `jsonb` | No | `'[]'::jsonb` | No column description has been recorded. |
-| `datasets` | `jsonb` | No | `'[]'::jsonb` | No column description has been recorded. |
-| `budget` | `jsonb` | No | `'{}'::jsonb` | No column description has been recorded. |
-| `model` | `text` | No | — | No column description has been recorded. |
-| `tool_call_count` | `integer` | No | — | No column description has been recorded. |
-| `total_tokens` | `integer` | No | — | No column description has been recorded. |
-| `duration_ms` | `integer` | No | — | No column description has been recorded. |
-| `sandbox_summary_status` | `text` | No | — | No column description has been recorded. |
+| `request_id` | `text` | No | — | The orchestrator request_id of the run (one research run = one market-ai-orc request). |
+| `recorded_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | When the audit row was written. |
+| `status` | `text` | No | — | Run status returned to the caller: COMPLETED, NEEDS_CLARIFICATION, AWAITING_CONFIRMATION (a Research Plan awaits the user's approval), LIMITED or FAILED. |
+| `response_type` | `text` | Yes | — | ANSWER, CLARIFICATION, RESEARCH_PLAN_CONFIRMATION or LIMITATION; NULL for a failed run. |
+| `evidence_label` | `text` | Yes | — | The evidence label of the final answer (FACT ... NOT_VALIDATED); NULL without data numbers. |
+| `validation_gate` | `text` | No | — | What the answer gate did: NOT_APPLICABLE, PASSED, ANNOTATED or FORCED_LIMITATION. |
+| `error_code` | `text` | Yes | — | Error code of a failed run, else NULL. |
+| `question_sha256` | `text` | No | — | SHA-256 of the user's message. |
+| `question` | `text` | No | — | The user's message (at most 16000 characters). |
+| `answer_sha256` | `text` | Yes | — | SHA-256 of the final answer text; NULL for a failed run. |
+| `answer` | `text` | Yes | — | The final answer text (at most 20000 characters); NULL for a failed run. |
+| `limitations` | `jsonb` | No | `'[]'::jsonb` | JSON array of the limitation lines returned with the answer. |
+| `number_provenance` | `jsonb` | Yes | — | JSON {checked, unsupported} of the answer's numbers, or NULL. |
+| `experiments` | `jsonb` | No | `'[]'::jsonb` | JSON array of the run's analysis specs: governor decision, validation, evidence decision, whether the answer relies on it (RETAINED/DISCARDED/FOLLOWED_UP/NOT_RUN), code and dataset fingerprints. |
+| `datasets` | `jsonb` | No | `'[]'::jsonb` | JSON array of governed datasets used: dataset_id, checksum, row count, source tables, completeness. |
+| `budget` | `jsonb` | No | `'{}'::jsonb` | JSON of the run's budgets as the sandbox counted them (analyses, specs, CPU, research experiments). |
+| `model` | `text` | No | — | The OpenRouter model identifier the run used. |
+| `tool_call_count` | `integer` | No | — | Tool calls in the run. |
+| `total_tokens` | `integer` | No | — | Provider-reported total tokens of the run. |
+| `duration_ms` | `integer` | No | — | Run duration in milliseconds. |
+| `sandbox_summary_status` | `text` | No | — | State of the sandbox run record when copied: REPORTED, AWAITING_REPORT, ACTIVE, UNAVAILABLE or NOT_USED. |
 
 ### Constraints
 
@@ -856,35 +884,35 @@ One audit row per market-ai-orc run: question, final answer, evidence label, and
 
 ## AI_table_catalog
 
-AI-facing master list for the seven approved Indonesian equity data tables.
+AI-facing master list and bounded-access contract for seven approved source and Feature tables.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `table_name` | `text` | No | — | No column description has been recorded. |
-| `description` | `text` | No | — | No column description has been recorded. |
-| `category` | `text` | No | — | No column description has been recorded. |
-| `grain` | `text` | No | — | No column description has been recorded. |
-| `primary_key_columns` | `ARRAY` | No | — | No column description has been recorded. |
-| `time_column` | `text` | Yes | — | No column description has been recorded. |
-| `entity_column` | `text` | No | — | No column description has been recorded. |
-| `owner` | `text` | No | `'Saniti'::text` | No column description has been recorded. |
-| `is_active` | `boolean` | No | `true` | No column description has been recorded. |
-| `ai_access_level` | `text` | No | `'BOUNDED_READ'::text` | No column description has been recorded. |
-| `freshness_sla` | `interval` | Yes | — | No column description has been recorded. |
-| `coverage_enabled` | `boolean` | No | `true` | No column description has been recorded. |
-| `documentation_status` | `text` | No | — | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `data_domain` | `text` | No | — | Catalog-managed subject area of the table (MARKET, MACRO, RATES, FUNDAMENTAL, ...); syntax-checked, not an enum. |
-| `entity_type` | `text` | No | — | Catalog-managed type of the entity that entity_column identifies (STOCK, BROKER, SERIES, ...). |
-| `asset_type` | `text` | Yes | — | Asset type of the entities when they are assets (IDX_EQUITY, ...); NULL for non-asset entities. |
-| `supported_frequencies` | `ARRAY` | No | — | Observation frequencies the table supports; {STATIC} exactly when the table has no time_column. |
-| `time_semantics` | `text` | Yes | — | What a value of time_column means (trading date, observation date) or that the table is current state. |
-| `subject_metadata_status` | `text` | No | `'INFERRED'::text` | INFERRED until a person reviews the subject values; REVIEWED or VERIFIED only after review. |
-| `row_presence` | `text` | Yes | — | What a missing row means: DENSE (missing data), ACTIVITY_ONLY (no activity on that date), NOT_APPLICABLE (no time column). |
-| `row_presence_status` | `text` | Yes | — | INFERRED until a person reviews row_presence; REVIEWED or VERIFIED only after review. |
+| `table_name` | `text` | No | — | Governed table_name field of AI_table_catalog; see the creating migration for its exact contract. |
+| `description` | `text` | No | — | Governed description field of AI_table_catalog; see the creating migration for its exact contract. |
+| `category` | `text` | No | — | Governed category field of AI_table_catalog; see the creating migration for its exact contract. |
+| `grain` | `text` | No | — | Governed grain field of AI_table_catalog; see the creating migration for its exact contract. |
+| `primary_key_columns` | `ARRAY` | No | — | Governed primary_key_columns field of AI_table_catalog; see the creating migration for its exact contract. |
+| `time_column` | `text` | Yes | — | Governed time_column field of AI_table_catalog; see the creating migration for its exact contract. |
+| `entity_column` | `text` | No | — | Governed entity_column field of AI_table_catalog; see the creating migration for its exact contract. |
+| `owner` | `text` | No | `'Saniti'::text` | Governed owner field of AI_table_catalog; see the creating migration for its exact contract. |
+| `is_active` | `boolean` | No | `true` | Governed is_active field of AI_table_catalog; see the creating migration for its exact contract. |
+| `ai_access_level` | `text` | No | `'BOUNDED_READ'::text` | Governed ai_access_level field of AI_table_catalog; see the creating migration for its exact contract. |
+| `freshness_sla` | `interval` | Yes | — | Governed freshness_sla field of AI_table_catalog; see the creating migration for its exact contract. |
+| `coverage_enabled` | `boolean` | No | `true` | Governed coverage_enabled field of AI_table_catalog; see the creating migration for its exact contract. |
+| `documentation_status` | `text` | No | — | Governed documentation_status field of AI_table_catalog; see the creating migration for its exact contract. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed created_at field of AI_table_catalog; see the creating migration for its exact contract. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed updated_at field of AI_table_catalog; see the creating migration for its exact contract. |
+| `data_domain` | `text` | No | — | Catalog-managed subject area of the table (MARKET, MACRO, RATES, FUNDAMENTAL, ...); validated by syntax, resolved from catalog rows, never a code enum. |
+| `entity_type` | `text` | No | — | Catalog-managed type of the entity identified by entity_column (STOCK, BROKER, ...). |
+| `asset_type` | `text` | Yes | — | Asset type of the entities when they are assets (IDX_EQUITY); NULL for non-asset entities such as brokers or macro series. |
+| `supported_frequencies` | `ARRAY` | No | — | Observation frequencies the table supports; {STATIC} exactly when time_column is NULL. |
+| `time_semantics` | `text` | Yes | — | Meaning of time_column values (exchange trading date, observation date) or that the table holds current-state reference data. |
+| `subject_metadata_status` | `text` | No | `'INFERRED'::text` | Review state of the subject values: INFERRED (seeded by migration 20260925_001), REVIEWED, or VERIFIED after a person confirms them. |
+| `row_presence` | `text` | Yes | — | What a missing row of the table means: DENSE (every expected date has a row; an absent row is missing data), ACTIVITY_ONLY (a row exists only when something happened; an absent row on a trading day means none happened) or NOT_APPLICABLE (no time column). |
+| `row_presence_status` | `text` | Yes | — | Review state of row_presence: INFERRED (seeded by migration 20261009_002 from time_column and a read-only measurement), REVIEWED or VERIFIED after a person confirms it. |
 
 ### Constraints
 
@@ -919,17 +947,17 @@ Compact reproducible evidence supporting material AI analysis claims.
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `evidence_id` | `uuid` | No | `gen_random_uuid()` | No column description has been recorded. |
-| `request_id` | `uuid` | No | — | No column description has been recorded. |
-| `step_id` | `bigint` | Yes | — | No column description has been recorded. |
-| `evidence_type` | `text` | No | — | No column description has been recorded. |
-| `claim` | `text` | No | — | No column description has been recorded. |
-| `compact_payload` | `jsonb` | No | — | No column description has been recorded. |
-| `query_hash` | `text` | Yes | — | No column description has been recorded. |
-| `source_tables` | `ARRAY` | No | `'{}'::text[]` | No column description has been recorded. |
-| `source_row_count` | `bigint` | Yes | — | No column description has been recorded. |
-| `analysis_ready_date` | `date` | Yes | — | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `evidence_id` | `uuid` | No | `gen_random_uuid()` | Physical evidence_id field for Analysis_Evidence. |
+| `request_id` | `uuid` | No | — | Physical request_id field for Analysis_Evidence. |
+| `step_id` | `bigint` | Yes | — | Physical step_id field for Analysis_Evidence. |
+| `evidence_type` | `text` | No | — | Physical evidence_type field for Analysis_Evidence. |
+| `claim` | `text` | No | — | Physical claim field for Analysis_Evidence. |
+| `compact_payload` | `jsonb` | No | — | Physical compact_payload field for Analysis_Evidence. |
+| `query_hash` | `text` | Yes | — | Physical query_hash field for Analysis_Evidence. |
+| `source_tables` | `ARRAY` | No | `'{}'::text[]` | Physical source_tables field for Analysis_Evidence. |
+| `source_row_count` | `bigint` | Yes | — | Physical source_row_count field for Analysis_Evidence. |
+| `analysis_ready_date` | `date` | Yes | — | Physical analysis_ready_date field for Analysis_Evidence. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Physical created_at field for Analysis_Evidence. |
 
 ### Constraints
 
@@ -950,7 +978,7 @@ Compact reproducible evidence supporting material AI analysis claims.
 
 ## Analysis_Model_Call
 
-One durable audit row per provider model call. Provider-returned reasoning is retained temporarily; concise decision summary and usage remain for long-term audit.
+Per-provider-call audit containing usage, progressive tool exposure, a concise decision summary, and temporarily retained provider-returned reasoning.
 
 ### Columns
 
@@ -1005,41 +1033,41 @@ One durable audit row per provider model call. Provider-returned reasoning is re
 
 ## Analysis_Request
 
-Durable AI analysis lifecycle, compact result, version snapshot, methodology metadata, and token usage.
+Durable AI analysis request lifecycle, structured result, progressive tool exposure state, and token usage.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `request_id` | `uuid` | No | `gen_random_uuid()` | No column description has been recorded. |
-| `user_reference` | `text` | Yes | — | No column description has been recorded. |
-| `question` | `text` | No | — | No column description has been recorded. |
-| `status` | `text` | No | `'PENDING'::text` | No column description has been recorded. |
-| `current_stage` | `text` | No | `'DISCOVERY'::text` | No column description has been recorded. |
-| `exposed_tool_families` | `ARRAY` | No | `ARRAY['META'::text, 'DISCOVERY'::text, 'QUALITY'::text]` | No column description has been recorded. |
-| `model` | `text` | Yes | — | No column description has been recorded. |
-| `openai_response_id` | `text` | Yes | — | No column description has been recorded. |
-| `analysis_ready_date` | `date` | Yes | — | No column description has been recorded. |
-| `features_used` | `ARRAY` | No | `'{}'::text[]` | No column description has been recorded. |
-| `input_tokens` | `integer` | No | `0` | Cumulative OpenAI input tokens across every model call in this request. |
-| `output_tokens` | `integer` | No | `0` | Cumulative OpenAI output tokens across every model call in this request. |
-| `total_tokens` | `integer` | No | `0` | Cumulative input plus output tokens across every model call in this request. |
-| `tool_result_tokens` | `integer` | No | `0` | No column description has been recorded. |
-| `history_tokens` | `integer` | No | `0` | No column description has been recorded. |
-| `feature_metadata_tokens` | `integer` | No | `0` | No column description has been recorded. |
-| `tool_call_count` | `integer` | No | `0` | No column description has been recorded. |
-| `tool_iteration_count` | `integer` | No | `0` | No column description has been recorded. |
-| `context_compaction_count` | `integer` | No | `0` | No column description has been recorded. |
-| `answer` | `jsonb` | Yes | — | No column description has been recorded. |
-| `recommended_next_analysis` | `jsonb` | No | `'[]'::jsonb` | No column description has been recorded. |
-| `error_message` | `text` | Yes | — | No column description has been recorded. |
-| `attempt_count` | `integer` | No | `0` | No column description has been recorded. |
-| `lease_owner` | `text` | Yes | — | No column description has been recorded. |
-| `lease_expires_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `started_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `completed_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `request_id` | `uuid` | No | `gen_random_uuid()` | Physical request_id field for Analysis_Request. |
+| `user_reference` | `text` | Yes | — | Physical user_reference field for Analysis_Request. |
+| `question` | `text` | No | — | Physical question field for Analysis_Request. |
+| `status` | `text` | No | `'PENDING'::text` | Physical status field for Analysis_Request. |
+| `current_stage` | `text` | No | `'DISCOVERY'::text` | Physical current_stage field for Analysis_Request. |
+| `exposed_tool_families` | `ARRAY` | No | `ARRAY['META'::text, 'DISCOVERY'::text, 'QUALITY'::text]` | Physical exposed_tool_families field for Analysis_Request. |
+| `model` | `text` | Yes | — | Physical model field for Analysis_Request. |
+| `openai_response_id` | `text` | Yes | — | Physical openai_response_id field for Analysis_Request. |
+| `analysis_ready_date` | `date` | Yes | — | Physical analysis_ready_date field for Analysis_Request. |
+| `features_used` | `ARRAY` | No | `'{}'::text[]` | Physical features_used field for Analysis_Request. |
+| `input_tokens` | `integer` | No | `0` | Physical input_tokens field for Analysis_Request. |
+| `output_tokens` | `integer` | No | `0` | Physical output_tokens field for Analysis_Request. |
+| `total_tokens` | `integer` | No | `0` | Physical total_tokens field for Analysis_Request. |
+| `tool_result_tokens` | `integer` | No | `0` | Physical tool_result_tokens field for Analysis_Request. |
+| `history_tokens` | `integer` | No | `0` | Physical history_tokens field for Analysis_Request. |
+| `feature_metadata_tokens` | `integer` | No | `0` | Physical feature_metadata_tokens field for Analysis_Request. |
+| `tool_call_count` | `integer` | No | `0` | Physical tool_call_count field for Analysis_Request. |
+| `tool_iteration_count` | `integer` | No | `0` | Physical tool_iteration_count field for Analysis_Request. |
+| `context_compaction_count` | `integer` | No | `0` | Physical context_compaction_count field for Analysis_Request. |
+| `answer` | `jsonb` | Yes | — | Physical answer field for Analysis_Request. |
+| `recommended_next_analysis` | `jsonb` | No | `'[]'::jsonb` | Physical recommended_next_analysis field for Analysis_Request. |
+| `error_message` | `text` | Yes | — | Physical error_message field for Analysis_Request. |
+| `attempt_count` | `integer` | No | `0` | Physical attempt_count field for Analysis_Request. |
+| `lease_owner` | `text` | Yes | — | Physical lease_owner field for Analysis_Request. |
+| `lease_expires_at` | `timestamp with time zone` | Yes | — | Physical lease_expires_at field for Analysis_Request. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Physical created_at field for Analysis_Request. |
+| `started_at` | `timestamp with time zone` | Yes | — | Physical started_at field for Analysis_Request. |
+| `completed_at` | `timestamp with time zone` | Yes | — | Physical completed_at field for Analysis_Request. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Physical updated_at field for Analysis_Request. |
 | `version_snapshot` | `jsonb` | No | `'{}'::jsonb` | Immutable completed-request snapshot of provider/model, orchestrator/prompt, Feature, tool, analytics methodology, query hash, and evidence versions. |
 | `methodology_metadata` | `jsonb` | No | `'{}'::jsonb` | Point-in-time universe, survivorship, historical metadata, signal availability, entry time, and look-ahead validation metadata. |
 | `current_context_tokens` | `integer` | No | `0` | Estimated active tokens sent on the latest model call; distinct from cumulative input usage. |
@@ -1066,30 +1094,30 @@ Durable AI analysis lifecycle, compact result, version snapshot, methodology met
 
 ## Analysis_Step_Log
 
-Audit record for each AI query, tool, compaction, or analytical step.
+Audit record for every query, tool, compaction, or analytical step in an AI request.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `step_id` | `bigint` | No | — | No column description has been recorded. |
-| `request_id` | `uuid` | No | — | No column description has been recorded. |
-| `step_number` | `integer` | No | — | No column description has been recorded. |
-| `stage` | `text` | No | — | No column description has been recorded. |
-| `tool_name` | `text` | Yes | — | No column description has been recorded. |
-| `sanitized_arguments` | `jsonb` | No | `'{}'::jsonb` | No column description has been recorded. |
-| `estimated_rows` | `bigint` | Yes | — | No column description has been recorded. |
-| `processed_rows` | `bigint` | Yes | — | No column description has been recorded. |
-| `returned_rows` | `bigint` | Yes | — | No column description has been recorded. |
-| `returned_bytes` | `bigint` | Yes | — | No column description has been recorded. |
-| `llm_result_tokens` | `integer` | Yes | — | No column description has been recorded. |
-| `duration_ms` | `integer` | Yes | — | No column description has been recorded. |
-| `query_hash` | `text` | Yes | — | No column description has been recorded. |
-| `evidence_references` | `jsonb` | No | `'[]'::jsonb` | No column description has been recorded. |
-| `result_summary` | `jsonb` | Yes | — | No column description has been recorded. |
-| `status` | `text` | No | — | No column description has been recorded. |
-| `error_message` | `text` | Yes | — | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `step_id` | `bigint` | No | — | Physical step_id field for Analysis_Step_Log. |
+| `request_id` | `uuid` | No | — | Physical request_id field for Analysis_Step_Log. |
+| `step_number` | `integer` | No | — | Physical step_number field for Analysis_Step_Log. |
+| `stage` | `text` | No | — | Physical stage field for Analysis_Step_Log. |
+| `tool_name` | `text` | Yes | — | Physical tool_name field for Analysis_Step_Log. |
+| `sanitized_arguments` | `jsonb` | No | `'{}'::jsonb` | Physical sanitized_arguments field for Analysis_Step_Log. |
+| `estimated_rows` | `bigint` | Yes | — | Physical estimated_rows field for Analysis_Step_Log. |
+| `processed_rows` | `bigint` | Yes | — | Physical processed_rows field for Analysis_Step_Log. |
+| `returned_rows` | `bigint` | Yes | — | Physical returned_rows field for Analysis_Step_Log. |
+| `returned_bytes` | `bigint` | Yes | — | Physical returned_bytes field for Analysis_Step_Log. |
+| `llm_result_tokens` | `integer` | Yes | — | Physical llm_result_tokens field for Analysis_Step_Log. |
+| `duration_ms` | `integer` | Yes | — | Physical duration_ms field for Analysis_Step_Log. |
+| `query_hash` | `text` | Yes | — | Physical query_hash field for Analysis_Step_Log. |
+| `evidence_references` | `jsonb` | No | `'[]'::jsonb` | Physical evidence_references field for Analysis_Step_Log. |
+| `result_summary` | `jsonb` | Yes | — | Physical result_summary field for Analysis_Step_Log. |
+| `status` | `text` | No | — | Physical status field for Analysis_Step_Log. |
+| `error_message` | `text` | Yes | — | Physical error_message field for Analysis_Step_Log. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Physical created_at field for Analysis_Step_Log. |
 
 ### Constraints
 
@@ -1111,30 +1139,30 @@ Audit record for each AI query, tool, compaction, or analytical step.
 
 ## Analytics_Dataset_Snapshot
 
-Metadata for immutable private bounded raw/Feature analytical input objects. Only the backend reads PostgreSQL; worker input objects expire quickly.
+Metadata and retention state for immutable bounded raw or Feature analytical input snapshots stored in a private Railway bucket.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `snapshot_id` | `uuid` | No | `gen_random_uuid()` | No column description has been recorded. |
-| `request_id` | `uuid` | No | — | No column description has been recorded. |
-| `object_key` | `text` | No | — | No column description has been recorded. |
-| `content_sha256` | `text` | No | — | SHA-256 of the exact compressed object; the worker verifies it before execution. |
-| `format` | `text` | No | — | No column description has been recorded. |
-| `row_count` | `integer` | No | — | No column description has been recorded. |
-| `column_count` | `integer` | No | — | No column description has been recorded. |
-| `byte_count` | `integer` | No | — | No column description has been recorded. |
-| `compressed_byte_count` | `integer` | No | — | No column description has been recorded. |
-| `schema_json` | `jsonb` | No | — | No column description has been recorded. |
-| `source_spec_json` | `jsonb` | No | — | Catalog-validated structured raw/Feature reads created by the backend; never model-written PostgreSQL SQL. |
-| `source_tables` | `ARRAY` | No | — | No column description has been recorded. |
-| `query_hashes` | `ARRAY` | No | — | No column description has been recorded. |
-| `analysis_ready_date` | `date` | Yes | — | No column description has been recorded. |
-| `status` | `text` | No | `'AVAILABLE'::text` | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `expires_at` | `timestamp with time zone` | No | — | No column description has been recorded. |
-| `deleted_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
+| `snapshot_id` | `uuid` | No | `gen_random_uuid()` | Immutable snapshot metadata identifier. |
+| `request_id` | `uuid` | No | — | Analysis request that owns this snapshot or job. |
+| `object_key` | `text` | No | — | Private bucket path; never returned to the model. |
+| `content_sha256` | `text` | No | — | Checksum of exact compressed input bytes. |
+| `format` | `text` | No | — | Serialized snapshot format and compression contract. |
+| `row_count` | `integer` | No | — | Total observations across all snapshot datasets. |
+| `column_count` | `integer` | No | — | Sum of selected columns across snapshot datasets. |
+| `byte_count` | `integer` | No | — | Uncompressed serialized input size in bytes. |
+| `compressed_byte_count` | `integer` | No | — | Private object size in bytes. |
+| `schema_json` | `jsonb` | No | — | Dataset names and their exact ordered column names. |
+| `source_spec_json` | `jsonb` | No | — | Structured catalog-validated Feature query requests used to build the snapshot. |
+| `source_tables` | `ARRAY` | No | — | Exact Feature tables contributing observations. |
+| `query_hashes` | `ARRAY` | No | — | Reproducible hashes of controlled PostgreSQL reads. |
+| `analysis_ready_date` | `date` | Yes | — | Common safe source date supplied for this analysis. |
+| `status` | `text` | No | `'AVAILABLE'::text` | Current lifecycle state under the table-specific status constraint. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Row creation time. |
+| `expires_at` | `timestamp with time zone` | No | — | Deadline after which the private input object must be removed. |
+| `deleted_at` | `timestamp with time zone` | Yes | — | Time the private input object was confirmed deleted. |
 
 ### Constraints
 
@@ -1163,39 +1191,39 @@ Metadata for immutable private bounded raw/Feature analytical input objects. Onl
 
 ## Analytics_Job
 
-Durable isolated-worker queue. execution_class prevents a query-sandbox credential from claiming statistical jobs and vice versa.
+Durable queue, lease, resource contract, result, and failure audit for separately authenticated query-sandbox and statistical-validation workers.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `job_id` | `uuid` | No | `gen_random_uuid()` | No column description has been recorded. |
-| `request_id` | `uuid` | No | — | No column description has been recorded. |
-| `snapshot_id` | `uuid` | No | — | No column description has been recorded. |
-| `job_label` | `text` | No | — | No column description has been recorded. |
-| `purpose` | `text` | No | — | No column description has been recorded. |
-| `method` | `text` | No | — | No column description has been recorded. |
-| `analysis_spec_json` | `jsonb` | No | — | Worker computation specification. v1 contains one allowlisted SELECT/WITH DuckDB statement over snapshot dataset names only. |
-| `status` | `text` | No | `'PENDING'::text` | No column description has been recorded. |
-| `attempt_count` | `smallint` | No | `0` | No column description has been recorded. |
-| `max_attempts` | `smallint` | No | `3` | No column description has been recorded. |
-| `worker_id` | `text` | Yes | — | No column description has been recorded. |
-| `lease_token` | `uuid` | Yes | — | No column description has been recorded. |
-| `lease_expires_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `max_runtime_seconds` | `integer` | No | — | No column description has been recorded. |
-| `max_memory_mb` | `integer` | No | — | No column description has been recorded. |
-| `max_result_rows` | `integer` | No | — | No column description has been recorded. |
-| `max_result_bytes` | `integer` | No | — | No column description has been recorded. |
-| `result_json` | `jsonb` | Yes | — | Compact bounded analytical output; the full snapshot is never copied here or sent to the LLM. |
-| `evidence_id` | `uuid` | Yes | — | No column description has been recorded. |
-| `error_class` | `text` | Yes | — | No column description has been recorded. |
-| `error_message` | `text` | Yes | — | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `started_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `completed_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `result_expires_at` | `timestamp with time zone` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `execution_class` | `text` | No | `'STATISTICAL_VALIDATION'::text` | Physical worker boundary. QUERY_SANDBOX and STATISTICAL_VALIDATION use different credentials and claim endpoints. |
+| `job_id` | `uuid` | No | `gen_random_uuid()` | Generic analytics job identifier. |
+| `request_id` | `uuid` | No | — | Analysis request that owns this snapshot or job. |
+| `snapshot_id` | `uuid` | No | — | Immutable snapshot metadata identifier. |
+| `job_label` | `text` | No | — | Stable per-request idempotency label chosen for one analytical hypothesis. |
+| `purpose` | `text` | No | — | Human-readable analytical question addressed by the job. |
+| `method` | `text` | No | — | Versioned safe execution surface; v1 is SAFE_DUCKDB_SQL. |
+| `analysis_spec_json` | `jsonb` | No | — | Bounded worker computation over named snapshot datasets. |
+| `status` | `text` | No | `'PENDING'::text` | Current lifecycle state under the table-specific status constraint. |
+| `attempt_count` | `smallint` | No | `0` | Number of successful worker lease claims. |
+| `max_attempts` | `smallint` | No | `3` | Retry ceiling after expired worker leases. |
+| `worker_id` | `text` | Yes | — | Ephemeral identifier of the worker holding the lease. |
+| `lease_token` | `uuid` | Yes | — | Random token required to complete or fail the current lease. |
+| `lease_expires_at` | `timestamp with time zone` | Yes | — | Expiry of the current worker lease. |
+| `max_runtime_seconds` | `integer` | No | — | Per-job worker execution timeout copied from configuration. |
+| `max_memory_mb` | `integer` | No | — | Per-job DuckDB memory ceiling copied from configuration. |
+| `max_result_rows` | `integer` | No | — | Maximum analytical result rows accepted by the backend. |
+| `max_result_bytes` | `integer` | No | — | Maximum serialized analytical result bytes accepted by the backend. |
+| `result_json` | `jsonb` | Yes | — | Compact successful result; never the full analytical input. |
+| `evidence_id` | `uuid` | Yes | — | Evidence record automatically created for a successful analytical job. |
+| `error_class` | `text` | Yes | — | Bounded machine-readable failure category. |
+| `error_message` | `text` | Yes | — | Bounded failure explanation without credentials or raw snapshot content. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Row creation time. |
+| `started_at` | `timestamp with time zone` | Yes | — | Time of first worker lease. |
+| `completed_at` | `timestamp with time zone` | Yes | — | Terminal completion, failure or cancellation time. |
+| `result_expires_at` | `timestamp with time zone` | No | — | Retention deadline for compact job result detail. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Last lifecycle update time. |
+| `execution_class` | `text` | No | `'STATISTICAL_VALIDATION'::text` | Physical execution boundary selecting the separately authenticated query sandbox or statistical validation worker. |
 
 ### Constraints
 
@@ -1300,34 +1328,34 @@ Tracks the data freshness, change time, and update pattern of each table.
 
 ## Feature04_Calculation_Log
 
-Immutable Feature04 worker attempt history with per-group success/failure and retry lineage.
+Immutable Feature04 calculation attempt audit.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `id` | `bigint` | No | — | No column description has been recorded. |
-| `ticker` | `text` | No | — | No column description has been recorded. |
-| `timeframe` | `text` | No | — | No column description has been recorded. |
-| `source_generation` | `bigint` | No | — | No column description has been recorded. |
-| `work_revision` | `bigint` | No | — | No column description has been recorded. |
-| `retry_request_id` | `uuid` | Yes | — | No column description has been recorded. |
-| `requested_columns` | `ARRAY` | Yes | — | No column description has been recorded. |
-| `successful_columns` | `ARRAY` | No | `'{}'::text[]` | No column description has been recorded. |
-| `failed_columns` | `ARRAY` | No | `'{}'::text[]` | No column description has been recorded. |
-| `group_outcomes` | `jsonb` | No | `'{}'::jsonb` | No column description has been recorded. |
-| `result` | `text` | No | — | No column description has been recorded. |
-| `source_start` | `date` | Yes | — | No column description has been recorded. |
-| `source_end` | `date` | Yes | — | No column description has been recorded. |
-| `source_rows` | `integer` | Yes | — | No column description has been recorded. |
-| `source_sha256` | `text` | Yes | — | No column description has been recorded. |
-| `changed_rows` | `integer` | Yes | — | No column description has been recorded. |
-| `calculation_version` | `text` | No | — | No column description has been recorded. |
-| `started_at` | `timestamp with time zone` | No | — | No column description has been recorded. |
-| `finished_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `error_code` | `text` | Yes | — | No column description has been recorded. |
-| `detail` | `text` | Yes | — | No column description has been recorded. |
-| `asset_type` | `text` | No | — | No column description has been recorded. |
+| `id` | `bigint` | No | — | Operational id field for Feature04_Calculation_Log. |
+| `ticker` | `text` | No | — | Operational ticker field for Feature04_Calculation_Log. |
+| `timeframe` | `text` | No | — | Operational timeframe field for Feature04_Calculation_Log. |
+| `source_generation` | `bigint` | No | — | Operational source generation field for Feature04_Calculation_Log. |
+| `work_revision` | `bigint` | No | — | Operational work revision field for Feature04_Calculation_Log. |
+| `retry_request_id` | `uuid` | Yes | — | Operational retry request id field for Feature04_Calculation_Log. |
+| `requested_columns` | `ARRAY` | Yes | — | Operational requested columns field for Feature04_Calculation_Log. |
+| `successful_columns` | `ARRAY` | No | `'{}'::text[]` | Operational successful columns field for Feature04_Calculation_Log. |
+| `failed_columns` | `ARRAY` | No | `'{}'::text[]` | Operational failed columns field for Feature04_Calculation_Log. |
+| `group_outcomes` | `jsonb` | No | `'{}'::jsonb` | Operational group outcomes field for Feature04_Calculation_Log. |
+| `result` | `text` | No | — | Operational result field for Feature04_Calculation_Log. |
+| `source_start` | `date` | Yes | — | Operational source start field for Feature04_Calculation_Log. |
+| `source_end` | `date` | Yes | — | Operational source end field for Feature04_Calculation_Log. |
+| `source_rows` | `integer` | Yes | — | Operational source rows field for Feature04_Calculation_Log. |
+| `source_sha256` | `text` | Yes | — | Operational source sha256 field for Feature04_Calculation_Log. |
+| `changed_rows` | `integer` | Yes | — | Operational changed rows field for Feature04_Calculation_Log. |
+| `calculation_version` | `text` | No | — | Operational calculation version field for Feature04_Calculation_Log. |
+| `started_at` | `timestamp with time zone` | No | — | Operational started at field for Feature04_Calculation_Log. |
+| `finished_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational finished at field for Feature04_Calculation_Log. |
+| `error_code` | `text` | Yes | — | Operational error code field for Feature04_Calculation_Log. |
+| `detail` | `text` | Yes | — | Operational detail field for Feature04_Calculation_Log. |
+| `asset_type` | `text` | No | — | Universe-derived asset class: equity from IDX_Stock_Universe; bonds from Universe_Fixed_income. |
 
 ### Constraints
 
@@ -1352,33 +1380,33 @@ Immutable Feature04 worker attempt history with per-group success/failure and re
 
 ## Feature04_Calculation_Queue
 
-Durable coalesced Feature04 work per ticker/timeframe; generation tracks source change and work_revision tracks retry scope.
+Durable coalesced Feature04 work and lease state.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `ticker` | `text` | No | — | No column description has been recorded. |
-| `timeframe` | `text` | No | `'Daily'::text` | No column description has been recorded. |
-| `dirty_from_date` | `date` | No | — | No column description has been recorded. |
-| `requested_generation` | `bigint` | No | `1` | No column description has been recorded. |
-| `completed_generation` | `bigint` | No | `0` | No column description has been recorded. |
-| `work_revision` | `bigint` | No | `1` | No column description has been recorded. |
-| `requested_columns` | `ARRAY` | Yes | — | No column description has been recorded. |
-| `origin_execution_id` | `text` | Yes | — | No column description has been recorded. |
-| `status` | `text` | No | `'PENDING'::text` | No column description has been recorded. |
-| `attempt_count` | `bigint` | No | `0` | No column description has been recorded. |
-| `source_attempt_count` | `integer` | No | `0` | No column description has been recorded. |
-| `next_attempt_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `claimed_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `claim_token` | `uuid` | Yes | — | No column description has been recorded. |
-| `claim_expires_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `last_error_code` | `text` | Yes | — | No column description has been recorded. |
-| `last_error` | `text` | Yes | — | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `completed_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `asset_type` | `text` | No | — | No column description has been recorded. |
+| `ticker` | `text` | No | — | Operational ticker field for Feature04_Calculation_Queue. |
+| `timeframe` | `text` | No | `'Daily'::text` | Operational timeframe field for Feature04_Calculation_Queue. |
+| `dirty_from_date` | `date` | No | — | Operational dirty from date field for Feature04_Calculation_Queue. |
+| `requested_generation` | `bigint` | No | `1` | Operational requested generation field for Feature04_Calculation_Queue. |
+| `completed_generation` | `bigint` | No | `0` | Operational completed generation field for Feature04_Calculation_Queue. |
+| `work_revision` | `bigint` | No | `1` | Operational work revision field for Feature04_Calculation_Queue. |
+| `requested_columns` | `ARRAY` | Yes | — | Operational requested columns field for Feature04_Calculation_Queue. |
+| `origin_execution_id` | `text` | Yes | — | Operational origin execution id field for Feature04_Calculation_Queue. |
+| `status` | `text` | No | `'PENDING'::text` | Operational status field for Feature04_Calculation_Queue. |
+| `attempt_count` | `bigint` | No | `0` | Operational attempt count field for Feature04_Calculation_Queue. |
+| `source_attempt_count` | `integer` | No | `0` | Operational source attempt count field for Feature04_Calculation_Queue. |
+| `next_attempt_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational next attempt at field for Feature04_Calculation_Queue. |
+| `claimed_at` | `timestamp with time zone` | Yes | — | Operational claimed at field for Feature04_Calculation_Queue. |
+| `claim_token` | `uuid` | Yes | — | Operational claim token field for Feature04_Calculation_Queue. |
+| `claim_expires_at` | `timestamp with time zone` | Yes | — | Operational claim expires at field for Feature04_Calculation_Queue. |
+| `last_error_code` | `text` | Yes | — | Operational last error code field for Feature04_Calculation_Queue. |
+| `last_error` | `text` | Yes | — | Operational last error field for Feature04_Calculation_Queue. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational created at field for Feature04_Calculation_Queue. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational updated at field for Feature04_Calculation_Queue. |
+| `completed_at` | `timestamp with time zone` | Yes | — | Operational completed at field for Feature04_Calculation_Queue. |
+| `asset_type` | `text` | No | — | Universe-derived asset class: equity from IDX_Stock_Universe; bonds from Universe_Fixed_income. |
 
 ### Constraints
 
@@ -1404,29 +1432,29 @@ Durable coalesced Feature04 work per ticker/timeframe; generation tracks source 
 
 ## Feature04_Column_Status
 
-Current readiness/failure state for each Feature04 output column per ticker; expected NULL is a successful availability outcome.
+Per-ticker per-output Feature04 readiness and failure state.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `ticker` | `text` | No | — | No column description has been recorded. |
-| `timeframe` | `text` | No | `'Daily'::text` | No column description has been recorded. |
-| `feature_column` | `text` | No | — | No column description has been recorded. |
-| `requested_generation` | `bigint` | No | `0` | No column description has been recorded. |
-| `completed_generation` | `bigint` | No | `0` | No column description has been recorded. |
-| `calculation_version` | `text` | No | — | No column description has been recorded. |
-| `status` | `text` | No | — | No column description has been recorded. |
-| `dirty_from_date` | `date` | Yes | — | No column description has been recorded. |
-| `validated_through` | `date` | Yes | — | No column description has been recorded. |
-| `latest_value_available` | `boolean` | Yes | — | No column description has been recorded. |
-| `null_reason` | `text` | Yes | — | No column description has been recorded. |
-| `last_attempt_id` | `bigint` | Yes | — | No column description has been recorded. |
-| `last_error_code` | `text` | Yes | — | No column description has been recorded. |
-| `last_error` | `text` | Yes | — | No column description has been recorded. |
-| `last_calculated_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `asset_type` | `text` | No | — | No column description has been recorded. |
+| `ticker` | `text` | No | — | Operational ticker field for Feature04_Column_Status. |
+| `timeframe` | `text` | No | `'Daily'::text` | Operational timeframe field for Feature04_Column_Status. |
+| `feature_column` | `text` | No | — | Operational feature column field for Feature04_Column_Status. |
+| `requested_generation` | `bigint` | No | `0` | Operational requested generation field for Feature04_Column_Status. |
+| `completed_generation` | `bigint` | No | `0` | Operational completed generation field for Feature04_Column_Status. |
+| `calculation_version` | `text` | No | — | Operational calculation version field for Feature04_Column_Status. |
+| `status` | `text` | No | — | Operational status field for Feature04_Column_Status. |
+| `dirty_from_date` | `date` | Yes | — | Operational dirty from date field for Feature04_Column_Status. |
+| `validated_through` | `date` | Yes | — | Operational validated through field for Feature04_Column_Status. |
+| `latest_value_available` | `boolean` | Yes | — | Operational latest value available field for Feature04_Column_Status. |
+| `null_reason` | `text` | Yes | — | Operational null reason field for Feature04_Column_Status. |
+| `last_attempt_id` | `bigint` | Yes | — | Operational last attempt id field for Feature04_Column_Status. |
+| `last_error_code` | `text` | Yes | — | Operational last error code field for Feature04_Column_Status. |
+| `last_error` | `text` | Yes | — | Operational last error field for Feature04_Column_Status. |
+| `last_calculated_at` | `timestamp with time zone` | Yes | — | Operational last calculated at field for Feature04_Column_Status. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational updated at field for Feature04_Column_Status. |
+| `asset_type` | `text` | No | — | Universe-derived asset class: equity from IDX_Stock_Universe; bonds from Universe_Fixed_income. |
 
 ### Constraints
 
@@ -1450,25 +1478,25 @@ Current readiness/failure state for each Feature04 output column per ticker; exp
 
 ## Feature04_Notification_Outbox
 
-Durable Feature04 completion delivery request; calculation success never depends on Telegram availability.
+Durable Feature04 completion-notification work.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `event_id` | `uuid` | No | — | No column description has been recorded. |
-| `execution_id` | `text` | No | — | No column description has been recorded. |
-| `notification_type` | `text` | No | `'COMPLETED'::text` | No column description has been recorded. |
-| `status` | `text` | No | `'PENDING'::text` | No column description has been recorded. |
-| `attempt_count` | `integer` | No | `0` | No column description has been recorded. |
-| `next_attempt_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `claimed_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `claim_token` | `uuid` | Yes | — | No column description has been recorded. |
-| `claim_expires_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `sent_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `last_error` | `text` | Yes | — | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `event_id` | `uuid` | No | — | Operational event id field for Feature04_Notification_Outbox. |
+| `execution_id` | `text` | No | — | Operational execution id field for Feature04_Notification_Outbox. |
+| `notification_type` | `text` | No | `'COMPLETED'::text` | Operational notification type field for Feature04_Notification_Outbox. |
+| `status` | `text` | No | `'PENDING'::text` | Operational status field for Feature04_Notification_Outbox. |
+| `attempt_count` | `integer` | No | `0` | Operational attempt count field for Feature04_Notification_Outbox. |
+| `next_attempt_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational next attempt at field for Feature04_Notification_Outbox. |
+| `claimed_at` | `timestamp with time zone` | Yes | — | Operational claimed at field for Feature04_Notification_Outbox. |
+| `claim_token` | `uuid` | Yes | — | Operational claim token field for Feature04_Notification_Outbox. |
+| `claim_expires_at` | `timestamp with time zone` | Yes | — | Operational claim expires at field for Feature04_Notification_Outbox. |
+| `sent_at` | `timestamp with time zone` | Yes | — | Operational sent at field for Feature04_Notification_Outbox. |
+| `last_error` | `text` | Yes | — | Operational last error field for Feature04_Notification_Outbox. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational created at field for Feature04_Notification_Outbox. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational updated at field for Feature04_Notification_Outbox. |
 
 ### Constraints
 
@@ -1491,28 +1519,28 @@ Durable Feature04 completion delivery request; calculation success never depends
 
 ## Feature04_Retry_Request
 
-Audited owner Telegram retry request for one failed ticker or failed indicator bundle.
+Audited Telegram failure-only retry request.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `request_id` | `uuid` | No | — | No column description has been recorded. |
-| `telegram_update_id` | `bigint` | Yes | — | No column description has been recorded. |
-| `chat_id` | `bigint` | Yes | — | No column description has been recorded. |
-| `request_scope` | `text` | No | — | No column description has been recorded. |
-| `source_execution_id` | `text` | Yes | — | No column description has been recorded. |
-| `ticker` | `text` | Yes | — | No column description has been recorded. |
-| `requested_columns` | `ARRAY` | Yes | — | No column description has been recorded. |
-| `source_generation` | `bigint` | No | — | No column description has been recorded. |
-| `work_revision` | `bigint` | No | — | No column description has been recorded. |
-| `status` | `text` | No | `'PENDING'::text` | No column description has been recorded. |
-| `child_execution_id` | `text` | No | — | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `started_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `finished_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `last_error` | `text` | Yes | — | No column description has been recorded. |
-| `asset_type` | `text` | Yes | — | No column description has been recorded. |
+| `request_id` | `uuid` | No | — | Operational request id field for Feature04_Retry_Request. |
+| `telegram_update_id` | `bigint` | Yes | — | Operational telegram update id field for Feature04_Retry_Request. |
+| `chat_id` | `bigint` | Yes | — | Operational chat id field for Feature04_Retry_Request. |
+| `request_scope` | `text` | No | — | Operational request scope field for Feature04_Retry_Request. |
+| `source_execution_id` | `text` | Yes | — | Operational source execution id field for Feature04_Retry_Request. |
+| `ticker` | `text` | Yes | — | Operational ticker field for Feature04_Retry_Request. |
+| `requested_columns` | `ARRAY` | Yes | — | Operational requested columns field for Feature04_Retry_Request. |
+| `source_generation` | `bigint` | No | — | Operational source generation field for Feature04_Retry_Request. |
+| `work_revision` | `bigint` | No | — | Operational work revision field for Feature04_Retry_Request. |
+| `status` | `text` | No | `'PENDING'::text` | Operational status field for Feature04_Retry_Request. |
+| `child_execution_id` | `text` | No | — | Operational child execution id field for Feature04_Retry_Request. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational created at field for Feature04_Retry_Request. |
+| `started_at` | `timestamp with time zone` | Yes | — | Operational started at field for Feature04_Retry_Request. |
+| `finished_at` | `timestamp with time zone` | Yes | — | Operational finished at field for Feature04_Retry_Request. |
+| `last_error` | `text` | Yes | — | Operational last error field for Feature04_Retry_Request. |
+| `asset_type` | `text` | Yes | — | Universe-derived asset class: equity from IDX_Stock_Universe; bonds from Universe_Fixed_income. |
 
 ### Constraints
 
@@ -1537,41 +1565,41 @@ Audited owner Telegram retry request for one failed ticker or failed indicator b
 
 ## Feature_01_Stock_Daily
 
-Daily ticker-level price, return, volatility, volume, and price-position features derived from IDX prices and the current stock universe.
+Daily per-ticker price, return, volatility, volume, and drawdown features.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `date` | `date` | No | — | Trading observation date from Price_Stock_Indonesia_IDX. |
-| `ticker` | `text` | No | — | IDX ticker; feature grain is one row per ticker and trading date. |
-| `close` | `numeric` | No | — | Source closing price. |
-| `volume` | `numeric` | No | — | Source trading volume. |
-| `sector` | `text` | No | — | Current Sector value inherited exactly from IDX_Stock_Universe. |
-| `industry` | `text` | No | — | Current Industry value inherited exactly from IDX_Stock_Universe. |
-| `close_1d_ago` | `numeric` | Yes | — | Closing price one prior trading observation ago. |
-| `close_5d_ago` | `numeric` | Yes | — | Closing price five prior trading observations ago. |
-| `close_20d_ago` | `numeric` | Yes | — | Closing price twenty prior trading observations ago. |
-| `close_60d_ago` | `numeric` | Yes | — | Closing price sixty prior trading observations ago. |
-| `return_1d_pct` | `double precision` | Yes | — | Percent close return versus one prior trading observation. |
-| `return_5d_pct` | `double precision` | Yes | — | Percent close return versus five prior trading observations. |
-| `return_20d_pct` | `double precision` | Yes | — | Percent close return versus twenty prior trading observations. |
-| `return_60d_pct` | `double precision` | Yes | — | Percent close return versus sixty prior trading observations. |
-| `abs_return_1d_pct` | `double precision` | Yes | — | Absolute one-observation percent return. |
-| `volatility_5d_ann_pct` | `double precision` | Yes | — | Annualized sample standard deviation of five daily decimal returns, in percent. |
-| `volatility_20d_ann_pct` | `double precision` | Yes | — | Annualized sample standard deviation of twenty daily decimal returns, in percent. |
-| `volatility_60d_ann_pct` | `double precision` | Yes | — | Annualized sample standard deviation of sixty daily decimal returns, in percent. |
-| `volatility_5d_change_pct` | `double precision` | Yes | — | Percent change versus the five-day volatility from five observations ago. |
-| `volatility_20d_change_pct` | `double precision` | Yes | — | Percent change versus the twenty-day volatility from twenty observations ago. |
-| `volatility_60d_change_pct` | `double precision` | Yes | — | Percent change versus the sixty-day volatility from sixty observations ago. |
-| `volume_avg_20d` | `double precision` | Yes | — | Average volume over a complete twenty-observation window. |
-| `volume_std_20d` | `double precision` | Yes | — | Sample standard deviation of volume over a complete twenty-observation window. |
-| `volume_ratio_20d` | `double precision` | Yes | — | Current volume divided by the complete twenty-observation average. |
-| `volume_zscore_20d` | `double precision` | Yes | — | Current volume deviation from the twenty-observation average in standard deviations. |
-| `high_20d` | `numeric` | Yes | — | Maximum close over a complete twenty-observation window. |
-| `high_60d` | `numeric` | Yes | — | Maximum close over a complete sixty-observation window. |
-| `drawdown_20d_pct` | `double precision` | Yes | — | Percent close position below the complete twenty-observation maximum close. |
-| `drawdown_60d_pct` | `double precision` | Yes | — | Percent close position below the complete sixty-observation maximum close. |
+| `date` | `date` | No | — | Trading date of the source candle represented by the feature row. |
+| `ticker` | `text` | No | — | Exact IDX ticker identifying the security represented by the feature row. |
+| `close` | `numeric` | No | — | Closing price for the ticker on the trading date. |
+| `volume` | `numeric` | No | — | Trading volume reported for the ticker on the trading date. |
+| `sector` | `text` | No | — | Current Sector classification for the ticker; it is not point-in-time historical classification. |
+| `industry` | `text` | No | — | Current Industry classification for the ticker; it is not point-in-time historical classification. |
+| `close_1d_ago` | `numeric` | Yes | — | Closing price one prior valid trading observation earlier for the same ticker. |
+| `close_5d_ago` | `numeric` | Yes | — | Closing price five prior valid trading observations earlier for the same ticker. |
+| `close_20d_ago` | `numeric` | Yes | — | Closing price twenty prior valid trading observations earlier for the same ticker. |
+| `close_60d_ago` | `numeric` | Yes | — | Closing price sixty prior valid trading observations earlier for the same ticker. |
+| `return_1d_pct` | `double precision` | Yes | — | Percentage price return between the current close and the close one valid trading observation earlier for the same ticker. |
+| `return_5d_pct` | `double precision` | Yes | — | Percentage price return between the current close and the close five valid trading observations earlier for the same ticker. |
+| `return_20d_pct` | `double precision` | Yes | — | Percentage price return between the current close and the close twenty valid trading observations earlier for the same ticker. |
+| `return_60d_pct` | `double precision` | Yes | — | Percentage price return between the current close and the close sixty valid trading observations earlier for the same ticker. |
+| `abs_return_1d_pct` | `double precision` | Yes | — | Absolute magnitude of the one-trading-observation percentage return, without direction. |
+| `volatility_5d_ann_pct` | `double precision` | Yes | — | Annualized sample standard deviation of the latest five valid daily decimal returns for the ticker, expressed as percent. |
+| `volatility_20d_ann_pct` | `double precision` | Yes | — | Annualized sample standard deviation of the latest twenty valid daily decimal returns for the ticker, expressed as percent. |
+| `volatility_60d_ann_pct` | `double precision` | Yes | — | Annualized sample standard deviation of the latest sixty valid daily decimal returns for the ticker, expressed as percent. |
+| `volatility_5d_change_pct` | `double precision` | Yes | — | Percentage change in annualized five-return volatility versus its value five valid trading observations earlier. |
+| `volatility_20d_change_pct` | `double precision` | Yes | — | Percentage change in annualized twenty-return volatility versus its value twenty valid trading observations earlier. |
+| `volatility_60d_change_pct` | `double precision` | Yes | — | Percentage change in annualized sixty-return volatility versus its value sixty valid trading observations earlier. |
+| `volume_avg_20d` | `double precision` | Yes | — | Average source trading volume over the latest twenty valid trading observations for the ticker. |
+| `volume_std_20d` | `double precision` | Yes | — | Sample standard deviation of source trading volume over the latest twenty valid trading observations for the ticker. |
+| `volume_ratio_20d` | `double precision` | Yes | — | Current trading volume divided by the average volume of the latest twenty valid trading observations. |
+| `volume_zscore_20d` | `double precision` | Yes | — | Current trading-volume deviation from its latest twenty-observation average, measured in sample standard deviations. |
+| `high_20d` | `numeric` | Yes | — | Highest closing price among the latest twenty valid trading observations for the ticker. |
+| `high_60d` | `numeric` | Yes | — | Highest closing price among the latest sixty valid trading observations for the ticker. |
+| `drawdown_20d_pct` | `double precision` | Yes | — | Percentage position of the current close below the highest close in the latest twenty valid trading observations. |
+| `drawdown_60d_pct` | `double precision` | Yes | — | Percentage position of the current close below the highest close in the latest sixty valid trading observations. |
 
 ### Constraints
 
@@ -1591,7 +1619,7 @@ Daily ticker-level price, return, volatility, volume, and price-position feature
 
 ## Feature_02_Broker_Rolling
 
-Canonical Feature 02 v2: one source ticker, broker, investor type, board and transaction date per row. Investor type is source investor identity, not broker domicile.
+Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata.
 
 ### Columns
 
@@ -1605,10 +1633,10 @@ Canonical Feature 02 v2: one source ticker, broker, investor type, board and tra
 | `broker_classification` | `text` | Yes | — | Current broker usage classification from IDX_Broker_Profile; metadata only and not point-in-time history. |
 | `buy_value_1d` | `numeric` | No | — | Source Buy Value for this date, ticker, broker, investor type and board. |
 | `sell_value_1d` | `numeric` | No | — | Source Sell Value for this date, ticker, broker, investor type and board. |
-| `net_value_1d` | `numeric` | No | — | buy_value_1d minus sell_value_1d for the same investor type and board. |
+| `net_value_1d` | `numeric` | No | — | Buy value minus sell value for this date, ticker, broker, source Investor Type and board. Positive means net buying; negative means net selling. |
 | `buy_lots_1d` | `numeric` | No | — | Source Buy Lots for this date, ticker, broker, investor type and board. |
 | `sell_lots_1d` | `numeric` | No | — | Source Sell Lots for this date, ticker, broker, investor type and board. |
-| `net_lots_1d` | `numeric` | No | — | buy_lots_1d minus sell_lots_1d for the same investor type and board. |
+| `net_lots_1d` | `numeric` | No | — | Buy lots minus sell lots for this date, ticker, broker, source Investor Type and board. Positive means net buying; negative means net selling. |
 | `net_value_5d` | `numeric` | Yes | — | Sum of net_value_1d over 5 ticker transaction dates within broker, investor type and board; missing activity contributes zero. |
 | `net_value_20d` | `numeric` | Yes | — | Sum of net_value_1d over 20 ticker transaction dates within broker, investor type and board; missing activity contributes zero. |
 | `net_value_60d` | `numeric` | Yes | — | Sum of net_value_1d over 60 ticker transaction dates within broker, investor type and board; missing activity contributes zero. |
@@ -1658,7 +1686,7 @@ Canonical Feature 02 v2: one source ticker, broker, investor type, board and tra
 
 ## Feature_03_Stock_Broker_Daily
 
-Feature 03 v2 stock-level broker structure by ticker and board. Domestic/Foreign flows use source Investor Type; broker-profile classifications are current metadata. Boards never mix.
+Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate.
 
 ### Columns
 
@@ -1673,8 +1701,8 @@ Feature 03 v2 stock-level broker structure by ticker and board. Domestic/Foreign
 | `net_buy_broker_count` | `smallint` | No | — | Brokers whose aggregated daily net value is positive. |
 | `net_sell_broker_count` | `smallint` | No | — | Brokers whose aggregated daily net value is negative. |
 | `net_buy_broker_ratio` | `double precision` | Yes | — | net_buy_broker_count divided by active_broker_count; null when no broker is active. |
-| `foreign_net_value` | `numeric` | No | — | Sum of Feature 02 net_value_1d where source investor_type is Foreign, across all brokers for this date, ticker and board. It is investor identity, not broker domicile. |
-| `domestic_net_value` | `numeric` | No | — | Sum of Feature 02 net_value_1d where source investor_type is Domestic, across all brokers for this date, ticker and board. It is investor identity, not broker domicile. |
+| `foreign_net_value` | `numeric` | No | — | Sum of daily net value for source Foreign Investor Type across all brokers. Investor Type identifies the source investor, not broker domicile. |
+| `domestic_net_value` | `numeric` | No | — | Sum of daily net value for source Domestic Investor Type across all brokers. Investor Type identifies the source investor, not broker domicile. |
 | `institutional_net_value` | `numeric` | No | — | Sum of daily broker net value where current broker_classification is Institutional-heavy. |
 | `retail_net_value` | `numeric` | No | — | Sum of daily broker net value where current broker_classification is Retail-heavy. |
 | `mixed_net_value` | `numeric` | No | — | Sum of daily broker net value where current broker_classification is Mixed. |
@@ -1710,69 +1738,69 @@ Feature 03 v2 stock-level broker structure by ticker and board. Domestic/Foreign
 
 ## Feature_04_Technical_Indicator
 
-57-column cross-asset Daily technical Feature04. Identity is asset_type/ticker/trade_date/timeframe; close is copied from the exact classified source row and the other measures are calculated per asset/ticker history.
+Cross-asset Daily closing price and causal technical indicators from universe-classified equity or bonds OHLC.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `ticker` | `text` | No | — | IDX security code copied from source ticker. ticker |
-| `trade_date` | `date` | No | — | Trading observation date copied from source date. date |
-| `timeframe` | `text` | No | — | Verified daily timeframe copied exactly from source. timeframe = Daily |
-| `sma_20` | `double precision` | Yes | — | Unweighted mean of 20 observed closes. TA-Lib SMA(close,20) |
-| `sma_50` | `double precision` | Yes | — | Unweighted mean of 50 observed closes. TA-Lib SMA(close,50) |
-| `ema_12` | `double precision` | Yes | — | Fast exponentially weighted close; alpha=2/13. Seed=SMA(first12 closes); EMA[t]=EMA[t-1]+2/13*(close[t]-EMA[t-1]) |
-| `ema_26` | `double precision` | Yes | — | Slow exponentially weighted close; alpha=2/27. Seed=SMA(first26 closes); EMA[t]=EMA[t-1]+2/27*(close[t]-EMA[t-1]) |
-| `rsi_14` | `double precision` | Yes | — | Wilder gain/loss oscillator on 14 consecutive close changes, scaled 0–100. TA-Lib RSI(close,14): SMA seed of 14 gains/losses; RMA alpha=1/14; 100*gain/(gain+loss); both-zero uses native 0 |
-| `macd` | `double precision` | Yes | — | Difference of the stored fast and slow EMA price baselines. ema_12 - ema_26; independently SMA-seeded EMAs, not TA-Lib MACD internal fast reseeding |
-| `macd_signal` | `double precision` | Yes | — | Nine-period EMA of valid MACD line observations. Seed=SMA(first9 valid macd); signal[t]=signal[t-1]+0.2*(macd[t]-signal[t-1]) |
-| `macd_histogram` | `double precision` | Yes | — | Difference between MACD line and its nine-period signal. macd - macd_signal |
-| `atr_14` | `double precision` | Yes | — | Wilder average of 14 true ranges using prior observed close. TA-Lib ATR(high,low,close,14): TR=max(high-low,abs(high-prev_close),abs(low-prev_close)); first TR excludes bar1; SMA seed then RMA alpha=1/14 |
-| `bb_upper_20` | `double precision` | Yes | — | Upper 20-period Bollinger band, population standard deviation multiplier 2. SMA20(close) + 2*sqrt(sum((close-SMA20)^2)/20) |
-| `bb_middle_20` | `double precision` | Yes | — | Middle 20-period Bollinger band, identical to SMA20. SMA20(close) |
-| `bb_lower_20` | `double precision` | Yes | — | Lower 20-period Bollinger band, population standard deviation multiplier 2. SMA20(close) - 2*sqrt(sum((close-SMA20)^2)/20) |
-| `cdl_piercing` | `integer` | Yes | — | Native TA-Lib piercing pattern recognition code from historical OHLC. TA-Lib CDLPIERCING(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
-| `cdl_morning_star` | `integer` | Yes | — | Native TA-Lib morning star pattern recognition code from historical OHLC. TA-Lib CDLMORNINGSTAR(open,high,low,close), default candle settings; parameters={'penetration': 0.3}; native signed integers including non-100 codes retained |
-| `cdl_morning_doji_star` | `integer` | Yes | — | Native TA-Lib morning doji star pattern recognition code from historical OHLC. TA-Lib CDLMORNINGDOJISTAR(open,high,low,close), default candle settings; parameters={'penetration': 0.3}; native signed integers including non-100 codes retained |
-| `cdl_engulfing` | `integer` | Yes | — | Native TA-Lib engulfing pattern recognition code from historical OHLC. TA-Lib CDLENGULFING(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
-| `cdl_3_white_soldiers` | `integer` | Yes | — | Native TA-Lib 3 white soldiers pattern recognition code from historical OHLC. TA-Lib CDL3WHITESOLDIERS(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
-| `cdl_hammer` | `integer` | Yes | — | Native TA-Lib hammer pattern recognition code from historical OHLC. TA-Lib CDLHAMMER(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
-| `cdl_inverted_hammer` | `integer` | Yes | — | Native TA-Lib inverted hammer pattern recognition code from historical OHLC. TA-Lib CDLINVERTEDHAMMER(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
-| `cdl_3_inside` | `integer` | Yes | — | Native TA-Lib 3 inside pattern recognition code from historical OHLC. TA-Lib CDL3INSIDE(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
-| `cdl_3_outside` | `integer` | Yes | — | Native TA-Lib 3 outside pattern recognition code from historical OHLC. TA-Lib CDL3OUTSIDE(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
-| `cdl_harami` | `integer` | Yes | — | Native TA-Lib harami pattern recognition code from historical OHLC. TA-Lib CDLHARAMI(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
-| `cdl_harami_cross` | `integer` | Yes | — | Native TA-Lib harami cross pattern recognition code from historical OHLC. TA-Lib CDLHARAMICROSS(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
-| `cdl_dark_cloud_cover` | `integer` | Yes | — | Native TA-Lib dark cloud cover pattern recognition code from historical OHLC. TA-Lib CDLDARKCLOUDCOVER(open,high,low,close), default candle settings; parameters={'penetration': 0.5}; native signed integers including non-100 codes retained |
-| `cdl_evening_star` | `integer` | Yes | — | Native TA-Lib evening star pattern recognition code from historical OHLC. TA-Lib CDLEVENINGSTAR(open,high,low,close), default candle settings; parameters={'penetration': 0.3}; native signed integers including non-100 codes retained |
-| `cdl_evening_doji_star` | `integer` | Yes | — | Native TA-Lib evening doji star pattern recognition code from historical OHLC. TA-Lib CDLEVENINGDOJISTAR(open,high,low,close), default candle settings; parameters={'penetration': 0.3}; native signed integers including non-100 codes retained |
-| `cdl_3_black_crows` | `integer` | Yes | — | Native TA-Lib 3 black crows pattern recognition code from historical OHLC. TA-Lib CDL3BLACKCROWS(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
-| `cdl_shooting_star` | `integer` | Yes | — | Native TA-Lib shooting star pattern recognition code from historical OHLC. TA-Lib CDLSHOOTINGSTAR(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
-| `cdl_hanging_man` | `integer` | Yes | — | Native TA-Lib hanging man pattern recognition code from historical OHLC. TA-Lib CDLHANGINGMAN(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
-| `cdl_doji` | `integer` | Yes | — | Native TA-Lib doji pattern recognition code from historical OHLC. TA-Lib CDLDOJI(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
-| `cdl_dragonfly_doji` | `integer` | Yes | — | Native TA-Lib dragonfly doji pattern recognition code from historical OHLC. TA-Lib CDLDRAGONFLYDOJI(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
-| `cdl_gravestone_doji` | `integer` | Yes | — | Native TA-Lib gravestone doji pattern recognition code from historical OHLC. TA-Lib CDLGRAVESTONEDOJI(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
-| `cdl_marubozu` | `integer` | Yes | — | Native TA-Lib marubozu pattern recognition code from historical OHLC. TA-Lib CDLMARUBOZU(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
-| `cdl_kicking` | `integer` | Yes | — | Native TA-Lib kicking pattern recognition code from historical OHLC. TA-Lib CDLKICKING(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
-| `cdl_rise_fall_3_methods` | `integer` | Yes | — | Native TA-Lib rise fall 3 methods pattern recognition code from historical OHLC. TA-Lib CDLRISEFALL3METHODS(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
-| `cdl_mat_hold` | `integer` | Yes | — | Native TA-Lib mat hold pattern recognition code from historical OHLC. TA-Lib CDLMATHOLD(open,high,low,close), default candle settings; parameters={'penetration': 0.5}; native signed integers including non-100 codes retained |
-| `cdl_hikkake` | `integer` | Yes | — | Native TA-Lib hikkake pattern recognition code from historical OHLC. TA-Lib CDLHIKKAKE(open,high,low,close), default candle settings; parameters={}; native signed integers including non-100 codes retained |
-| `calculation_version` | `text` | No | — | Version binds formulas, seeds and pinned TA-Lib versions. engine.VERSION |
-| `calculated_at` | `timestamp with time zone` | No | — | Timezone-aware execution time of the last changed output row. UTC execution timestamp; unchanged UPSERT preserves existing timestamp |
-| `adx_14` | `double precision` | Yes | — | Wilder average directional index measuring trend strength on a 0–100 scale. TA-Lib ADX(high,low,close,14); directional movement and true range Wilder-smoothed over 14, DX=100*abs(+DI-(-DI))/(+DI+(-DI)), then 14-period Wilder ADX; native zero-denominator convention; unstable period 0 |
-| `ema_50` | `double precision` | Yes | — | Fifty-observation exponentially weighted close; alpha=2/51. Seed=SMA(first50 closes); EMA[t]=EMA[t-1]+2/51*(close[t]-EMA[t-1]) |
-| `ema_200` | `double precision` | Yes | — | Two-hundred-observation exponentially weighted close; alpha=2/201. Seed=SMA(first200 closes); EMA[t]=EMA[t-1]+2/201*(close[t]-EMA[t-1]) |
-| `inside_bar` | `integer` | Yes | — | Strict current-candle range containment within the previous valid observed candle. 1 if high[t]<high[t-1] AND low[t]>low[t-1], else 0; compare original numeric prices; no future candle |
-| `smi` | `double precision` | Yes | — | Stochastic Momentum Index: double-smoothed close displacement from the midpoint of a rolling 14-bar high/low range. 200*EMA5(EMA5(close-(highest14(high)+lowest14(low))/2))/EMA5(EMA5(highest14(high)-lowest14(low))); first-input EMA seed, alpha=1/3, partial extrema windows at startup NULL for an uncomputed ticker, invalid OHLCV, or a zero double-smoothed range; no zero imputation. |
-| `tracking_high` | `integer` | Yes | — | High-search state after all current-bar Pine blocks execute. Set 1 on SMI crossover above +40, reset 0 on SMI crossunder below +40; initial 0; recross above +40 resets the temporary peak Uncomputed/invalid row NULL; valid processed row is INTEGER 1 while tracking or 0 otherwise, including initialization. |
-| `tracking_low` | `integer` | Yes | — | Low-search state after all current-bar Pine blocks execute. Set 1 on SMI crossunder below -40, reset 0 on SMI crossover above -40; initial 0; recross below -40 resets the temporary trough Uncomputed/invalid row NULL; valid processed row is INTEGER 1 while tracking or 0 otherwise, including initialization. |
-| `temp_high` | `double precision` | Yes | — | Provisional highest high in the current active SMI-above-40 tracking interval. Initialize high on +40 upcross; update only if tracking_high and SMI>40 and high>temp_high; clear on +40 downcross after copying to last_swing_high NULL outside active high tracking, including immediately after confirmation; uncomputed/invalid rows NULL. |
-| `temp_high_bar` | `integer` | Yes | — | Zero-based source observation index of the currently tracked temporary high. bar_index on temp_high initialization or strictly higher high; index 0 is earliest available source row for this ticker and timeframe; NULL when temp_high is cleared NULL together with temp_high; uncomputed/invalid rows NULL. Zero is a valid first-bar index. |
-| `temp_low` | `double precision` | Yes | — | Provisional lowest low in the current active SMI-below-minus-40 tracking interval. Initialize low on -40 downcross; update only if tracking_low and SMI<-40 and low<temp_low; clear on -40 upcross NULL outside active low tracking, including immediately after confirmation; uncomputed/invalid rows NULL. |
-| `temp_low_bar` | `integer` | Yes | — | Zero-based source observation index of the currently tracked temporary low. bar_index on temp_low initialization or strictly lower low; index 0 is earliest available source row for this ticker and timeframe; NULL when temp_low is cleared NULL together with temp_low; uncomputed/invalid rows NULL. Zero is a valid first-bar index. |
-| `last_swing_high` | `double precision` | Yes | — | Latest swing-high price available after its SMI-downcross confirmation, carried forward. When tracking_high and SMI[t]<40 and SMI[t-1]>=40, copy tracked temp_high before clearing it; retain until the next high confirmation NULL before the first confirmed high or after invalid-row state reset; uncomputed rows NULL. |
-| `break_swing_high` | `integer` | Yes | — | Integer event flag for the supplied Pine close/last-swing-high crossover. 1 iff last_swing_high[t] and last_swing_high[t-1] exist AND close[t]>last_swing_high[t] AND close[t-1]<=last_swing_high[t-1]; otherwise 0 on a valid processed bar Valid processed row INTEGER 1 on a crossover, otherwise INTEGER 0, including before any confirmed high. NULL only for uncomputed/invalid rows. |
+| `ticker` | `text` | No | — | IDX security code copied from source ticker. |
+| `trade_date` | `date` | No | — | Trading observation date copied from source date. |
+| `timeframe` | `text` | No | — | Verified daily timeframe copied exactly from source. |
+| `sma_20` | `double precision` | Yes | — | Unweighted mean of 20 observed closes. |
+| `sma_50` | `double precision` | Yes | — | Unweighted mean of 50 observed closes. |
+| `ema_12` | `double precision` | Yes | — | Fast exponentially weighted close; alpha=2/13. |
+| `ema_26` | `double precision` | Yes | — | Slow exponentially weighted close; alpha=2/27. |
+| `rsi_14` | `double precision` | Yes | — | Wilder gain/loss oscillator on 14 consecutive close changes, scaled 0–100. |
+| `macd` | `double precision` | Yes | — | Difference of the stored fast and slow EMA price baselines. |
+| `macd_signal` | `double precision` | Yes | — | Nine-period EMA of valid MACD line observations. |
+| `macd_histogram` | `double precision` | Yes | — | Difference between MACD line and its nine-period signal. |
+| `atr_14` | `double precision` | Yes | — | Wilder average of 14 true ranges using prior observed close. |
+| `bb_upper_20` | `double precision` | Yes | — | Upper 20-period Bollinger band, population standard deviation multiplier 2. |
+| `bb_middle_20` | `double precision` | Yes | — | Middle 20-period Bollinger band, identical to SMA20. |
+| `bb_lower_20` | `double precision` | Yes | — | Lower 20-period Bollinger band, population standard deviation multiplier 2. |
+| `cdl_piercing` | `integer` | Yes | — | Native TA-Lib piercing pattern recognition code from historical OHLC. |
+| `cdl_morning_star` | `integer` | Yes | — | Native TA-Lib morning star pattern recognition code from historical OHLC. |
+| `cdl_morning_doji_star` | `integer` | Yes | — | Native TA-Lib morning doji star pattern recognition code from historical OHLC. |
+| `cdl_engulfing` | `integer` | Yes | — | Native TA-Lib engulfing pattern recognition code from historical OHLC. |
+| `cdl_3_white_soldiers` | `integer` | Yes | — | Native TA-Lib 3 white soldiers pattern recognition code from historical OHLC. |
+| `cdl_hammer` | `integer` | Yes | — | Native TA-Lib hammer pattern recognition code from historical OHLC. |
+| `cdl_inverted_hammer` | `integer` | Yes | — | Native TA-Lib inverted hammer pattern recognition code from historical OHLC. |
+| `cdl_3_inside` | `integer` | Yes | — | Native TA-Lib 3 inside pattern recognition code from historical OHLC. |
+| `cdl_3_outside` | `integer` | Yes | — | Native TA-Lib 3 outside pattern recognition code from historical OHLC. |
+| `cdl_harami` | `integer` | Yes | — | Native TA-Lib harami pattern recognition code from historical OHLC. |
+| `cdl_harami_cross` | `integer` | Yes | — | Native TA-Lib harami cross pattern recognition code from historical OHLC. |
+| `cdl_dark_cloud_cover` | `integer` | Yes | — | Native TA-Lib dark cloud cover pattern recognition code from historical OHLC. |
+| `cdl_evening_star` | `integer` | Yes | — | Native TA-Lib evening star pattern recognition code from historical OHLC. |
+| `cdl_evening_doji_star` | `integer` | Yes | — | Native TA-Lib evening doji star pattern recognition code from historical OHLC. |
+| `cdl_3_black_crows` | `integer` | Yes | — | Native TA-Lib 3 black crows pattern recognition code from historical OHLC. |
+| `cdl_shooting_star` | `integer` | Yes | — | Native TA-Lib shooting star pattern recognition code from historical OHLC. |
+| `cdl_hanging_man` | `integer` | Yes | — | Native TA-Lib hanging man pattern recognition code from historical OHLC. |
+| `cdl_doji` | `integer` | Yes | — | Native TA-Lib doji pattern recognition code from historical OHLC. |
+| `cdl_dragonfly_doji` | `integer` | Yes | — | Native TA-Lib dragonfly doji pattern recognition code from historical OHLC. |
+| `cdl_gravestone_doji` | `integer` | Yes | — | Native TA-Lib gravestone doji pattern recognition code from historical OHLC. |
+| `cdl_marubozu` | `integer` | Yes | — | Native TA-Lib marubozu pattern recognition code from historical OHLC. |
+| `cdl_kicking` | `integer` | Yes | — | Native TA-Lib kicking pattern recognition code from historical OHLC. |
+| `cdl_rise_fall_3_methods` | `integer` | Yes | — | Native TA-Lib rise fall 3 methods pattern recognition code from historical OHLC. |
+| `cdl_mat_hold` | `integer` | Yes | — | Native TA-Lib mat hold pattern recognition code from historical OHLC. |
+| `cdl_hikkake` | `integer` | Yes | — | Native TA-Lib hikkake pattern recognition code from historical OHLC. |
+| `calculation_version` | `text` | No | — | Version binds formulas, seeds and pinned TA-Lib versions. |
+| `calculated_at` | `timestamp with time zone` | No | — | Timezone-aware execution time of the last changed output row. |
+| `adx_14` | `double precision` | Yes | — | Wilder average directional index measuring trend strength on a 0–100 scale. |
+| `ema_50` | `double precision` | Yes | — | Fifty-observation exponentially weighted close; alpha=2/51. |
+| `ema_200` | `double precision` | Yes | — | Two-hundred-observation exponentially weighted close; alpha=2/201. |
+| `inside_bar` | `integer` | Yes | — | Strict current-candle range containment within the previous valid observed candle. |
+| `smi` | `double precision` | Yes | — | Stochastic Momentum Index: double-smoothed close displacement from the midpoint of a rolling 14-bar high/low range. |
+| `tracking_high` | `integer` | Yes | — | High-search state after all current-bar Pine blocks execute. |
+| `tracking_low` | `integer` | Yes | — | Low-search state after all current-bar Pine blocks execute. |
+| `temp_high` | `double precision` | Yes | — | Provisional highest high in the current active SMI-above-40 tracking interval. |
+| `temp_high_bar` | `integer` | Yes | — | Zero-based source observation index of the currently tracked temporary high. |
+| `temp_low` | `double precision` | Yes | — | Provisional lowest low in the current active SMI-below-minus-40 tracking interval. |
+| `temp_low_bar` | `integer` | Yes | — | Zero-based source observation index of the currently tracked temporary low. |
+| `last_swing_high` | `double precision` | Yes | — | Latest swing-high price available after its SMI-downcross confirmation, carried forward. |
+| `break_swing_high` | `integer` | Yes | — | Integer event flag for the supplied Pine close/last-swing-high crossover. |
 | `asset_type` | `text` | No | — | Universe-derived asset class: equity from IDX_Stock_Universe; bonds from Universe_Fixed_income. |
-| `close` | `double precision` | No | — | Daily closing price copied from the exact equity or bonds source row matched on ticker and trade_date. |
+| `close` | `double precision` | No | — | Daily closing price copied from the exact classified source row on ticker and trade_date. |
 
 ### Constraints
 
@@ -1821,7 +1849,7 @@ Feature 03 v2 stock-level broker structure by ticker and board. Domestic/Foreign
 
 ## Feature_Calculation_Log
 
-Completed attempt history for Feature 01 calculation queue items, including retries and superseded claims.
+Completed attempt and retry history for Feature 01 calculation work.
 
 ### Columns
 
@@ -1861,7 +1889,7 @@ Completed attempt history for Feature 01 calculation queue items, including retr
 
 ## Feature_Calculation_Queue
 
-Durable Feature 01 work item per changed price candle; DONE means feature calculation succeeded, not price ingestion.
+Durable pending and completed Feature 01 calculation work per changed source candle.
 
 ### Columns
 
@@ -1909,13 +1937,13 @@ Durable Feature 01 work item per changed price candle; DONE means feature calcul
 
 ## Feature_Catalog
 
-Machine-readable semantic and usage contract for validated Feature-table columns.
+Versioned, machine-readable formula, interpretation, recommended-use, misuse, availability, point-in-time safety and validation-evidence contract for every validated Feature column.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `feature_table` | `text` | No | — | Exact physical name of a verified table registered as category Feature. |
+| `feature_table` | `text` | No | — | Exact physical name of one of the four locked Feature tables. |
 | `feature_column` | `text` | No | — | Exact physical PostgreSQL column name. |
 | `grain` | `text` | No | — | Business grain represented by one row in the Feature table. |
 | `feature_category` | `text` | No | — | Controlled semantic category for the feature. |
@@ -1936,8 +1964,8 @@ Machine-readable semantic and usage contract for validated Feature-table columns
 | `semantic_role` | `text` | No | `'MEASURE'::text` | IDENTITY, DIMENSION, or MEASURE role used by generic query tools. |
 | `allowed_aggregations` | `ARRAY` | No | `'{}'::text[]` | Allow-list of generic aggregations valid for this column. |
 | `ranking_interpretation` | `text` | No | `'CONTEXTUAL'::text` | Default analytical direction; CONTEXTUAL requires the request to state direction. |
-| `is_filterable` | `boolean` | No | `true` | Whether generic tools may use this column in a structured filter. |
-| `is_groupable` | `boolean` | No | `false` | Whether generic tools may use this column as a grouping dimension. |
+| `is_filterable` | `boolean` | No | `true` | Physical is_filterable field for Feature_Catalog. |
+| `is_groupable` | `boolean` | No | `false` | Physical is_groupable field for Feature_Catalog. |
 | `availability_rule` | `text` | No | `'Use no earlier than the next valid trading observation after observation date unless earlier source availability is documented.'::text` | Decision-time rule used by historical validation and no-look-ahead checks. |
 | `point_in_time_safe` | `boolean` | No | `false` | True only when the value itself is time-indexed and usable under its documented availability rule; analysis-level universe limitations still apply. |
 | `historical_metadata_warning` | `text` | Yes | — | Required warning when a definition uses current state or otherwise incomplete historical metadata. |
@@ -1979,18 +2007,18 @@ Versioned safe-join and grain contracts between verified Feature tables.
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `left_feature_table` | `text` | No | — | No column description has been recorded. |
-| `right_feature_table` | `text` | No | — | No column description has been recorded. |
-| `left_join_columns` | `ARRAY` | No | — | No column description has been recorded. |
-| `right_join_columns` | `ARRAY` | No | — | No column description has been recorded. |
-| `relationship_type` | `text` | No | — | No column description has been recorded. |
-| `safe_output_grain` | `text` | No | — | No column description has been recorded. |
-| `requires_preaggregation` | `boolean` | No | — | No column description has been recorded. |
-| `definition` | `text` | No | — | No column description has been recorded. |
-| `version` | `text` | No | `'v1'::text` | No column description has been recorded. |
-| `is_active` | `boolean` | No | `true` | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `left_feature_table` | `text` | No | — | Physical left_feature_table field for Feature_Relationship_Catalog. |
+| `right_feature_table` | `text` | No | — | Physical right_feature_table field for Feature_Relationship_Catalog. |
+| `left_join_columns` | `ARRAY` | No | — | Physical left_join_columns field for Feature_Relationship_Catalog. |
+| `right_join_columns` | `ARRAY` | No | — | Physical right_join_columns field for Feature_Relationship_Catalog. |
+| `relationship_type` | `text` | No | — | Physical relationship_type field for Feature_Relationship_Catalog. |
+| `safe_output_grain` | `text` | No | — | Physical safe_output_grain field for Feature_Relationship_Catalog. |
+| `requires_preaggregation` | `boolean` | No | — | Physical requires_preaggregation field for Feature_Relationship_Catalog. |
+| `definition` | `text` | No | — | Physical definition field for Feature_Relationship_Catalog. |
+| `version` | `text` | No | `'v1'::text` | Physical version field for Feature_Relationship_Catalog. |
+| `is_active` | `boolean` | No | `true` | Physical is_active field for Feature_Relationship_Catalog. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Physical created_at field for Feature_Relationship_Catalog. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Physical updated_at field for Feature_Relationship_Catalog. |
 
 ### Constraints
 
@@ -2009,7 +2037,7 @@ Versioned safe-join and grain contracts between verified Feature tables.
 
 ## Feature_Status
 
-Current per-ticker Feature 01 calculation state; SUCCESS requires all committed source changes to be processed.
+Current Feature 01 calculation freshness and outstanding-work summary per ticker.
 
 ### Columns
 
@@ -2046,30 +2074,65 @@ Current per-ticker Feature 01 calculation state; SUCCESS requires all committed 
 | `Feature_Status_pkey` | `CREATE UNIQUE INDEX "Feature_Status_pkey" ON public."Feature_Status" USING btree (feature_table, ticker)` |
 | `Feature_Status_state_idx` | `CREATE INDEX "Feature_Status_state_idx" ON public."Feature_Status" USING btree (feature_table, status, updated_at)` |
 
-## Golden_Analysis_Test
+## Fixed_Income_Market_Schedule
 
-Versioned analytical correctness and safety expectations; evaluation compares data and methodology rather than exact prose.
+Fixed-income market timezone, closing clock, final-candle delay and source-label date mapping.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `test_id` | `text` | No | — | No column description has been recorded. |
-| `version` | `text` | No | `'v1'::text` | No column description has been recorded. |
-| `category` | `text` | No | — | No column description has been recorded. |
-| `question` | `text` | No | — | No column description has been recorded. |
-| `required_capabilities` | `ARRAY` | No | `'{}'::text[]` | No column description has been recorded. |
-| `fixed_start_date` | `date` | Yes | — | No column description has been recorded. |
-| `fixed_end_date` | `date` | Yes | — | No column description has been recorded. |
-| `expected_features` | `ARRAY` | No | `'{}'::text[]` | No column description has been recorded. |
-| `expected_tools` | `ARRAY` | No | `'{}'::text[]` | No column description has been recorded. |
-| `expected_conditions` | `jsonb` | No | `'{}'::jsonb` | No column description has been recorded. |
-| `tolerance` | `jsonb` | No | `'{}'::jsonb` | No column description has been recorded. |
-| `expected_warnings` | `ARRAY` | No | `'{}'::text[]` | No column description has been recorded. |
-| `expected_status` | `text` | No | — | No column description has been recorded. |
-| `is_active` | `boolean` | No | `true` | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `market_code` | `text` | No | — | Fixed-income market schedule configuration. |
+| `country` | `text` | No | — | Fixed-income market schedule configuration. |
+| `timezone_name` | `text` | No | — | Fixed-income market schedule configuration. |
+| `session_close_local` | `time without time zone` | No | — | Fixed-income market schedule configuration. |
+| `finality_delay_minutes` | `integer` | No | — | Fixed-income market schedule configuration. |
+| `enabled` | `boolean` | No | `true` | Fixed-income market schedule configuration. |
+| `updated_at` | `timestamp with time zone` | No | `statement_timestamp()` | Fixed-income market schedule configuration. |
+| `source_date_mapping` | `text` | No | — | Rule that maps the raw TradingView UTC daily-bar label to this market session date. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Fixed_Income_Market_Schedule_code_check` | Check | `CHECK (market_code = upper(btrim(market_code)) AND market_code <> ''::text)` |
+| `Fixed_Income_Market_Schedule_delay_check` | Check | `CHECK (finality_delay_minutes >= 0 AND finality_delay_minutes <= 360)` |
+| `Fixed_Income_Market_Schedule_source_date_mapping_check` | Check | `CHECK (source_date_mapping = ANY (ARRAY['CURRENT_OR_PREVIOUS_BUSINESS_DAY'::text, 'NEXT_BUSINESS_DAY'::text]))` |
+| `Fixed_Income_Market_Schedule_timezone_check` | Check | `CHECK (timezone_name = btrim(timezone_name) AND timezone_name <> ''::text)` |
+| `Fixed_Income_Market_Schedule_pkey` | Primary key | `PRIMARY KEY (market_code)` |
+| `Fixed_Income_Market_Schedule_country_key` | Unique | `UNIQUE (country)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Fixed_Income_Market_Schedule_country_key` | `CREATE UNIQUE INDEX "Fixed_Income_Market_Schedule_country_key" ON public."Fixed_Income_Market_Schedule" USING btree (country)` |
+| `Fixed_Income_Market_Schedule_pkey` | `CREATE UNIQUE INDEX "Fixed_Income_Market_Schedule_pkey" ON public."Fixed_Income_Market_Schedule" USING btree (market_code)` |
+
+## Golden_Analysis_Test
+
+Versioned analytical regression-test definitions with reproducible conditions and tolerances.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `test_id` | `text` | No | — | Versioned golden-test definition field: test_id. |
+| `version` | `text` | No | `'v1'::text` | Versioned golden-test definition field: version. |
+| `category` | `text` | No | — | Versioned golden-test definition field: category. |
+| `question` | `text` | No | — | Versioned golden-test definition field: question. |
+| `required_capabilities` | `ARRAY` | No | `'{}'::text[]` | Versioned golden-test definition field: required_capabilities. |
+| `fixed_start_date` | `date` | Yes | — | Versioned golden-test definition field: fixed_start_date. |
+| `fixed_end_date` | `date` | Yes | — | Versioned golden-test definition field: fixed_end_date. |
+| `expected_features` | `ARRAY` | No | `'{}'::text[]` | Versioned golden-test definition field: expected_features. |
+| `expected_tools` | `ARRAY` | No | `'{}'::text[]` | Versioned golden-test definition field: expected_tools. |
+| `expected_conditions` | `jsonb` | No | `'{}'::jsonb` | Versioned golden-test definition field: expected_conditions. |
+| `tolerance` | `jsonb` | No | `'{}'::jsonb` | Versioned golden-test definition field: tolerance. |
+| `expected_warnings` | `ARRAY` | No | `'{}'::text[]` | Versioned golden-test definition field: expected_warnings. |
+| `expected_status` | `text` | No | — | Versioned golden-test definition field: expected_status. |
+| `is_active` | `boolean` | No | `true` | Versioned golden-test definition field: is_active. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Versioned golden-test definition field: created_at. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Versioned golden-test definition field: updated_at. |
 
 ### Constraints
 
@@ -2092,28 +2155,28 @@ Versioned analytical correctness and safety expectations; evaluation compares da
 
 ## Golden_Analysis_Test_Result
 
-Per-test observed metrics, warnings, methodology checks, evidence and token usage.
+Per-test correctness, methodology, evidence, warning, latency and token outcome.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `run_id` | `uuid` | No | — | No column description has been recorded. |
-| `test_id` | `text` | No | — | No column description has been recorded. |
-| `test_version` | `text` | No | — | No column description has been recorded. |
-| `request_id` | `uuid` | Yes | — | No column description has been recorded. |
-| `status` | `text` | No | — | No column description has been recorded. |
-| `observed_metrics` | `jsonb` | No | `'{}'::jsonb` | No column description has been recorded. |
-| `deviation` | `jsonb` | No | `'{}'::jsonb` | No column description has been recorded. |
-| `observed_warnings` | `ARRAY` | No | `'{}'::text[]` | No column description has been recorded. |
-| `evidence_ids` | `ARRAY` | No | `'{}'::uuid[]` | No column description has been recorded. |
-| `methodology_checks` | `jsonb` | No | `'{}'::jsonb` | No column description has been recorded. |
-| `input_tokens` | `integer` | No | `0` | No column description has been recorded. |
-| `output_tokens` | `integer` | No | `0` | No column description has been recorded. |
-| `total_tokens` | `integer` | No | `0` | No column description has been recorded. |
-| `duration_ms` | `integer` | Yes | — | No column description has been recorded. |
-| `failure_reason` | `text` | Yes | — | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `run_id` | `uuid` | No | — | Per-golden-test result field: run_id. |
+| `test_id` | `text` | No | — | Per-golden-test result field: test_id. |
+| `test_version` | `text` | No | — | Per-golden-test result field: test_version. |
+| `request_id` | `uuid` | Yes | — | Per-golden-test result field: request_id. |
+| `status` | `text` | No | — | Per-golden-test result field: status. |
+| `observed_metrics` | `jsonb` | No | `'{}'::jsonb` | Per-golden-test result field: observed_metrics. |
+| `deviation` | `jsonb` | No | `'{}'::jsonb` | Per-golden-test result field: deviation. |
+| `observed_warnings` | `ARRAY` | No | `'{}'::text[]` | Per-golden-test result field: observed_warnings. |
+| `evidence_ids` | `ARRAY` | No | `'{}'::uuid[]` | Per-golden-test result field: evidence_ids. |
+| `methodology_checks` | `jsonb` | No | `'{}'::jsonb` | Per-golden-test result field: methodology_checks. |
+| `input_tokens` | `integer` | No | `0` | Per-golden-test result field: input_tokens. |
+| `output_tokens` | `integer` | No | `0` | Per-golden-test result field: output_tokens. |
+| `total_tokens` | `integer` | No | `0` | Per-golden-test result field: total_tokens. |
+| `duration_ms` | `integer` | Yes | — | Per-golden-test result field: duration_ms. |
+| `failure_reason` | `text` | Yes | — | Per-golden-test result field: failure_reason. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Per-golden-test result field: created_at. |
 
 ### Constraints
 
@@ -2136,30 +2199,30 @@ Per-test observed metrics, warnings, methodology checks, evidence and token usag
 
 ## Golden_Analysis_Test_Run
 
-One complete regression-suite execution with immutable release/model/prompt/tool/Feature version context.
+Historical execution record for one complete golden analytical regression suite.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `run_id` | `uuid` | No | `gen_random_uuid()` | No column description has been recorded. |
-| `release_version` | `text` | No | — | No column description has been recorded. |
-| `model_provider` | `text` | No | — | No column description has been recorded. |
-| `model_id` | `text` | No | — | No column description has been recorded. |
-| `reasoning_effort` | `text` | Yes | — | No column description has been recorded. |
-| `orchestrator_version` | `text` | No | — | No column description has been recorded. |
-| `orchestrator_prompt_version` | `text` | No | — | No column description has been recorded. |
-| `version_snapshot` | `jsonb` | No | — | No column description has been recorded. |
-| `status` | `text` | No | `'PENDING'::text` | No column description has been recorded. |
-| `tests_total` | `integer` | No | `0` | No column description has been recorded. |
-| `tests_passed` | `integer` | No | `0` | No column description has been recorded. |
-| `tests_failed` | `integer` | No | `0` | No column description has been recorded. |
-| `cumulative_input_tokens` | `integer` | No | `0` | No column description has been recorded. |
-| `cumulative_output_tokens` | `integer` | No | `0` | No column description has been recorded. |
-| `cumulative_total_tokens` | `integer` | No | `0` | No column description has been recorded. |
-| `started_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `completed_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `run_id` | `uuid` | No | `gen_random_uuid()` | Golden-suite execution field: run_id. |
+| `release_version` | `text` | No | — | Golden-suite execution field: release_version. |
+| `model_provider` | `text` | No | — | Golden-suite execution field: model_provider. |
+| `model_id` | `text` | No | — | Golden-suite execution field: model_id. |
+| `reasoning_effort` | `text` | Yes | — | Golden-suite execution field: reasoning_effort. |
+| `orchestrator_version` | `text` | No | — | Golden-suite execution field: orchestrator_version. |
+| `orchestrator_prompt_version` | `text` | No | — | Golden-suite execution field: orchestrator_prompt_version. |
+| `version_snapshot` | `jsonb` | No | — | Golden-suite execution field: version_snapshot. |
+| `status` | `text` | No | `'PENDING'::text` | Golden-suite execution field: status. |
+| `tests_total` | `integer` | No | `0` | Golden-suite execution field: tests_total. |
+| `tests_passed` | `integer` | No | `0` | Golden-suite execution field: tests_passed. |
+| `tests_failed` | `integer` | No | `0` | Golden-suite execution field: tests_failed. |
+| `cumulative_input_tokens` | `integer` | No | `0` | Golden-suite execution field: cumulative_input_tokens. |
+| `cumulative_output_tokens` | `integer` | No | `0` | Golden-suite execution field: cumulative_output_tokens. |
+| `cumulative_total_tokens` | `integer` | No | `0` | Golden-suite execution field: cumulative_total_tokens. |
+| `started_at` | `timestamp with time zone` | Yes | — | Golden-suite execution field: started_at. |
+| `completed_at` | `timestamp with time zone` | Yes | — | Golden-suite execution field: completed_at. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Golden-suite execution field: created_at. |
 
 ### Constraints
 
@@ -2180,7 +2243,7 @@ One complete regression-suite execution with immutable release/model/prompt/tool
 
 ## IDX_Broker_Profile
 
-Reference list of IDX broker codes, names, and domestic/foreign classification.
+Broker code and name, domestic/foreign type, and usage profile such as Institutional-heavy, Retail-heavy, Mixed, or Niche.
 
 ### Columns
 
@@ -2208,29 +2271,29 @@ Reference list of IDX broker codes, names, and domestic/foreign classification.
 
 ## IDX_Broker_Profile_History
 
-Point-in-time history of IDX_Broker_Profile (name, broker_type, broker_classification), captured from the first capture onward: one row per broker version and knowledge version (bitemporal); superseded knowledge is kept.
+Point-in-time (bitemporal) history of the tracked IDX_Broker_Profile attributes (broker_name, broker_type, broker_classification), captured by Saniti from the first capture onward. Current knowledge is recorded_to IS NULL; superseded knowledge is kept.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `history_id` | `bigint` | No | — | No column description has been recorded. |
-| `broker_code` | `text` | No | — | No column description has been recorded. |
-| `broker_name` | `text` | Yes | — | No column description has been recorded. |
-| `broker_type` | `text` | Yes | — | No column description has been recorded. |
-| `broker_classification` | `text` | Yes | — | No column description has been recorded. |
-| `valid_from` | `date` | No | — | No column description has been recorded. |
-| `valid_to` | `date` | Yes | — | No column description has been recorded. |
-| `valid_basis` | `text` | No | — | No column description has been recorded. |
-| `available_at` | `timestamp with time zone` | No | — | No column description has been recorded. |
-| `available_basis` | `text` | No | — | No column description has been recorded. |
-| `recorded_from` | `timestamp with time zone` | No | — | No column description has been recorded. |
-| `recorded_to` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `superseded_reason` | `text` | Yes | — | No column description has been recorded. |
-| `pit_valid_from` | `date` | Yes | — | No column description has been recorded. |
-| `pit_valid_to` | `date` | Yes | — | No column description has been recorded. |
-| `capture_id` | `bigint` | No | — | No column description has been recorded. |
-| `source_provenance` | `jsonb` | No | — | No column description has been recorded. |
+| `history_id` | `bigint` | No | — | Row id of one version (identity only). |
+| `broker_code` | `text` | No | — | Two-character IDX broker code: the entity key (several rows per broker, one per version; history_id identifies a row). |
+| `broker_name` | `text` | Yes | — | IDX_Broker_Profile.broker_name of this version. |
+| `broker_type` | `text` | Yes | — | IDX_Broker_Profile.broker_type of this version. |
+| `broker_classification` | `text` | Yes | — | IDX_Broker_Profile.broker_classification of this version. |
+| `valid_from` | `date` | No | — | Effective start of this version (inclusive). FIRST_CAPTURE and CHANGE_CAPTURED rows use the Asia/Jakarta date Saniti recorded it; the true date is on or before it and unknown (valid_basis). |
+| `valid_to` | `date` | Yes | — | Effective end of this version (exclusive); NULL = still in effect in this knowledge version. |
+| `valid_basis` | `text` | No | — | FIRST_CAPTURE (valid_from is the first recording date; the true start is earlier and unknown), CHANGE_CAPTURED (valid_from is the date the change was recorded; the true change date is on or before it) or DOCUMENTED (a documented effective date given by a correction). |
+| `available_at` | `timestamp with time zone` | No | — | When the information was available to decisions: the recording time (available_basis RECORDED) or a documented publication time (DOCUMENTED_PUBLICATION, corrections only). Point-in-time selection uses recorded time, its conservative bound. |
+| `available_basis` | `text` | No | — | RECORDED or DOCUMENTED_PUBLICATION: where available_at comes from. |
+| `recorded_from` | `timestamp with time zone` | No | — | When Saniti recorded this row (start of the knowledge period). |
+| `recorded_to` | `timestamp with time zone` | Yes | — | When Saniti superseded this row (end of the knowledge period, exclusive); NULL = current knowledge. Superseded rows are kept. |
+| `superseded_reason` | `text` | Yes | — | Why the row was superseded: CHANGE_CAPTURED, SAME_DAY_REVISION or CORRECTION; NULL for current knowledge. |
+| `pit_valid_from` | `date` | Yes | — | First observation date this row applies to point in time: the later of valid_from and the Asia/Jakarta date after recorded_from (a value recorded on a date is used from the next date). EFFECTIVE_DATED joins use pit_valid_from <= date < pit_valid_to. |
+| `pit_valid_to` | `date` | Yes | — | Observation date from which this row no longer applies point in time (exclusive): the earlier of valid_to and the Asia/Jakarta date after recorded_to; NULL = open. A row with pit_valid_to <= pit_valid_from applies to no date. |
+| `capture_id` | `bigint` | No | — | The Reference_History_Capture_Log row of the capture or correction that wrote this row. |
+| `source_provenance` | `jsonb` | No | — | How the row was written: source table, operation and capture id, the version it closes or replaces, or a correction's reason, source and superseded ids. |
 
 ### Constraints
 
@@ -2256,7 +2319,7 @@ Point-in-time history of IDX_Broker_Profile (name, broker_type, broker_classific
 
 ## IDX_Broker_Summary
 
-Daily broker buy/sell activity by symbol, broker, investor type, and market board.
+Daily broker buy/sell values and lots by symbol, broker, investor type, and market board.
 
 ### Columns
 
@@ -2300,9 +2363,79 @@ Daily broker buy/sell activity by symbol, broker, investor type, and market boar
 |---|---|
 | `IDX_Broker_Summary_pkey` | `CREATE UNIQUE INDEX "IDX_Broker_Summary_pkey" ON public."IDX_Broker_Summary" USING btree ("Date", "Symbol", "Broker", "Investor Type", "Market Board")` |
 
+## IDX_Broker_Summary_Freq
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `symbol` | `text` | No | — | No column description has been recorded. |
+| `broker` | `text` | No | — | No column description has been recorded. |
+| `broker_name` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
+| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
+| `IDX_Broker_Summary_Freq_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `IDX_Broker_Summary_Freq_pkey` | `CREATE UNIQUE INDEX "IDX_Broker_Summary_Freq_pkey" ON ONLY public."IDX_Broker_Summary_Freq" USING btree (trade_date, symbol, broker, investor_type, market_board)` |
+| `idx_broker_freq_broker_date` | `CREATE INDEX idx_broker_freq_broker_date ON ONLY public."IDX_Broker_Summary_Freq" USING btree (broker, trade_date DESC)` |
+| `idx_broker_freq_symbol_date` | `CREATE INDEX idx_broker_freq_symbol_date ON ONLY public."IDX_Broker_Summary_Freq" USING btree (symbol, trade_date DESC, investor_type, market_board)` |
+
+## IDX_Net_Foreign_Summary
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `buy_value` | `numeric` | No | — | No column description has been recorded. |
+| `sell_value` | `numeric` | No | — | No column description has been recorded. |
+| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
+| `IDX_Net_Foreign_Summary_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `IDX_Net_Foreign_Summary_pkey` | `CREATE UNIQUE INDEX "IDX_Net_Foreign_Summary_pkey" ON ONLY public."IDX_Net_Foreign_Summary" USING btree (trade_date, ticker, investor_type)` |
+| `idx_net_foreign_ticker_date` | `CREATE INDEX idx_net_foreign_ticker_date ON ONLY public."IDX_Net_Foreign_Summary" USING btree (ticker, trade_date DESC, investor_type)` |
+
 ## IDX_Stock_Universe
 
-Reference universe of Indonesian listed securities and TradingView fundamentals.
+Current Indonesian listed-security universe, ticker identity, and classifications.
 
 ### Columns
 
@@ -2322,8 +2455,8 @@ Reference universe of Indonesian listed securities and TradingView fundamentals.
 | `Currency` | `text` | No | — | Trading currency. |
 | `Fundamental Currency` | `text` | No | — | Currency used for fundamental figures. |
 | `ISIN` | `text` | No | — | International Securities Identification Number. |
-| `Sector` | `text` | No | — | Source sector classification. |
-| `Industry` | `text` | No | — | Source industry classification. |
+| `Sector` | `text` | No | — | Source sector classification. 'Undefined' means the source gives no classification for the security (D02, migration 20261003_001; it replaced the placeholder '0'). It is not a real sector or industry: count it apart, never as a category of its own. |
+| `Industry` | `text` | No | — | Source industry classification. 'Undefined' means the source gives no classification for the security (D02, migration 20261003_001; it replaced the placeholder '0'). It is not a real sector or industry: count it apart, never as a category of its own. |
 | `price_feed_daily` | `numeric` | Yes | — | No column description has been recorded. |
 
 ### Constraints
@@ -2340,34 +2473,34 @@ Reference universe of Indonesian listed securities and TradingView fundamentals.
 
 ## IDX_Stock_Universe_History
 
-Point-in-time history of the tracked IDX_Stock_Universe attributes, captured from the first capture onward: one row per ticker version and knowledge version (bitemporal); superseded knowledge is kept.
+Point-in-time (bitemporal) history of the tracked IDX_Stock_Universe attributes (Company Name, Exchange, Security Type, Type Specs, Is Common Stock, ISIN, Sector, Industry), captured by Saniti from the first capture onward. Current knowledge is recorded_to IS NULL; superseded knowledge is kept.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `history_id` | `bigint` | No | — | No column description has been recorded. |
-| `Ticker` | `text` | No | — | No column description has been recorded. |
-| `Company Name` | `text` | Yes | — | No column description has been recorded. |
-| `Exchange` | `text` | Yes | — | No column description has been recorded. |
-| `Security Type` | `text` | Yes | — | No column description has been recorded. |
-| `Type Specs` | `text` | Yes | — | No column description has been recorded. |
-| `Is Common Stock` | `text` | Yes | — | No column description has been recorded. |
-| `ISIN` | `text` | Yes | — | No column description has been recorded. |
-| `Sector` | `text` | Yes | — | No column description has been recorded. |
-| `Industry` | `text` | Yes | — | No column description has been recorded. |
-| `valid_from` | `date` | No | — | No column description has been recorded. |
-| `valid_to` | `date` | Yes | — | No column description has been recorded. |
-| `valid_basis` | `text` | No | — | No column description has been recorded. |
-| `available_at` | `timestamp with time zone` | No | — | No column description has been recorded. |
-| `available_basis` | `text` | No | — | No column description has been recorded. |
-| `recorded_from` | `timestamp with time zone` | No | — | No column description has been recorded. |
-| `recorded_to` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `superseded_reason` | `text` | Yes | — | No column description has been recorded. |
-| `pit_valid_from` | `date` | Yes | — | No column description has been recorded. |
-| `pit_valid_to` | `date` | Yes | — | No column description has been recorded. |
-| `capture_id` | `bigint` | No | — | No column description has been recorded. |
-| `source_provenance` | `jsonb` | No | — | No column description has been recorded. |
+| `history_id` | `bigint` | No | — | Row id of one version (identity only). |
+| `Ticker` | `text` | No | — | IDX ticker: the entity key (several rows per ticker, one per version; history_id identifies a row). |
+| `Company Name` | `text` | Yes | — | IDX_Stock_Universe.Company Name of this version. |
+| `Exchange` | `text` | Yes | — | IDX_Stock_Universe.Exchange of this version. |
+| `Security Type` | `text` | Yes | — | IDX_Stock_Universe.Security Type of this version. |
+| `Type Specs` | `text` | Yes | — | IDX_Stock_Universe.Type Specs of this version. |
+| `Is Common Stock` | `text` | Yes | — | IDX_Stock_Universe.Is Common Stock of this version. |
+| `ISIN` | `text` | Yes | — | IDX_Stock_Universe.ISIN of this version. |
+| `Sector` | `text` | Yes | — | IDX_Stock_Universe.Sector of this version. |
+| `Industry` | `text` | Yes | — | IDX_Stock_Universe.Industry of this version. |
+| `valid_from` | `date` | No | — | Effective start of this version (inclusive). FIRST_CAPTURE and CHANGE_CAPTURED rows use the Asia/Jakarta date Saniti recorded it; the true date is on or before it and unknown (valid_basis). |
+| `valid_to` | `date` | Yes | — | Effective end of this version (exclusive); NULL = still in effect in this knowledge version. |
+| `valid_basis` | `text` | No | — | FIRST_CAPTURE (valid_from is the first recording date; the true start is earlier and unknown), CHANGE_CAPTURED (valid_from is the date the change was recorded; the true change date is on or before it) or DOCUMENTED (a documented effective date given by a correction). |
+| `available_at` | `timestamp with time zone` | No | — | When the information was available to decisions: the recording time (available_basis RECORDED) or a documented publication time (DOCUMENTED_PUBLICATION, corrections only). Point-in-time selection uses recorded time, its conservative bound. |
+| `available_basis` | `text` | No | — | RECORDED or DOCUMENTED_PUBLICATION: where available_at comes from. |
+| `recorded_from` | `timestamp with time zone` | No | — | When Saniti recorded this row (start of the knowledge period). |
+| `recorded_to` | `timestamp with time zone` | Yes | — | When Saniti superseded this row (end of the knowledge period, exclusive); NULL = current knowledge. Superseded rows are kept. |
+| `superseded_reason` | `text` | Yes | — | Why the row was superseded: CHANGE_CAPTURED, SAME_DAY_REVISION or CORRECTION; NULL for current knowledge. |
+| `pit_valid_from` | `date` | Yes | — | First observation date this row applies to point in time: the later of valid_from and the Asia/Jakarta date after recorded_from (a value recorded on a date is used from the next date). EFFECTIVE_DATED joins use pit_valid_from <= date < pit_valid_to. |
+| `pit_valid_to` | `date` | Yes | — | Observation date from which this row no longer applies point in time (exclusive): the earlier of valid_to and the Asia/Jakarta date after recorded_to; NULL = open. A row with pit_valid_to <= pit_valid_from applies to no date. |
+| `capture_id` | `bigint` | No | — | The Reference_History_Capture_Log row of the capture or correction that wrote this row. |
+| `source_provenance` | `jsonb` | No | — | How the row was written: source table, operation and capture id, the version it closes or replaces, or a correction's reason, source and superseded ids. |
 
 ### Constraints
 
@@ -2393,30 +2526,30 @@ Point-in-time history of the tracked IDX_Stock_Universe attributes, captured fro
 
 ## Monitoring_Feature04
 
-Feature04 batch/retry run summary and price-notification ordering gate.
+Feature04 automatic/retry batch summary and notification ordering gate.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `execution_id` | `text` | No | — | No column description has been recorded. |
-| `source_execution_id` | `text` | Yes | — | No column description has been recorded. |
-| `run_type` | `text` | No | — | No column description has been recorded. |
-| `trigger_source` | `text` | No | — | No column description has been recorded. |
-| `update_for_date` | `date` | Yes | — | No column description has been recorded. |
-| `price_notification_required` | `boolean` | No | `true` | No column description has been recorded. |
-| `price_notification_sent_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `eligible_tickers` | `integer` | No | `0` | No column description has been recorded. |
-| `completed_tickers` | `integer` | No | `0` | No column description has been recorded. |
-| `failed_tickers` | `integer` | No | `0` | No column description has been recorded. |
-| `blocked_tickers` | `integer` | No | `0` | No column description has been recorded. |
-| `status` | `text` | No | `'OPEN'::text` | No column description has been recorded. |
-| `started_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `sealed_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `finished_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `last_error` | `text` | Yes | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `source_monitor_table` | `text` | No | `'Monitoring_Price_ALL'::text` | No column description has been recorded. |
+| `execution_id` | `text` | No | — | Operational execution id field for Monitoring_Feature04. |
+| `source_execution_id` | `text` | Yes | — | Operational source execution id field for Monitoring_Feature04. |
+| `run_type` | `text` | No | — | Operational run type field for Monitoring_Feature04. |
+| `trigger_source` | `text` | No | — | Operational trigger source field for Monitoring_Feature04. |
+| `update_for_date` | `date` | Yes | — | Operational update for date field for Monitoring_Feature04. |
+| `price_notification_required` | `boolean` | No | `true` | Operational price notification required field for Monitoring_Feature04. |
+| `price_notification_sent_at` | `timestamp with time zone` | Yes | — | Operational price notification sent at field for Monitoring_Feature04. |
+| `eligible_tickers` | `integer` | No | `0` | Operational eligible tickers field for Monitoring_Feature04. |
+| `completed_tickers` | `integer` | No | `0` | Operational completed tickers field for Monitoring_Feature04. |
+| `failed_tickers` | `integer` | No | `0` | Operational failed tickers field for Monitoring_Feature04. |
+| `blocked_tickers` | `integer` | No | `0` | Operational blocked tickers field for Monitoring_Feature04. |
+| `status` | `text` | No | `'OPEN'::text` | Operational status field for Monitoring_Feature04. |
+| `started_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational started at field for Monitoring_Feature04. |
+| `sealed_at` | `timestamp with time zone` | Yes | — | Operational sealed at field for Monitoring_Feature04. |
+| `finished_at` | `timestamp with time zone` | Yes | — | Operational finished at field for Monitoring_Feature04. |
+| `last_error` | `text` | Yes | — | Operational last error field for Monitoring_Feature04. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational updated at field for Monitoring_Feature04. |
+| `source_monitor_table` | `text` | No | `'Monitoring_Price_ALL'::text` | Monitoring table whose Telegram delivery must precede this Feature04 result. |
 
 ### Constraints
 
@@ -2439,26 +2572,26 @@ Feature04 batch/retry run summary and price-notification ordering gate.
 
 ## Monitoring_Feature04_Ticker
 
-Per-ticker membership and terminal result for one Feature04 run.
+Per-ticker membership and outcome of a Feature04 execution.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `execution_id` | `text` | No | — | No column description has been recorded. |
-| `ticker` | `text` | No | — | No column description has been recorded. |
-| `timeframe` | `text` | No | `'Daily'::text` | No column description has been recorded. |
-| `required_generation` | `bigint` | No | — | No column description has been recorded. |
-| `requested_columns` | `ARRAY` | Yes | — | No column description has been recorded. |
-| `status` | `text` | No | `'PENDING'::text` | No column description has been recorded. |
-| `completed_generation` | `bigint` | Yes | — | No column description has been recorded. |
-| `retry_request_id` | `uuid` | Yes | — | No column description has been recorded. |
-| `last_error_code` | `text` | Yes | — | No column description has been recorded. |
-| `last_error` | `text` | Yes | — | No column description has been recorded. |
-| `started_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `finished_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `asset_type` | `text` | No | — | No column description has been recorded. |
+| `execution_id` | `text` | No | — | Operational execution id field for Monitoring_Feature04_Ticker. |
+| `ticker` | `text` | No | — | Operational ticker field for Monitoring_Feature04_Ticker. |
+| `timeframe` | `text` | No | `'Daily'::text` | Operational timeframe field for Monitoring_Feature04_Ticker. |
+| `required_generation` | `bigint` | No | — | Operational required generation field for Monitoring_Feature04_Ticker. |
+| `requested_columns` | `ARRAY` | Yes | — | Operational requested columns field for Monitoring_Feature04_Ticker. |
+| `status` | `text` | No | `'PENDING'::text` | Operational status field for Monitoring_Feature04_Ticker. |
+| `completed_generation` | `bigint` | Yes | — | Operational completed generation field for Monitoring_Feature04_Ticker. |
+| `retry_request_id` | `uuid` | Yes | — | Operational retry request id field for Monitoring_Feature04_Ticker. |
+| `last_error_code` | `text` | Yes | — | Operational last error code field for Monitoring_Feature04_Ticker. |
+| `last_error` | `text` | Yes | — | Operational last error field for Monitoring_Feature04_Ticker. |
+| `started_at` | `timestamp with time zone` | Yes | — | Operational started at field for Monitoring_Feature04_Ticker. |
+| `finished_at` | `timestamp with time zone` | Yes | — | Operational finished at field for Monitoring_Feature04_Ticker. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational updated at field for Monitoring_Feature04_Ticker. |
+| `asset_type` | `text` | No | — | Universe-derived asset class: equity from IDX_Stock_Universe; bonds from Universe_Fixed_income. |
 
 ### Constraints
 
@@ -2481,45 +2614,51 @@ Per-ticker membership and terminal result for one Feature04 run.
 
 ## Monitoring_Fixed_Income
 
-Operational result for one independent fixed-income daily or recovery cron execution.
+One market-specific fixed-income daily or recovery execution summary.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `execution_id` | `uuid` | No | — | No column description has been recorded. |
-| `run_type` | `text` | No | — | No column description has been recorded. |
-| `trigger_source` | `text` | No | — | No column description has been recorded. |
-| `target_date` | `date` | No | — | No column description has been recorded. |
-| `timeframe` | `text` | No | — | No column description has been recorded. |
-| `started_at` | `timestamp with time zone` | No | — | No column description has been recorded. |
-| `finished_at` | `timestamp with time zone` | No | — | No column description has been recorded. |
-| `expected_series` | `integer` | No | — | No column description has been recorded. |
-| `queried_series` | `integer` | No | — | No column description has been recorded. |
-| `updated_series` | `integer` | No | — | No column description has been recorded. |
-| `missing_series` | `integer` | No | — | No column description has been recorded. |
-| `missing_series_list` | `jsonb` | No | — | No column description has been recorded. |
-| `status` | `text` | No | — | No column description has been recorded. |
-| `last_error` | `text` | Yes | — | No column description has been recorded. |
-| `service_name` | `text` | Yes | — | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `statement_timestamp()` | No column description has been recorded. |
+| `execution_id` | `uuid` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `run_type` | `text` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `trigger_source` | `text` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `target_date` | `date` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `timeframe` | `text` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `started_at` | `timestamp with time zone` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `finished_at` | `timestamp with time zone` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `expected_series` | `integer` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `queried_series` | `integer` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `updated_series` | `integer` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `missing_series` | `integer` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `missing_series_list` | `jsonb` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `status` | `text` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `last_error` | `text` | Yes | — | Physical source or operational column; source-specific semantic review remains open. |
+| `service_name` | `text` | Yes | — | Physical source or operational column; source-specific semantic review remains open. |
+| `created_at` | `timestamp with time zone` | No | `statement_timestamp()` | Physical source or operational column; source-specific semantic review remains open. |
+| `market_code` | `text` | Yes | — | Market processed by the execution. |
+| `final_series` | `integer` | No | `0` | Number of exact-date final series verified. |
+| `changed_series` | `integer` | No | `0` | Number of material source payload changes. |
 
 ### Constraints
 
 | Name | Type | Definition |
 |---|---|---|
+| `Monitoring_Fixed_Income_final_counts_check` | Check | `CHECK (final_series >= 0 AND changed_series >= 0 AND final_series <= queried_series AND changed_series <= final_series)` |
+| `Monitoring_Fixed_Income_market_fkey` | Foreign key | `FOREIGN KEY (market_code) REFERENCES "Fixed_Income_Market_Schedule"(market_code)` |
 | `Monitoring_Fixed_Income_pkey` | Primary key | `PRIMARY KEY (execution_id)` |
 
 ### Indexes
 
 | Name | Definition |
 |---|---|
+| `Monitoring_Fixed_Income_market_target_idx` | `CREATE INDEX "Monitoring_Fixed_Income_market_target_idx" ON public."Monitoring_Fixed_Income" USING btree (market_code, target_date DESC, started_at DESC)` |
 | `Monitoring_Fixed_Income_pkey` | `CREATE UNIQUE INDEX "Monitoring_Fixed_Income_pkey" ON public."Monitoring_Fixed_Income" USING btree (execution_id)` |
 | `monitoring_fixed_income_target_idx` | `CREATE INDEX monitoring_fixed_income_target_idx ON public."Monitoring_Fixed_Income" USING btree (target_date, run_type, started_at DESC)` |
 
 ## Monitoring_Price_ALL
 
-Operational results for daily and recovery IDX price-update runs.
+Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs.
 
 ### Columns
 
@@ -2573,34 +2712,40 @@ Operational results for daily and recovery IDX price-update runs.
 
 ## Price_Fixed_Income
 
-TradingView fixed-income OHLC observations separated by metric_type and Timeframe; Feature04 consumes price/1D only.
+Final daily fixed-income OHLC observations with source-bar and market-close finality evidence.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `Country` | `text` | No | — | No column description has been recorded. |
-| `instrument_name` | `text` | No | — | No column description has been recorded. |
-| `ticker` | `character varying` | No | — | No column description has been recorded. |
-| `tradingview_symbol` | `character varying` | No | — | No column description has been recorded. |
-| `date` | `date` | No | — | No column description has been recorded. |
-| `open` | `numeric` | No | — | No column description has been recorded. |
-| `high` | `numeric` | No | — | No column description has been recorded. |
-| `low` | `numeric` | No | — | No column description has been recorded. |
-| `close` | `numeric` | No | — | No column description has been recorded. |
-| `volume` | `numeric` | Yes | — | No column description has been recorded. |
-| `source` | `character varying` | No | — | No column description has been recorded. |
-| `query_date` | `date` | No | — | No column description has been recorded. |
-| `ingestion_time` | `timestamp with time zone` | No | — | No column description has been recorded. |
-| `metric_type` | `character varying` | No | — | No column description has been recorded. |
-| `value_unit` | `character varying` | No | — | No column description has been recorded. |
-| `Timeframe` | `character varying` | No | — | No column description has been recorded. |
+| `Country` | `text` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `instrument_name` | `text` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `ticker` | `character varying` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `tradingview_symbol` | `character varying` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `date` | `date` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `open` | `numeric` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `high` | `numeric` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `low` | `numeric` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `close` | `numeric` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `volume` | `numeric` | Yes | — | Physical source or operational column; source-specific semantic review remains open. |
+| `source` | `character varying` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `query_date` | `date` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `ingestion_time` | `timestamp with time zone` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `metric_type` | `character varying` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `value_unit` | `character varying` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `Timeframe` | `character varying` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `source_bar_time` | `timestamp with time zone` | Yes | — | Original TradingView daily bar timestamp. |
+| `market_close_at` | `timestamp with time zone` | No | — | Configured market close instant for the observation date. |
+| `is_final` | `boolean` | No | `false` | Whether the exact daily candle was accepted after market close. |
+| `finalized_at` | `timestamp with time zone` | No | — | Time this exact final candle was verified. |
 
 ### Constraints
 
 | Name | Type | Definition |
 |---|---|---|
+| `Price_Fixed_Income_finality_check` | Check | `CHECK (NOT is_final OR finalized_at >= market_close_at)` |
 | `Price_Fixed_Income_metric_type_check` | Check | `CHECK (metric_type::text = ANY (ARRAY['price'::character varying, 'yield_to_maturity'::character varying]::text[]))` |
+| `Price_Fixed_Income_universe_fkey` | Foreign key | `FOREIGN KEY (ticker, metric_type) REFERENCES "Universe_Fixed_income"(ticker, metric_type)` |
 | `Price_Fixed_Income_pkey` | Primary key | `PRIMARY KEY (tradingview_symbol, date, metric_type, "Timeframe")` |
 
 ### Indexes
@@ -2608,12 +2753,13 @@ TradingView fixed-income OHLC observations separated by metric_type and Timefram
 | Name | Definition |
 |---|---|
 | `Price_Fixed_Income_date_idx` | `CREATE INDEX "Price_Fixed_Income_date_idx" ON public."Price_Fixed_Income" USING btree (date)` |
+| `Price_Fixed_Income_final_market_idx` | `CREATE INDEX "Price_Fixed_Income_final_market_idx" ON public."Price_Fixed_Income" USING btree ("Country", date DESC, ticker, metric_type) WHERE (is_final AND (("Timeframe")::text = '1D'::text))` |
 | `Price_Fixed_Income_pkey` | `CREATE UNIQUE INDEX "Price_Fixed_Income_pkey" ON public."Price_Fixed_Income" USING btree (tradingview_symbol, date, metric_type, "Timeframe")` |
 | `Price_Fixed_Income_ticker_metric_idx` | `CREATE INDEX "Price_Fixed_Income_ticker_metric_idx" ON public."Price_Fixed_Income" USING btree (ticker, metric_type)` |
 
 ## Price_Stock_Indonesia_IDX
 
-Daily Indonesian stock OHLCV prices sourced from TradingView.
+Daily Indonesian stock OHLCV candles sourced from TradingView.
 
 ### Columns
 
@@ -2655,23 +2801,23 @@ Daily Indonesian stock OHLCV prices sourced from TradingView.
 
 ## Reference_History_Capture_Log
 
-One row per capture of a reference table into its history (trigger, initial, manual or correction): counts of changed and new versions, keys absent from the load, and the error of a failed capture.
+One row per capture of IDX_Stock_Universe or IDX_Broker_Profile into its history (trigger, initial, manual or correction): changed and new versions, keys absent from the load, and the error of a failed capture.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `capture_id` | `bigint` | No | — | No column description has been recorded. |
-| `source_table` | `text` | No | — | No column description has been recorded. |
-| `trigger_operation` | `text` | No | — | No column description has been recorded. |
-| `captured_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `status` | `text` | No | — | No column description has been recorded. |
-| `source_rows` | `integer` | Yes | — | No column description has been recorded. |
-| `versions_changed` | `integer` | Yes | — | No column description has been recorded. |
-| `versions_opened` | `integer` | Yes | — | No column description has been recorded. |
-| `absent_entities` | `integer` | Yes | — | No column description has been recorded. |
-| `absent_examples` | `ARRAY` | No | `'{}'::text[]` | No column description has been recorded. |
-| `error` | `text` | Yes | — | No column description has been recorded. |
+| `capture_id` | `bigint` | No | — | Identity of one capture or correction. |
+| `source_table` | `text` | No | — | IDX_Stock_Universe or IDX_Broker_Profile. |
+| `trigger_operation` | `text` | No | — | INSERT, UPDATE, DELETE or TRUNCATE (trigger), INITIAL (migration), MANUAL, or CORRECTION. |
+| `captured_at` | `timestamp with time zone` | No | `now()` | Transaction time of the capture; the recorded_from of the rows it wrote. |
+| `status` | `text` | No | — | CAPTURED (versions written), NO_CHANGE, or FAILED (error set; the reference load itself succeeded). |
+| `source_rows` | `integer` | Yes | — | Rows in the source table at capture time. |
+| `versions_changed` | `integer` | Yes | — | Versions superseded (changed attributes, or overlapped by a correction). |
+| `versions_opened` | `integer` | Yes | — | Versions written for new keys, reappearing keys or correction remainders. |
+| `absent_entities` | `integer` | Yes | — | Keys with an open version but no source row: counted only, never closed. |
+| `absent_examples` | `ARRAY` | No | `'{}'::text[]` | Up to 20 of the absent keys. |
+| `error` | `text` | Yes | — | SQLSTATE and message of a failed capture; NULL otherwise. |
 
 ### Constraints
 
@@ -2741,7 +2887,7 @@ Curated meanings, grain, provenance, and update contracts for approved public da
 
 ## Telegram_Command_Log
 
-Inbound Telegram command audit and duplicate-prevention ledger for telegram-trigger.
+Inbound Telegram command audit and duplicate-prevention ledger.
 
 ### Columns
 
@@ -2760,7 +2906,7 @@ Inbound Telegram command audit and duplicate-prevention ledger for telegram-trig
 | `last_error` | `text` | Yes | — | Cooldown reason or condensed trigger failure detail. |
 | `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | UTC timestamp when the command row was created. |
 | `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | UTC timestamp when the command row was last changed. |
-| `feature04_request_id` | `uuid` | Yes | — | No column description has been recorded. |
+| `feature04_request_id` | `uuid` | Yes | — | Optional Feature04 retry request created by this Telegram command. |
 
 ### Constraints
 
@@ -2784,7 +2930,7 @@ Inbound Telegram command audit and duplicate-prevention ledger for telegram-trig
 
 ## Telegram_Notification_Log
 
-Delivery ledger used by telegram-monitor to prevent duplicate notifications.
+Outbound Telegram delivery state and anti-duplicate ledger.
 
 ### Columns
 
@@ -2821,39 +2967,39 @@ Delivery ledger used by telegram-monitor to prevent duplicate notifications.
 
 ## Tool_Catalog
 
-Versioned tool registry and advertised operational ceilings. Backend and worker configuration remain the enforcement authority.
+Versioned generic AI tool metadata, activation state, schemas, and advertised operational ceilings.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `tool_name` | `text` | No | — | No column description has been recorded. |
-| `tool_family` | `text` | No | — | No column description has been recorded. |
-| `tool_type` | `text` | No | — | No column description has been recorded. |
-| `purpose` | `text` | No | — | No column description has been recorded. |
-| `input_schema` | `jsonb` | No | — | No column description has been recorded. |
-| `output_schema` | `jsonb` | No | — | No column description has been recorded. |
-| `execution_type` | `text` | No | — | No column description has been recorded. |
-| `handler_name` | `text` | Yes | — | No column description has been recorded. |
-| `default_output_rows` | `integer` | Yes | — | No column description has been recorded. |
+| `tool_name` | `text` | No | — | Physical tool_name field for Tool_Catalog. |
+| `tool_family` | `text` | No | — | Physical tool_family field for Tool_Catalog. |
+| `tool_type` | `text` | No | — | Physical tool_type field for Tool_Catalog. |
+| `purpose` | `text` | No | — | Physical purpose field for Tool_Catalog. |
+| `input_schema` | `jsonb` | No | — | Physical input_schema field for Tool_Catalog. |
+| `output_schema` | `jsonb` | No | — | Physical output_schema field for Tool_Catalog. |
+| `execution_type` | `text` | No | — | Physical execution_type field for Tool_Catalog. |
+| `handler_name` | `text` | Yes | — | Physical handler_name field for Tool_Catalog. |
+| `default_output_rows` | `integer` | Yes | — | Physical default_output_rows field for Tool_Catalog. |
 | `max_output_rows` | `integer` | Yes | — | Backend result ceiling; this is independent of the smaller LLM-facing result limits. |
-| `max_input_rows` | `integer` | Yes | — | No column description has been recorded. |
-| `max_tickers` | `integer` | Yes | — | No column description has been recorded. |
-| `max_date_range_days` | `integer` | Yes | — | No column description has been recorded. |
-| `max_estimated_rows` | `bigint` | Yes | — | No column description has been recorded. |
-| `timeout_seconds` | `integer` | Yes | — | No column description has been recorded. |
-| `max_output_bytes` | `bigint` | Yes | — | No column description has been recorded. |
-| `max_llm_result_rows` | `integer` | Yes | — | No column description has been recorded. |
-| `max_llm_result_bytes` | `bigint` | Yes | — | No column description has been recorded. |
+| `max_input_rows` | `integer` | Yes | — | Physical max_input_rows field for Tool_Catalog. |
+| `max_tickers` | `integer` | Yes | — | Physical max_tickers field for Tool_Catalog. |
+| `max_date_range_days` | `integer` | Yes | — | Physical max_date_range_days field for Tool_Catalog. |
+| `max_estimated_rows` | `bigint` | Yes | — | Physical max_estimated_rows field for Tool_Catalog. |
+| `timeout_seconds` | `integer` | Yes | — | Physical timeout_seconds field for Tool_Catalog. |
+| `max_output_bytes` | `bigint` | Yes | — | Physical max_output_bytes field for Tool_Catalog. |
+| `max_llm_result_rows` | `integer` | Yes | — | Physical max_llm_result_rows field for Tool_Catalog. |
+| `max_llm_result_bytes` | `bigint` | Yes | — | Physical max_llm_result_bytes field for Tool_Catalog. |
 | `max_llm_result_tokens` | `integer` | Yes | — | Maximum compact tool-result tokens exposed to the model for one call. |
-| `requires_analytics_worker` | `boolean` | No | `false` | No column description has been recorded. |
-| `requires_feature_catalog` | `boolean` | No | `true` | No column description has been recorded. |
-| `requires_data_readiness` | `boolean` | No | `true` | No column description has been recorded. |
-| `tool_specific_limits` | `jsonb` | No | `'{}'::jsonb` | No column description has been recorded. |
-| `version` | `text` | No | `'v1'::text` | No column description has been recorded. |
-| `is_active` | `boolean` | No | `false` | No column description has been recorded. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | No column description has been recorded. |
+| `requires_analytics_worker` | `boolean` | No | `false` | Physical requires_analytics_worker field for Tool_Catalog. |
+| `requires_feature_catalog` | `boolean` | No | `true` | Physical requires_feature_catalog field for Tool_Catalog. |
+| `requires_data_readiness` | `boolean` | No | `true` | Physical requires_data_readiness field for Tool_Catalog. |
+| `tool_specific_limits` | `jsonb` | No | `'{}'::jsonb` | Physical tool_specific_limits field for Tool_Catalog. |
+| `version` | `text` | No | `'v1'::text` | Physical version field for Tool_Catalog. |
+| `is_active` | `boolean` | No | `false` | Physical is_active field for Tool_Catalog. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Physical created_at field for Tool_Catalog. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Physical updated_at field for Tool_Catalog. |
 
 ### Constraints
 
@@ -2873,7 +3019,7 @@ Versioned tool registry and advertised operational ceilings. Backend and worker 
 
 ## Universe_Equity_Description
 
-Reference descriptions and sector classifications for the Indonesian equity universe.
+Issuer descriptions and TradingView/curated sector and industry classifications.
 
 ### Columns
 
@@ -2888,8 +3034,8 @@ Reference descriptions and sector classifications for the Indonesian equity univ
 | `TV_Sector` | `text` | No | — | TradingView sector classification. |
 | `TV_Industry` | `text` | No | — | TradingView industry classification. |
 | `ISIN` | `text` | No | — | Unique International Securities Identification Number. |
-| `Sector` | `text` | No | — | IDX or curated sector classification. |
-| `Industry` | `text` | No | — | IDX or curated industry classification. |
+| `Sector` | `text` | No | — | IDX or curated sector classification. 'Undefined' means the source gives no classification for the security (D02, migration 20261003_001; it replaced the placeholder '0'). It is not a real sector or industry: count it apart, never as a category of its own. |
+| `Industry` | `text` | No | — | IDX or curated industry classification. 'Undefined' means the source gives no classification for the security (D02, migration 20261003_001; it replaced the placeholder '0'). It is not a real sector or industry: count it apart, never as a category of its own. |
 
 ### Constraints
 
@@ -2907,41 +3053,46 @@ Reference descriptions and sector classifications for the Indonesian equity univ
 
 ## Universe_Fixed_income
 
-Approved fixed-income instruments and their TradingView price/yield series classification.
+Approved fixed-income series with explicit source symbol, unit and market-country membership.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `region` | `text` | No | — | No column description has been recorded. |
-| `country` | `text` | No | — | No column description has been recorded. |
-| `instrument_name` | `text` | No | — | No column description has been recorded. |
-| `ticker` | `text` | No | — | No column description has been recorded. |
-| `exchange` | `text` | No | — | No column description has been recorded. |
-| `security_type` | `text` | No | — | No column description has been recorded. |
-| `type_specs` | `text` | No | — | No column description has been recorded. |
-| `is_common_stock` | `boolean` | No | — | No column description has been recorded. |
-| `tradingview_country` | `text` | No | — | No column description has been recorded. |
-| `metric_type` | `text` | No | — | No column description has been recorded. |
-| `tenor` | `text` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `statement_timestamp()` | No column description has been recorded. |
+| `region` | `text` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `country` | `text` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `instrument_name` | `text` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `ticker` | `text` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `exchange` | `text` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `security_type` | `text` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `type_specs` | `text` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `is_common_stock` | `boolean` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `tradingview_country` | `text` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `metric_type` | `text` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `tenor` | `text` | No | — | Physical source or operational column; source-specific semantic review remains open. |
+| `updated_at` | `timestamp with time zone` | No | `statement_timestamp()` | Physical source or operational column; source-specific semantic review remains open. |
+| `tradingview_symbol` | `text` | No | — | Exact TradingView symbol for the universe series. |
+| `value_unit` | `text` | No | — | Source unit for the universe series. |
 
 ### Constraints
 
 | Name | Type | Definition |
 |---|---|---|
 | `Universe_Fixed_income_metric_type_check` | Check | `CHECK (metric_type = ANY (ARRAY['price'::text, 'yield_to_maturity'::text]))` |
+| `Universe_Fixed_income_country_schedule_fkey` | Foreign key | `FOREIGN KEY (country) REFERENCES "Fixed_Income_Market_Schedule"(country)` |
 | `Universe_Fixed_income_pkey` | Primary key | `PRIMARY KEY (ticker, metric_type)` |
+| `Universe_Fixed_income_symbol_metric_key` | Unique | `UNIQUE (tradingview_symbol, metric_type)` |
 
 ### Indexes
 
 | Name | Definition |
 |---|---|
 | `Universe_Fixed_income_pkey` | `CREATE UNIQUE INDEX "Universe_Fixed_income_pkey" ON public."Universe_Fixed_income" USING btree (ticker, metric_type)` |
+| `Universe_Fixed_income_symbol_metric_key` | `CREATE UNIQUE INDEX "Universe_Fixed_income_symbol_metric_key" ON public."Universe_Fixed_income" USING btree (tradingview_symbol, metric_type)` |
 
 ## feature04_backfill_log
 
-Atomic per-run/ticker Feature04 historical load metadata and resume fingerprints; no copied price or feature rows. Source hash is an extraction fingerprint, not point-in-time availability.
+Atomic Feature04 per-run/ticker historical calculation audit and resumable extraction/output fingerprints.
 
 ### Columns
 
@@ -2982,9 +3133,894 @@ Atomic per-run/ticker Feature04 historical load metadata and resume fingerprints
 |---|---|
 | `feature04_backfill_log_pkey` | `CREATE UNIQUE INDEX feature04_backfill_log_pkey ON public.feature04_backfill_log USING btree (run_id, ticker)` |
 
+## idx_broker_summary_freq_2016
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `symbol` | `text` | No | — | No column description has been recorded. |
+| `broker` | `text` | No | — | No column description has been recorded. |
+| `broker_name` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
+| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
+| `idx_broker_summary_freq_2016_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_broker_summary_freq_2016_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2016_broker_trade_date_idx ON public.idx_broker_summary_freq_2016 USING btree (broker, trade_date DESC)` |
+| `idx_broker_summary_freq_2016_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2016_pkey ON public.idx_broker_summary_freq_2016 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
+| `idx_broker_summary_freq_2016_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2016_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2016 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
+
+## idx_broker_summary_freq_2017
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `symbol` | `text` | No | — | No column description has been recorded. |
+| `broker` | `text` | No | — | No column description has been recorded. |
+| `broker_name` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
+| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
+| `idx_broker_summary_freq_2017_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_broker_summary_freq_2017_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2017_broker_trade_date_idx ON public.idx_broker_summary_freq_2017 USING btree (broker, trade_date DESC)` |
+| `idx_broker_summary_freq_2017_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2017_pkey ON public.idx_broker_summary_freq_2017 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
+| `idx_broker_summary_freq_2017_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2017_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2017 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
+
+## idx_broker_summary_freq_2018
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `symbol` | `text` | No | — | No column description has been recorded. |
+| `broker` | `text` | No | — | No column description has been recorded. |
+| `broker_name` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
+| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
+| `idx_broker_summary_freq_2018_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_broker_summary_freq_2018_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2018_broker_trade_date_idx ON public.idx_broker_summary_freq_2018 USING btree (broker, trade_date DESC)` |
+| `idx_broker_summary_freq_2018_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2018_pkey ON public.idx_broker_summary_freq_2018 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
+| `idx_broker_summary_freq_2018_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2018_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2018 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
+
+## idx_broker_summary_freq_2019
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `symbol` | `text` | No | — | No column description has been recorded. |
+| `broker` | `text` | No | — | No column description has been recorded. |
+| `broker_name` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
+| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
+| `idx_broker_summary_freq_2019_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_broker_summary_freq_2019_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2019_broker_trade_date_idx ON public.idx_broker_summary_freq_2019 USING btree (broker, trade_date DESC)` |
+| `idx_broker_summary_freq_2019_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2019_pkey ON public.idx_broker_summary_freq_2019 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
+| `idx_broker_summary_freq_2019_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2019_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2019 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
+
+## idx_broker_summary_freq_2020
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `symbol` | `text` | No | — | No column description has been recorded. |
+| `broker` | `text` | No | — | No column description has been recorded. |
+| `broker_name` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
+| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
+| `idx_broker_summary_freq_2020_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_broker_summary_freq_2020_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2020_broker_trade_date_idx ON public.idx_broker_summary_freq_2020 USING btree (broker, trade_date DESC)` |
+| `idx_broker_summary_freq_2020_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2020_pkey ON public.idx_broker_summary_freq_2020 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
+| `idx_broker_summary_freq_2020_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2020_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2020 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
+
+## idx_broker_summary_freq_2021
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `symbol` | `text` | No | — | No column description has been recorded. |
+| `broker` | `text` | No | — | No column description has been recorded. |
+| `broker_name` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
+| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
+| `idx_broker_summary_freq_2021_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_broker_summary_freq_2021_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2021_broker_trade_date_idx ON public.idx_broker_summary_freq_2021 USING btree (broker, trade_date DESC)` |
+| `idx_broker_summary_freq_2021_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2021_pkey ON public.idx_broker_summary_freq_2021 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
+| `idx_broker_summary_freq_2021_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2021_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2021 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
+
+## idx_broker_summary_freq_2022
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `symbol` | `text` | No | — | No column description has been recorded. |
+| `broker` | `text` | No | — | No column description has been recorded. |
+| `broker_name` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
+| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
+| `idx_broker_summary_freq_2022_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_broker_summary_freq_2022_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2022_broker_trade_date_idx ON public.idx_broker_summary_freq_2022 USING btree (broker, trade_date DESC)` |
+| `idx_broker_summary_freq_2022_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2022_pkey ON public.idx_broker_summary_freq_2022 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
+| `idx_broker_summary_freq_2022_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2022_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2022 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
+
+## idx_broker_summary_freq_2023
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `symbol` | `text` | No | — | No column description has been recorded. |
+| `broker` | `text` | No | — | No column description has been recorded. |
+| `broker_name` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
+| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
+| `idx_broker_summary_freq_2023_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_broker_summary_freq_2023_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2023_broker_trade_date_idx ON public.idx_broker_summary_freq_2023 USING btree (broker, trade_date DESC)` |
+| `idx_broker_summary_freq_2023_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2023_pkey ON public.idx_broker_summary_freq_2023 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
+| `idx_broker_summary_freq_2023_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2023_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2023 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
+
+## idx_broker_summary_freq_2024
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `symbol` | `text` | No | — | No column description has been recorded. |
+| `broker` | `text` | No | — | No column description has been recorded. |
+| `broker_name` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
+| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
+| `idx_broker_summary_freq_2024_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_broker_summary_freq_2024_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2024_broker_trade_date_idx ON public.idx_broker_summary_freq_2024 USING btree (broker, trade_date DESC)` |
+| `idx_broker_summary_freq_2024_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2024_pkey ON public.idx_broker_summary_freq_2024 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
+| `idx_broker_summary_freq_2024_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2024_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2024 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
+
+## idx_broker_summary_freq_2025
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `symbol` | `text` | No | — | No column description has been recorded. |
+| `broker` | `text` | No | — | No column description has been recorded. |
+| `broker_name` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
+| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
+| `idx_broker_summary_freq_2025_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_broker_summary_freq_2025_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2025_broker_trade_date_idx ON public.idx_broker_summary_freq_2025 USING btree (broker, trade_date DESC)` |
+| `idx_broker_summary_freq_2025_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2025_pkey ON public.idx_broker_summary_freq_2025 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
+| `idx_broker_summary_freq_2025_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2025_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2025 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
+
+## idx_broker_summary_freq_2026
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `symbol` | `text` | No | — | No column description has been recorded. |
+| `broker` | `text` | No | — | No column description has been recorded. |
+| `broker_name` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
+| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
+| `idx_broker_summary_freq_2026_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_broker_summary_freq_2026_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2026_broker_trade_date_idx ON public.idx_broker_summary_freq_2026 USING btree (broker, trade_date DESC)` |
+| `idx_broker_summary_freq_2026_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2026_pkey ON public.idx_broker_summary_freq_2026 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
+| `idx_broker_summary_freq_2026_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2026_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2026 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
+
+## idx_broker_summary_freq_2027
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `symbol` | `text` | No | — | No column description has been recorded. |
+| `broker` | `text` | No | — | No column description has been recorded. |
+| `broker_name` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
+| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
+| `idx_broker_summary_freq_2027_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_broker_summary_freq_2027_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2027_broker_trade_date_idx ON public.idx_broker_summary_freq_2027 USING btree (broker, trade_date DESC)` |
+| `idx_broker_summary_freq_2027_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2027_pkey ON public.idx_broker_summary_freq_2027 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
+| `idx_broker_summary_freq_2027_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2027_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2027 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
+
+## idx_net_foreign_summary_2016
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `buy_value` | `numeric` | No | — | No column description has been recorded. |
+| `sell_value` | `numeric` | No | — | No column description has been recorded. |
+| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
+| `idx_net_foreign_summary_2016_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_net_foreign_summary_2016_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2016_pkey ON public.idx_net_foreign_summary_2016 USING btree (trade_date, ticker, investor_type)` |
+| `idx_net_foreign_summary_2016_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2016_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2016 USING btree (ticker, trade_date DESC, investor_type)` |
+
+## idx_net_foreign_summary_2017
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `buy_value` | `numeric` | No | — | No column description has been recorded. |
+| `sell_value` | `numeric` | No | — | No column description has been recorded. |
+| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
+| `idx_net_foreign_summary_2017_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_net_foreign_summary_2017_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2017_pkey ON public.idx_net_foreign_summary_2017 USING btree (trade_date, ticker, investor_type)` |
+| `idx_net_foreign_summary_2017_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2017_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2017 USING btree (ticker, trade_date DESC, investor_type)` |
+
+## idx_net_foreign_summary_2018
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `buy_value` | `numeric` | No | — | No column description has been recorded. |
+| `sell_value` | `numeric` | No | — | No column description has been recorded. |
+| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
+| `idx_net_foreign_summary_2018_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_net_foreign_summary_2018_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2018_pkey ON public.idx_net_foreign_summary_2018 USING btree (trade_date, ticker, investor_type)` |
+| `idx_net_foreign_summary_2018_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2018_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2018 USING btree (ticker, trade_date DESC, investor_type)` |
+
+## idx_net_foreign_summary_2019
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `buy_value` | `numeric` | No | — | No column description has been recorded. |
+| `sell_value` | `numeric` | No | — | No column description has been recorded. |
+| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
+| `idx_net_foreign_summary_2019_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_net_foreign_summary_2019_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2019_pkey ON public.idx_net_foreign_summary_2019 USING btree (trade_date, ticker, investor_type)` |
+| `idx_net_foreign_summary_2019_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2019_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2019 USING btree (ticker, trade_date DESC, investor_type)` |
+
+## idx_net_foreign_summary_2020
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `buy_value` | `numeric` | No | — | No column description has been recorded. |
+| `sell_value` | `numeric` | No | — | No column description has been recorded. |
+| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
+| `idx_net_foreign_summary_2020_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_net_foreign_summary_2020_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2020_pkey ON public.idx_net_foreign_summary_2020 USING btree (trade_date, ticker, investor_type)` |
+| `idx_net_foreign_summary_2020_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2020_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2020 USING btree (ticker, trade_date DESC, investor_type)` |
+
+## idx_net_foreign_summary_2021
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `buy_value` | `numeric` | No | — | No column description has been recorded. |
+| `sell_value` | `numeric` | No | — | No column description has been recorded. |
+| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
+| `idx_net_foreign_summary_2021_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_net_foreign_summary_2021_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2021_pkey ON public.idx_net_foreign_summary_2021 USING btree (trade_date, ticker, investor_type)` |
+| `idx_net_foreign_summary_2021_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2021_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2021 USING btree (ticker, trade_date DESC, investor_type)` |
+
+## idx_net_foreign_summary_2022
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `buy_value` | `numeric` | No | — | No column description has been recorded. |
+| `sell_value` | `numeric` | No | — | No column description has been recorded. |
+| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
+| `idx_net_foreign_summary_2022_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_net_foreign_summary_2022_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2022_pkey ON public.idx_net_foreign_summary_2022 USING btree (trade_date, ticker, investor_type)` |
+| `idx_net_foreign_summary_2022_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2022_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2022 USING btree (ticker, trade_date DESC, investor_type)` |
+
+## idx_net_foreign_summary_2023
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `buy_value` | `numeric` | No | — | No column description has been recorded. |
+| `sell_value` | `numeric` | No | — | No column description has been recorded. |
+| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
+| `idx_net_foreign_summary_2023_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_net_foreign_summary_2023_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2023_pkey ON public.idx_net_foreign_summary_2023 USING btree (trade_date, ticker, investor_type)` |
+| `idx_net_foreign_summary_2023_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2023_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2023 USING btree (ticker, trade_date DESC, investor_type)` |
+
+## idx_net_foreign_summary_2024
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `buy_value` | `numeric` | No | — | No column description has been recorded. |
+| `sell_value` | `numeric` | No | — | No column description has been recorded. |
+| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
+| `idx_net_foreign_summary_2024_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_net_foreign_summary_2024_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2024_pkey ON public.idx_net_foreign_summary_2024 USING btree (trade_date, ticker, investor_type)` |
+| `idx_net_foreign_summary_2024_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2024_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2024 USING btree (ticker, trade_date DESC, investor_type)` |
+
+## idx_net_foreign_summary_2025
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `buy_value` | `numeric` | No | — | No column description has been recorded. |
+| `sell_value` | `numeric` | No | — | No column description has been recorded. |
+| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
+| `idx_net_foreign_summary_2025_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_net_foreign_summary_2025_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2025_pkey ON public.idx_net_foreign_summary_2025 USING btree (trade_date, ticker, investor_type)` |
+| `idx_net_foreign_summary_2025_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2025_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2025 USING btree (ticker, trade_date DESC, investor_type)` |
+
+## idx_net_foreign_summary_2026
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `buy_value` | `numeric` | No | — | No column description has been recorded. |
+| `sell_value` | `numeric` | No | — | No column description has been recorded. |
+| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
+| `idx_net_foreign_summary_2026_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_net_foreign_summary_2026_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2026_pkey ON public.idx_net_foreign_summary_2026 USING btree (trade_date, ticker, investor_type)` |
+| `idx_net_foreign_summary_2026_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2026_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2026 USING btree (ticker, trade_date DESC, investor_type)` |
+
+## idx_net_foreign_summary_2027
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `ticker` | `text` | No | — | No column description has been recorded. |
+| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
+| `buy_value` | `numeric` | No | — | No column description has been recorded. |
+| `sell_value` | `numeric` | No | — | No column description has been recorded. |
+| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
+| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
+| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
+| `remark` | `text` | Yes | — | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
+| `idx_net_foreign_summary_2027_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_net_foreign_summary_2027_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2027_pkey ON public.idx_net_foreign_summary_2027 USING btree (trade_date, ticker, investor_type)` |
+| `idx_net_foreign_summary_2027_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2027_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2027 USING btree (ticker, trade_date DESC, investor_type)` |
+
+## idx_stockbit_backfill_status
+
+No description has been recorded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | No column description has been recorded. |
+| `backfill_year` | `integer` | No | — | No column description has been recorded. |
+| `state` | `text` | No | — | No column description has been recorded. |
+| `expected_filters` | `integer` | No | `0` | No column description has been recorded. |
+| `completed_filters` | `integer` | No | `0` | No column description has been recorded. |
+| `detail_rows` | `bigint` | No | `0` | No column description has been recorded. |
+| `summary_rows` | `bigint` | No | `0` | No column description has been recorded. |
+| `request_count` | `bigint` | No | `0` | No column description has been recorded. |
+| `attempt_count` | `integer` | No | `0` | No column description has been recorded. |
+| `error_class` | `text` | Yes | — | No column description has been recorded. |
+| `error_message` | `text` | Yes | — | No column description has been recorded. |
+| `started_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
+| `heartbeat_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `completed_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `idx_stockbit_backfill_status_attempt_count_check` | Check | `CHECK (attempt_count >= 0)` |
+| `idx_stockbit_backfill_status_backfill_year_check` | Check | `CHECK (backfill_year >= 2016 AND backfill_year <= 2100)` |
+| `idx_stockbit_backfill_status_completed_filters_check` | Check | `CHECK (completed_filters >= 0)` |
+| `idx_stockbit_backfill_status_detail_rows_check` | Check | `CHECK (detail_rows >= 0)` |
+| `idx_stockbit_backfill_status_expected_filters_check` | Check | `CHECK (expected_filters >= 0)` |
+| `idx_stockbit_backfill_status_request_count_check` | Check | `CHECK (request_count >= 0)` |
+| `idx_stockbit_backfill_status_state_check` | Check | `CHECK (state = ANY (ARRAY['queued'::text, 'fetching'::text, 'uploading'::text, 'completed'::text, 'failed_fetch'::text, 'failed_reconciliation'::text, 'failed_database'::text, 'blocked_auth'::text, 'blocked_storage'::text]))` |
+| `idx_stockbit_backfill_status_summary_rows_check` | Check | `CHECK (summary_rows >= 0)` |
+| `idx_stockbit_backfill_status_pkey` | Primary key | `PRIMARY KEY (trade_date)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_stockbit_backfill_state_date` | `CREATE INDEX idx_stockbit_backfill_state_date ON public.idx_stockbit_backfill_status USING btree (state, trade_date)` |
+| `idx_stockbit_backfill_status_pkey` | `CREATE UNIQUE INDEX idx_stockbit_backfill_status_pkey ON public.idx_stockbit_backfill_status USING btree (trade_date)` |
+
 ## stockbit_broker_summary_load_log
 
-Audit log used to resume and verify Stockbit broker-summary loads by date.
+Per-trading-date Stockbit broker-summary load progress, retries, and review state.
 
 ### Columns
 

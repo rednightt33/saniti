@@ -178,6 +178,83 @@ class FakeSocket:
         pass
 
 
+class FakeCopy:
+    def __init__(self):
+        self.rows = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def write_row(self, row):
+        self.rows.append(row)
+
+
+class FakeCursor:
+    def __init__(self):
+        self.queries = []
+        self.copy_context = FakeCopy()
+        self.results = iter([(1,), (1,)])
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def execute(self, query):
+        self.queries.append(query)
+
+    def copy(self, query):
+        self.queries.append(query)
+        return self.copy_context
+
+    def fetchone(self):
+        return next(self.results)
+
+
+class FakeConnection:
+    def __init__(self):
+        self.cursor_context = FakeCursor()
+
+    def cursor(self):
+        return self.cursor_context
+
+
+def test_bulk_upsert_stage_does_not_inherit_unwritten_required_columns():
+    row = {column: None for column in module.PRICE_COLUMNS}
+    row.update(
+        {
+            "Country": "United States",
+            "instrument_name": "US 10Y",
+            "ticker": "US10Y",
+            "tradingview_symbol": "TVC:US10",
+            "date": date(2026, 10, 9),
+            "open": Decimal("99"),
+            "high": Decimal("100"),
+            "low": Decimal("98"),
+            "close": Decimal("99.5"),
+            "source": "TradingView",
+            "query_date": date(2026, 10, 12),
+            "metric_type": "price",
+            "value_unit": "PCTPAR",
+            "Timeframe": "1D",
+            "source_bar_time": datetime(2026, 10, 8, tzinfo=timezone.utc),
+            "market_close_at": datetime(2026, 10, 9, 21, tzinfo=timezone.utc),
+            "is_final": True,
+            "finalized_at": datetime(2026, 10, 12, tzinfo=timezone.utc),
+        }
+    )
+    connection = FakeConnection()
+    assert module.bulk_upsert_prices(connection, [row]) == (1, 1)
+    create_stage = connection.cursor_context.queries[0]
+    assert "WITH NO DATA" in create_stage
+    assert " LIKE " not in create_stage
+    assert len(connection.cursor_context.copy_context.rows) == 1
+
+
 def test_request_series_keeps_source_timestamp_and_exact_session(monkeypatch):
     monkeypatch.setattr(module.random, "randrange", lambda _n: 1)
     timestamp = int(datetime(2026, 10, 8, 0, 0, tzinfo=timezone.utc).timestamp())

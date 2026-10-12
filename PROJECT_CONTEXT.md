@@ -21,6 +21,14 @@ Saniti stores Indonesian equity reference data, daily prices, and Stockbit broke
 - IDX price cron service ID: `43c86c6f-3221-4403-83c3-cd3056441558`
 - IDX price recovery cron service: `idx-price-recovery-cron`
 - IDX price recovery cron service ID: `a8e6e32a-fcd8-4c33-9ecc-1488a4b2db05`
+- Indonesia fixed-income daily cron: `fixed-income-price-cron`
+- Indonesia fixed-income daily cron service ID: `e58619ff-2e07-45ae-b361-9cf65580233e`
+- Indonesia fixed-income recovery cron: `fixed-income-price-recovery-cron`
+- Indonesia fixed-income recovery cron service ID: `9e86fa6c-3753-4ba9-9340-4c30702cd67a`
+- US fixed-income daily cron: `fixed-income-price-us-cron`
+- US fixed-income daily cron service ID: `303de1ee-0042-4f69-a1c1-bb0c28fb6331`
+- US fixed-income recovery cron: `fixed-income-price-us-recovery-cron`
+- US fixed-income recovery cron service ID: `1e80a4b8-adff-4f42-88f4-82bc1a2b98bc`
 - Feature 01 worker service: `feature-01-worker`
 - Feature 01 worker service ID: `de4e34ee-435b-408f-a77f-63e6698a2dab`
 - AI data coverage cron service: `ai-data-coverage` (daily at 07:30 Asia/Jakarta / `30 0 * * *` UTC)
@@ -64,6 +72,10 @@ All active application services deploy from `rednightt33/saniti` on branch `main
 | --- | --- | --- |
 | `idx-price-cron` | `/apps/idx-price-cron` | `/apps/idx-price-cron/**` |
 | `idx-price-recovery-cron` | `/apps/idx-price-cron` | `/apps/idx-price-cron/**` |
+| `fixed-income-price-cron` | `/apps/fixed-income-price-cron` | `/apps/fixed-income-price-cron/**` |
+| `fixed-income-price-recovery-cron` | `/apps/fixed-income-price-cron` | `/apps/fixed-income-price-cron/**` |
+| `fixed-income-price-us-cron` | `/apps/fixed-income-price-cron` | `/apps/fixed-income-price-cron/**` |
+| `fixed-income-price-us-recovery-cron` | `/apps/fixed-income-price-cron` | `/apps/fixed-income-price-cron/**` |
 | `telegram-monitor` | `/apps/telegram-monitor` | `/apps/telegram-monitor/**` |
 | `telegram-trigger` | `/apps/telegram-trigger` | `/apps/telegram-trigger/**` |
 | `feature-01-worker` | `/apps/feature-01-worker` | `/apps/feature-01-worker/**` |
@@ -108,6 +120,21 @@ idx-price-recovery-cron at 06:00 Asia/Jakarta, or Run now -> previous-weekday DA
 
 Railway evaluates separate UTC schedules: `idx-price-cron` uses `0 10 * * *`, and `idx-price-recovery-cron` uses `0 23 * * *`. Both use explicit modes and exit after each execution. Weekend recovery targets Friday. A price row is accepted only when the TradingView candle timestamp matches the exact target date; a prior candle is never used as today's value. The `(ticker, date)` primary key makes repeated runs replace only the same daily row. A shared PostgreSQL advisory lock prevents concurrent runs. Every execution has its own monitoring `execution_id`; the system never performs an automatic third TradingView query.
 
+Automated fixed-income final closes:
+
+```text
+ID daily 10:00 UTC / recovery 11:00 UTC -> 16:00 Asia/Jakarta close + 60 minutes
+US daily 23:00 UTC / recovery 00:00 UTC -> 17:00 America/New_York close + 60 minutes
+-> universe-selected TradingView price and yield series -> exact final candle UPSERT
+-> Monitoring_Fixed_Income -> price Telegram -> changed price/1D tickers -> Feature04
+-> Feature04 completion Telegram
+```
+
+All four jobs use the same Git application. Market clocks and TradingView daily-label
+conventions come from `Fixed_Income_Market_Schedule`; symbols and units come from
+`Universe_Fixed_income`. Recovery re-queries the complete latest session. An identical
+rerun writes nothing and opens a skipped Feature04 execution.
+
 After a committed price insert/update with non-null `ingestion_time`, the PostgreSQL trigger opens a Feature 01 queue item for that ticker/date in the same transaction. The always-on `feature-01-worker` polls the queue, runs the incremental SQL refresh, validates affected rows, and updates `Feature_Calculation_Queue`, `Feature_Status`, and `Feature_Calculation_Log`. It has no cron schedule and never queries TradingView. A historical price correction can refresh up to 120 subsequent trading observations. Its `SUCCESS` status measures price-driven freshness only; universe classification changes need a separate refresh path.
 
 AI coverage metadata:
@@ -138,6 +165,12 @@ Telegram owner -> telegram-trigger webhook -> validate webhook secret and Chat I
 - `IDX_Stock_Universe`: Indonesian listed-security universe.
 - `Universe_Equity_Description`: company and industry descriptions.
 - `Price_Stock_Indonesia_IDX`: daily IDX OHLCV price history.
+- `Fixed_Income_Market_Schedule`: data-driven market timezone, close, finality delay and
+  TradingView source-label mapping for fixed-income sessions.
+- `Universe_Fixed_income`: the approved fixed-income price/yield series with exact source
+  symbol and unit; it is the runtime roster for all four fixed-income jobs.
+- `Price_Fixed_Income`: final fixed-income OHLC observations with original source-bar time,
+  market-close instant and finalization evidence.
 - `Feature_04_Technical_Indicator`: 57-column cross-asset table with universe-derived `asset_type`, exact source `close` by `trade_date`, technical indicators, candlestick/inside-bar flags, and Pine SMI/swing state. It covers 844 equity tickers / 1,318,633 rows and 24 bonds tickers / 60,409 price rows. Committed price changes enqueue `feature-04-worker` per asset/ticker for full-history replay with generation fencing, isolated formula diagnostics, bounded retry, per-column readiness, and ordered Telegram completion after the corresponding price message. Telegram offers failure-only full-ticker or dependency-closed column retry. No AI allowlist onboarding. See `FEATURE04_TECHNICAL_INDICATOR.md`.
 - `feature04_backfill_log`: atomic per-run/ticker load audit with source/output fingerprints and resumable COMPLETED/FAILED states; source ingestion timestamps are not fabricated.
 - `Feature_01_Stock_Daily`: SQL-side daily ticker features for price returns, volatility, volume, and drawdown; its incremental refresh routine is called by the Feature 01 worker.
@@ -146,7 +179,7 @@ Telegram owner -> telegram-trigger webhook -> validate webhook secret and Chat I
 - `Feature_Calculation_Queue`: durable per-candle Feature 01 work items; a PostgreSQL price-row trigger now enqueues them in the price transaction.
 - `Feature_Status`: current price-driven per-ticker Feature 01 calculation state, reconciled during enqueue and worker transitions.
 - `Feature_Calculation_Log`: completed calculation attempt and retry history. The Railway worker is deployed and a live re-ingestion test passed.
-- `Feature_Catalog`: machine-readable formula and semantic-governance layer for validated Feature columns. All 146 active definitions across Feature 01–04 include interpretation, recommended use, misuse warnings, semantic review status, and validation evidence; Feature 01 remains `v1`, Feature 02 and Feature 03 use active `v2`, Feature04 active `v3`. Feature04's 42 v1 and 46 v2 definitions remain inactive history; its 55 v3 definitions are calculation-verified, while TradingView and training point-in-time parity remain unverified. The backend requires relevant definitions to be loaded before data retrieval or aggregation; Feature04 AI onboarding has not been authorized or performed.
+- `Feature_Catalog`: machine-readable formula and semantic-governance layer for validated Feature columns. All 148 active definitions across Feature 01–04 include interpretation, recommended use, misuse warnings, semantic review status, and validation evidence; Feature 01 remains `v1`, Feature 02 and Feature 03 use active `v2`, Feature04 active `v3`. Feature04's 42 v1 and 46 v2 definitions remain inactive history; its 57 v3 definitions are calculation-verified, while TradingView and training point-in-time parity remain unverified. The backend requires relevant definitions to be loaded before data retrieval or aggregation; Feature04 AI onboarding has not been authorized or performed.
 - `Feature_Relationship_Catalog`: safe join keys, cardinality, output grain, and preaggregation requirements between validated Feature tables.
 - `Tool_Catalog`: generic AI tool schemas, versions, activation state, and advertised database/worker/LLM-facing limits. `is_active` was read only by `market-ai-backend`, deleted on 2026-09-26, so no running service reads it; the values were left as they were. The tools `market-ai-orc` actually registers are decided by its own registry and environment flags, not by this table. `route_analysis` selects built-in, query-sandbox, or statistical execution from declared operation classes for the legacy backend.
 - `Analytics_Dataset_Snapshot` / `Analytics_Job`: immutable short-lived raw/Feature input provenance plus durable class-separated worker lease/result audit. Neither worker has PostgreSQL or bucket credentials.
