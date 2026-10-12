@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-10-12 — EXEC-EXPORT read-only download probe
+
+User: "Also terkait excel, lihat edge_ddb3367765be54339bd3408fec055423 terkait eexport data excel."
+- `orc-test-runner` deployment **128b7cdd-cd41-4bd8-b6bb-0b85306f131e** (CLI upload of a one-file probe in place of the
+  suite runner; GET only against market-ai-orc: the request's artifacts and both exports' downloads). Both files
+  returned HTTP 200 with matching sha256 and valid XLSX. The EDGE owner id was embedded in the uploaded probe only, not
+  in the repository. The next suite run uploads `apps/orc-test-runner` again.
+- No variable, service, model, provider, mode or configuration change.
+
 ## 2026-10-12 — EXEC-STYLE after the A/B: Run A style without required assumptions or limitations
 
 User: "We'll go with option A deh, tapi tanpa kewajiban AI harus kash asumsi, batasan saat reply ke useer. Tabel juga
