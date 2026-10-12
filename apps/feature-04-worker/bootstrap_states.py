@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -89,6 +90,7 @@ def validate_recent(
 
 def main() -> int:
     args = parse_args()
+    started = time.monotonic()
     with connect() as connection:
         if connection.execute(
             'SELECT EXISTS(SELECT 1 FROM public."Feature04_Calculation_Queue" '
@@ -118,6 +120,8 @@ def main() -> int:
         instruments = [row for row in instruments if row["ticker"] == args.ticker.upper()]
     if args.limit:
         instruments = instruments[: args.limit]
+    print(json.dumps({"event": "checkpoint_bootstrap_started",
+                      "instruments": len(instruments), "dry_run": args.dry_run}), flush=True)
     completed = 0
     stored_drift_count = 0
     stored_drift_samples = []
@@ -163,7 +167,8 @@ def main() -> int:
                               "total": len(instruments), "ticker": ticker}), flush=True)
     print(json.dumps({"event": "checkpoint_bootstrap_completed", "instruments": completed,
                       "dry_run": args.dry_run, "stored_drift_count": stored_drift_count,
-                      "stored_drift_samples": stored_drift_samples}), flush=True)
+                      "stored_drift_samples": stored_drift_samples,
+                      "elapsed_seconds": round(time.monotonic() - started, 3)}), flush=True)
     if args.require_stored_match and stored_drift_count:
         raise RuntimeError(f"Stored Feature04 suffix has {stored_drift_count} mismatched values")
     return 0
