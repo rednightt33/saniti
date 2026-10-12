@@ -730,3 +730,10 @@ frontend changes on `codex/edge-bff`; runner/Orc, live database schema, model an
   full TA-Lib run by `2.116e-10`, just above the agreed tolerance. Preserve TA-Lib's
   add/output/subtract rolling sum and sum-of-squares state across checkpoints. State version
   v2 keeps the strict tolerance; the failed dry run wrote no checkpoint or Feature04 row.
+- **Candlestick classification depended on an unrelated old prefix (FIXED):** the next
+  shadow pass found BBHI `CDLHARAMI` returned `0` from the bounded checkpoint path but
+  `-80` from a full-array call. TA-Lib carries candle-setting floating totals from the
+  beginning of the supplied array, so an exact threshold could change when older bars were
+  present. Full repair and incremental execution now call the same TA-Lib function over the
+  same fixed 15-bar window for every classified candle. State version v3 invalidates older
+  checkpoints; integer pattern flags remain exact and the validation tolerance is unchanged.

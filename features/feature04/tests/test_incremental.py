@@ -79,3 +79,13 @@ def test_checkpoint_rejects_wrong_versions_and_non_chronological_suffix():
         calculate_incremental(source[5:], checkpoint=incompatible)
     with pytest.raises(ValueError, match="strictly chronological"):
         calculate_incremental(source[4:], checkpoint=checkpoint)
+
+
+def test_candlestick_flags_do_not_depend_on_an_unrelated_old_prefix():
+    source = bars(260)
+    expected = calculate(source, calculated_at=STAMP)
+    actual, outcomes, _, _ = calculate_incremental(source, calculated_at=STAMP)
+    assert all(value["status"] == "SUCCESS" for value in outcomes.values())
+    for left, right in zip(actual, expected):
+        for column in (value for value in FEATURE_COLUMNS if value.startswith("cdl_")):
+            assert left[column] == right[column]

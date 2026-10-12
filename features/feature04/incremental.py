@@ -33,7 +33,7 @@ from engine import (
 from swing import SMI_D_LENGTH, SMI_EMA_LENGTH, SMI_K_LENGTH, SMI_THRESHOLD, SWING_COLUMNS
 
 
-STATE_VERSION = "feature04-state-v2"
+STATE_VERSION = "feature04-state-v3"
 EMA_PERIODS = (12, 26, 50, 200)
 MAX_CLOSE_BUFFER = 50
 MAX_PATTERN_LOOKBACK = max(

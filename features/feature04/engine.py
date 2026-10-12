@@ -97,6 +97,26 @@ def library_contract() -> dict:
             'patterns': functions}
 
 
+def _calculate_canonical_pattern(function, arrays, parameters, lookback, window):
+    """Evaluate each candle against a bounded, position-independent TA-Lib window.
+
+    TA-Lib's vector candlestick functions carry a floating rolling total from
+    the beginning of the supplied array.  At an exact threshold that can make
+    the same candle change classification when an unrelated older prefix is
+    present.  Re-evaluating the final value from a fixed-size window preserves
+    TA-Lib's formula while making full repairs and checkpoint suffixes exact.
+    """
+    size = len(arrays[0])
+    result = np.zeros(size, dtype=np.int32)
+    for index in range(lookback, size):
+        start = max(0, index - window + 1)
+        values = function(
+            *(array[start:index + 1] for array in arrays), **parameters
+        )
+        result[index] = values[-1]
+    return result
+
+
 def observation_date(value) -> date:
     if isinstance(value, datetime):
         raise ValueError('Source requires a DATE, not an intraday timestamp')
@@ -266,7 +286,13 @@ def calculate_with_diagnostics(
             for column, name in PATTERNS.items():
                 def calculate_pattern(col=column, fn_name=name):
                     lookback = contract['patterns'][fn_name]['lookback']
-                    array = getattr(talib, fn_name)(o, h, l, c, **contract['patterns'][fn_name]['parameters'])
+                    window = max(
+                        item['lookback'] for item in contract['patterns'].values()
+                    ) + 1
+                    array = _calculate_canonical_pattern(
+                        getattr(talib, fn_name), (o, h, l, c),
+                        contract['patterns'][fn_name]['parameters'], lookback, window,
+                    )
                     for j, value in enumerate(array):
                         if j >= lookback:
                             results[start + j][col] = int(value)
