@@ -59,14 +59,14 @@ before claiming current final-close verification.
 
 ## Cutover and canary
 
-Git commit `5385325` is the deployed main revision. Exact successful Railway deployments:
+Git commit `7cc8d72` is the deployed main revision. Exact successful Railway deployments:
 
 | Job | Schedule UTC | Deployment |
 | --- | --- | --- |
-| ID daily | `0 10 * * *` | `b43127d3-bae9-4498-acd9-eadaa24e843f` |
-| ID recovery | `0 11 * * *` | `ebef2984-2cf2-47ed-926b-35d02a06a748` |
-| US daily | `0 23 * * *` | `7ca45494-a5ed-4953-8370-09e1e8ab266c` |
-| US recovery | `0 0 * * *` | `efe1a249-fa67-48d4-baa9-1376aa8dbf6a` |
+| ID daily | `0 10 * * *` | `69ed890b-bf38-4b6c-b19a-89bd4aaa9d77` |
+| ID recovery | `0 11 * * *` | `7674e6a2-cbd8-45db-afbe-720fb9bedbe5` |
+| US daily | `0 23 * * *` | `f83d365a-5d4f-4a9a-aceb-196aee05fd32` |
+| US recovery | `0 0 * * *` | `140202d5-59f2-4442-a8ed-b2faeb76d9a6` |
 
 Migration `20261012_002_configure_fixed_income_source_dates.sql`, SHA256
 `bc12e2efb5bb156f2fa986ad98970116b74f57d67adac5dc04212656a66c4f8a`, was rehearsed

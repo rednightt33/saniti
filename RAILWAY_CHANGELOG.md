@@ -12,11 +12,11 @@
   `0 23 * * *`, and US recovery `0 0 * * *`. Each service uses the same root/watch path,
   database and Telegram references, TLS verification, restart `NEVER`, and its explicit
   market/mode start command.
-- Commit `5385325` exact deployments all reached `SUCCESS`: ID daily
-  `b43127d3-bae9-4498-acd9-eadaa24e843f`, ID recovery
-  `ebef2984-2cf2-47ed-926b-35d02a06a748`, US daily
-  `7ca45494-a5ed-4953-8370-09e1e8ab266c`, and US recovery
-  `efe1a249-fa67-48d4-baa9-1376aa8dbf6a`.
+- Commit `7cc8d72` exact deployments all reached `SUCCESS`: ID daily
+  `69ed890b-bf38-4b6c-b19a-89bd4aaa9d77`, ID recovery
+  `7674e6a2-cbd8-45db-afbe-720fb9bedbe5`, US daily
+  `f83d365a-5d4f-4a9a-aceb-196aee05fd32`, and US recovery
+  `140202d5-59f2-4442-a8ed-b2faeb76d9a6`.
 - Dry-run canaries found every final 2026-10-09 series: ID deployment
   `75565757-5da3-4e75-b09a-172e57b52f8b` 22/22 and US deployment
   `38b5c160-0cbe-4579-9917-8f12c86792d9` 26/26. Deployment

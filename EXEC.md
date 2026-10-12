@@ -1816,7 +1816,7 @@ canary kedua market, dokumentasi, migrasi, katalog, dan rekonsiliasi Railway.
 
 **Status:** COMPLETED 2026-10-12. Migrasi `20261012_001` dan forward-only
 `20261012_002` lulus rehearsal/rollback lalu diterapkan. Empat cron Git aktif untuk ID dan
-US daily/recovery pada commit `5385325`; semua exact deployment `SUCCESS`. Canary ID
+US daily/recovery pada commit `7cc8d72`; semua exact deployment `SUCCESS`. Canary ID
 22/22 dan US 26/26 lulus. Re-query 2026-10-05..09 menghasilkan 10/10 run `SUCCESS`, 240
 seri final, nol missing; 24 ticker harga menyelesaikan Feature04, close cocok 120/120, dan
 semua notifikasi price/Feature04 `SENT`. Recovery identik memverifikasi 26 seri dengan
