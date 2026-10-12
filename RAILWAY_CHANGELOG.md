@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-10-12 — EXEC-DETAILS and M144 deployed from main
+
+User: "M144 Ok masukan exec" and the Details requests 2 and 3. Rollback references: orc `d608732c`, edge-bff `9db6483d`.
+- `main` `2a74fc4`: market-ai-orc **dc757f0b-3bde-4cb1-8290-7e2794c3f799** and edge-bff
+  **23a9d7f4-ca2c-4e06-a73d-39ed76f67dde** reached **SUCCESS**; no `*_inactive` event; EDGE `/ready` 200 and the served
+  page carries the Details drag line.
+- No migration, variable, model, provider, mode or configuration change.
+
 ## 2026-10-12 — EXEC-SORT, EXEC-UI-1012 (B1, C) and EXEC-DELETE deployed from main
 
 User: "1 pakai B hanya smebunyikan di front end tapi backend bisa akses if needed / 2 Ok / 3 Ok" (with "A. correct",

@@ -2130,6 +2130,8 @@ well carried". Dibangun:
   bertahan sesudah muat ulang, lipat/buka, tanpa geser horizontal. Tes: EDGE 72, orc 1.635 lulus.
 - Butir 1 (tampilan ponsel saat scroll ke bawah): belum bisa direproduksi berbeda di emulator; menunggu penjelasan
   user tentang bagian yang salah.
+- Deploy `main` `2a74fc4`: orc `dc757f0b` dan edge-bff `23a9d7f4` SUCCESS. Galeri bentuk output jawaban (permintaan
+  user: "separate html on how those looks like currently") dikirim sebagai file terpisah, dirender dari EDGE yang live.
 
 ### EXEC-IMPL-1012: rencana implementasi EXEC-JOINKEY, EXEC-RELEASE, EXEC-FRICTION, EXEC-STYLE (berjalan)
 
