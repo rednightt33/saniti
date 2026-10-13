@@ -864,7 +864,12 @@ derives a column is first built and released in the analysis
 (emit_table with units=) and then shown with one instruction. Value
 references cell by cell are only for a small table of up to three rows
 and three columns that mixes sources. check_references shows a table
-instruction as it will appear."""
+instruction as it will appear. The table already shows its figures, so
+the text around it stays short: say what the table means in words and
+cite only the few figures that carry the conclusion, each by its
+address; a new figure (a difference, a total, a count or a ratio) is a
+released value or diff, ratio, abs or chg of references, never worked
+out in the text, and an example amount is said in words."""
 VALUE_REFERENCE_CONTRACT = ("Figures from data are value references {{...}} (see VALUE REFERENCES), never typed "
                             "numbers. ")
 ANGLE_NARRATIVE_CONTRACT = ("research_findings: for an ANSWER that rests on a completed multi-angle research run, "
@@ -1360,6 +1365,10 @@ TYPED_FIGURES_INSTRUCTION = (
 # backend cannot know which one is meant); the request names those values so the repair is a choice, not a search
 TYPED_FIGURES_CANDIDATES = " Values this run released that equal each figure (choose the one you mean): {candidates}."
 MAX_CANDIDATES_PER_FIGURE = 6
+# EXEC-PROSE: a draft for check_references shortened with an ellipsis leaves its missing sentences unchecked
+SHORTENED_MARKS = ("...", "\u2026")
+SHORTENED_NOTE = ("This draft is shortened (it has ...): the sentences left out were not checked. Send the whole text "
+                  "you will answer with.")
 TYPED_FIGURES_LINE = ("Angka berikut diketik dari hasil analisis tanpa alamat, jadi tidak dibaca ulang dari tabel hasil: "
                       "{numbers}.")
 # G23 C (K2, PLAN_FINAL_2026-10-04.md): every one-time gate request says it is asked once and the way out
@@ -2456,7 +2465,7 @@ class AgentOrchestrator:
         conversation_token = current_conversation_id.set(current_conversation_id.get() or request.conversation_id)
         references_token = current_reference_sources.set(state.ref_sources)
         tables_token = table_directives.current_table_directives.set(self.table_directives)
-        draft_token = current_draft_checker.set(lambda text: self._check_draft(state, text))
+        draft_token = current_draft_checker.set(lambda text, methodology="": self._check_draft(state, text, methodology))
         # item 12: a mode 4 step keeps its run's turn id (the web budget key); a web lookup waits at most until the
         # run's deadline
         turn_token = current_turn_id.set(current_turn_id.get() or request.request_id)
@@ -5475,32 +5484,51 @@ class AgentOrchestrator:
             return final.model_copy(update={"limitations": [*final.limitations, *extra]})
         return final
 
-    def _check_draft(self, state: RunState, text: str) -> dict[str, Any]:
+    def _check_draft(self, state: RunState, text: str, methodology: str = "") -> dict[str, Any]:
         """Solution 2 (EXEC-M143, user "also enable solusi 2", 2026-10-13): the answer checks on a draft, without effect
         on the run (no refusal counted, nothing cited): references that do not resolve, figures typed from data with
         the addresses equal to them (TYPED_FIGURES), and numbers with no source (PROVENANCE), read by check_references
-        with a draft so the model fixes them before it sends the answer."""
+        with a draft so the model fixes them before it sends the answer. EXEC-PROSE (user "both usulan 1 dan 2 ok"):
+        the methodology is checked as METHODOLOGY_PROVENANCE checks it, and a draft shortened with an ellipsis is
+        said to be one (A/B 3 ab6: "..." left the sentence with "30" unchecked)."""
         draft = text
-        if self.table_directives:
+        if self.table_directives and draft:
             draft = table_directives.expand(draft, state.ref_sources, marks=False).text
         rendering = render(draft, state.ref_sources)
         index = self._source_index(state)
         for resolved in rendering.values:
             index.add(resolved.label if resolved.label in LABEL_ORDER else CONTEXT, [resolved.value])
         typed = [shown for shown, kind in typed_figures(REF_RE.sub(" ", draft), index)
-                 if kind not in BACKEND_RECOMPUTED_KINDS]
+                 if kind not in BACKEND_RECOMPUTED_KINDS] if draft.strip() else []
         candidates: dict[str, list[str]] = {}
         typed = self._auto_references(state, list(dict.fromkeys(typed)), candidates, record=False)
-        unsourced = check_answer(rendering.text, index).unsupported
+        unsourced = check_answer(rendering.text, index).unsupported if draft.strip() else []
         problems = list(dict.fromkeys(rendering.problems + [m for _, _, m in rendering.missing]))
+        method_unsourced: list[str] = []
+        if methodology.strip():
+            method = render(methodology, state.ref_sources)
+            problems = list(dict.fromkeys(problems + method.problems + [m for _, _, m in method.missing]))
+            method_index = self._source_index(state)
+            method_index.add(CONTEXT, state.code_numbers)
+            for resolved in rendering.values + method.values:
+                method_index.add(resolved.label if resolved.label in LABEL_ORDER else CONTEXT, [resolved.value])
+            method_unsourced = check_answer(method.text, method_index).unsupported
+        shortened = any(mark in text + methodology for mark in SHORTENED_MARKS)
         log_event("ai_draft_checked", request_id=state.request_id, iteration=state.iterations, chars=len(text),
-                  typed=len(typed), unsourced=len(unsourced), unresolved=len(problems))
-        return {"status": "OK" if not (typed or unsourced or problems) else "WOULD_BE_REFUSED",
-                "typed_figures": [{"figure": f, "addresses": candidates.get(f, [])[:MAX_CANDIDATES_PER_FIGURE]}
-                                  for f in typed[:12]],
-                "numbers_without_source": unsourced[:12], "unresolved_references": problems[:6],
-                "note": "Write each typed figure by its address (the one that means it), say an example in words, "
-                        "and remove or source the rest."}
+                  methodology_chars=len(methodology), typed=len(typed), unsourced=len(unsourced),
+                  methodology_unsourced=len(method_unsourced), unresolved=len(problems), shortened=shortened)
+        refused = typed or unsourced or method_unsourced or problems
+        result = {"status": "WOULD_BE_REFUSED" if refused else "SHORTENED" if shortened else "OK",
+                  "typed_figures": [{"figure": f, "addresses": candidates.get(f, [])[:MAX_CANDIDATES_PER_FIGURE]}
+                                    for f in typed[:12]],
+                  "numbers_without_source": unsourced[:12],
+                  "methodology_numbers_without_source": method_unsourced[:12],
+                  "unresolved_references": problems[:6],
+                  "note": "Write each typed figure by its address (the one that means it), say an example in words, "
+                          "and remove or source the rest."}
+        if shortened:
+            result["shortened_note"] = SHORTENED_NOTE
+        return result
 
     def _auto_references(self, state: RunState, typed: list[str],
                          candidates: dict[str, list[str]] | None = None, record: bool = True) -> list[str]:

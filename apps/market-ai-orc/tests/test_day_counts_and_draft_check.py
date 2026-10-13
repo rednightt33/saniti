@@ -68,16 +68,16 @@ def test_a_draft_check_reports_unsourced_numbers_and_changes_nothing() -> None:
 
 def test_check_references_passes_a_draft_to_the_run_checker() -> None:
     orc, state = tracked()
-    token = current_draft_checker.set(lambda text: orc._check_draft(state, text))
+    token = current_draft_checker.set(lambda text, methodology="": orc._check_draft(state, text, methodology))
     try:
         result = check([], state.ref_sources, "Periode 19 hari bursa.")
         assert result["draft"]["status"] == "WOULD_BE_REFUSED"
     finally:
         current_draft_checker.reset(token)
     assert check([], state.ref_sources, "x")["draft"] == {"status": "UNAVAILABLE"}
-    assert CheckReferencesArguments(references=["data.flows.august.dates"], draft=None).draft is None
+    assert CheckReferencesArguments(references=["data.flows.august.dates"], draft=None, methodology=None).draft is None
     try:
-        CheckReferencesArguments(references=[], draft=None)
+        CheckReferencesArguments(references=[], draft=None, methodology=None)
     except ValueError:
         pass
     else:

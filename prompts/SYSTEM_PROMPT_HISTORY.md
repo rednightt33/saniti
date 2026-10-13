@@ -58,3 +58,11 @@ VALUE REFERENCES: counts of the period or sample are figures from data, a number
 ### v007 exec-days (2026-10-13)
 
 VALUE REFERENCES: a new reference kind {{data.<data_request_id>.<range_id>.dates}} for the trading dates of a prepared data request's range (EXEC-DAYS); check_references v2 takes a draft (solution 2, tool description)
+
+### Catatan EXEC-PROSE (2026-10-13, tanpa snapshot baru)
+
+Snapshot memakai profil dev tanpa `AI_ENABLE_TABLE_DIRECTIVES`, jadi bagian TABLES (dan kalimat EXEC-PROSE di dalamnya:
+teks di sekitar tabel singkat, angka baru dari analisis atau diff/ratio/abs/chg, contoh nominal dengan kata) tidak
+tercatat di sini; teksnya ada di `TABLE_DIRECTIVE_RULES` (`app/orchestrator.py`) dan diuji `tests/test_exec_prose.py`.
+Prompt router (aturan periode dengan kata) tercatat di `AI_ROUTER.md`; deskripsi `check_references` v3 di Tool_Catalog
+round T.

@@ -2459,6 +2459,27 @@ dibiarkan (hanya catatan, `is_active=false`) atau dibatalkan dengan migrasi baru
     berikutnya.
   - Catatan: satu TYPED_FIGURES "19" lagi (jumlah hari bursa diketik), pola yang sama dengan cek live M143.
 
+### EXEC-PROSE: tafsiran periode tanpa angka, pra-cek draf lengkap dan metodologi, teks di sekitar tabel singkat (Go user "Ok"; berjalan)
+
+**Keputusan user 2026-10-13:** "both usulan 1 dan 2 ok" dan "2a + yg tadi kamu mention — Tambah satu kalimat di bagian
+TABLES prompt: angka sudah ada di tabel, jadi penjelasan cukup singkat dan setiap angka di kalimat harus dari alamat."
+Latar: analisis A/B 1–3 (ERRORS M148). Gerbang tidak berubah; tidak ada aturan gerbang baru per kata (user: "tidak
+mungkin seluruh gerbang bisa di sesuaikan dengan apa yang ai akan tulis").
+- **Usulan 1, router.** `conversation_router.PERIOD_WORDS_RULE` di router pesan pertama dan router pesan berikutnya:
+  periode disebut dengan kata, bukan jumlah hari atau angka lain yang tidak ada di pesan. Catatan router ke langkah
+  jawaban (`INTENT_NOTE`) menambah: angka di catatan yang tidak ditulis user adalah tafsiran router, bukan sumber, jangan
+  diulang di jawaban. `AI_ROUTER.md` digenerate ulang.
+- **Usulan 2, pra-cek draf.** `check_references` v3: argumen `methodology` (wajib, boleh null) diperiksa seperti gerbang
+  METHODOLOGY_PROVENANCE (angka kode yang berhasil ikut sumber); draf yang memuat "..." atau "…" dilaporkan `SHORTENED`
+  dengan catatan bahwa kalimat yang dihilangkan tidak dicek; deskripsi meminta draf utuh. Tool_Catalog round T
+  (`20261013_010_round_t_tool_catalog.sql`, dari generator).
+- **2a, bagian TABLES prompt** (hanya saat `AI_ENABLE_TABLE_DIRECTIVES=true`): tabel sudah memuat angkanya, jadi teks
+  di sekitarnya singkat; tafsirkan dengan kata dan sebut hanya angka kunci lewat alamat; angka baru (selisih, total,
+  jumlah, rasio) dari analisis atau diff/ratio/abs/chg alamat, tidak dihitung di teks; contoh nominal dengan kata.
+- **Tes:** orc 1.416 lulus (`tests/test_exec_prose.py` baru, `test_day_counts_and_draft_check.py` disesuaikan).
+- **Go 2026-10-13:** "Ok" (migrasi, push/deploy, catatan, dan cek cepat 2 pertanyaan dengan tabel ON). Migrasi round T
+  diterapkan dan dibaca balik (`DATABASE_CHANGELOG.md`).
+
 ### EXEC-DAYS dan solusi 2: alamat jumlah hari bursa, pra-cek draf, saklar tabel hidup (deployed; A/B 3 selesai)
 
 **Keputusan user 2026-10-13:** "Ok, coba perbaiki ya, also enable solusi 2, enable ON kemudian A/B on vs off 2 questions"; untuk A/B: "Hanya tabel ON vs OFF" (solusi 2 dan alamat hari bursa aktif di

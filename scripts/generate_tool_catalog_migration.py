@@ -40,6 +40,8 @@ registering the new versions of the tools whose contract changed in that round.
   description) and run_python v7 (discarded_outputs of a failed run are never released; M139).
 - round_s (20261013_009): check_references v2 (an optional draft is checked like the answer without effect: typed
   figures with their equal addresses, numbers without a source; EXEC-M143 solution 2).
+- round_t (20261013_010): check_references v3 (the draft's methodology is checked like the methodology; a draft
+  shortened with an ellipsis is said to be one; EXEC-PROSE).
 
 Registered from the code with every switch of the dev environment on (the registry of scripts/generate_ai_tools_doc.py,
 one source for both). An applied migration is frozen (database/migrations/APPLIED.sha256); market-ai-orc's
@@ -408,8 +410,22 @@ ROUNDS = {
         "limits": {"check_references": "at most 40 references and a draft of at most 30000 characters per call; this "
                                        "run's references only; a draft check counts no refusal"},
     },
+    "round_t": {
+        "target": ROOT / "database/migrations/20261013_010_round_t_tool_catalog.sql",
+        "versions": {"check_references": ("v2", "v3")},
+        "contracts": {"check_references": ("input_schema", "methodology")},
+        "title": "draft pre-check with methodology",
+        "header": "EXEC.md EXEC-PROSE (user \"both usulan 1 dan 2 ok\", 2026-10-13)",
+        "design": "EXEC.md EXEC-PROSE; ERRORS_AND_SOLUTIONS.md M148",
+        "limits_design": "EXEC.md EXEC-PROSE",
+        "summary": ["check_references v3: the draft's methodology is checked like the methodology of the answer",
+                    "(numbers without a source, with the numbers of the code that ran as sources), and a draft",
+                    "shortened with an ellipsis is reported as SHORTENED, its left-out sentences unchecked."],
+        "limits": {"check_references": "at most 40 references, a draft and a methodology of at most 30000 characters "
+                                       "each per call; this run's references only; a draft check counts no refusal"},
+    },
 }
-NEWEST = "round_s"
+NEWEST = "round_t"
 
 
 def _tools_doc():

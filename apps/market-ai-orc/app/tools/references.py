@@ -18,9 +18,10 @@ from .request_data import current_draft_checker, current_reference_sources
 DESCRIPTION = (
     "Shows what value references render to before you write the answer: give the addresses (with or without {{ }} "
     "and a format) and get each one's displayed value, or why it does not resolve and the addresses that exist. "
-    "Reads only this run's results; no data is fetched or computed. With draft (the answer text you are about to "
-    "send, its references unchanged) it also lists what the answer checks would refuse: figures typed without a "
-    "reference, with the addresses that equal them, and numbers without a source. Pass the draft in the check you "
+    "Reads only this run's results; no data is fetched or computed. With draft (the whole answer text you are about "
+    "to send, every sentence, its references unchanged, never shortened with ...) and methodology (the methodology "
+    "text you are about to send) it also lists what the answer checks would refuse: figures typed without a "
+    "reference, with the addresses that equal them, and numbers without a source. Pass them in the check you "
     "already make before answering; it does not count as a refusal.")
 MAX_REFERENCES = 40
 MAX_DRAFT_CHARS = 30000
@@ -32,21 +33,26 @@ class CheckReferencesArguments(BaseModel):
     references: list[str] = Field(max_length=MAX_REFERENCES,
                                   description="Value references, for example 'finding.a.estimates.primary.estimate|pp:2'.")
     draft: str | None = Field(max_length=MAX_DRAFT_CHARS,
-                              description="The answer text you are about to send, references unchanged, or null.")
+                              description="The whole answer text you are about to send, references unchanged, "
+                                          "or null.")
+    methodology: str | None = Field(max_length=MAX_DRAFT_CHARS,
+                                    description="The methodology text you are about to send, or null.")
 
     @model_validator(mode="after")
     def _something_to_check(self) -> "CheckReferencesArguments":
-        if not self.references and not (self.draft or "").strip():
-            raise ValueError("give references, a draft, or both")
+        if not self.references and not (self.draft or "").strip() and not (self.methodology or "").strip():
+            raise ValueError("give references, a draft, a methodology, or several")
         return self
 
 
-def check(references: list[str], sources: Any, draft: str | None = None) -> dict[str, Any]:
-    """Each address rendered as the answer would render it; with a draft, what the answer checks would refuse."""
-    if draft and draft.strip():
+def check(references: list[str], sources: Any, draft: str | None = None,
+          methodology: str | None = None) -> dict[str, Any]:
+    """Each address rendered as the answer would render it; with a draft or a methodology, what the answer checks
+    would refuse."""
+    if (draft and draft.strip()) or (methodology and methodology.strip()):
         checker = current_draft_checker.get()
         found = check(references, sources) if references else {"status": "OK", "results": []}
-        found["draft"] = checker(draft) if checker is not None else {"status": "UNAVAILABLE"}
+        found["draft"] = checker(draft or "", methodology or "") if checker is not None else {"status": "UNAVAILABLE"}
         return found
     if sources is None or not sources:
         return {"status": "NO_REFERENCES", "results": [],
@@ -81,7 +87,7 @@ def check(references: list[str], sources: Any, draft: str | None = None) -> dict
 
 def check_references_spec() -> ToolSpec:
     def handler(arguments: CheckReferencesArguments) -> dict[str, Any]:
-        return check(arguments.references, current_reference_sources.get(), arguments.draft)
+        return check(arguments.references, current_reference_sources.get(), arguments.draft, arguments.methodology)
 
     return ToolSpec(name="check_references", effect="READS", description=DESCRIPTION,
                     arguments_model=CheckReferencesArguments, handler=handler, timeout_seconds=30.0)

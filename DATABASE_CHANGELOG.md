@@ -1897,3 +1897,13 @@ User: "Ok, coba perbaiki ya, also enable solusi 2, ..." (EXEC.md EXEC-DAYS). App
 on dev through temporary Railway service `mmig-job` (DRYRUN, then APPLY; the service was deleted). Readback: the
 `check_references` row v1 is kept, v2 is active and its schema carries the nullable `draft` field. No table, column,
 Feature, routine or data change. Hash added to `APPLIED.sha256`; no applied migration was rewritten.
+
+
+## 2026-10-13 — Tool_Catalog round T (`check_references` v3 with `methodology`)
+
+User: "both usulan 1 dan 2 ok", then "Ok" to apply (EXEC.md EXEC-PROSE). Applied generator-made forward migration
+`20261013_010_round_t_tool_catalog.sql` (SHA256 `68e7a58fd244a0c21212d2bb28d99214861cf54ec43995477dcd48b6a8545fbf`) on
+dev through temporary Railway service `mmig-job` (DRYRUN `1922db71`, rolled back; APPLY `19ca6ae7`; the service was
+deleted and is absent from the project). Readback: `check_references` v1, v2 and v3 present, all inactive like every
+market-ai-orc row; v3's schema carries `draft` and `methodology`. No table, column, Feature, routine or data change.
+Hash added to `APPLIED.sha256`; no applied migration was rewritten.
