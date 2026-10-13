@@ -4648,11 +4648,12 @@ class AgentOrchestrator:
             # EXEC-D P-h: the subject and relationships the need declared (the approved view has neither)
             records.add_need(state.data_record, state.request_id, result, given.get("mode"),
                              subject=given.get("subject"), relationships=given.get("relationships"))
+            # M149: the raw arguments are the model's own; a value it wrote as text ("null") is never read as an object
+            governance = given.get("research_governance")
             state.needs[result["need_id"]] = {
-                "mode": (arguments or {}).get("mode") if isinstance(arguments, dict) else None,
+                "mode": given.get("mode"),
                 "governance": result.get("research_governance"),
-                "hypothesis_id": ((arguments or {}).get("research_governance") or {}).get("hypothesis_id")
-                if isinstance(arguments, dict) else None}
+                "hypothesis_id": governance.get("hypothesis_id") if isinstance(governance, dict) else None}
             state.context_numbers.extend(numbers_in(arguments))
         elif name == "prepare_data_bundle" and result.get("status") == "READY":
             if result.get("reused"):
