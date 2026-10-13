@@ -2220,7 +2220,8 @@ banyak dua perbaikan, lalu `[nilai tidak tersedia]` dengan catatan seperti atura
 1. Variabel `AI_ENABLE_TABLE_DIRECTIVES=false` (default): prompt, schema dan perilaku sama byte-per-byte dengan sebelum
    fitur (dikunci tes); mengubahnya memicu redeploy tanpa perubahan kode.
 2. `git revert` commit fitur, push `main`.
-3. Tag git `pre-exec-table` (commit `main` terakhir sebelum kode fitur), deploy dari tag itu.
+3. Cabang `wayback/pre-exec-table` di GitHub = `main` `3708026` (commit terakhir sebelum kode fitur; push tag ditolak
+   proxy GitHub sesi ini dengan HTTP 403, jadi dipakai cabang), deploy dari cabang atau commit itu.
 
 **A/B dan kriteria lolos (ditulis sebelum dijalankan):** 4 pertanyaan EXEC-STYLE + 2 pertanyaan bertabel berat
 (termasuk pertanyaan `edge_517a29…` diulang), sekali dengan fitur mati dan sekali hidup, di dev (perkiraan USD 0,2–0,3).
