@@ -1,13 +1,31 @@
 {
- "prefix": "ma-m143-20261013a",
- "workers": 1,
+ "prefix": "ma-ab-table-20261013e",
+ "workers": 4,
  "audit_wait_seconds": 0,
  "items": [
   {
-   "id": "m1_price_foreign",
+   "id": "ab3_analysis",
    "analysis_path": "ANALYSIS",
-   "message": "Bagaimana harga BBRI bergerak di hari-hari net buy asingnya besar, sebulan terakhir data? Sebutkan juga total net buy asingnya dalam rupiah.",
-   "expect": "EXEC-M143 live check (orc 06da1d23, prompt v006): the Run B question that hit M143; no PROVENANCE refusal of a scaled figure"
+   "message": "Bandingkan return BBCA dan BBRI selama sebulan terakhir data yang tersedia.",
+   "expect": "EXEC-TABLE quick A/B 2 (user 2026-10-13 \"Tolong run A/B test dulu ya 4 pertanyaan. Cepat saja.\"): ON, reasoning medium, prompt v006"
+  },
+  {
+   "id": "ab4_price_broker",
+   "analysis_path": "ANALYSIS",
+   "message": "Bagaimana harga BBRI bergerak di hari-hari net buy asingnya besar, sebulan terakhir data?",
+   "expect": "EXEC-TABLE quick A/B 2 (user 2026-10-13 \"Tolong run A/B test dulu ya 4 pertanyaan. Cepat saja.\"): ON, reasoning medium, prompt v006"
+  },
+  {
+   "id": "ab5_ranking",
+   "analysis_path": "ANALYSIS",
+   "message": "Tampilkan 15 saham dengan net buy asing terbesar sebulan terakhir data, beserta return harga dan rata-rata nilai transaksi hariannya.",
+   "expect": "EXEC-TABLE quick A/B 2 (user 2026-10-13 \"Tolong run A/B test dulu ya 4 pertanyaan. Cepat saja.\"): ON, reasoning medium, prompt v006"
+  },
+  {
+   "id": "ab6_broker",
+   "analysis_path": "ANALYSIS",
+   "message": "Broker mana saja yang paling banyak net buy di BBRI sebulan terakhir data? Tampilkan 10 teratas dengan total net buy, jumlah hari net buy, dan porsinya terhadap total net buy.",
+   "expect": "EXEC-TABLE quick A/B 2 (user 2026-10-13 \"Tolong run A/B test dulu ya 4 pertanyaan. Cepat saja.\"): ON, reasoning medium, prompt v006"
   }
  ]
 }

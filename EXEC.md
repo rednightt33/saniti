@@ -2290,6 +2290,24 @@ deploy SUCCESS, laporan dan usulan. Jawaban AI tidak disimpan di repo publik.
     kolom berskala (`net_buy_miliar`) agar kolom tabel rapi, lalu narasinya memakai "Rp {{…}} miliar" 17 kali → M143.
     Ditutup oleh EXEC-M143.
   - M146 (markup panggilan alat sebagai teks) terpisah: berakhir LIMITATION, bukan penolakan gerbang.
+- **A/B cepat ke-2 (user 2026-10-13: "Tolong run A/B test dulu ya 4 pertanyaan. Cepat saja.", pilihan "Tabel ON vs OFF
+  lagi"):** ab3–ab6, reasoning `medium`, prompt `v006`, empat pertanyaan paralel.
+  - Run: OFF `ma-ab-table-20261013d` (orc `82cdb137`, USD 0,075 + ab5 0,021); ON `ma-ab-table-20261013e`
+    (`AI_ENABLE_TABLE_DIRECTIVES=true`, orc `e258e5c4`, USD 0,088). Sesudahnya saklar kembali `false` (orc `86884c2b`
+    SUCCESS).
+  - Tahap menulis dihitung sesudah `run_python` terakhir (log orc):
+
+    | Pertanyaan | Total OFF → ON (s) | Menulis OFF → ON (s) | Cek rujukan OFF → ON | Perbaikan gerbang OFF → ON |
+    |---|---|---|---|---|
+    | ab3 | 42 → 58 | 6 → 16 | 0 → 1 | 0 → 1 (PROVENANCE "1,04", narasi) |
+    | ab4 | 184 → 187 | 57 → 52 | 3 (42 s) → 1 (16 s) | 0 → 0 |
+    | ab5 | 115 (LIMITATION, **M146**) → 254 | – → 58 | – | – |
+    | ab6 | 120 → 176 | 36 → 31 | 2 → 1 | 1 → 1 (PROVENANCE "30", narasi, di kedua mode) |
+
+  - ON: 6 tabel lewat tanda, 0 ditolak, 0 tabel diketik sel per sel.
+  - **M146 juga terjadi saat OFF** (ab5), jadi M146 bukan akibat fitur tabel.
+  - Sampel masih kecil. Waktu total ON tidak lebih cepat (perencanaan data ab5/ab6 lebih lama di ON), dan tahap
+    menulis campuran (ab4 −9%, ab6 −14%, ab3 +10 s). Saklar tetap mati sampai user memutuskan.
 
 ### EXEC-M143: angka berskala ("{{…}} juta/miliar") tidak lagi ditolak gerbang PROVENANCE (dicatat, belum dieksekusi)
 

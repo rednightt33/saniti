@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-10-13 — EXEC-TABLE quick A/B 2 (flag on for the ON run only)
+
+User: "Tolong run A/B test dulu ya 4 pertanyaan. Cepat saja." (choice "Tabel ON vs OFF lagi").
+- `orc-test-runner`: OFF `ba8225e1-8271-4b26-a567-5ec60ce41a43` (`ma-ab-table-20261013d`), ON
+  `51a7197e-8c4b-4adf-9a17-4d384d9bcee6` (`ma-ab-table-20261013e`). Cost about USD 0.18.
+- market-ai-orc `AI_ENABLE_TABLE_DIRECTIVES=true` → **e258e5c4-9759-4189-9ffb-84fc52f26fdf** SUCCESS, then `false` →
+  **86884c2b-fb1b-4286-a9d0-b07582718a47** SUCCESS. `AI_REASONING_EFFORT` stays `medium`.
+- No other variable, model, provider, migration or configuration change.
+
 ## 2026-10-13 — EXEC-M143 deployed, reasoning effort medium
 
 User: "Ok perbaiki M143 dulu, ganti reasoning ke medium ya. Jangan A/B test dulu" and "Go" (EXEC.md EXEC-IMPL-1013).
