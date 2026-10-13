@@ -2478,7 +2478,7 @@ dokumentasinya"; setelah temuan log: "Keluarin saja Mimo pro ya, the rest sudah 
   400 `MODEL_NOT_ALLOWED`. Pertanyaan M150 dengan MiMo Flash Nyala selesai 198 s (sebelumnya 826 s), panggilan terlama
   51 s, tanpa runaway; distribusi 70 sesi; biaya ±USD 0,03.
 
-### EXEC-CHOICES dan EXEC-ROWS: panel "Response choices" di EDGE; jumlah baris tabel sesuai permintaan, maks. 25 (berjalan)
+### EXEC-CHOICES dan EXEC-ROWS: panel "Response choices" di EDGE; jumlah baris tabel sesuai permintaan, maks. 25 (deployed)
 
 **Keputusan user 2026-10-13:** lampiran `Selection_option_for_user.html` ("Jalankan terlampir dan cek terlampir. Lihat
 nama file untuk intruksi. konfirmasi pemahaman kamu sebelum execute"), revisi "tidak perlu 1:1 selection di
@@ -2507,6 +2507,8 @@ jawaban lain' di klarifikasi".
     harga BBRI dengan judul ganda dari MiMo flash).
 - **Tes:** orc 1.453 lulus; EDGE 79/79 lulus dua kali (tes baru: panel rencana, klarifikasi dengan "Tulis jawaban
   lain", jeda).
+- **Deploy (RAILWAY_CHANGELOG):** `main` `e7377dd`, orc `ce10d331` dan EDGE `e87fc0be` SUCCESS (11:59Z); diganti
+  EXEC-LOGOS pukul 12:52Z.
 
 ### EXEC-MODELS: pilihan model dan level berpikir per pesan di EDGE (deployed)
 

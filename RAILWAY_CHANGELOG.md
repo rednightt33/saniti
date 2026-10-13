@@ -16,6 +16,17 @@ ERRORS M150). Rollback references: orc `ce10d331`, EDGE `e87fc0be`.
 - No variable, migration, model default, provider or configuration change (`AI_MODEL`, `AI_MODEL_2`,
   `AI_REASONING_EFFORT`, `AI_MAX_OUTPUT_TOKENS` unchanged); web governor untouched.
 
+## 2026-10-13 — EXEC-CHOICES and EXEC-ROWS deployed; hourly price read (first window)
+
+User: lampiran `Selection_option_for_user.html`, "tidak perlu 1:1 selection di aplikasikan", "25 baris" (EXEC.md
+EXEC-CHOICES dan EXEC-ROWS). Rollback references: orc `9392c7a8`, EDGE `51ac4310`.
+- `main` `e7377dd`: market-ai-orc **ce10d331-9f79-4b9a-89e3-076f2d626782** and edge-bff
+  **e87fc0be-4182-4efb-a506-485226fd2a6a** reached **SUCCESS** (11:59Z).
+- Hourly price read: orc `ce10d331` read the prices at startup (12:00:15Z, OK, 5 models) and was replaced by the
+  EXEC-LOGOS deployment `7c11b4ad` at 12:52Z, before its first hourly read; `7c11b4ad` read them at startup (12:52:53Z,
+  OK, 4 models). Its first hourly read (due about 13:53Z) is checked separately.
+- No variable, migration, model default, provider or configuration change.
+
 ## 2026-10-13 — EXEC-MODELS quality check, M149 fix deployed
 
 User: "Boleh tes mutu tiap model. 2 questions each reasoning high".
