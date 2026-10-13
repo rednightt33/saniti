@@ -2459,6 +2459,31 @@ dibiarkan (hanya catatan, `is_active=false`) atau dibatalkan dengan migrasi baru
     berikutnya.
   - Catatan: satu TYPED_FIGURES "19" lagi (jumlah hari bursa diketik), pola yang sama dengan cek live M143.
 
+### EXEC-FASTLANE: jalur riset baru "eksplorasi di sandbox" untuk A/B (rencana, belum dieksekusi)
+
+**Keputusan user 2026-10-13:** "Jangan sampai merubah cara research bekerja. Retain existing condition, kita buat jalur
+baru saja untuk nanti A/B test. Saya suka idenya. Lets catat dulu." Latar: run 7, 9, 10, 12, 13 conversation
+`conv_99ccd2429f766946eb2cdc42ac98af6b` makan 3–9 menit per giliran; waktu terbesar di pikiran AI (memilih jalur riset,
+menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran rencana lalu eksekusi), bukan di gerbang
+(sekitar 10%).
+- **Jalur sekarang tetap utuh:** analisis DataNeed, rencana hipotesis, riset multi-sudut, persetujuan rencana, semua
+  gerbang dan alat tidak diubah. Jalur baru hanya aktif lewat saklar baru (mati secara default) atau pilihan per pesan
+  untuk A/B.
+- **Jalur baru, tingkat 1 eksplorasi (satu giliran):** AI membuka sandbox langsung; data diambil dengan satu fungsi
+  `fetch(...)` di kode (di belakangnya tetap DataNeed dan Governor; ukuran, cakupan tanggal dan batas dilaporkan sebelum
+  data ditarik); alat bantu riset yang ada (`research_*`, `event_study`, `backtest`, `event_summary`) dipanggil dari
+  kode; hipotesis dirumuskan AI sendiri. Setiap uji dicatat otomatis (buku catatan uji) dan dikoreksi Benjamini–Hochberg
+  atas semua uji; jawaban berlabel eksploratif, tanpa klaim "terbukti"; backend tetap menghitung ulang angka.
+- **Jalur baru, tingkat 2 konfirmasi (hanya bila user minta):** hipotesis terbaik menjadi rencana pre-registrasi yang
+  diisi sistem, satu klik setuju, diuji di periode holdout dengan ambang lebih ketat, vonis lewat `complete_research_run`.
+- **Persetujuan:** hanya untuk tingkat 2 atau bila ekstraksi melewati anggaran Governor.
+- **A/B:** 5 pertanyaan conversation di atas, jalur sekarang vs jalur baru; diukur waktu (target median < 2 menit,
+  p90 < 4 menit), biaya, mutu dan kebenaran angka.
+- **Tahapan (masing-masing butuh go user):** 0 baseline; 1 batas data terlihat dan level berpikir adaptif di jalur baru;
+  2 `fetch()`; 3 buku catatan uji dan label eksploratif; 4 tingkat konfirmasi.
+- **Rujukan:** CodeAct (arXiv 2402.01030), Data Interpreter (arXiv 2402.18679), Anthropic "Code execution with MCP",
+  POPPER (arXiv 2502.09858), Harvey–Liu–Zhu (NBER w21329), adaptive reasoning (arXiv 2608.26442).
+
 ### EXEC-UI-1013B: pilihan bernomor bisa diklik, logo model dan Excel di jawaban, pemantau run di iPhone (rencana, belum dieksekusi)
 
 **Keputusan user 2026-10-13:** gambar 1 "yes yg kamu bilang benar + Untuk angka ini boleh dikasih button atau clickable
