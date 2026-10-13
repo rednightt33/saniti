@@ -2479,10 +2479,65 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
 - **Persetujuan:** hanya untuk tingkat 2 atau bila ekstraksi melewati anggaran Governor.
 - **A/B:** 5 pertanyaan conversation di atas, jalur sekarang vs jalur baru; diukur waktu (target median < 2 menit,
   p90 < 4 menit), biaya, mutu dan kebenaran angka.
-- **Tahapan (masing-masing butuh go user):** 0 baseline; 1 batas data terlihat dan level berpikir adaptif di jalur baru;
-  2 `fetch()`; 3 buku catatan uji dan label eksploratif; 4 tingkat konfirmasi.
+- **Tahapan (masing-masing butuh go user):** 0 baseline; 1 batas data terlihat dan level berpikir adaptif di jalur baru
+  (R2, R4, G1); 2 `fetch()` (R1, R3, R5, R6, G2, G4); 3 buku catatan uji dan label eksploratif; 4 tingkat konfirmasi.
+  G3 dan G5 (R7) bisa dikerjakan kapan saja di jalur baru.
 - **Rujukan:** CodeAct (arXiv 2402.01030), Data Interpreter (arXiv 2402.18679), Anthropic "Code execution with MCP",
   POPPER (arXiv 2502.09858), Harvey–Liu–Zhu (NBER w21329), adaptive reasoning (arXiv 2608.26442).
+- **Prinsip jalur (user 2026-10-13):** "ingat, ini jalur berbeda dari current/ existing ya. Jadi harus selalu ada
+  fallback jika nanti kedepan makin worse design yang kita buat."
+  - semua butir R dan G di bawah hanya berlaku di jalur baru; jalur sekarang tidak berubah;
+  - fallback: jalur baru dimatikan dengan satu saklar dan semua pesan kembali ke jalur sekarang; per pesan bisa dipilih
+    jalur sekarang; setiap run mencatat jalur yang dipakai (log dan `execution`) untuk A/B;
+  - butir yang mirip entri lain dicatat sebagai konteks (rujukan silang), bukan pekerjaan ganda.
+- **Rekomendasi R1–R8** (user: "masukan exec"):
+  - **R1 jalur cepat sebagai default di jalur baru:** pertanyaan saring, deskripsi dan perbandingan historis langsung
+    diambil datanya lalu dihitung dengan kode dalam satu giliran (gaya CodeAct); rencana dan persetujuan hanya untuk uji
+    formal yang diminta user atau ekstraksi yang sangat besar (tingkat 2 di atas).
+  - **R2 batas terlihat sejak awal:** cakupan tiap tabel dan perkiraan ukuran ekstraksi (batas 64 bagian) diberikan
+    sejak awal atau lewat satu alat estimasi murah.
+  - **R3 formulir dikurangi:** AI menulis query dan analisis di kode sandbox; Governor tetap menjaga batas data
+    (sama dengan `fetch()` di tingkat 1).
+  - **R4 level berpikir adaptif:** default panggilan loop Rendah/Sedang, Tinggi hanya untuk merancang; panggilan lebih
+    dari 90 s diulang dengan level Rendah. Konteks: pengaman runaway M150 (EXEC-LOGOS) sudah ada di semua jalur.
+  - **R5 aturan prompt dirapikan:** aturan yang bertentangan (lingkup router vs metode) dibuang; hanya alat yang relevan
+    per langkah ditawarkan (prompt jalur baru sendiri; prompt jalur sekarang tidak diubah).
+  - **R6 pra-cek draf hanya bila perlu:** misalnya bila jawaban punya banyak angka, agar jawaban tidak ditulis dua kali.
+  - **R7 perbaikan run `9cd51749`:** routing ke CONTINUE dan kode broker disimpan (sama dengan G5).
+  - **R8 ukur sebelum dan sesudah:** 5 pertanyaan conversation di atas; target median < 2 menit, p90 < 4 menit (sama
+    dengan butir A/B di atas).
+- **Usulan gerbang G1–G5** (inspeksi kode jalur riset 2026-10-13; user: "masukan exec"):
+  - **G1 batas terlihat saat ditolak:** penolakan `check_data_feasibility` / `check_research_feasibility` dan Governor
+    ("The extraction needs 105 parts; the limit is 64", `market-sql-governor/app/extract.py:844`, `next_action`
+    `NARROW_THE_PLAN_OR_REPORT_LIMITATION`) menyertakan perkiraan periode, universe atau agregasi yang muat. Bukti: run
+    `e5faf07f` mencoba 4 kali (105, 67, 128, 122 bagian) sekitar 79 s. Konteks: R2.
+  - **G2 governance diisi sistem:** `research_plan.match_governance` mewajibkan sekitar 12 field governance sama persis
+    dengan eksperimen yang disetujui (RESEARCH_PLAN_MISMATCH); di jalur baru AI cukup menyebut `hypothesis_id`, sistem
+    mengisi sisanya dari rencana. Bukti: run `a45f86c8` ditolak lalu menulis ulang spec, sekitar 48 s.
+  - **G3 salah tolak DEFINITION:** `definition_check.problems` menolak kalimat "konsisten dengan hasil sebelumnya" bila
+    run tidak membuka hasil lama lewat `load_output`, juga saat run tidak membuat tabel baru dan hanya membaca tabel
+    lama (`get_session_output`, ekspor). Bukti: run `80e733ba` (ekspor Excel), sekitar 25 s. Usulan: lewati bila run
+    tidak membuat tabel baru, atau hitung `get_session_output` sebagai membuka hasil lama.
+  - **G4 angka rencana tanpa ronde perbaikan:** PLAN_SUCCESS_RULE, PLAN_MIN_EFFECT, PLAN_HORIZON, PLAN_TEXT_PROVENANCE
+    dan PLAN_PROVENANCE cukup masuk daftar "nilai yang perlu dikonfirmasi" yang sudah ditulis backend
+    (`plan_meta.values_to_confirm`), tanpa menyuruh AI memperbaiki rencana.
+  - **G5 CLARIFY yang butuh hitungan baru:** catatan router CLARIFY ("No new data is extracted and nothing is computed in
+    this turn", `conversation_router.py:327`) membuat run `9cd51749` hanya menawarkan rekap broker; permintaan yang
+    butuh hitungan baru diarahkan ke CONTINUE, dan tabel hasil riset ikut menyimpan identitas kunci (kode broker).
+  - Gerbang lain jalur riset dinilai perlu dengan pesan dan langkah perbaikan yang jelas: EMPTY_REQUEST,
+    PLAN_CARRIED_INPUTS, PLAN_FINDINGS, PLAN_VERSION, RESEARCH_PLAN_REAPPROVAL_REQUIRED, PLAN_NOT_EXECUTED,
+    RESEARCH_RUN_INCOMPLETE, ANALYSIS, ROUTING, PROVENANCE, FINDINGS/FINDINGS_2.
+- **Review EXEC 2026-10-13, hubungan dengan entri lain:**
+  - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
+    pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur
+    baru saja; vonis "terbukti" tetap hanya lewat tingkat 2 dengan persetujuan. **Keputusan terbuka K1.**
+  - EXEC-MODELS (default EDGE DeepSeek Tinggi) dan EXEC-LOGOS (level Rendah/Tinggi/Maks, pengaman M150): R4 hanya
+    mengatur level di dalam jalur baru; default EDGE tidak berubah.
+  - EXEC-PROSE dan EXEC-DAYS (pra-cek draf): R6 hanya di jalur baru.
+  - EXEC-W (`stop_policy`: jeda dan tanya): jalur baru memakai aturan jeda yang sama.
+  - EXEC-UI-1013B: tampilan, berlaku untuk kedua jalur.
+  - G3 dan G5 adalah bug yang juga ada di jalur sekarang. **Keputusan terbuka K2:** diperbaiki di jalur baru saja (jalur
+    sekarang tetap dengan bug-nya) atau di kedua jalur.
 
 ### EXEC-UI-1013B: pilihan bernomor bisa diklik, logo model dan Excel di jawaban, pemantau run di iPhone (rencana, belum dieksekusi)
 
