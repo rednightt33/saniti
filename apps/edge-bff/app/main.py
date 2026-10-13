@@ -317,7 +317,9 @@ def create_app(settings=None, store=None, orc=None):
                     version = data['state_version']
                     yield f'id: {version}\nevent: snapshot\ndata: {json.dumps(data,ensure_ascii=False)}\n\n'
                 else:
-                    yield ': heartbeat\n\n'
+                    # M153 (EXEC-UI-1013B): a named event, not an SSE comment, so the page sees the stream is alive
+                    # (iOS 18 resumes a backgrounded page with a dead EventSource and no error event)
+                    yield 'event: ping\ndata: {}\n\n'
                 if terminal:
                     break
                 await asyncio.sleep(settings.poll_seconds)

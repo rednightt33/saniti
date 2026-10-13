@@ -40,8 +40,10 @@ def describe(definition: Any) -> str:
 
 def problems(text: str, produced: list[dict[str, Any]], opened: list[dict[str, Any]]) -> list[str]:
     """Why a consistency claim in text is not supported, or [] (no claim, or every result produced in the run has
-    the definition of an earlier result it opened). produced/opened: [{"name", "definition"}]."""
-    if not claims_consistency(text):
+    the definition of an earlier result it opened). produced/opened: [{"name", "definition"}]. M151 (EXEC-FASTLANE G3,
+    run edge_80e733ba): a run that produced no new result (it only read or exported earlier ones) has nothing whose
+    definition could differ, so its claim is not checked."""
+    if not claims_consistency(text) or not produced:
         return []
     if not opened:
         return ["the answer says its result follows an earlier result, but this run opened no earlier result "

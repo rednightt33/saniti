@@ -106,6 +106,9 @@ def test_sse_delivers_while_orc_waits_and_refresh_resumes(server):
                 first=next(lines);assert first.startswith('id: ')
                 assert next(lines)=='event: snapshot'
                 assert 'RUNNING' in next(lines)
+                # M153: while nothing changes the stream sends a named ping the page can see (not an SSE comment)
+                rest=[next(lines) for _ in range(3)]
+                assert 'event: ping' in rest
                 # The async event loop still serves health and refresh recovery while the Orc thread waits.
                 assert c.get('/health').status_code==200
                 assert c.get('/api/v1/runs').json()['active']['request_id']==id
@@ -151,6 +154,9 @@ def test_the_model_choice_lists_prices_changes_levels_and_is_remembered(server):
         page.locator('article.result').wait_for()
         assert orc.calls[-1][2]['model']=='z-ai/glm-5.3-flash' and orc.calls[-1][2]['reasoning_level']=='max'
         assert 'z-ai/glm-5.3-flash · Maks' in page.locator('.edge-run-model').first.inner_text()
+        # EXEC-UI-1013B (gambar 2): the model's logo left of its name in the answer's header
+        header_logo = page.locator('.edge-run-model').first.locator('.edge-model-logo')
+        assert header_logo.count() == 1 and header_logo.is_visible()
         page.reload();ready=page.locator('.edge-model-trigger:not([disabled])');ready.wait_for()
         assert 'GLM 5.3 Flash' in ready.inner_text() and 'Maks' in ready.inner_text()
         assert errors==[],errors
@@ -216,3 +222,42 @@ def test_without_the_model_list_the_choice_is_hidden_and_the_message_goes_withou
             browser.close()
     finally:
         server.should_exit=True;thread.join(timeout=10);sock.close()
+
+
+def _blocked_stream_page(server, pw):
+    """A page whose run stream never answers (the iOS case: the EventSource is dead and fires no error)."""
+    origin,orc=server
+    browser=pw.chromium.launch(executable_path=os.environ.get('EDGE_TEST_CHROMIUM','/usr/bin/chromium'),headless=True,args=['--no-sandbox'])
+    page=browser.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True)
+    page.route('https://fonts.*/*',lambda route:route.abort())
+    page.route('**/api/v1/runs/*/events',lambda route:None)  # never fulfilled: the stream hangs silently
+    page.goto(origin+'/monitor')
+    page.locator('#auth-login').fill('owner');page.locator('#auth-password').fill('local-test-password')
+    page.get_by_role('button',name='Sign In',exact=True).click()
+    composer=page.get_by_placeholder('Ask a research question…');composer.wait_for()
+    return browser,page,composer
+
+
+def test_a_silent_run_stream_is_replaced_and_the_answer_shows_without_a_reload(server):
+    """M153 (EXEC-UI-1013B): on iPhone the answer appeared only after a refresh; a stream silent for 15 s is replaced
+    and the run's status is read, so the answer shows."""
+    playwright=pytest.importorskip('playwright.sync_api')
+    with playwright.sync_playwright() as pw:
+        browser,page,composer=_blocked_stream_page(server,pw)
+        composer.fill('Explain BBRI');page.get_by_role('button',name='Submit',exact=True).click()
+        page.locator('article.result').wait_for(timeout=30000)
+        assert 'Saved answer' in page.locator('article.result').inner_text()
+        browser.close()
+
+
+def test_a_page_shown_again_reads_the_run_at_once(server):
+    """M153: when the page becomes visible again (back from another app) the run's status is read at once."""
+    playwright=pytest.importorskip('playwright.sync_api')
+    with playwright.sync_playwright() as pw:
+        browser,page,composer=_blocked_stream_page(server,pw)
+        composer.fill('Explain BBRI');page.get_by_role('button',name='Submit',exact=True).click()
+        page.wait_for_timeout(1500)  # the worker has answered; the hung stream has not told the page
+        assert not page.locator('article.result').count()
+        page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+        page.locator('article.result').wait_for(timeout=5000)
+        browser.close()

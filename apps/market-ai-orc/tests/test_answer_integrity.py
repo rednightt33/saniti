@@ -381,3 +381,33 @@ def test_a_consistency_claim_with_another_definition_is_repaired_or_stated() -> 
     kept = orc._definition_claims(state, final)
     assert kept.answer == final.answer and state.definition_annotated
     assert any("tidak didukung" in line and "Regular" in line for line in kept.limitations)
+
+
+def test_m151_reading_and_exporting_earlier_tables_is_not_a_new_definition() -> None:
+    """M151 (EXEC-FASTLANE G3, run edge_80e733ba): an Excel export of the earlier research tables said they follow the
+    earlier definition. Reading them again relabelled them with this request id, so they counted as produced and the
+    DEFINITION gate refused a true claim. A re-read table is opened, not produced; a new table is still checked."""
+    import pytest
+    from conftest import ANSWER
+
+    from app import data_record as records
+    from app.orchestrator import GateRejection
+    from app.schemas import FinalResponse
+
+    orc = tracker()
+    orc.audit_outbox = None
+    state = RunState(request_id="req_9", started=0.0, input_items=[])
+    regular = {"filters": [{"column": "market_board", "operator": "EQ", "value": "Regular"}]}
+    records.add_output(state.data_record, "req_9", alias="o17", output_id="out_sum", session_id="s1",
+                       name="broker_accum_h1_summary", columns=["events"], row_count=1, kind="TABLE",
+                       definition=regular)
+    state.inherited["out_sum"] = {"name": "broker_accum_h1_summary", "request_id": "req_5"}
+    final = FinalResponse.model_validate({**ANSWER, "answer": "File Excel ini memakai definisi yang sama dengan hasil "
+                                                              "sebelumnya."})
+    assert orc._definition_claims(state, final) is final
+
+    records.add_output(state.data_record, "req_9", alias="o30", output_id="out_new", session_id="s2",
+                       name="broker_recap", columns=["broker"], row_count=5, kind="TABLE",
+                       definition={"filters": [], "notes": "boards combined"})
+    with pytest.raises(GateRejection):
+        orc._definition_claims(state, final)

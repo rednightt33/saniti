@@ -112,7 +112,9 @@ Return one JSON object: {"turn_kind": ..., "revision_instruction": ..., "referen
 - CLARIFY: what a figure or result means, a definition used in the results, how to read them, where the data comes from;
   also an action on a result that already exists, without a new calculation: show, export or download a table or
   the findings (Excel, CSV), show the code or the lineage of a figure.
-- INSIGHT: why a result is what it is, what drives it, what stands out, a breakdown of a result already shown.
+- INSIGHT: why a result is what it is, what drives it, what stands out, a breakdown of a result already shown. A recap
+  or list by something the shown results do not list (which brokers, per broker, per sector, per month) needs a new
+  calculation: INSIGHT, not CLARIFY, even when the user says "rekap saja" or asks for it as a file.
 - CONTINUE: the user asks for further analysis or a test (a new angle, an event study, a hypothesis, another period or
   group, "test it", "check my idea").
 - APPROVE: the user clearly and unconditionally approves the pending suggestion as proposed.
@@ -153,7 +155,9 @@ Return one JSON object: {"turn_kind": ..., "revision_instruction": ..., "referen
 - CLARIFY: what a figure or result means, a definition used in the results, how to read them, where the data comes from;
   also an action on a result that already exists, without a new calculation: show, export or download a table or
   the findings (Excel, CSV), show the code or the lineage of a figure.
-- INSIGHT: why a result is what it is, what drives it, what stands out, a breakdown of a result already shown.
+- INSIGHT: why a result is what it is, what drives it, what stands out, a breakdown of a result already shown. A recap
+  or list by something the shown results do not list (which brokers, per broker, per sector, per month) needs a new
+  calculation: INSIGHT, not CLARIFY, even when the user says "rekap saja" or asks for it as a file.
 - CONTINUE: the user asks for further analysis or a test (a new angle, an event study, a hypothesis, another period or
   group, "test it", "check my idea").
 - APPROVE: the user clearly and unconditionally approves the pending suggestion as proposed.
@@ -222,6 +226,6 @@ Langkah `CLARIFY`, `CONVERSATIONAL` dan `FACT` hanya mendapat alat bersifat `OWN
 
 `apps/market-ai-orc/tests/fixtures/first_message_router_cases.json`: 30 pesan pengembangan dan 16 pesan uji tersembunyi (label ditulis sebelum dijalankan), masing-masing dengan rute yang diterima. Hasil dan pembanding eksternal: `ROUTER_BENCHMARK_2026-10-04.md`. Jalankan `scripts/benchmark_first_router.py` setelah setiap perubahan kriteria; syarat: 0 pertanyaan data dirutekan ke CHAT/FACT. Set `ask_back` (8 pesan, dijalankan dengan `--ask-back`): pesan yang harus ditanya balik (MUST, ≥ 90% ditanya) dan pesan jelas dari golden test 06b yang tidak boleh ditanya (NEVER, 0 ditanya; pesan pengembangan dan uji tersembunyi juga tidak boleh ditanya).
 
-`apps/market-ai-orc/tests/fixtures/turn_router_cases.json`: 22 pesan lanjutan dengan konteks percakapan (ekspor/unduh/tampilkan tabel, penjelasan, uji lanjutan, setuju/ubah/batal usulan, obrolan, topik baru). Jalankan `scripts/benchmark_turn_router.py` setelah setiap perubahan kelas; syarat: 0 permintaan baca dirutekan ke kelas riset (M80 b; 2026-10-05: 30/30). Dengan `--ask-back`: 3 kasus varian (tambah, hapus, ambang kedua) juga dijalankan dan tidak ada pesan yang ditanya balik.
+`apps/market-ai-orc/tests/fixtures/turn_router_cases.json`: 24 pesan lanjutan dengan konteks percakapan (ekspor/unduh/tampilkan tabel, penjelasan, uji lanjutan, setuju/ubah/batal usulan, obrolan, topik baru). Jalankan `scripts/benchmark_turn_router.py` setelah setiap perubahan kelas; syarat: 0 permintaan baca dirutekan ke kelas riset (M80 b; 2026-10-05: 30/30). Dengan `--ask-back`: 3 kasus varian (tambah, hapus, ambang kedua) juga dijalankan dan tidak ada pesan yang ditanya balik.
 
 `apps/market-ai-orc/tests/fixtures/plan_reply_cases.json`: 18 balasan untuk rencana yang menunggu (setuju, ubah, batal jelas, tidak jelas, pertanyaan), masing-masing dengan jawaban yang diterima. Jalankan `scripts/benchmark_plan_reply.py --ask-back` setelah setiap perubahan instruksi pembaca balasan rencana; syarat (kesalahan mahal saja): 0 `APPROVE` untuk balasan yang tidak menyetujui, 0 `CANCEL` untuk balasan tidak jelas atau pertanyaan, batal jelas ≥ 90% `CANCEL`, 0 panggilan gagal.

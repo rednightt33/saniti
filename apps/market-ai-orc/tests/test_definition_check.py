@@ -25,4 +25,12 @@ def test_the_same_definition_or_no_claim_passes() -> None:
 def test_a_claim_without_an_opened_result_cannot_be_checked() -> None:
     found = D.problems("Hasil ini consistent with the previous answer.", [{"name": "x", "definition": REGULAR}], [])
     assert found and "opened no earlier result" in found[0]
-    assert D.problems("Cakupan yang sama.", [], [{"name": "ranking", "definition": None}])[0].startswith("the earlier")
+    assert D.problems("Cakupan yang sama.", [{"name": "x", "definition": REGULAR}],
+                      [{"name": "ranking", "definition": None}])[0].startswith("the earlier")
+
+
+def test_a_run_that_produced_no_new_result_is_not_checked() -> None:
+    """M151 (run edge_80e733ba): an export of earlier tables says they follow the earlier definition; nothing new was
+    produced, so nothing can differ."""
+    assert D.problems("File ini memakai definisi yang sama dengan hasil sebelumnya.", [], []) == []
+    assert D.problems("Cakupan yang sama.", [], [{"name": "ranking", "definition": None}]) == []

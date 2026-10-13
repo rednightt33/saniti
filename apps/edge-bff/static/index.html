@@ -9523,6 +9523,9 @@ html:not(.dark) .monitor-layout .user-message .message-attachments span {color:#
 .edge-model-logo {display:inline-block;flex:none;width:27px;height:27px;object-fit:contain;}
 .edge-model-logo.mono {background:currentColor;-webkit-mask:var(--logo) center/contain no-repeat;mask:var(--logo) center/contain no-repeat;}
 .edge-model-trigger>.edge-model-logo {width:18px;height:18px;}
+.edge-run-model {display:inline-flex;align-items:center;gap:6px;}
+.edge-run-model>.edge-model-logo,.edge-run-model>.edge-model-initial {width:16px;height:16px;font-size:9px;}
+.result-action .edge-file-icon {width:16px;height:16px;flex:none;}
 .edge-model-level {color:var(--muted-foreground);font-weight:400;}
 .edge-model-levels {display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:12px 8px 4px;}
 .edge-model-levels small {width:100%;font-size:10px;color:var(--muted-foreground);}
@@ -10575,6 +10578,7 @@ function Monitor({ go }) {
     const togglePin=async (target,pinned=!target.pinned)=>{try{await Edge.pin(target.id,pinned);setItems(current=>current.map(c=>({...c,runs:c.runs.map(r=>r.id===target.id?{...r,pinned}:r)})));}catch(e){setApiError(e.message);}};
     const followRun=(initialId,requestId)=>{
       let conversationId=initialId;
+      followRef.current?.();  // M153: one watcher at a time
       followRef.current=Edge.follow(requestId,snapshot=>{
         if(snapshot.conversation_id && conversationId!==snapshot.conversation_id){const old=conversationId;conversationId=snapshot.conversation_id;setItems(current=>current.map(c=>c.id===old?{...c,id:conversationId}:c));setSelectedId(current=>current===old?conversationId:current);}
         updateRun(conversationId,requestId,r=>Edge.stateRun(snapshot,r));
@@ -10819,6 +10823,20 @@ function EdgeModelLogo({option}){
   return logo.mono?element("span",{className:"edge-model-logo mono",role:"img","aria-label":option.label,style:{"--logo":`url("${url}")`}})
     :element("img",{className:"edge-model-logo",src:url,alt:option.label});
 }
+// EXEC-UI-1013B (gambar 2): the model of an answer, for its logo in the answer's header; a model no longer offered
+// keeps its id as label and its brand logo by prefix
+function edgeModelOption(model){
+  return edgeModels.data?.models?.find(option=>option.model===model)||{model:String(model||""),label:String(model||"")};
+}
+// EXEC-UI-1013B (gambar 2): a spreadsheet mark left of a Download link of an Excel file (decorative: the link's name stays
+// "Download <file>"); other files keep the download icon
+function FileTypeIcon({label}){
+  const ext=String(label||"").toLowerCase().split(".").pop();
+  if(ext!=="xlsx"&&ext!=="xls")return element(Icon,{name:"download"});
+  return element("svg",{className:"edge-file-icon xlsx",width:16,height:16,viewBox:"0 0 24 24","aria-hidden":"true"},
+    element("rect",{x:"3",y:"3",width:"18",height:"18",rx:"3",fill:"#1D6F42"}),
+    element("path",{d:"M8.5 8l7 8M15.5 8l-7 8",stroke:"#FFFFFF",strokeWidth:"2.2",strokeLinecap:"round",fill:"none"}));
+}
 function keepModelChoice(choice){try{localStorage.setItem(MODEL_CHOICE_KEY,JSON.stringify(choice));}catch{}refresh();}
 const edgeModelTime=new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Jakarta",hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
 function edgeModelPrice(value){return value==null?"–":"$"+(value<1?value.toFixed(3):value.toFixed(2));}
@@ -11015,7 +11033,7 @@ function responseCopyText(button) {
  return (article.innerText||Array.from(article.children).map(node=>node.textContent).join("\n\n")).trim();
 }
 function ResponseActions({run,togglePin,artifacts=[]}) {
- return element("div",{className:"result-actions"},element("button",{className:"result-action",onClick:togglePin,"aria-pressed":Boolean(run.pinned)},element(Icon,{name:"pin"}),run.pinned?"Pinned":"Pin"),element(MessageClipboardActions,{getText:responseCopyText,kind:"ai"}),artifacts.map(file=>{const href=Edge.exportUrl(file.id);return href&&element("a",{className:"result-action",href},"Download "+file.label);}));
+ return element("div",{className:"result-actions"},element("button",{className:"result-action",onClick:togglePin,"aria-pressed":Boolean(run.pinned)},element(Icon,{name:"pin"}),run.pinned?"Pinned":"Pin"),element(MessageClipboardActions,{getText:responseCopyText,kind:"ai"}),artifacts.map(file=>{const href=Edge.exportUrl(file.id);return href&&element("a",{className:"result-action",href},element(FileTypeIcon,{label:file.label}),"Download "+file.label);}));
 }
 // EXEC-X (M124): the answer view renders the view model of static/edge-view.js (EdgeView.toView), the only code that
 // reads Orc's response; words come from static/edge-labels.js. Text from the AI becomes DOM nodes through element()
@@ -11301,7 +11319,7 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
  return element("article",{className:"result",id:run.id+"-response",tabIndex:-1},
   element("div",{className:"result-kicker"},element(Icon,{name:"spark"}),"EDGE AI · "+v.status.label,element("i",{className:`edge-dot ${v.status.tone}`,"aria-hidden":"true"})),
   element("h1",null,run.result.title),
-  element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",{className:"edge-run-model"},v.meta.model+(v.meta.reasoningLevel?" \u00B7 "+(edgeUi().modelLevels?.[v.meta.reasoningLevel]??v.meta.reasoningLevel):"")),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.duration&&element("span",{className:"edge-duration",title:"Lama proses"},"\u23F1 "+v.meta.duration),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
+  element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",{className:"edge-run-model"},element(EdgeModelLogo,{option:edgeModelOption(v.meta.model)}),v.meta.model+(v.meta.reasoningLevel?" \u00B7 "+(edgeUi().modelLevels?.[v.meta.reasoningLevel]??v.meta.reasoningLevel):"")),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.duration&&element("span",{className:"edge-duration",title:"Lama proses"},"\u23F1 "+v.meta.duration),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
   v.evidence&&element("div",{className:"edge-tags"},element("span",{className:"edge-badge neutral",title:v.evidence.code},v.evidence.label)),
   v.answer&&element("div",{className:"content-block edge-answer"},element(Markdown,{text:v.answer,claims})),
   v.clarification&&element(ResponseChoices,{scope:run.id+":clarify",enabled,act,

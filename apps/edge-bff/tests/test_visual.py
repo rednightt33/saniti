@@ -461,6 +461,10 @@ def test_download_link_requests_the_exported_file(dummy_orc, browser_page):
     link = page.get_by_role('link', name='Download bbri.xlsx', exact=True)
     href = link.get_attribute('href')
     assert '#' not in href and href.endswith('/api/v1/exports/' + export_id)
+    # EXEC-UI-1013B (gambar 2): an Excel mark left of the words; the link's name stays "Download bbri.xlsx"
+    icon = link.locator('svg.edge-file-icon.xlsx')
+    assert icon.count() == 1 and icon.get_attribute('aria-hidden') == 'true'
+    assert icon.bounding_box()['x'] - link.bounding_box()['x'] < 12  # first inside the link, before the words
     with page.expect_download() as download:
         link.click()
     assert download.value.suggested_filename == 'bbri.xlsx'

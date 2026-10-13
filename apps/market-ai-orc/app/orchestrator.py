@@ -5745,10 +5745,16 @@ class AgentOrchestrator:
         if it stays, the answer keeps its figures and a limitation states the difference (never a silent claim)."""
         if final.response_type != "ANSWER":
             return final
+        # M151 (G3): an earlier result read again (get_session_output of a released table) is relabelled with this
+        # request id in the data record; it was opened, not produced, and keeps its stored definition
+        reread = set(state.inherited)
+        outputs = [o for o in (state.data_record or {}).get("outputs") or [] if o.get("request_id") == state.request_id]
         produced = [{"name": o.get("name"), "definition": o.get("definition")}
-                    for o in (state.data_record or {}).get("outputs") or [] if o.get("request_id") == state.request_id]
+                    for o in outputs if str(o.get("output_id")) not in reread]
         opened = [i for c in state.completions.values() for i in (c.get("final") or {}).get("carried_inputs") or []
                   if isinstance(i, dict)]
+        opened += [{"name": o.get("name"), "definition": o.get("definition")}
+                   for o in outputs if str(o.get("output_id")) in reread]
         found = definition_check.problems(final.answer, produced, opened)
         if not found:
             return final

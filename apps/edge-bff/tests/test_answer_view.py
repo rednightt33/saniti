@@ -269,6 +269,42 @@ def test_unknown_fields_and_values_still_show_readably(fixture_server, browser_p
     assert 'Macro context' in finding.inner_text() and 'Konteks makro baru.' in finding.inner_text()
 
 
+def test_numbered_choices_are_buttons_that_send_their_words_and_the_question_shows_once(fixture_server, browser_page):
+    """EXEC-UI-1013B (gambar 1, run edge_a912d6a1): a router question whose choices share a route came as numbered
+    lines, shown twice and not clickable. Each choice is a button that sends its words; the question is shown once,
+    without the numbered lines; "Tulis jawaban lain" stays."""
+    origin, orc = fixture_server
+    page = browser_page
+    sign_in(page, origin)
+    original = orc.run
+    question = 'Berapa ambang akumulasi (X), lama akumulasi (Y), dan horizon return 10%?'
+    labels = ['X = Rp10 miliar, Y = 5 hari, return 10% dalam 10 hari', 'X = Rp25 miliar, Y = 3 hari, return 10% dalam 20 hari',
+              'X dan Y dari sebaran data', 'Jelaskan dulu cara akumulasi broker diukur']
+    text = '\n'.join([question] + [f'{m} {l}' for m, l in zip('①②③④', labels)]
+                     + ['Balas dengan nomor pilihan, atau tulis maksud Anda.'])
+
+    def asked(owner, id, payload):
+        result = original(owner, id, {**payload, 'message': 'fx:answer_table'})
+        result.update(status='NEEDS_CLARIFICATION', options=[],
+                      mode4={'round': 'ASK_BACK', 'turn_kind': 'ASK_BACK', 'question': question, 'choices': labels})
+        result['response'] = {**result['response'], 'response_type': 'CLARIFICATION', 'answer': text,
+                              'clarification_question': text, 'methodology': None}
+        orc.saved[id]['response'] = result
+        return result
+    orc.run = asked
+    submit(page, 'cari saham akumulasi broker')
+    saved(page)
+    body = article(page).inner_text()
+    assert body.count(question) == 1 and '①' not in body and 'Balas dengan nomor' not in body
+    panel = article(page).locator('.edge-response-choices')
+    assert [panel.get_by_role('button', name=l, exact=True).count() for l in labels] == [1, 1, 1, 1]
+    assert panel.get_by_role('button', name='Tulis jawaban lain', exact=True).count() == 1
+    orc.run = original
+    panel.get_by_role('button', name=labels[2], exact=True).click()
+    saved(page, 2)
+    assert orc.calls[-1][2]['message'] == labels[2] and not orc.calls[-1][2].get('chosen_option')
+
+
 def test_an_ask_back_offers_its_routes_and_writing_another_answer(fixture_server, browser_page):
     """EXEC-CHOICES: an ask-back question's routes are sent at once (Eksplorasi says it includes the news research);
     "Tulis jawaban lain" only opens the message box."""

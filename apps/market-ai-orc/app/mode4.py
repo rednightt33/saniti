@@ -307,7 +307,11 @@ def ask_back_response(inner: AgentOrchestrator, request: AgentRunRequest, usage:
         options=options, data_record=data_record or None,
         mode4={"version": MODE4_VERSION, "round": "ASK_BACK", "steps": [], "notes": list(notes or []),
                "turn_kind": None if first else "ASK_BACK", "router": usage, "analysis": None, "research": None,
-               "suggestion": None, "cancelled_plan_id": None})
+               "suggestion": None, "cancelled_plan_id": None,
+               # EXEC-UI-1013B: the question without its numbered lines and the choices that are not buttons, so a
+               # front-end can show each choice as a button that sends its label (the text keeps the numbered lines
+               # and the answer hint, which the router reads in the history)
+               "question": (question or router.FALLBACK_QUESTION).strip(), "choices": labels})
 
 
 class _Mode4Run:

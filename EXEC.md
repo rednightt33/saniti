@@ -2259,6 +2259,7 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
   - **K2 "perbaiki dulu di jalur sekarang, baru nanti pecah jalur agar perbaikan terbawa":** G3 (DEFINITION) dan G5
     (CLARIFY yang butuh hitungan baru, kode broker disimpan) dikerjakan lebih dulu di jalur sekarang, sebelum jalur baru
     dipisah.
+    **Dikerjakan 2026-10-13 (Fase A):** G3 = M151, G5 = M152 (lihat ERRORS).
 - **Catatan desain dari inspeksi kode (2026-10-13, user: "Yes"):**
   - **D1 alat riset = pemeriksa, bukan kemampuan hitung.** Sandbox bisa menghitung semuanya; alat riset ada supaya
     statistik dihitung ulang sistem di luar proses AI dengan nilai yang disetujui (`research_validation.py`,
@@ -2289,7 +2290,7 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
   - EXEC-UI-1013B: tampilan, berlaku untuk kedua jalur.
   - G3 dan G5 adalah bug yang juga ada di jalur sekarang (K2: diperbaiki di jalur sekarang lebih dulu).
 
-### EXEC-UI-1013B: pilihan bernomor bisa diklik, logo model dan Excel di jawaban, pemantau run di iPhone (rencana, belum dieksekusi)
+### EXEC-UI-1013B: pilihan bernomor bisa diklik, logo model dan Excel di jawaban, pemantau run di iPhone (dikerjakan, Fase A)
 
 **Keputusan user 2026-10-13:** gambar 1 "yes yg kamu bilang benar + Untuk angka ini boleh dikasih button atau clickable
 feature agar mudah Setiap yang sifatnya pilihan angka.. So bisa pilih angka, atau jawaban user sendiri"; gambar 2 "Boleh
@@ -2309,6 +2310,11 @@ sampai di-refresh: "Ok, masukan exec ya bersama gambar 1 dan gambar 2 diatas. Ja
   menarik status run sekali.
 - **Tes yang direncanakan:** tes browser untuk tombol pilihan bernomor dan "Tulis jawaban lain", logo di kepala jawaban
   dan tombol unduh (desktop dan HP), koneksi pemantau yang diam lalu pulih tanpa refresh.
+- **Dikerjakan 2026-10-13 (rencana implementasi Fase A, disetujui):** Orc mengirim `mode4.question` dan `mode4.choices`
+  pada pertanyaan balik; EDGE menampilkan pertanyaan sekali dan setiap pilihan sebagai tombol yang mengirim katanya,
+  plus "Tulis jawaban lain"; logo model di kiri label model pada kepala jawaban; tanda Excel di kiri tombol unduh
+  `.xlsx`; stream run mengirim `ping`, stream diam 15 s diganti, halaman yang terlihat lagi membaca status (M153).
+  Tes: orc 1.467 lulus; EDGE 83 lulus (satu kali gagal di tes mengetik yang memang kadang gagal di main).
 
 ### EXEC-LOGOS: logo model di EDGE, level Rendah/Tinggi/Maks, MiMo Pro dikeluarkan, pengaman berpikir tanpa ujung (deployed; cek live bersih)
 

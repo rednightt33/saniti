@@ -731,6 +731,65 @@
      "ADD"
     ]
    }
+  },
+  {
+   "message": "Rekapan saja broker siapa yang melakukan accum dst, beserta broker lain yang ikut",
+   "context": {
+    "earlier_questions": [
+     "Cari saham yang diakumulasi broker di atas X selama Y hari, lalu return lebih dari 10%",
+     "Setuju, jalankan.",
+     "hisa keluarin summary detail brokernya dalam bentuk excel"
+    ],
+    "tables": [
+     "Feature_03_Stock_Broker_Daily",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "broker_accum_h1_summary",
+     "broker_accum_h1_top_events",
+     "broker_accum_h2_summary",
+     "broker_accum_h2_top_events"
+    ],
+    "findings": [
+     "h1_20d",
+     "h2_5d"
+    ],
+    "pending_suggestion": null,
+    "results_after_pending_suggestion": []
+   },
+   "kinds": [
+    "INSIGHT",
+    "CONTINUE"
+   ]
+  },
+  {
+   "message": "Download lagi file excel top events tadi",
+   "context": {
+    "earlier_questions": [
+     "Cari saham yang diakumulasi broker di atas X selama Y hari, lalu return lebih dari 10%",
+     "Setuju, jalankan.",
+     "hisa keluarin summary detail brokernya dalam bentuk excel"
+    ],
+    "tables": [
+     "Feature_03_Stock_Broker_Daily",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "broker_accum_h1_summary",
+     "broker_accum_h1_top_events",
+     "broker_accum_h2_summary",
+     "broker_accum_h2_top_events"
+    ],
+    "findings": [
+     "h1_20d",
+     "h2_5d"
+    ],
+    "pending_suggestion": null,
+    "results_after_pending_suggestion": []
+   },
+   "kinds": [
+    "CLARIFY"
+   ]
   }
  ],
  "variant_cases": [

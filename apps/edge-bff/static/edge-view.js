@@ -159,9 +159,9 @@
       meta:{requestId:envelope?.request_id ?? null, model:execution.model ?? null, reasoningLevel:execution.reasoning_level ?? null, tokens:execution.total_tokens, cost:execution.cost ?? null, duration:durationText(execution.duration_ms)},
       evidence:envelope?.evidence_label ? {code:envelope.evidence_label, label:ui.evidencePrefix + (L().evidence[envelope.evidence_label] ?? envelope.evidence_label)} : null,
       claims:(envelope?.annotations || []).filter(item => item?.quote).map(item => [String(item.quote).trim(), item.note || item.kind]),
-      answer:answer || null,
-      clarification:final.clarification_question ? {text:final.clarification_question,
-        choices:(envelope?.options || []).map((option, index) => ({key:option.route || index, label:option.label, kind:"secondary", note:option.route === "EXPLORE" ? ui.exploreNote : undefined, action:{type:"route", route:option.route, message:option.label}}))} : null,
+      // EXEC-UI-1013B: a question that is the whole answer is shown once, in the choices part
+      answer:(answer && answer !== final.clarification_question ? answer : null),
+      clarification:final.clarification_question ? clarification(final, envelope, ui) : null,
       pause:pause ? {label:ui.paused, region:ui.pausedRegion, reason:pause.reason || null, hint:ui.pauseHint,
         choices:(pause.options || []).map(option => ({key:option.id, label:option.label, title:option.needs_input ? ui.needsInput : undefined,
           action:option.needs_input ? {type:"input", hint:option.label} : {type:"message", message:option.label}}))} : null,
@@ -172,6 +172,17 @@
       artifacts:(envelope?.artifacts || []).map(file => ({id:file.export_id, label:file.file_name || file.filename || file.export_id})),
       next:next(envelope?.follow_ups)
     };
+  }
+  // EXEC-UI-1013B (gambar 1): the router's choices that share a route come as numbered lines of the question; Orc also
+  // sends them as labels (mode4.choices) with the question alone (mode4.question), so each is a button that sends its
+  // label, like a typed reply, and the numbered lines are not shown twice
+  function clarification(final, envelope, ui) {
+    const routed = (envelope?.options || []).map((option, index) => ({key:option.route || index, label:option.label, kind:"secondary", note:option.route === "EXPLORE" ? ui.exploreNote : undefined, action:{type:"route", route:option.route, message:option.label}}));
+    const mode4 = envelope?.mode4 || {};
+    const labels = routed.length ? [] : (Array.isArray(mode4.choices) ? mode4.choices : []).filter(label => typeof label === "string" && label.trim());
+    const choices = routed.length ? routed : labels.map((label, index) => ({key:"choice" + index, label, kind:"secondary", action:{type:"message", message:label}}));
+    const question = typeof mode4.question === "string" ? mode4.question.trim() : "";
+    return {text:choices.length && question ? question : final.clarification_question, choices};
   }
   // EXEC-Y Fase 2: what the user could ask next, grouped by kind; a click sends the words as the next message
   function next(items) {

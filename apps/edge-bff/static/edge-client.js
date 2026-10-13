@@ -24,19 +24,37 @@
   const DOMAIN = {COMPLETED:'Completed',AWAITING_CONFIRMATION:'Awaiting approval',NEEDS_CLARIFICATION:'Needs your reply',LIMITED:'Limited',FAILED:'Failed'};
   const statusLabel = (status, domain, pause) => ['submitted','running','streaming'].includes(status) ? 'Running' : status === 'failed' && !domain ? 'Failed'
     : pause && domain === 'LIMITED' ? 'Paused' : DOMAIN[domain] || (status ? status[0].toUpperCase() + status.slice(1) : '—');
+  // M153 (EXEC-UI-1013B): on iPhone the stream of a run died while the app was in the background and no error event
+  // followed (iOS 18), so the page waited for the answer until a refresh. The stream now sends a ping every few
+  // seconds; a stream silent for STALE_MS is replaced (with one status read), and so is the stream when the page
+  // becomes visible again. Three stream errors in a row still switch to polling.
+  const STALE_MS = 15000;
   function follow(id, callback, onError) {
-    let closed = false, failures = 0, source, timer, version = -1;
-    const close = () => { closed = true; source?.close(); clearTimeout(timer); followers.delete(close); };
+    let closed = false, failures = 0, source, timer, watchdog, version = -1, polling = false, heard = Date.now();
+    const url = '/api/v1/runs/' + encodeURIComponent(id) + '/events';
+    const close = () => {
+      closed = true; source?.close(); clearTimeout(timer); clearInterval(watchdog);
+      document.removeEventListener('visibilitychange', wake); removeEventListener('pageshow', wake); followers.delete(close);
+    };
     const deliver = data => { if (closed) return; if (data.state_version >= version) { version = data.state_version; callback(data); } if (terminal(data)) close(); };
-    const poll = async () => {
+    const read = async () => {
       if (closed) return;
       try { deliver(await api('/runs/' + encodeURIComponent(id))); }
-      catch (error) { onError(error); if (error.status === 401 || error.status === 404) { close(); return; } }
-      if (!closed) timer = setTimeout(poll, 3000);
+      catch (error) { onError(error); if (error.status === 401 || error.status === 404) close(); }
     };
-    source = new EventSource('/api/v1/runs/' + encodeURIComponent(id) + '/events');
-    source.addEventListener('snapshot', event => { failures = 0; try { deliver(JSON.parse(event.data)); } catch { onError(new Error('Invalid status snapshot')); } });
-    source.onerror = () => { if (++failures >= 3) { source.close(); poll(); } };
+    const poll = async () => { await read(); if (!closed) timer = setTimeout(poll, 3000); };
+    const open = () => {
+      source?.close(); heard = Date.now();
+      source = new EventSource(url);
+      source.addEventListener('snapshot', event => { heard = Date.now(); failures = 0; try { deliver(JSON.parse(event.data)); } catch { onError(new Error('Invalid status snapshot')); } });
+      source.addEventListener('ping', () => { heard = Date.now(); failures = 0; });
+      source.onerror = () => { if (++failures >= 3) { source.close(); polling = true; clearInterval(watchdog); poll(); } };
+    };
+    const resync = () => { if (closed || polling) return; read(); if (!closed) open(); };
+    const wake = () => { if (document.visibilityState === 'visible') resync(); };
+    watchdog = setInterval(() => { if (Date.now() - heard > STALE_MS) resync(); }, 5000);
+    document.addEventListener('visibilitychange', wake); addEventListener('pageshow', wake);
+    open();
     followers.add(close);
     return close;
   }

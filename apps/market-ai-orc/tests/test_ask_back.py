@@ -171,10 +171,14 @@ def test_the_q7_turn_question_with_four_choices_on_one_route_is_kept() -> None:
     assert lines[0] == usage["question"] and lines[-1] == router.ANSWER_HINT
     assert lines[1:5] == ["① momentum_rank", "② dip_rebound", "③ momentum_size", "④ industry_gap"]
     assert not result.options and result.status == "NEEDS_CLARIFICATION"
+    # EXEC-UI-1013B: the question alone and the choices as labels, for buttons that send the label
+    assert result.mode4["question"] == usage["question"]
+    assert result.mode4["choices"] == ["momentum_rank", "dip_rebound", "momentum_size", "industry_gap"]
     failed = mode4.ask_back_response(Inner(), AgentRunRequest(request_id="q7-3b", message="x"), usage, first=False,
                                      pending=False, failed=True, data_record=None)
     assert failed.response.answer.startswith(router.FALLBACK_QUESTION)
     assert [o["route"] for o in failed.options] == ["CLARIFY", "CONTINUE"]
+    assert failed.mode4["question"] == router.FALLBACK_QUESTION and failed.mode4["choices"] == []
 
 
 def test_a_quick_choice_runs_its_route_without_a_router_call() -> None:

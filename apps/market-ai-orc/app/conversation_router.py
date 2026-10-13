@@ -103,7 +103,9 @@ Return one JSON object: {"turn_kind": ..., "revision_instruction": ..., "referen
 - CLARIFY: what a figure or result means, a definition used in the results, how to read them, where the data comes from;
   also an action on a result that already exists, without a new calculation: show, export or download a table or
   the findings (Excel, CSV), show the code or the lineage of a figure.
-- INSIGHT: why a result is what it is, what drives it, what stands out, a breakdown of a result already shown.
+- INSIGHT: why a result is what it is, what drives it, what stands out, a breakdown of a result already shown. A recap
+  or list by something the shown results do not list (which brokers, per broker, per sector, per month) needs a new
+  calculation: INSIGHT, not CLARIFY, even when the user says "rekap saja" or asks for it as a file.
 - CONTINUE: the user asks for further analysis or a test (a new angle, an event study, a hypothesis, another period or
   group, "test it", "check my idea").
 - APPROVE: the user clearly and unconditionally approves the pending suggestion as proposed.
