@@ -1,23 +1,18 @@
 {
-  "prefix": "ma-logos-20261013a",
-  "workers": 2,
+  "prefix": "ma-phasea-20261013a",
+  "workers": 1,
   "audit_wait_seconds": 0,
   "items": [
     {
-      "id": "m150_bbri_mimoflash",
-      "analysis_path": "ANALYSIS",
-      "message": "Coba analisis pergerakan BBRI kemarin. Buat distribusi dari harga dan volumenya",
-      "expect": "EXEC-LOGOS live check (user 2026-10-13: \"Keluarin saja Mimo pro ya, the rest sudah OK\"; M150): orc 7c11b4ad; no loop call over 200 s",
-      "model": "xiaomi/mimo-v2.6-flash",
-      "reasoning_level": "on"
-    },
-    {
-      "id": "m150_mimopro_refused",
-      "analysis_path": "ANALYSIS",
-      "message": "Halo",
-      "expect": "EXEC-LOGOS live check (user 2026-10-13: \"Keluarin saja Mimo pro ya, the rest sudah OK\"; M150): orc 7c11b4ad; HTTP 400 MODEL_NOT_ALLOWED before any model call",
-      "model": "xiaomi/mimo-v2.6-pro",
-      "reasoning_level": "on"
+      "id": "phase_a_conv",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "expect": "EXEC Phase A live check (M151 DEFINITION re-read, M152 recap routing): orc 2e935d87",
+      "turns": [
+        "Tampilkan 5 broker dengan net beli terbesar di saham BBRI selama Agustus 2026, beserta nilai net belinya.",
+        "Ekspor tabel tadi ke Excel. Pakai definisi yang sama dengan hasil sebelumnya.",
+        "Rekap per minggu: broker mana yang paling sering masuk 5 besar net beli BBRI setiap minggu di Agustus 2026?"
+      ]
     }
   ]
 }

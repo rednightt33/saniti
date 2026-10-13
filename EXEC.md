@@ -2315,6 +2315,9 @@ sampai di-refresh: "Ok, masukan exec ya bersama gambar 1 dan gambar 2 diatas. Ja
   plus "Tulis jawaban lain"; logo model di kiri label model pada kepala jawaban; tanda Excel di kiri tombol unduh
   `.xlsx`; stream run mengirim `ping`, stream diam 15 s diganti, halaman yang terlihat lagi membaca status (M153).
   Tes: orc 1.467 lulus; EDGE 83 lulus (satu kali gagal di tes mengetik yang memang kadang gagal di main).
+- **Deploy dan cek live (RAILWAY_CHANGELOG EXEC-PHASE-A):** orc `2e935d87` dan EDGE `cadcd89c` SUCCESS; rekap per minggu
+  dirouting INSIGHT dan dihitung; ekspor tanpa penolakan DEFINITION. Menunggu cek user di iPhone (jawaban muncul tanpa
+  refresh) dan tampilan pilihan bernomor pada pertanyaan balik berikutnya.
 
 ### EXEC-LOGOS: logo model di EDGE, level Rendah/Tinggi/Maks, MiMo Pro dikeluarkan, pengaman berpikir tanpa ujung (deployed; cek live bersih)
 

@@ -1,5 +1,22 @@
 # Railway changelog
 
+## 2026-10-13 — EXEC-PHASE-A deployed (M151, M152, M153, EXEC-UI-1013B), live check
+
+User: "Great, inspect current architecture dengan context plan tersebut. Generate the final implementation plan." (plan
+approved; Fase A = K2 fixes in the current lane and EXEC-UI-1013B). Rollback references: orc `7c11b4ad`, EDGE `865c2c8f`.
+- `main` `ff45a7c`: market-ai-orc **2e935d87-5f8e-4b33-bbff-d705bb789fc6** and edge-bff
+  **cadcd89c-5da0-421c-a2bf-c62732a1f999** reached **SUCCESS**; orc startup price read OK (4 models); the live page
+  serves the new run watcher (`edge-client.js` with the stale-stream check).
+- Router benchmark (`scripts/benchmark_turn_router.py --ask-back`, dev key through `railway run`, no secret printed):
+  before 47/50, after 52/54 (both new M152 cases right), read requests sent to research 0, horizons 14/14 on the
+  repeat; cost about USD 0.06 for four runs.
+- `orc-test-runner` **d7ca8186-6671-4adb-be75-d7439f79f6f0** (`ma-phasea-20261013a`, DeepSeek V4.1 Flash high, one
+  conversation): turn 1 analysis COMPLETED in 105 s; turn 2 "Ekspor tabel tadi ke Excel. Pakai definisi yang sama…"
+  routed CLARIFY, `export_result`, COMPLETED in 26 s, no DEFINITION refusal (its wording did not match the claim pattern,
+  so M151 is proven by tests, not by this run); turn 3 "Rekap per minggu…" routed **INSIGHT** and computed (M152),
+  COMPLETED in 208 s. Cost about USD 0.05.
+- No variable, migration, model default, provider or configuration change.
+
 ## 2026-10-13 — EXEC-LOGOS deployed (model logos, levels low/high/max, MiMo Pro removed, M150 guard), live check
 
 User: "kasih logo untuk setiap model ya di HP", "Keluarin saja Mimo pro ya, the rest sudah OK" (EXEC.md EXEC-LOGOS,
