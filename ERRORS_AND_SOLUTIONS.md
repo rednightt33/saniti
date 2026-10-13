@@ -1,5 +1,22 @@
 # Errors and solutions
 
+## Pgweb connection repair — 2026-10-13
+
+- **IaC plan CLI/SDK mismatch (CONTAINED):** config pull ran, but config plan requires
+  Railway CLI 5.42.1 or newer. No config apply ran. The pulled file included unrelated
+  pre-existing drift and was restored; the pgweb repair changed no permanent topology.
+
+- **Disconnected viewer and manual credential rejection (FIXED):** pgweb returned
+  `Not connected`; PostgreSQL logged password authentication failures for manually submitted
+  user `pgweb`. A private-network test proved the existing `PGWEB_DATABASE_URL` credential
+  valid. Reconnecting with that exact URL restored access. Readback verified read-only on,
+  zero writable public tables and a successful bounded Feature04 SELECT. No password or
+  grants changed. Web basic-auth credentials and database credentials are separate; a
+  manual login failure does not prove the stored database URL is stale.
+- **Temporary inspection cleanup cancelled (RESOLVED):** the first deletion request for
+  `pgweb-credential-ops` was cancelled. After explanation and explicit "Ok jalankan", the
+  service was deleted project-wide; inventory confirms absence and zero detached volumes. See `verification/pgweb/CONNECTION_REPAIR.md`.
+
 Every error, defect and data problem found in this project so far, with its root cause, the solution and its status. The purpose is to avoid repeating them. The main use ahead is the scale-up to other data (cross-asset: FX, commodities, bonds, indices; macro: rates, inflation, GDP): Part A turns these errors into a data-format standard that every new source must meet before it is loaded, so all sources reach the database, the catalog and the AI in the same shape.
 
 - **Part A** — the data-format standard for new sources (the checklist).

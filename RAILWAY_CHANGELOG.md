@@ -1,5 +1,20 @@
 # Railway changelog
 
+## 2026-10-13 — Pgweb database connection restored
+
+- User authorized repair. Existing `PGWEB_DATABASE_URL` was tested from the private network
+  and worked; no password reset or pgweb redeploy was required. The existing URL restored
+  pgweb through `/api/connect`; readback confirmed role `pgweb`, database `railway`, read-only
+  default on, zero writable public tables, and successful bounded Feature04 SELECT.
+- Temporary Function `pgweb-credential-ops` (`1847b74e-0ac4-4dcf-86fe-a6816d5624c4`) used
+  server-side database references; inspection deployment `8fd58483-66cf-4957-a0bd-9830152e57c8`
+  reached SUCCESS. It has no cron/domain/volume and restart NEVER. The first cleanup was cancelled; after explicit
+  authorization "Ok jalankan", deletion succeeded with zero detached volumes and inventory
+  confirmed the service absent. Evidence: `verification/pgweb/CONNECTION_REPAIR.md`.
+- Config pull completed, but config plan failed because the installed CLI predates the SDK
+  minimum 5.42.1. The generated file also captured unrelated pre-existing recovery-command
+  drift and an Orc flag; those unrelated local changes were reverted. No config apply ran.
+
 ## 2026-10-12 — EXEC-DURATION deployed from main
 
 User: "tolong tambahkan berapa lama each run_id progress, tampilkan di edge sebelah tokens/ reported cost dan dibagian
