@@ -2434,6 +2434,24 @@ ulang; cek live masih menolak angka berskala.
 **Rollback Fase 1:** `git revert` commit fitur, lalu push `main` (prompt kembali ke `v005`). Baris Tool_Catalog v2
 dibiarkan (hanya catatan, `is_active=false`) atau dibatalkan dengan migrasi baru.
 
+### EXEC-M146-M147: panggilan alat tertulis sebagai teks; jumlah tanggal di profil data (berjalan)
+
+**Keputusan user 2026-10-13:** "fix M146c rencanakan terlebih dahulu", lalu "selidiki 147, cek kode", lalu "Ok go".
+- **M146.** deepseek-v4.1-flash sesekali menulis panggilan alat dalam markup DSML sebagai teks; provider meneruskannya
+  tanpa panggilan alat (laporan publik: sglang #40236, openclaw #159665, DeepSeek-V3 #1244, command-code #909). Terjadi
+  2 dari sekitar 200 panggilan hari ini, sekali ON dan sekali OFF.
+  - Orc dulu menganggapnya jawaban rusak, sehingga run berakhir LIMITATION tanpa data.
+  - Sekarang giliran itu diminta ulang dengan alat yang sama (paling banyak 2 kali, log `ai_tool_markup_retried`,
+    hambatan "panggilan alat tertulis sebagai teks"). Markup tidak pernah dieksekusi.
+  - Tes `test_tool_markup.py`.
+- **M147.** Profil dataset di sandbox menghitung nilai unik dengan perkiraan HyperLogLog. Direproduksi dengan DuckDB 1.5.5:
+  19 tanggal terbaca 21, 32 terbaca 35, 180 terbaca 228.
+  - Kolom tanggal sekarang dihitung pasti; kolom lain tetap perkiraan.
+  - Tes `test_profile_distinct.py`.
+  - Suite sandbox: kegagalan sama persis sebelum dan sesudah perubahan (196 tes isolasi yang butuh slot user, tidak
+    bisa jalan di container ini).
+- Tes: orc 1.662 lulus. Tidak ada perubahan prompt, database atau variabel.
+
 ### EXEC-IMPL-1012: rencana implementasi EXEC-JOINKEY, EXEC-RELEASE, EXEC-FRICTION, EXEC-STYLE (selesai; Fase 3c berhenti di M143)
 
 **Permintaan user 2026-10-12:** "cek infra kita, dan EXEC yang sudah saya approve, buat implementation plan berdasarkan

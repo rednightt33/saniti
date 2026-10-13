@@ -1189,6 +1189,15 @@ the figure: `value_refs.SCALE_AFTER_RE` registers the value times the scale as a
 unchanged. A figure typed without a reference is still refused. The prompt (snapshot `v006`) asks for money and volume
 in base units, counts of the period or sample as references, and example amounts in words.
 
+### Tool calls written as text (M146)
+
+EXEC-M146 (user go 2026-10-13): deepseek-v4.1-flash sometimes writes a tool call in its own markup (DSML,
+`<｜DSML｜ calls><｜DSML｜ invoke name="...">`) as plain text, and the provider passes it on with no tool call. A turn
+without tool calls whose text matches `TOOL_MARKUP_RE` (a DSML marker, `<tool_call>`, `<function=`) is asked again with
+the same tools (`TOOL_MARKUP_NOTE` names the tool from `invoke name="..."`), at most `MAX_TOOL_MARKUP_RETRIES` (2) per
+run; then the final response is asked for as before. Logged `ai_tool_markup_retried`; the hurdle reads "Bentuk jawaban
+diminta ulang (panggilan alat tertulis sebagai teks)". The markup itself is never run.
+
 ### Web research (item 12)
 
 `AI_ENABLE_WEB_RESEARCH`, the tool `research_web` (`app/tools/web_research.py`), market-web-governor

@@ -1503,6 +1503,17 @@ FINALIZE_INSTRUCTION = FINALIZE_PREFIX + RESPONSE_CONTRACT
 EMPTY_TURN_NOTE = ("Application note, not from the user: your previous turn ended without output (the generation "
                    "stopped). Continue the task from where it was: call the next tool, or give the final response.")
 MAX_EMPTY_TURN_RETRIES = 2
+# M146 (EXEC-M146, user go 2026-10-13): deepseek-v4.1-flash sometimes writes its tool call in its own markup (DSML,
+# "<｜DSML｜ calls><｜DSML｜ invoke name=...>") as plain text, and the provider passes it on as content with no tool call
+# (sglang #40236, openclaw #159665). That turn is a tool call that never ran, not a draft answer: it is asked again with
+# the same tools instead of asking for the final response (which ended ab5 as a LIMITATION without its data request).
+TOOL_MARKUP_RE = re.compile(r"[<＜]\s*[|｜]\s*DSML\s*[|｜]|<\s*tool_call\s*>|<\s*function\s*=|<[|｜]tool[▁_ ]calls?",
+                            re.IGNORECASE)
+TOOL_MARKUP_NAME_RE = re.compile(r"""invoke\s+name\s*=\s*["'](?P<name>[A-Za-z_][\w.-]{0,63})["']""")
+TOOL_MARKUP_NOTE = ("Application note, not from the user: your previous turn wrote a call to {tool} as text in the "
+                    "answer, so nothing was run. Tools are called through the tool interface, never written in the "
+                    "answer: call {tool} again now.")
+MAX_TOOL_MARKUP_RETRIES = 2
 CONTEXT_BUDGET_PREFIX = (
     "Tool access has ended because this run reached its context budget; no further tools can be "
     "called. Answer my latest message using only the information already retrieved in the tool "
@@ -2066,6 +2077,7 @@ class RunState:
     typed_answer: str | None = None  # O4: the final answer with its value references removed (the typed figures)
     table_footers: dict[str, str] = field(default_factory=dict)  # EXEC-TABLE: line under a cut table, by its mark
     empty_turn_retries: int = 0  # M78: turns with neither text nor a tool call, retried with the same tools
+    tool_markup_retries: int = 0  # M146: turns that wrote a tool call as text, asked again with the same tools
     reference_date: Any = None  # the run's reference date in the analysis timezone
     data_date: Any = None  # R-STORE: the run's DataDate (the conversation's data date and whether NEWEST was asked)
     research_attempted: bool = False
@@ -3760,6 +3772,19 @@ class AgentOrchestrator:
                     log_event("ai_empty_turn_retried", request_id=state.request_id, iteration=state.iterations,
                               retry=state.empty_turn_retries, provider=response.get("provider"),
                               output_tokens=usage["output_tokens"], reasoning_tokens=usage["reasoning_tokens"])
+                    continue
+                markup = TOOL_MARKUP_RE.search(raw) if tools and unapplied is None else None
+                if markup and state.tool_markup_retries < MAX_TOOL_MARKUP_RETRIES:
+                    state.tool_markup_retries += 1
+                    named = TOOL_MARKUP_NAME_RE.search(raw)
+                    tool = named.group("name") if named else "the tool"
+                    note = TOOL_MARKUP_NOTE.format(tool=tool)
+                    self._remember_refusal(state, "FORMAT", "TOOL_MARKUP", None, "ASKED_AGAIN", note, raw)
+                    state.input_items.append({"role": "user", "content": note})
+                    log_event("ai_tool_markup_retried", request_id=state.request_id, iteration=state.iterations,
+                              retry=state.tool_markup_retries, tool=tool, marker=markup.group(0)[:20],
+                              provider=response.get("provider"), output_chars=len(raw),
+                              output_tokens=usage["output_tokens"])
                     continue
                 if usage["output_tokens"] >= self.settings.ai_max_output_tokens:
                     # found live (golden run 2026-09-29): a long plan was cut off mid-JSON and the model only saw

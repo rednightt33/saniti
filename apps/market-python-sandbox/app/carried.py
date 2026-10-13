@@ -72,7 +72,12 @@ def profile(paths: list[str], *, time_column: str | None = None, entity_column: 
             columns: list[str] | None = None) -> dict[str, Any]:
     """A compact summary of a table read from Parquet files: rows, entities, date range, per column type, nulls,
     distinct values and either min / median / max (numbers, dates) or the most frequent values (text), and a few
-    sample rows. Columns beyond PROFILE_COLUMNS are counted, not shown (P5: never cut silently)."""
+    sample rows. Columns beyond PROFILE_COLUMNS are counted, not shown (P5: never cut silently).
+
+    M147 (2026-10-13): a date or time column's distinct count is exact (count(DISTINCT)); the HyperLogLog estimate it
+    used read 19 trading dates as 21 (and 180 as 228), and the model spent turns reconciling it. Other columns keep
+    approx_count_distinct (they can hold millions of values). The profile covers every row of the files, a history
+    buffer included."""
     import duckdb
 
     if not paths:
@@ -94,7 +99,8 @@ def profile(paths: list[str], *, time_column: str | None = None, entity_column: 
         # one scan for every count and range (a bundle can hold millions of rows)
         parts = ["count(*)"]
         for name in shown:
-            parts += [f"count(*) - count({q(name)})", f"approx_count_distinct({q(name)})"]
+            distinct = "count(DISTINCT {})" if kinds[name] == "TIME" else "approx_count_distinct({})"
+            parts += [f"count(*) - count({q(name)})", distinct.format(q(name))]
             if kinds[name] == "NUMBER":
                 parts += [f"min({q(name)})", f"median({q(name)})", f"max({q(name)})"]
             elif kinds[name] == "TIME":

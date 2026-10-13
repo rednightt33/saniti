@@ -430,6 +430,8 @@ completion, completion responses keep their shape).
     carry every released table of the conversation.
   - The open view adds `carried_outputs` (a listing with labels and origins, at most 20 with a count of the rest) and
     a `carried_note`; every bundle dataset in the view gets a `profile` (P1).
+    M147 (2026-10-13): in a profile a date or time column's `distinct` is exact (`count(DISTINCT)`); the HyperLogLog
+    estimate it used read 19 trading dates as 21. Other columns' `distinct` stay approximate (`approx_count_distinct`).
   - Profile (one DuckDB scan, cached per table): rows, entities and date range; per column (first 40, the rest
     counted) type, nulls, approximate distinct values and min / median / max (numbers), min / max (dates) or the 5
     most frequent values (text, first 12 text columns); 5 sample rows. It is for understanding the data before writing
