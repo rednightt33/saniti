@@ -2459,6 +2459,22 @@ dibiarkan (hanya catatan, `is_active=false`) atau dibatalkan dengan migrasi baru
     berikutnya.
   - Catatan: satu TYPED_FIGURES "19" lagi (jumlah hari bursa diketik), pola yang sama dengan cek live M143.
 
+### EXEC-LOGOS: logo model di EDGE, level Rendah/Tinggi/Maks, MiMo Pro dikeluarkan, pengaman berpikir tanpa ujung (berjalan)
+
+**Keputusan user 2026-10-13:** "kasih logo untuk setiap model ya di HP"; "Request edge_7bc93daf9e463c521e8886c00c219cd5
+boleh cek kenapa lama, cek log"; logo "Logo merek asli"; level "Rendah / Tinggi / Maks"; MiMo "cek dulu
+dokumentasinya"; setelah temuan log: "Keluarin saja Mimo pro ya, the rest sudah OK".
+- **Temuan (M150):** panggilan pertama MiMo Pro 405 s, 23.999 token berpikir tanpa output (berputar pada "kemarin" 12
+  atau 13 Okt dan pada lebar periode, lalu menulis seluruh kode di dalam pikiran sampai batas 24.000 habis). Jawaban
+  keluar lewat pengulangan giliran kosong; panggilan 2 mulai dari nol dan memakai data 5 hari yang sudah ada.
+- **Orc:** `app/model_choices.py` tanpa MiMo Pro (4 model); DeepSeek dan GLM `low/high/max` (`supported_efforts`
+  OpenRouter); MiMo Flash Nyala batas output 12.000 per panggilan; Qwen Nyala `reasoning.max_tokens` 8000;
+  `schemas.py` menerima `max`. `orchestrator.py`: panggilan loop yang kosong tepat di batas output diulang sekali dengan
+  berpikir Mati (atau `low`) untuk satu panggilan itu, log `ai_reasoning_runaway`.
+- **EDGE:** logo LobeHub (MIT, `static/model-logos/`, route `/model-logos/<nama>.svg`); di HP tombol hanya logo; logo
+  satu warna (Z.ai, MiMo) mengikuti warna teks; label `max: "Maks"`; BFF menerima level `max`.
+- **Tes:** orc 1.465 lulus; EDGE 80 lulus (termasuk tes HP baru).
+
 ### EXEC-CHOICES dan EXEC-ROWS: panel "Response choices" di EDGE; jumlah baris tabel sesuai permintaan, maks. 25 (berjalan)
 
 **Keputusan user 2026-10-13:** lampiran `Selection_option_for_user.html` ("Jalankan terlampir dan cek terlampir. Lihat

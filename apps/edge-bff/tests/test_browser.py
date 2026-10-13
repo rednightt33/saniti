@@ -54,7 +54,8 @@ def test_private_html_real_submit_reload_preferences_and_continuations(server):
         assert page.evaluate('window.pwned') is None
         assert 'Saved answer' in page.locator('article.result').inner_text()
         page.locator('.edge-model-trigger:not([disabled])').wait_for()
-        assert page.locator('.edge-model-trigger').inner_text().split()[:4]==['D','DeepSeek','V4.1','Flash']
+        assert page.locator('.edge-model-trigger').inner_text().split()[:3]==['DeepSeek','V4.1','Flash']
+        assert page.locator('.edge-model-trigger img.edge-model-logo').get_attribute('src')=='/model-logos/deepseek-color.svg'
         assert page.get_by_role('button',name='Public sharing unavailable').is_disabled()
         page.get_by_role('button',name='Pin',exact=True).click()
         page.get_by_role('button',name='Pinned',exact=True).wait_for()
@@ -117,8 +118,8 @@ def test_sse_delivers_while_orc_waits_and_refresh_resumes(server):
 
 
 def test_the_model_choice_lists_prices_changes_levels_and_is_remembered(server):
-    """EXEC-MODELS (user 2026-10-13): five models with their input and output price per one million tokens, the levels
-    each takes, DeepSeek V4.1 Flash high at first, the choice sent with the message and kept after a reload."""
+    """EXEC-MODELS (user 2026-10-13): four models (EXEC-LOGOS: MiMo V2.6 Pro removed) with their input and output price
+    per one million tokens, the levels each takes, DeepSeek V4.1 Flash high at first, the choice sent with the message and kept after a reload."""
     playwright=pytest.importorskip('playwright.sync_api')
     origin,orc=server
     with playwright.sync_playwright() as pw:
@@ -134,21 +135,53 @@ def test_the_model_choice_lists_prices_changes_levels_and_is_remembered(server):
         assert 'Tinggi' in trigger.inner_text()
         trigger.click()
         options=page.locator('.edge-model-option')
-        assert options.count()==5
+        assert options.count()==4
+        # EXEC-LOGOS: each model shows its brand logo, served from this origin
+        assert page.locator('.edge-model-option .edge-model-logo').count()==4
+        assert all(page.evaluate("u=>fetch(u).then(r=>r.ok&&r.headers.get('content-type').startsWith('image/svg'))",u) for u in ['/model-logos/deepseek-color.svg','/model-logos/zai.svg','/model-logos/xiaomimimo.svg','/model-logos/qwen-color.svg'])
         glm=options.filter(has_text='GLM 5.3 Flash')
         assert '$0.026' in glm.inner_text() and '$0.90' in glm.inner_text()
         assert 'Harga diperbarui' in page.locator('.edge-model-head').inner_text()
-        assert [b.inner_text() for b in page.locator('.edge-model-levels button').all()]==['Rendah','Sedang','Tinggi']
-        options.filter(has_text='MiMo V2.6 Pro').click()
+        assert [b.inner_text() for b in page.locator('.edge-model-levels button').all()]==['Rendah','Tinggi','Maks']
+        options.filter(has_text='MiMo V2.6 Flash').click()
         assert [b.inner_text() for b in page.locator('.edge-model-levels button').all()]==['Mati','Nyala']
-        glm.click();page.locator('.edge-model-levels button',has_text='Sedang').click()
+        glm.click();page.locator('.edge-model-levels button',has_text='Maks').click()
         page.keyboard.press('Escape');assert not page.locator('.edge-model-menu').count()
         composer.fill('Explain BBRI');page.get_by_role('button',name='Submit',exact=True).click()
         page.locator('article.result').wait_for()
-        assert orc.calls[-1][2]['model']=='z-ai/glm-5.3-flash' and orc.calls[-1][2]['reasoning_level']=='medium'
-        assert 'z-ai/glm-5.3-flash · Sedang' in page.locator('.edge-run-model').first.inner_text()
+        assert orc.calls[-1][2]['model']=='z-ai/glm-5.3-flash' and orc.calls[-1][2]['reasoning_level']=='max'
+        assert 'z-ai/glm-5.3-flash · Maks' in page.locator('.edge-run-model').first.inner_text()
         page.reload();ready=page.locator('.edge-model-trigger:not([disabled])');ready.wait_for()
-        assert 'GLM 5.3 Flash' in ready.inner_text() and 'Sedang' in ready.inner_text()
+        assert 'GLM 5.3 Flash' in ready.inner_text() and 'Maks' in ready.inner_text()
+        assert errors==[],errors
+        browser.close()
+
+
+def test_on_a_phone_the_model_choice_shows_the_logo_only(server):
+    """EXEC-LOGOS (user 2026-10-13, "kasih logo untuk setiap model ya di HP"): on a phone the trigger is the model's
+    logo; the one-colour logos (Z.ai, MiMo) take the text colour; every option in the menu has its logo."""
+    playwright=pytest.importorskip('playwright.sync_api')
+    origin,orc=server
+    with playwright.sync_playwright() as pw:
+        browser=pw.chromium.launch(executable_path=os.environ.get('EDGE_TEST_CHROMIUM','/usr/bin/chromium'),headless=True,args=['--no-sandbox'])
+        page=browser.new_page(viewport={'width':390,'height':844},is_mobile=True,has_touch=True)
+        page.route('https://fonts.*/*',lambda route:route.abort())
+        errors=[];page.on('pageerror',lambda error:errors.append(str(error)))
+        page.goto(origin+'/monitor')
+        page.locator('#auth-login').fill('owner');page.locator('#auth-password').fill('local-test-password')
+        page.get_by_role('button',name='Sign In',exact=True).click()
+        trigger=page.locator('.edge-model-trigger:not([disabled])');trigger.wait_for()
+        logo=trigger.locator('.edge-model-logo')
+        page.wait_for_function("() => document.querySelector('.edge-model-trigger img.edge-model-logo')?.complete && document.querySelector('.edge-model-trigger img.edge-model-logo').naturalWidth>0")
+        box=logo.bounding_box();assert box and box['width']>=16 and box['height']>=16
+        assert not trigger.locator('.edge-model-name').is_visible() and not trigger.locator('.edge-model-level').is_visible()
+        trigger.click()
+        options=page.locator('.edge-model-option');assert options.count()==4
+        assert all(options.nth(i).locator('.edge-model-logo').is_visible() for i in range(4))
+        mimo=options.filter(has_text='MiMo V2.6 Flash').locator('.edge-model-logo.mono')
+        assert 'xiaomimimo.svg' in mimo.evaluate("e=>getComputedStyle(e).maskImage||getComputedStyle(e).webkitMaskImage")
+        mimo.click();page.keyboard.press('Escape')
+        assert trigger.locator('.edge-model-logo.mono').get_attribute('aria-label')=='MiMo V2.6 Flash'
         assert errors==[],errors
         browser.close()
 

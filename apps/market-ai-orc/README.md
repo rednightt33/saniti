@@ -391,9 +391,13 @@ Returns `{"status": "ready"}` once configuration has loaded and the app has star
 
 ### Model choice per message and `GET /v1/models` (EXEC-MODELS)
 User decision 2026-10-13: a message may choose the agent loop's model and reasoning level (`app/model_choices.py`):
-`deepseek/deepseek-v4.1-flash` and `z-ai/glm-5.3-flash` take `low`, `medium` or `high` (sent as `reasoning.effort`);
-`xiaomi/mimo-v2.6-pro`, `xiaomi/mimo-v2.6-flash` and `qwen/qwen3.8-flash` take `off` or `on` (sent as
-`reasoning.enabled`). `POST /v1/agent/run` takes `model` and `reasoning_level`; a model or level not offered gets HTTP
+`deepseek/deepseek-v4.1-flash` and `z-ai/glm-5.3-flash` take `low`, `high` or `max` (sent as `reasoning.effort`; the
+levels OpenRouter lists as their `supported_efforts`); `xiaomi/mimo-v2.6-flash` and `qwen/qwen3.8-flash` take `off` or
+`on` (sent as `reasoning.enabled`; Qwen `on` as `reasoning.max_tokens` 8000). EXEC-LOGOS (2026-10-13): MiMo V2.6 Pro is
+no longer offered (M150), and MiMo Flash `on` runs each loop call with `max_output_tokens` at most 12000 (the cap
+includes reasoning; MiMo takes no reasoning budget). A loop call that ends at its output cap with no text and no tool
+call (a reasoning runaway, `ai_reasoning_runaway`) is asked again once with reasoning lowered for that one call (`off`,
+or `low` for a model with levels and for the server default), then the chosen reasoning returns. `POST /v1/agent/run` takes `model` and `reasoning_level`; a model or level not offered gets HTTP
 400 (`MODEL_NOT_ALLOWED`, `REASONING_LEVEL_NOT_SUPPORTED`) before anything runs. The choice applies to every call of the
 agent loop, mode 4 steps included (`ai_model_chosen`); the routers, the follow-up suggestions, the plan-reply
 classifier and the web-fact check keep `AI_MODEL` with reasoning low. Without a choice nothing changes (`AI_MODEL`,

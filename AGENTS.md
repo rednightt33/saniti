@@ -71,8 +71,9 @@ On 2026-10-05 the user approved a speed preference after the p1 analysis (M75 re
 
 On 2026-10-13 the user approved a model choice per message in EDGE (EXEC-MODELS: "kita akan menambahkan model2 ini
 bisa di toggle model dan intellegence level di EDGE (Default router tetap low)", "Ok, go defaultnya adalah deepseek V4.1
-flash HIGH ya"): the agent loop may run `deepseek/deepseek-v4.1-flash`, `z-ai/glm-5.3-flash`, `xiaomi/mimo-v2.6-pro`,
-`xiaomi/mimo-v2.6-flash` or `qwen/qwen3.8-flash` (`apps/market-ai-orc/app/model_choices.py`); EDGE starts on DeepSeek
+flash HIGH ya"): the agent loop may run `deepseek/deepseek-v4.1-flash`, `z-ai/glm-5.3-flash`, `xiaomi/mimo-v2.6-flash` or
+`qwen/qwen3.8-flash` (`apps/market-ai-orc/app/model_choices.py`; `xiaomi/mimo-v2.6-pro` removed on 2026-10-13, EXEC-LOGOS:
+"Keluarin saja Mimo pro ya"); EDGE starts on DeepSeek
 V4.1 Flash high, while a request without a choice keeps `AI_MODEL` and `AI_REASONING_EFFORT` (medium on dev). The
 routers, follow-up suggestions and small checks stay on `AI_MODEL` with reasoning low; the web governor is unaffected.
 Adding or removing an offered model, or changing EDGE's default, still needs the user's approval.

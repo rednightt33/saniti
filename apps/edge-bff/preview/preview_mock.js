@@ -44,9 +44,8 @@
     if (path === '/runs' && method === 'GET') return json({active:null});
     // EXEC-MODELS: the offered models and their prices (static figures of 2026-10-13; the app reads them from Orc)
     if (path === '/models') return json({models:[
-      {model:'deepseek/deepseek-v4.1-flash', label:'DeepSeek V4.1 Flash', reasoning_levels:['low','medium','high'], input_per_million:0.0441, output_per_million:0.63},
-      {model:'z-ai/glm-5.3-flash', label:'GLM 5.3 Flash', reasoning_levels:['low','medium','high'], input_per_million:0.0261, output_per_million:0.9},
-      {model:'xiaomi/mimo-v2.6-pro', label:'MiMo V2.6 Pro', reasoning_levels:['off','on'], input_per_million:0.435, output_per_million:0.87},
+      {model:'deepseek/deepseek-v4.1-flash', label:'DeepSeek V4.1 Flash', reasoning_levels:['low','high','max'], input_per_million:0.0441, output_per_million:0.63},
+      {model:'z-ai/glm-5.3-flash', label:'GLM 5.3 Flash', reasoning_levels:['low','high','max'], input_per_million:0.0261, output_per_million:0.9},
       {model:'xiaomi/mimo-v2.6-flash', label:'MiMo V2.6 Flash', reasoning_levels:['off','on'], input_per_million:0.14, output_per_million:0.28},
       {model:'qwen/qwen3.8-flash', label:'Qwen3.8 Flash', reasoning_levels:['off','on'], input_per_million:0.15, output_per_million:0.47}],
       prices_fetched_at:'2026-10-13T10:25:31+00:00', edge_default:{model:'deepseek/deepseek-v4.1-flash', reasoning_level:'high'}});

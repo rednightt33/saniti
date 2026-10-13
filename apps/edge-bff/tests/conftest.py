@@ -46,9 +46,8 @@ class FakeOrc:
         if not turns and not any(t['conversation_id']==conv for t in self.saved.values()):return None
         return {'conversation_id':conv,'messages':turns[:limit],'has_more':len(turns)>limit,'next_after':turns[limit-1]['turn_index'] if len(turns)>limit else None,'research_plan':None}
     # EXEC-MODELS: Orc's GET /v1/models (prices per one million tokens; Orc strips nothing, the BFF drops 'reasoning')
-    MODELS={'models':[{'model':'deepseek/deepseek-v4.1-flash','label':'DeepSeek V4.1 Flash','reasoning_levels':['low','medium','high'],'input_per_million':0.0441,'output_per_million':0.63,'cache_read_per_million':0.0054},
-                      {'model':'z-ai/glm-5.3-flash','label':'GLM 5.3 Flash','reasoning_levels':['low','medium','high'],'input_per_million':0.0261,'output_per_million':0.9,'cache_read_per_million':0.0108},
-                      {'model':'xiaomi/mimo-v2.6-pro','label':'MiMo V2.6 Pro','reasoning_levels':['off','on'],'input_per_million':0.435,'output_per_million':0.87,'cache_read_per_million':0.0036},
+    MODELS={'models':[{'model':'deepseek/deepseek-v4.1-flash','label':'DeepSeek V4.1 Flash','reasoning_levels':['low','high','max'],'input_per_million':0.0441,'output_per_million':0.63,'cache_read_per_million':0.0054},
+                      {'model':'z-ai/glm-5.3-flash','label':'GLM 5.3 Flash','reasoning_levels':['low','high','max'],'input_per_million':0.0261,'output_per_million':0.9,'cache_read_per_million':0.0108},
                       {'model':'xiaomi/mimo-v2.6-flash','label':'MiMo V2.6 Flash','reasoning_levels':['off','on'],'input_per_million':0.14,'output_per_million':0.28,'cache_read_per_million':0.0028},
                       {'model':'qwen/qwen3.8-flash','label':'Qwen3.8 Flash','reasoning_levels':['off','on'],'input_per_million':0.15,'output_per_million':0.47,'cache_read_per_million':0.016}],
             'prices_fetched_at':'2026-10-13T10:25:31+00:00','edge_default':{'model':'deepseek/deepseek-v4.1-flash','reasoning_level':'high'},

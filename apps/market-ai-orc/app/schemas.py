@@ -83,7 +83,7 @@ class AgentRunRequest(BaseModel):
     # offered models and a level it takes; null keeps the server default (AI_MODEL, AI_REASONING_EFFORT). The routers
     # keep AI_MODEL with reasoning low.
     model: str | None = Field(default=None, max_length=100)
-    reasoning_level: Literal["low", "medium", "high", "off", "on"] | None = None
+    reasoning_level: Literal["low", "medium", "high", "max", "off", "on"] | None = None  # EXEC-LOGOS: max
 
     @field_validator("message")
     @classmethod

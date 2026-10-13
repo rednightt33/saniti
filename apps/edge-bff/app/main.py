@@ -29,7 +29,7 @@ CONV = r'^conv_[0-9a-f]{32}$'
 CHOICES = r'^(QUICK_SUMMARY|ANALYSIS|RESEARCH|EXPLORE|FACT|CLARIFY|INSIGHT|CONTINUE|APPROVE|NEW_TOPIC)$'
 # EXEC-MODELS: the shape of a model id and the reasoning levels; Orc checks the choice against its offered models
 MODEL_ID = r'^[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._:-]*$'
-LEVELS = r'^(low|medium|high|off|on)$'
+LEVELS = r'^(low|medium|high|max|off|on)$'  # EXEC-LOGOS: max (DeepSeek, GLM); Orc checks each model's own
 MODELS_CACHE_SECONDS = 600  # Orc reads OpenRouter's prices every hour; the page sees them within ten minutes
 
 
@@ -196,6 +196,15 @@ def create_app(settings=None, store=None, orc=None):
         if not SCRIPT_NAME.fullmatch(name) or not target.is_file():
             return error('NOT_FOUND', 404)
         return FileResponse(target, media_type='text/javascript')
+
+    # EXEC-LOGOS (user 2026-10-13, "kasih logo untuk setiap model ya di HP"): the model brand logos (LobeHub icons,
+    # MIT, static/model-logos/LICENSE) served from this origin, as the page CSP allows images from 'self' only.
+    @app.get('/model-logos/{name}.svg')
+    async def model_logo(name: str):
+        target = STATIC / 'model-logos' / f'{name}.svg'
+        if not SCRIPT_NAME.fullmatch(name) or not target.is_file():
+            return error('NOT_FOUND', 404)
+        return FileResponse(target, media_type='image/svg+xml', headers={'Cache-Control': 'public, max-age=86400'})
 
     @app.post('/api/v1/auth/sign-in')
     async def sign_in(body: Login, request: Request):

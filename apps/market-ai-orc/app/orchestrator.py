@@ -73,6 +73,7 @@ from .tools.artifacts import RunResults, current_results
 from .tools.session import current_carried_outputs, current_carried_restorer
 from .tools.system import current_step_tools
 from . import table_directives
+from . import model_choices
 from .tools.request_data import (current_conversation_id, current_draft_checker, current_reference_sources,
                                  current_request_id,
                                  current_run_deadline, current_turn_id, session_key)
@@ -1533,6 +1534,11 @@ FINALIZE_INSTRUCTION = FINALIZE_PREFIX + RESPONSE_CONTRACT
 EMPTY_TURN_NOTE = ("Application note, not from the user: your previous turn ended without output (the generation "
                    "stopped). Continue the task from where it was: call the next tool, or give the final response.")
 MAX_EMPTY_TURN_RETRIES = 2
+# M150 (EXEC-LOGOS, request edge_7bc93daf…): MiMo V2.6 Pro thought for 405 s (23,999 reasoning tokens) on one call and
+# stopped at the output cap with no text and no tool call. A call that ends empty at the cap is a runaway, not an
+# interrupted generation: it is asked again once with reasoning lowered (off, or low for a model with levels) for that
+# one call, then the chosen reasoning returns.
+MAX_REASONING_RUNAWAY_RETRIES = 1
 # M146 (EXEC-M146, user go 2026-10-13): deepseek-v4.1-flash sometimes writes its tool call in its own markup (DSML,
 # "<｜DSML｜ calls><｜DSML｜ invoke name=...>") as plain text, and the provider passes it on as content with no tool call
 # (sglang #40236, openclaw #159665). That turn is a tool call that never ran, not a draft answer: it is asked again with
@@ -2113,6 +2119,8 @@ class RunState:
     typed_answer: str | None = None  # O4: the final answer with its value references removed (the typed figures)
     table_footers: dict[str, str] = field(default_factory=dict)  # EXEC-TABLE: line under a cut table, by its mark
     empty_turn_retries: int = 0  # M78: turns with neither text nor a tool call, retried with the same tools
+    runaway_retries: int = 0  # M150: empty turns at the output cap, retried once with reasoning lowered
+    reasoning_lowered: bool = False  # M150: the next loop call runs with ModelChoice.lowered
     tool_markup_retries: int = 0  # M146: turns that wrote a tool call as text, asked again with the same tools
     reference_date: Any = None  # the run's reference date in the analysis timezone
     data_date: Any = None  # R-STORE: the run's DataDate (the conversation's data date and whether NEWEST was asked)
@@ -3690,7 +3698,7 @@ class AgentOrchestrator:
 
             tools = [] if state.tools_locked or state.structured_only else self._turn_tools(state)
             context_tokens = self._estimate_context(state, tools)
-            if tools and context_tokens + self.settings.ai_max_output_tokens >= self._soft_context_limit():
+            if tools and context_tokens + self._output_cap(state) >= self._soft_context_limit():
                 # Degrade instead of failing: stop tool use and finalize from what was retrieved.
                 self._withdraw_tools(state, "CONTEXT_BUDGET")
                 state.input_items.append({"role": "user", "content": self.context_budget_instruction})
@@ -3700,7 +3708,7 @@ class AgentOrchestrator:
             # but they are not offered: a call in that turn is refused, as in the strict final turn.
             state.tools_offered = bool(tools) and not state.final_reask_sent
             payload = self._payload(state, tools)
-            if context_tokens + self.settings.ai_max_output_tokens > self.settings.ai_max_context_tokens:
+            if context_tokens + self._output_cap(state) > self.settings.ai_max_context_tokens:
                 # Last-resort safety net: even the tool-free finalization turn does not fit.
                 raise RunFailure("CONTEXT_LIMIT", "Request would exceed AI_MAX_CONTEXT_TOKENS")
 
@@ -3715,7 +3723,7 @@ class AgentOrchestrator:
                 state.reasoning_replayed, state.replay_off = False, True
                 log_event("ai_reasoning_replay_refused", request_id=state.request_id, iteration=state.iterations + 1,
                           status_code=exc.status_code)
-                payload = self._payload(state, tools)
+                payload = {**self._payload(state, tools), "reasoning": payload["reasoning"]}  # M150: same reasoning
                 response = self.client.create(payload)
             latency_ms = int((time.monotonic() - call_started) * 1000)
             state.iterations += 1
@@ -3767,7 +3775,7 @@ class AgentOrchestrator:
                 # OpenRouter closes a tool call cut off at max_output_tokens and still reports it completed; its
                 # arguments are then a truncated object. Reaching the cap exactly is the only signal, so such calls
                 # are not run.
-                truncated = usage["output_tokens"] >= self.settings.ai_max_output_tokens
+                truncated = usage["output_tokens"] >= self._output_cap(state)
                 if truncated:
                     log_event("ai_output_truncated", request_id=state.request_id, iteration=state.iterations,
                               output_tokens=usage["output_tokens"], reasoning_tokens=usage["reasoning_tokens"],
@@ -3817,6 +3825,17 @@ class AgentOrchestrator:
             except ValueError as exc:
                 issue = str(exc)
                 if tools and not raw.strip() and unapplied is None \
+                        and usage["output_tokens"] >= self._output_cap(state) \
+                        and state.runaway_retries < MAX_REASONING_RUNAWAY_RETRIES:
+                    state.runaway_retries += 1
+                    state.reasoning_lowered = True
+                    state.input_items.append({"role": "user", "content": EMPTY_TURN_NOTE})
+                    log_event("ai_reasoning_runaway", request_id=state.request_id, iteration=state.iterations,
+                              model=self._run_model(state), provider=response.get("provider"),
+                              latency_ms=latency_ms, output_tokens=usage["output_tokens"],
+                              reasoning_tokens=usage["reasoning_tokens"], output_cap=self._output_cap(state))
+                    continue
+                if tools and not raw.strip() and unapplied is None \
                         and state.empty_turn_retries < MAX_EMPTY_TURN_RETRIES:
                     state.empty_turn_retries += 1
                     state.input_items.append({"role": "user", "content": EMPTY_TURN_NOTE})
@@ -3837,10 +3856,10 @@ class AgentOrchestrator:
                               provider=response.get("provider"), output_chars=len(raw),
                               output_tokens=usage["output_tokens"])
                     continue
-                if usage["output_tokens"] >= self.settings.ai_max_output_tokens:
+                if usage["output_tokens"] >= self._output_cap(state):
                     # found live (golden run 2026-09-29): a long plan was cut off mid-JSON and the model only saw
                     # "EOF while parsing"
-                    issue = TRUNCATED_FINAL_INSTRUCTION.format(limit=self.settings.ai_max_output_tokens) + (
+                    issue = TRUNCATED_FINAL_INSTRUCTION.format(limit=self._output_cap(state)) + (
                         TRUNCATED_PLAN_HINT if self.multi_angle else "")
                     log_event("ai_final_truncated", request_id=state.request_id, iteration=state.iterations,
                               output_tokens=usage["output_tokens"], reasoning_tokens=usage["reasoning_tokens"])
@@ -3917,6 +3936,21 @@ class AgentOrchestrator:
         """EXEC-MODELS: the model of this run's agent loop (the caller's choice, else AI_MODEL)."""
         return state.model_choice.model if state.model_choice is not None else self.settings.ai_model
 
+    def _output_cap(self, state: RunState) -> int:
+        """EXEC-LOGOS: the output cap of one loop call, reasoning included (lower for MiMo Flash on)."""
+        choice = state.model_choice
+        cap = choice.output_cap if choice is not None else None
+        return min(cap, self.settings.ai_max_output_tokens) if cap else self.settings.ai_max_output_tokens
+
+    def _reasoning(self, state: RunState) -> dict[str, Any]:
+        choice = state.model_choice
+        if state.reasoning_lowered:
+            state.reasoning_lowered = False  # one call only
+            if choice is not None and choice.lowered is not None:
+                return choice.lowered
+            return model_choices.lowered_reasoning(model_choices.BY_MODEL.get(self._run_model(state)), self.settings)
+        return choice.reasoning if choice is not None else self.settings.reasoning(self.settings.ai_reasoning_effort)
+
     def _payload(self, state: RunState, tools: list[dict[str, Any]]) -> dict[str, Any]:
         choice = state.model_choice
         model = choice.model if choice is not None else self.settings.ai_model
@@ -3927,9 +3961,8 @@ class AgentOrchestrator:
             "session_id": session_key(state.request_id),
             "instructions": state.instructions or self.system_prompt,
             "input": state.input_items,
-            "reasoning": choice.reasoning if choice is not None
-            else self.settings.reasoning(self.settings.ai_reasoning_effort),
-            "max_output_tokens": self.settings.ai_max_output_tokens,
+            "reasoning": self._reasoning(state),
+            "max_output_tokens": self._output_cap(state),
             "store": False,
             "provider": self._provider(model),
         }
@@ -3985,7 +4018,7 @@ class AgentOrchestrator:
         if truncated:
             outcome = self._repair_budget(state, call_id, name, error_outcome(
                 call_id, name, "MODEL_OUTPUT_TRUNCATED",
-                f"This call was cut off at the output limit ({self.settings.ai_max_output_tokens} tokens, reasoning "
+                f"This call was cut off at the output limit ({self._output_cap(state)} tokens, reasoning "
                 "included) before its arguments were complete, so it was not run. Send the complete call again and "
                 "keep the reasoning before it short."))
         duration_ms = None

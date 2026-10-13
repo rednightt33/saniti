@@ -26,17 +26,20 @@ AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}"}
 # ---------------------------------------------------------------- the offered models and their levels
 
 def test_the_five_offered_models_and_the_edge_default() -> None:
+    # EXEC-LOGOS: MiMo V2.6 Pro is no longer offered (user: "Keluarin saja Mimo pro ya")
     assert [o.model for o in MODEL_CHOICES] == ["deepseek/deepseek-v4.1-flash", "z-ai/glm-5.3-flash",
-                                                "xiaomi/mimo-v2.6-pro", "xiaomi/mimo-v2.6-flash", "qwen/qwen3.8-flash"]
+                                                "xiaomi/mimo-v2.6-flash", "qwen/qwen3.8-flash"]
     assert EDGE_DEFAULT == {"model": "deepseek/deepseek-v4.1-flash", "reasoning_level": "high"}
 
 
 @pytest.mark.parametrize("model,level,reasoning", [
     ("deepseek/deepseek-v4.1-flash", "high", {"effort": "high"}),
-    ("z-ai/glm-5.3-flash", "medium", {"effort": "medium"}),
-    ("xiaomi/mimo-v2.6-pro", "on", {"enabled": True}),
+    ("deepseek/deepseek-v4.1-flash", "max", {"effort": "max"}),
+    ("z-ai/glm-5.3-flash", "low", {"effort": "low"}),
+    ("xiaomi/mimo-v2.6-flash", "on", {"enabled": True}),
     ("xiaomi/mimo-v2.6-flash", "off", {"enabled": False}),
-    ("qwen/qwen3.8-flash", "on", {"enabled": True}),
+    ("qwen/qwen3.8-flash", "on", {"max_tokens": 8000}),  # EXEC-LOGOS: Qwen's thinking has a budget
+    ("qwen/qwen3.8-flash", "off", {"enabled": False}),
 ])
 def test_each_model_takes_reasoning_in_its_own_form(model, level, reasoning) -> None:
     choice = resolve(model, level, make_settings())
@@ -51,7 +54,9 @@ def test_no_choice_is_the_server_default_as_before() -> None:
 
 @pytest.mark.parametrize("model,level,code", [
     ("openai/gpt-x", "high", "MODEL_NOT_ALLOWED"),
-    ("xiaomi/mimo-v2.6-pro", "high", "REASONING_LEVEL_NOT_SUPPORTED"),
+    ("xiaomi/mimo-v2.6-pro", "on", "MODEL_NOT_ALLOWED"),
+    ("xiaomi/mimo-v2.6-flash", "high", "REASONING_LEVEL_NOT_SUPPORTED"),
+    ("z-ai/glm-5.3-flash", "medium", "REASONING_LEVEL_NOT_SUPPORTED"),  # OpenRouter lists max, high, low
     ("deepseek/deepseek-v4.1-flash", "on", "REASONING_LEVEL_NOT_SUPPORTED"),
 ])
 def test_a_model_or_level_not_offered_is_refused(model, level, code) -> None:
@@ -74,12 +79,20 @@ def test_the_chosen_model_runs_every_call_of_the_agent_loop_and_is_reported() ->
     with client:
         reply = client.post("/v1/agent/run", headers=AUTH, json={
             "request_id": "m1", "message": "Apa yang bisa kamu bantu?", "model": "z-ai/glm-5.3-flash",
-            "reasoning_level": "medium"})
+            "reasoning_level": "low"})
     assert reply.status_code == 200
     assert [p["model"] for p in scripted.payloads] == ["z-ai/glm-5.3-flash"] * 2
-    assert all(p["reasoning"] == {"effort": "medium"} for p in scripted.payloads)
+    assert all(p["reasoning"] == {"effort": "low"} for p in scripted.payloads)
     execution = reply.json()["execution"]
-    assert execution["model"] == "z-ai/glm-5.3-flash" and execution["reasoning_level"] == "medium"
+    assert execution["model"] == "z-ai/glm-5.3-flash" and execution["reasoning_level"] == "low"
+
+
+def test_the_api_takes_the_max_level() -> None:  # EXEC-LOGOS: Rendah / Tinggi / Maks
+    client, scripted = api([final_response(ANSWER)])
+    with client:
+        reply = client.post("/v1/agent/run", headers=AUTH, json={
+            "request_id": "m1x", "message": "Halo", "model": "deepseek/deepseek-v4.1-flash", "reasoning_level": "max"})
+    assert reply.status_code == 200 and scripted.payloads[0]["reasoning"] == {"effort": "max"}
 
 
 def test_a_message_without_a_choice_runs_as_before() -> None:
@@ -96,7 +109,7 @@ def test_a_model_not_offered_is_refused_before_anything_runs() -> None:
     client, scripted = api([final_response(ANSWER)])
     with client:
         reply = client.post("/v1/agent/run", headers=AUTH, json={
-            "request_id": "m3", "message": "Halo", "model": "xiaomi/mimo-v2.6-pro", "reasoning_level": "high"})
+            "request_id": "m3", "message": "Halo", "model": "xiaomi/mimo-v2.6-flash", "reasoning_level": "high"})
     assert reply.status_code == 400 and reply.json()["detail"]["code"] == "REASONING_LEVEL_NOT_SUPPORTED"
     assert scripted.payloads == []
 
@@ -201,8 +214,9 @@ def test_the_models_endpoint_lists_models_levels_prices_and_defaults() -> None:
         assert client.get("/v1/models").status_code == 401
         body = client.get("/v1/models", headers=AUTH).json()
     glm = next(m for m in body["models"] if m["model"] == "z-ai/glm-5.3-flash")
-    assert glm["reasoning_levels"] == ["low", "medium", "high"] and glm["output_per_million"] == 0.9
-    mimo = next(m for m in body["models"] if m["model"] == "xiaomi/mimo-v2.6-pro")
+    assert glm["reasoning_levels"] == ["low", "high", "max"] and glm["output_per_million"] == 0.9
+    assert "xiaomi/mimo-v2.6-pro" not in [m["model"] for m in body["models"]]
+    mimo = next(m for m in body["models"] if m["model"] == "xiaomi/mimo-v2.6-flash")
     assert mimo["reasoning_levels"] == ["off", "on"] and mimo["input_per_million"] is None  # not read yet
     assert body["edge_default"] == EDGE_DEFAULT and body["prices_fetched_at"]
     assert body["server_default"]["model"] == settings.ai_model
@@ -226,3 +240,73 @@ def test_prices_are_read_again_every_ttl_without_any_request() -> None:
     _time.sleep(0.3)
     prices.stop()
     assert source.calls >= 3 and prices.snapshot()[0]
+
+
+# ---------------------------------------------------------------- M150: thinking that never ends (EXEC-LOGOS)
+
+def runaway_response(cap: int) -> dict[str, Any]:
+    """The live shape of request edge_7bc93daf… call 1: the whole output cap spent on reasoning, no text, no tool."""
+    return {"id": "resp_runaway", "output": [{"type": "reasoning", "summary": [{"type": "summary_text",
+                                                                                 "text": "Hmm, actually…"}]}],
+            "usage": {"input_tokens": 100, "output_tokens": cap, "output_tokens_details": {"reasoning_tokens": cap - 1},
+                      "total_tokens": 100 + cap}}
+
+
+def chosen_run(model: str, level: str, script: list) -> tuple[ScriptedClient, Any]:
+    settings = make_settings()
+    scripted = ScriptedClient(script)
+    orc = AgentOrchestrator(settings, scripted, build_default_registry())
+    token = current_model_choice.set(resolve(model, level, settings))
+    try:
+        from test_orchestrator import request
+        result = orc.run(request())
+    finally:
+        current_model_choice.reset(token)
+    return scripted, result
+
+
+def test_mimo_flash_on_has_a_lower_output_cap_per_call() -> None:
+    scripted, _ = chosen_run("xiaomi/mimo-v2.6-flash", "on", [final_response(ANSWER)])
+    assert scripted.payloads[0]["max_output_tokens"] == min(12000, make_settings().ai_max_output_tokens)
+    scripted, _ = chosen_run("xiaomi/mimo-v2.6-flash", "off", [final_response(ANSWER)])
+    assert scripted.payloads[0]["max_output_tokens"] == make_settings().ai_max_output_tokens
+
+
+@pytest.mark.parametrize("model,level,lowered", [
+    ("xiaomi/mimo-v2.6-flash", "on", {"enabled": False}),
+    ("deepseek/deepseek-v4.1-flash", "max", {"effort": "low"}),
+    ("z-ai/glm-5.3-flash", "high", {"effort": "low"}),  # GLM cannot turn thinking off
+])
+def test_a_runaway_call_is_asked_again_once_with_reasoning_lowered(model, level, lowered) -> None:
+    cap = resolve(model, level, make_settings()).output_cap or make_settings().ai_max_output_tokens
+    cap = min(cap, make_settings().ai_max_output_tokens)
+    scripted, result = chosen_run(model, level, [runaway_response(cap), tool_call_response("get_system_capabilities"),
+                                                 final_response(ANSWER)])
+    assert result.status == "COMPLETED"
+    chosen = resolve(model, level, make_settings()).reasoning
+    assert [p["reasoning"] for p in scripted.payloads] == [chosen, lowered, chosen]  # one call only, then back
+    assert scripted.payloads[1]["tools"]
+
+
+def test_an_empty_turn_below_the_cap_is_not_a_runaway() -> None:
+    from test_empty_turn import empty_response
+    scripted, result = chosen_run("xiaomi/mimo-v2.6-flash", "on", [empty_response(), final_response(ANSWER)])
+    assert result.status == "COMPLETED"
+    assert [p["reasoning"] for p in scripted.payloads] == [{"enabled": True}] * 2
+
+
+def test_a_second_runaway_falls_back_to_the_empty_turn_retry() -> None:
+    cap = min(12000, make_settings().ai_max_output_tokens)
+    scripted, result = chosen_run("xiaomi/mimo-v2.6-flash", "on", [runaway_response(cap), runaway_response(cap),
+                                                                    final_response(ANSWER)])
+    assert result.status == "COMPLETED"
+    assert [p["reasoning"] for p in scripted.payloads] == [{"enabled": True}, {"enabled": False}, {"enabled": True}]
+
+
+def test_without_a_choice_a_runaway_lowers_the_server_default_to_low() -> None:
+    settings = make_settings()
+    scripted = ScriptedClient([runaway_response(settings.ai_max_output_tokens), final_response(ANSWER)])
+    from test_orchestrator import request
+    AgentOrchestrator(settings, scripted, build_default_registry()).run(request())
+    assert scripted.payloads[1]["reasoning"] == settings.reasoning("low")
+    assert scripted.payloads[0]["reasoning"] == settings.reasoning(settings.ai_reasoning_effort)

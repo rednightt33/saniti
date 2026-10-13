@@ -45,7 +45,7 @@ def test_auth_csrf_validation_and_storage(settings,store):
             db.execute('UPDATE edge_bff.sessions SET revoked_at=now() WHERE token_hash=%s',(token_hash(cookie),))
         assert c.get('/api/v1/auth/session').status_code==401
         h=login(c);assert c.post('/api/v1/runs',headers=ORIGIN,json={'message':'Hello','submission_key':'x'}).status_code==403
-        for bad in ({'model':'Other Model'},{'model':'x'*101},{'reasoning_level':'max'},{'owner':'foreign'},{'analysis_path':'ANALYSIS'},{'history':[]},{'message':' '}):
+        for bad in ({'model':'Other Model'},{'model':'x'*101},{'reasoning_level':'ultra'},{'owner':'foreign'},{'analysis_path':'ANALYSIS'},{'history':[]},{'message':' '}):
             r=c.post('/api/v1/runs',headers=h,json={'message':'Hello','submission_key':'x',**bad});assert r.status_code==422,r.text
         assert c.post('/api/v1/runs',headers=h,json={'message':'x'*140000,'submission_key':'x'}).status_code==413
 

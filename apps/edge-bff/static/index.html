@@ -9520,6 +9520,9 @@ html:not(.dark) .monitor-layout .user-message .message-attachments span {color:#
 .edge-model-options>.edge-model-option {height:148px;min-height:148px;}
 .edge-model-initial {display:inline-grid;place-items:center;flex:none;width:27px;height:27px;border-radius:5px;background:var(--secondary);color:var(--foreground);font:600 13px Inter,"Segoe UI",sans-serif;}
 .edge-model-trigger>.edge-model-initial {width:18px;height:18px;font-size:10px;}
+.edge-model-logo {display:inline-block;flex:none;width:27px;height:27px;object-fit:contain;}
+.edge-model-logo.mono {background:currentColor;-webkit-mask:var(--logo) center/contain no-repeat;mask:var(--logo) center/contain no-repeat;}
+.edge-model-trigger>.edge-model-logo {width:18px;height:18px;}
 .edge-model-level {color:var(--muted-foreground);font-weight:400;}
 .edge-model-levels {display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:12px 8px 4px;}
 .edge-model-levels small {width:100%;font-size:10px;color:var(--muted-foreground);}
@@ -10805,6 +10808,17 @@ function edgeModelChoice(){
   const level=saved?.model===option.model&&option.reasoning_levels.includes(saved?.reasoning_level)?saved.reasoning_level:edgeDefaultLevel(option);
   return {model:option.model,reasoning_level:level};
 }
+// EXEC-LOGOS (user 2026-10-13, "kasih logo untuk setiap model ya di HP"): each model's brand logo (LobeHub icons, MIT),
+// served from static/model-logos/. A one-colour logo is drawn as a mask in the text colour, so it shows in light and
+// dark; a model without a logo keeps its initial letter.
+const MODEL_LOGOS = {deepseek:{file:"deepseek-color.svg"}, "z-ai":{file:"zai.svg",mono:true},
+  xiaomi:{file:"xiaomimimo.svg",mono:true}, qwen:{file:"qwen-color.svg"}};
+function EdgeModelLogo({option}){
+  const logo=MODEL_LOGOS[option.model.split("/")[0]],url="/model-logos/"+(logo?logo.file:"");
+  if(!logo)return element("span",{className:"edge-model-initial","aria-hidden":"true"},(option.label||option.model).charAt(0));
+  return logo.mono?element("span",{className:"edge-model-logo mono",role:"img","aria-label":option.label,style:{"--logo":`url("${url}")`}})
+    :element("img",{className:"edge-model-logo",src:url,alt:option.label});
+}
 function keepModelChoice(choice){try{localStorage.setItem(MODEL_CHOICE_KEY,JSON.stringify(choice));}catch{}refresh();}
 const edgeModelTime=new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Jakarta",hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
 function edgeModelPrice(value){return value==null?"–":"$"+(value<1?value.toFixed(3):value.toFixed(2));}
@@ -10829,11 +10843,11 @@ function EdgeModelSelector(){
         element("span",{className:"edge-model-level"},""),element(Icon,{name:"chevron"})));
   }
   const choice=edgeModelChoice(),current=data.models.find(option=>option.model===choice.model);
-  const levelName=level=>ui.modelLevels?.[level]??level,initial=option=>(option.label||option.model).charAt(0);
+  const levelName=level=>ui.modelLevels?.[level]??level;
   const updated=data.prices_fetched_at?new Date(data.prices_fetched_at):null;
   return element("span",{className:"edge-model-anchor",ref:anchor},
     element("button",{type:"button",className:"edge-model-trigger","aria-expanded":open,"aria-haspopup":"dialog",title:ui.modelTitle,onClick:()=>setOpen(!open)},
-      element("span",{className:"edge-model-initial"},initial(current)),
+      element(EdgeModelLogo,{option:current}),
       element("span",{className:"edge-model-name"},current.label),
       element("span",{className:"edge-model-level"},levelName(choice.reasoning_level)),
       element(Icon,{name:"chevron"})),
@@ -10842,7 +10856,7 @@ function EdgeModelSelector(){
         element("small",null,ui.modelPricesNote+(updated&&!Number.isNaN(updated.getTime())?" · "+ui.modelUpdated+" "+edgeModelTime.format(updated)+" WIB":""))),
       element("div",{className:"edge-model-options"},data.models.map(option=>element("button",{key:option.model,type:"button",className:"edge-model-option","aria-pressed":option.model===choice.model,
           onClick:()=>keepModelChoice({model:option.model,reasoning_level:option.model===choice.model?choice.reasoning_level:edgeDefaultLevel(option)})},
-        element("span",{className:"edge-model-brand"},element("span",{className:"edge-model-initial"},initial(option)),
+        element("span",{className:"edge-model-brand"},element(EdgeModelLogo,{option}),
           element("span",null,element("small",null,option.model.split("/")[0]),element("strong",null,option.label))),
         element("span",{className:"edge-model-stats"},
           element("span",null,element("small",null,ui.modelInput),element("b",null,edgeModelPrice(option.input_per_million))),
