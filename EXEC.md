@@ -2508,7 +2508,8 @@ jawaban lain' di klarifikasi".
 - **Tes:** orc 1.453 lulus; EDGE 79/79 lulus dua kali (tes baru: panel rencana, klarifikasi dengan "Tulis jawaban
   lain", jeda).
 - **Deploy (RAILWAY_CHANGELOG):** `main` `e7377dd`, orc `ce10d331` dan EDGE `e87fc0be` SUCCESS (11:59Z); diganti
-  EXEC-LOGOS pukul 12:52Z.
+  EXEC-LOGOS pukul 12:52Z. Harga per jam terbukti live di orc `7c11b4ad`: dibaca 12:52:53Z (startup) dan 13:52:53Z
+  (satu jam kemudian, tanpa permintaan), keduanya OK untuk 4 model.
 
 ### EXEC-MODELS: pilihan model dan level berpikir per pesan di EDGE (deployed)
 
