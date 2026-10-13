@@ -2459,6 +2459,27 @@ dibiarkan (hanya catatan, `is_active=false`) atau dibatalkan dengan migrasi baru
     berikutnya.
   - Catatan: satu TYPED_FIGURES "19" lagi (jumlah hari bursa diketik), pola yang sama dengan cek live M143.
 
+### EXEC-UI-1013B: pilihan bernomor bisa diklik, logo model dan Excel di jawaban, pemantau run di iPhone (rencana, belum dieksekusi)
+
+**Keputusan user 2026-10-13:** gambar 1 "yes yg kamu bilang benar + Untuk angka ini boleh dikasih button atau clickable
+feature agar mudah Setiap yang sifatnya pilihan angka.. So bisa pilih angka, atau jawaban user sendiri"; gambar 2 "Boleh
+tambah logo AI nya disebelah kiri tulisan yang saya kotakin, dan logo excel juga disebelah kiri"; bug "AI is thinking"
+sampai di-refresh: "Ok, masukan exec ya bersama gambar 1 dan gambar 2 diatas. Jangan execute dl".
+- **A. Pilihan bernomor (gambar 1, run `edge_a912d6a1…`):** pertanyaan balik router (`text_choices=4`, `options=[]`)
+  tampil dua kali dan opsinya hanya teks "① … Balas dengan nomor pilihan". Rencana: setiap pilihan bernomor (dari router
+  atau dari jawaban AI) menjadi tombol di panel "Response choices" (EXEC-CHOICES), ditambah "Tulis jawaban lain";
+  pertanyaannya tampil sekali; menekan tombol mengirim teks pilihan itu.
+- **B. Logo (gambar 2):** logo model di kiri label `deepseek/deepseek-v4.1-flash · Tinggi` pada kepala jawaban (komponen
+  logo EXEC-LOGOS dipakai ulang); logo Excel di kiri setiap tombol "Download …xlsx" (file lokal, CSP `img-src 'self'`).
+- **C. Pemantau run di iPhone:** log HTTP EDGE menunjukkan koneksi `/events` dari iPhone putus beberapa detik setelah
+  kirim dan tidak tersambung lagi sampai refresh (run `80e733ba`, `e5faf07f`, `a45f86c8`, `e886f12d`); iOS 18 tidak
+  memicu `error` pada EventSource setelah aplikasi kembali dari background (Apple Developer Forums 765183). Komentar
+  `: heartbeat` tidak terlihat oleh JavaScript. Rencana: server mengirim event `ping`; klien menyambung ulang atau polling
+  bila tidak ada pesan dalam sekitar 2x interval; saat halaman terlihat lagi (`visibilitychange`/`pageshow`) klien
+  menarik status run sekali.
+- **Tes yang direncanakan:** tes browser untuk tombol pilihan bernomor dan "Tulis jawaban lain", logo di kepala jawaban
+  dan tombol unduh (desktop dan HP), koneksi pemantau yang diam lalu pulih tanpa refresh.
+
 ### EXEC-LOGOS: logo model di EDGE, level Rendah/Tinggi/Maks, MiMo Pro dikeluarkan, pengaman berpikir tanpa ujung (deployed; cek live bersih)
 
 **Keputusan user 2026-10-13:** "kasih logo untuk setiap model ya di HP"; "Request edge_7bc93daf9e463c521e8886c00c219cd5
