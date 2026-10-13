@@ -59,8 +59,9 @@ tanpa kewajiban asumsi/batasan (keputusan user 2026-10-12).
 dan EXEC-DELETE; juga EXEC-DETAILS (+ M144) dan EXEC-DURATION.
 
 **Berjalan (go 2026-10-13):** EXEC-TABLE (tabel jawaban dirender dari kode, dengan wayback machine).
-**Dicatat, belum dieksekusi:** EXEC-REASONING (reasoning langkah utama ke medium, A/B dulu).
-**Menunggu keputusan:** M143, M145, EXEC-DETAILS butir 1 (tampilan mobile saat scroll).
+**Dicatat, belum dieksekusi (urutan):** EXEC-M143 (perbaikan (a) + (c)), lalu EXEC-REASONING (reasoning langkah utama
+ke medium, tanpa A/B).
+**Menunggu keputusan:** M145, M146, EXEC-DETAILS butir 1 (tampilan mobile saat scroll).
 
 **Berjalan (2026-10-08):** EXEC-X (M124 + M125 A/B, tampilan jawaban EDGE). Dibangun di cabang
 `claude/code-session-2k3oeg` (HTML user sebagai sumber utama, API dipisah dari tampilan, teks backend bahasa biasa);
@@ -2174,6 +2175,10 @@ dulu."
 - **Keputusan user 2026-10-13 atas usulan A/B:** "Yes, ini masukan juga ke EXEC, tapi jangan execute dulu". Saat
   dieksekusi: A/B 4 pertanyaan EXEC-STYLE (perkiraan USD 0,1), `high` lawan `medium`, dibandingkan pada lama proses,
   token, jumlah penolakan gerbang, dan mutu jawaban; hasilnya dilaporkan sebelum `medium` dibiarkan hidup.
+- **Keputusan user 2026-10-13 (menggantikan usulan A/B di atas):** "Ok perbaiki M143 dulu, ganti reasoning ke medium ya. Jangan A/B test dulu. --> masukan exec, jangan execute sekarang." Jadi: `medium` tanpa A/B, dijalankan
+  sesudah EXEC-M143. Saat dieksekusi: `AI_REASONING_EFFORT` `high` → `medium` di market-ai-orc (dev), deploy sampai
+  SUCCESS, `railway config pull --force` dan `railway config plan`, lalu bandingkan log run sesudahnya (lama proses,
+  penolakan gerbang) dengan run sebelumnya.
 - Status: **menunggu perintah eksekusi dari user.** Saat dieksekusi: catat di `RAILWAY_CHANGELOG.md` (nama variabel,
   layanan, deployment sampai SUCCESS).
 
@@ -2265,6 +2270,49 @@ deploy SUCCESS, laporan dan usulan. Jawaban AI tidak disimpan di repo publik.
   Kode tetap di `main` di balik saklar mati (prompt sama dengan `v005`). Pembacaan: tanda tabel bekerja (cepat dan
   tanpa penolakan di tabel), tetapi waktu dan penolakan didominasi narasi dan perencanaan data; sampel 6 pertanyaan
   terlalu kecil untuk memisahkan efek tabel dari variasi model. Usulan menunggu keputusan user.
+- **Pemeriksaan log penalaran (2026-10-13, permintaan user "cek setiap log dari reasoning AI, kepentok dimana"):**
+  - Saat ON, tabel ditulis sebagai satu instruksi (0 ditolak). Teks jawaban yang ditulis turun (ab5 3.073 → 2.012 token,
+    ab6 3.474 → 2.012), dan pratinjau tabel di `check_references` makan 3,0 s (ab6).
+  - Bolak-balik menyusun sel sudah tidak ada. Tapi run OFF di A/B ini juga tidak memunculkan masalah lama
+    (`edge_517a29…`, sekitar 3 menit): di sana bagian tabel hanya sekitar 24–34% penalaran tahap menulis, 12–22 s per
+    pertanyaan. Jadi A/B ini belum membuktikan masalah 3 menit itu selesai.
+  - Di kedua mode, waktu tahap menulis didominasi narasi. Contoh: ab4 ON iterasi 13 (73 s) mendaftar sekitar 15 rujukan
+    narasi beserta satuannya; ab5 ON-ulang iterasi 12–13 (82 s) dihabiskan untuk penolakan M143. Di ab4 AI sempat ragu
+    apakah `sort` wajib (usulan: satu kalimat "sort boleh dihilangkan").
+  - Semua penolakan gerbang ada di narasi, tidak di sel tabel:
+    - OFF ab5: "19" diketik.
+    - ON ab2 (tanpa tabel): "Rp 100 miliar" diketik.
+    - ON ab3: ilustrasi dihitung sendiri "Rp10 juta → Rp9,41 juta".
+    - ON ab6: "19" diketik.
+    - ON-ulang ab5: M143 dan "14" diketik.
+  - Kaitan dengan tabel: saat OFF, uang ditulis dengan `|rp` (0 pola "Rp {{…}} miliar"). Saat ON-ulang ab5, AI merilis
+    kolom berskala (`net_buy_miliar`) agar kolom tabel rapi, lalu narasinya memakai "Rp {{…}} miliar" 17 kali → M143.
+    Ditutup oleh EXEC-M143.
+  - M146 (markup panggilan alat sebagai teks) terpisah: berakhir LIMITATION, bukan penolakan gerbang.
+
+### EXEC-M143: angka berskala ("{{…}} juta/miliar") tidak lagi ditolak gerbang PROVENANCE (dicatat, belum dieksekusi)
+
+**Keputusan user 2026-10-13:** "Ok perbaiki M143 dulu, ganti reasoning ke medium ya. Jangan A/B test dulu. --> masukan exec, jangan execute sekarang." Cara: "(a) + (c) (Recommended)".
+- **Masalah (ERRORS M143):** AI merilis kolom yang sudah diskalakan (`total_net_asing_miliar` 1975.4) lalu menulis kata
+  skala sesudah rujukan ("{{…|dec:1}} miliar"). `provenance.parse_numbers` membaca "1.975,4 miliar" sebagai 1,9754e12,
+  jadi tidak cocok dengan sumbernya sendiri (1975.4), dan jawaban ditolak atau dipaksa LIMITATION (Run B ab4,
+  `ma-ab-table-20261013c` ab5).
+- **(a) Pemeriksa angka:**
+  - `value_refs.render` (`_without_repeated_units`, P22/P23, `UNIT_FAMILIES`) sudah membaca kata satuan tepat sesudah
+    rujukan.
+  - Kata skala (ribu, juta, miliar, triliun) yang ditulis langsung sesudah rujukan diperlakukan sebagai bagian tampilan
+    nilai itu: nilai × skala didaftarkan sebagai sumber provenance **hanya untuk rujukan itu**.
+  - Angka yang diketik tanpa rujukan tetap ditolak.
+- **(c) Aturan untuk AI:** satu kalimat di aturan VALUE REFERENCES: rilis uang dan volume dalam satuan dasar dan format
+  di jawaban (`|rp`), jangan merilis kolom berskala lalu menambah "juta"/"miliar". Akibatnya ada snapshot prompt baru,
+  cek batas ukuran prompt, dan cache prompt di-reset sekali.
+- **Tes:**
+  - Reproduksi M143 (349.1 + "juta", 1975.4 + "miliar", juga "Rp {{…}} miliar") lolos.
+  - Angka ketik tanpa rujukan dan kata skala yang tidak menempel ke rujukan tetap ditolak.
+  - `test_value_references`, `test_answer_integrity`, `test_prompt_pass2`, `test_prompt_history` hijau.
+- **Saat dieksekusi:** push `main`, deploy orc sampai SUCCESS, ERRORS M143 → FIXED setelah terbukti di run live,
+  README orc. Tanpa A/B (keputusan user). Sesudahnya EXEC-REASONING.
+- Status: **dicatat, belum dieksekusi.**
 
 ### EXEC-IMPL-1012: rencana implementasi EXEC-JOINKEY, EXEC-RELEASE, EXEC-FRICTION, EXEC-STYLE (selesai; Fase 3c berhenti di M143)
 
