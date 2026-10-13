@@ -2149,6 +2149,25 @@ EDGE 73 lulus.
   (tiga cek rujukan 11 s, 54 s, 59 s, satu draf ditolak gerbang PROVENANCE lalu dua panggilan perbaikan 35 s).
   `edge_3511fb…` 5m 48s: pola sama (perencanaan 97 s, penulisan dan cek rujukan sekitar 3 menit).
 
+### EXEC-REASONING: langkah utama orc dari reasoning high ke medium (dicatat, belum dieksekusi)
+
+**Permintaan user 2026-10-13:** "Langkah utama: merencanakan, menjalankan analisis, riset berita (MODE4), menulis
+jawaban, mengecek alamat, memperbaiki jawaban yang ditolak --> coba jadi medium ya, masukan exec tapi jangan eksekusi
+dulu."
+
+- Keadaan sekarang (dibaca dari kode `main` `26cb29a`): semua panggilan langkah utama memakai
+  `Settings.reasoning(ai_reasoning_effort)` (`orchestrator.py` `_payload`); `AI_REASONING_EFFORT` tidak diisi di
+  Railway sehingga default `high` (`config.py`). Router pesan pertama, router giliran, pembaca balasan rencana, dan
+  pertanyaan lanjutan/ide insight memakai `reasoning("low")` tetap dan tidak ikut berubah.
+- Rencana: isi variabel `AI_REASONING_EFFORT=medium` pada layanan market-ai-orc (dev). Satu variabel mengubah semua
+  langkah utama sekaligus (perencanaan, analisis, riset berita MODE4, menulis, cek rujukan, perbaikan); tidak ada
+  perubahan kode. Kembali ke semula: hapus variabel (default `high`).
+- Risiko yang perlu diperiksa: perencanaan permintaan data dan analisis jadi kurang teliti (lebih banyak penolakan
+  gerbang atau perbaikan), jawaban kurang tajam. Usulan pemeriksaan sebelum atau sesudah: 4 pertanyaan A/B yang sama
+  dengan EXEC-STYLE (lama proses, token, penolakan gerbang, mutu jawaban).
+- Status: **menunggu perintah eksekusi dari user.** Saat dieksekusi: catat di `RAILWAY_CHANGELOG.md` (nama variabel,
+  layanan, deployment sampai SUCCESS).
+
 ### EXEC-IMPL-1012: rencana implementasi EXEC-JOINKEY, EXEC-RELEASE, EXEC-FRICTION, EXEC-STYLE (berjalan)
 
 **Permintaan user 2026-10-12:** "cek infra kita, dan EXEC yang sudah saya approve, buat implementation plan berdasarkan
