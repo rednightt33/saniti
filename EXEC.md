@@ -2196,7 +2196,8 @@ ditolak PROVENANCE; menulis dan mengecek jawaban sekitar 3 menit.
 - AI menyiapkan tabel di Python seperti sekarang; bila perlu gabungan beberapa hasil, baris Total atau sel "120 (45%)",
   AI membuat tabel tampilan di Python (`emit_table` dengan `units=`). Renderer tidak menghitung apa pun.
 - Di jawaban AI menulis satu tanda, misalnya
-  `{{table out.o9 | Sektor = sector | Median kenaikan = median_pct|pp:2 | sort -median_pct | top 10}}`.
+  `{{table out.o9; Sektor = sector; Median kenaikan = median_pct|pp:2; sort -median_pct; top 10}}` (bagian dipisah `;`,
+  karena `|` dipakai format; sel gabungan `{n|int} ({share|pct:1})`).
 - Kode baru di orc (`app/table_directives.py`) mengubah tanda itu menjadi tabel Markdown berisi rujukan per sel yang
   dibuat kode, sebelum `render`; sesudah itu satuan, format, sumber provenance dan semua gerbang berjalan seperti
   sekarang. `check_references` ikut mengubah tanda, jadi AI bisa melihat pratinjau.
@@ -2211,8 +2212,8 @@ banyak dua perbaikan, lalu `[nilai tidak tersedia]` dengan catatan seperti atura
 - Kolom tidak ada: "Table {ref}: column {column} does not exist; its columns are {columns}."
 - Format tidak cocok: "Table {ref}: format {format} does not fit column {column} ({kind})."
 - Kolom urutan tidak ada: "Table {ref}: sort column {column} does not exist; its columns are {columns}."
-- Bentuk tidak terbaca: "Table instruction cannot be read ({why}); write {{table out.oN | Title = column|format | ... |
-  sort -column | top N}}."
+- Bentuk tidak terbaca: "Table instruction cannot be read ({why}); write {{table out.oN; Title = column|format; ...;
+  sort -column; top N}}."
 - Tiap pesan diakhiri "Fix this table instruction only." Kalimat untuk user (bahasa Indonesia) tetap kalimat
   `[nilai tidak tersedia]` yang sudah ada.
 
@@ -2233,6 +2234,13 @@ Lolos bila semua:
   gerbang tidak lebih banyak dari fitur mati.
 Lolos: fitur dibiarkan hidup, snapshot prompt `v006`, changelog. Tidak lolos: variabel kembali `false` (wayback 1),
 deploy SUCCESS, laporan dan usulan. Jawaban AI tidak disimpan di repo publik.
+
+**Kemajuan:**
+- 2026-10-13 Fase 0: label usang dirapikan; cabang wayback `wayback/pre-exec-table` = `3708026`.
+- 2026-10-13 Fase 1–4 dibangun: `app/table_directives.py`, saklar `AI_ENABLE_TABLE_DIRECTIVES` (default `false`),
+  bagian prompt TABLES (hanya saat saklar hidup), pratinjau di `check_references`, baris "Menampilkan N dari M
+  baris" sesudah gerbang, log `ai_table_directive`. EDGE: tanda "–" diurutkan sebagai sel kosong (terakhir). Tes: orc
+  1.655 lulus (20 tes baru; prompt saklar mati sama persis dengan snapshot `v005`), EDGE 74 lulus.
 
 ### EXEC-IMPL-1012: rencana implementasi EXEC-JOINKEY, EXEC-RELEASE, EXEC-FRICTION, EXEC-STYLE (selesai; Fase 3c berhenti di M143)
 

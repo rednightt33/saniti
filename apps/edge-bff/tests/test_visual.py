@@ -568,6 +568,34 @@ def test_answer_table_sorts_by_its_column_titles(dummy_orc, browser_page):
     assert grid.first.locator('th').nth(2).get_attribute('aria-sort') == 'none'
 
 
+def test_a_table_built_by_the_backend_sorts_and_keeps_its_row_line_below(dummy_orc, browser_page):
+    """EXEC-TABLE (user 2026-10-13, "Ya, tampilkan"): a table orc builds from a released output arrives as the same
+    Markdown table (sortable as before) with the line "Menampilkan N dari M baris" under it, shown as a plain italic line
+    outside the table."""
+    origin, orc = dummy_orc
+    page = browser_page
+    original = orc.run
+    table = ('| Sektor | Median | Saham (porsi) |\n|---|---|---|\n| Basic / Ind | 7,0% | 5 (12,5%) |\n'
+             '| Energy | 4,3% | 12 (30,0%) |\n| Tech | – | 3 (7,5%) |\n\n_Menampilkan 3 dari 4 baris._')
+    def run(owner, request_id, payload):
+        result = original(owner, request_id, payload)
+        result['response']['answer'] = 'Median per sektor.\n\n' + table + '\n\nSelesai.'
+        return result
+    orc.run = run
+    sign_in(page, origin)
+    submit(page, 'Dummy built table')
+    saved(page)
+    grid = page.locator('article.result .edge-md-table table')
+    first = lambda: grid.locator('tbody tr td:first-child').all_inner_texts()
+    assert first() == ['Basic / Ind', 'Energy', 'Tech']
+    grid.locator('th').nth(1).locator('button').click()  # descending; the dash (no value) goes last
+    assert first() == ['Basic / Ind', 'Energy', 'Tech']
+    grid.locator('th').nth(1).locator('button').click()
+    assert first() == ['Energy', 'Basic / Ind', 'Tech']
+    line = page.locator('article.result em', has_text='Menampilkan 3 dari 4 baris.')
+    assert line.count() == 1 and grid.locator('em').count() == 0
+
+
 def test_left_panel_shows_each_question_and_hides_a_deleted_conversation(dummy_orc, browser_page):
     """EXEC-UI-1012 B1 ("B1. (i)"): every conversation in the left panel shows its latest question under the title,
     not only the selected one. EXEC-DELETE ("pakai B hanya sembunyikan di front end tapi backend bisa akses if

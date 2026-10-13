@@ -11020,7 +11020,7 @@ const sortCollator = new Intl.Collator("id", {numeric:true, sensitivity:"base"})
 function mdHash(text) { let h = 0; for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) | 0; return (h >>> 0).toString(36); }
 function sortValue(raw) {
   const text = String(raw ?? "").replace(/[*_`]/g, "").replace(/\u00a0/g, " ").replace(/[\u2212\u2013\u2014]/g, "-").trim();
-  if (!text) return {kind:"empty"};
+  if (!text || /^-+$/.test(text)) return {kind:"empty"};  // EXEC-TABLE: a dash marks a missing value
   let m = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (m) return {kind:"date", value:Date.UTC(+m[1], +m[2] - 1, +m[3])};
   m = text.match(/^(\d{1,2})\s+([a-z]{3})[a-z]*\.?\s+(\d{4})$/i);

@@ -10,6 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .. import table_directives
 from ..value_refs import render
 from .registry import ToolSpec
 from .request_data import current_reference_sources
@@ -34,10 +35,18 @@ def check(references: list[str], sources: Any) -> dict[str, Any]:
         return {"status": "NO_REFERENCES", "results": [],
                 "note": "This run has no referable values yet: complete an analysis or read a result first."}
     results = []
+    tables = table_directives.current_table_directives.get()
     for reference in references:
         text = reference.strip()
         if not text.startswith("{{"):
             text = "{{" + text + "}}"
+        if tables and table_directives.TABLE_RE.fullmatch(text):
+            # EXEC-TABLE: a table instruction is shown as the table the answer will hold
+            expansion = table_directives.expand(text, sources, marks=False)
+            if expansion.problems:
+                results.append({"reference": reference, "ok": False, "error": expansion.problems[0]})
+                continue
+            text = expansion.text
         rendering = render(text, sources)
         if rendering.missing:
             results.append({"reference": reference, "ok": False, "error": rendering.missing[0][2]})

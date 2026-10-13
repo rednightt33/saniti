@@ -69,6 +69,7 @@ from .result_store import restore_missing, store_released
 from .tools.artifacts import RunResults, current_results
 from .tools.session import current_carried_outputs, current_carried_restorer
 from .tools.system import current_step_tools
+from . import table_directives
 from .tools.request_data import (current_conversation_id, current_reference_sources, current_request_id,
                                  current_run_deadline, current_turn_id, session_key)
 
@@ -831,6 +832,26 @@ by a column (a broker, a ticker, a code, a date) is referenced by that
 column, rows[<column>=<value>], never by position; each row shows _row,
 its position in the complete table. A reference that does not resolve is
 refused with the references that exist."""
+# EXEC-TABLE (AI_ENABLE_TABLE_DIRECTIVES, user decision 2026-10-13): a table from a released output is one instruction
+# the backend builds (app/table_directives.py); cell-by-cell references stay for a small table that mixes sources
+TABLE_DIRECTIVE_RULES = """
+
+TABLES
+A table from one released output is written as one table instruction;
+the backend builds the Markdown table from the complete output, so its
+cells are never typed or referenced one by one, for example
+{{table out.o2; Saham = ticker; Return = ret_5d|pct:1; Volume = volume|int; sort -ret_5d; top 10}}.
+Each column is Title = column, with a format after | as in a value
+reference (a text column takes none); one cell may join columns, as in
+Jumlah (porsi) = {n|int} ({share|pct:1}). sort names a column (a minus
+sorts from the largest) and top the rows shown (ten when omitted); the
+backend writes below the table how many rows the output has, so do not
+write it. A table that joins several outputs, adds a total row or
+derives a column is first built and released in the analysis
+(emit_table with units=) and then shown with one instruction. Value
+references cell by cell are only for a small table of up to three rows
+and three columns that mixes sources. check_references shows a table
+instruction as it will appear."""
 VALUE_REFERENCE_CONTRACT = ("Figures from data are value references {{...}} (see VALUE REFERENCES), never typed "
                             "numbers. ")
 ANGLE_NARRATIVE_CONTRACT = ("research_findings: for an ANSWER that rests on a completed multi-angle research run, "
@@ -1014,7 +1035,8 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
                         research_findings: bool = False, multi_angle: bool = False,
                         angle_limits: tuple[int, int, int] = (2, 6, 0), value_references: bool = False,
                         hypothesis_plans: bool = False, tools: frozenset[str] = frozenset(),
-                        tool_envelope: bool = False, memo_note: bool = False, merged_steps: bool = False) -> str:
+                        tool_envelope: bool = False, memo_note: bool = False, merged_steps: bool = False,
+                        table_directives: bool = False) -> str:
     """The system prompt for the registered tools. It is fixed for a deployment (AI_ENABLE_LOOKUP_FACT,
     AI_ENABLE_DATANEED, AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION, AI_ENABLE_STANDARD_PERIOD_RETURN,
     AI_FINAL_CONTRACT_IN_PROMPT, AI_ENABLE_TOOL_ENVELOPE), so every call of every run shares one byte-identical
@@ -1032,6 +1054,8 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
                   *([FACT_REFERENCE] if lookup_fact else []), *([METRIC_REFERENCE] if "query_metric" in tools else [])]
     value_rules = VALUE_REFERENCE_RULES.replace("{reference_items}", "- " + ";\n- ".join(references) + ".") \
         if value_references else ""
+    if value_rules and table_directives:
+        value_rules += TABLE_DIRECTIVE_RULES
     if multi_angle:
         common, _ = SYSTEM_PROMPT_TEMPLATE.split("DATA QUERY RULES\n", 1)
         plan_rules = MULTI_ANGLE_PLAN_RULES
@@ -2034,6 +2058,7 @@ class RunState:
     artifacts: list[dict[str, Any]] = field(default_factory=list)  # D4: this run's export files (API artifacts)
     referenced: list[str] = field(default_factory=list)  # D6: value references of the final answer (DIRUJUK)
     typed_answer: str | None = None  # O4: the final answer with its value references removed (the typed figures)
+    table_footers: dict[str, str] = field(default_factory=dict)  # EXEC-TABLE: line under a cut table, by its mark
     empty_turn_retries: int = 0  # M78: turns with neither text nor a tool call, retried with the same tools
     reference_date: Any = None  # the run's reference date in the analysis timezone
     data_date: Any = None  # R-STORE: the run's DataDate (the conversation's data date and whether NEWEST was asked)
@@ -2294,6 +2319,10 @@ class AgentOrchestrator:
         self.value_references = settings.ai_enable_value_references and self.dataneed
         # 10.1-10.4 (plan 2026-10-05 item 10): the address menu on tool results and the reference fallback
         self.address_menu = bool(getattr(settings, "ai_enable_address_menu", False)) and self.value_references
+        # EXEC-TABLE (user decision 2026-10-13): a table instruction the backend turns into the table's cells
+        self.table_directives = bool(getattr(settings, "ai_enable_table_directives", False)) and self.value_references
+        if getattr(settings, "ai_enable_table_directives", False) and not self.table_directives:
+            log_event("table_directives_inactive", reason="needs AI_ENABLE_VALUE_REFERENCES and AI_ENABLE_DATANEED")
         # EXEC-3: the routers may ask back, return the understood intent and every design value (variants); the
         # plan-reply reader returns the same reading (P3b); a failed router call is retried once
         self.ask_back = bool(getattr(settings, "ai_enable_ask_back", False))
@@ -2318,7 +2347,8 @@ class AgentOrchestrator:
                                                  frozenset(registry.names()),
                                                  bool(getattr(settings, "ai_enable_tool_envelope", False)),
                                                  memo_note=run_memory is not None,
-                                                 merged_steps=self.merged_steps)
+                                                 merged_steps=self.merged_steps,
+                                                 table_directives=self.table_directives)
         self.final_schema = final_response_schema(self.plan_confirmation, self.methodology, self.research_findings,
                                                   self.multi_angle, self.value_references, self.hypothesis_plans,
                                                   memo_note=run_memory is not None)
@@ -2399,6 +2429,7 @@ class AgentOrchestrator:
         token = current_request_id.set(request.request_id)
         conversation_token = current_conversation_id.set(current_conversation_id.get() or request.conversation_id)
         references_token = current_reference_sources.set(state.ref_sources)
+        tables_token = table_directives.current_table_directives.set(self.table_directives)
         # item 12: a mode 4 step keeps its run's turn id (the web budget key); a web lookup waits at most until the
         # run's deadline
         turn_token = current_turn_id.set(current_turn_id.get() or request.request_id)
@@ -2512,6 +2543,7 @@ class AgentOrchestrator:
             current_request_id.reset(token)
             current_conversation_id.reset(conversation_token)
             current_reference_sources.reset(references_token)
+            table_directives.current_table_directives.reset(tables_token)
             current_turn_id.reset(turn_token)
             current_run_deadline.reset(deadline_token)
             current_run_context.reset(context)
@@ -5015,13 +5047,32 @@ class AgentOrchestrator:
                                                                      "RESEARCH_PLAN_CONFIRMATION"):
             return final, False
         # D6: the references the answer cites, listed as evidence (DIRUJUK) next to the checked claims
-        state.referenced = list(dict.fromkeys(m.group("expr").strip() for m in REF_RE.finditer(final.answer or "")))
-        state.typed_answer = REF_RE.sub(" ", final.answer or "")
+        original = final
         problems: list[str] = []
         failed: list[str] = []
         missing: list[tuple[str, str, str]] = []
         values: list[Resolved] = []
         count = 0
+        cited = final.answer or ""
+        if self.table_directives:
+            # EXEC-TABLE: each table instruction becomes its table of code-written cell references before rendering;
+            # the answer cites the table (evidence), not each of its cells
+            expansion = table_directives.expand(final.answer, state.ref_sources)
+            state.table_footers = expansion.footers
+            if expansion.count:
+                cited = table_directives.TABLE_RE.sub(" ", cited)
+                final = final.model_copy(update={"answer": expansion.text})
+                problems.extend(expansion.problems)
+                failed.extend(expansion.failed)
+                count += expansion.count
+            typed = table_directives.typed_tables(cited)  # tables the model still wrote cell by cell (allowed)
+            if expansion.count or typed:
+                log_event("ai_table_directive", request_id=state.request_id, iteration=state.iterations,
+                          tables=expansion.tables[:10], refused=len(expansion.failed), typed_tables=typed)
+        state.referenced = list(dict.fromkeys(
+            [m.group("expr").strip() for m in REF_RE.finditer(cited)]
+            + (expansion.refs if self.table_directives and expansion.count else [])))
+        state.typed_answer = REF_RE.sub(" ", final.answer or "")
 
         def fill(text: str | None) -> str | None:
             nonlocal count
@@ -5062,7 +5113,7 @@ class AgentOrchestrator:
         if not count:
             return final, False
         state.references_used += count
-        state.raw_final = final.model_dump(mode="json")
+        state.raw_final = original.model_dump(mode="json")
         rendered = final.model_copy(update=update)
         state.ref_values.extend(values)
         if not problems and not missing:
@@ -5087,6 +5138,10 @@ class AgentOrchestrator:
     def _finalize_findings(self, state: RunState, final: FinalResponse) -> FinalResponse:
         """Multi-Angle Research after a completed run: every LIMITATION carries the backend's per-angle findings (M39),
         and with value references every response carries all approved angles rendered from the backend (#15)."""
+        if state.table_footers or "[[tabel-baris-" in (final.answer or ""):
+            # EXEC-TABLE: the line under a cut table, written once the gates passed (its figures are no claim)
+            final = final.model_copy(update={"answer": table_directives.put_footers(final.answer,
+                                                                                    state.table_footers)})
         self._log_answer_length(state, final)
         run = self._research_result(state)
         if run is None or not run.get("research_findings") or final.response_type not in ("ANSWER", "LIMITATION"):

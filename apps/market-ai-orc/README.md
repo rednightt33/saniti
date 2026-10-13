@@ -303,6 +303,7 @@ Gate and final-response log events (always on):
 | `AI_ENABLE_WEB_FACT` | no | `false` | S4b (K8): the tool `find_web_fact`, one fact that is not in the market data (group membership, controlling shareholder, company status) from market-web-governor `POST /v1/fact` in about 30 s. Needs `WEB_GOVERNOR_URL` and `WEB_GOVERNOR_API_KEY` (off otherwise, `web_fact_inactive`). The orchestrator writes each fact as a "Fakta web" assumption with its status and domains |
 | `AI_ENABLE_WEB_RESEARCH` | no | `false` | Item 12 (PLAN_2026-10-05.md): the tool `research_web`, information outside the database (a fact, a figure, an event with its dates, a series over periods, a list; several subjects in one call) from market-web-governor `POST /v1/orc/web`, for context or when the database lacks it; see [Web research (item 12)](#web-research-item-12). Replaces `find_web_fact`: the start is refused when `AI_ENABLE_WEB_FACT` is also on. Needs `WEB_GOVERNOR_URL` and `WEB_GOVERNOR_API_KEY` (off otherwise, `web_research_inactive`) |
 | `AI_ENABLE_ADDRESS_MENU` | no | `false` | Item 10 (PLAN_2026-10-05.md): every tool result that holds values lists their full value references (`addresses`, at most 200), `check_references` renders addresses on request (with value references and DataNeed), a REFERENCE refusal suggests addresses with the same field, and a field a hypothesis finding lacks is read from its research summary (logged `ai_reference_redirected`); see [Value-reference addresses (item 10)](#value-reference-addresses-item-10) |
+| `AI_ENABLE_TABLE_DIRECTIVES` | no | `false` | EXEC-TABLE (user decision 2026-10-13): a table from one released output is written as one instruction `{{table out.oN; Title = column\|format; ...; sort -column; top N}}` and the backend builds its cells (`app/table_directives.py`); `check_references` previews it. `false` keeps the prompt and behaviour of before EXEC-TABLE (the wayback); needs value references; see [Table instructions (EXEC-TABLE)](#table-instructions-exec-table) |
 | `WEB_GOVERNOR_URL`, `WEB_GOVERNOR_API_KEY` | with `AI_ENABLE_WEB_FACT` or `AI_ENABLE_WEB_RESEARCH` | unset | market-web-governor's address and its API key (secret; on Railway a reference to the governor's own variable) |
 | `AI_REPLAY_REASONING` | no | `false` | S4c (K7, 2026-10-04): send the reasoning items of a run's earlier tool turns back with their calls, exactly as received, so a conclusion reached in reasoning is not lost a few steps later (M71, P27). Never across messages. A provider that refuses them (`PROVIDER_REJECTED`) turns it off for the rest of the run (`ai_reasoning_replay_refused`). Input tokens grow by the replayed reasoning; watch the cache ratio. Dev: `true` |
 | `AI_LOG_PROVIDER` | no | `false` | After each run, look up which provider served each model call (OpenRouter `/generation`, in a background thread) and log it as `ai_model_call_provider` |
@@ -1154,6 +1155,30 @@ addresses composed from memory and twelve figures typed without an address).
 - **Threshold from an earlier result (10.6):** when the conversation router reads the message as building on the
   newest result, a plan's success threshold or minimum effect may be a value the plan cites by reference
   (`plan_threshold_from_result`).
+
+### Table instructions (EXEC-TABLE)
+
+`AI_ENABLE_TABLE_DIRECTIVES` (user decision 2026-10-13; run `edge_517a29…`: about fifty cell references, three
+reference checks and a PROVENANCE repair took about three of its six and a half minutes).
+
+- **Form:** `{{table out.o9; Sektor = sector; Median = median_pct|pp:2; Saham (porsi) = {n|int} ({share|pct:1});
+  sort -median_pct; top 10}}`: parts separated by `;`, each column `Title = column[|format]` or a joined cell
+  `{column|format}` pattern, `sort [-]column`, `top N` (ten when omitted, at most 100), at most 12 columns.
+- **Build:** `table_directives.expand` reads every row of the released table (`TableRows.all()`), sorts and cuts in
+  code, and writes one value reference per cell by the row's position in the complete table (`rows[_row=N]`, or the
+  index of a table given as a list). `value_refs.render`, units, provenance sources and every gate then run unchanged.
+  A missing value is a dash (`–`, sorted last in EDGE); a text that holds `|` or a line break is written as it is
+  with `/`. The renderer computes nothing: a total, a derived column or a join is released from the analysis first.
+- **Evidence and gates:** the answer cites the table (`out.oN`) once, not each cell; the cells are not typed figures.
+  The line "Menampilkan N dari M baris" is a letters-only mark until the gates passed (`put_footers` in
+  `_finalize_findings`).
+- **Refusals:** fixed templates (`NO_TABLE`, `NO_COLUMN`, `BAD_FORMAT`, `NO_SORT`, `UNREADABLE`, each ending "Fix
+  this table instruction only.") join the REFERENCE gate's problems (at most two repairs, then
+  `[nilai tidak tersedia]`, as P14).
+- **Log:** `ai_table_directive` (tables shown, refused instructions, `typed_tables`: tables the model still wrote
+  cell by cell, allowed for a small table that mixes sources and never refused).
+- **Wayback:** the flag off gives the prompt of snapshot `v005` byte for byte (`test_table_directives.py`,
+  `test_prompt_history.py`); then `git revert`; then the branch `wayback/pre-exec-table` (`main` `3708026`).
 
 ### Web research (item 12)
 

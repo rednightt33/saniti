@@ -277,6 +277,10 @@ class Settings:
     # references (an address menu the model copies), check_references renders addresses before the answer is written,
     # and a field a hypothesis finding lacks is read from its research_summary output. Needs value references.
     ai_enable_address_menu: bool = False
+    # EXEC-TABLE (user decision 2026-10-13): a table from one released output is written as one instruction
+    # {{table out.oN; Title = column|format; ...}} and the backend builds its cells (app/table_directives.py); false
+    # keeps the prompt and the behaviour of before EXEC-TABLE (the wayback). Needs value references.
+    ai_enable_table_directives: bool = False
     # Round 2026-10-03 (ENV, ROUND_PLAN_2026-10-03.md A2): every tool result the model reads in one envelope
     # (status, data, warnings, errors with next_action, meta); the orchestrator's own reading of results is unchanged.
     ai_enable_tool_envelope: bool = False
@@ -431,6 +435,7 @@ class Settings:
             ai_research_max_session_restarts=_integer(env, "AI_RESEARCH_MAX_SESSION_RESTARTS", 1, minimum=0),
             ai_enable_value_references=_boolean(env, "AI_ENABLE_VALUE_REFERENCES", False),
             ai_enable_address_menu=_boolean(env, "AI_ENABLE_ADDRESS_MENU", False),
+            ai_enable_table_directives=_boolean(env, "AI_ENABLE_TABLE_DIRECTIVES", False),
             ai_enable_tool_envelope=_boolean(env, "AI_ENABLE_TOOL_ENVELOPE", False),
             ai_enable_mode4=_boolean(env, "AI_ENABLE_MODE4", False),
             ai_mode4_max_seconds=_integer(env, "AI_MODE4_MAX_SECONDS", 3600, minimum=60),
