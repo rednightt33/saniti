@@ -2156,12 +2156,12 @@ jawaban, mengecek alamat, memperbaiki jawaban yang ditolak --> coba jadi medium 
 dulu."
 
 - Keadaan sekarang (dibaca dari kode `main` `26cb29a`): semua panggilan langkah utama memakai
-  `Settings.reasoning(ai_reasoning_effort)` (`orchestrator.py` `_payload`); `AI_REASONING_EFFORT` tidak diisi di
-  Railway sehingga default `high` (`config.py`). Router pesan pertama, router giliran, pembaca balasan rencana, dan
+  `Settings.reasoning(ai_reasoning_effort)` (`orchestrator.py` `_payload`); variabel Railway market-ai-orc (dev)
+  `AI_REASONING_EFFORT` berisi `high` (dibaca 2026-10-13). Router pesan pertama, router giliran, pembaca balasan rencana, dan
   pertanyaan lanjutan/ide insight memakai `reasoning("low")` tetap dan tidak ikut berubah.
-- Rencana: isi variabel `AI_REASONING_EFFORT=medium` pada layanan market-ai-orc (dev). Satu variabel mengubah semua
+- Rencana: ubah variabel `AI_REASONING_EFFORT` dari `high` ke `medium` pada layanan market-ai-orc (dev). Satu variabel mengubah semua
   langkah utama sekaligus (perencanaan, analisis, riset berita MODE4, menulis, cek rujukan, perbaikan); tidak ada
-  perubahan kode. Kembali ke semula: hapus variabel (default `high`).
+  perubahan kode. Kembali ke semula: isi lagi `high`.
 - Risiko yang perlu diperiksa: perencanaan permintaan data dan analisis jadi kurang teliti (lebih banyak penolakan
   gerbang atau perbaikan), jawaban kurang tajam. Usulan pemeriksaan sebelum atau sesudah: 4 pertanyaan A/B yang sama
   dengan EXEC-STYLE (lama proses, token, penolakan gerbang, mutu jawaban).
