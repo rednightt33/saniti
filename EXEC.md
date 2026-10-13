@@ -2256,6 +2256,25 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
   - **K2 "perbaiki dulu di jalur sekarang, baru nanti pecah jalur agar perbaikan terbawa":** G3 (DEFINITION) dan G5
     (CLARIFY yang butuh hitungan baru, kode broker disimpan) dikerjakan lebih dulu di jalur sekarang, sebelum jalur baru
     dipisah.
+- **Catatan desain dari inspeksi kode (2026-10-13, user: "Yes"):**
+  - **D1 alat riset = pemeriksa, bukan kemampuan hitung.** Sandbox bisa menghitung semuanya; alat riset ada supaya
+    statistik dihitung ulang sistem di luar proses AI dengan nilai yang disetujui (`research_validation.py`,
+    `research_findings.py`, `event_study_validation.py`), sampel efektif dan efek minimum dihitung sistem, jumlah uji
+    dicatat (`research_policy.py`), dan vonis memakai label baku. `research_*` saat ini hanya tersedia di sesi riset
+    yang disetujui (terikat `angle_id`, `sessions.py:871`). Jalur baru butuh versi eksploratif `research_*` tanpa
+    `angle_id` yang disetujui; tetap dihitung ulang sistem, berlabel eksploratif.
+  - **D2 tabel turunan dalam satu sesi:** sesi sandbox persisten (variabel tetap ada antar `run_python`,
+    `sessions.py:797`); `save_table`/`load_table` menyimpan dan membuka tabel kerja, jadi tabel 3 = gabungan tabel 1
+    dan 2 bisa dibuat (pandas `merge`). Batas: tabel kerja `NOT_RELEASED` sampai `emit_table`, kuota
+    `working_table_bytes`, anggaran frame dan jumlah output per sesi. `sql()` hanya membaca view data DataNeed; SQL atas
+    tabel kerja belum diuji.
+  - **D3 isi hipotesis bebas, bentuk uji terbatas:** rumus kondisi dan outcome bebas ditulis AI
+    (`research_governance.py`: tidak ada daftar rumus). Vonis terverifikasi hanya untuk bentuk uji yang ada: kondisi →
+    hasil (`event_summary`, `research_conditional`), sensitivitas ambang, persistensi, perbandingan kelompok/rezim,
+    peringkat kuantil, lead-lag/korelasi, event study dan backtest. Di luar itu `research_custom` berstatus
+    `EXECUTION_ONLY` dan vonis paling tinggi `INSUFFICIENT_EVIDENCE` (`saniti_session.py:1633`). Di jalur baru: tingkat
+    1 boleh bentuk apa pun (label "eksploratif, dihitung AI"); tingkat 2 hanya bentuk yang bisa diverifikasi; bentuk baru
+    ditambah bila pola pertanyaannya sering muncul.
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur
