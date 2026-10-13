@@ -1,0 +1,41 @@
+{
+ "prefix": "ma-ab-table-20261013a",
+ "workers": 2,
+ "audit_wait_seconds": 0,
+ "items": [
+  {
+   "id": "ab1_chat",
+   "message": "Apa saja yang bisa kamu bantu soal data saham di sini?",
+   "expect": "EXEC-TABLE A/B: AUTO, first-message router expected CHAT; run OFF (AI_ENABLE_TABLE_DIRECTIVES false)"
+  },
+  {
+   "id": "ab2_fact",
+   "message": "Apa arti net buy asing dan kenapa investor memperhatikannya?",
+   "expect": "EXEC-TABLE A/B: AUTO, first-message router expected FACT; run OFF (AI_ENABLE_TABLE_DIRECTIVES false)"
+  },
+  {
+   "id": "ab3_analysis",
+   "analysis_path": "ANALYSIS",
+   "message": "Bandingkan return BBCA dan BBRI selama sebulan terakhir data yang tersedia.",
+   "expect": "EXEC-TABLE A/B: ANALYSIS; run OFF (AI_ENABLE_TABLE_DIRECTIVES false)"
+  },
+  {
+   "id": "ab4_price_broker",
+   "analysis_path": "ANALYSIS",
+   "message": "Bagaimana harga BBRI bergerak di hari-hari net buy asingnya besar, sebulan terakhir data?",
+   "expect": "EXEC-TABLE A/B: ANALYSIS; live check EXEC-JOINKEY (price-broker relationship #23 passes the first revision), EXEC-FRICTION (hurdles match the logs); run OFF (AI_ENABLE_TABLE_DIRECTIVES false)"
+  },
+  {
+   "id": "ab5_ranking",
+   "analysis_path": "ANALYSIS",
+   "message": "Tampilkan 15 saham dengan net buy asing terbesar sebulan terakhir data, beserta return harga dan rata-rata nilai transaksi hariannya.",
+   "expect": "EXEC-TABLE A/B: ANALYSIS, a table-heavy answer (one ranking table); run OFF (AI_ENABLE_TABLE_DIRECTIVES false)"
+  },
+  {
+   "id": "ab6_broker",
+   "analysis_path": "ANALYSIS",
+   "message": "Broker mana saja yang paling banyak net buy di BBRI sebulan terakhir data? Tampilkan 10 teratas dengan total net buy, jumlah hari net buy, dan porsinya terhadap total net buy.",
+   "expect": "EXEC-TABLE A/B: ANALYSIS, a table-heavy answer (a broker table with a share column); run OFF (AI_ENABLE_TABLE_DIRECTIVES false)"
+  }
+ ]
+}

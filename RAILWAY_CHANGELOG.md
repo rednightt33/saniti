@@ -1,5 +1,28 @@
 # Railway changelog
 
+## 2026-10-13 — EXEC-TABLE deployed (flag off), A/B on dev, flag back off
+
+User: "Terkait dengan render tabel dari kode yang kamu sebutkan, OK. Siapkan wayback machine ke existing process" and
+"Otomatis jika lolos" (enable after the A/B only when its criteria pass). Rollback reference: orc `dc757f0b`,
+edge-bff `04aacf39`; branch `wayback/pre-exec-table` (`3708026`).
+- `main` `d7d8f85`: market-ai-orc **51fdcb6a-3ec1-427c-b6b0-13b8f4a89c1f** and edge-bff
+  **dda7b464-c9d0-491b-a156-d7d3f8daa735** reached **SUCCESS**; orc start log without error or `*_inactive` event.
+- A/B through `orc-test-runner`: OFF `3298f003-1efe-4242-b4b7-1963acb82afd` (`ma-ab-table-20261013a`); market-ai-orc
+  variable `AI_ENABLE_TABLE_DIRECTIVES=true` → **d10e8d7b-2e4d-4213-9eed-1fd21ac468f1** SUCCESS; ON
+  `4831cb89-13ec-4279-affc-24ff2cecf5bf` (`ma-ab-table-20261013b`); ab5 rerun with audit readback
+  `74a16e72-80ed-4a4c-98ba-f2ece23fcfe6` (`ma-ab-table-20261013c`). Cost about USD 0.31 in all.
+- `orc-test-runner` variable `AUDIT_STORE_READER_KEY` (a reference to market-audit-store's reader key) added with
+  `--skip-deploys` for the readback, then removed: an empty suite was uploaded first
+  (`9ff6e225-38b3-4fd8-aa9a-debb7268109c`, no question) so the redeploy the delete triggers sends nothing to orc. Only
+  `MARKET_AI_ORC_API_KEY` remains.
+- A/B criteria not met (EXEC.md EXEC-TABLE): `AI_ENABLE_TABLE_DIRECTIVES=false` → market-ai-orc
+  **98ae6f92-2c21-4108-9c24-528b7d724dd4** **SUCCESS**.
+- `railway config pull --force`: `.railway/railway.ts` gained `AI_ENABLE_TABLE_DIRECTIVES: preserve()`. The pull also
+  showed live start commands of `fixed-income-price-us-recovery-cron`, `fixed-income-price-recovery-cron` and
+  `idx-price-recovery-cron` that differ from the file (changed outside this task); they were left out of this commit
+  and reported to the user. `railway config plan` with this file: only those three start commands differ.
+- No model, provider, mode, migration or other configuration change.
+
 ## 2026-10-13 — Pgweb database connection restored
 
 - User authorized repair. Existing `PGWEB_DATABASE_URL` was tested from the private network

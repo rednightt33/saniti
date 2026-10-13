@@ -2177,7 +2177,7 @@ dulu."
 - Status: **menunggu perintah eksekusi dari user.** Saat dieksekusi: catat di `RAILWAY_CHANGELOG.md` (nama variabel,
   layanan, deployment sampai SUCCESS).
 
-### EXEC-TABLE: tabel jawaban dirender dari kode, dengan wayback machine (berjalan)
+### EXEC-TABLE: tabel jawaban dirender dari kode, dengan wayback machine (A/B tidak lolos; saklar kembali mati)
 
 **Keputusan user 2026-10-13:** "Terkait dengan render tabel dari kode yang kamu sebutkan, OK. Siapkan wayback machine ke
 existing process ya in case render tabel dari kode ini tidak works." Pilihan user atas empat pertanyaan:
@@ -2241,6 +2241,30 @@ deploy SUCCESS, laporan dan usulan. Jawaban AI tidak disimpan di repo publik.
   bagian prompt TABLES (hanya saat saklar hidup), pratinjau di `check_references`, baris "Menampilkan N dari M
   baris" sesudah gerbang, log `ai_table_directive`. EDGE: tanda "–" diurutkan sebagai sel kosong (terakhir). Tes: orc
   1.655 lulus (20 tes baru; prompt saklar mati sama persis dengan snapshot `v005`), EDGE 74 lulus.
+- 2026-10-13 Fase 5: `main` `d7d8f85` ter-deploy (orc `51fdcb6a`, edge-bff `dda7b464`, SUCCESS, saklar mati).
+  A/B 6 pertanyaan (4 EXEC-STYLE + 2 bertabel berat; pertanyaan `edge_517a29…` tidak bisa diulang sendiri karena
+  pesan lanjutan yang butuh riwayat percakapannya): OFF `ma-ab-table-20261013a` (USD 0,126), ON
+  `ma-ab-table-20261013b` (orc `d10e8d7b`, USD 0,150) dan ulang ab5 `ma-ab-table-20261013c` (USD 0,038; run ON
+  pertamanya LIMITATION karena model menulis markup panggilan alat sebagai jawaban sebelum ada data, M146).
+  Tahap menulis = latensi panggilan model sesudah panggilan alat analisis terakhir (log orc):
+
+  | Pertanyaan | Menulis OFF → ON (s) | Token output total OFF → ON | Perbaikan gerbang OFF → ON | Tabel ON |
+  |---|---|---|---|---|
+  | ab3 analisis | 31,2 → 21,9 | 9.198 → 6.967 | 0 → 1 (PROVENANCE, narasi) | 1 tanda |
+  | ab4 harga + asing | 61,6 → 129,4 | 16.351 → 30.562 | 0 → 0 | 2 tanda (10 dari 30 baris + 3 baris) |
+  | ab5 peringkat 15 saham | 67,4 → 114,7 | 29.083 → 30.524 | 1 → 2 (PROVENANCE "Rp … miliar" di narasi, M143; TYPED_FIGURES) | 1 tanda |
+  | ab6 broker BBRI | 66,8 → 41,9 | 24.866 → 23.391 | 0 → 1 (TYPED_FIGURES, narasi) | 1 tanda |
+
+  Kriteria: semua run COMPLETED (sesudah ab5 diulang) **ya**; tanda tabel dipakai di pertanyaan bertabel **ya** (0
+  tanda ditolak, 0 tabel diketik sel per sel); tahap menulis turun ≥30% (median ab5, ab6) **tidak** (ab6 −37%, ab5
+  +70%); penolakan gerbang tidak lebih banyak **tidak** (pertanyaan bertabel 1 → 3, semuanya di kalimat narasi, bukan
+  sel tabel); 0 angka tabel salah **tidak terbukti dengan skrip**: jejak audit hanya menyimpan pratinjau hasil alat
+  (8.000 karakter), jadi baris rilis lengkap tidak terbaca; tidak ada sel `[nilai tidak tersedia]` dan gerbang
+  PROVENANCE menerima semua sel.
+- **Keputusan sesuai rencana (tidak lolos):** `AI_ENABLE_TABLE_DIRECTIVES=false` (wayback 1), orc `98ae6f92` SUCCESS.
+  Kode tetap di `main` di balik saklar mati (prompt sama dengan `v005`). Pembacaan: tanda tabel bekerja (cepat dan
+  tanpa penolakan di tabel), tetapi waktu dan penolakan didominasi narasi dan perencanaan data; sampel 6 pertanyaan
+  terlalu kecil untuk memisahkan efek tabel dari variasi model. Usulan menunggu keputusan user.
 
 ### EXEC-IMPL-1012: rencana implementasi EXEC-JOINKEY, EXEC-RELEASE, EXEC-FRICTION, EXEC-STYLE (selesai; Fase 3c berhenti di M143)
 
