@@ -2459,7 +2459,7 @@ dibiarkan (hanya catatan, `is_active=false`) atau dibatalkan dengan migrasi baru
     berikutnya.
   - Catatan: satu TYPED_FIGURES "19" lagi (jumlah hari bursa diketik), pola yang sama dengan cek live M143.
 
-### EXEC-LOGOS: logo model di EDGE, level Rendah/Tinggi/Maks, MiMo Pro dikeluarkan, pengaman berpikir tanpa ujung (berjalan)
+### EXEC-LOGOS: logo model di EDGE, level Rendah/Tinggi/Maks, MiMo Pro dikeluarkan, pengaman berpikir tanpa ujung (deployed; cek live bersih)
 
 **Keputusan user 2026-10-13:** "kasih logo untuk setiap model ya di HP"; "Request edge_7bc93daf9e463c521e8886c00c219cd5
 boleh cek kenapa lama, cek log"; logo "Logo merek asli"; level "Rendah / Tinggi / Maks"; MiMo "cek dulu
@@ -2474,6 +2474,9 @@ dokumentasinya"; setelah temuan log: "Keluarin saja Mimo pro ya, the rest sudah 
 - **EDGE:** logo LobeHub (MIT, `static/model-logos/`, route `/model-logos/<nama>.svg`); di HP tombol hanya logo; logo
   satu warna (Z.ai, MiMo) mengikuti warna teks; label `max: "Maks"`; BFF menerima level `max`.
 - **Tes:** orc 1.465 lulus; EDGE 80 lulus (termasuk tes HP baru).
+- **Deploy dan cek live (RAILWAY_CHANGELOG EXEC-LOGOS):** orc `7c11b4ad` dan EDGE `865c2c8f` SUCCESS. MiMo Pro ditolak
+  400 `MODEL_NOT_ALLOWED`. Pertanyaan M150 dengan MiMo Flash Nyala selesai 198 s (sebelumnya 826 s), panggilan terlama
+  51 s, tanpa runaway; distribusi 70 sesi; biaya ±USD 0,03.
 
 ### EXEC-CHOICES dan EXEC-ROWS: panel "Response choices" di EDGE; jumlah baris tabel sesuai permintaan, maks. 25 (berjalan)
 

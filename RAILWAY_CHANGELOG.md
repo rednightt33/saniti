@@ -1,5 +1,21 @@
 # Railway changelog
 
+## 2026-10-13 — EXEC-LOGOS deployed (model logos, levels low/high/max, MiMo Pro removed, M150 guard), live check
+
+User: "kasih logo untuk setiap model ya di HP", "Keluarin saja Mimo pro ya, the rest sudah OK" (EXEC.md EXEC-LOGOS,
+ERRORS M150). Rollback references: orc `ce10d331`, EDGE `e87fc0be`.
+- `main` `f941e98`: market-ai-orc **7c11b4ad-8327-47cf-a436-80897d9ea89b** and edge-bff
+  **865c2c8f-2888-433a-84c8-ee5a15215746** reached **SUCCESS**; orc startup price read OK for the 4 offered models
+  (`missing=[]`); EDGE serves `/model-logos/{deepseek-color,zai,xiaomimimo,qwen-color}.svg` (200 `image/svg+xml`, an
+  unknown name 404); `/api/v1/models` without a session = 401.
+- `orc-test-runner` **240cc2f4-20e8-47f2-bf88-501fa18d0ac7** (`ma-logos-20261013a`): `xiaomi/mimo-v2.6-pro` refused
+  with HTTP 400 `MODEL_NOT_ALLOWED` before any model call; the M150 question ("Coba analisis pergerakan BBRI kemarin.
+  Buat distribusi dari harga dan volumenya") with MiMo V2.6 Flash on COMPLETED in 198 s (was 826 s on MiMo Pro), 7
+  loop calls, the longest 51 s, at most 7,407 output tokens per call (cap 12,000), no `ai_reasoning_runaway` or empty
+  turn; distribution over 70 sessions (1 July–12 October); cost about USD 0.03.
+- No variable, migration, model default, provider or configuration change (`AI_MODEL`, `AI_MODEL_2`,
+  `AI_REASONING_EFFORT`, `AI_MAX_OUTPUT_TOKENS` unchanged); web governor untouched.
+
 ## 2026-10-13 — EXEC-MODELS quality check, M149 fix deployed
 
 User: "Boleh tes mutu tiap model. 2 questions each reasoning high".

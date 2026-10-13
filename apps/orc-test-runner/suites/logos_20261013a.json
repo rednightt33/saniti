@@ -1,0 +1,23 @@
+{
+  "prefix": "ma-logos-20261013a",
+  "workers": 2,
+  "audit_wait_seconds": 0,
+  "items": [
+    {
+      "id": "m150_bbri_mimoflash",
+      "analysis_path": "ANALYSIS",
+      "message": "Coba analisis pergerakan BBRI kemarin. Buat distribusi dari harga dan volumenya",
+      "expect": "EXEC-LOGOS live check (user 2026-10-13: \"Keluarin saja Mimo pro ya, the rest sudah OK\"; M150): orc 7c11b4ad; no loop call over 200 s",
+      "model": "xiaomi/mimo-v2.6-flash",
+      "reasoning_level": "on"
+    },
+    {
+      "id": "m150_mimopro_refused",
+      "analysis_path": "ANALYSIS",
+      "message": "Halo",
+      "expect": "EXEC-LOGOS live check (user 2026-10-13: \"Keluarin saja Mimo pro ya, the rest sudah OK\"; M150): orc 7c11b4ad; HTTP 400 MODEL_NOT_ALLOWED before any model call",
+      "model": "xiaomi/mimo-v2.6-pro",
+      "reasoning_level": "on"
+    }
+  ]
+}
