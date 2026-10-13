@@ -2279,6 +2279,35 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
     `EXECUTION_ONLY` dan vonis paling tinggi `INSUFFICIENT_EVIDENCE` (`saniti_session.py:1633`). Di jalur baru: tingkat
     1 boleh bentuk apa pun (label "eksploratif, dihitung AI"); tingkat 2 hanya bentuk yang bisa diverifikasi; bentuk baru
     ditambah bila pola pertanyaannya sering muncul.
+- **B0 baseline jalur sekarang (2026-10-13, user "Go"; runner `157a081f` dan `db92253f`, orc `2e935d87`, DeepSeek V4.1
+  Flash Tinggi):**
+
+  | Giliran | Jalur router | Waktu | Panggilan model | Formulir data | Pra-cek draf | Hasil |
+  |---|---|---|---|---|---|---|
+  | b1 pergerakan BBRI seminggu | ANALYSIS | 114 s | 9 (78 s) | 1× / 10 s | 21 s | jawaban |
+  | b2 distribusi BBRI kemarin | ANALYSIS | 241 s | 11 (209 s, terlama 75 s) | 1× / 15 s | 58 s | jawaban |
+  | b3 akumulasi asing + performa lanjutan | EXPLORE | 569 s | 19 (534 s) | 2× / 72 s | 77 s | jawaban satu giliran (event study), tanpa rencana |
+  | b4 akumulasi broker X/Y → return > 10% | ANALYSIS | 381 s | 16 (314 s) | 2× / 47 s | 39 s | jawaban satu giliran, tanpa rencana |
+  | b5.1 lima broker net beli BBRI | ANALYSIS | 164 s | 13 (138 s) | 1× / 33 s | 32 s | jawaban |
+  | b5.2 rekap per minggu | INSIGHT | 272 s | 11 (261 s) | 1× / 9 s | 45 s | jawaban |
+  | b5.3 ekspor Excel | CLARIFY | 42 s | 2 (39 s) | 0 | 0 | 2 file XLSX |
+
+  - Lolos target ≤ 3 menit: 3 dari 7 giliran (b1, b5.1, b5.3); 4 lewat (b2, b3, b4, b5.2).
+  - Pembagian waktu model (±1.570 s):
+    - menulis dan mengulang `run_python` ±33%;
+    - menjelajah katalog dan panduan sebelum formulir ±22%;
+    - pra-cek draf `check_references` ±17%;
+    - formulir data `submit_data_need_spec` ±12%;
+    - menulis jawaban ±12%.
+  - Gerbang jawaban: tidak ada yang menolak. Tidak ada runaway.
+  - b3 dan b4 kini dijawab dalam satu giliran, jadi pesan "Setuju, jalankan rencananya" dijawab dengan pertanyaan balik
+    (tidak ada rencana menunggu).
+  - **Keputusan `fetch()`:** formulir data hanya ±12% waktu, jadi `fetch()` tetap ditunda. Sasaran terbesar B1/B2:
+    - jumlah iterasi `run_python`;
+    - penjelajahan katalog (batas dan cakupan terlihat sejak awal, R2);
+    - pra-cek draf (R6).
+  - Biaya B0: USD 0,35. Run pertama (`157a081f`) berhenti di b3 karena limit kunci OpenRouter habis (USD 38 dari 38);
+    user menaikkan limit ke USD 39, lalu b3–b5 diulang (`db92253f`).
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur

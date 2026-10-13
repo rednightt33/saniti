@@ -1,5 +1,17 @@
 # Railway changelog
 
+## 2026-10-13 — EXEC-FASTLANE B0 baseline of the current lane (orc-test-runner)
+
+User: "Go" (B0). No code, variable, model, provider or configuration change; only `orc-test-runner` redeployed with
+`suites/fastlane_baseline_20261013.json` and `fastlane_baseline_20261013b.json`.
+- `orc-test-runner` **157a081f-c04f-48a7-801b-558788d5597c** (`ma-fastlane-base-20261013a`): b1 COMPLETED 114 s, b2
+  COMPLETED 241 s; b3 FAILED at 315 s with `PROVIDER_REJECTED` "Key limit exceeded (total limit) $38.00 of $38.00 used;
+  does not reset" (the OpenRouter key's own limit); the rest fell to the router's fallback question.
+- The user raised the key limit to USD 39 (read back with OpenRouter `GET /api/v1/key`, no secret printed).
+- `orc-test-runner` **db92253f-10ac-479d-bc66-7a89897b5966** (`ma-fastlane-base-20261013b`, b3–b5): b3 COMPLETED 569 s,
+  b4 COMPLETED 381 s, b5 164 s / 272 s / 42 s. Results in EXEC.md EXEC-FASTLANE (B0). Cost of both runs about USD 0.35;
+  key budget left about USD 0.63.
+
 ## 2026-10-13 — EXEC-PHASE-A deployed (M151, M152, M153, EXEC-UI-1013B), live check
 
 User: "Great, inspect current architecture dengan context plan tersebut. Generate the final implementation plan." (plan
