@@ -70,6 +70,10 @@ window.EdgeLabels = {
     needsInput:"Tulis bagian yang ingin diubah di kolom pesan", claimNote:"catatan",
     sourcesEvidence:"Bukti", sourcesNews:"Berita", sourcesClaims:"Klaim yang ditandai", sourcesHurdles:"Hambatan proses", sourcesRecord:"Catatan data percakapan",
     sourcesEmpty:"No source or evidence metadata returned for this response.",
-    approveMessage:"Setujui rencana riset", cancelMessage:"Batalkan rencana riset"
+    approveMessage:"Setujui rencana riset", cancelMessage:"Batalkan rencana riset",
+    // EXEC-MODELS: the model and reasoning-level choice next to the composer
+    modelTitle:"Pilih model dan tingkat berpikir", modelHead:"Model AI", modelPricesNote:"Harga per 1 juta token",
+    modelInput:"Input", modelOutput:"Output", modelLevel:"Tingkat berpikir", modelUpdated:"Harga diperbarui",
+    modelLevels:{low:"Rendah", medium:"Sedang", high:"Tinggi", off:"Mati", on:"Nyala"}
   }
 };

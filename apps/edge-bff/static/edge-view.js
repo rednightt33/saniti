@@ -156,7 +156,7 @@
     return {
       version:VERSION,
       status:status(envelope, domainStatus),
-      meta:{requestId:envelope?.request_id ?? null, model:execution.model ?? null, tokens:execution.total_tokens, cost:execution.cost ?? null, duration:durationText(execution.duration_ms)},
+      meta:{requestId:envelope?.request_id ?? null, model:execution.model ?? null, reasoningLevel:execution.reasoning_level ?? null, tokens:execution.total_tokens, cost:execution.cost ?? null, duration:durationText(execution.duration_ms)},
       evidence:envelope?.evidence_label ? {code:envelope.evidence_label, label:ui.evidencePrefix + (L().evidence[envelope.evidence_label] ?? envelope.evidence_label)} : null,
       claims:(envelope?.annotations || []).filter(item => item?.quote).map(item => [String(item.quote).trim(), item.note || item.kind]),
       answer:answer || null,

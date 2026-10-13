@@ -1,8 +1,10 @@
 # EDGE private frontend and BFF
 
 One service serves the supplied vanilla HTML, authenticates one private user, queues delivery to the existing Orc,
-and exposes persisted lifecycle snapshots over SSE. Standard follows Orc's configured model and mode. There is
-no public model/provider/path override and no per-token, reasoning, or per-tool stream.
+and exposes persisted lifecycle snapshots over SSE. Standard follows Orc's configured mode. EXEC-MODELS (user
+2026-10-13): each message may choose one of Orc's offered models and a reasoning level next to the composer (starting on
+DeepSeek V4.1 Flash high, kept in this browser as `edge-model-choice`); Orc checks the choice. There is no
+provider/path override and no per-token, reasoning, or per-tool stream.
 
 The HTML comes from `final 8 oct.html`; its original CSS and workspace renderer are retained. Demo conversations,
 market values, result tables, prices, sources, upload simulation and timed execution are removed. The renderer
@@ -106,7 +108,8 @@ No CORS is enabled. Responses are not cached. Inputs forbid unknown fields.
 | POST `/auth/sign-in` | `{login,password}`; session cookie, login, CSRF token |
 | GET `/auth/session` | Authenticated login, CSRF, supported capabilities |
 | POST `/auth/sign-out` | Revoke session; clear cookie |
-| POST `/runs` | `{submission_key,message,conversation_id?,chosen_option?,plan_reply?}`; 202 request identity |
+| POST `/runs` | `{submission_key,message,conversation_id?,chosen_option?,plan_reply?,model?,reasoning_level?}`; 202 request identity |
+| GET `/models` | Orc's offered models, reasoning levels and prices per one million tokens (Orc reads OpenRouter hourly; cached here ten minutes; the last list is kept when Orc fails, 503 `MODELS_UNAVAILABLE` before any). Read once at sign-in, before the work page shows |
 | GET `/runs` | `{active: snapshot or null}`; refresh recovery |
 | GET `/runs/{request_id}` | Owner-scoped snapshot, saved canonical response when terminal |
 | GET `/runs/{request_id}/events` | Same snapshot as SSE, `Last-Event-ID` supported |

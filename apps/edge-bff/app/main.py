@@ -27,6 +27,10 @@ STATIC = Path(__file__).resolve().parents[1] / 'static'
 SCRIPT_NAME = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*')
 CONV = r'^conv_[0-9a-f]{32}$'
 CHOICES = r'^(QUICK_SUMMARY|ANALYSIS|RESEARCH|EXPLORE|FACT|CLARIFY|INSIGHT|CONTINUE|APPROVE|NEW_TOPIC)$'
+# EXEC-MODELS: the shape of a model id and the reasoning levels; Orc checks the choice against its offered models
+MODEL_ID = r'^[a-z0-9][a-z0-9._-]*/[a-z0-9][a-z0-9._:-]*$'
+LEVELS = r'^(low|medium|high|off|on)$'
+MODELS_CACHE_SECONDS = 600  # Orc reads OpenRouter's prices every hour; the page sees them within ten minutes
 
 
 class Strict(BaseModel):
@@ -56,6 +60,8 @@ class RunInput(Strict):
     conversation_id: str | None = Field(default=None, pattern=CONV)
     chosen_option: str | None = Field(default=None, pattern=CHOICES)
     plan_reply: PlanReply | None = None
+    model: str | None = Field(default=None, max_length=100, pattern=MODEL_ID)
+    reasoning_level: str | None = Field(default=None, pattern=LEVELS)
     # EXEC-Y Fase 1 (S3): sent while a run is active = stop that run and run this message next
     after_stop: bool = False
 
@@ -221,7 +227,7 @@ def create_app(settings=None, store=None, orc=None):
     @app.get('/api/v1/auth/session')
     async def get_session(token=Depends(session)):
         return {'authenticated': True, 'login': settings.login, 'csrf_token': csrf_token(token, settings.session_secret),
-                'capabilities': {'deep_research': False, 'model_selection': False, 'cancel': True, 'tool_progress': False,
+                'capabilities': {'deep_research': False, 'model_selection': True, 'cancel': True, 'tool_progress': False,
                                  'retention_days_default': 30}}
 
     @app.post('/api/v1/auth/sign-out')
@@ -308,6 +314,24 @@ def create_app(settings=None, store=None, orc=None):
                 await asyncio.sleep(settings.poll_seconds)
         return StreamingResponse(stream(), media_type='text/event-stream', headers={
             'Cache-Control':'no-store, no-transform', 'X-Accel-Buffering':'no', 'Content-Encoding':'identity'})
+
+    models_cache = {'at': None, 'data': None}
+
+    @app.get('/api/v1/models')
+    async def models(_=Depends(session)):
+        """EXEC-MODELS: the models a message may choose, with their levels and prices, cached for ten minutes; when Orc
+        cannot answer, the last list is kept (none yet: the page hides the choice and sends none)."""
+        now = time.monotonic()
+        if models_cache['data'] is None or now - models_cache['at'] >= MODELS_CACHE_SECONDS:
+            try:
+                data = await asyncio.to_thread(orc.models, settings.owner)
+            except OrcError:
+                data = None
+            if data:
+                models_cache.update(at=now, data=data)
+            elif models_cache['data'] is None:
+                raise OrcError('MODELS_UNAVAILABLE', 503)
+        return jsonable_encoder(models_cache['data'])
 
     @app.get('/api/v1/conversations')
     async def conversations(q: str = Query(default='', max_length=200), bookmarked: bool = False,

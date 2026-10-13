@@ -45,7 +45,7 @@ def test_auth_csrf_validation_and_storage(settings,store):
             db.execute('UPDATE edge_bff.sessions SET revoked_at=now() WHERE token_hash=%s',(token_hash(cookie),))
         assert c.get('/api/v1/auth/session').status_code==401
         h=login(c);assert c.post('/api/v1/runs',headers=ORIGIN,json={'message':'Hello','submission_key':'x'}).status_code==403
-        for bad in ({'model':'other'},{'owner':'foreign'},{'analysis_path':'ANALYSIS'},{'history':[]},{'message':' '}):
+        for bad in ({'model':'Other Model'},{'model':'x'*101},{'reasoning_level':'max'},{'owner':'foreign'},{'analysis_path':'ANALYSIS'},{'history':[]},{'message':' '}):
             r=c.post('/api/v1/runs',headers=h,json={'message':'Hello','submission_key':'x',**bad});assert r.status_code==422,r.text
         assert c.post('/api/v1/runs',headers=h,json={'message':'x'*140000,'submission_key':'x'}).status_code==413
 
@@ -94,8 +94,9 @@ def test_continuations_without_mode_override(settings,extra):
         import json
         bodies.append(json.loads(req.content));return httpx.Response(200,json={'status':'COMPLETED'})
     c=OrcClient(settings,httpx.Client(base_url=settings.orc_url,transport=httpx.MockTransport(handler)))
-    c.run(settings.owner,'edge_'+'a'*32,{'message':'Reply','model':'drop','analysis_path':'drop',**extra})
-    assert bodies==[{'message':'Reply',**extra,'request_id':'edge_'+'a'*32,'history_mode':'SERVER'}]
+    # EXEC-MODELS: the model and reasoning level are forwarded (Orc checks them); a path override is still dropped
+    c.run(settings.owner,'edge_'+'a'*32,{'message':'Reply','model':'z-ai/glm-5.3-flash','reasoning_level':'medium','analysis_path':'drop',**extra})
+    assert bodies==[{'message':'Reply',**extra,'model':'z-ai/glm-5.3-flash','reasoning_level':'medium','request_id':'edge_'+'a'*32,'history_mode':'SERVER'}]
 
 def test_private_diagnostics_and_fixed_headers(settings):
     seen=[]
@@ -282,3 +283,27 @@ def test_the_first_question_names_the_conversation_with_the_router_title(setting
         c.post('/api/v1/runs',headers=h,json={'message':'kasih saya lagi','conversation_id':conv,'submission_key':'d'})
         asyncio.run(Worker(settings,store,orc).process(store.claim(90)))
         assert store.conversation(settings.owner,conv)['title']=='Judul saya'
+
+
+def test_the_model_list_is_read_from_orc_cached_and_kept_when_orc_fails(settings,store):
+    """EXEC-MODELS: GET /api/v1/models passes Orc's offered models and prices (a 'reasoning' key is dropped like every
+    private key), reads Orc at most once in ten minutes, and keeps the last list when Orc cannot answer."""
+    orc=FakeOrc()
+    with TestClient(create_app(settings,store,orc)) as c:
+        assert c.get('/api/v1/models').status_code==401
+        login(c)
+        body=c.get('/api/v1/models').json()
+        assert [m['model'] for m in body['models']][:2]==['deepseek/deepseek-v4.1-flash','z-ai/glm-5.3-flash']
+        assert body['edge_default']=={'model':'deepseek/deepseek-v4.1-flash','reasoning_level':'high'}
+        c.get('/api/v1/models');assert orc.model_reads==1
+        orc.models=lambda owner:(_ for _ in ()).throw(OrcError())
+        assert c.get('/api/v1/models').json()==body
+        assert c.get('/api/v1/auth/session').json()['capabilities']['model_selection'] is True
+
+
+def test_without_a_model_list_from_orc_the_page_is_told_so(settings,store):
+    class NoModels(FakeOrc):
+        def models(self,owner):raise OrcError()
+    with TestClient(create_app(settings,store,NoModels())) as c:
+        login(c);r=c.get('/api/v1/models')
+        assert r.status_code==503 and r.json()['error']['code']=='MODELS_UNAVAILABLE'

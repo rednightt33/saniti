@@ -9520,6 +9520,11 @@ html:not(.dark) .monitor-layout .user-message .message-attachments span {color:#
 .edge-model-options>.edge-model-option {height:148px;min-height:148px;}
 .edge-model-initial {display:inline-grid;place-items:center;flex:none;width:27px;height:27px;border-radius:5px;background:var(--secondary);color:var(--foreground);font:600 13px Inter,"Segoe UI",sans-serif;}
 .edge-model-trigger>.edge-model-initial {width:18px;height:18px;font-size:10px;}
+.edge-model-level {color:var(--muted-foreground);font-weight:400;}
+.edge-model-levels {display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:12px 8px 4px;}
+.edge-model-levels small {width:100%;font-size:10px;color:var(--muted-foreground);}
+.edge-model-levels button {padding:6px 11px;border:0;border-radius:999px;background:var(--secondary);color:var(--foreground);font:500 12px Inter,"Segoe UI",sans-serif;cursor:pointer;}
+.edge-model-levels button[aria-checked="true"] {background:var(--primary);color:var(--primary-foreground);}
 
 
 
@@ -9942,7 +9947,9 @@ html.dark .monitor-layout .details-panel>.tabs button:focus-visible{outline-colo
  .composer textarea::placeholder {font-size:14px;}
  .composer>div:last-child {gap:8px;margin-top:2px;}
  .composer>div:last-child>div {gap:4px;min-width:0;flex-wrap:nowrap;}
- .composer [title="Model follows server configuration"],.composer [title="Data Scope is not available yet"] {display:none;}
+ .composer [title="Data Scope is not available yet"] {display:none;}
+ .composer .edge-model-name {display:none;}
+ .composer .edge-model-menu {position:fixed;left:12px;right:12px;bottom:calc(var(--edge-composer-height,98px) + 16px + env(safe-area-inset-bottom));width:auto;}
  .composer .mode-anchor>.btn {height:32px;padding:0 10px;border-radius:999px;background:var(--secondary);font-size:13px;}
  .composer>div:last-child>div>.icon-btn {width:32px;height:32px;min-width:32px;border-radius:999px;order:-1;}
  .composer>div:last-child>.btn.primary {width:36px;height:36px;min-width:36px;padding:0;border-radius:999px;justify-content:center;flex:none;}
@@ -10561,7 +10568,7 @@ function Monitor({ go }) {
       const holder=afterStop && executionRun ? items.find(c=>c.runs.some(r=>r.id===executionRun.id)) : null;
       const target=holder ? holder.id : selectedId;
       const existing=target?.startsWith("conv_")?target:null;
-      const payload={message:question,...(existing?{conversation_id:existing}:{}),...(afterStop?{after_stop:true}:{}),...extra,...(pendingReply&&!plain?{plan_reply:{...pendingReply,revision_instruction:question.slice(0,2000)}}:{})};
+      const payload={message:question,...edgeModelChoice(),...(existing?{conversation_id:existing}:{}),...(afterStop?{after_stop:true}:{}),...extra,...(pendingReply&&!plain?{plan_reply:{...pendingReply,revision_instruction:question.slice(0,2000)}}:{})};
       const fingerprint=JSON.stringify(payload);
       const pending=submissionRef.current?.fingerprint===fingerprint?submissionRef.current:{fingerprint,key:crypto.randomUUID()};submissionRef.current=pending;
       try{const accepted=await Edge.createRun({...payload,submission_key:pending.key});const now=new Date().toISOString(),id=accepted.conversation_id || existing || holder?.id || "draft:"+accepted.request_id;
@@ -10747,7 +10754,77 @@ function formatMessageJakarta(iso) {
     if (Number.isNaN(value.getTime())) return "Timestamp unavailable";
     return new Intl.DateTimeFormat("en-GB", {timeZone:"Asia/Jakarta",day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(value) + " UTC+7";
 }
-function EdgeModelSelector(){return element(Button,{kind:"ghost",disabled:true,title:"Model follows server configuration"},"Server model");}
+// EXEC-MODELS (user 2026-10-13): the model and reasoning level of the next message, chosen next to the composer and kept
+// in this browser; the models, their levels and prices come from Orc (GET /api/v1/models, prices read every hour). EDGE
+// starts on Orc's edge_default (DeepSeek V4.1 Flash, high); without the list no choice is sent (the server default runs).
+const MODEL_CHOICE_KEY = "edge-model-choice";
+let edgeModelsAwaited = false;
+const edgeModels = {get data(){return Edge.modelList().data;}, get failed(){return Edge.modelList().failed;}};
+function loadEdgeModels(){
+  // read at sign-in (edge-client.js); a list still on its way when the page showed redraws it once on arrival
+  if(edgeModels.data||edgeModels.failed||edgeModelsAwaited)return;
+  edgeModelsAwaited=true;Edge.loadModels().then(()=>{edgeModelsAwaited=false;refresh();});
+}
+function edgeDefaultLevel(option){
+  const fallback=edgeModels.data?.edge_default||{};
+  return option.model===fallback.model&&option.reasoning_levels.includes(fallback.reasoning_level)?fallback.reasoning_level:option.reasoning_levels.at(-1);
+}
+function edgeModelChoice(){
+  const data=edgeModels.data;if(!data)return {};
+  let saved=null;try{saved=JSON.parse(localStorage.getItem(MODEL_CHOICE_KEY)||"null");}catch{saved=null;}
+  const pick=model=>data.models.find(option=>option.model===model);
+  const option=pick(saved?.model)||pick(data.edge_default?.model)||data.models[0];
+  const level=saved?.model===option.model&&option.reasoning_levels.includes(saved?.reasoning_level)?saved.reasoning_level:edgeDefaultLevel(option);
+  return {model:option.model,reasoning_level:level};
+}
+function keepModelChoice(choice){try{localStorage.setItem(MODEL_CHOICE_KEY,JSON.stringify(choice));}catch{}refresh();}
+const edgeModelTime=new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Jakarta",hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
+function edgeModelPrice(value){return value==null?"–":"$"+(value<1?value.toFixed(3):value.toFixed(2));}
+function EdgeModelSelector(){
+  const view=currentView,ui=edgeUi();
+  loadEdgeModels();
+  const open=initialValue(view,"open",()=>false),setOpen=next=>updateValue(view,"open",next);
+  const anchor=cachedValue(view,"anchor",()=>({current:null}),[]);
+  onLifecycle(view,"outside",()=>{
+    if(!open)return;
+    const close=event=>{if(event.type==="keydown"?event.key==="Escape":!anchor.current?.contains(event.target))setOpen(false);};
+    document.addEventListener("mousedown",close);document.addEventListener("keydown",close);
+    return ()=>{document.removeEventListener("mousedown",close);document.removeEventListener("keydown",close);};
+  },[open]);
+  const data=edgeModels.data;
+  if(!data){
+    if(edgeModels.failed)return null;
+    // while the list loads the trigger keeps its place, so its arrival redraws text only and never moves the composer
+    return element("span",{className:"edge-model-anchor",ref:anchor},
+      element("button",{type:"button",className:"edge-model-trigger",disabled:true,title:ui.modelTitle},
+        element("span",{className:"edge-model-initial"},"\u2026"),element("span",{className:"edge-model-name"},ui.modelHead),
+        element("span",{className:"edge-model-level"},""),element(Icon,{name:"chevron"})));
+  }
+  const choice=edgeModelChoice(),current=data.models.find(option=>option.model===choice.model);
+  const levelName=level=>ui.modelLevels?.[level]??level,initial=option=>(option.label||option.model).charAt(0);
+  const updated=data.prices_fetched_at?new Date(data.prices_fetched_at):null;
+  return element("span",{className:"edge-model-anchor",ref:anchor},
+    element("button",{type:"button",className:"edge-model-trigger","aria-expanded":open,"aria-haspopup":"dialog",title:ui.modelTitle,onClick:()=>setOpen(!open)},
+      element("span",{className:"edge-model-initial"},initial(current)),
+      element("span",{className:"edge-model-name"},current.label),
+      element("span",{className:"edge-model-level"},levelName(choice.reasoning_level)),
+      element(Icon,{name:"chevron"})),
+    open&&element("div",{className:"edge-model-menu",role:"dialog","aria-label":ui.modelTitle},
+      element("div",{className:"edge-model-head"},element("strong",null,ui.modelHead),
+        element("small",null,ui.modelPricesNote+(updated&&!Number.isNaN(updated.getTime())?" · "+ui.modelUpdated+" "+edgeModelTime.format(updated)+" WIB":""))),
+      element("div",{className:"edge-model-options"},data.models.map(option=>element("button",{key:option.model,type:"button",className:"edge-model-option","aria-pressed":option.model===choice.model,
+          onClick:()=>keepModelChoice({model:option.model,reasoning_level:option.model===choice.model?choice.reasoning_level:edgeDefaultLevel(option)})},
+        element("span",{className:"edge-model-brand"},element("span",{className:"edge-model-initial"},initial(option)),
+          element("span",null,element("small",null,option.model.split("/")[0]),element("strong",null,option.label))),
+        element("span",{className:"edge-model-stats"},
+          element("span",null,element("small",null,ui.modelInput),element("b",null,edgeModelPrice(option.input_per_million))),
+          element("span",null,element("small",null,ui.modelOutput),element("b",null,edgeModelPrice(option.output_per_million)))),
+        element("span",{className:"edge-model-id"},option.model)))),
+      element("div",{className:"edge-model-levels",role:"radiogroup","aria-label":ui.modelLevel},
+        element("small",null,ui.modelLevel),
+        current.reasoning_levels.map(level=>element("button",{key:level,type:"button",role:"radio","aria-checked":level===choice.reasoning_level,
+          onClick:()=>keepModelChoice({model:current.model,reasoning_level:level})},levelName(level))))));
+}
 function ResearchScrollMarker({ scrollRef, conversationId }) {
     const view = currentView, markerRef = cachedValue(view, "marker", () => ({ current: null }), []);
     onLifecycle(view, "marker-scroll", () => {
@@ -11157,7 +11234,7 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
  return element("article",{className:"result",id:run.id+"-response",tabIndex:-1},
   element("div",{className:"result-kicker"},element(Icon,{name:"spark"}),"EDGE AI · "+v.status.label,element("i",{className:`edge-dot ${v.status.tone}`,"aria-hidden":"true"})),
   element("h1",null,run.result.title),
-  element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",null,v.meta.model),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.duration&&element("span",{className:"edge-duration",title:"Lama proses"},"\u23F1 "+v.meta.duration),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
+  element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",{className:"edge-run-model"},v.meta.model+(v.meta.reasoningLevel?" \u00B7 "+(edgeUi().modelLevels?.[v.meta.reasoningLevel]??v.meta.reasoningLevel):"")),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.duration&&element("span",{className:"edge-duration",title:"Lama proses"},"\u23F1 "+v.meta.duration),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
   v.evidence&&element("div",{className:"edge-tags"},element("span",{className:"edge-badge neutral",title:v.evidence.code},v.evidence.label)),
   v.answer&&element("div",{className:"content-block edge-answer"},element(Markdown,{text:v.answer,claims})),
   v.clarification&&element("section",{className:"content-block edge-choice-panel"},element(Markdown,{text:v.clarification.text,claims}),

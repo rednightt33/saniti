@@ -58,8 +58,10 @@ class OrcClient:
             raise OrcError('ORC_INVALID_RESPONSE', ambiguous=method == 'POST') from e
 
     def run(self, owner, request_id, payload):
-        # Strict whitelist; no browser model/provider/path/history overrides.
-        body = {k: payload[k] for k in ('message', 'conversation_id', 'chosen_option', 'plan_reply') if k in payload}
+        # Strict whitelist; no browser provider/path/history overrides. EXEC-MODELS: the model and reasoning level
+        # are forwarded and checked by Orc against its offered models (an unknown one is refused there).
+        body = {k: payload[k] for k in ('message', 'conversation_id', 'chosen_option', 'plan_reply', 'model',
+                                        'reasoning_level') if k in payload}
         body.update(request_id=request_id, history_mode='SERVER')
         return self._call('POST', '/v1/agent/run', owner, body)
 
@@ -79,6 +81,10 @@ class OrcClient:
         if response.status_code == 404:
             return 'NOT_RUNNING'
         raise OrcError()
+
+    def models(self, owner):
+        """EXEC-MODELS: Orc's offered models, their reasoning levels and their prices per one million tokens."""
+        return self._call('GET', '/v1/models', owner)
 
     def messages(self, owner, conversation_id, after=-1, limit=20):
         return self._call('GET', f'/v1/conversations/{conversation_id}/messages?after={after}&limit={limit}', owner)

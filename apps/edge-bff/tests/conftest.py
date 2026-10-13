@@ -37,7 +37,7 @@ class FakeOrc:
     def __init__(self,status='COMPLETED'):self.status=status;self.saved={};self.calls=[]
     def run(self,owner,id,payload):
         self.calls.append((owner,id,payload.copy()));conv=payload.get('conversation_id') or 'conv_'+uuid.uuid4().hex
-        result={'request_id':id,'status':self.status,'response':{'response_type':'ANSWER','answer':'Saved answer <script>window.pwned=true</script>','assumptions':[],'limitations':[],'clarification_question':None,'research_plan':None},'execution':{'model':'fixture-model','cost':0.001,'total_tokens':42},'conversation':{'conversation_id':conv,'persistence':'SAVED'},'options':[{'label':'Quick summary','route':'QUICK_SUMMARY'}]}
+        result={'request_id':id,'status':self.status,'response':{'response_type':'ANSWER','answer':'Saved answer <script>window.pwned=true</script>','assumptions':[],'limitations':[],'clarification_question':None,'research_plan':None},'execution':{'model':payload.get('model') or 'fixture-model','cost':0.001,'total_tokens':42,**({'reasoning_level':payload['reasoning_level']} if payload.get('reasoning_level') else {})},'conversation':{'conversation_id':conv,'persistence':'SAVED'},'options':[{'label':'Quick summary','route':'QUICK_SUMMARY'}]}
         self.saved[id]={'request_id':id,'conversation_id':conv,'turn_status':'COMPLETED','run_status':self.status,'response':result,'user_message':payload['message']};return result
     def stop(self,owner,id):self.stopped=getattr(self,'stopped',[])+[id];return 'NOT_RUNNING' if id in self.saved else 'STOPPING'
     def request(self,owner,id):return self.saved.get(id)
@@ -45,4 +45,13 @@ class FakeOrc:
         turns=[dict(t,turn_index=i,status=t['turn_status'],created_at='2026-10-08T00:00:00+00:00',completed_at='2026-10-08T00:00:01+00:00') for i,t in enumerate(self.saved.values()) if t['conversation_id']==conv];turns=[t for t in turns if t['turn_index']>after]
         if not turns and not any(t['conversation_id']==conv for t in self.saved.values()):return None
         return {'conversation_id':conv,'messages':turns[:limit],'has_more':len(turns)>limit,'next_after':turns[limit-1]['turn_index'] if len(turns)>limit else None,'research_plan':None}
+    # EXEC-MODELS: Orc's GET /v1/models (prices per one million tokens; Orc strips nothing, the BFF drops 'reasoning')
+    MODELS={'models':[{'model':'deepseek/deepseek-v4.1-flash','label':'DeepSeek V4.1 Flash','reasoning_levels':['low','medium','high'],'input_per_million':0.0441,'output_per_million':0.63,'cache_read_per_million':0.0054},
+                      {'model':'z-ai/glm-5.3-flash','label':'GLM 5.3 Flash','reasoning_levels':['low','medium','high'],'input_per_million':0.0261,'output_per_million':0.9,'cache_read_per_million':0.0108},
+                      {'model':'xiaomi/mimo-v2.6-pro','label':'MiMo V2.6 Pro','reasoning_levels':['off','on'],'input_per_million':0.435,'output_per_million':0.87,'cache_read_per_million':0.0036},
+                      {'model':'xiaomi/mimo-v2.6-flash','label':'MiMo V2.6 Flash','reasoning_levels':['off','on'],'input_per_million':0.14,'output_per_million':0.28,'cache_read_per_million':0.0028},
+                      {'model':'qwen/qwen3.8-flash','label':'Qwen3.8 Flash','reasoning_levels':['off','on'],'input_per_million':0.15,'output_per_million':0.47,'cache_read_per_million':0.016}],
+            'prices_fetched_at':'2026-10-13T10:25:31+00:00','edge_default':{'model':'deepseek/deepseek-v4.1-flash','reasoning_level':'high'},
+            'server_default':{'model':'deepseek/deepseek-v4.1-flash'}}
+    def models(self,owner):self.model_reads=getattr(self,'model_reads',0)+1;return self.MODELS
     def close(self):pass

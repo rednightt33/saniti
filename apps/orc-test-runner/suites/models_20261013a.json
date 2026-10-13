@@ -1,0 +1,53 @@
+{
+  "prefix": "ma-models-20261013a",
+  "workers": 3,
+  "audit_wait_seconds": 0,
+  "items": [
+    {
+      "id": "ab6_default",
+      "analysis_path": "ANALYSIS",
+      "message": "Broker mana saja yang paling banyak net buy di BBRI sebulan terakhir data? Tampilkan 10 teratas dengan total net buy, jumlah hari net buy, dan porsinya terhadap total net buy.",
+      "expect": "EXEC-DAYS + solution 2 A/B (user 2026-10-13 \"A/B on vs off 2 questions\", \"Hanya tabel ON vs OFF\"): table ON; orc 12ffea95, sandbox e62b7d3a, prompt v007, reasoning medium"
+    },
+    {
+      "id": "ab6_deepseek_high",
+      "analysis_path": "ANALYSIS",
+      "message": "Broker mana saja yang paling banyak net buy di BBRI sebulan terakhir data? Tampilkan 10 teratas dengan total net buy, jumlah hari net buy, dan porsinya terhadap total net buy.",
+      "expect": "EXEC-DAYS + solution 2 A/B (user 2026-10-13 \"A/B on vs off 2 questions\", \"Hanya tabel ON vs OFF\"): table ON; orc 12ffea95, sandbox e62b7d3a, prompt v007, reasoning medium",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high"
+    },
+    {
+      "id": "ab6_glm_medium",
+      "analysis_path": "ANALYSIS",
+      "message": "Broker mana saja yang paling banyak net buy di BBRI sebulan terakhir data? Tampilkan 10 teratas dengan total net buy, jumlah hari net buy, dan porsinya terhadap total net buy.",
+      "expect": "EXEC-DAYS + solution 2 A/B (user 2026-10-13 \"A/B on vs off 2 questions\", \"Hanya tabel ON vs OFF\"): table ON; orc 12ffea95, sandbox e62b7d3a, prompt v007, reasoning medium",
+      "model": "z-ai/glm-5.3-flash",
+      "reasoning_level": "medium"
+    },
+    {
+      "id": "ab6_mimo_pro_on",
+      "analysis_path": "ANALYSIS",
+      "message": "Broker mana saja yang paling banyak net buy di BBRI sebulan terakhir data? Tampilkan 10 teratas dengan total net buy, jumlah hari net buy, dan porsinya terhadap total net buy.",
+      "expect": "EXEC-DAYS + solution 2 A/B (user 2026-10-13 \"A/B on vs off 2 questions\", \"Hanya tabel ON vs OFF\"): table ON; orc 12ffea95, sandbox e62b7d3a, prompt v007, reasoning medium",
+      "model": "xiaomi/mimo-v2.6-pro",
+      "reasoning_level": "on"
+    },
+    {
+      "id": "ab6_mimo_flash_on",
+      "analysis_path": "ANALYSIS",
+      "message": "Broker mana saja yang paling banyak net buy di BBRI sebulan terakhir data? Tampilkan 10 teratas dengan total net buy, jumlah hari net buy, dan porsinya terhadap total net buy.",
+      "expect": "EXEC-DAYS + solution 2 A/B (user 2026-10-13 \"A/B on vs off 2 questions\", \"Hanya tabel ON vs OFF\"): table ON; orc 12ffea95, sandbox e62b7d3a, prompt v007, reasoning medium",
+      "model": "xiaomi/mimo-v2.6-flash",
+      "reasoning_level": "on"
+    },
+    {
+      "id": "ab6_qwen_on",
+      "analysis_path": "ANALYSIS",
+      "message": "Broker mana saja yang paling banyak net buy di BBRI sebulan terakhir data? Tampilkan 10 teratas dengan total net buy, jumlah hari net buy, dan porsinya terhadap total net buy.",
+      "expect": "EXEC-DAYS + solution 2 A/B (user 2026-10-13 \"A/B on vs off 2 questions\", \"Hanya tabel ON vs OFF\"): table ON; orc 12ffea95, sandbox e62b7d3a, prompt v007, reasoning medium",
+      "model": "qwen/qwen3.8-flash",
+      "reasoning_level": "on"
+    }
+  ]
+}

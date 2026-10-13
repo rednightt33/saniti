@@ -5,7 +5,10 @@
   class ApiError extends Error {
     constructor(code, status) { super(code); this.status = status; }
   }
-  const reset = () => { auth = null; followers.forEach(close => close()); followers.clear(); dispatchEvent(new Event('edge-auth')); };
+  // EXEC-MODELS: the offered models are read once per session, before the work page shows (sign-in or a restored
+  // session waits up to 3 s for them), so their arrival never redraws the page while the user types
+  let models = {data:null, failed:false, pending:null};
+  const reset = () => { auth = null; models = {data:null, failed:false, pending:null}; followers.forEach(close => close()); followers.clear(); dispatchEvent(new Event('edge-auth')); };
   async function api(path, body, method = body === undefined ? 'GET' : 'POST') {
     const headers = method === 'GET' ? {} : { 'X-CSRF-Token':auth?.csrf_token || '', ...(body === undefined ? {} : {'Content-Type':'application/json'}) };
     const res = await fetch('/api/v1' + path, { method, headers, credentials:'same-origin', ...(body === undefined ? {} : {body:JSON.stringify(body)}) });
@@ -70,13 +73,19 @@
     sources:snapshot.response ? [...(snapshot.response.evidence || []),...(snapshot.response.annotations || []),...(snapshot.response.data_record ? [{name:'Data record',record:snapshot.response.data_record}] : [])] : previous.sources,
     steps:[{id:'state',label:{QUEUED:'Queued',RUNNING:'AI request running',RECOVERING:'Recovering delivery',FINISHED:'Saved response: '+statusLabel('completed',snapshot.run_status,snapshot.response?.execution?.pause),FAILED:'Request failed',INTERRUPTED:'Delivery interrupted'}[snapshot.state],status:terminal(snapshot) ? snapshot.state === 'FINISHED' && snapshot.run_status !== 'FAILED' && !snapshot.expired ? 'completed' : 'failed' : 'running',detail:snapshot.updated_at}]
   });
+  const loadModels = () => models.pending || (models.pending = api('/models')
+    .then(data => { const ok = Array.isArray(data?.models) && data.models.length > 0; models.data = ok ? data : null; models.failed = !ok; })
+    .catch(() => { models.failed = true; }));
+  const settle = promise => Promise.race([promise, new Promise(resolve => setTimeout(resolve, 3000))]);
   window.Edge = {
     api,follow,terminal,conversations,messages,adaptRun,stateRun,statusLabel,
     get auth() { return auth; },
-    async session() { try { auth = await api('/auth/session'); } catch { auth = null; } return auth; },
-    async signin(login,password) { auth = await api('/auth/sign-in',{login,password}); dispatchEvent(new Event('edge-auth')); return auth; },
+    async session() { try { auth = await api('/auth/session'); } catch { auth = null; } if (auth) await settle(loadModels()); return auth; },
+    async signin(login,password) { auth = await api('/auth/sign-in',{login,password}); await settle(loadModels()); dispatchEvent(new Event('edge-auth')); return auth; },
     async signout() { await api('/auth/sign-out',{}); reset(); },
     createRun: body => api('/runs',body),
+    modelList: () => models,
+    loadModels: () => loadModels(),
     stopRun: id => api('/runs/'+encodeURIComponent(id)+'/stop',{}),
     bookmark: (id,bookmarked) => api('/conversations/'+encodeURIComponent(id)+'/preferences',{bookmarked},'PATCH'),
     hideConversation: id => api('/conversations/'+encodeURIComponent(id),undefined,'DELETE'),

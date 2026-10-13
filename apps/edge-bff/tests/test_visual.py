@@ -374,7 +374,7 @@ def test_submit_error_keyboard_disabled_controls_and_resizing(dummy_orc, browser
     assert page.locator('.mode-menu button').filter(has_text='Deep Research').is_disabled()
     page.keyboard.press('Escape')
     assert not page.locator('.mode-menu').count()
-    for label in ('Server model', 'Data Scope', 'Attachments are not available yet', 'Public sharing unavailable', 'Support unavailable', 'Notifications unavailable'):
+    for label in ('Data Scope', 'Attachments are not available yet', 'Public sharing unavailable', 'Support unavailable', 'Notifications unavailable'):
         assert page.get_by_role('button', name=label, exact=True).is_disabled()
     page.get_by_role('button', name='Account menu', exact=True).click()
     composer.click()
