@@ -59,8 +59,8 @@ tanpa kewajiban asumsi/batasan (keputusan user 2026-10-12).
 dan EXEC-DELETE; juga EXEC-DETAILS (+ M144) dan EXEC-DURATION.
 
 **Berjalan (go 2026-10-13):** EXEC-TABLE (tabel jawaban dirender dari kode, dengan wayback machine).
-**Dicatat, belum dieksekusi (urutan, rencana EXEC-IMPL-1013, menunggu go):** EXEC-M143 (perbaikan (a) + (c), solusi 1
-aturan diperjelas, solusi 2 pra-cek angka diketik), lalu EXEC-REASONING (reasoning langkah utama ke medium, tanpa A/B).
+**Selesai dan ter-deploy 2026-10-13 (EXEC-IMPL-1013, go "Go"):** EXEC-M143 (a) + (c) dan solusi 1 (orc `06da1d23`),
+EXEC-REASONING `medium` (orc `82cdb137`). **Ditunda (pilihan user):** solusi 2 pra-cek angka diketik.
 **Menunggu keputusan:** M145, M146, EXEC-DETAILS butir 1 (tampilan mobile saat scroll).
 
 **Berjalan (2026-10-08):** EXEC-X (M124 + M125 A/B, tampilan jawaban EDGE). Dibangun di cabang
@@ -2179,7 +2179,8 @@ dulu."
   sesudah EXEC-M143. Saat dieksekusi: `AI_REASONING_EFFORT` `high` → `medium` di market-ai-orc (dev), deploy sampai
   SUCCESS, `railway config pull --force` dan `railway config plan`, lalu bandingkan log run sesudahnya (lama proses,
   penolakan gerbang) dengan run sebelumnya.
-- Status: **menunggu perintah eksekusi dari user.** Saat dieksekusi: catat di `RAILWAY_CHANGELOG.md` (nama variabel,
+- **Dieksekusi 2026-10-13** (go "Go", EXEC-IMPL-1013 Fase 2): orc `82cdb137` SUCCESS dengan `medium`. Rollback: `high`.
+- Status sebelumnya: menunggu perintah eksekusi dari user. Saat dieksekusi: catat di `RAILWAY_CHANGELOG.md` (nama variabel,
   layanan, deployment sampai SUCCESS).
 
 ### EXEC-TABLE: tabel jawaban dirender dari kode, dengan wayback machine (A/B tidak lolos; saklar kembali mati)
@@ -2400,6 +2401,17 @@ ulang; cek live masih menolak angka berskala.
   plus satu panggilan model). Penolakan gerbang yang sekarang ada diperbaiki dengan edit kecil (4–49 s), dan hanya
   sesekali. Akan diputuskan lagi setelah dilihat apakah aturan baru menurunkan penolakan angka yang diketik. Karena
   `check_references` tidak berubah, tidak ada migrasi Tool_Catalog.
+- Fase 1 ter-deploy: `main` `8b87378`, orc `06da1d23` SUCCESS (edge-bff SKIPPED), log start bersih.
+- Cek live `ma-m143-20261013a` (pertanyaan Run B yang dulu kena M143, USD 0,043, 170 s): **tidak ada penolakan M143**.
+  - Uang dirujuk dengan `|rp` dari kolom satuan dasar ("Rp 1,51 triliun", "Rp 79,42 miliar"), sesuai aturan (c).
+  - Satu TYPED_FIGURES "19" (jumlah hari bursa) tetap muncul, diperbaiki dalam satu edit. Log penalaran menunjukkan AI
+    membaca aturan baru (mengutip "A count that describes the period… is a figure from data too") dan merilis
+    `hari_perdagangan`, tetapi tetap mengetik angka itu sekali di draf. Jadi solusi 1 belum menghilangkan pola ini;
+    dipantau di run berikutnya.
+- Fase 2: `AI_REASONING_EFFORT` `high` → `medium`, orc `82cdb137` SUCCESS. Log start `ai_model_selected` menunjukkan
+  `reasoning {"effort": "medium"}`. `railway config pull`: variabel sudah tercatat; hanya drift tiga cron yang sama
+  (tidak disentuh).
+- EXEC-REASONING: **dieksekusi** 2026-10-13. Tahap pemantauan: bandingkan log run nyata sesudahnya.
 
 **Rollback Fase 1:** `git revert` commit fitur, lalu push `main` (prompt kembali ke `v005`). Baris Tool_Catalog v2
 dibiarkan (hanya catatan, `is_active=false`) atau dibatalkan dengan migrasi baru.

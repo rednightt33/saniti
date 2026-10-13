@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-10-13 — EXEC-M143 deployed, reasoning effort medium
+
+User: "Ok perbaiki M143 dulu, ganti reasoning ke medium ya. Jangan A/B test dulu" and "Go" (EXEC.md EXEC-IMPL-1013).
+Rollback references: orc `98ae6f92`; `AI_REASONING_EFFORT=high`.
+- `main` `8b87378` (M143 (a) + (c), prompt snapshot `v006`): market-ai-orc **06da1d23-cfe6-4514-b02a-61951f3bc25a**
+  reached **SUCCESS** (edge-bff SKIPPED); start log without error or `*_inactive` event.
+- Live check through `orc-test-runner` **9fdfdb0b-30d3-4b9d-ac04-4e16f0c7b1e8** (`ma-m143-20261013a`, one question,
+  USD 0.043): no PROVENANCE refusal of a scaled figure; one TYPED_FIGURES repair ("19").
+- market-ai-orc variable `AI_REASONING_EFFORT` `high` → `medium`: **82cdb137-2bd2-4c5d-9781-573c885aaa41** **SUCCESS**;
+  `ai_model_selected` logs `reasoning {"effort": "medium"}`. Routers and follow-ups keep `low` (code).
+- `railway config pull --force`: the variable was already in `.railway/railway.ts`; the pull again shows only the three
+  recovery-cron start commands changed outside this work (not committed, reported earlier).
+- No migration, model, provider or mode change.
+
 ## 2026-10-13 — EXEC-TABLE deployed (flag off), A/B on dev, flag back off
 
 User: "Terkait dengan render tabel dari kode yang kamu sebutkan, OK. Siapkan wayback machine ke existing process" and

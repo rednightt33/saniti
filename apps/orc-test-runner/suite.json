@@ -1,20 +1,13 @@
 {
- "prefix": "ma-ab-table-20261013c",
+ "prefix": "ma-m143-20261013a",
  "workers": 1,
- "audit_wait_seconds": 300,
- "audit_full_trace": true,
- "audit_request_ids": [
-  "ma-ab-table-20261013b-ab3_analysis-1",
-  "ma-ab-table-20261013b-ab4_price_broker-1",
-  "ma-ab-table-20261013b-ab6_broker-1",
-  "ma-ab-table-20261013c-ab5_ranking-1"
- ],
+ "audit_wait_seconds": 0,
  "items": [
   {
-   "id": "ab5_ranking",
+   "id": "m1_price_foreign",
    "analysis_path": "ANALYSIS",
-   "message": "Tampilkan 15 saham dengan net buy asing terbesar sebulan terakhir data, beserta return harga dan rata-rata nilai transaksi hariannya.",
-   "expect": "EXEC-TABLE A/B: ANALYSIS, a table-heavy answer (one ranking table); rerun ON (b ended LIMITATION: the model wrote a raw tool-call markup as its answer, before any data) (AI_ENABLE_TABLE_DIRECTIVES true)"
+   "message": "Bagaimana harga BBRI bergerak di hari-hari net buy asingnya besar, sebulan terakhir data? Sebutkan juga total net buy asingnya dalam rupiah.",
+   "expect": "EXEC-M143 live check (orc 06da1d23, prompt v006): the Run B question that hit M143; no PROVENANCE refusal of a scaled figure"
   }
  ]
 }

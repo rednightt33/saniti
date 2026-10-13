@@ -1,0 +1,13 @@
+{
+ "prefix": "ma-m143-20261013a",
+ "workers": 1,
+ "audit_wait_seconds": 0,
+ "items": [
+  {
+   "id": "m1_price_foreign",
+   "analysis_path": "ANALYSIS",
+   "message": "Bagaimana harga BBRI bergerak di hari-hari net buy asingnya besar, sebulan terakhir data? Sebutkan juga total net buy asingnya dalam rupiah.",
+   "expect": "EXEC-M143 live check (orc 06da1d23, prompt v006): the Run B question that hit M143; no PROVENANCE refusal of a scaled figure"
+  }
+ ]
+}
