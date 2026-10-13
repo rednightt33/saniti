@@ -34,3 +34,23 @@ def test_a_date_column_counts_its_distinct_dates_exactly(tmp_path) -> None:
     assert result["columns"]["date"]["min"] == "2026-08-03" and result["columns"]["date"]["max"] == "2026-08-31"
     assert result["entities"] == 40 and result["rows"] == 19 * 40
     assert result["columns"]["ticker"]["distinct"] > 0 and result["columns"]["board"]["distinct"] == 1
+
+
+def test_each_requested_range_counts_its_trading_dates_without_the_buffer(tmp_path) -> None:
+    """The dates inside a requested range are counted exactly (buffer rows before it are not), so the answer can
+    cite "19 hari bursa" by an address instead of typing it or borrowing one stock's day count."""
+    from runtime.profiler import Profiler
+
+    days = [dt.date(2026, 7, d) for d in (28, 29, 30, 31)] + [dt.date(2026, 8, d) for d in TRADING_DAYS]
+    frame = pd.DataFrame([{"entity": e, "date": d, "close": 100.0} for e in ("BBRI", "BBCA") for d in days])
+    path = tmp_path / "prices.parquet"
+    frame.to_parquet(path)
+    request = {"data_request_id": "prices", "logical_name": "prices", "entity_column": "entity",
+               "time_column": "date", "columns": ["entity", "date", "close"], "key_columns": ["entity", "date"],
+               "source_frequency": "1D",
+               "files": [{"path": str(path), "partition_id": "p1", "window": {"from": "2026-07-28", "to": "2026-08-31"}}],
+               "ranges": [{"range_id": "august", "start": "2026-08-01", "end": "2026-08-31",
+                           "extract_from": "2026-07-28", "extract_to": "2026-08-31"}]}
+    result = Profiler(duckdb.connect(":memory:"), "2026-09-30").profile(request)
+    august = result["requested_ranges"][0]
+    assert august["dates"] == 19 and august["rows"] == 38 and august["buffer_rows_before"] == 8

@@ -198,11 +198,14 @@ S_ADDED = {
     "A count that describes the period or the sample (trading days, stocks, brokers) is a figure from data too, and a number worked out from the user's figure (one fewer than the stocks asked for) is a calculation: write it by its address or leave it out.",
     'An example amount is a number as well: say it in words.',
     'Release money and volume in their base unit and show them with rp or int, rather than releasing them already in millions or billions.',
+    # EXEC-DAYS (user 2026-10-13, "Ok, coba perbaiki ya"): the period's trading days have their own address
+    '{{data.<data_request_id>.<range_id>.dates}} the trading dates a prepared data request holds inside a range (also rows and entities), by the "ref" prepare_data_bundle shows;',
+    "cite the period's trading days by it;",
 }
 REMOVED, ADDED = (REMOVED | (S_REMOVED - ADDED)) - S_ADDED, (ADDED - S_REMOVED) | (S_ADDED - REMOVED)
 # the reader section added about six percent (the budget was two percent over the pass-2 fixture); EXEC-Y Fase 3's
-# four sentences about half a percent more; EXEC-STYLE about half a percent more; EXEC-M143 about one percent more
-SIZE_BUDGET = 1.12
+# four sentences about half a percent more; EXEC-STYLE about half a percent more; EXEC-M143 about one percent more; EXEC-DAYS about a third of a percent more
+SIZE_BUDGET = 1.125
 
 SECTIONS = ["GENERAL RULES", "TOOL USE", "TOOL RESULTS", "FINAL RESPONSE", "WRITING FOR THE READER", "DATA DISCOVERY", "DATA SOURCES",
             "DATA NEED", "MODES", "TIME BASIS", "NAMED-PERIOD RETURNS", "WEEKLY AND MONTHLY", "CONVERSATION REUSE",

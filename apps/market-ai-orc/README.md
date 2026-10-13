@@ -1198,6 +1198,15 @@ the same tools (`TOOL_MARKUP_NOTE` names the tool from `invoke name="..."`), at 
 run; then the final response is asked for as before. Logged `ai_tool_markup_retried`; the hurdle reads "Bentuk jawaban
 diminta ulang (panggilan alat tertulis sebagai teks)". The markup itself is never run.
 
+### Trading days by address and the draft check (EXEC-DAYS, solution 2)
+
+- `prepare_data_bundle` READY registers each data request's ranges as `data.<data_request_id>` (`ranges[].dates`,
+  `rows`, `entities`, counted inside the range by the bundle profiler, buffer excluded), so the period's trading days
+  are cited as `{{data.<request>.<range>.dates}}` (prompt `v007`, `DATA_REFERENCE`).
+- `check_references` v2 takes `draft`: `AgentOrchestrator._check_draft` runs the TYPED_FIGURES and PROVENANCE checks on
+  it without effect (no refusal counted, nothing cited; `_auto_references(record=False)`) and returns the typed figures
+  with their equal addresses and the numbers without a source (`current_draft_checker`, logged `ai_draft_checked`).
+
 ### Web research (item 12)
 
 `AI_ENABLE_WEB_RESEARCH`, the tool `research_web` (`app/tools/web_research.py`), market-web-governor

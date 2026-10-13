@@ -38,6 +38,8 @@ registering the new versions of the tools whose contract changed in that round.
 - round_r (20261012_007): submit_data_need_spec v12 (request_key_columns, expected_value, the time pair dropped under
   EXACT_DATE / AS_OF; G25), check_data_feasibility v7 and check_research_feasibility v6 (the same key-column
   description) and run_python v7 (discarded_outputs of a failed run are never released; M139).
+- round_s (20261013_009): check_references v2 (an optional draft is checked like the answer without effect: typed
+  figures with their equal addresses, numbers without a source; EXEC-M143 solution 2).
 
 Registered from the code with every switch of the dev environment on (the registry of scripts/generate_ai_tools_doc.py,
 one source for both). An applied migration is frozen (database/migrations/APPLIED.sha256); market-ai-orc's
@@ -392,8 +394,22 @@ ROUNDS = {
                     "run_python v7: the tables a failed run emitted are discarded_outputs, never released (M139)."],
         "limits": {},
     },
+    "round_s": {
+        "target": ROOT / "database/migrations/20261013_009_round_s_tool_catalog.sql",
+        "versions": {"check_references": ("v1", "v2")},
+        "contracts": {"check_references": ("input_schema", "draft")},
+        "title": "draft pre-check (solution 2)",
+        "header": "EXEC.md EXEC-M143 solution 2 (user \"also enable solusi 2\", 2026-10-13)",
+        "design": "EXEC.md EXEC-M143 solution 2, EXEC-DAYS; ERRORS_AND_SOLUTIONS.md M143",
+        "limits_design": "EXEC.md EXEC-M143 solution 2",
+        "summary": ["check_references v2: an optional draft (the answer text with its references) is checked like the",
+                    "answer without effect on the run: typed figures with the addresses equal to them and numbers",
+                    "without a source are listed before the answer is sent."],
+        "limits": {"check_references": "at most 40 references and a draft of at most 30000 characters per call; this "
+                                       "run's references only; a draft check counts no refusal"},
+    },
 }
-NEWEST = "round_r"
+NEWEST = "round_s"
 
 
 def _tools_doc():

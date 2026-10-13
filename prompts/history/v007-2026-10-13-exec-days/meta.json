@@ -1,0 +1,10 @@
+{
+ "version": 7,
+ "date": "2026-10-13",
+ "name": "exec-days",
+ "decision": "\"Ok, coba perbaiki ya, also enable solusi 2, enable ON\" (2026-10-13)",
+ "change": "VALUE REFERENCES: a new reference kind {{data.<data_request_id>.<range_id>.dates}} for the trading dates of a prepared data request's range (EXEC-DAYS); check_references v2 takes a draft (solution 2, tool description)",
+ "prompt_chars": 38633,
+ "prompt_sha256": "c248a495a4f03c583d8bf6a8ee4ad425f3646765ddd7f263b565d7515318e4a9",
+ "schema_sha256": "48bceaa503bc5008b5d949b461b36c7c322017f50354b2138f48c5e02d2b1a03"
+}

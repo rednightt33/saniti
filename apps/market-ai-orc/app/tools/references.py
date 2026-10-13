@@ -8,29 +8,46 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .. import table_directives
 from ..value_refs import render
 from .registry import ToolSpec
-from .request_data import current_reference_sources
+from .request_data import current_draft_checker, current_reference_sources
 
 DESCRIPTION = (
     "Shows what value references render to before you write the answer: give the addresses (with or without {{ }} "
     "and a format) and get each one's displayed value, or why it does not resolve and the addresses that exist. "
-    "Reads only this run's results; no data is fetched or computed.")
+    "Reads only this run's results; no data is fetched or computed. With draft (the answer text you are about to "
+    "send, its references unchanged) it also lists what the answer checks would refuse: figures typed without a "
+    "reference, with the addresses that equal them, and numbers without a source. Pass the draft in the check you "
+    "already make before answering; it does not count as a refusal.")
 MAX_REFERENCES = 40
+MAX_DRAFT_CHARS = 30000
 
 
 class CheckReferencesArguments(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    references: list[str] = Field(min_length=1, max_length=MAX_REFERENCES,
+    references: list[str] = Field(max_length=MAX_REFERENCES,
                                   description="Value references, for example 'finding.a.estimates.primary.estimate|pp:2'.")
+    draft: str | None = Field(max_length=MAX_DRAFT_CHARS,
+                              description="The answer text you are about to send, references unchanged, or null.")
+
+    @model_validator(mode="after")
+    def _something_to_check(self) -> "CheckReferencesArguments":
+        if not self.references and not (self.draft or "").strip():
+            raise ValueError("give references, a draft, or both")
+        return self
 
 
-def check(references: list[str], sources: Any) -> dict[str, Any]:
-    """Each address rendered as the answer would render it."""
+def check(references: list[str], sources: Any, draft: str | None = None) -> dict[str, Any]:
+    """Each address rendered as the answer would render it; with a draft, what the answer checks would refuse."""
+    if draft and draft.strip():
+        checker = current_draft_checker.get()
+        found = check(references, sources) if references else {"status": "OK", "results": []}
+        found["draft"] = checker(draft) if checker is not None else {"status": "UNAVAILABLE"}
+        return found
     if sources is None or not sources:
         return {"status": "NO_REFERENCES", "results": [],
                 "note": "This run has no referable values yet: complete an analysis or read a result first."}
@@ -64,7 +81,7 @@ def check(references: list[str], sources: Any) -> dict[str, Any]:
 
 def check_references_spec() -> ToolSpec:
     def handler(arguments: CheckReferencesArguments) -> dict[str, Any]:
-        return check(arguments.references, current_reference_sources.get())
+        return check(arguments.references, current_reference_sources.get(), arguments.draft)
 
     return ToolSpec(name="check_references", effect="READS", description=DESCRIPTION,
                     arguments_model=CheckReferencesArguments, handler=handler, timeout_seconds=30.0)

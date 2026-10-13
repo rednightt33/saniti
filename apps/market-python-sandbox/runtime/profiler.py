@@ -209,9 +209,11 @@ class Profiler:
         for item in request["ranges"]:
             start, end = date.fromisoformat(item["start"]), date.fromisoformat(item["end"])
             inside = f"{t} BETWEEN DATE {_literal(item['start'])} AND DATE {_literal(item['end'])}"
-            rows, entities, low, high = self.rows(
-                f"SELECT count(*), {f'count(DISTINCT {e})' if e else 'NULL'}, min({t}), max({t}) FROM {view} "
-                f"WHERE {inside}")[0]
+            # M147 follow-up (2026-10-13): the distinct dates inside the range (exact), a sourced count of the trading
+            # days a reader is told ("19 hari bursa"); buffer rows are outside the range and not counted
+            rows, entities, low, high, dates = self.rows(
+                f"SELECT count(*), {f'count(DISTINCT {e})' if e else 'NULL'}, min({t}), max({t}), count(DISTINCT {t}) "
+                f"FROM {view} WHERE {inside}")[0]
             # P32 (2026-10-05): the rows extracted around the range for warm-up (before) and forward outcomes (after),
             # counted separately so a count names the span it covers (buffer rows are input, not sample)
             before, after = self.rows(
@@ -223,7 +225,8 @@ class Profiler:
                                      "extract_to": item["extract_to"], "actual_start": _iso(low),
                                      "actual_end": _iso(high), "rows": int(rows),
                                      "buffer_rows_before": int(before or 0), "buffer_rows_after": int(after or 0),
-                                     "entities": int(entities) if entities is not None else None}
+                                     "entities": int(entities) if entities is not None else None,
+                                     "dates": int(dates or 0)}
             if item.get("end_requested"):
                 entry["end_requested"] = item["end_requested"]  # 1b: "LATEST", bound to the reference date
             if not rows:

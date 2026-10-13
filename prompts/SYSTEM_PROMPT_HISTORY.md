@@ -27,6 +27,7 @@ whenever the rendered prompt or schema changes (AGENTS.md, Mandatory workflow).
 | v004 | 2026-10-12 | [exec-style](history/v004-2026-10-12-exec-style/system_prompt.md) | 38,522 | `58d6ec180d2f` | `48bceaa503bc` | Ok, yang adopsi dan sebagian --> masukan EXEC. (2026-10-12); go: ok |
 | v005 | 2026-10-12 | [exec-style-run-a](history/v005-2026-10-12-exec-style-run-a/system_prompt.md) | 37,979 | `1aeee73d55c7` | `48bceaa503bc` | well saya lebih suka Run A tapi tanpa kewajiban AI untuk kasih asumsi, batasan. ... dalam 1 jawaban boleh lebih dari 1 tabel as long as membantu user (tidak wajib harus lebih dari 1) (2026-10-12) |
 | v006 | 2026-10-13 | [exec-m143](history/v006-2026-10-13-exec-m143/system_prompt.md) | 38,420 | `0395b6925985` | `48bceaa503bc` | "Ok perbaiki M143 dulu" (cara "(a) + (c) (Recommended)"); "saya setuju solusi 1 dan 2"; "Go" (2026-10-13; solusi 2 ditunda: "Tunda solusi 2 (Recommended)") |
+| v007 | 2026-10-13 | [exec-days](history/v007-2026-10-13-exec-days/system_prompt.md) | 38,633 | `c248a495a4f0` | `48bceaa503bc` | "Ok, coba perbaiki ya, also enable solusi 2, enable ON" (2026-10-13) |
 
 ## Changes
 
@@ -53,3 +54,7 @@ After the A/B: back to the Run A reader section, example and single length targe
 ### v006 exec-m143 (2026-10-13)
 
 VALUE REFERENCES: counts of the period or sample are figures from data, a number worked out from the user's figure is a calculation, an example amount is said in words, money and volume are released in base units (M143 (c), solution 1)
+
+### v007 exec-days (2026-10-13)
+
+VALUE REFERENCES: a new reference kind {{data.<data_request_id>.<range_id>.dates}} for the trading dates of a prepared data request's range (EXEC-DAYS); check_references v2 takes a draft (solution 2, tool description)

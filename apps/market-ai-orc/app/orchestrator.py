@@ -70,7 +70,8 @@ from .tools.artifacts import RunResults, current_results
 from .tools.session import current_carried_outputs, current_carried_restorer
 from .tools.system import current_step_tools
 from . import table_directives
-from .tools.request_data import (current_conversation_id, current_reference_sources, current_request_id,
+from .tools.request_data import (current_conversation_id, current_draft_checker, current_reference_sources,
+                                 current_request_id,
                                  current_run_deadline, current_turn_id, session_key)
 
 
@@ -764,6 +765,12 @@ HYPOTHESIS_FINDING_REFERENCE = ("{{finding.<hypothesis_id>.<path>}} a hypothesis
 OUTPUT_REFERENCE = ("{{out.<ref>.<path>}} a released output, by the \"ref\" its tool result shows (out.o1, out.o2, ...): "
                     "rows[<column>=<value>].<column>, content.<field>, or rows.<index>.<column> for a table without an "
                     "identifying column")
+# EXEC-DAYS (user 2026-10-13, "Ok, coba perbaiki ya"): the period's trading days had no address of its own, so a typed
+# "19 hari bursa" was refused and then cited by one stock's day count; prepare_data_bundle now counts the dates inside
+# each requested range (exact, buffer excluded) and they are referable
+DATA_REFERENCE = ("{{data.<data_request_id>.<range_id>.dates}} the trading dates a prepared data request holds inside a "
+                  "range (also rows and entities), by the \"ref\" prepare_data_bundle shows; cite the period's trading "
+                  "days by it")
 FACT_REFERENCE = "{{fact.<n>}} a lookup_fact value"
 METRIC_REFERENCE = "{{metric.<key>.<path>}} a query_metric value, by the \"ref\" its tool result shows"
 
@@ -1057,6 +1064,7 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
     # G3: the hypothesis plan beside the multi-angle plan (needs research findings v1 for its verdicts)
     dual = hypothesis_plans and multi_angle and research_findings
     references = [ANGLE_FINDING_REFERENCE, *([HYPOTHESIS_FINDING_REFERENCE] if dual else []), OUTPUT_REFERENCE,
+                  *([DATA_REFERENCE] if dataneed else []),
                   *([FACT_REFERENCE] if lookup_fact else []), *([METRIC_REFERENCE] if "query_metric" in tools else [])]
     value_rules = VALUE_REFERENCE_RULES.replace("{reference_items}", "- " + ";\n- ".join(references) + ".") \
         if value_references else ""
@@ -2448,6 +2456,7 @@ class AgentOrchestrator:
         conversation_token = current_conversation_id.set(current_conversation_id.get() or request.conversation_id)
         references_token = current_reference_sources.set(state.ref_sources)
         tables_token = table_directives.current_table_directives.set(self.table_directives)
+        draft_token = current_draft_checker.set(lambda text: self._check_draft(state, text))
         # item 12: a mode 4 step keeps its run's turn id (the web budget key); a web lookup waits at most until the
         # run's deadline
         turn_token = current_turn_id.set(current_turn_id.get() or request.request_id)
@@ -2562,6 +2571,7 @@ class AgentOrchestrator:
             current_conversation_id.reset(conversation_token)
             current_reference_sources.reset(references_token)
             table_directives.current_table_directives.reset(tables_token)
+            current_draft_checker.reset(draft_token)
             current_turn_id.reset(turn_token)
             current_run_deadline.reset(deadline_token)
             current_run_context.reset(context)
@@ -4903,6 +4913,20 @@ class AgentOrchestrator:
                     finding["ref"] = f"finding.{finding['hypothesis_id']}"
                     refs.insert(0, finding["ref"])
                     self._summary_fallback(sources, str(finding["hypothesis_id"]))
+        elif name == "prepare_data_bundle" and result.get("status") == "READY":
+            # EXEC-DAYS: each request's ranges with their exact trading dates, rows and entities (the bundle profiler's
+            # counts inside the range, buffer rows excluded)
+            for dataset in result.get("datasets") or []:
+                if not isinstance(dataset, dict) or not dataset.get("data_request_id"):
+                    continue
+                ranges = {str(r["range_id"]): {k: r.get(k) for k in ("dates", "rows", "entities")}
+                          for r in dataset.get("ranges") or []
+                          if isinstance(r, dict) and r.get("range_id") and isinstance(r.get("dates"), int)}
+                if ranges:
+                    key = str(dataset["data_request_id"])
+                    sources.add("data", key, ranges, "DATA_COVERAGE_VERIFIED")
+                    dataset["ref"] = f"data.{key}"
+                    refs.append(f"data.{key}")
         elif name == "get_session_output" and result.get("released"):
             output(result, int(result.get("offset") or 0))
         elif name == "lookup_fact" and result.get("decision") == "FACTS_READY":
@@ -5451,8 +5475,35 @@ class AgentOrchestrator:
             return final.model_copy(update={"limitations": [*final.limitations, *extra]})
         return final
 
+    def _check_draft(self, state: RunState, text: str) -> dict[str, Any]:
+        """Solution 2 (EXEC-M143, user "also enable solusi 2", 2026-10-13): the answer checks on a draft, without effect
+        on the run (no refusal counted, nothing cited): references that do not resolve, figures typed from data with
+        the addresses equal to them (TYPED_FIGURES), and numbers with no source (PROVENANCE), read by check_references
+        with a draft so the model fixes them before it sends the answer."""
+        draft = text
+        if self.table_directives:
+            draft = table_directives.expand(draft, state.ref_sources, marks=False).text
+        rendering = render(draft, state.ref_sources)
+        index = self._source_index(state)
+        for resolved in rendering.values:
+            index.add(resolved.label if resolved.label in LABEL_ORDER else CONTEXT, [resolved.value])
+        typed = [shown for shown, kind in typed_figures(REF_RE.sub(" ", draft), index)
+                 if kind not in BACKEND_RECOMPUTED_KINDS]
+        candidates: dict[str, list[str]] = {}
+        typed = self._auto_references(state, list(dict.fromkeys(typed)), candidates, record=False)
+        unsourced = check_answer(rendering.text, index).unsupported
+        problems = list(dict.fromkeys(rendering.problems + [m for _, _, m in rendering.missing]))
+        log_event("ai_draft_checked", request_id=state.request_id, iteration=state.iterations, chars=len(text),
+                  typed=len(typed), unsourced=len(unsourced), unresolved=len(problems))
+        return {"status": "OK" if not (typed or unsourced or problems) else "WOULD_BE_REFUSED",
+                "typed_figures": [{"figure": f, "addresses": candidates.get(f, [])[:MAX_CANDIDATES_PER_FIGURE]}
+                                  for f in typed[:12]],
+                "numbers_without_source": unsourced[:12], "unresolved_references": problems[:6],
+                "note": "Write each typed figure by its address (the one that means it), say an example in words, "
+                        "and remove or source the rest."}
+
     def _auto_references(self, state: RunState, typed: list[str],
-                         candidates: dict[str, list[str]] | None = None) -> list[str]:
+                         candidates: dict[str, list[str]] | None = None, record: bool = True) -> list[str]:
         """EXEC-R R3: a typed figure equal, as written (rounded to its own decimals), to exactly one value this run can
         reference is that value's reference: it joins the answer's DIRUJUK list (`ai_reference_auto`). Two or more
         equal values, or none, leave it typed; M140: the equal values of a figure left typed go into candidates."""
@@ -5471,6 +5522,8 @@ class AgentOrchestrator:
                     matches |= {address for address, leaf in leaves if cited_match(value, [leaf], magnitude=False)}
             if len(matches) == 1:
                 address = matches.pop()
+                if not record:  # a draft check (solution 2) changes nothing
+                    continue
                 if address not in state.referenced:
                     state.referenced.append(address)
                 log_event("ai_reference_auto", request_id=state.request_id, figure=text, address=address)

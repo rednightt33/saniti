@@ -562,7 +562,7 @@ def column_stats(quality: dict[str, Any], limit: int | None = VIEW_COLUMNS) -> d
 # and forward buffers included; rows_in_ranges the rows inside the requested ranges (each row once); per range, rows
 # inside it and the buffer rows extracted before and after it. rows stays one version as rows_extracted.
 RANGE_COUNT_KEYS = ("range_id", "requested_start", "requested_end", "extract_from", "extract_to", "actual_start",
-                    "actual_end", "rows", "buffer_rows_before", "buffer_rows_after", "entities", "status")
+                    "actual_end", "rows", "dates", "buffer_rows_before", "buffer_rows_after", "entities", "status")
 ROW_COUNTS_NOTE = ("rows and rows_extracted include the buffer rows extracted before and after the requested ranges "
                    "(warm-up history, forward outcomes); rows_in_ranges and ranges[].rows are the rows inside the "
                    "requested ranges. A sample size or a period's observation count uses the rows inside the ranges.")

@@ -114,7 +114,8 @@ FIGURE_VALUE = "nilai"
 # M125 P2: every namespace a value reference can read, named for the reader (tests/test_user_texts.py checks that each
 # namespace the orchestrator registers has a name here)
 SOURCE_NAMES = {"out": "hasil analisis", "analysis": "hasil analisis", "finding": "hasil riset", "fact": "data pasar",
-                "metric": "data pasar", "reference": "tabel referensi", "web": "fakta web"}
+                "metric": "data pasar", "reference": "tabel referensi", "web": "fakta web",
+                "data": "data yang disiapkan"}
 WEB_EVIDENCE = "Fakta web · {domain}"
 SELECTED_RE = re.compile(r"^(?P<name>[^\[\]]+)\[(?:[^=\[\]]+=)?(?P<value>[^\[\]]+)\]$")  # rows[Ticker=BRIS], rows[BRIS]
 

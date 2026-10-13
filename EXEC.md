@@ -2459,6 +2459,27 @@ dibiarkan (hanya catatan, `is_active=false`) atau dibatalkan dengan migrasi baru
     berikutnya.
   - Catatan: satu TYPED_FIGURES "19" lagi (jumlah hari bursa diketik), pola yang sama dengan cek live M143.
 
+### EXEC-DAYS dan solusi 2: alamat jumlah hari bursa, pra-cek draf, saklar tabel hidup (berjalan)
+
+**Keputusan user 2026-10-13:** "Ok, coba perbaiki ya, also enable solusi 2, enable ON kemudian A/B on vs off 2 questions"; untuk A/B: "Hanya tabel ON vs OFF" (solusi 2 dan alamat hari bursa aktif di
+kedua sisi; sesudah A/B saklar tabel dibiarkan hidup).
+- **EXEC-DAYS.**
+  - Masalah: "19 hari bursa" diketik, ditolak TYPED_FIGURES, lalu dirujuk lewat hari transaksi satu saham (DSSA) karena
+    jumlah hari periode tidak punya alamat sendiri.
+  - Profiler bundle sandbox (`runtime/profiler.py`) menghitung tanggal pasti di dalam setiap rentang yang diminta
+    (`ranges[].dates`, buffer tidak ikut).
+  - Orc mendaftarkannya sebagai `{{data.<data_request_id>.<range_id>.dates}}` (ikut di menu alamat; nama sumber "data
+    yang disiapkan").
+  - Snapshot prompt `v007`.
+- **Solusi 2 (dulu ditunda, sekarang dinyalakan user).**
+  - `check_references` v2 menerima `draft`. Orc menjalankan pemeriksaan TYPED_FIGURES dan PROVENANCE atas draf tanpa
+    efek (tanpa jatah penolakan, tanpa DIRUJUK), lalu mengembalikan angka diketik beserta alamat kandidat dan angka tanpa
+    sumber.
+  - Deskripsi alat menganjurkan draf dikirim di cek yang memang sudah dilakukan sebelum menjawab.
+  - Tool_Catalog `check_references` v2 (migrasi `20261013_009_round_s_tool_catalog.sql` dari generator).
+- **Tes:** orc 1.667 lulus (`test_day_counts_and_draft_check.py`, `test_profile_distinct.py`); suite sandbox gagal
+  sama persis dengan baseline (196 tes isolasi).
+
 ### EXEC-IMPL-1012: rencana implementasi EXEC-JOINKEY, EXEC-RELEASE, EXEC-FRICTION, EXEC-STYLE (selesai; Fase 3c berhenti di M143)
 
 **Permintaan user 2026-10-12:** "cek infra kita, dan EXEC yang sudah saya approve, buat implementation plan berdasarkan
