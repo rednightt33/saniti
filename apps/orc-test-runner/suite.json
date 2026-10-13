@@ -1,24 +1,8 @@
 {
-  "prefix": "ma-quality-20261013a",
-  "workers": 4,
+  "prefix": "ma-quality-20261013b",
+  "workers": 2,
   "audit_wait_seconds": 0,
   "items": [
-    {
-      "id": "ab5_ranking_deepseek",
-      "analysis_path": "ANALYSIS",
-      "message": "Tampilkan 15 saham dengan net buy asing terbesar sebulan terakhir data, beserta return harga dan rata-rata nilai transaksi hariannya.",
-      "expect": "EXEC-DAYS + solution 2 A/B (user 2026-10-13 \"A/B on vs off 2 questions\", \"Hanya tabel ON vs OFF\"): table ON; orc 12ffea95, sandbox e62b7d3a, prompt v007, reasoning medium",
-      "model": "deepseek/deepseek-v4.1-flash",
-      "reasoning_level": "high"
-    },
-    {
-      "id": "ab5_ranking_glm",
-      "analysis_path": "ANALYSIS",
-      "message": "Tampilkan 15 saham dengan net buy asing terbesar sebulan terakhir data, beserta return harga dan rata-rata nilai transaksi hariannya.",
-      "expect": "EXEC-DAYS + solution 2 A/B (user 2026-10-13 \"A/B on vs off 2 questions\", \"Hanya tabel ON vs OFF\"): table ON; orc 12ffea95, sandbox e62b7d3a, prompt v007, reasoning medium",
-      "model": "z-ai/glm-5.3-flash",
-      "reasoning_level": "high"
-    },
     {
       "id": "ab5_ranking_mimopro",
       "analysis_path": "ANALYSIS",
@@ -28,59 +12,11 @@
       "reasoning_level": "on"
     },
     {
-      "id": "ab5_ranking_mimoflash",
-      "analysis_path": "ANALYSIS",
-      "message": "Tampilkan 15 saham dengan net buy asing terbesar sebulan terakhir data, beserta return harga dan rata-rata nilai transaksi hariannya.",
-      "expect": "EXEC-DAYS + solution 2 A/B (user 2026-10-13 \"A/B on vs off 2 questions\", \"Hanya tabel ON vs OFF\"): table ON; orc 12ffea95, sandbox e62b7d3a, prompt v007, reasoning medium",
-      "model": "xiaomi/mimo-v2.6-flash",
-      "reasoning_level": "on"
-    },
-    {
-      "id": "ab5_ranking_qwen",
-      "analysis_path": "ANALYSIS",
-      "message": "Tampilkan 15 saham dengan net buy asing terbesar sebulan terakhir data, beserta return harga dan rata-rata nilai transaksi hariannya.",
-      "expect": "EXEC-DAYS + solution 2 A/B (user 2026-10-13 \"A/B on vs off 2 questions\", \"Hanya tabel ON vs OFF\"): table ON; orc 12ffea95, sandbox e62b7d3a, prompt v007, reasoning medium",
-      "model": "qwen/qwen3.8-flash",
-      "reasoning_level": "on"
-    },
-    {
-      "id": "ab6_broker_deepseek",
-      "analysis_path": "ANALYSIS",
-      "message": "Broker mana saja yang paling banyak net buy di BBRI sebulan terakhir data? Tampilkan 10 teratas dengan total net buy, jumlah hari net buy, dan porsinya terhadap total net buy.",
-      "expect": "EXEC-DAYS + solution 2 A/B (user 2026-10-13 \"A/B on vs off 2 questions\", \"Hanya tabel ON vs OFF\"): table ON; orc 12ffea95, sandbox e62b7d3a, prompt v007, reasoning medium",
-      "model": "deepseek/deepseek-v4.1-flash",
-      "reasoning_level": "high"
-    },
-    {
-      "id": "ab6_broker_glm",
-      "analysis_path": "ANALYSIS",
-      "message": "Broker mana saja yang paling banyak net buy di BBRI sebulan terakhir data? Tampilkan 10 teratas dengan total net buy, jumlah hari net buy, dan porsinya terhadap total net buy.",
-      "expect": "EXEC-DAYS + solution 2 A/B (user 2026-10-13 \"A/B on vs off 2 questions\", \"Hanya tabel ON vs OFF\"): table ON; orc 12ffea95, sandbox e62b7d3a, prompt v007, reasoning medium",
-      "model": "z-ai/glm-5.3-flash",
-      "reasoning_level": "high"
-    },
-    {
       "id": "ab6_broker_mimopro",
       "analysis_path": "ANALYSIS",
       "message": "Broker mana saja yang paling banyak net buy di BBRI sebulan terakhir data? Tampilkan 10 teratas dengan total net buy, jumlah hari net buy, dan porsinya terhadap total net buy.",
       "expect": "EXEC-DAYS + solution 2 A/B (user 2026-10-13 \"A/B on vs off 2 questions\", \"Hanya tabel ON vs OFF\"): table ON; orc 12ffea95, sandbox e62b7d3a, prompt v007, reasoning medium",
       "model": "xiaomi/mimo-v2.6-pro",
-      "reasoning_level": "on"
-    },
-    {
-      "id": "ab6_broker_mimoflash",
-      "analysis_path": "ANALYSIS",
-      "message": "Broker mana saja yang paling banyak net buy di BBRI sebulan terakhir data? Tampilkan 10 teratas dengan total net buy, jumlah hari net buy, dan porsinya terhadap total net buy.",
-      "expect": "EXEC-DAYS + solution 2 A/B (user 2026-10-13 \"A/B on vs off 2 questions\", \"Hanya tabel ON vs OFF\"): table ON; orc 12ffea95, sandbox e62b7d3a, prompt v007, reasoning medium",
-      "model": "xiaomi/mimo-v2.6-flash",
-      "reasoning_level": "on"
-    },
-    {
-      "id": "ab6_broker_qwen",
-      "analysis_path": "ANALYSIS",
-      "message": "Broker mana saja yang paling banyak net buy di BBRI sebulan terakhir data? Tampilkan 10 teratas dengan total net buy, jumlah hari net buy, dan porsinya terhadap total net buy.",
-      "expect": "EXEC-DAYS + solution 2 A/B (user 2026-10-13 \"A/B on vs off 2 questions\", \"Hanya tabel ON vs OFF\"): table ON; orc 12ffea95, sandbox e62b7d3a, prompt v007, reasoning medium",
-      "model": "qwen/qwen3.8-flash",
       "reasoning_level": "on"
     }
   ]

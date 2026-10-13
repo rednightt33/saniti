@@ -1,5 +1,17 @@
 # Railway changelog
 
+## 2026-10-13 — EXEC-MODELS quality check, M149 fix deployed
+
+User: "Boleh tes mutu tiap model. 2 questions each reasoning high".
+- `main` `5c3afcc` (prices read every hour in the background): market-ai-orc **010706d1-6060-42e4-a43c-b5477ccb4b97**
+  SUCCESS; startup price read OK (5 models).
+- `orc-test-runner` **2fa0b6d4-4680-4804-8791-b20f1e7e5ec3** (`ma-quality-20261013a`, 5 models x 2 questions): 8
+  COMPLETED, MiMo pro 2 FAILED (M149).
+- `main` `80245c3` (M149 fix): market-ai-orc **9392c7a8-8323-4774-ab6d-c9a20ab8ac56** SUCCESS; `orc-test-runner`
+  **4845d2be-716e-4f8b-8ef1-e6ce7258ae9d** (`ma-quality-20261013b`, MiMo pro x 2): 2 COMPLETED. Cost of the quality
+  check about USD 0.41.
+- No variable, migration, model default, provider or configuration change.
+
 ## 2026-10-13 — EXEC-MODELS deployed (model choice per message, hourly prices)
 
 User: "kita akan menambahkan model2 ini bisa di toggle model dan intellegence level di EDGE (Default router tetap

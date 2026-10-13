@@ -2518,6 +2518,24 @@ EDGE"; MiMo pro dan flash "Both ya". Rencana disetujui (plan EXEC-MODELS).
   | Qwen on | 288 s | 0,033 | 0 |
 
   Satu run per model: tanda awal, bukan perbandingan mutu.
+- **Tes mutu** (user: "Boleh tes mutu tiap model. 2 questions each reasoning high"; ab5 peringkat 15 saham, ab6 broker
+  BBRI; level tertinggi: high untuk DeepSeek/GLM, on untuk MiMo/Qwen; `ma-quality-20261013a`, MiMo pro diulang
+  `-b` sesudah perbaikan M149; biaya sekitar USD 0,41):
+
+  | Model | ab5 (detik / USD) | ab6 (detik / USD) | Lengkap | Catatan mutu |
+  |---|---|---|---|---|
+  | DeepSeek high | 189 / 0,017 | 226 / 0,025 | 15 dan 10 baris | Tercepat dan termurah; ab5 membulatkan Rp 1,51 triliun menjadi "Rp 2 triliun" |
+  | GLM high | 333 / 0,030 | 197 / 0,012 | **10 dari 15** | Tabel paling kaya (nama emiten, tipe broker); porsi ZP 9,8% karena penyebut lain (jumlah net positif harian Rp 4,58 triliun), beda dari 4 model lain (24,9%) |
+  | MiMo pro on | 477 / 0,053 | 316 / 0,034 | 15 dan 10 baris | Run pertama gagal (M149, bug orc, sudah diperbaiki); ab5 memakai semua papan (DSSA teratas) |
+  | MiMo flash on | 539 / 0,030 | 159 / 0,021 | **10 dari 15** | ab5 semua papan (DSSA teratas); ab6 ada tabel kosong ganda di atas tabel |
+  | Qwen on | 393 / 0,042 | 440 / 0,035 | **10 dari 15** | Paling lambat; isi konsisten |
+
+  - Tidak ada penolakan gerbang di 12 run; satu kali minta ulang JSON (GLM ab6).
+  - Angka ab6 seragam (ZP Rp 448,46 miliar, 12 hari net buy).
+  - Pertanyaan ab5 ditafsirkan dua cara: papan Regular saja (DeepSeek, GLM, Qwen: BBRI teratas Rp 1,51 triliun) atau
+    semua papan termasuk nego (MiMo pro/flash: DSSA Rp 4,22 triliun). Keduanya dinyatakan di asumsi.
+  - Temuan sistem: tiga model menampilkan 10 dari 15 baris yang diminta, karena instruksi tabel tanpa `top` berarti
+    sepuluh baris (usulan perbaikan belum disetujui).
 
 ### EXEC-DERIVED: gerbang menyarankan alamat hitungan untuk angka tanpa sumber (deployed, menunggu bukti live)
 
