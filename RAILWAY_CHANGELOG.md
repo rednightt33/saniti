@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-10-13 — EXEC-DAYS and solution 2 deployed, A/B 3, table flag left on
+
+User: "Ok, coba perbaiki ya, also enable solusi 2, enable ON kemudian A/B on vs off 2 questions" (choice "Hanya tabel
+ON vs OFF"; EXEC.md EXEC-DAYS).
+- `main` `199e16d`: market-ai-orc **12ffea95-69a2-488a-b80e-66250535030b** and market-python-sandbox
+  **e62b7d3a-6d37-426e-ad26-4b4a5d0d87f6** reached **SUCCESS**.
+- Migration `20261013_009_round_s_tool_catalog.sql` applied through temporary `mmig-job` (DRYRUN `fdd7c0d5`, APPLY
+  `88ec4c08`), service deleted afterwards; details in `DATABASE_CHANGELOG.md`.
+- `orc-test-runner`: OFF **c0595d51-5dd7-4224-800e-f3f216a05b62** (`ma-ab-table-20261013f`), ON
+  **6fb77487-0148-4550-bcab-1b06055675c0** (`ma-ab-table-20261013g`). Cost about USD 0.20.
+- market-ai-orc `AI_ENABLE_TABLE_DIRECTIVES=true` → **9d620a75-fcd4-4f63-8824-6531cde0ac99** SUCCESS; left on by user
+  decision. `AI_REASONING_EFFORT` stays `medium`.
+- No other variable, model, provider or configuration change.
+
 ## 2026-10-13 — M146 and M147 deployed from main
 
 User: "fix M146c rencanakan terlebih dahulu", "selidiki 147, cek kode", "Ok go" (EXEC.md EXEC-M146-M147). Rollback

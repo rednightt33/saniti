@@ -2459,7 +2459,7 @@ dibiarkan (hanya catatan, `is_active=false`) atau dibatalkan dengan migrasi baru
     berikutnya.
   - Catatan: satu TYPED_FIGURES "19" lagi (jumlah hari bursa diketik), pola yang sama dengan cek live M143.
 
-### EXEC-DAYS dan solusi 2: alamat jumlah hari bursa, pra-cek draf, saklar tabel hidup (berjalan)
+### EXEC-DAYS dan solusi 2: alamat jumlah hari bursa, pra-cek draf, saklar tabel hidup (deployed; A/B 3 selesai)
 
 **Keputusan user 2026-10-13:** "Ok, coba perbaiki ya, also enable solusi 2, enable ON kemudian A/B on vs off 2 questions"; untuk A/B: "Hanya tabel ON vs OFF" (solusi 2 dan alamat hari bursa aktif di
 kedua sisi; sesudah A/B saklar tabel dibiarkan hidup).
@@ -2479,6 +2479,26 @@ kedua sisi; sesudah A/B saklar tabel dibiarkan hidup).
   - Tool_Catalog `check_references` v2 (migrasi `20261013_009_round_s_tool_catalog.sql` dari generator).
 - **Tes:** orc 1.667 lulus (`test_day_counts_and_draft_check.py`, `test_profile_distinct.py`); suite sandbox gagal
   sama persis dengan baseline (196 tes isolasi).
+- **Deploy:** `main` `199e16d`: orc `12ffea95` dan sandbox `e62b7d3a` SUCCESS; migrasi round S diterapkan lewat
+  `mmig-job` (dibaca balik: `check_references` v2 memuat `draft`). Saklar tabel `AI_ENABLE_TABLE_DIRECTIVES=true` →
+  orc `9d620a75` SUCCESS, **dibiarkan hidup** sesuai keputusan user.
+- **A/B 3** (2 pertanyaan; OFF `ma-ab-table-20261013f`, ON `ma-ab-table-20261013g`; biaya sekitar USD 0,20):
+
+  | | ab5 peringkat | ab6 broker |
+  |---|---|---|
+  | OFF | 116 s, COMPLETED | 179 s, COMPLETED |
+  | ON | 279 s, COMPLETED | 323 s, COMPLETED |
+
+  - Fase orc (rencana / data / analisis / menulis, detik): OFF ab5 38/12/18/23, ON ab5 56/34/86/80, OFF ab6
+    14/69/31/40, ON ab6 56/38/81/123. Selisih ON ada di rencana, analisis (ab5 ON: 7 `run_python` karena print
+    terpotong dan error dict ambang) dan ronde perbaikan, bukan di penulisan tabel: 0 instruksi tabel ditolak.
+  - Solusi 2 dipakai di 3 dari 4 run, semuanya bersih, tetapi: ON ab5 tetap kena METHODOLOGY_PROVENANCE "654" (pra-cek
+    tidak memeriksa metodologi/asumsi); ON ab6 mengirim draf yang disingkat ("...") sehingga pra-cek tidak efektif, lalu
+    kena PROVENANCE "30" ("30 hari kalender terakhir"); panggilan cek itu sendiri 33 s.
+  - Alamat `data.*` belum dipakai: ON ab6 merujuk hari bursa lewat output analisisnya sendiri.
+  - Sampel sangat kecil (2 pertanyaan per sisi); bukan dasar keputusan akhir.
+- **Usulan lanjutan (belum disetujui):** pra-cek ikut memeriksa metodologi dan asumsi; tolak draf yang disingkat
+  (meminta draf lengkap).
 
 ### EXEC-IMPL-1012: rencana implementasi EXEC-JOINKEY, EXEC-RELEASE, EXEC-FRICTION, EXEC-STYLE (selesai; Fase 3c berhenti di M143)
 

@@ -1888,3 +1888,12 @@ Break Swing High integer flags: 16,344 ones / 1,302,289 zeros, available for eve
 Independent SQL window transition reference across all 1,318,633 rows: 0 mismatches in high/low tracking, temporary prices/indices, last confirmed high and trigger. Separate Pgweb read-only SMI convolution reference: 9,649 bars / 7 tickers, maximum error 1.8474111129762605e-13 points, NULL masks match. No formula changes since the 27-test BBCA checkpoint. Original indicators and BBCA timestamps remain identical.
 
 Applied metadata-only forward migration `20261011_004_record_feature04_smi_full_coverage.sql`, SHA256 `304301a858b13cbc900101e5ac9b1d134e98b2d537e06db35c561f4433590cf6`, after successful rollback rehearsal. Updated Table/Column/Feature coverage/evidence metadata to reflect full v3 rollout. Physical 55 columns, formulas/version v3, grants, routines, safe relationships and prior migrations unchanged. Semantic audit: 146/146 active definitions calculation-verified, incomplete 0. Read-only schema export only; no global status synchronizer, source request/write, schedule, service deployment, AI onboarding or training. Evidence `verification/feature04/SMI_ALL_TICKERS.md`; current per-column definitions `FEATURE04_COLUMN_DEFINITIONS.md`. TradingView chart-export parity and historical point-in-time eligibility remain NOT VERIFIED.
+
+
+## 2026-10-13 — Tool_Catalog round S (`check_references` v2 with `draft`)
+
+User: "Ok, coba perbaiki ya, also enable solusi 2, ..." (EXEC.md EXEC-DAYS). Applied generator-made forward migration
+`20261013_009_round_s_tool_catalog.sql` (SHA256 `ceb6f450dfe9251521d4b4b7227b1e98e3bdb4517a205e96262d43152acf2127`)
+on dev through temporary Railway service `mmig-job` (DRYRUN, then APPLY; the service was deleted). Readback: the
+`check_references` row v1 is kept, v2 is active and its schema carries the nullable `draft` field. No table, column,
+Feature, routine or data change. Hash added to `APPLIED.sha256`; no applied migration was rewritten.
