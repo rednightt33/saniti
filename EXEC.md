@@ -2459,7 +2459,7 @@ dibiarkan (hanya catatan, `is_active=false`) atau dibatalkan dengan migrasi baru
     berikutnya.
   - Catatan: satu TYPED_FIGURES "19" lagi (jumlah hari bursa diketik), pola yang sama dengan cek live M143.
 
-### EXEC-PROSE: tafsiran periode tanpa angka, pra-cek draf lengkap dan metodologi, teks di sekitar tabel singkat (Go user "Ok"; berjalan)
+### EXEC-PROSE: tafsiran periode tanpa angka, pra-cek draf lengkap dan metodologi, teks di sekitar tabel singkat (deployed; cek cepat bersih)
 
 **Keputusan user 2026-10-13:** "both usulan 1 dan 2 ok" dan "2a + yg tadi kamu mention — Tambah satu kalimat di bagian
 TABLES prompt: angka sudah ada di tabel, jadi penjelasan cukup singkat dan setiap angka di kalimat harus dari alamat."
@@ -2479,6 +2479,15 @@ mungkin seluruh gerbang bisa di sesuaikan dengan apa yang ai akan tulis").
 - **Tes:** orc 1.416 lulus (`tests/test_exec_prose.py` baru, `test_day_counts_and_draft_check.py` disesuaikan).
 - **Go 2026-10-13:** "Ok" (migrasi, push/deploy, catatan, dan cek cepat 2 pertanyaan dengan tabel ON). Migrasi round T
   diterapkan dan dibaca balik (`DATABASE_CHANGELOG.md`).
+- **Deploy:** `main` `aecfc1e`: market-ai-orc `67a68295` SUCCESS, startup bersih; saklar tabel tetap ON.
+- **Cek cepat** `ma-prose-20261013h` (ab5 dan ab6, tabel ON, USD 0,049): keduanya COMPLETED (ab5 229 s, ab6 110 s),
+  **0 penolakan gerbang** (putaran 3 ON: "654" dan "30").
+  - Router menulis "bulan terakhir yang tersedia di data, bukan 30 hari kalender"; AI tidak menyalin angka.
+  - Kedua run memanggil `check_references` dengan draf utuh dan metodologi (1.129/514 dan 1.717/842 karakter),
+    tidak disingkat, hasil bersih; panggilan cek 10 s dan 29 s.
+  - Teks di luar tabel: ab5 1.397 karakter, 16 angka (putaran 3 ON 1.544/21, OFF 1.221/22); ab6 1.189, 16 angka
+    (ON 1.283/16, OFF 1.228/16).
+  - Sampel 2 run: tanda awal, bukan bukti statistik.
 
 ### EXEC-DAYS dan solusi 2: alamat jumlah hari bursa, pra-cek draf, saklar tabel hidup (deployed; A/B 3 selesai)
 

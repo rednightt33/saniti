@@ -1,5 +1,18 @@
 # Railway changelog
 
+## 2026-10-13 — EXEC-PROSE deployed, Tool_Catalog round T, quick check
+
+User: "both usulan 1 dan 2 ok", "2a + yg tadi kamu mention", then "Ok" (EXEC.md EXEC-PROSE). Rollback reference: orc
+**9d620a75-fcd4-4f63-8824-6531cde0ac99**.
+- Migration `20261013_010_round_t_tool_catalog.sql` applied through temporary `mmig-job` (DRYRUN
+  `1922db71-e521-4d91-ba2b-bcc749e66b89`, APPLY `19ca6ae7-e00b-4bac-8247-ae9013e574cc`); service deleted, absent from
+  the project; details in `DATABASE_CHANGELOG.md`.
+- `main` `aecfc1e`: market-ai-orc **67a68295-aed4-4d09-8920-42df98c36b6b** reached **SUCCESS** (sandbox SKIPPED, no
+  change); clean startup.
+- `orc-test-runner` **60ea7e1c-b5df-489e-8737-1da38839fc8f** (`ma-prose-20261013h`, ab5 and ab6, table flag on): both
+  COMPLETED, no gate refusal; cost about USD 0.049.
+- No variable, model, provider or configuration change (`AI_ENABLE_TABLE_DIRECTIVES=true`, `AI_REASONING_EFFORT=medium`).
+
 ## 2026-10-13 — EXEC-DAYS and solution 2 deployed, A/B 3, table flag left on
 
 User: "Ok, coba perbaiki ya, also enable solusi 2, enable ON kemudian A/B on vs off 2 questions" (choice "Hanya tabel
