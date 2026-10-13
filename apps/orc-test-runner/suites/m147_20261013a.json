@@ -1,0 +1,13 @@
+{
+ "prefix": "ma-m147-20261013a",
+ "workers": 1,
+ "audit_wait_seconds": 0,
+ "items": [
+  {
+   "id": "ab5_ranking",
+   "analysis_path": "ANALYSIS",
+   "message": "Tampilkan 15 saham dengan net buy asing terbesar sebulan terakhir data, beserta return harga dan rata-rata nilai transaksi hariannya.",
+   "expect": "EXEC-M146-M147 live check (orc 23a4aeea, sandbox d56ead43): the dataset profile states 19 dates; no 21-vs-19 reconciliation"
+  }
+ ]
+}

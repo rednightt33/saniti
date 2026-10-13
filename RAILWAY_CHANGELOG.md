@@ -1,5 +1,15 @@
 # Railway changelog
 
+## 2026-10-13 — M146 and M147 deployed from main
+
+User: "fix M146c rencanakan terlebih dahulu", "selidiki 147, cek kode", "Ok go" (EXEC.md EXEC-M146-M147). Rollback
+references: orc `86884c2b`, sandbox: the deployment before `d56ead43`.
+- `main` `e6745a4`: market-ai-orc **23a4aeea-7064-497e-884e-e27dcef4d17b** and market-python-sandbox
+  **d56ead43-49ed-48f0-8f5c-a8965e37b5a6** reached **SUCCESS**; `/ready` 200 on both.
+- Live check through `orc-test-runner` **f5ddb079-2955-46dd-b335-8d5fbfa85edc** (`ma-m147-20261013a`, one question,
+  USD 0.038): COMPLETED; the profile's date count read as 19.
+- No variable, migration, model, provider or mode change (`AI_ENABLE_TABLE_DIRECTIVES=false`, `AI_REASONING_EFFORT=medium`).
+
 ## 2026-10-13 — EXEC-TABLE quick A/B 2 (flag on for the ON run only)
 
 User: "Tolong run A/B test dulu ya 4 pertanyaan. Cepat saja." (choice "Tabel ON vs OFF lagi").

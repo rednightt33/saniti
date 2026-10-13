@@ -2434,7 +2434,7 @@ ulang; cek live masih menolak angka berskala.
 **Rollback Fase 1:** `git revert` commit fitur, lalu push `main` (prompt kembali ke `v005`). Baris Tool_Catalog v2
 dibiarkan (hanya catatan, `is_active=false`) atau dibatalkan dengan migrasi baru.
 
-### EXEC-M146-M147: panggilan alat tertulis sebagai teks; jumlah tanggal di profil data (berjalan)
+### EXEC-M146-M147: panggilan alat tertulis sebagai teks; jumlah tanggal di profil data (ter-deploy)
 
 **Keputusan user 2026-10-13:** "fix M146c rencanakan terlebih dahulu", lalu "selidiki 147, cek kode", lalu "Ok go".
 - **M146.** deepseek-v4.1-flash sesekali menulis panggilan alat dalam markup DSML sebagai teks; provider meneruskannya
@@ -2451,6 +2451,13 @@ dibiarkan (hanya catatan, `is_active=false`) atau dibatalkan dengan migrasi baru
   - Suite sandbox: kegagalan sama persis sebelum dan sesudah perubahan (196 tes isolasi yang butuh slot user, tidak
     bisa jalan di container ini).
 - Tes: orc 1.662 lulus. Tidak ada perubahan prompt, database atau variabel.
+- Deploy `main` `e6745a4`: orc `23a4aeea` dan sandbox `d56ead43` SUCCESS, `/ready` 200.
+- Cek live `ma-m147-20261013a` (pertanyaan ab5, USD 0,038, 249 s, COMPLETED):
+  - Sesudah sesi dibuka, AI langsung menulis "Flow data: 19 trading dates … Price: 29 dates including buffer",
+    tanpa pemeriksaan ulang 21 vs 19. **M147 FIXED.**
+  - M146 tidak muncul di run ini (tidak bisa dipicu dengan sengaja); menunggu log `ai_tool_markup_retried` di pemakaian
+    berikutnya.
+  - Catatan: satu TYPED_FIGURES "19" lagi (jumlah hari bursa diketik), pola yang sama dengan cek live M143.
 
 ### EXEC-IMPL-1012: rencana implementasi EXEC-JOINKEY, EXEC-RELEASE, EXEC-FRICTION, EXEC-STYLE (selesai; Fase 3c berhenti di M143)
 
