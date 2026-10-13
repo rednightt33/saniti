@@ -200,3 +200,42 @@ def test_with_the_flag_off_an_instruction_is_not_built() -> None:
 
     with pytest.raises(GateRejection):  # as before EXEC-TABLE: an unreadable reference
         orc._resolve_references(state, answer("{{out.o1.rows[sector=Energy].n|int}} {{table out.o1; S = sector}}"))
+
+
+# ---------------------------------------------------------------- EXEC-ROWS (user 2026-10-13: a safeguard, 25 rows)
+
+def test_a_table_shows_the_rows_asked_for_up_to_twenty_five() -> None:
+    table = [{"ticker": f"T{i:04d}", "ret": float(i)} for i in range(1000)]
+    _, state = tracked(rows=table, units={})
+    _, text = shown("{{table out.o1; Saham = ticker; sort -ret; top 15}}", state)
+    assert text.count("\n| T") == 15 and "_Menampilkan 15 dari 1.000 baris._" in text
+    _, text = shown("{{table out.o1; Saham = ticker; sort -ret; top 1000}}", state)
+    assert text.count("\n| T") == td.MAX_ROWS == 25
+    assert "_Menampilkan 25 dari 1.000 baris; tabel di chat dibatasi 25 baris, tabel lengkap bisa diminta sebagai " \
+           "file Excel._" in text
+
+
+def test_a_title_row_without_data_rows_is_removed() -> None:
+    stray = ("Ini datanya.\n\n| Tanggal | Buka | Tutup |\n| --- | --- | --- |\n\n| Tanggal | Buka | Tutup |\n|---|---|---|\n"
+             "| 2026-10-07 | 3.130 | 3.140 |\n\nSelesai.")
+    cleaned, removed = td.drop_empty_tables(stray)
+    assert removed == 1 and cleaned.count("| Tanggal |") == 1 and "| 2026-10-07 | 3.130 | 3.140 |" in cleaned
+    assert cleaned.startswith("Ini datanya.\n\n| Tanggal") and cleaned.endswith("Selesai.")
+    at_end = "Tabel:\n\n| A | B |\n|---|---|"
+    assert td.drop_empty_tables(at_end) == ("Tabel:\n\n", 1)
+    full = "| A | B |\n|---|---|\n| 1 | 2 |"
+    assert td.drop_empty_tables(full) == (full, 0)
+
+
+def test_the_delivered_answer_has_no_stray_title_row() -> None:
+    orc = orchestrator(True)
+    state = RunState(request_id="r", started=0.0, input_items=[])
+    done = orc._finalize_findings(state, answer("Data:\n\n| A | B |\n| --- | --- |\n\n| A | B |\n|---|---|\n| 1 | 2 |"))
+    assert done.answer == "Data:\n\n| A | B |\n|---|---|\n| 1 | 2 |"
+
+
+def test_the_delivered_answer_has_no_stray_title_row() -> None:
+    orc = orchestrator(True)
+    state = RunState(request_id="r", started=0.0, input_items=[])
+    done = orc._finalize_findings(state, answer("Data:\n\n| A | B |\n| --- | --- |\n\n| A | B |\n|---|---|\n| 1 | 2 |"))
+    assert done.answer == "Data:\n\n| A | B |\n|---|---|\n| 1 | 2 |"

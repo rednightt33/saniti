@@ -860,7 +860,9 @@ cells are never typed or referenced one by one, for example
 Each column is Title = column, with a format after | as in a value
 reference (a text column takes none); one cell may join columns, as in
 Jumlah (porsi) = {n|int} ({share|pct:1}). sort names a column (a minus
-sorts from the largest) and top the rows shown (ten when omitted); the
+sorts from the largest) and top the rows shown: the number the user
+asked for (ten when none), at most twenty-five; when the user asks for
+more, show twenty-five and offer the complete table as an Excel file; the
 backend writes below the table how many rows the output has, so do not
 write it. A table that joins several outputs, adds a total row or
 derives a column is first built and released in the analysis
@@ -5314,6 +5316,10 @@ class AgentOrchestrator:
             # EXEC-TABLE: the line under a cut table, written once the gates passed (its figures are no claim)
             final = final.model_copy(update={"answer": table_directives.put_footers(final.answer,
                                                                                     state.table_footers)})
+        cleaned, empty = table_directives.drop_empty_tables(final.answer)
+        if empty:  # EXEC-ROWS: a stray title row without data rows (the reader saw the titles twice)
+            log_event("ai_empty_table_removed", request_id=state.request_id, tables=empty)
+            final = final.model_copy(update={"answer": cleaned})
         self._log_answer_length(state, final)
         run = self._research_result(state)
         if run is None or not run.get("research_findings") or final.response_type not in ("ANSWER", "LIMITATION"):

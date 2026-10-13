@@ -70,7 +70,7 @@
       more:empty(more) ? null : more, moreLabel:ui.planMore, itemMoreLabel:ui.designMore,
       notes:{assumptions:{label:ui.planAssumptions, items:unique(raw.assumptions, seen)}, limitations:{label:ui.planLimitations, items:unique(raw.limitations, seen)}},
       confirmation:raw.confirmation_question || null,
-      choices:[{key:"APPROVE", label:ui.approve, action:{type:"plan", plan:"APPROVE", planId:id, message:ui.approveMessage}},
+      choices:[{key:"APPROVE", label:ui.approve, primary:true, action:{type:"plan", plan:"APPROVE", planId:id, message:ui.approveMessage}},
                {key:"REVISE", label:ui.revise, action:{type:"plan", plan:"REVISE", planId:id}},
                {key:"CANCEL", label:ui.cancel, kind:"ghost", action:{type:"plan", plan:"CANCEL", planId:id, message:ui.cancelMessage}}]};
   }
@@ -161,7 +161,7 @@
       claims:(envelope?.annotations || []).filter(item => item?.quote).map(item => [String(item.quote).trim(), item.note || item.kind]),
       answer:answer || null,
       clarification:final.clarification_question ? {text:final.clarification_question,
-        choices:(envelope?.options || []).map((option, index) => ({key:option.route || index, label:option.label, kind:"secondary", action:{type:"route", route:option.route, message:option.label}}))} : null,
+        choices:(envelope?.options || []).map((option, index) => ({key:option.route || index, label:option.label, kind:"secondary", note:option.route === "EXPLORE" ? ui.exploreNote : undefined, action:{type:"route", route:option.route, message:option.label}}))} : null,
       pause:pause ? {label:ui.paused, region:ui.pausedRegion, reason:pause.reason || null, hint:ui.pauseHint,
         choices:(pause.options || []).map(option => ({key:option.id, label:option.label, title:option.needs_input ? ui.needsInput : undefined,
           action:option.needs_input ? {type:"input", hint:option.label} : {type:"message", message:option.label}}))} : null,

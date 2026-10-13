@@ -99,6 +99,10 @@ server. Logout revokes the session and disconnects browser followers.
 
 ## API contracts
 
+EXEC-CHOICES: every choice the system offers (an ask-back question, a Research Plan to approve, a paused answer, the
+suggestions what to ask next) is shown as one "Response choices" panel: sent at once (arrow) or completed in the message
+box first (pen); the chosen one stays marked.
+
 All routes are under `/api/v1`; all writes require exact Origin and, except sign-in, `X-CSRF-Token` from the session
 endpoint. Cookie `edge_session` is opaque, HttpOnly, Secure and SameSite=Strict in deployment; only its hash is stored.
 No CORS is enabled. Responses are not cached. Inputs forbid unknown fields.

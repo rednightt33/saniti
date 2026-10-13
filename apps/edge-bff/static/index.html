@@ -9525,6 +9525,29 @@ html:not(.dark) .monitor-layout .user-message .message-attachments span {color:#
 .edge-model-levels small {width:100%;font-size:10px;color:var(--muted-foreground);}
 .edge-model-levels button {padding:6px 11px;border:0;border-radius:999px;background:var(--secondary);color:var(--foreground);font:500 12px Inter,"Segoe UI",sans-serif;cursor:pointer;}
 .edge-model-levels button[aria-checked="true"] {background:var(--primary);color:var(--primary-foreground);}
+/* EXEC-CHOICES: the "Response choices" design (v4 with a labelled separator), in the page's colours */
+.edge-response-choices {position:relative;margin-top:30px;padding-top:26px;border-top:1px solid var(--border);}
+.edge-response-choices.no-boundary {border-top:0;margin-top:18px;padding-top:0;}
+.edge-boundary-label {position:absolute;top:-9px;left:0;padding-right:14px;background:var(--edge-result-bg,var(--background));font:600 10px/16px Inter,"Segoe UI",sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--muted-foreground);}
+.edge-choices-title {font-weight:650;font-size:14px;margin-bottom:10px;}
+.edge-choices-prompt {font-size:13px;line-height:1.65;margin:0 0 4px;}
+.edge-choices-prompt p {margin:0 0 8px;}
+.edge-choice-area {margin-top:14px;padding:16px;background:var(--card);border-radius:12px;box-shadow:0 5px 18px #0000000b;}
+.edge-choices {display:flex;flex-wrap:wrap;gap:9px;}
+.edge-choice {flex:1 1 200px;display:flex;align-items:center;gap:10px;padding:14px;border:0;border-radius:9px;background:var(--secondary);color:var(--foreground);text-align:left;cursor:pointer;font-family:Inter,"Segoe UI",sans-serif;transition:background .15s,box-shadow .15s,transform .15s;}
+.edge-choice:hover:not(:disabled) {box-shadow:0 4px 14px #00000012;transform:translateY(-1px);}
+.edge-choice:focus-visible {outline:none;box-shadow:0 3px 12px #17203335;}
+.edge-choice.primary,.edge-choice.sent {background:var(--primary);color:var(--primary-foreground);}
+.edge-choice-icon {display:inline-flex;flex:none;width:18px;height:18px;opacity:.85;}
+.edge-choice-copy {flex:1;min-width:0;}
+.edge-choice-copy strong {display:block;font-size:13px;font-weight:600;}
+.edge-choice-copy small {display:block;margin-top:5px;font-size:11px;opacity:.7;}
+.edge-choice-tail {font-size:11px;opacity:.7;}
+.edge-choice:disabled {cursor:default;opacity:.6;box-shadow:none;transform:none;}
+.edge-choice.primary:disabled:not(.sent) {background:var(--secondary);color:var(--muted-foreground);}
+.edge-choice.sent:disabled {opacity:1;}
+.edge-choices-help {margin:14px 0 0;font-size:11px;line-height:1.6;color:var(--muted-foreground);}
+@media(max-width:600px) {.edge-choices {flex-direction:column;} .edge-choice {flex:1 1 auto;width:100%;} .edge-choice-area {padding:12px;}}
 
 
 
@@ -9640,8 +9663,8 @@ html.dark .monitor-layout .edge-scroll-marker,html.dark .monitor-layout .edge-sc
 
 
 /* Stronger AI reply surfaces in both themes. */
-html:not(.dark) .monitor-layout .result {background:#f0f2f5;}
-html.dark .monitor-layout .result {background:#20242b;}
+html:not(.dark) .monitor-layout .result {background:#f0f2f5;--edge-result-bg:#f0f2f5;}
+html.dark .monitor-layout .result {background:#20242b;--edge-result-bg:#20242b;}
 
 /* Approved rotating-ring Flow and completion badges. Status follows the run. */
 .flow-step .edge-flow-title{display:flex;align-items:center;gap:8px;}
@@ -9940,6 +9963,7 @@ html.dark .monitor-layout .details-panel>.tabs button:focus-visible{outline-colo
 /* EXEC-Y Fase 2: follow-up questions and insight ideas read as a list of questions */
 .edge-next .edge-choices {flex-direction:column;align-items:stretch;}
 .edge-next .edge-choices .btn {justify-content:flex-start;text-align:left;white-space:normal;height:auto;min-height:36px;padding:8px 12px;line-height:1.4;}
+.edge-next .edge-choice {flex:0 0 auto;padding:12px 14px;}  /* EXEC-CHOICES: a suggestion is one line in a column */
 @media (max-width:720px) {
  .monitor-layout .jump-latest {display:none!important;}
  .composer {margin:6px 10px calc(8px + env(safe-area-inset-bottom));padding:8px 8px 8px 14px;border-radius:22px;}
@@ -9948,7 +9972,8 @@ html.dark .monitor-layout .details-panel>.tabs button:focus-visible{outline-colo
  .composer>div:last-child {gap:8px;margin-top:2px;}
  .composer>div:last-child>div {gap:4px;min-width:0;flex-wrap:nowrap;}
  .composer [title="Data Scope is not available yet"] {display:none;}
- .composer .edge-model-name {display:none;}
+ .composer .edge-model-name,.composer .edge-model-level,.composer .edge-model-trigger>.icon {display:none;}
+ .composer .edge-model-trigger {padding:7px;}
  .composer .edge-model-menu {position:fixed;left:12px;right:12px;bottom:calc(var(--edge-composer-height,98px) + 16px + env(safe-area-inset-bottom));width:auto;}
  .composer .mode-anchor>.btn {height:32px;padding:0 10px;border-radius:999px;background:var(--secondary);font-size:13px;}
  .composer>div:last-child>div>.icon-btn {width:32px;height:32px;min-width:32px;border-radius:999px;order:-1;}
@@ -10149,6 +10174,9 @@ addEventListener('hashchange',()=>dispatchEvent(new PopStateEvent('popstate')));
 
 "use strict";
 const paths = {
+    // EXEC-CHOICES: a choice sent at once (arrow) and a choice the user completes in the message box (pen)
+    arrow: element("path", { d: "M5 12h14M13 6l6 6-6 6" }),
+    pen: element("path", { d: "m14 4 6 6M4 20l4-1L20 7a2 2 0 0 0-3-3L5 16z" }),
     search: element(fragment, null,
         element("circle", { cx: "11", cy: "11", r: "6" }),
         element("path", { d: "m16 16 4 4" })),
@@ -11199,7 +11227,7 @@ function PlanCard({plan, actions, pending, notes}) {
     plan.carried && element("div", {className:"edge-plan-notes"}, element("strong", null, plan.carried.label), DataValue({value:plan.carried.value})),
     edgeMore(plan.more, plan.moreLabel),
     notes,
-    actions && element("div", {className:"edge-choice-panel"}, plan.confirmation && element("p", null, plan.confirmation), actions));
+    actions);
 }
 
 // ---- Research findings ----
@@ -11213,16 +11241,41 @@ function FindingCard({finding, claims}) {
 }
 
 // ---- Choices the backend offers: each carries an action the page runs (act), whatever its source ----
-function ChoiceBar({choices, enabled, act}) {
-  return element("div", {className:"edge-choices", role:"group", "aria-label":edgeUi().choices},
-    choices.map((choice, index) => element(Button, {key:choice.key ?? index, kind:choice.kind ?? (index ? "secondary" : "primary"), disabled:!enabled, title:enabled ? choice.title : edgeUi().choicesDisabled, onClick:() => act(choice.action)}, choice.label)));
+// EXEC-CHOICES (user 2026-10-13, the "Response choices" design, applied where the system asks the user: an ask-back
+// question, a Research Plan to approve, a paused answer, and the suggestions what to ask next): a choice is either sent
+// at once (arrow) or completed in the message box first (pen: a plan revision, a pause choice that needs the user's
+// words, "Tulis jawaban lain"); the chosen one stays marked once the reply went out
+const edgeChosen = new Map();
+function edgeChoiceDraft(action){return action?.type==="input"||(action?.type==="plan"&&action.plan==="REVISE");}
+function ChoiceBar({choices, enabled, act, scope}) {
+  const ui=edgeUi();
+  return element("div", {className:"edge-choices", role:"group", "aria-label":ui.choices},
+    choices.map((choice, index) => {
+      const draft=edgeChoiceDraft(choice.action), id=(scope||"")+":"+(choice.key ?? index), chosen=edgeChosen.get(scope)===id;
+      return element("button", {key:choice.key ?? index, type:"button", className:`edge-choice${choice.primary?" primary":""}${chosen?" sent":""}`,
+          disabled:!enabled, "aria-pressed":chosen, title:enabled ? choice.title : ui.choicesDisabled,
+          "aria-label":choice.label,
+          onClick:() => {if(scope)edgeChosen.set(scope,id);act(choice.action);}},
+        element("span",{className:"edge-choice-icon"},element(Icon,{name:draft?"pen":"arrow"})),
+        element("span",{className:"edge-choice-copy"},element("strong",null,choice.label),
+          element("small",null,chosen?(draft?ui.choiceChosenDraft:ui.choiceChosen):(choice.note||(draft?ui.choiceDraft:ui.choiceSend)))),
+        element("span",{className:"edge-choice-tail"},draft?ui.choiceWrite:"\u2192"));
+    }));
 }
-function PauseCard({pause, enabled, act}) {
-  return element("section", {className:"edge-callout pause", role:"note", "aria-label":pause.region},
-    element("div", {className:"edge-callout-head"}, element(Icon, {name:"info"}), element("strong", null, pause.label)),
-    pause.reason && element("p", null, pause.reason),
-    pause.choices.length > 0 && element(ChoiceBar, {choices:pause.choices, enabled, act}),
-    element("small", {className:"edge-muted"}, pause.hint));
+function ResponseChoices({title, prompt, choices, enabled, act, scope, help, boundary=true, kind=""}) {
+  const ui=edgeUi();
+  return element("section",{className:"edge-response-choices"+(boundary?"":" no-boundary")+(kind?" "+kind:""),"aria-label":title||ui.choicesTitle},
+    boundary&&element("span",{className:"edge-boundary-label"},ui.nextAction),
+    element("div",{className:"edge-choices-title"},title||ui.choicesTitle),
+    prompt,
+    choices.length>0&&element("div",{className:"edge-choice-area"},element(ChoiceBar,{choices,enabled,act,scope})),
+    help&&element("p",{className:"edge-choices-help"},help));
+}
+function PauseCard({pause, enabled, act, scope}) {
+  return element(ResponseChoices,{title:pause.label,kind:"pause",scope,enabled,act,help:pause.hint,
+    prompt:pause.reason&&element("p",{className:"edge-choices-prompt"},pause.reason),
+    choices:(()=>{const first=pause.choices.findIndex(choice=>!edgeChoiceDraft(choice.action));
+      return pause.choices.map((choice,index)=>({...choice,primary:index===first}));})()});  // the first choice sent at once leads
 }
 function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
  const v=EdgeView.toView(run.raw,{domainStatus:run.domainStatus,planIndex}), claims=new Map(v.claims);
@@ -11237,15 +11290,18 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
   element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",{className:"edge-run-model"},v.meta.model+(v.meta.reasoningLevel?" \u00B7 "+(edgeUi().modelLevels?.[v.meta.reasoningLevel]??v.meta.reasoningLevel):"")),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.duration&&element("span",{className:"edge-duration",title:"Lama proses"},"\u23F1 "+v.meta.duration),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
   v.evidence&&element("div",{className:"edge-tags"},element("span",{className:"edge-badge neutral",title:v.evidence.code},v.evidence.label)),
   v.answer&&element("div",{className:"content-block edge-answer"},element(Markdown,{text:v.answer,claims})),
-  v.clarification&&element("section",{className:"content-block edge-choice-panel"},element(Markdown,{text:v.clarification.text,claims}),
-    v.clarification.choices.length>0&&element(ChoiceBar,{enabled,act,choices:v.clarification.choices})),
-  v.pause&&element(PauseCard,{pause:v.pause,enabled,act}),
-  v.plan&&element(PlanCard,{plan:v.plan,pending:planEnabled,actions:element(ChoiceBar,{enabled:planEnabled,act,choices:v.plan.choices}),notes}),
+  v.clarification&&element(ResponseChoices,{scope:run.id+":clarify",enabled,act,
+    prompt:element("div",{className:"edge-choices-prompt"},element(Markdown,{text:v.clarification.text,claims})),
+    choices:v.clarification.choices.length?[...v.clarification.choices,{key:"WRITE_OTHER",label:edgeUi().writeOther,action:{type:"input",hint:edgeUi().writeOtherHint}}]:[]}),
+  v.pause&&element(PauseCard,{pause:v.pause,enabled,act,scope:run.id+":pause"}),
+  v.plan&&element(PlanCard,{plan:v.plan,pending:planEnabled,actions:element(ResponseChoices,{scope:run.id+":plan",enabled:planEnabled,act,
+    title:edgeUi().planChoicesTitle,choices:v.plan.choices,prompt:v.plan.confirmation&&element("p",{className:"edge-choices-prompt"},v.plan.confirmation)}),notes}),
   v.findings&&element("section",{className:"content-block edge-block"},element(SectionTitle,null,v.findings.label),
     v.findings.items.map(finding=>element(FindingCard,{key:finding.key,finding,claims}))),
   v.lists.map(list),
   v.methodology&&element("section",{className:"content-block edge-block"},element(SectionTitle,null,v.methodology.label),element(Markdown,{text:v.methodology.text,claims})),
-  v.next&&v.next.map(group=>element("section",{key:group.key,className:"content-block edge-block edge-next"},element(SectionTitle,null,group.label),element(ChoiceBar,{enabled,act,choices:group.choices}))),
+  v.next&&element("div",{className:"content-block edge-next"},v.next.map((group,index)=>element(ResponseChoices,{key:group.key,title:group.label,boundary:index===0,
+    scope:run.id+":next:"+group.key,enabled,act,choices:group.choices}))),
   element(ResponseActions,{run,togglePin,artifacts:v.artifacts}));
 }
 function ShareResearchPopover({run,close}) {return element("div",{className:"share-popover"},element("p",null,"Public sharing unavailable"),element(Button,{onClick:close},"Close"));}

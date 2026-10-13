@@ -28,7 +28,10 @@ TOP_RE = re.compile(r"^top\s+(?P<rows>\d+)$", re.IGNORECASE)
 # Markdown table separator lines, to count the tables the model still writes cell by cell (logged, never refused)
 SEPARATOR_RE = re.compile(r"^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$", re.MULTILINE)
 DEFAULT_ROWS = 10  # rule 13: a table in the answer holds ten rows unless the user asks for more
-MAX_ROWS = 100  # a larger top is shown as this many rows; the line below the table gives the output's size
+# EXEC-ROWS (user 2026-10-13, "Tp mesti ada safe guard kalau seandainya output user = 1000 rows?"; "25 baris"): a
+# table in the chat shows at most this many rows whatever top asks; the line below it gives the output's size and, when
+# more were asked, says the complete table can be asked for as an Excel file
+MAX_ROWS = 25
 MAX_COLUMNS = 12
 EMPTY_CELL = "–"  # a missing value (null, NaN) is shown as a dash, not as a reference
 # a column the instruction may name: one a value reference can read (no brace, pipe, bracket or equals sign)
@@ -36,6 +39,10 @@ SAFE_COLUMN_RE = re.compile(r"^[^{}|\[\]=]+$")
 FOOTER_MARK = "[[tabel-baris-{key}]]"  # letters only: no figure reaches the gates; replaced once they passed
 FOOTER_MARK_RE = re.compile(r"\[\[tabel-baris-[a-z]+\]\]")
 TABLE_ROWS_LINE = "_Menampilkan {shown} dari {total} baris._"
+TABLE_CAPPED_LINE = ("_Menampilkan {shown} dari {total} baris; tabel di chat dibatasi {cap} baris, tabel lengkap bisa "
+                     "diminta sebagai file Excel._")
+# EXEC-ROWS: a Markdown table the model wrote with a title row and no data row (a stray header before a built table)
+EMPTY_TABLE_RE = re.compile(r"(?m)^[ \t]*\|[^\n]*\|[ \t]*\n[ \t]*\|?[ \t]*:?-{3,}[-:| \t]*\|?[ \t]*(?:\n(?![ \t]*\|)|\Z)")
 
 # Refusal templates (EXEC-TABLE): fixed text, details filled in; they join the REFERENCE gate's problems
 NO_TABLE = "Table {ref}: no released table has this ref; the released tables are {refs}."
@@ -69,6 +76,7 @@ class Directive:
     sort: str | None = None
     descending: bool = False
     top: int = DEFAULT_ROWS
+    asked: int = DEFAULT_ROWS  # EXEC-ROWS: the rows top asked for before MAX_ROWS
 
 
 @dataclass
@@ -127,7 +135,7 @@ def parse(body: str) -> Directive:
         raise DirectiveError(UNREADABLE.format(why="it shows no column"))
     if len(columns) > MAX_COLUMNS:
         raise DirectiveError(UNREADABLE.format(why=f"at most {MAX_COLUMNS} columns"))
-    return Directive(ref, columns, sort, descending, min(top, MAX_ROWS))
+    return Directive(ref, columns, sort, descending, min(top, MAX_ROWS), top)
 
 
 def _table(sources: ReferenceSources, ref: str) -> tuple[list[dict[str, Any]], int, bool]:
@@ -267,7 +275,9 @@ def expand(text: str | None, sources: ReferenceSources, marks: bool = True) -> E
                            "columns": len(directive.columns)})
         footer = ""
         if total > shown:
-            line = TABLE_ROWS_LINE.format(shown=format_value(shown, "int"), total=format_value(total, "int"))
+            template = TABLE_CAPPED_LINE if directive.asked > MAX_ROWS else TABLE_ROWS_LINE
+            line = template.format(shown=format_value(shown, "int"), total=format_value(total, "int"),
+                                   cap=format_value(MAX_ROWS, "int"))
             if marks:
                 mark = _mark(len(out.footers))
                 out.footers[mark] = line
@@ -279,6 +289,15 @@ def expand(text: str | None, sources: ReferenceSources, marks: bool = True) -> E
     expanded = TABLE_RE.sub(replace, text)
     out.text = re.sub(r"\n{3,}", "\n\n", expanded).strip("\n") if out.tables or out.failed else expanded
     return out
+
+
+def drop_empty_tables(text: str | None) -> tuple[str | None, int]:
+    """EXEC-ROWS: Markdown tables with a title row and no data row removed (a model wrote one above a built table: the
+    reader saw the titles twice); returns the text and how many were removed."""
+    if not text or "|" not in text:
+        return text, 0
+    cleaned, count = EMPTY_TABLE_RE.subn("", text)
+    return (re.sub(r"\n{3,}", "\n\n", cleaned) if count else text), count
 
 
 def put_footers(text: str | None, footers: dict[str, str]) -> str | None:

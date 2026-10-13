@@ -2459,6 +2459,36 @@ dibiarkan (hanya catatan, `is_active=false`) atau dibatalkan dengan migrasi baru
     berikutnya.
   - Catatan: satu TYPED_FIGURES "19" lagi (jumlah hari bursa diketik), pola yang sama dengan cek live M143.
 
+### EXEC-CHOICES dan EXEC-ROWS: panel "Response choices" di EDGE; jumlah baris tabel sesuai permintaan, maks. 25 (berjalan)
+
+**Keputusan user 2026-10-13:** lampiran `Selection_option_for_user.html` ("Jalankan terlampir dan cek terlampir. Lihat
+nama file untuk intruksi. konfirmasi pemahaman kamu sebelum execute"), revisi "tidak perlu 1:1 selection di
+aplikasikan. Aplikasikan yang memang applicable untuk sistem kita. Seperti menawarkan berita, meminta persetujuan opsi,
+dll"; saran lanjutan "Ikut gaya baru"; "Ya, eksekusi". Untuk tabel: "Yes boleh. Tp mesti ada safe guard kalau
+seandainya output user = 1000 rows?", batas "25 baris", tambahan "Buang tabel kosong (hanya judul)" dan "Opsi 'Tulis
+jawaban lain' di klarifikasi".
+- **EXEC-CHOICES (EDGE):** satu komponen untuk semua titik pilihan sistem:
+  - klarifikasi router (rute dikirim langsung; Eksplorasi diberi keterangan "Termasuk riset berita"; ditambah "Tulis
+    jawaban lain" yang membuka kotak pesan);
+  - persetujuan rencana riset (Setujui = tombol utama, Revisi = isi kotak pesan dulu, Batalkan);
+  - jeda (pilihan `needs_input` = isi dulu; pilihan kirim-langsung pertama = tombol utama);
+  - saran lanjutan (pertanyaan lanjutan, ide insight, riset lanjutan).
+
+  Pemisah berlabel "Langkah Anda berikutnya". Tombol menampilkan ikon (panah atau pensil), keterangan kecil ("Kirim
+  balasan langsung" / "Isi kotak pesan dulu") dan ekor ("→" / "Tulis"); yang dipilih ditandai "Dipilih · balasan
+  terkirim". Tidak diambil dari desain: "Keep paused", pilihan rentang waktu contoh, tombol tema/demo. Tidak ada
+  perubahan backend. Di HP pemilih model diringkas jadi huruf modelnya supaya tombol kirim tetap satu baris.
+- **EXEC-ROWS (orc):**
+  - aturan TABLES: `top` = jumlah baris yang diminta pengguna (sepuluh bila tidak disebut), paling banyak dua puluh
+    lima; bila diminta lebih, tampilkan 25 dan tawarkan tabel lengkap sebagai file Excel;
+  - pengaman di kode (`table_directives.MAX_ROWS = 25`): instruksi apa pun tidak menampilkan lebih dari 25 baris, dan
+    catatan di bawah tabel menjadi "Menampilkan 25 dari N baris; tabel di chat dibatasi 25 baris, tabel lengkap bisa
+    diminta sebagai file Excel.";
+  - tabel Markdown yang hanya berisi judul dibuang dari jawaban (log `ai_empty_table_removed`; screenshot user: tabel
+    harga BBRI dengan judul ganda dari MiMo flash).
+- **Tes:** orc 1.453 lulus; EDGE 79/79 lulus dua kali (tes baru: panel rencana, klarifikasi dengan "Tulis jawaban
+  lain", jeda).
+
 ### EXEC-MODELS: pilihan model dan level berpikir per pesan di EDGE (deployed)
 
 **Keputusan user 2026-10-13:** "Kita akan menambahkan model2 ini bisa di toggle model dan intellegence level di EDGE

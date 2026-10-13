@@ -111,10 +111,25 @@ def test_plan_card_has_no_raw_json_and_its_buttons_reply_in_indonesian(fixture_s
     article(page).locator('.edge-plan').scroll_into_view_if_needed()
     capture(page, 'x-plan-v1-mobile')
     page.set_viewport_size({'width': 1600, 'height': 1000})
-    page.get_by_role('button', name='Setujui & jalankan', exact=True).click()
+    # EXEC-CHOICES: the "Response choices" panel under the plan: a labelled separator, Setujui as the main choice sent
+    # at once, Revisi completed in the message box first
+    panel = article(page).locator('.edge-response-choices')
+    assert panel.locator('.edge-boundary-label').inner_text().upper() == 'LANGKAH ANDA BERIKUTNYA'
+    approve = panel.get_by_role('button', name='Setujui & jalankan', exact=True)
+    revise = panel.get_by_role('button', name='Revisi', exact=True)
+    assert 'primary' in approve.get_attribute('class') and 'Kirim balasan langsung' in approve.inner_text()
+    assert 'Isi kotak pesan dulu' in revise.inner_text() and 'Tulis' in revise.inner_text()
+    calls = len(orc.calls)
+    revise.click()
+    page.locator('.composer-status').wait_for()
+    assert len(orc.calls) == calls and 'Dipilih' in revise.inner_text()  # nothing sent: the user writes first
+    page.locator('.composer-status').get_by_role('button', name='Dismiss').click()
+    approve.click()
     saved(page, 2)
     call = orc.calls[-1][2]
     assert call['plan_reply']['action'] == 'APPROVE' and call['message'] == 'Setujui rencana riset'
+    chosen = article(page, 0).locator('.edge-choice.sent')
+    assert chosen.count() == 1 and 'Dipilih · balasan terkirim' in chosen.inner_text() and chosen.is_disabled()
 
 
 def test_values_to_confirm_and_thresholds_are_readable(fixture_server, browser_page):
@@ -189,7 +204,7 @@ def test_a_pause_shows_its_choices_as_buttons_once(fixture_server, browser_page)
     submit(page, 'fx:paused')
     saved(page)
     pause = FIXTURES['paused']['execution']['pause']
-    card = article(page).locator('.edge-callout.pause')
+    card = article(page).locator('.edge-response-choices.pause')
     assert 'Jawaban ini dijeda' in card.inner_text() and pause['reason'] in card.inner_text()
     assert pause['question'] not in article(page).locator('.edge-answer').inner_text()  # not shown twice
     assert article(page).locator('.result-kicker').text_content() == 'EDGE AI · Dijeda'
@@ -207,7 +222,7 @@ def test_a_pause_shows_its_choices_as_buttons_once(fixture_server, browser_page)
     call = orc.calls[-1][2]
     assert call['message'] == plain[0]['label'] and 'plan_reply' not in call and 'chosen_option' not in call
     # the answered pause is no longer the latest answer: its choices are disabled
-    assert article(page, 0).locator('.edge-callout.pause button').first.is_disabled()
+    assert article(page, 0).locator('.edge-response-choices.pause button').first.is_disabled()
 
 
 def test_markdown_never_turns_text_into_code_or_unsafe_links(fixture_server, browser_page):
@@ -252,3 +267,36 @@ def test_unknown_fields_and_values_still_show_readably(fixture_server, browser_p
     finding = article(page).locator('.edge-finding').first
     assert finding.locator('.edge-badge.neutral').inner_text().strip() == 'SOMETHING_NEW'
     assert 'Macro context' in finding.inner_text() and 'Konteks makro baru.' in finding.inner_text()
+
+
+def test_an_ask_back_offers_its_routes_and_writing_another_answer(fixture_server, browser_page):
+    """EXEC-CHOICES: an ask-back question's routes are sent at once (Eksplorasi says it includes the news research);
+    "Tulis jawaban lain" only opens the message box."""
+    origin, orc = fixture_server
+    page = browser_page
+    sign_in(page, origin)
+    original = orc.run
+
+    def asked(owner, id, payload):
+        result = original(owner, id, {**payload, 'message': 'fx:answer_table'})
+        result.update(status='NEEDS_CLARIFICATION', options=[{'label': 'Ringkasan cepat', 'route': 'QUICK_SUMMARY'},
+                                                             {'label': 'Eksplorasi', 'route': 'EXPLORE'}])
+        result['response'] = {**result['response'], 'response_type': 'CLARIFICATION', 'answer': 'TLKM yang mana?',
+                              'clarification_question': 'TLKM yang mana?'}
+        orc.saved[id]['response'] = result
+        return result
+    orc.run = asked
+    submit(page, 'TLKM gimana?')
+    saved(page)
+    panel = article(page).locator('.edge-response-choices')
+    explore = panel.get_by_role('button', name='Eksplorasi', exact=True)
+    assert 'Termasuk riset berita' in explore.inner_text()
+    other = panel.get_by_role('button', name='Tulis jawaban lain', exact=True)
+    calls = len(orc.calls)
+    other.click()
+    page.locator('.composer-status').filter(has_text='Tulis jawaban Anda di kotak pesan').wait_for()
+    assert len(orc.calls) == calls
+    orc.run = original
+    explore.click()
+    saved(page, 2)
+    assert orc.calls[-1][2]['chosen_option'] == 'EXPLORE'
