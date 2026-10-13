@@ -2459,6 +2459,23 @@ dibiarkan (hanya catatan, `is_active=false`) atau dibatalkan dengan migrasi baru
     berikutnya.
   - Catatan: satu TYPED_FIGURES "19" lagi (jumlah hari bursa diketik), pola yang sama dengan cek live M143.
 
+### EXEC-DERIVED: gerbang menyarankan alamat hitungan untuk angka tanpa sumber (berjalan)
+
+**Keputusan user 2026-10-13:** usulan (b) "Gerbang memberi saran hitungan, bukan aturan baru per kata ... masukan exec
+dan jalankan diatas."
+- Bila angka yang ditolak PROVENANCE atau METHODOLOGY_PROVENANCE (dan di pra-cek draf `check_references`) sama dengan
+  hasil `abs(a)` atau `diff(a, b)` dari nilai yang bisa dirujuk di run ini (dibulatkan seperti tampilannya, atau dibaca
+  sebagai persen dari pecahan), pesan penolakan menyebut alamatnya: "Of these, 654 equals {{diff(…)}}: if that is what
+  the number means, write that reference with a format; otherwise remove it." `chg` dan `ratio` hanya untuk angka yang
+  ditulis dengan %.
+- **Orc tidak pernah mengganti angka sendiri**; AI yang memutuskan. Log `ai_derived_suggested`.
+- **Pengaman kebetulan:** operand harus angka yang tertulis di teks yang sama (kasus "654" ditulis di samping 1.498 dan
+  844); angka dengan lebih dari 3 kemungkinan tidak disarankan. Uji data acak tanpa hubungan: saran kebetulan 19%
+  sebelum syarat operand tertulis, 6% sesudahnya; risiko sisa ditangani kalimat "if that is what the number means".
+- Tidak mengubah gerbang mana pun (yang ditolak tetap sama), prompt, atau deskripsi alat; hanya isi pesan penolakan dan
+  hasil pra-cek (`derived_references`).
+- **Tes:** orc 1.423 lulus (`tests/test_exec_derived.py` baru).
+
 ### EXEC-PROSE: tafsiran periode tanpa angka, pra-cek draf lengkap dan metodologi, teks di sekitar tabel singkat (deployed; cek cepat bersih)
 
 **Keputusan user 2026-10-13:** "both usulan 1 dan 2 ok" dan "2a + yg tadi kamu mention — Tambah satu kalimat di bagian

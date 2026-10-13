@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import bisect
 import contextvars
 import hashlib
 import json
 import logging
+import math
 import re
 import time
 from collections.abc import Callable
@@ -1350,6 +1352,14 @@ CODE_LITERAL_HINT = (" Of these, {numbers} appear only as literals in the code t
                      "threshold, a percentile or a window): state a parameter in methodology, or release it with the "
                      "result (for example emit_json of the parameters) and reference it; a number typed into code is "
                      "not a result.")
+# EXEC-DERIVED (user 2026-10-13, "masukan exec dan jalankan"): a number with no source that equals a difference, an
+# absolute value, a ratio or a relative change of this run's referable values is named with that reference in the
+# refusal (A/B 3: "654" = 1.498 − 844, A/B 2: "selisih 1,04" of −1,04), never put in by itself: a match may be chance,
+# so only a figure with at most DERIVED_MAX_MATCHES readings is named
+DERIVED_HINT = (" Of these, {matches}: if that is what the number means, write that reference with a format; "
+                "otherwise remove it.")
+DERIVED_MAX_MATCHES = 3
+DERIVED_MAX_LEAVES = 4000
 METHODOLOGY_INSTRUCTION = (
     "Your response rests on a completed analysis but methodology is empty. Add methodology: the data, the steps, the "
     "methods and their parameters in plain words, describing only what actually ran.")
@@ -1980,6 +1990,12 @@ def _with_line(text: str | None, line: str) -> str | None:
     if text is None or text.rstrip().endswith(line):
         return text
     return (text.rstrip() + "\n\n" + line) if text.strip() else line
+
+
+def _shown_in(shown: list[tuple[float, float]], value: float) -> bool:
+    """EXEC-DERIVED: the value, or the value as a percent (a fraction shown with %), is one the text displays within
+    the rounding the text shows."""
+    return any(abs(target - number) <= tolerance for number, tolerance in shown for target in (value, value * 100.0))
 
 
 def cited_match(value: float, cited: list[float], *, magnitude: bool) -> bool:
@@ -5060,6 +5076,74 @@ class AgentOrchestrator:
         literals = [n for n in unsupported if n in in_code]
         return CODE_LITERAL_HINT.format(numbers=", ".join(literals[:20])) if literals else ""
 
+    @staticmethod
+    def _referable_leaves(state: RunState) -> list[tuple[str, float]]:
+        """Every numeric value this run can reference, with its address as the address menu shows it (EXEC-R R3)."""
+        sources = state.ref_sources
+        shown = {(namespace, key): alias for namespace, aliases in sources.aliases.items()
+                 for alias, key in aliases.items()}
+        return [leaf for namespace, keys in sources.objects.items() for key in keys
+                for leaf in sources.leaves(f"{namespace}.{shown.get((namespace, key), key)}")]
+
+    def _derived_readings(self, state: RunState, unsupported: list[str], text: str = "") -> dict[str, list[str]]:
+        """EXEC-DERIVED: for each number without a source, the references abs(a) and diff(a, b) of this run's referable
+        values that equal it as shown (rounded to its own decimals, or read as a percent of a fraction), and for a figure
+        shown with % also chg(a, b) and ratio(a, b) as fractions; a number with more than DERIVED_MAX_MATCHES readings
+        is left out, its match being likely chance. Only values the text itself shows are operands (A/B 3: "654" sat
+        next to 1.498 and 844), which keeps chance pairs of unrelated values out."""
+        shown = [(value, 0.5 * 10.0 ** (-decimals) * (1 + 1e-9) + 1e-12 * abs(value))
+                 for number in parse_numbers(text) for value, decimals in number.candidates]
+        leaves = [(a, v) for a, v in self._referable_leaves(state)[:DERIVED_MAX_LEAVES]
+                  if isinstance(v, (int, float)) and math.isfinite(v) and v != 0 and _shown_in(shown, v)]
+        if not leaves or not unsupported:
+            return {}
+        ordered = sorted(leaves, key=lambda leaf: leaf[1])
+        keys = [v for _, v in ordered]
+
+        def near(target: float, tolerance: float) -> list[str]:
+            low = bisect.bisect_left(keys, target - tolerance)
+            high = bisect.bisect_right(keys, target + tolerance)
+            return [ordered[i][0] for i in range(low, high)]
+
+        found: dict[str, list[str]] = {}
+        for text in unsupported:
+            readings: list[str] = []
+            for number in parse_numbers(text):
+                for value, decimals in number.candidates:
+                    for target, places in ((value, decimals), (value / 100.0, decimals + 2)):
+                        tolerance = 0.5 * 10.0 ** (-places) * (1 + 1e-9) + 1e-12 * abs(target)
+                        if target == 0:
+                            continue
+                        if target > 0:  # a negative value written without its sign
+                            readings += [f"abs({a})" for a in near(-target, tolerance)]
+                        for a, x in leaves:
+                            readings += [f"diff({a}, {b})" for b in near(x - target, tolerance) if b != a]
+                            if x == 0 or not (number.percent and places > decimals):
+                                continue
+                            # chg(b, a) = b / a - 1 and ratio(a, b) = a / b, scale-free and so often equal by chance
+                            # (a random 6,54 read as 654): named only for a figure shown as a percent, as a fraction
+                            readings += [f"chg({b}, {a})" for b in near(x * (1 + target), abs(x) * tolerance) if b != a]
+                            if not math.isclose(target, 1.0):
+                                spread = abs(x) * tolerance / target ** 2
+                                readings += [f"ratio({a}, {b})" for b in near(x / target, spread) if b != a]
+                        if len(set(readings)) > DERIVED_MAX_MATCHES:
+                            break
+            unique = list(dict.fromkeys(readings))
+            if unique and len(unique) <= DERIVED_MAX_MATCHES:
+                found[text] = unique
+        return found
+
+    def _derived_hint(self, state: RunState, unsupported: list[str], text: str | None) -> str:
+        """EXEC-DERIVED: the refusal names the derived references a number without a source equals (logged)."""
+        found = self._derived_readings(state, unsupported, text or "")
+        if not found:
+            return ""
+        log_event("ai_derived_suggested", request_id=state.request_id, iteration=state.iterations,
+                  figures={k: v for k, v in list(found.items())[:12]})
+        matches = "; ".join(f"{text} equals " + " or ".join(f"{{{{{r}}}}}" for r in refs)
+                            for text, refs in list(found.items())[:12])
+        return DERIVED_HINT.format(matches=matches)
+
     def _source_index(self, state: RunState) -> SourceIndex:
         index = SourceIndex()
         for resolved in state.ref_values:  # P11: a value the backend filled in counts under its source's label
@@ -5353,7 +5437,9 @@ class AgentOrchestrator:
         if provenance.unsupported:
             numbers = ", ".join(provenance.unsupported[:20])
             self._gate_once(state, "PROVENANCE", PROVENANCE_INSTRUCTION.format(numbers=numbers)
-                            + self._code_literal_hint(state, final.answer, provenance.unsupported))
+                            + self._code_literal_hint(state, final.answer, provenance.unsupported)
+                + self._derived_hint(state, provenance.unsupported, final.answer)
+                            + self._derived_hint(state, provenance.unsupported, final.answer))
             return self._forced(state, final, "PROVENANCE", PROVENANCE_NOTICE.format(numbers=numbers),
                                 [texts.NO_SOURCE_LINE.format(numbers=numbers)] + lines)
 
@@ -5526,6 +5612,10 @@ class AgentOrchestrator:
                   "unresolved_references": problems[:6],
                   "note": "Write each typed figure by its address (the one that means it), say an example in words, "
                           "and remove or source the rest."}
+        derived = self._derived_readings(state, list(dict.fromkeys(unsourced + method_unsourced)),
+                                         f"{rendering.text}\n{method.text if methodology.strip() else ''}")
+        if derived:  # EXEC-DERIVED: a number without a source that equals a derived reference, named as in a refusal
+            result["derived_references"] = {figure: [f"{{{{{r}}}}}" for r in refs] for figure, refs in derived.items()}
         if shortened:
             result["shortened_note"] = SHORTENED_NOTE
         return result
@@ -5753,7 +5843,9 @@ class AgentOrchestrator:
         state.methodology_provenance = {"checked": provenance.checked, "unsupported": provenance.unsupported[:50]}
         if provenance.unsupported:
             numbers = ", ".join(provenance.unsupported[:20])
-            self._gate_once(state, "METHODOLOGY_PROVENANCE", METHODOLOGY_PROVENANCE_INSTRUCTION.format(numbers=numbers))
+            self._gate_once(state, "METHODOLOGY_PROVENANCE", METHODOLOGY_PROVENANCE_INSTRUCTION.format(numbers=numbers)
+                            + self._derived_hint(state, provenance.unsupported,
+                                                 f"{text}\n{final.answer or ''}"))
             return final.model_copy(update={"methodology": None, "limitations": [
                 *final.limitations, METHODOLOGY_WITHHELD_LINE.format(numbers=numbers)]})
         return final.model_copy(update={"methodology": text})
