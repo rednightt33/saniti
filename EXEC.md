@@ -2324,6 +2324,29 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
   - **Runner:** `lane` per item.
   - **Fallback terbukti di tes:** tanpa `lane` atau `lane: "standard"`, payload identik dengan saklar mati.
   - **Tes:** orc 1.475 lulus; EDGE 84 lulus (satu kali gagal di tes mengetik yang memang kadang gagal di main).
+- **A/B pertama B2 (2026-10-13, user "Ok done": saklar dinyalakan, limit kunci dinaikkan ke USD 40; runner `0288fb7e`,
+  orc `03e68187`, DeepSeek V4.1 Flash Tinggi, `lane: "fast"`):**
+
+  | Giliran | B0 jalur sekarang | Jalur cepat | Panggilan model (B0 → cepat) | `run_python` | Pra-cek draf |
+  |---|---|---|---|---|---|
+  | b1 pergerakan BBRI seminggu | 114 s | **94 s** | 9 → 6 | 1 → 2 | 21 s → 0 |
+  | b2 distribusi BBRI kemarin | 241 s | 194 s | 11 → 9 | 2 → 3 | 58 s → 62 s |
+  | b3 akumulasi asing | 569 s | 360 s | 19 → 13 | 9 → 4 | 77 s → 53 s |
+  | b4 akumulasi broker X/Y | 381 s | 246 s | 16 → 14 | 6 → 2 | 39 s → 29 s |
+  | b5.1 lima broker BBRI | 164 s | **118 s** | 13 → 9 | 4 → 3 | 32 s → 11 s |
+  | b5.2 rekap per minggu | 272 s | 309 s | 11 → 8 | 4 → 2 | 45 s → **210 s** |
+  | b5.3 ekspor Excel | 42 s | **26 s** | 2 → 3 | 0 | 0 → 8 s |
+
+  - Total waktu 1.783 s → 1.348 s (−24%). Lolos ≤ 3 menit: 3/7 → 3/7 (b2 194 s nyaris).
+  - Bolak-balik `run_python` turun tajam (b3 9 → 4, b4 6 → 2).
+  - Sisa pemborosan terbesar:
+    - pra-cek draf berulang (b5.2: 4 panggilan, 210 s);
+    - formulir data dikirim ulang (b3: 4 formulir, 124 s).
+  - Tidak ada panggilan yang dipotong 90 s; gerbang menolak sekali (ROUTING di b5.1).
+  - Biaya A/B USD 0,31.
+  - Saklar `AI_ENABLE_FASTLANE=true` di orc dev (deployment `03e68187` SUCCESS, dibaca ulang dari variabel);
+    `.railway/railway.ts` mencatat variabel itu. `railway config pull` juga menarik perubahan perintah start job
+    Feature04 yang tidak terkait (drift cron yang user tunda: "nanti saja"), jadi tidak ikut di-commit.
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur

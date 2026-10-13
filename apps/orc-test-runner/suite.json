@@ -1,38 +1,61 @@
 {
-  "prefix": "ma-fastlane-base-20261013b",
+  "prefix": "ma-fastlane-ab-20261013a",
   "workers": 1,
   "audit_wait_seconds": 0,
   "items": [
     {
+      "id": "b1_bbri_week",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "expect": "EXEC-FASTLANE B2 A/B: fast lane vs B0 baseline (orc 03e68187, AI_ENABLE_FASTLANE=true)",
+      "turns": [
+        "Bagaimana pergerakan harga BBRI selama 1 minggu terakhir?"
+      ],
+      "lane": "fast"
+    },
+    {
+      "id": "b2_bbri_distribution",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "expect": "EXEC-FASTLANE B2 A/B: fast lane vs B0 baseline (orc 03e68187, AI_ENABLE_FASTLANE=true)",
+      "turns": [
+        "Coba analisis pergerakan BBRI kemarin. Buat distribusi dari harga dan volumenya"
+      ],
+      "lane": "fast"
+    },
+    {
       "id": "b3_foreign_accum",
       "model": "deepseek/deepseek-v4.1-flash",
       "reasoning_level": "high",
-      "expect": "EXEC-FASTLANE B0 baseline of the current lane (user 2026-10-13 \"Go\"): orc 2e935d87, DeepSeek V4.1 Flash high",
+      "expect": "EXEC-FASTLANE B2 A/B: fast lane vs B0 baseline (orc 03e68187, AI_ENABLE_FASTLANE=true)",
       "turns": [
         "Coba analisa dalam 1 bulan terakhir saham yang paling banyak diakumulasi asing, bandingkan apakah nilai akumulasi tersebut pernah terjadi di masa lampau, dan cek performa lanjutannya di masa lalu",
         "Setuju, jalankan rencananya."
-      ]
+      ],
+      "lane": "fast"
     },
     {
       "id": "b4_broker_accum",
       "model": "deepseek/deepseek-v4.1-flash",
       "reasoning_level": "high",
-      "expect": "EXEC-FASTLANE B0 baseline of the current lane (user 2026-10-13 \"Go\"): orc 2e935d87, DeepSeek V4.1 Flash high",
+      "expect": "EXEC-FASTLANE B2 A/B: fast lane vs B0 baseline (orc 03e68187, AI_ENABLE_FASTLANE=true)",
       "turns": [
         "Cari saham yang diakumulasi broker di atas X selama Y hari lalu return-nya lebih dari 10% dalam 20 hari bursa; X dan Y ambil dari sebaran data (kuantil atas)",
         "Setuju, jalankan rencananya."
-      ]
+      ],
+      "lane": "fast"
     },
     {
       "id": "b5_recap_export",
       "model": "deepseek/deepseek-v4.1-flash",
       "reasoning_level": "high",
-      "expect": "EXEC-FASTLANE B0 baseline of the current lane (user 2026-10-13 \"Go\"): orc 2e935d87, DeepSeek V4.1 Flash high",
+      "expect": "EXEC-FASTLANE B2 A/B: fast lane vs B0 baseline (orc 03e68187, AI_ENABLE_FASTLANE=true)",
       "turns": [
         "Tampilkan 5 broker dengan net beli terbesar di saham BBRI selama Agustus 2026",
         "Rekap per minggu: broker mana yang paling sering masuk 5 besar?",
         "Ekspor tabel rekap tadi ke Excel."
-      ]
+      ],
+      "lane": "fast"
     }
   ]
 }

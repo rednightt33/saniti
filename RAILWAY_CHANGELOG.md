@@ -1,5 +1,18 @@
 # Railway changelog
 
+## 2026-10-13 — EXEC-FASTLANE switched on (dev) and first A/B
+
+User: "Ok done" (approval to switch the fast lane on; OpenRouter key limit raised to USD 40, read back).
+- Variable `AI_ENABLE_FASTLANE` set to `true` on market-ai-orc (dev) with `railway variables --set`; redeploy
+  **03e68187-ee55-4eae-b22c-57212cbabe3d** reached **SUCCESS**; value read back by name. `.railway/railway.ts` declares
+  it (`preserve()`). Rollback: set it to `false` (messages then refuse `lane: "fast"` and EDGE hides the lane choice).
+- `railway config pull --force` also pulled unrelated start-command changes of the Feature04 recovery jobs (cron drift
+  the user deferred); those were not committed. `railway config plan` needs the `railway` npm package in this checkout
+  and did not run.
+- `orc-test-runner` **0288fb7e-e074-4d70-955e-9c1d085a34a2** (`ma-fastlane-ab-20261013a`, the B0 questions with
+  `lane: "fast"`): every turn COMPLETED; total 1,348 s against 1,783 s for B0 (results in EXEC.md EXEC-FASTLANE);
+  cost about USD 0.31.
+
 ## 2026-10-13 — EXEC-FASTLANE B1+B2 deployed (fast lane code, switch off)
 
 User: "B1 + B2 berturut2". Rollback references: orc `2e935d87`, EDGE `cadcd89c`.
