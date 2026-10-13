@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-10-13 — EXEC-FASTLANE B1+B2 deployed (fast lane code, switch off)
+
+User: "B1 + B2 berturut2". Rollback references: orc `2e935d87`, EDGE `cadcd89c`.
+- `main` `7680bef`: market-ai-orc **a0f48ab6-d313-42ca-b649-9d3306d96356** and edge-bff
+  **a0546926-05c7-4b9b-8074-f6b0aebbfbe1** reached **SUCCESS**; orc startup clean (prices OK, 4 models).
+- `AI_ENABLE_FASTLANE` is not set on dev (read back by name), so the fast lane is off: `lane: "fast"` is refused,
+  `/v1/models` reports `lane_selection: false` and EDGE shows no lane choice. No variable, migration, model default,
+  provider or configuration change. OpenRouter key budget left about USD 0.51.
+
 ## 2026-10-13 — EXEC-FASTLANE B0 baseline of the current lane (orc-test-runner)
 
 User: "Go" (B0). No code, variable, model, provider or configuration change; only `orc-test-runner` redeployed with
