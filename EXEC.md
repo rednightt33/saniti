@@ -2459,7 +2459,7 @@ dibiarkan (hanya catatan, `is_active=false`) atau dibatalkan dengan migrasi baru
     berikutnya.
   - Catatan: satu TYPED_FIGURES "19" lagi (jumlah hari bursa diketik), pola yang sama dengan cek live M143.
 
-### EXEC-DERIVED: gerbang menyarankan alamat hitungan untuk angka tanpa sumber (berjalan)
+### EXEC-DERIVED: gerbang menyarankan alamat hitungan untuk angka tanpa sumber (deployed, menunggu bukti live)
 
 **Keputusan user 2026-10-13:** usulan (b) "Gerbang memberi saran hitungan, bukan aturan baru per kata ... masukan exec
 dan jalankan diatas."
@@ -2475,6 +2475,8 @@ dan jalankan diatas."
 - Tidak mengubah gerbang mana pun (yang ditolak tetap sama), prompt, atau deskripsi alat; hanya isi pesan penolakan dan
   hasil pra-cek (`derived_references`).
 - **Tes:** orc 1.423 lulus (`tests/test_exec_derived.py` baru).
+- **Deploy:** `main` `a066215`: market-ai-orc `9c024c2e` SUCCESS. Bukti live menunggu penolakan berikutnya
+  (log `ai_derived_suggested`).
 
 ### EXEC-PROSE: tafsiran periode tanpa angka, pra-cek draf lengkap dan metodologi, teks di sekitar tabel singkat (deployed; cek cepat bersih)
 

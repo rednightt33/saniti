@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-10-13 — EXEC-DERIVED deployed
+
+User: "masukan exec dan jalankan diatas" (EXEC.md EXEC-DERIVED). Rollback reference: orc
+**67a68295-aed4-4d09-8920-42df98c36b6b**.
+- `main` `a066215`: market-ai-orc **9c024c2e-8e0e-43ef-ad3d-fb8bd5ea9dae** reached **SUCCESS**; clean startup.
+- No variable, migration, model, provider or configuration change; no live run (the suggestion shows only when a
+  number is refused; evidence will be the `ai_derived_suggested` log).
+
 ## 2026-10-13 — EXEC-PROSE deployed, Tool_Catalog round T, quick check
 
 User: "both usulan 1 dan 2 ok", "2a + yg tadi kamu mention", then "Ok" (EXEC.md EXEC-PROSE). Rollback reference: orc
