@@ -58,9 +58,10 @@ tanpa kewajiban asumsi/batasan (keputusan user 2026-10-12).
 **Selesai dan ter-deploy (go 2026-10-12, jawaban user atas tiga pertanyaan hapus):** EXEC-SORT, EXEC-UI-1012 (B1, C)
 dan EXEC-DELETE; juga EXEC-DETAILS (+ M144) dan EXEC-DURATION.
 
-**Berjalan (go 2026-10-13):** EXEC-TABLE (tabel jawaban dirender dari kode, dengan wayback machine).
-**Selesai dan ter-deploy 2026-10-13 (EXEC-IMPL-1013, go "Go"):** EXEC-M143 (a) + (c) dan solusi 1 (orc `06da1d23`),
-EXEC-REASONING `medium` (orc `82cdb137`). **Ditunda (pilihan user):** solusi 2 pra-cek angka diketik.
+**Dihapus dari EXEC 2026-10-13 (user: "remove from EXEC"; selesai dan ter-deploy, teks lengkap di git `b9ccb2e`):**
+EXEC-TABLE (saklar `AI_ENABLE_TABLE_DIRECTIVES` hidup sejak EXEC-DAYS), EXEC-M143 (a)+(c) dan solusi 1 (orc
+`06da1d23`), EXEC-REASONING `medium` (orc `82cdb137`), EXEC-IMPL-1013 (rencana eksekusinya). Riwayat deploy di
+RAILWAY_CHANGELOG.md, masalahnya di ERRORS_AND_SOLUTIONS.md.
 **Menunggu keputusan:** M145, M146, EXEC-DETAILS butir 1 (tampilan mobile saat scroll).
 
 **Berjalan (2026-10-08):** EXEC-X (M124 + M125 A/B, tampilan jawaban EDGE). Dibangun di cabang
@@ -2156,284 +2157,6 @@ EDGE 73 lulus. Status: **ter-deploy** (`main` `cc0dd74`, edge-bff `04aacf39` SUC
   (tiga cek rujukan 11 s, 54 s, 59 s, satu draf ditolak gerbang PROVENANCE lalu dua panggilan perbaikan 35 s).
   `edge_3511fb…` 5m 48s: pola sama (perencanaan 97 s, penulisan dan cek rujukan sekitar 3 menit).
 
-### EXEC-REASONING: langkah utama orc dari reasoning high ke medium (dicatat, belum dieksekusi)
-
-**Permintaan user 2026-10-13:** "Langkah utama: merencanakan, menjalankan analisis, riset berita (MODE4), menulis
-jawaban, mengecek alamat, memperbaiki jawaban yang ditolak --> coba jadi medium ya, masukan exec tapi jangan eksekusi
-dulu."
-
-- Keadaan sekarang (dibaca dari kode `main` `26cb29a`): semua panggilan langkah utama memakai
-  `Settings.reasoning(ai_reasoning_effort)` (`orchestrator.py` `_payload`); variabel Railway market-ai-orc (dev)
-  `AI_REASONING_EFFORT` berisi `high` (dibaca 2026-10-13). Router pesan pertama, router giliran, pembaca balasan rencana, dan
-  pertanyaan lanjutan/ide insight memakai `reasoning("low")` tetap dan tidak ikut berubah.
-- Rencana: ubah variabel `AI_REASONING_EFFORT` dari `high` ke `medium` pada layanan market-ai-orc (dev). Satu variabel mengubah semua
-  langkah utama sekaligus (perencanaan, analisis, riset berita MODE4, menulis, cek rujukan, perbaikan); tidak ada
-  perubahan kode. Kembali ke semula: isi lagi `high`.
-- Risiko yang perlu diperiksa: perencanaan permintaan data dan analisis jadi kurang teliti (lebih banyak penolakan
-  gerbang atau perbaikan), jawaban kurang tajam. Usulan pemeriksaan sebelum atau sesudah: 4 pertanyaan A/B yang sama
-  dengan EXEC-STYLE (lama proses, token, penolakan gerbang, mutu jawaban).
-- **Keputusan user 2026-10-13 atas usulan A/B:** "Yes, ini masukan juga ke EXEC, tapi jangan execute dulu". Saat
-  dieksekusi: A/B 4 pertanyaan EXEC-STYLE (perkiraan USD 0,1), `high` lawan `medium`, dibandingkan pada lama proses,
-  token, jumlah penolakan gerbang, dan mutu jawaban; hasilnya dilaporkan sebelum `medium` dibiarkan hidup.
-- **Keputusan user 2026-10-13 (menggantikan usulan A/B di atas):** "Ok perbaiki M143 dulu, ganti reasoning ke medium ya. Jangan A/B test dulu. --> masukan exec, jangan execute sekarang." Jadi: `medium` tanpa A/B, dijalankan
-  sesudah EXEC-M143. Saat dieksekusi: `AI_REASONING_EFFORT` `high` → `medium` di market-ai-orc (dev), deploy sampai
-  SUCCESS, `railway config pull --force` dan `railway config plan`, lalu bandingkan log run sesudahnya (lama proses,
-  penolakan gerbang) dengan run sebelumnya.
-- **Dieksekusi 2026-10-13** (go "Go", EXEC-IMPL-1013 Fase 2): orc `82cdb137` SUCCESS dengan `medium`. Rollback: `high`.
-- Status sebelumnya: menunggu perintah eksekusi dari user. Saat dieksekusi: catat di `RAILWAY_CHANGELOG.md` (nama variabel,
-  layanan, deployment sampai SUCCESS).
-
-### EXEC-TABLE: tabel jawaban dirender dari kode, dengan wayback machine (A/B tidak lolos; saklar kembali mati)
-
-**Keputusan user 2026-10-13:** "Terkait dengan render tabel dari kode yang kamu sebutkan, OK. Siapkan wayback machine ke
-existing process ya in case render tabel dari kode ini tidak works." Pilihan user atas empat pertanyaan:
-- Tabel dipotong: "Ya, tampilkan" (baris "Menampilkan N dari M baris" di bawah tabel).
-- Cara lama (rujukan per sel): "Boleh untuk tabel kecil".
-- Sesudah A/B: "Otomatis jika lolos" (fitur dibiarkan hidup di dev bila kriteria di bawah terpenuhi).
-- Label status EXEC yang usang: "Ya, rapikan label" (dikerjakan 2026-10-13, hanya label, dari bukti yang tercatat).
-- Rencana disetujui sesudah penjelasan (Python tetap ditulis AI; tanda tabel pendek di jawaban; kode pengubah ditulis
-  sekali di backend; aturan lewat system prompt; penolakan lewat mekanisme yang sudah ada): "Ya, lanjut".
-
-**Masalah:** run `edge_517a29…` (6m 36s): AI menyusun tabel jawaban sel demi sel (sekitar 50 rujukan
-`{{out.o9.rows[...].kolom|fmt}}`), memilih format tiap sel, mengecek rujukan tiga kali (11 s, 54 s, 59 s) dan satu draf
-ditolak PROVENANCE; menulis dan mengecek jawaban sekitar 3 menit.
-
-**Rancangan:**
-- AI menyiapkan tabel di Python seperti sekarang; bila perlu gabungan beberapa hasil, baris Total atau sel "120 (45%)",
-  AI membuat tabel tampilan di Python (`emit_table` dengan `units=`). Renderer tidak menghitung apa pun.
-- Di jawaban AI menulis satu tanda, misalnya
-  `{{table out.o9; Sektor = sector; Median kenaikan = median_pct|pp:2; sort -median_pct; top 10}}` (bagian dipisah `;`,
-  karena `|` dipakai format; sel gabungan `{n|int} ({share|pct:1})`).
-- Kode baru di orc (`app/table_directives.py`) mengubah tanda itu menjadi tabel Markdown berisi rujukan per sel yang
-  dibuat kode, sebelum `render`; sesudah itu satuan, format, sumber provenance dan semua gerbang berjalan seperti
-  sekarang. `check_references` ikut mengubah tanda, jadi AI bisa melihat pratinjau.
-- Rujukan per sel buatan AI tetap boleh untuk tabel kecil campuran (sampai 3 baris × 3 kolom); tidak ditolak gerbang,
-  hanya dicatat di log.
-- Baris "Menampilkan N dari M baris" ditambahkan sesudah gerbang lolos.
-- Tampilan EDGE dan sort tidak berubah.
-
-**Pesan penolakan (template tetap di kode, detail diisi otomatis; masuk ke daftar masalah gerbang REFERENCE, paling
-banyak dua perbaikan, lalu `[nilai tidak tersedia]` dengan catatan seperti aturan P14):**
-- Tabel tidak ada: "Table {ref}: no released table has this ref; the released tables are {refs}."
-- Kolom tidak ada: "Table {ref}: column {column} does not exist; its columns are {columns}."
-- Format tidak cocok: "Table {ref}: format {format} does not fit column {column} ({kind})."
-- Kolom urutan tidak ada: "Table {ref}: sort column {column} does not exist; its columns are {columns}."
-- Bentuk tidak terbaca: "Table instruction cannot be read ({why}); write {{table out.oN; Title = column|format; ...;
-  sort -column; top N}}."
-- Tiap pesan diakhiri "Fix this table instruction only." Kalimat untuk user (bahasa Indonesia) tetap kalimat
-  `[nilai tidak tersedia]` yang sudah ada.
-
-**Wayback machine:**
-1. Variabel `AI_ENABLE_TABLE_DIRECTIVES=false` (default): prompt, schema dan perilaku sama byte-per-byte dengan sebelum
-   fitur (dikunci tes); mengubahnya memicu redeploy tanpa perubahan kode.
-2. `git revert` commit fitur, push `main`.
-3. Cabang `wayback/pre-exec-table` di GitHub = `main` `3708026` (commit terakhir sebelum kode fitur; push tag ditolak
-   proxy GitHub sesi ini dengan HTTP 403, jadi dipakai cabang), deploy dari cabang atau commit itu.
-
-**A/B dan kriteria lolos (ditulis sebelum dijalankan):** 4 pertanyaan EXEC-STYLE + 2 pertanyaan bertabel berat
-(termasuk pertanyaan `edge_517a29…` diulang), sekali dengan fitur mati dan sekali hidup, di dev (perkiraan USD 0,2–0,3).
-Lolos bila semua:
-- semua run COMPLETED tanpa LIMITATION paksa yang disebabkan tabel;
-- 0 angka tabel salah (setiap sel dicocokkan skrip dengan output yang dirilis);
-- tanda tabel dipakai di pertanyaan bertabel;
-- di pertanyaan bertabel: lama tahap menulis turun paling sedikit 30% (median), token output tidak naik, penolakan
-  gerbang tidak lebih banyak dari fitur mati.
-Lolos: fitur dibiarkan hidup, snapshot prompt `v006`, changelog. Tidak lolos: variabel kembali `false` (wayback 1),
-deploy SUCCESS, laporan dan usulan. Jawaban AI tidak disimpan di repo publik.
-
-**Kemajuan:**
-- 2026-10-13 Fase 0: label usang dirapikan; cabang wayback `wayback/pre-exec-table` = `3708026`.
-- 2026-10-13 Fase 1–4 dibangun: `app/table_directives.py`, saklar `AI_ENABLE_TABLE_DIRECTIVES` (default `false`),
-  bagian prompt TABLES (hanya saat saklar hidup), pratinjau di `check_references`, baris "Menampilkan N dari M
-  baris" sesudah gerbang, log `ai_table_directive`. EDGE: tanda "–" diurutkan sebagai sel kosong (terakhir). Tes: orc
-  1.655 lulus (20 tes baru; prompt saklar mati sama persis dengan snapshot `v005`), EDGE 74 lulus.
-- 2026-10-13 Fase 5: `main` `d7d8f85` ter-deploy (orc `51fdcb6a`, edge-bff `dda7b464`, SUCCESS, saklar mati).
-  A/B 6 pertanyaan (4 EXEC-STYLE + 2 bertabel berat; pertanyaan `edge_517a29…` tidak bisa diulang sendiri karena
-  pesan lanjutan yang butuh riwayat percakapannya): OFF `ma-ab-table-20261013a` (USD 0,126), ON
-  `ma-ab-table-20261013b` (orc `d10e8d7b`, USD 0,150) dan ulang ab5 `ma-ab-table-20261013c` (USD 0,038; run ON
-  pertamanya LIMITATION karena model menulis markup panggilan alat sebagai jawaban sebelum ada data, M146).
-  Tahap menulis = latensi panggilan model sesudah panggilan alat analisis terakhir (log orc):
-
-  | Pertanyaan | Menulis OFF → ON (s) | Token output total OFF → ON | Perbaikan gerbang OFF → ON | Tabel ON |
-  |---|---|---|---|---|
-  | ab3 analisis | 31,2 → 21,9 | 9.198 → 6.967 | 0 → 1 (PROVENANCE, narasi) | 1 tanda |
-  | ab4 harga + asing | 61,6 → 129,4 | 16.351 → 30.562 | 0 → 0 | 2 tanda (10 dari 30 baris + 3 baris) |
-  | ab5 peringkat 15 saham | 67,4 → 114,7 | 29.083 → 30.524 | 1 → 2 (PROVENANCE "Rp … miliar" di narasi, M143; TYPED_FIGURES) | 1 tanda |
-  | ab6 broker BBRI | 66,8 → 41,9 | 24.866 → 23.391 | 0 → 1 (TYPED_FIGURES, narasi) | 1 tanda |
-
-  Kriteria: semua run COMPLETED (sesudah ab5 diulang) **ya**; tanda tabel dipakai di pertanyaan bertabel **ya** (0
-  tanda ditolak, 0 tabel diketik sel per sel); tahap menulis turun ≥30% (median ab5, ab6) **tidak** (ab6 −37%, ab5
-  +70%); penolakan gerbang tidak lebih banyak **tidak** (pertanyaan bertabel 1 → 3, semuanya di kalimat narasi, bukan
-  sel tabel); 0 angka tabel salah **tidak terbukti dengan skrip**: jejak audit hanya menyimpan pratinjau hasil alat
-  (8.000 karakter), jadi baris rilis lengkap tidak terbaca; tidak ada sel `[nilai tidak tersedia]` dan gerbang
-  PROVENANCE menerima semua sel.
-- **Keputusan sesuai rencana (tidak lolos):** `AI_ENABLE_TABLE_DIRECTIVES=false` (wayback 1), orc `98ae6f92` SUCCESS.
-  Kode tetap di `main` di balik saklar mati (prompt sama dengan `v005`). Pembacaan: tanda tabel bekerja (cepat dan
-  tanpa penolakan di tabel), tetapi waktu dan penolakan didominasi narasi dan perencanaan data; sampel 6 pertanyaan
-  terlalu kecil untuk memisahkan efek tabel dari variasi model. Usulan menunggu keputusan user.
-- **Pemeriksaan log penalaran (2026-10-13, permintaan user "cek setiap log dari reasoning AI, kepentok dimana"):**
-  - Saat ON, tabel ditulis sebagai satu instruksi (0 ditolak). Teks jawaban yang ditulis turun (ab5 3.073 → 2.012 token,
-    ab6 3.474 → 2.012), dan pratinjau tabel di `check_references` makan 3,0 s (ab6).
-  - Bolak-balik menyusun sel sudah tidak ada. Tapi run OFF di A/B ini juga tidak memunculkan masalah lama
-    (`edge_517a29…`, sekitar 3 menit): di sana bagian tabel hanya sekitar 24–34% penalaran tahap menulis, 12–22 s per
-    pertanyaan. Jadi A/B ini belum membuktikan masalah 3 menit itu selesai.
-  - Di kedua mode, waktu tahap menulis didominasi narasi. Contoh: ab4 ON iterasi 13 (73 s) mendaftar sekitar 15 rujukan
-    narasi beserta satuannya; ab5 ON-ulang iterasi 12–13 (82 s) dihabiskan untuk penolakan M143. Di ab4 AI sempat ragu
-    apakah `sort` wajib (usulan: satu kalimat "sort boleh dihilangkan").
-  - Semua penolakan gerbang ada di narasi, tidak di sel tabel:
-    - OFF ab5: "19" diketik.
-    - ON ab2 (tanpa tabel): "Rp 100 miliar" diketik.
-    - ON ab3: ilustrasi dihitung sendiri "Rp10 juta → Rp9,41 juta".
-    - ON ab6: "19" diketik.
-    - ON-ulang ab5: M143 dan "14" diketik.
-  - Kaitan dengan tabel: saat OFF, uang ditulis dengan `|rp` (0 pola "Rp {{…}} miliar"). Saat ON-ulang ab5, AI merilis
-    kolom berskala (`net_buy_miliar`) agar kolom tabel rapi, lalu narasinya memakai "Rp {{…}} miliar" 17 kali → M143.
-    Ditutup oleh EXEC-M143.
-  - M146 (markup panggilan alat sebagai teks) terpisah: berakhir LIMITATION, bukan penolakan gerbang.
-- **A/B cepat ke-2 (user 2026-10-13: "Tolong run A/B test dulu ya 4 pertanyaan. Cepat saja.", pilihan "Tabel ON vs OFF
-  lagi"):** ab3–ab6, reasoning `medium`, prompt `v006`, empat pertanyaan paralel.
-  - Run: OFF `ma-ab-table-20261013d` (orc `82cdb137`, USD 0,075 + ab5 0,021); ON `ma-ab-table-20261013e`
-    (`AI_ENABLE_TABLE_DIRECTIVES=true`, orc `e258e5c4`, USD 0,088). Sesudahnya saklar kembali `false` (orc `86884c2b`
-    SUCCESS).
-  - Tahap menulis dihitung sesudah `run_python` terakhir (log orc):
-
-    | Pertanyaan | Total OFF → ON (s) | Menulis OFF → ON (s) | Cek rujukan OFF → ON | Perbaikan gerbang OFF → ON |
-    |---|---|---|---|---|
-    | ab3 | 42 → 58 | 6 → 16 | 0 → 1 | 0 → 1 (PROVENANCE "1,04", narasi) |
-    | ab4 | 184 → 187 | 57 → 52 | 3 (42 s) → 1 (16 s) | 0 → 0 |
-    | ab5 | 115 (LIMITATION, **M146**) → 254 | – → 58 | – | – |
-    | ab6 | 120 → 176 | 36 → 31 | 2 → 1 | 1 → 1 (PROVENANCE "30", narasi, di kedua mode) |
-
-  - ON: 6 tabel lewat tanda, 0 ditolak, 0 tabel diketik sel per sel.
-  - **M146 juga terjadi saat OFF** (ab5), jadi M146 bukan akibat fitur tabel.
-  - Sampel masih kecil. Waktu total ON tidak lebih cepat (perencanaan data ab5/ab6 lebih lama di ON), dan tahap
-    menulis campuran (ab4 −9%, ab6 −14%, ab3 +10 s). Saklar tetap mati sampai user memutuskan.
-
-### EXEC-M143: angka berskala ("{{…}} juta/miliar") tidak lagi ditolak gerbang PROVENANCE (dicatat, belum dieksekusi)
-
-**Keputusan user 2026-10-13:** "Ok perbaiki M143 dulu, ganti reasoning ke medium ya. Jangan A/B test dulu. --> masukan exec, jangan execute sekarang." Cara: "(a) + (c) (Recommended)".
-- **Masalah (ERRORS M143):** AI merilis kolom yang sudah diskalakan (`total_net_asing_miliar` 1975.4) lalu menulis kata
-  skala sesudah rujukan ("{{…|dec:1}} miliar"). `provenance.parse_numbers` membaca "1.975,4 miliar" sebagai 1,9754e12,
-  jadi tidak cocok dengan sumbernya sendiri (1975.4), dan jawaban ditolak atau dipaksa LIMITATION (Run B ab4,
-  `ma-ab-table-20261013c` ab5).
-- **(a) Pemeriksa angka:**
-  - `value_refs.render` (`_without_repeated_units`, P22/P23, `UNIT_FAMILIES`) sudah membaca kata satuan tepat sesudah
-    rujukan.
-  - Kata skala (ribu, juta, miliar, triliun) yang ditulis langsung sesudah rujukan diperlakukan sebagai bagian tampilan
-    nilai itu: nilai × skala didaftarkan sebagai sumber provenance **hanya untuk rujukan itu**.
-  - Angka yang diketik tanpa rujukan tetap ditolak.
-- **(c) Aturan untuk AI:** satu kalimat di aturan VALUE REFERENCES: rilis uang dan volume dalam satuan dasar dan format
-  di jawaban (`|rp`), jangan merilis kolom berskala lalu menambah "juta"/"miliar". Akibatnya ada snapshot prompt baru,
-  cek batas ukuran prompt, dan cache prompt di-reset sekali.
-- **Tes:**
-  - Reproduksi M143 (349.1 + "juta", 1975.4 + "miliar", juga "Rp {{…}} miliar") lolos.
-  - Angka ketik tanpa rujukan dan kata skala yang tidak menempel ke rujukan tetap ditolak.
-  - `test_value_references`, `test_answer_integrity`, `test_prompt_pass2`, `test_prompt_history` hijau.
-- **Saat dieksekusi:** push `main`, deploy orc sampai SUCCESS, ERRORS M143 → FIXED setelah terbukti di run live,
-  README orc. Tanpa A/B (keputusan user). Sesudahnya EXEC-REASONING.
-- **Tambahan 2026-10-13 (user: "maaf, saya setuju solusi 1 dan 2 masukan ke exec review all exec dan siapkan execution plan"), dari pemeriksaan log A/B EXEC-TABLE.** AI tahu aturannya (prompt baris 41,
-  101, 102, 147, 159 snapshot `v005`; contoh di log: *"I must not type figures without a source"*), tetapi tiga pola
-  lolos dan ditolak gerbang:
-  - "19 hari transaksi": jumlah hari dibaca sebagai bagian tanggal (baris 159 membolehkan tanggal dan tahun).
-  - "14 saham lainnya": 15 − 1 dari angka user.
-  - "Rp 100 miliar": angka contoh di jawaban fakta.
-
-  Pesan penolakannya cukup jelas: setiap kasus beres dalam satu perbaikan. Tapi AI baru tahu saat gerbang menolak.
-  Satu putaran perbaikan makan 4–49 s (ab3 4 s, OFF ab5 16 s, ab6 21 s, ab5 ulang 49 s).
-  - **Solusi 1: aturan diperjelas** (bagian VALUE REFERENCES, ditulis dengan kata, tanpa angka, sesuai tes prompt):
-    - Jumlah hari, saham atau broker yang menjelaskan periode atau sampel juga angka dari data, jadi ditulis sebagai
-      alamat.
-    - Angka yang dihitung dari angka user (misalnya satu lebih sedikit) adalah perhitungan.
-    - Angka contoh atau ilustrasi juga angka: ganti dengan kata-kata.
-  - **Solusi 2: pra-cek angka yang diketik.**
-    - `check_references` menerima draf teks (`draft`, opsional, di samping `references`). Alat ini mengembalikan angka
-      yang akan ditolak gerbang, beserta kandidat alamatnya:
-      - TYPED_FIGURES: kode yang sama, `typed_figures` + `_auto_references` dengan kandidat M140.
-      - PROVENANCE: `check_answer` atas teks yang sudah dirender, dengan sumber run ini.
-    - Tanpa model call. Tidak mengubah status gerbang: tidak menghitung jatah perbaikan dan tidak menambah DIRUJUK.
-    - Fungsi pemeriksa dipasang orc per run lewat contextvar, seperti `current_reference_sources`.
-    - Satu kalimat di prompt: cek draf sebelum mengirim jawaban yang berisi angka.
-    - Tool_Catalog `check_references` v2 lewat `scripts/generate_tool_catalog_migration.py`, dan `AI_TOOLS.md`
-      diregenerasi.
-- Status: **dieksekusi** (EXEC-IMPL-1013 Fase 1; solusi 2 ditunda, lihat di bawah).
-
-### EXEC-IMPL-1013: rencana eksekusi EXEC-M143 (a)+(c) + solusi 1 dan 2, lalu EXEC-REASONING (menunggu go)
-
-**Permintaan user 2026-10-13:** "maaf, saya setuju solusi 1 dan 2 masukan ke exec review all exec dan siapkan execution plan" Belum ada yang dijalankan; menunggu "go".
-
-**Review EXEC (2026-10-13):**
-
-| Kelompok | Entri | Status |
-|---|---|---|
-| Disetujui, belum dieksekusi | EXEC-M143 (a)+(c), solusi 1 dan 2 | Rencana di bawah, Fase 1 |
-| Disetujui, belum dieksekusi | EXEC-REASONING (`medium`, tanpa A/B) | Rencana di bawah, Fase 2 |
-| Menunggu keputusan user | M145 (ulang panggilan model saat `RemoteProtocolError`), M146 (markup panggilan alat sebagai teks), EXEC-DETAILS butir 1 (tampilan mobile saat scroll), arah EXEC-TABLE (saklar mati), kalimat "sort boleh dihilangkan", drift start command tiga cron recovery di Railway, rotasi kunci R39 | Tidak masuk rencana ini |
-| Sisa lama (EXEC-D…EXEC-Z) | uji live EXEC-M109 (golden test), target ≤5% EXEC-D/M110, uji live EXEC-Y Fase 4, cek live M140, butir EXEC-V/EXEC-X yang tidak diteruskan | Tidak masuk rencana ini; tetap seperti tercatat |
-| Selesai dan ter-deploy | EXEC-JOINKEY, RELEASE, FRICTION, STYLE, EXPORT, TYPING, SORT, UI-1012, DELETE, DETAILS (butir 2–3, M144), DURATION; kode EXEC-TABLE (saklar mati) | – |
-
-**Fase 1 — EXEC-M143 (a)+(c) + solusi 1 dan 2 (satu perubahan prompt, satu deploy orc):**
-1. **(a)** `app/value_refs.py` (`render` / `_without_repeated_units`): kata skala (ribu, juta, miliar, triliun) tepat
-   sesudah rujukan angka dengan format tanpa satuan (dec, int, auto) menambah nilai × skala sebagai sumber, hanya untuk
-   rujukan itu. Format `rp` tidak berubah (P22 sudah membuang satuan ganda).
-2. **(c) + solusi 1:** kalimat baru di `VALUE_REFERENCE_RULES` (`app/orchestrator.py`), ditulis dengan kata tanpa angka.
-   Ikut diperbarui: `test_prompt_pass2` (`S_ADDED`, `SIZE_BUDGET` bila perlu), batas konteks `test_orchestrator`,
-   snapshot prompt `v006`, `AI_ROUTER.md` bila berubah.
-3. **Solusi 2:**
-   - `app/tools/references.py`: argumen `draft`, dengan batas panjang.
-   - Pemeriksa draf orc lewat contextvar memakai `typed_figures`, `_auto_references` (tanpa efek samping) dan
-     `check_answer`.
-   - Kalimat prompt.
-   - Tool_Catalog v2 (migrasi baru dari generator; diterapkan lewat layanan sementara `mmig-job` DRYRUN lalu APPLY,
-     dibaca ulang, layanan dihapus), `AI_TOOLS.md`, `DATABASE_CHANGELOG.md`, `APPLIED.sha256`.
-4. **Tes:**
-   - Reproduksi M143 lolos (349.1 + "juta", 1975.4 + "miliar", "Rp {{…}} miliar").
-   - Angka ketik tanpa rujukan tetap ditolak.
-   - Pra-cek menemukan "19", "14" dan "Rp 100 miliar" seperti gerbang, tanpa mengubah jatah perbaikan.
-   - Saklar EXEC-TABLE mati tetap memberi prompt baru yang sama (tes `test_table_directives`).
-   - Suite penuh orc dan EDGE, `git diff --check`.
-5. **Deploy:** push `main`, migrasi Tool_Catalog, orc sampai **SUCCESS**, log start bersih.
-6. **Cek live:** satu pertanyaan analisis berisi nilai rupiah (perkiraan USD 0,03–0,05; ini cek, bukan A/B). Dari log:
-   tidak ada penolakan M143, dan pra-cek terpanggil.
-7. **Catat:** ERRORS M143 → FIXED (bila cek live lolos), README orc, EXEC.
-
-**Fase 2 — EXEC-REASONING (sesudah Fase 1 SUCCESS):**
-- `AI_REASONING_EFFORT` `high` → `medium` di market-ai-orc (dev), tanpa A/B.
-- Deploy sampai **SUCCESS**.
-- `railway config pull --force` dan `railway config plan` (drift tiga cron dilaporkan, tidak disentuh).
-- Catat di `RAILWAY_CHANGELOG.md` dan EXEC.
-- Rollback: `high` lagi.
-- Pemantauan: bandingkan log run nyata sesudahnya (lama proses, penolakan gerbang) dengan run sebelumnya, lalu
-  laporkan.
-
-**Berhenti dan lapor bila:** tes merah yang bukan dari perubahan ini; deployment tidak SUCCESS; migrasi tidak terbaca
-ulang; cek live masih menolak angka berskala.
-
-**Go user 2026-10-13:** "Go". **Kemajuan:**
-- Fase 1 dibangun:
-  - (a): `value_refs.SCALE_AFTER_RE`, log `ai_reference_scaled`.
-  - (c) dan solusi 1: tiga kalimat di VALUE REFERENCES, snapshot prompt `v006 exec-m143`, prompt +1,1%,
-    `SIZE_BUDGET` 1,11 → 1,12.
-  - Tes `test_m143_scaled_references.py`. orc 1.659 lulus.
-- **Solusi 2 ditunda** (pilihan user "Tunda solusi 2 (Recommended)"). Saat dirancang terlihat bahwa pra-cek memaksa AI
-  menulis jawaban dua kali (draf di panggilan alat lalu jawaban final, sekitar 2.000–3.500 token, kira-kira 15–30 s,
-  plus satu panggilan model). Penolakan gerbang yang sekarang ada diperbaiki dengan edit kecil (4–49 s), dan hanya
-  sesekali. Akan diputuskan lagi setelah dilihat apakah aturan baru menurunkan penolakan angka yang diketik. Karena
-  `check_references` tidak berubah, tidak ada migrasi Tool_Catalog.
-- Fase 1 ter-deploy: `main` `8b87378`, orc `06da1d23` SUCCESS (edge-bff SKIPPED), log start bersih.
-- Cek live `ma-m143-20261013a` (pertanyaan Run B yang dulu kena M143, USD 0,043, 170 s): **tidak ada penolakan M143**.
-  - Uang dirujuk dengan `|rp` dari kolom satuan dasar ("Rp 1,51 triliun", "Rp 79,42 miliar"), sesuai aturan (c).
-  - Satu TYPED_FIGURES "19" (jumlah hari bursa) tetap muncul, diperbaiki dalam satu edit. Log penalaran menunjukkan AI
-    membaca aturan baru (mengutip "A count that describes the period… is a figure from data too") dan merilis
-    `hari_perdagangan`, tetapi tetap mengetik angka itu sekali di draf. Jadi solusi 1 belum menghilangkan pola ini;
-    dipantau di run berikutnya.
-- Fase 2: `AI_REASONING_EFFORT` `high` → `medium`, orc `82cdb137` SUCCESS. Log start `ai_model_selected` menunjukkan
-  `reasoning {"effort": "medium"}`. `railway config pull`: variabel sudah tercatat; hanya drift tiga cron yang sama
-  (tidak disentuh).
-- EXEC-REASONING: **dieksekusi** 2026-10-13. Tahap pemantauan: bandingkan log run nyata sesudahnya.
-
-**Rollback Fase 1:** `git revert` commit fitur, lalu push `main` (prompt kembali ke `v005`). Baris Tool_Catalog v2
-dibiarkan (hanya catatan, `is_active=false`) atau dibatalkan dengan migrasi baru.
-
 ### EXEC-M146-M147: panggilan alat tertulis sebagai teks; jumlah tanggal di profil data (ter-deploy)
 
 **Keputusan user 2026-10-13:** "fix M146c rencanakan terlebih dahulu", lalu "selidiki 147, cek kode", lalu "Ok go".
@@ -2527,17 +2250,22 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
   - Gerbang lain jalur riset dinilai perlu dengan pesan dan langkah perbaikan yang jelas: EMPTY_REQUEST,
     PLAN_CARRIED_INPUTS, PLAN_FINDINGS, PLAN_VERSION, RESEARCH_PLAN_REAPPROVAL_REQUIRED, PLAN_NOT_EXECUTED,
     RESEARCH_RUN_INCOMPLETE, ANALYSIS, ROUTING, PROVENANCE, FINDINGS/FINDINGS_2.
+- **Keputusan user atas review (2026-10-13):**
+  - **K1 "Ok boleh":** tingkat 1 jalur baru boleh mengambil data tanpa persetujuan (penyimpangan sadar dari jaminan
+    EXEC-D, khusus jalur baru); vonis "terbukti" tetap hanya lewat tingkat 2 dengan persetujuan.
+  - **K2 "perbaiki dulu di jalur sekarang, baru nanti pecah jalur agar perbaikan terbawa":** G3 (DEFINITION) dan G5
+    (CLARIFY yang butuh hitungan baru, kode broker disimpan) dikerjakan lebih dulu di jalur sekarang, sebelum jalur baru
+    dipisah.
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur
-    baru saja; vonis "terbukti" tetap hanya lewat tingkat 2 dengan persetujuan. **Keputusan terbuka K1.**
+    baru saja; vonis "terbukti" tetap hanya lewat tingkat 2 dengan persetujuan (K1: disetujui).
   - EXEC-MODELS (default EDGE DeepSeek Tinggi) dan EXEC-LOGOS (level Rendah/Tinggi/Maks, pengaman M150): R4 hanya
     mengatur level di dalam jalur baru; default EDGE tidak berubah.
   - EXEC-PROSE dan EXEC-DAYS (pra-cek draf): R6 hanya di jalur baru.
   - EXEC-W (`stop_policy`: jeda dan tanya): jalur baru memakai aturan jeda yang sama.
   - EXEC-UI-1013B: tampilan, berlaku untuk kedua jalur.
-  - G3 dan G5 adalah bug yang juga ada di jalur sekarang. **Keputusan terbuka K2:** diperbaiki di jalur baru saja (jalur
-    sekarang tetap dengan bug-nya) atau di kedua jalur.
+  - G3 dan G5 adalah bug yang juga ada di jalur sekarang (K2: diperbaiki di jalur sekarang lebih dulu).
 
 ### EXEC-UI-1013B: pilihan bernomor bisa diklik, logo model dan Excel di jawaban, pemantau run di iPhone (rencana, belum dieksekusi)
 
