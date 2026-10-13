@@ -50,17 +50,21 @@ gabungkan ya", pilihan "File baru EXEC.md"). Pekerjaan yang disetujui tetapi bel
 
 ## Ringkasan
 
-**Berjalan (go 2026-10-12, "ok"):** EXEC-JOINKEY (G25), EXEC-RELEASE (sisa M139), EXEC-FRICTION (P0, M142) dan
+**Selesai dan ter-deploy (go 2026-10-12, "ok"; label diperbarui 2026-10-13 dari bukti yang sudah tercatat):** EXEC-JOINKEY (G25), EXEC-RELEASE (sisa M139), EXEC-FRICTION (P0, M142) dan
 EXEC-STYLE, dengan rencana implementasi bersama EXEC-IMPL-1012 (3 fase). Sesudah A/B, EXEC-STYLE kembali ke gaya Run A
 tanpa kewajiban asumsi/batasan (keputusan user 2026-10-12).
 
-**Berjalan (go 2026-10-12, "2 dan 3 OK untuk jalankan masukan EXEC"):** EXEC-EXPORT dan EXEC-TYPING (perbaikan EDGE).
-**Berjalan (go 2026-10-12, jawaban user atas tiga pertanyaan hapus):** EXEC-SORT, EXEC-UI-1012 (B1, C) dan
-EXEC-DELETE. **Menunggu keputusan:** M143.
+**Selesai dan ter-deploy (go 2026-10-12, "2 dan 3 OK untuk jalankan masukan EXEC"):** EXEC-EXPORT dan EXEC-TYPING (perbaikan EDGE).
+**Selesai dan ter-deploy (go 2026-10-12, jawaban user atas tiga pertanyaan hapus):** EXEC-SORT, EXEC-UI-1012 (B1, C)
+dan EXEC-DELETE; juga EXEC-DETAILS (+ M144) dan EXEC-DURATION.
+
+**Berjalan (go 2026-10-13):** EXEC-TABLE (tabel jawaban dirender dari kode, dengan wayback machine).
+**Dicatat, belum dieksekusi:** EXEC-REASONING (reasoning langkah utama ke medium, A/B dulu).
+**Menunggu keputusan:** M143, M145, EXEC-DETAILS butir 1 (tampilan mobile saat scroll).
 
 **Berjalan (2026-10-08):** EXEC-X (M124 + M125 A/B, tampilan jawaban EDGE). Dibangun di cabang
 `claude/code-session-2k3oeg` (HTML user sebagai sumber utama, API dipisah dari tampilan, teks backend bahasa biasa);
-uji lulus (orc 1.563, EDGE 46). Belum di `main`, belum deploy: menunggu OK user atas pratinjau.
+uji lulus (orc 1.563, EDGE 46). Ter-deploy dari `main` `72478cd` dan `1f14c5a` (lihat EXEC-X; label diperbarui 2026-10-13 dari bukti yang sudah tercatat).
 
 **Menunggu "go" (2026-10-09):** EXEC-Y, rencana implementasi semua butir yang disetujui dan belum dibangun (4 fase).
 
@@ -1883,7 +1887,7 @@ service or schedule was added. Evidence: `verification/feature04/TELEGRAM_MONITO
 ### EXEC-JOINKEY: kunci gabungan hanya entitas, kolom tanggal tidak ikut (G25)
 
 **Keputusan user 2026-10-12:** "kuncingabungan hanya entitas, kolom tanggal tidak ikut —> yes pls fix sesuai
-rekomendasimu masukan exec". Status: **menunggu go**. Bukti: run `edge_87c8c408…-m4n` (2026-10-09 10:24, orc
+rekomendasimu masukan exec". Status: **selesai** (Fase 1 `597b77f` SUCCESS, lulus Run A; label diperbarui 2026-10-13 dari bukti yang sudah tercatat). Bukti: run `edge_87c8c408…-m4n` (2026-10-09 10:24, orc
 `540227e6`), ERRORS G25.
 - **Masalah:** bagian RELATIONSHIPS katalog menampilkan relasi #23 dengan `left_columns`/`right_columns`
   `[ticker, date]` dan `join_rule` "left_columns[i] joins right_columns[i]", sedangkan `submit_data_need_spec` (v2,
@@ -1917,7 +1921,7 @@ rekomendasimu masukan exec". Status: **menunggu go**. Bukti: run `edge_87c8c408�
 ### EXEC-RELEASE: hasil baru sah setelah analisis ditutup (M139 sisa)
 
 **Keputusan user 2026-10-12:** "hasil baru sah setelah analisis ditutup —> yes pls fix seusai rekomendasi mu masukan
-exec". Status: **menunggu go**.
+exec". Status: **selesai** (Fase 1 `597b77f` SUCCESS, lulus Run A; label diperbarui 2026-10-13 dari bukti yang sudah tercatat).
 - **Sudah ada (EXEC-Z, deploy `977b525`, 2026-10-09):** `run_python` yang gagal menaruh tabelnya di
   `discarded_outputs` dengan catatan bahwa `complete_analysis` tidak akan merilisnya.
 - **Sisa yang diperbaiki:** panduan metode (`app/method_guides.py`, identik di orc dan sandbox, v7) masih menulis
@@ -1937,7 +1941,7 @@ exec". Status: **menunggu go**.
 
 ### EXEC-FRICTION: hambatan proses tampil di EDGE dari data backend (P0, M142)
 
-**Keputusan user 2026-10-12:** "P0 oke, masukan exec". Status: **menunggu go**. Bukti: run `edge_01fccf…-m4q` (M142):
+**Keputusan user 2026-10-12:** "P0 oke, masukan exec". Status: **selesai** (Fase 2 `cbe1860` SUCCESS, lulus Run A; label diperbarui 2026-10-13 dari bukti yang sudah tercatat). Bukti: run `edge_01fccf…-m4q` (M142):
 laporan diri AI menambah dua hambatan yang tidak terjadi dan melewatkan empat penolakan gerbang yang terjadi.
 - **Tujuan:** pengguna melihat hambatan sebuah jawaban dari catatan backend, bukan dari cerita AI.
 - **Orc:** `execution` mendapat `hurdles` (dihilangkan bila kosong): daftar hambatan run ini, satu butir per penolakan
@@ -1960,7 +1964,7 @@ laporan diri AI menambah dua hambatan yang tidak terjadi dan melewatkan empat pe
 **Keputusan user 2026-10-12:** "Ok, yang adopsi dan sebagian --> masukan EXEC." dan "A/B test hanya sebagian saja 4
 pertanyaan maksimal --> masukan exec". Konsekuensi diterima: "snapshot system prompt baru, batas ukuran prompt +2% harus
 dicek, dan cache prompt di-reset sekali. --> tidak apa." Tabel tetap seperti sekarang ("hanya terkait table tidak apa
-leave as is"). Status: **menunggu go**. Bukti: run `edge_01fccf…` (reasoning "Also add assumptions/limitations"; tabel
+leave as is"). Status: **selesai**, gaya Run A (`main` `f30e710`, orc `dbc11d42` SUCCESS; label diperbarui 2026-10-13 dari bukti yang sudah tercatat). Bukti: run `edge_01fccf…` (reasoning "Also add assumptions/limitations"; tabel
 6 baris untuk pertanyaan obrolan), 11 dari 13 run percakapan `conv_9d6092c4…` mencatat `ai_answer_long`; benchmark
 eksternal (Anthropic prompting best practices, OpenAI GPT-5.1/5.2 prompting guides dan Model Spec, Tam dkk. EMNLP 2024).
 - **S1 struktur per jenis (adopsi):** di `WRITING FOR THE READER` (`orchestrator.py`) urutan kesimpulan → angka →
@@ -2007,10 +2011,10 @@ dari 1 tabel as long as membantu user. (tidak wajib harus lebih dari 1)". Yang d
   pembaca (tidak wajib).
 - Snapshot prompt `v005 exec-style-run-a` (prompt +0,5% dari Run A). Run C tidak dijalankan (belum diminta).
 
-### EXEC-EXPORT: ekspor Excel belum jalan (investigasi)
+### EXEC-EXPORT: ekspor Excel belum jalan (diperbaiki)
 
 **Permintaan user 2026-10-12:** "Saat ini feature export excel masih belum works. Investigate --> masukan exec".
-Status: **investigasi, belum ada perubahan.** Temuan read-only sejauh ini:
+Status: **diperbaiki dan ter-deploy** (`main` `e0cf486`, edge-bff `f069c6a7` SUCCESS; label diperbarui 2026-10-13 dari bukti yang sudah tercatat). Temuan investigasi awal:
 - orc menyalakan ekspor saat start (`result_store_active`, tanpa `export_inactive`); alat `export_result` ditawarkan.
 - Log orc 9–12 Oktober: hanya satu run yang memanggil `export_result` (`edge_4a0c52b6…`, 9 Oktober, COMPLETED, cek live
   EXEC-Y). Tidak ada permintaan Excel lain yang gagal di orc pada periode itu.
@@ -2031,7 +2035,8 @@ Status: **investigasi, belum ada perubahan.** Temuan read-only sejauh ini:
 ### EXEC-TYPING: mengetik di kotak pesan EDGE tersendat
 
 **Laporan user 2026-10-12:** "ada bug di front end dimana saya tidak bisa typing, atau hanya bisa typing 1 huruf per 1
-huruf." Status: **investigasi; menunggu detail perangkat dan konfirmasi perbaikan.** Setiap huruf membuat EDGE
+huruf." Status: **diperbaiki dan ter-deploy** (`main` `e0cf486`, edge-bff `f069c6a7` SUCCESS; label diperbarui 2026-10-13 dari bukti yang sudah tercatat).
+Temuan investigasi awal: Setiap huruf membuat EDGE
 menggambar ulang seluruh halaman (semua jawaban dan tabel): sekitar 17 ms per huruf di halaman kosong, 76–211 ms
 dengan 15 jawaban dan 45 tabel (diukur di Chromium). Fokus tidak hilang di semua skenario yang dicoba. Usulan: mengetik
 hanya memperbarui kotak pesan, dan jawaban yang sudah tampil tidak digambar ulang.
@@ -2047,7 +2052,7 @@ hanya memperbarui kotak pesan, dan jawaban yang sudah tampil tidak digambar ulan
 ### EXEC-SORT: tabel di jawaban bisa diurutkan dengan klik judul kolom
 
 **Permintaan user 2026-10-12:** "Untuk tabel, bisa saya minta fitur sortable kalau klik header? Konfirmasi."
-Status: **menunggu review prototipe** (user: "boleh kasih saya standalone HTML dulu untuk direview?"; prototipe HTML
+Status: **selesai** (`main` `00f808f`, edge-bff `9db6483d` SUCCESS; label diperbarui 2026-10-13 dari bukti yang sudah tercatat). Riwayat: review prototipe (user: "boleh kasih saya standalone HTML dulu untuk direview?"; prototipe HTML
 mandiri dikirim 2026-10-12, di luar repo). Usulan:
 - Hanya di EDGE (browser): tabel Markdown di jawaban (`renderMarkdown` → `data-table`). Backend, angka dan jawaban AI
   tidak berubah.
@@ -2070,7 +2075,8 @@ pada screenshot) .. masukan EXEC". Spesifikasi yang dibaca dari screenshot (menu
 ### EXEC-UI-1012: panel kiri, bagian yang bisa dilipat, judul ringkas (dokumen user)
 
 **Permintaan user 2026-10-12** (dokumen "By default dibuka saja saat ini kebanyakan masih ditutup.docx", masing-masing
-"masukan EXEC, clarify if needed"). Status: **menunggu konfirmasi pemahaman.**
+"masukan EXEC, clarify if needed"). Status: **selesai** untuk B1 dan C (`main` `00f808f` SUCCESS), B2 tetap ("leave
+as is"); label diperbarui 2026-10-13 dari bukti yang sudah tercatat.
 1. "By default panel kiri boleh bisa dibuka saja instead of ditutup" (screenshot: daftar percakapan di panel kiri; hanya
    percakapan yang dipilih menampilkan dua baris, judul dan cuplikan, yang lain satu baris).
 2. "Asumsi, batasan, metodologi bisa dibuat bisa ditutup saja? Sama seperti detail backend ... Font size, font colour
@@ -2094,7 +2100,7 @@ question" (judul ringkas dalam bahasa penanya, hanya untuk pertanyaan pertama pe
 ### EXEC-DELETE: hapus percakapan dari panel kiri
 
 **Permintaan user 2026-10-12:** "saya juga minta opsi untuk delete conversation ya, tombol tong sampah disebelah
-bookmarked left panel on every chat". Status: **menunggu keputusan dan go.** Kondisi sekarang: orc hanya menghapus
+bookmarked left panel on every chat". Status: **selesai** (`main` `00f808f`, orc `d608732c`, edge-bff `9db6483d` SUCCESS; label diperbarui 2026-10-13 dari bukti yang sudah tercatat). Kondisi sebelum perubahan: orc hanya menghapus
 percakapan otomatis 30 hari sesudah aktivitas terakhir (`AI_CONVERSATION_RETENTION_DAYS`, default); belum ada hapus
 manual. Usulan:
 - UI: ikon tong sampah di sebelah bookmark pada setiap percakapan; dialog konfirmasi sebelum menghapus; tidak tersedia
@@ -2139,7 +2145,7 @@ well carried". Dibangun:
 reported cost dan dibagian response history". Dibangun: lama proses dari `execution.duration_ms` orc (cadangan: waktu
 mulai-selesai yang tersimpan) tampil sebagai "⏱ 6m 36s" di baris metadata jawaban (sesudah tokens) dan di baris Response
 History ("… · completed · 6m 36s"); run yang masih berjalan tidak diberi durasi. Tes `test_each_answer_shows_how_long_it_took`;
-EDGE 73 lulus.
+EDGE 73 lulus. Status: **ter-deploy** (`main` `cc0dd74`, edge-bff `04aacf39` SUCCESS; label diperbarui 2026-10-13 dari bukti yang sudah tercatat).
 
 **Investigasi 2026-10-12 ("ini kenapa research failed", "pertanyaan tersebut took almost 8 minutes, kepentok dimana"):**
 - Gagal: `edge_e0ee24d0…` berakhir INTERNAL_ERROR karena `RemoteProtocolError` dari panggilan model yang tidak diulang
@@ -2165,10 +2171,69 @@ dulu."
 - Risiko yang perlu diperiksa: perencanaan permintaan data dan analisis jadi kurang teliti (lebih banyak penolakan
   gerbang atau perbaikan), jawaban kurang tajam. Usulan pemeriksaan sebelum atau sesudah: 4 pertanyaan A/B yang sama
   dengan EXEC-STYLE (lama proses, token, penolakan gerbang, mutu jawaban).
+- **Keputusan user 2026-10-13 atas usulan A/B:** "Yes, ini masukan juga ke EXEC, tapi jangan execute dulu". Saat
+  dieksekusi: A/B 4 pertanyaan EXEC-STYLE (perkiraan USD 0,1), `high` lawan `medium`, dibandingkan pada lama proses,
+  token, jumlah penolakan gerbang, dan mutu jawaban; hasilnya dilaporkan sebelum `medium` dibiarkan hidup.
 - Status: **menunggu perintah eksekusi dari user.** Saat dieksekusi: catat di `RAILWAY_CHANGELOG.md` (nama variabel,
   layanan, deployment sampai SUCCESS).
 
-### EXEC-IMPL-1012: rencana implementasi EXEC-JOINKEY, EXEC-RELEASE, EXEC-FRICTION, EXEC-STYLE (berjalan)
+### EXEC-TABLE: tabel jawaban dirender dari kode, dengan wayback machine (berjalan)
+
+**Keputusan user 2026-10-13:** "Terkait dengan render tabel dari kode yang kamu sebutkan, OK. Siapkan wayback machine ke
+existing process ya in case render tabel dari kode ini tidak works." Pilihan user atas empat pertanyaan:
+- Tabel dipotong: "Ya, tampilkan" (baris "Menampilkan N dari M baris" di bawah tabel).
+- Cara lama (rujukan per sel): "Boleh untuk tabel kecil".
+- Sesudah A/B: "Otomatis jika lolos" (fitur dibiarkan hidup di dev bila kriteria di bawah terpenuhi).
+- Label status EXEC yang usang: "Ya, rapikan label" (dikerjakan 2026-10-13, hanya label, dari bukti yang tercatat).
+- Rencana disetujui sesudah penjelasan (Python tetap ditulis AI; tanda tabel pendek di jawaban; kode pengubah ditulis
+  sekali di backend; aturan lewat system prompt; penolakan lewat mekanisme yang sudah ada): "Ya, lanjut".
+
+**Masalah:** run `edge_517a29…` (6m 36s): AI menyusun tabel jawaban sel demi sel (sekitar 50 rujukan
+`{{out.o9.rows[...].kolom|fmt}}`), memilih format tiap sel, mengecek rujukan tiga kali (11 s, 54 s, 59 s) dan satu draf
+ditolak PROVENANCE; menulis dan mengecek jawaban sekitar 3 menit.
+
+**Rancangan:**
+- AI menyiapkan tabel di Python seperti sekarang; bila perlu gabungan beberapa hasil, baris Total atau sel "120 (45%)",
+  AI membuat tabel tampilan di Python (`emit_table` dengan `units=`). Renderer tidak menghitung apa pun.
+- Di jawaban AI menulis satu tanda, misalnya
+  `{{table out.o9 | Sektor = sector | Median kenaikan = median_pct|pp:2 | sort -median_pct | top 10}}`.
+- Kode baru di orc (`app/table_directives.py`) mengubah tanda itu menjadi tabel Markdown berisi rujukan per sel yang
+  dibuat kode, sebelum `render`; sesudah itu satuan, format, sumber provenance dan semua gerbang berjalan seperti
+  sekarang. `check_references` ikut mengubah tanda, jadi AI bisa melihat pratinjau.
+- Rujukan per sel buatan AI tetap boleh untuk tabel kecil campuran (sampai 3 baris × 3 kolom); tidak ditolak gerbang,
+  hanya dicatat di log.
+- Baris "Menampilkan N dari M baris" ditambahkan sesudah gerbang lolos.
+- Tampilan EDGE dan sort tidak berubah.
+
+**Pesan penolakan (template tetap di kode, detail diisi otomatis; masuk ke daftar masalah gerbang REFERENCE, paling
+banyak dua perbaikan, lalu `[nilai tidak tersedia]` dengan catatan seperti aturan P14):**
+- Tabel tidak ada: "Table {ref}: no released table has this ref; the released tables are {refs}."
+- Kolom tidak ada: "Table {ref}: column {column} does not exist; its columns are {columns}."
+- Format tidak cocok: "Table {ref}: format {format} does not fit column {column} ({kind})."
+- Kolom urutan tidak ada: "Table {ref}: sort column {column} does not exist; its columns are {columns}."
+- Bentuk tidak terbaca: "Table instruction cannot be read ({why}); write {{table out.oN | Title = column|format | ... |
+  sort -column | top N}}."
+- Tiap pesan diakhiri "Fix this table instruction only." Kalimat untuk user (bahasa Indonesia) tetap kalimat
+  `[nilai tidak tersedia]` yang sudah ada.
+
+**Wayback machine:**
+1. Variabel `AI_ENABLE_TABLE_DIRECTIVES=false` (default): prompt, schema dan perilaku sama byte-per-byte dengan sebelum
+   fitur (dikunci tes); mengubahnya memicu redeploy tanpa perubahan kode.
+2. `git revert` commit fitur, push `main`.
+3. Tag git `pre-exec-table` (commit `main` terakhir sebelum kode fitur), deploy dari tag itu.
+
+**A/B dan kriteria lolos (ditulis sebelum dijalankan):** 4 pertanyaan EXEC-STYLE + 2 pertanyaan bertabel berat
+(termasuk pertanyaan `edge_517a29…` diulang), sekali dengan fitur mati dan sekali hidup, di dev (perkiraan USD 0,2–0,3).
+Lolos bila semua:
+- semua run COMPLETED tanpa LIMITATION paksa yang disebabkan tabel;
+- 0 angka tabel salah (setiap sel dicocokkan skrip dengan output yang dirilis);
+- tanda tabel dipakai di pertanyaan bertabel;
+- di pertanyaan bertabel: lama tahap menulis turun paling sedikit 30% (median), token output tidak naik, penolakan
+  gerbang tidak lebih banyak dari fitur mati.
+Lolos: fitur dibiarkan hidup, snapshot prompt `v006`, changelog. Tidak lolos: variabel kembali `false` (wayback 1),
+deploy SUCCESS, laporan dan usulan. Jawaban AI tidak disimpan di repo publik.
+
+### EXEC-IMPL-1012: rencana implementasi EXEC-JOINKEY, EXEC-RELEASE, EXEC-FRICTION, EXEC-STYLE (selesai; Fase 3c berhenti di M143)
 
 **Permintaan user 2026-10-12:** "cek infra kita, dan EXEC yang sudah saya approve, buat implementation plan berdasarkan
 ini before full proceed." **Go 2026-10-12:** "ok" atas tiga pertanyaan: push dokumen ke `main`, jalankan rencana ini
