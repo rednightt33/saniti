@@ -163,7 +163,7 @@ class _Source:
 
     def models(self):
         self.calls += 1
-        return self.answers.pop(0)
+        return self.answers.pop(0) if self.answers else None
 
 
 def test_prices_are_read_per_million_tokens_and_a_failed_read_keeps_them() -> None:
@@ -216,3 +216,13 @@ def test_the_client_reads_the_model_list_and_returns_none_on_failure() -> None:
     assert OpenRouterClient("k", 5, transport=httpx.MockTransport(handler)).models() == LISTED
     broken = OpenRouterClient("k", 5, transport=httpx.MockTransport(lambda req: httpx.Response(503)))
     assert broken.models() is None
+
+
+def test_prices_are_read_again_every_ttl_without_any_request() -> None:
+    import time as _time
+    source = _Source([LISTED] * 50)
+    prices = ModelPrices(source, ttl_seconds=0.05)
+    prices.start()
+    _time.sleep(0.3)
+    prices.stop()
+    assert source.calls >= 3 and prices.snapshot()[0]

@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-10-13 — EXEC-MODELS deployed (model choice per message, hourly prices)
+
+User: "kita akan menambahkan model2 ini bisa di toggle model dan intellegence level di EDGE (Default router tetap
+low)", "Ok, go defaultnya adalah deepseek V4.1 flash HIGH ya" (EXEC.md EXEC-MODELS). Rollback references: orc
+`c93a69b8`, EDGE `371ccf3b`.
+- `main` `d42cd76`: market-ai-orc **956e2d46-db26-40d0-bd84-1910044fd6ac** reached **SUCCESS**; startup read the
+  prices of the 5 offered models and one provider list per model.
+- `orc-test-runner` **1178da19-5cfd-4cdc-8245-e314dd1db4c1** (`ma-models-20261013a`, ab6 without a choice and with each
+  of the 5 models): 6/6 COMPLETED; cost about USD 0.23.
+- `main` `bf4d002`: edge-bff **51ac4310-f162-4896-9375-917db8ec0b00** reached **SUCCESS**; the page serves the model
+  menu; `/api/v1/models` without a session = 401.
+- No variable, migration, model default, provider or configuration change (`AI_MODEL`, `AI_REASONING_EFFORT=medium`,
+  `AI_ENABLE_TABLE_DIRECTIVES=true` unchanged); web governor untouched.
+
 ## 2026-10-13 — A/B 4 (table flag on vs off, EXEC-PROSE and EXEC-DERIVED live), flag left on
 
 User: "Sudah jalan semua? jika sudah pls A/B on dan off. 2 pertanyaan each".

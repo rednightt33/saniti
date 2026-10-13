@@ -2459,7 +2459,7 @@ dibiarkan (hanya catatan, `is_active=false`) atau dibatalkan dengan migrasi baru
     berikutnya.
   - Catatan: satu TYPED_FIGURES "19" lagi (jumlah hari bursa diketik), pola yang sama dengan cek live M143.
 
-### EXEC-MODELS: pilihan model dan level berpikir per pesan di EDGE (berjalan)
+### EXEC-MODELS: pilihan model dan level berpikir per pesan di EDGE (deployed)
 
 **Keputusan user 2026-10-13:** "Kita akan menambahkan model2 ini bisa di toggle model dan intellegence level di EDGE
 (Default router tetap low) ->kita akan tetap pakai ON for now. model: \"xiaomi/mimo-v2.6-pro\" model:
@@ -2488,8 +2488,36 @@ EDGE"; MiMo pro dan flash "Both ya". Rencana disetujui (plan EXEC-MODELS).
   - log `ai_model_chosen`.
   - Tanpa pilihan: sama persis dengan sebelumnya (`AI_REASONING_EFFORT=medium` di dev).
 - **Runner:** item suite boleh membawa `model` dan `reasoning_level`.
-- **EDGE (push 2):** menyusul.
-- **Tes orc:** 1.443 lulus (`tests/test_exec_models.py` baru, 20 tes); `AI_MODELS.md` digenerate ulang.
+- **EDGE (push 2):**
+  - `POST /api/v1/runs` menerima `model` dan `reasoning_level` lalu meneruskannya ke orc;
+  - `GET /api/v1/models` meneruskan daftar dari orc (cache 10 menit, daftar terakhir dipertahankan bila orc gagal);
+  - pemilih di sebelah kotak tulis: 5 model dengan harga input/output per 1 juta token dan level per model, mulai
+    DeepSeek V4.1 Flash high, diingat di browser (`edge-model-choice`);
+  - header jawaban menampilkan model dan level;
+  - daftar dibaca sekali saat login (sebelum halaman kerja tampil), supaya kedatangannya tidak menggambar ulang
+    halaman saat pengguna mengetik.
+- **Harga:** dibaca saat start lalu **tiap jam di latar belakang** (thread `model-prices`), tanpa menunggu ada yang
+  membuka daftar.
+- **Tes:**
+  - orc 1.444 lulus (`tests/test_exec_models.py`, 21 tes); `AI_MODELS.md` digenerate ulang.
+  - EDGE 78/78 lulus dua kali berturut-turut.
+  - Catatan: tes visual `test_typing_while_an_answer_arrives_keeps_focus` goyah juga di `main` tanpa perubahan ini
+    (1 dari 6 percobaan gagal di kedua kode).
+- **Deploy:** orc `956e2d46` (`d42cd76`) SUCCESS, harga 5 model terbaca saat start, daftar provider per model terbaca;
+  EDGE `51ac4310` (`bf4d002`) SUCCESS, halaman menyajikan pemilih, `/api/v1/models` tanpa login = 401.
+- **Cek live** `ma-models-20261013a` (pertanyaan ab6, biaya sekitar USD 0,23): semua COMPLETED dengan jawaban, dan
+  semua panggilan loop memakai model pilihan:
+
+  | Pilihan | Waktu | Biaya | Penolakan gerbang |
+  |---|---|---|---|
+  | tanpa pilihan (DeepSeek medium) | 105 s | 0,018 | 0 |
+  | DeepSeek high | 187 s | 0,019 | 0 |
+  | MiMo flash on | 144 s | 0,020 | 0 |
+  | MiMo pro on | 259 s | 0,110 | 0 |
+  | GLM medium | 455 s | 0,027 | 1 REFERENCE (alamat salah bentuk) + 1 minta ulang JSON |
+  | Qwen on | 288 s | 0,033 | 0 |
+
+  Satu run per model: tanda awal, bukan perbandingan mutu.
 
 ### EXEC-DERIVED: gerbang menyarankan alamat hitungan untuk angka tanpa sumber (deployed, menunggu bukti live)
 

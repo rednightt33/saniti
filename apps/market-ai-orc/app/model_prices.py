@@ -2,8 +2,9 @@
 refreshed in the background every hour (user: "informasi in dan out of each model updated on hourly basis").
 
 The list price per token (OpenRouter /models pricing.prompt, pricing.completion, pricing.input_cache_read) is shown per
-one million tokens. The first read starts at startup in the background; a stale list is returned as is while a
-background read replaces it, and a failed read keeps the last prices (pattern of provider_policy.CachePricePolicy).
+one million tokens. A background thread reads the list at startup and then every hour, whether or not anyone asks; a
+list found stale on a request also starts a read, and a failed read keeps the last prices (pattern of
+provider_policy.CachePricePolicy).
 """
 from __future__ import annotations
 
@@ -45,6 +46,7 @@ class ModelPrices:
         self._read_at: float | None = None
         self._lock = threading.Lock()
         self._refreshing = False
+        self._stop = threading.Event()
 
     def refresh(self) -> None:
         """Read the model list once; a failure keeps the last prices."""
@@ -74,7 +76,20 @@ class ModelPrices:
                  missing=sorted(wanted - set(found)))
 
     def start(self) -> None:
-        self._start_refresh()
+        """The hourly reads, in a daemon thread (the first one at once)."""
+        threading.Thread(target=self._every_ttl, name="model-prices", daemon=True).start()
+
+    def stop(self) -> None:
+        self._stop.set()
+
+    def _every_ttl(self) -> None:
+        while not self._stop.is_set():
+            with self._lock:
+                busy = self._refreshing
+                self._refreshing = True
+            if not busy:
+                self.refresh()
+            self._stop.wait(self.ttl_seconds)
 
     def _start_refresh(self) -> None:
         with self._lock:
