@@ -64,7 +64,7 @@ def summary(item_id, turn, code, body, seconds):
             "limitations": (response.get("limitations") or [])[:6],
             "mode": execution.get("mode"),
             # EXEC-MODELS: the model and reasoning level the run used
-            "model": execution.get("model"), "reasoning_level": execution.get("reasoning_level"),
+            "model": execution.get("model"), "reasoning_level": execution.get("reasoning_level"), "lane": execution.get("lane"),
             "options": [o.get("route") for o in body.get("options") or []] or None,
             # round 2026-10-03: the kejedot index, checked claims, exports and their download check
             "friction": execution.get("friction"),
@@ -111,8 +111,9 @@ def dump(tag, payload):
 
 
 def chosen_model(item):
-    """EXEC-MODELS: an item's model and reasoning level, sent with each of its messages (none: the server default)."""
-    return {key: item[key] for key in ("model", "reasoning_level") if item.get(key)}
+    """EXEC-MODELS: an item's model and reasoning level, sent with each of its messages (none: the server default);
+    EXEC-FASTLANE: its lane too (none: the current behaviour)."""
+    return {key: item[key] for key in ("model", "reasoning_level", "lane") if item.get(key)}
 
 
 def run_turns(item, prefix, results):

@@ -67,7 +67,7 @@ class ScriptedClient:
         self.responses = list(responses)
         self.payloads: list[dict[str, Any]] = []
 
-    def create(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def create(self, payload: dict[str, Any], **options: Any) -> dict[str, Any]:
         self.payloads.append(copy.deepcopy(payload))
         if not self.responses:
             raise AssertionError("ScriptedClient ran out of responses")

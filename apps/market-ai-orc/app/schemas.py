@@ -84,6 +84,9 @@ class AgentRunRequest(BaseModel):
     # keep AI_MODEL with reasoning low.
     model: str | None = Field(default=None, max_length=100)
     reasoning_level: Literal["low", "medium", "high", "max", "off", "on"] | None = None  # EXEC-LOGOS: max
+    # EXEC-FASTLANE (app/lanes.py): "fast" answers a data question in one turn (needs AI_ENABLE_FASTLANE); null or
+    # "standard" keeps the current behaviour
+    lane: Literal["standard", "fast"] | None = None
 
     @field_validator("message")
     @classmethod
@@ -616,6 +619,8 @@ class ExecutionMetadata(BaseModel):
     # EXEC-MODELS: the reasoning level the caller chose for this message (model holds the chosen model); omitted when
     # the server default ran
     reasoning_level: str | None = None
+    # EXEC-FASTLANE: the lane the caller chose for this message; omitted when none was named
+    lane: str | None = None
 
     @model_serializer(mode="wrap")
     def _without_unused_path(self, handler: Any) -> Any:
@@ -624,7 +629,7 @@ class ExecutionMetadata(BaseModel):
         data = handler(self)
         if isinstance(data, dict):
             for key in ("analysis_path", "mode", "analysis_final_statuses", "friction", "hurdles", "pause", "stopped",
-                        "reasoning_level"):
+                        "reasoning_level", "lane"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data

@@ -153,6 +153,7 @@ def test_the_model_choice_lists_prices_changes_levels_and_is_remembered(server):
         composer.fill('Explain BBRI');page.get_by_role('button',name='Submit',exact=True).click()
         page.locator('article.result').wait_for()
         assert orc.calls[-1][2]['model']=='z-ai/glm-5.3-flash' and orc.calls[-1][2]['reasoning_level']=='max'
+        assert 'lane' not in orc.calls[-1][2] and not page.locator('.edge-model-lanes').count()  # no lane_selection
         assert 'z-ai/glm-5.3-flash · Maks' in page.locator('.edge-run-model').first.inner_text()
         # EXEC-UI-1013B (gambar 2): the model's logo left of its name in the answer's header
         header_logo = page.locator('.edge-run-model').first.locator('.edge-model-logo')
@@ -260,4 +261,38 @@ def test_a_page_shown_again_reads_the_run_at_once(server):
         assert not page.locator('article.result').count()
         page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
         page.locator('article.result').wait_for(timeout=5000)
+        browser.close()
+
+
+def test_the_lane_choice_is_sent_with_the_message_when_orc_allows_it(server):
+    """EXEC-FASTLANE (user 2026-10-13: toggle in EDGE for the A/B): "Jalur: Standar / Cepat" appears while Orc reports
+    lane_selection; Cepat is sent as lane "fast", kept after a reload and named in the answer's header. Without
+    lane_selection no lane is sent (test_the_model_choice_lists_prices_changes_levels_and_is_remembered)."""
+    playwright=pytest.importorskip('playwright.sync_api')
+    origin,orc=server
+    orc.MODELS={**orc.MODELS,'lane_selection':True}
+    with playwright.sync_playwright() as pw:
+        browser=pw.chromium.launch(executable_path=os.environ.get('EDGE_TEST_CHROMIUM','/usr/bin/chromium'),headless=True,args=['--no-sandbox'])
+        page=browser.new_page(viewport={'width':1600,'height':1000})
+        page.route('https://fonts.*/*',lambda route:route.abort())
+        errors=[];page.on('pageerror',lambda error:errors.append(str(error)))
+        page.goto(origin+'/monitor')
+        page.locator('#auth-login').fill('owner');page.locator('#auth-password').fill('local-test-password')
+        page.get_by_role('button',name='Sign In',exact=True).click()
+        composer=page.get_by_placeholder('Ask a research question…');composer.wait_for()
+        trigger=page.locator('.edge-model-trigger:not([disabled])');trigger.wait_for()
+        trigger.click()
+        lanes=page.locator('.edge-model-lanes button')
+        assert [b.inner_text() for b in lanes.all()]==['Standar','Cepat']
+        assert page.locator('.edge-model-lanes button[aria-checked="true"]').inner_text()=='Standar'
+        lanes.filter(has_text='Cepat').click()
+        page.keyboard.press('Escape')
+        assert 'Cepat' in trigger.inner_text()
+        composer.fill('Explain BBRI cepat');page.get_by_role('button',name='Submit',exact=True).click()
+        page.locator('article.result').wait_for()
+        assert orc.calls[-1][2]['lane']=='fast'
+        page.wait_for_function("() => [...document.querySelectorAll('.edge-run-model')].some(e => e.innerText.includes('Jalur Cepat'))")
+        page.reload();page.locator('.edge-model-trigger:not([disabled])').wait_for()
+        assert 'Cepat' in page.locator('.edge-model-trigger').inner_text()
+        assert errors==[],errors
         browser.close()

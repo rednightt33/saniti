@@ -48,37 +48,37 @@ Sifat: READS tidak mengubah apa pun; OWN_ARTIFACT hanya menulis catatan percakap
 
 Dibuat dari `apps/market-ai-orc/app/tool_desks.py` (`DESKS`), saklar semua menyala. H = wajib ada dan ditawarkan; B = boleh dan ditawarkan; X = tidak boleh: tidak ditawarkan, ditolak bila dipanggil, dan tidak disebut di laporan kemampuan atau buku panduan langkah itu; kosong = boleh tetapi tidak ditawarkan. Alat jalur lama dan `find_web_fact` (selama `research_web` aktif) X di semua proses.
 
-| Alat | Obrolan (CHAT) | Fakta (FACT) | Baca (CLARIFY, CONVERSATIONAL) | Analisis (pesan pertama, m4a, INSIGHT) | Rencana (jalur RESEARCH, REVISE, REPLAN, m4b, m4d) | CONTINUE, AUTO tanpa rencana | Riset hipotesis disetujui | Riset multi-sudut disetujui |
-|---|---|---|---|---|---|---|---|---|
-| `check_data_feasibility` | X | X | X | X | H | H | B |  |
-| `check_references` | B | B | H | B | H | B | B | H |
-| `check_research_feasibility` | X | X | X | X | H | H | B |  |
-| `complete_analysis` | X | X | X | H | X | B | H | X |
-| `complete_research_run` | X | X | X | X | X | X | X | H |
-| `discover_catalog` | B | H | B | H | H | H | B | B |
-| `export_result` | B | B | H | B |  | B | B |  |
-| `get_catalog_details` | B | H | B | H | H | H | B | B |
-| `get_dimension_values` | B | H | B | H | H | H | B | B |
-| `get_lineage` | B | B | H | B |  | B | B | H |
-| `get_method_guide` | B | B | B | H | H | H | H | H |
-| `get_research_library` | B | B | B | B | H | H | B | H |
-| `get_session_output` | B | B | H | H | H | H | H | H |
-| `get_system_capabilities` | B | B | B | B | B | B | B | B |
-| `inspect_session` | B | B | B | H |  | H | H | H |
-| `lookup_fact` | X | X | X | X | X | X | X | X |
-| `lookup_reference` | B | H | B | H |  | H | B |  |
-| `open_analysis_session` | X | X | X | H | X | B | H | X |
-| `prepare_data_bundle` | X | X | X | H | X | B | H | X |
-| `preview_table_rows` | X | X | X | B | X | B | B | X |
-| `query_metric` | X | X | X | H | X | B | B | X |
-| `read_catalog_rows` | B | H | B | H | H | H | B | B |
-| `read_conversation_memory` | H | H | H | H | H | H | H | H |
-| `request_data` | X | X | X | X | X | X | X | X |
-| `research_web` |  | H |  | B |  | B | B |  |
-| `run_python` | X | X | X | H | X | B | H | X |
-| `run_research_code` | X | X | X | X | X | X | X | H |
-| `start_research_run` | X | X | X | X | X | X | X | H |
-| `submit_data_need_spec` | X | X | X | H | X | B | H | X |
+| Alat | Obrolan (CHAT) | Fakta (FACT) | Baca (CLARIFY, CONVERSATIONAL) | Analisis (pesan pertama, m4a, INSIGHT) | Rencana (jalur RESEARCH, REVISE, REPLAN, m4b, m4d) | CONTINUE, AUTO tanpa rencana | Jalur cepat (EXEC-FASTLANE) | Riset hipotesis disetujui | Riset multi-sudut disetujui |
+|---|---|---|---|---|---|---|---|---|---|
+| `check_data_feasibility` | X | X | X | X | H | H | H | B |  |
+| `check_references` | B | B | H | B | H | B | B | B | H |
+| `check_research_feasibility` | X | X | X | X | H | H | X | B |  |
+| `complete_analysis` | X | X | X | H | X | B | H | H | X |
+| `complete_research_run` | X | X | X | X | X | X | X | X | H |
+| `discover_catalog` | B | H | B | H | H | H | H | B | B |
+| `export_result` | B | B | H | B |  | B | B | B |  |
+| `get_catalog_details` | B | H | B | H | H | H | H | B | B |
+| `get_dimension_values` | B | H | B | H | H | H | H | B | B |
+| `get_lineage` | B | B | H | B |  | B | B | B | H |
+| `get_method_guide` | B | B | B | H | H | H | H | H | H |
+| `get_research_library` | B | B | B | B | H | H | X | B | H |
+| `get_session_output` | B | B | H | H | H | H | H | H | H |
+| `get_system_capabilities` | B | B | B | B | B | B | B | B | B |
+| `inspect_session` | B | B | B | H |  | H | H | H | H |
+| `lookup_fact` | X | X | X | X | X | X | X | X | X |
+| `lookup_reference` | B | H | B | H |  | H | H | B |  |
+| `open_analysis_session` | X | X | X | H | X | B | H | H | X |
+| `prepare_data_bundle` | X | X | X | H | X | B | H | H | X |
+| `preview_table_rows` | X | X | X | B | X | B | B | B | X |
+| `query_metric` | X | X | X | H | X | B | H | B | X |
+| `read_catalog_rows` | B | H | B | H | H | H | H | B | B |
+| `read_conversation_memory` | H | H | H | H | H | H | H | H | H |
+| `request_data` | X | X | X | X | X | X | X | X | X |
+| `research_web` |  | H |  | B |  | B | B | B |  |
+| `run_python` | X | X | X | H | X | B | H | H | X |
+| `run_research_code` | X | X | X | X | X | X | X | X | H |
+| `start_research_run` | X | X | X | X | X | X | X | X | H |
+| `submit_data_need_spec` | X | X | X | H | X | B | H | H | X |
 
 ## Alat bantu di ruang kerja Python (market-python-sandbox)
 

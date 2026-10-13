@@ -74,6 +74,7 @@ from .tools.session import current_carried_outputs, current_carried_restorer
 from .tools.system import current_step_tools
 from . import table_directives
 from . import model_choices
+from . import lanes
 from .tools.request_data import (current_conversation_id, current_draft_checker, current_reference_sources,
                                  current_request_id,
                                  current_run_deadline, current_turn_id, session_key)
@@ -1631,6 +1632,23 @@ ANALYSIS_PATH_NOTE = (PLAN_NOTE_PREFIX + "the caller fixed this request to the A
                       "prediction or a trading signal, and say so in the answer. When the user leaves a parameter "
                       "open (a window, a threshold, a benchmark), choose a reasonable value, state it in "
                       "assumptions, and answer.")
+# EXEC-FASTLANE (app/lanes.py, user 2026-10-13: "fokus utama adalah bisa menjawab dulu under maks 3 mins"): the note of
+# a fast-lane analysis step. B0 baseline: model time went to rewriting run_python (33%), reading the catalog and guides
+# before the data need (22%), the draft check (17%) and the data need form (12%).
+FASTLANE_NOTE = (PLAN_NOTE_PREFIX + "this message runs on the fast lane. Answer it in this one turn, without a Research "
+                 "Plan and without asking for approval: form the hypothesis or the comparison yourself from the "
+                 "question, get the data, compute, and answer. Work in few steps: (1) pick the tables from the catalog "
+                 "and read only the details you need; (2) send one data need that holds everything the analysis needs "
+                 "(the flows and the prices, the whole period including any outcome window); when it is large (many "
+                 "stocks over a long period), check its size with check_data_feasibility first and size it to what "
+                 "fits; (3) write the analysis as one complete script per run_python (build the frames, compute, emit "
+                 "the tables), not one small step per call, and complete the analysis in the same call when the tool "
+                 "offers it; (4) call check_references with a draft only when the answer cites more than about eight "
+                 "figures from data, otherwise write the final answer directly. The results are exploratory: "
+                 "patterns in the historical data without a formal test, so say so plainly, never call them proven, "
+                 "a cause, a prediction or a trading signal, and offer a formal test as a next step when it matters. "
+                 "When the user leaves a parameter open (a window, a threshold), choose a reasonable value, state it "
+                 "in assumptions, and answer.")
 RESEARCH_PATH_NOTE = (PLAN_NOTE_PREFIX + "the caller fixed this request to the RESEARCH path. Treat the question as "
                       "research: propose a Research Plan (RESEARCH_PLAN_CONFIRMATION) under the RESEARCH PLAN "
                       "CONFIRMATION rules, or ask a CLARIFICATION when it cannot be planned; every data need uses "
@@ -1977,7 +1995,7 @@ PLAN_SCOPE_FIELDS = {"universe", "time_scope"}
 
 
 class ResponsesTransport(Protocol):
-    def create(self, payload: dict[str, Any]) -> dict[str, Any]: ...
+    def create(self, payload: dict[str, Any], **options: Any) -> dict[str, Any]: ...
 
 
 class GateRejection(ValueError):
@@ -2212,6 +2230,10 @@ class RunState:
     replay_off: bool = False
     # EXEC-MODELS (app/model_choices.py): the agent loop's model and reasoning for this run (None: the server default)
     model_choice: ModelChoice | None = None
+    # EXEC-FASTLANE (app/lanes.py): the message's lane (None: none named, the current behaviour) and the calls cut at
+    # lanes.FAST_CALL_SECONDS in this run
+    lane: str | None = None
+    lane_timeouts: int = 0
     # G23 D (K3): the last final draft that parsed, and the limit that ended the run (MAX_ITERATIONS, ANALYSIS_TIMEOUT)
     last_draft: FinalResponse | None = None
     exhausted: str | None = None
@@ -2486,6 +2508,9 @@ class AgentOrchestrator:
         )
         state.audit_started_at = moment
         state.model_choice = current_model_choice.get()
+        state.lane = lanes.current_lane.get()
+        if state.lane is not None:
+            log_event("ai_lane_chosen", request_id=request.request_id, lane=state.lane)
         if state.model_choice is not None and state.model_choice.chosen:
             log_event("ai_model_chosen", request_id=request.request_id, model=state.model_choice.model,
                       reasoning_level=state.model_choice.level, reasoning=state.model_choice.reasoning)
@@ -2496,6 +2521,11 @@ class AgentOrchestrator:
         # AUTO and MODE4 are routed before this (app/modes.py, app/mode4.py); only ANALYSIS and RESEARCH fix a path
         state.forced_path = request.analysis_path if self.analysis_path \
             and request.analysis_path in ("ANALYSIS", "RESEARCH") else None
+        if state.lane == lanes.FAST and self.dataneed and state.forced_path == "RESEARCH" \
+                and request.continuation is None:
+            # EXEC-FASTLANE (K1): a research question is answered as an exploratory analysis in this turn, so its data
+            # need runs in mode ANALYSIS without a plan or an approval
+            state.forced_path = "ANALYSIS"
         state.research = ResearchContext() if self.multi_angle else None
         if state.research is not None:
             state.research.calls_left = lambda: self.settings.ai_max_tool_calls - state.tool_calls
@@ -3290,6 +3320,15 @@ class AgentOrchestrator:
         """Decide what this request may do with research: propose a plan (no continuation), execute a verified
         approved plan, revise, re-plan after a failed verification, cancel, or ask again (unrelated reply). Sets the
         allowed final response types, the tool filter, the guard and an application note."""
+        if state.lane == lanes.FAST and self.dataneed and request.continuation is None \
+                and state.forced_path in (None, "ANALYSIS", "RESEARCH"):
+            # EXEC-FASTLANE: one turn, no Research Plan, no approval (K1); a reply to a pending plan (continuation)
+            # and the read-only turn kinds (narrowed later by _apply_turn_kind) keep the current behaviour
+            state.allowed_types, state.tool_filter = BASE_TYPES, self._process_tools("FASTLANE")
+            state.guard = ResearchGuard(required=True)
+            state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": FASTLANE_NOTE})
+            log_event("ai_lane_turn", request_id=request.request_id, lane=state.lane, forced_path=state.forced_path)
+            return
         if state.forced_path == "ANALYSIS":
             # no plan step: a pending plan (SERVER mode) is left untouched and its reply is not read
             if request.continuation is not None:
@@ -3713,9 +3752,18 @@ class AgentOrchestrator:
                 raise RunFailure("CONTEXT_LIMIT", "Request would exceed AI_MAX_CONTEXT_TOKENS")
 
             call_started = time.monotonic()
+            # EXEC-FASTLANE R4: on the fast lane one call waits at most lanes.FAST_CALL_SECONDS (once per run)
+            capped = {"timeout": lanes.FAST_CALL_SECONDS, "attempts": 1} \
+                if state.lane == lanes.FAST and state.lane_timeouts == 0 else {}
             try:
-                response = self.client.create(payload)
+                response = self.client.create(payload, **capped)
             except ProviderError as exc:
+                if capped and exc.code == "PROVIDER_TIMEOUT":
+                    state.lane_timeouts += 1
+                    state.reasoning_lowered = True  # asked again once with lower reasoning
+                    log_event("ai_lane_call_timeout", request_id=state.request_id, iteration=state.iterations + 1,
+                              seconds=lanes.FAST_CALL_SECONDS)
+                    continue
                 if not (state.reasoning_replayed and exc.code == "PROVIDER_REJECTED"):
                     raise
                 # S4c: a provider that refuses replayed reasoning items: drop them and stop replaying in this run
@@ -3949,6 +3997,12 @@ class AgentOrchestrator:
             if choice is not None and choice.lowered is not None:
                 return choice.lowered
             return model_choices.lowered_reasoning(model_choices.BY_MODEL.get(self._run_model(state)), self.settings)
+        if state.lane == lanes.FAST and state.iterations >= 1:
+            # EXEC-FASTLANE R4: the first call designs the work at the chosen level; the calls after it think low (a
+            # model with on/off thinking keeps its choice)
+            option = model_choices.BY_MODEL.get(self._run_model(state))
+            if option is None or option.form == "effort":
+                return {"effort": "low"} if option is not None else self.settings.reasoning("low")
         return choice.reasoning if choice is not None else self.settings.reasoning(self.settings.ai_reasoning_effort)
 
     def _payload(self, state: RunState, tools: list[dict[str, Any]]) -> dict[str, Any]:
@@ -6724,6 +6778,7 @@ class AgentOrchestrator:
         return ExecutionMetadata(
             model=self._run_model(state),
             reasoning_level=choice.level if choice is not None and choice.chosen else None,
+            lane=state.lane,
             provider_response_id=state.provider_response_id,
             iterations=state.iterations,
             tool_call_count=state.tool_calls,

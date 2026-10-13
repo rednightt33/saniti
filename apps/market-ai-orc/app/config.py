@@ -149,6 +149,9 @@ class Settings:
     # EXEC-P5 (user approval 2026-10-06): an APPROVED data need is followed at once by prepare_data_bundle and
     # open_analysis_session, and run_python(complete=true) by complete_analysis, in the same turn
     ai_enable_merged_steps: bool = False
+    # EXEC-FASTLANE (app/lanes.py): a message may choose the fast lane (one-turn exploratory analysis); off keeps every
+    # message on the current behaviour and refuses lane "fast"
+    ai_enable_fastlane: bool = False
     # OpenRouter provider routing for the agent's model calls: provider.sort "price", "throughput" or "latency". Unset
     # keeps OpenRouter's default load balancing, which is weighted to the lowest price.
     ai_provider_sort: str | None = None
@@ -386,6 +389,7 @@ class Settings:
             ai_enable_run_memory=_boolean(env, "AI_ENABLE_RUN_MEMORY", False),
             ai_mode4_auto_research=_boolean(env, "AI_MODE4_AUTO_RESEARCH", False),
             ai_enable_merged_steps=_boolean(env, "AI_ENABLE_MERGED_STEPS", False),
+            ai_enable_fastlane=_boolean(env, "AI_ENABLE_FASTLANE", False),
             ai_provider_sort=(env.get("AI_PROVIDER_SORT") or "").strip().lower() or None,
             ai_log_provider=_boolean(env, "AI_LOG_PROVIDER", False),
             ai_provider_max_cache_price_ratio=_ratio(env, "AI_PROVIDER_MAX_CACHE_PRICE_RATIO", 0.0, 0.0, 1.0)

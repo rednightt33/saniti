@@ -10810,8 +10810,13 @@ function edgeModelChoice(){
   const pick=model=>data.models.find(option=>option.model===model);
   const option=pick(saved?.model)||pick(data.edge_default?.model)||data.models[0];
   const level=saved?.model===option.model&&option.reasoning_levels.includes(saved?.reasoning_level)?saved.reasoning_level:edgeDefaultLevel(option);
-  return {model:option.model,reasoning_level:level};
+  return {model:option.model,reasoning_level:level,...(data.lane_selection?{lane:edgeLane()}:{})};
 }
+// EXEC-FASTLANE (user 2026-10-13: toggle in EDGE for the A/B): the lane of the next message, kept in this browser;
+// offered only while Orc reports lane_selection, otherwise no lane is sent (the current behaviour)
+const LANE_KEY="edge-lane";
+function edgeLane(){let lane=null;try{lane=localStorage.getItem(LANE_KEY);}catch{lane=null;}return lane==="fast"?"fast":"standard";}
+function keepLane(lane){try{localStorage.setItem(LANE_KEY,lane);}catch{}refresh();}
 // EXEC-LOGOS (user 2026-10-13, "kasih logo untuk setiap model ya di HP"): each model's brand logo (LobeHub icons, MIT),
 // served from static/model-logos/. A one-colour logo is drawn as a mask in the text colour, so it shows in light and
 // dark; a model without a logo keeps its initial letter.
@@ -10867,7 +10872,7 @@ function EdgeModelSelector(){
     element("button",{type:"button",className:"edge-model-trigger","aria-expanded":open,"aria-haspopup":"dialog",title:ui.modelTitle,onClick:()=>setOpen(!open)},
       element(EdgeModelLogo,{option:current}),
       element("span",{className:"edge-model-name"},current.label),
-      element("span",{className:"edge-model-level"},levelName(choice.reasoning_level)),
+      element("span",{className:"edge-model-level"},levelName(choice.reasoning_level)+(choice.lane==="fast"?" \u00B7 "+ui.lanes.fast:"")),
       element(Icon,{name:"chevron"})),
     open&&element("div",{className:"edge-model-menu",role:"dialog","aria-label":ui.modelTitle},
       element("div",{className:"edge-model-head"},element("strong",null,ui.modelHead),
@@ -10883,7 +10888,11 @@ function EdgeModelSelector(){
       element("div",{className:"edge-model-levels",role:"radiogroup","aria-label":ui.modelLevel},
         element("small",null,ui.modelLevel),
         current.reasoning_levels.map(level=>element("button",{key:level,type:"button",role:"radio","aria-checked":level===choice.reasoning_level,
-          onClick:()=>keepModelChoice({model:current.model,reasoning_level:level})},levelName(level))))));
+          onClick:()=>keepModelChoice({model:current.model,reasoning_level:level})},levelName(level)))),
+      data.lane_selection&&element("div",{className:"edge-model-levels edge-model-lanes",role:"radiogroup","aria-label":ui.lane},
+        element("small",null,ui.lane+" \u00B7 "+ui.laneNote),
+        ["standard","fast"].map(lane=>element("button",{key:lane,type:"button",role:"radio","aria-checked":lane===(choice.lane||"standard"),
+          onClick:()=>keepLane(lane)},ui.lanes[lane])))));
 }
 function ResearchScrollMarker({ scrollRef, conversationId }) {
     const view = currentView, markerRef = cachedValue(view, "marker", () => ({ current: null }), []);
@@ -11319,7 +11328,7 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
  return element("article",{className:"result",id:run.id+"-response",tabIndex:-1},
   element("div",{className:"result-kicker"},element(Icon,{name:"spark"}),"EDGE AI · "+v.status.label,element("i",{className:`edge-dot ${v.status.tone}`,"aria-hidden":"true"})),
   element("h1",null,run.result.title),
-  element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",{className:"edge-run-model"},element(EdgeModelLogo,{option:edgeModelOption(v.meta.model)}),v.meta.model+(v.meta.reasoningLevel?" \u00B7 "+(edgeUi().modelLevels?.[v.meta.reasoningLevel]??v.meta.reasoningLevel):"")),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.duration&&element("span",{className:"edge-duration",title:"Lama proses"},"\u23F1 "+v.meta.duration),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
+  element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",{className:"edge-run-model"},element(EdgeModelLogo,{option:edgeModelOption(v.meta.model)}),v.meta.model+(v.meta.reasoningLevel?" \u00B7 "+(edgeUi().modelLevels?.[v.meta.reasoningLevel]??v.meta.reasoningLevel):"")+(v.meta.lane==="fast"?" \u00B7 "+edgeUi().lane+" "+edgeUi().lanes.fast:"")),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.duration&&element("span",{className:"edge-duration",title:"Lama proses"},"\u23F1 "+v.meta.duration),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
   v.evidence&&element("div",{className:"edge-tags"},element("span",{className:"edge-badge neutral",title:v.evidence.code},v.evidence.label)),
   v.answer&&element("div",{className:"content-block edge-answer"},element(Markdown,{text:v.answer,claims})),
   v.clarification&&element(ResponseChoices,{scope:run.id+":clarify",enabled,act,

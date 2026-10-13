@@ -151,11 +151,15 @@ class OpenRouterClient:
             return None
         return [m for m in listed if isinstance(m, dict)] if isinstance(listed, list) else None
 
-    def create(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def create(self, payload: dict[str, Any], *, timeout: float | None = None,
+               attempts: int | None = None) -> dict[str, Any]:
+        """EXEC-FASTLANE R4: timeout (seconds) and attempts override the client's own for one call."""
         last_error: ProviderError | None = None
-        for attempt in range(MAX_ATTEMPTS):
+        tries = attempts or MAX_ATTEMPTS
+        for attempt in range(tries):
             try:
-                response = self.client.post("/responses", json=payload)
+                response = self.client.post("/responses", json=payload,
+                                            **({"timeout": timeout} if timeout is not None else {}))
             except httpx.TimeoutException:
                 last_error = ProviderError("openrouter request timed out", code="PROVIDER_TIMEOUT")
             except httpx.NetworkError as exc:
@@ -190,7 +194,7 @@ class OpenRouterClient:
                 last_error = ProviderError(
                     detail, code="PROVIDER_UNAVAILABLE", status_code=response.status_code
                 )
-            if attempt < MAX_ATTEMPTS - 1:
+            if attempt < tries - 1:
                 time.sleep(1.5 * (2 ** attempt))
         assert last_error is not None
         raise ProviderError(

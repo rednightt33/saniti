@@ -2308,6 +2308,22 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
     - pra-cek draf (R6).
   - Biaya B0: USD 0,35. Run pertama (`157a081f`) berhenti di b3 karena limit kunci OpenRouter habis (USD 38 dari 38);
     user menaikkan limit ke USD 39, lalu b3–b5 diulang (`db92253f`).
+- **B1 + B2 dibangun (user 2026-10-13: "B1 + B2 berturut2"):**
+  - **Orc:**
+    - saklar `AI_ENABLE_FASTLANE` (default mati), field `lane` per pesan (`app/lanes.py`, contextvar `current_lane`);
+    - `execution.lane`; `/v1/models` `lane_selection`; `lane: "fast"` ditolak `LANE_NOT_AVAILABLE` saat saklar mati;
+    - giliran jalur cepat: desk `FASTLANE` (alat analisis + `check_data_feasibility`, tanpa alat rencana/riset) dan
+      `FASTLANE_NOTE` (satu giliran, satu data need lengkap, satu skrip per `run_python`, pra-cek draf hanya bila
+      > ±8 angka, hasil eksploratif);
+    - rute RESEARCH dijalankan sebagai analisis (mode ANALYSIS); EXPLORE langsung satu langkah analisis;
+    - panggilan sesudah yang pertama memakai level `low` (model berlevel); satu panggilan per run dipotong 90 s lalu
+      diulang dengan level rendah;
+    - penolakan ukuran data membawa `fits` (bagian yang muat).
+  - **EDGE:** pilihan "Jalur: Standar / Cepat" di menu model (hanya bila `lane_selection`), dikirim sebagai `lane`,
+    disimpan di browser, "Jalur Cepat" tampil di kepala jawaban.
+  - **Runner:** `lane` per item.
+  - **Fallback terbukti di tes:** tanpa `lane` atau `lane: "standard"`, payload identik dengan saklar mati.
+  - **Tes:** orc 1.475 lulus; EDGE 84 lulus (satu kali gagal di tes mengetik yang memang kadang gagal di main).
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur

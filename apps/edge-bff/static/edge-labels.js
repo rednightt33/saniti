@@ -73,7 +73,7 @@ window.EdgeLabels = {
     approveMessage:"Setujui rencana riset", cancelMessage:"Batalkan rencana riset",
     // EXEC-MODELS: the model and reasoning-level choice next to the composer
     modelTitle:"Pilih model dan tingkat berpikir", modelHead:"Model AI", modelPricesNote:"Harga per 1 juta token",
-    modelInput:"Input", modelOutput:"Output", modelLevel:"Tingkat berpikir", modelUpdated:"Harga diperbarui",
+    modelInput:"Input", modelOutput:"Output", modelLevel:"Tingkat berpikir", lane:"Jalur", lanes:{standard:"Standar", fast:"Cepat"}, laneNote:"Cepat: satu giliran, hasil eksploratif", modelUpdated:"Harga diperbarui",
     modelLevels:{low:"Rendah", medium:"Sedang", high:"Tinggi", max:"Maks", off:"Mati", on:"Nyala"},
     // EXEC-CHOICES: the "Response choices" panel
     nextAction:"Langkah Anda berikutnya", choicesTitle:"Pilihan jawaban", planChoicesTitle:"Persetujuan rencana",

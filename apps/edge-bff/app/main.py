@@ -62,6 +62,8 @@ class RunInput(Strict):
     plan_reply: PlanReply | None = None
     model: str | None = Field(default=None, max_length=100, pattern=MODEL_ID)
     reasoning_level: str | None = Field(default=None, pattern=LEVELS)
+    # EXEC-FASTLANE: the lane of this message (Orc refuses "fast" while its switch is off)
+    lane: str | None = Field(default=None, pattern=r'^(standard|fast)$')
     # EXEC-Y Fase 1 (S3): sent while a run is active = stop that run and run this message next
     after_stop: bool = False
 

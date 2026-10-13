@@ -70,6 +70,12 @@ DESKS: dict[str, Desk] = {
                                                                       "inspect_session", "get_session_output",
                                                                       "get_research_library"},
                      never=RESEARCH_RUN),
+    # EXEC-FASTLANE (app/lanes.py): one-turn exploratory analysis; the analysis desk plus the data size check, never a
+    # Research Plan or a research run
+    "FASTLANE": Desk("FASTLANE", "ALL", must=CATALOG | DATA_FLOW | MEMORY | {"lookup_reference", "get_method_guide",
+                                                                  "query_metric", "inspect_session",
+                                                                  "get_session_output", "check_data_feasibility"},
+                     never=RESEARCH_RUN | {"check_research_feasibility", "get_research_library"}),
     "RESEARCH_V1": Desk("RESEARCH_V1", "ALL", must=DATA_FLOW | MEMORY | {"get_method_guide", "inspect_session",
                                                                  "get_session_output"},
                         never=RESEARCH_RUN),
@@ -82,7 +88,8 @@ DESKS: dict[str, Desk] = {
 DESK_LABELS = {"CHAT": "Obrolan (CHAT)", "FACT": "Fakta (FACT)", "READ": "Baca (CLARIFY, CONVERSATIONAL)",
                "ANALYSIS": "Analisis (pesan pertama, m4a, INSIGHT)",
                "PLAN": "Rencana (jalur RESEARCH, REVISE, REPLAN, m4b, m4d)",
-               "CONTINUE": "CONTINUE, AUTO tanpa rencana", "RESEARCH_V1": "Riset hipotesis disetujui",
+               "CONTINUE": "CONTINUE, AUTO tanpa rencana", "FASTLANE": "Jalur cepat (EXEC-FASTLANE)",
+               "RESEARCH_V1": "Riset hipotesis disetujui",
                "RESEARCH_V2": "Riset multi-sudut disetujui"}
 # the process of each step the orchestrator runs (its plan turn, the router's class, the caller's path)
 STEP_DESK = {"PROPOSE": "CONTINUE", "REVISE": "PLAN", "REPLAN": "PLAN", "FORCED_PROPOSE": "PLAN",

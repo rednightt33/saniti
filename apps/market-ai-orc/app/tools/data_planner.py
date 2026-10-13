@@ -26,6 +26,7 @@ import contextvars
 import hashlib
 import json
 import math
+import re
 import secrets
 import threading
 import time
@@ -36,6 +37,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..lanes import is_fast
 from .registry import ToolError, ToolSpec
 from .analysis import current_conversation_key, current_run_context, take_data_date_policy
 from .request_data import current_request_id
@@ -799,6 +801,34 @@ def empty_requests(draft: dict[str, Any], estimate: dict[str, Any]) -> list[dict
     return issues
 
 
+PARTS_RE = re.compile(r"needs (\d+) (?:extraction )?parts; (?:the limit is|at most) (\d+)")
+
+
+def fit_hints(requests: list[dict[str, Any]], max_parts: int | None, bundle: dict[str, Any] | None
+              ) -> list[dict[str, Any]]:
+    """EXEC-FASTLANE G1 (run edge_e5faf07f tried 105, 67, 128 and 122 parts against a limit of 64): how much of each
+    refused request fits, so the next data need is sized once instead of guessed."""
+    hints = []
+    for request in requests:
+        needed, limit = int(request.get("extraction_parts") or 0), max_parts
+        found = PARTS_RE.search(str(request.get("message") or ""))
+        if found:
+            needed, limit = int(found.group(1)), int(found.group(2))
+        if not limit or needed <= limit:
+            continue
+        share = limit / needed
+        hints.append({"data_request_id": request.get("data_request_id"), "parts_needed": needed, "parts_limit": limit,
+                      "share_that_fits": round(share, 2),
+                      "how": f"about {share:.0%} of it fits: shorten its period or narrow its universe to about that "
+                             f"share, or aggregate in the data need (fewer columns, a coarser grain)"})
+    if bundle and bundle.get("limit_rows") and bundle.get("estimated_rows"):
+        share = int(bundle["limit_rows"]) / int(bundle["estimated_rows"])
+        hints.append({"bundle": True, "share_that_fits": round(share, 2),
+                      "how": f"only about {share:.0%} of the rows of all requests together fit one bundle: shorten "
+                             f"the period, narrow the universe or aggregate to about that share"})
+    return hints
+
+
 def check_feasibility(client: Any, planner: ExecutionPlanner, arguments: BaseModel) -> dict[str, Any]:
     context = current_run_context.get()
     if context is None:
@@ -827,11 +857,14 @@ def check_feasibility(client: Any, planner: ExecutionPlanner, arguments: BaseMod
         return {"status": "REVISION_REQUIRED", "draft_id": None, "requests": estimate["requests"],
                 "issues": empty, "warnings": checked.get("warnings") or [],
                 "next_action": "REVISE_DATA_NEED_SPEC_OR_REPORT_LIMITATION"}
+    bundle = {"code": "BUNDLE_TOO_LARGE", "estimated_rows": total, "limit_rows": limit,
+              "message": f"Together the requests need about {total} rows; one bundle holds at most {limit}."} \
+        if too_large else None
+    hints = fit_hints(estimate["requests"], planner.max_parts, bundle) if not feasible and is_fast() else []
     return {"status": "FEASIBLE" if feasible else "NOT_FEASIBLE", "draft_id": checked["draft_id"],
             "requests": estimate["requests"], "warnings": checked.get("warnings") or [],
-            **({"bundle": {"code": "BUNDLE_TOO_LARGE", "estimated_rows": total, "limit_rows": limit,
-                           "message": f"Together the requests need about {total} rows; one bundle holds at most "
-                                      f"{limit}."}} if too_large else {}),
+            **({"bundle": bundle} if bundle else {}),
+            **({"fits": hints} if hints else {}),  # EXEC-FASTLANE G1: fast lane only
             "next_action": "PRESENT_RESEARCH_PLAN" if feasible else "NARROW_THE_PLAN_OR_REPORT_LIMITATION"}
 
 

@@ -42,6 +42,7 @@ from typing import Any
 
 from . import conversation_router as router
 from . import data_record as records
+from . import lanes
 from . import modes
 from . import news as news_research
 from . import stop
@@ -222,6 +223,8 @@ class Mode4Orchestrator:
             step, path = ("FACT", None) if route == "FACT" else ("PATH", router.ROUTE_PATHS[route])
         else:
             step, path = router.first_route_path(route, request.analysis_path)
+        if lanes.is_fast() and path == "MODE4":
+            path = "ANALYSIS"  # EXEC-FASTLANE: one analysis step instead of the analysis then plan round
         if step in ("CHAT", "FACT"):
             run = _Mode4Run(self, request, conversation_key, data_record)
             run.router_usage, run.intent = {**usage, "route": route}, intent

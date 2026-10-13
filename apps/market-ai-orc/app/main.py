@@ -31,6 +31,8 @@ from .orchestrator import AgentOrchestrator, log_event
 from .provider_log import ProviderLogger
 from .model_choices import EDGE_DEFAULT, MODEL_CHOICES, ModelChoiceError, current_model_choice
 from .model_choices import resolve as resolve_model_choice
+from .lanes import LaneError, current_lane
+from .lanes import resolve as resolve_lane
 from .model_prices import MODEL_PRICES_TTL_SECONDS, ModelPrices
 from .provider_policy import CachePricePolicy
 from .tools.web_fact import WebFactClient
@@ -577,7 +579,9 @@ def create_app(
                            for option in MODEL_CHOICES],
                 "prices_fetched_at": fetched_at, "edge_default": dict(EDGE_DEFAULT),
                 "server_default": {"model": settings.ai_model, "reasoning": settings.reasoning(
-                    settings.ai_reasoning_effort)}}
+                    settings.ai_reasoning_effort)},
+                # EXEC-FASTLANE: a message may choose lane "fast" (EDGE shows the lane choice only then)
+                "lane_selection": bool(settings.ai_enable_fastlane)}
 
     @app.post("/v1/agent/run", response_model=AgentRunResponse, dependencies=[Depends(authorize)])
     def run_agent(payload: AgentRunRequest,
@@ -588,10 +592,16 @@ def create_app(
             choice = resolve_model_choice(payload.model, payload.reasoning_level, settings)
         except ModelChoiceError as error:
             return refuse(ConversationError(error.code, str(error), 400))
-        token = current_model_choice.set(choice)
+        # EXEC-FASTLANE: the message's lane, checked before anything runs (fallback: no lane = the current behaviour)
+        try:
+            lane = resolve_lane(payload.lane, settings)
+        except LaneError as error:
+            return refuse(ConversationError(error.code, str(error), 400))
+        token, lane_token = current_model_choice.set(choice), current_lane.set(lane)
         try:
             return run_chosen(payload, x_saniti_owner)
         finally:
+            current_lane.reset(lane_token)
             current_model_choice.reset(token)
 
     def run_chosen(payload: AgentRunRequest, x_saniti_owner: str | None) -> AgentRunResponse | JSONResponse:
