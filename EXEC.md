@@ -2200,8 +2200,11 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
 - **Jalur baru, tingkat 2 konfirmasi (hanya bila user minta):** hipotesis terbaik menjadi rencana pre-registrasi yang
   diisi sistem, satu klik setuju, diuji di periode holdout dengan ambang lebih ketat, vonis lewat `complete_research_run`.
 - **Persetujuan:** hanya untuk tingkat 2 atau bila ekstraksi melewati anggaran Governor.
-- **A/B:** 5 pertanyaan conversation di atas, jalur sekarang vs jalur baru; diukur waktu (target median < 2 menit,
-  p90 < 4 menit), biaya, mutu dan kebenaran angka.
+- **A/B:** 5 pertanyaan conversation di atas, jalur sekarang vs jalur baru; diukur waktu, biaya, mutu dan kebenaran
+  angka. **Target (user 2026-10-13): "fokus utama adalah bisa menjawab dulu under maks 3 mins"**, yaitu setiap
+  pertanyaan selesai paling lama 3 menit (menggantikan target median < 2 menit, p90 < 4 menit).
+- **Ditunda (user: "No deh, untuk sekarang"):** ukuran "insightful", hipotesis dipilih sistem dari beberapa kandidat,
+  sudut lanjutan dihitung sebelum diklik, dan nilai insight di A/B.
 - **Tahapan (masing-masing butuh go user):** 0 baseline; 1 batas data terlihat dan level berpikir adaptif di jalur baru
   (R2, R4, G1); 2 `fetch()` (R1, R3, R5, R6, G2, G4); 3 buku catatan uji dan label eksploratif; 4 tingkat konfirmasi.
   G3 dan G5 (R7) bisa dikerjakan kapan saja di jalur baru.
@@ -2227,8 +2230,8 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
     per langkah ditawarkan (prompt jalur baru sendiri; prompt jalur sekarang tidak diubah).
   - **R6 pra-cek draf hanya bila perlu:** misalnya bila jawaban punya banyak angka, agar jawaban tidak ditulis dua kali.
   - **R7 perbaikan run `9cd51749`:** routing ke CONTINUE dan kode broker disimpan (sama dengan G5).
-  - **R8 ukur sebelum dan sesudah:** 5 pertanyaan conversation di atas; target median < 2 menit, p90 < 4 menit (sama
-    dengan butir A/B di atas).
+  - **R8 ukur sebelum dan sesudah:** 5 pertanyaan conversation di atas; target paling lama 3 menit per pertanyaan
+    (butir A/B di atas).
 - **Usulan gerbang G1–G5** (inspeksi kode jalur riset 2026-10-13; user: "masukan exec"):
   - **G1 batas terlihat saat ditolak:** penolakan `check_data_feasibility` / `check_research_feasibility` dan Governor
     ("The extraction needs 105 parts; the limit is 64", `market-sql-governor/app/extract.py:844`, `next_action`
