@@ -79,6 +79,11 @@ class AgentRunRequest(BaseModel):
     # leaves it null and is routed again.
     chosen_option: Literal["QUICK_SUMMARY", "ANALYSIS", "RESEARCH", "EXPLORE", "FACT", "CLARIFY", "INSIGHT",
                            "CONTINUE", "APPROVE", "NEW_TOPIC"] | None = None
+    # EXEC-MODELS (app/model_choices.py): the model and reasoning level of this message's agent loop, one of the
+    # offered models and a level it takes; null keeps the server default (AI_MODEL, AI_REASONING_EFFORT). The routers
+    # keep AI_MODEL with reasoning low.
+    model: str | None = Field(default=None, max_length=100)
+    reasoning_level: Literal["low", "medium", "high", "off", "on"] | None = None
 
     @field_validator("message")
     @classmethod
@@ -608,6 +613,9 @@ class ExecutionMetadata(BaseModel):
     pause: dict[str, Any] | None = None
     # EXEC-Y Fase 1 (S1): the user pressed Stop while this answer ran (app/stop.py); omitted otherwise
     stopped: bool | None = None
+    # EXEC-MODELS: the reasoning level the caller chose for this message (model holds the chosen model); omitted when
+    # the server default ran
+    reasoning_level: str | None = None
 
     @model_serializer(mode="wrap")
     def _without_unused_path(self, handler: Any) -> Any:
@@ -615,7 +623,8 @@ class ExecutionMetadata(BaseModel):
         shape."""
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("analysis_path", "mode", "analysis_final_statuses", "friction", "hurdles", "pause", "stopped"):
+            for key in ("analysis_path", "mode", "analysis_final_statuses", "friction", "hurdles", "pause", "stopped",
+                        "reasoning_level"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data

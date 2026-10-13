@@ -389,6 +389,22 @@ Returns `{"status": "ok"}` while the process is alive.
 Returns `{"status": "ready"}` once configuration has loaded and the app has started. It does
 **not** call OpenRouter.
 
+### Model choice per message and `GET /v1/models` (EXEC-MODELS)
+User decision 2026-10-13: a message may choose the agent loop's model and reasoning level (`app/model_choices.py`):
+`deepseek/deepseek-v4.1-flash` and `z-ai/glm-5.3-flash` take `low`, `medium` or `high` (sent as `reasoning.effort`);
+`xiaomi/mimo-v2.6-pro`, `xiaomi/mimo-v2.6-flash` and `qwen/qwen3.8-flash` take `off` or `on` (sent as
+`reasoning.enabled`). `POST /v1/agent/run` takes `model` and `reasoning_level`; a model or level not offered gets HTTP
+400 (`MODEL_NOT_ALLOWED`, `REASONING_LEVEL_NOT_SUPPORTED`) before anything runs. The choice applies to every call of the
+agent loop, mode 4 steps included (`ai_model_chosen`); the routers, the follow-up suggestions, the plan-reply
+classifier and the web-fact check keep `AI_MODEL` with reasoning low. Without a choice nothing changes (`AI_MODEL`,
+`AI_REASONING_EFFORT`). With `AI_PROVIDER_MAX_CACHE_PRICE_RATIO` every offered model has its own provider list.
+`execution.model` is the model that ran and `execution.reasoning_level` the chosen level (omitted without a choice).
+
+`GET /v1/models` (same bearer key) lists the offered models, their levels and their OpenRouter list prices per one
+million tokens (`input_per_million`, `output_per_million`, `cache_read_per_million`), read from OpenRouter's `/models`
+in the background every hour (`ai_model_prices_refreshed`; a failed read keeps the last prices, null before the first),
+with `prices_fetched_at`, `edge_default` (EDGE's starting choice: DeepSeek V4.1 Flash, high) and `server_default`.
+
 ### `POST /v1/agent/run`
 Header: `Authorization: Bearer ${MARKET_AI_ORC_API_KEY}`. Missing or wrong key → `401`.
 

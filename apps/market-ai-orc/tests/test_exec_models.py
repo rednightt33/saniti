@@ -1,0 +1,218 @@
+"""EXEC-MODELS (user 2026-10-13, "kita akan menambahkan model2 ini bisa di toggle model dan intellegence level di EDGE
+(Default router tetap low)", "Ok, go defaultnya adalah deepseek V4.1 flash HIGH ya"): a message may choose the agent
+loop's model and reasoning level from the offered models; the routers keep AI_MODEL with reasoning low; prices are read
+from OpenRouter every hour; a message that chooses nothing runs exactly as before."""
+from __future__ import annotations
+
+from typing import Any
+
+import httpx
+import pytest
+from fastapi.testclient import TestClient
+from pydantic import BaseModel
+
+from app.main import create_app
+from app.model_choices import EDGE_DEFAULT, MODEL_CHOICES, ModelChoiceError, current_model_choice, resolve
+from app.model_prices import ModelPrices
+from app.openrouter_client import OpenRouterClient
+from app.orchestrator import AgentOrchestrator
+from app.tools import build_default_registry
+from conftest import ANSWER, BASE_ENV, ScriptedClient, final_response, make_settings, tool_call_response
+from test_mode4 import BROKER, FIRST_ROUND, m4, mode4_agent
+
+AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}"}
+
+
+# ---------------------------------------------------------------- the offered models and their levels
+
+def test_the_five_offered_models_and_the_edge_default() -> None:
+    assert [o.model for o in MODEL_CHOICES] == ["deepseek/deepseek-v4.1-flash", "z-ai/glm-5.3-flash",
+                                                "xiaomi/mimo-v2.6-pro", "xiaomi/mimo-v2.6-flash", "qwen/qwen3.8-flash"]
+    assert EDGE_DEFAULT == {"model": "deepseek/deepseek-v4.1-flash", "reasoning_level": "high"}
+
+
+@pytest.mark.parametrize("model,level,reasoning", [
+    ("deepseek/deepseek-v4.1-flash", "high", {"effort": "high"}),
+    ("z-ai/glm-5.3-flash", "medium", {"effort": "medium"}),
+    ("xiaomi/mimo-v2.6-pro", "on", {"enabled": True}),
+    ("xiaomi/mimo-v2.6-flash", "off", {"enabled": False}),
+    ("qwen/qwen3.8-flash", "on", {"enabled": True}),
+])
+def test_each_model_takes_reasoning_in_its_own_form(model, level, reasoning) -> None:
+    choice = resolve(model, level, make_settings())
+    assert (choice.model, choice.reasoning, choice.level, choice.chosen) == (model, reasoning, level, True)
+
+
+def test_no_choice_is_the_server_default_as_before() -> None:
+    settings = make_settings(AI_REASONING_EFFORT="medium")
+    choice = resolve(None, None, settings)
+    assert (choice.model, choice.reasoning, choice.chosen) == (settings.ai_model, {"effort": "medium"}, False)
+
+
+@pytest.mark.parametrize("model,level,code", [
+    ("openai/gpt-x", "high", "MODEL_NOT_ALLOWED"),
+    ("xiaomi/mimo-v2.6-pro", "high", "REASONING_LEVEL_NOT_SUPPORTED"),
+    ("deepseek/deepseek-v4.1-flash", "on", "REASONING_LEVEL_NOT_SUPPORTED"),
+])
+def test_a_model_or_level_not_offered_is_refused(model, level, code) -> None:
+    with pytest.raises(ModelChoiceError) as refused:
+        resolve(model, level, make_settings())
+    assert refused.value.code == code
+
+
+# ---------------------------------------------------------------- the API and the agent loop
+
+def api(script: list) -> tuple[TestClient, ScriptedClient]:
+    settings = make_settings()
+    scripted = ScriptedClient(script)
+    return TestClient(create_app(settings, orchestrator=AgentOrchestrator(settings, scripted,
+                                                                          build_default_registry()))), scripted
+
+
+def test_the_chosen_model_runs_every_call_of_the_agent_loop_and_is_reported() -> None:
+    client, scripted = api([tool_call_response("get_system_capabilities"), final_response(ANSWER)])
+    with client:
+        reply = client.post("/v1/agent/run", headers=AUTH, json={
+            "request_id": "m1", "message": "Apa yang bisa kamu bantu?", "model": "z-ai/glm-5.3-flash",
+            "reasoning_level": "medium"})
+    assert reply.status_code == 200
+    assert [p["model"] for p in scripted.payloads] == ["z-ai/glm-5.3-flash"] * 2
+    assert all(p["reasoning"] == {"effort": "medium"} for p in scripted.payloads)
+    execution = reply.json()["execution"]
+    assert execution["model"] == "z-ai/glm-5.3-flash" and execution["reasoning_level"] == "medium"
+
+
+def test_a_message_without_a_choice_runs_as_before() -> None:
+    client, scripted = api([tool_call_response("get_system_capabilities"), final_response(ANSWER)])
+    with client:
+        reply = client.post("/v1/agent/run", headers=AUTH, json={"request_id": "m2", "message": "Apa itu IHSG?"})
+    settings = make_settings()
+    assert [p["model"] for p in scripted.payloads] == [settings.ai_model] * 2
+    assert all(p["reasoning"] == settings.reasoning(settings.ai_reasoning_effort) for p in scripted.payloads)
+    assert "reasoning_level" not in reply.json()["execution"]
+
+
+def test_a_model_not_offered_is_refused_before_anything_runs() -> None:
+    client, scripted = api([final_response(ANSWER)])
+    with client:
+        reply = client.post("/v1/agent/run", headers=AUTH, json={
+            "request_id": "m3", "message": "Halo", "model": "xiaomi/mimo-v2.6-pro", "reasoning_level": "high"})
+    assert reply.status_code == 400 and reply.json()["detail"]["code"] == "REASONING_LEVEL_NOT_SUPPORTED"
+    assert scripted.payloads == []
+
+
+class _Reply(BaseModel):
+    route: str = ""
+
+
+def test_the_routers_keep_the_default_model_with_reasoning_low() -> None:
+    settings = make_settings()
+    scripted = ScriptedClient([final_response({"route": "CHAT"})])
+    orc = AgentOrchestrator(settings, scripted, build_default_registry())
+    token = current_model_choice.set(resolve("qwen/qwen3.8-flash", "on", settings))
+    try:
+        orc._router_call("r", "route", "Route it.", "Halo", "route", {"type": "object", "properties": {
+            "route": {"type": "string"}}, "required": ["route"], "additionalProperties": False}, _Reply, "failed")
+    finally:
+        current_model_choice.reset(token)
+    assert scripted.payloads[0]["model"] == settings.ai_model
+    assert scripted.payloads[0]["reasoning"] == settings.reasoning("low")
+
+
+def test_every_mode4_step_runs_the_chosen_model() -> None:
+    agent, scripted, _ = mode4_agent(FIRST_ROUND)
+    token = current_model_choice.set(resolve("xiaomi/mimo-v2.6-flash", "on", agent.inner.settings))
+    try:
+        result = agent.run(m4(request_id="m4m", message=BROKER))
+    finally:
+        current_model_choice.reset(token)
+    loop_calls = [p for p in scripted.payloads if "tools" in p]
+    assert loop_calls and {p["model"] for p in loop_calls} == {"xiaomi/mimo-v2.6-flash"}
+    assert {str(p["reasoning"]) for p in loop_calls} == {str({"enabled": True})}
+    assert result.execution.model == "xiaomi/mimo-v2.6-flash" and result.execution.reasoning_level == "on"
+
+
+class _Policy:
+    def __init__(self, ignored: list[str]) -> None:
+        self._ignored = ignored
+
+    def ignored(self) -> list[str]:
+        return list(self._ignored)
+
+
+def test_each_model_skips_its_own_providers() -> None:
+    settings = make_settings()
+    orc = AgentOrchestrator(settings, ScriptedClient([]), build_default_registry(), provider_policy=_Policy(["a"]),
+                            provider_policies={"z-ai/glm-5.3-flash": _Policy(["b"])})
+    assert orc._provider()["ignore"] == ["a"] and orc._provider(settings.ai_model)["ignore"] == ["a"]
+    assert orc._provider("z-ai/glm-5.3-flash")["ignore"] == ["b"]
+    assert "ignore" not in orc._provider("qwen/qwen3.8-flash")  # no list read: OpenRouter's default routing
+
+
+# ---------------------------------------------------------------- prices every hour
+
+LISTED = [{"id": "z-ai/glm-5.3-flash", "pricing": {"prompt": "0.0000000261", "completion": "0.0000009",
+                                                   "input_cache_read": "0.0000000108"}},
+          {"id": "other/model", "pricing": {"prompt": "1", "completion": "1"}}]
+
+
+class _Source:
+    def __init__(self, answers: list) -> None:
+        self.answers = answers
+        self.calls = 0
+
+    def models(self):
+        self.calls += 1
+        return self.answers.pop(0)
+
+
+def test_prices_are_read_per_million_tokens_and_a_failed_read_keeps_them() -> None:
+    now = [0.0]
+    prices = ModelPrices(_Source([LISTED, None]), ttl_seconds=3600, clock=lambda: now[0])
+    prices.refresh()
+    table, fetched_at = prices.snapshot()
+    assert table == {"z-ai/glm-5.3-flash": {"input_per_million": 0.0261, "output_per_million": 0.9,
+                                           "cache_read_per_million": 0.0108}} and fetched_at
+    prices.refresh()  # OpenRouter unavailable
+    assert prices.snapshot() == (table, fetched_at)
+
+
+def test_a_price_list_older_than_an_hour_is_read_again_in_the_background() -> None:
+    now = [0.0]
+    source = _Source([LISTED, LISTED])
+    prices = ModelPrices(source, ttl_seconds=3600, clock=lambda: now[0])
+    prices.refresh()
+    started: list[bool] = []
+    prices._start_refresh = lambda: started.append(True)  # the thread itself is the pattern of CachePricePolicy
+    prices.snapshot()
+    assert started == []
+    now[0] = 3600.0
+    prices.snapshot()
+    assert started == [True]
+
+
+def test_the_models_endpoint_lists_models_levels_prices_and_defaults() -> None:
+    settings = make_settings()
+    prices = ModelPrices(_Source([LISTED]))
+    prices.refresh()
+    app = create_app(settings, orchestrator=AgentOrchestrator(settings, ScriptedClient([]), build_default_registry()),
+                     model_prices=prices)
+    with TestClient(app) as client:
+        assert client.get("/v1/models").status_code == 401
+        body = client.get("/v1/models", headers=AUTH).json()
+    glm = next(m for m in body["models"] if m["model"] == "z-ai/glm-5.3-flash")
+    assert glm["reasoning_levels"] == ["low", "medium", "high"] and glm["output_per_million"] == 0.9
+    mimo = next(m for m in body["models"] if m["model"] == "xiaomi/mimo-v2.6-pro")
+    assert mimo["reasoning_levels"] == ["off", "on"] and mimo["input_per_million"] is None  # not read yet
+    assert body["edge_default"] == EDGE_DEFAULT and body["prices_fetched_at"]
+    assert body["server_default"]["model"] == settings.ai_model
+
+
+def test_the_client_reads_the_model_list_and_returns_none_on_failure() -> None:
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.url.path.endswith("/models"):
+            return httpx.Response(200, json={"data": LISTED})
+        return httpx.Response(500)
+    assert OpenRouterClient("k", 5, transport=httpx.MockTransport(handler)).models() == LISTED
+    broken = OpenRouterClient("k", 5, transport=httpx.MockTransport(lambda req: httpx.Response(503)))
+    assert broken.models() is None

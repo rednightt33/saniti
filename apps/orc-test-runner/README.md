@@ -24,7 +24,8 @@ and the agent container cannot reach Railway SSH, so questions are sent from thi
   `analysis_path`, no `plan_reply`; market-ai-orc's reply classifier reads each reply). The request timeout is 3900 s
   (`AI_MODE4_MAX_SECONDS` 3600 plus margin), and the `OTR` line lists the mode 4 steps (step, status, turn, angles,
   cost, duration).
-- `suite.json` items may carry an `expect` note for the reviewer; the runner ignores it. Current suite:
+- `suite.json` items may carry `model` and `reasoning_level` (EXEC-MODELS), sent with each of the item's messages, and
+  an `expect` note for the reviewer; the runner ignores the note. Current suite:
   `ma-ab-table-20261013j` (A/B 4 OFF; ON is `i`; `suites/ab_table_20261013i.json` and `j`); earlier
   `ma-prose-20261013h` (EXEC-PROSE quick check, ab5 and ab6, tables on; `suites/prose_20261013h.json`); earlier
   `ma-ab-table-20261013g` (A/B 3, table ON; OFF is `suites/ab_table_20261013f.json`, ON `g`); earlier

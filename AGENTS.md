@@ -69,6 +69,14 @@ On 2026-10-04 the user approved (plan `PLAN_FINAL_2026-10-04.md`, decision K1) `
 
 On 2026-10-05 the user approved a speed preference after the p1 analysis (M75 recurrence on Sail Research): `AI_PROVIDER_MIN_THROUGHPUT=50` on dev, sent as OpenRouter `provider.preferred_min_throughput` `{p50: 50}`. It is a preference, not a filter or a sort: slower endpoints are tried last and the price weighting stays on. `AI_PROVIDER_SORT` stays unset; changing the threshold or any other provider setting still needs approval.
 
+On 2026-10-13 the user approved a model choice per message in EDGE (EXEC-MODELS: "kita akan menambahkan model2 ini
+bisa di toggle model dan intellegence level di EDGE (Default router tetap low)", "Ok, go defaultnya adalah deepseek V4.1
+flash HIGH ya"): the agent loop may run `deepseek/deepseek-v4.1-flash`, `z-ai/glm-5.3-flash`, `xiaomi/mimo-v2.6-pro`,
+`xiaomi/mimo-v2.6-flash` or `qwen/qwen3.8-flash` (`apps/market-ai-orc/app/model_choices.py`); EDGE starts on DeepSeek
+V4.1 Flash high, while a request without a choice keeps `AI_MODEL` and `AI_REASONING_EFFORT` (medium on dev). The
+routers, follow-up suggestions and small checks stay on `AI_MODEL` with reasoning low; the web governor is unaffected.
+Adding or removing an offered model, or changing EDGE's default, still needs the user's approval.
+
 On 2026-10-06 the user decided "1 conversation ID = 1 session ID … RUN ID ya bisa berbeda" (EXEC-S): every model call
 of a conversation (each turn, each mode 4 step, the routers) sends the conversation id as OpenRouter's `session_id`,
 its sticky-routing key, so the calls stay with one provider endpoint and reuse its prompt cache; a request without a

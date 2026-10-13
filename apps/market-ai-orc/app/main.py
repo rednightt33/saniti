@@ -29,6 +29,9 @@ from .modes import MODES, current_caller_path, effective_default, path_for, reso
 from . import follow_ups, stop
 from .orchestrator import AgentOrchestrator, log_event
 from .provider_log import ProviderLogger
+from .model_choices import EDGE_DEFAULT, MODEL_CHOICES, ModelChoiceError, current_model_choice
+from .model_choices import resolve as resolve_model_choice
+from .model_prices import MODEL_PRICES_TTL_SECONDS, ModelPrices
 from .provider_policy import CachePricePolicy
 from .tools.web_fact import WebFactClient
 from .tools.web_research import WebResearchClient
@@ -126,6 +129,7 @@ def create_app(
     settings: Settings | None = None,
     orchestrator: AgentOrchestrator | None = None,
     conversations: ConversationStore | None = None,
+    model_prices: ModelPrices | None = None,
 ) -> FastAPI:
     """App factory; uvicorn runs it with --factory so config is validated at startup, not import."""
     _configure_logging()
@@ -386,11 +390,22 @@ def create_app(
             threading.Thread(target=summary.text, name="catalog-summary", daemon=True).start()
         provider_logger = ProviderLogger(owned_client) if settings.ai_log_provider else None
         provider_policy = None
+        provider_policies: dict[str, CachePricePolicy] = {}
         if settings.ai_provider_max_cache_price_ratio is not None:
             provider_policy = CachePricePolicy(owned_client, settings.ai_model,
                                                settings.ai_provider_max_cache_price_ratio,
                                                ttl_seconds=settings.ai_provider_policy_ttl_seconds, log=log_event)
             provider_policy.start()
+            # EXEC-MODELS: each other offered model skips its own poorly discounted providers
+            for option in MODEL_CHOICES:
+                if option.model != settings.ai_model:
+                    provider_policies[option.model] = CachePricePolicy(
+                        owned_client, option.model, settings.ai_provider_max_cache_price_ratio,
+                        ttl_seconds=settings.ai_provider_policy_ttl_seconds, log=log_event)
+                    provider_policies[option.model].start()
+        if model_prices is None:
+            model_prices = ModelPrices(owned_client, ttl_seconds=MODEL_PRICES_TTL_SECONDS, log=log_event)
+            model_prices.start()
         # (request_id, session_ids): the sessions a run leaves open are closed when it ends (S05)
         closer = partial(close_sessions, sandbox) if sandbox is not None and settings.ai_enable_dataneed else None
         # S28: (request_id) -> the answer's end releases every session of the request; fail closed to the closer
@@ -444,7 +459,7 @@ def create_app(
             log_event("export_inactive", reason="exports are kept with the conversation: the result store is inactive")
         orchestrator = AgentOrchestrator(settings, owned_client, registry, auditor=auditor,
                                          catalog_summary=summary, provider_logger=provider_logger,
-                                         provider_policy=provider_policy,
+                                         provider_policy=provider_policy, provider_policies=provider_policies,
                                          session_closer=closer, session_releaser=releaser,
                                          result_store=result_store, output_fetcher=fetcher,
                                          carried_uploader=uploader,
@@ -550,9 +565,36 @@ def create_app(
         log_event("ai_run_stop_requested", request_id=request_id[:200], status=status)
         return JSONResponse(status_code=202 if status == "STOPPING" else 404, content={"status": status})
 
+    @app.get("/v1/models", dependencies=[Depends(authorize)])
+    def models() -> dict[str, Any]:
+        """EXEC-MODELS: the models a message may choose, their reasoning levels and their OpenRouter prices per one
+        million tokens (read every hour; null until the first read), with EDGE's starting choice and the server
+        default used when a message chooses nothing."""
+        prices, fetched_at = model_prices.snapshot() if model_prices is not None else ({}, None)
+        return {"models": [{"model": option.model, "label": option.label, "reasoning_levels": list(option.levels),
+                            **(prices.get(option.model) or {"input_per_million": None, "output_per_million": None,
+                                                            "cache_read_per_million": None})}
+                           for option in MODEL_CHOICES],
+                "prices_fetched_at": fetched_at, "edge_default": dict(EDGE_DEFAULT),
+                "server_default": {"model": settings.ai_model, "reasoning": settings.reasoning(
+                    settings.ai_reasoning_effort)}}
+
     @app.post("/v1/agent/run", response_model=AgentRunResponse, dependencies=[Depends(authorize)])
     def run_agent(payload: AgentRunRequest,
                   x_saniti_owner: str | None = Header(default=None)) -> AgentRunResponse | JSONResponse:
+        # EXEC-MODELS: the message's model and reasoning, checked before anything runs, for the whole request (mode 4
+        # steps run in this context); the routers keep AI_MODEL with reasoning low
+        try:
+            choice = resolve_model_choice(payload.model, payload.reasoning_level, settings)
+        except ModelChoiceError as error:
+            return refuse(ConversationError(error.code, str(error), 400))
+        token = current_model_choice.set(choice)
+        try:
+            return run_chosen(payload, x_saniti_owner)
+        finally:
+            current_model_choice.reset(token)
+
+    def run_chosen(payload: AgentRunRequest, x_saniti_owner: str | None) -> AgentRunResponse | JSONResponse:
         if payload.analysis_path not in (None, "AUTO"):
             if not getattr(orchestrator, "analysis_path", False):
                 return refuse(ConversationError("ANALYSIS_PATH_UNAVAILABLE", "analysis_path needs "

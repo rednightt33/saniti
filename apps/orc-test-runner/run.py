@@ -63,6 +63,8 @@ def summary(item_id, turn, code, body, seconds):
             "cost": execution.get("cost"), "unsupported": (execution.get("number_provenance") or {}).get("unsupported"),
             "limitations": (response.get("limitations") or [])[:6],
             "mode": execution.get("mode"),
+            # EXEC-MODELS: the model and reasoning level the run used
+            "model": execution.get("model"), "reasoning_level": execution.get("reasoning_level"),
             "options": [o.get("route") for o in body.get("options") or []] or None,
             # round 2026-10-03: the kejedot index, checked claims, exports and their download check
             "friction": execution.get("friction"),
@@ -108,6 +110,11 @@ def dump(tag, payload):
                 time.sleep(1)
 
 
+def chosen_model(item):
+    """EXEC-MODELS: an item's model and reasoning level, sent with each of its messages (none: the server default)."""
+    return {key: item[key] for key in ("model", "reasoning_level") if item.get(key)}
+
+
 def run_turns(item, prefix, results):
     """Mode 4: the item's messages in one SERVER conversation, each sent as plain text. An item may continue an earlier
     conversation of the same owner (conversation_id) from a given turn number (first_turn)."""
@@ -128,6 +135,7 @@ def run_turns(item, prefix, results):
             body["chosen_option"] = message["chosen_option"]
         if item.get("analysis_path"):
             body["analysis_path"] = item["analysis_path"]
+        body.update(chosen_model(item))
         code, body, seconds = post(body)
         log("turn", **summary(item["id"], turn, code, body, seconds))
         results.append({"item": item["id"], "turn": turn, "body": body})
@@ -143,6 +151,7 @@ def run_item(item, prefix, results):
     base = {"message": item["message"], "history_mode": "SERVER"}
     if item.get("analysis_path"):
         base["analysis_path"] = item["analysis_path"]
+    base.update(chosen_model(item))
     code, body, seconds = post({**base, "request_id": f"{prefix}-{item['id']}-1"})
     log("turn", **summary(item["id"], 1, code, body, seconds))
     results.append({"item": item["id"], "turn": 1, "body": body})
@@ -151,7 +160,8 @@ def run_item(item, prefix, results):
     if body.get("status") == "AWAITING_CONFIRMATION" and conversation:
         plan_id = (body.get("continuation") or {}).get("plan_id")
         reply = {"request_id": f"{prefix}-{item['id']}-2", "conversation_id": conversation, "history_mode": "SERVER",
-                 "message": "Setuju, jalankan rencana ini.", "plan_reply": {"plan_id": plan_id, "action": "APPROVE"}}
+                 "message": "Setuju, jalankan rencana ini.", "plan_reply": {"plan_id": plan_id, "action": "APPROVE"},
+                 **chosen_model(item)}
         code, body, seconds = post(reply)
         log("turn", **summary(item["id"], 2, code, body, seconds))
         results.append({"item": item["id"], "turn": 2, "body": body})

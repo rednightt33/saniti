@@ -59,6 +59,7 @@ from . import variant_correction
 from .user_words import user_values, design_values, variants
 from .user_words import allowed_periods, current_design_changes, current_turn_referent, current_user_words, \
     locked_horizons
+from .model_choices import ModelChoice, current_model_choice
 from .provenance import (CONTEXT, typed_figures, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
                          parse_numbers, released_numbers, requested_statistics, weakest)
 from .value_refs import (FUNC_RE, OUTSIDE_LABELS, OUTSIDE_NAMESPACES, REF_RE, SOURCES_IN_TEXT, UNITS, ReferenceSources, Resolved,
@@ -2199,6 +2200,8 @@ class RunState:
     # S4c: reasoning items were sent back in this run; replay_off once a provider refused them
     reasoning_replayed: bool = False
     replay_off: bool = False
+    # EXEC-MODELS (app/model_choices.py): the agent loop's model and reasoning for this run (None: the server default)
+    model_choice: ModelChoice | None = None
     # G23 D (K3): the last final draft that parsed, and the limit that ended the run (MAX_ITERATIONS, ANALYSIS_TIMEOUT)
     last_draft: FinalResponse | None = None
     exhausted: str | None = None
@@ -2254,6 +2257,7 @@ class AgentOrchestrator:
         catalog_summary: Any | None = None,
         provider_logger: Any | None = None,
         provider_policy: Any | None = None,
+        provider_policies: dict[str, Any] | None = None,
         session_closer: Callable[[str, list[str]], dict[str, str]] | None = None,
         session_releaser: Callable[[str], list[dict[str, Any]]] | None = None,
         result_store: Any = None,
@@ -2299,6 +2303,8 @@ class AgentOrchestrator:
         self.provider_logger = provider_logger
         # CachePricePolicy (AI_PROVIDER_MAX_CACHE_PRICE_RATIO): providers skipped for a poor cache-read discount
         self.provider_policy = provider_policy
+        # EXEC-MODELS: the same policy for every other offered model (app/model_choices.py), by model
+        self.provider_policies = provider_policies or {}
         self.wall_clock = wall_clock
         self.clock = clock
         self.dataneed = settings.ai_enable_dataneed
@@ -2431,7 +2437,7 @@ class AgentOrchestrator:
                 summary = ""
         return self.system_prompt + ("\n\n" + summary if summary else "")
 
-    def _provider(self) -> dict[str, Any]:
+    def _provider(self, model: str | None = None) -> dict[str, Any]:
         """OpenRouter provider preferences. provider.sort (AI_PROVIDER_SORT) turns load balancing off and tries the
         endpoints in that order; without it OpenRouter balances load weighted to the lowest price. provider.ignore
         (AI_PROVIDER_MAX_CACHE_PRICE_RATIO) drops the providers whose cache reads are barely discounted.
@@ -2442,8 +2448,12 @@ class AgentOrchestrator:
             provider["sort"] = self.settings.ai_provider_sort
         if self.settings.ai_provider_min_throughput is not None:
             provider["preferred_min_throughput"] = {"p50": self.settings.ai_provider_min_throughput}
-        if self.provider_policy is not None:
-            ignored = self.provider_policy.ignored()
+        policy = self.provider_policy
+        policies = getattr(self, "provider_policies", None) or {}  # tests may build the orchestrator bare
+        if model is not None and model != self.settings.ai_model:
+            policy = policies.get(model)  # EXEC-MODELS: each offered model has its own list; none = default routing
+        if policy is not None:
+            ignored = policy.ignored()
             if ignored:
                 provider["ignore"] = ignored
         return provider
@@ -2465,6 +2475,10 @@ class AgentOrchestrator:
             user_history="\n".join(turn.content for turn in request.history if turn.role == "user"),
         )
         state.audit_started_at = moment
+        state.model_choice = current_model_choice.get()
+        if state.model_choice is not None and state.model_choice.chosen:
+            log_event("ai_model_chosen", request_id=request.request_id, model=state.model_choice.model,
+                      reasoning_level=state.model_choice.level, reasoning=state.model_choice.reasoning)
         turn_id = current_turn_id.get() or request.request_id
         remembered = self._seed_memory(state, request)  # EXEC-C: after the history, before every other note
         self._seed_data_record(state, data_record)
@@ -2632,7 +2646,7 @@ class AgentOrchestrator:
             "ai_run_completed" if result.status != "FAILED" else "ai_run_failed",
             request_id=state.request_id,
             provider="openrouter",
-            model=self.settings.ai_model,
+            model=self._run_model(state),
             status=result.status,
             error_code=result.error.code if result.error else None,
             iterations=state.iterations,
@@ -3102,7 +3116,7 @@ class AgentOrchestrator:
             payload = build_payload(
                 request=request, result=result, trace=state.audit_trace,
                 started_at=state.audit_started_at or self.wall_clock(), finished_at=self.wall_clock(),
-                model=self.settings.ai_model, execution_ids=state.execution_ids,
+                model=self._run_model(state), execution_ids=state.execution_ids,
                 completion_ids=[cid for c in state.completions.values() for cid in c.get("completion_ids") or []
                                 if str(cid).startswith("cmp_")],
                 sessions=[s for s in state.sessions if SESSION_ID_RE.fullmatch(s)],
@@ -3720,7 +3734,7 @@ class AgentOrchestrator:
                 request_id=state.request_id,
                 session_id=payload["session_id"],
                 iteration=state.iterations,
-                model=response.get("model") or self.settings.ai_model,
+                model=response.get("model") or payload.get("model") or self.settings.ai_model,
                 provider=response.get("provider"),
                 provider_response_id=response.get("id"),
                 static_prefix_sha256=prefix,
@@ -3897,18 +3911,25 @@ class AgentOrchestrator:
                                 f"{allowed}.")
         return final
 
+    def _run_model(self, state: RunState) -> str:
+        """EXEC-MODELS: the model of this run's agent loop (the caller's choice, else AI_MODEL)."""
+        return state.model_choice.model if state.model_choice is not None else self.settings.ai_model
+
     def _payload(self, state: RunState, tools: list[dict[str, Any]]) -> dict[str, Any]:
+        choice = state.model_choice
+        model = choice.model if choice is not None else self.settings.ai_model
         payload: dict[str, Any] = {
-            "model": self.settings.ai_model,
+            "model": model,
             # EXEC-S: one session per conversation (per run without one). OpenRouter uses it as the sticky-routing
             # key, so every call of the conversation goes to the same provider endpoint and reuses its prompt cache.
             "session_id": session_key(state.request_id),
             "instructions": state.instructions or self.system_prompt,
             "input": state.input_items,
-            "reasoning": self.settings.reasoning(self.settings.ai_reasoning_effort),
+            "reasoning": choice.reasoning if choice is not None
+            else self.settings.reasoning(self.settings.ai_reasoning_effort),
             "max_output_tokens": self.settings.ai_max_output_tokens,
             "store": False,
-            "provider": self._provider(),
+            "provider": self._provider(model),
         }
         if tools:
             # Strict text.format is withheld on tool turns: OpenRouter providers enforce it by
@@ -6508,7 +6529,7 @@ class AgentOrchestrator:
         return {
             "request_id": state.request_id,
             "session_id": session_key(state.request_id),
-            "model": self.settings.ai_model,
+            "model": self._run_model(state),
             "model_calls": state.iterations,
             "prompt_tokens": state.input_tokens,
             "cached_input_tokens": state.cached_input_tokens,
@@ -6653,8 +6674,10 @@ class AgentOrchestrator:
         return lambda location: not any(marker in location for marker in drop)
 
     def _execution(self, state: RunState) -> ExecutionMetadata:
+        choice = state.model_choice
         return ExecutionMetadata(
-            model=self.settings.ai_model,
+            model=self._run_model(state),
+            reasoning_level=choice.level if choice is not None and choice.chosen else None,
             provider_response_id=state.provider_response_id,
             iterations=state.iterations,
             tool_call_count=state.tool_calls,

@@ -2459,6 +2459,38 @@ dibiarkan (hanya catatan, `is_active=false`) atau dibatalkan dengan migrasi baru
     berikutnya.
   - Catatan: satu TYPED_FIGURES "19" lagi (jumlah hari bursa diketik), pola yang sama dengan cek live M143.
 
+### EXEC-MODELS: pilihan model dan level berpikir per pesan di EDGE (berjalan)
+
+**Keputusan user 2026-10-13:** "Kita akan menambahkan model2 ini bisa di toggle model dan intellegence level di EDGE
+(Default router tetap low) ->kita akan tetap pakai ON for now. model: \"xiaomi/mimo-v2.6-pro\" model:
+\"z-ai/glm-5.3-flash\" model: \"qwen/qwen3.8-flash\" Web govt tetap as is dan tidak terpengaruh oleh model2 selection.
+(Default) informasi in dan out of each model updated on hourly basis." Jawaban: router tetap DeepSeek low; per pesan;
+tampilkan level yang didukung saja; info = harga input dan output per 1 juta token. Go: "Ok, go defaultnya adalah
+deepseek V4.1 flash HIGH ya. Cek dulu infra dan buat plan serta testing plan."; default HIGH "Hanya pilihan awal di
+EDGE"; MiMo pro dan flash "Both ya". Rencana disetujui (plan EXEC-MODELS).
+
+| Model | Level | in $/1M | out $/1M (OpenRouter 2026-10-13) |
+|---|---|---|---|
+| deepseek/deepseek-v4.1-flash (awal EDGE: high) | low / medium / high | 0,044 | 0,63 |
+| z-ai/glm-5.3-flash | low / medium / high | 0,026 | 0,90 |
+| xiaomi/mimo-v2.6-pro | off / on | 0,435 | 0,87 |
+| xiaomi/mimo-v2.6-flash | off / on | 0,14 | 0,28 |
+| qwen/qwen3.8-flash | off / on | 0,15 | 0,47 |
+
+- **Orc (push 1):**
+  - `app/model_choices.py` (daftar, level, bentuk reasoning);
+  - `model` dan `reasoning_level` di `/v1/agent/run` (400 bila tidak ditawarkan);
+  - pilihan berlaku untuk semua panggilan loop agen termasuk langkah mode 4; router, saran lanjutan, pengklasifikasi
+    balasan rencana dan cek fakta web tetap `AI_MODEL` low;
+  - daftar provider per model;
+  - harga dibaca dari OpenRouter `/models` tiap jam (`app/model_prices.py`), `GET /v1/models`;
+  - `execution.model`/`reasoning_level`;
+  - log `ai_model_chosen`.
+  - Tanpa pilihan: sama persis dengan sebelumnya (`AI_REASONING_EFFORT=medium` di dev).
+- **Runner:** item suite boleh membawa `model` dan `reasoning_level`.
+- **EDGE (push 2):** menyusul.
+- **Tes orc:** 1.443 lulus (`tests/test_exec_models.py` baru, 20 tes); `AI_MODELS.md` digenerate ulang.
+
 ### EXEC-DERIVED: gerbang menyarankan alamat hitungan untuk angka tanpa sumber (deployed, menunggu bukti live)
 
 **Keputusan user 2026-10-13:** usulan (b) "Gerbang memberi saran hitungan, bukan aturan baru per kata ... masukan exec

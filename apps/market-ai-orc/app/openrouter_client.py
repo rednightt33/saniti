@@ -136,6 +136,21 @@ class OpenRouterClient:
             return None
         return [e for e in endpoints if isinstance(e, dict)] if isinstance(endpoints, list) else None
 
+    def models(self) -> list[dict[str, Any]] | None:
+        """EXEC-MODELS: OpenRouter's public model list (id, pricing per token, supported parameters), or None on any
+        failure. One attempt; ModelPrices keeps its last prices when this fails."""
+        try:
+            response = self.client.get("/models", timeout=30.0)
+        except httpx.HTTPError:
+            return None
+        if response.status_code != 200:
+            return None
+        try:
+            listed = response.json().get("data")
+        except (AttributeError, ValueError):
+            return None
+        return [m for m in listed if isinstance(m, dict)] if isinstance(listed, list) else None
+
     def create(self, payload: dict[str, Any]) -> dict[str, Any]:
         last_error: ProviderError | None = None
         for attempt in range(MAX_ATTEMPTS):
