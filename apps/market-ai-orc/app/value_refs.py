@@ -31,7 +31,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from .provenance import LABEL_ORDER, parse_numbers
+from .provenance import LABEL_ORDER, MULTIPLIERS, parse_numbers
 
 # P13 (suite20c a03, 2026-09-30): inside a Markdown table the model escapes the format separator as "\|"
 REF_RE = re.compile(r"\{\{\s*(?P<expr>[^{}|]+?)\s*(?:\\?\|\s*(?P<fmt>[a-z]+)\s*(?::\s*(?P<places>\d)\s*)?)?\}\}")
@@ -738,6 +738,7 @@ class Rendering:
     cited: list[str] = field(default_factory=list)  # M126: outside statements shown as their link only
     deduplicated: list[str] = field(default_factory=list)  # M126: text values the answer had already written
     last_outside: bool = False  # M132: the reference just filled reads a value from outside the database
+    scaled: list[str] = field(default_factory=list)  # M143: references read with a scale word typed after them
 
 
 def _text(value: str) -> str:
@@ -945,6 +946,14 @@ def _typed_before(before: str, family: tuple[str, ...]) -> re.Match[str] | None:
                      re.IGNORECASE)
 
 
+# M143 (EXEC-M143 (a), user decision 2026-10-13): a scale word typed right after a reference to a number shown without a
+# unit ("{{net_miliar|dec:1}} miliar") is read by provenance.parse_numbers as part of the figure (1.975,4 miliar ->
+# 1,9754e12); the shown value times that scale is then a source of this reference only, so a reference's own value is
+# never refused. The same words, spacing and case as provenance.NUMBER_RE.
+SCALE_AFTER_RE = re.compile(r"\s?(?P<unit>" + "|".join(sorted(MULTIPLIERS, key=len, reverse=True)) + r")\b",
+                            re.IGNORECASE)
+
+
 def _without_repeated_units(text: str, replace, out: Rendering) -> str:
     """Fill every reference and drop a copy of its unit typed right next to it: "{{x|pp:2}} pp" shows "1,00 pp", not
     "1,00 pp pp", "Rp {{y|rp}}" shows "Rp 5 miliar", and "p = {{z|p}}" shows "p = 0,03". A copy is any word of the
@@ -997,6 +1006,12 @@ def _without_repeated_units(text: str, replace, out: Rendering) -> str:
                 before = before[:repeat.start()] + (repeat.group("emph") or "")
         parts.append(before + shown)
         tail = UNIT_TAIL_RE.search(shown)
+        if number is not None and not tail and not follows_reference:
+            scale = SCALE_AFTER_RE.match(text, position)
+            if scale:  # M143: "{{x|dec:1}} miliar" reads as x times a billion
+                factor = MULTIPLIERS[scale.group("unit").lower()]
+                out.values.append(Resolved(number.resolved.value * factor, number.resolved.label))
+                out.scaled.append(f"{number.expression} {scale.group('unit')}")
         for family in ([_family(tail.group(1).strip())] if tail and tail.group(1).strip() else []) \
                 + ([head_family] if head_family else []):
             repeat = _typed_after(text[position:], family)

@@ -26,6 +26,7 @@ whenever the rendered prompt or schema changes (AGENTS.md, Mandatory workflow).
 | v003 | 2026-10-09 | [row-presence-and-day-counts](history/v003-2026-10-09-row-presence-and-day-counts/system_prompt.md) | 37,793 | `19b8a23befb7` | `48bceaa503bc` | 2026-10-09: "E1 ok 2-4 masukan exec"; go "gas" (EXEC-Y Fase 3) |
 | v004 | 2026-10-12 | [exec-style](history/v004-2026-10-12-exec-style/system_prompt.md) | 38,522 | `58d6ec180d2f` | `48bceaa503bc` | Ok, yang adopsi dan sebagian --> masukan EXEC. (2026-10-12); go: ok |
 | v005 | 2026-10-12 | [exec-style-run-a](history/v005-2026-10-12-exec-style-run-a/system_prompt.md) | 37,979 | `1aeee73d55c7` | `48bceaa503bc` | well saya lebih suka Run A tapi tanpa kewajiban AI untuk kasih asumsi, batasan. ... dalam 1 jawaban boleh lebih dari 1 tabel as long as membantu user (tidak wajib harus lebih dari 1) (2026-10-12) |
+| v006 | 2026-10-13 | [exec-m143](history/v006-2026-10-13-exec-m143/system_prompt.md) | 38,420 | `0395b6925985` | `48bceaa503bc` | "Ok perbaiki M143 dulu" (cara "(a) + (c) (Recommended)"); "saya setuju solusi 1 dan 2"; "Go" (2026-10-13; solusi 2 ditunda: "Tunda solusi 2 (Recommended)") |
 
 ## Changes
 
@@ -48,3 +49,7 @@ EXEC-STYLE S1-S4: the reader section as prose, the conclusion-figures-meaning-ca
 ### v005 exec-style-run-a (2026-10-12)
 
 After the A/B: back to the Run A reader section, example and single length target (v003 text); kept from v004: rule 14 and the answer contract (an assumption or a limitation only when it changes how the answer is read or trusted); rule 13 now says each table within ten rows and allows more than one table when that helps the reader
+
+### v006 exec-m143 (2026-10-13)
+
+VALUE REFERENCES: counts of the period or sample are figures from data, a number worked out from the user's figure is a calculation, an example amount is said in words, money and volume are released in base units (M143 (c), solution 1)

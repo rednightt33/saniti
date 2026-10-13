@@ -2336,7 +2336,7 @@ deploy SUCCESS, laporan dan usulan. Jawaban AI tidak disimpan di repo publik.
     - Satu kalimat di prompt: cek draf sebelum mengirim jawaban yang berisi angka.
     - Tool_Catalog `check_references` v2 lewat `scripts/generate_tool_catalog_migration.py`, dan `AI_TOOLS.md`
       diregenerasi.
-- Status: **dicatat, belum dieksekusi** (rencana: EXEC-IMPL-1013).
+- Status: **dieksekusi** (EXEC-IMPL-1013 Fase 1; solusi 2 ditunda, lihat di bawah).
 
 ### EXEC-IMPL-1013: rencana eksekusi EXEC-M143 (a)+(c) + solusi 1 dan 2, lalu EXEC-REASONING (menunggu go)
 
@@ -2388,6 +2388,18 @@ deploy SUCCESS, laporan dan usulan. Jawaban AI tidak disimpan di repo publik.
 
 **Berhenti dan lapor bila:** tes merah yang bukan dari perubahan ini; deployment tidak SUCCESS; migrasi tidak terbaca
 ulang; cek live masih menolak angka berskala.
+
+**Go user 2026-10-13:** "Go". **Kemajuan:**
+- Fase 1 dibangun:
+  - (a): `value_refs.SCALE_AFTER_RE`, log `ai_reference_scaled`.
+  - (c) dan solusi 1: tiga kalimat di VALUE REFERENCES, snapshot prompt `v006 exec-m143`, prompt +1,1%,
+    `SIZE_BUDGET` 1,11 → 1,12.
+  - Tes `test_m143_scaled_references.py`. orc 1.659 lulus.
+- **Solusi 2 ditunda** (pilihan user "Tunda solusi 2 (Recommended)"). Saat dirancang terlihat bahwa pra-cek memaksa AI
+  menulis jawaban dua kali (draf di panggilan alat lalu jawaban final, sekitar 2.000–3.500 token, kira-kira 15–30 s,
+  plus satu panggilan model). Penolakan gerbang yang sekarang ada diperbaiki dengan edit kecil (4–49 s), dan hanya
+  sesekali. Akan diputuskan lagi setelah dilihat apakah aturan baru menurunkan penolakan angka yang diketik. Karena
+  `check_references` tidak berubah, tidak ada migrasi Tool_Catalog.
 
 **Rollback Fase 1:** `git revert` commit fitur, lalu push `main` (prompt kembali ke `v005`). Baris Tool_Catalog v2
 dibiarkan (hanya catatan, `is_active=false`) atau dibatalkan dengan migrasi baru.

@@ -193,11 +193,16 @@ S_ADDED = {
     'add an assumption or a limitation only when it changes how the answer is read or how far it can be trusted.',
     'an answer may hold more than one table when that helps the reader.',
     'limitations: list of strings (each empty unless rule fourteen needs an entry);',
+    # EXEC-M143 (user decisions 2026-10-13, "(a) + (c)" and "saya setuju solusi 1 dan 2"): counts of the period or
+    # sample, arithmetic on the user's figure and example amounts are numbers too; money and volume in base units
+    "A count that describes the period or the sample (trading days, stocks, brokers) is a figure from data too, and a number worked out from the user's figure (one fewer than the stocks asked for) is a calculation: write it by its address or leave it out.",
+    'An example amount is a number as well: say it in words.',
+    'Release money and volume in their base unit and show them with rp or int, rather than releasing them already in millions or billions.',
 }
 REMOVED, ADDED = (REMOVED | (S_REMOVED - ADDED)) - S_ADDED, (ADDED - S_REMOVED) | (S_ADDED - REMOVED)
 # the reader section added about six percent (the budget was two percent over the pass-2 fixture); EXEC-Y Fase 3's
-# four sentences about half a percent more; EXEC-STYLE about half a percent more
-SIZE_BUDGET = 1.11
+# four sentences about half a percent more; EXEC-STYLE about half a percent more; EXEC-M143 about one percent more
+SIZE_BUDGET = 1.12
 
 SECTIONS = ["GENERAL RULES", "TOOL USE", "TOOL RESULTS", "FINAL RESPONSE", "WRITING FOR THE READER", "DATA DISCOVERY", "DATA SOURCES",
             "DATA NEED", "MODES", "TIME BASIS", "NAMED-PERIOD RETURNS", "WEEKLY AND MONTHLY", "CONVERSATION REUSE",

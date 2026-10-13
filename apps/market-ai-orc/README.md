@@ -1180,6 +1180,15 @@ reference checks and a PROVENANCE repair took about three of its six and a half 
 - **Wayback:** the flag off gives the prompt of snapshot `v005` byte for byte (`test_table_directives.py`,
   `test_prompt_history.py`); then `git revert`; then the branch `wayback/pre-exec-table` (`main` `3708026`).
 
+### Scale words after a reference (M143)
+
+EXEC-M143 (user decision 2026-10-13, "(a) + (c)"): a scale word (ribu, juta, miliar, triliun and the parser's other
+`MULTIPLIERS` words) typed right after a reference to a number shown without a unit (`dec`, `int`, `auto`) is part of
+the figure: `value_refs.SCALE_AFTER_RE` registers the value times the scale as a source of that reference only, so
+`provenance.parse_numbers` ("349 juta" → 349e6) matches its own source (logged `ai_reference_scaled`). `rp` is
+unchanged. A figure typed without a reference is still refused. The prompt (snapshot `v006`) asks for money and volume
+in base units, counts of the period or sample as references, and example amounts in words.
+
 ### Web research (item 12)
 
 `AI_ENABLE_WEB_RESEARCH`, the tool `research_web` (`app/tools/web_research.py`), market-web-governor

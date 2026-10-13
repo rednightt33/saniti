@@ -824,7 +824,13 @@ every share, percent or p-value column you release. A derived figure
 uses diff(a, b), abs(a), ratio(a, b) or chg(a, b) of references, for
 example `{{diff(finding.a.estimates.primary.ci.1, finding.a.estimates.primary.ci.0)|pp:2}}`.
 Compute anything else in the analysis and release it. A figure the user
-wrote, a date and a year may be typed as they are. A text value (a ticker,
+wrote, a date and a year may be typed as they are. A count that describes
+the period or the sample (trading days, stocks, brokers) is a figure from
+data too, and a number worked out from the user's figure (one fewer than
+the stocks asked for) is a calculation: write it by its address or leave
+it out. An example amount is a number as well: say it in words. Release
+money and volume in their base unit and show them with rp or int, rather
+than releasing them already in millions or billions. A text value (a ticker,
 a broker, a label) may be referenced without a format and is shown as
 written; rows[<index>] works like rows.<index>; inside a Markdown table
 write the reference unchanged. A row of a table whose rows are identified
@@ -5093,6 +5099,8 @@ class AgentOrchestrator:
             if rendering.unknown_units:
                 log_event("ai_reference_unit_unknown", request_id=state.request_id,
                           references=rendering.unknown_units[:20])
+            if rendering.scaled:  # M143: a scale word typed after a reference, read as part of its figure
+                log_event("ai_reference_scaled", request_id=state.request_id, references=rendering.scaled[:20])
             return rendering.text
 
         update: dict[str, Any] = {"answer": fill(final.answer), "limitations": [fill(x) for x in final.limitations],
