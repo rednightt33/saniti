@@ -2477,6 +2477,21 @@ dan jalankan diatas."
 - **Tes:** orc 1.423 lulus (`tests/test_exec_derived.py` baru).
 - **Deploy:** `main` `a066215`: market-ai-orc `9c024c2e` SUCCESS. Bukti live menunggu penolakan berikutnya
   (log `ai_derived_suggested`).
+- **A/B 4** (user: "Sudah jalan semua? jika sudah pls A/B on dan off. 2 pertanyaan each"; EXEC-PROSE dan EXEC-DERIVED
+  aktif di kedua sisi; ON `ma-ab-table-20261013i`, OFF `ma-ab-table-20261013j`; biaya sekitar USD 0,17):
+
+  | | ab5 peringkat | ab6 broker |
+  |---|---|---|
+  | OFF | 160 s, COMPLETED, 0 penolakan | 89 s, COMPLETED, 0 penolakan |
+  | ON | 104 s, COMPLETED, 0 penolakan | 69 s, COMPLETED, 0 penolakan |
+
+  - Fase orc (rencana / data / analisis / menulis, detik): OFF ab5 24/53/25/43, ON ab5 17/34/15/21; OFF ab6 31/13/13/17,
+    ON ab6 6/11/19/13.
+  - Teks di luar tabel: ab5 OFF 1.195 karakter / 13 angka, ON 1.052 / 17; ab6 OFF 1.411 / 16, ON 920 / 16.
+  - Keempat run memakai pra-cek draf tanpa "..." dan bersih; `ai_derived_suggested` belum terpicu karena tidak ada
+    penolakan. Catatan: draf OFF yang dicek lebih pendek dari jawaban akhirnya (408 dan 778 karakter; metodologi 134
+    dan 25), jadi draf sebagian tanpa "..." belum terdeteksi.
+  - Saklar tabel dikembalikan ke ON (orc `c93a69b8` SUCCESS). Sampel 2 per sisi: tanda, bukan bukti statistik.
 
 ### EXEC-PROSE: tafsiran periode tanpa angka, pra-cek draf lengkap dan metodologi, teks di sekitar tabel singkat (deployed; cek cepat bersih)
 

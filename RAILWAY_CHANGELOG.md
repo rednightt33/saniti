@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-10-13 — A/B 4 (table flag on vs off, EXEC-PROSE and EXEC-DERIVED live), flag left on
+
+User: "Sudah jalan semua? jika sudah pls A/B on dan off. 2 pertanyaan each".
+- `orc-test-runner`: ON **9c8b6592-ca43-40c9-9af6-fa8fc68cb328** (`ma-ab-table-20261013i`) against orc `9c024c2e`; OFF
+  **a15e05c6-ce6f-40c3-85e1-cef717bf5170** (`ma-ab-table-20261013j`). Cost about USD 0.17.
+- market-ai-orc `AI_ENABLE_TABLE_DIRECTIVES=false` → **9ec9d582-5942-4165-8973-e2574499db72** SUCCESS, then `true` →
+  **c93a69b8-9a98-42c6-bc26-cc87e8120b57** SUCCESS (left on). `AI_REASONING_EFFORT` stays `medium`.
+- No other variable, model, provider, migration or configuration change.
+
 ## 2026-10-13 — EXEC-DERIVED deployed
 
 User: "masukan exec dan jalankan diatas" (EXEC.md EXEC-DERIVED). Rollback reference: orc

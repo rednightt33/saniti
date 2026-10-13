@@ -25,6 +25,7 @@ and the agent container cannot reach Railway SSH, so questions are sent from thi
   (`AI_MODE4_MAX_SECONDS` 3600 plus margin), and the `OTR` line lists the mode 4 steps (step, status, turn, angles,
   cost, duration).
 - `suite.json` items may carry an `expect` note for the reviewer; the runner ignores it. Current suite:
+  `ma-ab-table-20261013j` (A/B 4 OFF; ON is `i`; `suites/ab_table_20261013i.json` and `j`); earlier
   `ma-prose-20261013h` (EXEC-PROSE quick check, ab5 and ab6, tables on; `suites/prose_20261013h.json`); earlier
   `ma-ab-table-20261013g` (A/B 3, table ON; OFF is `suites/ab_table_20261013f.json`, ON `g`); earlier
   `ma-m147-20261013a` (M147 live check, ab5; `suites/m147_20261013a.json`); earlier quick table A/B `ma-ab-table-20261013d`/`e`; earlier `ma-m143-20261013a` (EXEC-M143 live check, one question; `suites/m143_20261013a.json`); earlier `ma-ab-table-20261013c` (EXEC-TABLE A/B: the ab5 rerun with `audit_request_ids` and `audit_full_trace`; the OFF and ON
