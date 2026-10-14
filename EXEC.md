@@ -2694,6 +2694,18 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
     Tes: orc 1.503 lulus; EDGE 87 lulus (4 tes baru). Deploy: orc `c64f8401` SUCCESS, edge-bff `15b7178a` SUCCESS;
     `AI_FASTLANE_DECISION_RULES=true` (redeploy orc `34cd841f` SUCCESS, dibaca ulang). EDGE live menyajikan kode
     baru (dicek lewat file statis). Uji live backend menunggu saldo kunci (sisa USD 0,007).
+- **V4.1: dua kontradiksi instruksi (2026-10-14, user: "5 hari kerja, senin-jumat"; lalu "5 hari bursa terakhir" dan
+  "semua hari bursa"; dikerjakan di bawah saklar V4 `AI_FASTLANE_DECISION_RULES`):** log 41 run: 64 paragraf/16 run
+  menimbang kalimat "tanpa uji formal", 71 paragraf/20 run menimbang konvensi periode bernama.
+  - **Kontradiksi 1:** kalimat "hasil eksploratif tanpa uji formal… tawarkan uji formal" dibedakan per mode: Mode
+    Jawab: uji yang dihitung AI tidak diperiksa ulang sistem; laporkan efek, selang, uji, sampel efektif; tawarkan
+    studi terverifikasi hanya bila pengguna bertanya apakah terbukti. Mode Insight: klaim pola hanya dari uji
+    `explore_test` yang dicatat dan dikoreksi sistem. Tanpa saklar uji: kalimat lama.
+  - **Kontradiksi 2:** periode kalender bernama (YTD, bulan/kuartal/tahun bernama) tetap `period_return`; rentang
+    relatif bergulir dalam hari bursa dari tanggal data terakhir: 1 minggu = 5, 1 bulan = 21 (3 bulan = 63), 1 tahun =
+    252; dasar = penutupan N hari bursa sebelum tanggal terakhir; tanggal awal-akhir ditulis di asumsi. Nilai di
+    `FASTLANE_DEFAULTS` (`span_*_trading_days`, AGENTS.md). Prompt sistem (`PERIOD_RETURN_RULES`) dan jalur Standar
+    tidak berubah.
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur

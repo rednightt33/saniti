@@ -1707,13 +1707,42 @@ FASTLANE_DECISIONS_NOTE = (
     "period: submit a new data need and open its session with close_session_id naming the old session; a code error: "
     "fix it in the same session. (7) Value references: cite a share, rate or return column you emitted with units= "
     "with |pct (|pp for a difference); its unit decides the scaling, so never convert it yourself; show a table with "
-    "{{{{table ...}}}}; write the answer after complete_analysis, when the out.oN addresses exist.")
+    "{{{{table ...}}}}; write the answer after complete_analysis, when the out.oN addresses exist. (8) Returns over a "
+    "span: a named calendar period (YTD, a named month, quarter or year) uses "
+    "saniti.period_return; a relative span ('1 minggu terakhir', '3 bulan terakhir', '1 tahun terakhir') is counted in "
+    "trading days back from the last available date: {spans}; its base is the close the given number of trading days "
+    "before the last date (the last close before the span, as for a named period), so request enough history; state "
+    "the first and last date in assumptions. Event forward returns, rolling returns and a date-to-date formula of the "
+    "user keep their own definitions.")
 
 
 def decisions_note() -> str:
     return FASTLANE_DECISIONS_NOTE.format(history_years=fastlane_defaults.value("history_years"),
                                           parameters=fastlane_defaults.parameters_text(),
-                                          entity_years=fastlane_defaults.value("feasibility_entity_years"))
+                                          entity_years=fastlane_defaults.value("feasibility_entity_years"),
+                                          spans=fastlane_defaults.spans_text())
+
+
+# V4.1 (user 2026-10-14, first contradiction): the fast-lane note's "without a formal test" sentence, per explore mode
+# when the decision rules are on (Mode Jawab tests the user's question with code; Insight tests through explore_test)
+FASTLANE_EXPLORATORY = ("The results are exploratory: patterns in the historical data without a formal test, so say "
+                        "so plainly, never call them proven, a cause, a prediction or a trading signal, and offer a "
+                        "formal test as a next step when it matters.")
+FASTLANE_EXPLORATORY_ANSWER = (
+    "The results are exploratory: a test you compute is not checked again by the system, so report the effect with its "
+    "interval, the test used and the effective sample, never call it proven, a cause, a prediction or a trading "
+    "signal, and offer a verified study (the standard or research path) only when the user asks whether it is proven.")
+FASTLANE_EXPLORATORY_INSIGHT = (
+    "The results are exploratory: claim a pattern only from the tests the system records and corrects "
+    "(saniti.explore_test), never call it proven, a cause, a prediction or a trading signal.")
+
+
+def fastlane_note(step: str, mode: str | None, decisions: bool) -> str:
+    note = FASTLANE_NOTE.format(draft_step=step)
+    if not decisions or mode is None:
+        return note
+    return note.replace(FASTLANE_EXPLORATORY, FASTLANE_EXPLORATORY_INSIGHT if mode == lanes.INSIGHT
+                        else FASTLANE_EXPLORATORY_ANSWER)
 
 
 FASTLANE_DRAFT_STEP = ("(4) call check_references with a draft only when the answer cites more than about eight "
@@ -3491,18 +3520,19 @@ class AgentOrchestrator:
             state.allowed_types, state.tool_filter = BASE_TYPES, self._process_tools("FASTLANE")
             state.guard = ResearchGuard(required=True)
             step = FASTLANE_DRAFT_STEP if self._fast_draft_check() else FASTLANE_NO_DRAFT_STEP
+            mode = self._explore_mode()
+            decisions = getattr(self.settings, "ai_fastlane_decision_rules", False)
             state.input_items.insert(len(state.input_items) - 1,
-                                     {"role": "user", "content": FASTLANE_NOTE.format(draft_step=step)})
-            if getattr(self.settings, "ai_fastlane_decision_rules", False):
+                                     {"role": "user", "content": fastlane_note(step, mode, decisions)})
+            if decisions:
                 state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": decisions_note()})
             if getattr(self.settings, "ai_fastlane_section_caps", False):
                 state.input_items.insert(len(state.input_items) - 1,
                                          {"role": "user", "content": FASTLANE_SECTIONS_NOTE})
-            mode = self._explore_mode()
             if mode is not None:
                 state.plan_meta["explore_mode"] = mode
                 state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": explore_note(
-                    mode, decisions=getattr(self.settings, "ai_fastlane_decision_rules", False))})
+                    mode, decisions=decisions)})
             log_event("ai_lane_turn", request_id=request.request_id, lane=state.lane, forced_path=state.forced_path,
                       **({"explore_mode": mode} if mode is not None else {}))
             return

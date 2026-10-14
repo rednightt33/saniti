@@ -428,3 +428,22 @@ def test_v4_the_note_takes_its_numbers_from_the_defaults_table(monkeypatch) -> N
     changed = decisions_note()
     assert "80 percentile" in changed and "exceed 250" in changed
     assert all({"value", "unit", "means"} <= set(entry) for entry in defaults.FASTLANE_DEFAULTS.values())
+
+
+def test_v4_1_the_exploratory_sentence_follows_the_explore_mode_and_spans_count_trading_days() -> None:
+    """V4.1 (user 2026-10-14): Mode Jawab is not told "without a formal test"; a relative span is rolling trading days
+    from the last date ("5 hari bursa terakhir", "semua hari bursa")."""
+    from app.orchestrator import (FASTLANE_EXPLORATORY, FASTLANE_EXPLORATORY_ANSWER, FASTLANE_EXPLORATORY_INSIGHT,
+                                  decisions_note)
+
+    _, on = explore_run(settings=V4_ON)
+    first = json.dumps(on.payloads[0])
+    assert json.dumps(FASTLANE_EXPLORATORY_ANSWER)[1:-1] in first
+    assert json.dumps(FASTLANE_EXPLORATORY)[1:-1] not in first
+    _, insight = explore_run(settings=V4_ON, mode=lanes.INSIGHT)
+    assert json.dumps(FASTLANE_EXPLORATORY_INSIGHT)[1:-1] in json.dumps(insight.payloads[0])
+    _, off = explore_run()
+    assert json.dumps(FASTLANE_EXPLORATORY)[1:-1] in json.dumps(off.payloads[0])
+    text = decisions_note()
+    assert "1 minggu = 5 trading days" in text and "1 bulan = 21 trading days" in text
+    assert "1 tahun = 252 trading days" in text and "saniti.period_return" in text

@@ -97,6 +97,9 @@ weigh open parameters, and the user may tweak them. They live in one named table
 | `rolling_window_days` | a rolling or "recent" window the user does not name, in trading days |
 | `forward_horizon_days` | the horizon of a forward return the user does not name, in trading days |
 | `history_years` | how far back a data need reaches when the user names no period |
+| `span_week_trading_days` | "1 minggu terakhir": trading days back from the last available date (5) |
+| `span_month_trading_days` | "1 bulan terakhir": trading days (21); "3 bulan" is three times this |
+| `span_year_trading_days` | "1 tahun terakhir": trading days (252) |
 | `feasibility_entity_years` | `check_data_feasibility` is called first only above this many entity-years |
 
 To change a value: edit its `"value"` in that file (keep `unit` and `means` true), run

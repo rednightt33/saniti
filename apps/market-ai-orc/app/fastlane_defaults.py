@@ -24,6 +24,17 @@ FASTLANE_DEFAULTS: dict[str, dict[str, Any]] = {
     "history_years": {
         "value": 5, "unit": "years",
         "means": "how far back a data need reaches when the user names no period"},
+    # V4.1 (user 2026-10-14: "5 hari kerja, senin-jumat"; then "5 hari bursa terakhir" and "semua hari bursa"): a
+    # relative span counts trading days back from the last available date, rolling
+    "span_week_trading_days": {
+        "value": 5, "unit": "trading days", "span": "1 minggu",
+        "means": "'1 minggu terakhir' (a week)"},
+    "span_month_trading_days": {
+        "value": 21, "unit": "trading days", "span": "1 bulan",
+        "means": "'1 bulan terakhir' (a month; '3 bulan' is three times this)"},
+    "span_year_trading_days": {
+        "value": 252, "unit": "trading days", "span": "1 tahun",
+        "means": "'1 tahun terakhir' (a year)"},
     "feasibility_entity_years": {
         "value": 100, "unit": "entity-years",
         "means": "check_data_feasibility is called first only when a request's entities times its years exceed this"},
@@ -38,3 +49,9 @@ def parameters_text() -> str:
     """The open-parameter defaults in one line for the note (the size limit and the history are their own rules)."""
     return "; ".join(f"{entry['means']}: {entry['value']} {entry['unit']}" for name, entry in FASTLANE_DEFAULTS.items()
                      if name in ("large_threshold_percentile", "rolling_window_days", "forward_horizon_days"))
+
+
+def spans_text() -> str:
+    """The relative spans in trading days, for the note's span rule."""
+    return "; ".join(f"{entry['span']} = {entry['value']} {entry['unit']}" for entry in FASTLANE_DEFAULTS.values()
+                     if "span" in entry)
