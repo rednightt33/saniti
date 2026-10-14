@@ -172,6 +172,11 @@ class Settings:
     # EXEC-FASTLANE (user 2026-10-14, "Pastikan asumsi, limitasi, dan metodologi tidak mengambil porsi mayor"): the
     # fast-lane note caps assumptions and limitations to a few short points and the methodology to one short paragraph
     ai_fastlane_section_caps: bool = False
+    # EXEC-FASTLANE V4 (user 2026-10-14, "save ini as V4"): on the fast lane a decisions note (period, joins for an
+    # outcome window, open-parameter defaults and the size check from app/fastlane_defaults.py, method guides, a new
+    # data need versus a fix in the session, value references) and the answer mode's method chosen once the data is
+    # ready
+    ai_fastlane_decision_rules: bool = False
     # OpenRouter provider routing for the agent's model calls: provider.sort "price", "throughput" or "latency". Unset
     # keeps OpenRouter's default load balancing, which is weighted to the lowest price.
     ai_provider_sort: str | None = None
@@ -415,6 +420,7 @@ class Settings:
             ai_fastlane_abandoned_sessions=_boolean(env, "AI_FASTLANE_ABANDONED_SESSIONS", False),
             ai_fastlane_convention_numbers=_boolean(env, "AI_FASTLANE_CONVENTION_NUMBERS", False),
             ai_fastlane_section_caps=_boolean(env, "AI_FASTLANE_SECTION_CAPS", False),
+            ai_fastlane_decision_rules=_boolean(env, "AI_FASTLANE_DECISION_RULES", False),
             ai_provider_sort=(env.get("AI_PROVIDER_SORT") or "").strip().lower() or None,
             ai_log_provider=_boolean(env, "AI_LOG_PROVIDER", False),
             ai_provider_max_cache_price_ratio=_ratio(env, "AI_PROVIDER_MAX_CACHE_PRICE_RATIO", 0.0, 0.0, 1.0)

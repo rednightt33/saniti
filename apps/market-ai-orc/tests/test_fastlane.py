@@ -387,3 +387,44 @@ def test_the_units_refusal_says_what_each_value_looks_like_and_how_to_split_a_mi
     assert "out.o3.content.net_pct = -6.07: |pctv if it is already in percent" in text
     assert text.count("no single unit fits") == 1 and "estimasi of out.o2" in text
     assert "no single unit" not in units_advice({"out.o3.content.net_pct": 0.2}) and units_advice({}) == ""
+
+
+# --- V4: decision rules (user 2026-10-14, "save ini as V4") ---------------------------------------------------------
+
+V4_ON = {**EXPLORE_ON, "AI_FASTLANE_DECISION_RULES": "true"}
+
+
+def test_v4_the_decisions_note_and_the_answer_modes_method_rule_come_only_with_the_switch() -> None:
+    from app.orchestrator import EXPLORE_ANSWER_HELPERS, EXPLORE_ANSWER_HELPERS_V4, decisions_note
+
+    _, on = explore_run(settings=V4_ON)
+    first = json.dumps(on.payloads[0])
+    assert json.dumps(decisions_note())[1:-1] in first
+    assert json.dumps(EXPLORE_ANSWER_HELPERS_V4)[1:-1] in first
+    assert json.dumps(EXPLORE_ANSWER_HELPERS)[1:-1] not in first
+    _, off = explore_run()
+    assert "decide each of these once" not in json.dumps(off.payloads[0])
+    assert json.dumps(EXPLORE_ANSWER_HELPERS)[1:-1] in json.dumps(off.payloads[0])
+
+
+def test_v4_the_standard_lane_is_unchanged_by_the_switch() -> None:
+    script = [*flow(), final_response(answer("Return YTD BBCA 12,35% dan BBRI turun 4,32%."))]
+    _, on, _ = run(script, lane=lanes.STANDARD, path="ANALYSIS",
+                   settings={**FAST_ON, "AI_FASTLANE_DECISION_RULES": "true"})
+    _, off, _ = run(script, lane=lanes.STANDARD, path="ANALYSIS")
+    assert on.payloads == off.payloads
+
+
+def test_v4_the_note_takes_its_numbers_from_the_defaults_table(monkeypatch) -> None:
+    """C and E are tweaked in app/fastlane_defaults.py (AGENTS.md, Fast-lane defaults); the note follows the table."""
+    from app import fastlane_defaults as defaults
+    from app.orchestrator import decisions_note
+
+    text = decisions_note()
+    assert "at most 5 years back" in text and "exceed 100" in text
+    assert "90 percentile" in text and "21 trading days" in text
+    monkeypatch.setitem(defaults.FASTLANE_DEFAULTS["large_threshold_percentile"], "value", 80)
+    monkeypatch.setitem(defaults.FASTLANE_DEFAULTS["feasibility_entity_years"], "value", 250)
+    changed = decisions_note()
+    assert "80 percentile" in changed and "exceed 250" in changed
+    assert all({"value", "unit", "means"} <= set(entry) for entry in defaults.FASTLANE_DEFAULTS.values())

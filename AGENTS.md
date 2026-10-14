@@ -85,6 +85,26 @@ conversation id keeps the run id. This changes no variable; `AI_PROVIDER_SORT` s
 
 On 2026-09-30 the user approved mode 4 (`AI_ENABLE_MODE4`, `app/mode4.py`) and a mode switcher: `AI_MODE_SWITCH` sets the default mode (1 AUTO, 2 ANALYSIS, 3 RESEARCH, 4 MODE4) and `analysis_path` chooses per request. The user chose default 4 on dev; do not change `AI_MODE_SWITCH` without approval.
 
+## Fast-lane defaults
+
+On 2026-10-14 the user approved V4 (EXEC-FASTLANE): the fast lane takes fixed defaults instead of letting the model
+weigh open parameters, and the user may tweak them. They live in one named table, `FASTLANE_DEFAULTS` in
+`apps/market-ai-orc/app/fastlane_defaults.py`, active only with `AI_FASTLANE_DECISION_RULES=true` on `market-ai-orc`:
+
+| Name | Meaning |
+|---|---|
+| `large_threshold_percentile` | a "large" or "high" value is at or above this percentile of the entity's own history |
+| `rolling_window_days` | a rolling or "recent" window the user does not name, in trading days |
+| `forward_horizon_days` | the horizon of a forward return the user does not name, in trading days |
+| `history_years` | how far back a data need reaches when the user names no period |
+| `feasibility_entity_years` | `check_data_feasibility` is called first only above this many entity-years |
+
+To change a value: edit its `"value"` in that file (keep `unit` and `means` true), run
+`pytest apps/market-ai-orc/tests/test_fastlane.py`, push `main` (orc redeploys itself; claim it only at `SUCCESS`), and
+record the old and new value with the user's words in `EXEC.md` (EXEC-FASTLANE). Adding or removing an entry also
+changes the decisions note (`app/orchestrator.py`, `FASTLANE_DECISIONS_NOTE`) and its test. The standard lane never
+reads this table.
+
 ## Security
 
 Never commit secret values, database URLs, passwords, private keys, Railway tokens, Stockbit JWTs, or GitHub PATs. For a secret change, record only the variable name, Railway scope, action, and verification status. Redact secrets from logs and terminal output.

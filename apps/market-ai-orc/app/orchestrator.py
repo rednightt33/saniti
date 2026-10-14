@@ -76,6 +76,7 @@ from . import table_directives
 from . import model_choices
 from . import lanes
 from . import research_library
+from . import fastlane_defaults
 from .tools.request_data import (current_conversation_id, current_draft_checker, current_reference_sources,
                                  current_request_id,
                                  current_run_deadline, current_turn_id, session_key)
@@ -1689,6 +1690,32 @@ FASTLANE_SECTIONS_NOTE = (PLAN_NOTE_PREFIX + "keep the answer itself the largest
                           "system adds (the analysis path, the test evidence). Write the methodology as one short "
                           "paragraph (the data, the steps, the test and the parameters the code used); on this lane it "
                           "replaces the four-part account of the METHODOLOGY rules.")
+# EXEC-FASTLANE V4 (AI_FASTLANE_DECISION_RULES, user 2026-10-14 "save ini as V4"; audit of 41 fast-lane runs: the
+# model weighed again and again what the notes only offered): one rule per recurring decision, with the defaults of
+# app/fastlane_defaults.py (B1, B2, C, D, E, F, H; G was skipped by the user)
+FASTLANE_DECISIONS_NOTE = (
+    PLAN_NOTE_PREFIX + "decide each of these once, by these rules, instead of weighing options. (1) Period: from the "
+    "start of the shortest needed table's coverage, at most {history_years} years back, to LATEST; read the delivered "
+    "range from the bundle summary instead of guessing it. (2) Joins: when an outcome window follows a condition (an "
+    "event, then a forward return), never restrict the price request by an INNER relationship to the condition's "
+    "request, which drops the prices after the condition data ends; use LEFT with the price request on the left, or "
+    "no relationship and join the frames in the session. (3) Parameters the user leaves open take these defaults: "
+    "{parameters}; deviate only when the question asks for something else, and state them in assumptions. (4) Size: "
+    "call check_data_feasibility once, and only when a request's entities times years exceed {entity_years}; call it "
+    "again only after changing the data need. (5) Method guides: open get_method_guide only for a helper you are about "
+    "to call; explore_test and event_study are described in these notes. (6) A data need that lacks a column or a "
+    "period: submit a new data need and open its session with close_session_id naming the old session; a code error: "
+    "fix it in the same session. (7) Value references: cite a share, rate or return column you emitted with units= "
+    "with |pct (|pp for a difference); its unit decides the scaling, so never convert it yourself; show a table with "
+    "{{{{table ...}}}}; write the answer after complete_analysis, when the out.oN addresses exist.")
+
+
+def decisions_note() -> str:
+    return FASTLANE_DECISIONS_NOTE.format(history_years=fastlane_defaults.value("history_years"),
+                                          parameters=fastlane_defaults.parameters_text(),
+                                          entity_years=fastlane_defaults.value("feasibility_entity_years"))
+
+
 FASTLANE_DRAFT_STEP = ("(4) call check_references with a draft only when the answer cites more than about eight "
                        "figures from data, otherwise write the final answer directly.")
 # EXEC-FASTLANE B2b (AI_FASTLANE_DRAFT_CHECK false): no draft pre-check; the answer gates list what to repair
@@ -1705,6 +1732,19 @@ EXPLORE_TEST_RULE = (
     "(Benjamini-Hochberg) and writes the statistical evidence line under the answer itself, so in the answer describe "
     "each effect with its interval, never call a result significant, proven, reversed or a cause, never state a "
     "direction the interval does not support, and do not write your own caveat paragraph about testing.")
+# EXEC-FASTLANE V4 A (user 2026-10-14: "pakai helper apabila cocok, fall back ke default AI"; t1 v3 weighed helper
+# against own code before the data need and again after it): the method is chosen once the data is ready
+EXPLORE_ANSWER_HELPERS = (
+    "use a helper when it fits the question (saniti.forward_return, saniti.period_return, saniti.event_study, or "
+    "saniti.explore_test for a research library method), never bend the question to fit a helper.")
+EXPLORE_ANSWER_HELPERS_V4 = (
+    "decide the method once the data is ready; the data need only names the columns, the period and the buffers the "
+    "question needs. Use a helper when the question has its shape (an event followed by a forward return: "
+    "saniti.event_study; a research library method: saniti.explore_test; the return of a named period: "
+    "saniti.period_return), otherwise your own code; never bend the question to fit a helper. event_study with two "
+    "requests: event_study('<condition request>', \"<condition on its columns>\", {'forward_return': 'close', "
+    "'request': '<price request>'}, horizon); compute a data-derived threshold first in run_python and write it into "
+    "the condition as a number; keep its defaults (NON_OVERLAPPING, ALL_ELIGIBLE) unless the user asks otherwise.")
 # Mode Jawab v2 (user 2026-10-14: "That is correct"): the user's question is tested by the model with code, no
 # validation engine; the helpers are offered where they fit, and the checklist covers where models fail (choosing the
 # test and reading its result: StatQA, StatABench)
@@ -1713,8 +1753,7 @@ EXPLORE_ANSWER_NOTE = (
     "user's own question is allowed here): answer only what the user asked and form no other "
     "hypotheses. When the question asks for figures and no test, compute them without a test. When it asks whether "
     "something holds, test that one question with code in run_python (pandas, scipy and statsmodels are available); "
-    "use a helper when it fits the question (saniti.forward_return, saniti.period_return, saniti.event_study, or "
-    "saniti.explore_test for a research library method), never bend the question to fit a helper. Checklist: an "
+    + EXPLORE_ANSWER_HELPERS + " Checklist: an "
     "outcome that spans several days overlaps its neighbours, so count overlapping events once or cluster by date; "
     "report the effect with its interval, the test used and the effective sample; choose open parameters once and "
     "state them in assumptions, never try several and keep the best; say plainly when the test cannot tell the effect "
@@ -1748,11 +1787,13 @@ def units_advice(values: dict[str, float]) -> str:
     return text
 
 
-def explore_note(mode: str) -> str:
+def explore_note(mode: str, decisions: bool = False) -> str:
     """EXEC-FASTLANE B3: the note of a fast-lane run's explore mode; INSIGHT lists the research library's methods in one
-    line each (no get_research_library call)."""
+    line each (no get_research_library call). V4: with the decision rules, the answer mode decides its method once the
+    data is ready."""
     if mode != lanes.INSIGHT:
-        return EXPLORE_ANSWER_NOTE
+        return EXPLORE_ANSWER_NOTE.replace(EXPLORE_ANSWER_HELPERS, EXPLORE_ANSWER_HELPERS_V4) if decisions \
+            else EXPLORE_ANSWER_NOTE
     methods = "; ".join(
         f"{m['method_id']} ({m['question_shape'].rstrip('?')}; roles "
         + ", ".join(r["role"] for r in m.get("input_roles") or [])
@@ -3452,13 +3493,16 @@ class AgentOrchestrator:
             step = FASTLANE_DRAFT_STEP if self._fast_draft_check() else FASTLANE_NO_DRAFT_STEP
             state.input_items.insert(len(state.input_items) - 1,
                                      {"role": "user", "content": FASTLANE_NOTE.format(draft_step=step)})
+            if getattr(self.settings, "ai_fastlane_decision_rules", False):
+                state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": decisions_note()})
             if getattr(self.settings, "ai_fastlane_section_caps", False):
                 state.input_items.insert(len(state.input_items) - 1,
                                          {"role": "user", "content": FASTLANE_SECTIONS_NOTE})
             mode = self._explore_mode()
             if mode is not None:
                 state.plan_meta["explore_mode"] = mode
-                state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": explore_note(mode)})
+                state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": explore_note(
+                    mode, decisions=getattr(self.settings, "ai_fastlane_decision_rules", False))})
             log_event("ai_lane_turn", request_id=request.request_id, lane=state.lane, forced_path=state.forced_path,
                       **({"explore_mode": mode} if mode is not None else {}))
             return
