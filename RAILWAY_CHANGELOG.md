@@ -1,5 +1,18 @@
 # Railway changelog
 
+## 2026-10-14 — EXEC-FASTLANE B3 switched on (dev) and A/B
+
+User: "Boleh" and "Saya beri izin" (variable writes). Rollback: delete both variables (sandbox `66acda2a`, orc
+`6a5ecc4f` behaviour).
+- OFF reference: orc-test-runner **d8f977b1-5217-4fef-8cbc-7c9d8dde2eca** (`explore_20261014_off`, 3 turns).
+- `PY_SANDBOX_EXPLORE_TESTS_ENABLED=true` on market-python-sandbox dev: redeploy
+  **b92b29c6-1ecf-4d65-8d05-caacaa40d053** SUCCESS. Then `AI_FASTLANE_EXPLORE_TESTS=true` on market-ai-orc dev: redeploy
+  **bcc854cc-9437-4e11-8f6e-81ea3f54f1b1** SUCCESS, startup without `explore_tests_inactive`. Both read back by name.
+- ON: orc-test-runner **f0c1a7f1-3def-4ab8-be01-cb88ef14c7c3** (`explore_20261014_on`, 9 turns). Results in EXEC.md
+  (EXEC-FASTLANE, A/B B3). Cost USD 0.09 + 0.38. Railway log fetching failed for several minutes during the run
+  ("Problem processing request"); it recovered without action.
+- `.railway/railway.ts` declares both variables (`preserve()`).
+
 ## 2026-10-14 — EXEC-FASTLANE B3 deployed (exploratory tests code, switches off)
 
 User: "Ok, jalankan" (B3 plan; deploy and switching on wait for the user). Rollback references: orc `12a494eb`,

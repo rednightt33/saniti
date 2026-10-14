@@ -2414,6 +2414,35 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
     lingkungan). Orc 1.484 lulus, 258 dilewati. `AI_TOOLS.md` diregenerasi.
   - **Berikutnya (butuh izin user):** deploy sandbox lalu orc dev, nyalakan kedua variabel, A/B ON vs OFF (Mode Jawab
     b3/b4, Mode Insight 2 pertanyaan baru).
+- **A/B B3 (2026-10-14, user: "Boleh", izin variabel diberikan): OFF runner `d8f977b1` (orc `6a5ecc4f`), lalu
+  `PY_SANDBOX_EXPLORE_TESTS_ENABLED=true` (sandbox `b92b29c6` SUCCESS) dan `AI_FASTLANE_EXPLORE_TESTS=true` (orc
+  `bcc854cc` SUCCESS, tanpa `explore_tests_inactive`), ON runner `f0c1a7f1`. DeepSeek V4.1 Flash Tinggi, jalur cepat.**
+
+  | Item | OFF | ON | Mode ON | Uji tercatat (lolos) |
+  |---|---|---|---|---|
+  | j1 akumulasi asing 1 bulan + performa lampau | 251 s | **177 s** | Jawab (route RESEARCH) | 1 (0, sampel kecil) |
+  | j2 akumulasi broker X/Y → >10% | 354 s (run B2b OFF) | 438 s | Jawab (route RESEARCH) | 1 (0, sampel kecil) |
+  | i1 "carikan insight" aliran asing BBRI | 115 s | 214 s | **Jawab** (route ANALYSIS) | 1 (0) |
+  | i2 "pola apa yang menarik" broker bank | 208 s | 244 s | **Jawab** (route ANALYSIS) | 0 |
+  | m1.1 distribusi return BBRI | – | 152 s | Jawab | 0 |
+  | m1.2 net beli asing besar → return 5 hari | – | 324 s | Jawab (CONTINUE) | 1 (0) |
+  | m1.3 "carikan insight lain" | – | 4 s | tanya-balik 4 pilihan | – |
+  | m1.4 "rekap per minggu" (balasan tanya-balik) | – | 78 s | **Insight** (kelas INSIGHT) | 0 |
+  | m1.5 pindah ke TLKM | – | 146 s | Jawab (NEW_TOPIC → ANALYSIS) | 0 |
+
+  - **Keandalan (tujuan utama):** semua p-value di jawaban ON datang bersama selisih, rentang dan sampel efektif
+    (j2: −0,85 pp, −4,61…2,92, p 0,66, 44 tanggal; m1.2: −0,32 pp, −1,19…0,56, p 0,47); tidak ada klaim arah atau
+    "terbukti"; kata "sebab" hanya dalam penyangkalan. Kalimat "Bukti statistik" muncul di 4 jawaban yang menguji,
+    kalimat "tanpa uji signifikansi" tidak muncul bersamanya. OFF j1 masih memakai "justru sebaliknya" (untuk peringkat
+    deskriptif, bukan uji).
+  - **Mode Insight hampir tidak terpicu:** router pesan pertama memberi ANALYSIS untuk i1 dan i2, jadi keduanya
+    berjalan sebagai Mode Jawab. Insight hanya terpicu di m1.4 (balasan tanya-balik "insight lain"), dan pertanyaan
+    itu rekap sehingga tanpa uji. Mode Insight dengan beberapa sudut belum teruji di run nyata.
+  - **Waktu:** giliran tunggal 574 s → 635 s (+11%); j1 −30%, j2/i1/i2 lebih lama (ada uji, j2 19 panggilan dan satu
+    perbaikan TYPED_FIGURES, router pesan pertama j2 46 s dengan 2 percobaan). ≤ 3 menit: 4 dari 8 run ON.
+  - **Gerbang:** ON 3 penolakan (TYPED_FIGURES ×2, METHODOLOGY_PROVENANCE ×1), masing-masing satu perbaikan.
+  - **Biaya:** OFF USD 0,09, ON USD 0,38. Sisa kunci ≈ USD 0,5.
+  - **Saklar tetap menyala di dev** sampai keputusan user (fallback: hapus kedua variabel).
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur
