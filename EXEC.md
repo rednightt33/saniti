@@ -2747,10 +2747,15 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
   - **Format tanggal (semua jalur, tampilan):** user: "tahun 4 digit, bulan disebutkan bulannya", pilihan "7 Oktober
     2026": `2026-10-07` → "7 Oktober 2026", `2024-09` → "September 2024"; kolom tahun tanpa pemisah ribuan (bug
     "2.020").
-  - **Satuan pp:** user: "setiap kata PP itu diganti dengan persen"; menunggu pilihan bentuk (lihat jawaban: poin
-    persen vs %).
+  - **Satuan pp → %** (user: "untuk masalah PP diganti persentase saja", dicek visual sesudahnya): format rujukan `|pp`
+    (`value_refs.py`) ditampilkan dengan "%" alih-alih " pp". Risiko yang sudah disampaikan: selisih poin persen bisa
+    dibaca sebagai perubahan relatif.
+  - **EDGE HP: klik respons yang di-pin** di panel Details/filter → panel tertutup dan percakapan langsung bergulir ke
+    respons itu. **Kirim pertanyaan saat sedang scroll di atas** → percakapan otomatis bergulir ke bawah ke pertanyaan
+    baru (sekarang harus scroll sendiri).
   - **Menu model di HP** memenuhi layar dan terpotong rel kiri (screenshot): jadikan lembar bawah lebar penuh di lapisan
     teratas, tinggi maksimal dengan scroll.
+  - **Kuota Run 7:** tidak ada panggilan model agen tercatat sebelum terputus (paling banyak satu panggilan router).
   - **Run terputus macet "Recovering delivery" (Run 7 `edge_87c7…`, terputus oleh deploy ulang A/B V4 pukul 17:29
     UTC):** lease orc 62 menit dan pemeriksaan per jam membuat giliran tetap RUNNING sampai sekitar satu jam. Disetujui
     (user: "saya terima untuk yang A dan C"): (A) orc menandai giliran milik proses yang mati segera saat start;
