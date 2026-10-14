@@ -2383,7 +2383,8 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
       (sampel 5 giliran).
     - Satuan: koreksi satuan otomatis tetap jalan di kedua sisi. Kolom turunan buatan AI (mis. ambang X) tercatat
       `ai_reference_unit_unknown` di kedua sisi, artinya satuan kolom itu tidak dikenal sistem.
-  - Keputusan saklar (tetap ON atau OFF di jalur cepat) menunggu user.
+  - **Keputusan user 2026-10-14:** "Ok, matikan ya untuk fastlane." `AI_FASTLANE_DRAFT_CHECK=false` di orc dev
+    (deployment `12a494eb` SUCCESS). Fokus berikutnya: lama berpikir AI dan langkah pencarian tabel.
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur

@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-10-14 — EXEC-FASTLANE: draft pre-check switched off on the fast lane
+
+User: "Ok, matikan ya untuk fastlane." Rollback: delete `AI_FASTLANE_DRAFT_CHECK` (or set `true`) and redeploy
+(reference deployment `d2aab9ea`).
+- Variable `AI_FASTLANE_DRAFT_CHECK=false` set on market-ai-orc (dev) with `railway variables --set`, read back by name;
+  redeploy **12a494eb-4d6e-46ce-9926-e537e0a0360b** reached **SUCCESS**. `.railway/railway.ts` declares it
+  (`preserve()`). Only fast-lane messages lose `check_references`; the standard lane is unchanged.
+
 ## 2026-10-14 — EXEC-FASTLANE B2b: draft pre-check switch and A/B (fast lane)
 
 User: "Coba A/B 3 pertanyaan serupa dengan yg lama tadi. Pakai fastlane, bedanya pra draft enable dan disable.
