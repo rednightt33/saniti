@@ -364,3 +364,26 @@ def test_the_legacy_provenance_refusal_names_the_derived_references_once() -> No
     import inspect
 
     assert inspect.getsource(AgentOrchestrator._validation_gate).count("self._derived_hint(") == 1
+
+
+# --- advice in refusals (user 2026-10-14: "OK") ----------------------------------------------------------------------
+
+def test_the_dataneed_provenance_refusal_names_the_derived_reference() -> None:
+    """EXEC-DERIVED meant the PROVENANCE refusal; the DataNeed gate (fast and standard lane) never had the hint."""
+    text = "Return YTD BBCA 12,35% dan BBRI −4,32%; selisih keduanya 16,67 poin persen."
+    for lane in (lanes.FAST, lanes.STANDARD):
+        _, scripted, _ = run([*flow(), final_response(answer(text)), final_response(answer(text))], lane=lane,
+                             path="ANALYSIS", settings={**FAST_ON, "AI_ENABLE_VALUE_REFERENCES": "true"})
+        refusal = next(json.dumps(p) for p in scripted.payloads if "no governed source" in json.dumps(p))
+        assert "16,67" in refusal and "equals {{diff(" in refusal and "if that is what the number means" in refusal
+
+
+def test_the_units_refusal_says_what_each_value_looks_like_and_how_to_split_a_mixed_column() -> None:
+    from app.orchestrator import units_advice
+
+    cell = "out.o2.rows[uji=Bootstrap: selisih simpangan baku (pp, Q3-Q2)].estimasi"
+    text = units_advice({cell: -0.01, "out.o3.content.net_pct": -6.07})
+    assert f"{cell} = -0.01: a decimal, so |pct if it is a share" in text and "units='FRACTION' first, then |pp" in text
+    assert "out.o3.content.net_pct = -6.07: |pctv if it is already in percent" in text
+    assert text.count("no single unit fits") == 1 and "estimasi of out.o2" in text
+    assert "no single unit" not in units_advice({"out.o3.content.net_pct": 0.2}) and units_advice({}) == ""

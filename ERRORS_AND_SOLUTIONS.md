@@ -860,3 +860,8 @@ change yet.
   `_validation_gate` appended `self._derived_hint(...)` twice (a duplicated line from EXEC-DERIVED), so the refusal
   repeated the same hint. Only the non-DataNeed path was affected; one call removed
   (`test_the_legacy_provenance_refusal_names_the_derived_references_once`).
+- **Root cause, found 2026-10-14 in the gate audit (FIXED, user "OK"):** the EXEC-DERIVED commit `a066215` pasted the
+  hint twice into the legacy gate and never into the DataNeed PROVENANCE gate, which is the gate of the live DataNeed
+  flow (fast and standard lane). Since 2026-10-13 no DataNeed refusal named a derived reference (v2 j1 "3,7" got
+  none). The DataNeed gate now appends `_derived_hint`
+  (`test_the_dataneed_provenance_refusal_names_the_derived_reference`, fails on the old code).

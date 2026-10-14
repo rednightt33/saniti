@@ -2633,6 +2633,29 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
   - **Saklar tetap menyala** (tidak ada regresi gerbang atau satuan). Langkah berikutnya butuh go: batasan dan
     metodologi belum cukup pendek hanya dengan catatan; opsi yang bisa diusulkan sesudah saldo diisi: target panjang
     metodologi dalam kata-kata, atau menggabungkan baris sistem yang tumpang tindih.
+- **Saran di penolakan (2026-10-14, user: "OK" atas tiga usulan sesudah audit gerbang):** audit: TYPED_FIGURES (R3
+  otomatis + kandidat M140), REFERENCE (alamat dengan field sama), METHODOLOGY_PROVENANCE (literal kode otomatis + saran
+  turunan) sudah memberi saran; PROVENANCE DataNeed dan UNITS belum. Dikerjakan (tanpa saklar; hanya isi pesan
+  penolakan, gerbang yang menolak tetap sama):
+  1. **Bug EXEC-DERIVED:** saran hitungan turunan (`_derived_hint`) tertempel dua kali di gerbang jalur lama dan tidak
+     pernah ada di gerbang PROVENANCE DataNeed (yang aktif di dev, jalur Cepat dan Standar). Sekarang ada di gerbang
+     DataNeed; tes `test_the_dataneed_provenance_refusal_names_the_derived_reference` gagal pada kode lama.
+  2. **Penolakan UNITS menyarankan:** dugaan dari nilai rujukan (desimal: |pct untuk porsi, |x atau |dec untuk rasio,
+     selisih porsi dalam poin persen butuh `units='FRACTION'` lalu |pp; nilai besar: |pctv atau |x) dan, untuk sel
+     baris tabel, cara memisah kolom bersatuan campuran (kasus o1 `ma-gates-20261014-s1`). Tetap tebakan, AI memutuskan.
+  3. **Pesan galat `emit_table` di sandbox memberi contoh:** `units` bukan dict dan `units[...]` tidak sah (kolom yang
+     bukan porsi/persen/p-value tidak dideklarasikan; kolom campuran dipecah per satuan), `definition['thresholds']`
+     bukan dict (contoh dan tipe yang diterima).
+- **Analisis langkah "menulis permintaan data" t1 v2 vs v3 (2026-10-14, dari log penalaran, tidak dikutip):** data dan
+  catatan sama; v2 memutuskan metode lebih awal dan menimbang helper `event_study` sesudah data siap, v3 menimbang
+  helper vs kode sendiri, tumpang tindih, holdout dan buffer sebelum mengirim permintaan data, menulis spesifikasi dua
+  kali (di penalaran lalu di pemanggilan alat), lalu tetap membuka panduan `event_study`. Penyebab: catatan Mode Jawab
+  membiarkan pilihan helper terbuka tanpa menyebut kapan diputuskan. Usulan **disetujui** (user 2026-10-14: "OK
+  masukan exec"; belum dikerjakan): satu kalimat di `EXPLORE_ANSWER_NOTE` — tentukan metode setelah data siap;
+  permintaan data cukup memuat kolom, periode dan buffer yang dibutuhkan pertanyaan — ditambah ringkasan cara
+  `saniti.event_study` memakai dua permintaan (kondisi di satu permintaan, harga hasil di permintaan lain lewat
+  `'request'`), supaya AI tidak menebak. Tugas lanjutan dari user: cari titik lain tempat AI diberi pilihan terbuka
+  ("menawarkan") dengan sifat serupa.
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur

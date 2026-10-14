@@ -900,6 +900,17 @@ UNITS_INSTRUCTION = (
     "percent: {references}. Write each with the format that shows its unit (|pct for a decimal such as 0.12 shown "
     "as 12%, |pctv for a value already in percent, |x or |dec for a plain ratio), or emit the table again with "
     "units={{column: 'FRACTION' | 'PERCENT'}} in run_python and cite that table.")
+# EXEC-FASTLANE (user 2026-10-14, "OK"): the refusal also says what each value looks like and how to split a column
+# whose rows hold different units (ma-gates-20261014-s1 o1: a test table with a ratio and percentage points in one
+# column, the repair failed and the cells showed "–"). A guess from the value, so the model decides
+UNITS_SMALL_ADVICE = ("{refs} = {values}: a decimal, so |pct if it is a share (0.12 shown as 12%), |x or |dec if it "
+                      "is a ratio; a difference of shares in percentage points needs its column emitted with "
+                      "units='FRACTION' first, then |pp")
+UNITS_LARGE_ADVICE = ("{refs} = {values}: |pctv if it is already in percent (2.74 shown as 2.74%), |x or |dec if it is "
+                      "a ratio or a statistic")
+UNITS_MIXED_ADVICE = (" If a column ({columns}) holds different units in different rows (a ratio in one, percentage "
+                      "points in another), no single unit fits it: emit one column per unit (for example "
+                      "estimate_ratio and estimate_pp) with units= and cite those.")
 REFERENCE_INSTRUCTION = (
     "Your response has value references that do not resolve: {problems}. Use only the refs and fields the tool "
     "results of this run show (each referable object carries its \"ref\"), with a known format, or remove the figure.")
@@ -1714,6 +1725,27 @@ EXPLORE_INSIGHT_NOTE = (PLAN_NOTE_PREFIX + "the user asks for insight: look at t
                         "(stability=True), all from one data need. Methods: {methods}. Report what holds after the "
                         "correction first and say plainly when nothing does. " + EXPLORE_TEST_RULE)
 EXPLORE_MAX_ANGLES = 5
+
+
+def units_advice(values: dict[str, float]) -> str:
+    """EXEC-FASTLANE: the UNITS refusal's advice, from the values of the references of undeclared unit."""
+    if not values:
+        return ""
+    small = [r for r, v in values.items() if abs(v) <= 1.5]
+    large = [r for r in values if r not in small]
+    parts = []
+    for refs, template in ((small, UNITS_SMALL_ADVICE), (large, UNITS_LARGE_ADVICE)):
+        if refs:
+            parts.append(template.format(refs=", ".join(refs[:6]), values=", ".join(
+                format(values[r], ".4g") for r in refs[:6])))
+    text = " What the values look like: " + "; ".join(parts) + "."
+    # a cell of a table's row: the column may hold other units in its other rows (o1: a test table)
+    columns = dict.fromkeys((m.group(1), m.group(2)) for r in values
+                            if (m := re.match(r"(out\.[^.\[]+)\.rows(?:\[[^\]]*\]|\.\d+)\.(\w+)$", r)))
+    if columns:
+        text += UNITS_MIXED_ADVICE.format(columns=", ".join(f"{column} of {table}" for table, column in
+                                                            list(columns)[:4]))
+    return text
 
 
 def explore_note(mode: str) -> str:
@@ -5479,6 +5511,7 @@ class AgentOrchestrator:
         original = final
         problems: list[str] = []
         unknown: list[str] = []  # Mode Jawab v2 (5B): figures of undeclared unit (UNITS gate)
+        unknown_values: dict[str, float] = {}
         failed: list[str] = []
         missing: list[tuple[str, str, str]] = []
         values: list[Resolved] = []
@@ -5525,6 +5558,7 @@ class AgentOrchestrator:
                           references=rendering.unknown_units[:20])
                 # the model's own released tables (out.*): the backend's findings and facts carry their own units
                 unknown.extend(r for r in rendering.unknown_units if r.startswith("out."))
+                unknown_values.update({r: v for r, v in rendering.unknown_values.items() if r.startswith("out.")})
             if rendering.scaled:  # M143: a scale word typed after a reference, read as part of its figure
                 log_event("ai_reference_scaled", request_id=state.request_id, references=rendering.scaled[:20])
             return rendering.text
@@ -5552,7 +5586,7 @@ class AgentOrchestrator:
         state.ref_values.extend(values)
         if unknown:
             self._gate_once(state, "UNITS", UNITS_INSTRUCTION.format(
-                references=", ".join(dict.fromkeys(unknown[:12]))))
+                references=", ".join(dict.fromkeys(unknown[:12]))) + units_advice(unknown_values))
         if not problems and not missing:
             return rendered, False
         detail = "; ".join(dict.fromkeys(problems + [message for _, _, message in missing]))[:1500]
@@ -5796,6 +5830,7 @@ class AgentOrchestrator:
             self._gate_once(state, "PROVENANCE", DATANEED_PROVENANCE_INSTRUCTION.format(
                 numbers=numbers, lookup=", a lookup_fact result" if self.settings.ai_enable_lookup_fact else "")
                 + self._code_literal_hint(state, final.answer, unsupported)
+                + self._derived_hint(state, unsupported, final.answer)
                 + (REFERENCE_HINT if self.value_references else ""))
             return self._forced(state, final, "PROVENANCE", DATANEED_PROVENANCE_NOTICE.format(numbers=numbers),
                                 [texts.NO_SOURCE_LINE.format(numbers=numbers)] + lines)

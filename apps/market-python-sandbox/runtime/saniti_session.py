@@ -2109,6 +2109,13 @@ def _arrow(frame):
 
 
 VALUE_UNITS = ("FRACTION", "PERCENT", "P_VALUE")
+# EXEC-FASTLANE (user 2026-10-14, "OK" to advice in refusals; ma-gates-20261014-s1 o1: units={'estimasi': None} for a
+# column holding a ratio in one row and percentage points in another): the refusal shows the right form
+UNITS_EXAMPLE = "units={'return_pct': 'PERCENT', 'share_of_value': 'FRACTION', 'p_value': 'P_VALUE'}"
+UNITS_LEAVE_OUT = ("Leave out of units a column that is no share, percent or p-value (a ratio, a count, a test "
+                   "statistic). A column whose rows hold different units (a ratio in one row, a difference in "
+                   "percentage points in another) has no single unit: emit one column per unit (for example "
+                   "estimate_ratio and estimate_pp) and declare each that is a share or percent.")
 
 
 def _units(units, fields: list[str] | None) -> dict[str, str]:
@@ -2118,12 +2125,13 @@ def _units(units, fields: list[str] | None) -> dict[str, str]:
     if units is None:
         return {}
     if not isinstance(units, dict):
-        raise InvalidOutput("units is a dict {column: 'FRACTION' | 'PERCENT' | 'P_VALUE'}.")
+        raise InvalidOutput("units is a dict {column: 'FRACTION' | 'PERCENT' | 'P_VALUE'}, for example "
+                            f"{UNITS_EXAMPLE}; got {type(units).__name__}.")
     clean = {}
     for key, unit in units.items():
         if unit not in VALUE_UNITS:
             raise InvalidOutput(f"units[{key!r}] is {unit!r}; use one of {', '.join(VALUE_UNITS)} (FRACTION: 0.12 is "
-                                f"12%; PERCENT: 12 is 12%).")
+                                f"12%; PERCENT: 12 is 12%). {UNITS_LEAVE_OUT}")
         if fields is not None and str(key) not in fields:
             raise InvalidOutput(f"units names {key!r}, which is not a column or field of the output.")
         clean[str(key)] = unit
@@ -2164,7 +2172,9 @@ def _definition(definition) -> dict[str, Any] | None:
         raise InvalidOutput("definition['period'] is {'start': 'YYYY-MM-DD', 'end': 'YYYY-MM-DD'}.")
     for key in ("thresholds",):
         if definition.get(key) is not None and not isinstance(definition[key], dict):
-            raise InvalidOutput(f"definition[{key!r}] is a dict {{name: value}}.")
+            raise InvalidOutput(f"definition[{key!r}] is a dict {{name: value}}, for example {{'crash_day': "
+                                f"'median return_1d_pct <= -1', 'window_days': 20}}; got "
+                                f"{type(definition[key]).__name__}.")
     clean = _jsonable(definition)
     if len(_json.dumps(clean, ensure_ascii=False)) > DEFINITION_MAX_CHARS:
         raise OutputLimitExceeded(f"A definition is at most {DEFINITION_MAX_CHARS} characters; keep the filters and "

@@ -743,6 +743,7 @@ class Rendering:
     # P23: references shown by their data's unit rather than as written: {reference, format, shown_as, unit}
     corrected_units: list[dict[str, Any]] = field(default_factory=list)
     unknown_units: list[str] = field(default_factory=list)  # percent formats on a value of undeclared unit
+    unknown_values: dict[str, float] = field(default_factory=dict)  # their values, for the UNITS gate's advice
     # Item 12: the outside sources shown, (expression, "fakta web, <domain>"); a source is named after the first value
     # of it in each text when no word follows that value (otherwise the sentence keeps its flow and the system's
     # line of web facts names it)
@@ -922,9 +923,11 @@ class _Number:
                                         "shown_as": used, "unit": unit})
         elif used in PERCENT_FORMATS and unit is None:
             out.unknown_units.append(self.expression)  # measured: a percent figure whose unit nobody declared
+            out.unknown_values[self.expression] = self.resolved.value
         elif used == "auto" and unit is None and self.expression.startswith("out.") \
                 and unit_like(self.expression.rsplit(".", 1)[-1]):
             out.unknown_units.append(self.expression)  # Mode Jawab v2 (5B): a share or return shown as a bare number
+            out.unknown_values[self.expression] = self.resolved.value
         if used == "p" and self.resolved.value < P_FLOOR and self.resolved.value >= 0:
             out.values.append(Resolved(P_FLOOR, self.resolved.label))  # P24: the bound shown is a source too
         return format_value(self.resolved.value, used, self.places, unit)
