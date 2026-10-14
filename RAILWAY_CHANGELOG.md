@@ -1,5 +1,15 @@
 # Railway changelog
 
+## 2026-10-14 — EXEC-FASTLANE B3 deployed (exploratory tests code, switches off)
+
+User: "Ok, jalankan" (B3 plan; deploy and switching on wait for the user). Rollback references: orc `12a494eb`,
+sandbox `486b5a85` (skipped build of `8c96176`; the running sandbox build predates it).
+- `main` `6a3f085` (auto-deploy on push): market-python-sandbox **66acda2a-198b-4a7d-97af-7633a1913b20** and
+  market-ai-orc **6a5ecc4f-0977-49a3-a0b0-89a47f3d6a9c** reached **SUCCESS**.
+- `PY_SANDBOX_EXPLORE_TESTS_ENABLED` (sandbox) and `AI_FASTLANE_EXPLORE_TESTS` (orc) are not set on dev (read back by
+  name), so both default off: no `explore_test` helper is bound, no `final_status.explore_tests`, and the fast lane's
+  notes and answer lines are as before. No variable, migration or configuration change.
+
 ## 2026-10-14 — EXEC-FASTLANE: draft pre-check switched off on the fast lane
 
 User: "Ok, matikan ya untuk fastlane." Rollback: delete `AI_FASTLANE_DRAFT_CHECK` (or set `true`) and redeploy
