@@ -2706,6 +2706,8 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
     252; dasar = penutupan N hari bursa sebelum tanggal terakhir; tanggal awal-akhir ditulis di asumsi. Nilai di
     `FASTLANE_DEFAULTS` (`span_*_trading_days`, AGENTS.md). Prompt sistem (`PERIOD_RETURN_RULES`) dan jalur Standar
     tidak berubah.
+  - **Deploy:** `main` `e0ac8d6`, orc `90e26804` SUCCESS; aktif lewat saklar V4 yang sudah menyala. Tes orc 1.504
+    lulus. Uji live menunggu saldo kunci.
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur

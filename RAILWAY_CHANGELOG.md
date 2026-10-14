@@ -1,5 +1,11 @@
 # Railway changelog
 
+## 2026-10-14 — EXEC-FASTLANE V4.1 deployed (dev)
+
+User: "5 hari kerja, senin-jumat" (then rolling trading days for every relative span). `main` `e0ac8d6`
+auto-deployed `market-ai-orc` dev `90e26804` → SUCCESS. No variable change: active through the existing
+`AI_FASTLANE_DECISION_RULES=true`. Fallback: set that variable false (turns off V4 and V4.1 together).
+
 ## 2026-10-14 — EXEC-FASTLANE V4 deployed and switched on (dev); EDGE V4 fixes
 
 User: "save ini as V4", plan approved. `main` `e96244a` auto-deployed `market-ai-orc` dev `c64f8401` → SUCCESS
