@@ -1288,6 +1288,14 @@ when its copy and `public."AI_method_guide"` (migration `20261002_001`, generate
 true to the code: every helper input is a parameter with the same default, every runnable example runs in a session,
 the migration equals the generator's output.
 
+### Units of released tables (always on; EXEC-FASTLANE Mode Jawab v2, 5B)
+
+`emit_table` gives the standard helper columns their unit when the code declares none (`return_pct` PERCENT,
+`return_decimal` FRACTION, as `period_return` returns them) and warns (`UNIT_UNDECLARED`, in the run_python result's
+`warnings`) about a numeric column named like a share, rate, percent, ratio of parts or return without a declared unit
+(`_unit_like`: a count word at the start or end of the name, such as `jumlah_hari` or `return_count`, is not one).
+Nothing is refused; market-ai-orc asks once when an answer cites such a figure without a format.
+
 ### Exploratory tests (off unless `PY_SANDBOX_EXPLORE_TESTS_ENABLED=true`; EXEC-FASTLANE B3)
 
 For market-ai-orc's fast lane: a statistical test without a Research Plan, approval or Research Governor, computed

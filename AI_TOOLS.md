@@ -63,7 +63,7 @@ Dibuat dari `apps/market-ai-orc/app/tool_desks.py` (`DESKS`), saklar semua menya
 | `get_method_guide` | B | B | B | H | H | H | H | H | H |
 | `get_research_library` | B | B | B | B | H | H | X | B | H |
 | `get_session_output` | B | B | H | H | H | H | H | H | H |
-| `get_system_capabilities` | B | B | B | B | B | B | B | B | B |
+| `get_system_capabilities` | B | B | B | B | B | B | X | B | B |
 | `inspect_session` | B | B | B | H |  | H | H | H | H |
 | `lookup_fact` | X | X | X | X | X | X | X | X | X |
 | `lookup_reference` | B | H | B | H |  | H | H | B |  |

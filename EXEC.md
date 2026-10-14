@@ -2478,6 +2478,22 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
     adalah pemilihan uji dan tafsir, bukan aritmetika (StatQA arXiv 2406.07815, StatABench arXiv 2606.22977); agen
     menghasilkan kesalahan diam yang tampak masuk akal (arXiv 2607.21482, LongDS-Bench arXiv 2605.30434); resep atau
     query terverifikasi menaikkan akurasi produksi (Snowflake Cortex Analyst, vendor: 51% → 90%+).
+- **Mode Jawab v2 (2026-10-14, user: "OK"; 5B + butir 2 + butir 3 dipersempit; tanpa saklar untuk 5B):**
+  - **5B satuan (semua jalur):** sandbox `emit_table` memberi `return_pct` PERCENT dan `return_decimal` FRACTION bila
+    tidak dideklarasikan, dan memperingatkan (`UNIT_UNDECLARED`) kolom numerik bernama seperti share, rate, persen,
+    rasio bagian atau return tanpa satuan (kata hitungan di awal/akhir nama dikecualikan; `porsi_5_hari_masuk_terbesar`
+    tetap terdeteksi). Orc: rujukan tanpa format ke kolom seperti itu di tabel AI (`out.*`) dicatat
+    `unit_unknown` dan memicu gerbang `UNITS` sekali (annotate, edit saja). Temuan backend (`finding.*`) tidak ikut.
+    Panduan metode dan prompt sistem tidak diubah (tanpa migrasi DB).
+  - **Butir 2:** `EXPLORE_ANSWER_NOTE` baru (kode bebas, helper bila cocok, checklist metode, units=); aturan wajib
+    `explore_test` hanya di Mode Insight; kalimat `FASTLANE_ANSWER_LINE` menggantikan "tanpa uji signifikansi" di Mode
+    Jawab jalur cepat tanpa uji tercatat.
+  - **Butir 3 (dipersempit):** `get_system_capabilities` di `never` desk FASTLANE + satu kalimat di `FASTLANE_NOTE`;
+    `preview_table_rows` dan `check_data_feasibility` tetap. Prompt sistem tidak diedit (dipakai semua jalur, prefix
+    cache).
+  - **Tes:** orc 1.486 lulus, 258 dilewati; sandbox 835 lulus, 2 gagal lama yang sama. `AI_TOOLS.md` diregenerasi.
+  - **Baseline sebelum deploy** (runner `1702d854`, orc `bcc854cc`): o1 volatilitas BBRI Q3 vs Q2 145 s, o2
+    normalitas return TLKM 63 s.
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur

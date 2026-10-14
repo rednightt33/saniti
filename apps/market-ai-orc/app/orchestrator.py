@@ -892,6 +892,14 @@ WEB_LOOKUP_TOOLS = frozenset({"find_web_fact", "research_web"})  # P34: checked 
 ADDRESS_MENU_NOTE = ("Each line is \"name: value as shown [unit] → {{address}}\": write the figure by copying its "
                      "{{address}} as it is and adding a format; never compose an address from memory. A table row not "
                      "listed uses the pattern line with that row's value.")
+# EXEC-FASTLANE Mode Jawab v2 (5B, ma-explore-20261014-on i1: "-0,107" shown for -10.7%): a figure from a column of
+# undeclared unit that is named like a share, rate, percent, ratio or return, or written with a percent format, is
+# asked about once; a second time the answer passes and the event is logged
+UNITS_INSTRUCTION = (
+    "These figures come from columns without a declared unit, so a reader cannot tell a decimal share from a "
+    "percent: {references}. Write each with the format that shows its unit (|pct for a decimal such as 0.12 shown "
+    "as 12%, |pctv for a value already in percent, |x or |dec for a plain ratio), or emit the table again with "
+    "units={{column: 'FRACTION' | 'PERCENT'}} in run_python and cite that table.")
 REFERENCE_INSTRUCTION = (
     "Your response has value references that do not resolve: {problems}. Use only the refs and fields the tool "
     "results of this run show (each referable object carries its \"ref\"), with a known format, or remove the figure.")
@@ -1415,7 +1423,8 @@ GATE_ASK_NOTE = (" If what the user wants is itself unclear and only the user ca
                  "response_type CLARIFICATION with one short question.")
 # EXEC-D P-f (M107): gates whose repair is an edit of the text (remove or source a figure, fix a definition or the
 # methodology), so a step without tools is asked once too; a spent repair budget (tools_locked) still ends it
-EDIT_REPAIR_KINDS = frozenset({"PROVENANCE", "TYPED_FIGURES", "DEFINITION", "METHODOLOGY", "METHODOLOGY_PROVENANCE"})
+EDIT_REPAIR_KINDS = frozenset({"PROVENANCE", "TYPED_FIGURES", "DEFINITION", "METHODOLOGY", "METHODOLOGY_PROVENANCE",
+                               "UNITS"})
 # G23 B: figures the backend computed or recomputed itself (lookup facts, Governor aggregates, recomputed analyses)
 BACKEND_RECOMPUTED_KINDS = frozenset({"FACT", "DATABASE_AGGREGATE", "CALCULATION_VERIFIED"})
 EVIDENCE_BACKEND_LINE = ("Angka jawaban ini dihitung atau dihitung ulang oleh backend (fakta, agregat Governor, metrik "
@@ -1648,7 +1657,8 @@ FASTLANE_NOTE = (PLAN_NOTE_PREFIX + "this message runs on the fast lane. Answer 
                  "patterns in the historical data without a formal test, so say so plainly, never call them proven, "
                  "a cause, a prediction or a trading signal, and offer a formal test as a next step when it matters. "
                  "When the user leaves a parameter open (a window, a threshold), choose a reasonable value, state it "
-                 "in assumptions, and answer.")
+                 "in assumptions, and answer. get_system_capabilities is not offered on this lane: the method menu "
+                 "and the catalog summary at the start of this run already list what is available.")
 FASTLANE_DRAFT_STEP = ("(4) call check_references with a draft only when the answer cites more than about eight "
                        "figures from data, otherwise write the final answer directly.")
 # EXEC-FASTLANE B2b (AI_FASTLANE_DRAFT_CHECK false): no draft pre-check; the answer gates list what to repair
@@ -1665,10 +1675,21 @@ EXPLORE_TEST_RULE = (
     "(Benjamini-Hochberg) and writes the statistical evidence line under the answer itself, so in the answer describe "
     "each effect with its interval, never call a result significant, proven, reversed or a cause, never state a "
     "direction the interval does not support, and do not write your own caveat paragraph about testing.")
-EXPLORE_ANSWER_NOTE = (PLAN_NOTE_PREFIX + "this message is answered, not explored: test only what the user asked, "
-                       "with one test for the question (a second only when the question names two), and form no other "
-                       "hypotheses. When the question asks for figures and no test, compute them without a test. "
-                       + EXPLORE_TEST_RULE)
+# Mode Jawab v2 (user 2026-10-14: "That is correct"): the user's question is tested by the model with code, no
+# validation engine; the helpers are offered where they fit, and the checklist covers where models fail (choosing the
+# test and reading its result: StatQA, StatABench)
+EXPLORE_ANSWER_NOTE = (
+    PLAN_NOTE_PREFIX + "this message is answered, not explored (this refines the fast-lane note: a test of the "
+    "user's own question is allowed here): answer only what the user asked and form no other "
+    "hypotheses. When the question asks for figures and no test, compute them without a test. When it asks whether "
+    "something holds, test that one question with code in run_python (pandas, scipy and statsmodels are available); "
+    "use a helper when it fits the question (saniti.forward_return, saniti.period_return, saniti.event_study, or "
+    "saniti.explore_test for a research library method), never bend the question to fit a helper. Checklist: an "
+    "outcome that spans several days overlaps its neighbours, so count overlapping events once or cluster by date; "
+    "report the effect with its interval, the test used and the effective sample; choose open parameters once and "
+    "state them in assumptions, never try several and keep the best; say plainly when the test cannot tell the effect "
+    "from chance, never call it significant, proven, reversed or a cause beyond what the interval shows; declare "
+    "units= for every share, rate or return column you emit.")
 EXPLORE_INSIGHT_NOTE = (PLAN_NOTE_PREFIX + "the user asks for insight: look at the question from at most {angles} "
                         "angles, each one method of the research library below with saniti.explore_test "
                         "(stability=True), all from one data need. Methods: {methods}. Report what holds after the "
@@ -2626,10 +2647,14 @@ class AgentOrchestrator:
             final = self._conversation_correction(state, final)
             state.plan_meta["memory_decisions"] = self._memory_decisions(state, final)
             state.experiments = self._research_summary(state, final.answer)
-            # EXEC-FASTLANE B3: an answer whose tests the system reported has its evidence line instead
+            # EXEC-FASTLANE B3: an answer whose tests the system reported has its evidence line instead; Mode Jawab v2:
+            # an answer-mode analysis may test with the model's own code, so its line says that instead of "no test"
             if state.forced_path == "ANALYSIS" and final.response_type == "ANSWER" and state.final_status \
-                    and ANALYSIS_PATH_LINE not in final.limitations and not state.plan_meta.get("explore_reported"):
-                final = final.model_copy(update={"limitations": [*final.limitations, ANALYSIS_PATH_LINE]})
+                    and not state.plan_meta.get("explore_reported"):
+                line = texts.FASTLANE_ANSWER_LINE if state.plan_meta.get("explore_mode") == lanes.ANSWER \
+                    else ANALYSIS_PATH_LINE
+                if line not in final.limitations:
+                    final = final.model_copy(update={"limitations": [*final.limitations, line]})
             if final.response_type == "RESEARCH_PLAN_CONFIRMATION" and isinstance(final.research_plan, ResearchPlanV2) \
                     and self.signer_v2 is not None and state.research is not None \
                     and state.research.feasible is not None:
@@ -5397,6 +5422,7 @@ class AgentOrchestrator:
         # D6: the references the answer cites, listed as evidence (DIRUJUK) next to the checked claims
         original = final
         problems: list[str] = []
+        unknown: list[str] = []  # Mode Jawab v2 (5B): figures of undeclared unit (UNITS gate)
         failed: list[str] = []
         missing: list[tuple[str, str, str]] = []
         values: list[Resolved] = []
@@ -5441,6 +5467,8 @@ class AgentOrchestrator:
             if rendering.unknown_units:
                 log_event("ai_reference_unit_unknown", request_id=state.request_id,
                           references=rendering.unknown_units[:20])
+                # the model's own released tables (out.*): the backend's findings and facts carry their own units
+                unknown.extend(r for r in rendering.unknown_units if r.startswith("out."))
             if rendering.scaled:  # M143: a scale word typed after a reference, read as part of its figure
                 log_event("ai_reference_scaled", request_id=state.request_id, references=rendering.scaled[:20])
             return rendering.text
@@ -5466,6 +5494,9 @@ class AgentOrchestrator:
         state.raw_final = original.model_dump(mode="json")
         rendered = final.model_copy(update=update)
         state.ref_values.extend(values)
+        if unknown:
+            self._gate_once(state, "UNITS", UNITS_INSTRUCTION.format(
+                references=", ".join(dict.fromkeys(unknown[:12]))))
         if not problems and not missing:
             return rendered, False
         detail = "; ".join(dict.fromkeys(problems + [message for _, _, message in missing]))[:1500]

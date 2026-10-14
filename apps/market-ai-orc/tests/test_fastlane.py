@@ -178,6 +178,8 @@ def test_explore_tests_tell_the_answer_mode_to_test_only_the_question_and_add_th
     first = json.dumps(scripted.payloads[0])
     assert json.dumps(EXPLORE_ANSWER_NOTE)[1:-1] in first and "saniti.explore_test" in first
     assert "conditional_distribution" not in first  # the library list is for insight only
+    # Mode Jawab v2: the model tests with its own code; only insight requires explore_test
+    assert "never with scipy" not in json.dumps(EXPLORE_ANSWER_NOTE) and "scipy and statsmodels are available" in first
     line = explore_evidence_line(3, 1, 1, 0)
     assert result.status == "COMPLETED" and line in result.response.limitations
     # the analysis path's "no significance test" line would contradict the reported tests
@@ -200,7 +202,9 @@ def test_without_tests_recorded_nothing_is_said_and_none_held_says_so() -> None:
 
     result, _ = explore_run(explored=None)
     assert not any("Bukti statistik" in line for line in result.response.limitations)
-    assert ANALYSIS_PATH_LINE in result.response.limitations  # no test was run: the line stays
+    # Mode Jawab v2: no recorded test, so the line says the model's own code computed any test
+    from app.user_texts import FASTLANE_ANSWER_LINE
+    assert FASTLANE_ANSWER_LINE in result.response.limitations and ANALYSIS_PATH_LINE not in result.response.limitations
     assert EXPLORE_NONE_HELD in explore_evidence_line(4, 0, 0, 2) and "2 uji sampel" in explore_evidence_line(4, 0, 0, 2)
 
 
@@ -222,3 +226,13 @@ def test_the_first_message_router_reading_sets_the_explore_mode_only_for_its_run
     assert lanes.current_explore_mode.get() is None
     with _reading(None, None):
         assert lanes.current_explore_mode.get() is None
+
+
+def test_mode_jawab_v2_insight_keeps_the_explore_rule_and_the_fast_lane_drops_get_system_capabilities() -> None:
+    from app.orchestrator import EXPLORE_TEST_RULE, explore_note
+    from app.tool_desks import DESKS
+
+    assert EXPLORE_TEST_RULE in explore_note(lanes.INSIGHT) and EXPLORE_TEST_RULE not in explore_note(lanes.ANSWER)
+    assert "get_system_capabilities" in DESKS["FASTLANE"].never and "preview_table_rows" not in DESKS["FASTLANE"].never
+    assert "check_data_feasibility" in DESKS["FASTLANE"].must
+    assert "get_system_capabilities" in FASTLANE_NOTE and "get_system_capabilities" not in DESKS["ANALYSIS"].never

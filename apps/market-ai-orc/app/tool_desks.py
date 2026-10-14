@@ -75,7 +75,9 @@ DESKS: dict[str, Desk] = {
     "FASTLANE": Desk("FASTLANE", "ALL", must=CATALOG | DATA_FLOW | MEMORY | {"lookup_reference", "get_method_guide",
                                                                   "query_metric", "inspect_session",
                                                                   "get_session_output", "check_data_feasibility"},
-                     never=RESEARCH_RUN | {"check_research_feasibility", "get_research_library"}),
+                     never=RESEARCH_RUN | {"check_research_feasibility", "get_research_library",
+                                           # Mode Jawab v2 (3): the menu and the catalog summary open every run
+                                           "get_system_capabilities"}),
     "RESEARCH_V1": Desk("RESEARCH_V1", "ALL", must=DATA_FLOW | MEMORY | {"get_method_guide", "inspect_session",
                                                                  "get_session_output"},
                         never=RESEARCH_RUN),

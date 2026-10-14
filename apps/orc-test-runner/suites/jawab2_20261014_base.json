@@ -1,0 +1,27 @@
+{
+  "prefix": "ma-jawab2-20261014-base",
+  "workers": 1,
+  "audit_wait_seconds": 0,
+  "items": [
+    {
+      "id": "o1_vol_bbri",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "expect": "Mode Jawab v2 baseline (B3 v1): odd question outside the library",
+      "turns": [
+        "Apakah volatilitas harian BBRI di kuartal III 2026 lebih tinggi dari kuartal II 2026? Uji perbedaannya."
+      ],
+      "lane": "fast"
+    },
+    {
+      "id": "o2_normal_tlkm",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "expect": "Mode Jawab v2 baseline (B3 v1): odd question outside the library",
+      "turns": [
+        "Apakah distribusi return harian TLKM sepanjang 2026 berdistribusi normal?"
+      ],
+      "lane": "fast"
+    }
+  ]
+}

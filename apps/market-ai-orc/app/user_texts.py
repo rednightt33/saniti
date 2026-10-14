@@ -417,3 +417,8 @@ def explore_evidence_line(count: int, held: int, unstable: int, small: int) -> s
     if small:
         line += EXPLORE_SMALL.format(small=small)
     return line
+
+
+# Mode Jawab v2: the line under a fast-lane answer-mode analysis whose tests (if any) the model computed with its code
+FASTLANE_ANSWER_LINE = ("Uji statistik (bila ada) dihitung AI dengan kode dan tidak diperiksa ulang sistem; ini pola "
+                        "historis, bukan sebab-akibat, prediksi, atau sinyal transaksi.")

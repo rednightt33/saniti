@@ -646,6 +646,20 @@ def _grouped(value: float, places: int) -> str:
 PERCENT_FORMATS = ("pct", "pctv", "pp")
 
 
+# Mode Jawab v2 (5B): the column names the sandbox warns about (runtime/saniti_session.py _unit_like, same rule)
+UNIT_TOKENS = frozenset({"pct", "persen", "percent", "percentage", "porsi", "proporsi", "proportion", "share", "ratio",
+                         "rasio", "rate", "return", "returns", "ret", "yield", "growth", "pertumbuhan"})
+COUNT_TOKENS = frozenset({"count", "jumlah", "n", "hari", "days", "dates", "obs", "rows", "trades", "events"})
+
+
+def unit_like(column: str) -> bool:
+    """A share, rate, percent, ratio or return by its column name; a count named at its start or end is not."""
+    tokens = [t for t in re.split(r"[^a-z0-9]+", str(column).lower()) if t]
+    if not tokens or tokens[0] in COUNT_TOKENS or tokens[-1] in COUNT_TOKENS:
+        return False
+    return bool(set(tokens) & UNIT_TOKENS)
+
+
 def display_format(fmt: str | None, unit: str | None) -> str:
     """P23/P24: the format a value is shown with once its unit is known. A p-value is shown with p (a percent format
     on it is refused); a known FRACTION or PERCENT decides the scaling of pct, pctv and pp (see format_value)."""
@@ -908,6 +922,9 @@ class _Number:
                                         "shown_as": used, "unit": unit})
         elif used in PERCENT_FORMATS and unit is None:
             out.unknown_units.append(self.expression)  # measured: a percent figure whose unit nobody declared
+        elif used == "auto" and unit is None and self.expression.startswith("out.") \
+                and unit_like(self.expression.rsplit(".", 1)[-1]):
+            out.unknown_units.append(self.expression)  # Mode Jawab v2 (5B): a share or return shown as a bare number
         if used == "p" and self.resolved.value < P_FLOOR and self.resolved.value >= 0:
             out.values.append(Resolved(P_FLOOR, self.resolved.label))  # P24: the bound shown is a source too
         return format_value(self.resolved.value, used, self.places, unit)

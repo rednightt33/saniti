@@ -11,7 +11,7 @@ import pytest
 from app.orchestrator import AgentOrchestrator, build_system_prompt, negated_or_zero, response_contract
 from app.provenance import SourceIndex, check_answer, parse_numbers
 from app.schemas import AgentRunRequest, final_response_schema
-from app.value_refs import UNRESOLVED, ReferenceError_, ReferenceSources, format_value, render
+from app.value_refs import UNRESOLVED, ReferenceError_, ReferenceSources, format_value, render, unit_like
 from conftest import ScriptedClient, final_response, make_settings
 from test_multi_angle import (FINDINGS, MA, RUN_SCRIPT, Clock, RunSandbox, finding, findings_answer,
                               issued_continuation, ma_registry)
@@ -437,3 +437,20 @@ def test_an_invalid_reference_form_is_named_with_its_fault() -> None:
     assert any("unknown format 'sci'" in p for p in out.problems)  # a well-formed reference with an unknown format
     unclosed = render("p {{finding.a.p", sources)
     assert "without its closing" in unclosed.problems[-1]
+
+
+def test_a_share_or_return_of_undeclared_unit_shown_as_a_bare_number_is_flagged() -> None:
+    """Mode Jawab v2 (5B, ma-explore-20261014-on i1): "setara -0,107 dari nilai transaksi" was a decimal share shown
+    bare; a column named like a share, rate or return without a unit is flagged when cited without a format."""
+    refs = ReferenceSources()
+    refs.add("out", "out_ctx", {"rows": [{"net_asing_pct_transaksi": -0.107, "porsi_5_hari_masuk_terbesar": 0.444,
+                                          "jumlah_hari": 91, "net_asing_total": -8.34e12, "return_pct": -6.07}],
+                                "units": {"return_pct": "PERCENT"}}, "DATA_COVERAGE_VERIFIED")
+    refs.alias("out", "o3", "out_ctx")
+    out = render("Setara {{out.o3.rows.0.net_asing_pct_transaksi}}, porsi {{out.o3.rows.0.porsi_5_hari_masuk_terbesar}}, "
+                 "{{out.o3.rows.0.jumlah_hari}} hari, total {{out.o3.rows.0.net_asing_total}}, harga "
+                 "{{out.o3.rows.0.return_pct|pct:2}}.", refs)
+    assert out.unknown_units == ["out.o3.rows.0.net_asing_pct_transaksi", "out.o3.rows.0.porsi_5_hari_masuk_terbesar"]
+    written = render("Setara {{out.o3.rows.0.net_asing_pct_transaksi|pct:1}}.", refs)
+    assert written.unknown_units == ["out.o3.rows.0.net_asing_pct_transaksi"]  # a percent format on no unit, as before
+    assert unit_like("net_asing_pct_transaksi") and not unit_like("jumlah_hari") and not unit_like("return_count")

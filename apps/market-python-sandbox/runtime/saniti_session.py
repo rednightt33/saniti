@@ -2175,13 +2175,15 @@ def _definition(definition) -> dict[str, Any] | None:
 def emit_table(name: str, data, description: str = "", units: dict[str, str] | None = None,
                definition: dict[str, Any] | None = None) -> dict[str, Any]:
     """A TABLE output (stored as Parquet; readable back page by page). units: {column: FRACTION | PERCENT | P_VALUE}
-    for the columns holding a share, a percent or a p-value, so the answer formats them right. definition: how the
-    table was made (filters applied in code, period, entities, thresholds, notes; {} when the code added no filter
-    to the data request); required for a released table."""
+    for the columns holding a share, a percent or a p-value, so the answer formats them right: declare every share,
+    rate, ratio of parts or return column (FRACTION: 0.12 is 12%; PERCENT: 12 is 12%); a column named like one without
+    a unit is warned (UNIT_UNDECLARED). definition: how the table was made (filters applied in code, period, entities,
+    thresholds, notes; {} when the code added no filter to the data request); required for a released table."""
     import pyarrow.parquet as pq
 
     table = _arrow(data)
     declared = _units(units, table.column_names)
+    declared = _unit_hints(name, table, declared)
     defined = _definition(definition)
     file_name = _file(_name(name), "parquet")
     pq.write_table(table, _os.path.join(_OUTPUT_DIR, file_name), compression="zstd")
@@ -2223,6 +2225,41 @@ def _jsonable(value: Any, depth: int = 0) -> Any:
     if hasattr(value, "tolist"):
         return _jsonable(value.tolist(), depth + 1)
     return str(value)
+
+
+# EXEC-FASTLANE Mode Jawab v2 (5B, user 2026-10-14: units must be right; ma-explore-20261014-on i1 showed "-0,107"
+# for -10.7%): the standard helper columns get their unit, and a numeric column named like a share, percent, rate,
+# ratio or return without a declared unit is warned, so the model declares it before the answer cites it
+STANDARD_UNITS = {"return_pct": "PERCENT", "return_decimal": "FRACTION"}
+UNIT_TOKENS = frozenset({"pct", "persen", "percent", "percentage", "porsi", "proporsi", "proportion", "share", "ratio",
+                         "rasio", "rate", "return", "returns", "ret", "yield", "growth", "pertumbuhan"})
+COUNT_TOKENS = frozenset({"count", "jumlah", "n", "hari", "days", "dates", "obs", "rows", "trades", "events"})
+
+
+def _unit_like(column: str) -> bool:
+    """A share, rate, percent, ratio or return by its name; a count named at its start or end (jumlah_hari,
+    return_count, effective_event_dates) is not, a count word inside (porsi_5_hari_masuk) does not matter."""
+    tokens = [t for t in _re.split(r"[^a-z0-9]+", str(column).lower()) if t]
+    if not tokens or tokens[0] in COUNT_TOKENS or tokens[-1] in COUNT_TOKENS:
+        return False
+    return bool(set(tokens) & UNIT_TOKENS)
+
+
+def _unit_hints(name: str, table, declared: dict[str, str]) -> dict[str, str]:
+    import pyarrow as pa
+
+    out = dict(declared)
+    for column, unit in STANDARD_UNITS.items():
+        if column in table.column_names and column not in out:
+            out[column] = unit
+    numeric = [f.name for f in table.schema if pa.types.is_floating(f.type) or pa.types.is_decimal(f.type)]
+    undeclared = [c for c in numeric if c not in out and _unit_like(c)]
+    if undeclared:
+        add_warning("UNIT_UNDECLARED", f"Table {name!r}: {undeclared[:8]} look like a share, rate, percent, ratio of "
+                    "parts or return but have no unit. Emit it again with units={column: 'FRACTION'} for a decimal "
+                    "(0.12 is 12%) or 'PERCENT' for a value already in percent (12 is 12%); a plain ratio such as "
+                    "P/E or 1.5x needs no unit, cite it with |x or |dec.")
+    return out
 
 
 def emit_json(name: str, value, description: str = "", units: dict[str, str] | None = None,
