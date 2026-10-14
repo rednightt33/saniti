@@ -117,7 +117,8 @@ def test_plan_card_has_no_raw_json_and_its_buttons_reply_in_indonesian(fixture_s
     assert panel.locator('.edge-boundary-label').inner_text().upper() == 'LANGKAH ANDA BERIKUTNYA'
     approve = panel.get_by_role('button', name='Setujui & jalankan', exact=True)
     revise = panel.get_by_role('button', name='Revisi', exact=True)
-    assert 'primary' in approve.get_attribute('class') and 'Kirim balasan langsung' in approve.inner_text()
+    # V4 (user 2026-10-14): a choice sent at once has no subtitle ("Kirim balasan langsung" removed)
+    assert 'primary' in approve.get_attribute('class') and approve.locator('small').count() == 0
     assert 'Isi kotak pesan dulu' in revise.inner_text() and 'Tulis' in revise.inner_text()
     calls = len(orc.calls)
     revise.click()

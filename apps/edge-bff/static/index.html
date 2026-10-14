@@ -9755,6 +9755,20 @@ html.dark .edge-flow-done{background:#1e9a59;}
 .edge-md hr {border:0;border-top:1px solid var(--border);margin:1.2em 0;}
 .edge-md a,.edge-data-rows a {color:inherit;text-decoration:underline;text-underline-offset:2px;}
 .edge-md-table {overflow-x:auto;margin:.4em 0 1em;max-width:100%;}
+/* V4 (user 2026-10-14): expand a table into a wide dialog */
+.edge-md-table-frame {position:relative;margin:.4em 0 1em;padding-top:30px;}
+.edge-md-table-frame>.edge-md-table {margin:0;}
+.edge-table-expand {position:absolute;top:0;right:0;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--border);border-radius:6px;background:var(--background);color:var(--muted-foreground);cursor:pointer;}
+.edge-table-expand:hover,.edge-table-expand:focus-visible {color:var(--foreground);background:var(--secondary);}
+.dialog-backdrop:has(.edge-table-dialog) {z-index:200;} /* above the top bar (120) and the side panels */
+.dialog.edge-table-dialog {width:min(1440px,calc(100vw - 48px));max-height:calc(100vh - 48px);}
+.edge-table-dialog-body {flex:1;overflow:auto;margin:0;padding:12px 18px 18px;}
+.edge-table-dialog-body .data-table {width:100%;}
+@media (max-width:720px) {
+ .dialog-backdrop:has(.edge-table-dialog) {padding:0;}
+ .dialog.edge-table-dialog {width:100vw;max-height:100dvh;height:100dvh;border-radius:0;border:0;padding-top:env(safe-area-inset-top);}
+ .edge-table-dialog-body {padding:8px 10px 16px;}
+}
 .edge-md-table .data-table {margin-top:0;font-size:.86rem;font-variant-numeric:tabular-nums;}
 .edge-md-table .data-table th {white-space:nowrap;letter-spacing:0;text-transform:none;font-size:.78rem;font-weight:600;}
 .edge-md-table .data-table th,.edge-md-table .data-table td {text-align:left;}
@@ -9971,6 +9985,10 @@ html.dark .monitor-layout .details-panel>.tabs button:focus-visible{outline-colo
 .edge-next .edge-choices .btn {justify-content:flex-start;text-align:left;white-space:normal;height:auto;min-height:36px;padding:8px 12px;line-height:1.4;}
 .edge-next .edge-choice {flex:0 0 auto;padding:12px 14px;}  /* EXEC-CHOICES: a suggestion is one line in a column */
 @media (max-width:720px) {
+ /* V4 (user 2026-10-14, red box): the space between the last message (or "AI request running") and the composer */
+ .monitor-layout .research-scroll {padding-bottom:8px;}
+ .monitor-layout .research-exchange:last-of-type {margin-bottom:0;}
+ .monitor-layout .research-exchange:last-of-type .edge-inline-progress {margin-bottom:0;}
  .monitor-layout .jump-latest {display:none!important;}
  .composer {margin:6px 10px calc(8px + env(safe-area-inset-bottom));padding:8px 8px 8px 14px;border-radius:22px;}
  .composer textarea {min-height:24px;max-height:120px;padding:6px 2px 4px;font-size:14px;line-height:1.5;}
@@ -10352,6 +10370,7 @@ element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.
         children,
         false && element(AccountDialog, { view: accountView, setView: setAccountView, close: () => setAccountView(null), returnFocusRef: avatarRef }),
         settingsOpen && element(SettingsDialog, { close: () => setSettingsOpen(false), notify: notify, returnFocusRef: settingsRef }),
+        edgeTableDialog && element(TableDialog, { key: "edge-table-dialog", spec: edgeTableDialog }),
         false && element(SupportDialog, { route: route, close: () => setSupportOpen(false), returnFocusRef: supportRef }),
         false && element(GlobalMarketSearch, { go: go, close: () => setGlobalSearchOpen(false) }),
         toast && element("div", { className: "toast", role: "status" },
@@ -10733,7 +10752,7 @@ function Monitor({ go }) {
                                 file.state === "uploading" ? "Uploading" : file.state === "ready" ? "Ready" : "Failed")),
                         element("button", { onClick: () => setAttachments(current => current.filter(item => item.name !== file.name)), "aria-label": `Remove ${file.name}` },
                             element(Icon, { name: "close" })))),
-                    element("textarea", { ref: composerRef, rows: 1, value: prompt, onChange: event => { typePrompt(event.target.value); event.target.style.height = "auto"; event.target.style.height = `${Math.min(event.target.scrollHeight, 140)}px`; }, placeholder: context ? `Ask anything about ${context.symbol}…` : "Ask a research question…", onKeyDown: event => { if (event.key === "Enter" && !event.shiftKey) {
+                    element("textarea", { ref: composerRef, rows: 1, value: prompt, onChange: event => { typePrompt(event.target.value); event.target.style.height = "auto"; event.target.style.height = `${Math.min(event.target.scrollHeight, 140)}px`; }, placeholder: context ? `Ask anything about ${context.symbol}…` : "Ask a research question…", onKeyDown: event => { if (event.key === "Enter" && !event.shiftKey && !event.isComposing && !touchKeyboard()) {
                             event.preventDefault();
                             submit();
                         } } }),
@@ -11111,6 +11130,11 @@ function mdList(lines, start, ctx) {
   }
   return {node:element(ordered ? "ol" : "ul", null, items.map(children => element("li", null, children))), next:index};
 }
+// V4 (user 2026-10-14, iPhone: "pencet kembali malah send message"): on a touch device Enter (Return) adds a line and
+// the send button sends; with a mouse or trackpad Enter sends and Shift+Enter adds a line
+function touchKeyboard() {
+  return typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches && !matchMedia("(any-pointer: fine)").matches;
+}
 function renderMarkdown(text, ctx = {}) {
   const lines = String(text ?? "").replace(/\r\n?/g, "\n").split("\n"), blocks = [];
   let index = 0;
@@ -11130,6 +11154,16 @@ function renderMarkdown(text, ctx = {}) {
     if (heading) { blocks.push(element(heading[1].length <= 2 ? "h3" : "h4", {className:"edge-md-heading"}, mdInline(heading[2], ctx))); index++; continue; }
     if (MD_RULE.test(line)) { blocks.push(element("hr")); index++; continue; }
     if (line.includes("|") && index + 1 < lines.length && MD_TABLE_SEP.test(lines[index + 1]) && lines[index + 1].includes("-")) {
+      // V4 (user 2026-10-14): the expanded table's title is the label line right above it ("**Tabel X**", "...:"),
+      // else the nearest heading above it in the same section (not past an earlier table)
+      let above = index - 1;
+      while (above >= 0 && !lines[above].trim()) above--;
+      const label = above >= 0 ? lines[above].trim() : "";
+      let title = (/^\*\*[^*]+\*\*:?$/.test(label) || (label.endsWith(":") && label.length <= 120)) ? label : "";
+      for (let back = above; !title && back >= 0 && !MD_TABLE_SEP.test(lines[back]); back--) {
+        const found = lines[back].match(/^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/);
+        if (found) title = found[1];
+      }
       const head = mdCells(line), align = mdCells(lines[index + 1]).map(cell => cell.startsWith(":") && cell.endsWith(":") ? "center" : cell.endsWith(":") ? "right" : cell.startsWith(":") ? "left" : null);
       const rows = [];
       index += 2;
@@ -11139,7 +11173,8 @@ function renderMarkdown(text, ctx = {}) {
       const figure = value => MD_NUMERIC.test(value) || (/\d/.test(value) && value.length <= 40 && value.trim().split(/\s+/).length <= 5);
       const numeric = head.map((_, column) => { const values = rows.map(row => (row[column] ?? "").trim()).filter(Boolean); return values.length > 0 && values.every(figure); });
       ctx.tables = (ctx.tables || 0) + 1;
-      blocks.push(element(MdTable, {key:`t${ctx.tables}-${mdHash(line + "\n" + rows.map(row => row.join("|")).join("\n"))}`, head, align, rows, numeric, ctx}));
+      blocks.push(element(MdTable, {key:`t${ctx.tables}-${mdHash(line + "\n" + rows.map(row => row.join("|")).join("\n"))}`, head, align, rows, numeric, ctx,
+        title:title.replace(/[*_`]/g, "").replace(/:$/, "").trim()}));
       continue;
     }
     if (/^\s*>/.test(line)) {
@@ -11179,9 +11214,20 @@ function sortValue(raw) {
   }
   return {kind:"text", value:text};
 }
-function MdTable({head, align, rows, numeric, ctx}) {
+// V4 (user 2026-10-14): a table opened wide, drawn by the app root beside the other dialogs (inside the answer the
+// top bar and the composer stayed above it on a phone)
+let edgeTableDialog = null;
+function openTableDialog(spec) { edgeTableDialog = spec; refresh(); }
+function closeTableDialog() { edgeTableDialog = null; refresh(); }
+function TableDialog({spec}) {
+  return element(DialogShell, {title:spec.title, description:spec.description, close:closeTableDialog,
+    className:"edge-table-dialog", returnFocusRef:spec.returnFocusRef},
+    element("div", {className:"edge-table-dialog-body edge-md-table"}, element(MdTable, {...spec.table, plain:true})));
+}
+function MdTable({head, align, rows, numeric, ctx, title = "", plain = false, initialSort = null}) {
   const view = currentView;
-  const sort = initialValue(view, "sort", () => ({column:null, dir:null}));
+  const sort = initialValue(view, "sort", () => initialSort ?? ({column:null, dir:null}));
+  const expandRef = initialValue(view, "expandRef", () => ({current:null}));
   const setSort = next => updateValue(view, "sort", next);
   const indexed = rows.map((row, index) => ({row, index}));
   const pinned = indexed.filter(item => SORT_TOTAL.test(String(item.row[0] ?? "").replace(/[*_`]/g, "").trim()));
@@ -11200,7 +11246,7 @@ function MdTable({head, align, rows, numeric, ctx}) {
   const ordered = sort.column == null ? free : [...free].sort((a, b) => compare(a, b, sort.column, sort.dir));
   const next = column => sort.column !== column ? {column, dir:"descending"} : sort.dir === "descending" ? {column, dir:"ascending"} : {column:null, dir:null};
   const cellProps = (column, extra = {}) => ({...extra, ...(align[column] ? {style:{textAlign:align[column]}} : numeric[column] ? {className:[extra.className, "num"].filter(Boolean).join(" ")} : {})});
-  const title = (value, column) => {
+  const header = (value, column) => {
     const active = sort.column === column;
     return element("th", cellProps(column, {className:`edge-sortable${active ? " sorted" : ""}`, "aria-sort":active ? sort.dir : "none"}),
       element("button", {type:"button", className:"edge-sort", onClick:() => setSort(next(column)),
@@ -11208,10 +11254,18 @@ function MdTable({head, align, rows, numeric, ctx}) {
         element("span", null, mdInline(value, ctx)),
         element("span", {className:"edge-sort-icon"}, element(Icon, {name:active ? (sort.dir === "descending" ? "arrow-down" : "arrow-up") : "sort-arrows", size:13}))));
   };
-  return element("div", {className:"edge-md-table"}, element("table", {className:"data-table"},
-    element("thead", null, element("tr", null, head.map((value, column) => title(value, column)))),
+  const table = () => element("table", {className:"data-table"},
+    element("thead", null, element("tr", null, head.map((value, column) => header(value, column)))),
     element("tbody", null, [...ordered, ...pinned].map(item => element("tr", {key:`r${item.index}`},
-      head.map((_, column) => element("td", cellProps(column), mdInline(item.row[column] ?? "", ctx))))))));
+      head.map((_, column) => element("td", cellProps(column), mdInline(item.row[column] ?? "", ctx)))))));
+  if (plain) return table();
+  const ui = edgeUi();
+  const open = () => openTableDialog({title:title || ui.tableTitle, description:ui.tableRows.replace("{n}", rows.length),
+    returnFocusRef:expandRef, table:{head, align, rows, numeric, ctx, initialSort:sort}});
+  return element("div", {className:"edge-md-table-frame"},
+    element("button", {type:"button", className:"edge-table-expand", ref:expandRef, title:ui.tableExpand,
+      "aria-label":ui.tableExpand, onClick:open}, element(Icon, {name:"maximize", size:14})),
+    element("div", {className:"edge-md-table"}, table()));
 }
 
 function Markdown({text, claims, className = ""}) {
@@ -11299,7 +11353,8 @@ function ChoiceBar({choices, enabled, act, scope}) {
           onClick:() => {if(scope)edgeChosen.set(scope,id);act(choice.action);}},
         element("span",{className:"edge-choice-icon"},element(Icon,{name:draft?"pen":"arrow"})),
         element("span",{className:"edge-choice-copy"},element("strong",null,choice.label),
-          element("small",null,chosen?(draft?ui.choiceChosenDraft:ui.choiceChosen):(choice.note||(draft?ui.choiceDraft:ui.choiceSend)))),
+          // V4 (user 2026-10-14): a choice that sends at once has no subtitle ("Kirim balasan langsung" removed)
+          (chosen||choice.note||draft)&&element("small",null,chosen?(draft?ui.choiceChosenDraft:ui.choiceChosen):(choice.note||ui.choiceDraft))),
         element("span",{className:"edge-choice-tail"},draft?ui.choiceWrite:"\u2192"));
     }));
 }

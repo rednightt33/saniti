@@ -77,7 +77,8 @@ window.EdgeLabels = {
     modelLevels:{low:"Rendah", medium:"Sedang", high:"Tinggi", max:"Maks", off:"Mati", on:"Nyala"},
     // EXEC-CHOICES: the "Response choices" panel
     nextAction:"Langkah Anda berikutnya", choicesTitle:"Pilihan jawaban", planChoicesTitle:"Persetujuan rencana",
-    choiceSend:"Kirim balasan langsung", choiceDraft:"Isi kotak pesan dulu", choiceWrite:"Tulis",
+    choiceDraft:"Isi kotak pesan dulu", choiceWrite:"Tulis",
+    tableExpand:"Perbesar tabel", tableTitle:"Tabel", tableRows:"{n} baris",
     choiceChosen:"Dipilih \u00B7 balasan terkirim", choiceChosenDraft:"Dipilih \u00B7 tulis di kotak pesan",
     writeOther:"Tulis jawaban lain", writeOtherHint:"Tulis jawaban Anda di kotak pesan", exploreNote:"Termasuk riset berita"
   }
