@@ -2766,6 +2766,26 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
   - **Tugas berikutnya (user):** cari akar masalah penolakan gerbang: dari 10 run terakhir, urutkan gerbang yang paling
     sering menolak, lalu cek di log apakah AI tidak tahu gerbangnya, salah mengira, atau tidak tahu cara lolos
     (instruksi kurang jelas).
+- **Akar masalah penolakan gerbang (2026-10-14, user: "kenapa AI itu at the first place bisa salah?"; 10 run terakhir:
+  V4 ON 3, V4 OFF 3, `ma-gates-20261014-s1` 3, live `edge_e6cce…` 1; log penalaran dibaca, tidak dikutip):**
+
+  | # | Penolakan | Jumlah (run) | Apakah AI tahu aturannya? | Akar masalah |
+  |---|---|---|---|---|
+  | 1 | `get_dimension_values` di tabel bertanggal | 4 (3) | Tahu ("hanya tabel statis") tetapi mencoba "karena murah" | Tidak ada jalan lain untuk memastikan nilai `market_board` = 'Regular'; celah informasi |
+  | 2 | Kode gagal (`SCRIPT_ERROR`, `units` None, format `definition`) | 3 (3) | Tahu fungsinya, salah bentuk argumen | Contoh format tidak ada (sudah diperbaiki di pesan galat 2026-10-14) |
+  | 3 | Cek ukuran data `NOT_FEASIBLE` / kunci relasi | 3 (1, OFF) | Tahu | Tanpa aturan V4 E; tidak muncul di ON |
+  | 4 | Angka diketik (TYPED_FIGURES): "21", "34", "Rp500 miliar" | 2 + 2 ulang (2) | Tahu aturan rujukan, tetapi menganggap parameter (jendela 21 hari dari tabel default V4), hitungan hari (34) dan ambang pilihannya sendiri bukan "angka data" | Definisi gerbang (angka apa pun yang sama dengan nilai rilis) berbeda dari anggapan AI; pesan tidak menyebut letak kalimatnya, sehingga perbaikan "21" gagal dua kali (AI tidak menemukannya) |
+  | 5 | `submit_data_need_spec` `INVALID_SCOPE` | 2 (2) | Tahu, salah bentuk | Skema scope AND membingungkan (`children` diisi, `child` harus null); diperbaiki sekali |
+  | 6 | Angka di metodologi "95%" | 1 | Tahu | F2 hanya mencakup teks jawaban; AI menghapus "95%" sehingga metodologi kurang informatif |
+  | 7 | UNITS kolom satuan campuran | 1 | Tahu | Aturan satuan per kolom tidak bisa dipenuhi untuk tabel uji campuran |
+  | 8 | `get_method_guide('explore_test')` UNKNOWN_METHOD, sumber insight belum dibuka | 2 (2) | Ragu | Catatan menyebut helper tetapi rincian perannya tidak ada di panduan |
+
+  Kesimpulan: hampir tidak ada kasus "AI tidak tahu ada gerbang". Polanya: (a) definisi gerbang berbeda dari anggapan AI
+  (parameter, hitungan, ambang sendiri dianggap bukan data), (b) pesan penolakan tidak menyebut letak dan cara lolos,
+  (c) celah informasi yang memaksa AI mencoba (nilai dimensi, peran helper), (d) bentuk argumen alat yang membingungkan
+  tanpa contoh. Masukan untuk V5: gerbang angka diketik dan metodologi menjadi saran/otomatis, angka parameter dan
+  hitungan hari diterima sebagai parameter, pesan menyebut kalimat, contoh skema scope AND, nilai dimensi umum
+  (`market_board`) ditulis di katalog/catatan.
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur
