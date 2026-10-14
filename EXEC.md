@@ -2443,6 +2443,24 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
   - **Gerbang:** ON 3 penolakan (TYPED_FIGURES ×2, METHODOLOGY_PROVENANCE ×1), masing-masing satu perbaikan.
   - **Biaya:** OFF USD 0,09, ON USD 0,38. Sisa kunci ≈ USD 0,5.
   - **Saklar tetap menyala di dev** sampai keputusan user (fallback: hapus kedua variabel).
+- **Cek ulang A/B B3 dan dua perbaikan berikutnya (2026-10-14, user: "Ok untuk 1 dan 2 masukan exec"; belum
+  dikerjakan, masing-masing butuh go):**
+  - **Cek ulang:** semua p-value di jawaban ON sama dengan uji tercatat (i1 0,567, j2 0,655, m1.2 0,475 via
+    `event_study`); angka inti j1 OFF/ON konsisten (bulan kalender 19 hari vs 21 hari bergulir, definisi ditulis di
+    jawaban); alasan router untuk i1/i2 sama di OFF dan ON ("perhitungan deskriptif, bukan pengujian hipotesis").
+  - **Perbaikan 1, celah satuan (bug lama, bukan dari B3):** jawaban i1 ON menulis "turun −6,07", "setara −0,107
+    dari nilai transaksi" dan "menyumbang 0,444" (seharusnya −6,07%, −10,7%, 44,4%). Tabel AI `konteks_periode`
+    dirilis tanpa `units` dan isinya campuran (`return_periode_pct` sudah persen, `net_asing_pct_transaksi` pecahan
+    walau bernama pct); rujukan ditulis tanpa format, dan `ai_reference_unit_unknown` hanya aktif untuk format persen,
+    jadi tidak ada peringatan. Usulan (a, disarankan): `emit_table` di sandbox mewajibkan `units` untuk kolom yang
+    namanya menunjukkan persen, porsi, rasio atau return (`*_pct`, `pct_*`, `porsi*`, `share*`, `ratio*`,
+    `return*`) dan menolak eksekusi dengan pesan jelas; berlaku di semua jalur. Usulan (b, opsional): orc mencatat
+    rujukan tanpa format ke kolom seperti itu sebagai `unit_unknown` dan meminta satu perbaikan.
+  - **Perbaikan 2, pemicu Mode Insight:** router pesan pertama memberi ANALYSIS untuk "carikan insight…" dan "pola
+    apa yang menarik…", jadi Mode Insight hanya terpicu sekali (m1.4, balasan tanya-balik). Usulan: field `insight`
+    (boolean) di skema router pesan pertama, menyala bila pengguna meminta insight, pola atau "apa yang menarik";
+    route tidak berubah, field hanya dipakai jalur cepat untuk Mode Insight. Uji: `scripts/benchmark_turn_router.py`
+    (akurasi route tidak boleh turun), deploy dev, ulang i1, i2 dan satu pertanyaan insight lain (≈ USD 0,15).
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur
