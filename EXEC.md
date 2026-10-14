@@ -2494,6 +2494,27 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
   - **Tes:** orc 1.486 lulus, 258 dilewati; sandbox 835 lulus, 2 gagal lama yang sama. `AI_TOOLS.md` diregenerasi.
   - **Baseline sebelum deploy** (runner `1702d854`, orc `bcc854cc`): o1 volatilitas BBRI Q3 vs Q2 145 s, o2
     normalitas return TLKM 63 s.
+- **Keputusan lanjutan Mode Jawab v2 (2026-10-14; belum dikerjakan):**
+  - **F1 disetujui** (user: "F1 --> usulan approved"): sesi tanpa completion tidak memblokir bila ada sesi lain di run
+    itu yang COMPLETED dan jawaban tidak merujuk output sesi yang ditinggalkan (atau orc menutup sesi lama otomatis
+    saat formulir data dikirim ulang).
+  - **F2 terbatas** (user: "Okelah untuk F2 masukan exec"): mekanisme saran yang ada tetap (R3 auto-referensi, menu
+    alamat, kandidat TYPED_FIGURES M140, EXEC-DERIVED, petunjuk literal kode P25). Diterima otomatis tanpa putaran,
+    dengan label: B1 tingkat kepercayaan standar (90/95/99%) bersebelahan dengan "kepercayaan"/"confidence"/"selang"
+    (label konvensi); B2 parameter yang tertulis sebagai literal di kode yang berhasil jalan, bila ditulis di asumsi/
+    metodologi atau bersebelahan dengan kata parameter (jendela, ambang, persentil, horizon, hari bursa) (label
+    parameter dari kode). Tetap ditolak: C hitungan turunan (selisih/rasio/perubahan, kecocokan bisa kebetulan) dan D
+    angka dari stdout atau output tidak dirilis. Bukti eksternal: verifikasi eksternal lebih andal dari verifikasi diri
+    (CRITIC, arXiv 2305.11738); perbaikan mempertahankan teks asli (RARR, arXiv 2210.08726); grounding struktural saat
+    menulis (Anthropic Citations API). Risiko "semua disarankan": angka tanpa sumber sampai ke user, label DIRUJUK
+    kehilangan arti, kecocokan kebetulan diberi label resmi.
+  - **Bagian asumsi, batasan, metodologi dibatasi** (user: "Ok untuk limitasi asumsi dan metodologi dibatasi, masukan
+    exec"; concern: waktu, tetapi jawaban jangan terlalu "summary"). Ukuran 18 jawaban: jawaban utama 45%, asumsi
+    14%, batasan 21% (termasuk kalimat sistem), metodologi 21% dari teks; panggilan menulis jawaban 24% dari token
+    output run, ketiga bagian sekitar 5–6%, dan setiap penolakan gerbang menulis ulang semuanya. Arah: jawaban utama
+    tidak dipangkas (detail tetap: angka kunci, tabel inti, penjelasan pendorong); asumsi dan batasan masing-masing
+    paling banyak 3 poin pendek tanpa mengulang isi jawaban; metodologi ringkas (langkah, data, uji, parameter) di
+    jalur cepat. Rincian angka batas ditetapkan di rencana implementasi.
 - **A/B Mode Jawab v2 (2026-10-14): `main` `e323015`, sandbox `f4b459e6` dan orc `3a133fa1` SUCCESS (auto-deploy,
   tanpa variabel baru, `explore_tests` tetap aktif); runner baseline `1702d854` (orc `bcc854cc`) dan v2 `3af9103f`.**
 
