@@ -2603,7 +2603,7 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
   menutupi "selang keyakinan 95%" dan "interval kepercayaan 95%" (P28 D); B1 menambah urutan lain ("95% selang
   kepercayaan", "batas kepercayaan 95%", "selang 95%"); jendela konteks 20 karakter sebelum dan 12 sesudah angka;
   (b) setiap tempat angka ditulis harus berdampingan dengan kata jenisnya; (c) log `ai_answer_sections` hanya di jalur
-  cepat (jalur Standar tetap identik). Penolakan "36%" o1 adalah hitungan turunan (kelas C), tetap ditolak.
+  cepat (jalur Standar tetap identik). Penolakan "36%" o1 kemungkinan hitungan turunan (kelas C, belum diverifikasi; teks drafnya tidak tercatat), tetap ditolak.
   **A/B belum dijalankan:** sisa kunci USD 0,09, di bawah perkiraan USD 0,13–0,15; menunggu keputusan user.
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
