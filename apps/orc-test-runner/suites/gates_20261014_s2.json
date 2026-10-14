@@ -1,0 +1,17 @@
+{
+  "prefix": "ma-gates-20261014-s2",
+  "workers": 1,
+  "audit_wait_seconds": 0,
+  "items": [
+    {
+      "id": "j2_broker_accum",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "expect": "F1/F2/section caps (switches on)",
+      "turns": [
+        "Cari saham yang diakumulasi broker di atas X selama Y hari lalu return-nya lebih dari 10% dalam 20 hari bursa; X dan Y ambil dari sebaran data (kuantil atas)"
+      ],
+      "lane": "fast"
+    }
+  ]
+}

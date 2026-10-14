@@ -2605,6 +2605,34 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
   (b) setiap tempat angka ditulis harus berdampingan dengan kata jenisnya; (c) log `ai_answer_sections` hanya di jalur
   cepat (jalur Standar tetap identik). Penolakan "36%" o1 kemungkinan hitungan turunan (kelas C, belum diverifikasi; teks drafnya tidak tercatat), tetap ditolak.
   **A/B belum dijalankan:** sisa kunci USD 0,09, di bawah perkiraan USD 0,13–0,15; menunggu keputusan user.
+- **A/B F1, F2, batas bagian (2026-10-14, user: "Jalankan untuk A/B masukan exec"):** saklar menyala, orc
+  `a7d55636`; runner `f20c6a39`, suite `gates_20261014_s1` (prefix `ma-gates-20261014-s1`), pertanyaan identik dengan
+  v2, jalur cepat, DeepSeek Tinggi; baseline = run v2 (`ma-jawab2-20261014-v2`). Tahap 2 (j2, F1) **tidak dijalankan**:
+  tahap 1 menghabiskan USD 0,083 (o1 saja 0,047, v2 0,007) dan sisa kunci tinggal USD 0,007.
+
+  | Item | Waktu v2 → baru | Penolakan gerbang v2 → baru | Jawaban utama (karakter) | Porsi asumsi+batasan+metodologi tulisan AI | Porsi semua bagian (termasuk baris sistem) |
+  |---|---|---|---|---|---|
+  | t1 net beli asing → return 5 hari | 111 s → 220 s | PROVENANCE "95%" → tidak ada | 1.723 → 1.919 | 0,51 → 0,42 | 0,62 → 0,54 |
+  | o1 volatilitas BBRI Q3 vs Q2 | 58 s → 113 s | PROVENANCE "36%" → UNITS (gagal diperbaiki, dianotasi) | 1.758 → 2.059 | 0,48 → 0,43 | 0,55 → 0,52 |
+  | o2 normalitas return TLKM | 119 s → 66 s | tidak ada → tidak ada | 2.380 → 1.874 | 0,35 → 0,39 | 0,45 → 0,49 |
+
+  - **Batas bagian, efek sebagian:** rata-rata porsi bagian tulisan AI 0,45 → 0,41; asumsi AI paling banyak 3 (patuh);
+    batasan AI masih 4–5 poin (batas 3 tidak dipatuhi); metodologi 720–970 karakter (belum "satu paragraf pendek");
+    jawaban utama rata-rata tidak memendek (1.954 → 1.951). Kriteria rata-rata ≤ 35% **tidak tercapai**. Baris yang
+    ditulis sistem sendiri 370–510 karakter (sekitar 10–13% balasan).
+  - **F2 belum teruji live:** tidak ada penolakan PROVENANCE di ketiga run (v2: dua), tetapi `ai_provenance_accepted`
+    tidak pernah muncul: model menulis "interval kepercayaan 95%", yang sudah ditutup parser lama (P28 D). Perbaikan
+    ini tidak bisa diatribusikan ke F2; F2 hanya terbukti lewat tes.
+  - **F1 belum teruji live** (tahap 2 dilewati karena saldo); terbukti lewat tes.
+  - **o1 UNITS:** model menulis rujukan berformat poin persen ke kolom selisih bootstrap tanpa `units`; gerbang menolak
+    sekali (benar: satuan tidak diketahui), perbaikan model tidak menyatakan satuan, sel tabel tampil "–" dan
+    dianotasi. Bukan regresi dari perubahan ini; prosa jawaban tetap menulis "−1,00% poin persentase" dengan
+    intervalnya.
+  - **Waktu:** 2 dari 3 ≤ 3 menit (o1, o2); t1 lebih lama karena satu kode gagal dan diperbaiki. Satu run per
+    pertanyaan, jadi variasi waktu antar-run besar.
+  - **Saklar tetap menyala** (tidak ada regresi gerbang atau satuan). Langkah berikutnya butuh go: batasan dan
+    metodologi belum cukup pendek hanya dengan catatan; opsi yang bisa diusulkan sesudah saldo diisi: target panjang
+    metodologi dalam kata-kata, atau menggabungkan baris sistem yang tumpang tindih.
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur

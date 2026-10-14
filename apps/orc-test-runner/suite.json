@@ -1,33 +1,13 @@
 {
-  "prefix": "ma-jawab2-20261014-v2",
+  "prefix": "ma-gates-20261014-s1",
   "workers": 1,
   "audit_wait_seconds": 0,
   "items": [
     {
-      "id": "j1_foreign_accum",
-      "model": "deepseek/deepseek-v4.1-flash",
-      "reasoning_level": "high",
-      "expect": "Mode Jawab v2",
-      "turns": [
-        "Coba analisa dalam 1 bulan terakhir saham yang paling banyak diakumulasi asing, bandingkan apakah nilai akumulasi tersebut pernah terjadi di masa lampau, dan cek performa lanjutannya di masa lalu"
-      ],
-      "lane": "fast"
-    },
-    {
-      "id": "j2_broker_accum",
-      "model": "deepseek/deepseek-v4.1-flash",
-      "reasoning_level": "high",
-      "expect": "Mode Jawab v2",
-      "turns": [
-        "Cari saham yang diakumulasi broker di atas X selama Y hari lalu return-nya lebih dari 10% dalam 20 hari bursa; X dan Y ambil dari sebaran data (kuantil atas)"
-      ],
-      "lane": "fast"
-    },
-    {
       "id": "t1_foreign_buy_5d",
       "model": "deepseek/deepseek-v4.1-flash",
       "reasoning_level": "high",
-      "expect": "Mode Jawab v2 (as m1.2, single turn)",
+      "expect": "F1/F2/section caps (switches on)",
       "turns": [
         "Apakah hari dengan net beli asing besar di BBRI diikuti return positif dalam 5 hari bursa berikutnya?"
       ],
@@ -37,7 +17,7 @@
       "id": "o1_vol_bbri",
       "model": "deepseek/deepseek-v4.1-flash",
       "reasoning_level": "high",
-      "expect": "Mode Jawab v2: odd question outside the library",
+      "expect": "F1/F2/section caps (switches on)",
       "turns": [
         "Apakah volatilitas harian BBRI di kuartal III 2026 lebih tinggi dari kuartal II 2026? Uji perbedaannya."
       ],
@@ -47,7 +27,7 @@
       "id": "o2_normal_tlkm",
       "model": "deepseek/deepseek-v4.1-flash",
       "reasoning_level": "high",
-      "expect": "Mode Jawab v2: odd question outside the library",
+      "expect": "F1/F2/section caps (switches on)",
       "turns": [
         "Apakah distribusi return harian TLKM sepanjang 2026 berdistribusi normal?"
       ],

@@ -1,5 +1,12 @@
 # Railway changelog
 
+## 2026-10-14 — EXEC-FASTLANE F1/F2/section caps A/B runner (dev)
+
+User: "Jalankan untuk A/B masukan exec". `orc-test-runner` dev deployment `f20c6a39` (`railway up apps/orc-test-runner
+--path-as-root --detach`), suite `gates_20261014_s1` (t1, o1, o2; prefix `ma-gates-20261014-s1`) against orc
+`a7d55636`; all three COMPLETED ANSWER; cost USD 0.083. Stage 2 (j2) not run: OpenRouter key left with USD 0.007.
+No variable or service configuration change. Results in EXEC.md (EXEC-FASTLANE).
+
 ## 2026-10-14 — EXEC-FASTLANE F1, F2, section caps deployed (dev) and switched on
 
 User: rencana eksekusi disetujui ("Yg lain sudah OK.. konfirmasi dan buat execution plan"); izin set variabel saklar
