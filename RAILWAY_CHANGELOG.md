@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-10-14 — Advice in refusals deployed (dev)
+
+User: "OK" (derived hint in the DataNeed PROVENANCE gate, UNITS advice, emit_table error examples). `main` `bacc2e9`
+auto-deployed `market-ai-orc` dev `b065fe2d` → SUCCESS and `market-python-sandbox` dev `a088cbd0` → SUCCESS. No
+variable or service configuration change. Refusal and error texts only. Local tests: orc 1,500 passed; sandbox files
+run alone pass except the two known pre-existing failures (full-suite runs here lose the scratch directory permission
+mid-run, which fails isolation and profiler tests regardless of the change). Not yet exercised live (key balance).
+
 ## 2026-10-14 — EXEC-FASTLANE F1/F2/section caps A/B runner (dev)
 
 User: "Jalankan untuk A/B masukan exec". `orc-test-runner` dev deployment `f20c6a39` (`railway up apps/orc-test-runner

@@ -2646,6 +2646,8 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
   3. **Pesan galat `emit_table` di sandbox memberi contoh:** `units` bukan dict dan `units[...]` tidak sah (kolom yang
      bukan porsi/persen/p-value tidak dideklarasikan; kolom campuran dipecah per satuan), `definition['thresholds']`
      bukan dict (contoh dan tipe yang diterima).
+  - **Deploy:** `main` `bacc2e9`; orc `b065fe2d` dan sandbox `a088cbd0` SUCCESS. Tes orc 1.500 lulus; sandbox per file
+    lulus kecuali 2 kegagalan lama. Belum terbukti live (saldo kunci).
 - **Analisis langkah "menulis permintaan data" t1 v2 vs v3 (2026-10-14, dari log penalaran, tidak dikutip):** data dan
   catatan sama; v2 memutuskan metode lebih awal dan menimbang helper `event_study` sesudah data siap, v3 menimbang
   helper vs kode sendiri, tumpang tindih, holdout dan buffer sebelum mengirim permintaan data, menulis spesifikasi dua
