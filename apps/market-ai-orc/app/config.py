@@ -160,6 +160,18 @@ class Settings:
     # the tests tried and how many hold after a Benjamini-Hochberg correction; needs a sandbox reporting explore_tests
     # (PY_SANDBOX_EXPLORE_TESTS_ENABLED). Off keeps the fast lane as before; the standard lane never changes
     ai_fastlane_explore_tests: bool = False
+    # EXEC-FASTLANE F1 (user 2026-10-14, "F1 --> usulan approved"): on the fast lane an analysis session that ran code
+    # but was left without complete_analysis (the data need was sent again) does not block the answer when another
+    # session of the run COMPLETED; it released nothing, so the answer cannot cite it. Off keeps it blocking
+    ai_fastlane_abandoned_sessions: bool = False
+    # EXEC-FASTLANE F2 (user 2026-10-14, "Okelah untuk F2"): on the fast lane a number of the answer with no governed
+    # source passes without a repair round, labelled in a system assumption, when it is a standard confidence level
+    # next to a confidence word (B1) or a literal of the run's successful code next to a parameter word (B2); every
+    # other unsourced number is still refused
+    ai_fastlane_convention_numbers: bool = False
+    # EXEC-FASTLANE (user 2026-10-14, "Pastikan asumsi, limitasi, dan metodologi tidak mengambil porsi mayor"): the
+    # fast-lane note caps assumptions and limitations to a few short points and the methodology to one short paragraph
+    ai_fastlane_section_caps: bool = False
     # OpenRouter provider routing for the agent's model calls: provider.sort "price", "throughput" or "latency". Unset
     # keeps OpenRouter's default load balancing, which is weighted to the lowest price.
     ai_provider_sort: str | None = None
@@ -400,6 +412,9 @@ class Settings:
             ai_enable_fastlane=_boolean(env, "AI_ENABLE_FASTLANE", False),
             ai_fastlane_draft_check=_boolean(env, "AI_FASTLANE_DRAFT_CHECK", True),
             ai_fastlane_explore_tests=_boolean(env, "AI_FASTLANE_EXPLORE_TESTS", False),
+            ai_fastlane_abandoned_sessions=_boolean(env, "AI_FASTLANE_ABANDONED_SESSIONS", False),
+            ai_fastlane_convention_numbers=_boolean(env, "AI_FASTLANE_CONVENTION_NUMBERS", False),
+            ai_fastlane_section_caps=_boolean(env, "AI_FASTLANE_SECTION_CAPS", False),
             ai_provider_sort=(env.get("AI_PROVIDER_SORT") or "").strip().lower() or None,
             ai_log_provider=_boolean(env, "AI_LOG_PROVIDER", False),
             ai_provider_max_cache_price_ratio=_ratio(env, "AI_PROVIDER_MAX_CACHE_PRICE_RATIO", 0.0, 0.0, 1.0)

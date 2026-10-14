@@ -422,3 +422,13 @@ def explore_evidence_line(count: int, held: int, unstable: int, small: int) -> s
 # Mode Jawab v2: the line under a fast-lane answer-mode analysis whose tests (if any) the model computed with its code
 FASTLANE_ANSWER_LINE = ("Uji statistik (bila ada) dihitung AI dengan kode dan tidak diperiksa ulang sistem; ini pola "
                         "historis, bukan sebab-akibat, prediksi, atau sinyal transaksi.")
+
+# EXEC-FASTLANE F2 (AI_FASTLANE_CONVENTION_NUMBERS): the numbers of a fast-lane answer that passed without a table
+# source, written by the system as an assumption
+CONVENTION_NUMBER_KINDS = {"CONFIDENCE_LEVEL": "tingkat kepercayaan standar",
+                           "CODE_PARAMETER": "parameter yang ditulis di kode analisis"}
+
+
+def convention_numbers_line(accepted: list[tuple[str, str]]) -> str:
+    items = "; ".join(f"{number} ({CONVENTION_NUMBER_KINDS.get(kind, kind)})" for number, kind in accepted[:10])
+    return f"Angka berikut tidak berasal dari tabel hasil: {items}."

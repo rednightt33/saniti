@@ -848,3 +848,15 @@ change yet.
   kabar lagi" only "a" or "h" arrived. Fix: `refresh` gives the element that had focus its focus and caret back after
   patching, before the effects that move focus on purpose. `test_typing_while_an_answer_arrives_keeps_focus` (fails on
   the old code); EDGE 65 tests passed.
+
+### Fast-lane gates: abandoned session and doubled derived hint — 2026-10-14
+
+- **A valid answer forced to LIMITATION by a left session (FIXED behind `AI_FASTLANE_ABANDONED_SESSIONS`, user "F1 -->
+  usulan approved"):** `ma-jawab2-20261014-v2-j2_broker_accum` sent its data need again; the first session had run
+  code and was never completed, so `_dataneed_findings` blocked the answer although the second session COMPLETED. A
+  session without `complete_analysis` releases nothing, so on the fast lane it no longer blocks beside a COMPLETED one
+  (logged `ai_session_abandoned`; `_close_sessions` still closes it). Without a COMPLETED session it still blocks.
+- **The legacy PROVENANCE refusal named the derived references twice (FIXED 2026-10-14, user "ya perbaiki"):**
+  `_validation_gate` appended `self._derived_hint(...)` twice (a duplicated line from EXEC-DERIVED), so the refusal
+  repeated the same hint. Only the non-DataNeed path was affected; one call removed
+  (`test_the_legacy_provenance_refusal_names_the_derived_references_once`).

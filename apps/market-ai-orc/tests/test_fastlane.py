@@ -19,10 +19,10 @@ from app.schemas import AgentRunRequest
 from app.tools import build_default_registry
 from app.tools.data_planner import fit_hints
 from app.tools.references import check_references_spec
-from app.user_texts import ANALYSIS_PATH_LINE
+from app.user_texts import ANALYSIS_PATH_LINE, SESSION_NOT_COMPLETED_LINE, convention_numbers_line
 from conftest import ANSWER, BASE_ENV, ScriptedClient, final_response, make_settings
 from test_analysis_path import ON, Counting
-from test_dataneed_orchestrator import Tools, answer, completed, flow
+from test_dataneed_orchestrator import BUNDLE, NEED, SESSION, Tools, answer, call, completed, flow
 
 AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}"}
 FAST_ON = {**ON, "AI_ENABLE_FASTLANE": "true"}
@@ -236,3 +236,131 @@ def test_mode_jawab_v2_insight_keeps_the_explore_rule_and_the_fast_lane_drops_ge
     assert "get_system_capabilities" in DESKS["FASTLANE"].never and "preview_table_rows" not in DESKS["FASTLANE"].never
     assert "check_data_feasibility" in DESKS["FASTLANE"].must
     assert "get_system_capabilities" in FASTLANE_NOTE and "get_system_capabilities" not in DESKS["ANALYSIS"].never
+
+
+# --- EXEC-FASTLANE F1, F2 and the section caps (user 2026-10-14: "Yg lain sudah OK") -------------------------------
+
+SECOND = "sess_" + "6" * 24
+LONG = {"AI_MAX_TOOL_ITERATIONS": "20", "AI_MAX_TOOL_CALLS": "20"}
+
+
+class TwoSessions(Counting):
+    """open_analysis_session gives a new session each time (the data need sent again); run_python takes code."""
+
+    def registry(self):
+        import dataclasses
+
+        from pydantic import BaseModel, ConfigDict
+
+        class CodeArgs(BaseModel):
+            model_config = ConfigDict(extra="forbid")
+            session_id: str
+            code: str | None = None
+
+        registry = super().registry()
+        sessions = [SESSION, SECOND]
+        opened = registry.get("open_analysis_session")
+        registry._tools[opened.name] = dataclasses.replace(opened, handler=lambda a: {
+            "session_id": sessions.pop(0) if sessions else SECOND, "status": "ACTIVE", "bundle_id": BUNDLE,
+            "need_id": NEED})
+        python = registry.get("run_python")
+        registry._tools[python.name] = dataclasses.replace(python, arguments_model=CodeArgs, handler=lambda a: {
+            "execution_id": "exe_1", "session_id": a.session_id, "status": "OK", "stdout": "", "outputs": []})
+        return registry
+
+
+def resubmitted() -> list:
+    return [*flow(complete=False),
+            call("submit_data_need_spec", {"mode": "ANALYSIS", "research_governance": None}, "d1"),
+            call("prepare_data_bundle", {"need_id": NEED}, "d2"), call("open_analysis_session",
+                                                                       {"input_bundle_id": BUNDLE}, "d3"),
+            call("run_python", {"session_id": SECOND}, "d4"), call("complete_analysis", {"session_id": SECOND}, "d5")]
+
+
+@pytest.mark.parametrize("settings, lane, kept", [({**FAST_ON, **LONG, "AI_FASTLANE_ABANDONED_SESSIONS": "true"},
+                                                   lanes.FAST, True),
+                                                  ({**FAST_ON, **LONG}, lanes.FAST, False),
+                                                  ({**FAST_ON, **LONG, "AI_FASTLANE_ABANDONED_SESSIONS": "true"},
+                                                   lanes.STANDARD, False)])
+def test_f1_a_session_left_for_a_completed_one_blocks_only_without_the_switch(settings, lane, kept) -> None:
+    """ma-jawab2-20261014-v2 j2: the data need was sent again, the first session ran code and was left."""
+    final = final_response(answer("Return YTD BBCA 12,35% dan BBRI turun 4,32%."))
+    result, _, _ = run([*resubmitted(), final, final], lane=lane, path="ANALYSIS", settings=settings,
+                       tools=TwoSessions([completed()]))
+    assert (result.response.response_type == "ANSWER") is kept, result.response
+    assert (SESSION_NOT_COMPLETED_LINE in result.response.limitations) is not kept
+
+
+def test_f1_a_left_session_still_blocks_when_no_session_completed() -> None:
+    final = final_response(answer("Return YTD BBCA 12,35% dan BBRI turun 4,32%."))
+    result, _, _ = run([*flow(complete=False), final, final], lane=lanes.FAST, path="ANALYSIS",
+                       settings={**FAST_ON, "AI_FASTLANE_ABANDONED_SESSIONS": "true"}, tools=TwoSessions([completed()]))
+    assert result.response.response_type == "LIMITATION"
+
+
+CONVENTION_ON = {**FAST_ON, "AI_FASTLANE_CONVENTION_NUMBERS": "true"}
+CODE = "window = 21\nlevel = 0.95\n"
+
+
+def coded_flow() -> list:
+    return [call("submit_data_need_spec", {"mode": "ANALYSIS", "research_governance": None}, "c1"),
+            call("prepare_data_bundle", {"need_id": NEED}, "c2"),
+            call("open_analysis_session", {"input_bundle_id": BUNDLE}, "c3"),
+            call("run_python", {"session_id": SESSION, "code": CODE}, "c4"),
+            call("complete_analysis", {"session_id": SESSION}, "c5")]
+
+
+def convention_run(text, settings=CONVENTION_ON, lane=lanes.FAST):
+    final = final_response(answer(text))
+    return run([*coded_flow(), final, final_response(answer("Return YTD BBCA 12,35% dan BBRI turun 4,32%."))],
+               lane=lane, path="ANALYSIS", settings=settings, tools=TwoSessions([completed()]))
+
+
+ACCEPTED = "Return YTD BBCA 12,35% dan BBRI turun 4,32%; batas kepercayaan 95% dihitung dengan jendela 21 hari."
+
+
+def test_f2_a_confidence_level_and_a_code_parameter_pass_without_a_round_and_are_labelled() -> None:
+    result, scripted, _ = convention_run(ACCEPTED)
+    assert result.response.response_type == "ANSWER" and result.response.answer.startswith("Return YTD BBCA")
+    assert "95%" in result.response.answer and "jendela 21 hari" in result.response.answer
+    assert convention_numbers_line([("95%", "CONFIDENCE_LEVEL"), ("21", "CODE_PARAMETER")]) \
+        in result.response.assumptions
+    assert not any("no governed source" in json.dumps(p) for p in scripted.payloads)  # no repair round
+
+
+@pytest.mark.parametrize("text", [
+    "Return YTD BBCA 12,35% dan BBRI turun 4,32%; BBCA naik 95% sejak awal.",           # 95% is no confidence level
+    "Return YTD BBCA 12,35% dan BBRI turun 4,32%; ada 21 saham yang naik.",              # 21 is in code, no parameter
+    "Return YTD BBCA 12,35% dan BBRI turun 4,32%; jendela 34 hari.",                     # a parameter not in the code
+    "Return YTD BBCA 12,35% dan BBRI turun 4,32%; jendela 21 hari, dan 21 saham naik."])  # one place lacks the word
+def test_f2_other_unsourced_numbers_are_still_refused(text) -> None:
+    result, scripted, _ = convention_run(text)
+    assert any("no governed source" in json.dumps(p) for p in scripted.payloads)
+    assert not any(a.startswith("Angka berikut tidak berasal") for a in result.response.assumptions)
+
+
+@pytest.mark.parametrize("settings, lane", [(FAST_ON, lanes.FAST), (CONVENTION_ON, lanes.STANDARD)])
+def test_f2_without_the_switch_or_on_the_standard_lane_the_numbers_are_refused(settings, lane) -> None:
+    _, scripted, _ = convention_run(ACCEPTED, settings=settings, lane=lane)
+    assert any("no governed source in this run: 95%, 21" in json.dumps(p) for p in scripted.payloads)
+
+
+def test_the_section_caps_note_is_sent_only_with_its_switch_on_the_fast_lane() -> None:
+    from app.orchestrator import FASTLANE_SECTIONS_NOTE
+
+    script = [*flow(), final_response(answer("Return YTD BBCA 12,35% dan BBRI turun 4,32%."))]
+    note = json.dumps(FASTLANE_SECTIONS_NOTE)[1:-1]
+    _, on, _ = run(script, lane=lanes.FAST, path="ANALYSIS", settings={**FAST_ON, "AI_FASTLANE_SECTION_CAPS": "true"})
+    assert note in json.dumps(on.payloads[0]) and not any(ch.isdigit() for ch in FASTLANE_SECTIONS_NOTE)
+    _, off, _ = run(script, lane=lanes.FAST, path="ANALYSIS")
+    _, standard, _ = run(script, lane=lanes.STANDARD, path="ANALYSIS",
+                         settings={**FAST_ON, "AI_FASTLANE_SECTION_CAPS": "true"})
+    assert note not in json.dumps(off.payloads[0]) and note not in json.dumps(standard.payloads[0])
+    assert "at most three assumptions" in FASTLANE_SECTIONS_NOTE and "one short paragraph" in FASTLANE_SECTIONS_NOTE
+
+
+def test_the_legacy_provenance_refusal_names_the_derived_references_once() -> None:
+    """Side finding 2026-10-14 ("ya perbaiki"): the hint was added twice to one refusal."""
+    import inspect
+
+    assert inspect.getsource(AgentOrchestrator._validation_gate).count("self._derived_hint(") == 1
