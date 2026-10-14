@@ -2736,6 +2736,31 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
     TYPED_FIGURES menolak "21" (parameter jendela default yang juga muncul di tabel hasil) dan "34" (jumlah hari);
     (c) baris "Pilihan AI" memuat string kode ('forward', 'explore') — bug lama; (d) tabel per tahun OFF menulis tahun
     "2.020" (format ribuan pada kolom tahun) — bug lama tampilan angka.
+- **V5 (2026-10-14, user; belum dikerjakan, rencana implementasi menyusul):**
+  - **Gerbang mode saran (jalur Cepat):** user: "gerbang angka yang diketik dan lain sebagainya perlu kita buat
+    seminimal mungkin. Sehingga sifatnya hanya suggestion terhadap AI". Kondisi sekarang: semua gerbang angka menolak
+    satu putaran (TYPED_FIGURES 7, PROVENANCE 3, METHODOLOGY_PROVENANCE 3, UNITS 1, REFERENCE 1 di 18 run terakhir;
+    3–21 detik per putaran). Arah: sistem memperbaiki sendiri bila aman (angka diketik, satuan dari nama kolom), lolos
+    dengan label (metodologi, rujukan salah), saran dimasukkan sebelum AI menulis. **PROVENANCE pilihan (a)** (user:
+    "untuk preference saya pilih A"): satu putaran hanya untuk angka yang tidak cocok dengan apa pun; angka turunan dan
+    parameter otomatis diterima dengan label.
+  - **Format tanggal (semua jalur, tampilan):** user: "tahun 4 digit, bulan disebutkan bulannya", pilihan "7 Oktober
+    2026": `2026-10-07` → "7 Oktober 2026", `2024-09` → "September 2024"; kolom tahun tanpa pemisah ribuan (bug
+    "2.020").
+  - **Satuan pp:** user: "setiap kata PP itu diganti dengan persen"; menunggu pilihan bentuk (lihat jawaban: poin
+    persen vs %).
+  - **Menu model di HP** memenuhi layar dan terpotong rel kiri (screenshot): jadikan lembar bawah lebar penuh di lapisan
+    teratas, tinggi maksimal dengan scroll.
+  - **Run terputus macet "Recovering delivery" (Run 7 `edge_87c7…`, terputus oleh deploy ulang A/B V4 pukul 17:29
+    UTC):** lease orc 62 menit dan pemeriksaan per jam membuat giliran tetap RUNNING sampai sekitar satu jam. Disetujui
+    (user: "saya terima untuk yang A dan C"): (A) orc menandai giliran milik proses yang mati segera saat start;
+    (C) tombol stop di EDGE menandai run terputus bila orc menjawab tidak ada yang berjalan, kotak pesan dibuka lagi.
+    Penghentian manual Run 7 disetujui ("Boleh diinterrupted") tetapi tidak bisa dari sesi ini: koneksi TCP ke
+    database diblokir kebijakan jaringan sesi dan `railway ssh` butuh kunci SSH di akun; Run 7 lepas sendiri saat
+    lease habis (≈ 18:32 UTC) lewat batas EDGE (≈ 18:36 UTC) atau pemeriksaan orc berikutnya.
+  - **Tugas berikutnya (user):** cari akar masalah penolakan gerbang: dari 10 run terakhir, urutkan gerbang yang paling
+    sering menolak, lalu cek di log apakah AI tidak tahu gerbangnya, salah mengira, atau tidak tahu cara lolos
+    (instruksi kurang jelas).
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur
