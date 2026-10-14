@@ -2797,8 +2797,15 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
   - **Solusi akar masalah #4 disetujui:** angka parameter, hitungan hari dan ambang pilihan AI diterima sebagai parameter
     (bukan angka diketik); pesan gerbang menyebut kalimat tempat angka ditulis.
   - **Solusi akar masalah #5 disetujui:** contoh skema filter AND (children diisi, child null) di catatan/deskripsi alat.
-  - **#1 `get_dimension_values` di tabel bertanggal belum terselesaikan** (butir G dilewati user 2026-10-14); menunggu
-    keputusan.
+  - **#1 `get_dimension_values` di tabel bertanggal: opsi 1 disetujui** (user: "please proceed for option one"):
+    akar masalah: database sudah punya daftar nilai (CHECK constraint `Feature_03_Stock_Broker_Daily_board_check`:
+    Regular, Nego, Tunai), kontrak katalog Governor membacanya (`value_domains`) dan sandbox memakainya untuk validasi
+    filter, tetapi `get_catalog_details` orc tidak menampilkannya ke AI. Perbaikan (jalur Cepat, tanpa migrasi):
+    bagian COLUMNS menampilkan daftar nilai kolom yang punya CHECK list, dan catatan jalur Cepat menyebut bahwa nilai
+    sah ada di detail katalog (tidak memanggil `get_dimension_values` untuk tabel bertanggal). Praktik terbaik:
+    kolom bernilai sedikit dan tetap = daftar lengkap di katalog (Snowflake `sample_values` + `is_enum`); opsi 3
+    (pencarian nilai di tabel bertanggal) disimpan untuk kolom teks bernilai banyak tanpa tabel referensi, sesudah
+    bukti beban kueri (EXPLAIN).
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur
