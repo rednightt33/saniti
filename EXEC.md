@@ -2786,6 +2786,19 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
   tanpa contoh. Masukan untuk V5: gerbang angka diketik dan metodologi menjadi saran/otomatis, angka parameter dan
   hitungan hari diterima sebagai parameter, pesan menyebut kalimat, contoh skema scope AND, nilai dimensi umum
   (`market_board`) ditulis di katalog/catatan.
+- **V5 tambahan (2026-10-14, user: "Saya setuju untuk semuanya dengan catatan jawaban limitation tetap ditampilkan
+  sebagai batasan… keep as is untuk jalur standar"):**
+  - **Batasan disembunyikan, hanya jalur Cepat:** sumbernya: baris sistem (keterangan cakupan, sumber angka, bukti uji;
+    17 baris di 6 jawaban A/B) dan tulisan AI (30 baris, rata-rata 5 walau dibatasi 3). Jawaban jalur Cepat
+    menampilkan Metodologi dan Asumsi saja; "Bukti statistik" dan peringatan angka tanpa sumber pindah ke Asumsi;
+    keterangan cakupan/sumber angka dihapus (sudah di label bukti); catatan jalur Cepat: AI tidak menulis
+    limitations, keterbatasan material ditulis di jawaban atau asumsi. **Jawaban LIMITATION tetap menampilkan
+    Batasan.** Jalur Standar tidak berubah.
+  - **Solusi akar masalah #4 disetujui:** angka parameter, hitungan hari dan ambang pilihan AI diterima sebagai parameter
+    (bukan angka diketik); pesan gerbang menyebut kalimat tempat angka ditulis.
+  - **Solusi akar masalah #5 disetujui:** contoh skema filter AND (children diisi, child null) di catatan/deskripsi alat.
+  - **#1 `get_dimension_values` di tabel bertanggal belum terselesaikan** (butir G dilewati user 2026-10-14); menunggu
+    keputusan.
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur
