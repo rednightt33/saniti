@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-10-14 — EXEC-FASTLANE B2b: draft pre-check switch and A/B (fast lane)
+
+User: "Coba A/B 3 pertanyaan serupa dengan yg lama tadi. Pakai fastlane, bedanya pra draft enable dan disable.
+Jalankan." Rollback reference: orc `03e68187`.
+- `main` `bd9b52f` (new optional variable `AI_FASTLANE_DRAFT_CHECK`, default `true` = unchanged): market-ai-orc
+  **86cdc41b** reached **SUCCESS**; `orc-test-runner` **59099d59** ran `ma-fastlane-draft-20261014-on`.
+- Variable `AI_FASTLANE_DRAFT_CHECK=false` set on market-ai-orc (dev), read back by name; redeploy **dbbb98e1** reached
+  **SUCCESS**; `orc-test-runner` **f17d3012** ran `ma-fastlane-draft-20261014-off`. All 10 turns COMPLETED (results in
+  EXEC.md EXEC-FASTLANE B2b).
+- Variable deleted afterwards (read back: absent); the delete did not redeploy, so `railway redeploy` ran:
+  **d2aab9ea** reached **SUCCESS**, so the fast lane is back on its default (pre-check on). The variable is not set, so
+  `.railway/railway.ts` does not declare it.
+- Cost about USD 0.21; OpenRouter key budget left about USD 0.98 (read with `GET /api/v1/key`, no secret printed).
+
 ## 2026-10-13 — EXEC-FASTLANE switched on (dev) and first A/B
 
 User: "Ok done" (approval to switch the fast lane on; OpenRouter key limit raised to USD 40, read back).

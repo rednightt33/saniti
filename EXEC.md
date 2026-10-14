@@ -2347,6 +2347,43 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
   - Saklar `AI_ENABLE_FASTLANE=true` di orc dev (deployment `03e68187` SUCCESS, dibaca ulang dari variabel);
     `.railway/railway.ts` mencatat variabel itu. `railway config pull` juga menarik perubahan perintah start job
     Feature04 yang tidak terkait (drift cron yang user tunda: "nanti saja"), jadi tidak ikut di-commit.
+- **A/B B2b pra-cek draf di jalur cepat (2026-10-14, user: "Coba A/B 3 pertanyaan serupa dengan yg lama tadi. Pakai
+  fastlane, bedanya pra draft enable dan disable. Jalankan. Please assess juga dari sisi akurasi"):**
+  - Saklar baru `AI_FASTLANE_DRAFT_CHECK` (default `true` = perilaku lama). `false` menarik `check_references` dari
+    setiap langkah jalur cepat dan menghapus butir pra-cek dari catatan jalur. Jalur Standar selalu tetap memakainya.
+    `main` `bd9b52f`, orc `86cdc41b` SUCCESS.
+  - ON: runner `59099d59`, orc `86cdc41b`. OFF: variabel `false`, orc `dbbb98e1`, runner `f17d3012`. Sesudahnya variabel
+    dihapus dan orc `d2aab9ea` SUCCESS (kembali ke default ON). Pertanyaan b2, b4 (giliran 1 saja), b5 (3 giliran);
+    DeepSeek V4.1 Flash Tinggi; biaya ≈ USD 0,21.
+
+  | Giliran | ON (pra-cek) | OFF | Pra-cek di ON | Penolakan gerbang ON / OFF |
+  |---|---|---|---|---|
+  | b2 distribusi BBRI kemarin | 191 s | 212 s | 2×, 64 s | PROVENANCE / – |
+  | b4 akumulasi broker X/Y | 473 s | 354 s | 1×, 62 s | – / REFERENCE (format tak dikenal, perbaikan 2 s) |
+  | b5.1 lima broker BBRI | 159 s | 159 s | 1×, 20 s | ROUTING / ROUTING |
+  | b5.2 rekap per minggu | 313 s | 232 s | 4×, 90 s | – / PROVENANCE |
+  | b5.3 ekspor Excel | 23 s | 36 s | 0 | PROVENANCE / PROVENANCE |
+
+  - Total 1.158 s → 992 s (−14%); waktu model 1.016 s → 876 s. Pra-cek di ON: 8 panggilan, 236 s, tidak mencegah
+    penolakan (b2 tetap kena PROVENANCE sesudah 2 pra-cek). Di OFF penolakan gerbang naik 3 → 4, masing-masing
+    diperbaiki dalam satu ronde singkat. Lolos ≤ 3 menit: 2/5 → 2/5.
+  - Variasi lama berpikir model mendominasi. OFF b2 tanpa pra-cek tetap 212 s karena dua panggilan 65 s dan 73 s
+    (4.600–6.000 token berpikir walau level rendah); ON b4 473 s karena penjelajahan katalog dan cek ukuran 129 s.
+  - **Akurasi** (silang-cek antar-run independen: ON, OFF, dan A/B 2026-10-13; query langsung ke database ditolak
+    pengaman sesi):
+    - Angka inti sama persis di semua run: candle BBRI 13 Okt, lima broker net beli Agustus, hitungan pekan 5 besar.
+    - Jendela "distribusi" b2 berbeda per run (63 hari, 29 hari, ±127 sesi), yaitu pilihan AI yang dicatat di asumsi.
+      Kedua jendela sama-sama kurang 2 hari bursa dari kalender (diduga celah data harga Sep–Okt, belum diverifikasi).
+    - Salah tafsir di OFF:
+      - b2: posisi tutup 71% disebut "bagian bawah" rentang;
+      - b4: judul memakai statistik hari-kondisi yang tumpang tindih ("justru sebaliknya"), padahal baris kejadian dan
+        uji non-overlapping (p 0,91) tidak menunjukkan arah;
+      - b5.2: asumsi/batasan tertulis dua kali di badan jawaban.
+    - ON tidak punya salah tafsir serupa. Pra-cek tidak memeriksa tafsir, jadi selisih ini kemungkinan variasi model
+      (sampel 5 giliran).
+    - Satuan: koreksi satuan otomatis tetap jalan di kedua sisi. Kolom turunan buatan AI (mis. ambang X) tercatat
+      `ai_reference_unit_unknown` di kedua sisi, artinya satuan kolom itu tidak dikenal sistem.
+  - Keputusan saklar (tetap ON atau OFF di jalur cepat) menunggu user.
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur
