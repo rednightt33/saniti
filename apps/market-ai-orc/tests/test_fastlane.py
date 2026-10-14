@@ -19,6 +19,7 @@ from app.schemas import AgentRunRequest
 from app.tools import build_default_registry
 from app.tools.data_planner import fit_hints
 from app.tools.references import check_references_spec
+from app.user_texts import ANALYSIS_PATH_LINE
 from conftest import ANSWER, BASE_ENV, ScriptedClient, final_response, make_settings
 from test_analysis_path import ON, Counting
 from test_dataneed_orchestrator import Tools, answer, completed, flow
@@ -140,3 +141,84 @@ def test_a_refused_data_size_says_how_much_fits() -> None:
                       {"estimated_rows": 4_000_000, "limit_rows": 1_000_000})
     assert hints[0]["share_that_fits"] == 0.5 and "50%" in hints[0]["how"] and hints[0]["parts_limit"] == 64
     assert len(hints) == 2 and hints[1]["bundle"] and hints[1]["share_that_fits"] == 0.25
+
+
+# ------------------------------------------------------------------------------------------ B3 exploratory tests
+
+EXPLORED = {"version": 1, "policy": "BENJAMINI_HOCHBERG", "alpha": 0.05, "count": 3, "held": 1, "unstable": 1,
+            "small_samples": 0, "tests": []}
+EXPLORE_ON = {**FAST_ON, "AI_FASTLANE_EXPLORE_TESTS": "true"}
+
+
+def explore_run(*, lane=lanes.FAST, settings=EXPLORE_ON, capable=True, mode=None, turn_kind=None, explored=EXPLORED):
+    from app import conversation_router as router
+
+    tools = Counting([completed(explore_tests=explored) if explored else completed()])
+    scripted = Recording([*flow(), final_response(answer("Return YTD BBCA 12,35% dan BBRI turun 4,32%."))])
+    config = make_settings(**settings)
+    orchestrator = AgentOrchestrator(config, scripted, tools.registry(), explore_tests=capable)
+    tokens = [(current_model_choice, current_model_choice.set(resolve("deepseek/deepseek-v4.1-flash", "high", config))),
+              (lanes.current_lane, lanes.current_lane.set(lane)),
+              (lanes.current_explore_mode, lanes.current_explore_mode.set(mode)),
+              (router.current_turn_kind, router.current_turn_kind.set(turn_kind))]
+    try:
+        result = orchestrator.run(AgentRunRequest(request_id="f1", message="Apakah akumulasi asing diikuti kenaikan?",
+                                                  analysis_path="ANALYSIS"))
+    finally:
+        for variable, token in reversed(tokens):
+            variable.reset(token)
+    return result, scripted
+
+
+def test_explore_tests_tell_the_answer_mode_to_test_only_the_question_and_add_the_systems_evidence_line() -> None:
+    from app.orchestrator import EXPLORE_ANSWER_NOTE
+    from app.user_texts import explore_evidence_line
+
+    result, scripted = explore_run()
+    first = json.dumps(scripted.payloads[0])
+    assert json.dumps(EXPLORE_ANSWER_NOTE)[1:-1] in first and "saniti.explore_test" in first
+    assert "conditional_distribution" not in first  # the library list is for insight only
+    line = explore_evidence_line(3, 1, 1, 0)
+    assert result.status == "COMPLETED" and line in result.response.limitations
+    # the analysis path's "no significance test" line would contradict the reported tests
+    assert ANALYSIS_PATH_LINE not in result.response.limitations
+    assert "3 uji dicoba, 1 bertahan" in line and "tidak konsisten" in line
+
+
+def test_the_insight_mode_lists_the_research_library_for_the_explore_route_and_the_insight_turn() -> None:
+    from app.research_library import LIBRARY
+
+    for kwargs in ({"mode": lanes.INSIGHT}, {"turn_kind": "INSIGHT"}):
+        _, scripted = explore_run(**kwargs)
+        first = json.dumps(scripted.payloads[0])
+        assert "at most 5 angles" in first and all(m["method_id"] in first for m in LIBRARY), kwargs
+        assert "stability=True" in first
+
+
+def test_without_tests_recorded_nothing_is_said_and_none_held_says_so() -> None:
+    from app.user_texts import EXPLORE_NONE_HELD, explore_evidence_line
+
+    result, _ = explore_run(explored=None)
+    assert not any("Bukti statistik" in line for line in result.response.limitations)
+    assert ANALYSIS_PATH_LINE in result.response.limitations  # no test was run: the line stays
+    assert EXPLORE_NONE_HELD in explore_evidence_line(4, 0, 0, 2) and "2 uji sampel" in explore_evidence_line(4, 0, 0, 2)
+
+
+@pytest.mark.parametrize("kwargs", [{"settings": FAST_ON}, {"capable": False}, {"lane": lanes.STANDARD},
+                                    {"lane": None}])
+def test_without_the_switch_the_sandbox_or_the_fast_lane_nothing_changes(kwargs) -> None:
+    result, scripted = explore_run(**kwargs)
+    payloads = json.dumps(scripted.payloads)
+    assert "saniti.explore_test" not in payloads and "the user asks for insight" not in payloads
+    assert not any("Bukti statistik" in line for line in result.response.limitations)
+    assert ANALYSIS_PATH_LINE in result.response.limitations or kwargs.get("lane") != lanes.FAST
+
+
+def test_the_first_message_router_reading_sets_the_explore_mode_only_for_its_run() -> None:
+    from app.mode4 import _reading
+
+    with _reading(None, None, lanes.INSIGHT):
+        assert lanes.current_explore_mode.get() == lanes.INSIGHT
+    assert lanes.current_explore_mode.get() is None
+    with _reading(None, None):
+        assert lanes.current_explore_mode.get() is None

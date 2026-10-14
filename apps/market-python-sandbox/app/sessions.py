@@ -835,6 +835,8 @@ class SessionManager:
         if drop:
             for path in owned:
                 os.chown(path, uid, uid, follow_symlinks=False)
+        # EXEC-FASTLANE B3: exploratory tests in an analysis session only (a research session keeps its own helpers)
+        explore = s.explore_tests_enabled and not research and not findings and manifest.get("mode") != "RESEARCH"
         requests: dict[str, Any] = {}
         for dataset in manifest["datasets"]:
             files = []
@@ -868,8 +870,8 @@ class SessionManager:
             "seed": s.random_seed, "reference_date": manifest["reference_date"],
             **({"observe_modules": True} if self.audit is not None else {}),
             **({"extra_helpers": [*(["event_summary"] if s.research_findings_enabled else []),
-                                  *(RESEARCH_HELPERS if research else [])]}
-               if s.research_findings_enabled or research else {}),
+                                  *(RESEARCH_HELPERS if research else []), *(["explore_test"] if explore else [])]}
+               if s.research_findings_enabled or research or explore else {}),
             **({"research_v2": research} if research else {}),
             # M28: the approved hypothesis plan's findings values (success_rule, min_effect, ...), read by event_summary
             **({"research_v1": {"findings": findings}} if findings else {}),

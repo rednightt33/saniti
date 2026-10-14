@@ -242,7 +242,8 @@ class Mode4Orchestrator:
                 run.notes.extend(notes or [])
                 result = run.first_round(cancelled_plan_id=cancelled_plan_id)
             else:
-                with _reading(intent, usage):
+                explore = (lanes.INSIGHT if route == "EXPLORE" else lanes.ANSWER) if lanes.is_fast() else None
+                with _reading(intent, usage, explore):
                     result = self.inner.run(routed, conversation_key, data_record=data_record)
                 if self.memory:
                     result = _with_reading(result, request.request_id, {**usage, "route": route or "ROUTER_FAILED"})
@@ -261,9 +262,13 @@ def _with_reading(result: AgentRunResponse, request_id: str, usage: dict[str, An
 
 
 @contextmanager
-def _reading(intent: dict[str, Any] | None, usage: dict[str, Any] | None) -> Iterator[None]:
-    """EXEC-3: the router's reading around one run outside the pipeline (the note and the plan gates' design values)."""
+def _reading(intent: dict[str, Any] | None, usage: dict[str, Any] | None, explore: str | None = None
+             ) -> Iterator[None]:
+    """EXEC-3: the router's reading around one run outside the pipeline (the note and the plan gates' design values).
+    EXEC-FASTLANE B3: on the fast lane also the explore mode of the run (INSIGHT for the EXPLORE route)."""
     tokens: list[tuple[Any, Any]] = [(router.current_intent, router.current_intent.set(intent))]
+    if explore is not None:
+        tokens.append((lanes.current_explore_mode, lanes.current_explore_mode.set(explore)))
     if usage is not None and "design_value_changes" in usage:
         tokens += [(current_design_changes, current_design_changes.set(usage["design_value_changes"])),
                    (current_turn_referent, current_turn_referent.set(usage.get("referent")))]

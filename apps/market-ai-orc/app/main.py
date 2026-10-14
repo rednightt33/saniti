@@ -48,7 +48,7 @@ from .tools.registry import ToolError
 from .tools.request_data import GovernorClient
 from .result_store import ResultBucket, ResultStore
 from .run_memory import MemoryStore
-from .tools.session import (BACKTEST_VERSION, EVENT_STUDY_VERSION, RESULT_STORE_VERSION, SESSION_RELEASE_VERSION, close_sessions,
+from .tools.session import (BACKTEST_VERSION, EVENT_STUDY_VERSION, EXPLORE_TESTS_VERSION, RESULT_STORE_VERSION, SESSION_RELEASE_VERSION, close_sessions,
                             output_file, release_request, restore_carried)
 from .tools.artifacts import STORED_TABLES_VERSION, read_output_any
 from .tools.lineage import BUNDLE_LINEAGE_VERSION
@@ -254,6 +254,15 @@ def create_app(
             backtest = capability.get("enabled") is True and capability.get("version") == BACKTEST_VERSION
             if not backtest:
                 log_event("backtest_inactive", reason=f"needs a sandbox reporting backtest version {BACKTEST_VERSION}")
+        # EXEC-FASTLANE B3: exploratory tests are described only when the sandbox runs and corrects them (fail closed)
+        explore_tests = False
+        if settings.ai_fastlane_explore_tests and settings.ai_enable_fastlane and settings.ai_enable_dataneed \
+                and sandbox is not None:
+            capability = sandbox.runtime().get("explore_tests") or {}
+            explore_tests = capability.get("enabled") is True and capability.get("version") == EXPLORE_TESTS_VERSION
+            if not explore_tests:
+                log_event("explore_tests_inactive",
+                          reason=f"needs a sandbox reporting explore_tests version {EXPLORE_TESTS_VERSION}")
         # EXEC-V 2026-10-08: how many sessions one answer may keep open, as the sandbox reports it (session_release
         # version 2); the sandbox enforces it, the model reads it in open_analysis_session's description
         session_limit = None
@@ -468,7 +477,8 @@ def create_app(
                                          conversation_resources=resources,
                                          draft_reader=sandbox.get_draft if feasibility else None,
                                          derived_frequency=derived_frequency, audit_outbox=audit_outbox,
-                                         row_reader=row_reader, run_memory=run_memory)
+                                         row_reader=row_reader, run_memory=run_memory,
+                                         explore_tests=explore_tests)
     if settings.ai_enable_mode4 and isinstance(orchestrator, AgentOrchestrator):
         # mode 4 builds on the caller-chosen paths and on Multi-Angle Research (its plans are research_plan/v2)
         if orchestrator.analysis_path and orchestrator.multi_angle:

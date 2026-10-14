@@ -18,6 +18,11 @@ FAST_CALL_SECONDS = 90.0  # R4: a longer call is cut and asked again once with l
 
 # set by the API around one request (mode 4 steps run in the same context and inherit it)
 current_lane: contextvars.ContextVar[str | None] = contextvars.ContextVar("current_lane", default=None)
+# EXEC-FASTLANE B3 (user 2026-10-14): on the fast lane a message is answered (ANSWER: test the user's own question, no
+# new hypotheses) unless it asks for insight (INSIGHT: the first-message router's EXPLORE route, or the conversation
+# router's INSIGHT class), which may test several angles from the research library
+ANSWER, INSIGHT = "answer", "insight"
+current_explore_mode: contextvars.ContextVar[str | None] = contextvars.ContextVar("current_explore_mode", default=None)
 
 
 class LaneError(ValueError):

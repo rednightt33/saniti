@@ -397,3 +397,23 @@ NEWS_NOTE = "Diringkas dari {count} berita; sumbernya ada di tab Sources."
 FORWARD_TITLE = "Peristiwa ke depan"
 NEWS_DATE_UNKNOWN = "Tanggal belum diumumkan"
 DATA_TEST_LABEL = "Uji dengan data: {hypothesis}"
+
+
+# EXEC-FASTLANE B3: the system's statistical evidence line under a fast-lane answer (the model writes none of it)
+EXPLORE_EVIDENCE_LINE = ("Bukti statistik (eksploratif, dihitung sistem, tanpa Research Governor): {count} uji dicoba, "
+                         "{held} bertahan sesudah koreksi uji ganda (Benjamini-Hochberg, alfa 5%).")
+EXPLORE_NONE_HELD = (" Belum ada pola yang cukup kuat untuk disebut temuan; baca angka sebagai gambaran data historis, "
+                     "bukan sebab-akibat atau sinyal transaksi.")
+EXPLORE_HELD_NOTE = " Pola yang bertahan tetap pola historis, bukan sebab-akibat atau sinyal transaksi."
+EXPLORE_UNSTABLE = " {unstable} uji arahnya tidak konsisten di dua paruh periode."
+EXPLORE_SMALL = " {small} uji sampel efektifnya kecil atau kurang kuat untuk efek sekecil itu."
+
+
+def explore_evidence_line(count: int, held: int, unstable: int, small: int) -> str:
+    line = EXPLORE_EVIDENCE_LINE.format(count=count, held=held)
+    line += EXPLORE_HELD_NOTE if held else EXPLORE_NONE_HELD
+    if unstable:
+        line += EXPLORE_UNSTABLE.format(unstable=unstable)
+    if small:
+        line += EXPLORE_SMALL.format(small=small)
+    return line

@@ -75,6 +75,7 @@ from .tools.system import current_step_tools
 from . import table_directives
 from . import model_choices
 from . import lanes
+from . import research_library
 from .tools.request_data import (current_conversation_id, current_draft_checker, current_reference_sources,
                                  current_request_id,
                                  current_run_deadline, current_turn_id, session_key)
@@ -1652,6 +1653,41 @@ FASTLANE_DRAFT_STEP = ("(4) call check_references with a draft only when the ans
                        "figures from data, otherwise write the final answer directly.")
 # EXEC-FASTLANE B2b (AI_FASTLANE_DRAFT_CHECK false): no draft pre-check; the answer gates list what to repair
 FASTLANE_NO_DRAFT_STEP = "(4) write the final answer directly."
+# EXEC-FASTLANE B3 (AI_FASTLANE_EXPLORE_TESTS, user 2026-10-14: insight tests need no Research Governor "but should be
+# reliable and trustworthy enough sehingga hasilnya tidak misleading"): how the fast lane tests, by explore mode
+EXPLORE_TEST_RULE = (
+    "Statistical tests on this lane: compute every test with saniti.explore_test(method_id, frame, parameters=..., "
+    "horizon=..., outcome_unit=..., name=..., question=...) or saniti.event_study, never with scipy or statsmodels "
+    "directly: they count rows on one date once and overlapping outcomes once (the effective sample), give an interval "
+    "and a two-sided p-value, and the system records every test. Build the frame with date, entity and the method's "
+    "role columns (condition, signal, outcome, state, group, leader, follower); an outcome is a forward return from "
+    "saniti.forward_return in the unit you pass. The system corrects all of this answer's tests together "
+    "(Benjamini-Hochberg) and writes the statistical evidence line under the answer itself, so in the answer describe "
+    "each effect with its interval, never call a result significant, proven, reversed or a cause, never state a "
+    "direction the interval does not support, and do not write your own caveat paragraph about testing.")
+EXPLORE_ANSWER_NOTE = (PLAN_NOTE_PREFIX + "this message is answered, not explored: test only what the user asked, "
+                       "with one test for the question (a second only when the question names two), and form no other "
+                       "hypotheses. When the question asks for figures and no test, compute them without a test. "
+                       + EXPLORE_TEST_RULE)
+EXPLORE_INSIGHT_NOTE = (PLAN_NOTE_PREFIX + "the user asks for insight: look at the question from at most {angles} "
+                        "angles, each one method of the research library below with saniti.explore_test "
+                        "(stability=True), all from one data need. Methods: {methods}. Report what holds after the "
+                        "correction first and say plainly when nothing does. " + EXPLORE_TEST_RULE)
+EXPLORE_MAX_ANGLES = 5
+
+
+def explore_note(mode: str) -> str:
+    """EXEC-FASTLANE B3: the note of a fast-lane run's explore mode; INSIGHT lists the research library's methods in one
+    line each (no get_research_library call)."""
+    if mode != lanes.INSIGHT:
+        return EXPLORE_ANSWER_NOTE
+    methods = "; ".join(
+        f"{m['method_id']} ({m['question_shape'].rstrip('?')}; roles "
+        + ", ".join(r["role"] for r in m.get("input_roles") or [])
+        + (("; parameters " + ", ".join(p["name"] for p in m.get("required_parameters") or []))
+           if m.get("required_parameters") else "") + ")"
+        for m in research_library.LIBRARY)
+    return EXPLORE_INSIGHT_NOTE.format(angles=EXPLORE_MAX_ANGLES, methods=methods)
 RESEARCH_PATH_NOTE = (PLAN_NOTE_PREFIX + "the caller fixed this request to the RESEARCH path. Treat the question as "
                       "research: propose a Research Plan (RESEARCH_PLAN_CONFIRMATION) under the RESEARCH PLAN "
                       "CONFIRMATION rules, or ask a CLARIFICATION when it cannot be planned; every data need uses "
@@ -2304,8 +2340,11 @@ class AgentOrchestrator:
         audit_outbox: Any | None = None,
         row_reader: Callable[..., dict[str, Any]] | None = None,
         run_memory: Any | None = None,
+        explore_tests: bool = False,
     ) -> None:
         self.settings = settings
+        # EXEC-FASTLANE B3 (AI_FASTLANE_EXPLORE_TESTS and the sandbox's explore_tests capability, checked at startup)
+        self.explore_tests = bool(explore_tests and getattr(settings, "ai_fastlane_explore_tests", False))
         # EXEC-C (AI_ENABLE_RUN_MEMORY): the conversation's run memory (app/run_memory.py), when its table is readable
         self.run_memory = run_memory
         # M44: reads rows of a released output the run has not read, when an answer references them
@@ -2587,8 +2626,9 @@ class AgentOrchestrator:
             final = self._conversation_correction(state, final)
             state.plan_meta["memory_decisions"] = self._memory_decisions(state, final)
             state.experiments = self._research_summary(state, final.answer)
+            # EXEC-FASTLANE B3: an answer whose tests the system reported has its evidence line instead
             if state.forced_path == "ANALYSIS" and final.response_type == "ANSWER" and state.final_status \
-                    and ANALYSIS_PATH_LINE not in final.limitations:
+                    and ANALYSIS_PATH_LINE not in final.limitations and not state.plan_meta.get("explore_reported"):
                 final = final.model_copy(update={"limitations": [*final.limitations, ANALYSIS_PATH_LINE]})
             if final.response_type == "RESEARCH_PLAN_CONFIRMATION" and isinstance(final.research_plan, ResearchPlanV2) \
                     and self.signer_v2 is not None and state.research is not None \
@@ -3336,7 +3376,12 @@ class AgentOrchestrator:
             step = FASTLANE_DRAFT_STEP if self._fast_draft_check() else FASTLANE_NO_DRAFT_STEP
             state.input_items.insert(len(state.input_items) - 1,
                                      {"role": "user", "content": FASTLANE_NOTE.format(draft_step=step)})
-            log_event("ai_lane_turn", request_id=request.request_id, lane=state.lane, forced_path=state.forced_path)
+            mode = self._explore_mode()
+            if mode is not None:
+                state.plan_meta["explore_mode"] = mode
+                state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": explore_note(mode)})
+            log_event("ai_lane_turn", request_id=request.request_id, lane=state.lane, forced_path=state.forced_path,
+                      **({"explore_mode": mode} if mode is not None else {}))
             return
         if state.forced_path == "ANALYSIS":
             # no plan step: a pending plan (SERVER mode) is left untouched and its reply is not read
@@ -3485,6 +3530,37 @@ class AgentOrchestrator:
         count = (f"exactly {NUMBER_WORDS[low]} angle" + ("s" if low > 1 else "")) if low == high \
             else f"from {NUMBER_WORDS[low]} to {NUMBER_WORDS[high]} angles"
         return " " + ANGLE_COUNT_NOTE.format(count=count)
+
+    def _explore_mode(self) -> str | None:
+        """EXEC-FASTLANE B3: the explore mode of a fast-lane run (None when exploratory tests are off): INSIGHT for the
+        first-message router's EXPLORE route or the conversation router's INSIGHT class, else ANSWER."""
+        if not self.explore_tests:
+            return None
+        if lanes.current_explore_mode.get() == lanes.INSIGHT or router.current_turn_kind.get() == "INSIGHT":
+            return lanes.INSIGHT
+        return lanes.ANSWER
+
+    def _explore_evidence(self, state: RunState, final: FinalResponse) -> FinalResponse:
+        """EXEC-FASTLANE B3: the system's line on the exploratory tests of this run's completions (tried, holding after
+        the Benjamini-Hochberg correction, unstable, small samples), under the answer; the model writes none of it."""
+        if not self.explore_tests or state.lane != lanes.FAST or final.response_type != "ANSWER":
+            return final
+        summaries = [s.get("explore_tests") for s in state.final_statuses if isinstance(s.get("explore_tests"), dict)]
+        if not summaries:
+            return final
+        count = sum(int(s.get("count") or 0) for s in summaries)
+        if not count:
+            return final
+        held = sum(int(s.get("held") or 0) for s in summaries)
+        unstable = sum(int(s.get("unstable") or 0) for s in summaries)
+        small = sum(int(s.get("small_samples") or 0) for s in summaries)
+        line = texts.explore_evidence_line(count, held, unstable, small)
+        state.plan_meta["explore_reported"] = True
+        log_event("explore_tests_reported", request_id=state.request_id, tests=count, held=held, unstable=unstable,
+                  small_samples=small, mode=state.plan_meta.get("explore_mode"))
+        if line in final.limitations:
+            return final
+        return final.model_copy(update={"limitations": [*final.limitations, line]})
 
     def _fast_draft_check(self) -> bool:
         """EXEC-FASTLANE B2b: whether the fast lane offers check_references (AI_FASTLANE_DRAFT_CHECK, default on)."""
@@ -5651,6 +5727,7 @@ class AgentOrchestrator:
             return forced
         final = self._definition_claims(state, final)
         final = self._evidence_gate(state, final, provenance.data_kinds)
+        final = self._explore_evidence(state, final)
         missing_lines = [line for line in lines if line not in final.limitations]
         annotated = state.reference_annotated or bool(state.claim_annotations) or state.definition_annotated
         if state.sessions or state.completions or state.inherited or run is not None:

@@ -105,6 +105,8 @@ PLAIN = {
     "period_return": "Return untuk periode bernama (YTD, bulan, kuartal, tahun).",
     "event_study": "Event study: hasil setelah kejadian dibanding pembanding; dihitung ulang sistem, termasuk tabel alur.",
     "event_summary": "Ringkasan hipotesis dengan aturan sukses dari rencana yang disetujui.",
+    "explore_test": ("Jalur cepat (B3): uji eksploratif dengan metode library riset; semua uji satu jawaban dikoreksi "
+                     "bersama oleh sistem."),
     "insufficient_data": "Menyatakan data tidak cukup untuk suatu hitungan, dengan alasannya.",
     "intermediate_path": "Lokasi file kerja sementara di sesi.",
     "emit_table": "Merilis tabel hasil beserta definisinya.",

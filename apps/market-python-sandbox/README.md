@@ -1288,6 +1288,25 @@ when its copy and `public."AI_method_guide"` (migration `20261002_001`, generate
 true to the code: every helper input is a parameter with the same default, every runnable example runs in a session,
 the migration equals the generator's output.
 
+### Exploratory tests (off unless `PY_SANDBOX_EXPLORE_TESTS_ENABLED=true`; EXEC-FASTLANE B3)
+
+For market-ai-orc's fast lane: a statistical test without a Research Plan, approval or Research Governor, computed
+with the research engines so the result is not misleading. With the flag off nothing changes.
+
+- **`explore_test(method_id, frame, parameters=None, horizon=1, outcome_unit="PERCENT", expected_direction="DIFFERENT",
+  stability=False, name=None, question="")`** is pre-bound in analysis sessions only (never in a research session). It
+  runs one research library method (`runtime/research_engines.evaluate`) on the model's frame: dates are clusters,
+  overlapping outcomes count once (effective sample), intervals and a two-sided p-value by default; a price used as a
+  return outcome is refused. `stability=True` also evaluates the two halves of the period (STABLE, UNSTABLE,
+  INSUFFICIENT). It releases `explore_<name>` (one row, `p_value` in P_VALUE) and records `explore_test_call_<name>`.
+  At most 20 tests per session; a name is used once.
+- In such a session `event_study` also records its first segment as an exploratory test (`explore_test_call_es_<name>`);
+  its backend recomputation is unchanged.
+- **`final_status.explore_tests`** (`app/explore_tests.py`): the tests of the successful executions, their p-values
+  adjusted together with Benjamini-Hochberg at alpha 0.05, `held` (adjusted p below alpha and a sample that is not
+  INSUFFICIENT or ANECDOTAL), `unstable` and `small_samples`. Nothing is recomputed: the statistics stay exploratory.
+- `/v1/runtime` reports `explore_tests: {enabled, version}`.
+
 ### Research findings v1 (off unless `PY_SANDBOX_RESEARCH_FINDINGS_ENABLED=true`)
 
 A condition -> outcome research experiment is judged by the backend, not by the model:

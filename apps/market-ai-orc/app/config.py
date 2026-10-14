@@ -155,6 +155,11 @@ class Settings:
     # EXEC-FASTLANE B2b: on the fast lane, check_references (the draft pre-check) stays offered; false withdraws it
     # there (the answer gates still check every figure and correct units); the standard lane always keeps it
     ai_fastlane_draft_check: bool = True
+    # EXEC-FASTLANE B3 (user 2026-10-14): on the fast lane the analysis note tells the model to test with
+    # saniti.explore_test (research engine statistics, no Research Governor) and the answer gets the system's line on
+    # the tests tried and how many hold after a Benjamini-Hochberg correction; needs a sandbox reporting explore_tests
+    # (PY_SANDBOX_EXPLORE_TESTS_ENABLED). Off keeps the fast lane as before; the standard lane never changes
+    ai_fastlane_explore_tests: bool = False
     # OpenRouter provider routing for the agent's model calls: provider.sort "price", "throughput" or "latency". Unset
     # keeps OpenRouter's default load balancing, which is weighted to the lowest price.
     ai_provider_sort: str | None = None
@@ -394,6 +399,7 @@ class Settings:
             ai_enable_merged_steps=_boolean(env, "AI_ENABLE_MERGED_STEPS", False),
             ai_enable_fastlane=_boolean(env, "AI_ENABLE_FASTLANE", False),
             ai_fastlane_draft_check=_boolean(env, "AI_FASTLANE_DRAFT_CHECK", True),
+            ai_fastlane_explore_tests=_boolean(env, "AI_FASTLANE_EXPLORE_TESTS", False),
             ai_provider_sort=(env.get("AI_PROVIDER_SORT") or "").strip().lower() or None,
             ai_log_provider=_boolean(env, "AI_LOG_PROVIDER", False),
             ai_provider_max_cache_price_ratio=_ratio(env, "AI_PROVIDER_MAX_CACHE_PRICE_RATIO", 0.0, 0.0, 1.0)

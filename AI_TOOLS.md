@@ -118,6 +118,7 @@ Dibuat dari `apps/market-ai-orc/app/tool_desks.py` (`DESKS`), saklar semua menya
 | `research_temporal_dependency` | Riset: korelasi dan hubungan mendahului (lead-lag). |
 | `research_custom` | Riset: rumus khusus yang tetap diperiksa sistem. |
 | `event_summary` | Ringkasan hipotesis dengan aturan sukses dari rencana yang disetujui. |
+| `explore_test` | Jalur cepat (B3): uji eksploratif dengan metode library riset; semua uji satu jawaban dikoreksi bersama oleh sistem. |
 
 ## Buku panduan metode (get_method_guide)
 

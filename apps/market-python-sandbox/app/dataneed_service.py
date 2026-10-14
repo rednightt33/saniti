@@ -28,11 +28,12 @@ from .research_findings import evaluate as evaluate_findings
 from .research_methods import sha256_json as research_sha256
 from .sessions import SessionError, SessionManager
 from .research_governance import review as governance_review
-from . import backtest_validation, event_study_validation, research_validation
+from . import backtest_validation, event_study_validation, explore_tests, research_validation
 
 # outputs only the saniti helpers write (runtime/saniti_session.py RESEARCH_RESERVED): records the backend recomputes
 # from, released for the audit but never offered as results
-BACKEND_RECORDS = ("research_input_", "research_call_", event_study_validation.PREFIX, backtest_validation.PREFIX)
+BACKEND_RECORDS = ("research_input_", "research_call_", event_study_validation.PREFIX, backtest_validation.PREFIX,
+                   explore_tests.PREFIX)
 
 logger = logging.getLogger("market_python_sandbox")
 
@@ -1025,7 +1026,17 @@ class DataNeedService:
             if backtests is not None and backtests["status"] == "FAIL":
                 passed = False
         records = {o["output_id"] for o in outputs
-                   if str(o.get("name") or "").startswith((event_study_validation.PREFIX, backtest_validation.PREFIX))}
+                   if str(o.get("name") or "").startswith((event_study_validation.PREFIX, backtest_validation.PREFIX,
+                                                           explore_tests.PREFIX))}
+        # EXEC-FASTLANE B3: the analysis's exploratory tests, corrected together (never in a research session)
+        explored = None
+        if self.settings.explore_tests_enabled and mode != "RESEARCH" and passed:
+            try:
+                explored = explore_tests.summarize(outputs=outputs, executions=executions,
+                                                   outputs_root=self.sessions.outputs_root)
+            except Exception as exc:  # noqa: BLE001 - a summary defect never fails a completion
+                self._log("explore_tests_failed", request_id=request_id, session_id=session_id,
+                          error=type(exc).__name__)
         # H1 (M63): every released table or JSON states how it was made, so a later turn reads it instead of guessing
         undefined = undefined_outputs(outputs) if passed else []
         if undefined:
@@ -1066,6 +1077,8 @@ class DataNeedService:
                 "execution_ids": [e["execution_id"] for e in executions if e["status"] == "OK"]}
         if findings is not None and findings["status"] == "OK":
             final["research_findings"] = [findings["finding"]]
+        if explored is not None:
+            final["explore_tests"] = explored
         used = {}
         for run in executions:
             if run["status"] != "OK":

@@ -2385,6 +2385,35 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
       `ai_reference_unit_unknown` di kedua sisi, artinya satuan kolom itu tidak dikenal sistem.
   - **Keputusan user 2026-10-14:** "Ok, matikan ya untuk fastlane." `AI_FASTLANE_DRAFT_CHECK=false` di orc dev
     (deployment `12a494eb` SUCCESS). Fokus berikutnya: lama berpikir AI dan langkah pencarian tabel.
+- **B3 revisi (2026-10-14, user: "Ok, jalankan"; dikerjakan, belum di-deploy):**
+  - **Keputusan user:** fase ini hanya ANALYSIS dan EXPLORE. "Uji statistik untuk pencarian insight tidak perlu
+    dibuktikan secara statistik melalui research governor, but should be reliable and trustworthy enough sehingga
+    hasilnya tidak misleading." Angka tidak perlu divalidasi kebenarannya oleh backend, tetapi harus cukup akurat.
+    `fetch()` tidak dibuat; B4 (validasi di holdout) keluar dari fase ini.
+  - **Dua mode di jalur cepat:**
+    - Mode Jawab (default): uji hanya pertanyaan pengguna, tanpa hipotesis baru.
+    - Mode Insight: route EXPLORE dari router pesan pertama atau kelas INSIGHT dari router percakapan; paling banyak 5
+      sudut dari library riset, `stability=True`.
+  - **Keputusan kecil:** a) helper diarahkan lewat catatan, tidak dipaksa; b) tanpa gerbang tolak-perbaiki baru,
+    cukup catatan + kalimat bukti dari sistem; c) pemicu Insight memakai route EXPLORE yang ada (prompt router tidak
+    diubah); d) kalimat bukti di `limitations`; e) BH dengan alfa 5%; f) cek stabilitas dua paruh periode di Insight.
+  - **Sandbox** (`PY_SANDBOX_EXPLORE_TESTS_ENABLED`, default mati):
+    - `saniti.explore_test` (extra helper sesi analisis, tidak pernah di sesi riset) menjalankan
+      `research_engines.evaluate` atas frame AI: sampel efektif per tanggal, interval, p dua sisi; harga sebagai
+      outcome ditolak; merilis `explore_<nama>` dan mencatat `explore_test_call_<nama>`.
+    - `event_study` di sesi itu ikut tercatat; hitung ulang backend tidak berubah.
+    - `final_status.explore_tests` (`app/explore_tests.py`): koreksi BH atas uji eksekusi yang berhasil, `held`,
+      `unstable`, `small_samples`; `/v1/runtime` `explore_tests`.
+  - **Orc** (`AI_FASTLANE_EXPLORE_TESTS`, default mati; aktif hanya bila sandbox melaporkan `explore_tests`):
+    `lanes.current_explore_mode`, catatan per mode (`EXPLORE_ANSWER_NOTE`, `EXPLORE_INSIGHT_NOTE` dengan 8 metode dari
+    `research_library.py`), kalimat "Bukti statistik" ditulis sistem (`user_texts.explore_evidence_line`), dan kalimat
+    jalur analisis "tanpa uji signifikansi" tidak ditempel bila uji sudah dilaporkan (kontradiksi yang ditemukan
+    saat tes).
+  - **Tes:** sandbox 6 tes baru lulus; suite sandbox 821 lulus, 2 gagal yang juga gagal di `main` tanpa perubahan ini
+    (`test_a_weekly_analysis_records_its_derivation`, `test_a_crash_is_labelled_after_the_process_exits`, kegagalan
+    lingkungan). Orc 1.484 lulus, 258 dilewati. `AI_TOOLS.md` diregenerasi.
+  - **Berikutnya (butuh izin user):** deploy sandbox lalu orc dev, nyalakan kedua variabel, A/B ON vs OFF (Mode Jawab
+    b3/b4, Mode Insight 2 pertanyaan baru).
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur

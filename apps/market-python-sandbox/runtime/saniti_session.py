@@ -36,6 +36,9 @@ needs; nothing here computes an indicator or checks a formula.
     research_temporal_dependency / research_custom
                                     Multi-Angle Research: one approved angle's input recorded for the backend finding
                                     (only in an approved multi-angle research session)
+    explore_test(method_id, frame, parameters=None, horizon=1, outcome_unit="PERCENT", stability=False, ...)
+                                    EXEC-FASTLANE B3: an exploratory test with a research library method (fast lane
+                                    only); the answer's tests are corrected together by the harness
     insufficient_data(request, range_id=None, value=None, unit=..., requirement_type=..., reason="")
                                     stop: the data cannot support the analysis; revise the DataNeedSpec
     intermediate_path(name)         a private file path for intermediate results
@@ -71,7 +74,7 @@ __all__ = [
 ]
 # pre-bound only when the session config lists them (session.json extra_helpers, set by a feature flag)
 EXTRA_HELPERS = ("event_summary", "research_conditional", "research_persistence", "research_group_comparison",
-                 "research_quantiles", "research_temporal_dependency", "research_custom")
+                 "research_quantiles", "research_temporal_dependency", "research_custom", "explore_test")
 
 REQUESTS: dict[str, dict[str, Any]] = {}
 REFERENCE_DATE: str | None = None
@@ -92,10 +95,17 @@ _SEQ = [0]
 _RESEARCH: dict[str, Any] = {}
 _RESEARCH_DONE: set[str] = set()
 _RESEARCH_PENDING: set[str] = set()
-RESEARCH_RESERVED = ("research_input_", "research_call_", "event_study_call_", "backtest_call_")
+RESEARCH_RESERVED = ("research_input_", "research_call_", "event_study_call_", "backtest_call_", "explore_test_call_")
 # M28: the approved hypothesis plan's findings values (success_rule, ...), from session.json research_v1
 _FINDINGS_V1: dict[str, Any] = {}
 RESEARCH_WRAPPER_VERSION = 1
+# EXEC-FASTLANE B3 (session.json extra_helpers lists explore_test, PY_SANDBOX_EXPLORE_TESTS_ENABLED): exploratory tests
+# recorded for the harness, which corrects all of an answer's tests together; names settle with a successful execution
+_EXPLORE: dict[str, Any] = {"enabled": False}
+_EXPLORE_NAMES: set[str] = set()
+_EXPLORE_PENDING: set[str] = set()
+EXPLORE_VERSION = 1
+MAX_EXPLORE_TESTS = 20
 NAME = _re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\-. ]{0,79}$")
 INTERMEDIATE_NAME = _re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 MAX_ACCESS = 500
@@ -176,6 +186,9 @@ def _configure(session: dict[str, Any], session_dir: str) -> None:
     _FINDINGS_V1.update((session.get("research_v1") or {}).get("findings") or {})
     _RESEARCH_DONE.clear()
     _RESEARCH_PENDING.clear()
+    _EXPLORE["enabled"] = "explore_test" in (session.get("extra_helpers") or [])
+    _EXPLORE_NAMES.clear()
+    _EXPLORE_PENDING.clear()
 
 
 def _quote(text: str) -> str:
@@ -240,7 +253,9 @@ def _research_settle(ok: bool) -> None:
     outputs of successful executions only), so a failed execution can be fixed and run again."""
     if ok:
         _RESEARCH_DONE.update(_RESEARCH_PENDING)
+        _EXPLORE_NAMES.update(_EXPLORE_PENDING)
     _RESEARCH_PENDING.clear()
+    _EXPLORE_PENDING.clear()
 
 
 def _log(entry: dict[str, Any]) -> None:
@@ -697,6 +712,16 @@ def event_study(request: str, event: str, outcome: dict[str, Any], horizon: int,
                                                                       "by the backend).")
     _log({"call": "event_study", "data_request_id": r["data_request_id"], "name": label,
           "events": int(summary[0]["event_count"] or 0)})
+    if _EXPLORE["enabled"]:  # B3: the study's first segment joins the answer's exploratory tests
+        first = summary[0]
+        effective = int(first.get("effective_event_dates") or 0)
+        _write_explore_call(f"es_{label}"[:60], {
+            "source": "event_study", "method_id": "event_study", "question": described, "output": label,
+            "candidate": first.get("segment"), "estimate_kind": "MEAN_DIFFERENCE", "estimate": first.get("delta_mean"),
+            "ci_low": first.get("delta_ci_low"), "ci_high": first.get("delta_ci_high"),
+            "p_value": first.get("delta_p_value"), "effective": effective,
+            "sample_flag": _explore_flag(effective), "stability": None, "outcome_unit": outcome_unit,
+            "horizon": params["horizon"]})
     return {"name": label, "summary": summary, "parameters": params, "outputs": [table, kept, compared, flowed],
             # P32: the rows the study used per approved range (buffer rows only fed lags and forward returns)
             "rows_in_period": [{"range_id": w.get("range_id"), "rows": w.get("rows")}
@@ -709,6 +734,141 @@ def event_study(request: str, event: str, outcome: dict[str, Any], horizon: int,
                        "flow": f"{label}_flow"},
             "validation": "Recomputed independently by the backend at complete_analysis; a match is labelled "
                           "CALCULATION_VERIFIED, a difference fails completion (CALCULATION_MISMATCH)."}
+
+
+# ---------------------------------------------------------------- exploratory tests (EXEC-FASTLANE B3)
+
+def _explore_flag(effective: int) -> str:
+    """The sample category without a power calculation: INSUFFICIENT or ANECDOTAL as the engines count them, else
+    UNASSESSED (event_study reports no minimum detectable effect)."""
+    import research_engines
+
+    if effective < research_engines.ANECDOTAL_BELOW:
+        return research_engines.sample_flag(effective, None, None)
+    return "UNASSESSED"
+
+
+def _write_explore_call(label: str, row: dict[str, Any]) -> None:
+    """One exploratory test as an internal record (explore_test_call_<label>); the harness reads the records of the
+    answer's successful executions and corrects their p-values together (Benjamini-Hochberg)."""
+    if label in _EXPLORE_NAMES or label in _EXPLORE_PENDING:
+        raise SanitiError(f"An exploratory test named {label!r} was already recorded in this session; use another name.")
+    if len(_EXPLORE_NAMES) + len(_EXPLORE_PENDING) >= MAX_EXPLORE_TESTS:
+        raise SanitiError(f"A session records at most {MAX_EXPLORE_TESTS} exploratory tests; test the questions that "
+                          "matter most.")
+    name = f"explore_test_call_{label}"
+    text = _json.dumps(_jsonable({"version": EXPLORE_VERSION, "name": label, **row}), ensure_ascii=False,
+                       separators=(",", ":"))
+    file_name = _file(_name(name, internal=True), "json")
+    with open(_os.path.join(_OUTPUT_DIR, file_name), "w", encoding="utf-8") as handle:
+        handle.write(text)
+    _record("JSON", "JSON", name, file_name, f"Exploratory test {label} (corrected with the answer's other tests).")
+    _EXPLORE_PENDING.add(label)
+
+
+def explore_test(method_id: str, frame, *, parameters: dict[str, Any] | None = None, horizon: int = 1,
+                 outcome_unit: str = "PERCENT", expected_direction: str = "DIFFERENT", stability: bool = False,
+                 name: str | None = None, question: str = "") -> dict[str, Any]:
+    """An exploratory statistical test with one of the research library's methods (fast lane, no plan, no approval).
+
+    method_id: conditional_distribution, threshold_sensitivity, streak_persistence, regime_comparison,
+    cohort_comparison, quantile_ranking, lead_lag or correlation_dependency. frame: a DataFrame with date, entity
+    (optional for some methods) and the method's role columns (condition, signal, outcome, state, group, leader,
+    follower); outcome is a forward return in outcome_unit (PERCENT, DECIMAL, or OTHER for a non-return), for example
+    from forward_return. parameters: the method's parameters (thresholds, buckets, lags, ...). The statistics are the
+    research engines': dates are clusters and overlapping outcomes count once (effective sample), with intervals and a
+    two-sided p-value by default. stability=True also tests the two halves of the period and reports whether the
+    effect keeps its sign (STABLE, UNSTABLE, INSUFFICIENT).
+
+    Releases the table explore_<name> (one row) and records the test; the system corrects all of this answer's tests
+    together and states how many hold, so do not call a result significant yourself."""
+    import pandas as pd
+    import research_engines
+    import research_inputs
+
+    if not _EXPLORE["enabled"]:
+        raise SanitiError("explore_test is available only on the fast lane with exploratory tests switched on.")
+    if method_id not in research_engines.METHODS:
+        raise SanitiError(f"method_id is one of {sorted(research_engines.METHODS)}.")
+    if not isinstance(frame, pd.DataFrame):
+        raise SanitiError("frame must be a pandas DataFrame with date, entity and the method's role columns.")
+    if outcome_unit not in research_engines.UNITS:
+        raise SanitiError(f"outcome_unit is one of {research_engines.UNITS}.")
+    if expected_direction not in research_engines.DIRECTIONS:
+        raise SanitiError(f"expected_direction is one of {research_engines.DIRECTIONS} (DIFFERENT: two-sided).")
+    if not isinstance(horizon, int) or horizon < 1:
+        raise SanitiError("horizon is the outcome's length in observations, at least 1.")
+    if parameters is not None and not isinstance(parameters, dict):
+        raise SanitiError("parameters is a dict of the method's parameters.")
+    label = name if name is not None else f"test_{len(_EXPLORE_NAMES) + len(_EXPLORE_PENDING) + 1}"
+    if not isinstance(label, str) or not _re.fullmatch(r"[A-Za-z0-9_]{1,40}", label):
+        raise SanitiError("name is 1-40 letters, digits or '_'.")
+    required, optional = research_inputs.roles_for(method_id)
+    missing = [c for c in ("date", *required) if c not in frame.columns]
+    if missing:
+        raise SanitiError(f"frame lacks the columns {missing}; {method_id} takes date, entity (optional) and "
+                          f"{list(required)}" + (f" (optional {list(optional)})" if optional else "") + ".")
+    canonical = frame[[c for c in ("date", "entity", *required, *optional) if c in frame.columns]].copy()
+    problem = research_inputs.outcome_problem(method_id, canonical, outcome_unit)
+    if problem:
+        raise SanitiError(f"OUTCOME_NOT_A_RETURN: {problem}")
+    if "outcome" in canonical.columns and outcome_unit in ("PERCENT", "DECIMAL"):
+        check = outcome_unit_check(canonical, "outcome", "date", [horizon], outcome_unit,
+                                   entity_column="entity" if "entity" in canonical.columns else None)
+        if check["status"] == "MISMATCH":
+            raise SanitiError(check["message"])
+    params = dict(parameters or {})
+    candidates = len(params.get("thresholds") or []) or 1
+    approved = {"parameters": params, "expected_direction": expected_direction, "outcome_horizon_periods": horizon,
+                "outcome_unit": outcome_unit, "multiple_testing_policy": "BENJAMINI_HOCHBERG",
+                "candidate_count": candidates}
+    try:
+        result = research_engines.evaluate(method_id, canonical, approved)
+    except research_engines.EngineError as exc:
+        raise SanitiError(f"{exc.code}: {exc}") from None
+    primary = result.get("primary") or {}
+    sample = result.get("sample") or {}
+    ci = primary.get("ci") or [None, None]
+    stable = None
+    if stability:
+        dates = pd.to_datetime(canonical["date"], errors="coerce").dropna().drop_duplicates().sort_values()
+        stable = "INSUFFICIENT"
+        if len(dates) >= 4:
+            split = dates.iloc[len(dates) // 2]
+            try:
+                halves = research_engines.evaluate(method_id, canonical,
+                                                   {**approved, "holdout_start": str(split.date())})
+                held = halves.get("holdout") or {}
+                if not held.get("error") and (held.get("effective") or 0) >= research_engines.MIN_EFFECTIVE:
+                    stable = "STABLE" if (halves.get("secondary") or {}).get("holdout") == "PASS" else "UNSTABLE"
+            except research_engines.EngineError:
+                stable = "INSUFFICIENT"
+    p_value = primary.get("p_adjusted") if candidates > 1 and primary.get("p_adjusted") is not None \
+        else primary.get("p_value")
+    effective = int(sample.get("effective") or primary.get("effective") or 0)
+    row = {"method_id": method_id, "question": str(question)[:300], "candidate": primary.get("candidate"),
+           "estimate_kind": result.get("estimate_kind"), "estimate": primary.get("estimate"), "ci_low": ci[0],
+           "ci_high": ci[1], "p_value": p_value, "effective": effective,
+           "sample_flag": sample.get("flag") or _explore_flag(effective), "stability": stable,
+           "outcome_unit": outcome_unit, "horizon": horizon}
+    value_unit = research_engines.estimate_units(result.get("estimate_kind"), outcome_unit).get("estimate")
+    units = {"p_value": "P_VALUE", **({c: value_unit for c in ("estimate", "ci_low", "ci_high")} if value_unit else {})}
+    table = emit_table(f"explore_{label}", pd.DataFrame([{k: row[k] for k in EXPLORE_COLUMNS}]),
+                       f"Exploratory test {label}: {method_id}" + (f" ({question})" if question else ""), units=units,
+                       definition={"filters": [], "thresholds": {"method_id": method_id, "horizon": horizon,
+                                                                 "parameters": params,
+                                                                 "expected_direction": expected_direction},
+                                   "notes": "explore_test (exploratory, research engine statistics)"})
+    _write_explore_call(label, {"source": "explore_test", "output": f"explore_{label}", **row})
+    _log({"call": "explore_test", "name": label, "method_id": method_id, "rows": int(len(canonical))})
+    return {"name": label, **row, "output": table,
+            "note": "Exploratory: the system corrects all tests of this answer together (Benjamini-Hochberg) and "
+                    "states in the answer how many hold; describe the effect and its interval, never call it "
+                    "significant, proven or a cause yourself."}
+
+
+EXPLORE_COLUMNS = ("method_id", "candidate", "estimate_kind", "estimate", "ci_low", "ci_high", "p_value", "effective",
+                   "sample_flag", "stability", "horizon")
 
 
 # ---------------------------------------------------------------- relationships and resampling

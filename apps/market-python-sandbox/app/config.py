@@ -140,6 +140,10 @@ class Settings:
     # research findings v1 (PY_SANDBOX_RESEARCH_FINDINGS_ENABLED): event_summary, backend sample category and verdict,
     # no fixed minimum sample in the Research Governor
     research_findings_enabled: bool = False
+    # EXEC-FASTLANE B3 (PY_SANDBOX_EXPLORE_TESTS_ENABLED): saniti.explore_test in analysis sessions (never in a research
+    # session) and final_status.explore_tests, the answer's exploratory tests corrected together; market-ai-orc offers
+    # it on the fast lane only
+    explore_tests_enabled: bool = False
     # item C (EXTRACTION_AND_AUDIT_PLAN.md): final_status.modules_used lists the modules the session's successful
     # executions imported; the per-execution record and log always carry them
     modules_audit_enabled: bool = False
@@ -316,6 +320,7 @@ class Settings:
                                                 minimum=0, maximum=1_073_741_824),
             derived_frequency_enabled=_boolean(env, "PY_SANDBOX_DERIVED_FREQUENCY_ENABLED", False),
             research_findings_enabled=_boolean(env, "PY_SANDBOX_RESEARCH_FINDINGS_ENABLED", False),
+            explore_tests_enabled=_boolean(env, "PY_SANDBOX_EXPLORE_TESTS_ENABLED", False),
             modules_audit_enabled=_boolean(env, "PY_SANDBOX_MODULES_AUDIT_ENABLED", False),
             multi_angle_research_enabled=_boolean(env, "PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED", False),
             research_min_angles=_integer(env, "PY_SANDBOX_RESEARCH_MIN_ANGLES", 2, maximum=6),
