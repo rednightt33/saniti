@@ -1,0 +1,39 @@
+{
+  "prefix": "ma-fastlane-draft-20261014-off",
+  "workers": 1,
+  "audit_wait_seconds": 0,
+  "items": [
+    {
+      "id": "b2_bbri_distribution",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "expect": "EXEC-FASTLANE B2b A/B: draft pre-check OFF (AI_FASTLANE_DRAFT_CHECK=false)",
+      "turns": [
+        "Coba analisis pergerakan BBRI kemarin. Buat distribusi dari harga dan volumenya"
+      ],
+      "lane": "fast"
+    },
+    {
+      "id": "b4_broker_accum",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "expect": "EXEC-FASTLANE B2b A/B: draft pre-check OFF (AI_FASTLANE_DRAFT_CHECK=false)",
+      "turns": [
+        "Cari saham yang diakumulasi broker di atas X selama Y hari lalu return-nya lebih dari 10% dalam 20 hari bursa; X dan Y ambil dari sebaran data (kuantil atas)"
+      ],
+      "lane": "fast"
+    },
+    {
+      "id": "b5_recap_export",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "expect": "EXEC-FASTLANE B2b A/B: draft pre-check OFF (AI_FASTLANE_DRAFT_CHECK=false)",
+      "turns": [
+        "Tampilkan 5 broker dengan net beli terbesar di saham BBRI selama Agustus 2026",
+        "Rekap per minggu: broker mana yang paling sering masuk 5 besar?",
+        "Ekspor tabel rekap tadi ke Excel."
+      ],
+      "lane": "fast"
+    }
+  ]
+}

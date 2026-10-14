@@ -1643,12 +1643,15 @@ FASTLANE_NOTE = (PLAN_NOTE_PREFIX + "this message runs on the fast lane. Answer 
                  "stocks over a long period), check its size with check_data_feasibility first and size it to what "
                  "fits; (3) write the analysis as one complete script per run_python (build the frames, compute, emit "
                  "the tables), not one small step per call, and complete the analysis in the same call when the tool "
-                 "offers it; (4) call check_references with a draft only when the answer cites more than about eight "
-                 "figures from data, otherwise write the final answer directly. The results are exploratory: "
+                 "offers it; {draft_step} The results are exploratory: "
                  "patterns in the historical data without a formal test, so say so plainly, never call them proven, "
                  "a cause, a prediction or a trading signal, and offer a formal test as a next step when it matters. "
                  "When the user leaves a parameter open (a window, a threshold), choose a reasonable value, state it "
                  "in assumptions, and answer.")
+FASTLANE_DRAFT_STEP = ("(4) call check_references with a draft only when the answer cites more than about eight "
+                       "figures from data, otherwise write the final answer directly.")
+# EXEC-FASTLANE B2b (AI_FASTLANE_DRAFT_CHECK false): no draft pre-check; the answer gates list what to repair
+FASTLANE_NO_DRAFT_STEP = "(4) write the final answer directly."
 RESEARCH_PATH_NOTE = (PLAN_NOTE_PREFIX + "the caller fixed this request to the RESEARCH path. Treat the question as "
                       "research: propose a Research Plan (RESEARCH_PLAN_CONFIRMATION) under the RESEARCH PLAN "
                       "CONFIRMATION rules, or ask a CLARIFICATION when it cannot be planned; every data need uses "
@@ -2571,6 +2574,10 @@ class AgentOrchestrator:
                 reading = (current_design_changes.set(state.reply_reading["design_value_changes"]),
                            current_turn_referent.set(state.reply_reading["referent"]))
             self._apply_turn_kind(state)
+            if state.lane == lanes.FAST and not self._fast_draft_check():
+                # EXEC-FASTLANE B2b: every fast-lane step (analysis, insight, read) without the draft pre-check
+                offered = state.tool_filter if state.tool_filter is not None else frozenset(self.registry.names())
+                state.tool_filter = frozenset(offered) - {"check_references"}
             carried = current_carried_outputs.set(state.carried_outputs)
             current_research_guard.set(state.guard)
             final = self._loop(state)
@@ -3326,7 +3333,9 @@ class AgentOrchestrator:
             # and the read-only turn kinds (narrowed later by _apply_turn_kind) keep the current behaviour
             state.allowed_types, state.tool_filter = BASE_TYPES, self._process_tools("FASTLANE")
             state.guard = ResearchGuard(required=True)
-            state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": FASTLANE_NOTE})
+            step = FASTLANE_DRAFT_STEP if self._fast_draft_check() else FASTLANE_NO_DRAFT_STEP
+            state.input_items.insert(len(state.input_items) - 1,
+                                     {"role": "user", "content": FASTLANE_NOTE.format(draft_step=step)})
             log_event("ai_lane_turn", request_id=request.request_id, lane=state.lane, forced_path=state.forced_path)
             return
         if state.forced_path == "ANALYSIS":
@@ -3476,6 +3485,10 @@ class AgentOrchestrator:
         count = (f"exactly {NUMBER_WORDS[low]} angle" + ("s" if low > 1 else "")) if low == high \
             else f"from {NUMBER_WORDS[low]} to {NUMBER_WORDS[high]} angles"
         return " " + ANGLE_COUNT_NOTE.format(count=count)
+
+    def _fast_draft_check(self) -> bool:
+        """EXEC-FASTLANE B2b: whether the fast lane offers check_references (AI_FASTLANE_DRAFT_CHECK, default on)."""
+        return bool(getattr(self.settings, "ai_fastlane_draft_check", True))
 
     def _apply_turn_kind(self, state: RunState) -> None:
         """The conversation router's class for this sub-run (mode 4): its note, and for CLARIFY and CONVERSATIONAL only

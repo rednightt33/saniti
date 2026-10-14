@@ -13,16 +13,27 @@ from app import lanes
 from app.main import create_app
 from app.model_choices import current_model_choice, resolve
 from app.openrouter_client import ProviderError
-from app.orchestrator import ANALYSIS_PATH_NOTE, FASTLANE_NOTE, RESEARCH_PATH_NOTE, AgentOrchestrator
+from app.orchestrator import (ANALYSIS_PATH_NOTE, FASTLANE_DRAFT_STEP, FASTLANE_NO_DRAFT_STEP, FASTLANE_NOTE,
+                              RESEARCH_PATH_NOTE, AgentOrchestrator)
 from app.schemas import AgentRunRequest
 from app.tools import build_default_registry
 from app.tools.data_planner import fit_hints
+from app.tools.references import check_references_spec
 from conftest import ANSWER, BASE_ENV, ScriptedClient, final_response, make_settings
 from test_analysis_path import ON, Counting
 from test_dataneed_orchestrator import Tools, answer, completed, flow
 
 AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}"}
 FAST_ON = {**ON, "AI_ENABLE_FASTLANE": "true"}
+
+
+class Checking(Counting):
+    """The fake registry with the real check_references (the draft pre-check)."""
+
+    def registry(self):
+        registry = super().registry()
+        registry.register(check_references_spec())
+        return registry
 
 
 class Recording(ScriptedClient):
@@ -59,13 +70,30 @@ def test_the_fast_lane_answers_in_one_turn_on_its_desk_with_lower_reasoning_afte
                                   lane=lanes.FAST, path="RESEARCH")
     assert result.status == "COMPLETED" and tools.modes == ["ANALYSIS"]
     first = json.dumps(scripted.payloads[0])
-    assert FASTLANE_NOTE in first and RESEARCH_PATH_NOTE not in first and ANALYSIS_PATH_NOTE not in first
+    assert FASTLANE_NOTE.format(draft_step=FASTLANE_DRAFT_STEP) in first
+    assert RESEARCH_PATH_NOTE not in first and ANALYSIS_PATH_NOTE not in first
     assert "check_research_feasibility" not in names(scripted.payloads[0])
     assert "run_python" in names(scripted.payloads[0])
     assert scripted.payloads[0]["reasoning"] == {"effort": "high"}
     assert {json.dumps(p["reasoning"]) for p in scripted.payloads[1:]} == {json.dumps({"effort": "low"})}
     assert all(o == {"timeout": lanes.FAST_CALL_SECONDS, "attempts": 1} for o in scripted.options)
     assert result.execution.lane == "fast" and result.execution.research_plan is None
+
+
+def test_without_the_draft_check_the_fast_lane_withdraws_check_references_and_its_note_step() -> None:
+    """EXEC-FASTLANE B2b A/B (user 2026-10-14: "bedanya pra draft enable dan disable"); the standard lane keeps it."""
+    script = [*flow(), final_response(answer("Return YTD BBCA 12,35% dan BBRI turun 4,32%."))]
+    _, default, _ = run(script, lane=lanes.FAST, path="RESEARCH", tools=Checking([completed()]))
+    assert "check_references" in names(default.payloads[0])  # AI_FASTLANE_DRAFT_CHECK default on
+    result, scripted, _ = run(script, lane=lanes.FAST, path="RESEARCH", tools=Checking([completed()]),
+                              settings={**FAST_ON, "AI_FASTLANE_DRAFT_CHECK": "false"})
+    assert result.status == "COMPLETED"
+    first = json.dumps(scripted.payloads[0])
+    assert FASTLANE_NOTE.format(draft_step=FASTLANE_NO_DRAFT_STEP) in first and "check_references with a" not in first
+    assert all("check_references" not in names(p) for p in scripted.payloads)
+    _, standard, _ = run(script, lane=lanes.STANDARD, path="ANALYSIS", tools=Checking([completed()]),
+                         settings={**FAST_ON, "AI_FASTLANE_DRAFT_CHECK": "false"})
+    assert "check_references" in names(standard.payloads[0])
 
 
 def test_a_call_cut_at_the_time_limit_is_asked_again_once_with_lower_reasoning() -> None:
