@@ -2685,6 +2685,15 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
   - **EDGE:** (1) tombol perbesar tabel jawaban → dialog lebar penuh seperti contoh screenshot; (2) di HP tombol
     Kembali/Enter menambah baris baru, bukan mengirim; (3) hapus teks "Kirim balasan langsung" di kartu pilihan;
     (4) hilangkan celah antara status "AI request running" di percakapan dan kotak pesan.
+  - **Dikerjakan (2026-10-14):** orc `main` `e96244a` (`FASTLANE_DECISIONS_NOTE`, `EXPLORE_ANSWER_HELPERS_V4`,
+    `app/fastlane_defaults.py`; nilai awal dari pilihan AI paling sering di log: persentil 90 sebanyak 133 kali, jendela
+    21 hari bursa 48 kali, riwayat 5 tahun 61 kali; horizon 5 hari bursa; batas cek ukuran 100 entitas-tahun); EDGE
+    `7a48df3`. Temuan saat membangun: aturan D yang benar adalah `|pct` (satuan kolom menentukan skala), bukan "tanpa
+    format" (format otomatis menampilkan pecahan 0,123); dialog tabel di dalam jawaban tertutup bar atas dan kotak
+    pesan di HP, jadi dirender dari akar aplikasi; celah HP terukur 60 px (22 + 32 + 6) menjadi sekitar 14 px.
+    Tes: orc 1.503 lulus; EDGE 87 lulus (4 tes baru). Deploy: orc `c64f8401` SUCCESS, edge-bff `15b7178a` SUCCESS;
+    `AI_FASTLANE_DECISION_RULES=true` (redeploy orc `34cd841f` SUCCESS, dibaca ulang). EDGE live menyajikan kode
+    baru (dicek lewat file statis). Uji live backend menunggu saldo kunci (sisa USD 0,007).
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur

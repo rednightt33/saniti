@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-10-14 — EXEC-FASTLANE V4 deployed and switched on (dev); EDGE V4 fixes
+
+User: "save ini as V4", plan approved. `main` `e96244a` auto-deployed `market-ai-orc` dev `c64f8401` → SUCCESS
+(switch off); `main` `7a48df3` auto-deployed `edge-bff` dev `15b7178a` → SUCCESS (orc deploy for it SKIPPED, no orc
+change). Variable set on `market-ai-orc` / `dev` (name only): `AI_FASTLANE_DECISION_RULES=true`; redeploy `34cd841f`
+→ SUCCESS; value read back. `.railway/railway.ts`: `AI_FASTLANE_DECISION_RULES: preserve()`. Live EDGE static files
+checked (table expand label present, "Kirim balasan langsung" gone). Fallback: set the variable false.
+
 ## 2026-10-14 — Advice in refusals deployed (dev)
 
 User: "OK" (derived hint in the DataNeed PROVENANCE gate, UNITS advice, emit_table error examples). `main` `bacc2e9`
