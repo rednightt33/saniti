@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-10-14 — EXEC-FASTLANE F1, F2, section caps deployed (dev) and switched on
+
+User: rencana eksekusi disetujui ("Yg lain sudah OK.. konfirmasi dan buat execution plan"); izin set variabel saklar
+("Saya beri izin"). `main` `798dad1` auto-deployed `market-ai-orc` dev deployment `0981b6c7` → SUCCESS (switches off,
+behaviour unchanged). Variables set on `market-ai-orc` / `dev` (names only): `AI_FASTLANE_ABANDONED_SESSIONS=true`,
+`AI_FASTLANE_CONVENTION_NUMBERS=true`, `AI_FASTLANE_SECTION_CAPS=true`; redeploy `a7d55636` → SUCCESS; values read back.
+`.railway/railway.ts`: the three names `preserve()`. Fallback: set them false or delete them. A/B not run yet: the
+OpenRouter key had USD 0.09 left (estimate USD 0.13–0.15), waiting for the user's decision.
+
 ## 2026-10-14 — EXEC-FASTLANE Mode Jawab v2 deployed (dev) and A/B
 
 User: "OK" (plan 5B + 2 + 3 narrowed). Rollback references: sandbox `b92b29c6`, orc `bcc854cc`.

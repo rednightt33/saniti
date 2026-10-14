@@ -2597,6 +2597,14 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
     tanpa pemotongan kode dan tanpa gerbang baru; log `ai_answer_sections` mengukur porsi (kriteria A/B: porsi tiga
     bagian di bawah porsi jawaban utama, rata-rata sekitar 35% atau kurang); (4) petunjuk ganda dihapus. Prompt sistem
     dan jalur Standar tidak berubah. A/B 4–5 pertanyaan jalur cepat dengan baseline run v2 (≈ USD 0,15).
+- **F1, F2, batas bagian dikerjakan (2026-10-14):** `main` `798dad1`; orc dev `0981b6c7` SUCCESS, saklar
+  `AI_FASTLANE_ABANDONED_SESSIONS`, `AI_FASTLANE_CONVENTION_NUMBERS`, `AI_FASTLANE_SECTION_CAPS` menyala (redeploy
+  `a7d55636` SUCCESS, dibaca ulang). Tes orc 1.498 lulus, 259 dilewati. Catatan bangun: (a) parser angka sudah
+  menutupi "selang keyakinan 95%" dan "interval kepercayaan 95%" (P28 D); B1 menambah urutan lain ("95% selang
+  kepercayaan", "batas kepercayaan 95%", "selang 95%"); jendela konteks 20 karakter sebelum dan 12 sesudah angka;
+  (b) setiap tempat angka ditulis harus berdampingan dengan kata jenisnya; (c) log `ai_answer_sections` hanya di jalur
+  cepat (jalur Standar tetap identik). Penolakan "36%" o1 adalah hitungan turunan (kelas C), tetap ditolak.
+  **A/B belum dijalankan:** sisa kunci USD 0,09, di bawah perkiraan USD 0,13–0,15; menunggu keputusan user.
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur
