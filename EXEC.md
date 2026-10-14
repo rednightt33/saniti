@@ -2461,6 +2461,23 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
     (boolean) di skema router pesan pertama, menyala bila pengguna meminta insight, pola atau "apa yang menarik";
     route tidak berubah, field hanya dipakai jalur cepat untuk Mode Insight. Uji: `scripts/benchmark_turn_router.py`
     (akurasi route tidak boleh turun), deploy dev, ulang i1, i2 dan satu pertanyaan insight lain (≈ USD 0,15).
+- **Keputusan desain Mode Jawab vs Mode Insight (2026-10-14, user: "Kita lock untuk mode insight dengan perbaikan
+  B3"; "That is correct"; belum dikerjakan di kode):**
+  - **Definisi:** uji statistik = pertanyaan pengguna dibuktikan dengan statistik (Mode Jawab); insight = eksplorasi
+    oleh AI (Mode Insight).
+  - **Mode Insight dikunci dengan B3:** klaim pola hanya dari `explore_test` (library riset), uji tercatat, koreksi
+    BH, cek stabilitas; rincian deskriptif bebas. Ditambah Perbaikan 2 (pemicu `insight` di router).
+  - **Mode Jawab: model + kode, tanpa mesin validasi.** Model menganalisa dengan kode bebas di sandbox (scipy,
+    statsmodels, pandas); helper (`forward_return`, `period_return`, `event_study`, `explore_test`) opsional bila
+    cocok; checklist metode singkat di catatan (kejadian tumpang tindih, cluster per tanggal, rentang + N, parameter
+    dipilih sekali dan ditulis di asumsi); aturan tafsir tetap; tanpa buku catatan wajib, koreksi BH atau Research
+    Governor. Aturan B3 sekarang ("setiap uji lewat explore_test, jangan scipy") dicabut untuk Mode Jawab karena
+    pertanyaan pengguna beragam dan bisa dipaksa masuk ke metode yang tidak cocok. Perbaikan 1 (satuan wajib) tetap.
+    Tahap berikutnya: resep istilah bisnis yang sering muncul.
+  - **Bukti eksternal:** kode jauh lebih andal dari penalaran teks (QRData, arXiv 2402.17644); kesalahan utama LLM
+    adalah pemilihan uji dan tafsir, bukan aritmetika (StatQA arXiv 2406.07815, StatABench arXiv 2606.22977); agen
+    menghasilkan kesalahan diam yang tampak masuk akal (arXiv 2607.21482, LongDS-Bench arXiv 2605.30434); resep atau
+    query terverifikasi menaikkan akurasi produksi (Snowflake Cortex Analyst, vendor: 51% → 90%+).
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur
