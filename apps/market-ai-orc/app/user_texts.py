@@ -425,7 +425,7 @@ FASTLANE_ANSWER_LINE = ("Uji statistik (bila ada) dihitung AI dengan kode dan ti
 
 # EXEC-FASTLANE F2 (AI_FASTLANE_CONVENTION_NUMBERS): the numbers of a fast-lane answer that passed without a table
 # source, written by the system as an assumption
-CONVENTION_NUMBER_KINDS = {"CONFIDENCE_LEVEL": "tingkat kepercayaan standar",
+CONVENTION_NUMBER_KINDS = {"CONFIDENCE_LEVEL": "tingkat kepercayaan standar", "DERIVED": "hitungan dari hasil",
                            "CODE_PARAMETER": "parameter yang ditulis di kode analisis"}
 
 

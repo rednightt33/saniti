@@ -104,6 +104,31 @@ def test_columns_hide_disallowed_and_sensitive_and_keep_nulls(database: str) -> 
     assert "unit" not in columns["Date"]
 
 
+@pytest.mark.parametrize("v2", [False, True])
+def test_v5_option_1_columns_list_check_values_only_when_asked(database: str, v2: bool) -> None:
+    """EXEC-FASTLANE V4 option 1: a column's database CHECK list is shown on the fast lane (the orchestrator sets
+    catalog_values_shown); otherwise COLUMNS is unchanged."""
+    from app.tools.catalog import catalog_values_shown
+
+    with psycopg.connect(database, autocommit=True) as connection:
+        connection.execute('CREATE TABLE IF NOT EXISTS public."IDX_Broker_Summary" ("Date" date, "Investor Type" text, '
+                           '"Undocumented Field" text, CONSTRAINT v5_type_check CHECK ("Investor Type" = ANY '
+                           "(ARRAY['Domestic'::text, 'Foreign'::text])))")
+    registry = build_default_registry(CatalogStore(database, connect_timeout_seconds=5, statement_timeout_ms=5000),
+                                      catalog_discovery_v2=v2)
+    plain = details(registry, ["IDX_Broker_Summary"], ["COLUMNS"])["sections"]["COLUMNS"]
+    assert "column_values" not in plain
+    token = catalog_values_shown.set(True)
+    try:
+        shown = details(registry, ["IDX_Broker_Summary"], ["COLUMNS"])["sections"]["COLUMNS"]
+        other = details(registry, ["IDX_Broker_Summary"], ["COLUMNS"], column_names=["Date"])["sections"]["COLUMNS"]
+    finally:
+        catalog_values_shown.reset(token)
+    assert shown["column_values"] == {"IDX_Broker_Summary": {"Investor Type": ["Domestic", "Foreign"]}}
+    assert "get_dimension_values is not needed" in shown["column_values_note"]
+    assert "column_values" not in other  # only the columns asked for
+
+
 def test_column_filter_with_spaces_and_unknown_columns(database: str) -> None:
     result = details(registry_for(database), ["IDX_Broker_Summary"], ["COLUMNS"],
                      column_names=["Investor Type", "Internal Note", "Nope"])

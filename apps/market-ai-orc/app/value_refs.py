@@ -26,6 +26,8 @@ the model typed right after such a reference ("{{x|dec:2}} pp") is read as the d
 """
 from __future__ import annotations
 
+import contextvars
+
 import math
 import re
 from dataclasses import dataclass, field
@@ -660,6 +662,15 @@ def unit_like(column: str) -> bool:
     return bool(set(tokens) & UNIT_TOKENS)
 
 
+# EXEC-FASTLANE V5 (user 2026-10-14: "PP diganti persentase saja"): set by the orchestrator for a fast-lane run with
+# AI_FASTLANE_V5_PRESENTATION; a |pp figure keeps its value and is shown with %
+pp_as_percent: contextvars.ContextVar[bool] = contextvars.ContextVar("pp_as_percent", default=False)
+
+
+def _pp_label() -> str:
+    return "%" if pp_as_percent.get() else " pp"
+
+
 def display_format(fmt: str | None, unit: str | None) -> str:
     """P23/P24: the format a value is shown with once its unit is known. A p-value is shown with p (a percent format
     on it is refused); a known FRACTION or PERCENT decides the scaling of pct, pctv and pp (see format_value)."""
@@ -685,7 +696,7 @@ def format_value(value: float, fmt: str | None = None, places: int | None = None
         raise ReferenceError_(f"unknown format {fmt!r}; use one of {', '.join(sorted(FORMATS))}")
     if fmt in PERCENT_FORMATS and unit in ("FRACTION", "PERCENT"):
         shown = value * 100 if unit == "FRACTION" else value
-        return _grouped(shown, 2 if places is None else places) + (" pp" if fmt == "pp" else "%")
+        return _grouped(shown, 2 if places is None else places) + (_pp_label() if fmt == "pp" else "%")
     if fmt == "p":
         if not 0 <= value <= 1:
             return _grouped(value, 3 if places is None else places)
@@ -701,7 +712,7 @@ def format_value(value: float, fmt: str | None = None, places: int | None = None
     if fmt == "pctv":
         return _grouped(value, 2 if places is None else places) + "%"
     if fmt == "pp":
-        return _grouped(value, 2 if places is None else places) + " pp"
+        return _grouped(value, 2 if places is None else places) + _pp_label()
     if fmt == "x":
         return _grouped(value, 2 if places is None else places) + " kali"
     if fmt == "rp":

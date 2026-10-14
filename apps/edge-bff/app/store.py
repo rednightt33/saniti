@@ -163,6 +163,22 @@ class Store:
                 WHERE owner_key=%s AND request_id=%s AND state IN ('QUEUED','RUNNING','RECOVERING') RETURNING *""",
                 (owner, request_id)).fetchone()
 
+    def interrupt_not_running(self, owner, request_id):
+        """EXEC-FASTLANE V5 (C, user 2026-10-14 "saya terima untuk yang A dan C"): the stop button on a dispatched run
+        Orc no longer runs (its process restarted) ends it INTERRUPTED at once instead of "Recovering delivery" until
+        the deadline; the job, or None when it already ended."""
+        with self.connect() as c:
+            changed = c.execute('''UPDATE edge_bff.jobs SET state='INTERRUPTED',error_code='STOPPED_NOT_RUNNING',
+                state_version=state_version+1,updated_at=now(),completed_at=now(),lease_token=NULL,lease_expires_at=NULL
+                WHERE owner_key=%s AND request_id=%s AND state IN ('RUNNING','RECOVERING') AND attempt_count>0
+                RETURNING *''', (owner, request_id)).fetchone()
+            if changed:
+                self._promote(c, changed)
+                logger.info(json.dumps({'event':'job_state', 'request_id':changed['request_id'],
+                                        'state':changed['state'], 'version':changed['state_version'],
+                                        'reason':'STOPPED_NOT_RUNNING'}))
+            return changed
+
     def heartbeat(self, request_id, token, seconds):
         with self.connect() as c:
             return bool(c.execute('''UPDATE edge_bff.jobs SET lease_expires_at=now()+%s*interval '1 second'

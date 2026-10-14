@@ -282,6 +282,16 @@ def create_app(settings=None, store=None, orc=None):
                 return 'STOPPING'  # not dispatched yet: the worker ends it before it reaches Orc
             if attempt + 1 < STOP_RETRIES:
                 await asyncio.sleep(settings.poll_seconds)  # dispatched a moment ago: Orc registers it on receipt
+        if marked and marked['attempt_count']:
+            # V5 (C): dispatched, yet Orc runs nothing (a restart ended it); unless Orc stored its answer, the run ends
+            # here and the composer opens again
+            try:
+                found = await asyncio.to_thread(orc.request, settings.owner, row['request_id'])
+            except OrcError:
+                return 'NOT_RUNNING'
+            if (found or {}).get('turn_status') != 'COMPLETED' and \
+                    await asyncio.to_thread(store.interrupt_not_running, settings.owner, row['request_id']):
+                return 'STOPPED'
         return 'NOT_RUNNING'
 
     @app.post('/api/v1/runs/{request_id}/stop')

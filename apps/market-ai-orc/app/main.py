@@ -144,7 +144,9 @@ def create_app(
         conversations = ConversationStore(settings.conversation_database_url,
                                           retention_days=settings.ai_conversation_retention_days,
                                           lease_seconds=settings.conversation_lease_seconds)
-    upkeep = UpkeepThread(conversations, settings.ai_conversation_upkeep_seconds) if conversations else None
+    upkeep = UpkeepThread(conversations, settings.ai_conversation_upkeep_seconds,
+                          restart_sweep_seconds=settings.ai_conversation_restart_sweep_seconds or None) \
+        if conversations else None
     owned_client: OpenRouterClient | None = None
     if orchestrator is None:
         owned_client = OpenRouterClient(

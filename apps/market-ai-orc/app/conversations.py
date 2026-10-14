@@ -31,6 +31,7 @@ import secrets
 import threading
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any
 
 import psycopg
@@ -505,6 +506,30 @@ class ConversationStore:
                    RETURNING t.request_id''').fetchall()
         return len(rows)
 
+    def interrupt_started_before(self, started_at: datetime) -> int:
+        """EXEC-FASTLANE V5 (A, user 2026-10-14): mark RUNNING turns created before this process started INTERRUPTED
+        (PROCESS_RESTARTED) and release their leases. One replica runs every turn, so a turn older than this process
+        has lost its runner; without this its lease (longest run + 120 s) kept the conversation busy for an hour."""
+        with self._connect() as connection:
+            rows = connection.execute(
+                '''WITH stale AS (
+                       SELECT t.request_id, t.conversation_id, t.lease_generation
+                       FROM public."AI_conversation_turn" t
+                       WHERE t.status = 'RUNNING' AND t.created_at < %s
+                       FOR UPDATE SKIP LOCKED),
+                   released AS (
+                       UPDATE public."AI_conversation" c SET active_request_id = NULL, lease_expires_at = NULL,
+                              updated_at = CURRENT_TIMESTAMP
+                       FROM stale WHERE c.conversation_id = stale.conversation_id
+                         AND c.active_request_id = stale.request_id AND c.lease_generation = stale.lease_generation
+                       RETURNING stale.request_id)
+                   UPDATE public."AI_conversation_turn" t
+                   SET status = 'INTERRUPTED', error_code = 'PROCESS_RESTARTED', completed_at = CURRENT_TIMESTAMP
+                   FROM stale WHERE t.request_id = stale.request_id AND t.status = 'RUNNING'
+                   RETURNING t.request_id''',
+                (started_at,)).fetchall()
+        return len(rows)
+
     def cleanup(self, batch: int = 500) -> int:
         """Delete up to batch expired conversations (their turns, outputs, executions and exports cascade); a running
         one is left for later. R-STORE: before_delete(conversation_ids) removes what they keep outside Postgres (the
@@ -534,11 +559,16 @@ class ConversationStore:
 
 
 class UpkeepThread:
-    """Runs ConversationStore.upkeep at start and then every interval_seconds, in a daemon thread."""
+    """Runs ConversationStore.upkeep at start and then every interval_seconds, in a daemon thread. With
+    restart_sweep_seconds (V5 A), turns created before this process started are marked INTERRUPTED once, that many
+    seconds after start: a deployment's previous container may still finish its shutdown in that window."""
 
-    def __init__(self, store: ConversationStore, interval_seconds: int) -> None:
+    def __init__(self, store: ConversationStore, interval_seconds: int, restart_sweep_seconds: int | None = None,
+                 started_at: datetime | None = None) -> None:
         self.store = store
         self.interval_seconds = interval_seconds
+        self.restart_sweep_seconds = restart_sweep_seconds
+        self.started_at = started_at or datetime.now(timezone.utc)
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self._run, name="conversation-upkeep", daemon=True)
 
@@ -548,7 +578,19 @@ class UpkeepThread:
     def stop(self) -> None:
         self.stop_event.set()
 
+    def _sweep(self) -> None:
+        try:
+            interrupted = self.store.interrupt_started_before(self.started_at)
+            logger.info(json.dumps({"event": "conversation_restart_sweep", "interrupted": interrupted,
+                                    "started_at": self.started_at.isoformat()}))
+        except (psycopg.Error, ConversationError):
+            logger.exception(json.dumps({"event": "conversation_restart_sweep_failed"}))
+
     def _run(self) -> None:
-        while not self.stop_event.is_set():
+        self.store.upkeep()
+        if self.restart_sweep_seconds is not None:
+            if self.stop_event.wait(self.restart_sweep_seconds):
+                return
+            self._sweep()
+        while not self.stop_event.wait(self.interval_seconds):
             self.store.upkeep()
-            self.stop_event.wait(self.interval_seconds)

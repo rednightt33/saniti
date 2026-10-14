@@ -179,6 +179,25 @@ def test_a_dispatched_run_is_flagged_at_orc_and_its_answer_still_arrives(setting
         assert c.post('/api/v1/runs/'+id+'/stop',headers=h,json={}).json()=={'status':'STOPPING'} and orc.stopped==[id]
 
 
+def test_v5_stop_ends_a_dispatched_run_orc_no_longer_runs_unless_orc_stored_its_answer(settings,store):
+    """EXEC-FASTLANE V5 (C): run 7 stayed "Recovering delivery" after an Orc restart; the stop button now ends it."""
+    class Gone(FakeOrc):
+        def stop(self,owner,id):self.stopped=getattr(self,'stopped',[])+[id];return 'NOT_RUNNING'
+    orc=Gone()
+    with TestClient(create_app(settings,store,orc)) as c:
+        h=login(c);id=c.post('/api/v1/runs',headers=h,json={'message':'Run','submission_key':'g'}).json()['request_id']
+        row=store.claim(90);assert store.attempted(row)  # dispatched, then Orc restarted
+        r=c.post('/api/v1/runs/'+id+'/stop',headers=h,json={});assert r.status_code==202 and r.json()=={'status':'STOPPED'}
+        s=c.get('/api/v1/runs/'+id).json();assert s['state']=='INTERRUPTED' and s['error_code']=='STOPPED_NOT_RUNNING'
+        assert c.get('/api/v1/runs').json()['active'] is None  # the composer opens again
+        assert store.transition(row,'FINISHED') is None  # a late delivery of the old worker is fenced
+        id=c.post('/api/v1/runs',headers=h,json={'message':'Done','submission_key':'k'}).json()['request_id']
+        row=store.claim(90);assert store.attempted(row)
+        orc.saved[id]={'request_id':id,'conversation_id':'conv_x','turn_status':'COMPLETED','run_status':'COMPLETED','response':{}}
+        assert c.post('/api/v1/runs/'+id+'/stop',headers=h,json={}).status_code==409  # its answer is on the way
+        assert c.get('/api/v1/runs/'+id).json()['state']=='RUNNING'
+
+
 def test_a_message_sent_while_a_run_is_active_stops_it_and_runs_next_in_its_conversation(settings,store):
     """S3: Send while running = stop that run, then this message runs by itself once it ended; one waiting message;
     a plain send while running is still refused; the waiting message takes the stopped run's conversation."""

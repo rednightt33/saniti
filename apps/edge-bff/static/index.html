@@ -9998,7 +9998,9 @@ html.dark .monitor-layout .details-panel>.tabs button:focus-visible{outline-colo
  .composer [title="Data Scope is not available yet"] {display:none;}
  .composer .edge-model-name,.composer .edge-model-level,.composer .edge-model-trigger>.icon {display:none;}
  .composer .edge-model-trigger {padding:7px;}
- .composer .edge-model-menu {position:fixed;left:12px;right:12px;bottom:calc(var(--edge-composer-height,98px) + 16px + env(safe-area-inset-bottom));width:auto;}
+ /* V5 (user 2026-10-14, iPhone: the menu ran off the top and under the left rail): a bottom sheet over everything */
+ .composer .edge-model-menu {position:fixed;left:0;right:0;bottom:0;top:auto;width:auto;max-height:min(72dvh,560px);overflow-y:auto;overscroll-behavior:contain;
+   border-radius:16px 16px 0 0;padding:10px 12px calc(12px + env(safe-area-inset-bottom));z-index:260;box-shadow:0 -8px 32px #00000033;}
  .composer .mode-anchor>.btn {height:32px;padding:0 10px;border-radius:999px;background:var(--secondary);font-size:13px;}
  .composer>div:last-child>div>.icon-btn {width:32px;height:32px;min-width:32px;border-radius:999px;order:-1;}
  .composer>div:last-child>.btn.primary {width:36px;height:36px;min-width:36px;padding:0;border-radius:999px;justify-content:center;flex:none;}
@@ -10630,6 +10632,8 @@ function Monitor({ go }) {
         const r={id:accepted.request_id,question,status:"submitted",mode:"Standard",createdAt:now,attachments:[],sources:[],steps:[{id:"queued",label:"Queued",status:"running",detail:"Accepted by server"}]};
         setItems(current=>{const found=current.find(c=>c.id===id);if(found)return current.map(c=>c.id===id && !c.runs.some(x=>x.id===r.id)?{...c,messages:[...c.messages,{id:r.id+"-user",role:"user",content:question,createdAt:now,runId:r.id}],runs:[...c.runs,r]}:c);return [{id,title:question.slice(0,80),bookmarked:false,createdAt:now,updatedAt:now,messages:[{id:r.id+"-user",role:"user",content:question,createdAt:now,runId:r.id}],runs:[r]},...current];});
         setSelectedId(id);setSelectedRunId(r.id);setAutoOpenRunId(r.id);setDetailsOpen(true);setPrompt("");setPendingReply(null);setInputHint(null);submissionRef.current=null;followRun(id,r.id);
+        // V5 (user 2026-10-14: "ketika saya click enter, chat tidak otomatis ke scroll ke bawah"): the new question is shown
+        setAutoFollow(true);requestAnimationFrame(()=>requestAnimationFrame(()=>scrollRef.current?.scrollTo({top:scrollRef.current.scrollHeight,behavior:"auto"})));
       }catch(e){setApiError(e.message);}finally{setSubmitting(false);}
     };
     const stopRun=async ()=>{
@@ -10780,7 +10784,10 @@ function Monitor({ go }) {
                     element("strong", null, "Details"),
                     element(IconButton, { icon: "close", onClick: () => {setMobileDetailsOpen(false);setDetailsOpen(false);}, title: "Close details" })),
                 element(Tabs, { items: ["Flow", "Sources"], active: detailsTab, onChange: value => { setDetailsTab(value); setSourceDetail(null); } }),
-                element(PinnedResponses, { open:pinsOpen, toggle:togglePins, height:pinsHeight, runs:selected?.runs ?? [], unpin:id=>togglePin(selected.runs.find(r=>r.id===id),false), jump:id=>{setSelectedRunId(id);setAutoFollow(false);requestAnimationFrame(()=>{const node=document.getElementById(id+"-response"),container=scrollRef.current;if(node&&container){container.scrollTo({top:container.scrollTop+node.getBoundingClientRect().top-container.getBoundingClientRect().top-24,behavior:"smooth"});node.focus({preventScroll:true});}})} }),
+                element(PinnedResponses, { open:pinsOpen, toggle:togglePins, height:pinsHeight, runs:selected?.runs ?? [], unpin:id=>togglePin(selected.runs.find(r=>r.id===id),false), jump:id=>{setSelectedRunId(id);setAutoFollow(false);
+                    // V5 (user 2026-10-14): on a phone the Details sheet covers the chat, so it closes first
+                    if(narrow&&mobileDetailsOpen)setMobileDetailsOpen(false);
+                    requestAnimationFrame(()=>requestAnimationFrame(()=>{const node=document.getElementById(id+"-response"),container=scrollRef.current;if(node&&container){container.scrollTo({top:container.scrollTop+node.getBoundingClientRect().top-container.getBoundingClientRect().top-24,behavior:"smooth"});node.focus({preventScroll:true});}}))} }),
                 pinsOpen && (flowOpen || detailsTab !== "Flow") && element(PinsResizeHandle, { height:pinsHeight, setHeight:value => { setPinsHeight(value); keep("edge-pins-height", value); } }),
                 element("div", {className:"edge-details-upper",ref:historyScrollRef}, run ? detailsTab === "Sources" ? element(Sources,{run}) : element(ResponseFlows, { runs:selected?.runs ?? [], autoOpenRunId, open:flowOpen, toggle:toggleFlow }) : element("div", { className: "details-empty" }, "No research run selected."))),
             (historyOpen || mobileDetailsOpen) && element("button",{className:"edge-panel-backdrop",tabIndex:-1,"aria-label":"Close panel",onClick:()=>{setHistoryOpen(false);setMobileDetailsOpen(false);}}),
@@ -11135,7 +11142,28 @@ function mdList(lines, start, ctx) {
 function touchKeyboard() {
   return typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches && !matchMedia("(any-pointer: fine)").matches;
 }
+// EXEC-FASTLANE V5 (user 2026-10-14: "7 Oktober 2026"; a month "September 2024"; a year "2020", not "2.020"): dates in
+// a fast-lane answer are written out in Indonesian; code, links and times are left as they are
+const FAST_MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+const FAST_DAY = /(?<![\w/.:-])(\d{4})-(\d{2})-(\d{2})(?![\w/-]|:\d)/g;
+const FAST_MONTH = /(?<![\w/.:-])(\d{4})-(\d{2})(?![\w/-]|:\d)/g;
+function fastDatePart(part) {
+  return part.replace(FAST_DAY, (all, y, m, d) => +m >= 1 && +m <= 12 && +d >= 1 && +d <= 31 ? `${+d} ${FAST_MONTHS[+m - 1]} ${y}` : all)
+    .replace(FAST_MONTH, (all, y, m) => +m >= 1 && +m <= 12 ? `${FAST_MONTHS[+m - 1]} ${y}` : all);
+}
+function fastDates(text) {
+  // fenced blocks and inline code keep their text; a link target (](...)) and a bare URL too
+  return String(text ?? "").split(/(```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]*`|\]\([^)\s]*\)|https?:\/\/\S+)/g)
+    .map((part, index) => index % 2 ? part : fastDatePart(part)).join("");
+}
+const FAST_YEAR_HEAD = /^(tahun|year|thn)\b/i;
+const FAST_GROUPED_YEAR = /^(\*\*)?([12])\.(\d{3})(\*\*)?$/;
+function fastYearCell(cell) {
+  const m = String(cell ?? "").trim().match(FAST_GROUPED_YEAR);
+  return m && +(m[2] + m[3]) >= 1900 && +(m[2] + m[3]) <= 2100 ? `${m[1] ?? ""}${m[2]}${m[3]}${m[4] ?? ""}` : cell;
+}
 function renderMarkdown(text, ctx = {}) {
+  if (ctx.fast && !ctx.datesDone) { text = fastDates(text); ctx = {...ctx, datesDone:true}; }
   const lines = String(text ?? "").replace(/\r\n?/g, "\n").split("\n"), blocks = [];
   let index = 0;
   while (index < lines.length) {
@@ -11168,6 +11196,7 @@ function renderMarkdown(text, ctx = {}) {
       const rows = [];
       index += 2;
       while (index < lines.length && lines[index].includes("|") && lines[index].trim()) rows.push(mdCells(lines[index++]));
+      if (ctx.fast) head.forEach((name, column) => { if (FAST_YEAR_HEAD.test(name.replace(/[*_`]/g, "").trim())) rows.forEach(row => { if (column < row.length) row[column] = fastYearCell(row[column]); }); });
       // a column's alignment as written; otherwise one alignment per column (Fase 5 QA 2026-10-09: "211" right and
       // "Rp 83,27 triliun" left in one column): figures right when every cell of the column is one, words left
       const figure = value => MD_NUMERIC.test(value) || (/\d/.test(value) && value.length <= 40 && value.trim().split(/\s+/).length <= 5);
@@ -11206,6 +11235,10 @@ function sortValue(raw) {
   if (m) return {kind:"date", value:Date.UTC(+m[1], +m[2] - 1, +m[3])};
   m = text.match(/^(\d{1,2})\s+([a-z]{3})[a-z]*\.?\s+(\d{4})$/i);
   if (m && m[2].toLowerCase() in SORT_MONTHS) return {kind:"date", value:Date.UTC(+m[3], SORT_MONTHS[m[2].toLowerCase()], +m[1])};
+  m = text.match(/^([a-z]{3})[a-z]*\.?\s+(\d{4})$/i);  // V5: a month written out ("September 2024")
+  if (m && m[1].toLowerCase() in SORT_MONTHS) return {kind:"date", value:Date.UTC(+m[2], SORT_MONTHS[m[1].toLowerCase()], 1)};
+  m = text.match(/^(\d{4})-(\d{2})$/);
+  if (m) return {kind:"date", value:Date.UTC(+m[1], +m[2] - 1, 1)};
   m = text.match(SORT_NUMBER);
   if (m && (!m[6] || m[6].toLowerCase() in SORT_SCALE)) {
     let value = Number(m[3].replace(/\./g, "") + (m[4] ? "." + m[4] : "")) * (SORT_SCALE[(m[6] || "").toLowerCase()] || 1);
@@ -11268,8 +11301,8 @@ function MdTable({head, align, rows, numeric, ctx, title = "", plain = false, in
     element("div", {className:"edge-md-table"}, table()));
 }
 
-function Markdown({text, claims, className = ""}) {
-  return element("div", {className:`edge-md ${className}`}, renderMarkdown(text, {claims}));
+function Markdown({text, claims, className = "", fast = false}) {
+  return element("div", {className:`edge-md ${className}`}, renderMarkdown(text, {claims, fast}));
 }
 
 // ---- One generic view for structured data ----
@@ -11374,8 +11407,8 @@ function PauseCard({pause, enabled, act, scope}) {
       return pause.choices.map((choice,index)=>({...choice,primary:index===first}));})()});  // the first choice sent at once leads
 }
 function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
- const v=EdgeView.toView(run.raw,{domainStatus:run.domainStatus,planIndex}), claims=new Map(v.claims);
- const items=values=>element("ul",{className:"edge-list"},values.map(x=>element("li",null,typeof x==="string"?mdInline(x,{claims}):DataValue({value:x}))));
+ const v=EdgeView.toView(run.raw,{domainStatus:run.domainStatus,planIndex}), claims=new Map(v.claims), fast=v.meta.lane==="fast";
+ const items=values=>element("ul",{className:"edge-list"},values.map(x=>element("li",null,typeof x==="string"?mdInline(fast?fastDates(x):x,{claims}):DataValue({value:x}))));
  // EXEC-STYLE S3: assumptions and limitations sit folded under the answer, with their count
  const list=part=>element("details",{key:part.label,className:"content-block edge-block edge-more edge-notes"},element("summary",null,`${part.label} (${part.items.length})`),items(part.items));
  const notes=v.plan&&[v.plan.notes.assumptions,v.plan.notes.limitations].some(part=>part.items.length)?element("div",{className:"edge-plan-notes"},
@@ -11385,7 +11418,7 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
   element("h1",null,run.result.title),
   element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",{className:"edge-run-model"},element(EdgeModelLogo,{option:edgeModelOption(v.meta.model)}),v.meta.model+(v.meta.reasoningLevel?" \u00B7 "+(edgeUi().modelLevels?.[v.meta.reasoningLevel]??v.meta.reasoningLevel):"")+(v.meta.lane==="fast"?" \u00B7 "+edgeUi().lane+" "+edgeUi().lanes.fast:"")),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.duration&&element("span",{className:"edge-duration",title:"Lama proses"},"\u23F1 "+v.meta.duration),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
   v.evidence&&element("div",{className:"edge-tags"},element("span",{className:"edge-badge neutral",title:v.evidence.code},v.evidence.label)),
-  v.answer&&element("div",{className:"content-block edge-answer"},element(Markdown,{text:v.answer,claims})),
+  v.answer&&element("div",{className:"content-block edge-answer"},element(Markdown,{text:v.answer,claims,fast})),
   v.clarification&&element(ResponseChoices,{scope:run.id+":clarify",enabled,act,
     prompt:element("div",{className:"edge-choices-prompt"},element(Markdown,{text:v.clarification.text,claims})),
     choices:v.clarification.choices.length?[...v.clarification.choices,{key:"WRITE_OTHER",label:edgeUi().writeOther,action:{type:"input",hint:edgeUi().writeOtherHint}}]:[]}),
@@ -11395,7 +11428,7 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
   v.findings&&element("section",{className:"content-block edge-block"},element(SectionTitle,null,v.findings.label),
     v.findings.items.map(finding=>element(FindingCard,{key:finding.key,finding,claims}))),
   v.lists.map(list),
-  v.methodology&&element("section",{className:"content-block edge-block"},element(SectionTitle,null,v.methodology.label),element(Markdown,{text:v.methodology.text,claims})),
+  v.methodology&&element("section",{className:"content-block edge-block"},element(SectionTitle,null,v.methodology.label),element(Markdown,{text:v.methodology.text,claims,fast})),
   v.next&&element("div",{className:"content-block edge-next"},v.next.map((group,index)=>element(ResponseChoices,{key:group.key,title:group.label,boundary:index===0,
     scope:run.id+":next:"+group.key,enabled,act,choices:group.choices}))),
   element(ResponseActions,{run,togglePin,artifacts:v.artifacts}));

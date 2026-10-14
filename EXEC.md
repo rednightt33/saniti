@@ -2806,6 +2806,35 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
     kolom bernilai sedikit dan tetap = daftar lengkap di katalog (Snowflake `sample_values` + `is_enum`); opsi 3
     (pencarian nilai di tabel bertanggal) disimpan untuk kolom teks bernilai banyak tanpa tabel referensi, sesudah
     bukti beban kueri (EXPLAIN).
+- **V5 dikerjakan (2026-10-14, user: "please review current exec… proceed end to end"):** perilaku AI/jawaban hanya
+  jalur Cepat dan di balik saklar (default mati, bisa dimatikan lagi); bug UI/infra berlaku umum.
+  - **orc, saklar `AI_FASTLANE_GATE_ADVICE`:** TYPED_FIGURES, UNITS dan REFERENCE tidak meminta putaran perbaikan
+    (`_gate_once`, alasan log `advice_mode`; perbaikan dan label sistem tetap jalan); angka metodologi lolos (log
+    `ai_gate_advised`); PROVENANCE pilihan (a): literal kode yang berhasil → "parameter dari kode", angka dengan satu
+    bacaan turunan → "hitungan dari hasil" (label di Asumsi); angka yang tidak cocok apa pun tetap satu putaran dan
+    pesannya mengutip kata di sekitarnya ("Written in: …", akar masalah #4).
+  - **orc, saklar `AI_FASTLANE_V5_PRESENTATION`:** jawaban ANSWER jalur Cepat tanpa Batasan: baris cakupan, sumber angka
+    dan jalur analisis dihapus, baris lain (bukti uji, angka tanpa sumber, catatan AI) pindah ke Asumsi (log
+    `ai_limitations_folded`); LIMITATION tetap punya Batasan. `|pp` tampil "%". Catatan presentasi: limitations
+    kosong, selisih persen ditulis dengan %; batas "tiga limitations" di catatan bagian dihapus saat saklar hidup.
+  - **orc, ikut saklar V4 `AI_FASTLANE_DECISION_RULES`:** aturan (9) nilai kategori dari `column_values` di detail
+    katalog, tanpa `get_dimension_values` di tabel bertanggal; aturan (10) contoh scope AND (lolos validasi skema
+    `ScopeNode`, termasuk `children`/`child` null di predikat). `get_catalog_details` COLUMNS (v1 dan v2) memuat
+    `column_values` dari CHECK list satu kolom (`pg_constraint`), hanya di jalur Cepat.
+  - **orc, run terputus (A), saklar `AI_CONVERSATION_RESTART_SWEEP_SECONDS` (0 = mati):** sekian detik sesudah start,
+    giliran RUNNING yang dibuat sebelum proses ini start ditandai INTERRUPTED (`PROCESS_RESTARTED`) dan lease dilepas
+    (log `conversation_restart_sweep`). Jeda dipakai supaya kontainer lama selesai berhenti saat deploy.
+  - **EDGE:** jawaban jalur Cepat (`execution.lane = fast`): `2026-10-07` → "7 Oktober 2026", `2024-09` → "September
+    2024", kolom Tahun "2.020" → "2020" (jawaban, asumsi, metodologi; kode, tautan dan jam tidak disentuh; bulan
+    tertulis tetap terurut sebagai tanggal). Jalur Standar tidak berubah (catatan awal V5 menyebut "semua jalur";
+    rencana yang disetujui membatasi ke jalur Cepat, bisa diperluas satu baris). Menu model di HP: lembar bawah lebar
+    penuh, tinggi maks 72dvh dengan scroll, z-index di atas rel. Klik "View full response" di pin (HP): panel Details
+    tutup lalu gulir ke respons. Kirim pertanyaan saat membaca di atas: langsung bergulir ke pertanyaan baru. Stop (C):
+    run yang sudah dikirim tetapi orc menjawab tidak berjalan dan belum menyimpan jawaban → INTERRUPTED
+    (`STOPPED_NOT_RUNNING`), kotak pesan terbuka lagi; bila orc sudah COMPLETED, tetap 409 (jawaban sedang dikirim).
+  - **Tes:** orc 1.777+ lulus (3 galat `pyarrow` lingkungan lokal, sudah ada sebelumnya); tes baru di
+    `test_fastlane.py` (14), `test_conversations.py` (2), `test_catalog_postgres.py` (2); EDGE `test_edge.py` (1) dan
+    `test_v5_frontend.py` (4, tes gulir terbukti gagal tanpa perbaikan).
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur

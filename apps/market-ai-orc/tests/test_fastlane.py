@@ -447,3 +447,165 @@ def test_v4_1_the_exploratory_sentence_follows_the_explore_mode_and_spans_count_
     text = decisions_note()
     assert "1 minggu = 5 trading days" in text and "1 bulan = 21 trading days" in text
     assert "1 tahun = 252 trading days" in text and "saniti.period_return" in text
+
+
+# --- V5 (user 2026-10-14: gates advise, no Batasan in an answer, pp as %, category values, scope example) ----------
+
+ADVICE_ON = {**FAST_ON, "AI_FASTLANE_GATE_ADVICE": "true"}
+V5_ON = {**FAST_ON, "AI_FASTLANE_V5_PRESENTATION": "true", "AI_FASTLANE_SECTION_CAPS": "true"}
+
+
+def advice_orchestrator(**settings):
+    import httpx
+
+    from app.tools.analysis import SandboxClient
+    from app.tools.request_data import GovernorClient
+    from test_analysis_tools import SANDBOX_KEY
+    from test_artifacts import FakeSandbox
+    from test_g23_desk import governor_handler
+
+    client = SandboxClient("http://sandbox.test", SANDBOX_KEY, 10, 0, transport=httpx.MockTransport(FakeSandbox().handler))
+    governor = GovernorClient("http://governor.test", "g" * 40, 10, transport=httpx.MockTransport(governor_handler))
+    registry = build_default_registry(sandbox_client=client, governor_client=governor, dataneed_enabled=True)
+    return AgentOrchestrator(make_settings(**{"AI_ENABLE_DATANEED": "true", "AI_ENABLE_VALUE_REFERENCES": "true",
+                                              **settings}), ScriptedClient([]), registry)
+
+
+@pytest.mark.parametrize("lane, settings, advised", [(lanes.FAST, ADVICE_ON, True), (lanes.FAST, FAST_ON, False),
+                                                      (lanes.STANDARD, ADVICE_ON, False)])
+def test_v5_typed_figures_are_labelled_at_once_only_on_the_fast_lane_with_the_switch(lane, settings, advised) -> None:
+    from app.orchestrator import GateRejection, TYPED_FIGURES_LINE
+    from test_g23_desk import DESKS, FIGURES, state_with
+
+    orc = advice_orchestrator(**settings)
+    state = state_with(frozenset(DESKS["analysis"]))
+    state.lane = lane
+    if advised:
+        out = orc._evidence_gate(state, FIGURES, ["DATA_COVERAGE_VERIFIED"])
+        assert TYPED_FIGURES_LINE.format(numbers="116, 132") in out.limitations
+        assert "TYPED_FIGURES" not in state.gate_kinds_rejected
+    else:
+        with pytest.raises(GateRejection):
+            orc._evidence_gate(state, FIGURES, ["DATA_COVERAGE_VERIFIED"])
+
+
+@pytest.mark.parametrize("lane, settings, kept", [(lanes.FAST, ADVICE_ON, True), (lanes.STANDARD, ADVICE_ON, False)])
+def test_v5_methodology_numbers_pass_in_advice_mode(lane, settings, kept) -> None:
+    from app.orchestrator import GateRejection
+    from app.schemas import FinalResponse
+    from test_g23_desk import state_with
+
+    orc = advice_orchestrator(AI_ENABLE_METHODOLOGY="true", **settings)
+    state = state_with(frozenset({"run_python"}))
+    state.lane = lane
+    state.completions["cmp_1"] = {"status": "COMPLETED"}
+    final = FinalResponse(response_type="ANSWER", answer="RB beli bersih 116 dari 132 hari.",
+                          clarification_question=None, assumptions=[], limitations=[],
+                          methodology="Ambang persentil 87 dari jendela 63 hari.")
+    if kept:
+        assert orc._methodology_gate(state, final).methodology == "Ambang persentil 87 dari jendela 63 hari."
+    else:
+        with pytest.raises(GateRejection):
+            orc._methodology_gate(state, final)
+
+
+def test_v5_provenance_accepts_a_code_literal_anywhere_and_labels_it() -> None:
+    result, scripted, _ = convention_run("Return YTD BBCA 12,35% dan BBRI turun 4,32%; ada 21 saham yang naik.",
+                                         settings=ADVICE_ON)
+    assert result.response.answer.endswith("ada 21 saham yang naik.")
+    assert convention_numbers_line([("21", "CODE_PARAMETER")]) in result.response.assumptions
+    assert not any("no governed source" in json.dumps(p) for p in scripted.payloads)
+
+
+def test_v5_a_number_matching_nothing_is_asked_once_and_the_refusal_names_its_sentence() -> None:
+    _, scripted, _ = convention_run("Return YTD BBCA 12,35% dan BBRI turun 4,32%; jendela 34 hari.",
+                                    settings=ADVICE_ON)
+    refusal = next(json.dumps(p) for p in scripted.payloads if "no governed source" in json.dumps(p))
+    assert "Written in:" in refusal and "jendela 34 hari" in refusal
+    _, standard, _ = convention_run("Return YTD BBCA 12,35% dan BBRI turun 4,32%; jendela 34 hari.",
+                                    settings=ADVICE_ON, lane=lanes.STANDARD)
+    assert "Written in:" not in json.dumps(standard.payloads)
+
+
+LIMITED = "Data harga hanya sampai Agustus 2026."
+
+
+@pytest.mark.parametrize("lane, settings, kind, folded", [
+    (lanes.FAST, V5_ON, "ANSWER", True), (lanes.FAST, FAST_ON, "ANSWER", False),
+    (lanes.STANDARD, V5_ON, "ANSWER", False), (lanes.FAST, V5_ON, "LIMITATION", False)])
+def test_v5_a_fast_lane_answer_shows_no_limitations_and_keeps_its_caveats_in_the_assumptions(lane, settings, kind,
+                                                                                               folded) -> None:
+    final = final_response(answer("Return YTD BBCA 12,35% dan BBRI turun 4,32%.", kind=kind, limitations=[LIMITED]))
+    result, _, _ = run([*flow(), final, final], lane=lane, path="ANALYSIS", settings=settings)
+    response = result.response
+    assert response.response_type == kind
+    if folded:
+        assert response.limitations == [] and LIMITED in response.assumptions
+        assert ANALYSIS_PATH_LINE not in response.assumptions  # the analysis-path line is dropped, not moved
+    else:
+        assert LIMITED in response.limitations
+
+
+def test_v5_the_presentation_note_comes_only_with_its_switch_on_the_fast_lane() -> None:
+    from app.orchestrator import FASTLANE_PRESENTATION_NOTE, FASTLANE_SECTIONS_NOTE, SECTIONS_LIMITATIONS_CAP
+
+    script = [*flow(), final_response(answer("Return YTD BBCA 12,35% dan BBRI turun 4,32%."))]
+    note = json.dumps(FASTLANE_PRESENTATION_NOTE)[1:-1]
+    _, on, _ = run(script, lane=lanes.FAST, path="ANALYSIS", settings=V5_ON)
+    first = json.dumps(on.payloads[0])
+    assert note in first and json.dumps(FASTLANE_SECTIONS_NOTE)[1:-1] not in first
+    assert "at most three assumptions, each" in first and SECTIONS_LIMITATIONS_CAP in FASTLANE_SECTIONS_NOTE
+    _, off, _ = run(script, lane=lanes.FAST, path="ANALYSIS")
+    _, standard_on, _ = run(script, lane=lanes.STANDARD, path="ANALYSIS", settings=V5_ON)
+    _, standard_off, _ = run(script, lane=lanes.STANDARD, path="ANALYSIS")
+    assert note not in json.dumps(off.payloads[0]) and standard_on.payloads == standard_off.payloads
+
+
+def test_v5_pp_is_shown_as_percent_only_while_the_run_sets_it() -> None:
+    from app.value_refs import format_value, pp_as_percent
+
+    assert format_value(1.5, "pp") == "1,50 pp" and format_value(0.015, "pp", unit="FRACTION") == "1,50 pp"
+    token = pp_as_percent.set(True)
+    try:
+        assert format_value(1.5, "pp") == "1,50%" and format_value(0.015, "pp", unit="FRACTION") == "1,50%"
+        assert format_value(0.123, "pct") == "12,30%"
+    finally:
+        pp_as_percent.reset(token)
+
+
+def test_v5_the_run_sets_pp_as_percent_and_catalog_values_on_the_fast_lane_only() -> None:
+    from app.tools.catalog import catalog_values_shown
+    from app.value_refs import pp_as_percent
+
+    seen = []
+
+    class Watching(Counting):
+        def registry(self):
+            import dataclasses
+
+            registry = super().registry()
+            spec = registry.get("submit_data_need_spec")
+            handler = spec.handler
+            registry._tools[spec.name] = dataclasses.replace(spec, handler=lambda a: (
+                seen.append((pp_as_percent.get(), catalog_values_shown.get())), handler(a))[1])
+            return registry
+
+    script = [*flow(), final_response(answer("Return YTD BBCA 12,35% dan BBRI turun 4,32%."))]
+    settings = {**V5_ON, "AI_FASTLANE_DECISION_RULES": "true"}
+    run(script, lane=lanes.FAST, path="ANALYSIS", settings=settings, tools=Watching([completed()]))
+    run(script, lane=lanes.STANDARD, path="ANALYSIS", settings=settings, tools=Watching([completed()]))
+    assert seen == [(True, True), (False, False)]
+    assert pp_as_percent.get() is False and catalog_values_shown.get() is False
+
+
+def test_v5_the_decisions_note_names_category_values_and_a_valid_and_scope() -> None:
+    import re
+
+    from app.orchestrator import decisions_note
+    from app.tools.data_need import ScopeNode
+
+    text = decisions_note()
+    assert "column_values" in text and "never call get_dimension_values on a dated table" in text
+    example = json.loads(re.search(r"e\.g\. (\{.*\}); a NOT", text).group(1))
+    node = ScopeNode.model_validate(example)
+    assert node.type == "AND" and len(node.children) == 2 and node.child is None

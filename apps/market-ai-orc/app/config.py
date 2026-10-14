@@ -177,6 +177,15 @@ class Settings:
     # data need versus a fix in the session, value references) and the answer mode's method chosen once the data is
     # ready
     ai_fastlane_decision_rules: bool = False
+    # EXEC-FASTLANE V5 (user 2026-10-14: "gerbang ... hanya suggestion terhadap AI"): on the fast lane the typed-figure,
+    # unit and reference gates never ask for a repair round (the system's own fixes apply), methodology numbers pass,
+    # and a number with no source passes when it is a derived reading or a code literal; any other one is asked once
+    # with its sentence
+    ai_fastlane_gate_advice: bool = False
+    # EXEC-FASTLANE V5 presentation (user 2026-10-14): a fast-lane ANSWER shows methodology and assumptions only (its
+    # limitations move to assumptions or, for the coverage and source lines, are dropped; a LIMITATION keeps them), and a
+    # |pp figure is shown with %
+    ai_fastlane_v5_presentation: bool = False
     # OpenRouter provider routing for the agent's model calls: provider.sort "price", "throughput" or "latency". Unset
     # keeps OpenRouter's default load balancing, which is weighted to the lowest price.
     ai_provider_sort: str | None = None
@@ -214,6 +223,8 @@ class Settings:
     ai_conversation_retention_days: int = 30
     ai_conversation_lease_seconds: int = 0
     ai_conversation_upkeep_seconds: int = 3600
+    # EXEC-FASTLANE V5 (A): seconds after start to mark turns of a previous process INTERRUPTED; 0 = off
+    ai_conversation_restart_sweep_seconds: int = 0
     # Conversation reuse (phases S1/S2): in history_mode SERVER, released outputs, bundles and warm Python sessions of
     # earlier messages of the conversation. Needs the conversation store and a sandbox that reports the capability.
     ai_enable_conversation_reuse: bool = False
@@ -421,6 +432,8 @@ class Settings:
             ai_fastlane_convention_numbers=_boolean(env, "AI_FASTLANE_CONVENTION_NUMBERS", False),
             ai_fastlane_section_caps=_boolean(env, "AI_FASTLANE_SECTION_CAPS", False),
             ai_fastlane_decision_rules=_boolean(env, "AI_FASTLANE_DECISION_RULES", False),
+            ai_fastlane_gate_advice=_boolean(env, "AI_FASTLANE_GATE_ADVICE", False),
+            ai_fastlane_v5_presentation=_boolean(env, "AI_FASTLANE_V5_PRESENTATION", False),
             ai_provider_sort=(env.get("AI_PROVIDER_SORT") or "").strip().lower() or None,
             ai_log_provider=_boolean(env, "AI_LOG_PROVIDER", False),
             ai_provider_max_cache_price_ratio=_ratio(env, "AI_PROVIDER_MAX_CACHE_PRICE_RATIO", 0.0, 0.0, 1.0)
@@ -438,6 +451,8 @@ class Settings:
             ai_conversation_retention_days=_integer(env, "AI_CONVERSATION_RETENTION_DAYS", 30),
             ai_conversation_lease_seconds=_integer(env, "AI_CONVERSATION_LEASE_SECONDS", 0, minimum=0),
             ai_conversation_upkeep_seconds=_integer(env, "AI_CONVERSATION_UPKEEP_SECONDS", 3600, minimum=60),
+            ai_conversation_restart_sweep_seconds=_integer(env, "AI_CONVERSATION_RESTART_SWEEP_SECONDS", 0,
+                                                           minimum=0),
             ai_enable_conversation_reuse=_boolean(env, "AI_ENABLE_CONVERSATION_REUSE", False),
             ai_enable_result_store=_boolean(env, "AI_ENABLE_RESULT_STORE", False),
             ai_enable_lineage_tool=_boolean(env, "AI_ENABLE_LINEAGE_TOOL", False),

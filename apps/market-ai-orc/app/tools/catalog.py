@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextvars
 import re
 from collections.abc import Callable
 from contextlib import AbstractContextManager
@@ -209,6 +210,51 @@ SELECT t.table_name, t.coverage_enabled, t.freshness_sla::text AS freshness_sla
 FROM public."AI_table_catalog" t
 WHERE t.table_name IN ({VISIBLE_TABLES}) AND t.table_name = ANY(%s)
 '''
+
+# EXEC-FASTLANE V4 option 1 (user 2026-10-14: "please proceed for option one"): a category column whose stored values
+# a database CHECK list fixes (Feature_03_Stock_Broker_Daily.market_board: Regular, Nego, Tunai) lists them in COLUMNS,
+# so the model never guesses the spelling or asks get_dimension_values of a dated table. Set by the orchestrator on the
+# fast lane with AI_FASTLANE_DECISION_RULES; the governor's contract reads the same lists (catalog_contract.py)
+catalog_values_shown: contextvars.ContextVar[bool] = contextvars.ContextVar("catalog_values_shown", default=False)
+CHECK_LISTS_SQL = '''
+SELECT t.relname AS table_name, pg_get_constraintdef(c.oid) AS definition
+FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid JOIN pg_namespace n ON n.oid = t.relnamespace
+WHERE n.nspname = 'public' AND c.contype = 'c' AND t.relname = ANY(%s)
+'''
+CHECK_LIST_RE = re.compile(r'(?:"([^"]+)"|\b([a-z_][a-z0-9_]*))\)?(?:::[a-z ]+?)?\s*=\s*ANY\s*\(+\s*ARRAY\s*\[(.*?)\]',
+                           re.IGNORECASE | re.DOTALL)
+CHECK_VALUE_RE = re.compile(r"'((?:[^']|'')*)'::")
+
+
+def check_value_lists(rows: list[dict[str, Any]]) -> dict[str, dict[str, list[str]]]:
+    """{table: {column: [allowed values]}} from single-column "column = ANY (ARRAY[...])" CHECK constraints."""
+    found: dict[str, dict[str, list[str]]] = {}
+    for row in rows:
+        definition = str(row.get("definition") or "")
+        matches = CHECK_LIST_RE.findall(definition)
+        if len(matches) != 1:
+            continue
+        quoted, plain, body = matches[0]
+        column = quoted or plain
+        values = [v.replace("''", "'") for v in CHECK_VALUE_RE.findall(body)]
+        if values:
+            found.setdefault(str(row["table_name"]), {})[column] = sorted(dict.fromkeys(values))
+    return found
+
+
+def _column_values(run: QueryRunner, tables: list[str], rows: list[dict[str, Any]], result: dict[str, Any]) -> None:
+    """Option 1: the CHECK-list values of the columns this COLUMNS section shows, when catalog_values_shown is set."""
+    if not catalog_values_shown.get():
+        return
+    shown = {(row["table_name"], row["column_name"]) for row in rows}
+    lists = {table: {column: values for column, values in found.items() if (table, column) in shown}
+             for table, found in check_value_lists(run(CHECK_LISTS_SQL, (tables,))).items()}
+    lists = {table: found for table, found in lists.items() if found}
+    if lists:
+        result.update(column_values=lists, column_values_note=(
+            "The complete stored values of these category columns (database CHECK lists): use them exactly in a scope "
+            "predicate; get_dimension_values is not needed for them."))
+
 
 COLUMNS_SQL = '''
 SELECT table_name, column_name, description, data_type, semantic_type, unit, nullable,
@@ -1163,6 +1209,7 @@ class CatalogTools:
             summaries = _summaries(rows[:ROW_CAPS["COLUMNS"]], run(TABLE_META_SQL, (tables,)))
             if summaries:
                 result.update(summaries=summaries, summary_note=SUMMARY_NOTE)
+            _column_values(run, tables, rows, result)
             if columns:
                 present = {row["column_name"] for row in run(FOUND_COLUMNS_SQL, (tables, columns))}
                 missing = [name for name in columns if name not in present]
@@ -1177,6 +1224,7 @@ class CatalogTools:
                 keep_null=("description",), group_key="table_name", budget=budget,
                 narrow_hint="Pass column_names to receive full metadata for specific columns.",
             )
+            _column_values(run, tables, rows, result)
             if columns:
                 present = {row["column_name"] for row in run(FOUND_COLUMNS_SQL, (tables, columns))}
                 missing = [name for name in columns if name not in present]

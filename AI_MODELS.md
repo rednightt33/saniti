@@ -67,6 +67,7 @@ Nilai seperti `self.settings.ai_model` atau `slot.model` dibaca dari setelan di 
 | `AI_CATALOG_SUMMARY_TTL_SECONDS` | `900` |
 | `AI_CONTEXT_SOFT_LIMIT_RATIO` | `0.8` |
 | `AI_CONVERSATION_LEASE_SECONDS` | `0` |
+| `AI_CONVERSATION_RESTART_SWEEP_SECONDS` | `0` |
 | `AI_CONVERSATION_UPKEEP_SECONDS` | `3600` |
 | `AI_ENABLE_CONVERSATION_ROUTER` | `False` |
 | `AI_ENABLE_FIRST_TURN_ROUTER` | `False` |

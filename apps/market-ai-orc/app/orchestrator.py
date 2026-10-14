@@ -62,7 +62,7 @@ from .user_words import allowed_periods, current_design_changes, current_turn_re
 from .model_choices import ModelChoice, current_model_choice
 from .provenance import (CONTEXT, typed_figures, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
                          parse_numbers, released_numbers, requested_statistics, weakest)
-from .value_refs import (FUNC_RE, OUTSIDE_LABELS, OUTSIDE_NAMESPACES, REF_RE, SOURCES_IN_TEXT, UNITS, ReferenceSources, Resolved,
+from .value_refs import (pp_as_percent, FUNC_RE, OUTSIDE_LABELS, OUTSIDE_NAMESPACES, REF_RE, SOURCES_IN_TEXT, UNITS, ReferenceSources, Resolved,
                          TableRows, format_value, menu_address, registered_links_only, render, safe_link)
 from .tools import ToolOutcome, ToolRegistry, error_outcome
 from .tools.analysis import DataDate, current_conversation_key, current_data_date, current_run_context, run_context
@@ -77,6 +77,7 @@ from . import model_choices
 from . import lanes
 from . import research_library
 from . import fastlane_defaults
+from .tools.catalog import catalog_values_shown
 from .tools.request_data import (current_conversation_id, current_draft_checker, current_reference_sources,
                                  current_request_id,
                                  current_run_deadline, current_turn_id, session_key)
@@ -1383,6 +1384,21 @@ CODE_LITERAL_HINT = (" Of these, {numbers} appear only as literals in the code t
 # masks only "95% CI" and "interval kepercayaan 95%"); B2: a literal of the run's successful code next to a parameter
 # word. A derived number (EXEC-DERIVED) or one from stdout or an unreleased output is still refused
 CONVENTION_LEVELS = frozenset({"90", "95", "99"})
+# EXEC-FASTLANE V5: the gates that only advise on the fast lane (the system's own fixes apply: R3 references, unit
+# correction, [nilai tidak tersedia])
+ADVICE_KINDS = frozenset({"TYPED_FIGURES", "UNITS", "REFERENCE"})
+
+
+def where_written(text: str, numbers: list[str]) -> str:
+    """EXEC-FASTLANE V5 (root cause #4: the model could not find where "21" was): the words around each number."""
+    spots = []
+    for number in numbers[:6]:
+        index = text.find(number)
+        if index >= 0:
+            spots.append(f"\"…{text[max(0, index - 40):index + len(number) + 25].strip()}…\"")
+    return (" Written in: " + "; ".join(spots) + ".") if spots else ""
+
+
 CONFIDENCE_WORDS_RE = re.compile(r"kepercayaan|keyakinan|confidence|selang|interval|\bCI\b", re.IGNORECASE)
 PARAMETER_WORDS_RE = re.compile(r"jendela|window|ambang|threshold|persentil|percentile|kuantil|quantile|horizon|"
                                 r"hari bursa|\blag\b|rolling|bergulir|periode|minimum|minimal", re.IGNORECASE)
@@ -1690,6 +1706,7 @@ FASTLANE_SECTIONS_NOTE = (PLAN_NOTE_PREFIX + "keep the answer itself the largest
                           "system adds (the analysis path, the test evidence). Write the methodology as one short "
                           "paragraph (the data, the steps, the test and the parameters the code used); on this lane it "
                           "replaces the four-part account of the METHODOLOGY rules.")
+SECTIONS_LIMITATIONS_CAP = " and at most three limitations"  # V5 presentation: no limitations section
 # EXEC-FASTLANE V4 (AI_FASTLANE_DECISION_RULES, user 2026-10-14 "save ini as V4"; audit of 41 fast-lane runs: the
 # model weighed again and again what the notes only offered): one rule per recurring decision, with the defaults of
 # app/fastlane_defaults.py (B1, B2, C, D, E, F, H; G was skipped by the user)
@@ -1713,7 +1730,22 @@ FASTLANE_DECISIONS_NOTE = (
     "trading days back from the last available date: {spans}; its base is the close the given number of trading days "
     "before the last date (the last close before the span, as for a named period), so request enough history; state "
     "the first and last date in assumptions. Event forward returns, rolling returns and a date-to-date formula of the "
-    "user keep their own definitions.")
+    "user keep their own definitions. (9) Category values: get_catalog_details COLUMNS lists a column's allowed values "
+    "(column_values) when the catalog fixes them; use those exact values in a scope and never call "
+    "get_dimension_values on a dated table for them. (10) Scope shape: one condition is a PREDICATE; several "
+    "conditions that must all hold are one AND node whose children list two or more PREDICATE nodes, with child "
+    "null, e.g. {{\"type\": \"AND\", \"column\": null, \"operator\": null, \"value\": null, \"children\": "
+    "[{{\"type\": \"PREDICATE\", \"column\": \"market_board\", \"operator\": \"EQ\", \"value\": "
+    "\"Regular\", \"children\": null, \"child\": null}}, {{\"type\": \"PREDICATE\", \"column\": "
+    "\"foreign_net_value\", \"operator\": \"GT\", \"value\": 0, \"children\": null, \"child\": null}}], "
+    "\"child\": null}}; a NOT node fills child and leaves children null.")
+# EXEC-FASTLANE V5 (AI_FASTLANE_V5_PRESENTATION, user 2026-10-14: "yang di show hanya metodologi dan asumsi saja";
+# "PP diganti persentase saja"): a fast-lane answer shows no limitations section (a LIMITATION response keeps it)
+FASTLANE_PRESENTATION_NOTE = (
+    PLAN_NOTE_PREFIX + "on this lane an answer shows only the methodology and the assumptions: leave limitations empty "
+    "and put a caveat that changes how the answer is read into the answer itself or into the assumptions (a LIMITATION "
+    "response still lists its limitations). Write a difference of two percentages with % (the system shows |pp as %), "
+    "never as pp or percentage points.")
 
 
 def decisions_note() -> str:
@@ -2745,7 +2777,7 @@ class AgentOrchestrator:
             request_id=request.request_id, store=self.result_store, record=state.data_record,
             fetch=(lambda sid, oid: fetch(sid, oid, request.request_id)) if fetch is not None else None,
             pending=state.store_executions))
-        carried, reading = None, None
+        carried, reading, v5_tokens = None, None, []
         try:
             if self.conversation_reuse and conversation_key and request.history:
                 self._add_conversation_resources(state, conversation_key)
@@ -2761,6 +2793,12 @@ class AgentOrchestrator:
                 state.tool_filter = frozenset(offered) - {"check_references"}
             carried = current_carried_outputs.set(state.carried_outputs)
             current_research_guard.set(state.guard)
+            if state.lane == lanes.FAST:
+                # EXEC-FASTLANE V5: |pp shown as %; V4 option 1: catalog details list a column's allowed values
+                if getattr(self.settings, "ai_fastlane_v5_presentation", False):
+                    v5_tokens.append((pp_as_percent, pp_as_percent.set(True)))
+                if getattr(self.settings, "ai_fastlane_decision_rules", False):
+                    v5_tokens.append((catalog_values_shown, catalog_values_shown.set(True)))
             final = self._loop(state)
             if state.sandbox_busy and state.pause is None and final.response_type == "LIMITATION":
                 final = self._paused(state, final, "SANDBOX_BUSY")  # EXEC-W A5: continue later, data kept
@@ -2776,6 +2814,7 @@ class AgentOrchestrator:
                     else ANALYSIS_PATH_LINE
                 if line not in final.limitations:
                     final = final.model_copy(update={"limitations": [*final.limitations, line]})
+            final = self._fast_sections(state, final)
             if final.response_type == "RESEARCH_PLAN_CONFIRMATION" and isinstance(final.research_plan, ResearchPlanV2) \
                     and self.signer_v2 is not None and state.research is not None \
                     and state.research.feasible is not None:
@@ -2836,6 +2875,8 @@ class AgentOrchestrator:
         finally:
             if carried is not None:
                 current_carried_outputs.reset(carried)
+            for variable, v5_token in reversed(v5_tokens):
+                variable.reset(v5_token)
             if reading is not None:
                 current_design_changes.reset(reading[0])
                 current_turn_referent.reset(reading[1])
@@ -3526,9 +3567,14 @@ class AgentOrchestrator:
                                      {"role": "user", "content": fastlane_note(step, mode, decisions)})
             if decisions:
                 state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": decisions_note()})
+            presentation = getattr(self.settings, "ai_fastlane_v5_presentation", False)
             if getattr(self.settings, "ai_fastlane_section_caps", False):
+                state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": (
+                    FASTLANE_SECTIONS_NOTE.replace(SECTIONS_LIMITATIONS_CAP, "") if presentation
+                    else FASTLANE_SECTIONS_NOTE)})
+            if presentation:
                 state.input_items.insert(len(state.input_items) - 1,
-                                         {"role": "user", "content": FASTLANE_SECTIONS_NOTE})
+                                         {"role": "user", "content": FASTLANE_PRESENTATION_NOTE})
             if mode is not None:
                 state.plan_meta["explore_mode"] = mode
                 state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": explore_note(
@@ -5463,6 +5509,37 @@ class AgentOrchestrator:
                 accepted.append((shown, "CODE_PARAMETER"))
         return accepted
 
+    def _advice(self, state: RunState) -> bool:
+        """EXEC-FASTLANE V5: the fast lane's gates advise instead of asking for a repair round."""
+        return state.lane == lanes.FAST and getattr(self.settings, "ai_fastlane_gate_advice", False)
+
+    def _advised_numbers(self, state: RunState, text: str, unsupported: list[str]) -> list[tuple[str, str]]:
+        """EXEC-FASTLANE V5 PROVENANCE (a): a literal of the run's successful code (a parameter, a threshold the model
+        chose) or a number with one derived reading of this run's values passes, labelled; the rest is asked once."""
+        if not unsupported:
+            return []
+        code = SourceIndex()
+        code.add(CONTEXT, state.code_numbers)
+        accepted = [(n, "CODE_PARAMETER") for n in unsupported
+                    if state.code_numbers and not check_answer(n, code).unsupported]
+        rest = [n for n in unsupported if n not in dict(accepted)]
+        derived = self._derived_readings(state, rest, text) if rest else {}
+        return accepted + [(n, "DERIVED") for n in rest if derived.get(n)]
+
+    def _fast_sections(self, state: RunState, final: FinalResponse) -> FinalResponse:
+        """EXEC-FASTLANE V5 (user 2026-10-14: "yang di show hanya metodologi dan asumsi"): a fast-lane ANSWER keeps no
+        limitations; the coverage and number-source lines are dropped (the evidence label says it), every other line
+        moves to the assumptions. A LIMITATION keeps its limitations."""
+        if state.lane != lanes.FAST or final.response_type != "ANSWER" or not final.limitations \
+                or not getattr(self.settings, "ai_fastlane_v5_presentation", False):
+            return final
+        dropped = {texts.COVERAGE_ONLY_LINE, texts.COVERAGE_RECOMPUTED_LINE, texts.EVIDENCE_REFERENCED_LINE,
+                   EVIDENCE_BACKEND_LINE, ANALYSIS_PATH_LINE}
+        moved = [line for line in final.limitations if line not in dropped and line not in final.assumptions]
+        log_event("ai_limitations_folded", request_id=state.request_id, moved=len(moved),
+                  dropped=len(final.limitations) - len(moved))
+        return final.model_copy(update={"assumptions": [*final.assumptions, *dict.fromkeys(moved)], "limitations": []})
+
     @staticmethod
     def _referable_leaves(state: RunState) -> list[tuple[str, float]]:
         """Every numeric value this run can reference, with its address as the address menu shows it (EXEC-R R3)."""
@@ -5758,11 +5835,13 @@ class AgentOrchestrator:
         edit = needs is None and (kind in EDIT_REPAIR_KINDS or kind.startswith("REFERENCE"))
         no_tools_this_turn = not desk and not edit
         missing_tool = bool(needs) and not (needs & desk)
-        repairable = allowed and kind not in state.gate_kinds_rejected and not state.tools_locked \
+        advised = self._advice(state) and kind.split(":", 1)[0] in ADVICE_KINDS
+        repairable = not advised and allowed and kind not in state.gate_kinds_rejected and not state.tools_locked \
             and not no_tools_this_turn and not missing_tool
         log_event("ai_final_gate", request_id=state.request_id, iteration=state.iterations, kind=kind,
                   outcome="REJECTED_FOR_REPAIR" if repairable else outcome,
-                  reason=None if repairable else ("already_rejected" if kind in state.gate_kinds_rejected
+                  reason=None if repairable else ("advice_mode" if advised
+                                                  else "already_rejected" if kind in state.gate_kinds_rejected
                                                   else "repair_budget" if not allowed
                                                   else "tools_withdrawn" if state.tools_locked
                                                   else "no_tools" if no_tools_this_turn
@@ -5895,14 +5974,20 @@ class AgentOrchestrator:
             return self._forced(state, final, "ROUTING", DATANEED_ROUTING_NOTICE.format(families=texts.words_list(missing)),
                                 [texts.NEEDS_ANALYSIS_LINE.format(families=texts.words_list(missing))] + lines)
         provenance = check_answer(final.answer, self._source_index(state))
+        advice = self._advice(state)
         accepted = self._convention_numbers(state, final.answer or "", provenance.unsupported) \
-            if state.lane == lanes.FAST and getattr(self.settings, "ai_fastlane_convention_numbers", False) else []
+            if state.lane == lanes.FAST and (advice or getattr(self.settings, "ai_fastlane_convention_numbers", False)) \
+            else []
+        if advice:
+            accepted += self._advised_numbers(state, final.answer or "",
+                                              [n for n in provenance.unsupported if n not in dict(accepted)])
         unsupported = [n for n in provenance.unsupported if n not in dict(accepted)]
         state.number_provenance = {"checked": provenance.checked, "unsupported": unsupported[:50]}
         if unsupported:
             numbers = ", ".join(unsupported[:20])
             self._gate_once(state, "PROVENANCE", DATANEED_PROVENANCE_INSTRUCTION.format(
                 numbers=numbers, lookup=", a lookup_fact result" if self.settings.ai_enable_lookup_fact else "")
+                + (where_written(final.answer or "", unsupported) if advice else "")
                 + self._code_literal_hint(state, final.answer, unsupported)
                 + self._derived_hint(state, unsupported, final.answer)
                 + (REFERENCE_HINT if self.value_references else ""))
@@ -6265,6 +6350,11 @@ class AgentOrchestrator:
         index.add(CONTEXT, state.code_numbers)
         provenance = check_answer(text, index)
         state.methodology_provenance = {"checked": provenance.checked, "unsupported": provenance.unsupported[:50]}
+        if provenance.unsupported and self._advice(state):
+            # EXEC-FASTLANE V5: the methodology is the model's account of what ran; its numbers pass, logged
+            log_event("ai_gate_advised", request_id=state.request_id, iteration=state.iterations,
+                      kind="METHODOLOGY_PROVENANCE", numbers=provenance.unsupported[:20])
+            return final.model_copy(update={"methodology": text})
         if provenance.unsupported:
             numbers = ", ".join(provenance.unsupported[:20])
             self._gate_once(state, "METHODOLOGY_PROVENANCE", METHODOLOGY_PROVENANCE_INSTRUCTION.format(numbers=numbers)

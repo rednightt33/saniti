@@ -17,7 +17,7 @@ import psycopg
 import pytest
 from fastapi.testclient import TestClient
 
-from app.conversations import ConversationError, ConversationStore, fingerprint
+from app.conversations import ConversationError, ConversationStore, UpkeepThread, fingerprint
 from app.main import create_app
 from app.orchestrator import AgentOrchestrator
 from app.schemas import AgentRunRequest
@@ -263,6 +263,51 @@ def test_upkeep_interrupts_lapsed_turns_and_deletes_expired_conversations(databa
                                   ("h8-a",)).fetchone()[0] == 0
     # nothing of the deleted conversation is left: the same request_id now opens a new conversation
     assert store.begin("owner-8", request, fingerprint(request)).conversation_id != start.conversation_id
+
+
+def test_a_restart_sweep_ends_the_turns_of_the_previous_process_only(databases) -> None:
+    """EXEC-FASTLANE V5 (A): a turn whose process died no longer keeps the conversation busy for the whole lease."""
+    admin, login = databases
+    store = store_for(login)
+    old = AgentRunRequest(request_id="h9-a", message="Proses lama", history_mode="SERVER")
+    start = store.begin("owner-9", old, fingerprint(old))
+    with psycopg.connect(admin, autocommit=True) as connection:
+        connection.execute('UPDATE public."AI_conversation_turn" SET created_at = now() - interval \'10 minutes\' '
+                           'WHERE request_id = %s', ("h9-a",))
+        started_at = connection.execute("SELECT now() - interval '1 minute'").fetchone()[0]
+    fresh = AgentRunRequest(request_id="h9-b", message="Proses baru", history_mode="SERVER")
+    store.begin("owner-9b", fresh, fingerprint(fresh))
+    assert store.interrupt_started_before(started_at) == 1
+    with psycopg.connect(admin) as connection:
+        rows = dict(connection.execute('SELECT request_id, status || \'/\' || coalesce(error_code, \'\') '
+                                       'FROM public."AI_conversation_turn" WHERE request_id IN (\'h9-a\', \'h9-b\')'
+                                       ).fetchall())
+    assert rows == {"h9-a": "INTERRUPTED/PROCESS_RESTARTED", "h9-b": "RUNNING/"}
+    with pytest.raises(ConversationError) as ended:  # a retry is told at once instead of TURN_IN_PROGRESS
+        store.begin("owner-9", old, fingerprint(old))
+    assert ended.value.code == "TURN_NOT_COMPLETED"
+    follow = AgentRunRequest(request_id="h9-c", message="Lagi", history_mode="SERVER",
+                             conversation_id=start.conversation_id)
+    assert store.begin("owner-9", follow, fingerprint(follow)).turn_index == 1  # the lease was released
+
+
+def test_the_upkeep_thread_sweeps_once_after_the_delay() -> None:
+    calls: list[str] = []
+
+    class Store:
+        def upkeep(self) -> None:
+            calls.append("upkeep")
+
+        def interrupt_started_before(self, started_at) -> int:
+            calls.append("sweep")
+            return 0
+
+    thread = UpkeepThread(Store(), 3600, restart_sweep_seconds=0)
+    thread.start()
+    thread.thread.join(timeout=0.5)
+    thread.stop()
+    thread.thread.join(timeout=2)
+    assert calls == ["upkeep", "sweep"]
 
 
 def test_the_login_reaches_the_conversation_tables_only(databases) -> None:

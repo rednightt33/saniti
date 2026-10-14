@@ -865,3 +865,22 @@ change yet.
   flow (fast and standard lane). Since 2026-10-13 no DataNeed refusal named a derived reference (v2 j1 "3,7" got
   none). The DataNeed gate now appends `_derived_hint`
   (`test_the_dataneed_provenance_refusal_names_the_derived_reference`, fails on the old code).
+
+### Interrupted run stuck "Recovering delivery"; gates that refused fixable numbers — 2026-10-14
+
+- **A run cut by an Orc redeploy stayed busy for about an hour (FIXED behind `AI_CONVERSATION_RESTART_SWEEP_SECONDS`
+  and in EDGE, user "saya terima untuk yang A dan C"):** Run 7 (`edge_87c7…`) was killed by the V4 A/B redeploy at
+  17:29 UTC. Its Orc turn stayed RUNNING with a lease of the longest run + 120 s (≈ 62 minutes), so EDGE retries got
+  `TURN_IN_PROGRESS` and showed "Recovering delivery" until the lease and the EDGE deadline ran out; the stop button
+  answered 409 because Orc had no in-memory run. (A) Orc, a set time after start, marks RUNNING turns created before
+  the process started INTERRUPTED (`PROCESS_RESTARTED`) and releases their leases; a retry then gets
+  `TURN_NOT_COMPLETED` at once. (C) EDGE's stop on a dispatched run Orc does not run, and whose answer Orc has not
+  stored, ends it INTERRUPTED (`STOPPED_NOT_RUNNING`) and reopens the composer. Lesson kept: check Orc logs for running
+  `edge_` runs before any deploy or switch change.
+- **Gates refused numbers the model could not fix by itself (CHANGED on the fast lane behind `AI_FASTLANE_GATE_ADVICE`,
+  user: "sifatnya hanya suggestion terhadap AI"):** the 10-run audit in EXEC.md (V5) found the model knew the rules but
+  read them differently (a window of 21 days from the defaults table, a day count, its own threshold as "not data"),
+  the refusal never said where the number was, and some facts were missing (allowed `market_board` values, an AND
+  scope example). Fast-lane fixes: typed figures, units and references are labelled without a repair round;
+  methodology numbers pass; code literals and derived numbers pass with a label; the remaining refusal quotes the
+  words around each number; catalog details list CHECK values; the decisions note has an AND scope example.
