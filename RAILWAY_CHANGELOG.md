@@ -1,5 +1,15 @@
 # Railway changelog
 
+## 2026-10-14 — EXEC-FASTLANE Mode Jawab v2 deployed (dev) and A/B
+
+User: "OK" (plan 5B + 2 + 3 narrowed). Rollback references: sandbox `b92b29c6`, orc `bcc854cc`.
+- Baseline before the push: orc-test-runner **1702d854-e80d-4ad0-9a4e-dc7cf611486c** (`jawab2_20261014_base`).
+- `main` `e323015` (auto-deploy on push): market-python-sandbox **f4b459e6-06d1-4744-85aa-067502a5e919** and
+  market-ai-orc **3a133fa1-58f3-43a8-8189-e43fcf47b594** reached **SUCCESS**; orc startup without
+  `explore_tests_inactive`. No variable, migration or configuration change (5B has no switch by decision).
+- A/B: orc-test-runner **3af9103f-e2d6-4fa0-b069-28b6c06e6cad** (`jawab2_20261014_v2`). Results in EXEC.md. Cost USD
+  0.05 + 0.13.
+
 ## 2026-10-14 — EXEC-FASTLANE B3 switched on (dev) and A/B
 
 User: "Boleh" and "Saya beri izin" (variable writes). Rollback: delete both variables (sandbox `66acda2a`, orc

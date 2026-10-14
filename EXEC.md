@@ -2494,6 +2494,32 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
   - **Tes:** orc 1.486 lulus, 258 dilewati; sandbox 835 lulus, 2 gagal lama yang sama. `AI_TOOLS.md` diregenerasi.
   - **Baseline sebelum deploy** (runner `1702d854`, orc `bcc854cc`): o1 volatilitas BBRI Q3 vs Q2 145 s, o2
     normalitas return TLKM 63 s.
+- **A/B Mode Jawab v2 (2026-10-14): `main` `e323015`, sandbox `f4b459e6` dan orc `3a133fa1` SUCCESS (auto-deploy,
+  tanpa variabel baru, `explore_tests` tetap aktif); runner baseline `1702d854` (orc `bcc854cc`) dan v2 `3af9103f`.**
+
+  | Item | Sebelum | v2 | Catatan v2 |
+  |---|---|---|---|
+  | j1 akumulasi asing + performa lampau | 166 s (ON B3) | 425 s | 22 panggilan; 3 perbaikan gerbang (PROVENANCE "3,7", TYPED_FIGURES "21", REFERENCE sintaks tabel salah); 3 uji tercatat |
+  | j2 akumulasi broker → >10% | 391 s (ON B3) | 252 s | **LIMITATION**: formulir data dikirim ulang, sesi pertama ditinggalkan, gerbang ANALYSIS memblokir walau sesi kedua COMPLETED |
+  | t1 net beli asing besar → return 5 hari | 310 s (m1.2, giliran ke-2) | **111 s** | 1 uji tercatat; PROVENANCE "95%" |
+  | o1 volatilitas BBRI Q3 vs Q2 (di luar library) | 140 s | **58 s** | uji F, Levene, Welch; rasio 0,40× (CI 0,24–0,68); PROVENANCE "36%" |
+  | o2 normalitas return TLKM (di luar library) | 50 s | 119 s | Shapiro, D'Agostino, Jarque-Bera, Anderson-Darling, KS (lebih lengkap dari baseline: hanya JB) |
+
+  - **Butir 2 bekerja:** pertanyaan di luar library dijawab dengan uji yang tepat, bukan dipaksa ke `explore_test`
+    (baseline o1 memakai `explore_test` + 4 bacaan panduan). Bacaan panduan metode turun (j2, o1, o2: 0).
+  - **Butir 3 bekerja:** `get_system_capabilities` tidak dipanggil di semua run v2.
+  - **Butir 5B:** tidak ada angka persen/porsi tampil mentah; desimal telanjang yang tersisa sah (rasio "kali", pp,
+    p-value, statistik uji, skewness). Gerbang `UNITS` tidak terpicu di run ini.
+  - **≤ 3 menit:** 3 dari 5 (t1, o1, o2). Biaya v2 USD 0,13, baseline USD 0,05.
+  - **Temuan baru (belum diperbaiki, butuh go):**
+    - **F1 sesi ditinggalkan (perilaku lama, `_dataneed_findings`):** sesi yang sudah menjalankan kode tapi tidak
+      diselesaikan memblokir jawaban walau sesi pengganti COMPLETED, kecuali model menutupnya dengan
+      `close_session_id`; j2 yang valid dipaksa LIMITATION. Usulan: sesi tanpa completion tidak memblokir bila ada
+      sesi lain di run itu yang COMPLETED dan jawaban tidak merujuk output sesi yang ditinggalkan (atau orc menutup sesi
+      lama otomatis saat formulir data dikirim ulang).
+    - **F2 tingkat kepercayaan "95%" ditolak PROVENANCE:** checklist meminta rentang, model menulis "selang kepercayaan
+      95%"; angka 95 bukan dari tabel. Usulan: tingkat kepercayaan standar (90/95/99%) yang ditulis berdampingan dengan
+      "kepercayaan"/"confidence" dianggap konstanta yang sah.
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur
