@@ -2541,6 +2541,46 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
     - **F2 tingkat kepercayaan "95%" ditolak PROVENANCE:** checklist meminta rentang, model menulis "selang kepercayaan
       95%"; angka 95 bukan dari tabel. Usulan: tingkat kepercayaan standar (90/95/99%) yang ditulis berdampingan dengan
       "kepercayaan"/"confidence" dianggap konstanta yang sah.
+- **Panjang adaptif (2026-10-14, user: "Ok, masukan exec"; belum dikerjakan, menunggu go atas rencana di bawah):**
+  - **Yang mengatur panjang selain level penalaran:** instruksi yang menyesuaikan panjang dengan kompleksitas
+    (prompt sistem Claude: jawaban ringkas untuk pertanyaan sangat sederhana, menyeluruh untuk pertanyaan kompleks dan
+    terbuka), contoh di prompt, struktur wajib, dan parameter `verbosity` OpenAI (terpisah dari `reasoning.effort`;
+    tidak didukung endpoint DeepSeek di OpenRouter, lihat EXEC-STYLE). Praktik: BLUF (kesimpulan dulu) dan
+    progressive disclosure (detail lanjutan ditawarkan, tidak dipaksakan).
+  - **A, router menilai kedalaman:** field `depth` di router pesan pertama: `ringkas` (pertanyaan satu angka atau
+    satu fakta), `standar` (default), `dalam` (pengguna meminta analisa lengkap atau pertanyaan berlapis). Target:
+    ringkas, jawaban sekitar enam ratus karakter, metodologi satu kalimat, asumsi dan batasan paling banyak satu;
+    standar, sekitar dua setengah ribu karakter, asumsi dan batasan masing-masing paling banyak tiga poin pendek,
+    metodologi ringkas; dalam, jawaban lebih panjang dengan metodologi empat bagian lengkap.
+  - **B, aturan kalibrasi di catatan jalur cepat:** panjang mengikuti kompleksitas; jawaban utama tidak dipangkas
+    (angka kunci, tabel inti, penjelasan pendorong); asumsi dan batasan tidak mengulang isi jawaban.
+  - **C, override pengguna:** kata "singkat", "ringkas", "detail", "lengkap" di pesan menang atas penilaian router;
+    nanti tombol di frontend (terpisah, belum dikerjakan).
+  - **D, metodologi sebanding kedalaman:** menggantikan kewajiban empat bagian di jalur cepat saja.
+- **Review benturan dengan EXEC dan arsitektur (2026-10-14, read-only):**
+  - **Butuh persetujuan user, EXEC-STYLE S4:** panjang bertingkat per jenis langkah pernah dicoba dan dibatalkan
+    (user memilih Run A, satu target sekitar dua setengah ribu karakter). Panjang adaptif berbeda (kedalaman per
+    pertanyaan, dinilai router, hanya jalur cepat, di balik saklar), tetapi menyentuh keputusan yang sama. Jalur
+    Standar tetap Run A.
+  - **Tidak berbenturan, EXEC-STYLE S3:** asumsi dan batasan sudah tidak wajib; batas tiga poin hanya membatasi poin
+    yang ditulis AI. Baris yang ditulis sistem (jalur analisis, bukti uji, angka tanpa sumber) tidak dihitung.
+  - **Tidak berbenturan, prompt sistem:** `METHODOLOGY_RULES` (empat bagian) dan aturan 13 ada di prompt sistem bersama
+    (semua jalur, prefix cache, tes pass 2 melarang digit baru). Perubahan ditulis di catatan jalur cepat (pesan
+    user, di luar prefix cache) dalam kata-kata, seperti `EXPLORE_ANSWER_NOTE`. Gerbang METHODOLOGY hanya memeriksa
+    ada atau tidaknya catatan dan sumber angkanya, bukan empat bagian, jadi metodologi ringkas tetap lolos.
+  - **Perlu diputuskan bersama, Perbaikan 2 (field `insight` router):** `depth` dan `insight` sama-sama mengubah
+    skema dan instruksi router pesan pertama (dipakai semua jalur; `AI_ROUTER.md` diregenerasi, benchmark router
+    wajib). Usulan: digabung dalam satu perubahan router dan satu benchmark (hemat biaya); field baru hanya dibaca
+    jalur cepat.
+  - **F1:** sudah ada `closed_by_model` (model menutup sesi lewat `close_session_id`); F1 menambah kasus sesi yang
+    ditinggalkan tanpa ditutup. Hanya `_dataneed_findings`, tanpa prompt. Jalur riset tidak tersentuh.
+  - **F2:** temuan: catatan metodologi **sudah** menerima literal kode (`_methodology_gate` menambah
+    `state.code_numbers` ke indeks), jadi B2 hanya perlu untuk teks jawaban (gerbang PROVENANCE hanya memeriksa
+    `final.answer`). Mekanisme saran yang ada (R3, menu alamat, M140, EXEC-DERIVED, P25) tidak diubah. Label B1/B2
+    tidak mengubah label bukti jawaban.
+  - **Temuan sampingan (bukan bagian rencana):** di gerbang PROVENANCE jalur lama (non-DataNeed),
+    `_derived_hint` ditambahkan dua kali ke instruksi penolakan (petunjuk turunan ditulis ganda). Tidak memengaruhi
+    jalur cepat; diperbaiki hanya bila disetujui.
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur
