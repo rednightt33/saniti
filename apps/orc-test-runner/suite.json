@@ -1,5 +1,5 @@
 {
-  "prefix": "ma-gates-20261014-s1",
+  "prefix": "ma-v4-20261014-off",
   "workers": 1,
   "audit_wait_seconds": 0,
   "items": [
@@ -7,29 +7,29 @@
       "id": "t1_foreign_buy_5d",
       "model": "deepseek/deepseek-v4.1-flash",
       "reasoning_level": "high",
-      "expect": "F1/F2/section caps (switches on)",
+      "expect": "V4 A/B",
       "turns": [
         "Apakah hari dengan net beli asing besar di BBRI diikuti return positif dalam 5 hari bursa berikutnya?"
       ],
       "lane": "fast"
     },
     {
-      "id": "o1_vol_bbri",
+      "id": "j2_broker_accum",
       "model": "deepseek/deepseek-v4.1-flash",
       "reasoning_level": "high",
-      "expect": "F1/F2/section caps (switches on)",
+      "expect": "V4 A/B",
       "turns": [
-        "Apakah volatilitas harian BBRI di kuartal III 2026 lebih tinggi dari kuartal II 2026? Uji perbedaannya."
+        "Cari saham yang diakumulasi broker di atas X selama Y hari lalu return-nya lebih dari 10% dalam 20 hari bursa; X dan Y ambil dari sebaran data (kuantil atas)"
       ],
       "lane": "fast"
     },
     {
-      "id": "o2_normal_tlkm",
+      "id": "s1_span_banks",
       "model": "deepseek/deepseek-v4.1-flash",
       "reasoning_level": "high",
-      "expect": "F1/F2/section caps (switches on)",
+      "expect": "V4 A/B",
       "turns": [
-        "Apakah distribusi return harian TLKM sepanjang 2026 berdistribusi normal?"
+        "Bandingkan return BBRI, BBCA dan BMRI 1 minggu terakhir dan 3 bulan terakhir, lalu jelaskan apa yang mendorong perbedaannya, termasuk aliran asing."
       ],
       "lane": "fast"
     }

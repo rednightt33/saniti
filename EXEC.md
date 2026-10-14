@@ -2708,6 +2708,34 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
     tidak berubah.
   - **Deploy:** `main` `e0ac8d6`, orc `90e26804` SUCCESS; aktif lewat saklar V4 yang sudah menyala. Tes orc 1.504
     lulus. Uji live menunggu saldo kunci.
+- **A/B V4 + V4.1 (2026-10-14, user: "lakukan a/b tes 3 pertanyaan targetted to test speed and depth"):** tiga
+  pertanyaan sama, jalur Cepat, DeepSeek Tinggi; ON = `AI_FASTLANE_DECISION_RULES=true` (orc `90e26804`), OFF = false
+  (orc `def768d5`), saklar lain sama; saklar dikembalikan ON (orc `186a63c3`). Runner ON `808f6dae`, OFF `6288cc44`
+  (`ma-v4-20261014-on/off`). Biaya total ≈ USD 0,25 (sisa kunci USD 0,74).
+
+  | Pertanyaan | Waktu ON / OFF | Token output ON / OFF | Pertimbangan ulang ON / OFF | Server (token/s) ON / OFF |
+  |---|---|---|---|---|
+  | t1 net beli asing "besar" → return 5 hari | 195 s / 231 s | 11.274 / 15.942 | 22 / 35 | 74 / 79 |
+  | j2 akumulasi broker → >10% dalam 20 hari | 167 s / 570 s | 24.185 / 35.532 | 118 / 206 | 191 / 73 |
+  | s1 return 3 bank 1 minggu dan 3 bulan + pendorong | 401 s / 294 s | 27.220 / 29.659 | 105 / 82 | 74 / 114 |
+  | **Total** | 763 s / 1.095 s | 62.679 / 81.133 (−23%) | 245 / 323 (−24%) | |
+
+  - **Kecepatan:** token output dan pertimbangan ulang turun sekitar seperempat; waktu mengikuti server yang dipilih
+    OpenRouter (s1 ON kena server 74 token/s, OFF 114). Dengan kecepatan server yang sama, ketiga pertanyaan ON lebih
+    sedikit waktu model.
+  - **E bekerja:** j2 ON 1 cek ukuran dan 1 permintaan data; OFF 4 cek ukuran, 2 permintaan data dan 2 sesi.
+  - **V4.1 bekerja:** s1 ON dasar 1 minggu = 7 Okt (5 hari bursa), 3 bulan = 13 Juli (63 hari bursa), tanggal ditulis
+    di tabel dan asumsi; OFF memakai rentang kalender dan menulis return 3 bulan BBCA 0,00% (dicurigai salah dasar;
+    ON −1,61% dari Rp 6.225 ke Rp 6.125).
+  - **C sebagian:** t1 dan j2 ON memakai persentil 90 dan jendela 21 hari; s1 ON memilih ambang "besar" sendiri
+    (Rp 0,5 triliun) alih-alih persentil 90.
+  - **F2 bekerja live:** "95%" diterima otomatis di t1 dan j2 (`ai_provenance_accepted`).
+  - **Kedalaman:** t1 ON lebih ringkas (1.486 vs 2.933 karakter; OFF menambah 10 hari terbesar dan rincian per tahun);
+    j2 ON lebih panjang (2.272 vs 1.958); s1 setara. Porsi bagian ON 0,47–0,62.
+  - **Temuan baru:** (a) gerbang METHODOLOGY_PROVENANCE masih menolak "95%" (F2 hanya untuk teks jawaban); (b) gerbang
+    TYPED_FIGURES menolak "21" (parameter jendela default yang juga muncul di tabel hasil) dan "34" (jumlah hari);
+    (c) baris "Pilihan AI" memuat string kode ('forward', 'explore') — bug lama; (d) tabel per tahun OFF menulis tahun
+    "2.020" (format ribuan pada kolom tahun) — bug lama tampilan angka.
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur

@@ -1,5 +1,12 @@
 # Railway changelog
 
+## 2026-10-14 — V4 A/B (dev)
+
+User: "lakukan a/b tes 3 pertanyaan". `AI_FASTLANE_DECISION_RULES` on `market-ai-orc` / `dev` (name only) set false
+for the OFF run (redeploy `def768d5` → SUCCESS) and back to true (redeploy `186a63c3` → SUCCESS, read back).
+`orc-test-runner` dev deployments `808f6dae` (ON, suite `v4_20261014_on`) and `6288cc44` (OFF, `v4_20261014_off`);
+all six turns COMPLETED ANSWER. Results in EXEC.md (EXEC-FASTLANE).
+
 ## 2026-10-14 — EXEC-FASTLANE V4.1 deployed (dev)
 
 User: "5 hari kerja, senin-jumat" (then rolling trading days for every relative span). `main` `e0ac8d6`
