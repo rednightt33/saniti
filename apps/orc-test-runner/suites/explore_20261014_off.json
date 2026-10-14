@@ -1,0 +1,37 @@
+{
+  "prefix": "ma-explore-20261014-off",
+  "workers": 1,
+  "audit_wait_seconds": 0,
+  "items": [
+    {
+      "id": "j1_foreign_accum",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "expect": "EXEC-FASTLANE B3 A/B OFF: answer mode question",
+      "turns": [
+        "Coba analisa dalam 1 bulan terakhir saham yang paling banyak diakumulasi asing, bandingkan apakah nilai akumulasi tersebut pernah terjadi di masa lampau, dan cek performa lanjutannya di masa lalu"
+      ],
+      "lane": "fast"
+    },
+    {
+      "id": "i1_foreign_insight",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "expect": "EXEC-FASTLANE B3 A/B OFF: insight question",
+      "turns": [
+        "Carikan insight dari aliran dana asing (net foreign) saham BBRI selama 6 bulan terakhir"
+      ],
+      "lane": "fast"
+    },
+    {
+      "id": "i2_bank_broker_insight",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "expect": "EXEC-FASTLANE B3 A/B OFF: insight question",
+      "turns": [
+        "Pola apa yang menarik dari net beli broker di saham bank besar (BBRI, BBCA, BMRI, BBNI) selama kuartal ini?"
+      ],
+      "lane": "fast"
+    }
+  ]
+}

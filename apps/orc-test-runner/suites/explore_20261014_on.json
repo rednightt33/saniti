@@ -1,0 +1,61 @@
+{
+  "prefix": "ma-explore-20261014-on",
+  "workers": 1,
+  "audit_wait_seconds": 0,
+  "items": [
+    {
+      "id": "j1_foreign_accum",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "expect": "EXEC-FASTLANE B3 A/B ON: answer mode (one test)",
+      "turns": [
+        "Coba analisa dalam 1 bulan terakhir saham yang paling banyak diakumulasi asing, bandingkan apakah nilai akumulasi tersebut pernah terjadi di masa lampau, dan cek performa lanjutannya di masa lalu"
+      ],
+      "lane": "fast"
+    },
+    {
+      "id": "j2_broker_accum",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "expect": "EXEC-FASTLANE B3 A/B ON: answer mode (one test)",
+      "turns": [
+        "Cari saham yang diakumulasi broker di atas X selama Y hari lalu return-nya lebih dari 10% dalam 20 hari bursa; X dan Y ambil dari sebaran data (kuantil atas)"
+      ],
+      "lane": "fast"
+    },
+    {
+      "id": "i1_foreign_insight",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "expect": "EXEC-FASTLANE B3 A/B ON: insight mode (EXPLORE route expected)",
+      "turns": [
+        "Carikan insight dari aliran dana asing (net foreign) saham BBRI selama 6 bulan terakhir"
+      ],
+      "lane": "fast"
+    },
+    {
+      "id": "i2_bank_broker_insight",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "expect": "EXEC-FASTLANE B3 A/B ON: insight mode (EXPLORE route expected)",
+      "turns": [
+        "Pola apa yang menarik dari net beli broker di saham bank besar (BBRI, BBCA, BMRI, BBNI) selama kuartal ini?"
+      ],
+      "lane": "fast"
+    },
+    {
+      "id": "m1_mode_switch",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "expect": "EXEC-FASTLANE B3 A/B ON: answer -> answer test -> INSIGHT turn -> answer -> new topic",
+      "turns": [
+        "Coba analisis distribusi return harian BBRI selama 3 bulan terakhir",
+        "Apakah hari dengan net beli asing besar di BBRI diikuti return positif dalam 5 hari bursa berikutnya?",
+        "Coba carikan insight lain dari data ini",
+        "Oke, sekarang rekap net beli asing BBRI per minggu",
+        "Pindah ke TLKM, berapa pergerakan harganya bulan lalu?"
+      ],
+      "lane": "fast"
+    }
+  ]
+}
