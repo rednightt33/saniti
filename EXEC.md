@@ -2581,6 +2581,22 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
   - **Temuan sampingan (bukan bagian rencana):** di gerbang PROVENANCE jalur lama (non-DataNeed),
     `_derived_hint` ditambahkan dua kali ke instruksi penolakan (petunjuk turunan ditulis ganda). Tidak memengaruhi
     jalur cepat; diperbaiki hanya bila disetujui.
+- **Keputusan atas rencana (2026-10-14, user: "Yg lain sudah OK.. konfirmasi dan buat execution plan"; rencana
+  disetujui, dikerjakan):**
+  - **Ditunda:** panjang adaptif A–D ("Ini nanti saja deh"; "no need for now") dan Perbaikan 2 (`insight` router),
+    karena disetujui digabung ke perubahan router yang sama.
+  - **Prioritas:** "Pastikan asumsi, limitasi, dan metodologi tidak mengambil porsi mayor dalam setiap balasan
+    terlebih dahulu" (A/B v2: ketiganya 56% teks, jawaban utama 45%).
+  - **Cakupan:** F1 dan F2 hanya jalur cepat; label F2 sebagai baris sistem terlipat di Asumsi; temuan sampingan
+    (petunjuk turunan ganda di gerbang PROVENANCE jalur lama) diperbaiki ("ya perbaiki").
+  - **Rencana eksekusi:** (1) F1 di balik `AI_FASTLANE_ABANDONED_SESSIONS`: sesi tanpa completion tidak memblokir bila
+    ada sesi lain COMPLETED (sesi tanpa completion tidak merilis output, jadi tidak bisa dikutip); (2) F2 di balik
+    `AI_FASTLANE_CONVENTION_NUMBERS`: B1 dan B2 diterima tanpa putaran dengan label, sisanya tetap ditolak; (3) batas
+    bagian di balik `AI_FASTLANE_SECTION_CAPS`: kalimat di catatan jalur cepat (asumsi dan batasan masing-masing paling
+    banyak tiga poin pendek tanpa mengulang jawaban, metodologi satu paragraf pendek; jawaban utama tetap lengkap),
+    tanpa pemotongan kode dan tanpa gerbang baru; log `ai_answer_sections` mengukur porsi (kriteria A/B: porsi tiga
+    bagian di bawah porsi jawaban utama, rata-rata sekitar 35% atau kurang); (4) petunjuk ganda dihapus. Prompt sistem
+    dan jalur Standar tidak berubah. A/B 4–5 pertanyaan jalur cepat dengan baseline run v2 (≈ USD 0,15).
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur
