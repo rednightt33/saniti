@@ -2658,6 +2658,33 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
   `saniti.event_study` memakai dua permintaan (kondisi di satu permintaan, harga hasil di permintaan lain lewat
   `'request'`), supaya AI tidak menebak. Tugas lanjutan dari user: cari titik lain tempat AI diberi pilihan terbuka
   ("menawarkan") dengan sifat serupa.
+- **V4: aturan memutuskan di jalur Cepat + 4 perbaikan EDGE (2026-10-14, user: "save ini as V4 in addition to
+  approved EXEC"; rencana disetujui; dikerjakan):** audit log 41 run jalur Cepat (859 potongan penalaran) menemukan
+  instruksi yang hanya "menawarkan" pilihan tanpa aturan memutuskan. Keputusan per butir:
+  - **A disetujui (versi 2, user: "pakai helper apabila cocok, fall back ke default AI"):** metode diputuskan sesudah
+    data siap; helper dipakai bila bentuk pertanyaan cocok (kejadian → return ke depan: `event_study`; metode
+    library: `explore_test`; return periode bernama: `period_return`), selain itu kode AI sendiri; ringkasan
+    `event_study` dengan dua permintaan.
+  - **B1 disetujui:** desain kejadian → hasil: permintaan harga tidak dibatasi INNER join (LEFT dengan harga di kiri,
+    atau tanpa relasi dan digabung di sesi), agar jendela hasil tidak terpotong.
+  - **B2 disetujui:** periode default = cakupan tabel paling pendek (dibatasi tahun riwayat default) sampai LATEST;
+    rentang nyata dibaca dari ringkasan bundle.
+  - **C disetujui (user: "kasih nama tablenya dan harus di update di agents MD karna user perlu tweak"):** parameter
+    yang tidak disebut user memakai tabel `FASTLANE_DEFAULTS` di `apps/market-ai-orc/app/fastlane_defaults.py`
+    (pilihan user: file kode, bukan tabel DB atau variabel Railway); cara mengubahnya di AGENTS.md.
+  - **D disetujui:** satu aturan rujukan (kolom ber-`units=` → `{{ref}}` tanpa format; tabel lewat `{{table …}}`;
+    jawaban sesudah `complete_analysis`).
+  - **E disetujui (parameter, sama seperti C):** `check_data_feasibility` sekali bila entitas × tahun melewati batas
+    di `FASTLANE_DEFAULTS`; ulang hanya bila spesifikasi berubah.
+  - **F disetujui:** panduan metode dibuka hanya untuk helper yang akan dipakai.
+  - **G dilewati** (user: "NO, skip this").
+  - **H disetujui:** kurang kolom/periode → permintaan data baru + `close_session_id`; galat kode → perbaiki di sesi.
+  - Saklar `AI_FASTLANE_DECISION_RULES` (default mati), hanya jalur Cepat; prompt sistem bersama tidak diedit. Dua
+    kontradiksi instruksi (catatan jalur "tanpa uji formal" vs Mode Jawab; konvensi `period_return` vs rentang
+    bebas) dicatat, belum disetujui.
+  - **EDGE:** (1) tombol perbesar tabel jawaban → dialog lebar penuh seperti contoh screenshot; (2) di HP tombol
+    Kembali/Enter menambah baris baru, bukan mengirim; (3) hapus teks "Kirim balasan langsung" di kartu pilihan;
+    (4) hilangkan celah antara status "AI request running" di percakapan dan kotak pesan.
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur
