@@ -1,5 +1,19 @@
 # Railway changelog
 
+## 2026-10-15 — EXEC-IMPL-1016 Fase 1 and the M168 fix deployed (dev)
+
+User: "Ok jalankan" (EXEC-IMPL-1016 Fase 0 + 1). No EDGE run was active before the push. `main` `2ea90c8` deployed
+`market-ai-orc` dev `5163a5e0` → SUCCESS (startup without `*_inactive`; provider policy OK for the four models; key
+limit read as USD 42, 0.91 left) and `market-python-sandbox` dev `3c3db0c9` → SUCCESS; `edge-bff` dev `1875326a` → SUCCESS;
+governor SKIPPED. No variable change. Temporary `mmig-job` for Tool_Catalog `round_v` created and deleted
+(DATABASE_CHANGELOG; read back absent, 24 services).
+- **M168:** orc `ed07e66c` (M163, 09:28 UTC), `bb3738ea` and `fcda847e` failed every model call (gzip answer decoded
+  twice); `5163a5e0` carries the fix. A live probe before the push: the old client failed with the production error,
+  the new one completed.
+- Live check after SUCCESS: `edge_91cfccda…` COMPLETED in 50 s (router COMPLETED, 6 model calls); EDGE desktop and phone show "EDGE · Completed" and the model's name.
+- Rollback: sandbox `88739487` (`4d9a3cd`), edge-bff `1aca46e9` (`2e201d7`); orc: not `fcda847e` (M168) but a redeploy
+  of `1fbec6d` (`ac4ea638`, before M163), which also drops the M163 deadline and the M165 fix.
+
 ## 2026-10-15 — AI_ENABLE_SESSION_ATTACH on (dev) and M165 fix
 
 User: "buka dan jalankan ya. Siapkan fallback apabila intended resultnya jelek" (PLAN 14). Variable

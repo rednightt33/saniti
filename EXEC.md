@@ -2019,7 +2019,7 @@ OpenRouter $0,37 dari batas $41 (satu run bisa menghabiskannya); dicek setelah s
 
 - **U5 pemilih model di ponsel (disetujui 2026-10-15; Jalur ikut dipindah, user: "ya dipindah"; belum dieksekusi).** User 2026-10-15 (dua tangkapan layar ponsel): "retain existing design untuk model selection; pindahkan reasoning selection ke kotak A; untuk size dan lokasi bs disesuaikan dengan nomor (1)". Dibaca sebagai: kartu model (logo, nama, harga input/output, id) tetap; pilihan level berpikir (Rendah/Tinggi/Maks) pindah dari baris terpisah di bawah daftar ke ruang kosong di kanan setiap kartu model ("kotak A"), hanya aktif pada kartu model yang dipilih; panel pemilih menempati area kosong percakapan di atas kolom tanya (area "1"), bukan menutupi seluruh layar.
 
-### EXEC-IMPL-1016: rencana implementasi EXEC-OPEN-1015, UI-1015E, EDGE-CTX dan UI-1015B (go Fase 0–1 2026-10-15)
+### EXEC-IMPL-1016: rencana implementasi EXEC-OPEN-1015, UI-1015E, EDGE-CTX dan UI-1015B (Fase 0–1 selesai 2026-10-15; Fase 2–5 menunggu go)
 
 **Persetujuan user 2026-10-15:** rencana diminta ("Ok, pls create implementation plan. Inspect current architecture to
 ensure plan take that into account."), saldo diisi ("Done di isi"), lalu "Ok jalankan" untuk Fase 0 + Fase 1. Fase 2–5
@@ -2045,6 +2045,8 @@ masing-masing menunggu "go" sendiri.
 **Fase 0 (2026-10-15):**
 - Deploy aktif untuk rollback: orc `fcda847e` (`5158381`), edge-bff `1aca46e9` (`2e201d7`), sandbox `88739487`
   (`4d9a3cd`). Governor tidak disentuh di Fase 1–2.
+- Koreksi (Fase 1): orc `fcda847e` membawa M168 (sejak `ed07e66c`, 09:28 UTC, setiap panggilan model gagal). Titik
+  rollback orc yang benar untuk panggilan model adalah commit `1fbec6d` (deploy `ac4ea638`).
 - Saldo dibaca live: akun USD 85 total, terpakai 43,73; kunci orc batas USD 42, terpakai 41,09 (sisa USD 0,91).
 - Batas kunci perlu dinaikkan user sebelum Fase 2 (benchmark router dua kali dan cek live).
 
@@ -2067,6 +2069,17 @@ masing-masing menunggu "go" sendiri.
     dulu di tabel referensi (`lookup_reference` bila ditawarkan), dan AI bertanya bila cocok ke beberapa kode.
   - Prompt v009. Tool_Catalog `round_v`: `get_dimension_values` v2 dan `submit_data_need_spec` v14.
 - Tes lokal: orc 1.807 lulus; EDGE 103 lulus; sandbox 860 lulus.
+- M168 (ditemukan saat Fase 1): sejak orc `ed07e66c` (M163, 09:28 UTC) setiap panggilan model gagal, karena jawaban
+  gzip didekode dua kali. Diperbaiki di commit yang sama (ERRORS M168).
+- Deploy `2ea90c8` → SUCCESS: orc `5163a5e0`, sandbox `3c3db0c9`, edge-bff `1875326a`. Tool_Catalog `round_v`
+  diterapkan.
+- Cek live `edge_91cfccda…` ("rata-rata rentang harga harian … BBRI dan BMRI selama 1 bulan terakhir"):
+  - COMPLETED dalam 50 dtk: 6 iterasi, 9 alat, USD 0,006.
+  - Tidak ada `get_dimension_values` untuk kode saham, dan tidak ada gerbang UNITS (model menyatakan `FRACTION` sejak
+    awal). Angka tampil 2,28% / 1,74%.
+  - EDGE desktop dan ponsel: "EDGE · Completed" bergaya redup, "DeepSeek V4.1 Flash" dengan id di tooltip, tanpa
+    "Fast lane", tanpa geser samping.
+  - Temuan baru M169 (OPEN): kata bilangan ("seperempat persen") tidak dicek sumbernya.
 
 ### EXEC-REVIEW-1015: tinjauan semua EXEC terbuka dan arsitekturnya (2026-10-15; user: "please review all exec, inspect arsitektur ... contrast what ideal conditions would look like")
 
