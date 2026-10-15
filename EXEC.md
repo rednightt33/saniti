@@ -2019,6 +2019,62 @@ OpenRouter $0,37 dari batas $41 (satu run bisa menghabiskannya); dicek setelah s
 
 - **U5 pemilih model di ponsel (disetujui 2026-10-15; Jalur ikut dipindah, user: "ya dipindah"; belum dieksekusi).** User 2026-10-15 (dua tangkapan layar ponsel): "retain existing design untuk model selection; pindahkan reasoning selection ke kotak A; untuk size dan lokasi bs disesuaikan dengan nomor (1)". Dibaca sebagai: kartu model (logo, nama, harga input/output, id) tetap; pilihan level berpikir (Rendah/Tinggi/Maks) pindah dari baris terpisah di bawah daftar ke ruang kosong di kanan setiap kartu model ("kotak A"), hanya aktif pada kartu model yang dipilih; panel pemilih menempati area kosong percakapan di atas kolom tanya (area "1"), bukan menutupi seluruh layar.
 
+### EXEC-OPEN-1015: empat item run `edge_2f7523a7…` yang wajib dibereskan (dicatat 2026-10-15; menunggu keputusan dan "go")
+
+**Permintaan user 2026-10-15:** "Jangan sampai item2 tersebut lepas/terlewat, ingatkan terus sampai kita conclude
+eksekusi dan go, saya mau kita bereskan." Setiap balasan kepada user menyebut status keempat item ini sampai semuanya
+tuntas (dieksekusi dan diverifikasi, atau diputuskan tidak dikerjakan).
+
+| # | Item | Status |
+|---|---|---|
+| O1 | `get_dimension_values` dipakai untuk kode saham (EXEC-M164) | akar masalah terbukti; usulan menunggu go |
+| O2 | Pertanyaan "Cari saja …" masuk kelas INSIGHT | akar masalah terbukti; usulan menunggu keputusan |
+| O3 | Penolakan `INSIGHT_SOURCE_NOT_OPENED` | akar masalah terbukti; ikut O2 |
+| O4 | Kalender MSCI disusun ulang dari ingatan | akar masalah terbukti; usulan menunggu keputusan |
+
+**O1.** Kegunaan alat: ejaan nilai kategori yang tersimpan (mis. "Banks", "Regular") untuk saringan; saringan dengan ejaan
+salah tidak gagal, hanya mengembalikan nol baris tanpa peringatan, jadi alat ini mencegah jawaban kosong diam-diam.
+Governor hanya melayaninya untuk kolom teks kategori di tabel statis; kolom entitas (kode saham) dan tabel bertanggal
+ditolak. Deskripsi argumen alat sudah menyebut "static table" dan "not its entity column" (koreksi: catatan M164 awal
+menyebut deskripsi tidak menyebutnya; yang tidak menyebut hanya kalimat utama). Penyebab pemakaian salah (penalaran
+`edge_b90899…`): aturan prompt "take exact values from get_dimension_values and never type a member list yourself", plus
+keinginan wajar memastikan 9 kode saham ada; alat untuk itu tidak ada, maka ia memakai alat yang salah 9 kali. Usulan:
+(a) aturan prompt hanya untuk kategori; nilai yang user tulis (kode saham, tanggal) diketik di scope apa adanya;
+(b) hasil penyiapan data menyebut entitas yang diminta tetapi tidak punya baris (berlaku untuk semua daftar entitas:
+saham, broker, nanti seri makro), sehingga cek keberadaan terjadi setelah ekstraksi tanpa panggilan tambahan; (c)
+kalimat utama deskripsi alat menyebut batasnya.
+
+**O2.** Kelas router untuk giliran lanjutan: CLARIFY (tanpa hitungan baru), INSIGHT (mengapa/apa yang menonjol, rincian
+hasil yang sudah ditampilkan; aturannya: "rekap atau daftar menurut sesuatu yang belum ada di hasil → INSIGHT"),
+CONTINUE (analisis atau uji lanjutan), NEW_TOPIC (tidak bergantung pada hasil sebelumnya). "Cari saja di tanggal efektif
+tersebut broker asing teratas" bergantung pada hasil sebelumnya dan meminta daftar baru, jadi aturan memilih INSIGHT
+(log: `turn_kind="INSIGHT"`, `referent="NEWEST_RESULT"`). Masalahnya nama INSIGHT dipakai dua arti: di router "hitungan
+baru atas konteks sebelumnya", di jalur cepat "boleh menguji sampai 5 sudut dengan explore_test" (`explore_mode="insight"`),
+dan memicu gerbang O3. Golongan: setiap permintaan daftar/angka baru atas konteks percakapan. Usulan A: kelas baru
+(mis. LOOKUP: daftar atau angka baru yang memakai konteks sebelumnya, bukan penjelasan hasil) → jalur cepat mode ANSWER,
+tanpa gerbang O3; AI_ROUTER.md dan benchmark router ikut. Usulan B: INSIGHT tetap, tetapi mode explore dan gerbang O3
+hanya untuk penjelasan ("mengapa", "apa yang menonjol") yang dibaca router sebagai `explains_result`. Rekomendasi: A.
+
+**O3.** Gerbang `INSIGHT_SOURCE_NOT_OPENED` (H1, M63, golden test 2026-10-02): giliran INSIGHT yang tidak pernah membuka
+tabel hasil sebelumnya ditolak saat menyelesaikan analisis, karena dulu penjelasan yang membangun ulang hasil dengan
+definisi tebakan menghasilkan angka yang bertentangan. Di run ini pertanyaannya bukan penjelasan, jadi AI membuka dua tabel
+lama hanya untuk lolos gerbang: 1 putaran tambahan (16 dtk) dan tabel hasil ganda (out.o19, out.o20). Golongan: gerbang
+yang menegakkan aturan satu kelas pada pesan yang salah kelas. Usulan: gerbang hanya untuk giliran penjelasan (ikut O2);
+aturan penjaminnya tetap (penjelasan hasil lama wajib membuka hasil itu).
+
+**O4.** Tanggal efektif MSCI di percakapan ini berasal dari riset web giliran `edge_ca6cf5a4…` ("saham yang secara
+historis ada di MSCI 2-3 tahun terakhir"): giliran itu tidak merilis tabel hasil (outputs kosong), tanggalnya hanya ada di
+teks jawaban, dan sumbernya tidak seragam (AVIA: "efektif 26 Nov 2024" dan "penutupan 25 Nov 2024"; Small Cap Mei 2024:
+"efektif 1 Juni 2024", hari Sabtu). Giliran berikutnya tidak punya data terstruktur, jadi model membaca ulang teks dan
+menebak aturan kalender MSCI dari ingatan (hari kerja terakhir bulan, penutupan sehari sebelum efektif). Praktik umum
+studi peristiwa indeks: kalender peristiwa adalah data rujukan bertabel (penyedia indeks, tinjauan, tanggal pengumuman,
+tanggal implementasi = penutupan perdagangan, saham masuk/keluar, URL siaran resmi, tanggal diambil), diselaraskan ke
+kalender bursa (hari 0 = hari perdagangan terakhir pada atau sebelum penutupan implementasi), dan semua jendela dihitung
+dalam hari perdagangan dari tabel itu, bukan dari ingatan. Usulan: (a) segera: hasil riset web yang memuat tanggal atau
+daftar entitas dirilis sebagai tabel hasil terstruktur dengan sumber per baris, dan giliran berikutnya memuatnya
+(`load_output`); (b) nanti: tabel katalog peristiwa indeks (MSCI, FTSE, LQ45, IDX80) dari siaran resmi lewat pipeline,
+sejalan dengan kalender makro (BI, FOMC, rilis data) — perlu cek Part A dan keputusan user sebelum dimuat.
+
 ### EXEC-UI-1015E: kepala jawaban dan baris metadata (dicatat 2026-10-15; "masukan EXEC jangan execute dulu")
 
 **Permintaan user 2026-10-15** (tangkapan layar kepala jawaban): "A. kembalikan seperti awal tapi tanpa tulisan AI ya;
