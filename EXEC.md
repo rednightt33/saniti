@@ -2019,6 +2019,44 @@ OpenRouter $0,37 dari batas $41 (satu run bisa menghabiskannya); dicek setelah s
 
 - **U5 pemilih model di ponsel (disetujui 2026-10-15; Jalur ikut dipindah, user: "ya dipindah"; belum dieksekusi).** User 2026-10-15 (dua tangkapan layar ponsel): "retain existing design untuk model selection; pindahkan reasoning selection ke kotak A; untuk size dan lokasi bs disesuaikan dengan nomor (1)". Dibaca sebagai: kartu model (logo, nama, harga input/output, id) tetap; pilihan level berpikir (Rendah/Tinggi/Maks) pindah dari baris terpisah di bawah daftar ke ruang kosong di kanan setiap kartu model ("kotak A"), hanya aktif pada kartu model yang dipilih; panel pemilih menempati area kosong percakapan di atas kolom tanya (area "1"), bukan menutupi seluruh layar.
 
+### EXEC-UI-1015D: jalur cepat selalu, label pemilih model berbahasa Inggris, kepala jawaban "Edge · Completed", tabel ringkas (dicatat 2026-10-15; menunggu "go")
+
+**Permintaan user 2026-10-15** (tangkapan layar ponsel): "bisa buat semua jalur cepat fastlane latest V by default,
+sehingga kita tidak perlu ada opsi jalur"; "harga per juta. harga diperbaharui dll bisa di conver jd bahasa inggris?
+termasuk kata tingkat berpikir, rendah tinggi maks"; "1. edge AI jadi Edge 2. selesai ganti Completed tanpa tulisan
+berjarak buat nice and bold"; "screenshot 1-3 lihat jarak antara kolom tidak compact. seek best practice ya".
+- **D1 Jalur cepat selalu.** Semua saklar V terbaru jalur cepat sudah menyala di dev (`AI_FASTLANE_V5_PRESENTATION`,
+  `_DECISION_RULES`, `_GATE_ADVICE`, `_SECTION_CAPS`, `_CONVENTION_NUMBERS`, `_EXPLORE_TESTS`, `_ABANDONED_SESSIONS`;
+  `AI_FASTLANE_DRAFT_CHECK=false` tetap). Usulan: EDGE selalu mengirim `lane=fast` (bila orc melaporkan
+  `lane_selection`) dan baris "Jalur" hilang dari pemilih model; pilihan "standard" yang tersimpan diabaikan. Jalur standar
+  tetap ada di orc sebagai cadangan lewat API (A/B, golden test). Pertanyaan: cukup di EDGE, atau orc juga memakai jalur
+  cepat untuk permintaan tanpa jalur?
+- **D2 Bahasa Inggris di pemilih model** (`edge-labels.js`): "AI model", "Price per 1M tokens", "Prices updated 15:46
+  WIB", "Reasoning", Low/Medium/High/Max/Off/On, "Choose model and reasoning"; label tingkat di baris metadata jawaban
+  ikut ("· High").
+- **D3 Kepala jawaban:** "EDGE AI · SELESAI" (huruf besar, berjarak) menjadi "Edge · Completed", tebal, tanpa jarak huruf
+  dan tanpa huruf kapital paksa; status lain ikut berbahasa Inggris (Limited, Awaiting approval, Needs your answer,
+  Paused, Failed).
+- **D4 Tabel ringkas (praktik umum tabel data):** penyebab terukur di CSS: `.data-table {width:100%}` merentangkan
+  kolom selebar kartu dan kolom pertama dipaksa minimal 140 px, sementara kolom teks dipaksa membungkus per huruf
+  ("Internati / onal") oleh `overflow-wrap:anywhere` pada blok jawaban (dikonfirmasi lewat gaya terhitung saat
+  dibangun). Usulan: lebar tabel mengikuti isi (`width:max-content; min-width:100%` hanya bila lebih sempit), tanpa lebar
+  minimum kolom pertama; kode, tanggal dan angka tidak membungkus; teks membungkus per kata dengan lebar 12–28 karakter;
+  padding 8×12 px (ponsel 6×10 px); kolom pertama menempel saat digulir ke samping di ponsel; gulir samping di dalam
+  bingkai tetap. Berlaku untuk semua tabel jawaban, tidak per tabel.
+- Cek: tes EDGE (tidak ada baris Jalur, `lane=fast` terkirim, label Inggris, kepala jawaban, lebar kolom: tabel 3 kolom
+  pendek tidak melebar, tidak ada kata terpotong di tengah), QA live desktop dan ponsel dengan tangkapan layar.
+
+### EXEC-M163: batas waktu panggilan model yang benar-benar berlaku, catatan INSIGHT, tindak lanjut memakai tabel jawaban sebelumnya (dicatat 2026-10-15; usulan, menunggu "go")
+
+Dasar: ERRORS M163 dan M164 (run `edge_2f7523a7…` 336 dtk; 210 dtk di panggilan pertama; batas 90 dtk jalur cepat tidak
+pernah terpicu). Usulan: (1) klien model membaca jawaban sebagai aliran dan menutupnya pada batas waktu total, dengan log
+`ai_lane_call_timeout` saat terpicu dan tes terhadap server lambat yang terus mengirim byte; (2) catatan INSIGHT jalur
+cepat: `explore_test` dipakai bila user meminta pola, permintaan "cari/daftar" dijawab dengan tabelnya; (3) tindak lanjut
+yang merujuk entitas atau tanggal jawaban sebelumnya diarahkan ke tabel yang sudah dirilis (muat, jangan susun ulang);
+(4) deskripsi alat menyebut kolom mana yang dilayani `get_dimension_values` (dari peran kolom di katalog) dan aturan satuan
+sebelum rilis (M164). Perubahan teks prompt → snapshot prompt; perubahan alat → AI_TOOLS.md.
+
 ### EXEC-UI-1015C: tombol ke percakapan di Response History, tombol kanan atas ke rel kiri, baris status dihapus (dicatat 2026-10-15; go 2026-10-15)
 
 **Go 2026-10-15** (user: "Ok, confirmed. Go."): atas pemahaman ponsel (menu dan "+" ke header; rel kiri hilang, percakapan
