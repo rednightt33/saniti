@@ -10,6 +10,7 @@ import copy
 import json
 from typing import Any
 
+from app.tools.data_need import ResearchGovernanceFindings
 from pydantic import BaseModel, ConfigDict
 
 from app.orchestrator import (DUAL_RESEARCH_SENTENCE, HYPOTHESIS_PLAN_RULES, MULTI_ANGLE_ONLY_SENTENCE,
@@ -28,10 +29,11 @@ DRAFT = "draft_" + "7" * 24
 
 
 class SpecArgsFindings(BaseModel):
-    """Named like the registered findings variant of submit_data_need_spec, which switches findings v1 on."""
+    """Carries the findings governance like the registered findings variant, which switches findings v1 on
+    (read from the field, not the class name)."""
     model_config = ConfigDict(extra="forbid")
     mode: str
-    research_governance: dict | None = None
+    research_governance: ResearchGovernanceFindings | dict | None = None  # the scripted governance stays a dict
 
 
 class FeasibilityArgs(BaseModel):

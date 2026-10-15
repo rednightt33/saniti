@@ -2019,6 +2019,47 @@ OpenRouter $0,37 dari batas $41 (satu run bisa menghabiskannya); dicek setelah s
 
 - **U5 pemilih model di ponsel (disetujui 2026-10-15; Jalur ikut dipindah, user: "ya dipindah"; belum dieksekusi).** User 2026-10-15 (dua tangkapan layar ponsel): "retain existing design untuk model selection; pindahkan reasoning selection ke kotak A; untuk size dan lokasi bs disesuaikan dengan nomor (1)". Dibaca sebagai: kartu model (logo, nama, harga input/output, id) tetap; pilihan level berpikir (Rendah/Tinggi/Maks) pindah dari baris terpisah di bawah daftar ke ruang kosong di kanan setiap kartu model ("kotak A"), hanya aktif pada kartu model yang dipilih; panel pemilih menempati area kosong percakapan di atas kolom tanya (area "1"), bukan menutupi seluruh layar.
 
+### EXEC-UI-1015E: kepala jawaban dan baris metadata (dicatat 2026-10-15; "masukan EXEC jangan execute dulu")
+
+**Permintaan user 2026-10-15** (tangkapan layar kepala jawaban): "A. kembalikan seperti awal tapi tanpa tulisan AI ya;
+B. ini nama mode saja langsung; C. tidak perlu ada fast lane, karena ini default".
+- A: gaya kepala jawaban kembali seperti sebelum EXEC-UI-1015D (huruf kecil-besar paksa, jarak huruf, warna redup), teks
+  "EDGE · COMPLETED" (status tetap berbahasa Inggris sesuai D3; dikonfirmasi saat go).
+- B: baris metadata menampilkan nama model (label dari daftar model EDGE, mis. "DeepSeek V4.1 Flash") alih-alih id
+  `deepseek/deepseek-v4.1-flash`; id tetap di tooltip; model di luar daftar tetap memakai id-nya.
+- C: "Fast lane" dihapus dari baris metadata (jalur cepat adalah bawaan sejak D1).
+- Cek: tes EDGE untuk kepala dan baris metadata; QA live desktop dan ponsel.
+
+### EXEC-M164: aturan alat terlihat sebelum dilanggar (dicatat 2026-10-15; "Solusi M164 OK ... jangan execute dulu")
+
+**Akar masalah (terbukti dari penalaran `edge_b90899…` iterasi 1 dan kode):** aturan DATA NEED di prompt orc "take exact
+values from get_dimension_values and never type a member list yourself" ditulis untuk saringan lewat tabel lain (mis.
+"bank saja"), tetapi model menerapkannya ke kode saham yang user sebut sendiri; ia memanggil `get_dimension_values` 9 kali
+pada kolom ticker, dan Governor menolak setiap panggilan (`DIMENSION_IS_ENTITY`: kolom entitas tidak dilayani, daftar
+entitas masuk ke scope). Deskripsi `get_dimension_values` tidak menyebut bahwa kolom entitas dan tabel bertanggal ditolak.
+Bukan katalog alat yang usang: Tool_Catalog (`round_u`) dan alat yang ditawarkan sudah benar; yang kurang adalah aturan
+yang tidak dinyatakan sebelum dipanggil. **Golongan:** setiap batas yang ditegakkan Governor atau sandbox tetapi tidak
+tertulis di deskripsi alat atau prompt (kolom entitas, tabel bertanggal, satuan sebelum rilis).
+- Usulan: (1) deskripsi `get_dimension_values` menyebut kolom yang dilayani, diturunkan dari peran kolom di katalog
+  (entitas dan waktu tidak; kategori ya), dan `get_catalog_details` menandai peran itu per kolom; (2) kalimat prompt
+  DATA NEED dibatasi: nilai yang user tulis (kode saham, tanggal) diketik apa adanya di scope; `get_dimension_values`
+  hanya untuk ejaan kategori; (3) aturan satuan sebelum rilis ditulis di deskripsi `emit_table`/`run_python`. Snapshot
+  prompt dan `AI_TOOLS.md` ikut diperbarui; tes: satu permintaan dengan kode saham dari user tidak memanggil
+  `get_dimension_values`.
+
+### EXEC-EDGE-CTX: lampirkan pilihan tabel sebagai konteks (A) dan bukti data di Sources (B) (dicatat 2026-10-15; "OK, masukan exec ya. Jangan execute dulu")
+
+Dipindah dari `FUTURE_PLAN.md`. Fakta: setiap angka tabel jawaban berasal dari tabel hasil sandbox (`{{table out.oN}}`),
+tetapi EDGE hanya menerima teks tabelnya; data mentah di balik angka bisa dikeluarkan dengan alat yang ada (muat ulang
+data jawaban, saring, rilis, `export_result`).
+- **A (lampirkan pilihan):** orc menyertakan peta tabel di jawaban (`tables`: urutan, `output_id`, kolom tampil → kolom
+  hasil, kunci baris). EDGE: memilih sel/kolom/baris memunculkan "Attach to question"; pilihan tampil sebagai chip di atas
+  kolom tanya dan dikirim sebagai `attached_selection {output_id, columns, row_keys, shown_values}`; orc memberi model
+  catatan sumbernya; "keluarkan raw data" → `get_lineage`, muat data sumber, saring, rilis, ekspor.
+- **B (Sources):** "Bukti (N)" diganti daftar tabel hasil jawaban (nama, baris, kolom, data per), masing-masing dengan
+  "Ask AI to export data". Panel Pinned responses: keputusan saat go.
+- Urutan usulan: B lalu A. Cek: tes kontrak orc ↔ EDGE, tes EDGE, satu run live berbayar atas perintah.
+
 ### EXEC-UI-1015D: jalur cepat selalu, label pemilih model berbahasa Inggris, kepala jawaban "Edge · Completed", tabel ringkas (dicatat 2026-10-15; go 2026-10-15)
 
 **Go 2026-10-15** (user: "D1 OK D2 OK D3 OK D4 OK"; D1 sesuai usulan: hanya di EDGE, jalur standar tetap di orc).

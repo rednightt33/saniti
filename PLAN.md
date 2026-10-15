@@ -118,6 +118,17 @@ keputusan terpisah (`FUTURE_PLAN.md` §3).
 
 ## 14. Data tambahan ke sesi analisis yang sedang terbuka (ATTACH; desain disetujui untuk dirumuskan, belum "go")
 
+**Dinyalakan di dev 2026-10-15** (user: "buka dan jalankan ya. Siapkan fallback apabila intended resultnya jelek"):
+`AI_ENABLE_SESSION_ATTACH=true` di `market-ai-orc` dev (deploy `bb3738ea` SUCCESS, startup tanpa `session_attach_inactive`).
+Temuan saat menyala: deteksi research findings v1 membaca nama kelas argumen, yang diganti pembungkus lampiran, sehingga
+`hypothesis_plan_inactive` (ERRORS M165); diperbaiki di commit berikut (deteksi dari field). Jalan balik: (1) otomatis per
+pesan: lampiran yang ditolak sandbox membuka sesi baru dengan alasannya (perilaku lama); (2) seluruhnya: hapus
+`AI_ENABLE_SESSION_ATTACH` di orc dev (`railway variables --service market-ai-orc --environment dev --remove
+AI_ENABLE_SESSION_ATTACH` atau set `false`), orc redeploy dan alat `attach_data_bundle` tidak ditawarkan lagi. Tanda
+"hasil jelek" yang dipantau di log orc: `mechanical_steps_merged` dengan `attach_data_bundle` ditolak berulang, penyelesaian
+dengan lampiran INCOMPLETE, atau run dengan lampiran yang lebih lama dari run serupa tanpa lampiran. A/B berbayar belum
+(saldo OpenRouter $0,42).
+
 **Keputusan user 2026-10-15:** atas usulan di `FUTURE_PLAN.md`: "Ok untuk solusi. Also you should know bahwa yang live
 sekarang adalah fastlane. Boleh dirumuskan designnya?" dan "Cara kerjanya: data tambahan tetap diminta lewat jalur biasa
 (Governor, batas ukuran). Bedanya, paketnya dilampirkan ke sesi yang sedang terbuka. Variabel tetap ada, dan analisis

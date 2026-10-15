@@ -163,7 +163,7 @@ Diambil 2026-10-15 dari Railway (nama dan nilai true/false saja).
 | `AI_ENABLE_REQUEST_DATA` | off |
 | `AI_ENABLE_RESEARCH_FINDINGS` | on |
 | `AI_ENABLE_RUN_MEMORY` | on |
-| `AI_ENABLE_SESSION_ATTACH` | off |
+| `AI_ENABLE_SESSION_ATTACH` | on |
 | `AI_ENABLE_STANDARD_PERIOD_RETURN` | on |
 | `AI_ENABLE_WEB_FACT` | off |
 | `AI_ENABLE_WEB_RESEARCH` | on |

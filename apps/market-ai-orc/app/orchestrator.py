@@ -66,6 +66,7 @@ from .value_refs import (pp_as_percent, FUNC_RE, OUTSIDE_LABELS, OUTSIDE_NAMESPA
                          TableRows, format_value, menu_address, registered_links_only, render, safe_link)
 from .tools import ToolOutcome, ToolRegistry, error_outcome
 from .tools.analysis import DataDate, current_conversation_key, current_data_date, current_run_context, run_context
+from .tools.data_need import declares_findings
 from .tools.envelope import envelope
 from .tools.registry import strict_parameters_schema
 from .result_store import restore_missing, store_released
@@ -2618,7 +2619,7 @@ class AgentOrchestrator:
         # research findings v1: active when the registered submit_data_need_spec declares the findings values
         # (AI_ENABLE_RESEARCH_FINDINGS and the sandbox capability, checked at startup) and plans are confirmed
         findings_v1 = submit is not None and self.plan_confirmation \
-            and submit.arguments_model.__name__.endswith("Findings")
+            and declares_findings(submit.arguments_model)
         # G3 (user decision 2026-10-02): the hypothesis plan (v1 with findings v1) beside the multi-angle plan; it
         # needs the findings capability and check_data_feasibility registered next to check_research_feasibility
         self.hypothesis_plans = settings.ai_enable_hypothesis_plan and self.multi_angle and findings_v1 \

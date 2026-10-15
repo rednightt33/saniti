@@ -17,6 +17,8 @@ are rendered in the same issue shape (argument_issues).
 """
 from __future__ import annotations
 
+import typing
+
 import json
 from typing import Any, Literal
 
@@ -473,6 +475,14 @@ ATTACH_FIELD_DESCRIPTION = (
     "extra data requests, with new names); the backend prepares the bundle and attaches it, so the session's "
     "variables stay. Null opens a new session as usual.")
 SESSION_ID_PATTERN = r"^sess_[0-9a-f]{24}$"
+
+
+def declares_findings(model: type[BaseModel]) -> bool:
+    """Research findings v1 is active when the submit arguments carry the findings governance (read from the field,
+    not the class name: a wrapper such as with_attach renames the class, which once switched findings and the
+    hypothesis plan off when attaching was turned on, 2026-10-15)."""
+    field = model.model_fields.get("research_governance")
+    return field is not None and ResearchGovernanceFindings in typing.get_args(field.annotation)
 
 
 def with_attach(model: type[BaseModel]) -> type[BaseModel]:

@@ -192,3 +192,14 @@ def test_the_attach_argument_and_tool_exist_only_with_the_switch_and_never_on_a_
         assert "attach_data_bundle" in tool_desks.tools(desk, registered, effect)
     for desk in ("RESEARCH_V1", "RESEARCH_V2", "PLAN", "CHAT", "FACT", "READ"):
         assert "attach_data_bundle" not in tool_desks.tools(desk, registered, effect)
+
+
+def test_attaching_keeps_research_findings_and_the_hypothesis_plan_detected() -> None:
+    """Live 2026-10-15 (orc `bb3738ea`): turning AI_ENABLE_SESSION_ATTACH on logged hypothesis_plan_inactive, because
+    findings v1 was detected from the submit arguments' class name, which with_attach renames (…FindingsAttach). It is
+    read from the governance field now, whatever wraps the arguments."""
+    from app.tools.data_need import (SubmitDataNeedSpecArgsFindings, SubmitDataNeedSpecArgsPITFindings,
+                                     SubmitDataNeedSpecArgsV2Findings, declares_findings)
+    for model in (SubmitDataNeedSpecArgsFindings, SubmitDataNeedSpecArgsV2Findings, SubmitDataNeedSpecArgsPITFindings):
+        assert declares_findings(model) and declares_findings(with_attach(model))
+    assert not declares_findings(SubmitDataNeedSpecArgs) and not declares_findings(with_attach(SubmitDataNeedSpecArgs))

@@ -77,27 +77,7 @@ atau celah sumber, bukan permintaan; akumulasi dibaca dari net per broker atau p
 
 Setiap perubahan data atau skema mengikuti AGENTS.md (migrasi baru, baca balik, changelog) dan butuh persetujuan user.
 
-### EDGE-CTX — lampirkan pilihan tabel sebagai konteks, dan bukti data di panel Sources (usulan 2026-10-15, menunggu keputusan)
-
-Permintaan user 2026-10-15: "Boleh gak kamu tambahkan fitur sama seperti 'Attached Selection as Context' pada claude? So
-misalkan saya attached selection pada kotak merah, dan saya bilang 'Keluarkan detail raw data tersebut' maka AI bisa
-export data tersebut. Alternatively ... bagian itu di replace saja dengan bukti2 data tersebut dengan opsi 'Minta AI untuk
-export data'".
-- Fakta: setiap angka di tabel jawaban berasal dari tabel hasil yang dirilis sandbox (`{{table out.oN ...}}`, log
-  `ai_table_directive`), tetapi EDGE hanya menerima teks tabelnya, tanpa rujukan ke tabel hasil, baris dan kolom.
-  Data mentah di balik satu angka (mis. "Terbaik 28,5%" = harga harian satu saham di satu jendela) bisa dikeluarkan
-  dengan alat yang ada: memuat ulang paket data jawaban itu, menyaring baris, merilis, `export_result`.
-- Usulan A (lampirkan pilihan): orc menyertakan peta tabel di jawaban (`tables`: urutan tabel, `output_id`, kolom
-  tampil → kolom hasil, kunci baris). EDGE: memilih sel/kolom/baris di tabel memunculkan tombol "Attach to question";
-  pilihan tampil sebagai chip di atas kolom tanya dan dikirim sebagai `attached_selection {output_id, columns, row_keys,
-  shown_values}`. orc memberi model satu catatan: pilihan ini dari tabel hasil X; untuk "data mentah" telusuri
-  `get_lineage` lalu muat data sumber, saring sesuai baris/jendela, rilis dan ekspor. Berlaku untuk semua tabel
-  jawaban, bukan per tabel.
-- Usulan B (bukti data di Sources): bagian "Bukti (18)" diganti daftar tabel hasil jawaban (nama, baris, kolom, data
-  per), masing-masing dengan "Ask AI to export data" (mengisi kolom tanya dengan permintaan ekspor tabel itu, atau
-  langsung memanggil ekspor tabel hasil tanpa model bila hanya tabel hasilnya yang diminta). Panel "Pinned responses"
-  (A) dipertahankan atau digabung — keputusan user.
-- Saran: B dulu (murah, memakai data yang sudah ada di jawaban), lalu A (butuh kontrak baru orc ↔ EDGE).
+### EDGE-CTX — dipindah ke EXEC.md (EXEC-EDGE-CTX), 2026-10-15
 
 ## 1. Antrean perbaikan dekat
 

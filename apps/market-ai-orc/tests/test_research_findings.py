@@ -10,6 +10,7 @@ import copy
 import re
 
 import httpx
+from app.tools.data_need import ResearchGovernanceFindings
 from pydantic import BaseModel, ConfigDict
 
 from app.orchestrator import (FINDINGS_INSTRUCTION, RESEARCH_FINDINGS_RULES, AgentOrchestrator, RunState,
@@ -103,10 +104,11 @@ def test_the_approved_values_bind_the_declaration() -> None:
 # ------------------------------------------------------------------------------------------ the findings gate
 
 class FindingsSpecArgsFindings(BaseModel):
-    """Named like the registered findings variant, which switches the feature on."""
+    """Carries the findings governance like the registered findings variant, which switches findings v1 on
+    (read from the field, not the class name)."""
     model_config = ConfigDict(extra="forbid")
     mode: str
-    research_governance: dict | None = None
+    research_governance: ResearchGovernanceFindings | None = None
 
 
 def agent() -> AgentOrchestrator:

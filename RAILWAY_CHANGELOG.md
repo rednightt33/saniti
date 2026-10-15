@@ -1,5 +1,15 @@
 # Railway changelog
 
+## 2026-10-15 — AI_ENABLE_SESSION_ATTACH on (dev) and M165 fix
+
+User: "buka dan jalankan ya. Siapkan fallback apabila intended resultnya jelek" (PLAN 14). Variable
+`AI_ENABLE_SESSION_ATTACH` set to `true` on `market-ai-orc` dev (CLI); redeploy `bb3738ea` → SUCCESS, no
+`session_attach_inactive`, but `hypothesis_plan_inactive` appeared (ERRORS M165: findings detected by class name). The fix
+is pushed with this entry; its deployment is recorded below once SUCCESS. `railway config pull --force` and
+`railway config plan` ("already up to date"); `.railway/railway.ts` lists the new name with `preserve()` and picks up
+start-command changes already live on other services. `AI_TOOLS.md` regenerated with `--flags` from the dev variables.
+Fallback: remove the variable (or set `false`) on `market-ai-orc` dev; the old flow returns at the next deploy.
+
 ## 2026-10-15 — EXEC-UI-1015D and the M163 call deadline deployed (dev)
 
 User: "D1 OK D2 OK D3 OK D4 OK" and EXEC-M163 item 1 "ini OK". `main` `2e201d7` deployed `market-ai-orc` dev
