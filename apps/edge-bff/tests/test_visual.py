@@ -82,6 +82,8 @@ def saved(page, count=1):
 def no_clipping(page):
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Page overflows horizontally'
     for selector in ('.topbar', '.research-workspace', '.workspace-tools', '.composer'):
+        if selector == '.workspace-tools' and page.viewport_size['width'] > 720:
+            continue  # EXEC-UI-1015C: above a phone the session bar is gone, its buttons sit in the rail
         box = page.locator(selector).bounding_box()
         assert box and box['x'] >= -1 and box['x'] + box['width'] <= page.viewport_size['width'] + 1, selector
     for label in ('Account menu', 'Show Details', 'Submit'):
@@ -305,7 +307,13 @@ def test_responsive_history_details_preferences_and_keyboard(dummy_orc, browser_
     page.get_by_role('menuitem', name='Sign out').wait_for()
     page.keyboard.press('Escape')
     assert not page.get_by_role('menu').count()
-    page.get_by_role('button', name='Settings', exact=True).click()
+    if width <= 720:  # EXEC-UI-1015C: on a phone settings opens from the account menu
+        assert not page.get_by_role('button', name='Settings', exact=True).is_visible()
+        page.get_by_role('button', name='Account menu', exact=True).click()
+        page.get_by_role('menuitem', name='Pengaturan', exact=True).click()
+    else:
+        assert not page.get_by_role('menuitem', name='Pengaturan').count()
+        page.get_by_role('button', name='Settings', exact=True).click()
     page.get_by_role('dialog', name='Appearance', exact=True).wait_for()
     page.get_by_role('button', name='Switch theme', exact=True).click()
     page.keyboard.press('Escape')

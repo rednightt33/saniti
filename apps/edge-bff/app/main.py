@@ -208,6 +208,16 @@ def create_app(settings=None, store=None, orc=None):
             return error('NOT_FOUND', 404)
         return FileResponse(target, media_type='image/svg+xml', headers={'Cache-Control': 'public, max-age=86400'})
 
+    # EXEC-UI-1015C (user 2026-10-15, "Please also add Favicon"): the EDGE "E" mark for the browser tab and the phone
+    # home screen. Public like the page itself, so the login screen shows it too.
+    @app.get('/favicon.svg')
+    @app.get('/favicon-32.png')
+    @app.get('/apple-touch-icon.png')
+    async def favicon(request: Request):
+        name = request.url.path.lstrip('/')
+        media = 'image/svg+xml' if name.endswith('.svg') else 'image/png'
+        return FileResponse(STATIC / name, media_type=media, headers={'Cache-Control': 'public, max-age=86400'})
+
     @app.post('/api/v1/auth/sign-in')
     async def sign_in(body: Login, request: Request):
         ip = request.client.host if request.client else 'unknown'

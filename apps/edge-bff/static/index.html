@@ -9,7 +9,9 @@
 (() => { const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   if (ios) document.querySelector('meta[name="viewport"]').setAttribute("content", "width=device-width, initial-scale=1, maximum-scale=1"); })();</script>
 <title>EDGE — Sign In & Monitor</title>
-<link rel="icon" href="data:,">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <style>/*! tailwindcss v4.2.1 | MIT License | https://tailwindcss.com */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @layer properties;
@@ -9710,6 +9712,32 @@ html.dark .edge-flow-done{background:#1e9a59;}
 @media print{.monitor-layout .research-exchange{max-width:none;}}
 
 
+/* EXEC-UI-1015C (user 2026-10-15). Desktop (wider than a phone): the session bar above the chat is gone and its
+   Details, bookmark and share buttons sit in the rail; Response History offers a way back to each response. Phone: the
+   rail's menu and "+" move into the header, the rail disappears so the chat takes the full width, and settings opens
+   from the account menu. */
+.edge-rail-actions {display:flex;gap:6px;align-items:center;}
+.sidebar-collapsed .edge-rail-actions {flex-direction:column;}
+@media (max-width:1050px) {.edge-rail-actions {flex-direction:column;}}
+.edge-history-jump {display:inline-flex;align-items:center;gap:6px;margin:10px 0 2px 8px;padding:5px 10px;border:1px solid var(--border);border-radius:999px;background:var(--background);color:var(--foreground);font:500 11px Inter,"Segoe UI",sans-serif;cursor:pointer;}
+.edge-history-jump:hover,.edge-history-jump:focus-visible {background:var(--secondary);}
+.account-menu .account-settings {display:none;}
+@media (min-width:721px) {
+ .monitor-layout .workspace-tools {display:none;}
+}
+@media (max-width:720px) {
+ .edge-rail-actions {display:none;}
+ .monitor-layout {grid-template-columns:0 minmax(0,1fr) !important;}
+ .monitor-layout>.research-workspace {grid-column:2;grid-row:1;}
+ .monitor-layout:not(.mobile-history-open) .conversation-panel {position:fixed;top:calc((var(--topbar) - 36px) / 2);left:108px;z-index:125;
+   flex-direction:row;align-items:center;gap:6px;width:auto;height:36px;padding:0;border:0;background:transparent;overflow:visible;}
+ .monitor-layout:not(.mobile-history-open) .conversation-panel .panel-head {padding:0;margin:0;border:0;}
+ .monitor-layout:not(.mobile-history-open) .conversation-panel>.btn {width:36px;height:36px;margin:0;}
+ .monitor-layout:not(.mobile-history-open) .conversation-panel .sidebar-foot {display:none;}
+ .top-actions>.icon-btn[aria-label="Settings"] {display:none !important;}
+ .account-menu .account-settings {display:block;}
+}
+
 /* Small screens retain access to saved history and response details through drawers. */
 .edge-panel-backdrop {display:none;}
 .result h1,.result-metadata,.edge-pin-body,.content-block {overflow-wrap:anywhere;}
@@ -10394,7 +10422,7 @@ element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.
                 element(IconButton, { icon: "theme", onClick: toggle, title: `Switch to ${theme === "dark" ? "light" : "dark"} theme` }),
                 element(IconButton, { icon: "settings", selected: settingsOpen, onClick: () => setSettingsOpen(true), title: "Settings", buttonRef: settingsRef }),
                 element("button", { ref: avatarRef, className: `avatar ${accountOpen ? "open" : ""}`, onClick: () => setAccountOpen(!accountOpen), "aria-label": "Account menu", "aria-haspopup": "menu", "aria-expanded": accountOpen }, "E"),
-                accountOpen && element(AccountMenu, { trigger: avatarRef, close: closeAccount, openView: openAccountView, signOut: async () => { try { await Edge.signout(); closeAccount(); go("/login"); } catch(e) { notify(e.message); } } }))),
+                accountOpen && element(AccountMenu, { trigger: avatarRef, close: closeAccount, openSettings: () => setSettingsOpen(true), openView: openAccountView, signOut: async () => { try { await Edge.signout(); closeAccount(); go("/login"); } catch(e) { notify(e.message); } } }))),
         children,
         false && element(AccountDialog, { view: accountView, setView: setAccountView, close: () => setAccountView(null), returnFocusRef: avatarRef }),
         settingsOpen && element(SettingsDialog, { close: () => setSettingsOpen(false), notify: notify, returnFocusRef: settingsRef }),
@@ -10406,7 +10434,7 @@ element(Button, { kind: "ghost", icon: "spark", onClick: () => { sessionStorage.
             toast));
 }
 
-function AccountMenu({signOut,close,trigger}) {
+function AccountMenu({signOut,close,trigger,openSettings}) {
  const view=currentView,menu=(view.refs.menu ??= {current:null});
  onLifecycle(view,"dismiss",()=>{
    const outside=e=>{if(!menu.current?.contains(e.target)&&!trigger.current?.contains(e.target))close(false);};
@@ -10415,7 +10443,10 @@ function AccountMenu({signOut,close,trigger}) {
    requestAnimationFrame(()=>menu.current?.querySelector("button")?.focus());
    return()=>{document.removeEventListener("pointerdown",outside);document.removeEventListener("keydown",key);};
  },[]);
- return element("div",{ref:menu,className:"account-menu",role:"menu"},element("button",{role:"menuitem",className:"sign-out",onClick:signOut},"Sign out"));
+ return element("div",{ref:menu,className:"account-menu",role:"menu"},
+   // EXEC-UI-1015C (phone): settings left the phone header and opens here
+   openSettings&&element("button",{role:"menuitem",className:"account-settings",onClick:()=>{close();openSettings();}},edgeUi().accountSettings),
+   element("button",{role:"menuitem",className:"sign-out",onClick:signOut},"Sign out"));
 }
 function DialogShell({ title, description, close, children, className = "", returnFocusRef }) {
     const viewRecord = currentView;
@@ -10695,6 +10726,11 @@ function Monitor({ go }) {
         if (visible)
             setActiveSection(visible);
     } };
+    // V5 pins and EXEC-UI-1015C (user 2026-10-15): one way to bring a response into view, from the pins and from Response
+    // History; on a phone the Details sheet covers the chat, so it closes first; a run without an answer shows its exchange
+    const jumpToRun = id => {setSelectedRunId(id);setAutoFollow(false);
+        if(narrow&&mobileDetailsOpen)setMobileDetailsOpen(false);
+        requestAnimationFrame(()=>requestAnimationFrame(()=>{const node=document.getElementById(id+"-response")||document.getElementById("edge-exchange-"+id),container=scrollRef.current;if(node&&container){container.scrollTo({top:container.scrollTop+node.getBoundingClientRect().top-container.getBoundingClientRect().top-24,behavior:"smooth"});node.focus?.({preventScroll:true});}}));};
     const scrollToResearchSection = (sectionId) => { if (!run || !scrollRef.current)
         return; const section = document.getElementById(`${run.id}-${sectionId}`), container = scrollRef.current; if (!section)
         return; const top = section.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 24; setActiveSection(sectionId); container.scrollTo({ top, behavior: "smooth" }); };
@@ -10707,6 +10743,11 @@ function Monitor({ go }) {
                         element("strong", null, "Edge Research")),
                     element(IconButton, { icon: "menu", onClick: () => narrow ? setHistoryOpen(!historyOpen) : toggleCollapsed(), title: narrow ? historyOpen ? "Close history" : "Open history" : collapsed ? "Expand sidebar" : "Collapse sidebar" })),
                 element(Button, { kind: "primary", icon: "plus", ariaLabel:"New conversation", onClick: newConversation }, collapsed && !(narrow && historyOpen) ? undefined : "New conversation"),
+                // EXEC-UI-1015C (desktop): Details, bookmark and share sit in the rail under menu and "+"
+                element("div", { className: "edge-rail-actions" },
+                    element(IconButton, { icon: "sliders", selected: narrow ? mobileDetailsOpen : detailsOpen, title: (narrow ? mobileDetailsOpen : detailsOpen) ? edgeUi().railHideDetails : edgeUi().railDetails, onClick: () => { if (narrow) { setHistoryOpen(false); setDetailsOpen(true); setMobileDetailsOpen(!mobileDetailsOpen); } else setDetailsOpen(!detailsOpen); } }),
+                    element(IconButton, { icon: "bookmark", selected: selected?.bookmarked, disabled: !selected || selected.id.startsWith("draft:"), onClick: () => toggleBookmark(), title: edgeUi().railBookmark }),
+                    element(IconButton, { icon: "share", disabled: true, onClick: () => {}, title: edgeUi().railShare })),
                 (!collapsed || (narrow && historyOpen)) && element(Search, { placeholder: "Search conversation", value: query, onChange: setQuery, conversation: true }),
                 " ",
                 (!collapsed || (narrow && historyOpen)) && element("div", { className: "mini-tabs" },
@@ -10745,7 +10786,7 @@ function Monitor({ go }) {
                         element(Icon, { name: "spark" })),
                     element("strong", null, "Start a research session"),
                     element("p", null, "Ask a research question to create a conversation. No thread is created until you submit."),
-                    element(Pill, null, "Draft")) : selected.messages.filter(message => message.role === "user").map(message => { const messageRun = selected.runs.find(item => item.id === message.runId); return element("div", { className: `research-exchange ${messageRun?.id === run?.id ? "selected-run" : ""}`, key: message.id },
+                    element(Pill, null, "Draft")) : selected.messages.filter(message => message.role === "user").map(message => { const messageRun = selected.runs.find(item => item.id === message.runId); return element("div", { className: `research-exchange ${messageRun?.id === run?.id ? "selected-run" : ""}`, key: message.id, id: messageRun ? `edge-exchange-${messageRun.id}` : undefined },
                     element("div", { className: "user-message" },
                         element("span", { className: "message-label" },
                             "You"),
@@ -10814,12 +10855,9 @@ function Monitor({ go }) {
                     element("strong", null, "Details"),
                     element(IconButton, { icon: "close", onClick: () => {setMobileDetailsOpen(false);setDetailsOpen(false);}, title: "Close details" })),
                 element(Tabs, { items: ["Flow", "Sources"], active: detailsTab, onChange: value => { setDetailsTab(value); setSourceDetail(null); } }),
-                element(PinnedResponses, { open:pinsOpen, toggle:togglePins, height:pinsHeight, runs:selected?.runs ?? [], unpin:id=>togglePin(selected.runs.find(r=>r.id===id),false), jump:id=>{setSelectedRunId(id);setAutoFollow(false);
-                    // V5 (user 2026-10-14): on a phone the Details sheet covers the chat, so it closes first
-                    if(narrow&&mobileDetailsOpen)setMobileDetailsOpen(false);
-                    requestAnimationFrame(()=>requestAnimationFrame(()=>{const node=document.getElementById(id+"-response"),container=scrollRef.current;if(node&&container){container.scrollTo({top:container.scrollTop+node.getBoundingClientRect().top-container.getBoundingClientRect().top-24,behavior:"smooth"});node.focus({preventScroll:true});}}))} }),
+                element(PinnedResponses, { open:pinsOpen, toggle:togglePins, height:pinsHeight, runs:selected?.runs ?? [], unpin:id=>togglePin(selected.runs.find(r=>r.id===id),false), jump:jumpToRun }),
                 pinsOpen && (flowOpen || detailsTab !== "Flow") && element(PinsResizeHandle, { height:pinsHeight, setHeight:value => { setPinsHeight(value); keep("edge-pins-height", value); } }),
-                element("div", {className:"edge-details-upper",ref:historyScrollRef}, run ? detailsTab === "Sources" ? element(Sources,{run}) : element(ResponseFlows, { runs:selected?.runs ?? [], autoOpenRunId, open:flowOpen, toggle:toggleFlow }) : element("div", { className: "details-empty" }, "No research run selected."))),
+                element("div", {className:"edge-details-upper",ref:historyScrollRef}, run ? detailsTab === "Sources" ? element(Sources,{run}) : element(ResponseFlows, { runs:selected?.runs ?? [], autoOpenRunId, open:flowOpen, toggle:toggleFlow, jump:jumpToRun }) : element("div", { className: "details-empty" }, "No research run selected."))),
             (historyOpen || mobileDetailsOpen) && element("button",{className:"edge-panel-backdrop",tabIndex:-1,"aria-label":"Close panel",onClick:()=>{setHistoryOpen(false);setMobileDetailsOpen(false);}}),
             expandedTable && element(ResearchTableDialog, { run: expandedTable, close: () => setExpandedTable(null) })));
 }
@@ -11033,22 +11071,24 @@ function DisclosureChevron() {
 const runDuration=run=>{if(run.status==="running"||run.status==="submitted")return null;
     const orc=run.raw?.execution?.duration_ms;if(typeof orc==="number")return EdgeView.durationText(orc);
     const start=Date.parse(run.createdAt),end=Date.parse(run.completedAt);return Number.isFinite(start)&&Number.isFinite(end)&&end>=start?EdgeView.durationText(end-start):null;};
-function ResponseFlowItem({run,initiallyOpen=false}) {
+function ResponseFlowItem({run,initiallyOpen=false,jump}) {
     const view=currentView,expanded=initialValue(view,"expanded",()=>initiallyOpen);
     return element("details",{id:`edge-history-${run.id}`,className:"edge-flow-accordion",open:expanded,onToggle:event=>updateValue(view,"expanded",event.currentTarget.open)},
         element("summary",null,element("div",null,
             element("strong",{title:run.result?.title ?? run.question},run.result?.title ?? run.question),
             element("small",null,formatMessageJakarta(run.completedAt ?? run.createdAt)," · ",run.status,runDuration(run)?" · "+runDuration(run):"")),element(DisclosureChevron)),
-        element(Flow,{run}));
+        element(Flow,{run}),
+        // EXEC-UI-1015C: back to this response in the conversation
+        jump&&element("button",{type:"button",className:"edge-history-jump",onClick:()=>jump(run.id)},edgeUi().historyJump,element(Icon,{name:"arrow-right",size:13})));
 }
 // EXEC-DETAILS: a section title that collapses and expands its section
 function SectionToggle({label,open,toggle,controls}) {
     return element("button",{type:"button",className:"edge-section-toggle","aria-expanded":open,"aria-controls":controls,onClick:toggle},
         element("span",null,label),element(DisclosureChevron));
 }
-function ResponseFlows({runs,autoOpenRunId,open=true,toggle}) {
+function ResponseFlows({runs,autoOpenRunId,open=true,toggle,jump}) {
     return element("div",{className:"edge-flow-list"},element("div",{className:"edge-history-head"},element(SectionToggle,{label:"Response History",open,toggle,controls:"edge-flow-items"})),
-        open&&element("div",{id:"edge-flow-items"},runs.map(run=>element(ResponseFlowItem,{key:run.id,run,initiallyOpen:run.id===autoOpenRunId}))));
+        open&&element("div",{id:"edge-flow-items"},runs.map(run=>element(ResponseFlowItem,{key:run.id,run,initiallyOpen:run.id===autoOpenRunId,jump}))));
 }
 function PinnedResponses({runs,unpin,jump,open=true,toggle,height}) {
     const pinned=runs.filter(run=>run.pinned&&run.result);
