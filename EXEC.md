@@ -2019,6 +2019,25 @@ OpenRouter $0,37 dari batas $41 (satu run bisa menghabiskannya); dicek setelah s
 
 - **U5 pemilih model di ponsel (disetujui 2026-10-15; Jalur ikut dipindah, user: "ya dipindah"; belum dieksekusi).** User 2026-10-15 (dua tangkapan layar ponsel): "retain existing design untuk model selection; pindahkan reasoning selection ke kotak A; untuk size dan lokasi bs disesuaikan dengan nomor (1)". Dibaca sebagai: kartu model (logo, nama, harga input/output, id) tetap; pilihan level berpikir (Rendah/Tinggi/Maks) pindah dari baris terpisah di bawah daftar ke ruang kosong di kanan setiap kartu model ("kotak A"), hanya aktif pada kartu model yang dipilih; panel pemilih menempati area kosong percakapan di atas kolom tanya (area "1"), bukan menutupi seluruh layar.
 
+### EXEC-UI-1015C: tombol ke percakapan di Response History, tombol kanan atas ke rel kiri, baris status dihapus (dicatat 2026-10-15; disetujui desktop, menunggu "go")
+
+**Keputusan user 2026-10-15:** "Yes, perubahan UI sudah confirmed, tapi ini hanya untuk desktop ya." atas pemahaman
+berikut (desktop saja, ponsel tidak berubah oleh butir ini):
+1. Response History (panel Details): setiap kartu run mendapat tombol "Lihat di percakapan" (di bawah baris status
+   simpan); klik menutup panel bila perlu dan menggulir ke jawaban itu; run milik percakapan lain membuka percakapan itu
+   dulu.
+2. A → B: tombol Details, Pin (bookmark) dan Share dari kanan atas pindah ke rel kiri, di bawah tombol menu dan "+",
+   sebagai ikon.
+3. C dihapus: baris "Research session · Run N · status" di atas percakapan dihilangkan; status tetap ada di setiap
+   jawaban.
+
+**Ponsel (pemahaman dikirim ke user 2026-10-15, menunggu konfirmasi):** tombol menu dan "+" dari rel kiri pindah ke
+header (ruang kosong antara logo EDGE dan tombol cari); rel kiri hilang sehingga percakapan selebar layar; tanda silang
+di ikon pengaturan header ditanyakan (dihapus dari header ponsel?).
+
+**Favicon (usulan, menunggu pilihan):** logo "E" EDGE yang sudah ada (kotak hitam membulat, huruf putih) sebagai SVG,
+plus PNG 32 px dan apple-touch-icon 180 px; sekarang `index.html` memakai `<link rel="icon" href="data:,">` (kosong).
+
 ### EXEC-UI-1015B: progres run seperti Claude (dinilai 2026-10-15; usulan, menunggu "go")
 
 **Permintaan user 2026-10-15** (tangkapan layar aplikasi Claude dan EDGE): "saat ini ketika AI thinking, maka tulisannya ai request is running. Bisa kamu buat seperti claude? Coba assess dulu kondisi backend ya".
