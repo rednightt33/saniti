@@ -11049,7 +11049,7 @@ function RunStatus({ run, stopping, expanded, toggle, retry }) {
         element("div", null, element("strong", null, edgeUi().stopped), element("span", null, edgeUi().stoppedHint)),
         element(Button, { icon: "refresh", onClick: retry }, edgeUi().editResend));
     if (run.status === "failed" || run.status === "cancelled") return element("div", { className: `run-inline-state ${run.status}`, role: "status" },
-        element("div", null, element("strong", null, run.status === "failed" ? "Research failed" : "Research cancelled"), element("span", null, run.error === "STOPPED_BY_USER" ? edgeUi().stopped : run.error)),
+        element("div", null, element("strong", null, run.status === "failed" ? "Research failed" : "Research cancelled"), element("span", null, run.error === "STOPPED_BY_USER" ? edgeUi().stopped : run.errorText || run.error)),
         element(Button, { icon: "refresh", onClick: retry }, "Retry"));
     return null;
 }

@@ -167,6 +167,9 @@ PLAN_PROVENANCE_NOTICE = "Sebagian angka di bawah belum bisa ditelusuri ke renca
 
 # ---- limitation lines ----
 METHODOLOGY_MISSING_LINE = "Jawaban ini tidak menyertakan catatan cara menghitung."
+# M160: the model provider is down (credit or key limit used up, account refused, provider unavailable); nothing ran
+SERVICE_UNAVAILABLE_LINE = ("Layanan AI sedang tidak tersedia (kuota habis atau penyedia model sedang gangguan), "
+                            "jadi pesan ini belum dijawab. Coba kirim ulang beberapa saat lagi.")
 METHODOLOGY_WITHHELD_LINE = "Catatan cara menghitung tidak ditampilkan karena menyebut angka tanpa sumber: {numbers}."
 PLAN_NOT_EXECUTED_LINE = ("Rencana riset yang Anda setujui belum dijalankan di pesan ini, jadi masih menunggu; setujui "
                           "lagi untuk menjalankannya.")

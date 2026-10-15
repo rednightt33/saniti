@@ -7,7 +7,7 @@ import urllib.request
 
 from test_answer_view import fixture_server  # noqa: F401 (fixture)
 from test_ui_1015 import FIXTURES  # noqa: F401 (registers the ui1015 fixtures)
-from test_visual import browser_page, saved, sign_in, submit  # noqa: F401 (fixtures)
+from test_visual import browser_page, dummy_orc, saved, server, sign_in, submit  # noqa: F401 (fixtures)
 
 
 def box(page, selector):
@@ -133,3 +133,18 @@ def test_the_favicon_is_public(fixture_server):
         page = response.read().decode()
     for link in ('href="/favicon.svg"', 'href="/favicon-32.png"', 'rel="apple-touch-icon" href="/apple-touch-icon.png"'):
         assert link in page
+
+
+def test_a_provider_outage_shows_the_plain_line_and_a_retry(dummy_orc, browser_page):
+    """M160: Orc's plain line (error.user_message) is shown instead of the code, with Retry."""
+    origin, _ = dummy_orc
+    page = browser_page
+    sign_in(page, origin)
+    submit(page, 'Dummy provider down')
+    page.get_by_role('button', name='Retry', exact=True).wait_for()
+    text = page.locator('.run-inline-state').inner_text()
+    assert 'Layanan AI sedang tidak tersedia' in text and 'SERVICE_UNAVAILABLE' not in text
+    page.reload()
+    page.locator('.conversation').first.click()  # the saved run, read again from the server, says the same
+    page.get_by_role('button', name='Retry', exact=True).wait_for()
+    assert 'Layanan AI sedang tidak tersedia' in page.locator('.run-inline-state').inner_text()

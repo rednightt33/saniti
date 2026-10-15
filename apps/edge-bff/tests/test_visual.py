@@ -104,6 +104,9 @@ def dummy_orc(server):
         if question == 'Dummy failure' and question not in failures:
             failures.add(question)
             result.update(status='FAILED', error={'code': 'DUMMY_FAILURE'})
+        elif question == 'Dummy provider down':  # M160: Orc's plain line for a provider that is down
+            result.update(status='FAILED', error={'code': 'SERVICE_UNAVAILABLE', 'message': 'PROVIDER_ACCOUNT_BLOCKED: x',
+                                                  'user_message': 'Layanan AI sedang tidak tersedia. Coba kirim ulang.'})
         elif question == 'Dummy limited':
             result['status'] = 'LIMITED'
         elif question == 'Dummy follow ups':

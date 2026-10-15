@@ -84,6 +84,8 @@ Nilai seperti `self.settings.ai_model` atau `slot.model` dibaca dari setelan di 
 | `AI_MODEL_2_REASONING_FORM` | `""` |
 | `AI_MODEL_SWITCH` | `1` |
 | `AI_MODE_SWITCH` | `1` |
+| `AI_PROVIDER_CREDIT_CHECK_SECONDS` | `900` |
+| `AI_PROVIDER_CREDIT_LOW_USD` | `2.0` |
 | `AI_PROVIDER_MAX_CACHE_PRICE_RATIO` | `0.0` |
 | `AI_PROVIDER_MIN_THROUGHPUT` | `0.0` |
 | `AI_PROVIDER_POLICY_TTL_SECONDS` | `3600` |

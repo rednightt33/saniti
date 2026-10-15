@@ -691,6 +691,8 @@ class RunError(BaseModel):
 
     code: str
     message: str
+    # M160: the plain line a front-end shows instead of the code, when the backend has one (app/user_texts.py)
+    user_message: str | None = None
 
 
 class ClaimAnnotation(BaseModel):

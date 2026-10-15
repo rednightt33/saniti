@@ -106,7 +106,8 @@ def test_client_error_is_not_retried() -> None:
     client, seen = make_client(sequence(error(400, "invalid_request_error", "invalid_request_error")))
     with pytest.raises(ProviderError) as raised:
         client.create({})
-    assert len(seen) == 1
+    # M160: a refusal also reads the key's record (GET /key, no credit used); the model call is not retried
+    assert [r.url.path for r in seen] == ["/api/v1/responses", "/api/v1/key"]
     assert raised.value.code == "PROVIDER_REJECTED"
 
 

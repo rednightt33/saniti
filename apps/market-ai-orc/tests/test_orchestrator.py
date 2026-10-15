@@ -286,7 +286,9 @@ def test_markdown_fenced_final_is_accepted() -> None:
 def test_provider_failure_is_normalized() -> None:
     agent, _ = orchestrator([ProviderError("openrouter HTTP 429: no credit", code="PROVIDER_QUOTA_EXHAUSTED")])
     result = agent.run(request())
-    assert result.status == "FAILED" and result.error.code == "PROVIDER_QUOTA_EXHAUSTED"
+    # M160: a provider that is down ends the run SERVICE_UNAVAILABLE with the plain line; its code stays in the message
+    assert result.status == "FAILED" and result.error.code == "SERVICE_UNAVAILABLE"
+    assert result.error.message.startswith("PROVIDER_QUOTA_EXHAUSTED") and result.error.user_message
 
 
 def test_unexpected_error_does_not_leak_detail() -> None:

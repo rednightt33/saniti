@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import logging
+import threading
 import time
 from typing import Any
 
@@ -10,6 +13,21 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 NON_RETRYABLE_429_CODES = {"credit_balance_exhausted", "insufficient_quota"}
 RETRYABLE_STATUS_CODES = {408, 409, 429}
 MAX_ATTEMPTS = 3
+# M160 (user 2026-10-15, "Ok, confirmed. Go."): a refusal of the account (key revoked, no credit, key limit reached)
+# is not a refusal of one request. HTTP 401 and 402 say so themselves; for any other refusal the key's own record
+# (GET /key, limit_remaining) decides, so a provider's wording or status for "limit reached" needs no list here.
+ACCOUNT_STATUS_CODES = {401, 402}
+# Codes after which no model call of any request can succeed for now: the run ends with one plain line and the
+# routers do not ask the user back. A timeout or a refused request stays the request's own failure.
+SERVICE_DOWN_CODES = {"PROVIDER_ACCOUNT_BLOCKED", "PROVIDER_QUOTA_EXHAUSTED", "PROVIDER_UNAVAILABLE"}
+# After an account refusal the client sends nothing for this long, then lets one call through as the probe.
+BREAKER_SECONDS = 120.0
+KEY_STATUS_TTL_SECONDS = 60.0
+logger = logging.getLogger("market_ai_orc")
+
+
+def _log(event: str, **fields: Any) -> None:
+    logger.info(json.dumps({"event": event, **fields}, default=str))
 
 
 class ProviderError(RuntimeError):
@@ -19,6 +37,11 @@ class ProviderError(RuntimeError):
         super().__init__(message)
         self.code = code
         self.status_code = status_code
+
+    @property
+    def service_down(self) -> bool:
+        """M160: no model call can succeed for now (account refused, or the provider down after every retry)."""
+        return self.code in SERVICE_DOWN_CODES
 
 
 def response_usage(response: dict[str, Any]) -> dict[str, Any]:
@@ -77,6 +100,55 @@ class OpenRouterClient:
             timeout=httpx.Timeout(timeout_seconds),
             transport=transport,
         )
+        self._lock = threading.Lock()
+        self._blocked_until = 0.0
+        self._blocked_reason = ""
+        self._key_status: tuple[float, dict[str, Any] | None] | None = None
+
+    def key_status(self, *, max_age: float = KEY_STATUS_TTL_SECONDS) -> dict[str, Any] | None:
+        """M160: the key's own record from OpenRouter (limit, limit_remaining, usage), cached max_age seconds; None on
+        any failure. It costs no credit."""
+        now = time.monotonic()
+        cached = self._key_status
+        if cached is not None and now - cached[0] < max_age:
+            return cached[1]
+        data = None
+        try:
+            response = self.client.get("/key", timeout=15.0)
+            if response.status_code == 200:
+                body = response.json().get("data")
+                data = body if isinstance(body, dict) else None
+        except (httpx.HTTPError, AttributeError, ValueError):
+            data = None
+        self._key_status = (now, data)
+        return data
+
+    def _account_refused(self, status_code: int) -> bool:
+        if status_code in ACCOUNT_STATUS_CODES:
+            return True
+        record = self.key_status(max_age=0)
+        remaining = record.get("limit_remaining") if record else None
+        return isinstance(remaining, (int, float)) and remaining <= 0
+
+    def _open_breaker(self, error: ProviderError) -> None:
+        with self._lock:
+            self._blocked_until = time.monotonic() + BREAKER_SECONDS
+            self._blocked_reason = error.code
+        _log("ai_provider_breaker_open", code=error.code, status_code=error.status_code, seconds=BREAKER_SECONDS)
+
+    def _check_breaker(self) -> None:
+        with self._lock:
+            if self._blocked_until <= 0:
+                return
+            if time.monotonic() < self._blocked_until:
+                raise ProviderError("openrouter account refused recently; no call sent",
+                                    code="PROVIDER_ACCOUNT_BLOCKED")
+            self._blocked_until = 0.0  # the window passed: this call is the probe
+
+    def _probe_passed(self) -> None:
+        if self._blocked_reason:
+            _log("ai_provider_breaker_closed", code=self._blocked_reason)
+            self._blocked_reason = ""
 
     def close(self) -> None:
         self.client.close()
@@ -154,6 +226,17 @@ class OpenRouterClient:
     def create(self, payload: dict[str, Any], *, timeout: float | None = None,
                attempts: int | None = None) -> dict[str, Any]:
         """EXEC-FASTLANE R4: timeout (seconds) and attempts override the client's own for one call."""
+        self._check_breaker()
+        try:
+            result = self._create(payload, timeout=timeout, attempts=attempts)
+        except ProviderError as exc:
+            if exc.code in ("PROVIDER_ACCOUNT_BLOCKED", "PROVIDER_QUOTA_EXHAUSTED"):
+                self._open_breaker(exc)
+            raise
+        self._probe_passed()
+        return result
+
+    def _create(self, payload: dict[str, Any], *, timeout: float | None, attempts: int | None) -> dict[str, Any]:
         last_error: ProviderError | None = None
         tries = attempts or MAX_ATTEMPTS
         for attempt in range(tries):
@@ -185,12 +268,18 @@ class OpenRouterClient:
                         )
                     return result
                 detail, error_type, error_code = self._error_detail(response)
+                refused = None
                 if response.status_code == 429 and (
                     error_type in NON_RETRYABLE_429_CODES or error_code in NON_RETRYABLE_429_CODES
                 ):
-                    raise ProviderError(detail, code="PROVIDER_QUOTA_EXHAUSTED", status_code=429)
-                if response.status_code not in RETRYABLE_STATUS_CODES and response.status_code < 500:
-                    raise ProviderError(detail, code="PROVIDER_REJECTED", status_code=response.status_code)
+                    refused = "PROVIDER_QUOTA_EXHAUSTED"
+                elif response.status_code not in RETRYABLE_STATUS_CODES and response.status_code < 500:
+                    refused = ("PROVIDER_ACCOUNT_BLOCKED" if self._account_refused(response.status_code)
+                               else "PROVIDER_REJECTED")
+                if refused is not None:
+                    _log("ai_provider_refused", code=refused, status_code=response.status_code,
+                         error_type=error_type, error_code=error_code)
+                    raise ProviderError(detail, code=refused, status_code=response.status_code)
                 last_error = ProviderError(
                     detail, code="PROVIDER_UNAVAILABLE", status_code=response.status_code
                 )
@@ -202,3 +291,44 @@ class OpenRouterClient:
             code=last_error.code,
             status_code=last_error.status_code,
         )
+
+
+class CreditMonitor:
+    """M160: reads the key's record (no credit used) at start and every interval_seconds in a daemon thread and logs
+    ai_provider_credit; below low_usd remaining it also logs ai_provider_credit_low, so an empty key is seen before
+    the readers meet it. A key without a limit reports no remaining amount and is only logged."""
+
+    def __init__(self, client: OpenRouterClient, interval_seconds: int, low_usd: float) -> None:
+        self.client = client
+        self.interval_seconds = interval_seconds
+        self.low_usd = low_usd
+        self.stop_event = threading.Event()
+        self.thread = threading.Thread(target=self._run, name="provider-credit", daemon=True)
+
+    def start(self) -> None:
+        if self.interval_seconds > 0:
+            self.thread.start()
+
+    def stop(self) -> None:
+        self.stop_event.set()
+
+    def check(self) -> dict[str, Any] | None:
+        record = self.client.key_status(max_age=0)
+        if record is None:
+            _log("ai_provider_credit_unknown")
+            return None
+        remaining = record.get("limit_remaining")
+        fields = {"limit": record.get("limit"), "limit_remaining": remaining, "usage": record.get("usage"),
+                  "usage_daily": record.get("usage_daily")}
+        _log("ai_provider_credit", **fields)
+        if isinstance(remaining, (int, float)) and remaining < self.low_usd:
+            _log("ai_provider_credit_low", threshold=self.low_usd, **fields)
+        return record
+
+    def _run(self) -> None:
+        while not self.stop_event.is_set():
+            try:
+                self.check()
+            except Exception as exc:  # noqa: BLE001 - monitoring never stops the service
+                _log("ai_provider_credit_unknown", error=type(exc).__name__)
+            self.stop_event.wait(self.interval_seconds)

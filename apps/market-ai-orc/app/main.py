@@ -21,7 +21,7 @@ from .conversation_router import first_stage
 from .conversation_plans import summary as plan_summary
 from .conversations import (ConversationError, ConversationStore, UpkeepThread, fingerprint, owner_from_header,
                             reuse_key)
-from .openrouter_client import OpenRouterClient
+from .openrouter_client import CreditMonitor, OpenRouterClient
 from .audit import RunAuditor
 from .audit_outbox import AuditOutbox
 from .mode4 import Mode4Orchestrator
@@ -508,14 +508,21 @@ def create_app(
         log_event("mode_switch_fallback", switch=settings.ai_mode_switch, effective=default_mode,
                   reason="the mode is not active on this deployment (see analysis_path_inactive / mode4_inactive)")
     ready = {"value": False}
+    # M160: the key's remaining credit, logged at start and every AI_PROVIDER_CREDIT_CHECK_SECONDS
+    credit = CreditMonitor(owned_client, settings.ai_provider_credit_check_seconds, settings.ai_provider_credit_low_usd) \
+        if owned_client is not None else None
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         if upkeep is not None:
             upkeep.start()  # releases lapsed leases and deletes expired conversations, then hourly
+        if credit is not None:
+            credit.start()
         ready["value"] = True
         yield
         ready["value"] = False
+        if credit is not None:
+            credit.stop()
         if upkeep is not None:
             upkeep.stop()
         close = getattr(orchestrator, "close", None)

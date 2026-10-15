@@ -25,7 +25,7 @@ from . import friction as kejedot
 from .catalog_protocol import CACHE_NOTE, CACHEABLE_TOOLS, CatalogLedger, cache_key, gaps, record
 from .compaction import dumps, estimate_tokens, stable_hash, trim_history
 from .config import Settings
-from .openrouter_client import ProviderError, response_usage
+from .openrouter_client import SERVICE_DOWN_CODES, ProviderError, response_usage
 from .reasoning_capture import log_reasoning, reasoning_text
 from . import run_memory as memory
 from .research_plan import (CLASSIFIER_INSTRUCTIONS, CLASSIFIER_SCHEMA, ContinuationOut, PlanSigner,
@@ -2229,6 +2229,16 @@ def log_event(event: str, **fields: Any) -> None:
     logger.info(dumps({"event": event, **fields}))
 
 
+def service_error(code: str, message: str) -> RunError:
+    """A run's error. M160: when the model provider is down (account refused, credit or key limit used up, provider
+    unavailable after every retry) the code is SERVICE_UNAVAILABLE with the plain line for the reader; the provider's
+    code stays in the message."""
+    if code in SERVICE_DOWN_CODES:
+        return RunError(code="SERVICE_UNAVAILABLE", message=f"{code}: {message}"[:1000],
+                        user_message=texts.SERVICE_UNAVAILABLE_LINE)
+    return RunError(code=code, message=message[:1000])
+
+
 def _with_line(text: str | None, line: str) -> str | None:
     """text ending with line (once); None stays None, an empty text becomes the line."""
     if text is None or text.rstrip().endswith(line):
@@ -3806,7 +3816,8 @@ class AgentOrchestrator:
             dumps({"today": self._today().isoformat(), "conversation": context, "user_message": message[:4000]}),
             "conversation_turn",
             router.router_schema(self.ask_back), router.TurnClassification, "conversation_router_failed",
-            attempts=2 if self.ask_back else 1, max_tokens=router.router_max_output_tokens(self.ask_back))
+            attempts=2 if self.ask_back else 1, max_tokens=router.router_max_output_tokens(self.ask_back),
+            raise_service_down=True)
         if parsed is not None:
             record["referent"] = parsed.referent  # M64: what the message is about
             # M82: the design values the message states, as structured changes for the plan gates
@@ -3833,7 +3844,7 @@ class AgentOrchestrator:
             router.dated(message[:4000], self._today()),
             "first_message_route", router.first_schema(self.ask_back), router.FirstRoute,
             "first_message_router_failed", attempts=2 if self.ask_back else 1,
-            max_tokens=router.router_max_output_tokens(self.ask_back))
+            max_tokens=router.router_max_output_tokens(self.ask_back), raise_service_down=True)
         if parsed is not None and parsed.title.strip():  # EXEC-UI-1012 C: the conversation's name (first message only)
             record["title"] = " ".join(parsed.title.split())[:80]
         if parsed is not None and self.ask_back:  # EXEC-3: the reading every later step uses
@@ -3918,12 +3929,15 @@ class AgentOrchestrator:
     def _router_call(self, request_id: str, session: str, instructions: str, content: str, schema_name: str,
                      schema: dict[str, Any], model: Any, failure_event: str,
                      usage_state: RunState | None = None, attempts: int = 1,
-                     max_tokens: int = router.ROUTER_MAX_OUTPUT_TOKENS) -> tuple[Any, dict[str, Any]]:
+                     max_tokens: int = router.ROUTER_MAX_OUTPUT_TOKENS,
+                     raise_service_down: bool = False) -> tuple[Any, dict[str, Any]]:
         """One router model call: AI_MODEL, reasoning low, strict JSON schema, no tools. Returns the parsed object
         (None on any failure, including an empty reply) and the usage record. usage_state: the run whose usage
         counts this call (a check inside a run). attempts: EXEC-3 retries a failed call once before the backend's
         fallback (the record sums every attempt). max_tokens: the output cap, reasoning included (4,000 for the
-        routers with AI_ENABLE_ASK_BACK, user decision 2026-10-06)."""
+        routers with AI_ENABLE_ASK_BACK, user decision 2026-10-06). M160: when the provider is down (ProviderError
+        .service_down) no retry is sent and the status is PROVIDER_DOWN; raise_service_down (the routers that decide a
+        turn) raises it instead, so the run ends with the service line and the user is not asked back."""
         state = usage_state or RunState(request_id=request_id, started=self.clock(), input_items=[])
         payload: dict[str, Any] = {
             "model": self.settings.ai_model, "session_id": session_key(f"{request_id}:{session}"),
@@ -3950,8 +3964,16 @@ class AgentOrchestrator:
                 parsed = model.model_validate_json(self._output_text(response).strip() or "{}")
                 record["status"] = "COMPLETED"
             except Exception as exc:  # noqa: BLE001 - the backend's fallback applies
+                down = isinstance(exc, ProviderError) and exc.service_down
                 log_event(failure_event, request_id=request_id, error=type(exc).__name__,
+                          **({"provider_code": exc.code, "status_code": exc.status_code}
+                             if isinstance(exc, ProviderError) else {}),
                           **({"attempt": record["attempts"]} if attempts > 1 else {}))
+                if down:
+                    record.update(status="PROVIDER_DOWN", provider_code=exc.code)
+                    if raise_service_down:
+                        raise
+                    break
         record["latency_ms"] = int((time.monotonic() - started) * 1000)
         if attempts <= 1:
             record.pop("attempts")
@@ -4008,6 +4030,8 @@ class AgentOrchestrator:
                     log_event("research_plan_reading_dropped", request_id=state.request_id)
         except Exception as exc:  # noqa: BLE001 - a failed classification approves nothing
             log_event("research_plan_classifier_failed", request_id=state.request_id, error=type(exc).__name__)
+            if isinstance(exc, ProviderError) and exc.service_down:
+                raise  # M160: the run ends with the service line, nothing is read as UNRELATED
         record["latency_ms"] = int((time.monotonic() - started) * 1000)
         state.model_latency_ms += record["latency_ms"]
         state.classifier = record
@@ -7339,5 +7363,12 @@ class AgentOrchestrator:
             status="FAILED",
             response=None,
             execution=self._execution(state),
-            error=RunError(code=code, message=message[:1000]),
+            error=service_error(code, message),
         )
+
+    def service_unavailable(self, request: AgentRunRequest, exc: ProviderError) -> AgentRunResponse:
+        """M160: a turn whose router found the model provider down ends here: no step runs and no question is asked."""
+        log_event("ai_service_unavailable", request_id=request.request_id, provider_code=exc.code,
+                  status_code=exc.status_code)
+        return self._failed(RunState(request_id=request.request_id, started=self.clock(), input_items=[]),
+                            exc.code, str(exc))

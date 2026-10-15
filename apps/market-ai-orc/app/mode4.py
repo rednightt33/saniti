@@ -50,6 +50,7 @@ from .conversations import assistant_text
 from .orchestrator import MODE4_PART_TARGET_CHARS, AgentOrchestrator, current_answer_target, current_time_budget, \
     log_event
 from .provenance import LABEL_ORDER
+from .openrouter_client import ProviderError
 from .research_plan import ContinuationIn, ContinuationOut
 from .research_plan_v2 import ContinuationInV2, ContinuationOutV2, current_angle_bounds, plan_digest_v2
 from .tools.request_data import current_conversation_id, current_turn_id
@@ -189,6 +190,11 @@ class Mode4Orchestrator:
             if request.analysis_path != "MODE4":
                 return self.inner.run(request, conversation_key, data_record=data_record)
             return _Mode4Run(self, request, conversation_key, data_record).execute()
+        except ProviderError as exc:
+            if not exc.service_down:
+                raise
+            # M160: a router or classifier found the model provider down: one plain line, no question, no step
+            return self.inner.service_unavailable(request, exc)
         finally:
             current_conversation_id.reset(conversation)
 

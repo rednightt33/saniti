@@ -72,7 +72,7 @@
     return {id:turn.request_id,question:turn.user_message || ui.title || 'Research response',createdAt:turn.created_at,completedAt:turn.completed_at,
       status:turn.status === 'RUNNING' ? 'running' : failed ? 'failed' : 'completed',domainStatus:raw?.status || turn.run_status,paused:Boolean(raw?.execution?.pause),stopped:Boolean(raw?.execution?.stopped),
       mode:'Standard',attachments:[],pinned:(ui.pinned_request_ids || []).includes(turn.request_id),
-      error:raw?.error?.code || turn.error_code,raw,result:final ? {title:routerTitle(raw) || turn.user_message?.slice(0,80) || ui.title || 'Research response',condition:final.answer || final.clarification_question || '',final} : null,
+      error:raw?.error?.code || turn.error_code,errorText:raw?.error?.user_message,raw,result:final ? {title:routerTitle(raw) || turn.user_message?.slice(0,80) || ui.title || 'Research response',condition:final.answer || final.clarification_question || '',final} : null,
       sources:[...(raw?.evidence || []), ...(raw?.annotations || []), ...(raw?.data_record ? [{name:'Data record',record:raw.data_record}] : [])],
       steps:[{id:'saved-state',label:turn.status === 'RUNNING' ? 'AI request running' : 'Saved response: ' + statusLabel('completed', raw?.status || turn.run_status, raw?.execution?.pause),status:turn.status === 'RUNNING' ? 'running' : failed ? 'failed' : 'completed',detail:'Persisted lifecycle state'}]};
   }
@@ -86,6 +86,7 @@
   const stateRun = (snapshot, previous) => ({...previous,
     status:snapshot.error_code === 'STOPPED_BY_USER' ? 'cancelled' : terminal(snapshot) ? snapshot.state === 'FINISHED' && snapshot.run_status !== 'FAILED' && !snapshot.expired ? 'completed' : 'failed' : snapshot.state === 'QUEUED' ? 'submitted' : 'running',
     domainStatus:snapshot.run_status,paused:Boolean((snapshot.response || previous.raw)?.execution?.pause),stopped:Boolean((snapshot.response || previous.raw)?.execution?.stopped),error:snapshot.expired ? 'Conversation expired; the saved response is no longer available.' : snapshot.error_code || snapshot.response?.error?.code,
+    errorText:snapshot.expired ? undefined : (snapshot.response || previous.raw)?.error?.user_message,
     completedAt:snapshot.completed_at,raw:snapshot.response || previous.raw,
     result:snapshot.response?.response ? {title:routerTitle(snapshot.response) || previous.question.slice(0,80),condition:snapshot.response.response.answer || snapshot.response.response.clarification_question || '',final:snapshot.response.response} : previous.result,
     sources:snapshot.response ? [...(snapshot.response.evidence || []),...(snapshot.response.annotations || []),...(snapshot.response.data_record ? [{name:'Data record',record:snapshot.response.data_record}] : [])] : previous.sources,
