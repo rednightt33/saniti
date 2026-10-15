@@ -337,3 +337,83 @@ def test_an_ask_back_offers_its_routes_and_writing_another_answer(fixture_server
     explore.click()
     saved(page, 2)
     assert orc.calls[-1][2]['chosen_option'] == 'EXPLORE'
+
+
+def test_sources_list_the_answers_tables_with_an_export_request(fixture_server, browser_page):
+    """EXEC-IMPL-1016 Fase 4.1 (EDGE-CTX B, user 2026-10-15): Sources shows the tables this answer released (name,
+    address, rows, columns, data date), each with "Ask AI to export data", which sends the export request as the
+    user's message; the evidence list stays, folded, as the references of the figures; an earlier answer's table is
+    not listed."""
+    origin, orc = fixture_server
+    page = browser_page
+    sign_in(page, origin)
+    original = orc.run
+
+    def released(owner, id, payload):
+        result = original(owner, id, {**payload, 'message': 'fx:answer_table'})
+        record = dict(result.get('data_record') or {})
+        record['outputs'] = [
+            {'ref': 'out.1', 'output_id': 'o1', 'name': 'broker_net_buy', 'label': 'Net beli broker asing',
+             'columns': ['broker', 'net_value', 'date'], 'row_count': 12, 'request_id': id,
+             'data_as_of': '2026-10-15'},
+            {'ref': 'out.0', 'output_id': 'o0', 'name': 'older', 'columns': ['x'], 'row_count': 3,
+             'request_id': 'edge_earlier'}]
+        result['data_record'] = record
+        result['evidence'] = (result.get('evidence') or []) + [{'kind': 'REFERENCED', 'claim': 'out.1.rows[0].net_value',
+                                                               'label': 'Dari data pasar: net value'}]
+        orc.saved[id]['response'] = result
+        return result
+    orc.run = released
+    submit(page, 'broker asing pembeli terbesar')
+    saved(page)
+    orc.run = original
+    page.get_by_role('tab', name='Sources', exact=True).click()
+    sources = page.locator('.sources')
+    assert sources.get_by_text('Tabel hasil (1)').is_visible()
+    assert sources.get_by_text('Net beli broker asing', exact=True).is_visible()
+    assert sources.locator('.edge-source-ref').first.inner_text() == 'out.1'
+    table = sources.locator('.edge-source').first.inner_text()
+    assert 'Baris\n12' in table and 'Kolom\n3' in table and 'Data per\n2026-10-15' in table and '{n}' not in table
+    assert 'older' not in sources.inner_text()
+    folded = sources.locator('details.edge-source-folded')
+    assert folded.count() == 1 and folded.locator('summary').inner_text().startswith('Rujukan angka')
+    assert not folded.evaluate('node => node.open')
+    capture(page, 'x-sources-tables-dark')
+    sources.get_by_role('button', name='Ask AI to export data', exact=True).click()
+    saved(page, 2)
+    assert orc.calls[-1][2]['message'] == 'Ekspor data tabel out.1 (Net beli broker asing) ke Excel'
+
+
+def test_a_running_answer_shows_its_steps_from_orc(fixture_server, browser_page):
+    """EXEC-IMPL-1016 Fase 4.3 (UI-1015B, user 2026-10-15): while Orc runs the answer, EDGE shows the time so far,
+    the step running now and the finished steps (folded), read through the BFF; the steps go when the answer lands."""
+    origin, orc = fixture_server
+    page = browser_page
+    sign_in(page, origin)
+    original = orc.run
+    release = threading.Event()
+
+    def slow(owner, id, payload):
+        orc.PROGRESS = {id: {'status': 'RUNNING', 'elapsed_ms': 42000, 'earlier_steps': 0, 'steps': [
+            {'label': 'Memahami pertanyaan', 'state': 'done', 'started_ms': 0, 'duration_ms': 3000},
+            {'label': 'Permintaan data', 'state': 'refused', 'started_ms': 3000, 'duration_ms': 2000},
+            {'label': 'Kode analisis', 'state': 'running', 'started_ms': 5000, 'duration_ms': 37000}]}}
+        release.wait(timeout=20)
+        return original(owner, id, {**payload, 'message': 'fx:answer_table'})
+    orc.run = slow
+    try:
+        submit(page, 'net beli asing BBRI')
+        progress = page.locator('.edge-run-progress')
+        progress.wait_for(timeout=10000)
+        assert progress.locator('.edge-run-progress-time').inner_text() == '42s'
+        assert 'Kode analisis' in progress.locator('.edge-run-progress-now').inner_text()
+        done = progress.locator('details.edge-run-progress-done')
+        assert done.locator('summary').inner_text() == 'Langkah selesai (2)' and not done.evaluate('n => n.open')
+        done.locator('summary').click()
+        assert 'ditolak, dicoba lagi' in done.inner_text() and 'Memahami pertanyaan' in done.inner_text()
+        capture(page, 'x-run-progress-dark')
+    finally:
+        release.set()
+        orc.run = original
+    saved(page)
+    assert page.locator('.edge-run-progress').count() == 0

@@ -120,7 +120,19 @@
     const sections = [];
     // EXEC-Y (user decision B 2026-10-09): web pages are listed here, not in the answer text; news has its own part
     const news = evidence.filter(item => item?.kind === "NEWS"), proof = evidence.filter(item => item?.kind !== "NEWS");
-    if (proof.length) sections.push({title:`${ui.sourcesEvidence} (${proof.length})`, items:proof.map(sourceItem)});
+    // EXEC-IMPL-1016 Fase 4.1 (EDGE-CTX B): the tables this answer released come first, each with a request to export
+    // it (a message, like a follow-up); the evidence list stays, folded, as the references of the figures
+    const tables = (record?.outputs || []).filter(o => o && o.ref && raw.request_id && o.request_id === raw.request_id)
+      .map(o => {
+        const name = o.label || o.name || o.ref;
+        const rows = Object.fromEntries([[ui.sourceRows, o.row_count], [ui.sourceColumns, (o.columns || []).length || null],
+          [ui.sourceAsOf, o.data_as_of]].filter(([, value]) => value !== undefined && value !== null));
+        return {title:name, code:false, status:null, rows, ref:o.ref, outputId:o.output_id, actionLabel:ui.askExport,
+          action:{type:"message", message:ui.exportMessage.replace("{ref}", o.ref).replace("{name}", name)}};
+      });
+    if (tables.length) sections.push({title:`${ui.sourcesTables} (${tables.length})`, items:tables});
+    if (proof.length) sections.push({title:`${tables.length ? ui.sourcesNumbers : ui.sourcesEvidence} (${proof.length})`,
+      items:proof.map(sourceItem), folded:Boolean(tables.length)});
     if (news.length) sections.push({title:`${ui.sourcesNews} (${news.length})`, items:news.map(sourceItem)});
     if (annotations.length) sections.push({title:`${ui.sourcesClaims} (${annotations.length})`, items:annotations.map(sourceItem)});
     // EXEC-FRICTION (M142): what the backend refused on the way to this answer, as Orc wrote it in plain words
@@ -133,6 +145,20 @@
       .map(([key, value]) => [named[key], Array.isArray(value) ? `${value.length} ${ui.items}` : typeof value === "object" ? `${Object.keys(value).length} ${ui.items}` : value]));
     return {empty:!sections.length && empty(record), emptyText:ui.sourcesEmpty, sections,
       record:empty(record) ? null : {title:ui.sourcesRecord, summary, raw:record, technicalLabel:ui.technical}};
+  }
+
+  // EXEC-IMPL-1016 Fase 4.3 (UI-1015B): Orc's progress of a running answer (/runs/{id}/progress) for the reader: the
+  // step running now, the finished steps newest last, and the time since Orc started
+  function progressView(data) {
+    const ui = L().ui, steps = Array.isArray(data?.steps) ? data.steps : [];
+    if (data?.status !== 'RUNNING' && data?.status !== 'FINISHED') return null;
+    const note = state => state === 'refused' ? ui.progressRefused : state === 'failed' ? ui.progressFailed : null;
+    const current = [...steps].reverse().find(step => step.state === 'running');
+    const done = steps.filter(step => step.state !== 'running').map(step => ({label:step.label, note:note(step.state),
+      duration:durationText(step.duration_ms)}));
+    return {current:current ? current.label : null, elapsed:durationText(data.elapsed_ms), done,
+      doneTitle:ui.progressDone.replace('{n}', String(done.length)),
+      earlier:data.earlier_steps ? ui.progressEarlier.replace('{n}', String(data.earlier_steps)) : null};
   }
 
   // EXEC-DURATION (user 2026-10-12): how long a run took, from Orc's execution.duration_ms
@@ -210,5 +236,5 @@
     }
     return index;
   }
-  window.EdgeView = {VERSION, toView, sources, planIndex, durationText, format:{empty, label, number, valueText, verdict}};
+  window.EdgeView = {VERSION, toView, sources, planIndex, durationText, progressView, format:{empty, label, number, valueText, verdict}};
 })();

@@ -45,6 +45,7 @@ from .schemas import (
 )
 from . import conversation_router as router
 from . import in_sample as insample
+from . import progress
 from . import stop
 from . import user_texts as texts
 from . import follow_ups
@@ -4029,11 +4030,21 @@ class AgentOrchestrator:
                             "columns": [column["column"]], "entity_column": held.get("entity_column")})
         return outcome
 
+    # EXEC-IMPL-1016 Fase 4.3: the router calls that read the user's message are the "understanding" step EDGE shows
+    ROUTING_SCHEMAS = frozenset({"first_message_route", "conversation_turn"})
+
     def _router_call(self, request_id: str, session: str, instructions: str, content: str, schema_name: str,
-                     schema: dict[str, Any], model: Any, failure_event: str,
-                     usage_state: RunState | None = None, attempts: int = 1,
-                     max_tokens: int = router.ROUTER_MAX_OUTPUT_TOKENS,
-                     raise_service_down: bool = False) -> tuple[Any, dict[str, Any]]:
+                     schema: dict[str, Any], model: Any, failure_event: str, **options: Any) -> tuple[Any, dict[str, Any]]:
+        label = texts.PROGRESS_ROUTING if schema_name in self.ROUTING_SCHEMAS else texts.PROGRESS_THINKING
+        with progress.step(label):
+            return self._router_call_once(request_id, session, instructions, content, schema_name, schema, model,
+                                          failure_event, **options)
+
+    def _router_call_once(self, request_id: str, session: str, instructions: str, content: str, schema_name: str,
+                          schema: dict[str, Any], model: Any, failure_event: str,
+                          usage_state: RunState | None = None, attempts: int = 1,
+                          max_tokens: int = router.ROUTER_MAX_OUTPUT_TOKENS,
+                          raise_service_down: bool = False) -> tuple[Any, dict[str, Any]]:
         """One router model call: AI_MODEL, reasoning low, strict JSON schema, no tools. Returns the parsed object
         (None on any failure, including an empty reply) and the usage record. usage_state: the run whose usage
         counts this call (a check inside a run). attempts: EXEC-3 retries a failed call once before the backend's
@@ -4175,7 +4186,8 @@ class AgentOrchestrator:
             capped = {"timeout": lanes.FAST_CALL_SECONDS, "attempts": 1} \
                 if state.lane == lanes.FAST and state.lane_timeouts == 0 else {}
             try:
-                response = self.client.create(payload, **capped)
+                with progress.step(texts.PROGRESS_THINKING):
+                    response = self.client.create(payload, **capped)
             except ProviderError as exc:
                 if capped and exc.code == "PROVIDER_TIMEOUT":
                     state.lane_timeouts += 1
@@ -4500,8 +4512,12 @@ class AgentOrchestrator:
         duration_ms = None
         if not truncated:
             started = time.monotonic()
-            outcome = self._execute(state, call_id, name, raw_arguments)
-            outcome = self._merged_steps(state, call_id, name, raw_arguments, outcome)
+            spec = self.registry.get(name)
+            with progress.step(progress.tool_label(name, getattr(spec, "effect", None))) as mark:
+                outcome = self._execute(state, call_id, name, raw_arguments)
+                outcome = self._merged_steps(state, call_id, name, raw_arguments, outcome)
+                if not outcome.ok:
+                    mark("refused")
             duration_ms = int((time.monotonic() - started) * 1000)
             if self.audit_outbox is not None:
                 state.audit_trace.append(tool_event(

@@ -26,7 +26,7 @@ from .audit import RunAuditor
 from .audit_outbox import AuditOutbox
 from .mode4 import Mode4Orchestrator
 from .modes import MODES, current_caller_path, effective_default, path_for, resolve_mode
-from . import follow_ups, stop
+from . import follow_ups, progress, stop
 from .orchestrator import AgentOrchestrator, log_event
 from .provider_log import ProviderLogger
 from .model_choices import EDGE_DEFAULT, MODEL_CHOICES, ModelChoiceError, current_model_choice
@@ -597,6 +597,15 @@ def create_app(
         log_event("ai_run_stop_requested", request_id=request_id[:200], status=status)
         return JSONResponse(status_code=202 if status == "STOPPING" else 404, content={"status": status})
 
+    @app.get("/v1/agent/requests/{request_id}/progress", dependencies=[Depends(authorize)])
+    def run_progress(request_id: str, x_saniti_owner: str | None = Header(default=None)) -> JSONResponse:
+        """EXEC-IMPL-1016 Fase 4.3 (UI-1015B): the steps of a running (or just finished) run in plain words, for
+        EDGE's progress view. 404 for an unknown run or another owner's run (never told apart)."""
+        found = progress.snapshot(request_id[:200], x_saniti_owner)
+        if found is None:
+            return JSONResponse(status_code=404, content={"status": "NOT_RUNNING"})
+        return JSONResponse(content=found)
+
     @app.get("/v1/models", dependencies=[Depends(authorize)])
     def models() -> dict[str, Any]:
         """EXEC-MODELS: the models a message may choose, their reasoning levels and their OpenRouter prices per one
@@ -629,7 +638,9 @@ def create_app(
             return refuse(ConversationError(error.code, str(error), 400))
         token, lane_token = current_model_choice.set(choice), current_lane.set(lane)
         try:
-            return run_chosen(payload, x_saniti_owner)
+            # EXEC-IMPL-1016 Fase 4.3 (UI-1015B): the run's steps, readable while it runs (app/progress.py)
+            with progress.tracking(payload.request_id, x_saniti_owner):
+                return run_chosen(payload, x_saniti_owner)
         finally:
             current_lane.reset(lane_token)
             current_model_choice.reset(token)

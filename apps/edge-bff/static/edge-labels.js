@@ -71,6 +71,13 @@ window.EdgeLabels = {
     needsInput:"Tulis bagian yang ingin diubah di kolom pesan", claimNote:"catatan",
     sourcesEvidence:"Bukti", sourcesNews:"Berita", sourcesClaims:"Klaim yang ditandai", sourcesHurdles:"Hambatan proses", sourcesRecord:"Catatan data percakapan",
     sourcesEmpty:"No source or evidence metadata returned for this response.",
+    // EXEC-IMPL-1016 Fase 4.1 (EDGE-CTX B): the tables this answer released, as the data behind it; the old evidence list
+    // stays below, folded, as the references of its figures
+    sourcesTables:"Tabel hasil", sourcesNumbers:"Rujukan angka", sourceRows:"Baris", sourceColumns:"Kolom",
+    // EXEC-IMPL-1016 Fase 4.3 (UI-1015B): what a running answer is doing, from Orc's steps
+    progressDone:"Langkah selesai ({n})", progressEarlier:"{n} langkah sebelumnya",
+    progressRefused:"ditolak, dicoba lagi", progressFailed:"gagal",
+    sourceAsOf:"Data per", askExport:"Ask AI to export data", exportMessage:"Ekspor data tabel {ref} ({name}) ke Excel",
     approveMessage:"Setujui rencana riset", cancelMessage:"Batalkan rencana riset",
     // EXEC-MODELS: the model and reasoning-level choice next to the composer
     // EXEC-UI-1015D (user 2026-10-15): the model picker in English; every EDGE message runs the fast lane (no lane choice)

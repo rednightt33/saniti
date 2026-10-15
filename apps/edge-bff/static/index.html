@@ -9913,6 +9913,20 @@ th.edge-sortable:hover .edge-sort-icon,.edge-sort:focus-visible .edge-sort-icon,
 .edge-source:first-of-type {border-top:0;}
 .edge-source-head {display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
 .edge-source-head code {font:.8rem Inter,"Segoe UI",sans-serif;overflow-wrap:anywhere;}
+/* EXEC-IMPL-1016 Fase 4.1 (EDGE-CTX B): a released table's address, its export request, and the folded figure references */
+.edge-source-ref {align-self:flex-start;font:.72rem ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted-foreground);}
+.edge-source-action {align-self:flex-start;padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--secondary);color:var(--foreground);font:500 .78rem Inter,"Segoe UI",sans-serif;cursor:pointer;}
+.edge-source-action:hover {background:var(--accent,var(--secondary));}
+/* EXEC-IMPL-1016 Fase 4.3 (UI-1015B): the steps of a running answer */
+.edge-run-progress {margin:6px 0 0 30px;display:flex;flex-direction:column;gap:4px;font:.8rem Inter,"Segoe UI",sans-serif;color:var(--muted-foreground);}
+.edge-run-progress-now {display:flex;gap:8px;align-items:baseline;}
+.edge-run-progress-time {font-variant-numeric:tabular-nums;color:var(--foreground);}
+.edge-run-progress-done > summary {cursor:pointer;}
+.edge-run-progress-done ol {margin:4px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:2px;}
+.edge-run-progress-done li {display:flex;gap:6px;align-items:baseline;}
+.edge-run-progress-done em {font-style:normal;color:var(--warning,var(--muted-foreground));}
+.edge-run-progress-done small {margin-left:auto;font-variant-numeric:tabular-nums;}
+.edge-source-folded > summary {cursor:pointer;font:600 .8rem Inter,"Segoe UI",sans-serif;color:var(--muted-foreground);padding:4px 0;}
 .sources .edge-data-row {grid-template-columns:minmax(80px,38%) 1fr;font-size:.82rem;}
 .edge-pin-body .edge-md {font-size:.85rem;}
 @media (max-width:640px) {
@@ -10882,7 +10896,7 @@ function Monitor({ go }) {
                 element(Tabs, { items: ["Flow", "Sources"], active: detailsTab, onChange: value => { setDetailsTab(value); setSourceDetail(null); } }),
                 element(PinnedResponses, { open:pinsOpen, toggle:togglePins, height:pinsHeight, runs:selected?.runs ?? [], unpin:id=>togglePin(selected.runs.find(r=>r.id===id),false), jump:jumpToRun }),
                 pinsOpen && (flowOpen || detailsTab !== "Flow") && element(PinsResizeHandle, { height:pinsHeight, setHeight:value => { setPinsHeight(value); keep("edge-pins-height", value); } }),
-                element("div", {className:"edge-details-upper",ref:historyScrollRef}, run ? detailsTab === "Sources" ? element(Sources,{run}) : element(ResponseFlows, { runs:selected?.runs ?? [], autoOpenRunId, open:flowOpen, toggle:toggleFlow, jump:jumpToRun }) : element("div", { className: "details-empty" }, "No research run selected."))),
+                element("div", {className:"edge-details-upper",ref:historyScrollRef}, run ? detailsTab === "Sources" ? element(Sources,{run,act}) : element(ResponseFlows, { runs:selected?.runs ?? [], autoOpenRunId, open:flowOpen, toggle:toggleFlow, jump:jumpToRun }) : element("div", { className: "details-empty" }, "No research run selected."))),
             (historyOpen || mobileDetailsOpen) && element("button",{className:"edge-panel-backdrop",tabIndex:-1,"aria-label":"Close panel",onClick:()=>{setHistoryOpen(false);setMobileDetailsOpen(false);}}),
             expandedTable && element(ResearchTableDialog, { run: expandedTable, close: () => setExpandedTable(null) })));
 }
@@ -11051,11 +11065,43 @@ function ResearchScrollMarker({ scrollRef, conversationId }) {
     return element("div", {ref:markerRef,className:"edge-scroll-marker",role:"scrollbar",tabIndex:0,"aria-label":"Posisi research; tahan dan tarik untuk scroll","aria-orientation":"vertical","aria-valuemin":0,"aria-valuemax":100}, "Pertanyaan");
 }
 
+// EXEC-IMPL-1016 Fase 4.3 (UI-1015B): while an answer runs, Orc's steps are read every PROGRESS_POLL_MS through the
+// BFF: the time so far, the step running now, and the finished steps (folded)
+const PROGRESS_POLL_MS = 2500;
+function RunProgress({ run }) {
+    const viewRecord = currentView;
+    const data = initialValue(viewRecord, "data", () => null);
+    onLifecycle(viewRecord, "poll", () => {
+        let stopped = false, timer = null;
+        const poll = async () => {
+            try { const next = await Edge.api(`/runs/${encodeURIComponent(run.id)}/progress`); if (!stopped) updateValue(viewRecord, "data", next); }
+            catch { /* progress is a convenience: a failed read keeps the last one */ }
+            if (!stopped) timer = setTimeout(poll, PROGRESS_POLL_MS);
+        };
+        poll();
+        return () => { stopped = true; clearTimeout(timer); };
+    }, [run.id]);
+    const view = EdgeView.progressView(data);
+    if (!view) return null;
+    return element("div", { className: "edge-run-progress" },
+        element("div", { className: "edge-run-progress-now" },
+            view.elapsed && element("span", { className: "edge-run-progress-time" }, view.elapsed),
+            view.current && element("span", null, view.current)),
+        view.done.length > 0 && element("details", { className: "edge-run-progress-done" },
+            element("summary", null, view.doneTitle),
+            view.earlier && element("small", null, view.earlier),
+            element("ol", null, view.done.map((step, index) => element("li", { key: index },
+                element("span", null, step.label), step.note && element("em", null, step.note),
+                step.duration && element("small", null, step.duration))))));
+}
+
 function RunStatus({ run, stopping, expanded, toggle, retry }) {
     const active = ["submitted", "running", "streaming"].includes(run.status);
-    if (active) return element("div", { className: "edge-inline-progress", role: "status", "aria-live": "polite" },
+    if (active) return element("div", { className: "edge-inline-progress-wrap" },
+        element("div", { className: "edge-inline-progress", role: "status", "aria-live": "polite" },
         element("span", { className: "edge-response-dots", "aria-hidden": "true" }, element("i"), element("i"), element("i")),
-        element("span", null, stopping ? edgeUi().stoppingHint : run.status === "streaming" ? "Streaming research result…" : run.steps.find(step => step.status === "running")?.label ?? "Submitted"));
+        element("span", null, stopping ? edgeUi().stoppingHint : run.status === "streaming" ? "Streaming research result…" : run.steps.find(step => step.status === "running")?.label ?? "Submitted")),
+        run.status === "running" && !stopping && element(RunProgress, { key: run.id, run }));
     // EXEC-Y Fase 1 (S1): an answer stopped by the user offers its question back to edit and resend
     if (run.stopped && run.status === "completed") return element("div", { className: "run-inline-state cancelled", role: "status" },
         element("div", null, element("strong", null, edgeUi().stopped), element("span", null, edgeUi().stoppedHint)),
@@ -11550,16 +11596,21 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
   element(ResponseActions,{run,togglePin,artifacts:v.artifacts}));
 }
 function ShareResearchPopover({run,close}) {return element("div",{className:"share-popover"},element("p",null,"Public sharing unavailable"),element(Button,{onClick:close},"Close"));}
-function SourceItem({item}) {
+function SourceItem({item, act}) {
  return element("div",{className:"edge-source"},
   element("div",{className:"edge-source-head"},element(item.code?"code":"strong",null,item.title),item.status&&edgeVerdict(item.status)),
-  DataRows({value:item.rows}));
+  item.ref&&element("code",{className:"edge-source-ref"},item.ref),
+  DataRows({value:item.rows}),
+  item.action&&act&&element("button",{type:"button",className:"edge-source-action",onClick:()=>act(item.action)},item.actionLabel));
 }
-function Sources({run}) {
+function Sources({run, act}) {
  const v=EdgeView.sources(run.raw);
  if(v.empty)return element("p",{className:"details-empty"},v.emptyText);
+ const items=section=>section.items.map((item,index)=>element(SourceItem,{key:index,item,act}));
  return element("div",{className:"sources"},
-  v.sections.map(section=>element("section",{className:"content-block"},element(SectionTitle,null,section.title),section.items.map((item,index)=>element(SourceItem,{key:index,item})))),
+  v.sections.map(section=>section.folded
+   ?element("details",{className:"content-block edge-source-folded"},element("summary",null,section.title),items(section))
+   :element("section",{className:"content-block"},element(SectionTitle,null,section.title),items(section))),
   v.record&&element("section",{className:"content-block"},element(SectionTitle,null,v.record.title),DataRows({value:v.record.summary}),element(TechnicalDetail,{value:v.record.raw,label:v.record.technicalLabel})));
 }
 

@@ -314,6 +314,17 @@ def create_app(settings=None, store=None, orc=None):
     async def run_status(request_id: str, _=Depends(session)):
         return await snapshot(request_id)
 
+    @app.get('/api/v1/runs/{request_id}/progress')
+    async def run_progress(request_id: str, _=Depends(session)):
+        """EXEC-IMPL-1016 Fase 4.3 (UI-1015B): what the run is doing now, read from Orc while it runs (labels and
+        times only; nothing is stored). NOT_RUNNING before Orc starts it, after it ends, or when Orc cannot answer."""
+        await asyncio.to_thread(store.job, settings.owner, request_id)  # the owner's run, or 404
+        try:
+            found = await asyncio.to_thread(orc.progress, settings.owner, request_id)
+        except OrcError:
+            found = None
+        return found or {'status': 'NOT_RUNNING', 'steps': []}
+
     @app.get('/api/v1/runs')
     async def active_run(_=Depends(session)):
         row = await asyncio.to_thread(store.active, settings.owner)

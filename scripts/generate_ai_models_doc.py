@@ -44,7 +44,7 @@ PURPOSE = {
     "market-ai-orc:orchestrator.py:_loop":
         "Loop utama AI analis: setiap langkah percakapan dengan alat (data, sandbox, bukti, fakta web) sampai jawaban "
         "final; dipakai juga oleh setiap langkah mode 4.",
-    "market-ai-orc:orchestrator.py:_router_call":
+    "market-ai-orc:orchestrator.py:_router_call_once":
         "Panggilan kecil tanpa alat: dua router (kriteria di AI_ROUTER.md): router pesan pertama (classify_first: "
         "CHAT, FACT, ANALYSIS, RESEARCH, EXPLORE) dan router pesan lanjutan (classify_turn: CLARIFY, INSIGHT, CONTINUE, "
         "APPROVE, ...); serta cek katalog sebelum web (P34: apakah atribut yang mau dicari di web sudah ada di kolom "

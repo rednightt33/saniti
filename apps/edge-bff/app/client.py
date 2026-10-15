@@ -82,6 +82,29 @@ class OrcClient:
             return 'NOT_RUNNING'
         raise OrcError()
 
+    def progress(self, owner, request_id):
+        """EXEC-IMPL-1016 Fase 4.3 (UI-1015B): the steps of a running request in plain words; None when Orc does not
+        run it (not dispatched yet, finished long ago, or another owner's). Labels and times only."""
+        try:
+            response = self.client.get(f'/v1/agent/requests/{request_id}/progress',
+                headers={'Authorization': f'Bearer {self.settings.orc_key}', 'X-Saniti-Owner': owner})
+        except httpx.HTTPError as e:
+            raise OrcError() from e
+        if response.status_code == 404:
+            return None
+        if response.status_code != 200:
+            raise OrcError()
+        try:
+            data = response.json()
+        except ValueError as e:
+            raise OrcError() from e
+        steps = [{'label': str(s.get('label') or '')[:80], 'state': str(s.get('state') or '')[:12],
+                  'started_ms': int(s.get('started_ms') or 0), 'duration_ms': int(s.get('duration_ms') or 0)}
+                 for s in (data.get('steps') or [])[:60] if isinstance(s, dict)]
+        return {'status': 'FINISHED' if data.get('status') == 'FINISHED' else 'RUNNING',
+                'elapsed_ms': int(data.get('elapsed_ms') or 0), 'steps': steps,
+                'earlier_steps': int(data.get('earlier_steps') or 0)}
+
     def models(self, owner):
         """EXEC-MODELS: Orc's offered models, their reasoning levels and their prices per one million tokens."""
         return self._call('GET', '/v1/models', owner)

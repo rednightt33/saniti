@@ -53,4 +53,5 @@ class FakeOrc:
             'prices_fetched_at':'2026-10-13T10:25:31+00:00','edge_default':{'model':'deepseek/deepseek-v4.1-flash','reasoning_level':'high'},
             'server_default':{'model':'deepseek/deepseek-v4.1-flash'}}
     def models(self,owner):self.model_reads=getattr(self,'model_reads',0)+1;return self.MODELS
+    def progress(self,owner,id):return getattr(self,"PROGRESS",{}).get(id)
     def close(self):pass

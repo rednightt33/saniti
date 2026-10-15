@@ -2171,6 +2171,27 @@ user diberi tahu hanya bila provider menolak karena biaya. Berhenti hanya untuk 
 - Fase 3 selesai. Sisa usulan untuk user: baris alias kurasi "BRI" → BBRI; jalur lama `/v1/query` dan `/v1/lookup`
   (mati di dev) belum memakai cek kamus.
 
+**Fase 4 (dibangun 2026-10-15):**
+- 4.1 EDGE-CTX B: Sources diawali "Tabel hasil (N)": tabel yang dirilis jawaban ini (`data_record.outputs` dengan
+  `request_id` jawaban ini), dengan nama, alamat (`out.N`), baris, kolom, "Data per" dan tombol "Ask AI to export
+  data". Tombol mengirim pesan "Ekspor data tabel out.N (nama) ke Excel" lewat jalur pesan yang sama dengan pertanyaan
+  lanjutan. Daftar bukti lama tetap ada, dilipat, berjudul "Rujukan angka (N)". Tabel jawaban lain tidak ikut.
+- 4.3 UI-1015B: orc mencatat langkah run di memori (`app/progress.py`, pola `stop.py`): "Memahami pertanyaan" (router),
+  "Menyusun langkah berikutnya" (panggilan model), dan tiap alat dengan labelnya sendiri atau menurut efeknya
+  (`user_texts.PROGRESS_EFFECTS`). Langkah yang ditolak ditandai. Endpoint `GET /v1/agent/requests/{id}/progress`
+  hanya untuk pemilik run; run yang selesai masih bisa dibaca 10 menit.
+  - Penyimpangan dari rencana, dengan alasan: rencana menyimpan progres di kolom baru tabel job BFF (migrasi `edge_bff`)
+    lewat worker. Yang dibangun: BFF meneruskan progres orc lewat `GET /api/v1/runs/{id}/progress` (memeriksa pemilik
+    job), dan EDGE membacanya tiap 2,5 detik selama run berjalan. Progres hanya berguna selama run berjalan, jadi tidak
+    perlu disimpan: tidak ada migrasi, tidak ada tulisan ke database tiap 2 detik. Bila orc restart, hanya progresnya
+    yang hilang.
+  - EDGE: di bawah "AI request running" tampil waktu berjalan, langkah sekarang, dan "Langkah selesai (N)" yang dilipat;
+    hilang saat jawaban tiba (durasi total sudah tampil di jawaban).
+- Tes: EDGE 105 (dua tes browser baru), orc 1.831 (`test_progress.py`), `AI_MODELS.md` dibuat ulang (nama call site
+  router menjadi `_router_call_once`).
+- `test_visual.py::test_typing_while_an_answer_arrives_keeps_focus` gagal sekali dalam suite penuh dan sekali di basis
+  tanpa perubahan; lulus 3× sendirian. Ini masalah timing yang sudah ada, bukan akibat perubahan ini.
+
 ### EXEC-REVIEW-1015: tinjauan semua EXEC terbuka dan arsitekturnya (2026-10-15; user: "please review all exec, inspect arsitektur ... contrast what ideal conditions would look like")
 
 **Keputusan user 2026-10-15:** "O5 nanti dulu A/B test tidak perlu dahulu. Sisanya OK untuk O5 masukan exec jangan execute

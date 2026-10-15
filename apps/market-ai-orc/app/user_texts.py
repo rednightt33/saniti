@@ -63,6 +63,13 @@ HURDLE_STEPS = {
     "lookup_reference": "Pencarian data referensi", "export_result": "Ekspor tabel",
 }
 HURDLE_TOOL_STEP = "Satu langkah kerja"
+# EXEC-IMPL-1016 Fase 4.3 (UI-1015B): the steps EDGE shows while a run works (app/progress.py); a tool without its own
+# label above is named by what it does (its ToolSpec effect)
+PROGRESS_ROUTING = "Memahami pertanyaan"
+PROGRESS_THINKING = "Menyusun langkah berikutnya"
+PROGRESS_EFFECTS = {"READS": "Membaca katalog dan hasil", "OWN_ARTIFACT": "Menyimpan hasil",
+                    "FETCHES_DATA": "Mengambil data", "FETCHES_WEB": "Pencarian web",
+                    "COMPUTES": "Menjalankan analisis"}
 HURDLE_REFUSED = "{step} ditolak{why}"
 HURDLE_FAILED = "{step} gagal dijalankan{why}"
 HURDLE_GATE = "Pemeriksaan jawaban menolak draf{why}"
