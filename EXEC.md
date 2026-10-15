@@ -1998,6 +1998,13 @@ lebar dibaca dari kolom tanya), tidak menutupi header (live 390 px: panel y 70�
 baru `apps/edge-bff/tests/test_ui_1015.py`; tes V5 lembar bawah ponsel diganti tes U5. Suite EDGE 96 passed. Sisa U4:
 batas backend 50 dan aturan prompt (Fase 2).
 
+**Hasil U4 bagian orc (2026-10-15, `c997c4d`, orc `abeadb31` SUCCESS):** `table_directives.MAX_ROWS` 25 → 50; aturan 13
+dan blok TABLES: jumlah yang diminta user, sepuluh untuk peringkat tanpa angka, semua baris sampai lima puluh untuk
+rincian per kelompok, lebih dari 50 ditawari Excel, baris dipotong di kode hanya bila user meminta top N. Snapshot
+prompt v008 (`prompts/history/v008-2026-10-15-table-rows-fifty`). Tes `test_table_directives` (50, 40 tampil utuh),
+`test_prompt_pass2` (kalimat yang disetujui), suite orc 1.782 lulus. Cek live berbayar **dilewati**: saldo kunci
+OpenRouter $0,37 dari batas $41 (satu run bisa menghabiskannya); dicek setelah saldo diisi.
+
 **Keputusan user 2026-10-15 (lanjutan):** atas U1 dan U2: "Aight OK - masukan EXEC jangan execute dulu"; atas U3 (berlaku selalu atau hanya saat kedua panel ditutup): "seperti chat GPT" → kolom jawaban dan kolom tanya paling lebar sekitar 768 px CSS **selalu**, panel terbuka atau tidak. Status U1–U3: disetujui, belum dieksekusi.
 - **U4 tabel sampai 50 baris, bisa dilipat (disetujui 2026-10-15, user: "Ok masukan EXEC U4"; belum dieksekusi; 10 baris terlihat, sampai 50, sisanya dilipat; dampak token dicek: instruksi tabel satu baris, baris diisi backend sesudah model, riwayat giliran berikutnya dibatasi 16.000 karakter, saran lanjutan membaca 6.000 karakter jawaban).** User: "malah saya mau sampai 50 kalau bisa. Di tampilan di frontend, tapi bisa di collapse/ expand. Agar datanya rinci dan jelas, lengkap. Gimana menurutmu?" Sekarang: `table_directives.MAX_ROWS = 25` (pengaman EXEC-ROWS, user 2026-10-13) dan aturan prompt "jumlah yang diminta user, 10 bila tidak disebut"; di run `edge_19f817ae…` tabel sektor 12 baris tampil 10, dan AI sendiri memotong saham naik ke 10 di kode (`nlargest(10)`). Usulan: (a) pengaman backend 25 → 50; (b) EDGE menampilkan 10 baris pertama, sisanya dilipat dengan tombol "Tampilkan N baris lagi" (dialog lebar tetap ada); (c) prompt: tabel rincian lengkap (semua kelompok) ditampilkan penuh sampai 50; AI tidak memotong data di kode kecuali user meminta "top N" (hasil lengkap dirilis, tampilan yang memilih); lebih dari 50 ditawarkan sebagai Excel. Baris dibaca backend dari tabel hasil, jadi tidak menambah token model. Butuh snapshot prompt.
 **Permintaan user 2026-10-15** (dua tangkapan layar): "Catat juga bug terlampir di front end.. Which ketika saya klik asumsi dan batasan maka itu automatically tertutup. Kemudian under normal conditions ada gap putih seperti terlampir. PLease fix it dan confirm visually dan interactionally. Masukan ke EXEC jangan eksekusi dulu." dan "terkait dengan padding kiri dan kanan, saat ini kalau panel kiri dan kanan di collapse, maka jaraknya sangat lebar. Boleh gak buat seperti chat GPT jaraknya? Konfirmasi apakah yang saya maksud kamu paham."
@@ -2015,6 +2022,14 @@ batas backend 50 dan aturan prompt (Fase 2).
 - Tangkapan layar ketiga ("Nothing to stop yet" pada Run 7 pukul 00:44 WIB) adalah run `edge_87c7…` yang terputus deploy ulang A/B V4 (dicatat di EXEC-FASTLANE V5; perbaikan A dan C sudah dideploy dengan V5).
 
 ### EXEC-BE1: efisiensi backend dari A/B V4/V5 (disetujui 2026-10-15; go 2026-10-15 "Ok jalankan")
+
+**Hasil BE1-1 (2026-10-15, ter-deploy):** `c997c4d` dan susulan `bb2430d`, sandbox `b1f26312` SUCCESS. Satuan di luar
+FRACTION/PERCENT/P_VALUE dibuang dengan peringatan `UNIT_DROPPED` (huruf kecil seperti "percent" dibaca); `thresholds`
+berbentuk list atau satu nilai disimpan sebagai dict dengan `THRESHOLDS_CONVERTED`; yang tetap ditolak: kolom yang tidak
+ada, operator tak dikenal, kunci definisi tak dikenal (sesuai butir c; versi pertama sempat memindahkannya ke catatan,
+diperbaiki di `bb2430d`). Setiap penolakan label menyebut "kirim ulang panggilan emit saja, variabel sesi masih ada"
+(`LABEL_REPAIR`). Peringatan sampai ke AI lewat `warnings` hasil `run_python` (diteruskan apa adanya). Suite sandbox 843
+lulus. Cek live: belum (berbayar, saldo).
 
 **Hasil BE1-2 (2026-10-15, ter-deploy):** migrasi `20261015_011` diterapkan (DRYRUN `6ff1fb47`, APPLY `24184757`,
 `mmig-job` dihapus), dibaca balik lewat pgweb, audit Feature Catalog lulus (148/148). **Koreksi premis:** cek seluruh

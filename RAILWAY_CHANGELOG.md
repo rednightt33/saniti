@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-10-15 — EXEC-BE1-1 and U4 (orc) deployed (dev)
+
+User: "Ok jalankan" (EXEC-IMPL-1015 Fase 2). `main` `c997c4d` auto-deployed `market-python-sandbox` dev `58449771` →
+SUCCESS and `market-ai-orc` dev `abeadb31` → SUCCESS (startup without `*_inactive`); follow-up `bb2430d` deployed
+`market-python-sandbox` dev `b1f26312` → SUCCESS. No `edge_` run was active (last orc activity 02:43 UTC). No variable
+change. Rollback: sandbox `a088cbd0` (`bacc2e9`), orc `b3dbc30d` (`8c7d398`). The paid live check was skipped: the
+OpenRouter key had $0.37 of its $41 limit left.
+
 ## 2026-10-15 — EXEC-UI-1015 EDGE U1–U5 deployed (dev)
 
 User: "Ok jalankan" (EXEC-IMPL-1015). `main` `e3ccf5d` auto-deployed `edge-bff` dev `0eb6c761` → SUCCESS
