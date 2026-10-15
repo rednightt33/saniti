@@ -2037,12 +2037,19 @@ berikut (desktop saja, ponsel tidak berubah oleh butir ini):
 3. C dihapus: baris "Research session · Run N · status" di atas percakapan dihilangkan; status tetap ada di setiap
    jawaban.
 
-**Ponsel (pemahaman dikirim ke user 2026-10-15, menunggu konfirmasi):** tombol menu dan "+" dari rel kiri pindah ke
-header (ruang kosong antara logo EDGE dan tombol cari); rel kiri hilang sehingga percakapan selebar layar; tanda silang
-di ikon pengaturan header ditanyakan (dihapus dari header ponsel?).
-
-**Favicon (usulan, menunggu pilihan):** logo "E" EDGE yang sudah ada (kotak hitam membulat, huruf putih) sebagai SVG,
-plus PNG 32 px dan apple-touch-icon 180 px; sekarang `index.html` memakai `<link rel="icon" href="data:,">` (kosong).
+**Hasil (2026-10-15, ter-deploy; bagian M160 belum):**
+- `1bc7b50` → edge-bff dev `22e386f5` SUCCESS. Desktop: baris Research session hilang di atas 720 px; tombol Details
+  (berganti "Hide Details" saat terbuka), Bookmark dan Share (nonaktif) di rel kiri, bersusun di rel sempit (≤1050 px)
+  atau tertutup; setiap kartu Response History punya "Lihat di percakapan". Ponsel (≤720 px): menu dan "+" di header
+  antara logo dan tombol cari, rel hilang (percakapan 390/390 px), baris Research session tetap, ikon pengaturan keluar
+  dari header dan muncul sebagai "Pengaturan" di menu akun; laci riwayat tetap terbuka dari menu. Favicon "E"
+  (`/favicon.svg`, `/favicon-32.png`, `/apple-touch-icon.png`, publik, cache 1 hari).
+- QA live (Chromium, 1440 px dan 390 px terang/gelap): semua butir di atas lulus, tanpa luapan horizontal; favicon 200.
+  Temuan: "Lihat di percakapan" tidak menggulir dari dasar percakapan panjang (ERRORS M161, juga mengenai lompatan pin
+  dan tautan bagian). Diperbaiki di susulan (`scrollResearchTo`), tes baru; deploy dan QA ulang dicatat di
+  RAILWAY_CHANGELOG.
+- Tes: `tests/test_ui_1015c.py` (5) dan penyesuaian `test_visual.py` (baris sesi hanya di ponsel, pengaturan ponsel lewat
+  menu akun); suite EDGE 101 lulus. Tes mengetik kadang gagal sudah ada sebelum perubahan ini (ERRORS M162).
 
 ### EXEC-UI-1015B: progres run seperti Claude (dinilai 2026-10-15; usulan, menunggu "go")
 

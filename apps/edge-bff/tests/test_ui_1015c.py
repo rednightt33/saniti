@@ -64,6 +64,30 @@ def test_response_history_leads_back_to_each_response(fixture_server, browser_pa
     assert page.locator('.edge-history-jump').count() == 2
 
 
+def test_a_jump_from_the_bottom_of_a_long_conversation_is_not_pulled_back(fixture_server, browser_page):
+    """Live 2026-10-15: from the bottom of a long conversation, the first scroll event of a smooth jump came while the
+    view was still near the bottom, switched auto-follow back on and auto-follow pulled the view down again. The same
+    held for a pin and for a section link."""
+    origin, _ = fixture_server
+    page = browser_page
+    page.set_viewport_size({'width': 1440, 'height': 800})
+    sign_in(page, origin)
+    for n in range(1, 5):
+        submit(page, 'fx:ui1015_long_table')
+        saved(page, n)
+    page.evaluate("() => { const s = document.querySelector('.research-scroll'); s.scrollTo({top: s.scrollHeight, behavior: 'instant'}); s.dispatchEvent(new Event('scroll')); }")
+    page.wait_for_timeout(400)
+    first = page.locator('.edge-flow-accordion').first
+    if not first.evaluate('n => n.open'):
+        first.locator('summary').click()
+    run_id = first.get_attribute('id').replace('edge-history-', '')
+    first.get_by_role('button', name='Lihat di percakapan').click()
+    page.wait_for_timeout(1500)
+    top = page.evaluate("""id => { const n = document.getElementById(id + '-response') || document.getElementById('edge-exchange-' + id),
+        s = document.querySelector('.research-scroll'); return n.getBoundingClientRect().top - s.getBoundingClientRect().top; }""", run_id)
+    assert -40 <= top <= 80, top
+
+
 def test_on_a_phone_menu_and_new_sit_in_the_header_and_the_chat_is_full_width(fixture_server, browser_page):
     origin, _ = fixture_server
     page = browser_page

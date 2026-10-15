@@ -1,5 +1,12 @@
 # Railway changelog
 
+## 2026-10-15 — EXEC-UI-1015C EDGE layout and favicon deployed (dev)
+
+User: "Ok, confirmed. Go." `main` `1bc7b50` auto-deployed `edge-bff` dev `22e386f5` → SUCCESS (orc and sandbox
+unchanged). New public routes `/favicon.svg`, `/favicon-32.png`, `/apple-touch-icon.png`. No variable change; no paid
+model call. Rollback: `0eb6c761` (`e3ccf5d`). Live QA found ERRORS M161 (history jump pulled back by auto-follow); the
+fix follows in the next commit.
+
 ## 2026-10-15 — PLAN 14 deployed with its switch off (dev)
 
 User: "Ok jalankan" (EXEC-IMPL-1015 Fase 4). `main` `4d9a3cd` auto-deployed `market-python-sandbox` dev `88739487` →

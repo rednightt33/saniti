@@ -10720,7 +10720,12 @@ function Monitor({ go }) {
     const startResize = (event) => { if (collapsed)
         return; event.preventDefault(); const startX = event.clientX, startWidth = sidebarWidth; let nextWidth = startWidth; const move = (pointer) => { nextWidth = Math.min(360, Math.max(180, startWidth + pointer.clientX - startX)); setSidebarWidth(nextWidth); }; const up = () => { localStorage.setItem("edge-monitor-width", String(nextWidth)); document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); }; document.addEventListener("pointermove", move); document.addEventListener("pointerup", up); };
     const toggleCollapsed = () => setCollapsed(current => { localStorage.setItem("edge-monitor-collapsed", String(!current)); return !current; });
-    const onResearchScroll = (event) => { const element = event.currentTarget; setAutoFollow(element.scrollHeight - element.scrollTop - element.clientHeight < 90); if (run?.result) {
+    const onResearchScroll = (event) => { const element = event.currentTarget;
+        // A scroll the page started (a jump to a response, a pin, a section) decides auto-follow only where it lands: its
+        // first steps are still near the bottom and must not switch auto-follow back on (live 2026-10-15).
+        if (element._edgeTarget != null && Math.abs(element.scrollTop - element._edgeTarget) > 2 && performance.now() < element._edgeUntil) return;
+        element._edgeTarget = null;
+        setAutoFollow(element.scrollHeight - element.scrollTop - element.clientHeight < 90); if (run?.result) {
         const threshold = element.getBoundingClientRect().top + 40, ids = ["conditions", "statistics", "observation", "distribution", "methodology"];
         const visible = ids.findLast(id => { const node = document.getElementById(`${run.id}-${id}`); return node ? node.getBoundingClientRect().top <= threshold : false; });
         if (visible)
@@ -10728,12 +10733,16 @@ function Monitor({ go }) {
     } };
     // V5 pins and EXEC-UI-1015C (user 2026-10-15): one way to bring a response into view, from the pins and from Response
     // History; on a phone the Details sheet covers the chat, so it closes first; a run without an answer shows its exchange
+    const scrollResearchTo = top => { const container = scrollRef.current; if (!container) return;
+        const target = Math.max(0, Math.min(top, container.scrollHeight - container.clientHeight));
+        container._edgeTarget = target; container._edgeUntil = performance.now() + 1500;
+        container.scrollTo({ top: target, behavior: "smooth" }); };
     const jumpToRun = id => {setSelectedRunId(id);setAutoFollow(false);
         if(narrow&&mobileDetailsOpen)setMobileDetailsOpen(false);
-        requestAnimationFrame(()=>requestAnimationFrame(()=>{const node=document.getElementById(id+"-response")||document.getElementById("edge-exchange-"+id),container=scrollRef.current;if(node&&container){container.scrollTo({top:container.scrollTop+node.getBoundingClientRect().top-container.getBoundingClientRect().top-24,behavior:"smooth"});node.focus?.({preventScroll:true});}}));};
+        requestAnimationFrame(()=>requestAnimationFrame(()=>{const node=document.getElementById(id+"-response")||document.getElementById("edge-exchange-"+id),container=scrollRef.current;if(node&&container){scrollResearchTo(container.scrollTop+node.getBoundingClientRect().top-container.getBoundingClientRect().top-24);node.focus?.({preventScroll:true});}}));};
     const scrollToResearchSection = (sectionId) => { if (!run || !scrollRef.current)
         return; const section = document.getElementById(`${run.id}-${sectionId}`), container = scrollRef.current; if (!section)
-        return; const top = section.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 24; setActiveSection(sectionId); container.scrollTo({ top, behavior: "smooth" }); };
+        return; const top = section.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 24; setActiveSection(sectionId); scrollResearchTo(top); };
     return element(Shell, { route: "monitor", go: go, mobilePanelOpen:narrow&&(historyOpen||mobileDetailsOpen) },
         element("main", { className: `monitor-layout ${collapsed ? "sidebar-collapsed" : ""} ${detailsOpen ? "" : "details-closed"} ${historyOpen ? "mobile-history-open" : ""} ${mobileDetailsOpen ? "mobile-details-open" : ""}`, style: { gridTemplateColumns: `${collapsed ? 52 : sidebarWidth}px minmax(0,1fr)${detailsOpen ? ` clamp(280px,${detailsWidth}px,max(280px,calc(100vw - ${collapsed ? 52 : sidebarWidth}px - 560px)))` : ""}` } },
             element("aside", { id:"edge-conversations",className: "conversation-panel",role:narrow&&historyOpen?"dialog":undefined,"aria-modal":narrow&&historyOpen?true:undefined,"aria-label":"Conversation history",inert:narrow&&mobileDetailsOpen },
