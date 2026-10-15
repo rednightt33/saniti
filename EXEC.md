@@ -195,12 +195,153 @@ Urutan sisa:
 | BFF/EDGE saja | EXEC-UI-1015 U1 Asumsi/Batasan menutup sendiri (M156) | disetujui, belum go | `static/index.html` `patchNode` |
 | BFF/EDGE saja | U2 celah di atas kolom tanya | disetujui, belum go | `static/index.html` CSS |
 | BFF/EDGE saja | U3 lebar kolom ~768 px selalu | disetujui, belum go | `static/index.html` CSS |
-| BFF/EDGE saja | U5 pemilih model ponsel | menunggu konfirmasi pemahaman | `static/index.html` |
+| BFF/EDGE saja | U5 pemilih model ponsel (level + Jalur ke kanan kartu, panel di atas kolom tanya) | disetujui, belum go | `static/index.html` |
 | BFF/EDGE saja | EXEC-DETAILS butir 1 (ponsel saat gulir) | menunggu penjelasan user | — |
 | BFF + orc | U4 tabel sampai 50 baris, dilipat | disetujui, belum go | orc `table_directives.py`, prompt (snapshot); EDGE lipatan |
 | BFF + orc | EXEC-UI-1015B progres run seperti Claude | usulan, menunggu go | orc progres, BFF snapshot, `edge-client.js` |
 
 Tumpang tindih: U1, U2, U3, U4 (bagian EDGE) dan U5 mengubah `static/index.html` → satu putaran EDGE; U4 (orc) dan PLAN 14 sama-sama di `orchestrator.py`/alat → urut, bukan paralel; UI-1015B menyentuh `edge-client.js` status run → sesudah putaran EDGE.
+
+### EXEC-IMPL-1015: rencana implementasi butir yang disetujui (2026-10-15; menunggu "go")
+
+User 2026-10-15: "Sekarang inspect architecture, align dengan approved exec. Buat implementation plan. Describe before after kira2 end result arsitekturnya akan seperti apa."
+
+#### Context
+
+User meminta: "inspect architecture, align dengan approved exec. Buat implementation plan. Describe before after kira2
+end result arsitekturnya". Butir yang **disetujui** (EXEC.md "Butir terbuka per layanan", PLAN 14):
+
+- BE1-1 label hasil toleran (sandbox) · BE1-2 catatan katalog `total_buy/sell_value` (katalog DB)
+- PLAN 14 lampiran data ke sesi terbuka, batas 2 (sandbox + orc)
+- U1 Asumsi/Batasan menutup sendiri (M156) · U2 celah di atas kolom tanya · U3 kolom ~768 px selalu (EDGE)
+- U4 tabel sampai 50 baris, 10 terlihat, sisanya dilipat (orc + EDGE)
+- U5 pemilih model ponsel: kartu tetap, level berpikir **dan Jalur** pindah ke ruang kanan kartu ("kotak A"), panel di
+  area kosong percakapan di atas kolom tanya (user 2026-10-15: "ya dipindah")
+
+**Tidak termasuk** (belum disetujui): UI-1015B progres ala Claude, M145, M154b, M155, panjang adaptif. Jalur yang live
+adalah jalur Cepat: semua perubahan orc berlaku di jalur Cepat dan Standar kecuali disebut lain.
+
+#### Arsitektur sebelum → sesudah (ringkas)
+
+```
+SEBELUM                                          SESUDAH
+EDGE  index.html                                 EDGE
+  patchNode hapus atribut "open" tiap render       patchNode pertahankan "open" <details> tak terkontrol
+  kolom 1120 px; jarak 22+32+12 px                 kolom 768 px (jawaban + kolom tanya); satu jarak ~18 px
+  tabel tampil semua baris (maks 25)               tabel >10 baris: 10 tampil + "Tampilkan N baris lagi"
+  pemilih model ponsel: lembar layar penuh,        pemilih di area percakapan di atas kolom tanya; level +
+  level & jalur di bawah daftar                    jalur di kanan kartu model terpilih
+orc
+  table_directives MAX_ROWS 25, prompt "≤25"       MAX_ROWS 50, prompt "≤50, rincian lengkap tampil penuh,
+                                                   jangan potong data di kode kecuali user minta top N"
+  data tambahan → need baru → paket baru →         need baru dengan attach_to_session → paket → DILAMPIRKAN
+  SESI BARU (variabel hilang)                      ke sesi yang sama (variabel tetap); gagal → sesi baru
+sandbox
+  label salah format → eksekusi gagal              thresholds list→dict, satuan tak dikenal dibuang + peringatan
+  1 sesi = 1 paket, permintaan dipasang saat buka  1 sesi = paket awal + ≤2 lampiran; view DuckDB ditambah
+                                                   lewat op worker "attach"; cakupan per need, lampiran tak
+                                                   dipakai = "tidak dipakai" (bukan gagal)
+katalog DB
+  deskripsi buy/sell tanpa catatan identitas       deskripsi + misuse_warning: total beli = total jual
+```
+
+Jaminan yang tidak berubah: data hanya lewat Governor; setiap angka bersumber; data yang dikutip dibaca penuh; hasil
+eksekusi gagal tidak dirilis (M139); jalur riset yang disetujui tidak bisa melampirkan data di luar rencana (EXEC-D).
+
+#### Fase 1 — EDGE saja (U1, U2, U3, U5, bagian EDGE U4) · satu deploy edge-bff
+
+File: `apps/edge-bff/static/index.html` (perilaku + CSS), kata baru di `static/edge-labels.js`.
+1. **U1** `patchNode` (~baris 10140): saat menghapus atribut yang tidak ada di node baru, lewati `open` pada `<details>`
+   bila `node._props` tidak punya `open` (lipatan terkontrol seperti `edge-flow-accordion` tetap mengikuti state).
+2. **U2** gap: `.research-exchange` margin-bottom 22 px, `.research-scroll` padding-bottom 32 px (~8970), composer
+   margin-top 12 px → percakapan terakhir tanpa margin bawah, satu jarak ~18 px. Ponsel (`padding-bottom:8px`, ~9989)
+   tidak berubah.
+3. **U3** `--conversation-max-width: 1120px` (~9693) → 768px untuk jawaban, kolom tanya dan `jump-latest`; tabel lebar
+   tetap bergulir horizontal + tombol perbesar (dialog lebar EDGE V4). Cek `user-message max-width:90%` tetap rapi.
+4. **U4-EDGE** di `renderMarkdown` (~11165): tabel dengan >10 baris badan → 10 baris tampil, sisanya dalam baris yang
+   disembunyikan + tombol "Tampilkan N baris lagi"/"Sembunyikan" (state per tabel, bertahan saat render ulang karena
+   memakai `updateValue`); dialog perbesar selalu menampilkan semua baris; urut kolom (EXEC-SORT) bekerja pada semua
+   baris. Berlaku juga untuk tabel lama (≤25).
+5. **U5** komponen pemilih model (~10880): `edge-model-option` tetap; tombol level (`current.reasoning_levels`) dan
+   jalur (`data.lane_selection`) dipindah ke kolom kanan kartu yang `aria-pressed=true` (kartu lain: ruang kanan kosong /
+   level bawaan tampil redup); menu ponsel (CSS ~10002) dari lembar `position:fixed` layar penuh menjadi panel di atas
+   kolom tanya selebar kolom percakapan, `max-height` = ruang di atas kolom tanya. Desktop: posisi popover sama, isi
+   kartu ikut tata letak baru.
+6. Tes: `tests/test_visual.py`, `test_frontend_contract.py`, `test_browser.py` + tes baru: klik lipatan → gulir → tetap
+   terbuka; jarak kartu terakhir–kolom tanya; lebar kolom ≤768; tabel 30 baris → 10 tampil, tombol membuka 30; pemilih
+   model ponsel: level/jalur di kartu terpilih, panel tidak menutupi header.
+7. Deploy edge-bff, cek live: skrip QA Playwright yang sudah ada (`scratchpad/qa/qa.py`, `interact.py`, `notes2.py`,
+   `gap.py`) desktop 1440/1920 + ponsel 390, terang/gelap; tangkapan layar dikirim ke user.
+
+#### Fase 2 — sandbox BE1-1 lalu orc U4 · deploy sandbox, lalu orc
+
+1. **BE1-1** `apps/market-python-sandbox/runtime/saniti_session.py`: `_units` (~2121) satuan di luar
+   `VALUE_UNITS` → dibuang + `_WARNINGS.append({"code":"UNIT_DROPPED",...})`, bukan `InvalidOutput`; kolom tak ada tetap
+   ditolak. `_definition` (~2158): `thresholds` list → dict (item `{name,value}` jadi pasangan; item lain `threshold_1..n`)
+   + peringatan `THRESHOLDS_CONVERTED`. Pesan penolakan yang tersisa menyebut cukup label yang dikirim ulang. Tes
+   `tests/test_output_definition.py` (+ kasus baru). Method guide/HELPERS tidak berubah kecuali kalimat contoh.
+2. **U4-orc** `apps/market-ai-orc/app/table_directives.py` `MAX_ROWS` 25 → 50 (`TABLE_CAPPED_LINE` ikut); prompt
+   rule 13 `orchestrator.py` (~864–871): "tampilkan jumlah yang diminta user, 10 bila tidak; tabel rincian lengkap (semua
+   kelompok) tampil penuh sampai 50; jangan memotong hasil di kode (nlargest/head) kecuali user meminta top N — rilis
+   hasil lengkap, tampilan yang memilih; >50 tawarkan Excel". Snapshot prompt (`scripts/snapshot_system_prompt.py record`),
+   tes `test_table_directives.py`, `test_prompt_history.py`, anggaran prompt bila naik.
+3. Deploy sandbox (tunggu SUCCESS) → orc (SUCCESS, startup tanpa `*_inactive`). Cek live satu pertanyaan jalur Cepat
+   dengan tabel >10 baris (berbayar kecil, cek saldo kunci dulu).
+
+#### Fase 3 — BE1-2 katalog (migrasi)
+
+Migrasi baru `database/migrations/2026101x_00N_feature03_buy_sell_identity.sql`: `UPDATE` `AI_column_catalog`
+(`description`, `description_id`, status DRAFT), `Column_Catalog` (`definition`, tidak dinaikkan ke VERIFIED) dan
+`Feature_Catalog` aktif (`misuse_warning`, `validation_evidence` + bukti pgweb) untuk `total_buy_value`,
+`total_sell_value` (pola UPDATE di tempat seperti `20261012_003`). Jalankan lewat job `mmig-job` (DRYRUN → APPLY →
+hapus job), baca balik lewat pgweb, `sha256sum >> APPLIED.sha256`, `audit_feature_catalog_semantics.py`,
+`DATABASE_SCHEMA.md` (bagian terkait saja), `DATABASE_CHANGELOG.md`.
+
+#### Fase 4 — PLAN 14 lampiran data · deploy sandbox, lalu orc (saklar mati), A/B atas perintah
+
+**Sandbox** (`app/sessions.py`, `app/dataneed_service.py`, `app/main.py`, `runtime/session_worker.py`,
+`runtime/saniti_session.py`, `app/config.py`, `app/dataneed_store.py`):
+- Faktorkan pembuatan `requests` dari `_launch` (~840–870) jadi fungsi bersama.
+- `POST /v1/sessions/{id}/attach` {request_id, input_bundle_id}: sesi ACTIVE milik request yang sama, bukan sesi riset,
+  paket READY dengan `reference_date` sama, `data_request_id` tidak bertabrakan, jumlah lampiran <
+  `PY_SANDBOX_MAX_ATTACHMENTS` (2), baris/byte gabungan ≤ `bundle_max_rows/bytes`; link file ke `input/`, cek checksum.
+- Worker op baru `attach` → `saniti._attach(requests)`: `REQUESTS.update`, `CREATE VIEW` di `_CONNECTION`; harness-only
+  (pola op `inspect`).
+- Store: kolom `attached` (JSON: need_id, bundle_id, waktu) di `sessions` (migrasi skema SQLite pola baris 147).
+- Completion (~900): cakupan dihitung per need (awal + lampiran) dengan `processing_coverage`; need lampiran yang tidak
+  dibaca sama sekali → status `UNUSED` (tidak menggagalkan, tidak masuk catatan data); lineage output mencatat
+  `attached_need_ids`.
+- `/v1/runtime` melaporkan `session_attach: 1`.
+**Orc** (`app/tools/data_need.py`, `app/tools/session.py`, `app/orchestrator.py` `_merge_mechanical` ~4395,
+`app/tool_desks.py`, `app/config.py`):
+- `submit_data_need_spec` argumen opsional `attach_to_session_id` (diperiksa: sesi milik run ini).
+- Langkah mekanis: prepare READY + niat lampir → alat baru `attach_data_bundle` (bukan `open_analysis_session`); gagal
+  → jatuh ke `open_analysis_session` dengan alasan.
+- Saklar `AI_ENABLE_SESSION_ATTACH` (default mati) + kapabilitas sandbox; desk FASTLANE dan analisis, tidak di desk riset.
+- Kalimat di deskripsi `run_python`/sesi; hint sandbox saat SCRIPT_ERROR menyebut kolom yang tidak ada.
+- Data record orc mencakup need lampiran yang dipakai.
+- Dokumen: ronde `Tool_Catalog` (generator `scripts/generate_tool_catalog_migration.py`), `AI_TOOLS.md`
+  (`generate_ai_tools_doc.py`), `.railway/railway.ts` untuk variabel baru.
+- A/B jalur Cepat pola j2 (saklar mati vs hidup): waktu, putaran, sesi per run — **hanya atas perintah user** (berbayar).
+
+#### Urutan dan tumpang tindih
+
+Fase 1 (EDGE) → Fase 2 (sandbox, orc) → Fase 3 (DB) → Fase 4 (sandbox, orc). U4 orc dan PLAN 14 sama-sama di
+`orchestrator.py`: berurutan (Fase 2 sebelum Fase 4). Setiap fase: tes lokal, commit, push `main` dan
+`claude/code-session-2k3oeg`, deploy sampai SUCCESS, catat di ERRORS (M156, M154 a), EXEC (hapus butir selesai),
+RAILWAY/DATABASE_CHANGELOG.
+
+#### Verifikasi
+
+- Tes: EDGE (`EDGE_TEST_CHROMIUM`, `EDGE_TEST_POSTGRES_URL`), orc (`ORC_TEST_POSTGRES_URL`, Postgres lokal 55432), sandbox
+  (`/var/tmp/venv-sbx`).
+- Live EDGE: skrip Playwright QA (klik→gulir lipatan, ukur jarak, lebar kolom, tabel 10/50, pemilih model ponsel),
+  tangkapan layar desktop+ponsel, terang+gelap.
+- Live orc/sandbox: satu pertanyaan jalur Cepat dengan tabel >10 baris; log `ai_table_directive` rows≤50; label tanpa
+  eksekusi gagal (`UNIT_DROPPED`/`THRESHOLDS_CONVERTED` di peringatan).
+- Katalog: pgweb baca balik dua kolom; audit Feature Catalog lulus.
+- PLAN 14: tes sandbox (lampiran, tabrakan nama, batas gabungan, sesi lain ditolak, UNUSED tidak gagal, cakupan penuh
+  tetap dicek), tes orc (langkah mekanis attach, fallback ke sesi baru); A/B atas perintah.
 
 ### EXEC-D: AI dinamis tetapi dibatasi (prinsip penilaian; M104, M105, uji ulang M102/M103)
 
@@ -1677,7 +1818,7 @@ fasenya. Usulan "ide riset" sebelumnya dibatalkan; pilihan "Uji dengan data: …
 - **U2 celah di atas kolom tanya.** Diukur di live (1920 px, terang): jarak kartu jawaban terakhir ke kolom tanya 66 px = margin bawah percakapan 22 px + padding bawah area gulir 32 px + margin atas kolom tanya 12 px (tiga jarak menumpuk). Rencana: satu jarak saja (sekitar 16–20 px) tanpa mengubah desain lain; ponsel (sudah 8 px) tidak berubah. Cek: ukur ulang dan tangkapan layar terang/gelap, desktop dan ponsel.
 - **U3 lebar kolom percakapan seperti ChatGPT (menunggu konfirmasi user).** Sekarang kolom jawaban dan kolom tanya paling lebar 1120 px CSS (`--conversation-max-width`), jadi dengan panel kiri dan kanan ditutup baris teks sangat panjang. ChatGPT memakai sekitar 768 px CSS (di tangkapan layar user 1152 px layar = 768 px pada skala 150%). Usulan: kolom paling lebar sekitar 768 px, di tengah, untuk jawaban dan kolom tanya; tabel lebar tetap bisa dibuka di dialog lebar (EDGE V4). Pertanyaan ke user: berlaku selalu (seperti ChatGPT) atau hanya saat kedua panel ditutup.
 
-- **U5 pemilih model di ponsel (menunggu konfirmasi pemahaman).** User 2026-10-15 (dua tangkapan layar ponsel): "retain existing design untuk model selection; pindahkan reasoning selection ke kotak A; untuk size dan lokasi bs disesuaikan dengan nomor (1)". Dibaca sebagai: kartu model (logo, nama, harga input/output, id) tetap; pilihan level berpikir (Rendah/Tinggi/Maks) pindah dari baris terpisah di bawah daftar ke ruang kosong di kanan setiap kartu model ("kotak A"), hanya aktif pada kartu model yang dipilih; panel pemilih menempati area kosong percakapan di atas kolom tanya (area "1"), bukan menutupi seluruh layar.
+- **U5 pemilih model di ponsel (disetujui 2026-10-15; Jalur ikut dipindah, user: "ya dipindah"; belum dieksekusi).** User 2026-10-15 (dua tangkapan layar ponsel): "retain existing design untuk model selection; pindahkan reasoning selection ke kotak A; untuk size dan lokasi bs disesuaikan dengan nomor (1)". Dibaca sebagai: kartu model (logo, nama, harga input/output, id) tetap; pilihan level berpikir (Rendah/Tinggi/Maks) pindah dari baris terpisah di bawah daftar ke ruang kosong di kanan setiap kartu model ("kotak A"), hanya aktif pada kartu model yang dipilih; panel pemilih menempati area kosong percakapan di atas kolom tanya (area "1"), bukan menutupi seluruh layar.
 
 ### EXEC-UI-1015B: progres run seperti Claude (dinilai 2026-10-15; usulan, menunggu "go")
 
