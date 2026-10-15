@@ -182,6 +182,26 @@ Urutan sisa:
 
 ---
 
+## Butir terbuka per layanan (review 2026-10-15, user: "review all exec dulu ya. Pisahkan saja yg terkait orc, yg terkait bff dan yg terkait bff + orc agar tidak tumpang tindih")
+
+| Kelompok | Butir | Status | Berkas utama |
+|---|---|---|---|
+| orc/backend saja | EXEC-BE1-1 label hasil toleran | disetujui, belum go | sandbox `runtime/saniti_session.py` |
+| orc/backend saja | EXEC-BE1-2 catatan katalog `total_buy/sell_value` | disetujui, belum go | migrasi katalog |
+| orc/backend saja | PLAN 14 lampiran data ke sesi terbuka | desain disetujui, belum go | sandbox `sessions.py`, orc `tools/session.py`, `data_need.py` |
+| orc/backend saja | M145 panggilan model `RemoteProtocolError` tidak diulang | usulan, menunggu keputusan | orc `openrouter_client.py` |
+| orc/backend saja | Panjang adaptif (EXEC-FASTLANE) | ditunda | orc prompt |
+| orc/backend saja | M154 b cek profil, M155 normalisasi bentuk | usulan, belum disetujui | katalog, validator |
+| BFF/EDGE saja | EXEC-UI-1015 U1 Asumsi/Batasan menutup sendiri (M156) | disetujui, belum go | `static/index.html` `patchNode` |
+| BFF/EDGE saja | U2 celah di atas kolom tanya | disetujui, belum go | `static/index.html` CSS |
+| BFF/EDGE saja | U3 lebar kolom ~768 px selalu | disetujui, belum go | `static/index.html` CSS |
+| BFF/EDGE saja | U5 pemilih model ponsel | menunggu konfirmasi pemahaman | `static/index.html` |
+| BFF/EDGE saja | EXEC-DETAILS butir 1 (ponsel saat gulir) | menunggu penjelasan user | — |
+| BFF + orc | U4 tabel sampai 50 baris, dilipat | disetujui, belum go | orc `table_directives.py`, prompt (snapshot); EDGE lipatan |
+| BFF + orc | EXEC-UI-1015B progres run seperti Claude | usulan, menunggu go | orc progres, BFF snapshot, `edge-client.js` |
+
+Tumpang tindih: U1, U2, U3, U4 (bagian EDGE) dan U5 mengubah `static/index.html` → satu putaran EDGE; U4 (orc) dan PLAN 14 sama-sama di `orchestrator.py`/alat → urut, bukan paralel; UI-1015B menyentuh `edge-client.js` status run → sesudah putaran EDGE.
+
 ### EXEC-D: AI dinamis tetapi dibatasi (prinsip penilaian; M104, M105, uji ulang M102/M103)
 
 **Keputusan user 2026-10-07 (kata-kata user):**
@@ -1656,6 +1676,8 @@ fasenya. Usulan "ide riset" sebelumnya dibatalkan; pilihan "Uji dengan data: …
 - **U1 Asumsi/Batasan menutup sendiri (ERRORS M156).** Direproduksi di EDGE dev (Chromium 1920 px, percakapan MSCI): klik "Batasan" membuka, menggulir 50 px ke atas menutupnya lagi; elemen yang sama (bukan dibuat ulang). Akar masalah (terverifikasi di kode): setiap gulir mengubah state (`setAutoFollow`, bagian aktif) sehingga tampilan digambar ulang; `patchNode` (`static/index.html`) menghapus setiap atribut node lama yang tidak ada di node baru, termasuk `open` yang dipasang browser saat diklik. Kelas: setiap `<details>` yang tidak dikendalikan (`edge-notes`, `edge-more`, `edge-technical`) dan setiap atribut lain yang dipegang browser. Rencana: `patchNode` mempertahankan `open` pada `<details>` bila node baru tidak mengaturnya sendiri (perbaikan di lapisan perender, mencakup semua lipatan). Cek: tes browser klik → gulir → tetap terbuka, lipatan yang dikendalikan (`edge-flow-accordion`) tetap mengikuti state; cek visual dan interaksi desktop dan ponsel di live.
 - **U2 celah di atas kolom tanya.** Diukur di live (1920 px, terang): jarak kartu jawaban terakhir ke kolom tanya 66 px = margin bawah percakapan 22 px + padding bawah area gulir 32 px + margin atas kolom tanya 12 px (tiga jarak menumpuk). Rencana: satu jarak saja (sekitar 16–20 px) tanpa mengubah desain lain; ponsel (sudah 8 px) tidak berubah. Cek: ukur ulang dan tangkapan layar terang/gelap, desktop dan ponsel.
 - **U3 lebar kolom percakapan seperti ChatGPT (menunggu konfirmasi user).** Sekarang kolom jawaban dan kolom tanya paling lebar 1120 px CSS (`--conversation-max-width`), jadi dengan panel kiri dan kanan ditutup baris teks sangat panjang. ChatGPT memakai sekitar 768 px CSS (di tangkapan layar user 1152 px layar = 768 px pada skala 150%). Usulan: kolom paling lebar sekitar 768 px, di tengah, untuk jawaban dan kolom tanya; tabel lebar tetap bisa dibuka di dialog lebar (EDGE V4). Pertanyaan ke user: berlaku selalu (seperti ChatGPT) atau hanya saat kedua panel ditutup.
+
+- **U5 pemilih model di ponsel (menunggu konfirmasi pemahaman).** User 2026-10-15 (dua tangkapan layar ponsel): "retain existing design untuk model selection; pindahkan reasoning selection ke kotak A; untuk size dan lokasi bs disesuaikan dengan nomor (1)". Dibaca sebagai: kartu model (logo, nama, harga input/output, id) tetap; pilihan level berpikir (Rendah/Tinggi/Maks) pindah dari baris terpisah di bawah daftar ke ruang kosong di kanan setiap kartu model ("kotak A"), hanya aktif pada kartu model yang dipilih; panel pemilih menempati area kosong percakapan di atas kolom tanya (area "1"), bukan menutupi seluruh layar.
 
 ### EXEC-UI-1015B: progres run seperti Claude (dinilai 2026-10-15; usulan, menunggu "go")
 
