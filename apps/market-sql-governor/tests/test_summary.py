@@ -157,3 +157,28 @@ def test_refusals_are_explained(governed_db, tmp_path, rules, monkeypatch) -> No
     monkeypatch.setattr(sm, "MAX_ROWS", 3)
     many = ask(service, spec())
     assert (many["status"], many["code"]) == ("REJECTED_ROW_LIMIT", "SUMMARY_TOO_MANY_ROWS")
+
+
+def test_a_text_value_of_the_scope_is_a_stored_value(governed_db, tmp_path, rules, monkeypatch) -> None:
+    """EXEC-IMPL-1016 O1 (live 2026-10-15, query_metric for "BBRX"): the summary path checks the scope's text values
+    against the value dictionary like a DataNeed scope: a value in another letter case is resolved, a value missing
+    from a complete list is refused with candidates, an incomplete list passes, and no dictionary skips the check."""
+    from app.value_dictionary import Dictionary, Domain
+
+    service = summarizer(governed_db, tmp_path)
+    tickers = [r[0] for r in admin(governed_db, f'SELECT DISTINCT ticker FROM public."{PRICE}" ORDER BY 1')]
+    complete = Dictionary({PRICE: {"ticker": Domain(tickers, "COVERAGE", True, "ENTITY",
+                                                    aliases={"bca": {"BBCA": "ACRONYM"}})}}, 0.0)
+    monkeypatch.setattr(Governor, "values", lambda self: complete)
+    lower = ask(service, spec(scope=pred("ticker", "IN", "bbca", "BMRI")))
+    assert lower["status"] == "OK", lower
+    exact = ask(service, spec(scope=pred("ticker", "IN", "BBCA", "BMRI")))
+    assert lower["rows"] == exact["rows"]
+    wrong = ask(service, spec(scope=pred("ticker", "IN", "BCA", "BMRI")))
+    assert (wrong["status"], wrong["code"]) == ("REJECTED_POLICY", "VALUE_NOT_FOUND")
+    assert "'BCA'" in wrong["message"] and "BBCA" in wrong["message"] and "search_values" in wrong["message"]
+    partial = Dictionary({PRICE: {"ticker": Domain(["BBCA"], "REFERENCE_TABLE", False, "ENTITY")}}, 0.0)
+    monkeypatch.setattr(Governor, "values", lambda self: partial)
+    assert ask(service, spec(scope=pred("ticker", "IN", "BBCA", "BMRI")))["status"] == "OK"
+    monkeypatch.setattr(Governor, "values", lambda self: None)
+    assert ask(service, spec(scope=pred("ticker", "IN", "BCA")))["code"] != "VALUE_NOT_FOUND"

@@ -165,6 +165,38 @@ class Dictionary:
                         "is not found, or is ambiguous, is not a stored value: use a candidate or ask the user."}
 
 
+def check_scope(dictionary: Dictionary, table: str, node: Any) -> list[dict[str, Any]]:
+    """Every text value an EQ/IN/NEQ/NOT_IN predicate of a bound scope names, against the column's stored values: a
+    value equal to one stored value apart from letter case is replaced by that stored value (P14); a value missing
+    from a complete list is returned with its candidates (the caller refuses); an incomplete list passes. The same
+    rule the sandbox applies to a DataNeed scope, for the Governor's own entry points."""
+    misses: list[dict[str, Any]] = []
+    predicate = getattr(node, "predicate", None)
+    if predicate is not None and predicate.operator in ("EQ", "IN", "NEQ", "NOT_IN") \
+            and str(predicate.data_type).lower() in VALUE_TEXT_TYPES:
+        domain = dictionary.domain(table, predicate.column)
+        if domain is not None and domain.values:
+            folded: dict[str, list[str]] = {}
+            for value in domain.values:
+                folded.setdefault(value.casefold(), []).append(value)
+            resolved = []
+            for value in predicate.values:
+                stored = folded.get(str(value).strip().casefold(), [])
+                if len(stored) == 1:
+                    resolved.append(stored[0])
+                    continue
+                resolved.append(value)
+                if domain.complete:
+                    found = dictionary.search(table, predicate.column, [str(value)])["results"][0]
+                    misses.append({"table": table, "column": predicate.column, "value": str(value),
+                                   "candidates": [a["code"] for a in found["alias"]]
+                                   + [c["value"] for c in found["candidates"]]})
+            predicate.values = resolved
+    for child in getattr(node, "children", None) or []:
+        misses += check_scope(dictionary, table, child)
+    return misses
+
+
 def build(run: Runner) -> Dictionary:
     present = (run(PRESENT_SQL, ()) or [{}])[0]
     tables = {r["table_name"]: r for r in run(TABLES_SQL, ())}

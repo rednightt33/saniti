@@ -33,7 +33,7 @@ from .config import Settings
 from .decisions import (NEXT_ACTION, DatasetReference, Fact, GovernorResponse, GovernorStop, LookupResponse,
                         OutputColumn, lookup_next_action, narrowing, rejected)
 from .policy import TABLES_SQL, Policy, ValidatedQuery, Validator
-from .value_dictionary import MAX_TERMS, DictionaryCache
+from .value_dictionary import MAX_TERMS, Dictionary, DictionaryCache, check_scope
 from .snapshot import ParquetBuilder, ResultStats, build_manifest, manifest_bytes
 from .spec import (LOOKUP_MAX_DATES, LOOKUP_MAX_VALUES, DataRequestSpec, LookupFactSpec)
 from .store import ObjectStore
@@ -246,6 +246,20 @@ class Governor:
              values_sha256=hashlib.sha256(json.dumps(outcome.get("values") or []).encode()).hexdigest(),
              runtime_ms=int((time.monotonic() - started) * 1000))
         return outcome
+
+    def values(self) -> Dictionary | None:
+        """The value dictionary for an execution path, built in its own session when the cache is stale, so a
+        failure never aborts the caller's transaction; None when it cannot be built (the check is then skipped and
+        the query runs as before)."""
+        try:
+            with self.database.session() as connection:
+                def run(statement: str, params: tuple[Any, ...]) -> list[dict[str, Any]]:
+                    with connection.cursor(row_factory=dict_row) as cursor:
+                        return list(cursor.execute(statement, params).fetchall())
+                return self.dictionary.get(run)
+        except (psycopg.Error, GovernorUnavailable) as exc:
+            _log("sql_governor_value_dictionary_unavailable", error=type(exc).__name__)
+            return None
 
     def search_values(self, request_id: str, table: str, column: str, terms: list[str]) -> dict[str, Any]:
         """EXEC-IMPL-1016 O1: the stored values, names and aliases of one filterable text column matched against the
@@ -1050,6 +1064,7 @@ class Summarizer:
         from . import summary as sm
 
         s = self.settings
+        dictionary = self.governor.values()
         with self.governor.database.session() as connection:
             def run(statement: Any, params: tuple[Any, ...]) -> list[dict[str, Any]]:
                 with connection.cursor(row_factory=dict_row) as cursor:
@@ -1058,6 +1073,18 @@ class Summarizer:
             contract = load_contract(run, [spec.source_table, *(r.right_table for r in spec.restrictions)],
                                      values=False)
             bound = sm.bind_summary(spec, contract, max_in_values=s.extract_max_in_values)
+            # EXEC-IMPL-1016 O1: a text value of the scope is a stored value, as for a DataNeed scope (query_metric
+            # reaches this path without the sandbox's check)
+            if dictionary is not None:
+                misses = check_scope(dictionary, spec.source_table, bound.scope)
+                for item in bound.restrictions:
+                    misses += check_scope(dictionary, item.right_table, item.right_scope)
+                if misses:
+                    shown = "; ".join(f"{m['table']}.{m['column']} {m['value']!r}"
+                                      + (f" (likely: {', '.join(m['candidates'][:5])})" if m["candidates"] else "")
+                                      for m in misses[:5])
+                    raise ex.policy("VALUE_NOT_FOUND", f"Not a stored value: {shown}. Use a stored value; find a "
+                                    "code for a name with search_values.", values=misses[:10])
             state["source_tables"] = bound.source_tables
             calendar = sm.calendar_sql(spec.source_table, bound.time_column)
             period = spec.period

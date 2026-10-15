@@ -2154,6 +2154,18 @@ user diberi tahu hanya bila provider menolak karena biaya. Berhenti hanya untuk 
 - 3.6 `saniti.join` membuang kolom kunci kanan yang namanya berbeda (nilainya sama), dicatat di
   `join_report()["dropped_right_keys"]`; ringkasan sesi menyebut pasangan kunci tiap relasi (`key_pairs`).
 - Tes: Governor 291, sandbox 864 (+ tes join/sesi diulang 113), orc 1.826.
+- Deploy `ba5b52b`: Governor `f70bf612`, sandbox `c5b30598`, orc `cb8d5d2a` SUCCESS (startup orc tanpa `*_inactive`).
+  Migrasi 014 dan 015 diterapkan (mmig-job DRYRUN `a32618c9`, APPLY `943e8009`) dan dibaca ulang.
+- Uji kamus di data live lewat pgweb (gratis): "BCA" → BBCA, "bank mandiri" → BMRI, "Mandiri Sekuritas" → CC,
+  "Telkom"/"Astra" → kandidat, "BRI" → ambigu BBRI/AGRO (PT Bank Raya Indonesia juga berinisial BRI). Aturan umum
+  ditambahkan: alias kurasi mengalahkan alias turunan (`7a9314e`, Governor `624c6a5b`). Usulan untuk user: satu baris
+  `AI_entity_alias` "BRI" → BBRI (MANUAL) bila user setuju; tanpa itu model melihat dua kandidat.
+- Cek live 3.7:
+  - `edge_b4d0b88a…` "harga BRI dan Mandiri minggu lalu": `search_values` dipanggil sekali; jawaban memakai BBRI dan
+    BMRI dan menyebut kodenya (96 dtk). Pilihan dari kandidat ambigu tidak ditulis di asumsi (catatan, bukan cacat).
+  - `edge_38585d20…` "BBRX dan TLKN": jalur `query_metric` (Governor summary) tidak memeriksa nilai, BBRX memberi 0 baris.
+    Model bertanya balik untuk BBRX dan menulis asumsi TLKN → TLKM. Diperbaiki di Governor: jalur summary memeriksa
+    nilai teks scope dan restriction dengan kamus (`check_scope`).
 
 ### EXEC-REVIEW-1015: tinjauan semua EXEC terbuka dan arsitekturnya (2026-10-15; user: "please review all exec, inspect arsitektur ... contrast what ideal conditions would look like")
 
