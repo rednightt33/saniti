@@ -291,9 +291,10 @@ File: `apps/edge-bff/static/index.html` (perilaku + CSS), kata baru di `static/e
 #### Fase 3 — BE1-2 katalog (migrasi)
 
 Migrasi baru `database/migrations/2026101x_00N_feature03_buy_sell_identity.sql`: `UPDATE` `AI_column_catalog`
-(`description`, `description_id`, status DRAFT), `Column_Catalog` (`definition`, tidak dinaikkan ke VERIFIED) dan
-`Feature_Catalog` aktif (`misuse_warning`, `validation_evidence` + bukti pgweb) untuk `total_buy_value`,
-`total_sell_value` (pola UPDATE di tempat seperti `20261012_003`). Jalankan lewat job `mmig-job` (DRYRUN → APPLY →
+(`description`, `description_id`, status DRAFT) dan `Feature_Catalog` aktif (`misuse_warning`, `validation_evidence` +
+bukti pgweb) untuk `total_buy_value`, `total_sell_value` (pola UPDATE di tempat seperti `20261012_003`).
+`Column_Catalog` tidak diubah langsung: disinkron dari Feature_Catalog oleh `sync_database_catalog.py`; status tidak
+dinaikkan. Jalankan lewat job `mmig-job` (DRYRUN → APPLY →
 hapus job), baca balik lewat pgweb, `sha256sum >> APPLIED.sha256`, `audit_feature_catalog_semantics.py`,
 `DATABASE_SCHEMA.md` (bagian terkait saja), `DATABASE_CHANGELOG.md`.
 
@@ -342,6 +343,177 @@ RAILWAY/DATABASE_CHANGELOG.
 - Katalog: pgweb baca balik dua kolom; audit Feature Catalog lulus.
 - PLAN 14: tes sandbox (lampiran, tabrakan nama, batas gabungan, sesi lain ditolak, UNUSED tidak gagal, cakupan penuh
   tetap dicek), tes orc (langkah mekanis attach, fallback ke sesi baru); A/B atas perintah.
+
+#### Checklist rinci (2026-10-15; user: "Alright, pls create implementation plan agar tidak ada yg terskip")
+
+Rencana disetujui di mode rencana 2026-10-15. Eksekusi tetap menunggu "go" (AGENTS: persetujuan rencana bukan perintah
+menjalankan). Checklist ini menggantikan rincian fase di atas bila berbeda.
+
+Aturan umum setiap fase (dicentang di akhir fase):
+- [ ] `git pull origin main` sebelum mulai; tidak menimpa perubahan sesi lain.
+- [ ] Tes lokal hijau; `git diff --check`; tinjau diff.
+- [ ] Commit (atribusi), push `claude/code-session-2k3oeg` dan `main`; `main` = `origin/main`.
+- [ ] Deploy layanan terkait sampai **SUCCESS** (bukan klaim sebelum itu); startup orc tanpa `*_inactive`.
+- [ ] Cek live sesuai fase; bukti (id deploy, id run, tangkapan layar) dicatat.
+- [ ] ERRORS (status di tempat), EXEC (butir selesai dihapus/ditandai, catatan hasil), RAILWAY_CHANGELOG /
+      DATABASE_CHANGELOG.
+- [ ] Laporan singkat ke user dalam bahasa Indonesia.
+
+##### Fase 0 — Persiapan (tanpa perubahan)
+
+- [ ] 0.1 Sinkron `main`; catat commit awal.
+- [ ] 0.2 Catat deployment aktif (rollback): edge-bff, market-ai-orc, market-python-sandbox
+      (`railway deployment list --service X --environment dev --json`).
+- [ ] 0.3 Siapkan lingkungan tes: Postgres lokal 55432 (`/var/tmp/orc-pg`), venv orc/EDGE di scratchpad,
+      `/var/tmp/venv-sbx`, Chromium `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`.
+- [ ] 0.4 Baseline QA EDGE live (sebelum perubahan): skrip `scratchpad/qa/notes2.py` (lipatan tertutup saat gulir),
+      `gap.py` (66 px, lebar 1120), tangkapan layar pemilih model ponsel.
+- [ ] 0.5 Cek saldo kunci OpenRouter sebelum cek live berbayar (Fase 2 dan 4).
+
+##### Fase 1 — EDGE saja: U1, U2, U3, U5, U4 (tampilan) · deploy edge-bff
+
+File: `apps/edge-bff/static/index.html`, kata baru di `static/edge-labels.js` (bukan di index.html).
+
+- [ ] 1.1 **U1** `patchNode` (~baris 10140, loop hapus atribut): lewati `open` pada `<details>` bila
+      `node._props` tidak punya kunci `open`. Lipatan terkontrol (`edge-flow-accordion`, `open:expanded`) tetap ikut state.
+      Tes baru (browser): klik "Batasan" → gulir 50 px → tetap terbuka; accordion terkontrol tetap mengikuti state.
+- [ ] 1.2 **U2** satu jarak antara kartu terakhir dan kolom tanya (~18 px): `.research-exchange:last-child`
+      margin-bottom 0 dan padding bawah `.research-scroll` (~8970) disesuaikan; margin atas composer tetap. Ponsel
+      (`padding-bottom:8px`, ~9989) tidak berubah. Tes: jarak terukur 14–22 px di desktop.
+- [ ] 1.3 **U3** `--conversation-max-width` 1120px → 768px (~9693): berlaku untuk percakapan, kolom tanya,
+      `jump-latest` (rumus ~9696). Tabel lebar: gulir horizontal + tombol perbesar tetap. Tes: lebar kartu ≤ 768 di 1920
+      px dengan panel buka dan tutup.
+- [ ] 1.4 **U4-EDGE** di `renderMarkdown` (~11165): tabel >10 baris badan → 10 tampil, sisa disembunyikan, tombol
+      "Tampilkan N baris lagi" / "Sembunyikan" (label di `edge-labels.js`). State per tabel lewat `updateValue` supaya
+      bertahan saat render ulang (pelajaran M156). Urut kolom (EXEC-SORT) mengurutkan semua baris; dialog perbesar
+      menampilkan semua baris. Tes: tabel 30 baris → 10 tampil → klik → 30; sort tetap benar.
+- [ ] 1.5 **U5** pemilih model (komponen ~10880, CSS ~9505 dan ~10002):
+  - [ ] kartu `edge-model-option` tetap (logo, nama, harga input/output, id);
+  - [ ] tombol level (`current.reasoning_levels`) dan Jalur (`data.lane_selection`) pindah ke kolom kanan kartu yang
+        terpilih ("kotak A"); kartu lain tanpa tombol; klik kartu lain = pilih model + level bawaan
+        (`edgeDefaultLevel`); baris level/jalur di bawah daftar dihapus;
+  - [ ] ponsel: panel tidak lagi lembar layar penuh, tetapi di area percakapan di atas kolom tanya, selebar kolom,
+        `max-height` = ruang di atas kolom tanya, gulir di dalam panel;
+  - [ ] desktop: popover tetap di atas tombol, isi kartu memakai tata letak baru;
+  - [ ] aksesibilitas tetap: `role=radiogroup`, `aria-checked`, `aria-pressed`.
+  Tes: level/jalur hanya di kartu terpilih; pilihan tersimpan (`edge-model-choice`); panel ponsel tidak menutupi header.
+- [ ] 1.6 Tes EDGE penuh: `test_visual`, `test_frontend_contract`, `test_browser`, `test_edge`, `test_v4_frontend`,
+      `test_v5_frontend`, `test_answer_view` (`EDGE_TEST_CHROMIUM`, `EDGE_TEST_POSTGRES_URL`) + tes baru 1.1–1.5.
+- [ ] 1.7 Deploy edge-bff SUCCESS; QA live desktop 1440/1920 + ponsel 390, terang/gelap: lipatan, jarak, lebar,
+      tabel lipat (pakai percakapan dengan tabel >10 baris; bila tidak ada, fixture lokal), pemilih model; tidak ada
+      overflow horizontal (`qa.py`). Tangkapan layar dikirim ke user.
+- [ ] 1.8 Dokumen: ERRORS M156 → DEPLOYED; EXEC-UI-1015 U1/U2/U3/U5 dan bagian EDGE U4 ditandai selesai;
+      RAILWAY_CHANGELOG.
+
+##### Fase 2 — sandbox BE1-1 lalu orc U4 · deploy sandbox → orc
+
+- [ ] 2.1 **BE1-1** `apps/market-python-sandbox/runtime/saniti_session.py`:
+  - [ ] `_units` (~2121): satuan di luar `VALUE_UNITS` dibuang + `_WARNINGS.append({"code":"UNIT_DROPPED", ...})`;
+        `units` bukan dict dan kolom yang tidak ada tetap `InvalidOutput`;
+  - [ ] `_definition` (~2158): `thresholds` list → dict (item `{name|label, value}` jadi pasangan; item lain
+        `threshold_1..n`) + peringatan `THRESHOLDS_CONVERTED`; tipe lain tetap ditolak;
+  - [ ] pesan `InvalidOutput` yang tersisa menyebut cukup label yang dikirim ulang (variabel sesi masih ada).
+  Tes: `tests/test_output_definition.py`, `test_units.py` + kasus baru (list→dict, DECIMAL dibuang + peringatan, kolom
+  tak ada tetap gagal); suite sandbox penuh.
+- [ ] 2.2 Peringatan baru terlihat AI: pastikan `warnings` hasil `run_python` diteruskan orc (tidak dibuang envelope).
+- [ ] 2.3 **U4-orc** `apps/market-ai-orc/app/table_directives.py`: `MAX_ROWS` 25 → 50; teks `TABLE_CAPPED_LINE`/
+      `TABLE_ROWS_LINE` (user_texts) disesuaikan bila menyebut 25.
+- [ ] 2.4 **U4-prompt** `app/orchestrator.py` aturan 13 (~864–871): jumlah yang diminta user, 10 bila tidak; tabel
+      rincian lengkap (semua kelompok) tampil penuh sampai 50; jangan memotong hasil di kode (nlargest/head) kecuali user
+      meminta top N — rilis hasil lengkap, tampilan yang memilih; >50 tawarkan Excel. Periksa juga catatan jalur Cepat
+      yang menyebut jumlah baris (`grep "twenty-five\|25"` di orchestrator dan `fastlane_defaults.py`).
+- [ ] 2.5 Snapshot prompt: `scripts/snapshot_system_prompt.py record <nama> --decision "<kata user, tanggal>"
+      --change "<ringkas>"`; `test_prompt_history.py`; anggaran ukuran prompt (`test_orchestrator` BUDGET) bila naik.
+- [ ] 2.6 Tes orc penuh (`ORC_TEST_POSTGRES_URL`), termasuk `test_table_directives.py` (50, footer cap),
+      `test_fastlane.py`.
+- [ ] 2.7 Deploy sandbox SUCCESS → orc SUCCESS (startup bersih). Cek live berbayar kecil (saldo dicek): satu pertanyaan
+      jalur Cepat yang menghasilkan tabel >10 baris; log `ai_table_directive` rows ≤ 50; EDGE melipat setelah 10.
+- [ ] 2.8 Dokumen: EXEC-BE1-1 dan U4 ditandai selesai; ERRORS (catatan M139/M155 kelas terkait bila relevan);
+      RAILWAY_CHANGELOG; prompts/SYSTEM_PROMPT_HISTORY.md (dari snapshot).
+
+##### Fase 3 — BE1-2 katalog (migrasi DB)
+
+- [ ] 3.1 Migrasi baru `database/migrations/<tgl>_<n>_feature03_buy_sell_identity.sql` (tidak mengubah migrasi lama):
+  - [ ] `AI_column_catalog.description` + `description_id` (status DRAFT) untuk `total_buy_value`, `total_sell_value`:
+        dijumlah atas semua broker per saham, tanggal, papan → keduanya sama (setiap transaksi punya pembeli dan
+        penjual); selisihnya nol; untuk akumulasi pakai `positive_net_value_total` atau net per tipe investor;
+  - [ ] `Feature_Catalog` v2 aktif: tambahan di `misuse_warning`, `validation_evidence` + bukti (pola UPDATE di tempat
+        `20261012_003`);
+  - [ ] `Column_Catalog`: tidak diubah langsung (disinkron dari Feature_Catalog oleh `sync_database_catalog.py`);
+        status tidak dinaikkan.
+- [ ] 3.2 Uji lokal di Postgres 55432 (migrasi dapat dijalankan, idempoten bila mungkin).
+- [ ] 3.3 Terapkan lewat job sementara `mmig-job` (DRYRUN → APPLY → hapus layanan); `sha256sum >>
+      database/migrations/APPLIED.sha256`.
+- [ ] 3.4 Baca balik lewat pgweb (deskripsi, description_id, misuse_warning); `scripts/audit_feature_catalog_semantics.py`.
+- [ ] 3.5 Dokumen: `DATABASE_SCHEMA.md` (bagian terkait saja), `DATABASE_CHANGELOG.md`, ERRORS M154 bagian a →
+      DEPLOYED, Part A (pelajaran: kolom yang tidak bisa membawa informasi untuk pertanyaan umum harus menyatakannya),
+      EXEC-BE1-2 selesai.
+
+##### Fase 4 — PLAN 14 lampiran data ke sesi terbuka · sandbox → orc (saklar mati)
+
+Sandbox (`apps/market-python-sandbox`):
+- [ ] 4.1 Faktorkan pembuatan `requests` dari `SessionManager._launch` (`app/sessions.py` ~840–870) menjadi fungsi
+      bersama (link file, cek checksum, dict permintaan).
+- [ ] 4.2 Konfigurasi `PY_SANDBOX_MAX_ATTACHMENTS` (bawaan 2) di `app/config.py`; `.railway/railway.ts` bila diset.
+- [ ] 4.3 Store `app/dataneed_store.py`: `SCHEMA_VERSION` 5 → 6, `UPGRADES[6]` kolom `sessions.attached TEXT` (JSON:
+      need_id, bundle_id, attached_at).
+- [ ] 4.4 Worker op `attach` (`runtime/session_worker.py`, pola op `inspect`) → `saniti._attach(requests)` di
+      `runtime/saniti_session.py`: `REQUESTS.update`, `CREATE VIEW` di `_CONNECTION`; harness-only.
+- [ ] 4.5 `SessionManager.attach_bundle(session_id, request_id, input_bundle_id)` + route `POST
+      /v1/sessions/{id}/attach` (`app/main.py`): sesi ACTIVE milik request yang sama; bukan sesi riset; paket READY milik
+      percakapan yang sama; `reference_date` sama; `data_request_id` tidak bertabrakan; lampiran < batas; baris/byte
+      gabungan ≤ `bundle_max_rows/bytes`; penolakan dengan alasan + sisa kapasitas + `next_action OPEN_ANALYSIS_SESSION`.
+- [ ] 4.6 Completion (`app/dataneed_service.py` ~900): cakupan per need (awal + lampiran) dengan
+      `processing_coverage`; need lampiran tak dibaca sama sekali → `UNUSED` (tidak gagal, tidak masuk catatan data);
+      dibaca sebagian → aturan sekarang; lineage output mencatat `attached_need_ids`.
+- [ ] 4.7 `/v1/runtime` kapabilitas `session_attach: {enabled, version: 1, max_attachments}`.
+- [ ] 4.8 Hint SCRIPT_ERROR: bila galat menyebut kolom yang tidak ada di permintaan mana pun, tambahkan saran
+      "lampirkan data yang memuat kolom itu".
+- [ ] 4.9 Tes sandbox baru: lampiran berhasil (variabel tetap, `load` permintaan baru), nama bertabrakan, batas jumlah,
+      batas gabungan, sesi request lain ditolak, sesi riset ditolak, `UNUSED` tidak gagal, cakupan penuh tetap dicek,
+      migrasi store 5→6; suite sandbox penuh.
+
+orc (`apps/market-ai-orc`):
+- [ ] 4.10 Saklar `AI_ENABLE_SESSION_ATTACH` (bawaan false) di `app/config.py`; aktif hanya bila sandbox melaporkan
+      `session_attach` (pola `session_release` di `app/main.py` ~272).
+- [ ] 4.11 `submit_data_need_spec`: argumen opsional `attach_to_session_id` (diperiksa: sesi milik run ini, ada di
+      `state.sessions`); tidak dikirim ke validator sandbox.
+- [ ] 4.12 Alat `attach_data_bundle` (`app/tools/session.py`, pola `open_analysis_session`) + desk FASTLANE dan analisis
+      (`app/tool_desks.py`), tidak di desk riset.
+- [ ] 4.13 Langkah mekanis `_merge_mechanical` (`app/orchestrator.py` ~4395): prepare READY + niat lampir →
+      `attach_data_bundle`; gagal → `open_analysis_session` dengan alasan.
+- [ ] 4.14 Deskripsi alat: satu kalimat di `run_python`/sesi dan argumen baru (kapan dipakai, batas 2).
+- [ ] 4.15 Data record dan audit: need lampiran yang dipakai masuk catatan data; `log_event("session_attached")`.
+- [ ] 4.16 Dokumen alat: ronde Tool_Catalog baru setelah `round_t` (`scripts/generate_tool_catalog_migration.py`,
+      migrasi + terapkan + baca balik), `AI_TOOLS.md` (`scripts/generate_ai_tools_doc.py`, `PLAIN` untuk nama baru),
+      `test_ai_tools_doc.py`.
+- [ ] 4.17 Tes orc: argumen, langkah mekanis attach, fallback, saklar mati = perilaku lama, desk riset tanpa alat;
+      suite penuh.
+- [ ] 4.18 Deploy sandbox SUCCESS → orc SUCCESS dengan saklar **mati**; startup bersih.
+- [ ] 4.19 A/B jalur Cepat pola j2 (saklar mati vs hidup): waktu, putaran, sesi per run — **hanya atas perintah user**
+      (berbayar); menyalakan saklar = perubahan variabel Railway → `railway config pull --force` + `config plan`,
+      RAILWAY_CHANGELOG.
+- [ ] 4.20 Dokumen: PLAN 14 dipindah ke selesai (setelah A/B dan keputusan user), ERRORS (entri baru bila ada temuan),
+      RAILWAY_CHANGELOG.
+
+##### Fase 5 — Penutupan
+
+- [ ] 5.1 Bandingkan EXEC/PLAN dengan perilaku yang ter-deploy; laporkan butir yang belum dibangun.
+- [ ] 5.2 Bersihkan EXEC sesuai AGENTS (butir selesai dicatat di ERRORS/changelog dan dihapus dari daftar terbuka).
+- [ ] 5.3 Laporan akhir ke user: apa yang berubah, bukti live, sisa butir (UI-1015B, M145, M154b, M155, panjang adaptif).
+
+##### Matriks pelacakan
+
+| Butir | Langkah | Tes | Bukti live | Dokumen |
+|---|---|---|---|---|
+| U1 (M156) | 1.1 | browser klik→gulir | QA live lipatan | ERRORS M156, EXEC |
+| U2 | 1.2 | jarak 14–22 px | tangkapan layar | EXEC |
+| U3 | 1.3 | lebar ≤768 | tangkapan layar | EXEC |
+| U4 | 1.4, 2.3–2.5 | tabel 30 baris; `test_table_directives` | run tabel >10 | EXEC, snapshot prompt |
+| U5 | 1.5 | pemilih model desktop+ponsel | tangkapan layar ponsel | EXEC |
+| BE1-1 | 2.1–2.2 | `test_output_definition`, `test_units` | peringatan di run | EXEC |
+| BE1-2 (M154a) | 3.1–3.5 | migrasi lokal, audit Feature | baca balik pgweb | DATABASE_*, ERRORS, Part A |
+| PLAN 14 | 4.1–4.20 | sandbox + orc | A/B atas perintah | Tool_Catalog, AI_TOOLS, PLAN |
 
 ### EXEC-D: AI dinamis tetapi dibatasi (prinsip penilaian; M104, M105, uji ulang M102/M103)
 
