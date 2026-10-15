@@ -1,5 +1,11 @@
 # Railway changelog
 
+## 2026-10-15 — EXEC-UI-1015D and the M163 call deadline deployed (dev)
+
+User: "D1 OK D2 OK D3 OK D4 OK" and EXEC-M163 item 1 "ini OK". `main` `2e201d7` deployed `market-ai-orc` dev
+`ed07e66c` → SUCCESS (startup without `*_inactive`) and `edge-bff` dev `1aca46e9` → SUCCESS. No run was active before
+the push. No variable change. Rollback: orc `ac4ea638`, edge-bff `67039127`.
+
 ## 2026-10-15 — M161 fix and M160 deployed (dev)
 
 `main` `09e9ddc` (M161, page-started scrolls no longer pulled back by auto-follow) deployed `edge-bff` dev `729ee9f3` →

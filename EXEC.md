@@ -2019,7 +2019,16 @@ OpenRouter $0,37 dari batas $41 (satu run bisa menghabiskannya); dicek setelah s
 
 - **U5 pemilih model di ponsel (disetujui 2026-10-15; Jalur ikut dipindah, user: "ya dipindah"; belum dieksekusi).** User 2026-10-15 (dua tangkapan layar ponsel): "retain existing design untuk model selection; pindahkan reasoning selection ke kotak A; untuk size dan lokasi bs disesuaikan dengan nomor (1)". Dibaca sebagai: kartu model (logo, nama, harga input/output, id) tetap; pilihan level berpikir (Rendah/Tinggi/Maks) pindah dari baris terpisah di bawah daftar ke ruang kosong di kanan setiap kartu model ("kotak A"), hanya aktif pada kartu model yang dipilih; panel pemilih menempati area kosong percakapan di atas kolom tanya (area "1"), bukan menutupi seluruh layar.
 
-### EXEC-UI-1015D: jalur cepat selalu, label pemilih model berbahasa Inggris, kepala jawaban "Edge · Completed", tabel ringkas (dicatat 2026-10-15; menunggu "go")
+### EXEC-UI-1015D: jalur cepat selalu, label pemilih model berbahasa Inggris, kepala jawaban "Edge · Completed", tabel ringkas (dicatat 2026-10-15; go 2026-10-15)
+
+**Go 2026-10-15** (user: "D1 OK D2 OK D3 OK D4 OK"; D1 sesuai usulan: hanya di EDGE, jalur standar tetap di orc).
+**Hasil (ter-deploy):** `2e201d7` → edge-bff `1aca46e9` SUCCESS. Pesan EDGE selalu `lane=fast`, baris Jalur hilang
+(pilihan "standard" lama diabaikan); pemilih model berbahasa Inggris (AI model, Price per 1M tokens, Prices updated,
+Reasoning, Low/High/Max); kepala jawaban "Edge · Completed" tebal; tabel selebar isinya, kolom kode/tanggal/angka satu
+baris (diturunkan dari isi sel ≤ 16 karakter atau kolom angka/tanggal), teks membungkus per kata (12–28 karakter),
+sel 8×12 px (ponsel 6×10), kolom pertama menempel di ponsel. Penyebab kata terpotong terkonfirmasi: `overflow-wrap`
+diwarisi dari blok jawaban; sel kini `normal`. QA live 390 dan 1440 px: tanpa baris Jalur, tanpa kata terpotong, tanpa
+luapan horizontal. Tes `test_ui_1015c.py` (tabel ringkas), `test_browser.py` (jalur cepat selalu).
 
 **Permintaan user 2026-10-15** (tangkapan layar ponsel): "bisa buat semua jalur cepat fastlane latest V by default,
 sehingga kita tidak perlu ada opsi jalur"; "harga per juta. harga diperbaharui dll bisa di conver jd bahasa inggris?
@@ -2047,7 +2056,12 @@ berjarak buat nice and bold"; "screenshot 1-3 lihat jarak antara kolom tidak com
 - Cek: tes EDGE (tidak ada baris Jalur, `lane=fast` terkirim, label Inggris, kepala jawaban, lebar kolom: tabel 3 kolom
   pendek tidak melebar, tidak ada kata terpotong di tengah), QA live desktop dan ponsel dengan tangkapan layar.
 
-### EXEC-M163: batas waktu panggilan model yang benar-benar berlaku, catatan INSIGHT, tindak lanjut memakai tabel jawaban sebelumnya (dicatat 2026-10-15; usulan, menunggu "go")
+### EXEC-M163: batas waktu panggilan model yang benar-benar berlaku, catatan INSIGHT, tindak lanjut memakai tabel jawaban sebelumnya (dicatat 2026-10-15; butir 1 go 2026-10-15)
+
+**Go butir 1 2026-10-15** (user: "Klien model: jawaban dibaca sebagai aliran dan ditutup tepat pada batas waktu total
+... --> ini OK"). **Hasil:** `2e201d7` → market-ai-orc `ed07e66c` SUCCESS: setiap panggilan model dibaca sebagai aliran
+dan ditutup pada batas totalnya (batas panggilan, atau `AI_REQUEST_TIMEOUT_SECONDS`), log `ai_provider_call_deadline`;
+tes server yang mengirim byte tiap 30 dtk terpotong di 90–120 dtk. Butir 2–4 belum disetujui.
 
 Dasar: ERRORS M163 dan M164 (run `edge_2f7523a7…` 336 dtk; 210 dtk di panggilan pertama; batas 90 dtk jalur cepat tidak
 pernah terpicu). Usulan: (1) klien model membaca jawaban sebagai aliran dan menutupnya pada batas waktu total, dengan log
