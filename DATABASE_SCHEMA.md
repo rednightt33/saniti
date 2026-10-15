@@ -11,6 +11,7 @@ Refreshed from the applied public-schema migration and live readback at `2026-10
 | `AI_calculation_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing calculation contracts derived from active, validated Feature definitions. |
 | `AI_catalog_relationships` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing safe join, temporal alignment, preaggregation, and output-grain contracts. |
 | `AI_column_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing column semantics and bounded-query permissions for the seven approved tables. |
+| `AI_entity_alias` | System | Forward migrations or a reviewed load | — | `2026-10-15` | Baseline only | Curated aliases of entity codes (a brand, a former code) the display names cannot give; generated aliases are derived by the SQL Governor, not stored (migration `20261015_014`). |
 | `AI_conversation` | Unclassified | Unknown | — | `2026-09-27 08:23:59+00:00` | Baseline only | market-ai-orc conversations kept by the server (history_mode SERVER): one row per chat box with its owner, retention and the lease that allows one active run at a time. |
 | `AI_conversation_evidence` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | Claims of market-ai-orc answers recomputed by the backend on a path separate from the model's code (SQL Governor summary or the released base table), with the status, the backend value and at most 200 rows of evidence. |
 | `AI_conversation_execution` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | The code of each sandbox execution of a market-ai-orc conversation, so a result can be traced and reproduced after the sandbox copy expired. |
@@ -247,6 +248,7 @@ AI-facing column semantics and bounded-query permissions for the seven approved 
 | `value_time_basis` | `text` | No | — | HISTORICAL (the value belongs to its row's date or version) or CURRENT_STATE (today's reference value on every row); a point-in-time DataNeedSpec may not read or filter a CURRENT_STATE column. |
 | `description_id` | `text` | Yes | — | The column meaning in Indonesian, translated once from description by the production model; description stays the source text. |
 | `description_id_status` | `text` | Yes | — | DRAFT (machine translation, not yet reviewed) or REVIEWED; NULL exactly when description_id is NULL. |
+| `entity_name` | `boolean` | No | `false` | True for the column that holds an entity's display name in a static reference table; the SQL Governor derives names and generated aliases from it for search-values (migration `20261015_014`). |
 
 ### Constraints
 
@@ -269,6 +271,39 @@ AI-facing column semantics and bounded-query permissions for the seven approved 
 | Name | Definition |
 |---|---|
 | `AI_column_catalog_pkey` | `CREATE UNIQUE INDEX "AI_column_catalog_pkey" ON public."AI_column_catalog" USING btree (table_name, column_name)` |
+
+## AI_entity_alias
+
+Curated aliases of entity codes (a brand, a former code) the display names cannot give; generated aliases (initials, the name without its legal form) are derived by the SQL Governor, not stored. Rows come from forward migrations or a reviewed load, never from the model. Read by `market_ai_sql_reader`, `market_ai_catalog_reader` and `pgweb_reader` (SELECT only).
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `table_name` | `text` | No | — | The catalog table whose entity column the alias belongs to. |
+| `column_name` | `text` | No | — | The entity column (a ticker or broker code column) the alias resolves to. |
+| `code` | `text` | No | — | The stored entity code the alias stands for, upper-case and trimmed. |
+| `alias` | `text` | No | — | The alias as written (a brand, a common short form, a former code). |
+| `alias_folded` | `text` | No | — | The alias in lower case with single spaces, the form search-values matches on. |
+| `alias_type` | `text` | No | — | MANUAL (a curated alias) or FORMER_CODE (a code the entity used before). |
+| `note` | `text` | Yes | — | Why the alias exists, in plain words; NULL when no note is needed. |
+| `source_decision` | `text` | No | — | The decision or review the alias comes from. |
+| `created_at` | `timestamp with time zone` | No | `statement_timestamp()` | When the row was inserted. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `ai_entity_alias_type` | Check | `CHECK (alias_type = ANY (ARRAY['MANUAL'::text, 'FORMER_CODE'::text]))` |
+| `ai_entity_alias_folded` | Check | `CHECK (alias_folded = lower(regexp_replace(btrim(alias), '\s+', ' ', 'g')) AND alias_folded <> '')` |
+| `ai_entity_alias_code` | Check | `CHECK (code = upper(btrim(code)) AND code <> '')` |
+| `AI_entity_alias_pkey` | Primary key | `PRIMARY KEY (table_name, column_name, alias_folded, code)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `AI_entity_alias_pkey` | `CREATE UNIQUE INDEX "AI_entity_alias_pkey" ON public."AI_entity_alias" USING btree (table_name, column_name, alias_folded, code)` |
 
 ## AI_conversation
 

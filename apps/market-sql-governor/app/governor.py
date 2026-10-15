@@ -33,6 +33,7 @@ from .config import Settings
 from .decisions import (NEXT_ACTION, DatasetReference, Fact, GovernorResponse, GovernorStop, LookupResponse,
                         OutputColumn, lookup_next_action, narrowing, rejected)
 from .policy import TABLES_SQL, Policy, ValidatedQuery, Validator
+from .value_dictionary import MAX_TERMS, DictionaryCache
 from .snapshot import ParquetBuilder, ResultStats, build_manifest, manifest_bytes
 from .spec import (LOOKUP_MAX_DATES, LOOKUP_MAX_VALUES, DataRequestSpec, LookupFactSpec)
 from .store import ObjectStore
@@ -123,6 +124,7 @@ class Governor:
         self.database = database
         self.store = store
         self.validator = Validator(settings)
+        self.dictionary = DictionaryCache()
 
     def handle(self, request_id: str, raw_spec: Any, lineage: dict[str, Any] | None = None) -> GovernorResponse:
         started = time.monotonic()
@@ -174,7 +176,7 @@ class Governor:
                 with connection.cursor(row_factory=dict_row) as cursor:
                     return list(cursor.execute(statement, params).fetchall())
             try:
-                contract = load_contract(run, tables)
+                contract = load_contract(run, tables, self.dictionary.get(run))
             except psycopg.OperationalError as exc:
                 raise GovernorUnavailable("The governed database is unavailable.") from exc
         _log("sql_governor_catalog_contract", request_id=request_id, tables=sorted(contract["tables"]),
@@ -242,6 +244,26 @@ class Governor:
         _log("sql_governor_dimension_values", request_id=request_id, query_id=query_id, table=table, column=column,
              status=outcome["status"], reason_code=outcome.get("reason_code"), returned=len(outcome.get("values") or []),
              values_sha256=hashlib.sha256(json.dumps(outcome.get("values") or []).encode()).hexdigest(),
+             runtime_ms=int((time.monotonic() - started) * 1000))
+        return outcome
+
+    def search_values(self, request_id: str, table: str, column: str, terms: list[str]) -> dict[str, Any]:
+        """EXEC-IMPL-1016 O1: the stored values, names and aliases of one filterable text column matched against the
+        user's words ("BRI" -> BBRI, "Mandiri" -> candidates), from the value dictionary (app/value_dictionary.py).
+        Values only, never counts or measures, so it cannot answer an analytical question."""
+        started = time.monotonic()
+        with self.database.session() as connection:
+            def run(statement: str, params: tuple[Any, ...]) -> list[dict[str, Any]]:
+                with connection.cursor(row_factory=dict_row) as cursor:
+                    return list(cursor.execute(statement, params).fetchall())
+            try:
+                outcome = self.dictionary.get(run).search(table, column, terms[:MAX_TERMS])
+            except psycopg.OperationalError as exc:
+                raise GovernorUnavailable("The governed database is unavailable.") from exc
+        results = outcome.get("results") or []
+        _log("sql_governor_search_values", request_id=request_id, table=table, column=column,
+             status=outcome["status"], reason_code=outcome.get("reason_code"), terms=len(terms),
+             found=sum(1 for r in results if r["found"]), ambiguous=sum(1 for r in results if r["ambiguous"]),
              runtime_ms=int((time.monotonic() - started) * 1000))
         return outcome
 
@@ -427,7 +449,7 @@ class Governor:
                 return list(cursor.execute(statement, params).fetchall())
 
         # the catalog version and source semantics this extraction ran under (same snapshot as the data)
-        contract = load_contract(run, query.source_tables)
+        contract = load_contract(run, query.source_tables, values=False)
         names = [item.name for item in query.select]
         output_columns = [OutputColumn(name=item.name, type=item.data_type, source_table=item.table,
                                        source_column=item.column, aggregation=item.function, unit=item.unit)
@@ -800,7 +822,7 @@ class Extractor:
                     return list(cursor.execute(statement, params).fetchall())
 
             tables = [spec.source_table, *(r.right_table for r in spec.restrictions)]
-            contract = load_contract(run, tables)
+            contract = load_contract(run, tables, values=False)
             bound = ex.bind(spec, contract, max_in_values=s.extract_max_in_values, max_columns=s.extract_max_columns)
             state.update(bound=bound, source_tables=bound.source_tables, data_sha256=ex.data_sha256(bound))
             if lineage.catalog_sha256 is not None and lineage.catalog_sha256 != contract.get("catalog_sha256"):
@@ -1033,7 +1055,8 @@ class Summarizer:
                 with connection.cursor(row_factory=dict_row) as cursor:
                     return list(cursor.execute(statement, params).fetchall())
 
-            contract = load_contract(run, [spec.source_table, *(r.right_table for r in spec.restrictions)])
+            contract = load_contract(run, [spec.source_table, *(r.right_table for r in spec.restrictions)],
+                                     values=False)
             bound = sm.bind_summary(spec, contract, max_in_values=s.extract_max_in_values)
             state["source_tables"] = bound.source_tables
             calendar = sm.calendar_sql(spec.source_table, bound.time_column)

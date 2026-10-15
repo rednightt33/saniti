@@ -2127,6 +2127,34 @@ user diberi tahu hanya bila provider menolak karena biaya. Berhenti hanya untuk 
   - 3. "kenapa broker itu…": INSIGHT, 297 dtk, rincian harian tanpa uji statistik (pilihan model).
   - Satu bacaan router kurang tepat: "beli" dicatat sebagai DEFINITION (tidak berbahaya).
 
+**Fase 3 (dibangun 2026-10-15):**
+- Penyimpangan dari rencana, dengan alasan: rencana memakai tabel `AI_value_dictionary` yang diisi job
+  `ai-data-coverage`. Yang dibangun: kamus diturunkan saat berjalan di SQL Governor (`app/value_dictionary.py`, cache
+  300 dtk) dari data yang sudah ada. Alasannya: tidak ada salinan yang harus dijaga tetap segar; tabel referensi baru
+  cukup diberi tanda `entity_name`, tanpa kode (aturan user "derive, do not enumerate"). Yang disimpan hanya alias
+  kurasi (`AI_entity_alias`, kosong saat dibuat).
+- 3.1–3.2 migrasi `20261015_014` (diterapkan di dev): `AI_column_catalog.entity_name` untuk empat kolom nama (Universe,
+  Universe_History, Broker_Profile, Broker_Profile_History) dan tabel `AI_entity_alias`. Cek Part A: tabel metadata,
+  bukan data pasar; tidak ada celah.
+- 3.3–3.4 sumber nilai per kolom: daftar CHECK; nilai tabel statis (kode entitas, batas 20.000); kolom entitas tabel
+  bertanggal = entitas di `AI_data_coverage` ∪ kode tabel referensinya (lengkap); kolom kode yang hanya terhubung ke
+  profil (broker) = kode profil, **tidak lengkap**: kode yang tidak ada hanya diberi peringatan
+  `VALUE_NOT_IN_REFERENCE`, tidak ditolak.
+  - Alias turunan: singkatan nama tiga kata atau lebih ("Bank Rakyat Indonesia" → BRI), nama tanpa PT/Tbk/(Persero)/
+    Class, nama lama dari tabel history; alias yang menunjuk lebih dari satu kode menjadi kandidat, tidak ditebak.
+  - Governor `POST /v1/catalog/search-values` dan alat orc `search_values` (Tool_Catalog `round_w`, migrasi
+    `20261015_015`, `AI_TOOLS.md`, prompt v011). `value_domains` kontrak membawa daftar nilai dan alias pendek.
+  - Sandbox: nilai yang tidak tersimpan di daftar lengkap ditolak dengan kandidat (alias, potongan nama, ejaan dekat)
+    dan petunjuk `search_values`.
+  - Kemampuan `value_lookup` di `get_system_capabilities` tidak ditambahkan sebagai nama: kemampuan diturunkan dari
+    efek alat (P31), dan `search_values` (READS) otomatis muncul.
+  - Data record menyimpan kata user yang sudah ditemukan ("BRI" = BBRI) untuk giliran berikutnya.
+- 3.5 G13 (M170): pemeriksa entitas memakai `search_values` (hanya kode persis); sebelumnya mati karena bertanya ke
+  `get_dimension_values` yang menolak kolom entitas.
+- 3.6 `saniti.join` membuang kolom kunci kanan yang namanya berbeda (nilainya sama), dicatat di
+  `join_report()["dropped_right_keys"]`; ringkasan sesi menyebut pasangan kunci tiap relasi (`key_pairs`).
+- Tes: Governor 291, sandbox 864 (+ tes join/sesi diulang 113), orc 1.826.
+
 ### EXEC-REVIEW-1015: tinjauan semua EXEC terbuka dan arsitekturnya (2026-10-15; user: "please review all exec, inspect arsitektur ... contrast what ideal conditions would look like")
 
 **Keputusan user 2026-10-15:** "O5 nanti dulu A/B test tidak perlu dahulu. Sisanya OK untuk O5 masukan exec jangan execute

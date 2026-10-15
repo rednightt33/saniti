@@ -44,6 +44,10 @@ registering the new versions of the tools whose contract changed in that round.
   shortened with an ellipsis is said to be one; EXEC-PROSE).
 - round_u (20261015_012): the first row of attach_data_bundle, submit_data_need_spec v13 (attach_to_session_id) and
   run_python v8 (PLAN 14: a later data need joins the open session).
+- round_v (20261015_013, applied): submit_data_need_spec v14 and get_dimension_values v2 (every text value in a scope
+  is a stored value; EXEC-IMPL-1016 Fase 1.3).
+- round_w (20261015_015): the first row of search_values and get_dimension_values v3 (the user's words matched to
+  stored codes and values: names, initials, part of a name; EXEC-IMPL-1016 Fase 3, O1).
 
 Registered from the code with every switch of the dev environment on (the registry of scripts/generate_ai_tools_doc.py,
 one source for both). An applied migration is frozen (database/migrations/APPLIED.sha256); market-ai-orc's
@@ -466,8 +470,32 @@ ROUNDS = {
                     "that an entity column or a dated table is refused (the argument descriptions already did)."],
         "limits": {},
     },
+    "round_w": {
+        "target": ROOT / "database/migrations/20261015_015_round_w_tool_catalog.sql",
+        "versions": {"get_dimension_values": ("v2", "v3")},
+        "contracts": {"get_dimension_values": ("purpose", "find an entity's code with search_values")},
+        "new": {
+            "search_values": {
+                "family": "DISCOVERY", "type": "RETRIEVAL", "flag": None, "handler": "app/tools/request_data.py",
+                "output": "VALUES_FOUND with, per term, found, value (the stored value to type), matched_by (VALUE or "
+                          "ALIAS), ambiguous, alias (codes an alias names, with names and alias type) and candidates "
+                          "(values whose code or name contains the term, with names); kind, source and complete of "
+                          "the column's value list; or REJECTED NO_VALUE_LIST. Through SQL Governor "
+                          "/v1/catalog/search-values (the value dictionary: CHECK lists, static tables, registered "
+                          "entities, reference codes, AI_column_catalog.entity_name names, AI_entity_alias)."},
+        },
+        "title": "stored value search",
+        "header": "EXEC.md EXEC-IMPL-1016 Fase 3 (O1 dictionary; user \"Next lanjutkan\", 2026-10-15)",
+        "design": "EXEC.md EXEC-OPEN-1015 O1 and EXEC-IMPL-1016 Fase 3; ERRORS_AND_SOLUTIONS.md M164",
+        "limits_design": "EXEC.md EXEC-IMPL-1016 Fase 3",
+        "summary": ["search_values v1: the user's words against one text column's stored values, names and aliases",
+                    "(\"BRI\" -> BBRI; part of a name gives candidates). get_dimension_values v3: an entity's code is",
+                    "found with search_values."],
+        "limits": {"search_values": "at most 10 terms of 1-60 characters per call; at most 8 candidates per term; "
+                                    "values, names and aliases only, never counts or measures"},
+    },
 }
-NEWEST = "round_v"
+NEWEST = "round_w"
 
 
 def _tools_doc():

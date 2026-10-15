@@ -57,6 +57,7 @@ PLAIN = {
     "preview_table_rows": "Contoh maksimal 20 baris dari tabel pasar; hanya contoh, bukan untuk analisis.",
     "lookup_reference": "Membaca tabel referensi database (sektor, industri, profil emiten, data broker): daftar kolomnya, atau baris satu emiten / semua emiten dengan satu kategori / nama yang mengandung kata tertentu, maksimal 100 baris. Dipakai sebelum web; alat web ditolak untuk atribut yang ada di tabel ini sampai tabelnya dibaca.",
     "get_dimension_values": "Nilai persis sebuah kategori (misalnya ejaan 'Banks' atau 'Regular'), supaya saringan tidak salah tulis.",
+    "search_values": "Mencocokkan kata user dengan nilai tersimpan: kode, nama, singkatan (BRI jadi BBRI) atau potongan nama; kalau tidak pasti, memberi kandidat.",
     "request_data": "Jalur lama: query data langsung lewat SQL Governor (diganti alur DataNeed).",
     "lookup_fact": "Jalur lama: mengambil satu fakta pendek dari data (diganti alur DataNeed).",
     "submit_data_need_spec": "AI menyatakan data yang dibutuhkan (tabel, kolom, saringan, periode); sistem memeriksa sebelum data diambil.",

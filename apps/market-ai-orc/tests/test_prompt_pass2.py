@@ -219,10 +219,9 @@ ADDED |= {
     "never type its member list yourself.",
     "Every text value in a scope must be stored in that column, else it is refused or returns no rows: a category "
     "takes its spelling from column_values in get_catalog_details or from get_dimension_values;",
-    "an entity code the user wrote (a ticker, a broker code) is typed as written, never checked with "
-    "get_dimension_values;",
-    "a name that is not a code is looked up in its reference table first (lookup_reference with match on its name "
-    "column), and when it matches several codes, ask.",
+    "an entity code the user wrote (a ticker, a broker code) is typed as written;",
+    "a name, initials or part of a name (BRI, Mandiri) is matched with search_values on the request's own table and "
+    "column first, and when it gives several candidates, ask.",
 }
 # the reader section added about six percent (the budget was two percent over the pass-2 fixture); EXEC-Y Fase 3's
 # four sentences about half a percent more; EXEC-STYLE about half a percent more; EXEC-M143 about one percent more;

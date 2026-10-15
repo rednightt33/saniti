@@ -1,0 +1,10 @@
+{
+ "version": 11,
+ "date": "2026-10-15",
+ "name": "names-to-search-values",
+ "decision": "EXEC-IMPL-1016 Fase 3 (O1 dictionary), user 2026-10-15: \"Next lanjutkan tanpa minta saya naikan limit\"; matching \"Alias + persis + potongan\"",
+ "change": "DATA NEED and the legacy analysis rule: names, initials or part of a name (BRI, Mandiri) are matched with search_values on the request's own table and column; replaces the lookup_reference name lookup (O1 dictionary, M164).",
+ "prompt_chars": 39099,
+ "prompt_sha256": "322029a86b772c8773b689e9a6f13243bd3b9ba22f5ef76181123a8ec3ab4ce1",
+ "schema_sha256": "667c512aab9c90a6703778e36c38bb3931e0cf4679dc2a9573044d6eed2885e9"
+}

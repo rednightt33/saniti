@@ -16,6 +16,7 @@ Sifat: READS tidak mengubah apa pun; OWN_ARTIFACT hanya menulis catatan percakap
 | `request_data` | Jalur lama: query data langsung lewat SQL Governor (diganti alur DataNeed). | FETCHES_DATA | sekarang | `AI_ENABLE_REQUEST_DATA` |
 | `lookup_fact` | Jalur lama: mengambil satu fakta pendek dari data (diganti alur DataNeed). | FETCHES_DATA | sekarang | `AI_ENABLE_LOOKUP_FACT` |
 | `get_dimension_values` | Nilai persis sebuah kategori (misalnya ejaan 'Banks' atau 'Regular'), supaya saringan tidak salah tulis. | READS | sekarang | selalu |
+| `search_values` | Mencocokkan kata user dengan nilai tersimpan: kode, nama, singkatan (BRI jadi BBRI) atau potongan nama; kalau tidak pasti, memberi kandidat. | READS | sekarang | selalu |
 | `lookup_reference` | Membaca tabel referensi database (sektor, industri, profil emiten, data broker): daftar kolomnya, atau baris satu emiten / semua emiten dengan satu kategori / nama yang mengandung kata tertentu, maksimal 100 baris. Dipakai sebelum web; alat web ditolak untuk atribut yang ada di tabel ini sampai tabelnya dibaca. | READS | sekarang | `AI_ENABLE_REFERENCE_LOOKUP` |
 | `submit_data_need_spec` | AI menyatakan data yang dibutuhkan (tabel, kolom, saringan, periode); sistem memeriksa sebelum data diambil. | FETCHES_DATA | sekarang | `AI_ENABLE_DATANEED` |
 | `prepare_data_bundle` | Mengambil data yang sudah disetujui secara utuh dan memeriksa kelengkapannya. | FETCHES_DATA | sekarang | `AI_ENABLE_DATANEED` |
@@ -79,6 +80,7 @@ Dibuat dari `apps/market-ai-orc/app/tool_desks.py` (`DESKS`), saklar semua menya
 | `research_web` |  | H |  | B |  | B | B | B |  |
 | `run_python` | X | X | X | H | X | B | H | H | X |
 | `run_research_code` | X | X | X | X | X | X | X | X | H |
+| `search_values` | B | H | B | H | H | H | H | B | B |
 | `start_research_run` | X | X | X | X | X | X | X | X | H |
 | `submit_data_need_spec` | X | X | X | H | X | B | H | H | X |
 

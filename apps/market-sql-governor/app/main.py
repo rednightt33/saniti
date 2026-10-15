@@ -21,6 +21,7 @@ from .governor import Database, Extractor, Governor, GovernorUnavailable, Summar
 from .janitor import DatasetJanitor
 from .spec import COLUMN_PATTERN, TABLE_PATTERN, DataPlanLineage
 from .store import build_store
+from .value_dictionary import MAX_TERMS as SEARCH_MAX_TERMS
 
 REQUEST_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 TABLE = re.compile(TABLE_PATTERN)
@@ -191,6 +192,24 @@ def create_app(settings: Settings | None = None, governor: Governor | None = Non
             raise HTTPException(status_code=422, detail="request_id must match ^[A-Za-z0-9._:-]{1,128}$")
         try:
             return governor.dimension_values(body["request_id"], body["table"], body["column"], body["match"])
+        except GovernorUnavailable:
+            return JSONResponse(status_code=503, content={"detail": "Governed database unavailable"})
+
+    @app.post("/v1/catalog/search-values", dependencies=[Depends(authorize)])
+    def search_values(body: Any = Body(...)) -> Any:
+        """EXEC-IMPL-1016 O1: stored values, names and aliases of one text column for the user's words (values
+        only; market-ai-orc key)."""
+        if not isinstance(body, dict) or set(body) != {"request_id", "table", "column", "terms"} \
+                or not isinstance(body["table"], str) or not TABLE.fullmatch(body["table"]) \
+                or not isinstance(body["column"], str) or not COLUMN.fullmatch(body["column"]) \
+                or not isinstance(body["terms"], list) or not 1 <= len(body["terms"]) <= SEARCH_MAX_TERMS \
+                or not all(isinstance(t, str) and 1 <= len(t.strip()) and len(t) <= 60 for t in body["terms"]):
+            raise HTTPException(status_code=422, detail=f"Body must be {{request_id, table, column, terms: "
+                                                        f"1-{SEARCH_MAX_TERMS} strings of 1-60 chars}}")
+        if not isinstance(body["request_id"], str) or not REQUEST_ID.fullmatch(body["request_id"]):
+            raise HTTPException(status_code=422, detail="request_id must match ^[A-Za-z0-9._:-]{1,128}$")
+        try:
+            return governor.search_values(body["request_id"], body["table"], body["column"], body["terms"])
         except GovernorUnavailable:
             return JSONResponse(status_code=503, content={"detail": "Governed database unavailable"})
 

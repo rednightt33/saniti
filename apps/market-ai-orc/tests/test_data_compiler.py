@@ -301,3 +301,55 @@ def test_dimension_values_with_numbers_are_refused() -> None:
     outcome = build_default_registry(None, governor_client=governor).execute(
         "c1", "get_dimension_values", json.dumps({"table": UNIVERSE, "column": "Industry", "match": None}))
     assert not outcome.ok
+
+
+# ---------------------------------------------------------------- EXEC-IMPL-1016 O1: search_values
+
+def search_governor(seen: list, results: list[dict]) -> GovernorClient:
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        seen.append((request.url.path, body))
+        return httpx.Response(200, json={"status": "VALUES_FOUND", "table": body["table"], "column": body["column"],
+                                         "kind": "ENTITY", "source": "COVERAGE", "complete": True,
+                                         "results": results[:len(body["terms"])], "note": "n"})
+
+    return GovernorClient("http://governor.test", "g" * 40, 5, transport=httpx.MockTransport(handler))
+
+
+def test_search_values_tool_matches_the_users_words_through_the_governor() -> None:
+    seen: list = []
+    bri = {"term": "BRI", "found": True, "value": "BBRI", "matched_by": "ALIAS", "ambiguous": False,
+           "alias": [{"code": "BBRI", "name": "PT Bank Rakyat Indonesia (Persero) Tbk", "alias_type": "ACRONYM"}],
+           "candidates": []}
+    registry = build_default_registry(None, governor_client=search_governor(seen, [bri]))
+    token = current_request_id.set("run-search")
+    try:
+        outcome = registry.execute("c1", "search_values", json.dumps(
+            {"table": "Price_Stock_Indonesia_IDX", "column": "ticker", "terms": ["BRI"]}))
+    finally:
+        current_request_id.reset(token)
+    assert outcome.ok and outcome.output["result"]["results"][0]["value"] == "BBRI"
+    assert seen == [("/v1/catalog/search-values", {"request_id": "run-search", "table": "Price_Stock_Indonesia_IDX",
+                                                    "column": "ticker", "terms": ["BRI"]})]
+    for bad in ({"table": "Price_Stock_Indonesia_IDX", "column": "ticker", "terms": []},
+                {"table": "Price_Stock_Indonesia_IDX", "column": "ticker", "terms": ["x"] * 11},
+                {"table": "Price_Stock_Indonesia_IDX", "column": "ticker", "terms": ["   "]}):
+        refused = registry.execute("c2", "search_values", json.dumps(bad))
+        assert not refused.ok and refused.error_code == "INVALID_ARGUMENTS"
+
+
+def test_g13_names_an_entity_only_when_the_governor_finds_the_exact_code() -> None:
+    """EXEC-IMPL-1016 Fase 3.5: the checker asked get_dimension_values, which refuses every entity column, so G13
+    never named an entity; it now reads search_values and counts an exact stored code only (not an alias)."""
+    from app.tools import _entity_checker
+
+    seen: list = []
+    exact = {"term": "BBCA", "found": True, "value": "BBCA", "matched_by": "VALUE", "ambiguous": False, "alias": [],
+             "candidates": []}
+    check = _entity_checker(search_governor(seen, [exact]))
+    assert check("Price_Stock_Indonesia_IDX", "ticker", "BBCA") is True
+    assert seen[0][0] == "/v1/catalog/search-values" and seen[0][1]["terms"] == ["BBCA"]
+    alias = {**exact, "term": "BBRI", "value": "BBRI", "matched_by": "ALIAS"}
+    assert _entity_checker(search_governor([], [alias]))("Price_Stock_Indonesia_IDX", "ticker", "BBRI") is False
+    missing = {**exact, "found": False, "value": None, "matched_by": None}
+    assert _entity_checker(search_governor([], [missing]))("Price_Stock_Indonesia_IDX", "ticker", "AKSI") is False

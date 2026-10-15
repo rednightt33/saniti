@@ -935,7 +935,9 @@ def join(relationship_id: int, left=None, right=None, how: str | None = None):
     Checks (IP1 Stage B): a side the relationship declares "one" must be unique on its key (and date), otherwise
     JoinCardinalityError; rows with a null key never match; a LEFT join keeps every left row and marks it in
     _saniti_match (matched / unmatched); a result larger than the declared grain allows is refused. A relationship that
-    requires preaggregation joins only a many side produced by saniti.preaggregate. join_report() has the counts."""
+    requires preaggregation joins only a many side produced by saniti.preaggregate. join_report() has the counts.
+    A right key column named differently from its left key is dropped (its values equal the left key), so the result
+    has one entity column; join_report()["dropped_right_keys"] maps each dropped column to the left column kept."""
     import pandas as pd
 
     rel = _relationship(relationship_id)
@@ -1013,6 +1015,18 @@ def join(relationship_id: int, left=None, right=None, how: str | None = None):
     matched_mask = merged["_merge"].astype(str) == "both"
     left_unmatched = int((~matched_mask).sum())
     merged = merged.drop(columns="_merge")
+    # EXEC-IMPL-1016 Fase 3.6: a right key named differently from its left key (Symbol for ticker, an exact date
+    # under another name) holds the same value on every matched row and nothing on an unmatched one, so it is
+    # dropped: one entity column per result (an as-of date differs from the left date and is kept)
+    pairs = list(zip(lc, rc)) + ([(lt, rt)] if semantics == "EXACT_DATE" and lt and rt else [])
+    dropped = {}
+    for left_name, right_name in pairs:
+        if left_name == right_name:
+            continue
+        name = right_name + suffixes[1] if right_name in left.columns else right_name
+        if name in merged.columns:
+            dropped[name] = left_name
+    merged = merged.drop(columns=list(dropped))
     if kind == "inner":
         out = merged[matched_mask.values].reset_index(drop=True)
     else:
@@ -1031,7 +1045,8 @@ def join(relationship_id: int, left=None, right=None, how: str | None = None):
                          "how": kind, "keys": list(zip(lc, rc)), "rows_left": int(len(left)),
                          "rows_right": int(len(right)), "rows_out": int(len(out)),
                          "left_unmatched": left_unmatched, "left_null_keys": null_left,
-                         "right_null_keys": null_right, "grain_checked": one_sides})
+                         "right_null_keys": null_right, "grain_checked": one_sides,
+                         "dropped_right_keys": dropped})
     _log({"call": "join", "data_request_id": left_request["data_request_id"],
           "right_request_id": right_request["data_request_id"],
           **{k: v for k, v in _JOIN_REPORT.items() if k != "keys"}})

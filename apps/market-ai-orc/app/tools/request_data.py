@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import contextvars
 import uuid
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
@@ -295,6 +295,15 @@ class GovernorClient:
             raise ToolError("The SQL Governor returned an invalid response.")
         return result
 
+    def search_values(self, table: str, column: str, terms: list[str]) -> dict[str, Any]:
+        """EXEC-IMPL-1016 O1: stored values, names and aliases of one text column for the user's words ("BRI" ->
+        BBRI); values only, never counts."""
+        result = self._catalog_post("/v1/catalog/search-values", {"table": table, "column": column, "terms": terms})
+        if any(isinstance(v, (int, float)) and not isinstance(v, bool)
+               for r in result.get("results") or [] for v in (r.get("value"),)):
+            raise ToolError("The SQL Governor returned an invalid response.")
+        return result
+
     def reference_columns(self) -> dict[str, Any]:
         """P34: the columns of the static reference tables with their catalog descriptions (metadata only)."""
         return self._catalog_post("/v1/catalog/reference-columns", {})
@@ -393,10 +402,39 @@ class DimensionValuesArgs(Strict):
 DIMENSION_DESCRIPTION = (
     "List the exact stored values of one category column (a groupable text column of a static catalog table), "
     "optionally only those containing match. An entity column (tickers, broker codes) or a dated table is refused: "
-    "type an entity code the user wrote as written, and look a name up in its reference table. Use it to write a scope predicate or a grouping key with the exact data "
-    "value (for example the stored spelling of a classification the user named). Returns values only, at most 200, "
-    "never counts or measures: it is not a data answer."
+    "find an entity's code with search_values. Use it to write a scope predicate or a grouping key with the exact "
+    "data value (for example the stored spelling of a classification the user named). Returns values only, at most "
+    "200, never counts or measures: it is not a data answer."
 )
+
+
+class SearchValuesArgs(Strict):
+    table: str = Field(pattern=TABLE_PATTERN, description="The catalog table the scope will read (dated or static).")
+    column: str = Field(pattern=COLUMN_PATTERN, description="The text column of the scope predicate: an entity column "
+                                                            "(ticker, Symbol, broker) or a category column.")
+    terms: list[Annotated[str, Field(min_length=1, max_length=60, pattern=r"\S")]] = Field(
+        min_length=1, max_length=10, description="The user's words, one per entity or value, as written (a code, a "
+                                                 "name, initials such as BRI, part of a name).")
+
+
+SEARCH_VALUES_DESCRIPTION = (
+    "Match the user's words to the stored values of one text column before writing them into a scope: an exact "
+    "code in any letter case, a company or broker name, its short name or initials (\"BRI\" -> BBRI), or part of a "
+    "name. Each term returns found and value (the stored value to type), or candidates with their names when it is "
+    "not found or ambiguous: take the candidate the user means, or ask the user when several fit. Use it for every "
+    "name that is not a stored code; a value that is not stored is refused at approval. Values and names only, never "
+    "counts or measures: it is not a data answer."
+)
+
+
+def search_values_spec(client: GovernorClient, *, timeout_seconds: float) -> ToolSpec:
+    def handler(arguments: BaseModel) -> dict[str, Any]:
+        assert isinstance(arguments, SearchValuesArgs)
+        return client.search_values(arguments.table, arguments.column, list(arguments.terms))
+
+    return ToolSpec(name="search_values", effect="READS", description=SEARCH_VALUES_DESCRIPTION,
+                    arguments_model=SearchValuesArgs, handler=handler, timeout_seconds=timeout_seconds,
+                    max_result_bytes=16000)
 
 
 def dimension_values_spec(client: GovernorClient, *, timeout_seconds: float) -> ToolSpec:

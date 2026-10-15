@@ -740,8 +740,12 @@ class SessionManager:
                               "quality_flags": (d.get("quality") or {}).get("quality_flags") or [],
                               "profile": self._dataset_profile(manifest, d)}
                              for d in manifest["datasets"]],
-                "relationships": [{k: r.get(k) for k in ("relationship_id", "left_request_id", "right_request_id",
-                                                         "join_type", "join_semantics")}
+                # EXEC-IMPL-1016 Fase 3.6: the entity key pairs (ticker <-> Symbol), so the code names the same entity
+                # in each dataset; saniti.join keeps the left names and drops the right copies
+                "relationships": [{**{k: r.get(k) for k in ("relationship_id", "left_request_id", "right_request_id",
+                                                            "join_type", "join_semantics")},
+                                   "key_pairs": [list(p) for p in zip(r.get("left_columns") or [],
+                                                                      r.get("right_columns") or [])]}
                                   for r in manifest.get("relationships") or []],
                 "helpers": HELPERS, "data_types": DATA_TYPES,
                 "preloaded": ["saniti", "pd", "np", "every saniti helper by name"],

@@ -235,9 +235,15 @@ def test_a_five_key_join_never_mixes_boards_or_investor_types() -> None:
     f02 = flows()[flows()["broker"] == "AK"]
     out = saniti.join(30, summary(), f02)
     assert len(out) == 4  # one row per board and investor type, no cross-match
-    assert all((out["Market Board"] == out["market_board"]) & (out["Investor Type"] == out["investor_type"]))
+    f02_rows = f02.set_index(["ticker", "market_board", "investor_type"])["net_value_1d"]
+    assert all(row["net_value_1d"] == f02_rows[(row["Symbol"], row["Market Board"], row["Investor Type"])]
+               for _, row in out.iterrows())
     report = saniti.join_report()
     assert report["rows_out"] == 4 and report["keys"][0] == ("Symbol", "ticker") and report["left_unmatched"] == 0
+    # EXEC-IMPL-1016 Fase 3.6: one column per key; the right copies (same values) are dropped and reported
+    assert not {"ticker", "market_board", "investor_type", "broker"} & set(out.columns)
+    assert report["dropped_right_keys"] == {"ticker": "Symbol", "broker": "Broker", "investor_type": "Investor Type",
+                                            "market_board": "Market Board", "date": "Date"}
 
 
 def test_a_duplicate_on_a_one_side_is_refused() -> None:

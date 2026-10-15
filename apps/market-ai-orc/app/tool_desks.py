@@ -25,7 +25,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-CATALOG = frozenset({"discover_catalog", "get_catalog_details", "read_catalog_rows", "get_dimension_values"})
+CATALOG = frozenset({"discover_catalog", "get_catalog_details", "read_catalog_rows", "get_dimension_values",
+                     "search_values"})
 DATA_FLOW = frozenset({"submit_data_need_spec", "prepare_data_bundle", "open_analysis_session", "run_python",
                        "complete_analysis"})
 PLAN_CHECKS = frozenset({"check_data_feasibility", "check_research_feasibility"})

@@ -31,6 +31,7 @@ whenever the rendered prompt or schema changes (AGENTS.md, Mandatory workflow).
 | v008 | 2026-10-15 | [table-rows-fifty](history/v008-2026-10-15-table-rows-fifty/system_prompt.md) | 38,697 | `527c0a76a4aa` | `48bceaa503bc` | user 2026-10-15: "malah saya mau sampai 50 kalau bisa. Di tampilan di frontend, tapi bisa di collapse/ expand. Agar datanya rinci dan jelas, lengkap"; "Ok masukan EXEC U4"; go "Ok jalankan" |
 | v009 | 2026-10-15 | [text-values-stored](history/v009-2026-10-15-text-values-stored/system_prompt.md) | 39,130 | `d2930510576d` | `48bceaa503bc` | user 2026-10-15: "setiap WHERE = '' maka harus wajib menggunakan value dari get dimension value, or else rejected. Rule ini AI harus tahu before hand"; "O1 masukan exec"; go "Ok jalankan" (EXEC-IMPL-1016 Fase 1) |
 | v010 | 2026-10-15 | [turn-brief-facts](history/v010-2026-10-15-turn-brief-facts/system_prompt.md) | 39,130 | `d2930510576d` | `667c512aab9c` | user 2026-10-15: O2 "saya setuju hanya untuk router diberi tahu fungsi dan kemampuan setiap jalur"; O3 "OK masukan exec", signal "Dari isi jawaban"; O5 "Sisanya OK untuk O5"; go "Next lanjutkan tanpa minta saya naikan limit" (EXEC-IMPL-1016 Fase 2) |
+| v011 | 2026-10-15 | [names-to-search-values](history/v011-2026-10-15-names-to-search-values/system_prompt.md) | 39,099 | `322029a86b77` | `667c512aab9c` | EXEC-IMPL-1016 Fase 3 (O1 dictionary), user 2026-10-15: "Next lanjutkan tanpa minta saya naikan limit"; matching "Alias + persis + potongan" |
 
 ## Changes
 
@@ -73,3 +74,7 @@ DATA NEED: every text value in a scope is a stored value (categories from column
 ### v010 turn-brief-facts (2026-10-15)
 
 final-response schema: optional facts field (entities, event dates with their meaning, periods, definitions, with sources); fast-lane decisions note: default readings of open words (net buy, foreign investor type, implementation close) and send the data need early; the turn's notes go as one brief (no prompt text change in the system prompt itself)
+
+### v011 names-to-search-values (2026-10-15)
+
+DATA NEED and the legacy analysis rule: names, initials or part of a name (BRI, Mandiri) are matched with search_values on the request's own table and column; replaces the lookup_reference name lookup (O1 dictionary, M164).

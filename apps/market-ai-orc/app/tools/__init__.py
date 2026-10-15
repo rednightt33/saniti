@@ -13,7 +13,8 @@ from .session import session_specs
 from .data_compiler import BundleStore, DataRequestCompiler, prepare_spec
 from .preview import preview_spec
 from .registry import ToolError, ToolOutcome, ToolRegistry, ToolSpec, error_outcome
-from .request_data import GovernorClient, dimension_values_spec, lookup_fact_spec, request_data_spec
+from .request_data import (GovernorClient, dimension_values_spec, lookup_fact_spec, request_data_spec,
+                           search_values_spec)
 from .rows import CursorCodec
 from .system import capabilities_spec
 
@@ -97,6 +98,8 @@ def build_default_registry(
         if not dataneed_enabled:  # governed datasets of the Analysis Spec path
             registry.register(manifest_spec(governor_client, timeout_seconds=min(governor_timeout_seconds, 20.0)))
         registry.register(dimension_values_spec(governor_client, timeout_seconds=min(governor_timeout_seconds, 30.0)))
+        # EXEC-IMPL-1016 O1: the user's words matched to stored codes and values (names, initials, part of a name)
+        registry.register(search_values_spec(governor_client, timeout_seconds=min(governor_timeout_seconds, 30.0)))
         if reference_lookup:
             # P34 (AI_ENABLE_REFERENCE_LOOKUP): the reference tables, read in every reading step, and checked by the
             # orchestrator before a web lookup
@@ -217,10 +220,12 @@ def build_default_registry(
 
 
 def _entity_checker(governor_client: GovernorClient):
-    """G13: whether a token of the question is an entity of a table (the Governor's dimension values, exact match)."""
+    """G13: whether a token of the question is a stored entity code of a table (the Governor's search-values, exact
+    code only). EXEC-IMPL-1016 Fase 3.5: it asked get_dimension_values before, which refuses every entity column
+    (DIMENSION_IS_ENTITY), so the check never named an entity and the scope rule never ran."""
     def check(table: str, column: str, token: str) -> bool:
-        result = governor_client.dimension_values(table, column, token)
-        return any(str(value).upper() == token for value in result.get("values") or [])
+        result = governor_client.search_values(table, column, [token])
+        return any(r.get("found") and r.get("matched_by") == "VALUE" for r in result.get("results") or [])
     return check
 
 

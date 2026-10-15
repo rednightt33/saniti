@@ -272,3 +272,20 @@ def test_a_need_keeps_its_canonical_filter_for_a_later_count_unless_it_is_long()
     assert kept == [short, None]
     assert "scope_spec" not in records.note(record) and "ticker EQ BBRI" in records.note(record)
     assert records.normalize(record)["needs"][0]["requests"][0]["scope_spec"] == short
+
+
+def test_search_values_keeps_what_the_users_words_resolved_to() -> None:
+    """EXEC-IMPL-1016 O1: "BRI" -> BBRI is kept for the later turns; a word not found adds nothing."""
+    record = records.empty()
+    records.add_catalog_facts(record, "search_values", {}, {
+        "status": "VALUES_FOUND", "table": "Price_Stock_Indonesia_IDX", "column": "ticker",
+        "results": [{"term": "BRI", "found": True, "value": "BBRI"},
+                    {"term": "Mandiri", "found": False, "value": None}]}, "run-1", "2026-10-15T10:00:00+07:00")
+    entry = record["values"]["Price_Stock_Indonesia_IDX.ticker"]
+    assert entry["values"] == ["BBRI"] and entry["resolved"] == {"BRI": "BBRI"} and not entry["complete"]
+    assert '"BRI" = BBRI' in records.full_note(record)
+    nothing = records.empty()
+    records.add_catalog_facts(nothing, "search_values", {}, {
+        "status": "VALUES_FOUND", "table": "T", "column": "c", "results": [{"term": "x", "found": False}]},
+        "run-1", "t")
+    assert nothing["values"] == {}

@@ -209,7 +209,8 @@ For a scope such as a sector, industry or other classification, use
 an ATTRIBUTE_FILTER predicate on the catalog column with the exact
 stored value from get_dimension_values; never type out a member list
 yourself. Entity codes the user wrote (tickers, broker codes) are
-typed as written.
+typed as written; a name or initials are matched to the stored code
+with search_values first.
 If a tool rejects your arguments, correct them and call it again. If
 prepare_analysis_data or the SQL Governor refuses, follow its
 allowed_actions; never change the user's scope, drop entities,
@@ -308,9 +309,9 @@ list yourself. Every text value in a scope must be stored in that
 column, else it is refused or returns no rows: a category takes its
 spelling from column_values in get_catalog_details or from
 get_dimension_values; an entity code the user wrote (a ticker, a broker
-code) is typed as written, never checked with get_dimension_values; a
-name that is not a code is looked up in its reference table
-first{name_lookup}, and when it matches several codes, ask. On
+code) is typed as written; a name, initials or part of a name (BRI,
+Mandiri) is matched with search_values on the request's own table and
+column first, and when it gives several candidates, ask. On
 REVISION_REQUIRED fix every issue and resubmit with revision + 1;
 never change the user's scope, period or frequency to pass.
 When the answer needs a total across entities rather than each raw
@@ -372,11 +373,10 @@ never as a cause, a prediction, a forecast or a trading signal.{modes_research}"
 
 # O1 early (EXEC-IMPL-1016 Fase 1, go 2026-10-15; M164): every text value in a scope is a stored value; a name that is
 # not a code is looked up with the reference tool when it is offered
-NAME_LOOKUP = " (lookup_reference with match on its name column)"
-
-
 def dataneed_rules(tools) -> str:
-    return DATANEED_RULES.replace("{name_lookup}", NAME_LOOKUP if "lookup_reference" in (tools or ()) else "")
+    """The DATA NEED rules (EXEC-IMPL-1016 O1: names go to search_values, served wherever the Governor is, so the
+    rules no longer depend on the tool list)."""
+    return DATANEED_RULES
 
 RESEARCH_PLAN_RULES = """
 
@@ -451,8 +451,9 @@ documented formula. Its table_metadata gives the subject values, grain
 and time and entity columns. Add CALCULATIONS or RESEARCH only when the
 method needs them.
 3. Use get_dimension_values for the stored spelling of a category
-value you do not know yet (a static table's category column; not for
-entity codes or dated tables).
+value you do not know yet (a static table's category column), and
+search_values for the stored code of an entity the user named by name
+or initials.
 4. get_system_capabilities is not a routine first step: the tool list
 already shows what is available. Call preview_table_rows only for a
 concrete doubt about a column's format or content.
@@ -1657,7 +1658,7 @@ LEGACY_ANALYSIS_TOOLS = frozenset({"create_analysis_spec", "prepare_analysis_dat
 DATANEED_ANALYSIS_TOOLS = desks.DATA_FLOW
 # get_research_library (C07) is registered only while multi-angle research serves the research library
 DISCOVERY_TOOLS = frozenset({"get_system_capabilities", "discover_catalog", "get_catalog_details",
-                             "read_catalog_rows", "get_dimension_values", "get_research_library",
+                             "read_catalog_rows", "get_dimension_values", "search_values", "get_research_library",
                              "get_method_guide"})
 # 4b (G2_G3_REACTIVATION_PLAN.md): the menu offered at the start of every run when the method guides are served
 METHOD_MENU_HEADER = ("ANALYSIS METHODS (application context from the backend, not from the user): the analysis paths "

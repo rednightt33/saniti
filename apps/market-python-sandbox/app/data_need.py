@@ -21,6 +21,7 @@ sequencing) and MODE_MISMATCH (a research-governance request that does not match
 """
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
 import math
@@ -838,16 +839,41 @@ def aggregate_output(request: dict[str, Any], meta: dict[str, Any], types: dict[
 
 TEXT_OPERATORS = ("EQ", "NEQ", "IN", "NOT_IN")
 TEXT_KINDS = ("text", "character varying", "character", "varchar")
+VALUE_CANDIDATES = 8
+
+
+def _fold(text: Any) -> str:
+    return " ".join(str(text or "").casefold().split())
+
+
+def value_candidates(domain: dict[str, Any], text: str, limit: int = VALUE_CANDIDATES) -> list[str]:
+    """EXEC-IMPL-1016 O1: the stored values a refused word most likely means, from the contract alone: the codes an
+    alias of it names ("BRI" -> BBRI), then stored values that contain it or that it contains. Never a guess that is
+    applied: the model picks one or asks the user."""
+    key = _fold(text)
+    if not key:
+        return []
+    named = list((domain.get("aliases") or {}).get(key) or [])
+    values = list(domain.get("values") or [])
+    near = [v for v in values if key in _fold(v) or (len(_fold(v)) >= 2 and _fold(v) in key)]
+    near.sort(key=lambda v: (not _fold(v).startswith(key[:2]), abs(len(v) - len(text)), v))
+    folded = {_fold(v): v for v in values}
+    spelled = [folded[f] for f in difflib.get_close_matches(key, list(folded), n=limit, cutoff=0.75)]
+    return list(dict.fromkeys(named + near + spelled))[:limit]
 
 
 def resolve_text_values(spec: dict[str, Any], contract: dict[str, Any], issues: Issues,
                         warnings: list[dict[str, Any]]) -> None:
     """P14 (user decision 2026-10-01): a text filter value is matched to its stored spelling regardless of letter case,
     before any hash or extraction, so "regular" selects the "Regular" rows instead of none. The stored values come
-    from the Governor's contract (`value_domains`: a CHECK list or a static category column); an entity code follows
-    Part A A1.2 (upper-case, trimmed). A value with no stored match in a complete list is refused here, before any row
-    is read, with the stored values; two stored values that differ only in case are refused as ambiguous. Every change
-    is reported as a TEXT_VALUE_RESOLVED warning."""
+    from the Governor's contract (`value_domains`: a CHECK list, a static table's values, a dated table's registered
+    entities or its reference table's codes); an entity code follows Part A A1.2 (upper-case, trimmed).
+
+    EXEC-IMPL-1016 O1 (user 2026-10-15: every text value in a scope comes from the table, or is refused): a value with
+    no stored match in a complete list is refused here, before any row is read, naming its likely stored values (an
+    alias, a near spelling) and the search_values tool; two stored values that differ only in case are refused as
+    ambiguous. A value missing from an incomplete list (a broker code missing from a current profile) is kept with a
+    VALUE_NOT_IN_REFERENCE warning, never refused. Every change is reported as a TEXT_VALUE_RESOLVED warning."""
     tables, columns = contract.get("tables") or {}, contract.get("columns") or {}
     domains = contract.get("value_domains") or {}
     for index, request in enumerate(spec["data_requests"]):
@@ -859,27 +885,35 @@ def resolve_text_values(spec: dict[str, Any], contract: dict[str, Any], issues: 
             if predicate["operator"] not in TEXT_OPERATORS or kind not in TEXT_KINDS:
                 continue
             domain = (domains.get(table) or {}).get(column)
-            entity = column == meta.get("entity_column")
+            entity = column == meta.get("entity_column") or (domain or {}).get("kind") == "ENTITY"
             values = predicate["value"] if isinstance(predicate["value"], list) else [predicate["value"]]
             resolved = []
             for value in values:
                 text = str(value)
-                if domain and domain.get("complete"):
-                    matches = [v for v in domain["values"] if v.casefold() == text.strip().casefold()]
-                    if not matches:
-                        known_values = ", ".join(domain["values"][:20]) + (" …" if len(domain["values"]) > 20 else "")
-                        issues.add(rid, "VALUE_NOT_FOUND", f"{where}.value", f"{text} (stored values: {known_values})")
-                        resolved.append(text)
-                        continue
-                    if len(matches) > 1:
-                        issues.add(rid, "VALUE_AMBIGUOUS", f"{where}.value", f"{text} ({', '.join(matches)})")
-                        resolved.append(text)
-                        continue
+                matches = [v for v in (domain or {}).get("values") or [] if v.casefold() == text.strip().casefold()]
+                if len(matches) > 1:
+                    issues.add(rid, "VALUE_AMBIGUOUS", f"{where}.value", f"{text} ({', '.join(matches)})")
+                    resolved.append(text)
+                    continue
+                if matches:
                     stored, source = matches[0], domain.get("source")
-                elif entity:
-                    stored, source = text.strip().upper(), "ENTITY_CODE_RULE"
+                elif domain and domain.get("complete"):
+                    candidates, listed = value_candidates(domain, text), domain.get("values") or []
+                    hint = (f"likely stored values: {', '.join(candidates)}" if candidates
+                            else f"stored values: {', '.join(listed)}" if not entity and len(listed) <= 20
+                            else "no stored value is close")
+                    lookup = (f"; find the code for a name with search_values({table}.{column})" if entity
+                              else f"; list the values with get_dimension_values or search_values({table}.{column})")
+                    issues.add(rid, "VALUE_NOT_FOUND", f"{where}.value",
+                               f"{text} is not a stored value of {table}.{column} ({hint}{lookup})")
+                    resolved.append(text)
+                    continue
                 else:
-                    stored, source = text, None
+                    stored, source = (text.strip().upper(), "ENTITY_CODE_RULE") if entity else (text, None)
+                    if domain and domain.get("values"):
+                        warnings.append({"code": "VALUE_NOT_IN_REFERENCE", "data_request_id": rid,
+                                         "field_path": where, "value": stored, "source": domain.get("source"),
+                                         "candidates": value_candidates(domain, text)})
                 if stored != text:
                     warnings.append({"code": "TEXT_VALUE_RESOLVED", "data_request_id": rid, "field_path": where,
                                      "from": text, "to": stored, "source": source})

@@ -19,6 +19,7 @@ from .compaction import stable_hash
 from .tools.catalog import MAX_COLUMN_FILTER, MAX_TABLES_PER_CALL
 
 CACHEABLE_TOOLS = frozenset({"discover_catalog", "get_catalog_details", "read_catalog_rows", "get_dimension_values",
+                             "search_values",
                              "get_system_capabilities"})
 SET_ARGUMENTS = frozenset({"table_names", "sections", "column_names", "entity_ids", "method_ids", "formula_ids"})
 CACHE_NOTE = "Same result as the identical earlier call in this run; the catalog was not read again."

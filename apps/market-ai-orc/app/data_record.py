@@ -144,6 +144,12 @@ def _note_request(table: dict[str, Any], request_id: str) -> None:
 SCOPE_VALUES_MAX_CHARS = 400
 
 
+def _resolved_text(entry: dict[str, Any]) -> str:
+    """EXEC-IMPL-1016 O1: the user's words search_values resolved to stored values ("BRI" -> BBRI)."""
+    resolved = entry.get("resolved") or {}
+    return ("; the user's words: " + ", ".join(f'"{k}" = {v}' for k, v in sorted(resolved.items()))) if resolved else ""
+
+
 def _scope_values(scope: dict[str, Any]) -> list[Any] | None:
     """The values of a predicate in either form: the sandbox's canonical scope carries ``values`` (a list; M68), the
     model's DataNeed and definition filters carry ``value`` (a scalar or a list); None when the predicate has none."""
@@ -377,6 +383,18 @@ def add_catalog_facts(record: dict[str, Any], tool: str, arguments: dict[str, An
         entry["complete"] = bool(entry["complete"] or (result.get("match") is None and not result.get("truncated")))
         entry.update(checked_at=checked_at, request_id=request_id)
         record["values"][key] = entry
+    if tool == "search_values" and result.get("status") == "VALUES_FOUND" and result.get("table"):
+        # EXEC-IMPL-1016 O1: the stored value each of the user's words resolved to ("BRI" -> BBRI), so a later turn
+        # writes it without searching again; never complete (only the values that were found)
+        found = {str(r["term"]): str(r["value"]) for r in result.get("results") or []
+                 if r.get("found") and r.get("value") is not None}
+        if found:
+            key = f"{result['table']}.{result.get('column')}"
+            entry = record["values"].get(key) or {"values": [], "complete": False}
+            entry["values"] = sorted(set(entry["values"]) | set(found.values()))
+            entry["resolved"] = {**(entry.get("resolved") or {}), **found}
+            entry.update(checked_at=checked_at, request_id=request_id)
+            record["values"][key] = entry
     if tool != "get_catalog_details":
         return
     sections = result.get("sections") if isinstance(result.get("sections"), dict) else {}
@@ -730,7 +748,7 @@ def full_note(record: dict[str, Any]) -> str:
 
     reference = [("Category values read (exact stored values; complete = every value of the column):", [
         f"- {key}: {shown(v.get('values') or [])}" + (" [complete]" if v.get("complete") else " [only those read]")
-        + f" (read {v.get('checked_at')})" for key, v in sorted(record.get("values", {}).items())]),
+        + _resolved_text(v) + f" (read {v.get('checked_at')})" for key, v in sorted(record.get("values", {}).items())]),
         ("Relationships read:", [
             f"- {rid}: {r.get('left_table')}({', '.join(r.get('left_columns') or [])}) -> {r.get('right_table')}("
             f"{', '.join(r.get('right_columns') or [])}) {r.get('temporal_rule') or ''}".rstrip()
@@ -805,7 +823,7 @@ def note(record: dict[str, Any]) -> str:
 
     sections = [("Category values read (exact stored values; complete = every value of the column):", [
         f"- {key}: {shown(v.get('values') or [])}" + (" [complete]" if v.get("complete") else " [only those read]")
-        + f" (read {v.get('checked_at')})" for key, v in sorted(record.get("values", {}).items())]),
+        + _resolved_text(v) + f" (read {v.get('checked_at')})" for key, v in sorted(record.get("values", {}).items())]),
         ("Relationships read:", [
             f"- {rid}: {r.get('left_table')}({', '.join(r.get('left_columns') or [])}) -> {r.get('right_table')}("
             f"{', '.join(r.get('right_columns') or [])}) {r.get('temporal_rule') or ''}".rstrip()

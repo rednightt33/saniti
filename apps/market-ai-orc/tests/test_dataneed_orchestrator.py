@@ -155,7 +155,7 @@ def test_the_dataneed_registry_replaces_the_analysis_spec_path() -> None:
         lambda r: httpx.Response(404)))
     names = set(build_default_registry(sandbox_client=sandbox, governor_client=governor, dataneed_enabled=True,
                                        lookup_fact_enabled=False).names())
-    assert names == {"get_system_capabilities", "get_dimension_values", "submit_data_need_spec",
+    assert names == {"get_system_capabilities", "get_dimension_values", "search_values", "submit_data_need_spec",
                      "prepare_data_bundle", "open_analysis_session", "run_python", "inspect_session",
                      "get_session_output", "complete_analysis"}
     legacy = set(build_default_registry(sandbox_client=sandbox, governor_client=governor).names())

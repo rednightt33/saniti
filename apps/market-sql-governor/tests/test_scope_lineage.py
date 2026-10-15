@@ -157,7 +157,11 @@ def test_the_catalog_contract_endpoint_takes_either_key_but_never_rows(governed_
     for key in (API_KEY, ACCESS_KEY):
         response = client.post("/v1/catalog/contract", json=body, headers={"Authorization": f"Bearer {key}"})
         assert response.status_code == 200
-        assert "BBCA" not in response.text  # metadata only
+        # metadata only: since EXEC-IMPL-1016 O1 (user 2026-10-15, every text value in a scope comes from the table)
+        # the stored entity codes travel as a value list, never as rows or measures
+        got = response.json()
+        assert "BBCA" in got["value_domains"][UNIVERSE]["Ticker"]["values"]
+        assert "BBCA" not in json.dumps({k: v for k, v in got.items() if k != "value_domains"})
     bad = client.post("/v1/catalog/contract", json={"request_id": "r1", "tables": ["x; drop"]},
                       headers={"Authorization": f"Bearer {API_KEY}"})
     assert bad.status_code == 422
@@ -208,6 +212,28 @@ def test_dimension_values_endpoint_takes_only_the_orchestrator_key(governed_db, 
     assert bad.status_code == 422
 
 
+def test_search_values_endpoint_matches_stored_codes_on_a_dated_table(governed_db, tmp_path) -> None:
+    """EXEC-IMPL-1016 O1: the user's words against a dated table's entity column, through the real catalog."""
+    settings = Settings.from_env(base_env(GOVERNOR_DATABASE_URL=governed_db["login"], SQL_DATASET_LOCAL_DIR=str(tmp_path),
+                                          SQL_GOVERNOR_DATASET_ACCESS_KEY=ACCESS_KEY))
+    client = TestClient(create_app(settings))
+    body = {"request_id": "r1", "table": PRICE, "column": "ticker", "terms": ["bbca", "BB", "ZZZZ"]}
+    headers = {"Authorization": f"Bearer {API_KEY}"}
+    assert client.post("/v1/catalog/search-values", json=body,
+                       headers={"Authorization": f"Bearer {ACCESS_KEY}"}).status_code == 401
+    got = client.post("/v1/catalog/search-values", json=body, headers=headers).json()
+    exact, part, missing = got["results"]
+    assert got["status"] == "VALUES_FOUND" and got["kind"] == "ENTITY"
+    assert exact["found"] and exact["value"] == "BBCA" and exact["matched_by"] == "VALUE"
+    assert not part["found"] and {"BBCA", "BBRI"} <= {c["value"] for c in part["candidates"]}
+    assert not missing["found"] and missing["candidates"] == []
+    refused = client.post("/v1/catalog/search-values", json={**body, "column": "close"}, headers=headers).json()
+    assert refused["status"] == "REJECTED" and refused["reason_code"] == "NO_VALUE_LIST"
+    for wrong in ({**body, "terms": []}, {**body, "terms": ["x"] * 11}, {**body, "terms": ["x" * 61]},
+                  {**body, "terms": ["  "]}, {**body, "extra": 1}):
+        assert client.post("/v1/catalog/search-values", json=wrong, headers=headers).status_code == 422
+
+
 # ---------------------------------------------------------------- P14: value domains of filterable text columns
 
 def test_check_constraint_value_lists_are_read_from_the_database_definitions() -> None:
@@ -231,30 +257,14 @@ def test_check_constraint_value_lists_are_read_from_the_database_definitions() -
 def test_the_contract_carries_value_domains_outside_the_catalog_hash(governed_db) -> None:
     got = contract(governed_db, [UNIVERSE, PRICE])
     industry = got["value_domains"][UNIVERSE]["Industry"]
-    assert "Ticker" not in got["value_domains"][UNIVERSE]  # entity codes are rows, never in the contract
     assert industry["source"] == "STATIC_TABLE" and industry["complete"] and "Industry-1" in industry["values"]
-    assert PRICE not in got["value_domains"] or all(  # a dated table's text columns are not scanned
-        d["source"] == "CHECK_CONSTRAINT" for d in got["value_domains"][PRICE].values())
+    # EXEC-IMPL-1016 O1 (user 2026-10-15): entity codes are stored values too; a dated table's entity column takes
+    # its reference table's codes (incomplete without the coverage registry: a warning, never a refusal)
+    ticker = got["value_domains"][UNIVERSE]["Ticker"]
+    assert ticker["kind"] == "ENTITY" and ticker["complete"] and "BBCA" in ticker["values"]
+    price = got["value_domains"][PRICE]["ticker"]
+    assert price["source"] == "REFERENCE_TABLE" and not price["complete"] and "BBCA" in price["values"]
     assert got["catalog_sha256"] == sha256_json({k: got[k] for k in ("tables", "columns", "relationships")})
-
-
-def test_a_static_column_above_the_bound_is_marked_incomplete(monkeypatch) -> None:
-    from app import catalog_contract as cc
-
-    monkeypatch.setattr(cc, "VALUE_DOMAIN_MAX", 2)
-
-    def run(statement, params):
-        if "pg_constraint" in statement:
-            return []
-        return [{"value": v} for v in ("A", "B", "C")]
-
-    tables = {"Ref": {"time_column": None, "entity_column": "Ticker"}, "Daily": {"time_column": "date"}}
-    columns = {"Ref": {"code": {"data_type": "text", "filter_allowed": True, "group_by_allowed": True},
-                       "Ticker": {"data_type": "text", "filter_allowed": True, "group_by_allowed": True},
-                       "n": {"data_type": "numeric", "filter_allowed": True}},
-               "Daily": {"board": {"data_type": "text", "filter_allowed": True}}}
-    domains = cc.value_domains(run, tables, columns)
-    assert domains == {"Ref": {"code": {"values": [], "source": "STATIC_TABLE", "complete": False}}}
 
 
 # ---------------------------------------------------------------- P34: reference tables (database before the web)

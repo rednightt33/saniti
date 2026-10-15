@@ -56,7 +56,8 @@ def test_a_value_that_is_not_stored_is_refused_before_extraction_with_the_stored
                               "value": ["BANKS", "Bankz"]}))
     assert outcome.status == "REVISION_REQUIRED"
     refused = [i for i in outcome.issues if i["code"] == "VALUE_NOT_FOUND"]
-    assert len(refused) == 1 and refused[0]["rejected_value"].startswith("Bankz (stored values: Banks, Coal")
+    assert len(refused) == 1 and refused[0]["rejected_value"].startswith(
+        "Bankz is not a stored value of IDX_Stock_Universe.Industry (likely stored values: Banks;")
 
 
 def test_two_stored_values_that_differ_only_in_case_are_ambiguous() -> None:
@@ -80,3 +81,49 @@ def test_a_contract_without_value_domains_keeps_todays_behaviour() -> None:
     outcome = run(with_scope({"type": "PREDICATE", "column": "Industry", "operator": "EQ", "value": "banks"}),
                   copy.deepcopy(CATALOG))
     assert outcome.status == "APPROVED" and scope_of(outcome, "data_request_1_B")["values"] == ["banks"]
+
+
+# ---------------------------------------------------------------- EXEC-IMPL-1016 O1: entity codes come from the table
+
+def prices_with(domain: dict, scope: dict) -> object:
+    catalog = catalog_with_domains()
+    catalog["value_domains"]["Price_Stock_Indonesia_IDX"] = {"ticker": domain}
+    return run(ytd_spec(data_requests=[prices(scope=scope), classification()]), catalog)
+
+
+REGISTERED = {"values": ["BBCA", "BBRI", "BMRI", "MAHA"], "source": "COVERAGE", "complete": True, "kind": "ENTITY",
+              "aliases": {"bri": ["BBRI"], "bca": ["BBCA"]}}
+
+
+def test_a_name_typed_as_a_code_is_refused_with_the_code_its_alias_names() -> None:
+    outcome = prices_with(REGISTERED, {"type": "PREDICATE", "column": "ticker", "operator": "IN",
+                                       "value": ["BRI", "bmri"]})
+    assert outcome.status == "REVISION_REQUIRED"
+    refused = [i for i in outcome.issues if i["code"] == "VALUE_NOT_FOUND"]
+    assert len(refused) == 1
+    assert refused[0]["rejected_value"].startswith("BRI is not a stored value of Price_Stock_Indonesia_IDX.ticker "
+                                                   "(likely stored values: BBRI")
+    assert "search_values(Price_Stock_Indonesia_IDX.ticker)" in refused[0]["rejected_value"]
+
+
+def test_a_registered_code_in_another_case_resolves() -> None:
+    outcome = prices_with(REGISTERED, {"type": "PREDICATE", "column": "ticker", "operator": "EQ", "value": " bbri"})
+    assert outcome.status == "APPROVED", outcome.issues
+    assert scope_of(outcome, "data_request_1_A")["values"] == ["BBRI"]
+    assert any(w["code"] == "TEXT_VALUE_RESOLVED" and w["source"] == "COVERAGE" for w in outcome.warnings)
+
+
+def test_an_unknown_code_has_no_invented_candidates() -> None:
+    outcome = prices_with(REGISTERED, {"type": "PREDICATE", "column": "ticker", "operator": "EQ", "value": "QQQQ"})
+    refused = [i for i in outcome.issues if i["code"] == "VALUE_NOT_FOUND"]
+    assert "no stored value is close" in refused[0]["rejected_value"]
+
+
+def test_a_code_missing_from_an_incomplete_reference_list_is_kept_with_a_warning() -> None:
+    reference = {"values": ["BBCA", "BBRI"], "source": "REFERENCE_TABLE", "complete": False, "kind": "ENTITY"}
+    outcome = prices_with(reference, {"type": "PREDICATE", "column": "ticker", "operator": "IN",
+                                      "value": ["newx", "bbca"]})
+    assert outcome.status == "APPROVED", outcome.issues
+    assert scope_of(outcome, "data_request_1_A")["values"] == ["BBCA", "NEWX"]
+    warned = [w for w in outcome.warnings if w["code"] == "VALUE_NOT_IN_REFERENCE"]
+    assert [w["value"] for w in warned] == ["NEWX"] and warned[0]["source"] == "REFERENCE_TABLE"
