@@ -2019,6 +2019,42 @@ OpenRouter $0,37 dari batas $41 (satu run bisa menghabiskannya); dicek setelah s
 
 - **U5 pemilih model di ponsel (disetujui 2026-10-15; Jalur ikut dipindah, user: "ya dipindah"; belum dieksekusi).** User 2026-10-15 (dua tangkapan layar ponsel): "retain existing design untuk model selection; pindahkan reasoning selection ke kotak A; untuk size dan lokasi bs disesuaikan dengan nomor (1)". Dibaca sebagai: kartu model (logo, nama, harga input/output, id) tetap; pilihan level berpikir (Rendah/Tinggi/Maks) pindah dari baris terpisah di bawah daftar ke ruang kosong di kanan setiap kartu model ("kotak A"), hanya aktif pada kartu model yang dipilih; panel pemilih menempati area kosong percakapan di atas kolom tanya (area "1"), bukan menutupi seluruh layar.
 
+### EXEC-REVIEW-1015: tinjauan semua EXEC terbuka dan arsitekturnya (2026-10-15; user: "please review all exec, inspect arsitektur ... contrast what ideal conditions would look like")
+
+**Keputusan user 2026-10-15:** "O5 nanti dulu A/B test tidak perlu dahulu. Sisanya OK untuk O5 masukan exec jangan execute
+dulu. O4 skip dulu."
+
+**Yang masih terbuka (menunggu go):** EXEC-OPEN-1015 O1 (= EXEC-M164), M167, O2, O3, O5 (butir 1–4); EXEC-UI-1015E;
+EXEC-EDGE-CTX (B lalu A); EXEC-UI-1015B (progres run). Ditunda: O4 (M166 OPEN), O5 butir 5. EXEC-M163 butir 2–4 digabung:
+butir 2 → O2/O3, butir 3 → O5 butir 1, butir 4 → O1. PLAN 11 (kamus nilai kolom kategori tabel bertanggal, keputusan
+`pg_trgm`) digabung dengan O1 menjadi satu kamus entitas dan nilai.
+
+**Temuan arsitektur:**
+1. O3 butuh sinyal "giliran ini menjelaskan hasil lama", tetapi O2 dibatasi user ke kartu kemampuan (tanpa kolom router
+   baru). Usulan: sinyal diturunkan dari bukti jawaban — draf yang mengutip angka hasil giliran sebelumnya wajib sudah
+   membuka hasil itu; tanpa kolom router.
+2. O2 dan O5 butir 1 sama-sama mengubah router (instruksi; nama perubahan fakta di `design_value_changes`). AGENTS: ubah
+   router → `AI_ROUTER.md` dan benchmark router sebelum deploy (berbayar kecil, ±USD 0,07; saldo kunci ±USD 0,42). Satu
+   benchmark untuk keduanya; set kasus ditambah kasus batas (mis. "Cari saja … di tanggal efektif tersebut").
+3. Perubahan prompt (O1 aturan nilai teks, O3 catatan gabungan, O5 default tafsir dan bertindak lebih awal) → satu snapshot
+   prompt.
+4. O1 menyentuh empat layanan: Governor (`get_dimension_values` untuk kolom entitas tabel statis, cek daftar nilai,
+   `value_domains`), sandbox (`resolve_text_values` cek kode entitas), orc (alat `resolve_entities`, prompt), database
+   (tabel alias baru: migrasi, Table/Column_Catalog, cek Part A, Tool_Catalog, AI_TOOLS).
+5. M167 kecil dan berdiri sendiri: runtime sandbox (`emit_table` peringatan) + teks `UNITS_INSTRUCTION` orc.
+6. EDGE-CTX menambah kontrak baru orc ↔ BFF ↔ EDGE (`tables` di jawaban, `attached_selection` di permintaan).
+7. Kebersihan dokumen: EXEC.md 3.937 baris, banyak bagian selesai belum dipindah (AGENTS: catat di ERRORS/changelog lalu
+   hapus); judul EXEC-W dan EXEC-Y masih "menunggu go" padahal sudah dikerjakan.
+
+**Urutan eksekusi yang diusulkan (setiap fase: tes, deploy SUCCESS, cek live bila saldo cukup):**
+- Fase 1 (kecil, tanpa ubah router): M167; UI-1015E; O1 aturan nilai teks di prompt dan deskripsi alat.
+- Fase 2 (router, satu benchmark): O2 kartu kemampuan; O5 butir 1 fakta berversi; O3 gerbang dari bukti + catatan gabungan;
+  O5 butir 2–4.
+- Fase 3 (data, perlu Part A dan migrasi): O1 kamus entitas dan nilai (alias, `resolve_entities`, cek kode entitas,
+  kolom kategori tabel bertanggal), menggantikan PLAN 11.
+- Fase 4 (kontrak EDGE): EDGE-CTX B lalu A; UI-1015B.
+- Kebersihan EXEC.md (dokumen saja) kapan saja.
+
 ### EXEC-OPEN-1015: empat item run `edge_2f7523a7…` yang wajib dibereskan (dicatat 2026-10-15; menunggu keputusan dan "go")
 
 **Permintaan user 2026-10-15:** "Jangan sampai item2 tersebut lepas/terlewat, ingatkan terus sampai kita conclude
@@ -2030,8 +2066,8 @@ tuntas (dieksekusi dan diverifikasi, atau diputuskan tidak dikerjakan).
 | O1 | `get_dimension_values`, aturan nilai teks tersimpan, nama → kode (alias, `resolve_entities`) | masuk EXEC 2026-10-15, tidak dijalankan; menunggu go |
 | O2 | Pertanyaan "Cari saja …" masuk kelas INSIGHT | akar masalah terbukti; usulan menunggu keputusan |
 | O3 | Penolakan `INSIGHT_SOURCE_NOT_OPENED` | akar masalah terbukti; ikut O2 |
-| O5 | Waktu berpikir habis untuk ragu (tanggal, arti pertanyaan), bukan untuk hitung | usulan praktik umum; menunggu keputusan |
-| O4 | Kalender MSCI disusun ulang dari ingatan | akar masalah terbukti: cara tanggal didapat (riset web, tanpa tabel); tanggal salah (ERRORS M166); usulan menunggu keputusan |
+| O5 | Waktu berpikir habis untuk ragu (tanggal, arti pertanyaan), bukan untuk hitung | masuk EXEC 2026-10-15 (butir 1–4), tidak dijalankan; butir 5 (anggaran penalaran, A/B) ditunda |
+| O4 | Kalender MSCI disusun ulang dari ingatan | ditunda user 2026-10-15 ("O4 skip dulu"); M166 tetap OPEN |
 
 **Keputusan user 2026-10-15 (putaran 3):** "O1: get_dimension_value harus ada, karena ini penting"; "O2: saya setuju hanya
 untuk router diberi tahu fungsi dan kemampuan setiap jalur"; "O3: OK masukan exec jangan execute dulu"; O4 ditanya: "berarti
