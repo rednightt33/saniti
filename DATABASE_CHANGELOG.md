@@ -1,5 +1,31 @@
 # Database changelog
 
+## 2026-10-15 — EXEC-BE1-2: Feature_03 total buy and sell value say what they can carry (dev)
+
+User decision 2026-10-15: "Ok, kita update saja kolom katalog untuk 2 kolom itu ya"; go "Ok jalankan" (EXEC.md
+EXEC-BE1, EXEC-IMPL-1015).
+- **`20261015_011_feature03_buy_sell_identity.sql`**: text-only update of `AI_column_catalog.description` and
+  `description_id` (`description_id_status` DRAFT) for `Feature_03_Stock_Broker_Daily.total_buy_value` and
+  `total_sell_value`, and of the active `Feature_Catalog` v2 rows' `misuse_warning` and `validation_evidence`
+  (+ `verification/feature03/BUY_SELL_IDENTITY.md`): over all brokers the two are equal by construction; from 2021
+  equal on every row but four, in 2016–2020 unequal on about 7% of Regular rows because of the source; their difference
+  is zero or a source gap, never demand; accumulation is read from `positive_net_value_total`, `foreign_net_value`,
+  `domestic_net_value`. No schema, formula, status or data change; `documentation_status` stays VERIFIED,
+  `semantic_review_status` stays CALCULATION_VERIFIED; `Column_Catalog` not edited (follows Feature_Catalog through
+  `sync_database_catalog.py`). `DATABASE_SCHEMA.md` unchanged (no column or constraint changed).
+- **Data measured first (pgweb, read-only):** 2,268,015 rows, 47,768 with `total_buy_value <> total_sell_value`, by
+  board and year in the verification note (ERRORS M157). The earlier sample (1 of 89,933 rows since 2026-06-01) did not
+  show the 2016–2020 gap.
+- **Part A check:** text of existing catalog rows; Part A gains A3.15a (identities measured per year over the full
+  history).
+- Rehearsed on a local disposable PostgreSQL (applied once, a rerun refused by the preflight). Applied by the temporary
+  service `mmig-job` (deleted afterwards, read back absent): DRYRUN `6ff1fb47` ran to the end and rolled back; APPLY
+  `24184757` committed (sha256 `7ca8a7f82593a101`, `APPLIED.sha256`). Read back through pgweb: both columns carry the
+  English and Indonesian identity text, DRAFT, VERIFIED; both active v2 Feature rows carry the warning and the evidence
+  path, CALCULATION_VERIFIED. Feature Catalog semantic audit (the queries of `scripts/audit_feature_catalog_semantics.py`
+  through pgweb; a direct connection timed out from the session): 148 active, 148 verified, 0 incomplete, 0 coverage
+  mismatches, 0 missing definitions, 0 ambiguity or usage regressions.
+
 ## 2026-10-12 — EXEC-DELETE: hidden conversations in EDGE on dev
 
 User decision 2026-10-12: "1 pakai B hanya smebunyikan di front end tapi backend bisa akses if needed", "2 Ok", "3 Ok"

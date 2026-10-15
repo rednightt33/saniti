@@ -2014,7 +2014,16 @@ batas backend 50 dan aturan prompt (Fase 2).
 - **Usulan:** (1) orc mencatat langkah run saat terjadi dari titik yang sudah ada (panggilan alat, langkah mekanis, gerbang, jawaban): label kata biasa dari `user_texts.py` ("Membaca katalog", "Menyiapkan data (29.908 baris)", "Menjalankan analisis ke-2", "Memeriksa angka jawaban", "Menulis jawaban"), waktu mulai/selesai, status; disimpan di memori per run dan dibaca lewat `GET /v1/agent/requests/{id}/progress` (satu replika orc; run yang terputus deploy sudah ditangani terpisah); (2) BFF membaca progres selama RUNNING, menaikkan `state_version`, `tool_progress: true`; (3) EDGE: penghitung waktu ("2m 1s"), langkah yang sedang berjalan, daftar langkah selesai yang bisa dilipat ("5 langkah"), seperti Claude; sesudah selesai dilipat jadi satu baris. Tanpa panggilan model tambahan dan tanpa menampilkan penalaran mentah AI. Cek: tes orc/BFF/EDGE, cek visual dan interaksi desktop dan ponsel di live dengan satu pertanyaan.
 - Tangkapan layar ketiga ("Nothing to stop yet" pada Run 7 pukul 00:44 WIB) adalah run `edge_87c7…` yang terputus deploy ulang A/B V4 (dicatat di EXEC-FASTLANE V5; perbaikan A dan C sudah dideploy dengan V5).
 
-### EXEC-BE1: efisiensi backend dari A/B V4/V5 (disetujui 2026-10-15; menunggu "go", jangan dieksekusi)
+### EXEC-BE1: efisiensi backend dari A/B V4/V5 (disetujui 2026-10-15; go 2026-10-15 "Ok jalankan")
+
+**Hasil BE1-2 (2026-10-15, ter-deploy):** migrasi `20261015_011` diterapkan (DRYRUN `6ff1fb47`, APPLY `24184757`,
+`mmig-job` dihapus), dibaca balik lewat pgweb, audit Feature Catalog lulus (148/148). **Koreksi premis:** cek seluruh
+riwayat (2.268.015 baris) menemukan total beli ≠ total jual di 47.768 baris: sejak 2021 sama (4 pengecualian), tetapi
+2016–2020 sekitar 7% baris papan Regular berbeda karena data sumber Broker Summary (ERRORS M157 baru; sampel lama 1 dari
+89.933 hanya data sejak Juni 2026). Teks katalog menyebut keduanya: selisihnya nol atau celah data sumber, bukan
+permintaan; akumulasi dibaca dari `positive_net_value_total`, `foreign_net_value`, `domestic_net_value`. Bukti
+`verification/feature03/BUY_SELL_IDENTITY.md`; pelajaran Part A A3.15a. `Column_Catalog` tidak diubah langsung
+(mengikuti Feature_Catalog lewat sinkronisasi).
 
 **Keputusan user 2026-10-15:** "Ok, with solution 1, masukan exec jangan eksekusi dulu." dan "Ok, kita update saja kolom katalog untuk 2 kolom itu ya. --> masukan exec jangan update dulu." Dasar: log A/B V4/V5 (ERRORS M154, M155).
 - **BE1-1 (solusi 1, sandbox): label hasil lebih toleran.** Ditanyakan user: "thresholds berbentuk list diubah otomatis jadi dict, dan satuan yang tidak dikenal dibuang dengan peringatan ... masuk juga pada solusi 1 ya?" — ya, itu isi solusi 1. Rencana: (a) `definition['thresholds']` berbentuk list diubah ke dict tanpa kehilangan isi (pasangan nama-nilai tetap, item lain diberi nama urut), dengan peringatan; (b) satuan di luar FRACTION/PERCENT/P_VALUE dibuang dengan peringatan, tidak ditebak (bukti: `DECIMAL` untuk kuantil 0,9 bukan persen); (c) yang tetap ditolak: kolom yang tidak ada, saringan dengan operator tak dikenal, kunci definisi tak dikenal. Pesan penolakan menyebut bentuk benar dan bahwa cukup label yang dikirim ulang (variabel sesi masih ada). Bagian "cek lebih awal" dari usulan nomor 3 dibatalkan (label baru ada di akhir skrip). Tes: list jadi dict, satuan tak dikenal jadi peringatan, kolom tak ada tetap gagal. Perkiraan hemat: satu putaran kode (10–25 dtk) per kejadian (2 dari 6 run A/B V5).
