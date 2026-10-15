@@ -24,7 +24,8 @@ def test_a_definition_is_validated_and_kept() -> None:
                "period": {"start": "2022-01-03", "end": "2026-08-31"}, "thresholds": {"crash": -1.0}, "notes": "x"}
     assert S._definition(defined) == defined
     assert S._definition({}) == {} and S._definition(None) is None
-    for bad in ("Regular only", {"filters": [{"column": "x", "operator": "=="}]}, {"period": {"from": "2022-01-01"}}):
+    for bad in ("Regular only", {"filter": []}, {"filters": [{"column": "x", "operator": "=="}]},
+                {"period": {"from": "2022-01-01"}}):
         with pytest.raises(S.InvalidOutput):
             S._definition(bad)
     with pytest.raises(S.OutputLimitExceeded):
@@ -47,11 +48,11 @@ def test_a_thresholds_list_or_value_becomes_a_dict_with_a_warning(warnings) -> N
     assert [w["code"] for w in warnings] == ["THRESHOLDS_CONVERTED"] * 3
 
 
-def test_an_unknown_definition_key_is_kept_in_the_notes_with_a_warning(warnings) -> None:
-    kept = S._definition({"filter": [{"column": "board", "operator": "EQ", "value": "RG"}], "notes": "net per day"})
-    assert kept["notes"].startswith("net per day; filter: ") and '"board"' in kept["notes"] and "filter" not in kept
-    assert S._definition({"method": "median"})["notes"] == 'method: "median"'
-    assert [w["code"] for w in warnings] == ["DEFINITION_KEYS_MOVED"] * 2
+def test_an_unknown_definition_key_is_still_refused_and_says_only_the_label_is_resent(warnings) -> None:
+    with pytest.raises(S.InvalidOutput) as refused:
+        S._definition({"filter": [{"column": "board", "operator": "EQ", "value": "RG"}]})
+    assert "unknown keys ['filter']" in str(refused.value) and S.LABEL_REPAIR in str(refused.value)
+    assert not warnings
 
 
 def test_an_unknown_unit_is_dropped_with_a_warning_and_a_known_one_is_read_in_any_case(warnings) -> None:

@@ -132,8 +132,17 @@ class OutputLimitExceeded(SanitiError):
     code = "OUTPUT_LIMIT_EXCEEDED"
 
 
+# EXEC-BE1-1 (user 2026-10-15): a refused label is repaired by sending the emit call again, never by rerunning the
+# analysis; every output refusal says so
+LABEL_REPAIR = ("The session kept every variable: send only the corrected emit_table/emit_json call; do not rerun the "
+                "analysis.")
+
+
 class InvalidOutput(SanitiError):
     code = "OUTPUT_INVALID"
+
+    def __init__(self, message: str = "") -> None:
+        super().__init__(f"{message} {LABEL_REPAIR}".strip())
 
 
 class ResampleRuleMissing(SanitiError):
@@ -2181,17 +2190,10 @@ def _definition(definition) -> dict[str, Any] | None:
         return None
     if not isinstance(definition, dict):
         raise InvalidOutput(f"definition is a dict, for example {DEFINITION_EXAMPLE}.")
-    # EXEC-BE1-1: a definition is a description; a key outside DEFINITION_KEYS is kept in the notes and a thresholds
-    # list or single value becomes a dict, each with a warning, instead of failing the execution
     unknown = sorted(set(map(str, definition)) - set(DEFINITION_KEYS))
-    if unknown:
-        definition = {str(k): v for k, v in definition.items()}
-        moved = {key: definition.pop(key) for key in unknown}
-        notes = definition.get("notes")
-        extra = "; ".join(f"{key}: {_json.dumps(_jsonable(value), ensure_ascii=False)}" for key, value in moved.items())
-        definition["notes"] = f"{notes}; {extra}" if notes not in (None, "") else extra
-        add_warning("DEFINITION_KEYS_MOVED", f"definition keys {unknown} are not among {list(DEFINITION_KEYS)}; they "
-                                             "were kept in definition['notes'].")
+    if unknown:  # EXEC-BE1-1 (c): an unknown key stays refused, a misspelt filter must not become a note
+        raise InvalidOutput(f"definition has unknown keys {unknown}; use {list(DEFINITION_KEYS)}.")
+    # EXEC-BE1-1: a thresholds list or single value becomes a dict with a warning instead of failing the execution
     thresholds = definition.get("thresholds")
     if thresholds is not None and not isinstance(thresholds, dict):
         definition = {**definition, "thresholds": _thresholds_dict(thresholds)}
