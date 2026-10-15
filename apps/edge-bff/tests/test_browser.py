@@ -135,7 +135,7 @@ def test_the_model_choice_lists_prices_changes_levels_and_is_remembered(server):
         page.get_by_role('button',name='Sign In',exact=True).click()
         composer=page.get_by_placeholder('Ask a research question…');composer.wait_for()
         trigger=page.locator('.edge-model-trigger:not([disabled])');trigger.wait_for()
-        assert 'Tinggi' in trigger.inner_text()
+        assert 'High' in trigger.inner_text()
         trigger.click()
         options=page.locator('.edge-model-option')
         assert options.count()==4
@@ -144,22 +144,22 @@ def test_the_model_choice_lists_prices_changes_levels_and_is_remembered(server):
         assert all(page.evaluate("u=>fetch(u).then(r=>r.ok&&r.headers.get('content-type').startsWith('image/svg'))",u) for u in ['/model-logos/deepseek-color.svg','/model-logos/zai.svg','/model-logos/xiaomimimo.svg','/model-logos/qwen-color.svg'])
         glm=options.filter(has_text='GLM 5.3 Flash')
         assert '$0.026' in glm.inner_text() and '$0.90' in glm.inner_text()
-        assert 'Harga diperbarui' in page.locator('.edge-model-head').inner_text()
-        assert [b.inner_text() for b in page.locator('.edge-model-levels button').all()]==['Rendah','Tinggi','Maks']
+        assert 'Prices updated' in page.locator('.edge-model-head').inner_text()
+        assert [b.inner_text() for b in page.locator('.edge-model-levels button').all()]==['Low','High','Max']
         options.filter(has_text='MiMo V2.6 Flash').click()
-        assert [b.inner_text() for b in page.locator('.edge-model-levels button').all()]==['Mati','Nyala']
-        glm.click();page.locator('.edge-model-levels button',has_text='Maks').click()
+        assert [b.inner_text() for b in page.locator('.edge-model-levels button').all()]==['Off','On']
+        glm.click();page.locator('.edge-model-levels button',has_text='Max').click()
         page.keyboard.press('Escape');assert not page.locator('.edge-model-menu').count()
         composer.fill('Explain BBRI');page.get_by_role('button',name='Submit',exact=True).click()
         page.locator('article.result').wait_for()
         assert orc.calls[-1][2]['model']=='z-ai/glm-5.3-flash' and orc.calls[-1][2]['reasoning_level']=='max'
         assert 'lane' not in orc.calls[-1][2] and not page.locator('.edge-model-lanes').count()  # no lane_selection
-        assert 'z-ai/glm-5.3-flash · Maks' in page.locator('.edge-run-model').first.inner_text()
+        assert 'z-ai/glm-5.3-flash · Max' in page.locator('.edge-run-model').first.inner_text()
         # EXEC-UI-1013B (gambar 2): the model's logo left of its name in the answer's header
         header_logo = page.locator('.edge-run-model').first.locator('.edge-model-logo')
         assert header_logo.count() == 1 and header_logo.is_visible()
         page.reload();ready=page.locator('.edge-model-trigger:not([disabled])');ready.wait_for()
-        assert 'GLM 5.3 Flash' in ready.inner_text() and 'Maks' in ready.inner_text()
+        assert 'GLM 5.3 Flash' in ready.inner_text() and 'Max' in ready.inner_text()
         assert errors==[],errors
         browser.close()
 
@@ -264,10 +264,11 @@ def test_a_page_shown_again_reads_the_run_at_once(server):
         browser.close()
 
 
-def test_the_lane_choice_is_sent_with_the_message_when_orc_allows_it(server):
-    """EXEC-FASTLANE (user 2026-10-13: toggle in EDGE for the A/B): "Jalur: Standar / Cepat" appears while Orc reports
-    lane_selection; Cepat is sent as lane "fast", kept after a reload and named in the answer's header. Without
-    lane_selection no lane is sent (test_the_model_choice_lists_prices_changes_levels_and_is_remembered)."""
+def test_every_message_runs_the_fast_lane_without_a_lane_choice(server):
+    """EXEC-UI-1015D (user 2026-10-15, "bisa buat semua jalur cepat ... sehingga kita tidak perlu ada opsi jalur"): while
+    Orc reports lane_selection every message is sent as lane "fast" and the picker offers no lane, even when the old
+    toggle left "standard" in this browser; the answer's header names the fast lane. Without lane_selection no lane is
+    sent (test_the_model_choice_lists_prices_changes_levels_and_is_remembered)."""
     playwright=pytest.importorskip('playwright.sync_api')
     origin,orc=server
     orc.MODELS={**orc.MODELS,'lane_selection':True}
@@ -277,22 +278,17 @@ def test_the_lane_choice_is_sent_with_the_message_when_orc_allows_it(server):
         page.route('https://fonts.*/*',lambda route:route.abort())
         errors=[];page.on('pageerror',lambda error:errors.append(str(error)))
         page.goto(origin+'/monitor')
+        page.evaluate("() => localStorage.setItem('edge-lane', 'standard')")  # left by the old toggle
         page.locator('#auth-login').fill('owner');page.locator('#auth-password').fill('local-test-password')
         page.get_by_role('button',name='Sign In',exact=True).click()
         composer=page.get_by_placeholder('Ask a research question…');composer.wait_for()
         trigger=page.locator('.edge-model-trigger:not([disabled])');trigger.wait_for()
         trigger.click()
-        lanes=page.locator('.edge-model-lanes button')
-        assert [b.inner_text() for b in lanes.all()]==['Standar','Cepat']
-        assert page.locator('.edge-model-lanes button[aria-checked="true"]').inner_text()=='Standar'
-        lanes.filter(has_text='Cepat').click()
+        assert not page.locator('.edge-model-lanes').count() and 'Lane' not in page.locator('.edge-model-menu').inner_text()
         page.keyboard.press('Escape')
-        assert 'Cepat' in trigger.inner_text()
         composer.fill('Explain BBRI cepat');page.get_by_role('button',name='Submit',exact=True).click()
         page.locator('article.result').wait_for()
         assert orc.calls[-1][2]['lane']=='fast'
-        page.wait_for_function("() => [...document.querySelectorAll('.edge-run-model')].some(e => e.innerText.includes('Jalur Cepat'))")
-        page.reload();page.locator('.edge-model-trigger:not([disabled])').wait_for()
-        assert 'Cepat' in page.locator('.edge-model-trigger').inner_text()
+        page.wait_for_function("() => [...document.querySelectorAll('.edge-run-model')].some(e => e.innerText.includes('Fast lane'))")
         assert errors==[],errors
         browser.close()

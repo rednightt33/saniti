@@ -100,6 +100,7 @@ class OpenRouterClient:
             timeout=httpx.Timeout(timeout_seconds),
             transport=transport,
         )
+        self.timeout_seconds = timeout_seconds
         self._lock = threading.Lock()
         self._blocked_until = 0.0
         self._blocked_reason = ""
@@ -236,13 +237,30 @@ class OpenRouterClient:
         self._probe_passed()
         return result
 
+    def _post_within(self, payload: dict[str, Any], timeout: float | None) -> httpx.Response:
+        """M163 (user 2026-10-15, go for EXEC-M163 item 1): one POST /responses that ends at a total deadline. An httpx
+        timeout only bounds each wait for the next bytes, so a provider that keeps the connection alive while the model
+        thinks was never cut (the fast lane's 90 s cap never fired). The body is read as a stream and the call is
+        closed once the deadline has passed; a wait without any bytes still ends at the same length. The deadline is
+        the call's timeout, else the client's own."""
+        seconds = float(timeout if timeout is not None else self.timeout_seconds)
+        deadline = time.monotonic() + seconds
+        with self.client.stream("POST", "/responses", json=payload, timeout=seconds) as response:
+            chunks: list[bytes] = []
+            for chunk in response.iter_bytes():
+                chunks.append(chunk)
+                if time.monotonic() > deadline:
+                    _log("ai_provider_call_deadline", seconds=seconds)
+                    raise httpx.ReadTimeout(f"no complete response within {seconds:g} s")
+            return httpx.Response(response.status_code, headers=response.headers, content=b"".join(chunks),
+                                  request=response.request)
+
     def _create(self, payload: dict[str, Any], *, timeout: float | None, attempts: int | None) -> dict[str, Any]:
         last_error: ProviderError | None = None
         tries = attempts or MAX_ATTEMPTS
         for attempt in range(tries):
             try:
-                response = self.client.post("/responses", json=payload,
-                                            **({"timeout": timeout} if timeout is not None else {}))
+                response = self._post_within(payload, timeout)
             except httpx.TimeoutException:
                 last_error = ProviderError("openrouter request timed out", code="PROVIDER_TIMEOUT")
             except httpx.NetworkError as exc:

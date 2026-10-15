@@ -972,11 +972,12 @@ kbd {
   padding-top: 8px;
 }
 .result-kicker {
-  color: var(--muted-foreground);
-  text-transform: uppercase;
-  font-size: .75rem;
-  font-weight: 500;
-  letter-spacing: .1em;
+  /* EXEC-UI-1015D (user 2026-10-15): "Edge · Completed", bold, without forced capitals or letter spacing */
+  color: var(--foreground);
+  text-transform: none;
+  font-size: .8rem;
+  font-weight: 700;
+  letter-spacing: 0;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -9819,8 +9820,22 @@ html.dark .edge-flow-done{background:#1e9a59;}
 .edge-md-table .data-table th {white-space:nowrap;letter-spacing:0;text-transform:none;font-size:.78rem;font-weight:600;}
 .edge-md-table .data-table th,.edge-md-table .data-table td {text-align:left;}
 .edge-md-table .data-table .num {text-align:right;white-space:nowrap;}
-.edge-md-table .data-table td {white-space:normal;min-width:72px;vertical-align:top;}
-.edge-md-table .data-table td:first-child {min-width:140px;}
+/* EXEC-UI-1015D (user 2026-10-15, "seek best practice"): a data table as wide as its content (not stretched to the card),
+   compact cells, short columns kept on one line, text wrapping between words only, and on a phone the first column stays
+   in view while the table scrolls sideways */
+.edge-md-table .data-table {width:auto;max-width:none;}
+.edge-md-table .data-table th,.edge-md-table .data-table td {padding:8px 12px;}
+.edge-md-table .data-table td {vertical-align:top;overflow-wrap:normal;word-break:normal;}
+.edge-md-table .data-table .edge-col-short {white-space:nowrap;}
+.edge-md-table .data-table td.edge-col-text {white-space:normal;min-width:12ch;max-width:28ch;}
+.edge-table-dialog-body .data-table td.edge-col-text {max-width:40ch;}
+@media (max-width:720px) {
+ .edge-md-table .data-table th,.edge-md-table .data-table td {padding:6px 10px;}
+ .edge-md-table .data-table th:first-child,.edge-md-table .data-table td:first-child {position:sticky;left:0;z-index:1;background:var(--card);box-shadow:1px 0 0 var(--border-soft);}
+ .edge-md-table .data-table th:first-child {background:var(--secondary);}
+ html.dark .monitor-layout .result .edge-md-table .data-table td:first-child {background:#252c35;}
+ html.dark .monitor-layout .result .edge-md-table .data-table th:first-child {background:#303844;}
+}
 /* EXEC-SORT: the title cell keeps its look; hover darkens it and shows the sort icon, the sorted column shows its arrow */
 .edge-md-table .data-table th.edge-sortable {padding:0;}
 .edge-md-table .data-table th.edge-sortable:hover {background:color-mix(in srgb, var(--secondary), var(--foreground) 7%);}
@@ -9968,7 +9983,7 @@ html.dark .monitor-layout .result{
  --control-background:#303844;--control-border:#46515f;
  background:#20242b;color:#f1f4f8;
 }
-html.dark .monitor-layout .result .result-kicker,
+html.dark .monitor-layout .result .result-kicker{color:var(--text);}
 html.dark .monitor-layout .result .result-metadata{color:var(--muted-foreground);}
 html.dark .monitor-layout .result .data-table{background:#252c35;color:var(--text);border-color:var(--border);}
 html.dark .monitor-layout .result .data-table th{background:#303844;color:var(--text-2);}
@@ -10915,11 +10930,10 @@ function edgeModelChoice(){
   const level=saved?.model===option.model&&option.reasoning_levels.includes(saved?.reasoning_level)?saved.reasoning_level:edgeDefaultLevel(option);
   return {model:option.model,reasoning_level:level,...(data.lane_selection?{lane:edgeLane()}:{})};
 }
-// EXEC-FASTLANE (user 2026-10-13: toggle in EDGE for the A/B): the lane of the next message, kept in this browser;
-// offered only while Orc reports lane_selection, otherwise no lane is sent (the current behaviour)
-const LANE_KEY="edge-lane";
-function edgeLane(){let lane=null;try{lane=localStorage.getItem(LANE_KEY);}catch{lane=null;}return lane==="fast"?"fast":"standard";}
-function keepLane(lane){try{localStorage.setItem(LANE_KEY,lane);}catch{}refresh();}
+// EXEC-UI-1015D (user 2026-10-15, "bisa buat semua jalur cepat fastlane latest V by default, sehingga kita tidak perlu ada
+// opsi jalur"): every EDGE message runs the fast lane while Orc reports lane_selection (otherwise no lane is sent); the
+// standard lane stays in Orc as the fallback for other callers. A lane kept by the old toggle is ignored.
+function edgeLane(){return "fast";}
 // EXEC-LOGOS (user 2026-10-13, "kasih logo untuk setiap model ya di HP"): each model's brand logo (LobeHub icons, MIT),
 // served from static/model-logos/. A one-colour logo is drawn as a mask in the text colour, so it shows in light and
 // dark; a model without a logo keeps its initial letter.
@@ -10975,7 +10989,7 @@ function EdgeModelSelector(){
     element("button",{type:"button",className:"edge-model-trigger","aria-expanded":open,"aria-haspopup":"dialog",title:ui.modelTitle,onClick:()=>setOpen(!open)},
       element(EdgeModelLogo,{option:current}),
       element("span",{className:"edge-model-name"},current.label),
-      element("span",{className:"edge-model-level"},levelName(choice.reasoning_level)+(choice.lane==="fast"?" \u00B7 "+ui.lanes.fast:"")),
+      element("span",{className:"edge-model-level"},levelName(choice.reasoning_level)),
       element(Icon,{name:"chevron"})),
     open&&element("div",{className:"edge-model-menu",role:"dialog","aria-label":ui.modelTitle},
       element("div",{className:"edge-model-head"},element("strong",null,ui.modelHead),
@@ -10998,10 +11012,7 @@ function EdgeModelSelector(){
               element("small",null,ui.modelLevel),
               option.reasoning_levels.map(level=>element("button",{key:level,type:"button",role:"radio","aria-checked":level===choice.reasoning_level,
                 onClick:()=>keepModelChoice({model:option.model,reasoning_level:level})},levelName(level)))),
-            data.lane_selection&&element("div",{className:"edge-model-levels edge-model-lanes",role:"radiogroup","aria-label":ui.lane,title:ui.laneNote},
-              element("small",null,ui.lane),
-              ["standard","fast"].map(lane=>element("button",{key:lane,type:"button",role:"radio","aria-checked":lane===(choice.lane||"standard"),
-                onClick:()=>keepLane(lane)},ui.lanes[lane])))));
+            ));
       }))));
 }
 function ResearchScrollMarker({ scrollRef, conversationId }) {
@@ -11344,6 +11355,7 @@ function TableDialog({spec}) {
     element("div", {className:"edge-table-dialog-body edge-md-table"}, element(MdTable, {...spec.table, plain:true})));
 }
 const TABLE_VISIBLE_ROWS = 10;
+const TABLE_SHORT_CELL = 16;  // characters: a cell this short reads as a code, date or number
 function MdTable({head, align, rows, numeric, ctx, title = "", plain = false, initialSort = null}) {
   const view = currentView;
   const sort = initialValue(view, "sort", () => initialSort ?? ({column:null, dir:null}));
@@ -11365,7 +11377,14 @@ function MdTable({head, align, rows, numeric, ctx, title = "", plain = false, in
   };
   const ordered = sort.column == null ? free : [...free].sort((a, b) => compare(a, b, sort.column, sort.dir));
   const next = column => sort.column !== column ? {column, dir:"descending"} : sort.dir === "descending" ? {column, dir:"ascending"} : {column:null, dir:null};
-  const cellProps = (column, extra = {}) => ({...extra, ...(align[column] ? {style:{textAlign:align[column]}} : numeric[column] ? {className:[extra.className, "num"].filter(Boolean).join(" ")} : {})});
+  // EXEC-UI-1015D (user 2026-10-15, "jarak antara kolom tidak compact"): a column whose cells are all short (codes,
+  // dates, numbers) never wraps; a longer text column wraps between words within a readable width (CSS)
+  const shortColumn = head.map((_, column) => numeric[column] || kinds[column] !== "text"
+    || free.every(item => String(item.row[column] ?? "").replace(/[*_`]/g, "").trim().length <= TABLE_SHORT_CELL));
+  const cellProps = (column, extra = {}) => {
+    const classes = [extra.className, !align[column] && numeric[column] ? "num" : null, shortColumn[column] ? "edge-col-short" : "edge-col-text"].filter(Boolean).join(" ");
+    return {...extra, className:classes, ...(align[column] ? {style:{textAlign:align[column]}} : {})};
+  };
   const header = (value, column) => {
     const active = sort.column === column;
     return element("th", cellProps(column, {className:`edge-sortable${active ? " sorted" : ""}`, "aria-sort":active ? sort.dir : "none"}),
@@ -11510,9 +11529,9 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
  const notes=v.plan&&[v.plan.notes.assumptions,v.plan.notes.limitations].some(part=>part.items.length)?element("div",{className:"edge-plan-notes"},
    [v.plan.notes.assumptions,v.plan.notes.limitations].map(part=>part.items.length>0&&element("div",null,element("span",{className:"edge-eyebrow"},part.label),items(part.items)))):null;
  return element("article",{className:"result",id:run.id+"-response",tabIndex:-1},
-  element("div",{className:"result-kicker"},element(Icon,{name:"spark"}),"EDGE AI · "+v.status.label,element("i",{className:`edge-dot ${v.status.tone}`,"aria-hidden":"true"})),
+  element("div",{className:"result-kicker"},element(Icon,{name:"spark"}),"Edge · "+v.status.label,element("i",{className:`edge-dot ${v.status.tone}`,"aria-hidden":"true"})),
   element("h1",null,run.result.title),
-  element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",{className:"edge-run-model"},element(EdgeModelLogo,{option:edgeModelOption(v.meta.model)}),v.meta.model+(v.meta.reasoningLevel?" \u00B7 "+(edgeUi().modelLevels?.[v.meta.reasoningLevel]??v.meta.reasoningLevel):"")+(v.meta.lane==="fast"?" \u00B7 "+edgeUi().lane+" "+edgeUi().lanes.fast:"")),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.duration&&element("span",{className:"edge-duration",title:"Lama proses"},"\u23F1 "+v.meta.duration),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
+  element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",{className:"edge-run-model"},element(EdgeModelLogo,{option:edgeModelOption(v.meta.model)}),v.meta.model+(v.meta.reasoningLevel?" \u00B7 "+(edgeUi().modelLevels?.[v.meta.reasoningLevel]??v.meta.reasoningLevel):"")+(v.meta.lane==="fast"?" \u00B7 "+edgeUi().fastLane:"")),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.duration&&element("span",{className:"edge-duration",title:"Lama proses"},"\u23F1 "+v.meta.duration),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
   v.evidence&&element("div",{className:"edge-tags"},element("span",{className:"edge-badge neutral",title:v.evidence.code},v.evidence.label)),
   v.answer&&element("div",{className:"content-block edge-answer"},element(Markdown,{text:v.answer,claims,fast})),
   v.clarification&&element(ResponseChoices,{scope:run.id+":clarify",enabled,act,

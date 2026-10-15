@@ -48,8 +48,9 @@ window.EdgeLabels = {
     UNVERIFIED_EXPLORATORY:"Eksploratif, belum terverifikasi", NOT_VALIDATED:"Belum tervalidasi"
   },
   status: {
-    COMPLETED:["Selesai","positive"], AWAITING_CONFIRMATION:["Menunggu persetujuan","warning"], NEEDS_CLARIFICATION:["Perlu jawaban Anda","warning"],
-    LIMITED:["Terbatas","neutral"], PAUSED:["Dijeda","warning"], FAILED:["Gagal","negative"]
+    // EXEC-UI-1015D (user 2026-10-15, "selesai ganti Completed"): the answer header in English
+    COMPLETED:["Completed","positive"], AWAITING_CONFIRMATION:["Awaiting approval","warning"], NEEDS_CLARIFICATION:["Needs your answer","warning"],
+    LIMITED:["Limited","neutral"], PAUSED:["Paused","warning"], FAILED:["Failed","negative"]
   },
   units: {PERCENT:"%", BASIS_POINT:" bp", DECIMAL:""},
   operators: {">=":"≥", "<=":"≤", ">":">", "<":"<"},
@@ -72,9 +73,10 @@ window.EdgeLabels = {
     sourcesEmpty:"No source or evidence metadata returned for this response.",
     approveMessage:"Setujui rencana riset", cancelMessage:"Batalkan rencana riset",
     // EXEC-MODELS: the model and reasoning-level choice next to the composer
-    modelTitle:"Pilih model dan tingkat berpikir", modelHead:"Model AI", modelPricesNote:"Harga per 1 juta token",
-    modelInput:"Input", modelOutput:"Output", modelLevel:"Tingkat berpikir", lane:"Jalur", lanes:{standard:"Standar", fast:"Cepat"}, laneNote:"Cepat: satu giliran, hasil eksploratif", modelUpdated:"Harga diperbarui",
-    modelLevels:{low:"Rendah", medium:"Sedang", high:"Tinggi", max:"Maks", off:"Mati", on:"Nyala"},
+    // EXEC-UI-1015D (user 2026-10-15): the model picker in English; every EDGE message runs the fast lane (no lane choice)
+    modelTitle:"Choose model and reasoning", modelHead:"AI model", modelPricesNote:"Price per 1M tokens",
+    modelInput:"Input", modelOutput:"Output", modelLevel:"Reasoning", lane:"Lane", lanes:{standard:"Standard", fast:"Fast"}, fastLane:"Fast lane", modelUpdated:"Prices updated",
+    modelLevels:{low:"Low", medium:"Medium", high:"High", max:"Max", off:"Off", on:"On"},
     // EXEC-CHOICES: the "Response choices" panel
     nextAction:"Langkah Anda berikutnya", choicesTitle:"Pilihan jawaban", planChoicesTitle:"Persetujuan rencana",
     choiceDraft:"Isi kotak pesan dulu", choiceWrite:"Tulis",

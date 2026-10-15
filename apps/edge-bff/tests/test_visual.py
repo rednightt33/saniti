@@ -343,7 +343,7 @@ def test_failure_retry_limited_and_multi_turn_history(dummy_orc, browser_page):
     assert orc.calls[1][2]['conversation_id'] == orc.saved[first]['conversation_id']
     submit(page, 'Dummy limited')
     saved(page, 3)
-    assert page.locator('article.result').last.locator('.result-kicker').text_content() == 'EDGE AI · Terbatas'
+    assert page.locator('article.result').last.locator('.result-kicker').text_content() == 'Edge · Limited'
     page.locator('.research-scroll').evaluate('(node) => node.scrollTop = 0')
     capture(page, 'desktop-history-multiple')
     page.reload()

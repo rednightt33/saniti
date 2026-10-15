@@ -3,6 +3,7 @@ bookmark and share buttons sit in the rail, and each response in Response Histor
 conversation. Phone: the rail's menu and "+" sit in the header between the logo and search, the chat takes the full
 width, the session bar stays, and settings opens from the account menu. The EDGE "E" is the favicon, public like the
 page."""
+import copy
 import urllib.request
 
 from test_answer_view import fixture_server  # noqa: F401 (fixture)
@@ -148,3 +149,56 @@ def test_a_provider_outage_shows_the_plain_line_and_a_retry(dummy_orc, browser_p
     page.locator('.conversation').first.click()  # the saved run, read again from the server, says the same
     page.get_by_role('button', name='Retry', exact=True).wait_for()
     assert 'Layanan AI sedang tidak tersedia' in page.locator('.run-inline-state').inner_text()
+
+
+BROKERS = ('Pembeli teratas.\n\n| Saham | Tanggal efektif | Broker | Net beli (Rp) |\n|---|---|---|---:|\n'
+           '| TPIA | 31 Mei 2024 | BK – J.P. Morgan Sekuritas Indonesia | 1.274.504.292.525 |\n'
+           '| BRMS | 25 Nov 2025 | YU – CGS International Sekuritas Indonesia | 1.556.195.108.075 |\n'
+           '| ENRG | 25 Nov 2025 | KI – Ciptadana Sekuritas Asia | 539.600.000 |\n')
+SHORT = 'Return.\n\n| Saham | 20h sebelum | 20h sesudah |\n|---|---:|---:|\n| ENRG | −8,1% | 42,9% |\n| RAJA | −16,6% | 17,5% |\n'
+FIXTURES['ui1015d_brokers'] = copy.deepcopy(FIXTURES['answer_table'])
+FIXTURES['ui1015d_brokers']['response']['answer'] = BROKERS
+FIXTURES['ui1015d_short'] = copy.deepcopy(FIXTURES['answer_table'])
+FIXTURES['ui1015d_short']['response']['answer'] = SHORT
+
+
+def test_answer_tables_are_compact_and_never_break_a_word(fixture_server, browser_page):
+    """EXEC-UI-1015D (user 2026-10-15, "jarak antara kolom tidak compact. seek best practice"): a table is as wide as its
+    content, short columns (codes, dates, numbers) stay on one line, a text column wraps between words only, and on a
+    phone the first column stays in view while the table scrolls sideways. The header reads "Edge · Completed"."""
+    origin, _ = fixture_server
+    page = browser_page
+    for width in (1440, 390):
+        page.set_viewport_size({'width': width, 'height': 900})
+        sign_in(page, origin)
+        submit(page, 'fx:ui1015d_short')
+        saved(page)
+        submit(page, 'fx:ui1015d_brokers')
+        saved(page, 2)
+        short = page.locator('article.result').nth(0).locator('.edge-md-table')
+        table_width = short.locator('table').evaluate('t => t.getBoundingClientRect().width')
+        frame_width = short.evaluate('f => f.getBoundingClientRect().width')
+        natural = short.locator('table').evaluate("t => { const w = t.style.width; t.style.width = 'max-content'; "
+                                                  "const n = t.getBoundingClientRect().width; t.style.width = w; return n; }")
+        assert abs(table_width - natural) <= 1 and table_width <= frame_width, (width, table_width, natural)  # its content, not the card
+        if width > 720:
+            assert table_width < frame_width * 0.8
+        cells = page.locator('article.result').nth(1).locator('tbody tr').first.locator('td')
+        one_line = cells.nth(0).evaluate('td => parseFloat(getComputedStyle(td).lineHeight)')
+        for column in (0, 1, 3):  # code, date, amount: one line each
+            assert cells.nth(column).evaluate("td => getComputedStyle(td).whiteSpace") == 'nowrap'
+        broker = cells.nth(2)
+        assert broker.evaluate("td => getComputedStyle(td).overflowWrap") == 'normal'
+        words = broker.evaluate("""td => { const range = document.createRange(), text = td.firstChild ? td : null, out = [];
+            const walker = document.createTreeWalker(td, NodeFilter.SHOW_TEXT); let node;
+            while ((node = walker.nextNode())) { for (const m of node.textContent.matchAll(/\\S+/g)) {
+              range.setStart(node, m.index); range.setEnd(node, m.index + m[0].length); out.push(range.getClientRects().length); } }
+            return out; }""")
+        assert words and all(rects == 1 for rects in words), words  # no word split across lines
+        if width == 390:
+            assert cells.nth(0).evaluate("td => getComputedStyle(td).position") == 'sticky'
+        kicker = page.locator('article.result').nth(1).locator('.result-kicker')
+        assert kicker.text_content() == 'Edge · Completed'
+        assert kicker.evaluate("k => [getComputedStyle(k).fontWeight, getComputedStyle(k).textTransform, getComputedStyle(k).letterSpacing]") \
+            == ['700', 'none', 'normal']
+        page.context.clear_cookies()

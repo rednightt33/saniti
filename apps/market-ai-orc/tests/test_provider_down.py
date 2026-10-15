@@ -158,3 +158,33 @@ def test_the_credit_monitor_logs_a_low_balance(monkeypatch: pytest.MonkeyPatch) 
     funded, _ = make({"responses": [OK], "key": [key(30.0)]})
     CreditMonitor(funded, 900, 2.0).check()
     assert [event for event, _ in logged] == ["ai_provider_credit"]
+
+
+def test_a_call_ends_at_its_total_deadline_even_while_bytes_keep_coming(monkeypatch: pytest.MonkeyPatch) -> None:
+    """M163 (go for EXEC-M163 item 1): `edge_2f7523a7…` thought 210 s on the fast lane although its call was capped at
+    90 s: an httpx timeout only bounds the wait for the next bytes. A provider sending a keep-alive byte every 30 s is
+    now cut at the call's total deadline; a complete answer within the deadline is read as before."""
+    now = [0.0]
+    monkeypatch.setattr(client_module.time, "monotonic", lambda: now[0])
+    logged: list[str] = []
+    monkeypatch.setattr(client_module, "_log", lambda event, **fields: logged.append(event))
+
+    def keep_alive():
+        for _ in range(20):
+            now[0] += 30.0
+            yield b" "
+        yield b'{"id": "resp_late", "output": []}'
+
+    slow, _ = make({"responses": [httpx.Response(200, content=keep_alive())], "key": [key(5.0)]})
+    with pytest.raises(ProviderError) as raised:
+        slow.create({}, timeout=90.0, attempts=1)
+    assert raised.value.code == "PROVIDER_TIMEOUT" and not raised.value.service_down
+    assert 90.0 < now[0] <= 120.0 and logged == ["ai_provider_call_deadline"]
+
+    def prompt():
+        now[0] += 20.0
+        yield b'{"id": "resp_ok",'
+        yield b' "output": []}'
+
+    quick, _ = make({"responses": [httpx.Response(200, content=prompt())], "key": [key(5.0)]})
+    assert quick.create({}, timeout=90.0, attempts=1)["id"] == "resp_ok"
