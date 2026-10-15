@@ -73,7 +73,7 @@ window.EdgeLabels = {
     sourcesEmpty:"No source or evidence metadata returned for this response.",
     // EXEC-IMPL-1016 Fase 4.1 (EDGE-CTX B): the tables this answer released, as the data behind it; the old evidence list
     // stays below, folded, as the references of its figures
-    sourcesTables:"Tabel hasil", sourcesNumbers:"Rujukan angka", sourceRows:"Baris", sourceColumns:"Kolom",
+    sourcesTables:"Tabel hasil", sourcesNumbers:"Rujukan angka", sourceContent:"Isi", sourceRows:"Baris", sourceColumns:"Kolom",
     // EXEC-IMPL-1016 Fase 4.3 (UI-1015B): what a running answer is doing, from Orc's steps
     progressDone:"Langkah selesai ({n})", progressEarlier:"{n} langkah sebelumnya",
     progressRefused:"ditolak, dicoba lagi", progressFailed:"gagal",

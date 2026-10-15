@@ -122,11 +122,15 @@
     const news = evidence.filter(item => item?.kind === "NEWS"), proof = evidence.filter(item => item?.kind !== "NEWS");
     // EXEC-IMPL-1016 Fase 4.1 (EDGE-CTX B): the tables this answer released come first, each with a request to export
     // it (a message, like a follow-up); the evidence list stays, folded, as the references of the figures
-    const tables = (record?.outputs || []).filter(o => o && o.ref && raw.request_id && o.request_id === raw.request_id)
+    // an output's label is its verification status (DATA_COVERAGE_VERIFIED), never its name; a JSON output is not a table
+    const tables = (record?.outputs || []).filter(o => o && o.ref && raw.request_id && o.request_id === raw.request_id
+        && o.type !== 'JSON' && (o.columns || []).length)
       .map(o => {
-        const name = o.label || o.name || o.ref;
-        const rows = Object.fromEntries([[ui.sourceRows, o.row_count], [ui.sourceColumns, (o.columns || []).length || null],
-          [ui.sourceAsOf, o.data_as_of]].filter(([, value]) => value !== undefined && value !== null));
+        const name = String(o.name || o.ref).replace(/_/g, ' ');
+        const notes = typeof o.definition?.notes === 'string' ? o.definition.notes.slice(0, 240) : null;
+        const rows = Object.fromEntries([[ui.sourceContent, notes], [ui.sourceRows, o.row_count],
+          [ui.sourceColumns, (o.columns || []).length || null],
+          [ui.sourceAsOf, o.data_as_of]].filter(([, value]) => value !== undefined && value !== null && value !== ''));
         return {title:name, code:false, status:null, rows, ref:o.ref, outputId:o.output_id, actionLabel:ui.askExport,
           action:{type:"message", message:ui.exportMessage.replace("{ref}", o.ref).replace("{name}", name)}};
       });

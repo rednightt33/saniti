@@ -353,9 +353,11 @@ def test_sources_list_the_answers_tables_with_an_export_request(fixture_server, 
         result = original(owner, id, {**payload, 'message': 'fx:answer_table'})
         record = dict(result.get('data_record') or {})
         record['outputs'] = [
-            {'ref': 'out.1', 'output_id': 'o1', 'name': 'broker_net_buy', 'label': 'Net beli broker asing',
-             'columns': ['broker', 'net_value', 'date'], 'row_count': 12, 'request_id': id,
-             'data_as_of': '2026-10-15'},
+            {'ref': 'out.1', 'output_id': 'o1', 'name': 'Net_beli_broker_asing', 'label': 'DATA_COVERAGE_VERIFIED',
+             'type': 'TABLE', 'columns': ['broker', 'net_value', 'date'], 'row_count': 12, 'request_id': id,
+             'data_as_of': '2026-10-15', 'definition': {'notes': 'Net beli harian per broker asing.'}},
+            {'ref': 'out.2', 'output_id': 'o2', 'name': 'ringkasan', 'type': 'JSON', 'columns': [], 'row_count': None,
+             'request_id': id},
             {'ref': 'out.0', 'output_id': 'o0', 'name': 'older', 'columns': ['x'], 'row_count': 3,
              'request_id': 'edge_earlier'}]
         result['data_record'] = record
@@ -374,7 +376,8 @@ def test_sources_list_the_answers_tables_with_an_export_request(fixture_server, 
     assert sources.locator('.edge-source-ref').first.inner_text() == 'out.1'
     table = sources.locator('.edge-source').first.inner_text()
     assert 'Baris\n12' in table and 'Kolom\n3' in table and 'Data per\n2026-10-15' in table and '{n}' not in table
-    assert 'older' not in sources.inner_text()
+    assert 'older' not in sources.inner_text() and 'ringkasan' not in sources.inner_text()
+    assert 'DATA_COVERAGE_VERIFIED' not in sources.inner_text() and 'Net beli harian per broker asing.' in table
     folded = sources.locator('details.edge-source-folded')
     assert folded.count() == 1 and folded.locator('summary').inner_text().startswith('Rujukan angka')
     assert not folded.evaluate('node => node.open')
