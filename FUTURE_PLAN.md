@@ -10,6 +10,73 @@ Dokumen ini berisi sisanya:
 Butir yang disetujui user dipindah ke `PLAN.md` atau `EXEC.md` pada tugas yang sama. Kode masalah merujuk ke
 `ERRORS_AND_SOLUTIONS.md`.
 
+## 0. PRIORITAS TINGGI
+
+### M157 — total beli ≠ total jual di Broker Summary 2016–2020 (HIGH PRIORITY, user 2026-10-15: "describe di future plan dan remark as high priority ... agar agent lain bisa bantu investigate")
+
+**Ringkasan untuk agen yang menyelidiki.** Di `Feature_03_Stock_Broker_Daily`, `total_buy_value` (jumlah `buy_value_1d`
+semua broker per saham, tanggal, papan) seharusnya sama dengan `total_sell_value`: setiap transaksi punya broker pembeli
+dan broker penjual dengan nilai yang sama. Ternyata tidak sama di 47.768 dari 2.268.015 baris. Hampir semuanya di
+2016–2020. Feature_03 sudah direkonsiliasi persis ke sumber mentah, jadi celahnya ada di data sumber
+`IDX_Broker_Summary` (Stockbit, lewat `apps/stockbit-broker-backfill`), bukan di rumus Feature.
+
+**Fakta yang sudah terverifikasi** (pgweb read-only 2026-10-15, `lucid-patience/dev`; bukti
+`verification/feature03/BUY_SELL_IDENTITY.md`):
+
+| Papan | 2016 | 2017 | 2018 | 2019 | 2020 | 2021–2024 | 2025 | 2026 |
+|---|---|---|---|---|---|---|---|---|
+| Regular, baris tidak sama | 14.270 / 97.000 | 7.849 / 118.461 | 9.084 / 136.753 | 10.647 / 145.085 | 5.446 / 154.717 | 0 | 2 / 261.053 | 2 / 203.536 |
+| Regular, rata-rata selisih relatif | 3,8% | 5,1% | 4,0% | 3,4% | 5,4% | – | 2,5% | 80% |
+| Nego, baris tidak sama | 76 | 53 | 9 | 139 | 116 | 0 | 0 | 0 |
+| Tunai, baris tidak sama | 41 | 10 | 15 | 7 | 2 | 0 | 0 | 0 |
+
+- Selisih terbesar Rp 291.005.760.675 dalam satu baris.
+- `foreign_net_value + domestic_net_value = total_buy_value − total_sell_value` berlaku di setiap baris (DATABASE_CHANGELOG,
+  rebuild Feature 03 v2), jadi selisih itu juga muncul sebagai net asing + domestik yang tidak nol di level saham.
+- Rekonsiliasi Feature_02/03 ke `IDX_Broker_Summary`: nol baris hilang, nol baris lebih, nol selisih nilai
+  (DATABASE_CHANGELOG, backfill Feature 02 dan rebuild Feature 03). Artinya angka sumber diteruskan apa adanya.
+- Sampel lama "1 dari 89.933 baris" hanya mencakup data sejak 2026-06-01. Sampel itu tidak boleh dipakai sebagai bukti
+  untuk seluruh riwayat.
+
+**Belum terverifikasi: dugaan penyebab dan cara mengeceknya.** Semua cek bersifat read-only.
+1. **Broker hilang di halaman sumber lama.** Mungkin Stockbit mengembalikan daftar broker terbatas, atau broker yang
+   sudah tutup tidak tercatat. Cek: per (Symbol, Date, Market Board) yang tidak sama, bandingkan jumlah broker baris
+   tersebut dengan baris yang sama di hari sekitarnya, lalu lihat apakah selisihnya cocok dengan satu broker yang hilang.
+   Cek juga apakah broker di `IDX_Broker_Profile_History` yang aktif saat itu tidak muncul.
+2. **Batas jumlah baris per halaman atau paginasi di backfill.** Cek kode `apps/stockbit-broker-backfill`: apakah
+   respons dibatasi top-N atau diputus per halaman. Hitung juga apakah baris yang tidak sama cenderung yang jumlah
+   brokernya mendekati angka bulat (misalnya 50 atau 100).
+3. **Pembagian Investor Type.** Apakah Domestic/Foreign untuk satu broker kadang hanya satu sisi. Cek: di baris yang
+   tidak sama, jumlahkan `Buy Value` dan `Sell Value` per `Investor Type`.
+4. **Pembanding luar.** Bandingkan nilai transaksi saham itu di hari itu (`Price_Stock_Indonesia_IDX` volume × harga,
+   atau nilai IDX bila ada) dengan `total_buy_value` dan `total_sell_value`. Sisi yang lebih dekat ke nilai bursa
+   menunjukkan sisi mana yang kurang.
+5. **Muatan ulang parsial.** Cek `ingestion_time` dan log muatan untuk tanggal yang tidak sama: apakah dimuat dalam batch
+   yang sama, terputus, atau diulang.
+6. **Empat baris 2025–2026.** Pemeriksaan per baris (Symbol, Date, Board), karena pola ini berbeda dari 2016–2020.
+
+Kueri awal per tahun dan papan ada di bukti `verification/feature03/BUY_SELL_IDENTITY.md`. Jalankan per partisi
+(tahun atau rentang ticker) sesuai Part A A3.23, jangan sebagai satu kueri besar.
+
+**Dampak.**
+- Jawaban yang menjumlah net broker atau net asing/domestik di level saham, sektor atau pasar untuk 2016–2020 bisa
+  membaca celah sumber sebagai akumulasi. Contohnya pertanyaan "akumulasi broker", "net asing tahunan" atau backtest
+  aliran dana.
+- Fitur turunan yang memakai jumlah net (Feature_02 rolling di level saham, Feature_03 net totals) membawa celah yang
+  sama.
+
+**Yang sudah dilakukan.** Katalog sudah menyatakannya (migrasi `20261015_011`, ERRORS M154 a dan M157): selisihnya nol
+atau celah sumber, bukan permintaan; akumulasi dibaca dari net per broker atau per tipe investor.
+
+**Yang belum.**
+- Akar penyebab di sumber (cek 1–6).
+- Catatan cakupan per tahun di `AI_data_coverage` atau penanda per baris (misalnya `source_balance_gap`) supaya AI dan
+  ekspor bisa memilah baris yang tidak seimbang.
+- Keputusan user: muat ulang 2016–2020 dari sumber (bila sumber sekarang lengkap), tandai saja, atau keluarkan dari
+  analisis aliran.
+
+Setiap perubahan data atau skema mengikuti AGENTS.md (migrasi baru, baca balik, changelog) dan butuh persetujuan user.
+
 ## 1. Antrean perbaikan dekat
 
 **Riwayat, sudah dieksekusi.** M68, S28 dan R-STORE dikerjakan di round 2026-10-03 (`ROUND_PLAN_2026-10-03.md` Fase A dan C, live di dev). Teks di bawah disimpan sebagai riwayat desain.
