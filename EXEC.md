@@ -2030,7 +2030,28 @@ tuntas (dieksekusi dan diverifikasi, atau diputuskan tidak dikerjakan).
 | O1 | `get_dimension_values` dipakai untuk kode saham (EXEC-M164) | akar masalah terbukti; usulan menunggu go |
 | O2 | Pertanyaan "Cari saja …" masuk kelas INSIGHT | akar masalah terbukti; usulan menunggu keputusan |
 | O3 | Penolakan `INSIGHT_SOURCE_NOT_OPENED` | akar masalah terbukti; ikut O2 |
-| O4 | Kalender MSCI disusun ulang dari ingatan | akar masalah terbukti; usulan menunggu keputusan |
+| O4 | Kalender MSCI disusun ulang dari ingatan | akar masalah terbukti; temuan tanggal salah (ERRORS M166); usulan menunggu keputusan |
+
+**Pertanyaan lanjutan user 2026-10-15 dan jawabannya** (user: "O1: Maksudnya get dimension value itu untuk apa? ... O2
+silahkan benchmark dengan best practice terlebih dahulu ... O3 ... kenapa AI tidak tahu bahwa ia harus melakukan ini
+beforehand? Coba cek log. O4: ... kenapa harus dari ingatan, padahal kan jawaban itu baru di reply"):
+- O1: setara SQL `SELECT DISTINCT kolom FROM tabel WHERE kolom ILIKE '%kata%' ORDER BY 1 LIMIT 200`, lewat Governor; nilai
+  yang didapat dipakai di scope data need (`PREDICATE kolom = 'Banks'`), yang Governor kompilasi menjadi `WHERE`. Ya, untuk
+  saringan.
+- O2: perbandingan praktik umum router (kelas didefinisikan oleh kemampuan penanganannya, satu dimensi per keputusan,
+  contoh positif dan negatif per kelas, kasus batas di benchmark berlabel, matriks kebingungan) dengan router sekarang
+  (kelas berdasarkan niat user, mencampur "hubungan dengan hasil lama" dan "jenis kerja", tidak tahu apa yang dilakukan mode
+  INSIGHT di jalur cepat, benchmark 24 kasus tanpa kasus "daftar baru atas konteks"). Usulan di balasan; benchmark
+  berbayar kecil menunggu perintah.
+- O3: log: catatan INSIGHT dikirim (`conversation_turn_routed` turn_kind INSIGHT untuk `-m4i`), tetapi penalaran panggilan
+  pertama tidak pernah menyebutnya; yang ditimbang hanya catatan cakupan router dan catatan explore jalur cepat. Tiga
+  catatan berbeda arah untuk satu giliran; catatan INSIGHT tidak menyebut bahwa penyelesaian akan ditolak. Gerbang perlu
+  terikat pada "menjelaskan hasil lama" (bukan nama kelas).
+- O4: tanggal ada di riwayat (penalaran mengutip "the answer said ... 27 Agu 2025"; `history_turns_dropped=0`); model
+  memakainya tetapi meragukannya dengan pengetahuannya sendiri karena teks riwayat tidak konsisten dan tidak membedakan
+  pengumuman, penutupan implementasi dan hari efektif. Keraguan itu sebagian benar: MSCI November 2025 diimplementasikan
+  pada penutupan 24 Nov 2025 (rilis resmi), Agustus 2025 pada penutupan 26 Agu 2025 (berita); jawaban memakai hari
+  sesudahnya (ERRORS M166).
 
 **O1.** Kegunaan alat: ejaan nilai kategori yang tersimpan (mis. "Banks", "Regular") untuk saringan; saringan dengan ejaan
 salah tidak gagal, hanya mengembalikan nol baris tanpa peringatan, jadi alat ini mencegah jawaban kosong diam-diam.
