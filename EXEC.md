@@ -2030,6 +2030,7 @@ tuntas (dieksekusi dan diverifikasi, atau diputuskan tidak dikerjakan).
 | O1 | `get_dimension_values` dan aturan nilai teks tersimpan (EXEC-M164) | penegakan sebagian sudah ada (P14); penyelarasan tipe dan aturan di awal menunggu go; peringatan satuan saat rilis disetujui (M167) |
 | O2 | Pertanyaan "Cari saja …" masuk kelas INSIGHT | akar masalah terbukti; usulan menunggu keputusan |
 | O3 | Penolakan `INSIGHT_SOURCE_NOT_OPENED` | akar masalah terbukti; ikut O2 |
+| O5 | Waktu berpikir habis untuk ragu (tanggal, arti pertanyaan), bukan untuk hitung | usulan praktik umum; menunggu keputusan |
 | O4 | Kalender MSCI disusun ulang dari ingatan | akar masalah terbukti: cara tanggal didapat (riset web, tanpa tabel); tanggal salah (ERRORS M166); usulan menunggu keputusan |
 
 **Keputusan user 2026-10-15 (putaran 3):** "O1: get_dimension_value harus ada, karena ini penting"; "O2: saya setuju hanya
@@ -2077,6 +2078,23 @@ then kok bisa lama sekali?".
   (0 di log dan di kode iterasi 2); jawabannya tabel deskriptif. Waktu berpikir panggilan pertama (17 bagian penalaran,
   ±66 ribu karakter, kira-kira menurut topik): cakupan dan tanggal efektif ±40%, arti pertanyaan (bruto/net, tipe
   investor) ±35%, menyusun spesifikasi data dan kode di kepala ±20%, memutuskan perlu uji atau tidak ±6%.
+**Putaran 5 (user 2026-10-15):** "semua Where ='X', X ini harus dari table ... didapat dari get dimension value ... user
+bilang BRI, tapi kode tickernya BBRI ... How we handle this? Apakah sudah ada?"; M167 "OK masukan exec ya, jangan execute
+dulu"; "bagaimana kita bisa buat supaya waktu habis untuk hitung/analisa data instead of meragukan yang lain ya? Coba seek
+best practice."
+- O1 (nama → kode): yang ada sekarang: (1) P14 membetulkan huruf besar/kecil dan menolak nilai kategori yang tidak
+  tersimpan; (2) `lookup_reference` bisa mencari baris tabel referensi dengan potongan teks (`match`) di satu kolom, mis.
+  "Rakyat" di `Company Name` → BBRI. Yang belum ada: alias dan singkatan. `IDX_Stock_Universe` hanya punya `Ticker`,
+  `Company Name` ("PT Bank Rakyat Indonesia (Persero) Tbk Class B"), ISIN, Sector, Industry; "BRI" tidak cocok dengan
+  potongan teks mana pun, jadi model menerjemahkannya dari pengetahuannya sendiri tanpa cek. Usulan (praktik umum entity
+  linking: kamus alias + pencocokan + konfirmasi bila ragu): tabel alias entitas (kode, alias, jenis alias: singkatan,
+  nama pendek, merek, kode lama; sumber), diisi otomatis dari nama perusahaan (singkatan kata: Bank Rakyat Indonesia →
+  BRI; nama tanpa "PT", "Tbk", "(Persero)") ditambah koreksi manual; alat `resolve_entities(["BRI", "Mandiri"])` →
+  kandidat dengan alasan cocok (kode persis, alias persis, mirip); validator menolak kode yang tidak ada dan menyertakan
+  kandidat; bila lebih dari satu kandidat, AI boleh bertanya balik. Berlaku juga untuk broker ("Mandiri Sekuritas" → CC) dan
+  nanti seri makro. Menunggu keputusan; tabel baru perlu cek Part A.
+- M167: masuk EXEC, tidak dieksekusi (peringatan satuan saat `emit_table` + pesan gerbang sesuai cek).
+- O5 (baru) waktu habis untuk menganalisis, bukan meragukan: lihat bagian EXEC-OPEN-1015 O5 di bawah tabel.
 - O4: ya. Tanggal didapat lewat 6 panggilan `research_web` di `edge_ca6cf5a4…` (16 sumber: idx.co.id 5, bisnis.com 3,
   katadata 2, CNBC, Kontan, IDX Channel, OJK, Bank Dunia, msci.com 1); model menyalinnya ke teks jawaban, tanpa tabel
   dan tanpa membedakan pengumuman, penutupan implementasi dan hari efektif; media menulis "efektif" dengan arti berbeda.
@@ -2101,6 +2119,18 @@ beforehand? Coba cek log. O4: ... kenapa harus dari ingatan, padahal kan jawaban
   pengumuman, penutupan implementasi dan hari efektif. Keraguan itu sebagian benar: MSCI November 2025 diimplementasikan
   pada penutupan 24 Nov 2025 (rilis resmi), Agustus 2025 pada penutupan 26 Agu 2025 (berita); jawaban memakai hari
   sesudahnya (ERRORS M166).
+
+**O5 (usulan 2026-10-15, praktik umum agen analisis):** di `edge_2f7523a7…` ±75% penalaran panggilan pertama untuk ragu
+(tanggal, cakupan, arti pertanyaan), ±20% menulis spesifikasi dan kode sebelum data ada. Praktik yang dipakai sistem agen
+data: (1) fakta percakapan terstruktur sebagai sumber kebenaran (entitas, tanggal peristiwa dengan maknanya, definisi yang
+sudah dipilih), bukan teks jawaban lama — di sini: data record membawa "fakta yang sudah ditetapkan" dan model diberi tahu
+fakta itu berlaku kecuali user mengubahnya; (2) default tafsir yang tertulis, bukan ditimbang ulang tiap kali — memperluas
+`FASTLANE_DEFAULTS` dengan default arti (pembelian tertinggi = net, bruto ditampilkan; "investor asing" = tipe investor;
+tanggal peristiwa = penutupan implementasi), dinyatakan sebagai asumsi, user bisa mengubah, AI tetap boleh bertanya balik;
+(3) satu catatan per giliran tanpa arah yang bertabrakan (O3); (4) bertindak lebih awal: kirim data need begitu cakupan
+jelas, tulis kode setelah profil data datang; (5) anggaran penalaran: panggilan pertama jalur cepat diukur pada tingkat
+medium vs high (perubahan model setting, perlu persetujuan dan A/B kecil berbayar). Ukur: token penalaran dan waktu per
+fase per run (log sudah ada), sebelum dan sesudah.
 
 **O1.** Kegunaan alat: ejaan nilai kategori yang tersimpan (mis. "Banks", "Regular") untuk saringan; saringan dengan ejaan
 salah tidak gagal, hanya mengembalikan nol baris tanpa peringatan, jadi alat ini mencegah jawaban kosong diam-diam.
