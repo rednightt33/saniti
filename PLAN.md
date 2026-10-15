@@ -116,6 +116,50 @@ keputusan terpisah (`FUTURE_PLAN.md` §3).
 
 ---
 
+## 14. Data tambahan ke sesi analisis yang sedang terbuka (ATTACH; desain disetujui untuk dirumuskan, belum "go")
+
+**Keputusan user 2026-10-15:** atas usulan di `FUTURE_PLAN.md`: "Ok untuk solusi. Also you should know bahwa yang live
+sekarang adalah fastlane. Boleh dirumuskan designnya?" dan "Cara kerjanya: data tambahan tetap diminta lewat jalur biasa
+(Governor, batas ukuran). Bedanya, paketnya dilampirkan ke sesi yang sedang terbuka. Variabel tetap ada, dan analisis
+langsung dilanjutkan. --> ini sudah OK". Pertanyaan user tentang cek "kedua data dipakai" dan batas gabungan dijawab di
+percakapan; desain di bawah sudah memuat jawabannya.
+
+**Masalah (diperiksa di kode 2026-10-15):** satu sesi sandbox terikat pada satu paket data sejak dibuka
+(`sessions.py` `_launch`: file paket di-link ke `input/`, daftar permintaan dikirim sekali ke proses sesi). Data
+tambahan = data need baru, paket baru dan sesi baru (`open_analysis_session`); variabel dan tabel kerja sesi lama tidak
+terbawa. A/B V5 j2: sesi kedua, muat ulang data dan tulis ulang kode, puluhan detik per kejadian. Kelas: setiap analisis
+yang baru tahu kebutuhan datanya di tengah jalan (pengayaan, kolom yang terlewat, pembanding).
+
+**Desain (jalur Cepat dulu; jalur Standar ANALYSIS memakai alat yang sama; jalur riset yang disetujui tidak berubah):**
+1. AI di sesi S (data need N1) memutuskan butuh data tambahan (penilaian AI, kapan saja di tengah analisis).
+2. AI mengirim data need N2 berisi hanya permintaan tambahan, dengan `attach_to_session: S`. N2 lewat jalur biasa:
+   validator, Governor, batas ukuran, pakai ulang potongan dengan SQL sama (M134).
+3. Paket N2 dilampirkan ke S (langkah mekanis, menggantikan pembukaan sesi): sandbox memeriksa S milik jawaban yang sama
+   dan masih aktif, N2 punya tanggal referensi yang sama dengan N1, nama permintaan tidak bertabrakan, dan ukuran
+   gabungan masih di bawah batas sesi; file N2 di-link ke `input/` S, proses sesi diberi tahu permintaan baru
+   (operasi baru seperti `inspect`), `load('<permintaan baru>')` langsung bisa dipakai.
+4. Variabel, tabel kerja (`save_table`) dan tabel yang sudah dibuat tetap ada; AI melanjutkan dengan `run_python`.
+5. `complete_analysis`: cakupan diperiksa per data need seperti sekarang (data yang dipakai jawaban dibaca penuh). Data
+   need lampiran yang tidak dibaca sama sekali **tidak menggagalkan** analisis: dicatat "tidak dipakai" dan tidak masuk
+   catatan data jawaban (AI boleh memutuskan data itu ternyata tidak perlu).
+6. Gagal melampirkan (sesi mati, batas ukuran, jalur riset) → jalan lama: buka sesi baru, dengan alasan dan sisa
+   kapasitas di pesan.
+
+**Jaminan yang tetap di kode:** data hanya lewat Governor; setiap angka bersumber; data yang dikutip dibaca penuh;
+batas ukuran per sesi dihitung gabungan (melindungi memori dan disk mesin yang dipakai bersama, paling banyak 4 sesi);
+batas jumlah lampiran per sesi (mencegah putaran tanpa ujung); jalur riset: data di luar rencana yang disetujui butuh
+persetujuan user (EXEC-D).
+
+**Kontrak dan dokumen:** kemampuan baru dilaporkan sandbox di `/v1/runtime` (orc memakainya hanya bila ada); argumen
+`attach_to_session` di `submit_data_need_spec` → ronde `Tool_Catalog` dan `AI_TOOLS.md`; satu saklar orc untuk A/B dan
+jalan balik (prinsip "harus selalu ada fallback" EXEC-FASTLANE).
+
+**Tes dan ukuran:** lampiran berhasil (variabel tetap, `load` permintaan baru), nama bertabrakan, batas gabungan,
+sesi milik jawaban lain ditolak, lampiran tidak dipakai tidak menggagalkan, data yang dipakai tetap diperiksa penuh;
+A/B jalur Cepat dengan pertanyaan yang butuh data tambahan di tengah (pola j2): waktu, putaran, sesi per run.
+
+**Pertanyaan terbuka:** batas jumlah lampiran per sesi (usul 2); apakah A/B dulu dengan saklar mati di jalur Standar.
+
 ## Sudah dieksekusi, tinggal bukti live
 
 Bukan rencana lagi; daftar dan statusnya ada di `OUTSTANDING_ISSUES.md` ("Sudah diperbaiki, hanya menunggu golden

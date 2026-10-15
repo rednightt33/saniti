@@ -273,6 +273,6 @@ User 2026-10-12: "masukan perplexity API ke future plan". Riset dari dokumen res
   cek apakah filter domain `.go.id` bekerja.
 - **Rollout:** dev saja, flag default mati; rollback dengan mengganti `WEB_SEARCH_BACKEND`.
 
-## Data tambahan ke sesi analisis yang sedang terbuka (usulan 2026-10-15, belum diputuskan)
+## Data tambahan ke sesi analisis yang sedang terbuka (usulan 2026-10-15)
 
-User 2026-10-15: AI membuka sandbox, menganalisis, lalu sadar butuh data tambahan "to enrich the insight"; data baru dibawa ke sandbox awal yang tetap terbuka dan analisis dilanjutkan. **Sekarang (dicek di kode):** satu sesi terikat pada satu bundle; data tambahan berarti data need baru, bundle baru dan **sesi baru** (`open_analysis_session`), paling banyak `max_sessions_per_request` sesi terbuka per jawaban; sesi lama tetap terbuka tetapi variabelnya tidak terbawa, dan tabelnya yang belum dirilis hanya terbaca di sesi itu sendiri (`carried.own`). `attach` hanya untuk sesi WARM_IDLE dari jawaban sebelumnya, tetap dengan bundle lamanya. **Usulan:** "lampirkan bundle ke sesi terbuka": data need tambahan dari jawaban yang sama, lewat Governor seperti biasa, ditambahkan ke folder input sesi yang sama; variabel tetap; `complete_analysis` memeriksa cakupan kedua kebutuhan data; batas ukuran bundle dihitung gabungan. Jalur riset yang disetujui: data di luar rencana yang disetujui tetap butuh persetujuan user (EXEC-D). Perkiraan hemat: sesi baru, pemuatan ulang data dan penulisan ulang kode (puluhan detik per kejadian, j2 A/B V5).
+Dipindah ke `PLAN.md` butir 14 (user 2026-10-15: "Ok untuk solusi ... Boleh dirumuskan designnya?").
