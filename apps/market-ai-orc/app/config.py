@@ -160,6 +160,9 @@ class Settings:
     # the tests tried and how many hold after a Benjamini-Hochberg correction; needs a sandbox reporting explore_tests
     # (PY_SANDBOX_EXPLORE_TESTS_ENABLED). Off keeps the fast lane as before; the standard lane never changes
     ai_fastlane_explore_tests: bool = False
+    # PLAN 14 (user 2026-10-15): a later data need of the same answer may be attached to its open analysis session
+    # (attach_data_bundle); active only while the sandbox reports session_attach
+    ai_enable_session_attach: bool = False
     # EXEC-FASTLANE F1 (user 2026-10-14, "F1 --> usulan approved"): on the fast lane an analysis session that ran code
     # but was left without complete_analysis (the data need was sent again) does not block the answer when another
     # session of the run COMPLETED; it released nothing, so the answer cannot cite it. Off keeps it blocking
@@ -428,6 +431,7 @@ class Settings:
             ai_enable_fastlane=_boolean(env, "AI_ENABLE_FASTLANE", False),
             ai_fastlane_draft_check=_boolean(env, "AI_FASTLANE_DRAFT_CHECK", True),
             ai_fastlane_explore_tests=_boolean(env, "AI_FASTLANE_EXPLORE_TESTS", False),
+            ai_enable_session_attach=_boolean(env, "AI_ENABLE_SESSION_ATTACH", False),
             ai_fastlane_abandoned_sessions=_boolean(env, "AI_FASTLANE_ABANDONED_SESSIONS", False),
             ai_fastlane_convention_numbers=_boolean(env, "AI_FASTLANE_CONVENTION_NUMBERS", False),
             ai_fastlane_section_caps=_boolean(env, "AI_FASTLANE_SECTION_CAPS", False),

@@ -160,6 +160,13 @@ A/B jalur Cepat dengan pertanyaan yang butuh data tambahan di tengah (pola j2): 
 
 **Keputusan user 2026-10-15:** atas penjelasan batas lampiran (2 per sesi; lampiran ke-3 ditolak dengan jalan ke data yang ada atau sesi baru) dan cara AI tahu (deskripsi alat `submit_data_need_spec` dan alat sesi, saran di pesan galat; kalimat system prompt hanya bila A/B menunjukkan AI belum memakainya): "Aight OK - masukan EXEC jangan execute dulu". Batas: 2 lampiran per sesi.
 
+**Status 2026-10-15 (go "Ok jalankan", EXEC-IMPL-1015 Fase 4): dibangun, saklar mati.** Sandbox: route attach,
+op worker `attach`, store v6 `sessions.attached`, penyelesaian per need (USED/INCOMPLETE/UNUSED), kapabilitas
+`session_attach`, saran `missing_data_hint`. Orc: alat `attach_data_bundle`, argumen `attach_to_session_id`, langkah
+mekanis dengan jalan balik ke sesi baru, saklar `AI_ENABLE_SESSION_ATTACH` (mati). Tool_Catalog ronde `round_u`,
+AI_TOOLS.md. ERRORS M159. Sisa: A/B jalur Cepat pola j2 (berbayar, saldo OpenRouter saat ini $0,37) atas perintah user;
+setelah A/B dan keputusan user butir ini dipindah ke selesai.
+
 **Pertanyaan terbuka:** apakah A/B dulu dengan saklar mati di jalur Standar.
 
 ## Sudah dieksekusi, tinggal bukti live

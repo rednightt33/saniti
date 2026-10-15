@@ -70,7 +70,8 @@ def _read_request(bundle: dict[str, Any], data_request_id: str, columns: list[st
         raise KeyError(data_request_id)
     frames = []
     for part in dataset["partitions"]:
-        table = pq.read_table(path_of(bundle["input_bundle_id"], part["file"]))
+        # PLAN 14: an attached dataset names the bundle its files are in
+        table = pq.read_table(path_of(dataset.get("input_bundle_id") or bundle["input_bundle_id"], part["file"]))
         present = [c for c in columns if c in table.column_names]
         frames.append(table.select(present).to_pandas())
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=columns)

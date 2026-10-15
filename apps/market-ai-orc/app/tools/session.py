@@ -106,6 +106,12 @@ class OpenAnalysisSessionLimitArgs(OpenAnalysisSessionArgs):
         "readable, its variables are gone). Null otherwise."))
 
 
+class AttachDataBundleArgs(Strict):
+    """PLAN 14 (user 2026-10-15): a READY bundle of a later data need of this answer joins an open session."""
+    session_id: str = Field(pattern=SESSION_PATTERN, description="The open analysis session of this answer.")
+    input_bundle_id: str = Field(pattern=BUNDLE_PATTERN, description="input_bundle_id of the READY bundle to attach.")
+
+
 class RunPythonArgs(Strict):
     session_id: str = Field(pattern=SESSION_PATTERN)
     code: str = Field(min_length=1, max_length=20000, description="Python to run in the session's namespace.")
@@ -166,7 +172,8 @@ def _call(client: SandboxClient, method: str, path: str, timeout: float | None =
                 "next_action": body.get("next_action") or "REPORT_LIMITATION",
                 **{k: v for k, v in error.items() if k in ("close_reason", "retry_after_seconds", "execution_id",
                                                            "waited_seconds", "open_sessions",
-                                                           "max_sessions_per_request")}}
+                                                           "max_sessions_per_request", "attached", "max_attachments",
+                                                           "rows_left", "bytes_left", "taken")}}
     raise ToolError(f"The Python sandbox is unavailable (HTTP {response.status_code}).")
 
 
@@ -295,6 +302,7 @@ COMPLETE_DESCRIPTION = (
     "does not recalculate your formulas: never say a calculation was independently verified."
 )
 RESULT_STORE_VERSION = 1  # R-STORE: the sandbox's output file and carried restore routes
+SESSION_ATTACH_VERSION = 1  # PLAN 14: the sandbox's POST /v1/sessions/{session_id}/attach
 SESSION_RELEASE_VERSION = 2  # S28: the sandbox's POST /v1/requests/{request_id}/release; 2 (EXEC-V 2026-10-08):
 # several open sessions per request (max_sessions_per_request), none closed by opening another
 NUMBER_WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight"}
@@ -489,10 +497,24 @@ def close_sessions(client: SandboxClient, request_id: str, session_ids: list[str
     return closed
 
 
+ATTACH_DESCRIPTION = (
+    "Attach a READY bundle (input_bundle_id from prepare_data_bundle) to an open analysis session of this answer "
+    "instead of opening a new session: every variable, working table and output of the session stays, and the new "
+    "data requests load by their names at once. Use it when the analysis finds, midway, that it needs more data "
+    "(another table, a missed column, a comparison set): submit a data need with only the extra requests and "
+    "attach_to_session_id, and the backend attaches its bundle for you. The bundle must have the session's reference "
+    "date and new request names; a session takes at most {limit} attached bundles, and its bundles together stay within "
+    "one bundle's size limit. Data of an attached bundle the analysis never reads is reported as unused, not as a "
+    "failure; data it reads is checked in full at complete_analysis like any other. A refusal names the reason and the "
+    "capacity left: then open a new session on the bundle (open_analysis_session). Never for a research session.")
+ATTACH_SENTENCE = (" A later data need of this answer can join this session instead (attach_data_bundle; the variables "
+                   "stay).")
+
+
 def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_timeout_seconds: float,
                   max_result_bytes: int, standard_period_return: bool = False, event_study: bool = False,
-                  backtest: bool = False, merged_steps: bool = False, session_limit: int | None = None
-                  ) -> list[ToolSpec]:
+                  backtest: bool = False, merged_steps: bool = False, session_limit: int | None = None,
+                  session_attach: int | None = None) -> list[ToolSpec]:
     def request_id() -> str:
         return current_request_id.get() or ""
 
@@ -524,6 +546,11 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
         if closed is not None:
             result["closed_session"] = {k: closed.get(k) for k in ("session_id", "status", "close_reason")}
         return result
+
+    def attach(arguments: BaseModel) -> dict[str, Any]:
+        assert isinstance(arguments, AttachDataBundleArgs)
+        return _call(client, "POST", f"/v1/sessions/{arguments.session_id}/attach", timeout=timeout_seconds + 30,
+                     json={"request_id": request_id(), "bundle_id": arguments.input_bundle_id})
 
     def run(arguments: BaseModel) -> dict[str, Any]:
         assert isinstance(arguments, RunPythonArgs)
@@ -571,7 +598,12 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
                 final_status=result.get("final_status"))
         return result
 
-    return [
+    attach_spec = [ToolSpec(name="attach_data_bundle", effect="COMPUTES",
+                            description=ATTACH_DESCRIPTION.format(limit=NUMBER_WORDS.get(session_attach,
+                                                                                         str(session_attach))),
+                            arguments_model=AttachDataBundleArgs, handler=attach, timeout_seconds=timeout_seconds + 30,
+                            max_result_bytes=max_result_bytes)] if session_attach else []
+    return attach_spec + [
         ToolSpec(name="complete_analysis", effect="COMPUTES",
                  description=COMPLETE_DESCRIPTION + (COMPLETE_EVENT_STUDY_SENTENCE if event_study else "")
                  + (COMPLETE_BACKTEST_SENTENCE if backtest else ""),
@@ -584,7 +616,7 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
                  handler=open_session, timeout_seconds=timeout_seconds + 30 + MAX_BUSY_WAIT_SECONDS,
                  max_result_bytes=max_result_bytes),
         ToolSpec(name="run_python", effect="COMPUTES", description=RUN_DESCRIPTION + (PERIOD_RETURN_SENTENCE if standard_period_return
-                                                                   else "")
+                                                                   else "") + (ATTACH_SENTENCE if session_attach else "")
                  + (EVENT_STUDY_SENTENCE if event_study else "") + (BACKTEST_SENTENCE if backtest else ""),
                  arguments_model=RunPythonCompleteArgs if merged_steps else RunPythonArgs, handler=run,
                  timeout_seconds=execution_timeout_seconds + 5, max_result_bytes=max_result_bytes),

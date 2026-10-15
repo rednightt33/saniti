@@ -19,6 +19,7 @@ Sifat: READS tidak mengubah apa pun; OWN_ARTIFACT hanya menulis catatan percakap
 | `lookup_reference` | Membaca tabel referensi database (sektor, industri, profil emiten, data broker): daftar kolomnya, atau baris satu emiten / semua emiten dengan satu kategori / nama yang mengandung kata tertentu, maksimal 100 baris. Dipakai sebelum web; alat web ditolak untuk atribut yang ada di tabel ini sampai tabelnya dibaca. | READS | sekarang | `AI_ENABLE_REFERENCE_LOOKUP` |
 | `submit_data_need_spec` | AI menyatakan data yang dibutuhkan (tabel, kolom, saringan, periode); sistem memeriksa sebelum data diambil. | FETCHES_DATA | sekarang | `AI_ENABLE_DATANEED` |
 | `prepare_data_bundle` | Mengambil data yang sudah disetujui secara utuh dan memeriksa kelengkapannya. | FETCHES_DATA | sekarang | `AI_ENABLE_DATANEED` |
+| `attach_data_bundle` | Melampirkan data tambahan (paket data dari kebutuhan data berikutnya di jawaban yang sama) ke ruang kerja Python yang sedang terbuka, sehingga variabel dan tabel kerja tetap ada; paling banyak 2 lampiran per ruang kerja, ukuran gabungan tetap dalam batas satu paket, tidak untuk riset. Ditolak → ruang kerja baru dibuka seperti biasa (PLAN 14). | COMPUTES | sekarang | `AI_ENABLE_DATANEED`, `AI_ENABLE_SESSION_ATTACH` |
 | `complete_analysis` | Menutup analisis: sistem memeriksa kelengkapan data dan definisi, lalu merilis hasil yang boleh dikutip. | COMPUTES | sekarang | `AI_ENABLE_DATANEED` |
 | `open_analysis_session` | Membuka ruang kerja Python di atas data yang sudah disiapkan. | COMPUTES | sekarang | `AI_ENABLE_DATANEED` |
 | `run_python` | Menjalankan hitungan di ruang kerja dengan alat bantu bawaan; setiap tabel hasil wajib membawa definisinya. | COMPUTES | sekarang | `AI_ENABLE_DATANEED` |
@@ -50,6 +51,7 @@ Dibuat dari `apps/market-ai-orc/app/tool_desks.py` (`DESKS`), saklar semua menya
 
 | Alat | Obrolan (CHAT) | Fakta (FACT) | Baca (CLARIFY, CONVERSATIONAL) | Analisis (pesan pertama, m4a, INSIGHT) | Rencana (jalur RESEARCH, REVISE, REPLAN, m4b, m4d) | CONTINUE, AUTO tanpa rencana | Jalur cepat (EXEC-FASTLANE) | Riset hipotesis disetujui | Riset multi-sudut disetujui |
 |---|---|---|---|---|---|---|---|---|---|
+| `attach_data_bundle` | X | X | X | B | X | B | B | X | X |
 | `check_data_feasibility` | X | X | X | X | H | H | H | B |  |
 | `check_references` | B | B | H | B | H | B | B | B | H |
 | `check_research_feasibility` | X | X | X | X | H | H | X | B |  |
@@ -137,7 +139,7 @@ Dibuat dari `apps/market-ai-orc/app/tool_desks.py` (`DESKS`), saklar semua menya
 ## Snapshot saklar di dev
 
 <!-- dev-snapshot:start -->
-Diambil 2026-10-07 dari Railway (nama dan nilai true/false saja).
+Diambil 2026-10-15 dari Railway (nama dan nilai true/false saja).
 
 | Saklar | dev |
 |---|---|
@@ -161,6 +163,7 @@ Diambil 2026-10-07 dari Railway (nama dan nilai true/false saja).
 | `AI_ENABLE_REQUEST_DATA` | off |
 | `AI_ENABLE_RESEARCH_FINDINGS` | on |
 | `AI_ENABLE_RUN_MEMORY` | on |
+| `AI_ENABLE_SESSION_ATTACH` | off |
 | `AI_ENABLE_STANDARD_PERIOD_RETURN` | on |
 | `AI_ENABLE_WEB_FACT` | off |
 | `AI_ENABLE_WEB_RESEARCH` | on |

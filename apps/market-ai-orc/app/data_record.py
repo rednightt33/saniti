@@ -255,6 +255,12 @@ def add_need(record: dict[str, Any], request_id: str, result: dict[str, Any], mo
     record["needs"] = needs[-MAX_NEEDS:]
 
 
+def drop_need(record: dict[str, Any], need_id: str) -> None:
+    """PLAN 14: an attached data need the analysis never read leaves the record (the columns it extracted stay listed
+    under their tables as extracted)."""
+    record["needs"] = [n for n in record["needs"] if n.get("need_id") != need_id]
+
+
 def add_catalog(record: dict[str, Any], tables: dict[str, Any], request_id: str) -> None:
     """Catalog details a run read (the run's catalog ledger: table -> TableSeen)."""
     for name, seen in tables.items():

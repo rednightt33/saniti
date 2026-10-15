@@ -207,6 +207,13 @@ def main(session_dir: str, response_fd: str) -> int:
                     variables.append(_describe(name, namespace[name], rows if message.get("names") else 0))
             reply({"seq": seq, "status": "OK", "variables": variables})
             continue
+        if op == "attach":
+            # PLAN 14: an attached bundle's requests join the session (harness only; never code of the model)
+            try:
+                reply({"seq": seq, "status": "OK", "attached": saniti._attach(message.get("requests") or {})})
+            except Exception as exc:  # noqa: BLE001 - a refused attach leaves the session as it was
+                reply({"seq": seq, "status": "ATTACH_REFUSED", "message": f"{exc}"[:MESSAGE_MAX]})
+            continue
         if op != "execute":
             reply({"seq": seq, "status": "UNKNOWN_OP"})
             continue

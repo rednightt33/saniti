@@ -37,7 +37,7 @@ from typing import Any
 
 JSON_FIELDS = {"submitted", "result", "approved", "governance", "research", "manifest", "error", "access", "outputs",
                "meta", "execution_manifest", "coverage", "final_status", "usage", "columns", "modules", "decision",
-               "data_plan", "angle_ids", "finding", "aliases"}
+               "data_plan", "angle_ids", "finding", "aliases", "attached"}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS data_needs (
@@ -137,7 +137,7 @@ CREATE INDEX IF NOT EXISTS completions_request ON completions (request_id);
 """
 
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 DRAFT_RETENTION_DAYS = 7
 # version -> (table, column, declaration) additions and statements; applied in order, each column only when missing
 UPGRADES: dict[int, tuple[list[tuple[str, str, str]], list[str]]] = {
@@ -181,6 +181,8 @@ UPGRADES: dict[int, tuple[list[tuple[str, str, str]], list[str]]] = {
                    session_id TEXT, completion_id TEXT, status TEXT NOT NULL, validation_level TEXT,
                    finding TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (research_run_id, angle_id))"""]),
     5: ([("bundle_bindings", "aliases", "TEXT")], []),
+    # PLAN 14 (2026-10-15): the bundles attached to a session: [{need_id, bundle_id, epoch, attached_at, ...}]
+    6: ([("sessions", "attached", "TEXT")], []),
 }
 
 

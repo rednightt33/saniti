@@ -26,7 +26,7 @@ from .event_study_validation import EVENT_STUDY_VERSION
 from .explore_tests import EXPLORE_TESTS_VERSION
 from .method_guides import GUIDES_SHA256, GUIDES_VERSION
 from .data_need import SPEC_VERSIONS
-from .sessions import RESTORE_VERSION, SESSION_RELEASE_VERSION, SessionError
+from .sessions import RESTORE_VERSION, SESSION_ATTACH_VERSION, SESSION_RELEASE_VERSION, SessionError
 from . import stored_tables
 from .dataneed_store import DataNeedStore
 from .models import ANALYSIS_ID, REQUEST_ID, AnalysisRequest, RunReport
@@ -162,6 +162,9 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                                     "open_wait_seconds": settings.open_wait_seconds,
                                     "max_sessions": settings.max_sessions,
                                     "max_sessions_per_request": settings.max_sessions_per_request},
+                # PLAN 14: POST /v1/sessions/{session_id}/attach, at most max_attachments bundles per session
+                "session_attach": {"enabled": dataneed is not None and settings.max_attachments > 0,
+                                   "version": SESSION_ATTACH_VERSION, "max_attachments": settings.max_attachments},
                 # POST /v1/data-needs/check and GET /v1/data-need-drafts/{draft_id} (Research Plan feasibility)
                 "plan_feasibility": {"enabled": dataneed is not None, "version": FEASIBILITY_VERSION},
                 # IP1 Stage B: data_need_spec/v2 names every key pair of a composite relationship
@@ -437,6 +440,18 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
         try:
             return dataneed.open_session(body["request_id"], body["bundle_id"], conversation_key=key,
                                          carried_outputs=carried)
+        except SessionError as exc:
+            return session_error(exc)
+
+    @app.post("/v1/sessions/{session_id}/attach", dependencies=dataneed_routes)
+    def attach_bundle(session_id: str, body: Any = Body(...), key: str | None = Depends(conversation_key)) -> Any:
+        """PLAN 14: a READY analysis bundle of this request joins its ACTIVE analysis session (variables stay)."""
+        body = session_body(body, {"request_id", "bundle_id"})
+        if body is None or not isinstance(body["bundle_id"], str) or not BUNDLE_ID.fullmatch(body["bundle_id"]):
+            return invalid_body("{request_id, bundle_id}")
+        try:
+            return dataneed.attach_bundle(session_id_or_404(session_id), body["request_id"], body["bundle_id"],
+                                          conversation_key=key)
         except SessionError as exc:
             return session_error(exc)
 

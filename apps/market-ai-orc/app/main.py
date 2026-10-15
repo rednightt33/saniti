@@ -48,7 +48,7 @@ from .tools.registry import ToolError
 from .tools.request_data import GovernorClient
 from .result_store import ResultBucket, ResultStore
 from .run_memory import MemoryStore
-from .tools.session import (BACKTEST_VERSION, EVENT_STUDY_VERSION, EXPLORE_TESTS_VERSION, RESULT_STORE_VERSION, SESSION_RELEASE_VERSION, close_sessions,
+from .tools.session import (BACKTEST_VERSION, EVENT_STUDY_VERSION, EXPLORE_TESTS_VERSION, RESULT_STORE_VERSION, SESSION_ATTACH_VERSION, SESSION_RELEASE_VERSION, close_sessions,
                             output_file, release_request, restore_carried)
 from .tools.artifacts import STORED_TABLES_VERSION, read_output_any
 from .tools.lineage import BUNDLE_LINEAGE_VERSION
@@ -272,6 +272,16 @@ def create_app(
             capability = sandbox.runtime().get("session_release") or {}
             if capability.get("enabled") is True and capability.get("version") == SESSION_RELEASE_VERSION:
                 session_limit = int(capability.get("max_sessions_per_request") or 0) or None
+        # PLAN 14 (user 2026-10-15): attaching a later data need's bundle to an open session, when switched on and the
+        # sandbox reports session_attach (its max_attachments is the limit the tool description states)
+        session_attach = None
+        if settings.ai_enable_session_attach and settings.ai_enable_dataneed and sandbox is not None:
+            capability = sandbox.runtime().get("session_attach") or {}
+            if capability.get("enabled") is True and capability.get("version") == SESSION_ATTACH_VERSION:
+                session_attach = int(capability.get("max_attachments") or 0) or None
+            if not session_attach:
+                log_event("session_attach_inactive",
+                          reason=f"needs a sandbox reporting session_attach version {SESSION_ATTACH_VERSION}")
         multi_angle_active = multi_angle is not None and feasibility and composite
         hypothesis_plan = settings.ai_enable_hypothesis_plan and research_findings
         method_guides = None
@@ -388,6 +398,7 @@ def create_app(
             run_memory=run_memory,
             merged_steps=settings.ai_enable_merged_steps,
             session_limit=session_limit,
+            session_attach=session_attach,
         )
         auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
             if sandbox is not None or settings.research_audit_database_url else None

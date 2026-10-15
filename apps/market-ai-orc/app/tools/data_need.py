@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, create_model, model_validator
 
 from ..research_plan import guard_research_submission
 from .analysis import SandboxClient, current_run_context, pinned_body, take_data_date_policy
@@ -412,6 +412,7 @@ def submit_data_need(client: SandboxClient,
     if context is None:
         raise ToolError("No user request is available to anchor the data need's reference date.")
     payload = arguments.model_dump(mode="json")
+    payload.pop("attach_to_session_id", None)  # PLAN 14: read by the orchestrator's next step, not by the validator
     take_data_date_policy(payload)
     governance = payload.pop("research_governance")
     if arguments.mode == "RESEARCH":
@@ -466,15 +467,33 @@ MERGED_APPROVAL = ("APPROVED (need_id; the backend then prepares the data bundle
                    "and returns them as merged_steps)")
 
 
+# PLAN 14 (user 2026-10-15): a later data need of the same answer may join its open analysis session
+ATTACH_FIELD_DESCRIPTION = (
+    "Optional: the session_id of this answer's open ANALYSIS session that this need's data should join (only the "
+    "extra data requests, with new names); the backend prepares the bundle and attaches it, so the session's "
+    "variables stay. Null opens a new session as usual.")
+SESSION_ID_PATTERN = r"^sess_[0-9a-f]{24}$"
+
+
+def with_attach(model: type[BaseModel]) -> type[BaseModel]:
+    """The submit arguments with attach_to_session_id (only while attaching is active)."""
+    return create_model(f"{model.__name__}Attach", __base__=model,
+                        attach_to_session_id=(str | None, Field(pattern=SESSION_ID_PATTERN,
+                                                                description=ATTACH_FIELD_DESCRIPTION)))
+
+
 def data_need_specs(client: SandboxClient, *, timeout_seconds: float, max_result_bytes: int,
                     composite_keys: bool = False, point_in_time: bool = False,
-                    research_findings: bool = False, merged_steps: bool = False) -> list[ToolSpec]:
+                    research_findings: bool = False, merged_steps: bool = False,
+                    session_attach: bool = False) -> list[ToolSpec]:
     if research_findings:
         model = (SubmitDataNeedSpecArgsPITFindings if point_in_time else SubmitDataNeedSpecArgsV2Findings) \
             if composite_keys else SubmitDataNeedSpecArgsFindings
     else:
         model = (SubmitDataNeedSpecArgsPIT if point_in_time else SubmitDataNeedSpecArgsV2) if composite_keys \
             else SubmitDataNeedSpecArgs
+    if session_attach:
+        model = with_attach(model)
 
     def submit(arguments: BaseModel) -> dict[str, Any]:
         assert isinstance(arguments, (SubmitDataNeedSpecArgs, SubmitDataNeedSpecArgsV2, SubmitDataNeedSpecArgsPIT,

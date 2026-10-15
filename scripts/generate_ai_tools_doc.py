@@ -44,6 +44,7 @@ SWITCHES = {
     "AI_ENABLE_REFERENCE_LOOKUP": "reference_lookup", "AI_ENABLE_ADDRESS_MENU": "reference_check",
     "AI_ENABLE_WEB_RESEARCH": "web_research_client",
     "AI_ENABLE_RUN_MEMORY": "run_memory", "AI_ENABLE_MERGED_STEPS": "merged_steps",
+    "AI_ENABLE_SESSION_ATTACH": "session_attach",
 }
 
 # One plain-language sentence per name (Indonesian, for non-developers).
@@ -61,6 +62,7 @@ PLAIN = {
     "submit_data_need_spec": "AI menyatakan data yang dibutuhkan (tabel, kolom, saringan, periode); sistem memeriksa sebelum data diambil.",
     "prepare_data_bundle": "Mengambil data yang sudah disetujui secara utuh dan memeriksa kelengkapannya.",
     "open_analysis_session": "Membuka ruang kerja Python di atas data yang sudah disiapkan.",
+    "attach_data_bundle": "Melampirkan data tambahan (paket data dari kebutuhan data berikutnya di jawaban yang sama) ke ruang kerja Python yang sedang terbuka, sehingga variabel dan tabel kerja tetap ada; paling banyak 2 lampiran per ruang kerja, ukuran gabungan tetap dalam batas satu paket, tidak untuk riset. Ditolak → ruang kerja baru dibuka seperti biasa (PLAN 14).",
     "run_python": "Menjalankan hitungan di ruang kerja dengan alat bantu bawaan; setiap tabel hasil wajib membawa definisinya.",
     "inspect_session": "Melihat isi variabel di ruang kerja sebelum hasil dirilis, atau statistik semua kolom satu dataset (kosong, min/median/maks, celah) tanpa baris data.",
     "export_result": "Membuat file unduhan dari tabel hasil (CSV, XLSX dengan lembar definisi dan asal data, atau Parquet), maks. 20 MB; AI hanya melihat nama dan ukurannya.",
@@ -154,6 +156,8 @@ def _build(off: tuple[str, ...] = ()):
     kwargs["backtest"] = True  # P32: offered when the sandbox reports the backtest capability (no switch)
     # EXEC-V 2026-10-08: the sessions one answer may keep open, from the sandbox's session_release (dev: four)
     kwargs["session_limit"] = 4
+    # PLAN 14: the bundles one session may take in, from the sandbox's session_attach (two)
+    kwargs["session_attach"] = 2
     kwargs["method_guides"] = {"names": names, "menu": method_guides.menu(names)}
     kwargs["multi_angle"] = {"max_groups": 2, "min_angles": 2, "max_angles": 5, "library": research_library.rows()}
     kwargs["metrics"] = [{"metric_id": "example", "label": "x", "description": "x", "source_table": "t",
@@ -172,7 +176,7 @@ def _build(off: tuple[str, ...] = ()):
     for switch in off:
         argument = SWITCHES[switch]
         kwargs[argument] = None if argument in ("method_guides", "multi_angle", "metrics", "web_fact_client",
-                                                "web_research_client", "run_memory") else False
+                                                "web_research_client", "run_memory", "session_attach") else False
     registry = build_default_registry(
         object(), cursor_secret=b"x" * 32,
         governor_client=GovernorClient("http://g", "k" * 40, 90, transport=transport),

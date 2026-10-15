@@ -63,6 +63,7 @@ def build_default_registry(
     run_memory: Any | None = None,
     merged_steps: bool = False,
     session_limit: int | None = None,
+    session_attach: int | None = None,
 ) -> ToolRegistry:
     """Single place to register tools; the orchestration loop never changes when tools are added."""
     registry = ToolRegistry()
@@ -123,7 +124,7 @@ def build_default_registry(
             for spec in data_need_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
                                         max_result_bytes=python_analysis_max_bytes, composite_keys=composite_keys,
                                         point_in_time=point_in_time, research_findings=research_findings,
-                                        merged_steps=merged_steps):
+                                        merged_steps=merged_steps, session_attach=bool(session_attach)):
                 registry.register(spec)
             if governor_client is not None:
                 # many Governor extractions plus the sandbox's verification and profiling
@@ -137,7 +138,7 @@ def build_default_registry(
                                           max_result_bytes=python_analysis_max_bytes,
                                           standard_period_return=standard_period_return,
                                           event_study=event_study, backtest=backtest, merged_steps=merged_steps,
-                                          session_limit=session_limit):
+                                          session_limit=session_limit, session_attach=session_attach):
                     registry.register(spec)
                 if export:
                     # D4 (AI_ENABLE_EXPORT): a download file of an output, kept with the conversation

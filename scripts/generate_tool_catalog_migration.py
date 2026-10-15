@@ -42,6 +42,8 @@ registering the new versions of the tools whose contract changed in that round.
   figures with their equal addresses, numbers without a source; EXEC-M143 solution 2).
 - round_t (20261013_010): check_references v3 (the draft's methodology is checked like the methodology; a draft
   shortened with an ellipsis is said to be one; EXEC-PROSE).
+- round_u (20261015_012): the first row of attach_data_bundle, submit_data_need_spec v13 (attach_to_session_id) and
+  run_python v8 (PLAN 14: a later data need joins the open session).
 
 Registered from the code with every switch of the dev environment on (the registry of scripts/generate_ai_tools_doc.py,
 one source for both). An applied migration is frozen (database/migrations/APPLIED.sha256); market-ai-orc's
@@ -424,8 +426,34 @@ ROUNDS = {
         "limits": {"check_references": "at most 40 references, a draft and a methodology of at most 30000 characters "
                                        "each per call; this run's references only; a draft check counts no refusal"},
     },
+    "round_u": {
+        "target": ROOT / "database/migrations/20261015_012_round_u_tool_catalog.sql",
+        "versions": {"submit_data_need_spec": ("v12", "v13"), "run_python": ("v7", "v8")},
+        "contracts": {"submit_data_need_spec": ("input_schema", "attach_to_session_id"),
+                      "run_python": ("purpose", "attach_data_bundle")},
+        "new": {
+            "attach_data_bundle": {
+                "family": "ADVANCED", "type": "COMPUTATION", "flag": "AI_ENABLE_SESSION_ATTACH",
+                "handler": "app/tools/session.py",
+                "output": "the session view of the attached bundle (its datasets, columns and rows), attached, "
+                          "attachments and max_attachments; or REJECTED with the reason (ATTACH_LIMIT, "
+                          "ATTACH_TOO_LARGE with rows_left and bytes_left, ATTACH_NAME_TAKEN, ATTACH_REFERENCE_DATE, "
+                          "ATTACH_RESEARCH_SESSION) and next_action OPEN_ANALYSIS_SESSION."},
+        },
+        "title": "data attached to an open session",
+        "header": "PLAN.md item 14 and EXEC.md EXEC-IMPL-1015 Fase 4 (user \"Ok jalankan\", 2026-10-15)",
+        "design": "PLAN.md item 14 (ATTACH); EXEC.md EXEC-IMPL-1015",
+        "limits_design": "PLAN.md item 14",
+        "summary": ["attach_data_bundle v1: a READY bundle of a later data need of the same answer joins its open",
+                    "analysis session (variables stay); at most two per session, the session's bundles together",
+                    "within one bundle's limit, never a research session; a refusal falls back to a new session.",
+                    "submit_data_need_spec v13: optional attach_to_session_id. run_python v8: one sentence on it."],
+        "limits": {"attach_data_bundle": "at most PY_SANDBOX_MAX_ATTACHMENTS (2) bundles per session; rows and bytes of "
+                                         "the session's bundles together at most PY_SANDBOX_BUNDLE_MAX_ROWS / "
+                                         "PY_SANDBOX_BUNDLE_MAX_BYTES; same reference date; analysis sessions only"},
+    },
 }
-NEWEST = "round_t"
+NEWEST = "round_u"
 
 
 def _tools_doc():

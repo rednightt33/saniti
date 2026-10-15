@@ -248,6 +248,20 @@ def _lock_duckdb() -> None:
     duckdb.connect = connect
 
 
+def _attach(requests: dict[str, dict[str, Any]]) -> list[str]:
+    """PLAN 14 (harness only): the requests of a bundle attached to this session become loadable, one read-only view
+    each in the locked connection; the namespace, working tables and outputs are untouched. A request id or logical
+    name the session already has is refused (the harness checks it first; this is the last line)."""
+    names = {r["logical_name"] for r in REQUESTS.values()}
+    clash = sorted(rid for rid, r in requests.items() if rid in REQUESTS or r["logical_name"] in names)
+    if clash:
+        raise SanitiError(f"Data requests {clash} are already in this session.")
+    for request in requests.values():
+        _CONNECTION.execute(f"CREATE VIEW {_ident(request['logical_name'])} AS {_view_sql(request)}")
+    REQUESTS.update(requests)
+    return sorted(requests)
+
+
 def _begin() -> None:
     _ACCESS.clear()
     _OUTPUTS.clear()

@@ -119,6 +119,7 @@ WORKER_LOG_TAIL = 600
 # the workspace is removed; it never goes to the model
 OUTPUT_ID_RE = re.compile(r"^out_[0-9a-f]{24}$")
 RESTORE_VERSION = 1  # R-STORE: POST /v1/sessions/{id}/carried and GET .../outputs/{id}/file
+SESSION_ATTACH_VERSION = 1  # PLAN 14: POST /v1/sessions/{session_id}/attach (a bundle joins an open session)
 SESSION_RELEASE_VERSION = 2  # S28: POST /v1/requests/{request_id}/release and the open queue; 2 (EXEC-V 2026-10-08):
 # several open sessions per request, none closed by opening another
 ABNORMAL_REASONS = frozenset({"WORKER_CRASHED", "WORKER_UNRESPONSIVE", "SESSION_STATE_CORRUPTED", "PROTOCOL_ERROR",
@@ -131,6 +132,10 @@ DATA_TYPES = ("Frames from load, range, sql and join: the time column holds date
               "with datetime.date(2026, 1, 2) (import datetime) or select a period with range(); before .dt, "
               ".resample(), .loc['2026-01-02'] or a comparison with a date string, convert first: "
               "frame[col] = pd.to_datetime(frame[col]).")
+# PLAN 14: a failed execution that asked for a column none of the session's data requests holds
+MISSING_COLUMN_HINT = ("No data request of this session holds the column(s) {columns}; the data to compute them is not "
+                       "loaded. Derive them from the loaded columns, or request the data that holds them (a new data "
+                       "need, attached to this session where the tools offer it, so the variables stay).")
 # M139: what happens to the tables and JSON a failed execution emitted (they stay loadable by name, unreleased)
 DISCARDED_NOTE = ("This execution failed, so the outputs it emitted are never released by complete_analysis. "
                   "Emit them again in the corrected run (load_output(name) still reads a discarded table).")
@@ -802,6 +807,91 @@ class SessionManager:
                   origin_request_id=record.get("origin_request_id"))
         return view
 
+    def attach_bundle(self, session_id: str, request_id: str, bundle_id: str, need_id: str) -> dict[str, Any]:
+        """PLAN 14 (user 2026-10-15): a READY bundle of the same answer's later data need joins an ACTIVE analysis
+        session instead of a new session, so its variables, working tables and outputs stay. The data came through
+        the Governor and its size limit like any bundle; here the session checks that the two fit together: the same
+        reference date, no request name used twice, at most max_attachments bundles, and the rows and bytes of the
+        session's bundles together within one bundle's limit. A refusal names the reason and what is left, and the
+        caller opens a new session on the bundle (next_action OPEN_ANALYSIS_SESSION)."""
+        s = self.settings
+        if s.max_attachments <= 0:
+            raise SessionError("ATTACH_DISABLED", "Attaching a bundle to a session is switched off.", 409,
+                               "OPEN_ANALYSIS_SESSION")
+        record, worker = self._session(session_id, request_id)
+        if record["status"] != "ACTIVE":
+            raise SessionError("SESSION_NOT_ACTIVE", f"The session is {record['status']}; attach to an ACTIVE session "
+                                                     "of this answer or open a new one.", 409, "OPEN_ANALYSIS_SESSION")
+        base_need = self.store.get_need(record.get("need_id")) if record.get("need_id") else None
+        if (base_need or {}).get("mode") == "RESEARCH" \
+                or (record.get("need_id") and self.store.research_group_for_need(record["need_id"])):
+            raise SessionError("ATTACH_RESEARCH_SESSION", "A research session reads only its approved plan's data; "
+                                                          "open a new session for other data.", 409,
+                               "OPEN_ANALYSIS_SESSION")
+        attached = list(record.get("attached") or [])
+        if len(attached) >= s.max_attachments:
+            raise SessionError("ATTACH_LIMIT", f"The session already holds {len(attached)} attached bundles, the most "
+                                               f"one session takes; use the data already loaded or open a new "
+                                               "session on the bundle.", 409, "OPEN_ANALYSIS_SESSION",
+                               attached=len(attached), max_attachments=s.max_attachments)
+        if any(a["bundle_id"] == bundle_id for a in attached) or bundle_id == record["bundle_id"]:
+            raise SessionError("ATTACH_DUPLICATE", "This bundle is already in the session.", 409, "RUN_PYTHON")
+        bundle = self.store.get_bundle(bundle_id)
+        if bundle is None or bundle["status"] != "READY":
+            raise SessionError("BUNDLE_NOT_READY", "No READY bundle with this id exists for this request.", 404,
+                               "PREPARE_DATA_BUNDLE")
+        manifest = bundle["manifest"]
+        if datetime.fromisoformat(manifest["expires_at"]) <= datetime.now(timezone.utc):
+            raise SessionError("BUNDLE_EXPIRED", "The bundle has expired; prepare it again.", 410,
+                               "PREPARE_DATA_BUNDLE")
+        base = self.store.get_bundle(record["bundle_id"])["manifest"]
+        manifests = [base, *[self.store.get_bundle(a["bundle_id"])["manifest"] for a in attached]]
+        if manifest.get("reference_date") != base.get("reference_date"):
+            raise SessionError("ATTACH_REFERENCE_DATE", f"The bundle's reference date {manifest.get('reference_date')} "
+                                                        f"differs from the session's {base.get('reference_date')}; "
+                                                        "open a new session on it.", 409, "OPEN_ANALYSIS_SESSION")
+        taken = {(d["data_request_id"], d["logical_name"]) for m in manifests for d in m["datasets"]}
+        ids, names = {i for i, _ in taken}, {n for _, n in taken}
+        clash = sorted({d["data_request_id"] for d in manifest["datasets"]
+                        if d["data_request_id"] in ids or d["logical_name"] in names})
+        if clash:
+            raise SessionError("ATTACH_NAME_TAKEN", f"Data requests {clash} use a data_request_id or logical name the "
+                                                    "session already has; name the new requests differently.", 409,
+                               "SUBMIT_DATA_NEED_SPEC", taken=sorted(ids))
+        rows = sum(int(m.get("row_count") or 0) for m in [*manifests, manifest])
+        size = sum(int(m.get("byte_count") or 0) for m in [*manifests, manifest])
+        if rows > s.bundle_max_rows or size > s.bundle_max_bytes:
+            used_rows, used_bytes = rows - int(manifest.get("row_count") or 0), size - int(manifest.get("byte_count") or 0)
+            raise SessionError("ATTACH_TOO_LARGE", f"The session's bundles together would hold {rows} rows / {size} "
+                                                   f"bytes; one session holds at most {s.bundle_max_rows} rows / "
+                                                   f"{s.bundle_max_bytes} bytes. Left: {s.bundle_max_rows - used_rows} "
+                                                   f"rows / {s.bundle_max_bytes - used_bytes} bytes.", 409,
+                               "OPEN_ANALYSIS_SESSION", rows_left=s.bundle_max_rows - used_rows,
+                               bytes_left=s.bundle_max_bytes - used_bytes)
+        with worker.lock:
+            requests = self._link_requests(manifest, worker.directory)
+            try:
+                answer = worker.request({"op": "attach", "requests": requests}, 60)
+            except (EOFError, ValueError) as exc:
+                raise SessionError("SESSION_CLOSED", "The session worker did not answer the attach.", 409,
+                                   "OPEN_ANALYSIS_SESSION") from exc
+        if answer.get("status") != "OK":
+            raise SessionError("ATTACH_FAILED", str(answer.get("message") or answer.get("status"))[:300], 409,
+                               "OPEN_ANALYSIS_SESSION")
+        now = utc_now()
+        entry = {"bundle_id": bundle_id, "need_id": need_id, "epoch": int(record.get("epoch") or 1),
+                 "attached_at": now, "data_request_ids": [d["data_request_id"] for d in manifest["datasets"]]}
+        self.store.update_session(session_id, attached=[*attached, entry], last_active_at=now)
+        self._log("session_bundle_attached", request_id=request_id, session_id=session_id, bundle_id=bundle_id,
+                  need_id=need_id, attachments=len(attached) + 1)
+        view = self._view(session_id, bundle_id, need_id, manifest, (record.get("usage") or {}).get("cpu_budget"),
+                          record["expires_at"])
+        view.update(attached=True, base_bundle_id=record["bundle_id"], attachments=len(attached) + 1,
+                    max_attachments=s.max_attachments,
+                    note="The new requests are loadable now; every variable and working table of the session is "
+                         "still defined. Data of an attached bundle the analysis never reads is reported as unused.")
+        return view
+
     def _new_epoch(self, record: dict[str, Any], request_id: str, need_id: str | None) -> int:
         epoch = int(record.get("epoch") or 1) + 1
         now = utc_now()
@@ -837,34 +927,7 @@ class SessionManager:
                 os.chown(path, uid, uid, follow_symlinks=False)
         # EXEC-FASTLANE B3: exploratory tests in an analysis session only (a research session keeps its own helpers)
         explore = s.explore_tests_enabled and not research and not findings and manifest.get("mode") != "RESEARCH"
-        requests: dict[str, Any] = {}
-        for dataset in manifest["datasets"]:
-            files = []
-            for part in dataset["partitions"]:
-                source = self.bundles.path_of(manifest["input_bundle_id"], part["file"])
-                target = directory / "input" / f"{part['partition_id']}.parquet"
-                try:
-                    os.link(source, target)
-                except OSError:
-                    shutil.copyfile(source, target)
-                    os.chmod(target, 0o444)
-                if _sha256(target) != part["checksum_sha256"]:
-                    raise SessionError("BUNDLE_INTEGRITY_ERROR", f"{part['partition_id']}: the bundle file does not "
-                                                                 "match its checksum.", 500, "PREPARE_DATA_BUNDLE")
-                files.append(str(target))
-            quality = dataset.get("quality") or {}
-            requests[dataset["data_request_id"]] = {
-                "data_request_id": dataset["data_request_id"], "logical_name": dataset["logical_name"],
-                "source_table": dataset["source_table"], "columns": [c["name"] for c in dataset.get("columns") or []],
-                "key_columns": dataset.get("key_columns") or [], "entity_column": dataset.get("entity_column"),
-                "time_column": dataset.get("time_column"), "files": files, "ranges": dataset.get("ranges") or [],
-                "order_by": self._order(dataset), "rows": dataset["rows"],
-                "source_frequency": dataset.get("source_frequency"),
-                "analysis_frequency": dataset.get("analysis_frequency"), "resample": dataset.get("resample"),
-                "resample_rules": dataset.get("resample_rules") or {},
-                **({"resample_semantics_version": dataset["resample_semantics_version"]}
-                   if dataset.get("resample_semantics_version") is not None else {}),
-                "aggregation_rules": dataset.get("aggregation_rules") or {}, "quality": quality}
+        requests = self._link_requests(manifest, directory)
         session = {
             "session_id": session_id, "limits": s.child_limits(budget), "cpus": cpus, "require_seccomp": True,
             "seed": s.random_seed, "reference_date": manifest["reference_date"],
@@ -920,6 +983,41 @@ class SessionManager:
             raise SessionError("SESSION_START_FAILED", f"The session worker did not start. {tail}"[:800], 503,
                                "RETRY_LATER")
         return worker
+
+    def _link_requests(self, manifest: dict[str, Any], directory: Path) -> dict[str, Any]:
+        """The bundle's files linked into the session's input/ (checksums checked) and the requests the session
+        reads them by; used when a session opens and when a bundle is attached to it (PLAN 14)."""
+        requests: dict[str, Any] = {}
+        for dataset in manifest["datasets"]:
+            files = []
+            for part in dataset["partitions"]:
+                source = self.bundles.path_of(manifest["input_bundle_id"], part["file"])
+                target = directory / "input" / f"{part['partition_id']}.parquet"
+                try:
+                    os.link(source, target)
+                except FileExistsError:
+                    pass  # the same partition already linked (an attached bundle that reuses a part)
+                except OSError:
+                    shutil.copyfile(source, target)
+                    os.chmod(target, 0o444)
+                if _sha256(target) != part["checksum_sha256"]:
+                    raise SessionError("BUNDLE_INTEGRITY_ERROR", f"{part['partition_id']}: the bundle file does not "
+                                                                 "match its checksum.", 500, "PREPARE_DATA_BUNDLE")
+                files.append(str(target))
+            quality = dataset.get("quality") or {}
+            requests[dataset["data_request_id"]] = {
+                "data_request_id": dataset["data_request_id"], "logical_name": dataset["logical_name"],
+                "source_table": dataset["source_table"], "columns": [c["name"] for c in dataset.get("columns") or []],
+                "key_columns": dataset.get("key_columns") or [], "entity_column": dataset.get("entity_column"),
+                "time_column": dataset.get("time_column"), "files": files, "ranges": dataset.get("ranges") or [],
+                "order_by": self._order(dataset), "rows": dataset["rows"],
+                "source_frequency": dataset.get("source_frequency"),
+                "analysis_frequency": dataset.get("analysis_frequency"), "resample": dataset.get("resample"),
+                "resample_rules": dataset.get("resample_rules") or {},
+                **({"resample_semantics_version": dataset["resample_semantics_version"]}
+                   if dataset.get("resample_semantics_version") is not None else {}),
+                "aggregation_rules": dataset.get("aggregation_rules") or {}, "quality": quality}
+        return requests
 
     @staticmethod
     def _order(dataset: dict[str, Any]) -> list[dict[str, str]]:
@@ -1049,6 +1147,10 @@ class SessionManager:
         if status == "SCRIPT_ERROR":
             view.update({k: v for k, v in (answer.get("error") or {}).items()})
             view["next_action"] = "REVISE_PYTHON_CODE"
+            missing = self._missing_columns(record, view)
+            if missing:
+                # PLAN 14: a column no data request of the session holds is missing data, not a code error
+                view["missing_data_hint"] = MISSING_COLUMN_HINT.format(columns=missing)
             if view.get("error_type") == "MaterializationLimitExceeded":
                 # G14: the data stay in this session; reduce them in DuckDB here instead of fetching them again
                 view.update(next_action="AGGREGATE_IN_SQL",
@@ -1082,6 +1184,25 @@ class SessionManager:
                                     runtime_ms, cpu)
         return view
 
+    def _missing_columns(self, record: dict[str, Any], error: dict[str, Any]) -> list[str]:
+        """The column names a failed execution asked for that no data request of the session (its bundle and the
+        attached ones) holds: a KeyError's key or the names a load()/sql() refusal lists. Empty when unsure."""
+        asked: list[str] = []
+        field = error.get("field")
+        if error.get("error_type") == "KeyError" and isinstance(field, str):
+            asked = [field]
+        else:
+            found = re.search(r"Columns \[([^\]]*)\] are not in", str(error.get("message") or ""))
+            if found:
+                asked = re.findall(r"'([^']+)'", found.group(1))
+        if not asked:
+            return []
+        known: set[str] = set()
+        for bundle_id in [record["bundle_id"], *[a["bundle_id"] for a in record.get("attached") or []]]:
+            manifest = (self.store.get_bundle(bundle_id) or {}).get("manifest") or {}
+            known |= {c["name"] for d in manifest.get("datasets") or [] for c in d.get("columns") or []}
+        return [c for c in asked if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,62}", c) and c not in known][:5]
+
     def _archive_execution(self, record: dict[str, Any], request_id: str, execution_id: str, seq: int, code: str,
                            answer: dict[str, Any], status: str, started_at: str, runtime_ms: int,
                            cpu: float) -> None:
@@ -1090,11 +1211,14 @@ class SessionManager:
             from .data_need import data_contract_sha256
 
             bundle = self.store.get_bundle(record["bundle_id"])["manifest"]
+            # PLAN 14: the attached bundles' files are inputs of the execution too
+            manifests = [bundle, *[self.store.get_bundle(a["bundle_id"])["manifest"]
+                                   for a in record.get("attached") or []]]
             inputs, position = [], 0
-            for dataset in bundle["datasets"]:
+            for manifest, dataset in [(m, d) for m in manifests for d in m["datasets"]]:
                 ordering = [o["column"] for o in self._order(dataset)]
                 for part in dataset["partitions"]:
-                    path = self.bundles.path_of(bundle["input_bundle_id"], part["file"])
+                    path = self.bundles.path_of(manifest["input_bundle_id"], part["file"])
                     inputs.append({"position": position, "data_request_id": dataset["data_request_id"],
                                    "dataset_id": part.get("dataset_id"), "sha256": part["checksum_sha256"],
                                    "size_bytes": path.stat().st_size if path.exists() else None,
@@ -1142,7 +1266,10 @@ class SessionManager:
             raise SessionError("SESSION_NOT_FOUND", "No session with this id exists for this request.", 404,
                                "OPEN_ANALYSIS_SESSION")
         manifest = (self.store.get_bundle(record["bundle_id"]) or {}).get("manifest") or {}
-        datasets = manifest.get("datasets") or []
+        datasets = [*(manifest.get("datasets") or []),  # PLAN 14: and the attached bundles' datasets
+                    *[d for a in record.get("attached") or []
+                      for d in ((self.store.get_bundle(a["bundle_id"]) or {}).get("manifest") or {}).get("datasets")
+                      or []]]
         found = next((d for d in datasets if dataset in (d.get("logical_name"), d.get("data_request_id"))), None)
         if found is None:
             raise SessionError("DATASET_NOT_FOUND", f"The session's bundle has no dataset '{dataset}'.", 404,

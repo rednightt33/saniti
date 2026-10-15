@@ -4405,9 +4405,20 @@ class AgentOrchestrator:
         result = outcome.output.get("result") if isinstance(outcome.output.get("result"), dict) else {}
         desk = self._desk(state)
         steps: list[tuple[str, dict[str, Any]]] = []
+        attach_to, attach_note = None, None
         if name == "submit_data_need_spec" and result.get("status") == "APPROVED" and result.get("need_id") \
                 and {"prepare_data_bundle", "open_analysis_session"} <= desk:
             steps.append(("prepare_data_bundle", {"need_id": result["need_id"]}))
+            # PLAN 14: the need asked to join an open session of this answer; any other id opens a new session
+            given = self._normalized_arguments(raw_arguments)
+            target = given.get("attach_to_session_id") if isinstance(given, dict) else None
+            if isinstance(target, str) and target and "attach_data_bundle" in desk:
+                if target in state.sessions and not state.sessions[target].get("closed_by_model") \
+                        and target not in state.completions:
+                    attach_to = target
+                else:
+                    attach_note = (f"attach_to_session_id {target} is not an open, uncompleted session of this "
+                                   "answer; a new session was opened instead.")
         elif name == "run_python" and result.get("status") == "OK" and "complete_analysis" in desk:
             arguments = self._normalized_arguments(raw_arguments)
             if isinstance(arguments, dict) and arguments.get("complete") is True and arguments.get("session_id"):
@@ -4431,9 +4442,23 @@ class AgentOrchestrator:
             merged.append({"tool": step, "arguments": arguments, **done.output})
             ready = done.output.get("result") if done.ok and isinstance(done.output.get("result"), dict) else {}
             if step == "prepare_data_bundle" and ready.get("status") == "READY" and ready.get("input_bundle_id"):
-                # EXEC-V 2026-10-08: each READY bundle gets its own session; opening one never closes another, and an
-                # open beyond the answer's limit comes back refused with the open sessions listed
-                steps.append(("open_analysis_session", {"input_bundle_id": ready["input_bundle_id"]}))
+                if attach_to:
+                    # PLAN 14: the bundle joins the open session; a refusal falls back to a session of its own below
+                    steps.append(("attach_data_bundle", {"session_id": attach_to,
+                                                         "input_bundle_id": ready["input_bundle_id"]}))
+                else:
+                    # EXEC-V 2026-10-08: each READY bundle gets its own session; opening one never closes another, and
+                    # an open beyond the answer's limit comes back refused with the open sessions listed
+                    steps.append(("open_analysis_session", {"input_bundle_id": ready["input_bundle_id"]}))
+                    if attach_note:
+                        merged[-1]["attach_note"] = attach_note
+            elif step == "attach_data_bundle" and not ready.get("attached"):
+                refusal = ready.get("code") or (done.output.get("error") or {}).get("code") or "ATTACH_FAILED"
+                merged[-1]["attach_note"] = (f"The bundle was not attached ({refusal}: {ready.get('message') or ''}); "
+                                             "a new session was opened on it instead.").replace(":  ", ": ")
+                log_event("ai_session_attach_fallback", request_id=state.request_id, session_id=arguments["session_id"],
+                          code=refusal)
+                steps.append(("open_analysis_session", {"input_bundle_id": arguments["input_bundle_id"]}))
         log_event("mechanical_steps_merged", request_id=state.request_id, after=name,
                   steps=[{"tool": m["tool"], "status": (m.get("result") or {}).get("status")
                           if isinstance(m.get("result"), dict) else (m.get("error") or {}).get("code")}
@@ -5050,6 +5075,12 @@ class AgentOrchestrator:
                                                     "bundle_id": result.get("bundle_id"), "executions": []}
             if result.get("reused_session"):
                 state.reuse["sessions_reused"] = state.reuse.get("sessions_reused", 0) + 1
+        elif name == "attach_data_bundle" and result.get("attached") and result.get("session_id") in state.sessions:
+            # PLAN 14: the session now also reads this bundle; its need is checked at the session's completion
+            state.sessions[result["session_id"]].setdefault("attached", []).append(
+                {"need_id": result.get("need_id"), "bundle_id": result.get("bundle_id")})
+            log_event("ai_session_bundle_attached", request_id=state.request_id, session_id=result["session_id"],
+                      need_id=result.get("need_id"), attachments=result.get("attachments"))
         elif name == "run_python" and result.get("execution_id"):
             state.execution_ids.append(str(result["execution_id"]))
             session = state.sessions.setdefault(result.get("session_id") or "", {"executions": []})
@@ -5082,6 +5113,10 @@ class AgentOrchestrator:
                                   "need_id": result.get("need_id"), "status": result.get("status"),
                                   **result["final_status"]}
             state.final_statuses.append(state.final_status)
+            for attachment in result["final_status"].get("attachments") or []:
+                if isinstance(attachment, dict) and attachment.get("status") == "UNUSED":
+                    # PLAN 14: an attached need the analysis never read is not data this answer used
+                    records.drop_need(state.data_record, str(attachment.get("need_id")))
             if result.get("status") == "COMPLETED":
                 verified = {str(i) for i in result["final_status"].get("verified_output_ids") or []}
                 state.verified_outputs |= verified

@@ -715,6 +715,49 @@ class DataNeedService:
                                   bound=binding is not None, research=research_v2, carried_outputs=carried_outputs,
                                   findings=findings)
 
+    def attach_bundle(self, session_id: str, request_id: str, bundle_id: str,
+                      conversation_key: str | None = None) -> dict[str, Any]:
+        """PLAN 14: a READY analysis bundle of this request (or one bound to this request's need) joins the request's
+        ACTIVE analysis session; a research need's data never does (its plan was approved with its data)."""
+        key = conversation_key if self.settings.conversation_reuse else None
+        record = self.store.get_bundle(bundle_id)
+        binding = self.store.binding_for(request_id, bundle_id) if key and record is not None else None
+        if binding is not None and binding["conversation_key"] != key:
+            binding = None
+        if record is None or (record["request_id"] != request_id and binding is None):
+            raise SessionError("BUNDLE_NOT_READY", "No READY bundle with this id exists for this request.", 404,
+                               "PREPARE_DATA_BUNDLE")
+        need_id = binding["need_id"] if binding else record.get("need_id")
+        if (self.store.get_need(need_id) or {}).get("mode") == "RESEARCH":
+            raise SessionError("ATTACH_RESEARCH_SESSION", "A research data need opens its own session.", 409,
+                               "OPEN_ANALYSIS_SESSION")
+        return self.sessions.attach_bundle(session_id, request_id, bundle_id, need_id)
+
+    def _attachments(self, record: dict[str, Any], epoch: int) -> list[dict[str, Any]]:
+        """PLAN 14: the bundles attached to this session in this epoch, each with its need and manifest."""
+        out = []
+        for entry in record.get("attached") or []:
+            if int(entry.get("epoch") or 1) != epoch:
+                continue
+            bundle = self.store.get_bundle(entry["bundle_id"])
+            need = self.get_need(entry["need_id"]) if entry.get("need_id") else None
+            if bundle is not None and need is not None:
+                out.append({**entry, "manifest": bundle["manifest"], "need": need})
+        return out
+
+    @staticmethod
+    def _session_bundle(base: dict[str, Any], attachments: list[dict[str, Any]]) -> dict[str, Any]:
+        """The base manifest with the attached bundles' datasets, each dataset naming the bundle its files are in, so
+        the validators that re-read data (event studies, backtests, frequency notes) find every dataset."""
+        if not attachments:
+            return base
+        datasets = [{**d, "input_bundle_id": d.get("input_bundle_id") or base["input_bundle_id"]}
+                    for d in base["datasets"]]
+        for attachment in attachments:
+            manifest = attachment["manifest"]
+            datasets += [{**d, "input_bundle_id": manifest["input_bundle_id"]} for d in manifest["datasets"]]
+        return {**base, "datasets": datasets}
+
     def _session_research(self, research: dict[str, Any]) -> dict[str, Any] | None:
         """The research_v2 section of session.json for a need promoted by a multi-angle research run (flag on only)."""
         constraints = research.get("constraints") or {}
@@ -900,7 +943,9 @@ class DataNeedService:
             if not any(e["seq"] > covered and e["status"] == "OK" for e in self.store.executions_for(session_id)):
                 return {**earlier["final_status"], "replayed": True}
             recompleted = earlier
-        bundle = self.store.get_bundle(record["bundle_id"])["manifest"]
+        base_bundle = self.store.get_bundle(record["bundle_id"])["manifest"]
+        attachments = self._attachments(record, epoch)
+        bundle = self._session_bundle(base_bundle, attachments)
         need_id = record.get("need_id") or bundle["need_id"]
         need = self.get_need(need_id)
         start = int(record.get("epoch_start_seq") or 0)
@@ -949,7 +994,42 @@ class DataNeedService:
                              "partitions_expected": delivered.get("partitions_expected"),
                              "partitions_delivered": delivered.get("partitions_delivered"),
                              "sampling": bool(delivered.get("sampling")), "truncation": bool(delivered.get("truncation"))})
-        coverage_status = "PASS" if delivery.get("coverage_status") == "PASS" and all(
+        # PLAN 14: each attached bundle's need is checked like the session's own; a need the analysis never read at
+        # all is UNUSED (the analysis decided it did not need it): it neither fails the completion nor enters the
+        # data record. A need read in part is checked in full, like any data the answer rests on
+        attached_view, attached_ok = [], True
+        for attachment in attachments:
+            processed = processing_coverage(attachment["need"], manifest)
+            read = [item for item in processed if (manifest["reads"].get(item["data_request_id"]) or {})]
+            if not read:
+                attached_view.append({"need_id": attachment["need_id"], "bundle_id": attachment["bundle_id"],
+                                      "status": "UNUSED"})
+                continue
+            delivered_all = attachment["manifest"].get("coverage") or {}
+            delivered_by = {r["data_request_id"]: r for r in delivered_all.get("requests") or []}
+            ok = delivered_all.get("coverage_status") == "PASS"
+            for item in processed:
+                delivered = delivered_by.get(item["data_request_id"]) or {}
+                delivered_ranges = {r["range_id"]: r["status"] for r in delivered.get("ranges") or []}
+                ranges = [{"range_id": r["range_id"], "delivery": delivered_ranges.get(r["range_id"], "FAIL"),
+                           "processing": r["status"],
+                           "status": "PASS" if delivered_ranges.get(r["range_id"]) == "PASS"
+                           and r["status"] == "PROCESSED" else "FAIL"} for r in item["ranges"]]
+                status = "PASS" if delivered.get("status") == "PASS" and item["status"] == "PROCESSED" else "FAIL"
+                ok = ok and status == "PASS"
+                requests.append({"data_request_id": item["data_request_id"], "logical_name": item["logical_name"],
+                                 "status": status, "delivery": delivered.get("status", "FAIL"),
+                                 "processing": item["status"], "ranges": ranges,
+                                 "partitions_expected": delivered.get("partitions_expected"),
+                                 "partitions_delivered": delivered.get("partitions_delivered"),
+                                 "sampling": bool(delivered.get("sampling")),
+                                 "truncation": bool(delivered.get("truncation")),
+                                 "attached_need_id": attachment["need_id"]})
+            attached_ok = attached_ok and ok
+            attached_view.append({"need_id": attachment["need_id"], "bundle_id": attachment["bundle_id"],
+                                  "status": "USED" if ok else "INCOMPLETE"})
+        used_needs = [a["need_id"] for a in attached_view if a["status"] != "UNUSED"]
+        coverage_status = "PASS" if delivery.get("coverage_status") == "PASS" and attached_ok and all(
             r["status"] == "PASS" for r in requests) else "FAIL"
         ok_runs = [e for e in executions if e["status"] == "OK"]
         insufficient = [e for e in executions if e["status"] == "INSUFFICIENT_INPUT_DATA"]
@@ -959,9 +1039,12 @@ class DataNeedService:
             execution = "INSUFFICIENT_INPUT_DATA"
         else:
             execution = "FAILED" if executions else "NO_EXECUTION"
-        quality_flags = sorted({f for d in bundle["datasets"] for f in (d.get("quality") or {}).get("quality_flags")
+        # an unused attached bundle's flags say nothing about the answer's data
+        unused = {a["bundle_id"] for a in attached_view if a["status"] == "UNUSED"}
+        read_datasets = [d for d in bundle["datasets"] if d.get("input_bundle_id") not in unused]
+        quality_flags = sorted({f for d in read_datasets for f in (d.get("quality") or {}).get("quality_flags")
                                 or []})
-        ranges_ok = all(r.get("status") == "OK" for d in bundle["datasets"]
+        ranges_ok = all(r.get("status") == "OK" for d in read_datasets
                         for r in (d.get("quality") or {}).get("requested_ranges") or [])
         research = need.get("research_governance") or {}
         mode = need.get("mode")
@@ -1046,7 +1129,7 @@ class DataNeedService:
             "research_governance": research.get("decision", "APPROVED") if mode == "RESEARCH" else "NOT_APPLICABLE",
             "sql_governance": "PASS", "data_quality_profiling": "COMPLETE", "data_coverage": coverage_status,
             "sandbox_execution": execution, "calculation_validation": "NOT_PERFORMED",
-            "data_complete": delivery.get("coverage_status") == "PASS" and ranges_ok
+            "data_complete": delivery.get("coverage_status") == "PASS" and attached_ok and ranges_ok
             and "EMPTY_ENTITY" not in quality_flags,
             "execution_complete": passed,
             "evidence_label": "DATA_COVERAGE_VERIFIED" if passed else "NOT_VALIDATED",
@@ -1075,6 +1158,8 @@ class DataNeedService:
                 "input_checksum": bundle.get("checksum_sha256") or self.store.get_bundle(record["bundle_id"]).get(
                     "checksum_sha256"),
                 "execution_ids": [e["execution_id"] for e in executions if e["status"] == "OK"]}
+        if attached_view:
+            final["attachments"] = attached_view  # PLAN 14: each attached bundle USED, INCOMPLETE or UNUSED
         if findings is not None and findings["status"] == "OK":
             final["research_findings"] = [findings["finding"]]
         if explored is not None:
@@ -1166,6 +1251,7 @@ class DataNeedService:
                          # H1: the execution, code and data that produced it
                          "lineage": {"execution_id": o.get("execution_id"),
                                      "code_sha256": code_of.get(o.get("execution_id")), "need_id": need_id,
+                                     **({"attached_need_ids": used_needs} if used_needs else {}),
                                      "bundle_id": record["bundle_id"],
                                      # R-STORE: the data's last date, so a later recomputation can use the same one
                                      **data_as_of(bundle)}}

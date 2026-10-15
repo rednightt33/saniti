@@ -109,6 +109,9 @@ class Settings:
     # S28 (round 2026-10-03): how long opening a session waits for a free slot before SESSION_CAPACITY_EXCEEDED
     # (0: refuse at once, the earlier behaviour)
     open_wait_seconds: int
+    # PLAN 14 (user 2026-10-15, "Batas: 2 lampiran per sesi"): the extra bundles one analysis session may take in
+    # (POST /v1/sessions/{id}/attach); 0 turns attaching off
+    max_attachments: int
     # R-STORE (round 2026-10-03 C2d): the largest stored table the orchestrator may upload back into a session
     restore_max_bytes: int
     # Conversation reuse (implementation plan 2026-09-27, phases S1/S2): released outputs, bundles and warm sessions
@@ -287,6 +290,7 @@ class Settings:
             session_idle_seconds=_integer(env, "PY_SANDBOX_SESSION_IDLE_SECONDS", 900, minimum=30, maximum=86400),
             session_max_seconds=_integer(env, "PY_SANDBOX_SESSION_MAX_SECONDS", 3600, minimum=60, maximum=86400),
             open_wait_seconds=_integer(env, "PY_SANDBOX_OPEN_WAIT_SECONDS", 0, minimum=0, maximum=120),
+            max_attachments=_integer(env, "PY_SANDBOX_MAX_ATTACHMENTS", 2, minimum=0, maximum=5),
             restore_max_bytes=_integer(env, "PY_SANDBOX_RESTORE_MAX_BYTES", 268_435_456, minimum=1_048_576,
                                        maximum=1_073_741_824),
             session_max_executions=_integer(env, "PY_SANDBOX_SESSION_MAX_EXECUTIONS", 40, maximum=500),
