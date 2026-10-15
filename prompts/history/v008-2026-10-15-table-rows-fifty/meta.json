@@ -1,0 +1,10 @@
+{
+ "version": 8,
+ "date": "2026-10-15",
+ "name": "table-rows-fifty",
+ "decision": "user 2026-10-15: \"malah saya mau sampai 50 kalau bisa. Di tampilan di frontend, tapi bisa di collapse/ expand. Agar datanya rinci dan jelas, lengkap\"; \"Ok masukan EXEC U4\"; go \"Ok jalankan\"",
+ "change": "EXEC-UI-1015 U4: a table shows the rows the user asked for, ten for an unnumbered ranking, every row up to fifty for a breakdown that lists each group; more than fifty offers Excel; rows are cut in code only for an asked top N (rule 13 and TABLES)",
+ "prompt_chars": 38697,
+ "prompt_sha256": "527c0a76a4aabf7f539cac3ddbe386b1c4c92371955242b9ada1307fd8cc2180",
+ "schema_sha256": "48bceaa503bc5008b5d949b461b36c7c322017f50354b2138f48c5e02d2b1a03"
+}

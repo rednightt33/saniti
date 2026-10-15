@@ -202,16 +202,18 @@ def test_with_the_flag_off_an_instruction_is_not_built() -> None:
         orc._resolve_references(state, answer("{{out.o1.rows[sector=Energy].n|int}} {{table out.o1; S = sector}}"))
 
 
-# ---------------------------------------------------------------- EXEC-ROWS (user 2026-10-13: a safeguard, 25 rows)
+# ------------------------------------- EXEC-ROWS (user 2026-10-13: a safeguard, 25 rows; EXEC-UI-1015 U4 2026-10-15: 50)
 
-def test_a_table_shows_the_rows_asked_for_up_to_twenty_five() -> None:
+def test_a_table_shows_the_rows_asked_for_up_to_fifty() -> None:
     table = [{"ticker": f"T{i:04d}", "ret": float(i)} for i in range(1000)]
     _, state = tracked(rows=table, units={})
     _, text = shown("{{table out.o1; Saham = ticker; sort -ret; top 15}}", state)
     assert text.count("\n| T") == 15 and "_Menampilkan 15 dari 1.000 baris._" in text
+    _, text = shown("{{table out.o1; Saham = ticker; sort -ret; top 40}}", state)  # a breakdown up to fifty shows whole
+    assert text.count("\n| T") == 40 and "_Menampilkan 40 dari 1.000 baris._" in text
     _, text = shown("{{table out.o1; Saham = ticker; sort -ret; top 1000}}", state)
-    assert text.count("\n| T") == td.MAX_ROWS == 25
-    assert "_Menampilkan 25 dari 1.000 baris; tabel di chat dibatasi 25 baris, tabel lengkap bisa diminta sebagai " \
+    assert text.count("\n| T") == td.MAX_ROWS == 50
+    assert "_Menampilkan 50 dari 1.000 baris; tabel di chat dibatasi 50 baris, tabel lengkap bisa diminta sebagai " \
            "file Excel._" in text
 
 

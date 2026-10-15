@@ -2129,9 +2129,16 @@ def _units(units, fields: list[str] | None) -> dict[str, str]:
                             f"{UNITS_EXAMPLE}; got {type(units).__name__}.")
     clean = {}
     for key, unit in units.items():
+        # EXEC-BE1-1 (user 2026-10-15): a label the sandbox cannot read no longer fails an execution whose figures are
+        # fine. A known unit in other letter case is read; any other value is dropped with a warning, so the column
+        # is shown as a plain number (never formatted by a guessed unit) and UNIT_UNDECLARED still names a column
+        # that looks like a share
+        if isinstance(unit, str) and unit.strip().upper() in VALUE_UNITS:
+            unit = unit.strip().upper()
         if unit not in VALUE_UNITS:
-            raise InvalidOutput(f"units[{key!r}] is {unit!r}; use one of {', '.join(VALUE_UNITS)} (FRACTION: 0.12 is "
-                                f"12%; PERCENT: 12 is 12%). {UNITS_LEAVE_OUT}")
+            add_warning("UNIT_DROPPED", f"units[{key!r}] is {unit!r}, not one of {', '.join(VALUE_UNITS)}; the unit "
+                                        f"was dropped and the column is shown as a plain number. {UNITS_LEAVE_OUT}")
+            continue
         if fields is not None and str(key) not in fields:
             raise InvalidOutput(f"units names {key!r}, which is not a column or field of the output.")
         clean[str(key)] = unit
@@ -2148,6 +2155,24 @@ DEFINITION_EXAMPLE = ("definition={'filters': [{'column': 'market_board', 'opera
                       "'median return_1d_pct <= -1'}, 'notes': 'net value summed per broker and day'}")
 
 
+def _thresholds_dict(thresholds) -> dict[str, Any]:
+    """A thresholds list or single value as {name: value}: an item {'name'|'label'|'key': n, 'value': v} keeps its
+    name, any other item is threshold_<position>."""
+    items = list(thresholds) if isinstance(thresholds, (list, tuple)) else [thresholds]
+    out: dict[str, Any] = {}
+    for position, item in enumerate(items, 1):
+        name = next((item[k] for k in ("name", "label", "key") if isinstance(item, dict) and isinstance(item.get(k), str)
+                     and item[k].strip()), None)
+        if name is not None and "value" in item:
+            value = item["value"]
+        elif name is not None:
+            value = {k: v for k, v in item.items() if k not in ("name", "label", "key")}
+        else:
+            name, value = f"threshold_{position}", item
+        out[name if name not in out else f"{name}_{position}"] = value
+    return out
+
+
 def _definition(definition) -> dict[str, Any] | None:
     """The definition of an output: the row filters applied in code (beyond the data request's own scope, which the
     backend records itself), the period, the entities, the thresholds and a note. {} states that the code applied no
@@ -2156,9 +2181,23 @@ def _definition(definition) -> dict[str, Any] | None:
         return None
     if not isinstance(definition, dict):
         raise InvalidOutput(f"definition is a dict, for example {DEFINITION_EXAMPLE}.")
+    # EXEC-BE1-1: a definition is a description; a key outside DEFINITION_KEYS is kept in the notes and a thresholds
+    # list or single value becomes a dict, each with a warning, instead of failing the execution
     unknown = sorted(set(map(str, definition)) - set(DEFINITION_KEYS))
     if unknown:
-        raise InvalidOutput(f"definition has unknown keys {unknown}; use {list(DEFINITION_KEYS)}.")
+        definition = {str(k): v for k, v in definition.items()}
+        moved = {key: definition.pop(key) for key in unknown}
+        notes = definition.get("notes")
+        extra = "; ".join(f"{key}: {_json.dumps(_jsonable(value), ensure_ascii=False)}" for key, value in moved.items())
+        definition["notes"] = f"{notes}; {extra}" if notes not in (None, "") else extra
+        add_warning("DEFINITION_KEYS_MOVED", f"definition keys {unknown} are not among {list(DEFINITION_KEYS)}; they "
+                                             "were kept in definition['notes'].")
+    thresholds = definition.get("thresholds")
+    if thresholds is not None and not isinstance(thresholds, dict):
+        definition = {**definition, "thresholds": _thresholds_dict(thresholds)}
+        add_warning("THRESHOLDS_CONVERTED", f"definition['thresholds'] was a {type(thresholds).__name__}; it was "
+                                            "stored as a dict {name: value}. Write a dict next time, for example "
+                                            "{'crash_day': 'median return_1d_pct <= -1', 'window_days': 20}.")
     filters = definition.get("filters") or []
     if not isinstance(filters, list):
         raise InvalidOutput("definition['filters'] is a list of {'column', 'operator', 'value'}.")

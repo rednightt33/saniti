@@ -28,6 +28,7 @@ whenever the rendered prompt or schema changes (AGENTS.md, Mandatory workflow).
 | v005 | 2026-10-12 | [exec-style-run-a](history/v005-2026-10-12-exec-style-run-a/system_prompt.md) | 37,979 | `1aeee73d55c7` | `48bceaa503bc` | well saya lebih suka Run A tapi tanpa kewajiban AI untuk kasih asumsi, batasan. ... dalam 1 jawaban boleh lebih dari 1 tabel as long as membantu user (tidak wajib harus lebih dari 1) (2026-10-12) |
 | v006 | 2026-10-13 | [exec-m143](history/v006-2026-10-13-exec-m143/system_prompt.md) | 38,420 | `0395b6925985` | `48bceaa503bc` | "Ok perbaiki M143 dulu" (cara "(a) + (c) (Recommended)"); "saya setuju solusi 1 dan 2"; "Go" (2026-10-13; solusi 2 ditunda: "Tunda solusi 2 (Recommended)") |
 | v007 | 2026-10-13 | [exec-days](history/v007-2026-10-13-exec-days/system_prompt.md) | 38,633 | `c248a495a4f0` | `48bceaa503bc` | "Ok, coba perbaiki ya, also enable solusi 2, enable ON" (2026-10-13) |
+| v008 | 2026-10-15 | [table-rows-fifty](history/v008-2026-10-15-table-rows-fifty/system_prompt.md) | 38,697 | `527c0a76a4aa` | `48bceaa503bc` | user 2026-10-15: "malah saya mau sampai 50 kalau bisa. Di tampilan di frontend, tapi bisa di collapse/ expand. Agar datanya rinci dan jelas, lengkap"; "Ok masukan EXEC U4"; go "Ok jalankan" |
 
 ## Changes
 
@@ -59,10 +60,6 @@ VALUE REFERENCES: counts of the period or sample are figures from data, a number
 
 VALUE REFERENCES: a new reference kind {{data.<data_request_id>.<range_id>.dates}} for the trading dates of a prepared data request's range (EXEC-DAYS); check_references v2 takes a draft (solution 2, tool description)
 
-### Catatan EXEC-PROSE (2026-10-13, tanpa snapshot baru)
+### v008 table-rows-fifty (2026-10-15)
 
-Snapshot memakai profil dev tanpa `AI_ENABLE_TABLE_DIRECTIVES`, jadi bagian TABLES (dan kalimat EXEC-PROSE di dalamnya:
-teks di sekitar tabel singkat, angka baru dari analisis atau diff/ratio/abs/chg, contoh nominal dengan kata) tidak
-tercatat di sini; teksnya ada di `TABLE_DIRECTIVE_RULES` (`app/orchestrator.py`) dan diuji `tests/test_exec_prose.py`.
-Prompt router (aturan periode dengan kata) tercatat di `AI_ROUTER.md`; deskripsi `check_references` v3 di Tool_Catalog
-round T.
+EXEC-UI-1015 U4: a table shows the rows the user asked for, ten for an unnumbered ranking, every row up to fifty for a breakdown that lists each group; more than fifty offers Excel; rows are cut in code only for an asked top N (rule 13 and TABLES)

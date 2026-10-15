@@ -203,6 +203,15 @@ S_ADDED = {
     "cite the period's trading days by it;",
 }
 REMOVED, ADDED = (REMOVED | (S_REMOVED - ADDED)) - S_ADDED, (ADDED - S_REMOVED) | (S_ADDED - REMOVED)
+# EXEC-UI-1015 U4 (user 2026-10-15, "malah saya mau sampai 50 kalau bisa ... bisa di collapse/ expand"; go "Ok
+# jalankan"): a breakdown that lists every group shows all its rows, up to fifty
+U_REMOVED = {
+    "Keep the final answer focused and proportional to the user's question: the answer within about two and a half thousand characters and each table in it within ten rows unless the user asks for more (the full table stays in its released output);",
+}
+U_ADDED = {
+    "Keep the final answer focused and proportional to the user's question: the answer within about two and a half thousand characters and each table in it within ten rows unless the user asks for more or the table lists every group of a breakdown, up to fifty rows (the full table stays in its released output);",
+}
+REMOVED, ADDED = (REMOVED | (U_REMOVED - ADDED)) - U_ADDED, (ADDED - U_REMOVED) | (U_ADDED - REMOVED)
 # the reader section added about six percent (the budget was two percent over the pass-2 fixture); EXEC-Y Fase 3's
 # four sentences about half a percent more; EXEC-STYLE about half a percent more; EXEC-M143 about one percent more; EXEC-DAYS about a third of a percent more
 SIZE_BUDGET = 1.125

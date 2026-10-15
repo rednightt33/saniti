@@ -347,10 +347,12 @@ def test_the_tables_carry_their_units_and_a_declaration_is_checked(session) -> N
     units = {o["name"]: o.get("units") for o in body["outputs"]}
     assert units["drops"] == ES.summary_units("PERCENT") and units["shares"] == {"share": "FRACTION"}
     assert units["drops_events"] == {"outcome": "PERCENT"}
-    for code in ("emit_table('x', pd.DataFrame({'a': [1]}), units={'a': 'PERCENTS'})",
-                 "emit_table('x', pd.DataFrame({'a': [1]}), units={'b': 'FRACTION'})"):
-        refused = run(session, code).json()
-        assert refused["status"] == "SCRIPT_ERROR" and refused["error_type"] == "InvalidOutput", refused
+    refused = run(session, "emit_table('x', pd.DataFrame({'a': [1]}), units={'b': 'FRACTION'})").json()
+    assert refused["status"] == "SCRIPT_ERROR" and refused["error_type"] == "InvalidOutput", refused
+    # EXEC-BE1-1 (user 2026-10-15): an unknown unit is dropped with a warning instead of failing the execution
+    dropped = run(session, "emit_table('x', pd.DataFrame({'a': [1]}), units={'a': 'PERCENTS'}, definition={})").json()
+    assert dropped["status"] == "OK" and "UNIT_DROPPED" in {w["code"] for w in dropped["warnings"]}, dropped
+    assert next(o for o in dropped["outputs"] if o["name"] == "x").get("units") is None
     result = complete(session)
     shares = next(o for o in result["released_outputs"] if o["name"] == "shares")
     page = session["api"].get(f"/v1/sessions/{session['session_id']}/outputs/{shares['output_id']}",

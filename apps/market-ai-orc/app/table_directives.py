@@ -30,8 +30,9 @@ SEPARATOR_RE = re.compile(r"^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$"
 DEFAULT_ROWS = 10  # rule 13: a table in the answer holds ten rows unless the user asks for more
 # EXEC-ROWS (user 2026-10-13, "Tp mesti ada safe guard kalau seandainya output user = 1000 rows?"; "25 baris"): a
 # table in the chat shows at most this many rows whatever top asks; the line below it gives the output's size and, when
-# more were asked, says the complete table can be asked for as an Excel file
-MAX_ROWS = 25
+# more were asked, says the complete table can be asked for as an Excel file. EXEC-UI-1015 U4 (user 2026-10-15, "malah
+# saya mau sampai 50 kalau bisa ... bisa di collapse/expand"): 50; EDGE shows ten and folds the rest
+MAX_ROWS = 50
 MAX_COLUMNS = 12
 EMPTY_CELL = "–"  # a missing value (null, NaN) is shown as a dash, not as a reference
 # a column the instruction may name: one a value reference can read (no brace, pipe, bracket or equals sign)

@@ -14,9 +14,11 @@ import saniti_session as S  # noqa: E402
 
 
 def test_a_unit_of_none_says_what_to_leave_out_and_how_to_split_a_mixed_column() -> None:
-    with pytest.raises(S.InvalidOutput) as refused:
-        S._units({"estimasi": None}, ["estimasi"])
-    message = str(refused.value)
+    # EXEC-BE1-1 (user 2026-10-15): the unit is dropped with a warning that keeps the advice, instead of a refusal
+    S._WARNINGS.clear()
+    assert S._units({"estimasi": None}, ["estimasi"]) == {}
+    message = S._WARNINGS[-1]["message"]
+    S._WARNINGS.clear()
     assert "units['estimasi'] is None" in message and "Leave out of units a column that is no share" in message
     assert "estimate_ratio and estimate_pp" in message
 
@@ -27,6 +29,10 @@ def test_units_that_are_no_dict_show_an_example() -> None:
 
 
 def test_thresholds_that_are_no_dict_show_an_example_and_what_came() -> None:
-    with pytest.raises(S.InvalidOutput, match=r"definition\['thresholds'\] is a dict .*'window_days': 20.*got list"):
-        S._definition({"thresholds": ["p90"]})
+    # EXEC-BE1-1: a list is stored as a dict, and the warning shows the right form and what came
+    S._WARNINGS.clear()
+    assert S._definition({"thresholds": ["p90"]})["thresholds"] == {"threshold_1": "p90"}
+    message = S._WARNINGS[-1]["message"]
+    S._WARNINGS.clear()
+    assert "was a list" in message and "'window_days': 20" in message
     assert S._definition({"thresholds": {"big_buy": "net_buy >= p90"}})["thresholds"] == {"big_buy": "net_buy >= p90"}
