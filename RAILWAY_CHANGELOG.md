@@ -1,5 +1,16 @@
 # Railway changelog
 
+## 2026-10-15 — EXEC-IMPL-1016 Fase 3 deployed (dev)
+
+- `ba5b52b`: market-sql-governor `f70bf612`, market-python-sandbox `c5b30598`, market-ai-orc `cb8d5d2a`, all SUCCESS;
+  orc startup without any `*_inactive` event. Value dictionary and `/v1/catalog/search-values` (Governor), value
+  candidates and one entity column after a join (sandbox), `search_values` tool and the G13 fix (orc).
+- `7a9314e`: market-sql-governor `624c6a5b` SUCCESS (a curated alias outranks derived ones).
+- `2334b44`: market-sql-governor `33e8d485` SUCCESS (the summary path checks scope text values).
+- Temporary service `mmig-job` created for migrations `20261015_014` and `015` and deleted afterwards (read back
+  absent). No variable of any other service changed; `AI_PROVIDER_SORT`, `AI_MODEL`, `AI_MODEL_2`, `AI_MODEL_SWITCH`
+  and `AI_MODE_SWITCH` untouched.
+
 ## 2026-10-15 — EXEC-IMPL-1016 Fase 2 deployed (dev)
 
 User: "Next lanjutkan tanpa minta saya naikan limit" (go for Fase 2–5). No EDGE run was active before the push. `main`

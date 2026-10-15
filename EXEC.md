@@ -2166,6 +2166,10 @@ user diberi tahu hanya bila provider menolak karena biaya. Berhenti hanya untuk 
   - `edge_38585d20…` "BBRX dan TLKN": jalur `query_metric` (Governor summary) tidak memeriksa nilai, BBRX memberi 0 baris.
     Model bertanya balik untuk BBRX dan menulis asumsi TLKN → TLKM. Diperbaiki di Governor: jalur summary memeriksa
     nilai teks scope dan restriction dengan kamus (`check_scope`).
+  - Sesudah `2334b44` (Governor `33e8d485` SUCCESS), `edge_ba384d53…` "harga penutupan BBRX": summary ditolak
+    `VALUE_NOT_FOUND`, model memanggil `search_values` lalu bertanya balik dengan contoh BBRI (32 dtk).
+- Fase 3 selesai. Sisa usulan untuk user: baris alias kurasi "BRI" → BBRI; jalur lama `/v1/query` dan `/v1/lookup`
+  (mati di dev) belum memakai cek kamus.
 
 ### EXEC-REVIEW-1015: tinjauan semua EXEC terbuka dan arsitekturnya (2026-10-15; user: "please review all exec, inspect arsitektur ... contrast what ideal conditions would look like")
 
