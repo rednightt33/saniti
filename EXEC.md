@@ -2835,6 +2835,24 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
   - **Tes:** orc 1.777+ lulus (3 galat `pyarrow` lingkungan lokal, sudah ada sebelumnya); tes baru di
     `test_fastlane.py` (14), `test_conversations.py` (2), `test_catalog_postgres.py` (2); EDGE `test_edge.py` (1) dan
     `test_v5_frontend.py` (4, tes gulir terbukti gagal tanpa perbaikan).
+  - **Deploy dan A/B V5 (2026-10-14):** `main` `4e99848` (orc `049fb844`, edge-bff `71d4161d`, SUCCESS); saklar
+    dinyalakan, redeploy orc `bf853494` SUCCESS; sweep live 19:20 UTC (0 giliran). A/B 3 pertanyaan sama dengan A/B V4
+    (n=1 per pertanyaan; OFF = saklar V5 mati, V4 tetap hidup), 6/6 ANSWER:
+
+    | Ukuran | V5 OFF | V5 ON |
+    |---|---|---|
+    | Penolakan gerbang yang meminta perbaikan | 4 (UNITS, PROVENANCE ×2, TYPED_FIGURES) | 0 (2 TYPED_FIGURES jadi label) |
+    | Baris Batasan (t1/j2/s1) | 6/6/6 | 0/0/0 (pindah ke Asumsi 3/6/3, dibuang 2/1/1) |
+    | "pp" di jawaban | 6/2/2 | 0/0/0 |
+    | `get_dimension_values` | 0 | 0 |
+    | Waktu total | 568 s | 644 s |
+    | Biaya | USD 0,103 | USD 0,099 |
+
+    Waktu ON lebih lama (+13%) bukan karena gerbang (tanpa putaran perbaikan): penyedia model berbeda (OFF sebagian
+    besar Baidu, ON InferenceNet/AtlasCloud); keduanya lebih cepat dari V4 ON (763 s). Temuan: 2 dari 3 jawaban ON
+    memuat label "Angka berikut diketik … tidak dibaca ulang" di Asumsi, karena angka diketik tidak lagi diperbaiki AI
+    (keputusan lanjutan menunggu user). Format tanggal/menu/pin/gulir diverifikasi dengan tes browser (runner tidak
+    merender EDGE); pengecekan visual oleh user.
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur

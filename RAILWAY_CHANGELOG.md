@@ -1,5 +1,16 @@
 # Railway changelog
 
+## 2026-10-14 — EXEC-FASTLANE V5 deployed, switched on and A/B (dev)
+
+User: "please review current exec … run an A/B testing … proceed end to end". `main` `4e99848` auto-deployed
+`market-ai-orc` dev `049fb844` → SUCCESS and `edge-bff` dev `71d4161d` → SUCCESS (`market-python-sandbox` SKIPPED). No
+`edge_` run was active before the push. Variables set on `market-ai-orc` / `dev` (names only):
+`AI_FASTLANE_GATE_ADVICE=true`, `AI_FASTLANE_V5_PRESENTATION=true`, `AI_CONVERSATION_RESTART_SWEEP_SECONDS=180`;
+redeploy `bf853494` → SUCCESS; values read back; `conversation_restart_sweep` logged 180 s after start (0 turns).
+`.railway/railway.ts`: the three names `preserve()`. `orc-test-runner` dev `27a8ea85` (OFF, before the switches,
+suite `v5_20261014_off`) and `65ca2b64` (ON, `v5_20261014_on`); all six turns COMPLETED ANSWER. Results in EXEC.md.
+Fallback: set the switches false (`AI_CONVERSATION_RESTART_SWEEP_SECONDS=0`).
+
 ## 2026-10-14 — V4 A/B (dev)
 
 User: "lakukan a/b tes 3 pertanyaan". `AI_FASTLANE_DECISION_RULES` on `market-ai-orc` / `dev` (name only) set false
