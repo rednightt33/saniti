@@ -158,7 +158,9 @@ jalan balik (prinsip "harus selalu ada fallback" EXEC-FASTLANE).
 sesi milik jawaban lain ditolak, lampiran tidak dipakai tidak menggagalkan, data yang dipakai tetap diperiksa penuh;
 A/B jalur Cepat dengan pertanyaan yang butuh data tambahan di tengah (pola j2): waktu, putaran, sesi per run.
 
-**Pertanyaan terbuka:** batas jumlah lampiran per sesi (usul 2); apakah A/B dulu dengan saklar mati di jalur Standar.
+**Keputusan user 2026-10-15:** atas penjelasan batas lampiran (2 per sesi; lampiran ke-3 ditolak dengan jalan ke data yang ada atau sesi baru) dan cara AI tahu (deskripsi alat `submit_data_need_spec` dan alat sesi, saran di pesan galat; kalimat system prompt hanya bila A/B menunjukkan AI belum memakainya): "Aight OK - masukan EXEC jangan execute dulu". Batas: 2 lampiran per sesi.
+
+**Pertanyaan terbuka:** apakah A/B dulu dengan saklar mati di jalur Standar.
 
 ## Sudah dieksekusi, tinggal bukti live
 
