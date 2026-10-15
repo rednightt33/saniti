@@ -2117,6 +2117,15 @@ user diberi tahu hanya bila provider menolak karena biaya. Berhenti hanya untuk 
   - Catatan keputusan berisi kalimat "kirim data need begitu cakupan jelas".
   - Butir 3 tercakup oleh brief tunggal (2.2).
 - Prompt snapshot v010 (skema jawaban, catatan keputusan); `AI_ROUTER.md` dibuat ulang. Tes orc 1.821 lulus.
+- Deploy `264c16f` → orc `07f748de` SUCCESS (startup tanpa `*_inactive`). Cek live tiga giliran
+  `conv_4151c554…` (jalur cepat, DeepSeek V4.1 Flash high):
+  - 1. broker asing BBRI sekitar 24 Nov 2025: ANALYSIS, 181 dtk. Tiga fakta dari pesan user tercatat. Tafsir default
+    (net, tipe investor asing) tertulis di asumsi.
+  - 2. "Cari saja juga untuk tanggal efektif 26 Agustus 2025…": **CONTINUE** (dulu INSIGHT), 139 dtk (run asli
+    `2f7523a7` 336 dtk). Fakta EVENT_DATE ditambahkan. Gerbang hasil lama menyala sekali karena jawaban membandingkan
+    dengan hasil November; model memastikan definisinya sama.
+  - 3. "kenapa broker itu…": INSIGHT, 297 dtk, rincian harian tanpa uji statistik (pilihan model).
+  - Satu bacaan router kurang tepat: "beli" dicatat sebagai DEFINITION (tidak berbahaya).
 
 ### EXEC-REVIEW-1015: tinjauan semua EXEC terbuka dan arsitekturnya (2026-10-15; user: "please review all exec, inspect arsitektur ... contrast what ideal conditions would look like")
 

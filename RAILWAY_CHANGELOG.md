@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-10-15 — EXEC-IMPL-1016 Fase 2 deployed (dev)
+
+User: "Next lanjutkan tanpa minta saya naikan limit" (go for Fase 2–5). No EDGE run was active before the push. `main`
+`264c16f` deployed `market-ai-orc` dev `07f748de` → SUCCESS (startup without `*_inactive`; provider policy OK for the
+four models); sandbox, edge-bff and governor SKIPPED. No variable change. Router benchmarks before the push (paid, about
+USD 0.35): turn router 73/78 → 78/78, first router 126/128 → 127/128 twice, hard criteria PASS. Live check: a
+three-turn conversation `conv_4151c554…` completed (181 s, 139 s, 297 s). Rollback: orc `5163a5e0` (`2ea90c8`).
+
 ## 2026-10-15 — EXEC-IMPL-1016 Fase 1 and the M168 fix deployed (dev)
 
 User: "Ok jalankan" (EXEC-IMPL-1016 Fase 0 + 1). No EDGE run was active before the push. `main` `2ea90c8` deployed
