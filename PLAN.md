@@ -121,7 +121,7 @@ keputusan terpisah (`FUTURE_PLAN.md` §3).
 **Dinyalakan di dev 2026-10-15** (user: "buka dan jalankan ya. Siapkan fallback apabila intended resultnya jelek"):
 `AI_ENABLE_SESSION_ATTACH=true` di `market-ai-orc` dev (deploy `bb3738ea` SUCCESS, startup tanpa `session_attach_inactive`).
 Temuan saat menyala: deteksi research findings v1 membaca nama kelas argumen, yang diganti pembungkus lampiran, sehingga
-`hypothesis_plan_inactive` (ERRORS M165); diperbaiki di commit berikut (deteksi dari field). Jalan balik: (1) otomatis per
+`hypothesis_plan_inactive` (ERRORS M165); diperbaiki di `5158381` (deteksi dari field), orc `fcda847e` SUCCESS tanpa `*_inactive`. Jalan balik: (1) otomatis per
 pesan: lampiran yang ditolak sandbox membuka sesi baru dengan alasannya (perilaku lama); (2) seluruhnya: hapus
 `AI_ENABLE_SESSION_ATTACH` di orc dev (`railway variables --service market-ai-orc --environment dev --remove
 AI_ENABLE_SESSION_ATTACH` atau set `false`), orc redeploy dan alat `attach_data_bundle` tidak ditawarkan lagi. Tanda

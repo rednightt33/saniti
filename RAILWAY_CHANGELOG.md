@@ -5,7 +5,7 @@
 User: "buka dan jalankan ya. Siapkan fallback apabila intended resultnya jelek" (PLAN 14). Variable
 `AI_ENABLE_SESSION_ATTACH` set to `true` on `market-ai-orc` dev (CLI); redeploy `bb3738ea` → SUCCESS, no
 `session_attach_inactive`, but `hypothesis_plan_inactive` appeared (ERRORS M165: findings detected by class name). The fix
-is pushed with this entry; its deployment is recorded below once SUCCESS. `railway config pull --force` and
+(`5158381`) deployed `market-ai-orc` dev `fcda847e` → SUCCESS with the switch on and no `*_inactive` at startup. `railway config pull --force` and
 `railway config plan` ("already up to date"); `.railway/railway.ts` lists the new name with `preserve()` and picks up
 start-command changes already live on other services. `AI_TOOLS.md` regenerated with `--flags` from the dev variables.
 Fallback: remove the variable (or set `false`) on `market-ai-orc` dev; the old flow returns at the next deploy.
