@@ -40,6 +40,20 @@ MAX_COLUMNS_PER_TABLE = 150
 COLUMNS_NOTE_CHARS = 14000
 REFERENCE_NOTE_CHARS = 8000
 MAX_READINGS = 30
+# O5 item 1 (EXEC-IMPL-1016 Fase 2, user 2026-10-15: "yang berlaku adalah message yang dikirimkan user belakangan"):
+# the facts a conversation settled (entities, event dates and their meaning, periods, definitions), each with where it
+# came from. The order the facts apply in is code (PRECEDENCE); which facts speak of the same thing is the model's
+# judgement. A replaced fact is kept (superseded_by), so "kembali ke yang tadi" can find it
+FACT_KINDS = ("ENTITY_SET", "EVENT_DATE", "PERIOD", "DEFINITION")
+PRECEDENCE = ("USER", "DATABASE", "WEB", "AI")
+DATE_MEANINGS = ("ANNOUNCEMENT", "IMPLEMENTATION_CLOSE", "EFFECTIVE", "OTHER")
+MAX_CONVERSATION_FACTS = 40
+# the router's design value names that are conversation facts (conversation_router.DESIGN_VALUES)
+ROUTER_FACT_KINDS = {"SCOPE": "ENTITY_SET", "EVENT_DATE": "EVENT_DATE", "PERIOD": "PERIOD", "DEFINITION": "DEFINITION"}
+FACTS_HEADER = ("Facts of this conversation (where facts of one kind disagree, the first listed applies: the user's "
+                "newest statement, then the user's earlier ones, then the database, the web and your own reading; "
+                "when the one that applies differs from a lower one, say so in the answer, or ask when the meaning is "
+                "unclear):")
 MAX_SCOPE_SPEC_CHARS = 2000
 MANUALS_HEADER = ("METHOD GUIDES OPENED EARLIER IN THIS CONVERSATION (application context from the backend, not from "
                   "the user): the manuals of these methods are already here, current version; do not open them "
@@ -55,7 +69,7 @@ NOTE_HEADER = ("DATA RECORD (application context: the data this conversation has
 def empty() -> dict[str, Any]:
     return {"version": VERSION, "tables": {}, "needs": [], "outputs": [], "research": [], "next_alias": 1,
             "values": {}, "relationships": {}, "coverage": {}, "manuals": [], "findings": [], "seq": 0,
-            "suggestion": None, "answers": [], "columns": {}, "readings": [], "pause": None}
+            "suggestion": None, "answers": [], "columns": {}, "readings": [], "pause": None, "facts": []}
 
 
 def normalize(record: Any) -> dict[str, Any]:
@@ -80,6 +94,8 @@ def normalize(record: Any) -> dict[str, Any]:
     clean["columns"] = {str(t): {str(c): dict(v) for c, v in cols.items() if isinstance(v, dict)}
                         for t, cols in (record.get("columns") or {}).items() if isinstance(cols, dict)}
     clean["readings"] = [dict(r) for r in record.get("readings") or [] if isinstance(r, dict) and r.get("request_id")]
+    clean["facts"] = [dict(f) for f in record.get("facts") or [] if isinstance(f, dict) and f.get("fact_id")
+                      and f.get("kind") in FACT_KINDS and f.get("origin") in PRECEDENCE]
     # M64: the order results and research suggestions were produced in (a record written before it has none)
     seq = record.get("seq")
     clean["seq"] = seq if isinstance(seq, int) and seq > 0 else 0
@@ -456,6 +472,78 @@ def add_reading(record: dict[str, Any], request_id: str, reading: dict[str, Any]
     record["readings"] = readings[-MAX_READINGS:]
 
 
+def _same(a: Any, b: Any) -> bool:
+    return " ".join(str(a or "").casefold().split()) == " ".join(str(b or "").casefold().split())
+
+
+def add_fact(record: dict[str, Any], request_id: str, *, kind: str, value: str, origin: str, subject: str | None = None,
+             meaning: str | None = None, sources: list[str] | None = None, action: str = "REPLACE") -> str | None:
+    """O5 item 1: one fact. REPLACE supersedes the active facts of the same kind and origin (and subject, when one is
+    named); ADD keeps them; REMOVE supersedes the matching active facts of that kind and origin and adds nothing.
+    Returns the new fact's id (None for REMOVE or an unusable fact)."""
+    value = str(value or "").strip()[:300]
+    if kind not in FACT_KINDS or origin not in PRECEDENCE or (not value and action != "REMOVE"):
+        return None
+    facts = record.setdefault("facts", [])
+    number = 1 + max((int(f["fact_id"][1:]) for f in facts if re.fullmatch(r"f\d+", str(f.get("fact_id")))),
+                     default=0)
+    fact_id = f"f{number}"
+    for fact in facts:
+        if fact.get("superseded_by") or fact.get("kind") != kind or fact.get("origin") != origin:
+            continue
+        if action == "REMOVE" and (not value or _same(fact.get("value"), value) or _same(fact.get("subject"), value)):
+            fact["superseded_by"] = f"removed by {request_id}"
+        elif action == "REPLACE" and (not subject or _same(fact.get("subject"), subject)):
+            fact["superseded_by"] = fact_id
+    if action == "REMOVE":
+        return None
+    facts.append({"fact_id": fact_id, "kind": kind, "value": value, "origin": origin, "set_by": request_id,
+                  "seq": _next_seq(record),
+                  **({"subject": str(subject).strip()[:200]} if subject and str(subject).strip() else {}),
+                  **({"meaning": meaning} if meaning in DATE_MEANINGS else {}),
+                  **({"sources": [str(x)[:120] for x in sources[:6]]} if sources else {})})
+    # the oldest replaced facts go first when the list is full; an active fact is never dropped for a replaced one
+    while len(facts) > MAX_CONVERSATION_FACTS:
+        old = next((f for f in facts if f.get("superseded_by")), facts[0])
+        facts.remove(old)
+    return fact_id
+
+
+def add_user_facts(record: dict[str, Any], request_id: str, reading: dict[str, Any] | None) -> int:
+    """O5 item 1: the facts the router read in the user's message (its design value changes named SCOPE, EVENT_DATE,
+    PERIOD or DEFINITION, in the user's own words), with the router's action. Returns how many changed."""
+    changed = 0
+    for change in (reading or {}).get("design_value_changes") or []:
+        kind = ROUTER_FACT_KINDS.get(str((change or {}).get("name")))
+        text = str((change or {}).get("text") or "").strip()
+        if kind is None or (not text and change.get("action") != "REMOVE"):
+            continue
+        add_fact(record, request_id, kind=kind, value=text, origin="USER", action=str(change.get("action") or "ADD"))
+        changed += 1
+    return changed
+
+
+def effective_facts(record: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """O5 item 1: the active facts, by kind, in the order they apply (PRECEDENCE, then the newest first)."""
+    active = [f for f in (record or {}).get("facts") or [] if not f.get("superseded_by")]
+    return sorted(active, key=lambda f: (FACT_KINDS.index(f["kind"]), PRECEDENCE.index(f["origin"]),
+                                         -int(f.get("seq") or 0)))
+
+
+def fact_lines(record: dict[str, Any]) -> list[str]:
+    """The facts section of the note: active facts in the order they apply, then the replaced ones (newest first)."""
+    lines = [f"- {f['kind']} [{f['origin']}, {f.get('set_by')}]: "
+             + (f"{f['subject']}: " if f.get("subject") else "") + f["value"]
+             + (f" (meaning {f['meaning']})" if f.get("meaning") else "")
+             + (f" (sources {', '.join(f['sources'])})" if f.get("sources") else "")
+             for f in effective_facts(record)]
+    replaced = [f for f in reversed(record.get("facts") or []) if f.get("superseded_by")][:6]
+    if replaced:
+        lines.append("- replaced earlier (kept for a request to go back): " + "; ".join(
+            f"{f['kind']} {f['value']} ({f['origin']}, {f.get('set_by')})" for f in replaced))
+    return lines
+
+
 def mark_suggestion(record: dict[str, Any], plan_id: str, request_id: str) -> None:
     """M64: a research suggestion (a plan waiting for the user's decision) was issued now; results produced later are
     newer than it. Issuing the same plan again keeps its place."""
@@ -481,7 +569,8 @@ def results_after_suggestion(record: dict[str, Any] | None, plan_id: str | None)
 
 def is_empty(record: dict[str, Any] | None) -> bool:
     return not has_data(record) and not (record or {}).get("manuals") and not (record or {}).get("suggestion") \
-        and not (record or {}).get("readings") and not (record or {}).get("pause")
+        and not (record or {}).get("readings") and not (record or {}).get("pause") \
+        and not (record or {}).get("facts")
 
 
 def finding_line(entry: dict[str, Any]) -> str:
@@ -617,6 +706,8 @@ def full_note(record: dict[str, Any]) -> str:
         keys = ", ".join(f"{k}={table[k]}" for k in ("entity_column", "time_column") if table.get(k))
         lines.append(f"- {name}" + (f" [{keys}]" if keys else "") + f": used {', '.join(table['used']) or 'none'}"
                      + (f"; also read {', '.join(extra)}" if extra else ""))
+    if record.get("facts"):
+        lines += [FACTS_HEADER] + fact_lines(record)
     columns = record.get("columns") or {}
     if columns:
         block, used, folded = ["Column details read (meaning, unit, type, aggregation rules):"], 0, []
@@ -705,6 +796,9 @@ def note(record: dict[str, Any]) -> str:
         keys = ", ".join(f"{k}={table[k]}" for k in ("entity_column", "time_column") if table.get(k))
         lines.append(f"- {name}" + (f" [{keys}]" if keys else "") + f": used {', '.join(table['used']) or 'none'}"
                      + (f"; also read {', '.join(extra)}" if extra else ""))
+    if record.get("facts"):
+        lines += [FACTS_HEADER] + fact_lines(record)
+
     def shown(values: list[str]) -> str:
         more = len(values) - MAX_VALUES_SHOWN
         return ", ".join(values[:MAX_VALUES_SHOWN]) + (f" … and {more} more (not shown)" if more > 0 else "")

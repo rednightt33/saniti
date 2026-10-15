@@ -119,7 +119,7 @@ def test_a_clarify_turn_offers_only_read_only_tools_and_no_plan() -> None:
     assert offered == {"get_session_output"}  # the fake registry's only READS tool (O3: derived from effects)
     refused = json.loads(scripted.payloads[1]["input"][-1]["output"])
     assert refused["error"]["code"] == "TOOL_NOT_AVAILABLE_IN_THIS_TURN"
-    assert any(router.NOTES["CLARIFY"] == i.get("content") for i in scripted.payloads[0]["input"])
+    assert any(router.NOTES["CLARIFY"] in str(i.get("content")) for i in scripted.payloads[0]["input"])
     assert result.status == "COMPLETED"
 
 
@@ -215,3 +215,22 @@ def test_both_routers_are_told_todays_date() -> None:
                  router.router_instructions(False)):
         assert router.DATE_RULE in text
     assert router.dated("Kenapa saham bank turun Agustus 2026?", date(2026, 10, 9)).startswith("today: 2026-10-09\n")
+
+
+def test_the_routers_read_what_each_class_and_route_runs_derived_from_the_code() -> None:
+    """O2 (EXEC-IMPL-1016 Fase 2, user 2026-10-15: "router diberi tahu fungsi dan kemampuan setiap jalur"): the turn
+    router reads what each class makes the application do, the first-message router what each route runs; the parts
+    the code holds (the research methods, the angle limit, the route actions) are read from it, so a new method or a
+    changed limit reaches the routers without editing their text."""
+    from app import lanes, research_library
+
+    for ask_back in (False, True):
+        text = router.router_instructions(ask_back)
+        assert router.ROUTE_CAPABILITIES in text
+        assert f"up to {lanes.EXPLORE_MAX_ANGLES} angles" in text
+        assert all(m["method_id"].replace("_", " ") in text for m in research_library.LIBRARY)
+        first = router.first_instructions(ask_back)
+        assert all(f"runs {action}" in first for _, action in router.FIRST_ROUTES.values())
+        assert router.FAST_LANE_ROUTES in first
+    for kind in ("CLARIFY", "INSIGHT", "CONTINUE", "NEW_TOPIC", "CONVERSATIONAL"):
+        assert f"  {kind}: " in router.ROUTE_CAPABILITIES

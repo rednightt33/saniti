@@ -369,10 +369,32 @@ METHODOLOGY_PROPERTY: dict[str, Any] = {
 }
 
 
+# O5 item 1 (EXEC-IMPL-1016 Fase 2): the facts an answer settled for later turns. Taken out of the response before it is
+# parsed (like memo_note) and kept in the data record with the origin the backend reads from their sources
+FACT_KINDS = ("ENTITY_SET", "EVENT_DATE", "PERIOD", "DEFINITION")
+DATE_MEANINGS = ("ANNOUNCEMENT", "IMPLEMENTATION_CLOSE", "EFFECTIVE", "OTHER")
+FACTS_PROPERTY: dict[str, Any] = {
+    "type": "array", "maxItems": 8,
+    "description": ("The facts this answer settled that later turns should reuse instead of working them out again: a "
+                    "list of entities, an event date with what the date means (ANNOUNCEMENT, IMPLEMENTATION_CLOSE: "
+                    "the trading close the change takes effect at, EFFECTIVE: the first day it applies), a period, or "
+                    "a definition you used. subject names what it is about (for example the index review); sources "
+                    "are the value references the fact rests on (out.oN..., fact.N, reference.rN, web.wN); a fact "
+                    "without a source is recorded as your own reading. Empty when the answer settled none or the data "
+                    "record already lists it unchanged."),
+    "items": {"type": "object", "additionalProperties": False,
+              "properties": {"kind": {"type": "string", "enum": list(FACT_KINDS)},
+                             "subject": {"type": ["string", "null"]},
+                             "value": {"type": "string"},
+                             "meaning": {"type": ["string", "null"], "enum": [*DATE_MEANINGS, None]},
+                             "sources": {"type": "array", "maxItems": 6, "items": {"type": "string"}}},
+              "required": ["kind", "subject", "value", "meaning", "sources"]}}
+
+
 def final_response_schema(research_plan_confirmation: bool, methodology: bool = False,
                           research_findings: bool = False, multi_angle: bool = False,
                           value_references: bool = False, hypothesis_plans: bool = False,
-                          memo_note: bool = False) -> dict[str, Any]:
+                          memo_note: bool = False, conversation_facts: bool = False) -> dict[str, Any]:
     """FINAL_RESPONSE_SCHEMA, or with Research Plan confirmation the same schema plus RESEARCH_PLAN_CONFIRMATION and a
     required nullable research_plan, and with AI_ENABLE_METHODOLOGY a required nullable methodology; with research
     findings (only together with plan confirmation) the plan's experiments carry the findings values and a required
@@ -408,6 +430,9 @@ def final_response_schema(research_plan_confirmation: bool, methodology: bool = 
 
         schema = {**schema, "properties": {**schema["properties"], "memo_note": MEMO_NOTE_PROPERTY},
                   "required": [*schema["required"], "memo_note"]}
+    if conversation_facts:
+        schema = {**schema, "properties": {**schema["properties"], "facts": FACTS_PROPERTY},
+                  "required": [*schema["required"], "facts"]}
     return schema
 
 

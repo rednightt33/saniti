@@ -22,6 +22,7 @@ current_lane: contextvars.ContextVar[str | None] = contextvars.ContextVar("curre
 # new hypotheses) unless it asks for insight (INSIGHT: the first-message router's EXPLORE route, or the conversation
 # router's INSIGHT class), which may test several angles from the research library
 ANSWER, INSIGHT = "answer", "insight"
+EXPLORE_MAX_ANGLES = 5  # INSIGHT: at most this many angles, each one research library method (O2 reads it too)
 current_explore_mode: contextvars.ContextVar[str | None] = contextvars.ContextVar("current_explore_mode", default=None)
 
 

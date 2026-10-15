@@ -75,9 +75,14 @@ def main() -> None:
     global ASK_BACK
     parser = argparse.ArgumentParser()
     parser.add_argument("--ask-back", action="store_true", help="the instructions and schema of AI_ENABLE_ASK_BACK")
-    ASK_BACK = parser.parse_args().ask_back
+    parser.add_argument("--group", help="only the cases of this group (e.g. boundary_1016)")
+    parser.add_argument("--list", action="store_true", help="print both answers of every case, not only the wrong ones")
+    args = parser.parse_args()
+    ASK_BACK = args.ask_back
     fixture = json.loads((ROOT / "apps/market-ai-orc/tests/fixtures/turn_router_cases.json").read_text())
     cases = fixture["cases"] + (fixture.get("variant_cases") or [] if ASK_BACK else [])
+    if args.group:  # EXEC-IMPL-1016 O2: one group of cases, e.g. the boundary cases
+        cases = [c for c in cases if c.get("group") == args.group]
     with cf.ThreadPoolExecutor(8) as pool:
         results = list(pool.map(classify, [c for c in cases for _ in range(2)]))
     rows = [(cases[i // 2], results[i]) for i in range(len(results))]
@@ -99,6 +104,10 @@ def main() -> None:
         for case, changes in variant_rows:
             if not changes_ok(case["expect_changes"], changes):
                 print(f"   variant wrong: {case['message'][:60]!r} -> {changes}")
+    if args.list:
+        for i in range(0, len(rows), 2):
+            case = rows[i][0]
+            print(f"   {rows[i][1][0]}/{rows[i + 1][1][0]}: {case['message'][:60]!r} (accepts {'/'.join(case['kinds'])})")
     for case, (kind, _, _) in rows:
         if kind not in case["kinds"]:
             print(f"   wrong: {case['message'][:60]!r} pending={case['context'].get('pending_suggestion') is not None}"

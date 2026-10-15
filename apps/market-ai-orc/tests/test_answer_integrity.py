@@ -331,29 +331,42 @@ def test_p25_a_refused_number_from_the_runs_own_code_is_named_as_a_code_literal(
     assert "methodology" in hint and "emit_json" in hint
 
 
-def test_an_insight_turn_must_open_the_result_it_explains() -> None:
-    """H1 (M63, golden test 2026-10-02): turn 3 explained the turn 1 ranking with a guessed board filter instead of
-    opening the ranking; an INSIGHT turn is refused at complete_analysis until it opens an earlier result."""
+def test_new_results_next_to_an_earlier_result_need_that_result_opened() -> None:
+    """H1 (M63) and O3 (EXEC-IMPL-1016 Fase 2, user 2026-10-15: the signal comes from the answer, in any turn class):
+    turn 3 explained the turn 1 ranking with a guessed board filter instead of opening the ranking. An answer that
+    releases new results and cites an earlier result it never opened is refused; quoting an earlier result alone, or
+    citing only this run's new results (edge_2f7523a7: a new search over earlier dates), is not."""
     from app import data_record as records
 
-    orc = tracker()
-    state = RunState(request_id="req_3", started=0.0, input_items=[])
-    state.plan_meta["turn_kind"] = "INSIGHT"
-    records.add_output(state.data_record, "req_1", alias="o1", output_id="out_rank", session_id="s1", name="ranking",
-                       columns=["broker"], row_count=5, kind="TABLE")
-    refused = orc._insight_source_unopened(state, "c1", "complete_analysis")
-    assert refused is not None and refused.output["error"]["code"] == "INSIGHT_SOURCE_NOT_OPENED"
-    assert "out_rank" in refused.output["error"]["message"] and "load_output" in refused.output["error"]["message"]
-    state.opened_earlier = True
-    assert orc._insight_source_unopened(state, "c1", "complete_analysis") is None
-    # another turn kind, or an INSIGHT turn with no earlier result, is never refused
-    other = RunState(request_id="req_3", started=0.0, input_items=[])
-    other.plan_meta["turn_kind"] = "CONTINUE"
-    other.data_record = state.data_record
-    assert orc._insight_source_unopened(other, "c1", "complete_analysis") is None
-    fresh = RunState(request_id="req_3", started=0.0, input_items=[])
-    fresh.plan_meta["turn_kind"] = "INSIGHT"
-    assert orc._insight_source_unopened(fresh, "c1", "complete_analysis") is None
+    def state_with(cited: list[str], fresh: bool = True) -> RunState:
+        state = RunState(request_id="req_3", started=0.0, input_items=[])
+        records.add_output(state.data_record, "req_1", alias="o1", output_id="out_rank", session_id="s1",
+                           name="ranking", columns=["broker"], row_count=5, kind="TABLE")
+        if fresh:
+            records.add_output(state.data_record, "req_3", alias="o2", output_id="out_new", session_id="s2",
+                               name="breakdown", columns=["broker"], row_count=3, kind="TABLE")
+        state.referenced = cited
+        return state
+
+    m63 = state_with(["out.o1.rows.0.net", "out.o2.rows.0.net"])
+    assert [o["output_id"] for o in AgentOrchestrator._earlier_cited_unopened(m63)] == ["out_rank"]
+    m63.opened_outputs.add("out_rank")  # load_output('out_rank') ran, or get_session_output read it
+    assert AgentOrchestrator._earlier_cited_unopened(m63) == []
+    by_id = state_with(["out.out_rank.rows.0.net"])
+    assert [o["output_id"] for o in AgentOrchestrator._earlier_cited_unopened(by_id)] == ["out_rank"]
+    assert AgentOrchestrator._earlier_cited_unopened(state_with(["out.o2.rows.0.net"])) == []  # own results only
+    assert AgentOrchestrator._earlier_cited_unopened(state_with(["out.o1.rows.0.net"], fresh=False)) == []  # quoted
+    reread = state_with(["out.o1.rows.0.net"])
+    reread.inherited["out_new"] = {"name": "breakdown"}  # read again, not computed: no new result
+    assert AgentOrchestrator._earlier_cited_unopened(reread) == []
+
+
+def test_the_open_check_follows_the_tools_that_open_a_result() -> None:
+    """O3: load_output in code that ran and get_session_output of an earlier release both count as opened."""
+    from app.orchestrator import LOAD_OUTPUT_RE
+
+    code = "a = load_output('out_rank')\nb = load_output( \"out_x\" )\nc = load_table('t')"
+    assert LOAD_OUTPUT_RE.findall(code) == ["out_rank", "out_x"]
 
 
 def test_a_consistency_claim_with_another_definition_is_repaired_or_stated() -> None:

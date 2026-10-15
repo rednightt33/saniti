@@ -1,5 +1,5 @@
 {
- "note": "Later-message router cases (M80 b): export/show requests on existing results must be a read class (CLARIFY); the rest are controls. M82 (2026-10-05): cases with \"horizons\" also check design_value_changes (values, accepted actions; empty values: no horizon). variant_cases (variants, 2026-10-06; run with --ask-back): expect_changes lists the design value changes the reading must contain (name, value, action). optional_values: a value the message repeats (\"tetap uji yang 5 hari\") may also be read as ADD; the lock is the same.",
+ "note": "Later-message router cases (M80 b): export/show requests on existing results must be a read class (CLARIFY); the rest are controls. M82 (2026-10-05): cases with \"horizons\" also check design_value_changes (values, accepted actions; empty values: no horizon). variant_cases (variants, 2026-10-06; run with --ask-back): expect_changes lists the design value changes the reading must contain (name, value, action). optional_values: a value the message repeats (\"tetap uji yang 5 hari\") may also be read as ADD; the lock is the same. boundary_1016 (EXEC-IMPL-1016 O2, 2026-10-15): boundary cases after the conversation of edge_2f7523a7 (a search or list over new criteria, a why, a breakdown, a test, an export, another subject); a message with two reasonable classes lists both.",
  "cases": [
   {
    "message": "Ekspor tabel hasil uji tadi ke Excel.",
@@ -790,6 +790,288 @@
    "kinds": [
     "CLARIFY"
    ]
+  },
+  {
+   "message": "Cari saja di tanggal efektif2 tersebut, broker asing pembelian tertinggi",
+   "context": {
+    "earlier_questions": [
+     "saham yang secara historis ada di MSCI 2-3 tahun terakhir",
+     "broker asing apa yang paling banyak beli saham MSCI menjelang tanggal efektif?"
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "msci_rebalance_dates",
+     "foreign_broker_net_buy_before_effective"
+    ],
+    "findings": [],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "CONTINUE",
+    "INSIGHT"
+   ],
+   "group": "boundary_1016"
+  },
+  {
+   "message": "kenapa broker itu yang paling banyak beli?",
+   "context": {
+    "earlier_questions": [
+     "saham yang secara historis ada di MSCI 2-3 tahun terakhir",
+     "broker asing apa yang paling banyak beli saham MSCI menjelang tanggal efektif?"
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "msci_rebalance_dates",
+     "foreign_broker_net_buy_before_effective"
+    ],
+    "findings": [],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "INSIGHT",
+    "CLARIFY"
+   ],
+   "group": "boundary_1016"
+  },
+  {
+   "message": "apa yang paling menonjol dari hasil tadi?",
+   "context": {
+    "earlier_questions": [
+     "saham yang secara historis ada di MSCI 2-3 tahun terakhir",
+     "broker asing apa yang paling banyak beli saham MSCI menjelang tanggal efektif?"
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "msci_rebalance_dates",
+     "foreign_broker_net_buy_before_effective"
+    ],
+    "findings": [],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "INSIGHT"
+   ],
+   "group": "boundary_1016"
+  },
+  {
+   "message": "rinci hasil tadi per bulan dong",
+   "context": {
+    "earlier_questions": [
+     "saham yang secara historis ada di MSCI 2-3 tahun terakhir",
+     "broker asing apa yang paling banyak beli saham MSCI menjelang tanggal efektif?"
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "msci_rebalance_dates",
+     "foreign_broker_net_buy_before_effective"
+    ],
+    "findings": [],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "INSIGHT",
+    "CONTINUE"
+   ],
+   "group": "boundary_1016"
+  },
+  {
+   "message": "uji apakah pembelian asing itu diikuti kenaikan harga dalam 5 hari",
+   "context": {
+    "earlier_questions": [
+     "saham yang secara historis ada di MSCI 2-3 tahun terakhir",
+     "broker asing apa yang paling banyak beli saham MSCI menjelang tanggal efektif?"
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "msci_rebalance_dates",
+     "foreign_broker_net_buy_before_effective"
+    ],
+    "findings": [],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "CONTINUE"
+   ],
+   "group": "boundary_1016"
+  },
+  {
+   "message": "bandingkan dengan rebalancing tahun 2023",
+   "context": {
+    "earlier_questions": [
+     "saham yang secara historis ada di MSCI 2-3 tahun terakhir",
+     "broker asing apa yang paling banyak beli saham MSCI menjelang tanggal efektif?"
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "msci_rebalance_dates",
+     "foreign_broker_net_buy_before_effective"
+    ],
+    "findings": [],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "CONTINUE"
+   ],
+   "group": "boundary_1016"
+  },
+  {
+   "message": "kirim tabel broker tadi dalam bentuk excel",
+   "context": {
+    "earlier_questions": [
+     "saham yang secara historis ada di MSCI 2-3 tahun terakhir",
+     "broker asing apa yang paling banyak beli saham MSCI menjelang tanggal efektif?"
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "msci_rebalance_dates",
+     "foreign_broker_net_buy_before_effective"
+    ],
+    "findings": [],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "CLARIFY"
+   ],
+   "group": "boundary_1016"
+  },
+  {
+   "message": "net_value di tabel itu satuannya rupiah atau lot?",
+   "context": {
+    "earlier_questions": [
+     "saham yang secara historis ada di MSCI 2-3 tahun terakhir",
+     "broker asing apa yang paling banyak beli saham MSCI menjelang tanggal efektif?"
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "msci_rebalance_dates",
+     "foreign_broker_net_buy_before_effective"
+    ],
+    "findings": [],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "CLARIFY"
+   ],
+   "group": "boundary_1016"
+  },
+  {
+   "message": "kalau untuk TLKM bagaimana?",
+   "context": {
+    "earlier_questions": [
+     "saham yang secara historis ada di MSCI 2-3 tahun terakhir",
+     "broker asing apa yang paling banyak beli saham MSCI menjelang tanggal efektif?"
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "msci_rebalance_dates",
+     "foreign_broker_net_buy_before_effective"
+    ],
+    "findings": [],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "CONTINUE",
+    "NEW_TOPIC"
+   ],
+   "group": "boundary_1016"
+  },
+  {
+   "message": "berapa harga emas dunia hari ini?",
+   "context": {
+    "earlier_questions": [
+     "saham yang secara historis ada di MSCI 2-3 tahun terakhir",
+     "broker asing apa yang paling banyak beli saham MSCI menjelang tanggal efektif?"
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "msci_rebalance_dates",
+     "foreign_broker_net_buy_before_effective"
+    ],
+    "findings": [],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "NEW_TOPIC"
+   ],
+   "group": "boundary_1016"
+  },
+  {
+   "message": "selain broker-broker tadi, siapa lagi yang ikut beli?",
+   "context": {
+    "earlier_questions": [
+     "saham yang secara historis ada di MSCI 2-3 tahun terakhir",
+     "broker asing apa yang paling banyak beli saham MSCI menjelang tanggal efektif?"
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "msci_rebalance_dates",
+     "foreign_broker_net_buy_before_effective"
+    ],
+    "findings": [],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "INSIGHT",
+    "CONTINUE"
+   ],
+   "group": "boundary_1016"
+  },
+  {
+   "message": "10 saham dengan net buy asing terbesar minggu lalu apa saja?",
+   "context": {
+    "earlier_questions": [
+     "saham yang secara historis ada di MSCI 2-3 tahun terakhir",
+     "broker asing apa yang paling banyak beli saham MSCI menjelang tanggal efektif?"
+    ],
+    "tables": [
+     "IDX_Broker_Summary",
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "msci_rebalance_dates",
+     "foreign_broker_net_buy_before_effective"
+    ],
+    "findings": [],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "NEW_TOPIC",
+    "CONTINUE"
+   ],
+   "group": "boundary_1016"
   }
  ],
  "variant_cases": [

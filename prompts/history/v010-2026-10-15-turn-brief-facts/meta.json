@@ -1,0 +1,10 @@
+{
+ "version": 10,
+ "date": "2026-10-15",
+ "name": "turn-brief-facts",
+ "decision": "user 2026-10-15: O2 \"saya setuju hanya untuk router diberi tahu fungsi dan kemampuan setiap jalur\"; O3 \"OK masukan exec\", signal \"Dari isi jawaban\"; O5 \"Sisanya OK untuk O5\"; go \"Next lanjutkan tanpa minta saya naikan limit\" (EXEC-IMPL-1016 Fase 2)",
+ "change": "final-response schema: optional facts field (entities, event dates with their meaning, periods, definitions, with sources); fast-lane decisions note: default readings of open words (net buy, foreign investor type, implementation close) and send the data need early; the turn's notes go as one brief (no prompt text change in the system prompt itself)",
+ "prompt_chars": 39130,
+ "prompt_sha256": "d2930510576d49096c7e7b0952d1ffb0f8fd543fe2b3b19f82e4b9ee82a74e56",
+ "schema_sha256": "667c512aab9c90a6703778e36c38bb3931e0cf4679dc2a9573044d6eed2885e9"
+}

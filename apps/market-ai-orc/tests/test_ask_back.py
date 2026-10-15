@@ -316,10 +316,13 @@ def test_the_reading_and_a_quick_summary_reach_the_working_step_as_notes() -> No
         orchestrator._apply_turn_kind(state)
     finally:
         router.current_intent.reset(token)
-    notes = [item["content"] for item in state.input_items[:-1]]
+    notes = [text for text, _ in state.turn_notes]  # O3 (EXEC-IMPL-1016): sent as one brief
     assert notes[0].startswith("Application note (router)") and "Ringkasan BBRI." in notes[0] and "data harian" in \
         notes[0]
-    assert notes[1] == router.NOTES["QUICK_SUMMARY"] and state.input_items[-1]["content"] == "m"
+    assert notes[1] == router.NOTES["QUICK_SUMMARY"]
+    orchestrator._insert_turn_brief(state)
+    assert len(state.input_items) == 2 and state.input_items[-1]["content"] == "m"
+    assert all(note in state.input_items[0]["content"] for note in notes)
 
 
 # ---------------------------------------------------------------- P3b: the plan-reply reader

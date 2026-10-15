@@ -101,6 +101,12 @@ weigh open parameters, and the user may tweak them. They live in one named table
 | `span_month_trading_days` | "1 bulan terakhir": trading days (21); "3 bulan" is three times this |
 | `span_year_trading_days` | "1 tahun terakhir": trading days (252) |
 | `feasibility_entity_years` | `check_data_feasibility` is called first only above this many entity-years |
+| `largest_buying_measure` | reading of "pembelian tertinggi" / "beli terbesar": net value (buy minus sell), gross shown beside it |
+| `foreign_party` | reading of "asing": the foreign investor type of the transactions, not the broker's own type |
+| `event_date_meaning` | reading of a rebalancing or event date ("tanggal efektif"): the implementation close |
+
+Entries with `unit` "reading" (O5, user 2026-10-15) are readings of words the user leaves open: the user's words and
+the conversation's facts come first, and the model may still ask back.
 
 To change a value: edit its `"value"` in that file (keep `unit` and `means` true), run
 `pytest apps/market-ai-orc/tests/test_fastlane.py`, push `main` (orc redeploys itself; claim it only at `SUCCESS`), and

@@ -30,6 +30,7 @@ whenever the rendered prompt or schema changes (AGENTS.md, Mandatory workflow).
 | v007 | 2026-10-13 | [exec-days](history/v007-2026-10-13-exec-days/system_prompt.md) | 38,633 | `c248a495a4f0` | `48bceaa503bc` | "Ok, coba perbaiki ya, also enable solusi 2, enable ON" (2026-10-13) |
 | v008 | 2026-10-15 | [table-rows-fifty](history/v008-2026-10-15-table-rows-fifty/system_prompt.md) | 38,697 | `527c0a76a4aa` | `48bceaa503bc` | user 2026-10-15: "malah saya mau sampai 50 kalau bisa. Di tampilan di frontend, tapi bisa di collapse/ expand. Agar datanya rinci dan jelas, lengkap"; "Ok masukan EXEC U4"; go "Ok jalankan" |
 | v009 | 2026-10-15 | [text-values-stored](history/v009-2026-10-15-text-values-stored/system_prompt.md) | 39,130 | `d2930510576d` | `48bceaa503bc` | user 2026-10-15: "setiap WHERE = '' maka harus wajib menggunakan value dari get dimension value, or else rejected. Rule ini AI harus tahu before hand"; "O1 masukan exec"; go "Ok jalankan" (EXEC-IMPL-1016 Fase 1) |
+| v010 | 2026-10-15 | [turn-brief-facts](history/v010-2026-10-15-turn-brief-facts/system_prompt.md) | 39,130 | `d2930510576d` | `667c512aab9c` | user 2026-10-15: O2 "saya setuju hanya untuk router diberi tahu fungsi dan kemampuan setiap jalur"; O3 "OK masukan exec", signal "Dari isi jawaban"; O5 "Sisanya OK untuk O5"; go "Next lanjutkan tanpa minta saya naikan limit" (EXEC-IMPL-1016 Fase 2) |
 
 ## Changes
 
@@ -68,3 +69,7 @@ EXEC-UI-1015 U4: a table shows the rows the user asked for, ten for an unnumbere
 ### v009 text-values-stored (2026-10-15)
 
 DATA NEED: every text value in a scope is a stored value (categories from column_values or get_dimension_values; entity codes the user wrote typed as written, never checked with get_dimension_values; a name looked up in its reference table first, ask when it matches several codes); replaces 'take exact values from get_dimension_values and never type a member list yourself' (O1 early, M164)
+
+### v010 turn-brief-facts (2026-10-15)
+
+final-response schema: optional facts field (entities, event dates with their meaning, periods, definitions, with sources); fast-lane decisions note: default readings of open words (net buy, foreign investor type, implementation close) and send the data need early; the turn's notes go as one brief (no prompt text change in the system prompt itself)

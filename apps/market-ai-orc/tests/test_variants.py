@@ -154,7 +154,7 @@ def test_the_working_step_is_told_to_answer_every_variant() -> None:
         orchestrator._apply_turn_kind(s)
     finally:
         current_design_changes.reset(token)
-    note = s.input_items[0]["content"]
+    note = s.turn_notes[0][0]  # O3 (EXEC-IMPL-1016): sent as one brief
     assert note.startswith("Application note (router)") and "CONDITION_THRESHOLD: 2 MULTIPLE, 3 MULTIPLE" in note
     assert "rows[variant=...]" in note and "also those that do not pass" in note
 
@@ -233,4 +233,4 @@ def test_an_approved_run_is_told_that_the_backend_adds_the_correction() -> None:
         s = RunState(request_id="q", started=0.0, input_items=[{"role": "user", "content": "m"}])
         s.plan_turn = turn
         orchestrator._apply_turn_kind(s)
-        assert (CORRECTION_NOTE in [i["content"] for i in s.input_items]) is expected, turn
+        assert (CORRECTION_NOTE in [text for text, _ in s.turn_notes]) is expected, turn

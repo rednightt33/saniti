@@ -2087,6 +2087,37 @@ user diberi tahu hanya bila provider menolak karena biaya. Berhenti hanya untuk 
     "Fast lane", tanpa geser samping.
   - Temuan baru M169 (OPEN): kata bilangan ("seperempat persen") tidak dicek sumbernya.
 
+**Fase 2 (dibangun 2026-10-15):**
+- 2.1 O2:
+  - Router giliran lanjutan membaca kartu kemampuan per kelas (`ROUTE_CAPABILITIES`). Nama metode riset dan batas sudut
+    diturunkan dari `research_library` dan `lanes.EXPLORE_MAX_ANGLES`.
+  - Kalimat "rekap/daftar → INSIGHT" diselaraskan: bukan CLARIFY; INSIGHT bila merinci data yang sudah dipakai, CONTINUE
+    bila butuh data atau kriteria baru.
+  - Router pesan pertama membaca apa yang dijalankan tiap rute (`FIRST_ROUTES`) dan perilaku jalur cepat
+    (`FAST_LANE_ROUTES`).
+  - Fixture ditambah 12 kasus batas (giliran lanjutan) dan 4 kasus heldout. Benchmark sebelum/sesudah: giliran lanjutan
+    73/78 → 78/78 (kasus batas 22/24 → 24/24); pesan pertama 126/128 → 127/128 dua kali; kriteria keras FAIL → PASS
+    dua kali. Satu versi kalimat jalur cepat sempat membuat "kenapa … turun" ke RESEARCH (124/128) dan diganti.
+  - Biaya benchmark sekitar USD 0,35.
+- 2.2 O3:
+  - Gerbang hasil lama kini dipicu dari isi jawaban, di semua kelas: jawaban yang merilis hasil baru dan mengutip hasil
+    giliran lalu yang belum dibuka ditolak sekali (`INSIGHT_SOURCE_NOT_OPENED`, di jawaban akhir).
+  - Catatan per giliran dikirim sebagai satu brief; giliran baca (CLARIFY, CONVERSATIONAL, FACT) tidak menerima catatan
+    kerja data.
+  - Catatan mode insight bersyarat: uji untuk "kenapa" dan pola; cari, daftar atau peringkat dijawab dengan tabel.
+- 2.3 O5 butir 1:
+  - `data_record.facts`: jenis ENTITY_SET, EVENT_DATE (dengan makna tanggal), PERIOD, DEFINITION; asal USER, DATABASE,
+    WEB, AI. Urutan berlaku: user terbaru > user sebelumnya > database > web > AI. Fakta yang diganti disimpan.
+  - Router membaca nama baru EVENT_DATE dan DEFINITION; fakta dari pesan user masuk ke data record sebelum langkah
+    analisis.
+  - Jawaban akhir punya kolom opsional `facts`. Asal dibaca dari sumber yang dikutip, bukan dari kata model.
+  - Data record yang hanya berisi fakta juga ditampilkan ke model.
+- 2.4 O5 butir 2–4:
+  - `FASTLANE_DEFAULTS` mendapat tiga tafsir (net, tipe investor asing, penutupan implementasi), dengan tabel AGENTS.md.
+  - Catatan keputusan berisi kalimat "kirim data need begitu cakupan jelas".
+  - Butir 3 tercakup oleh brief tunggal (2.2).
+- Prompt snapshot v010 (skema jawaban, catatan keputusan); `AI_ROUTER.md` dibuat ulang. Tes orc 1.821 lulus.
+
 ### EXEC-REVIEW-1015: tinjauan semua EXEC terbuka dan arsitekturnya (2026-10-15; user: "please review all exec, inspect arsitektur ... contrast what ideal conditions would look like")
 
 **Keputusan user 2026-10-15:** "O5 nanti dulu A/B test tidak perlu dahulu. Sisanya OK untuk O5 masukan exec jangan execute

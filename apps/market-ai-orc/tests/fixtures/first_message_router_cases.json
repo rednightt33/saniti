@@ -287,6 +287,31 @@
     "FACT",
     "CHAT"
    ]
+  },
+  {
+   "message": "Broker asing mana yang paling banyak beli di hari efektif rebalancing MSCI November 2025?",
+   "routes": [
+    "ANALYSIS"
+   ]
+  },
+  {
+   "message": "Kenapa saham-saham bank turun minggu ini?",
+   "routes": [
+    "ANALYSIS",
+    "EXPLORE"
+   ]
+  },
+  {
+   "message": "Apakah net buy asing besar diikuti kenaikan harga 5 hari berikutnya di saham LQ45? uji ya",
+   "routes": [
+    "RESEARCH"
+   ]
+  },
+  {
+   "message": "Lihat dari berbagai sisi peluang saham konsumer kuartal ini",
+   "routes": [
+    "EXPLORE"
+   ]
   }
  ],
  "ask_back": [

@@ -35,6 +35,20 @@ FASTLANE_DEFAULTS: dict[str, dict[str, Any]] = {
     "span_year_trading_days": {
         "value": 252, "unit": "trading days", "span": "1 tahun",
         "means": "'1 tahun terakhir' (a year)"},
+    # O5 item 2 (EXEC-IMPL-1016 Fase 2, user 2026-10-15 "Sisanya OK untuk O5"; edge_2f7523a7 spent about a third of
+    # its first call's reasoning on what these words mean): readings of words the user leaves open, taken as
+    # assumptions; the user's words or the conversation's facts win, and the model may still ask back
+    "largest_buying_measure": {
+        "value": "net", "unit": "reading",
+        "means": "the largest or top buying ('pembelian tertinggi', 'beli terbesar') of a broker or investor is "
+                 "the net value (buy minus sell); the gross buy is shown beside it"},
+    "foreign_party": {
+        "value": "investor type", "unit": "reading",
+        "means": "'asing' (foreign) is the foreign investor type of the transactions, not the broker's own type"},
+    "event_date_meaning": {
+        "value": "implementation close", "unit": "reading",
+        "means": "an index rebalancing or other market event date ('tanggal efektif') is the trading close the change "
+                 "is implemented at; the first trading day after it is named as the day it applies"},
     "feasibility_entity_years": {
         "value": 100, "unit": "entity-years",
         "means": "check_data_feasibility is called first only when a request's entities times its years exceed this"},
@@ -49,6 +63,12 @@ def parameters_text() -> str:
     """The open-parameter defaults in one line for the note (the size limit and the history are their own rules)."""
     return "; ".join(f"{entry['means']}: {entry['value']} {entry['unit']}" for name, entry in FASTLANE_DEFAULTS.items()
                      if name in ("large_threshold_percentile", "rolling_window_days", "forward_horizon_days"))
+
+
+def readings_text() -> str:
+    """O5 item 2: the default readings of open words, for the note's rule 3."""
+    return "; ".join(f"{entry['means']} ({entry['value']})" for entry in FASTLANE_DEFAULTS.values()
+                     if entry["unit"] == "reading")
 
 
 def spans_text() -> str:

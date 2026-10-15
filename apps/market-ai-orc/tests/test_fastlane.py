@@ -458,6 +458,11 @@ def test_v4_the_note_takes_its_numbers_from_the_defaults_table(monkeypatch) -> N
     changed = decisions_note()
     assert "80 percentile" in changed and "exceed 250" in changed
     assert all({"value", "unit", "means"} <= set(entry) for entry in defaults.FASTLANE_DEFAULTS.values())
+    # O5 item 2 (EXEC-IMPL-1016): the readings of open words come from the same table, and a changed one reaches it
+    assert "the net value (buy minus sell)" in text and "(implementation close)" in text
+    assert "Send the data need as soon as its scope is clear" in text
+    monkeypatch.setitem(defaults.FASTLANE_DEFAULTS["largest_buying_measure"], "value", "gross")
+    assert "buy minus sell); the gross buy is shown beside it (gross)" in decisions_note()
 
 
 def test_v4_1_the_exploratory_sentence_follows_the_explore_mode_and_spans_count_trading_days() -> None:
@@ -665,3 +670,40 @@ def test_v5_option_2_typed_figures_resolve_by_the_row_named_or_count_as_code_par
     out = orc._evidence_gate(coded, FIGURES_RB, ["DATA_COVERAGE_VERIFIED"])
     assert convention_numbers_line([("116", "CODE_PARAMETER")]) in out.limitations
     assert not any(line.startswith("Angka berikut diketik") for line in out.limitations)
+
+
+# --- O3 (EXEC-IMPL-1016 Fase 2): one brief per turn --------------------------------------------------------------------
+
+def test_a_turns_notes_reach_the_model_as_one_brief_and_a_read_turn_gets_no_data_work_note() -> None:
+    """edge_2f7523a7 read 7-8 separate application notes, some pulling different ways, and a CLARIFY turn on the fast
+    lane was told to send a data need while its tools could only read. The notes now come as one brief that says the
+    later part applies; a read-only turn drops the notes about data work."""
+    from app.orchestrator import TURN_BRIEF_HEADER, AgentOrchestrator, RunState
+
+    def brief(kind: str | None) -> tuple[list[dict], RunState]:
+        state = RunState(request_id="b", started=0.0, input_items=[{"role": "user", "content": "m"}])
+        state.turn_notes = [("lane note: send one data need", True), ("presentation note", False),
+                            ("explore note", True), ("class note", False)]
+        if kind:
+            state.plan_meta["turn_kind"] = kind
+        AgentOrchestrator._insert_turn_brief(state)
+        return state.input_items, state
+
+    items, _ = brief("INSIGHT")
+    assert len(items) == 2 and items[0]["content"].startswith(TURN_BRIEF_HEADER) and items[1]["content"] == "m"
+    assert [line for line in items[0]["content"].splitlines()[1:]] == [
+        "- lane note: send one data need", "- presentation note", "- explore note", "- class note"]
+    items, _ = brief("CLARIFY")
+    assert "data need" not in items[0]["content"] and "explore" not in items[0]["content"]
+    assert "presentation note" in items[0]["content"] and "class note" in items[0]["content"]
+    empty = RunState(request_id="b", started=0.0, input_items=[{"role": "user", "content": "m"}])
+    AgentOrchestrator._insert_turn_brief(empty)
+    assert empty.input_items == [{"role": "user", "content": "m"}]
+
+
+def test_the_insight_note_tests_patterns_and_answers_a_search_with_a_table() -> None:
+    """EXEC-M163 item 2 / O3: the insight mode tests why and patterns; a request to find, list or rank is a table."""
+    from app.orchestrator import explore_note
+
+    note = explore_note(lanes.INSIGHT)
+    assert "When the user asks why" in note and "answer with that table and run no tests" in note

@@ -925,6 +925,16 @@ UNITS_INSTRUCTION = (
     "for a column whose unit was declared: for a share, return or change, emit that table again with "
     "units={{column: 'FRACTION' | 'PERCENT'}} in run_python and cite the new output; a plain ratio or statistic "
     "needs no unit, write it with |x or |dec.")
+# O3 (EXEC-IMPL-1016 Fase 2): an answer that releases new results and cites earlier ones it never opened
+EARLIER_RESULT_INSTRUCTION = (
+    "This answer releases new results and also cites earlier results this run never opened: {results}. A new "
+    "calculation next to an earlier result starts from that result's own table and definition: open it "
+    "(get_session_output, or load_output('<output_id>') in run_python), check that your new figures use the same "
+    "filters, period and thresholds as the data record states, and say plainly where they differ. Quoting an "
+    "earlier result needs no new calculation.")
+DATABASE_NAMESPACES = frozenset({"out", "fact", "reference", "metric", "finding", "data"})  # O5: warehouse sources
+LOAD_OUTPUT_RE = re.compile(r"load_output\(\s*['\"]([^'\"]+)['\"]")
+CITED_OUTPUT_RE = re.compile(r"out\.([A-Za-z0-9_]+)")
 # EXEC-FASTLANE (user 2026-10-14, "OK"): the refusal also says what each value looks like and how to split a column
 # whose rows hold different units (ma-gates-20261014-s1 o1: a test table with a ratio and percentage points in one
 # column, the repair failed and the cells showed "–"). A guess from the value, so the model decides. M167 (go
@@ -1655,6 +1665,16 @@ METHOD_MENU_HEADER = ("ANALYSIS METHODS (application context from the backend, n
                       "its result. Choose the method that fits the question; open its manual with "
                       "get_method_guide(name) before using it the first time in this conversation.")
 PLAN_NOTE_PREFIX = "Application note, not from the user: "
+# O3 (EXEC-IMPL-1016 Fase 2): the turn's notes as one brief; each part keeps its own text and source
+TURN_BRIEF_HEADER = ("This turn's application notes, in one brief: each part refines the parts before it, and where "
+                     "two parts differ the later one applies.")
+READ_TURN_KINDS = ("CLARIFY", "CONVERSATIONAL", "FACT")
+
+
+def turn_brief(notes: list[str]) -> str:
+    """One application note from this turn's notes, in order."""
+    parts = ["- " + note.strip() for note in notes]
+    return TURN_BRIEF_HEADER + "\n" + "\n".join(parts)
 APPROVED_NOTE = (PLAN_NOTE_PREFIX + "the user approved Research Plan {plan_id}; the approval was verified. Carry out "
                  "its experiments now. Each RESEARCH data need copies research_governance from its experiment as the "
                  "{rules} rules say; a change beyond them needs a revised plan and a new approval. "
@@ -1742,7 +1762,10 @@ FASTLANE_DECISIONS_NOTE = (
     "event, then a forward return), never restrict the price request by an INNER relationship to the condition's "
     "request, which drops the prices after the condition data ends; use LEFT with the price request on the left, or "
     "no relationship and join the frames in the session. (3) Parameters the user leaves open take these defaults: "
-    "{parameters}; deviate only when the question asks for something else, and state them in assumptions. (4) Size: "
+    "{parameters}; deviate only when the question asks for something else, and state them in assumptions. Words the "
+    "user leaves open take these readings: {readings}; the user's words and the conversation's facts come first, state "
+    "the reading in assumptions, and ask back only when two readings would give very different answers. Send the "
+    "data need as soon as its scope is clear and write code after the data profile arrives. (4) Size: "
     "call check_data_feasibility once, and only when a request's entities times years exceed {entity_years}; call it "
     "again only after changing the data need. (5) Method guides: open get_method_guide only for a helper you are about "
     "to call; explore_test and event_study are described in these notes. (6) A data need that lacks a column or a "
@@ -1777,7 +1800,8 @@ def decisions_note() -> str:
     return FASTLANE_DECISIONS_NOTE.format(history_years=fastlane_defaults.value("history_years"),
                                           parameters=fastlane_defaults.parameters_text(),
                                           entity_years=fastlane_defaults.value("feasibility_entity_years"),
-                                          spans=fastlane_defaults.spans_text())
+                                          spans=fastlane_defaults.spans_text(),
+                                          readings=fastlane_defaults.readings_text())
 
 
 # V4.1 (user 2026-10-14, first contradiction): the fast-lane note's "without a formal test" sentence, per explore mode
@@ -1845,11 +1869,15 @@ EXPLORE_ANSWER_NOTE = (
     "state them in assumptions, never try several and keep the best; say plainly when the test cannot tell the effect "
     "from chance, never call it significant, proven, reversed or a cause beyond what the interval shows; declare "
     "units= for every share, rate or return column you emit.")
-EXPLORE_INSIGHT_NOTE = (PLAN_NOTE_PREFIX + "the user asks for insight: look at the question from at most {angles} "
+# O3 / EXEC-M163 item 2 (EXEC-IMPL-1016 Fase 2; edge_2f7523a7: "Cari saja ... broker asing pembelian tertinggi" got
+# this note and weighed whether a search needs tests): the tests are for why and patterns, a search is a table
+EXPLORE_INSIGHT_NOTE = (PLAN_NOTE_PREFIX + "this turn may explore. When the user asks why, what drives a result or "
+                        "which patterns hold, look at the question from at most {angles} "
                         "angles, each one method of the research library below with saniti.explore_test "
                         "(stability=True), all from one data need. Methods: {methods}. Report what holds after the "
-                        "correction first and say plainly when nothing does. " + EXPLORE_TEST_RULE)
-EXPLORE_MAX_ANGLES = 5
+                        "correction first and say plainly when nothing does. When the user asks to find, list or "
+                        "rank something, answer with that table and run no tests. " + EXPLORE_TEST_RULE)
+EXPLORE_MAX_ANGLES = lanes.EXPLORE_MAX_ANGLES
 
 
 def units_advice(values: dict[str, float]) -> str:
@@ -2417,9 +2445,14 @@ class RunState:
     final_status: dict[str, Any] | None = None
     # M25: every completion of the run, in order (final_status keeps the latest for the existing readers)
     final_statuses: list[dict[str, Any]] = field(default_factory=list)
-    # H1 (M63): whether this run opened a result of an earlier turn (load_output in successful code, or
-    # get_session_output of another request's released output); an INSIGHT turn must, before it completes
-    opened_earlier: bool = False
+    # H1 (M63): the results of earlier turns this run opened (load_output in successful code, or get_session_output of
+    # another request's released output); O3 (EXEC-IMPL-1016): an answer that releases new results and cites an
+    # earlier one must have opened it
+    opened_outputs: set[str] = field(default_factory=set)
+    # O3 (EXEC-IMPL-1016): the notes for this turn (text, whether it is about data work), sent as one brief
+    turn_notes: list[tuple[str, bool]] = field(default_factory=list)
+    # O5 item 1 (EXEC-IMPL-1016): the facts the final answer settled (its "facts" field), recorded after it passes
+    answer_facts: list[dict[str, Any]] = field(default_factory=list)
     # Research Plan confirmation: what this request may do (turn), which final response types and tools it allows
     # (None: every registered tool), the guard for submit_data_need_spec, and the continuation to return.
     plan_turn: str | None = None
@@ -2691,7 +2724,8 @@ class AgentOrchestrator:
                                                  table_directives=self.table_directives)
         self.final_schema = final_response_schema(self.plan_confirmation, self.methodology, self.research_findings,
                                                   self.multi_angle, self.value_references, self.hypothesis_plans,
-                                                  memo_note=run_memory is not None)
+                                                  memo_note=run_memory is not None,
+                                                  conversation_facts=self.value_references)
         contract = response_contract(self.plan_confirmation, self.methodology, self.research_findings,
                                      self.multi_angle, self.value_references, self.hypothesis_plans,
                                      memo_note=run_memory is not None)
@@ -2822,6 +2856,7 @@ class AgentOrchestrator:
                 reading = (current_design_changes.set(state.reply_reading["design_value_changes"]),
                            current_turn_referent.set(state.reply_reading["referent"]))
             self._apply_turn_kind(state)
+            self._insert_turn_brief(state)
             if state.lane == lanes.FAST and not self._fast_draft_check():
                 # EXEC-FASTLANE B2b: every fast-lane step (analysis, insight, read) without the draft pre-check
                 offered = state.tool_filter if state.tool_filter is not None else frozenset(self.registry.names())
@@ -3022,8 +3057,8 @@ class AgentOrchestrator:
                                                                   "content": stop_policy.pause_note(pause)})
             log_event("pause_answered", request_id=state.request_id, cause=pause.get("cause"),
                       paused_request_id=pause.get("request_id"))
-        if not records.has_data(state.data_record):
-            return
+        if not records.has_data(state.data_record) and not state.data_record.get("facts"):
+            return  # O5 item 1: a record holding only the conversation's facts is offered too
         records.seed_ledger(state.data_record, state.catalog)
         # EXEC-C items 5 and 10: with the run memory the note is never cut and carries the column details read
         note = records.full_note(state.data_record) if self.run_memory is not None else records.note(state.data_record)
@@ -3397,24 +3432,23 @@ class AgentOrchestrator:
             f"{state.forced_path}." + (" Answer it as a descriptive analysis; no Research Plan is used."
                                        if state.forced_path == "ANALYSIS" else ""))
 
-    def _insight_source_unopened(self, state: RunState, call_id: str, name: str) -> ToolOutcome | None:
-        """H1 (M63, golden test 2026-10-02): an explanation of an earlier result starts from that result. An INSIGHT
-        turn that never opened a released table of an earlier turn (load_output in its code, or get_session_output)
-        is refused before it completes, with the tables it can open; a turn without earlier results is not."""
-        if state.plan_meta.get("turn_kind") != "INSIGHT" or state.opened_earlier:
-            return None
-        earlier = [o for o in (state.data_record or {}).get("outputs") or []
-                   if o.get("request_id") != state.request_id and o.get("type") in (None, "TABLE", "JSON")]
-        if not earlier:
-            return None
-        listed = [f"{o.get('ref')} {o.get('output_id')} \"{o.get('name')}\"" for o in earlier[-8:]]
-        log_event("insight_source_not_opened", request_id=state.request_id, earlier=len(earlier))
-        return error_outcome(
-            call_id, name, "INSIGHT_SOURCE_NOT_OPENED",
-            "This turn explains an earlier result, so it starts from that result's own table: load it in the session "
-            "with load_output('<output_id>') (or read it with get_session_output) and use its definition from the "
-            "data record; do not rebuild it with a guessed definition. When you need other data, state how its "
-            f"definition differs. Earlier results: {'; '.join(listed)}.")
+    @staticmethod
+    def _earlier_cited_unopened(state: RunState) -> list[dict[str, Any]]:
+        """O3 (EXEC-IMPL-1016 Fase 2, user 2026-10-15: the signal comes from the answer, not from the router's class;
+        H1, M63): the earlier turns' results this answer cites but never opened, when the answer also releases new
+        results of its own. A new calculation next to an earlier result must start from that result's table (M63: an
+        explanation rebuilt with a guessed definition contradicted the result it explained). An answer that only cites
+        earlier results (their values come exactly from the carried sources), or only its own new ones (edge_2f7523a7:
+        a new search over earlier dates), is never refused, in any turn class."""
+        outputs = state.data_record.get("outputs") or []
+        fresh = [o for o in outputs if o.get("request_id") == state.request_id
+                 and str(o.get("output_id")) not in state.inherited]
+        if not fresh:
+            return []
+        names = {str(m.group(1)) for expr in state.referenced if (m := CITED_OUTPUT_RE.match(expr))}
+        return [o for o in outputs if o.get("request_id") != state.request_id
+                and str(o.get("output_id")) not in state.opened_outputs
+                and (str(o.get("ref") or "")[4:] in names or str(o.get("output_id")) in names)]
 
     def _hand_to_audit(self, request: AgentRunRequest, result: AgentRunResponse,
                        state: RunState) -> AgentRunResponse:
@@ -3487,6 +3521,10 @@ class AgentOrchestrator:
                 and state.reference_date is not None and earlier < previous_weekday(state.reference_date):
             line = DATA_DATE_PINNED_LINE.format(date=earlier)
         response = result.response
+        if state.answer_facts and response is not None and response.response_type in ("ANSWER", "LIMITATION"):
+            recorded = self._record_facts(state)
+            if recorded:
+                result = result.model_copy(update={"data_record": records.public(state.data_record)})
         if records.has_data(state.data_record) and response is not None:
             records.add_answer(state.data_record, state.request_id, question=request.message,
                                response_type=response.response_type, answer=response.answer,
@@ -3598,22 +3636,18 @@ class AgentOrchestrator:
             step = FASTLANE_DRAFT_STEP if self._fast_draft_check() else FASTLANE_NO_DRAFT_STEP
             mode = self._explore_mode()
             decisions = getattr(self.settings, "ai_fastlane_decision_rules", False)
-            state.input_items.insert(len(state.input_items) - 1,
-                                     {"role": "user", "content": fastlane_note(step, mode, decisions)})
+            state.turn_notes.append((fastlane_note(step, mode, decisions), True))
             if decisions:
-                state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": decisions_note()})
+                state.turn_notes.append((decisions_note(), True))
             presentation = getattr(self.settings, "ai_fastlane_v5_presentation", False)
             if getattr(self.settings, "ai_fastlane_section_caps", False):
-                state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": (
-                    FASTLANE_SECTIONS_NOTE.replace(SECTIONS_LIMITATIONS_CAP, "") if presentation
-                    else FASTLANE_SECTIONS_NOTE)})
+                state.turn_notes.append((FASTLANE_SECTIONS_NOTE.replace(SECTIONS_LIMITATIONS_CAP, "") if presentation
+                                         else FASTLANE_SECTIONS_NOTE, False))
             if presentation:
-                state.input_items.insert(len(state.input_items) - 1,
-                                         {"role": "user", "content": FASTLANE_PRESENTATION_NOTE})
+                state.turn_notes.append((FASTLANE_PRESENTATION_NOTE, False))
             if mode is not None:
                 state.plan_meta["explore_mode"] = mode
-                state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": explore_note(
-                    mode, decisions=decisions)})
+                state.turn_notes.append((explore_note(mode, decisions=decisions), True))
             log_event("ai_lane_turn", request_id=request.request_id, lane=state.lane, forced_path=state.forced_path,
                       **({"explore_mode": mode} if mode is not None else {}))
             return
@@ -3626,7 +3660,7 @@ class AgentOrchestrator:
                 - {"check_data_feasibility", "check_research_feasibility"} - RESEARCH_RUN_TOOLS
             state.allowed_types, state.tool_filter = BASE_TYPES, names
             state.guard = ResearchGuard(required=True)
-            state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": ANALYSIS_PATH_NOTE})
+            state.turn_notes.append((ANALYSIS_PATH_NOTE, True))
             return
         if state.forced_path == "RESEARCH" and request.continuation is None:
             self._set_turn(state, "PROPOSE", PLAN_TYPES, self.plan_tools, ResearchGuard(required=True),
@@ -3800,6 +3834,53 @@ class AgentOrchestrator:
         """EXEC-FASTLANE B2b: whether the fast lane offers check_references (AI_FASTLANE_DRAFT_CHECK, default on)."""
         return bool(getattr(self.settings, "ai_fastlane_draft_check", True))
 
+    @staticmethod
+    def _fact_origin(state: RunState, sources: list[Any]) -> tuple[str, list[str]]:
+        """O5 item 1: where a fact the answer settled comes from, read from its sources (never from the model's word):
+        DATABASE when one resolves to a warehouse value of this run, WEB when one resolves to a web fact, else AI."""
+        known: list[str] = []
+        for source in sources or []:
+            expression = str(source).strip().strip("{}").split("|", 1)[0].strip()
+            if not expression or "." not in expression:
+                continue
+            if render("{{" + expression + "}}", state.ref_sources).failed:
+                continue
+            known.append(expression)
+        namespaces = {expression.split(".", 1)[0] for expression in known}
+        origin = "DATABASE" if namespaces & DATABASE_NAMESPACES else "WEB" if "web" in namespaces else "AI"
+        return origin, known
+
+    def _record_facts(self, state: RunState) -> int:
+        """O5 item 1: the answer's facts into the data record, each with the origin its sources show; a fact with a
+        subject replaces the same kind, origin and subject, one without is added."""
+        count = 0
+        for fact in state.answer_facts:
+            origin, known = self._fact_origin(state, fact.get("sources") or [])
+            subject = str(fact.get("subject") or "").strip() or None
+            if records.add_fact(state.data_record, state.request_id, kind=str(fact.get("kind")),
+                                value=str(fact.get("value") or ""), origin=origin, subject=subject,
+                                meaning=fact.get("meaning"), sources=known,
+                                action="REPLACE" if subject else "ADD"):
+                count += 1
+        if count:
+            log_event("conversation_facts_recorded", request_id=state.request_id, recorded=count,
+                      origins=sorted({f["origin"] for f in records.effective_facts(state.data_record)}))
+        return count
+
+    @staticmethod
+    def _insert_turn_brief(state: RunState) -> None:
+        """O3 (EXEC-IMPL-1016 Fase 2; edge_2f7523a7 read 7-8 separate notes, some pulling different ways): this turn's
+        notes as one application note, before the user's message. A read-only turn (CLARIFY, CONVERSATIONAL, FACT)
+        gets no note about data work (its tools cannot fetch data). log: turn_brief, its parts and size."""
+        kind = state.plan_meta.get("turn_kind")
+        parts = [text for text, data_work in state.turn_notes if not (data_work and kind in READ_TURN_KINDS)]
+        if not parts:
+            return
+        brief = turn_brief(parts)
+        state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": brief})
+        log_event("turn_brief", request_id=state.request_id, parts=len(parts),
+                  dropped=len(state.turn_notes) - len(parts), chars=len(brief), turn_kind=kind)
+
     def _apply_turn_kind(self, state: RunState) -> None:
         """The conversation router's class for this sub-run (mode 4): its note, and for CLARIFY and CONVERSATIONAL only
         the read-only tools and the answer types, so a question about a result never extracts data or runs code."""
@@ -3811,7 +3892,7 @@ class AgentOrchestrator:
                      VARIANT_NOTE.format(variants="; ".join(f"{name}: {', '.join(values)}"
                                                             for name, values in named.items())) if named else None):
             if note:  # EXEC-3: the router's reading of the request, and a quick summary the user chose
-                state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": note})
+                state.turn_notes.append((note, False))
         kind = router.current_turn_kind.get()
         if kind is None:
             return
@@ -3824,7 +3905,7 @@ class AgentOrchestrator:
             state.allowed_types = BASE_TYPES
         note = router.NOTES.get(kind)
         if note:
-            state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": note})
+            state.turn_notes.append((note, False))
         log_event("conversation_turn_routed", request_id=state.request_id, turn_kind=kind,
                   tools=sorted(state.tool_filter) if state.tool_filter is not None else "ALL")
 
@@ -4192,6 +4273,9 @@ class AgentOrchestrator:
                 note = dropped.pop("memo_note", None)
                 if isinstance(note, str) and note.strip():
                     state.memo_note = note.strip()[:memory.NOTE_CHARS]  # EXEC-C Q2: the model's note, kept apart
+                facts = dropped.pop("facts", None)
+                if isinstance(facts, list):
+                    state.answer_facts = [f for f in facts if isinstance(f, dict)][:8]  # O5 item 1, kept apart
                 if dropped:
                     self._note_extra_keys(state, dropped)
                 final = self._check_budget_limitations(state, self._turn_type(state, parsed))
@@ -4592,10 +4676,6 @@ class AgentOrchestrator:
                           relationships=missing["relationship_ids"])
                 return self._repair_budget(state, call_id, name, outcome)
 
-        if name == "complete_analysis":
-            refused = self._insight_source_unopened(state, call_id, name)
-            if refused is not None:
-                return self._repair_budget(state, call_id, name, refused)
         if name in ("run_python", "run_research_code") and state.web_numbers and not state.web_number_refused \
                 and isinstance(arguments, dict) and isinstance(arguments.get("code"), str):
             found = ai_choices.web_numbers_in_code(ai_choices.typed_values(arguments["code"]), self._user_words(state)
@@ -4621,10 +4701,10 @@ class AgentOrchestrator:
         normalized = self._normalized_arguments(raw_arguments)
         if outcome.ok and isinstance(normalized, dict):
             result = outcome.output.get("result") if isinstance(outcome.output.get("result"), dict) else {}
-            if (name == "run_python" and "load_output(" in str(normalized.get("code") or "")
-                    and result.get("status") == "OK") \
-                    or (name == "get_session_output" and result.get("origin")):
-                state.opened_earlier = True
+            if name == "run_python" and result.get("status") == "OK":
+                state.opened_outputs.update(LOAD_OUTPUT_RE.findall(str(normalized.get("code") or "")))
+            elif name == "get_session_output" and result.get("origin") and result.get("output_id"):
+                state.opened_outputs.add(str(result["output_id"]))
         if name == "submit_data_need_spec" and isinstance(normalized, dict) and normalized.get("mode") == "RESEARCH":
             state.research_attempted = True  # an attempt, whatever its outcome (M19)
         if name == "check_data_feasibility":
@@ -5860,6 +5940,12 @@ class AgentOrchestrator:
         if unknown:
             self._gate_once(state, "UNITS", UNITS_INSTRUCTION.format(
                 references=", ".join(dict.fromkeys(unknown[:12]))) + units_advice(unknown_values))
+        unopened = self._earlier_cited_unopened(state)
+        if unopened:
+            log_event("insight_source_not_opened", request_id=state.request_id, earlier=len(unopened))
+            self._gate_once(state, "INSIGHT_SOURCE_NOT_OPENED", EARLIER_RESULT_INSTRUCTION.format(results="; ".join(
+                f"{o.get('ref')} {o.get('output_id')} \"{o.get('name')}\"" for o in unopened[:8])),
+                needs=frozenset({"get_session_output", "run_python"}))
         if not problems and not missing:
             return rendered, False
         detail = "; ".join(dict.fromkeys(problems + [message for _, _, message in missing]))[:1500]

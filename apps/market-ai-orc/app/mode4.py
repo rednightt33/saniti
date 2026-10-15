@@ -225,6 +225,7 @@ class Mode4Orchestrator:
         if self.ask_back:
             intent = {"understood_intent": usage.get("understood_intent"), "assumptions": usage.get("assumptions"),
                       "choice": chosen}
+        data_record = with_user_facts(data_record, request.request_id, usage)
         if chosen is not None:  # the user's choice is the depth (FIRST_ROUTE_RULES 3 is for the router's route)
             step, path = ("FACT", None) if route == "FACT" else ("PATH", router.ROUTE_PATHS[route])
         else:
@@ -258,6 +259,22 @@ class Mode4Orchestrator:
                   caller_path=request.analysis_path, step=step, analysis_path=path, status=result.status,
                   **({"choice": chosen} if chosen else {}))
         return result.model_copy(update={"execution": result.execution.model_copy(update={"mode": mode})})
+
+
+def with_user_facts(record: dict[str, Any] | None, request_id: str, usage: dict[str, Any] | None
+                    ) -> dict[str, Any] | None:
+    """O5 item 1 (EXEC-IMPL-1016): the facts the router read in this message enter the data record before the step
+    that answers it, so the note shows the user's newest statement as the one that applies (with or without the run
+    memory). A message that states no fact leaves the record as it was."""
+    changes = (usage or {}).get("design_value_changes") or []
+    if not any(str((c or {}).get("name")) in records.ROUTER_FACT_KINDS for c in changes):
+        return record
+    updated = records.normalize(record)
+    changed = records.add_user_facts(updated, request_id, usage)
+    if changed:
+        log_event("conversation_facts_stated", request_id=request_id, changed=changed,
+                  active=len(records.effective_facts(updated)))
+    return records.public(updated) if changed else record
 
 
 def _with_reading(result: AgentRunResponse, request_id: str, usage: dict[str, Any] | None) -> AgentRunResponse:
@@ -472,6 +489,7 @@ class _Mode4Run:
                                          notes=[PENDING_LINE] if pending else None)
             if self.owner.ask_back:
                 self.intent = {"understood_intent": (self.router_usage or {}).get("understood_intent")}
+            self.record = with_user_facts(self.record, self.request.request_id, self.router_usage)
             kind = router.apply_rules(raw, pending, newer, (self.router_usage or {}).get("referent"))
             if kind != raw and raw in ("APPROVE", "REVISE") and newer:
                 log_event("mode4_stale_suggestion", request_id=self.request.request_id, router_kind=raw,

@@ -67,7 +67,7 @@ from app.schemas import final_response_schema
 dev, tools = json.loads(sys.argv[2]), frozenset(json.loads(sys.argv[3]))
 dev["angle_limits"] = tuple(dev["angle_limits"])
 prompt = build_system_prompt(**dev, tools=tools, tool_envelope=True)
-schema = final_response_schema(True, True, True, True, True, True)
+schema = final_response_schema(True, True, True, True, True, True, conversation_facts=True)  # O5 (EXEC-IMPL-1016)
 print(json.dumps({"prompt": prompt, "schema": json.dumps(schema, ensure_ascii=False, indent=1, sort_keys=True) + "\\n"}))
 """
 

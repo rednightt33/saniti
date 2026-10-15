@@ -61,6 +61,8 @@ CAUSES: dict[str, Cause] = {
     "METHODOLOGY_PROVENANCE": Cause(ANNOTATE),
     "REFERENCE": Cause(ANNOTATE),  # one kind per set of failing references: REFERENCE:<hash>
     "UNITS": Cause(ANNOTATE),  # Mode Jawab v2 (5B): figures from columns of undeclared unit, asked once
+    # O3 (EXEC-IMPL-1016): new results next to an earlier result the run never opened, asked once
+    "INSIGHT_SOURCE_NOT_OPENED": Cause(ANNOTATE),
     "PLAN_NOT_EXECUTED": Cause(ANNOTATE),  # the approved plan stays pending (M19)
     "RESEARCH_RUN_INCOMPLETE": Cause(ANNOTATE),
     # Research Plan checks
