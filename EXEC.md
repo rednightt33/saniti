@@ -2030,7 +2030,31 @@ tuntas (dieksekusi dan diverifikasi, atau diputuskan tidak dikerjakan).
 | O1 | `get_dimension_values` dipakai untuk kode saham (EXEC-M164) | akar masalah terbukti; usulan menunggu go |
 | O2 | Pertanyaan "Cari saja …" masuk kelas INSIGHT | akar masalah terbukti; usulan menunggu keputusan |
 | O3 | Penolakan `INSIGHT_SOURCE_NOT_OPENED` | akar masalah terbukti; ikut O2 |
-| O4 | Kalender MSCI disusun ulang dari ingatan | akar masalah terbukti; temuan tanggal salah (ERRORS M166); usulan menunggu keputusan |
+| O4 | Kalender MSCI disusun ulang dari ingatan | akar masalah terbukti: cara tanggal didapat (riset web, tanpa tabel); tanggal salah (ERRORS M166); usulan menunggu keputusan |
+
+**Keputusan user 2026-10-15 (putaran 3):** "O1: get_dimension_value harus ada, karena ini penting"; "O2: saya setuju hanya
+untuk router diberi tahu fungsi dan kemampuan setiap jalur"; "O3: OK masukan exec jangan execute dulu"; O4 ditanya: "berarti
+masalahnya adalah bagaimana tanggal tersebut didapatkan at the first place?".
+- O1: alat tetap. Tiga gesekan `edge_b90899…`/`edge_417e…`: (a) 9 panggilan ditolak: aturan prompt untuk kategori dibaca
+  berlaku untuk kode saham; (b) gerbang UNITS: aturan satuan sudah tertulis di deskripsi `run_python` dan prompt, tetapi
+  kolom rentang harga (rasio) tidak dianggap rasio oleh model, dan pemeriksaan baru terjadi di gerbang jawaban akhir
+  (setelah draf ditulis) — usulan: peringatan saat `emit_table` untuk kolom desimal tanpa satuan (diturunkan dari nilai,
+  seperti `units_advice`), bukan di akhir; (c) kolom kembar: tabel broker menamai kode saham `Symbol`, tabel harga `ticker`;
+  `merge(left_on='Symbol', right_on='ticker')` lalu rename `Symbol`→`ticker` membuat dua kolom `ticker` — usulan: data
+  yang disiapkan memberi kolom entitas satu nama baku di semua tabel (dari kolom entitas katalog) atau helper gabung dari
+  relasi katalog. Usulan O1 (a)–(c) menunggu go.
+- O2 (disetujui untuk dirumuskan): hanya kartu kemampuan per jalur di prompt router (CLARIFY, ANSWER/INSIGHT di jalur cepat,
+  CONTINUE, NEW_TOPIC: apa yang dikerjakan, alat, keluaran, contoh). Kelas baru dan kolom tambahan tidak termasuk. Mode
+  INSIGHT jalur cepat (`EXPLORE_INSIGHT_NOTE`): sampai 5 sudut, tiap sudut satu metode pustaka riset lewat
+  `saniti.explore_test` (stability, koreksi Benjamini-Hochberg): conditional_distribution, threshold_sensitivity,
+  streak_persistence, regime_comparison, cohort_comparison, quantile_ranking, lead_lag, correlation_dependency. Run
+  `edge_2f7523a7…` dapat catatan itu, tetapi model menilai "Cari saja" sebagai pencarian (penalaran: "That's a
+  lookup/description, not really a statistical pattern") dan tidak menjalankan uji — jawabannya deskriptif.
+- O3 (disetujui untuk dirumuskan, tidak dieksekusi): gerbang "buka hasil lama" terikat pada giliran yang menjelaskan hasil
+  lama, catatan gabungan per giliran yang menyatakan aturan itu di awal.
+- O4: ya. Tanggal didapat lewat 6 panggilan `research_web` di `edge_ca6cf5a4…` (16 sumber: idx.co.id 5, bisnis.com 3,
+  katadata 2, CNBC, Kontan, IDX Channel, OJK, Bank Dunia, msci.com 1); model menyalinnya ke teks jawaban, tanpa tabel
+  dan tanpa membedakan pengumuman, penutupan implementasi dan hari efektif; media menulis "efektif" dengan arti berbeda.
 
 **Pertanyaan lanjutan user 2026-10-15 dan jawabannya** (user: "O1: Maksudnya get dimension value itu untuk apa? ... O2
 silahkan benchmark dengan best practice terlebih dahulu ... O3 ... kenapa AI tidak tahu bahwa ia harus melakukan ini
