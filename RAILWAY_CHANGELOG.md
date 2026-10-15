@@ -1,5 +1,15 @@
 # Railway changelog
 
+## 2026-10-15 — M161 fix and M160 deployed (dev)
+
+`main` `09e9ddc` (M161, page-started scrolls no longer pulled back by auto-follow) deployed `edge-bff` dev `729ee9f3` →
+SUCCESS; live, the history jump lands 24 px below the top. `main` `1fbec6d` (M160) deployed `market-ai-orc` dev
+`ac4ea638` → SUCCESS (startup without `*_inactive`; `ai_provider_credit` and `ai_provider_credit_low` logged: limit
+$41.5, $0.42 left) and `edge-bff` dev `67039127` → SUCCESS. The last EDGE run had finished 26 s before the new orc
+container started; none was interrupted. No variable change: `AI_PROVIDER_CREDIT_CHECK_SECONDS` (900) and
+`AI_PROVIDER_CREDIT_LOW_USD` (2) run at their defaults; provider routing unchanged. Rollback: orc `7ce61160`, edge-bff
+`729ee9f3`.
+
 ## 2026-10-15 — EXEC-UI-1015C EDGE layout and favicon deployed (dev)
 
 User: "Ok, confirmed. Go." `main` `1bc7b50` auto-deployed `edge-bff` dev `22e386f5` → SUCCESS (orc and sandbox

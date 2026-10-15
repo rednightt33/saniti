@@ -2037,7 +2037,7 @@ berikut (desktop saja, ponsel tidak berubah oleh butir ini):
 3. C dihapus: baris "Research session · Run N · status" di atas percakapan dihilangkan; status tetap ada di setiap
    jawaban.
 
-**Hasil (2026-10-15, ter-deploy; bagian M160 belum):**
+**Hasil (2026-10-15, ter-deploy):**
 - `1bc7b50` → edge-bff dev `22e386f5` SUCCESS. Desktop: baris Research session hilang di atas 720 px; tombol Details
   (berganti "Hide Details" saat terbuka), Bookmark dan Share (nonaktif) di rel kiri, bersusun di rel sempit (≤1050 px)
   atau tertutup; setiap kartu Response History punya "Lihat di percakapan". Ponsel (≤720 px): menu dan "+" di header
@@ -2048,7 +2048,14 @@ berikut (desktop saja, ponsel tidak berubah oleh butir ini):
   Temuan: "Lihat di percakapan" tidak menggulir dari dasar percakapan panjang (ERRORS M161, juga mengenai lompatan pin
   dan tautan bagian). Diperbaiki di susulan (`scrollResearchTo`), tes baru; deploy dan QA ulang dicatat di
   RAILWAY_CHANGELOG.
-- Tes: `tests/test_ui_1015c.py` (5) dan penyesuaian `test_visual.py` (baris sesi hanya di ponsel, pengaturan ponsel lewat
+- Susulan M161 `09e9ddc` → edge-bff `729ee9f3` SUCCESS: kedua lompatan live mendarat 24 px dari atas.
+- M160 `1fbec6d` → market-ai-orc `ac4ea638` dan edge-bff `67039127` SUCCESS, startup tanpa `*_inactive`, tidak ada run
+  yang terputus. Penolakan akun dikenali dari HTTP 401/402 atau catatan kunci sendiri (`GET /key`, sisa ≤ 0); pemutus 120
+  dtk lalu satu panggilan uji; router tidak bertanya balik saat penyedia mati, giliran berakhir `SERVICE_UNAVAILABLE`
+  dengan satu baris jelas dan tombol Retry di EDGE; saldo kunci dicatat saat start dan tiap 15 menit. Live: saat start
+  tercatat `ai_provider_credit_low` (batas $41,5, sisa $0,42). Jalur penolakan hanya diuji lewat tes (tidak sengaja
+  memicu gangguan di live). Variabel baru tidak diset (bawaan 900 dtk dan $2).
+- Tes: `tests/test_ui_1015c.py` (6) dan penyesuaian `test_visual.py` (baris sesi hanya di ponsel, pengaturan ponsel lewat
   menu akun); suite EDGE 101 lulus. Tes mengetik kadang gagal sudah ada sebelum perubahan ini (ERRORS M162).
 
 ### EXEC-UI-1015B: progres run seperti Claude (dinilai 2026-10-15; usulan, menunggu "go")
