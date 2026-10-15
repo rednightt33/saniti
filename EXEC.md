@@ -1984,7 +1984,19 @@ fasenya. Usulan "ide riset" sebelumnya dibatalkan; pilihan "Uji dengan data: …
 - Tes: sandbox 810 lulus (`test_dataneed_completion.py`: hasil buangan dan rilis sesudah dibuat ulang); orc 1.608 lulus (`test_g23_desk.py`: kandidat disebut, tanpa kandidat bila tidak ada yang sama).
 - Deploy `977b525`: sandbox `92eabc87` dan orc `d6177468` **SUCCESS**. Cek live: pada run berikutnya yang mengalami kode gagal atau angka ganda.
 
-### EXEC-UI-1015: Asumsi/Batasan menutup sendiri, celah di atas kolom tanya, lebar kolom percakapan (dicatat 2026-10-15; menunggu "go")
+### EXEC-UI-1015: Asumsi/Batasan menutup sendiri, celah di atas kolom tanya, lebar kolom percakapan (dicatat 2026-10-15; bagian EDGE ter-deploy 2026-10-15)
+
+**Hasil (go 2026-10-15 "Ok jalankan"; `main` `e3ccf5d`, edge-bff dev `0eb6c761` SUCCESS).** U1 (M156 DEPLOYED): `patchNode`
+mempertahankan `open` yang dibuka pembaca; live: catatan MSCI tetap terbuka setelah digulir 0/50/600/200 px. U2: satu
+jarak 18 px (dulu 66) di 1920 dan 1440 px, terang dan gelap; ponsel tidak berubah. U3: kolom jawaban dan kolom tanya 768
+px dengan panel Details terbuka atau tertutup; tidak ada gulir horizontal. U4 bagian EDGE: tabel dengan lebih dari 10
+baris menampilkan 10 baris pertama (urutan saat itu), baris total tetap tampil, sisanya di balik tombol "Tampilkan N baris
+lagi"/"Sembunyikan baris" (label di `edge-labels.js`); urut kolom mengurutkan semua baris; dialog perbesar dan cetak
+menampilkan semua baris. U5: level berpikir dan Jalur ada di ruang kanan kartu model terpilih (kartu lain tanpa tombol;
+catatan Jalur menjadi tooltip); di ponsel panel berada di atas kolom tanya, sejajar dan selebar kolom tanya (posisi dan
+lebar dibaca dari kolom tanya), tidak menutupi header (live 390 px: panel y 70–733, header 58, kolom tanya 739). Tes
+baru `apps/edge-bff/tests/test_ui_1015.py`; tes V5 lembar bawah ponsel diganti tes U5. Suite EDGE 96 passed. Sisa U4:
+batas backend 50 dan aturan prompt (Fase 2).
 
 **Keputusan user 2026-10-15 (lanjutan):** atas U1 dan U2: "Aight OK - masukan EXEC jangan execute dulu"; atas U3 (berlaku selalu atau hanya saat kedua panel ditutup): "seperti chat GPT" → kolom jawaban dan kolom tanya paling lebar sekitar 768 px CSS **selalu**, panel terbuka atau tidak. Status U1–U3: disetujui, belum dieksekusi.
 - **U4 tabel sampai 50 baris, bisa dilipat (disetujui 2026-10-15, user: "Ok masukan EXEC U4"; belum dieksekusi; 10 baris terlihat, sampai 50, sisanya dilipat; dampak token dicek: instruksi tabel satu baris, baris diisi backend sesudah model, riwayat giliran berikutnya dibatasi 16.000 karakter, saran lanjutan membaca 6.000 karakter jawaban).** User: "malah saya mau sampai 50 kalau bisa. Di tampilan di frontend, tapi bisa di collapse/ expand. Agar datanya rinci dan jelas, lengkap. Gimana menurutmu?" Sekarang: `table_directives.MAX_ROWS = 25` (pengaman EXEC-ROWS, user 2026-10-13) dan aturan prompt "jumlah yang diminta user, 10 bila tidak disebut"; di run `edge_19f817ae…` tabel sektor 12 baris tampil 10, dan AI sendiri memotong saham naik ke 10 di kode (`nlargest(10)`). Usulan: (a) pengaman backend 25 → 50; (b) EDGE menampilkan 10 baris pertama, sisanya dilipat dengan tombol "Tampilkan N baris lagi" (dialog lebar tetap ada); (c) prompt: tabel rincian lengkap (semua kelompok) ditampilkan penuh sampai 50; AI tidak memotong data di kode kecuali user meminta "top N" (hasil lengkap dirilis, tampilan yang memilih); lebih dari 50 ditawarkan sebagai Excel. Baris dibaca backend dari tabel hasil, jadi tidak menambah token model. Butuh snapshot prompt.

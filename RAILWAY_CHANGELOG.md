@@ -1,5 +1,11 @@
 # Railway changelog
 
+## 2026-10-15 — EXEC-UI-1015 EDGE U1–U5 deployed (dev)
+
+User: "Ok jalankan" (EXEC-IMPL-1015). `main` `e3ccf5d` auto-deployed `edge-bff` dev `0eb6c761` → SUCCESS
+(`market-ai-orc` and `market-python-sandbox` unchanged by this commit). No variable change. Rollback: redeploy
+`71d4161d` (`4e99848`). Live QA (Chromium, 1920/1440 px light and dark, 390 px phone) in EXEC.md (EXEC-UI-1015).
+
 ## 2026-10-15 — EXEC-FASTLANE V5 option 2 deployed (dev)
 
 User: "2 alright". `main` `8c7d398` auto-deployed `market-ai-orc` dev `b3dbc30d` → SUCCESS (`edge-bff` SKIPPED). No
