@@ -1,5 +1,11 @@
 # Railway changelog
 
+## 2026-10-15 — EXEC-FASTLANE V5 option 2 deployed (dev)
+
+User: "2 alright". `main` `8c7d398` auto-deployed `market-ai-orc` dev `b3dbc30d` → SUCCESS (`edge-bff` SKIPPED). No
+`edge_` run was active before the push. No variable change: active through the existing `AI_FASTLANE_GATE_ADVICE=true`
+(read back). Fallback: set that variable false.
+
 ## 2026-10-14 — EXEC-FASTLANE V5 deployed, switched on and A/B (dev)
 
 User: "please review current exec … run an A/B testing … proceed end to end". `main` `4e99848` auto-deployed
