@@ -2027,7 +2027,7 @@ tuntas (dieksekusi dan diverifikasi, atau diputuskan tidak dikerjakan).
 
 | # | Item | Status |
 |---|---|---|
-| O1 | `get_dimension_values` dan aturan nilai teks tersimpan (EXEC-M164) | penegakan sebagian sudah ada (P14); penyelarasan tipe dan aturan di awal menunggu go; peringatan satuan saat rilis disetujui (M167) |
+| O1 | `get_dimension_values`, aturan nilai teks tersimpan, nama → kode (alias, `resolve_entities`) | masuk EXEC 2026-10-15, tidak dijalankan; menunggu go |
 | O2 | Pertanyaan "Cari saja …" masuk kelas INSIGHT | akar masalah terbukti; usulan menunggu keputusan |
 | O3 | Penolakan `INSIGHT_SOURCE_NOT_OPENED` | akar masalah terbukti; ikut O2 |
 | O5 | Waktu berpikir habis untuk ragu (tanggal, arti pertanyaan), bukan untuk hitung | usulan praktik umum; menunggu keputusan |
@@ -2094,6 +2094,23 @@ best practice."
   kandidat; bila lebih dari satu kandidat, AI boleh bertanya balik. Berlaku juga untuk broker ("Mandiri Sekuritas" → CC) dan
   nanti seri makro. Menunggu keputusan; tabel baru perlu cek Part A.
 - M167: masuk EXEC, tidak dieksekusi (peringatan satuan saat `emit_table` + pesan gerbang sesuai cek).
+
+**Putaran 6 (user 2026-10-15):** "Ok. O1 masukan exec jangan jalankan dulu" dan, atas O5 butir 1 ("AI diberi tahu fakta itu
+berlaku kecuali Anda mengubahnya"): "Tapi kadang ada LIFO, yang berlaku adalah message yang dikirimkan user belakangan. How
+we handle this?"
+- O1 (tabel alias entitas, `resolve_entities`, validator kode entitas, aturan nilai teks tersimpan di awal, penyelarasan
+  tipe `get_dimension_values`) masuk EXEC, tidak dijalankan.
+- Yang sudah ada untuk "pesan terbaru berlaku": nilai desain uji (horizon, ambang, efek minimum; M82 dan variants)
+  dibaca router dari pesan terbaru sebagai perubahan terstruktur REPLACE / ADD / REMOVE, dan pesan terbaru yang menang
+  (`user_words.py`, dengan catatan bila pola teks dan bacaan router berbeda); M64: hasil terbaru menjadi rujukan bawaan.
+  Belum ada untuk fakta percakapan (daftar entitas, tanggal peristiwa, definisi).
+- Usulan untuk O5 butir 1: fakta disimpan berversi dengan asalnya (pesan user, data database, web, tafsiran AI) dan giliran
+  yang menetapkannya; router membaca setiap pesan baru untuk perubahan fakta dengan bentuk yang sama (REPLACE / ADD /
+  REMOVE; nama: ENTITY_SET, EVENT_DATE, DEFINITION); urutan berlaku: pernyataan user terbaru > pernyataan user lebih awal >
+  data database terverifikasi > hasil web > tafsiran AI; fakta yang digantikan tidak dihapus (bisa "kembali ke yang
+  tadi"); bila pernyataan user terbaru bertentangan dengan data terverifikasi (mis. user menyebut 25 Nov, rilis resmi
+  menyebut penutupan 24 Nov), pernyataan user dipakai tetapi perbedaannya disebut di jawaban, atau AI bertanya balik bila
+  maknanya ragu; pesan yang tidak mengubah fakta tidak menyentuhnya.
 - O5 (baru) waktu habis untuk menganalisis, bukan meragukan: lihat bagian EXEC-OPEN-1015 O5 di bawah tabel.
 - O4: ya. Tanggal didapat lewat 6 panggilan `research_web` di `edge_ca6cf5a4…` (16 sumber: idx.co.id 5, bisnis.com 3,
   katadata 2, CNBC, Kontan, IDX Channel, OJK, Bank Dunia, msci.com 1); model menyalinnya ke teks jawaban, tanpa tabel
