@@ -2019,7 +2019,13 @@ OpenRouter $0,37 dari batas $41 (satu run bisa menghabiskannya); dicek setelah s
 
 - **U5 pemilih model di ponsel (disetujui 2026-10-15; Jalur ikut dipindah, user: "ya dipindah"; belum dieksekusi).** User 2026-10-15 (dua tangkapan layar ponsel): "retain existing design untuk model selection; pindahkan reasoning selection ke kotak A; untuk size dan lokasi bs disesuaikan dengan nomor (1)". Dibaca sebagai: kartu model (logo, nama, harga input/output, id) tetap; pilihan level berpikir (Rendah/Tinggi/Maks) pindah dari baris terpisah di bawah daftar ke ruang kosong di kanan setiap kartu model ("kotak A"), hanya aktif pada kartu model yang dipilih; panel pemilih menempati area kosong percakapan di atas kolom tanya (area "1"), bukan menutupi seluruh layar.
 
-### EXEC-UI-1015C: tombol ke percakapan di Response History, tombol kanan atas ke rel kiri, baris status dihapus (dicatat 2026-10-15; disetujui desktop, menunggu "go")
+### EXEC-UI-1015C: tombol ke percakapan di Response History, tombol kanan atas ke rel kiri, baris status dihapus (dicatat 2026-10-15; go 2026-10-15)
+
+**Go 2026-10-15** (user: "Ok, confirmed. Go."): atas pemahaman ponsel (menu dan "+" ke header; rel kiri hilang, percakapan
+selebar layar; ikon pengaturan keluar dari header ponsel dan tetap bisa dibuka dari menu akun; baris Research session
+ponsel tetap), favicon logo "E" EDGE (SVG, PNG 32 px, apple-touch 180 px), dan usulan desain M160 (golongan galat
+penyedia di klien model, pemutus di orc, router tanpa tanya balik saat penyedia menolak, teks jelas di EDGE, pemantauan
+saldo kunci).
 
 **Keputusan user 2026-10-15:** "Yes, perubahan UI sudah confirmed, tapi ini hanya untuk desktop ya." atas pemahaman
 berikut (desktop saja, ponsel tidak berubah oleh butir ini):
