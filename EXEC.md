@@ -186,23 +186,28 @@ Urutan sisa:
 
 | Kelompok | Butir | Status | Berkas utama |
 |---|---|---|---|
-| orc/backend saja | EXEC-BE1-1 label hasil toleran | disetujui, belum go | sandbox `runtime/saniti_session.py` |
-| orc/backend saja | EXEC-BE1-2 catatan katalog `total_buy/sell_value` | disetujui, belum go | migrasi katalog |
-| orc/backend saja | PLAN 14 lampiran data ke sesi terbuka | desain disetujui, belum go | sandbox `sessions.py`, orc `tools/session.py`, `data_need.py` |
+| orc/backend saja | EXEC-BE1-1 label hasil toleran | **ter-deploy 2026-10-15** (sandbox `b1f26312`; M158); cek live menunggu saldo | sandbox `runtime/saniti_session.py` |
+| orc/backend saja | EXEC-BE1-2 catatan katalog `total_buy/sell_value` | **diterapkan 2026-10-15** (`20261015_011`; temuan M157) | migrasi katalog |
+| orc/backend saja | PLAN 14 lampiran data ke sesi terbuka | **ter-deploy dengan saklar mati 2026-10-15** (sandbox `88739487`, orc `7ce61160`, `round_u`); A/B atas perintah user (berbayar) | sandbox `sessions.py`, orc `tools/session.py`, `data_need.py` |
 | orc/backend saja | M145 panggilan model `RemoteProtocolError` tidak diulang | usulan, menunggu keputusan | orc `openrouter_client.py` |
 | orc/backend saja | Panjang adaptif (EXEC-FASTLANE) | ditunda | orc prompt |
 | orc/backend saja | M154 b cek profil, M155 normalisasi bentuk | usulan, belum disetujui | katalog, validator |
-| BFF/EDGE saja | EXEC-UI-1015 U1 Asumsi/Batasan menutup sendiri (M156) | disetujui, belum go | `static/index.html` `patchNode` |
-| BFF/EDGE saja | U2 celah di atas kolom tanya | disetujui, belum go | `static/index.html` CSS |
-| BFF/EDGE saja | U3 lebar kolom ~768 px selalu | disetujui, belum go | `static/index.html` CSS |
-| BFF/EDGE saja | U5 pemilih model ponsel (level + Jalur ke kanan kartu, panel di atas kolom tanya) | disetujui, belum go | `static/index.html` |
+| BFF/EDGE saja | EXEC-UI-1015 U1 Asumsi/Batasan menutup sendiri (M156) | **ter-deploy 2026-10-15** (edge-bff `0eb6c761`) | `static/index.html` `patchNode` |
+| BFF/EDGE saja | U2 celah di atas kolom tanya | **ter-deploy 2026-10-15** (18 px) | `static/index.html` CSS |
+| BFF/EDGE saja | U3 lebar kolom ~768 px selalu | **ter-deploy 2026-10-15** | `static/index.html` CSS |
+| BFF/EDGE saja | U5 pemilih model ponsel (level + Jalur ke kanan kartu, panel di atas kolom tanya) | **ter-deploy 2026-10-15** | `static/index.html` |
 | BFF/EDGE saja | EXEC-DETAILS butir 1 (ponsel saat gulir) | menunggu penjelasan user | — |
-| BFF + orc | U4 tabel sampai 50 baris, dilipat | disetujui, belum go | orc `table_directives.py`, prompt (snapshot); EDGE lipatan |
+| BFF + orc | U4 tabel sampai 50 baris, dilipat | **ter-deploy 2026-10-15** (EDGE `0eb6c761`, orc `abeadb31`, prompt v008); run live tabel >10 menunggu saldo | orc `table_directives.py`, prompt (snapshot); EDGE lipatan |
 | BFF + orc | EXEC-UI-1015B progres run seperti Claude | usulan, menunggu go | orc progres, BFF snapshot, `edge-client.js` |
 
 Tumpang tindih: U1, U2, U3, U4 (bagian EDGE) dan U5 mengubah `static/index.html` → satu putaran EDGE; U4 (orc) dan PLAN 14 sama-sama di `orchestrator.py`/alat → urut, bukan paralel; UI-1015B menyentuh `edge-client.js` status run → sesudah putaran EDGE.
 
-### EXEC-IMPL-1015: rencana implementasi butir yang disetujui (2026-10-15; go 2026-10-15, berjalan)
+### EXEC-IMPL-1015: rencana implementasi butir yang disetujui (2026-10-15; go 2026-10-15; selesai kecuali cek berbayar)
+
+**Hasil (2026-10-15).** Fase 1 EDGE `e3ccf5d` (edge-bff `0eb6c761`); Fase 2 `c997c4d` + `bb2430d` (sandbox `b1f26312`,
+orc `abeadb31`); Fase 3 migrasi `20261015_011`; Fase 4 `4d9a3cd` (sandbox `88739487`, orc `7ce61160`, saklar
+`AI_ENABLE_SESSION_ATTACH` mati, Tool_Catalog `round_u`). Semua deploy SUCCESS; suite EDGE 96, sandbox 851, orc 1.791
+lulus. **Belum:** cek live berbayar U4/BE1-1 dan A/B PLAN 14 (saldo kunci OpenRouter $0,37 dari $41; menunggu user).
 
 Go: user 2026-10-15 "Ok jalankan" atas checklist rinci di bawah. A/B berbayar Fase 4.19 tetap menunggu perintah
 terpisah.

@@ -1,5 +1,15 @@
 # Railway changelog
 
+## 2026-10-15 — PLAN 14 deployed with its switch off (dev)
+
+User: "Ok jalankan" (EXEC-IMPL-1015 Fase 4). `main` `4d9a3cd` auto-deployed `market-python-sandbox` dev `88739487` →
+SUCCESS (store schema 6, `/v1/runtime` `session_attach` v1, max 2) and `market-ai-orc` dev `7ce61160` → SUCCESS
+(startup without `*_inactive`). No `edge_` run was active (the last ended 06:54 UTC). No variable change:
+`AI_ENABLE_SESSION_ATTACH` is unset (false) on `market-ai-orc`, `PY_SANDBOX_MAX_ATTACHMENTS` unset (default 2), so
+`.railway/railway.ts` is unchanged; turning the switch on for the A/B is a variable change on the user's command.
+Temporary `mmig-job` for Tool_Catalog `round_u` created and deleted (DATABASE_CHANGELOG). Rollback: sandbox `b1f26312`
+(`bb2430d`), orc `abeadb31` (`c997c4d`); the SQLite store's added column is ignored by the older code.
+
 ## 2026-10-15 — EXEC-BE1-1 and U4 (orc) deployed (dev)
 
 User: "Ok jalankan" (EXEC-IMPL-1015 Fase 2). `main` `c997c4d` auto-deployed `market-python-sandbox` dev `58449771` →
