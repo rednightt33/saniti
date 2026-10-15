@@ -609,3 +609,29 @@ def test_v5_the_decisions_note_names_category_values_and_a_valid_and_scope() -> 
     example = json.loads(re.search(r"e\.g\. (\{.*\}); a NOT", text).group(1))
     node = ScopeNode.model_validate(example)
     assert node.type == "AND" and len(node.children) == 2 and node.child is None
+
+
+def test_v5_option_2_typed_figures_resolve_by_the_row_named_or_count_as_code_parameters() -> None:
+    """User 2026-10-15 ("2 alright"): in advice mode a figure equal to several released values takes the one whose row
+    its sentence names; a literal of the run's code is a parameter; only the rest keeps the typed-figures label."""
+    from app.orchestrator import TYPED_FIGURES_LINE
+    from test_g23_desk import FIGURES as FIGURES_RB
+    from test_g23_desk import released_state
+
+    rows = [{"broker": "RB", "net_days": 116.0, "days": 132.0}, {"broker": "YP", "net_days": 116.0, "days": 140.0}]
+    orc = advice_orchestrator(**ADVICE_ON)
+    state = released_state(rows, "RB beli bersih 116 dari 132 hari.")
+    state.lane = lanes.FAST
+    out = orc._evidence_gate(state, FIGURES_RB, ["DATA_COVERAGE_VERIFIED"])
+    assert "out.o3.rows[broker=RB].net_days" in state.referenced and not state.gate_kinds_rejected
+    assert not any(line.startswith("Angka berikut diketik") for line in out.limitations)
+    unnamed = released_state(rows, "Ada broker yang beli bersih 116 dari 132 hari.")
+    unnamed.lane = lanes.FAST
+    labelled = orc._evidence_gate(unnamed, FIGURES_RB.model_copy(update={
+        "answer": "Ada broker yang beli bersih 116 dari 132 hari."}), ["DATA_COVERAGE_VERIFIED"])
+    assert TYPED_FIGURES_LINE.format(numbers="116") in labelled.limitations  # no row named: still labelled
+    coded = released_state(rows, "Ada broker yang beli bersih 116 dari 132 hari.")
+    coded.lane, coded.code_numbers = lanes.FAST, [116.0]
+    out = orc._evidence_gate(coded, FIGURES_RB, ["DATA_COVERAGE_VERIFIED"])
+    assert convention_numbers_line([("116", "CODE_PARAMETER")]) in out.limitations
+    assert not any(line.startswith("Angka berikut diketik") for line in out.limitations)

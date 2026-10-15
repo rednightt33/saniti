@@ -5526,6 +5526,44 @@ class AgentOrchestrator:
         derived = self._derived_readings(state, rest, text) if rest else {}
         return accepted + [(n, "DERIVED") for n in rest if derived.get(n)]
 
+    def _advised_typed(self, state: RunState, typed: list[str], candidates: dict[str, list[str]],
+                       text: str) -> tuple[list[str], list[str]]:
+        """EXEC-FASTLANE V5 option 2 (user 2026-10-15: "2 alright"): in advice mode a typed figure that is a literal of
+        the run's successful code is a parameter (labelled as one), and a figure equal to several released values whose
+        sentence names the row of exactly one of them ("RB beli bersih 116" and rows broker=RB, broker=YP) takes that
+        value as its reference. The rest keeps the typed-figures label. (figures left typed, parameters)"""
+        code = SourceIndex()
+        code.add(CONTEXT, state.code_numbers)
+        parameters = [n for n in typed if state.code_numbers and not check_answer(n, code).unsupported]
+        left: list[str] = []
+        for figure in typed:
+            if figure in parameters:
+                continue
+            address = self._named_candidate(text, figure, candidates.get(figure) or [])
+            if address is None:
+                left.append(figure)
+                continue
+            if address not in state.referenced:
+                state.referenced.append(address)
+            log_event("ai_reference_auto", request_id=state.request_id, figure=figure, address=address,
+                      among=len(candidates[figure]))
+        return left, parameters
+
+    @staticmethod
+    def _named_candidate(text: str, figure: str, addresses: list[str]) -> str | None:
+        """The one address whose row keys ([broker=RB]) appear as words in the sentence that holds the figure."""
+        if len(addresses) < 2:
+            return None
+        sentences = [part for part in re.split(r"(?<=[.!?;])\s+|\n+", text) if figure in part]
+        named = set()
+        for sentence in sentences:
+            words = {w.lower() for w in re.findall(r"[\w.-]+", sentence)}
+            for address in addresses:
+                keys = [value.strip().lower() for value in re.findall(r"\[[^\]=]+=([^\]]+)\]", address)]
+                if keys and all(key in words for key in keys):
+                    named.add(address)
+        return named.pop() if len(named) == 1 else None
+
     def _fast_sections(self, state: RunState, final: FinalResponse) -> FinalResponse:
         """EXEC-FASTLANE V5 (user 2026-10-14: "yang di show hanya metodologi dan asumsi"): a fast-lane ANSWER keeps no
         limitations; the coverage and number-source lines are dropped (the evidence label says it), every other line
@@ -6055,6 +6093,10 @@ class AgentOrchestrator:
                  if kind not in BACKEND_RECOMPUTED_KINDS]
         candidates: dict[str, list[str]] = {}
         typed = self._auto_references(state, list(dict.fromkeys(typed)), candidates)
+        if typed and self._advice(state):
+            typed, parameters = self._advised_typed(state, typed, candidates, typed_text)
+            if parameters:
+                extra.append(texts.convention_numbers_line([(n, "CODE_PARAMETER") for n in parameters]))
         if typed:
             numbers = ", ".join(typed[:12])
             choices = "; ".join(f"{text} = " + ", ".join(f"{{{{{a}}}}}" for a in candidates[text][:MAX_CANDIDATES_PER_FIGURE])

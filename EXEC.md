@@ -2853,6 +2853,31 @@ menebak ukuran data dan batas 64 bagian, mengisi formulir rencana, dua giliran r
     memuat label "Angka berikut diketik … tidak dibaca ulang" di Asumsi, karena angka diketik tidak lagi diperbaiki AI
     (keputusan lanjutan menunggu user). Format tanggal/menu/pin/gulir diverifikasi dengan tes browser (runner tidak
     merender EDGE); pengecekan visual oleh user.
+  - **Kenapa V5 ON lebih lama (2026-10-15, user: "identify kenapa bisa lebih lama, contrast log"):** dari log orc per
+    panggilan model (waktu panggilan, token keluaran, penyedia):
+
+    | Bagian | V5 OFF | V5 ON |
+    |---|---|---|
+    | Waktu total (wall) | 569 s | 645 s |
+    | Waktu model | 442 s | 517 s |
+    | Di luar model (alat, sandbox, Governor) | 127 s | 128 s |
+    | Token keluaran | 68,7 rb | 70,8 rb |
+    | Penyedia (kecepatan) | t1 DigitalOcean 178 tok/s; j2, s1 Baidu 152 tok/s | t1 DigitalOcean 196; j2 InferenceNet 116; s1 AtlasCloud 138 tok/s |
+    | Putaran ulang jawaban | 4 (gerbang: 39 s) | 1 (s1: JSON jawaban terpotong di tengah metodologi, `ai_final_reask`, 20 s) |
+
+    Selisih 76 s seluruhnya di waktu model; waktu alat sama. Token ON di kecepatan penyedia OFF: j2 ≈ 159 s (nyata
+    216 s, +57 s), s1 ≈ 205 s (nyata 226 s, +21 s), jadi penyedia yang lebih lambat menjelaskan ≈ 78 s; V5 menghemat
+    ≈ 39 s putaran gerbang, tetapi s1 ON kehilangan 20 s karena jawaban JSON terpotong (masalah format, bukan V5).
+    Per jenis pekerjaan (OFF → ON): katalog/rencana 121 → 132 s, data need 38 → 60 s (t1 ditolak sekali karena nama
+    permintaan data `INVALID_REQUEST_ID`; s1 29,7 s berpikir sebelum data need), kode 175 → 216 s (panggilan terbesar:
+    j2 60 s dan s1 61 s menulis kode analisis dengan 6,6 rb–7,6 rb token penalaran), jawaban 79 → 89 s. Kesimpulan:
+    V5 tidak menambah kerja; penyedia OpenRouter yang dipilih per panggilan menentukan sebagian besar selisih (n=1).
+  - **Opsi 2 (2026-10-15, user: "2 alright"):** dalam mode saran, angka diketik yang sama dengan literal kode → label
+    "parameter dari kode"; angka yang sama dengan beberapa nilai hasil → dirujuk otomatis ke nilai yang barisnya
+    disebut di kalimat yang sama (mis. "RB … 116" dan baris broker=RB, broker=YP); sisanya tetap berlabel angka
+    diketik. Rujukan otomatis untuk satu nilai yang cocok (R3) sudah ada sebelumnya; label di A/B ON tersisa untuk
+    "196, 90" dan "Rp1,5 triliun, 63, 9" (beberapa nilai cocok atau parameter). Tes:
+    `test_v5_option_2_typed_figures_resolve_by_the_row_named_or_count_as_code_parameters`.
 - **Review EXEC 2026-10-13, hubungan dengan entri lain:**
   - EXEC-D (jaminan "data hanya sesudah persetujuan"): tingkat 1 jalur baru mengambil data tanpa persetujuan untuk
     pertanyaan bergaya hipotesis, seperti jalur analisis sekarang. Ini penyimpangan sadar dari jaminan EXEC-D di jalur
