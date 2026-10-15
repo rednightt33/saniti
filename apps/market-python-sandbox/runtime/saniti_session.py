@@ -2080,9 +2080,12 @@ def drop_table(name: str) -> bool:
     return existed
 
 
+WARNING_CHARS = 500
+
+
 def add_warning(code: str, message: str) -> None:
     if len(_WARNINGS) < 50:
-        _WARNINGS.append({"code": str(code)[:60], "message": str(message)[:500]})
+        _WARNINGS.append({"code": str(code)[:60], "message": str(message)[:WARNING_CHARS]})
 
 
 # ---------------------------------------------------------------- outputs
@@ -2241,8 +2244,8 @@ def emit_table(name: str, data, description: str = "", units: dict[str, str] | N
                definition: dict[str, Any] | None = None) -> dict[str, Any]:
     """A TABLE output (stored as Parquet; readable back page by page). units: {column: FRACTION | PERCENT | P_VALUE}
     for the columns holding a share, a percent or a p-value, so the answer formats them right: declare every share,
-    rate, ratio of parts or return column (FRACTION: 0.12 is 12%; PERCENT: 12 is 12%); a column named like one without
-    a unit is warned (UNIT_UNDECLARED). definition: how the table was made (filters applied in code, period, entities,
+    rate, ratio of parts or return column (FRACTION: 0.12 is 12%; PERCENT: 12 is 12%); a column named like one, or
+    holding only decimals within ±1.5, without a unit is warned (UNIT_UNDECLARED). definition: how the table was made (filters applied in code, period, entities,
     thresholds, notes; {} when the code added no filter to the data request); required for a released table."""
     import pyarrow.parquet as pq
 
@@ -2318,13 +2321,62 @@ def _unit_hints(name: str, table, declared: dict[str, str]) -> dict[str, str]:
         if column in table.column_names and column not in out:
             out[column] = unit
     numeric = [f.name for f in table.schema if pa.types.is_floating(f.type) or pa.types.is_decimal(f.type)]
-    undeclared = [c for c in numeric if c not in out and _unit_like(c)]
-    if undeclared:
-        add_warning("UNIT_UNDECLARED", f"Table {name!r}: {undeclared[:8]} look like a share, rate, percent, ratio of "
-                    "parts or return but have no unit. Emit it again with units={column: 'FRACTION'} for a decimal "
-                    "(0.12 is 12%) or 'PERCENT' for a value already in percent (12 is 12%); a plain ratio such as "
-                    "P/E or 1.5x needs no unit, cite it with |x or |dec.")
+    named = [c for c in numeric if c not in out and _unit_like(c)]
+    decimals = {c: sample for c in numeric if c not in out and c not in named
+                if (sample := _decimal_column(table.column(c))) is not None}
+    _warn_units(f"Table {name!r}", named, decimals)
     return out
+
+
+# M167 (go 2026-10-15, EXEC-IMPL-1016 Fase 1): a column is judged by its values as well as its name, by the rule the
+# answer's UNITS advice uses (orchestrator.units_advice: |v| <= 1.5 reads as a decimal). edge_b90899… released
+# range_before/range_after (0.034) without a unit; the gate refused them only after the answer was drafted
+DECIMAL_LIMIT = 1.5
+
+
+def _decimal_column(column) -> list[float] | None:
+    """_decimal_sample over an Arrow column, judged with Arrow compute so a long table is not copied into Python."""
+    import pyarrow as pa
+    import pyarrow.compute as pc
+
+    values = pc.cast(column, pa.float64())
+    values = pc.filter(values, pc.is_finite(values))
+    if len(values) == 0:
+        return None
+    if pc.max(pc.abs(values)).as_py() > DECIMAL_LIMIT or pc.all(pc.equal(values, pc.floor(values))).as_py():
+        return None
+    return [round(v, 6) for v in values.slice(0, 3).to_pylist()]
+
+
+def _decimal_sample(values: list) -> list[float] | None:
+    """Up to three example values when every finite value is a non-integer-valued decimal within ±DECIMAL_LIMIT."""
+    finite = [float(v) for v in values if v is not None and _math.isfinite(float(v))]
+    if not finite or any(abs(v) > DECIMAL_LIMIT for v in finite) or all(v == int(v) for v in finite):
+        return None
+    return [round(v, 6) for v in finite[:3]]
+
+
+def _warn_units(subject: str, named: list[str], decimals: dict[str, list[float]]) -> None:
+    """One UNIT_UNDECLARED warning naming each repair the answer's UNITS check accepts: a unit declared at release, or
+    |dec / |x for a plain ratio. A percent format on a value of undeclared unit is refused there, so it is not offered."""
+    if not named and not decimals:
+        return
+    columns = [f"{c} (named like a share)" for c in named] + [
+        f"{c} ({', '.join(format(v, '.4g') for v in sample[:2])})" for c, sample in decimals.items()]
+    first = (named or list(decimals))[0]
+    repair = (f". If one is a share, return or change, emit it again with units={{{first!r}: 'FRACTION'}} (0.12 is "
+              "12%) or 'PERCENT' (12 is 12%) and cite that output; a plain ratio or statistic (P/E, beta, correlation) "
+              "needs none: cite it with |dec or |x. A percent format (|pct, |pctv, |pp) on a value without a declared "
+              "unit is refused in the answer.")
+    head = f"{subject}: no unit for "
+    budget = WARNING_CHARS - len(head) - len(repair) - 3  # the repair is never cut (add_warning keeps 500)
+    listed = ""
+    for entry in columns:
+        if len(listed) + len(entry) + 2 > budget:
+            listed = (listed + ", …") if listed else entry[:max(budget, 8)] + "…"
+            break
+        listed += (", " if listed else "") + entry
+    add_warning("UNIT_UNDECLARED", head + listed + repair)
 
 
 def emit_json(name: str, value, description: str = "", units: dict[str, str] | None = None,
@@ -2333,7 +2385,13 @@ def emit_json(name: str, value, description: str = "", units: dict[str, str] | N
     named by its key (or a dotted path of keys). definition: as for emit_table; required for a released JSON."""
     declared = _units(units, None)
     defined = _definition(definition)
-    text = _json.dumps(_jsonable(value), ensure_ascii=False, separators=(",", ":"))
+    plain = _jsonable(value)
+    if isinstance(plain, dict):
+        fields = {k: v for k, v in plain.items() if isinstance(v, float) and k not in declared}
+        named = [k for k in fields if _unit_like(k)]
+        _warn_units(f"JSON {name!r}", named, {k: [round(v, 6)] for k, v in fields.items() if k not in named
+                                             and _decimal_sample([v]) is not None})
+    text = _json.dumps(plain, ensure_ascii=False, separators=(",", ":"))
     if len(text.encode("utf-8")) > int(_LIMITS["max_json_bytes"]):
         raise OutputLimitExceeded(f"A JSON output is at most {_LIMITS['max_json_bytes']} bytes.")
     file_name = _file(_name(name), "json")

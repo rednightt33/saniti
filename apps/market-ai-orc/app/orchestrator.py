@@ -62,7 +62,7 @@ from .user_words import allowed_periods, current_design_changes, current_turn_re
 from .model_choices import ModelChoice, current_model_choice
 from .provenance import (CONTEXT, typed_figures, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
                          parse_numbers, released_numbers, requested_statistics, weakest)
-from .value_refs import (pp_as_percent, FUNC_RE, OUTSIDE_LABELS, OUTSIDE_NAMESPACES, REF_RE, SOURCES_IN_TEXT, UNITS, ReferenceSources, Resolved,
+from .value_refs import (PERCENT_FORMATS, pp_as_percent, FUNC_RE, OUTSIDE_LABELS, OUTSIDE_NAMESPACES, REF_RE, SOURCES_IN_TEXT, UNITS, ReferenceSources, Resolved,
                          TableRows, format_value, menu_address, registered_links_only, render, safe_link)
 from .tools import ToolOutcome, ToolRegistry, error_outcome
 from .tools.analysis import DataDate, current_conversation_key, current_data_date, current_run_context, run_context
@@ -207,8 +207,9 @@ entity_type, asset_type), relationships and frequencies only from
 the catalog tools. Do not write or submit raw SQL.
 For a scope such as a sector, industry or other classification, use
 an ATTRIBUTE_FILTER predicate on the catalog column with the exact
-data value from get_dimension_values; never type out a member list
-yourself.
+stored value from get_dimension_values; never type out a member list
+yourself. Entity codes the user wrote (tickers, broker codes) are
+typed as written.
 If a tool rejects your arguments, correct them and call it again. If
 prepare_analysis_data or the SQL Governor refuses, follow its
 allowed_actions; never change the user's scope, drop entities,
@@ -302,8 +303,14 @@ the catalog relationships between them. Never put a formula,
 indicator, method, ranking or output in it. Compare periods with
 several named time ranges. A restriction by another table (for
 example banks only) is a second request on the reference table with
-its own scope, joined by an INNER relationship; take exact values from
-get_dimension_values and never type a member list yourself. On
+its own scope, joined by an INNER relationship; never type its member
+list yourself. Every text value in a scope must be stored in that
+column, else it is refused or returns no rows: a category takes its
+spelling from column_values in get_catalog_details or from
+get_dimension_values; an entity code the user wrote (a ticker, a broker
+code) is typed as written, never checked with get_dimension_values; a
+name that is not a code is looked up in its reference table
+first{name_lookup}, and when it matches several codes, ask. On
 REVISION_REQUIRED fix every issue and resubmit with revision + 1;
 never change the user's scope, period or frequency to pass.
 When the answer needs a total across entities rather than each raw
@@ -362,6 +369,15 @@ condition historically precedes an outcome or for a bounded
 exploration. Report research results only as historical patterns
 (pola historis) with event counts, the baseline and the uncertainty:
 never as a cause, a prediction, a forecast or a trading signal.{modes_research}"""
+
+# O1 early (EXEC-IMPL-1016 Fase 1, go 2026-10-15; M164): every text value in a scope is a stored value; a name that is
+# not a code is looked up with the reference tool when it is offered
+NAME_LOOKUP = " (lookup_reference with match on its name column)"
+
+
+def dataneed_rules(tools) -> str:
+    return DATANEED_RULES.replace("{name_lookup}", NAME_LOOKUP if "lookup_reference" in (tools or ()) else "")
+
 RESEARCH_PLAN_RULES = """
 
 RESEARCH PLAN CONFIRMATION
@@ -434,8 +450,9 @@ the formula_ids from discover_catalog when the method follows a
 documented formula. Its table_metadata gives the subject values, grain
 and time and entity columns. Add CALCULATIONS or RESEARCH only when the
 method needs them.
-3. Use get_dimension_values for an exact category value you do not
-know yet.
+3. Use get_dimension_values for the stored spelling of a category
+value you do not know yet (a static table's category column; not for
+entity codes or dated tables).
 4. get_system_capabilities is not a routine first step: the tool list
 already shows what is available. Call preview_table_rows only for a
 concrete doubt about a column's format or content.
@@ -904,17 +921,20 @@ ADDRESS_MENU_NOTE = ("Each line is \"name: value as shown [unit] → {{address}}
 # asked about once; a second time the answer passes and the event is logged
 UNITS_INSTRUCTION = (
     "These figures come from columns without a declared unit, so a reader cannot tell a decimal share from a "
-    "percent: {references}. Write each with the format that shows its unit (|pct for a decimal such as 0.12 shown "
-    "as 12%, |pctv for a value already in percent, |x or |dec for a plain ratio), or emit the table again with "
-    "units={{column: 'FRACTION' | 'PERCENT'}} in run_python and cite that table.")
+    "percent: {references}. A percent format (" + ", ".join("|" + f for f in PERCENT_FORMATS) + ") is accepted only "
+    "for a column whose unit was declared: for a share, return or change, emit that table again with "
+    "units={{column: 'FRACTION' | 'PERCENT'}} in run_python and cite the new output; a plain ratio or statistic "
+    "needs no unit, write it with |x or |dec.")
 # EXEC-FASTLANE (user 2026-10-14, "OK"): the refusal also says what each value looks like and how to split a column
 # whose rows hold different units (ma-gates-20261014-s1 o1: a test table with a ratio and percentage points in one
-# column, the repair failed and the cells showed "–"). A guess from the value, so the model decides
-UNITS_SMALL_ADVICE = ("{refs} = {values}: a decimal, so |pct if it is a share (0.12 shown as 12%), |x or |dec if it "
-                      "is a ratio; a difference of shares in percentage points needs its column emitted with "
-                      "units='FRACTION' first, then |pp")
-UNITS_LARGE_ADVICE = ("{refs} = {values}: |pctv if it is already in percent (2.74 shown as 2.74%), |x or |dec if it is "
-                      "a ratio or a statistic")
+# column, the repair failed and the cells showed "–"). A guess from the value, so the model decides. M167 (go
+# 2026-10-15): each repair offered is one the check accepts (tests/test_fastlane.py binds the two); a percent format
+# on a column without a unit is refused, so it is offered only after the column's unit is declared
+UNITS_SMALL_ADVICE = ("{refs} = {values}: a decimal, so units='FRACTION' if it is a share, return or change (0.12 "
+                      "shown as 12%), |x or |dec if it is a ratio; a difference of shares in percentage points needs "
+                      "its column emitted with units='FRACTION' first, then |pp")
+UNITS_LARGE_ADVICE = ("{refs} = {values}: units='PERCENT' if it is already in percent (2.74 shown as 2.74%), |x or "
+                      "|dec if it is a ratio or a statistic")
 UNITS_MIXED_ADVICE = (" If a column ({columns}) holds different units in different rows (a ratio in one, percentage "
                       "points in another), no single unit fits it: emit one column per unit (for example "
                       "estimate_ratio and estimate_pp) with units= and cite those.")
@@ -1127,7 +1147,7 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
                 findings = _without_sentence(findings, B5_ANGLE_PARTS, B5_REFERENCE)
         # prompt audit C and pass 2: general -> data -> answer -> research
         sections = [common, CATALOG_PROTOCOL_RULES if catalog_protocol else "", data_sources_block(tools),
-                    DATANEED_RULES.replace("{modes_research}", "\n" + mode_sentence + " " + ANALYSIS_NEEDS_NO_PLAN),
+                    dataneed_rules(tools).replace("{modes_research}", "\n" + mode_sentence + " " + ANALYSIS_NEEDS_NO_PLAN),
                     POINT_IN_TIME_RULES if point_in_time else "", PERIOD_RETURN_RULES if period_return else "",
                     DERIVED_FREQUENCY_RULES if derived_frequency else "",
                     CONVERSATION_REUSE_RULES if conversation_reuse else "", value_rules,
@@ -1135,7 +1155,7 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
         template = "\n\n".join(section.strip("\n") for section in sections if section.strip())
     elif dataneed:
         common, _ = SYSTEM_PROMPT_TEMPLATE.split("DATA QUERY RULES\n", 1)
-        template = common + data_sources_block(tools) + "\n\n" + DATANEED_RULES.replace("{modes_research}", "") \
+        template = common + data_sources_block(tools) + "\n\n" + dataneed_rules(tools).replace("{modes_research}", "") \
             + (RESEARCH_PLAN_RULES if plan_confirmation else "") \
             + (PLAN_FEASIBILITY_RULES if plan_confirmation and plan_feasibility else "") \
             + (PERIOD_RETURN_RULES if period_return else "") + (CATALOG_PROTOCOL_RULES if catalog_protocol else "") \

@@ -972,12 +972,13 @@ kbd {
   padding-top: 8px;
 }
 .result-kicker {
-  /* EXEC-UI-1015D (user 2026-10-15): "Edge · Completed", bold, without forced capitals or letter spacing */
-  color: var(--foreground);
+  /* EXEC-UI-1015E (user 2026-10-15, "kembalikan seperti awal tapi tanpa tulisan AI"; "Completed (huruf depan
+     kapital)"): the earlier muted, letter-spaced style, the text as written ("EDGE · Completed"), no forced capitals */
+  color: var(--muted-foreground);
   text-transform: none;
-  font-size: .8rem;
-  font-weight: 700;
-  letter-spacing: 0;
+  font-size: .75rem;
+  font-weight: 500;
+  letter-spacing: .1em;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -9983,7 +9984,7 @@ html.dark .monitor-layout .result{
  --control-background:#303844;--control-border:#46515f;
  background:#20242b;color:#f1f4f8;
 }
-html.dark .monitor-layout .result .result-kicker{color:var(--text);}
+html.dark .monitor-layout .result .result-kicker,
 html.dark .monitor-layout .result .result-metadata{color:var(--muted-foreground);}
 html.dark .monitor-layout .result .data-table{background:#252c35;color:var(--text);border-color:var(--border);}
 html.dark .monitor-layout .result .data-table th{background:#303844;color:var(--text-2);}
@@ -11529,9 +11530,9 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
  const notes=v.plan&&[v.plan.notes.assumptions,v.plan.notes.limitations].some(part=>part.items.length)?element("div",{className:"edge-plan-notes"},
    [v.plan.notes.assumptions,v.plan.notes.limitations].map(part=>part.items.length>0&&element("div",null,element("span",{className:"edge-eyebrow"},part.label),items(part.items)))):null;
  return element("article",{className:"result",id:run.id+"-response",tabIndex:-1},
-  element("div",{className:"result-kicker"},element(Icon,{name:"spark"}),"Edge · "+v.status.label,element("i",{className:`edge-dot ${v.status.tone}`,"aria-hidden":"true"})),
+  element("div",{className:"result-kicker"},element(Icon,{name:"spark"}),edgeUi().answerKicker+" · "+v.status.label,element("i",{className:`edge-dot ${v.status.tone}`,"aria-hidden":"true"})),
   element("h1",null,run.result.title),
-  element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",{className:"edge-run-model"},element(EdgeModelLogo,{option:edgeModelOption(v.meta.model)}),v.meta.model+(v.meta.reasoningLevel?" \u00B7 "+(edgeUi().modelLevels?.[v.meta.reasoningLevel]??v.meta.reasoningLevel):"")+(v.meta.lane==="fast"?" \u00B7 "+edgeUi().fastLane:"")),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.duration&&element("span",{className:"edge-duration",title:"Lama proses"},"\u23F1 "+v.meta.duration),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
+  element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",{className:"edge-run-model"},element(EdgeModelLogo,{option:edgeModelOption(v.meta.model)}),element("span",null,element("span",{className:"edge-run-model-name",title:v.meta.model},edgeModelOption(v.meta.model).label),v.meta.reasoningLevel?" \u00B7 "+(edgeUi().modelLevels?.[v.meta.reasoningLevel]??v.meta.reasoningLevel):null)),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.duration&&element("span",{className:"edge-duration",title:"Lama proses"},"\u23F1 "+v.meta.duration),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
   v.evidence&&element("div",{className:"edge-tags"},element("span",{className:"edge-badge neutral",title:v.evidence.code},v.evidence.label)),
   v.answer&&element("div",{className:"content-block edge-answer"},element(Markdown,{text:v.answer,claims,fast})),
   v.clarification&&element(ResponseChoices,{scope:run.id+":clarify",enabled,act,

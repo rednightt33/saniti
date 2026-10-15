@@ -392,7 +392,8 @@ class DimensionValuesArgs(Strict):
 
 DIMENSION_DESCRIPTION = (
     "List the exact stored values of one category column (a groupable text column of a static catalog table), "
-    "optionally only those containing match. Use it to write a scope predicate or a grouping key with the exact data "
+    "optionally only those containing match. An entity column (tickers, broker codes) or a dated table is refused: "
+    "type an entity code the user wrote as written, and look a name up in its reference table. Use it to write a scope predicate or a grouping key with the exact data "
     "value (for example the stored spelling of a classification the user named). Returns values only, at most 200, "
     "never counts or measures: it is not a data answer."
 )

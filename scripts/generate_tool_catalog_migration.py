@@ -452,8 +452,22 @@ ROUNDS = {
                                          "the session's bundles together at most PY_SANDBOX_BUNDLE_MAX_ROWS / "
                                          "PY_SANDBOX_BUNDLE_MAX_BYTES; same reference date; analysis sessions only"},
     },
+    "round_v": {
+        "target": ROOT / "database/migrations/20261015_013_round_v_tool_catalog.sql",
+        "versions": {"submit_data_need_spec": ("v13", "v14"), "get_dimension_values": ("v1", "v2")},
+        "contracts": {"submit_data_need_spec": ("purpose", "Every text value in a scope must be a value stored"),
+                      "get_dimension_values": ("purpose", "An entity column (tickers, broker codes)")},
+        "title": "text values in a scope are stored values",
+        "header": "EXEC.md EXEC-IMPL-1016 Fase 1.3 (O1 early, M164; user \"Ok jalankan\", 2026-10-15)",
+        "design": "EXEC.md EXEC-OPEN-1015 O1 and EXEC-M164; ERRORS_AND_SOLUTIONS.md M164",
+        "limits_design": "EXEC.md EXEC-IMPL-1016",
+        "summary": ["submit_data_need_spec v14: every text value in a scope is a value stored in its column; tickers",
+                    "the user named go in the scope as written. get_dimension_values v2: its first sentences say",
+                    "that an entity column or a dated table is refused (the argument descriptions already did)."],
+        "limits": {},
+    },
 }
-NEWEST = "round_u"
+NEWEST = "round_v"
 
 
 def _tools_doc():

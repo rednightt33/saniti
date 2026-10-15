@@ -2019,6 +2019,55 @@ OpenRouter $0,37 dari batas $41 (satu run bisa menghabiskannya); dicek setelah s
 
 - **U5 pemilih model di ponsel (disetujui 2026-10-15; Jalur ikut dipindah, user: "ya dipindah"; belum dieksekusi).** User 2026-10-15 (dua tangkapan layar ponsel): "retain existing design untuk model selection; pindahkan reasoning selection ke kotak A; untuk size dan lokasi bs disesuaikan dengan nomor (1)". Dibaca sebagai: kartu model (logo, nama, harga input/output, id) tetap; pilihan level berpikir (Rendah/Tinggi/Maks) pindah dari baris terpisah di bawah daftar ke ruang kosong di kanan setiap kartu model ("kotak A"), hanya aktif pada kartu model yang dipilih; panel pemilih menempati area kosong percakapan di atas kolom tanya (area "1"), bukan menutupi seluruh layar.
 
+### EXEC-IMPL-1016: rencana implementasi EXEC-OPEN-1015, UI-1015E, EDGE-CTX dan UI-1015B (go Fase 0–1 2026-10-15)
+
+**Persetujuan user 2026-10-15:** rencana diminta ("Ok, pls create implementation plan. Inspect current architecture to
+ensure plan take that into account."), saldo diisi ("Done di isi"), lalu "Ok jalankan" untuk Fase 0 + Fase 1. Fase 2–5
+masing-masing menunggu "go" sendiri.
+
+**Keputusan user atas pertanyaan rencana (2026-10-15):**
+- O3: tanda "menjelaskan hasil lama" diturunkan dari isi jawaban ("Dari isi jawaban"), tanpa kolom router baru.
+- O2: router hanya diberi kartu kemampuan per jalur, tanpa kelas atau kolom baru.
+- UI-1015E: kepala jawaban bergaya lama, teks "EDGE · Completed" ("Completed (huruf depan kapital)").
+- O1: pencocokan alias + persis + potongan teks, tanpa `pg_trgm` ("Alias + persis + potongan").
+- Cacat sampingan: hanya "Cek cakupan entitas G13 mati" ikut dibereskan; tumpukan peringatan sandbox tidak.
+- Ditunda: O4 (M166 tetap OPEN) dan O5 butir 5.
+
+**Fase:**
+- 0: catat go, deploy aktif untuk rollback, saldo.
+- 1: M167 (satuan saat rilis, pesan gerbang sesuai cek); UI-1015E; O1 aturan nilai teks di prompt dan deskripsi alat.
+- 2: O2 kartu kemampuan router; O3 gerbang dari isi jawaban dan satu catatan per giliran; O5 butir 1 fakta berversi;
+  O5 butir 2–4 default tafsir.
+- 3: O1 kamus nilai dan alias entitas (menggantikan PLAN 11), alat `search_values`, cek kode entitas, G13, kolom kembar.
+- 4: EDGE-CTX B lalu A; UI-1015B.
+- 5: penutupan.
+
+**Fase 0 (2026-10-15):**
+- Deploy aktif untuk rollback: orc `fcda847e` (`5158381`), edge-bff `1aca46e9` (`2e201d7`), sandbox `88739487`
+  (`4d9a3cd`). Governor tidak disentuh di Fase 1–2.
+- Saldo dibaca live: akun USD 85 total, terpakai 43,73; kunci orc batas USD 42, terpakai 41,09 (sisa USD 0,91).
+- Batas kunci perlu dinaikkan user sebelum Fase 2 (benchmark router dua kali dan cek live).
+
+**Fase 1 (dibangun 2026-10-15):**
+- 1.1 M167:
+  - Sandbox `_unit_hints` juga menilai kolom float/desimal dari nilainya: semua nilai hingga ±1,5 dan tidak semuanya
+    bilangan bulat, aturan yang sama dengan `units_advice`. `emit_json` menilai angka tingkat atas dengan aturan itu.
+  - Satu peringatan `UNIT_UNDECLARED` per tabel, dengan contoh nilai. Isinya hanya perbaikan yang lolos cek: rilis
+    ulang dengan `units=`, atau `|dec`/`|x` untuk rasio biasa. Teks perbaikan tidak pernah terpotong oleh batas 500
+    karakter.
+  - Pesan gerbang UNITS di orc hanya menawarkan format persen sesudah `units=`. Tes `test_fastlane.py` merender setiap
+    format yang ditawarkan pada kolom tanpa satuan.
+- 1.2 UI-1015E:
+  - Kepala jawaban memakai gaya lama (redup, .75rem, 500, `letter-spacing:.1em`, tanpa huruf besar paksa) dengan teks
+    "EDGE · Completed" (`edgeUi().answerKicker`).
+  - Baris metadata menampilkan label model ("DeepSeek V4.1 Flash"), dengan id di tooltip. "Fast lane" dihapus.
+- 1.3 O1 awal:
+  - Aturan DATA NEED: setiap nilai teks di scope adalah nilai tersimpan. Kategori diambil dari `column_values` atau
+    `get_dimension_values`. Kode entitas yang user tulis diketik apa adanya, tanpa `get_dimension_values`. Nama dicari
+    dulu di tabel referensi (`lookup_reference` bila ditawarkan), dan AI bertanya bila cocok ke beberapa kode.
+  - Prompt v009. Tool_Catalog `round_v`: `get_dimension_values` v2 dan `submit_data_need_spec` v14.
+- Tes lokal: orc 1.807 lulus; EDGE 103 lulus; sandbox 860 lulus.
+
 ### EXEC-REVIEW-1015: tinjauan semua EXEC terbuka dan arsitekturnya (2026-10-15; user: "please review all exec, inspect arsitektur ... contrast what ideal conditions would look like")
 
 **Keputusan user 2026-10-15:** "O5 nanti dulu A/B test tidak perlu dahulu. Sisanya OK untuk O5 masukan exec jangan execute

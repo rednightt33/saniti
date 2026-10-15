@@ -383,10 +383,40 @@ def test_the_units_refusal_says_what_each_value_looks_like_and_how_to_split_a_mi
 
     cell = "out.o2.rows[uji=Bootstrap: selisih simpangan baku (pp, Q3-Q2)].estimasi"
     text = units_advice({cell: -0.01, "out.o3.content.net_pct": -6.07})
-    assert f"{cell} = -0.01: a decimal, so |pct if it is a share" in text and "units='FRACTION' first, then |pp" in text
-    assert "out.o3.content.net_pct = -6.07: |pctv if it is already in percent" in text
+    assert f"{cell} = -0.01: a decimal, so units='FRACTION' if it is a share" in text
+    assert "units='FRACTION' first, then |pp" in text
+    assert "out.o3.content.net_pct = -6.07: units='PERCENT' if it is already in percent" in text
     assert text.count("no single unit fits") == 1 and "estimasi of out.o2" in text
     assert "no single unit" not in units_advice({"out.o3.content.net_pct": 0.2}) and units_advice({}) == ""
+
+
+def test_every_repair_the_units_refusal_offers_passes_the_units_check() -> None:
+    """M167 (go 2026-10-15): edge_b90899… was told to write |pct, which the check refuses on a column without a unit, so
+    it re-ran code. Each format the refusal and its advice name is rendered on a column of undeclared unit: a format
+    outside the percent formats must pass as it is; a percent format must be refused there and pass once the column's
+    unit is declared, and the text must name units= wherever it offers one."""
+    import re as _re
+
+    from app.orchestrator import UNITS_INSTRUCTION, units_advice
+    from app.value_refs import PERCENT_FORMATS, ReferenceSources, render
+
+    text = UNITS_INSTRUCTION.format(references="out.o2.rows.0.range_before") + units_advice(
+        {"out.o2.rows.0.range_before": 0.034, "out.o2.rows.0.spread_level": 2.74})
+    offered = set(_re.findall(r"\|([a-z]+)\b", text))
+    assert offered >= {"x", "dec"} and offered & set(PERCENT_FORMATS)
+
+    def shown(fmt: str, units: dict) -> list[str]:
+        refs = ReferenceSources()
+        refs.add("out", "out_r", {"rows": [{"range_before": 0.034}], "units": units}, "DATA_COVERAGE_VERIFIED")
+        refs.alias("out", "o2", "out_r")
+        return render("{{out.o2.rows.0.range_before|" + fmt + "}}", refs).unknown_units
+
+    for fmt in offered:
+        if fmt in PERCENT_FORMATS:
+            assert shown(fmt, {}) and not shown(fmt, {"range_before": "FRACTION"}), fmt
+            assert not _re.search(r"(?<!then )\|" + fmt + r"\b(?![,)])", text), f"|{fmt} offered without units="
+        else:
+            assert not shown(fmt, {}), fmt
 
 
 # --- V4: decision rules (user 2026-10-14, "save ini as V4") ---------------------------------------------------------

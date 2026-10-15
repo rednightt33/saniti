@@ -212,9 +212,22 @@ U_ADDED = {
     "Keep the final answer focused and proportional to the user's question: the answer within about two and a half thousand characters and each table in it within ten rows unless the user asks for more or the table lists every group of a breakdown, up to fifty rows (the full table stays in its released output);",
 }
 REMOVED, ADDED = (REMOVED | (U_REMOVED - ADDED)) - U_ADDED, (ADDED - U_REMOVED) | (U_ADDED - REMOVED)
+# O1 early (EXEC-IMPL-1016 Fase 1, go 2026-10-15 "Ok jalankan"; M164): every text value in a scope is a stored value;
+# entity codes the user wrote are typed as written; a name is looked up in its reference table
+REMOVED |= {"take exact values from get_dimension_values and never type a member list yourself."}
+ADDED |= {
+    "never type its member list yourself.",
+    "Every text value in a scope must be stored in that column, else it is refused or returns no rows: a category "
+    "takes its spelling from column_values in get_catalog_details or from get_dimension_values;",
+    "an entity code the user wrote (a ticker, a broker code) is typed as written, never checked with "
+    "get_dimension_values;",
+    "a name that is not a code is looked up in its reference table first (lookup_reference with match on its name "
+    "column), and when it matches several codes, ask.",
+}
 # the reader section added about six percent (the budget was two percent over the pass-2 fixture); EXEC-Y Fase 3's
-# four sentences about half a percent more; EXEC-STYLE about half a percent more; EXEC-M143 about one percent more; EXEC-DAYS about a third of a percent more
-SIZE_BUDGET = 1.125
+# four sentences about half a percent more; EXEC-STYLE about half a percent more; EXEC-M143 about one percent more;
+# EXEC-DAYS about a third of a percent more; O1 early (EXEC-IMPL-1016) about one percent more
+SIZE_BUDGET = 1.135
 
 SECTIONS = ["GENERAL RULES", "TOOL USE", "TOOL RESULTS", "FINAL RESPONSE", "WRITING FOR THE READER", "DATA DISCOVERY", "DATA SOURCES",
             "DATA NEED", "MODES", "TIME BASIS", "NAMED-PERIOD RETURNS", "WEEKLY AND MONTHLY", "CONVERSATION REUSE",

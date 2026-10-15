@@ -165,7 +165,7 @@ FIXTURES['ui1015d_short']['response']['answer'] = SHORT
 def test_answer_tables_are_compact_and_never_break_a_word(fixture_server, browser_page):
     """EXEC-UI-1015D (user 2026-10-15, "jarak antara kolom tidak compact. seek best practice"): a table is as wide as its
     content, short columns (codes, dates, numbers) stay on one line, a text column wraps between words only, and on a
-    phone the first column stays in view while the table scrolls sideways. The header reads "Edge · Completed"."""
+    phone the first column stays in view while the table scrolls sideways. The header reads "EDGE · Completed" (UI-1015E)."""
     origin, _ = fixture_server
     page = browser_page
     for width in (1440, 390):
@@ -198,7 +198,12 @@ def test_answer_tables_are_compact_and_never_break_a_word(fixture_server, browse
         if width == 390:
             assert cells.nth(0).evaluate("td => getComputedStyle(td).position") == 'sticky'
         kicker = page.locator('article.result').nth(1).locator('.result-kicker')
-        assert kicker.text_content() == 'Edge · Completed'
-        assert kicker.evaluate("k => [getComputedStyle(k).fontWeight, getComputedStyle(k).textTransform, getComputedStyle(k).letterSpacing]") \
-            == ['700', 'none', 'normal']
+        # EXEC-UI-1015E (user 2026-10-15): the earlier muted, letter-spaced style, "Completed" as written
+        assert kicker.text_content() == 'EDGE · Completed'
+        weight, transform, spacing = kicker.evaluate(
+            "k => { const s = getComputedStyle(k); return [s.fontWeight, s.textTransform, "
+            "parseFloat(s.letterSpacing) / parseFloat(s.fontSize)]; }")
+        assert (weight, transform) == ('500', 'none') and abs(spacing - 0.1) < 0.005  # .1em at every width
+        assert kicker.evaluate("k => getComputedStyle(k).color") == kicker.evaluate(
+            "k => getComputedStyle(k.closest('article').querySelector('.result-metadata')).color")
         page.context.clear_cookies()

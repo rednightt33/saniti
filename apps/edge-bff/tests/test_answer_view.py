@@ -78,7 +78,7 @@ def test_markdown_answer_renders_headings_bold_and_tables_as_elements(fixture_se
     table = answer.locator('table.data-table')
     assert table.count() == 1 and table.locator('tbody tr').count() == 2
     assert 'Setelah sinyal' in table.locator('thead').inner_text()
-    assert article(page).locator('.result-kicker').text_content() == 'Edge · Completed'
+    assert article(page).locator('.result-kicker').text_content() == 'EDGE · Completed'
     assert page.locator('.workspace-tools .pill').inner_text().endswith('Completed')  # the frame stays English
     page.get_by_role('tab', name='Sources', exact=True).click()
     assert page.locator('.sources').get_by_text('Catatan data percakapan').is_visible()
@@ -208,7 +208,7 @@ def test_a_pause_shows_its_choices_as_buttons_once(fixture_server, browser_page)
     card = article(page).locator('.edge-response-choices.pause')
     assert 'Jawaban ini dijeda' in card.inner_text() and pause['reason'] in card.inner_text()
     assert pause['question'] not in article(page).locator('.edge-answer').inner_text()  # not shown twice
-    assert article(page).locator('.result-kicker').text_content() == 'Edge · Paused'
+    assert article(page).locator('.result-kicker').text_content() == 'EDGE · Paused'
     assert page.locator('.workspace-tools .pill').inner_text().endswith('Paused')
     capture(page, 'x-paused-dark')
     capture_answer(page, 'full-paused-dark')

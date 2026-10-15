@@ -188,3 +188,29 @@ def test_a_call_ends_at_its_total_deadline_even_while_bytes_keep_coming(monkeypa
 
     quick, _ = make({"responses": [httpx.Response(200, content=prompt())], "key": [key(5.0)]})
     assert quick.create({}, timeout=90.0, attempts=1)["id"] == "resp_ok"
+
+
+@pytest.mark.parametrize("encoding", ["gzip", "deflate"])
+def test_a_compressed_answer_is_read_once_decoded(encoding: str) -> None:
+    """M168 (2026-10-15): since orc fcda847e every model call failed with httpx DecodingError (routers) or
+    INTERNAL_ERROR (runs, edge_fd4cee33…, edge_14a506f5…): the streamed body was decoded while read and then wrapped
+    in a new response that kept content-encoding, so it was decoded a second time. A provider's compressed answer is
+    read exactly as an uncompressed one."""
+    import zlib
+
+    body = b'{"id": "resp_zip", "output": []}'
+    packed = zlib.compress(body) if encoding == "deflate" else __import__("gzip").compress(body)
+    zipped = httpx.Response(200, content=iter([packed[:7], packed[7:]]),  # streamed, as from the network
+                            headers={"content-encoding": encoding, "content-type": "application/json"})
+    client, _ = make({"responses": [zipped], "key": [key(5.0)]})
+    assert client.create({}, timeout=90.0, attempts=1)["id"] == "resp_zip"
+
+
+def test_a_body_that_cannot_be_decoded_is_a_provider_error_not_an_internal_one() -> None:
+    """M168: an undecodable 2xx body is the provider's malformed answer (PROVIDER_MALFORMED_RESPONSE), never an
+    exception that ends the run as INTERNAL_ERROR."""
+    broken = httpx.Response(200, content=iter([b"not gzip at all"]), headers={"content-encoding": "gzip"})
+    client, _ = make({"responses": [broken], "key": [key(5.0)]})
+    with pytest.raises(ProviderError) as raised:
+        client.create({}, timeout=90.0, attempts=1)
+    assert raised.value.code == "PROVIDER_MALFORMED_RESPONSE"

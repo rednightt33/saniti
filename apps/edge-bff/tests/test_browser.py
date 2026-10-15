@@ -154,7 +154,9 @@ def test_the_model_choice_lists_prices_changes_levels_and_is_remembered(server):
         page.locator('article.result').wait_for()
         assert orc.calls[-1][2]['model']=='z-ai/glm-5.3-flash' and orc.calls[-1][2]['reasoning_level']=='max'
         assert 'lane' not in orc.calls[-1][2] and not page.locator('.edge-model-lanes').count()  # no lane_selection
-        assert 'z-ai/glm-5.3-flash · Max' in page.locator('.edge-run-model').first.inner_text()
+        # EXEC-UI-1015E (user 2026-10-15, "ini nama mode saja langsung"): the model's name, its id in the tooltip
+        assert 'GLM 5.3 Flash · Max' in page.locator('.edge-run-model').first.inner_text()
+        assert page.locator('.edge-run-model-name').first.get_attribute('title') == 'z-ai/glm-5.3-flash'
         # EXEC-UI-1013B (gambar 2): the model's logo left of its name in the answer's header
         header_logo = page.locator('.edge-run-model').first.locator('.edge-model-logo')
         assert header_logo.count() == 1 and header_logo.is_visible()
@@ -289,6 +291,8 @@ def test_every_message_runs_the_fast_lane_without_a_lane_choice(server):
         composer.fill('Explain BBRI cepat');page.get_by_role('button',name='Submit',exact=True).click()
         page.locator('article.result').wait_for()
         assert orc.calls[-1][2]['lane']=='fast'
-        page.wait_for_function("() => [...document.querySelectorAll('.edge-run-model')].some(e => e.innerText.includes('Fast lane'))")
+        # EXEC-UI-1015E (user 2026-10-15, "tidak perlu ada fast lane, karena ini default"): the lane is not named
+        page.locator('.edge-run-model').first.wait_for()
+        assert 'Fast lane' not in page.locator('.edge-run-model').first.inner_text()
         assert errors==[],errors
         browser.close()

@@ -75,7 +75,7 @@ window.EdgeLabels = {
     // EXEC-MODELS: the model and reasoning-level choice next to the composer
     // EXEC-UI-1015D (user 2026-10-15): the model picker in English; every EDGE message runs the fast lane (no lane choice)
     modelTitle:"Choose model and reasoning", modelHead:"AI model", modelPricesNote:"Price per 1M tokens",
-    modelInput:"Input", modelOutput:"Output", modelLevel:"Reasoning", lane:"Lane", lanes:{standard:"Standard", fast:"Fast"}, fastLane:"Fast lane", modelUpdated:"Prices updated",
+    modelInput:"Input", modelOutput:"Output", modelLevel:"Reasoning", lane:"Lane", lanes:{standard:"Standard", fast:"Fast"}, answerKicker:"EDGE", modelUpdated:"Prices updated",
     modelLevels:{low:"Low", medium:"Medium", high:"High", max:"Max", off:"Off", on:"On"},
     // EXEC-CHOICES: the "Response choices" panel
     nextAction:"Langkah Anda berikutnya", choicesTitle:"Pilihan jawaban", planChoicesTitle:"Persetujuan rencana",

@@ -22,6 +22,7 @@ ACCOUNT_STATUS_CODES = {401, 402}
 SERVICE_DOWN_CODES = {"PROVIDER_ACCOUNT_BLOCKED", "PROVIDER_QUOTA_EXHAUSTED", "PROVIDER_UNAVAILABLE"}
 # After an account refusal the client sends nothing for this long, then lets one call through as the probe.
 BREAKER_SECONDS = 120.0
+TRANSPORT_HEADERS = frozenset({"content-encoding", "content-length", "transfer-encoding"})
 KEY_STATUS_TTL_SECONDS = 60.0
 logger = logging.getLogger("market_ai_orc")
 
@@ -252,7 +253,10 @@ class OpenRouterClient:
                 if time.monotonic() > deadline:
                     _log("ai_provider_call_deadline", seconds=seconds)
                     raise httpx.ReadTimeout(f"no complete response within {seconds:g} s")
-            return httpx.Response(response.status_code, headers=response.headers, content=b"".join(chunks),
+            # M168: the bytes are already decoded, so the headers that describe the transport (compression, length)
+            # are dropped; kept, they made the new response decode the body a second time (DecodingError)
+            headers = [(k, v) for k, v in response.headers.multi_items() if k.lower() not in TRANSPORT_HEADERS]
+            return httpx.Response(response.status_code, headers=headers, content=b"".join(chunks),
                                   request=response.request)
 
     def _create(self, payload: dict[str, Any], *, timeout: float | None, attempts: int | None) -> dict[str, Any]:
@@ -263,6 +267,11 @@ class OpenRouterClient:
                 response = self._post_within(payload, timeout)
             except httpx.TimeoutException:
                 last_error = ProviderError("openrouter request timed out", code="PROVIDER_TIMEOUT")
+            except httpx.DecodingError as exc:
+                # M168: a body that cannot be decoded is the provider's malformed answer, not retried (tokens may
+                # already be spent) and never an exception that ends the run as INTERNAL_ERROR
+                raise ProviderError("openrouter returned a body that cannot be decoded",
+                                    code="PROVIDER_MALFORMED_RESPONSE") from exc
             except httpx.NetworkError as exc:
                 last_error = ProviderError(
                     f"openrouter network error: {type(exc).__name__}", code="PROVIDER_NETWORK_ERROR"

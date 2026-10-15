@@ -61,3 +61,48 @@ def test_declared_units_and_helper_tables_are_not_warned(plain) -> None:
     assert not [w for w in body["warnings"] if w["code"] == "UNIT_UNDECLARED"], body["warnings"]
     ytd = next(o for o in body["outputs"] if o["name"] == "ytd")
     assert ytd["units"] == {"return_pct": "PERCENT", "return_decimal": "FRACTION"}
+
+
+# M167 (go 2026-10-15, EXEC-IMPL-1016 Fase 1): a decimal column is warned by its values too, at release, with only the
+# repairs the answer's UNITS check accepts (edge_b90899…: range_before 0.034 released without a unit)
+@pytest.mark.parametrize("values, warned", [
+    ([0.034, -0.012, None], True), ([0.5, 1.2], True),
+    ([2.7, 0.4], False), ([1.0, 0.0, 1.0], False), ([float("nan"), None], False), ([1500.0, 1510.5], False)])
+def test_a_decimal_column_is_judged_by_its_values(values, warned) -> None:
+    import pyarrow as pa
+
+    S._WARNINGS.clear()
+    S._unit_hints("t", pa.table({"range_before": pa.array(values, pa.float64())}), {})
+    assert bool([w for w in S._WARNINGS if w["code"] == "UNIT_UNDECLARED"]) is warned
+    S._WARNINGS.clear()
+    S._unit_hints("t", pa.table({"range_before": pa.array(values, pa.float64())}), {"range_before": "FRACTION"})
+    assert not S._WARNINGS
+
+
+def test_the_warning_offers_only_repairs_the_answer_accepts_and_is_never_cut() -> None:
+    import pyarrow as pa
+
+    S._WARNINGS.clear()
+    columns = {f"a_rather_long_column_name_{i}": [0.03, 0.05] for i in range(12)}
+    S._unit_hints("n" * 64, pa.table(columns), {})
+    message = S._WARNINGS[-1]["message"]
+    assert len(message) <= S.WARNING_CHARS and message.endswith("is refused in the answer.")
+    assert "units={'a_rather_long_column_name_0': 'FRACTION'}" in message and "|dec or |x" in message
+    assert "|pct if" not in message  # a percent format is not offered as a repair
+    S._WARNINGS.clear()
+
+
+def test_a_json_number_is_judged_like_a_column() -> None:
+    S._WARNINGS.clear()
+    S._warn_units("JSON 'j'", [], {"spread": [0.021]})
+    assert "spread (0.021)" in S._WARNINGS[-1]["message"]
+    S._WARNINGS.clear()
+
+
+@requires_root
+def test_emit_json_warns_about_an_undeclared_decimal_field(plain) -> None:
+    body = run(plain, "emit_json('ringkas', {'spread': 0.021, 'hari': 12, 'harga': 1510.5}, definition={})\n"
+                      "emit_json('ok', {'spread': 0.021}, units={'spread': 'FRACTION'}, definition={})")
+    assert body["status"] == "OK", body
+    warned = [w["message"] for w in body["warnings"] if w["code"] == "UNIT_UNDECLARED"]
+    assert len(warned) == 1 and "JSON 'ringkas'" in warned[0] and "hari" not in warned[0]

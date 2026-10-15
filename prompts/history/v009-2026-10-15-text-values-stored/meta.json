@@ -1,0 +1,10 @@
+{
+ "version": 9,
+ "date": "2026-10-15",
+ "name": "text-values-stored",
+ "decision": "user 2026-10-15: \"setiap WHERE = '' maka harus wajib menggunakan value dari get dimension value, or else rejected. Rule ini AI harus tahu before hand\"; \"O1 masukan exec\"; go \"Ok jalankan\" (EXEC-IMPL-1016 Fase 1)",
+ "change": "DATA NEED: every text value in a scope is a stored value (categories from column_values or get_dimension_values; entity codes the user wrote typed as written, never checked with get_dimension_values; a name looked up in its reference table first, ask when it matches several codes); replaces 'take exact values from get_dimension_values and never type a member list yourself' (O1 early, M164)",
+ "prompt_chars": 39130,
+ "prompt_sha256": "d2930510576d49096c7e7b0952d1ffb0f8fd543fe2b3b19f82e4b9ee82a74e56",
+ "schema_sha256": "48bceaa503bc5008b5d949b461b36c7c322017f50354b2138f48c5e02d2b1a03"
+}
