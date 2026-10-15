@@ -34,6 +34,15 @@ MAX_CANDIDATES = 8
 ENTITY_DOMAIN_MAX = 20_000
 # aliases that are a whole name: searched in the Governor, not carried in the contract
 NAME_ALIASES = frozenset({"NAME", "SHORT_NAME"})
+# a reviewed alias outranks the derived ones on the same words (initials shared by two companies stay ambiguous until
+# a reviewed row says which one people mean)
+CURATED_ALIASES = frozenset({"MANUAL", "FORMER_CODE"})
+
+
+def ranked(codes: dict[str, str]) -> dict[str, str]:
+    """The codes an alias names, curated ones only when there are any."""
+    curated = {code: kind for code, kind in codes.items() if kind in CURATED_ALIASES}
+    return curated or codes
 # a legal form or share class around a company name, not part of what people call it (Indonesian and English forms)
 LEGAL_FORM_RE = re.compile(r"^\s*PT\.?\s+|\s+Tbk\.?\s*$|\([^)]*\)|\bClass\s+[A-Z]\b|\bTbk\b", re.IGNORECASE)
 WORD_RE = re.compile(r"[^\W\d_][\w'.]*", re.UNICODE)
@@ -101,7 +110,7 @@ class Domain:
         stay in the Governor (search-values), so the contract stays small."""
         out: dict[str, Any] = {"values": self.values, "source": self.source, "complete": self.complete,
                                "kind": self.kind}
-        short = {alias: sorted(codes) for alias, codes in self.aliases.items()
+        short = {alias: sorted(ranked(codes)) for alias, codes in self.aliases.items()
                  if any(kind not in NAME_ALIASES for kind in codes.values())}
         if short:
             out["aliases"] = short
@@ -131,7 +140,7 @@ class Dictionary:
         for term in terms[:MAX_TERMS]:
             key = fold(term)
             exact = folded_values.get(key, [])
-            named = domain.aliases.get(key, {})
+            named = ranked(domain.aliases.get(key, {}))
             alias = [{"code": code, "name": domain.names.get(code), "alias_type": kind}
                      for code, kind in sorted(named.items())]
             candidates: list[dict[str, Any]] = []

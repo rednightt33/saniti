@@ -175,10 +175,30 @@ def test_initials_shared_by_two_entities_are_ambiguous() -> None:
 
 
 def test_two_codes_behind_one_alias_are_returned_as_candidates() -> None:
-    curated = [{"table_name": "Universe", "column_name": "Ticker", "code": "BCAP", "alias": "BCA",
-                "alias_type": "MANUAL"}]
-    got = search(build(fake(aliases=curated)), "Price", "ticker", "BCA")
+    curated = [{"table_name": "Universe", "column_name": "Ticker", "code": code, "alias": "Bank Asia",
+                "alias_type": "MANUAL"} for code in ("BBCA", "BCAP")]
+    got = search(build(fake(aliases=curated)), "Price", "ticker", "bank asia")
     assert not got["found"] and got["ambiguous"] and {a["code"] for a in got["alias"]} == {"BBCA", "BCAP"}
+
+
+def test_a_curated_alias_outranks_shared_initials() -> None:
+    """Live 2026-10-15: "BRI" is the initials of Bank Rakyat Indonesia (BBRI) and of Bank Raya Indonesia (AGRO); a
+    reviewed MANUAL row decides, the derived initials alone stay ambiguous."""
+    rows = STATIC["Universe"]["rows"] + [{"Ticker": "AGRO", "Company Name": "PT Bank Raya Indonesia Tbk",
+                                          "Sector": "Finance"}]
+    original = STATIC["Universe"]["rows"]
+    STATIC["Universe"]["rows"] = rows
+    try:
+        shared = search(build(fake()), "Price", "ticker", "BRI")
+        assert not shared["found"] and shared["ambiguous"] and {a["code"] for a in shared["alias"]} == {"AGRO", "BBRI"}
+        curated = [{"table_name": "Universe", "column_name": "Ticker", "code": "BBRI", "alias": "BRI",
+                    "alias_type": "MANUAL"}]
+        dictionary = build(fake(aliases=curated))
+        got = search(dictionary, "Price", "ticker", "BRI")
+        assert got["found"] and got["value"] == "BBRI" and [a["code"] for a in got["alias"]] == ["BBRI"]
+        assert dictionary.domain("Price", "ticker").contract()["aliases"]["bri"] == ["BBRI"]
+    finally:
+        STATIC["Universe"]["rows"] = original
 
 
 def test_a_former_name_from_the_history_table_is_an_alias() -> None:
