@@ -2027,7 +2027,7 @@ tuntas (dieksekusi dan diverifikasi, atau diputuskan tidak dikerjakan).
 
 | # | Item | Status |
 |---|---|---|
-| O1 | `get_dimension_values` dipakai untuk kode saham (EXEC-M164) | akar masalah terbukti; usulan menunggu go |
+| O1 | `get_dimension_values` dan aturan nilai teks tersimpan (EXEC-M164) | penegakan sebagian sudah ada (P14); penyelarasan tipe dan aturan di awal menunggu go; peringatan satuan saat rilis disetujui (M167) |
 | O2 | Pertanyaan "Cari saja …" masuk kelas INSIGHT | akar masalah terbukti; usulan menunggu keputusan |
 | O3 | Penolakan `INSIGHT_SOURCE_NOT_OPENED` | akar masalah terbukti; ikut O2 |
 | O4 | Kalender MSCI disusun ulang dari ingatan | akar masalah terbukti: cara tanggal didapat (riset web, tanpa tabel); tanggal salah (ERRORS M166); usulan menunggu keputusan |
@@ -2052,6 +2052,31 @@ masalahnya adalah bagaimana tanggal tersebut didapatkan at the first place?".
   lookup/description, not really a statistical pattern") dan tidak menjalankan uji — jawabannya deskriptif.
 - O3 (disetujui untuk dirumuskan, tidak dieksekusi): gerbang "buka hasil lama" terikat pada giliran yang menjelaskan hasil
   lama, catatan gabungan per giliran yang menyatakan aturan itu di awal.
+**Putaran 4 (user 2026-10-15):** "setiap WHERE = '' maka harus wajib menggunakan value dari get dimension value, or else
+rejected. Rule ini AI harus tahu before hand. Saat ini sudah? Kode saham harusnya kategori juga ... lets align dulu tipe
+data yang bisa dipakai di get dimension value"; "peringatan langsung saat tabel dirilis (emit_table) untuk kolom desimal
+tanpa satuan ... --> approved"; "AI harus mengulang? ... cek deh kodenya"; "can I confirm bahwa mode 5 itu di test ...
+then kok bisa lama sekali?".
+- Penegakan yang sudah ada (P14, 2026-10-01, sandbox `resolve_text_values`): nilai saringan teks dicocokkan ke ejaan
+  tersimpan tanpa peduli huruf besar/kecil; nilai yang tidak ada ditolak `VALUE_NOT_FOUND` dengan daftar nilai tersimpan,
+  sebelum data dibaca. Hanya untuk kolom yang daftar nilainya lengkap: CHECK constraint, atau kolom kategori tabel statis
+  (≤ 1.024 nilai). Celah: kode saham (kolom entitas) hanya dijadikan huruf besar, tidak dicek ada; kolom teks tabel
+  bertanggal tanpa CHECK tidak dicek. AI belum diberi tahu di awal bahwa nilai di luar daftar ditolak.
+- Tipe yang dilayani `get_dimension_values` sekarang: kolom teks (text/varchar/char), `group_by_allowed`, di tabel statis
+  (tanpa kolom waktu), bukan kolom entitas, ≤ 2.000 nilai berbeda (≤ 200 dikembalikan, saring dengan `match`). Kode saham
+  di `IDX_Stock_Universe` adalah teks tetapi kolom entitas, jadi ditolak.
+- Usulan penyelarasan (menunggu go): kolom entitas tabel referensi statis (kode saham, kode broker) ikut dilayani dengan
+  `match` atau daftar nilai yang dicek (kembali: ada / tidak ada); validator mengecek kode entitas di scope terhadap tabel
+  referensinya (diturunkan dari relasi katalog) dan menolak yang tidak ada; aturan "nilai teks harus dari daftar tersimpan,
+  atau ditolak" ditulis di prompt dan deskripsi alat; kolom teks tabel bertanggal mendapat daftar nilai dari CHECK atau
+  katalog, selain itu ditandai.
+- Disetujui: peringatan saat `emit_table` untuk kolom desimal tanpa satuan (ERRORS M167). Temuan: gerbang UNITS menolak
+  angka yang sudah ditulis `|pct:1` (kolom dirilis tanpa `units=`), padahal pesannya menawarkan `|pct` sebagai
+  perbaikan; AI lalu menjalankan ulang kode dan menulis ulang jawaban (57 dtk). Pesan disesuaikan dengan cek (go).
+- Mode INSIGHT di `edge_2f7523a7…`: `explore_mode="insight"` aktif, tetapi tidak ada satu pun `explore_test` dijalankan
+  (0 di log dan di kode iterasi 2); jawabannya tabel deskriptif. Waktu berpikir panggilan pertama (17 bagian penalaran,
+  ±66 ribu karakter, kira-kira menurut topik): cakupan dan tanggal efektif ±40%, arti pertanyaan (bruto/net, tipe
+  investor) ±35%, menyusun spesifikasi data dan kode di kepala ±20%, memutuskan perlu uji atau tidak ±6%.
 - O4: ya. Tanggal didapat lewat 6 panggilan `research_web` di `edge_ca6cf5a4…` (16 sumber: idx.co.id 5, bisnis.com 3,
   katadata 2, CNBC, Kontan, IDX Channel, OJK, Bank Dunia, msci.com 1); model menyalinnya ke teks jawaban, tanpa tabel
   dan tanpa membedakan pengumuman, penutupan implementasi dan hari efektif; media menulis "efektif" dengan arti berbeda.
