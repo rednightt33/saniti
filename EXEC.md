@@ -2019,7 +2019,7 @@ OpenRouter $0,37 dari batas $41 (satu run bisa menghabiskannya); dicek setelah s
 
 - **U5 pemilih model di ponsel (disetujui 2026-10-15; Jalur ikut dipindah, user: "ya dipindah"; belum dieksekusi).** User 2026-10-15 (dua tangkapan layar ponsel): "retain existing design untuk model selection; pindahkan reasoning selection ke kotak A; untuk size dan lokasi bs disesuaikan dengan nomor (1)". Dibaca sebagai: kartu model (logo, nama, harga input/output, id) tetap; pilihan level berpikir (Rendah/Tinggi/Maks) pindah dari baris terpisah di bawah daftar ke ruang kosong di kanan setiap kartu model ("kotak A"), hanya aktif pada kartu model yang dipilih; panel pemilih menempati area kosong percakapan di atas kolom tanya (area "1"), bukan menutupi seluruh layar.
 
-### EXEC-IMPL-1016: rencana implementasi EXEC-OPEN-1015, UI-1015E, EDGE-CTX dan UI-1015B (Fase 0–1 selesai 2026-10-15; Fase 2–5 menunggu go)
+### EXEC-IMPL-1016: rencana implementasi EXEC-OPEN-1015, UI-1015E, EDGE-CTX dan UI-1015B (Fase 0–1 selesai 2026-10-15; go Fase 2–5 2026-10-15)
 
 **Persetujuan user 2026-10-15:** rencana diminta ("Ok, pls create implementation plan. Inspect current architecture to
 ensure plan take that into account."), saldo diisi ("Done di isi"), lalu "Ok jalankan" untuk Fase 0 + Fase 1. Fase 2–5
@@ -2049,6 +2049,12 @@ masing-masing menunggu "go" sendiri.
   rollback orc yang benar untuk panggilan model adalah commit `1fbec6d` (deploy `ac4ea638`).
 - Saldo dibaca live: akun USD 85 total, terpakai 43,73; kunci orc batas USD 42, terpakai 41,09 (sisa USD 0,91).
 - Batas kunci perlu dinaikkan user sebelum Fase 2 (benchmark router dua kali dan cek live).
+
+**Keputusan user 2026-10-15 sesudah Fase 1:** "Skip M169"; "Next lanjutkan tanpa minta saya naikan limit. Hanya beritahu
+ketika ada cost rejection. Ini membuat progress lama karna kamu harus berhenti terus ditengah jalan". Artinya: go untuk
+Fase 2–5 berturut-turut. Pekerjaan berbayar (benchmark router, cek live) dijalankan tanpa minta izin batas kunci, dan
+user diberi tahu hanya bila provider menolak karena biaya. Berhenti hanya untuk keputusan yang benar-benar milik user
+(mis. celah Part A di Fase 3).
 
 **Fase 1 (dibangun 2026-10-15):**
 - 1.1 M167:
