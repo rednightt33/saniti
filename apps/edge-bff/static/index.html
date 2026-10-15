@@ -9502,12 +9502,20 @@ html:not(.dark) .monitor-layout .user-message .message-attachments span {color:#
 .edge-model-trigger:hover,.edge-model-trigger[aria-expanded="true"] {background:var(--accent);}
 .edge-model-trigger img {width:17px;height:17px;object-fit:contain;}
 .edge-model-trigger .icon {width:13px;height:13px;}
-.edge-model-menu {position:absolute;bottom:calc(100% + 12px);left:0;width:min(380px,calc(100vw - 48px));padding:8px;background:var(--popover);color:var(--popover-foreground);border:0;border-radius:9px;box-shadow:0 6px 28px #00000026;z-index:30;}
+.edge-model-menu {position:absolute;bottom:calc(100% + 12px);left:0;width:min(420px,calc(100vw - 48px));padding:8px;background:var(--popover);color:var(--popover-foreground);border:0;border-radius:9px;box-shadow:0 6px 28px #00000026;z-index:30;}
 .edge-model-head {display:flex;justify-content:space-between;align-items:center;padding:7px 8px 12px;font-size:12px;}
 .edge-model-head small {font-size:10px;color:var(--muted-foreground);}
 .edge-model-option {display:block;width:100%;text-align:left;padding:12px;border:0;border-radius:6px;background:transparent;color:inherit;cursor:pointer;font-family:Inter,"Segoe UI",sans-serif;}
 .edge-model-option:hover {background:var(--accent);}
-.edge-model-option[aria-pressed="true"] {background:var(--secondary);box-shadow:0 2px 9px #00000012;}
+/* EXEC-UI-1015 U5: a card is the model button plus, when chosen, its settings in the right-hand space ("kotak A") */
+.edge-model-card {display:grid;grid-template-columns:minmax(0,1fr);align-items:stretch;border-radius:6px;}
+.edge-model-card.chosen {grid-template-columns:minmax(0,1fr) minmax(128px,42%);background:var(--secondary);box-shadow:0 2px 9px #00000012;}
+.edge-model-card.chosen>.edge-model-option:hover {background:transparent;}
+.edge-model-controls {display:flex;flex-direction:column;justify-content:center;gap:8px;padding:10px 10px 10px 0;min-width:0;}
+.edge-model-controls .edge-model-levels {padding:0;gap:4px;}
+.edge-model-controls .edge-model-levels small {font-size:9px;}
+.edge-model-controls .edge-model-levels button {padding:5px 9px;font-size:11px;background:var(--background);}
+.edge-model-controls .edge-model-levels button[aria-checked="true"] {background:var(--primary);color:var(--primary-foreground);}
 .edge-model-brand {display:flex;align-items:center;gap:9px;}
 .edge-model-brand img {width:27px;height:27px;object-fit:contain;}
 .edge-model-brand small {display:block;color:var(--muted-foreground);font-size:10px;margin-bottom:3px;}
@@ -9517,7 +9525,7 @@ html:not(.dark) .monitor-layout .user-message .message-attachments span {color:#
 .edge-model-stats b {font-size:12px;font-weight:500;font-variant-numeric:tabular-nums;}
 .edge-model-id {display:block;margin-top:8px;font-size:10px;color:var(--muted-foreground);overflow-wrap:anywhere;}
 .edge-model-options {max-height:min(444px,calc(100dvh - 220px));overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;}
-.edge-model-options>.edge-model-option {height:148px;min-height:148px;}
+.edge-model-options>.edge-model-card {min-height:148px;}
 .edge-model-initial {display:inline-grid;place-items:center;flex:none;width:27px;height:27px;border-radius:5px;background:var(--secondary);color:var(--foreground);font:600 13px Inter,"Segoe UI",sans-serif;}
 .edge-model-trigger>.edge-model-initial {width:18px;height:18px;font-size:10px;}
 .edge-model-logo {display:inline-block;flex:none;width:27px;height:27px;object-fit:contain;}
@@ -9689,8 +9697,13 @@ html.dark .edge-flow-done{background:#1e9a59;}
 .monitor-layout .result>.content-block{border-top:0;padding:0;margin-top:29px;}
 .monitor-layout .result>.result-metadata{margin-bottom:0;}
 
-/* Centered reading column: replies and composer share a responsive maximum width. */
-.monitor-layout .research-workspace{--conversation-max-width:1120px;}
+/* Centered reading column: replies and composer share a responsive maximum width.
+   EXEC-UI-1015 U3 (user 2026-10-15, "seperti chat GPT"): about 768 px whether the side panels are open or closed;
+   a wide table scrolls sideways inside the column and opens wide with its expand button. */
+.monitor-layout .research-workspace{--conversation-max-width:768px;}
+/* EXEC-UI-1015 U2: one gap between the last message and the composer (its 12px top margin plus 6px), not 22+32+12 */
+.monitor-layout .research-scroll{padding-bottom:6px;}
+.monitor-layout .research-exchange:last-of-type,.monitor-layout .research-exchange:last-of-type .edge-inline-progress{margin-bottom:0;}
 .monitor-layout .research-exchange,.monitor-layout .research-empty,.monitor-layout .research-loading{width:100%;max-width:var(--conversation-max-width);margin-left:auto;margin-right:auto;}
 .monitor-layout .composer{width:calc(100% - var(--conversation-left) - var(--conversation-right));max-width:var(--conversation-max-width);margin-left:auto;margin-right:auto;}
 .monitor-layout .jump-latest{right:max(var(--conversation-right),calc((100% - var(--conversation-max-width))/2));}
@@ -9760,6 +9773,11 @@ html.dark .edge-flow-done{background:#1e9a59;}
 .edge-md-table-frame>.edge-md-table {margin:0;}
 .edge-table-expand {position:absolute;top:0;right:0;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--border);border-radius:6px;background:var(--background);color:var(--muted-foreground);cursor:pointer;}
 .edge-table-expand:hover,.edge-table-expand:focus-visible {color:var(--foreground);background:var(--secondary);}
+/* EXEC-UI-1015 U4: rows past the first ten fold behind one button below the table; print shows them all */
+.edge-md-table .data-table tr.edge-row-folded {display:none;}
+.edge-table-more {display:inline-flex;align-items:center;margin-top:6px;padding:5px 10px;border:1px solid var(--border);border-radius:999px;background:var(--background);color:var(--muted-foreground);font:500 12px Inter,"Segoe UI",sans-serif;cursor:pointer;}
+.edge-table-more:hover,.edge-table-more:focus-visible {color:var(--foreground);background:var(--secondary);}
+@media print {.edge-md-table .data-table tr.edge-row-folded {display:table-row!important;}.edge-table-more {display:none!important;}}
 .dialog-backdrop:has(.edge-table-dialog) {z-index:200;} /* above the top bar (120) and the side panels */
 .dialog.edge-table-dialog {width:min(1440px,calc(100vw - 48px));max-height:calc(100vh - 48px);}
 .edge-table-dialog-body {flex:1;overflow:auto;margin:0;padding:12px 18px 18px;}
@@ -9998,9 +10016,14 @@ html.dark .monitor-layout .details-panel>.tabs button:focus-visible{outline-colo
  .composer [title="Data Scope is not available yet"] {display:none;}
  .composer .edge-model-name,.composer .edge-model-level,.composer .edge-model-trigger>.icon {display:none;}
  .composer .edge-model-trigger {padding:7px;}
- /* V5 (user 2026-10-14, iPhone: the menu ran off the top and under the left rail): a bottom sheet over everything */
- .composer .edge-model-menu {position:fixed;left:0;right:0;bottom:0;top:auto;width:auto;max-height:min(72dvh,560px);overflow-y:auto;overscroll-behavior:contain;
-   border-radius:16px 16px 0 0;padding:10px 12px calc(12px + env(safe-area-inset-bottom));z-index:260;box-shadow:0 -8px 32px #00000033;}
+ /* V5 (user 2026-10-14, iPhone: the menu ran off the top and under the left rail) and EXEC-UI-1015 U5 (user 2026-10-15,
+    area "1"): a panel in the empty conversation space right above the composer, as wide as the composer, scrolling inside
+    itself, never over the header or under the left rail */
+ .composer .edge-model-menu {position:fixed;left:var(--edge-composer-left,10px);width:var(--edge-composer-width,calc(100vw - 20px));right:auto;
+   bottom:calc(var(--edge-composer-height,98px) + 14px + env(safe-area-inset-bottom));top:auto;box-sizing:border-box;
+   max-height:calc(100dvh - var(--edge-composer-height,98px) - var(--edge-topbar-height,56px) - 28px - env(safe-area-inset-bottom));overflow-y:auto;overscroll-behavior:contain;
+   border-radius:16px;padding:10px 12px;z-index:260;box-shadow:0 8px 32px #00000033;}
+ .composer .edge-model-options {max-height:none;overflow:visible;}
  .composer .mode-anchor>.btn {height:32px;padding:0 10px;border-radius:999px;background:var(--secondary);font-size:13px;}
  .composer>div:last-child>div>.icon-btn {width:32px;height:32px;min-width:32px;border-radius:999px;order:-1;}
  .composer>div:last-child>.btn.primary {width:36px;height:36px;min-width:36px;padding:0;border-radius:999px;justify-content:center;flex:none;}
@@ -10137,11 +10160,14 @@ function transferRefs(node) {
   if(node.tagName==='SELECT'&&node._props?.value!=null)node.value=String(node._props.value);
   else if(node.tagName==='SELECT'&&node._props?.defaultValue!=null&&!node._connectedDefaultApplied){node.value=String(node._props.defaultValue);node._connectedDefaultApplied=true;}
 }
+const readerStateAttributes=new Set(['open']);
 function patchNode(old,node) {
   if(old.nodeType!==node.nodeType||old.nodeName!==node.nodeName||old._key!==node._key){old.replaceWith(node);transferRefs(node);return node;}
   if(old.nodeType===Node.TEXT_NODE){if(old.data!==node.data)old.data=node.data;return old;}
   if(old.nodeType!==Node.ELEMENT_NODE)return old;
-  for(const attr of Array.from(old.attributes))if(!node.hasAttribute(attr.name)&&!(attr.name==='style'&&!Object.hasOwn(old._props||{},'style')&&!Object.hasOwn(node._props||{},'style')))old.removeAttribute(attr.name);
+  // M156: an attribute the browser toggles for the reader (open on <details>/<dialog>) belongs to the reader unless the
+  // render declares it; a render that does not mention it must not undo the reader's click
+  for(const attr of Array.from(old.attributes))if(!node.hasAttribute(attr.name)&&!(attr.name==='style'&&!Object.hasOwn(old._props||{},'style')&&!Object.hasOwn(node._props||{},'style'))&&!(readerStateAttributes.has(attr.name)&&!Object.hasOwn(node._props||{},attr.name)))old.removeAttribute(attr.name);
   for(const attr of Array.from(node.attributes))if(old.getAttribute(attr.name)!==attr.value)old.setAttribute(attr.name,attr.value);
   for(const [event,listener] of Object.entries(old._events||{}))old.removeEventListener(event,listener);
   old._events={};
@@ -10543,9 +10569,13 @@ function Monitor({ go }) {
     onLifecycle(viewRecord,"composer-size",()=>{
       const panel=composerPanelRef.current,workspace=panel?.closest(".research-workspace");
       if(!panel||!workspace)return;
-      const update=()=>workspace.style.setProperty("--edge-composer-height",panel.getBoundingClientRect().height+"px");
-      const observer=new ResizeObserver(update);observer.observe(panel);update();
-      return()=>observer.disconnect();
+      // EXEC-UI-1015 U5: the phone model menu lines up with the composer, so its place and width are shared too
+      const update=()=>{const box=panel.getBoundingClientRect();
+        workspace.style.setProperty("--edge-composer-height",box.height+"px");
+        workspace.style.setProperty("--edge-composer-left",box.left+"px");workspace.style.setProperty("--edge-composer-width",box.width+"px");};
+      const observer=new ResizeObserver(update);observer.observe(panel);observer.observe(workspace);update();
+      addEventListener("resize",update);
+      return()=>{observer.disconnect();removeEventListener("resize",update);};
     },[]);
     const fileInput = (viewRecord.refs.fileInput ??= { current: null });
     const shareRef = (viewRecord.refs.shareRef ??= { current: null });
@@ -10903,22 +10933,29 @@ function EdgeModelSelector(){
     open&&element("div",{className:"edge-model-menu",role:"dialog","aria-label":ui.modelTitle},
       element("div",{className:"edge-model-head"},element("strong",null,ui.modelHead),
         element("small",null,ui.modelPricesNote+(updated&&!Number.isNaN(updated.getTime())?" · "+ui.modelUpdated+" "+edgeModelTime.format(updated)+" WIB":""))),
-      element("div",{className:"edge-model-options"},data.models.map(option=>element("button",{key:option.model,type:"button",className:"edge-model-option","aria-pressed":option.model===choice.model,
-          onClick:()=>keepModelChoice({model:option.model,reasoning_level:option.model===choice.model?choice.reasoning_level:edgeDefaultLevel(option)})},
-        element("span",{className:"edge-model-brand"},element(EdgeModelLogo,{option}),
-          element("span",null,element("small",null,option.model.split("/")[0]),element("strong",null,option.label))),
-        element("span",{className:"edge-model-stats"},
-          element("span",null,element("small",null,ui.modelInput),element("b",null,edgeModelPrice(option.input_per_million))),
-          element("span",null,element("small",null,ui.modelOutput),element("b",null,edgeModelPrice(option.output_per_million)))),
-        element("span",{className:"edge-model-id"},option.model)))),
-      element("div",{className:"edge-model-levels",role:"radiogroup","aria-label":ui.modelLevel},
-        element("small",null,ui.modelLevel),
-        current.reasoning_levels.map(level=>element("button",{key:level,type:"button",role:"radio","aria-checked":level===choice.reasoning_level,
-          onClick:()=>keepModelChoice({model:current.model,reasoning_level:level})},levelName(level)))),
-      data.lane_selection&&element("div",{className:"edge-model-levels edge-model-lanes",role:"radiogroup","aria-label":ui.lane},
-        element("small",null,ui.lane+" \u00B7 "+ui.laneNote),
-        ["standard","fast"].map(lane=>element("button",{key:lane,type:"button",role:"radio","aria-checked":lane===(choice.lane||"standard"),
-          onClick:()=>keepLane(lane)},ui.lanes[lane])))));
+      // EXEC-UI-1015 U5 (user 2026-10-15): the cards keep their design; the thinking level and the lane sit in the
+      // right-hand space of the chosen card ("kotak A"), so the choice and its settings read as one
+      element("div",{className:"edge-model-options"},data.models.map(option=>{
+        const chosen=option.model===choice.model;
+        return element("div",{key:option.model,className:`edge-model-card${chosen?" chosen":""}`},
+          element("button",{type:"button",className:"edge-model-option","aria-pressed":chosen,
+              onClick:()=>keepModelChoice({model:option.model,reasoning_level:chosen?choice.reasoning_level:edgeDefaultLevel(option)})},
+            element("span",{className:"edge-model-brand"},element(EdgeModelLogo,{option}),
+              element("span",null,element("small",null,option.model.split("/")[0]),element("strong",null,option.label))),
+            element("span",{className:"edge-model-stats"},
+              element("span",null,element("small",null,ui.modelInput),element("b",null,edgeModelPrice(option.input_per_million))),
+              element("span",null,element("small",null,ui.modelOutput),element("b",null,edgeModelPrice(option.output_per_million)))),
+            element("span",{className:"edge-model-id"},option.model)),
+          chosen&&element("div",{className:"edge-model-controls"},
+            element("div",{className:"edge-model-levels",role:"radiogroup","aria-label":ui.modelLevel},
+              element("small",null,ui.modelLevel),
+              option.reasoning_levels.map(level=>element("button",{key:level,type:"button",role:"radio","aria-checked":level===choice.reasoning_level,
+                onClick:()=>keepModelChoice({model:option.model,reasoning_level:level})},levelName(level)))),
+            data.lane_selection&&element("div",{className:"edge-model-levels edge-model-lanes",role:"radiogroup","aria-label":ui.lane,title:ui.laneNote},
+              element("small",null,ui.lane),
+              ["standard","fast"].map(lane=>element("button",{key:lane,type:"button",role:"radio","aria-checked":lane===(choice.lane||"standard"),
+                onClick:()=>keepLane(lane)},ui.lanes[lane])))));
+      }))));
 }
 function ResearchScrollMarker({ scrollRef, conversationId }) {
     const view = currentView, markerRef = cachedValue(view, "marker", () => ({ current: null }), []);
@@ -11257,6 +11294,7 @@ function TableDialog({spec}) {
     className:"edge-table-dialog", returnFocusRef:spec.returnFocusRef},
     element("div", {className:"edge-table-dialog-body edge-md-table"}, element(MdTable, {...spec.table, plain:true})));
 }
+const TABLE_VISIBLE_ROWS = 10;
 function MdTable({head, align, rows, numeric, ctx, title = "", plain = false, initialSort = null}) {
   const view = currentView;
   const sort = initialValue(view, "sort", () => initialSort ?? ({column:null, dir:null}));
@@ -11287,18 +11325,27 @@ function MdTable({head, align, rows, numeric, ctx, title = "", plain = false, in
         element("span", null, mdInline(value, ctx)),
         element("span", {className:"edge-sort-icon"}, element(Icon, {name:active ? (sort.dir === "descending" ? "arrow-down" : "arrow-up") : "sort-arrows", size:13}))));
   };
+  // EXEC-UI-1015 U4 (user 2026-10-15): an answer table shows its first rows in the current order, the rest fold behind
+  // a button; a total row stays visible, sorting reorders every row, and the wide dialog and print show them all
+  const folds = !plain && free.length > TABLE_VISIBLE_ROWS;
+  const showAll = initialValue(view, "showAll", () => false);
+  const folded = item => folds && !showAll && !pinned.includes(item) && ordered.indexOf(item) >= TABLE_VISIBLE_ROWS;
   const table = () => element("table", {className:"data-table"},
     element("thead", null, element("tr", null, head.map((value, column) => header(value, column)))),
-    element("tbody", null, [...ordered, ...pinned].map(item => element("tr", {key:`r${item.index}`},
+    element("tbody", null, [...ordered, ...pinned].map(item => element("tr", {key:`r${item.index}`, className:folded(item) ? "edge-row-folded" : undefined},
       head.map((_, column) => element("td", cellProps(column), mdInline(item.row[column] ?? "", ctx)))))));
   if (plain) return table();
   const ui = edgeUi();
+  const hidden = free.length - TABLE_VISIBLE_ROWS;
   const open = () => openTableDialog({title:title || ui.tableTitle, description:ui.tableRows.replace("{n}", rows.length),
     returnFocusRef:expandRef, table:{head, align, rows, numeric, ctx, initialSort:sort}});
   return element("div", {className:"edge-md-table-frame"},
     element("button", {type:"button", className:"edge-table-expand", ref:expandRef, title:ui.tableExpand,
       "aria-label":ui.tableExpand, onClick:open}, element(Icon, {name:"maximize", size:14})),
-    element("div", {className:"edge-md-table"}, table()));
+    element("div", {className:"edge-md-table"}, table()),
+    folds && element("button", {type:"button", className:"edge-table-more", "aria-expanded":showAll,
+      onClick:() => updateValue(view, "showAll", !showAll)},
+      showAll ? ui.tableFewerRows : ui.tableMoreRows.replace("{n}", hidden)));
 }
 
 function Markdown({text, claims, className = "", fast = false}) {

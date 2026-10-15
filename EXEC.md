@@ -202,7 +202,10 @@ Urutan sisa:
 
 Tumpang tindih: U1, U2, U3, U4 (bagian EDGE) dan U5 mengubah `static/index.html` → satu putaran EDGE; U4 (orc) dan PLAN 14 sama-sama di `orchestrator.py`/alat → urut, bukan paralel; UI-1015B menyentuh `edge-client.js` status run → sesudah putaran EDGE.
 
-### EXEC-IMPL-1015: rencana implementasi butir yang disetujui (2026-10-15; menunggu "go")
+### EXEC-IMPL-1015: rencana implementasi butir yang disetujui (2026-10-15; go 2026-10-15, berjalan)
+
+Go: user 2026-10-15 "Ok jalankan" atas checklist rinci di bawah. A/B berbayar Fase 4.19 tetap menunggu perintah
+terpisah.
 
 User 2026-10-15: "Sekarang inspect architecture, align dengan approved exec. Buat implementation plan. Describe before after kira2 end result arsitekturnya akan seperti apa."
 

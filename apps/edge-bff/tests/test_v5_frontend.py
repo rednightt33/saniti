@@ -1,6 +1,7 @@
 """EXEC-FASTLANE V5 (user 2026-10-14): dates in a fast-lane answer read "7 Oktober 2026", a month "September 2024"
-and a year "2020"; the model menu is a bottom sheet on a phone; a pinned response opened on a phone closes Details
-first; a question sent while reading higher up scrolls down to it."""
+and a year "2020"; a pinned response opened on a phone closes Details
+first; a question sent while reading higher up scrolls down to it. The phone model menu (a bottom sheet in V5) became
+a panel above the composer in EXEC-UI-1015 U5: tests/test_ui_1015.py."""
 import copy
 
 from test_answer_view import FIXTURES, article, fixture_server  # noqa: F401 (fixture)
@@ -41,26 +42,6 @@ def test_dates_in_a_fast_lane_answer_are_written_out_and_the_standard_lane_is_un
     saved(page, 2)
     standard = article(page).inner_text()
     assert 'Periode 2026-10-07 sampai 2024-09' in standard and '2.020' in standard
-
-
-def test_the_model_menu_is_a_bottom_sheet_above_the_rail_on_a_phone(fixture_server, browser_page):
-    origin, _ = fixture_server
-    page = browser_page
-    page.set_viewport_size({'width': 390, 'height': 700})
-    sign_in(page, origin)
-    trigger = page.locator('.edge-model-trigger:not([disabled])')
-    trigger.wait_for()
-    trigger.click()
-    menu = page.locator('.edge-model-menu')
-    menu.wait_for()
-    box = menu.bounding_box()
-    assert box['x'] <= 1 and box['width'] >= 389 and box['y'] >= 0 and abs(box['y'] + box['height'] - 700) <= 1
-    assert box['height'] <= 0.72 * 700 + 1
-    assert page.evaluate("() => { const m = document.querySelector('.edge-model-menu'); return getComputedStyle(m).overflowY === 'auto'; }")
-    # the menu, not the rail or the page, is what a tap at its left edge and at its top reaches
-    for x, y in ((6, box['y'] + 30), (box['width'] / 2, box['y'] + 8), (6, box['y'] + box['height'] - 20)):
-        assert page.evaluate("([x, y]) => !!document.elementFromPoint(x, y)?.closest('.edge-model-menu')", [x, y]), (x, y)
-    page.keyboard.press('Escape')
 
 
 def test_a_pinned_response_opened_on_a_phone_closes_details_and_shows_the_response(dummy_orc, browser_page):
