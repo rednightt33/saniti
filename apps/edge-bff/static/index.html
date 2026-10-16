@@ -9818,7 +9818,11 @@ html.dark .edge-flow-done{background:#1e9a59;}
  .edge-table-dialog-body {padding:8px 10px 16px;}
 }
 .edge-md-table .data-table {margin-top:0;font-size:.86rem;font-variant-numeric:tabular-nums;}
-.edge-md-table .data-table th {white-space:nowrap;letter-spacing:0;text-transform:none;font-size:.78rem;font-weight:600;}
+.edge-md-table .data-table th {white-space:normal;letter-spacing:0;text-transform:none;font-size:.78rem;font-weight:600;vertical-align:bottom;}
+/* EXEC-TABLE-ALIGN (user 2026-10-16, "angkanya kecil, tapi kolomnya lebar ... bisa di wrap saja?"): a long title wraps
+   between words within about fourteen characters, so the column is as wide as its values or its longest title word */
+.edge-md-table .data-table th .edge-sort-label {display:block;max-width:14ch;white-space:normal;overflow-wrap:normal;word-break:normal;}
+.edge-md-table .data-table th.num .edge-sort-label {text-align:right;margin-left:auto;}
 .edge-md-table .data-table th,.edge-md-table .data-table td {text-align:left;}
 .edge-md-table .data-table .num {text-align:right;white-space:nowrap;}
 /* EXEC-UI-1015D (user 2026-10-15, "seek best practice"): a data table as wide as its content (not stretched to the card),
@@ -9832,7 +9836,7 @@ html.dark .edge-flow-done{background:#1e9a59;}
 .edge-table-dialog-body .data-table td.edge-col-text {max-width:40ch;}
 @media (max-width:720px) {
  .edge-md-table .data-table th,.edge-md-table .data-table td {padding:6px 10px;}
- .edge-md-table .data-table th:first-child,.edge-md-table .data-table td:first-child {position:sticky;left:0;z-index:1;background:var(--card);box-shadow:1px 0 0 var(--border-soft);}
+ .edge-md-table .data-table th:first-child,.edge-md-table .data-table td:first-child {position:sticky;left:0;z-index:1;background:var(--card);}
  .edge-md-table .data-table th:first-child {background:var(--secondary);}
  html.dark .monitor-layout .result .edge-md-table .data-table td:first-child {background:#252c35;}
  html.dark .monitor-layout .result .edge-md-table .data-table th:first-child {background:#303844;}
@@ -9841,7 +9845,7 @@ html.dark .edge-flow-done{background:#1e9a59;}
 .edge-md-table .data-table th.edge-sortable {padding:0;}
 .edge-md-table .data-table th.edge-sortable:hover {background:color-mix(in srgb, var(--secondary), var(--foreground) 7%);}
 .edge-sort {all:unset;box-sizing:border-box;display:flex;align-items:center;gap:6px;width:100%;padding:10px 13px;cursor:pointer;font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;}
-.edge-md-table .data-table th.num .edge-sort {justify-content:flex-end;}
+.edge-md-table .data-table th.num .edge-sort {flex-direction:row-reverse;justify-content:flex-start;}  /* the title ends where its numbers end; the sort icon sits on its left */
 .edge-sort:focus-visible {outline:2px solid var(--ring, currentColor);outline-offset:-2px;}
 .edge-sort-icon {display:inline-flex;opacity:0;flex:none;}
 .edge-sort-icon .icon {margin:0;}
@@ -11272,6 +11276,8 @@ function mdInline(text, ctx) {
 }
 const MD_LIST = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
 const MD_RULE = /^\s*([-*_])(\s*\1){2,}\s*$/;
+// a date or a year as a label: "31 Mei 2024", "Mei 2024", "2024-05-31", "31/05/2024", "2019", "Q1 2024"
+const MD_DATE = /^(?:\d{1,2}\s+\p{L}{3,}\.?\s+\d{4}|\p{L}{3,}\.?\s+\d{4}|\d{4}-\d{2}(?:-\d{2})?|\d{1,2}[\/.]\d{1,2}[\/.]\d{2,4}|(?:19|20)\d{2}|Q[1-4]\s+\d{4}|\d{4}\s+Q[1-4]|\d{1,2}\s+\p{L}{3,}\.?)$/u;
 const MD_NUMERIC = /^[\s\d.,%+\-−–×x\[\];:()p=<>≥≤±$]*\d[\s\d.,%+\-−–×x\[\];:()p=<>≥≤±$]*$/;
 const MD_TABLE_SEP = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
 const mdCells = line => line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(cell => cell.trim());
@@ -11358,7 +11364,10 @@ function renderMarkdown(text, ctx = {}) {
       // a column's alignment as written; otherwise one alignment per column (Fase 5 QA 2026-10-09: "211" right and
       // "Rp 83,27 triliun" left in one column): figures right when every cell of the column is one, words left
       const figure = value => MD_NUMERIC.test(value) || (/\d/.test(value) && value.length <= 40 && value.trim().split(/\s+/).length <= 5);
-      const numeric = head.map((_, column) => { const values = rows.map(row => (row[column] ?? "").trim()).filter(Boolean); return values.length > 0 && values.every(figure); });
+      // EXEC-TABLE-ALIGN (user 2026-10-16, "seragamkan ... sesuai jenis teks"): a column of quantities (numbers,
+      // percents, amounts) is right-aligned with its title; text, codes, dates and years stay left. Decided from the
+      // cells, never from the alignment a writer typed, so every table reads the same way
+      const numeric = head.map((_, column) => { const values = rows.map(row => (row[column] ?? "").replace(/[*_`]/g, "").trim()).filter(Boolean); return values.length > 0 && values.every(figure) && !values.every(value => MD_DATE.test(value)); });
       ctx.tableCount = (ctx.tableCount || 0) + 1;
       // EXEC-IMPL-1016 Fase 4.2: a table Orc built from a table instruction can be attached to the next question
       const source = ctx.attach ? EdgeView.tableSource(ctx.tables, head, rows.length, ctx.usedTables || []) : null;
@@ -11448,15 +11457,15 @@ function MdTable({head, align, rows, numeric, ctx, title = "", plain = false, in
   const shortColumn = head.map((_, column) => numeric[column] || kinds[column] !== "text"
     || free.every(item => String(item.row[column] ?? "").replace(/[*_`]/g, "").trim().length <= TABLE_SHORT_CELL));
   const cellProps = (column, extra = {}) => {
-    const classes = [extra.className, !align[column] && numeric[column] ? "num" : null, shortColumn[column] ? "edge-col-short" : "edge-col-text"].filter(Boolean).join(" ");
-    return {...extra, className:classes, ...(align[column] ? {style:{textAlign:align[column]}} : {})};
+    const classes = [extra.className, numeric[column] ? "num" : null, shortColumn[column] ? "edge-col-short" : "edge-col-text"].filter(Boolean).join(" ");
+    return {...extra, className:classes};
   };
   const header = (value, column) => {
     const active = sort.column === column;
     return element("th", cellProps(column, {className:`edge-sortable${active ? " sorted" : ""}`, "aria-sort":active ? sort.dir : "none"}),
       element("button", {type:"button", className:"edge-sort", onClick:() => setSort(next(column)),
         "aria-label":`${String(value).replace(/[*_`]/g, "")}: ${active && sort.dir === "descending" ? "urutkan naik" : active ? "kembalikan urutan asli" : "urutkan turun"}`},
-        element("span", null, mdInline(value, ctx)),
+        element("span", {className:"edge-sort-label"}, mdInline(value, ctx)),
         element("span", {className:"edge-sort-icon"}, element(Icon, {name:active ? (sort.dir === "descending" ? "arrow-down" : "arrow-up") : "sort-arrows", size:13}))));
   };
   // EXEC-UI-1015 U4 (user 2026-10-15): an answer table shows its first rows in the current order, the rest fold behind

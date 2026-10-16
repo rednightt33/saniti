@@ -207,3 +207,72 @@ def test_answer_tables_are_compact_and_never_break_a_word(fixture_server, browse
         assert kicker.evaluate("k => getComputedStyle(k).color") == kicker.evaluate(
             "k => getComputedStyle(k.closest('article').querySelector('.result-metadata')).color")
         page.context.clear_cookies()
+
+
+ALIGN = """Perbandingan YTD per tahun:
+
+| Tahun | Saham | YTD | Hari |
+|:---:|---|:---:|---|
+| 2019 | BBRI | 7,7% | 193 |
+| 2019 | BMRI | −10,8% | 193 |
+| 2020 | BBRI | −24,8% | 194 |
+
+Posisi tahun ini:
+
+| Saham | YTD 2026 | Ayunan wajar 185 hari | Jarak vs ayunan |
+|---|---|---|---|
+| BBRI | −15,3% | 28% | −0,54 |
+| BMRI | −22,0% | 29% | −0,76 |
+
+Broker teratas:
+
+| Saham | Tanggal efektif | Broker | Beli bersih |
+|---|---|---|---|
+| TPIA | 31 Mei 2024 | BK – J.P. Morgan Sekuritas Indonesia | Rp 1,2 miliar |
+| GGRM | 31 Mei 2024 | AK – UBS Sekuritas Indonesia | Rp 71,5 miliar |
+"""
+FIXTURES['table_align'] = copy.deepcopy(FIXTURES['answer_table'])
+FIXTURES['table_align']['response']['answer'] = ALIGN
+
+
+def test_tables_align_by_content_wrap_long_titles_and_draw_no_vertical_line(fixture_server, browser_page):
+    """EXEC-TABLE-ALIGN (user 2026-10-16, screenshots: "tidak perlu ada garis vertical"; "angkanya kecil, tapi kolomnya
+    lebar, karena kolom title yang panjang ... bisa di wrap"; "seragamkan"): quantities right-aligned with their title,
+    text, codes, dates and years left, whatever alignment the writer typed; a long title wraps so the column is about as
+    wide as its values; no vertical line, also with the phone's sticky first column."""
+    origin, _ = fixture_server
+    page = browser_page
+    for width in (1440, 390):
+        page.set_viewport_size({'width': width, 'height': 900})
+        sign_in(page, origin)
+        submit(page, 'fx:table_align')
+        saved(page)
+        tables = page.locator('article.result').last.locator('.edge-md-table table')
+
+        def aligned(table):
+            return tables.nth(table).evaluate("""t => [...t.rows].map(r => [...r.cells].map(c => {
+                const label = c.querySelector('.edge-sort-label'); const s = getComputedStyle(label || c);
+                return label ? (getComputedStyle(c).textAlign === 'right' || c.classList.contains('num') ? 'R' : 'L')
+                             : (s.textAlign === 'right' ? 'R' : 'L'); }))""")
+        assert aligned(0)[0] == ['L', 'L', 'R', 'R'] and aligned(0)[1] == ['L', 'L', 'R', 'R']  # years left, typed ":---:" ignored
+        assert aligned(1)[1] == ['L', 'R', 'R', 'R'] and aligned(2)[1] == ['L', 'L', 'L', 'R']  # dates left, Rupiah right
+        title = tables.nth(1).locator('th').nth(2)
+        lines = title.locator('.edge-sort-label').evaluate("s => Math.round(s.getBoundingClientRect().height / parseFloat(getComputedStyle(s).lineHeight))")
+        cell = tables.nth(1).locator('tbody tr').first.locator('td').nth(2)
+        assert lines >= 2  # "Ayunan wajar 185 hari" wraps
+        assert title.evaluate('t => t.getBoundingClientRect().width') < 130  # about its values, not its one-line title
+        assert cell.evaluate("td => getComputedStyle(td).whiteSpace") == 'nowrap'
+        # a number column's title ends where its numbers end (the hidden sort icon takes no room on the right)
+        for column in (1, 2, 3):
+            head_right = tables.nth(1).locator('th').nth(column).locator('.edge-sort-label').evaluate(
+                "s => { const r = document.createRange(); r.selectNodeContents(s); const b = r.getBoundingClientRect(); return b.right; }")
+            cell_right = tables.nth(1).locator('tbody tr').first.locator('td').nth(column).evaluate(
+                "td => { const r = document.createRange(); r.selectNodeContents(td); return r.getBoundingClientRect().right; }")
+            assert abs(head_right - cell_right) <= 4, (column, head_right, cell_right)
+        for table in range(3):
+            shadows = tables.nth(table).evaluate("""t => [...t.querySelectorAll('th,td')].map(c => {
+                const s = getComputedStyle(c); return [s.boxShadow, s.borderLeftWidth, s.borderRightWidth]; })""")
+            assert all(box == 'none' and left == '0px' and right == '0px' for box, left, right in shadows), shadows[:3]
+        if directory := __import__('os').environ.get('EDGE_UI_ARTIFACT_DIR'):
+            page.locator('article.result').last.locator('.edge-answer').screenshot(path=f'{directory}/table-align-{width}.png')
+        page.context.clear_cookies()

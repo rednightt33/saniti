@@ -2247,6 +2247,20 @@ user diberi tahu hanya bila provider menolak karena biaya. Berhenti hanya untuk 
 - Bagian EXEC yang selesai (EXEC-OPEN-1015, UI-1015E, M164, EDGE-CTX, UI-1015B, M163) diberi status selesai di
   judulnya. Penghapusan dari EXEC.md (aturan AGENTS) menunggu user menyatakan eksekusi ini selesai ("conclude").
 
+### EXEC-TABLE-ALIGN: tabel jawaban tanpa garis vertikal, judul panjang terlipat, perataan seragam (2026-10-16; dikerjakan)
+
+**Permintaan user 2026-10-16** (tangkapan layar desktop dan ponsel): "tidak perlu ada garis vertical"; "jarak antara
+kolom terlalu jauh ... angkanya kecil, tapi kolomnya lebar, karena kolom title yang panjang. Bisa di wrap saja? Jadi ya
+kolom tidak terlalu lebar, tapi tidak terlalu sempit"; "ensure semuanya di seragamkan. Mau align center/align right? Atau
+sesuai jenis teks yang di show?"; "Setelah done pls run 3 A/B test ya".
+- Penyebab (kode): garis vertikal = bayangan kolom pertama yang menempel di ponsel; judul `white-space:nowrap`
+  menentukan lebar kolom; tanggal ("31 Mei 2024") dan tahun terbaca sebagai angka sehingga rata kanan; perataan
+  `:---:` yang ditulis model ikut dipakai; ikon urut tak terlihat menggeser judul kolom angka dari tepi kanan.
+- Aturan (berlaku untuk semua tabel jawaban, diturunkan dari isi kolom): angka (persen, Rupiah, jumlah) rata kanan
+  bersama judulnya; teks, kode, tanggal dan tahun rata kiri; tanpa center; perataan tulisan model diabaikan. Judul
+  terlipat antar kata sampai sekitar 14 karakter; nilai pendek tetap satu baris; tanpa garis vertikal.
+- Tes: `test_ui_1015c.py::test_tables_align_by_content_wrap_long_titles_and_draw_no_vertical_line` (desktop dan ponsel).
+
 ### EXEC-REVIEW-1015: tinjauan semua EXEC terbuka dan arsitekturnya (2026-10-15; user: "please review all exec, inspect arsitektur ... contrast what ideal conditions would look like")
 
 **Keputusan user 2026-10-15:** "O5 nanti dulu A/B test tidak perlu dahulu. Sisanya OK untuk O5 masukan exec jangan execute
