@@ -110,6 +110,9 @@ PLAIN = {
     "event_summary": "Ringkasan hipotesis dengan aturan sukses dari rencana yang disetujui.",
     "explore_test": ("Jalur cepat (B3): uji eksploratif dengan metode library riset; semua uji satu jawaban dikoreksi "
                      "bersama oleh sistem."),
+    "hypothesis_test": ("Jalur cepat insight v2: menguji dugaan AI sendiri (selisih rata-rata, selisih proporsi, "
+                        "rata-rata terhadap nol, korelasi); statistiknya dihitung dan dicatat sistem, lalu dikoreksi "
+                        "bersama uji lainnya."),
     "insufficient_data": "Menyatakan data tidak cukup untuk suatu hitungan, dengan alasannya.",
     "intermediate_path": "Lokasi file kerja sementara di sesi.",
     "emit_table": "Merilis tabel hasil beserta definisinya.",

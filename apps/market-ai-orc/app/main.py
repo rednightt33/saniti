@@ -265,6 +265,12 @@ def create_app(
             if not explore_tests:
                 log_event("explore_tests_inactive",
                           reason=f"needs a sandbox reporting explore_tests version {EXPLORE_TESTS_VERSION}")
+        # EXEC-IMPL-1017: insight v2 needs the sandbox's general test recorder (fail closed)
+        insight_v2 = False
+        if settings.ai_fastlane_insight_v2 and explore_tests:
+            insight_v2 = (sandbox.runtime().get("explore_tests") or {}).get("hypothesis_test") is True
+            if not insight_v2:
+                log_event("insight_v2_inactive", reason="needs a sandbox reporting explore_tests.hypothesis_test")
         # EXEC-V 2026-10-08: how many sessions one answer may keep open, as the sandbox reports it (session_release
         # version 2); the sandbox enforces it, the model reads it in open_analysis_session's description
         session_limit = None
@@ -491,7 +497,7 @@ def create_app(
                                          draft_reader=sandbox.get_draft if feasibility else None,
                                          derived_frequency=derived_frequency, audit_outbox=audit_outbox,
                                          row_reader=row_reader, run_memory=run_memory,
-                                         explore_tests=explore_tests)
+                                         explore_tests=explore_tests, insight_v2=insight_v2)
     if settings.ai_enable_mode4 and isinstance(orchestrator, AgentOrchestrator):
         # mode 4 builds on the caller-chosen paths and on Multi-Angle Research (its plans are research_plan/v2)
         if orchestrator.analysis_path and orchestrator.multi_angle:

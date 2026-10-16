@@ -150,13 +150,14 @@ EXPLORED = {"version": 1, "policy": "BENJAMINI_HOCHBERG", "alpha": 0.05, "count"
 EXPLORE_ON = {**FAST_ON, "AI_FASTLANE_EXPLORE_TESTS": "true"}
 
 
-def explore_run(*, lane=lanes.FAST, settings=EXPLORE_ON, capable=True, mode=None, turn_kind=None, explored=EXPLORED):
+def explore_run(*, lane=lanes.FAST, settings=EXPLORE_ON, capable=True, mode=None, turn_kind=None, explored=EXPLORED,
+                v2=False):
     from app import conversation_router as router
 
     tools = Counting([completed(explore_tests=explored) if explored else completed()])
     scripted = Recording([*flow(), final_response(answer("Return YTD BBCA 12,35% dan BBRI turun 4,32%."))])
     config = make_settings(**settings)
-    orchestrator = AgentOrchestrator(config, scripted, tools.registry(), explore_tests=capable)
+    orchestrator = AgentOrchestrator(config, scripted, tools.registry(), explore_tests=capable, insight_v2=v2)
     tokens = [(current_model_choice, current_model_choice.set(resolve("deepseek/deepseek-v4.1-flash", "high", config))),
               (lanes.current_lane, lanes.current_lane.set(lane)),
               (lanes.current_explore_mode, lanes.current_explore_mode.set(mode)),
@@ -707,3 +708,62 @@ def test_the_insight_note_tests_patterns_and_answers_a_search_with_a_table() -> 
 
     note = explore_note(lanes.INSIGHT)
     assert "When the user asks why" in note and "answer with that table and run no tests" in note
+
+
+# ------------------------------------------------------------------------------ EXEC-IMPL-1017 Fase 1: insight v2
+
+V2_ON = {**EXPLORE_ON, "AI_FASTLANE_INSIGHT_V2": "true"}
+
+
+def test_insight_v2_lets_the_model_form_its_hypotheses_and_names_the_library_as_optional_tools() -> None:
+    from app.orchestrator import EXPLORE_INSIGHT_V2_NOTE, FASTLANE_EXPLORATORY_INSIGHT_V2
+    from app.research_library import LIBRARY
+
+    for kwargs in ({"mode": lanes.INSIGHT}, {"turn_kind": "INSIGHT"}):
+        _, scripted = explore_run(settings=V2_ON, v2=True, **kwargs)
+        first = json.dumps(scripted.payloads[0])
+        assert "Form your own hypotheses" in first and "saniti.hypothesis_test" in first, kwargs
+        assert "A statistical test is optional" in first and "at most 5 angles" not in first
+        assert all(m["method_id"] in first for m in LIBRARY)  # named as tools, not required
+        assert json.dumps(FASTLANE_EXPLORATORY_INSIGHT_V2)[1:-1] in first
+    assert "{" not in EXPLORE_INSIGHT_V2_NOTE.replace("{methods}", "")  # one placeholder, filled from the library
+
+
+@pytest.mark.parametrize("kwargs", [{"settings": V2_ON, "v2": False}, {"settings": EXPLORE_ON, "v2": True},
+                                    {"settings": V2_ON, "v2": True, "mode": None}])
+def test_without_the_switch_the_capability_or_an_insight_turn_insight_v2_changes_nothing(kwargs) -> None:
+    """The A arm and the way back: switch off or no sandbox recorder keeps the B3 insight note; an answer turn never
+    gets the v2 note."""
+    mode = kwargs.pop("mode", lanes.INSIGHT)
+    _, scripted = explore_run(mode=mode, **kwargs)
+    first = json.dumps(scripted.payloads[0])
+    assert "Form your own hypotheses" not in first and "saniti.hypothesis_test" not in first
+    if mode == lanes.INSIGHT:
+        assert "at most 5 angles" in first
+
+
+def test_a_statistic_shown_from_a_table_no_recorded_test_released_is_found(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from app.value_refs import ReferenceSources, render
+
+    refs = ReferenceSources()
+    refs.add("out", "own", {"rows": [{"p_value": 0.03, "ci_low": 0.1, "beta": 1.2}]}, "DATA_COVERAGE_VERIFIED")
+    refs.add("out", "explore_drops", {"rows": [{"p_value": 0.2, "estimate": 0.5}]}, "DATA_COVERAGE_VERIFIED")
+    refs.add("out", "es", {"rows": [{"delta_p_value": 0.04}]}, "DATA_COVERAGE_VERIFIED")
+    shown = render("p {{out.own.rows.0.p_value|p}}, CI {{out.own.rows.0.ci_low}}, beta {{out.own.rows.0.beta}}, "
+                   "uji {{out.explore_drops.rows.0.p_value|p}}, studi {{out.es.rows.0.delta_p_value|p}}", refs)
+    assert shown.statistics == ["out.own.rows.0.p_value", "out.own.rows.0.ci_low", "out.explore_drops.rows.0.p_value",
+                                "out.es.rows.0.delta_p_value"]  # beta is not a statistic
+    orchestrator = AgentOrchestrator(make_settings(**V2_ON), Recording([]), Counting([]).registry(),
+                                     explore_tests=True, insight_v2=True)
+    state = SimpleNamespace(
+        plan_meta={"insight_v2": True},
+        final_statuses=[{"explore_tests": {"tests": [{"name": "es_dips", "output": "event_dips"}]}}],
+        data_record={"outputs": [{"ref": "out.own", "name": "own_regression"},
+                                 {"ref": "out.explore_drops", "name": "explore_drops"},
+                                 {"ref": "out.es", "name": "event_dips"}]})
+    assert orchestrator._unrecorded_statistics(state, shown.statistics) == ["out.own.rows.0.p_value",
+                                                                             "out.own.rows.0.ci_low"]
+    state.plan_meta = {"insight_v2": False}  # an answer turn (Mode Jawab) may test with its own code
+    assert orchestrator._unrecorded_statistics(state, shown.statistics) == []

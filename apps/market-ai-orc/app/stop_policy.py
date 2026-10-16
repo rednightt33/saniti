@@ -63,6 +63,8 @@ CAUSES: dict[str, Cause] = {
     "UNITS": Cause(ANNOTATE),  # Mode Jawab v2 (5B): figures from columns of undeclared unit, asked once
     # O3 (EXEC-IMPL-1016): new results next to an earlier result the run never opened, asked once
     "INSIGHT_SOURCE_NOT_OPENED": Cause(ANNOTATE),
+    # EXEC-IMPL-1017 (M171): an insight v2 answer shows a statistic no recorded test produced, asked once
+    "UNRECORDED_TEST": Cause(ANNOTATE),
     "PLAN_NOT_EXECUTED": Cause(ANNOTATE),  # the approved plan stays pending (M19)
     "RESEARCH_RUN_INCOMPLETE": Cause(ANNOTATE),
     # Research Plan checks

@@ -419,6 +419,11 @@ EXPLORE_UNSTABLE = " {unstable} uji arahnya tidak konsisten di dua paruh periode
 EXPLORE_SMALL = " {small} uji sampel efektifnya kecil atau kurang kuat untuk efek sekecil itu."
 
 
+# EXEC-IMPL-1017 (M171): an insight answer still shows a statistic no recorded test produced
+UNRECORDED_TEST_LINE = ("Sebagian angka uji di jawaban ini tidak dihitung oleh pencatat uji sistem, sehingga tidak ikut "
+                        "dikoreksi bersama uji lainnya; baca angka itu sebagai gambaran saja.")
+
+
 def explore_evidence_line(count: int, held: int, unstable: int, small: int) -> str:
     line = EXPLORE_EVIDENCE_LINE.format(count=count, held=held)
     line += EXPLORE_HELD_NOTE if held else EXPLORE_NONE_HELD

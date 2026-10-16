@@ -1838,8 +1838,10 @@ FASTLANE_EXPLORATORY_INSIGHT = (
     "(saniti.explore_test), never call it proven, a cause, a prediction or a trading signal.")
 
 
-def fastlane_note(step: str, mode: str | None, decisions: bool) -> str:
+def fastlane_note(step: str, mode: str | None, decisions: bool, v2: bool = False) -> str:
     note = FASTLANE_NOTE.format(draft_step=step)
+    if v2 and mode == lanes.INSIGHT:  # EXEC-IMPL-1017: insight v2 tests only through the recorder, with any switches
+        return note.replace(FASTLANE_EXPLORATORY, FASTLANE_EXPLORATORY_INSIGHT_V2)
     if not decisions or mode is None:
         return note
     return note.replace(FASTLANE_EXPLORATORY, FASTLANE_EXPLORATORY_INSIGHT if mode == lanes.INSIGHT
@@ -1898,6 +1900,34 @@ EXPLORE_INSIGHT_NOTE = (PLAN_NOTE_PREFIX + "this turn may explore. When the user
                         "correction first and say plainly when nothing does. When the user asks to find, list or "
                         "rank something, answer with that table and run no tests. " + EXPLORE_TEST_RULE)
 EXPLORE_MAX_ANGLES = lanes.EXPLORE_MAX_ANGLES
+# EXEC-IMPL-1017 Fase 1 (AI_FASTLANE_INSIGHT_V2; user 2026-10-16: "hipotesa dari AI. Namun setiap uji menghasilkan p-value
+# atau interval tetap lewat satu pencatatan umum. Dan 8 metode boleh dipakai tapi bukan kewajiban ... AI tidak wajib
+# untuk generate p-value itu sendiri"): the model forms and checks its own hypotheses; a test is optional and its
+# statistics come only from the system's recorder; the library methods are named, not described
+EXPLORE_INSIGHT_V2_NOTE = (
+    PLAN_NOTE_PREFIX + "this turn explores. Form your own hypotheses about what explains or drives what the user "
+    "asks, from the question and the data, and check each one with the data: send one data need with what the checks "
+    "need, compute in run_python, keep working tables (save_table) and add data to the open session when a check "
+    "needs more. A statistical test is optional: when describing the data answers the question, describe it and run "
+    "no test. When you do test, the statistics come only from the system: saniti.hypothesis_test(kind, frame, "
+    "value=, group=, a=, b=, x=, y=, horizon=) with kind MEAN_DIFFERENCE, PROPORTION_DIFFERENCE, MEAN_VS_ZERO or "
+    "CORRELATION, saniti.explore_test(method_id, frame, ...) for a research library method ({methods}), or "
+    "saniti.event_study. Never compute a p-value or an interval yourself (scipy, statsmodels): the system records "
+    "every test, counts rows on one date once and overlapping outcomes once, corrects the answer's tests together "
+    "(Benjamini-Hochberg) and writes the evidence line under the answer, and an answer showing a p-value or an "
+    "interval from anything else is refused. Report the hypotheses the data supports first, say plainly which it does "
+    "not, describe each tested effect with its interval, and never call a result significant, proven or a cause. When "
+    "the user asks to find, list or rank something, answer with that table and run no tests.")
+FASTLANE_EXPLORATORY_INSIGHT_V2 = (
+    "The results are exploratory: a tested pattern is claimed only from the tests the system records "
+    "(saniti.hypothesis_test, saniti.explore_test, saniti.event_study); a described pattern is an association, never "
+    "proven, a cause, a prediction or a trading signal.")
+# EXEC-IMPL-1017 Fase 1 (M171): a statistic the answer shows that no recorded test produced
+UNRECORDED_TEST_INSTRUCTION = (
+    "The answer shows statistics that no recorded test produced: {references}. On this turn a p-value or an interval "
+    "comes only from saniti.hypothesis_test, saniti.explore_test or saniti.event_study (the system records and "
+    "corrects them). Test again with one of them and cite its explore_<name> table, or remove the statistic and "
+    "describe the data without it.")
 
 
 def units_advice(values: dict[str, float]) -> str:
@@ -1921,10 +1951,12 @@ def units_advice(values: dict[str, float]) -> str:
     return text
 
 
-def explore_note(mode: str, decisions: bool = False) -> str:
+def explore_note(mode: str, decisions: bool = False, v2: bool = False) -> str:
     """EXEC-FASTLANE B3: the note of a fast-lane run's explore mode; INSIGHT lists the research library's methods in one
     line each (no get_research_library call). V4: with the decision rules, the answer mode decides its method once the
-    data is ready."""
+    data is ready. EXEC-IMPL-1017: insight v2 names the methods only, as tools the model may use."""
+    if mode == lanes.INSIGHT and v2:
+        return EXPLORE_INSIGHT_V2_NOTE.format(methods=", ".join(m["method_id"] for m in research_library.LIBRARY))
     if mode != lanes.INSIGHT:
         return EXPLORE_ANSWER_NOTE.replace(EXPLORE_ANSWER_HELPERS, EXPLORE_ANSWER_HELPERS_V4) if decisions \
             else EXPLORE_ANSWER_NOTE
@@ -2604,10 +2636,14 @@ class AgentOrchestrator:
         row_reader: Callable[..., dict[str, Any]] | None = None,
         run_memory: Any | None = None,
         explore_tests: bool = False,
+        insight_v2: bool = False,
     ) -> None:
         self.settings = settings
         # EXEC-FASTLANE B3 (AI_FASTLANE_EXPLORE_TESTS and the sandbox's explore_tests capability, checked at startup)
         self.explore_tests = bool(explore_tests and getattr(settings, "ai_fastlane_explore_tests", False))
+        # EXEC-IMPL-1017 Fase 1 (AI_FASTLANE_INSIGHT_V2 and the sandbox's hypothesis_test, checked at startup)
+        self.insight_v2 = bool(insight_v2 and self.explore_tests
+                               and getattr(settings, "ai_fastlane_insight_v2", False))
         # EXEC-C (AI_ENABLE_RUN_MEMORY): the conversation's run memory (app/run_memory.py), when its table is readable
         self.run_memory = run_memory
         # M44: reads rows of a released output the run has not read, when an answer references them
@@ -3661,7 +3697,8 @@ class AgentOrchestrator:
             step = FASTLANE_DRAFT_STEP if self._fast_draft_check() else FASTLANE_NO_DRAFT_STEP
             mode = self._explore_mode()
             decisions = getattr(self.settings, "ai_fastlane_decision_rules", False)
-            state.turn_notes.append((fastlane_note(step, mode, decisions), True))
+            v2 = self.insight_v2 and mode == lanes.INSIGHT
+            state.turn_notes.append((fastlane_note(step, mode, decisions, v2=v2), True))
             if decisions:
                 state.turn_notes.append((decisions_note(), True))
             presentation = getattr(self.settings, "ai_fastlane_v5_presentation", False)
@@ -3672,9 +3709,10 @@ class AgentOrchestrator:
                 state.turn_notes.append((FASTLANE_PRESENTATION_NOTE, False))
             if mode is not None:
                 state.plan_meta["explore_mode"] = mode
-                state.turn_notes.append((explore_note(mode, decisions=decisions), True))
+                state.plan_meta["insight_v2"] = v2
+                state.turn_notes.append((explore_note(mode, decisions=decisions, v2=v2), True))
             log_event("ai_lane_turn", request_id=request.request_id, lane=state.lane, forced_path=state.forced_path,
-                      **({"explore_mode": mode} if mode is not None else {}))
+                      **({"explore_mode": mode} if mode is not None else {}), **({"insight_v2": True} if v2 else {}))
             return
         if state.forced_path == "ANALYSIS":
             # no plan step: a pending plan (SERVER mode) is left untouched and its reply is not read
@@ -5908,6 +5946,7 @@ class AgentOrchestrator:
         failed: list[str] = []
         missing: list[tuple[str, str, str]] = []
         values: list[Resolved] = []
+        statistics: list[str] = []  # EXEC-IMPL-1017 (M171)
         count = 0
         cited = final.answer or ""
         if self.table_directives:
@@ -5941,6 +5980,7 @@ class AgentOrchestrator:
             failed.extend(rendering.failed)
             missing.extend(rendering.missing)
             values.extend(rendering.values)
+            statistics.extend(rendering.statistics)
             count += rendering.count
             if rendering.dropped_units:
                 log_event("ai_reference_unit_repeated", request_id=state.request_id, units=rendering.dropped_units)
@@ -5982,6 +6022,13 @@ class AgentOrchestrator:
         if unknown:
             self._gate_once(state, "UNITS", UNITS_INSTRUCTION.format(
                 references=", ".join(dict.fromkeys(unknown[:12]))) + units_advice(unknown_values))
+        unrecorded = self._unrecorded_statistics(state, statistics)
+        if unrecorded:
+            log_event("ai_statistic_unrecorded", request_id=state.request_id, references=unrecorded[:12])
+            self._gate_once(state, "UNRECORDED_TEST", UNRECORDED_TEST_INSTRUCTION.format(
+                references=", ".join(unrecorded[:12])), needs=frozenset({"run_python"}))
+            rendered = rendered.model_copy(update={"limitations": [*rendered.limitations,
+                                                                   texts.UNRECORDED_TEST_LINE]})
         unopened = self._earlier_cited_unopened(state)
         if unopened:
             log_event("insight_source_not_opened", request_id=state.request_id, earlier=len(unopened))
@@ -6006,6 +6053,24 @@ class AgentOrchestrator:
             lines.append(UNRESOLVED_LINE)
         state.reference_annotated = True  # validation_gate ANNOTATED, set when this final passes the other gates
         return rendered.model_copy(update={"limitations": [*rendered.limitations, *lines]}), False
+
+    def _unrecorded_statistics(self, state: RunState, statistics: list[str]) -> list[str]:
+        """EXEC-IMPL-1017 Fase 1 (M171): on an insight v2 turn, the statistics the answer shows (p-values, interval
+        bounds) whose table no recorded test released. A recorded test's table is an explore_<name> output
+        (hypothesis_test, explore_test) or a table an event study the system recorded released; the check reads the
+        tables behind the references, never the model's words."""
+        if not statistics or not state.plan_meta.get("insight_v2"):
+            return []
+        recorded = {str(t.get("output")) for s in state.final_statuses
+                    for t in ((s.get("explore_tests") or {}).get("tests") or []) if t.get("output")}
+        names = {str(o.get("ref")): str(o.get("name") or "") for o in state.data_record.get("outputs") or []}
+        unrecorded = []
+        for expression in dict.fromkeys(statistics):
+            head = ".".join(expression.split(".", 2)[:2])
+            name = names.get(head, "")
+            if not name.startswith("explore_") and name not in recorded:
+                unrecorded.append(expression)
+        return unrecorded
 
     def _finalize_findings(self, state: RunState, final: FinalResponse) -> FinalResponse:
         """Multi-Angle Research after a completed run: every LIMITATION carries the backend's per-angle findings (M39),

@@ -668,6 +668,15 @@ def label_like(column: str) -> bool:
     return bool(set(tokens) & LABEL_TOKENS)
 
 
+# EXEC-IMPL-1017 (M171): a p-value or an interval bound by its column name (p_value, pval, ci_low, conf_high, ...)
+STATISTIC_TOKENS = frozenset({"p", "pvalue", "pval", "padj", "ci", "conf", "confidence", "interval"})
+
+
+def statistic_like(column: str) -> bool:
+    tokens = [t for t in re.split(r"[^a-z0-9]+", str(column).lower()) if t]
+    return bool(set(tokens) & STATISTIC_TOKENS)
+
+
 def unit_like(column: str) -> bool:
     """A share, rate, percent, ratio or return by its column name; a count named at its start or end is not."""
     tokens = [t for t in re.split(r"[^a-z0-9]+", str(column).lower()) if t]
@@ -763,6 +772,8 @@ class Rendering:
     # M43: references to a field that does not exist (or to an object), shown as [field]: (expression, field, message)
     missing: list[tuple[str, str, str]] = field(default_factory=list)
     failed: list[str] = field(default_factory=list)  # the expressions of the other unresolved references
+    # EXEC-IMPL-1017 (M171): the references shown as a statistic (a p-value or an interval bound)
+    statistics: list[str] = field(default_factory=list)
     # P22: units the model typed next to a reference whose format already shows them ("{{x|pp}} pp" -> "1,00 pp")
     dropped_units: list[str] = field(default_factory=list)
     # P23: references shown by their data's unit rather than as written: {reference, format, shown_as, unit}
@@ -955,6 +966,9 @@ class _Number:
             out.unknown_values[self.expression] = self.resolved.value
         if used == "p" and self.resolved.value < P_FLOOR and self.resolved.value >= 0:
             out.values.append(Resolved(P_FLOOR, self.resolved.label))  # P24: the bound shown is a source too
+        if not FUNC_RE.match(self.expression) and (used == "p" or unit == "P_VALUE"
+                                                   or statistic_like(_split(self.expression)[-1])):
+            out.statistics.append(self.expression)
         value = self.resolved.value
         if used == "auto" and unit is None and self.places is None and float(value).is_integer() \
                 and not FUNC_RE.match(self.expression) and label_like(_split(self.expression)[-1]):

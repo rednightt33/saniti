@@ -123,6 +123,7 @@ Dibuat dari `apps/market-ai-orc/app/tool_desks.py` (`DESKS`), saklar semua menya
 | `research_custom` | Riset: rumus khusus yang tetap diperiksa sistem. |
 | `event_summary` | Ringkasan hipotesis dengan aturan sukses dari rencana yang disetujui. |
 | `explore_test` | Jalur cepat (B3): uji eksploratif dengan metode library riset; semua uji satu jawaban dikoreksi bersama oleh sistem. |
+| `hypothesis_test` | Jalur cepat insight v2: menguji dugaan AI sendiri (selisih rata-rata, selisih proporsi, rata-rata terhadap nol, korelasi); statistiknya dihitung dan dicatat sistem, lalu dikoreksi bersama uji lainnya. |
 
 ## Buku panduan metode (get_method_guide)
 
@@ -141,7 +142,7 @@ Dibuat dari `apps/market-ai-orc/app/tool_desks.py` (`DESKS`), saklar semua menya
 ## Snapshot saklar di dev
 
 <!-- dev-snapshot:start -->
-Diambil 2026-10-15 dari Railway (nama dan nilai true/false saja).
+Diambil  dari Railway (nama dan nilai true/false saja).
 
 | Saklar | dev |
 |---|---|
