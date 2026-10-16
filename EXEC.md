@@ -2547,6 +2547,28 @@ batas kunci ±USD 2,36.
     tanpa kode, CSV 1.169 baris, 75 dtk. Kasus M176 (#5–#9) kini selesai dalam satu giliran masing-masing.
 - Ditunda ke Fase 4: kartu CLARIFY router menyebut ekspor data di balik hasil; EDGE menandai tabel pendukung (Fase 6).
 
+**Fase 4 (orc, 2026-10-16, selesai, ter-deploy):** E9 (a), (b), (c) dan router membaca penutup jawaban (metode i).
+- Kode: `41ca8d9` → orc `46c3a415` SUCCESS; kontrak tawaran `offered_action` menyusul (lihat di bawah). Tes orc 1.877
+  lulus.
+- E9(a): konteks router memuat tiap tabel hasil dan tabel pendukung (ref, nama, baris, kolom, catatan definisi), penutup
+  jawaban terakhir (1.500 karakter, sebagai data) dan tawaran yang menunggu (`pending_offer`). Kartu CLARIFY menyebut
+  ekspor data di balik hasil; kartu APPROVE menerima "ya/ok/gas/jalan" atau kutipan kata tawaran.
+- E9(b): jawaban giliran baca saja bisa mengisi `needs_computation`; mode 4 langsung menjalankan pesan yang sama sebagai
+  CONTINUE dalam giliran itu dan jawaban menyebutnya ("Permintaan ini butuh hitungan baru …").
+- E9(c): `offered_action` {label, message} disimpan di data record sebagai tawaran menunggu; "gas" menjalankan pesannya;
+  jawaban berikutnya menggantikan atau menghapusnya.
+- Benchmark router `--ask-back` (fixture 39 → 50 kasus + 6 varian; konteks lama diubah ke bentuk yang dikirim produksi):
+  konfigurasi akhir 3×: 105/106, 106/106, 104/106 (satu panggilan gagal, dua kasus lama yang memang goyah); 11 kasus baru
+  benar di ketiga putaran; tidak ada pertanyaan baca yang dikirim ke riset; biaya ±USD 0,28 untuk enam putaran.
+- Cek live (`conv_aec7b9ad…`, ulangan skenario M176 #5–#9):
+  - "Minta daily datanya in excel": CLARIFY, `export_result(data_request)`, XLSX dalam 54 dtk (M176 #5 dulu "belum
+    bisa");
+  - "Minta hariannya juga dipisah per tipe investor … dalam excel": CLARIFY → `needs_computation` → CONTINUE otomatis,
+    XLSX 1.179 baris, 190 dtk, jawaban menyebut perpindahannya;
+  - tawaran langkah berikutnya lalu "Gas": dijalankan tanpa ditanya balik (338 dtk). Tawaran itu hanya ditulis di teks
+    (`offered_action` kosong), jadi router memakai penutup jawaban; kontrak jawaban kini menyebut `offered_action`
+    (snapshot prompt v013).
+
 E3 dikonfirmasi user 2026-10-16 ("Ini masuk E3 (merapikan aturan) --> OK masukan exec jangan eksekusi dulu").
 
 **E4. Kartu router mengikuti saklar (R4).**

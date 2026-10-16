@@ -906,6 +906,8 @@ released value or diff, ratio, abs or chg of references, never worked
 out in the text, and an example amount is said in words."""
 VALUE_REFERENCE_CONTRACT = ("Figures from data are value references {{...}} (see VALUE REFERENCES), never typed "
                             "numbers. ")
+# E9(c) (EXEC-1018B Fase 4): live check 2026-10-16 showed an offer written only in prose (offered_action null)
+NEXT_STEP_CONTRACT = "An offered next step also goes in offered_action; a short yes runs it. "
 ANGLE_NARRATIVE_CONTRACT = ("research_findings: for an ANSWER that rests on a completed multi-angle research run, "
                             "your reading of each approved angle (angle_id, interpretation with answer, usefulness and "
                             "follow_up); the backend adds every approved angle's status, evidence and statistics; "
@@ -1565,7 +1567,7 @@ def response_contract(plan_confirmation: bool, methodology: bool = False, resear
                                     + "The output format is already defined")
     if value_references:
         contract = contract.replace("The output format is already defined", VALUE_REFERENCE_CONTRACT
-                                    + "The output format is already defined")
+                                    + NEXT_STEP_CONTRACT + "The output format is already defined")
     return contract
 
 

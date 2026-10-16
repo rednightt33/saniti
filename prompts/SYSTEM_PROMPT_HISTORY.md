@@ -33,6 +33,7 @@ whenever the rendered prompt or schema changes (AGENTS.md, Mandatory workflow).
 | v010 | 2026-10-15 | [turn-brief-facts](history/v010-2026-10-15-turn-brief-facts/system_prompt.md) | 39,130 | `d2930510576d` | `667c512aab9c` | user 2026-10-15: O2 "saya setuju hanya untuk router diberi tahu fungsi dan kemampuan setiap jalur"; O3 "OK masukan exec", signal "Dari isi jawaban"; O5 "Sisanya OK untuk O5"; go "Next lanjutkan tanpa minta saya naikan limit" (EXEC-IMPL-1016 Fase 2) |
 | v011 | 2026-10-15 | [names-to-search-values](history/v011-2026-10-15-names-to-search-values/system_prompt.md) | 39,099 | `322029a86b77` | `667c512aab9c` | EXEC-IMPL-1016 Fase 3 (O1 dictionary), user 2026-10-15: "Next lanjutkan tanpa minta saya naikan limit"; matching "Alias + persis + potongan" |
 | v012 | 2026-10-16 | [metric-path-when-offered](history/v012-2026-10-16-metric-path-when-offered/system_prompt.md) | 39,119 | `e25cd0b3d4df` | `4098ec4dd2c0` | EXEC-1018B E3/E8, user 2026-10-16: "Ini masuk E3 (merapikan aturan) --> OK", go "Jalankan." |
+| v013 | 2026-10-16 | [exec-1018b-next-step](history/v013-2026-10-16-exec-1018b-next-step/system_prompt.md) | 39,190 | `f9c74fe4abd9` | `4098ec4dd2c0` | User 2026-10-16: "1. OK 2. Skip E10 3. OK 4. Otomatis 5. OK ... Jalankan." (EXEC-1018B Fase 4, E9 b/c) |
 
 ## Changes
 
@@ -83,3 +84,7 @@ DATA NEED and the legacy analysis rule: names, initials or part of a name (BRI, 
 ### v012 metric-path-when-offered (2026-10-16)
 
 DATA SOURCES: the metric path holds when query_metric is offered in the turn (a read-only turn gets neither the tool nor the METRICS menu, E8).
+
+### v013 exec-1018b-next-step (2026-10-16)
+
+Final response gains needs_computation (a read-only turn hands a calculation to CONTINUE) and offered_action (a short yes runs the offer); the contract names offered_action; the read-only class note asks for needs_computation instead of an offer in prose.

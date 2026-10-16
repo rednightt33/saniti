@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-10-16 — EXEC-1018B Fase 2 and 4: market-ai-orc deploys
+
+- `8575273`: market-ai-orc `45c8c62c` SUCCESS (replaced outputs, supporting tables, export of a data request and the
+  rebuild, XLSX input sheets); startup without `*_inactive` (the sandbox reports `supporting_data` v1).
+- `41ca8d9`: market-ai-orc `46c3a415` SUCCESS (router context with tables, answer end and pending offer; automatic
+  handoff from a read-only step; offered action). No EDGE run was active before each push. No variable changed.
+  Rollback: orc `8cdad7a8`.
+
 ## 2026-10-16 — EXEC-1018B Fase 2: sandbox deploy and Tool_Catalog round Y
 
 - `454272e`: market-python-sandbox `ac2241cb` SUCCESS (newest output per name released, supporting tables, bundle
