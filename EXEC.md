@@ -2401,6 +2401,20 @@ masukan exec".
 - Uji: angka naik tepat 1 tiap detik selama 10 detik (jam palsu di Playwright); koreksi tidak membuat angka mundur;
   tanpa animasi saat `prefers-reduced-motion`; desktop dan ponsel.
 
+**E13. Tabel jawaban seragam: rata kiri, tengah vertikal (EDGE; menggantikan aturan EXEC-UI-1016 tentang perataan).**
+User 2026-10-16: "Nama kolom rata kiri dan center, isi juga rata kiri", lalu "Kira2 seperti tabel yang kamu buat ini
+sih... coba cek saja bagaimana ini di render secara front end, terutama jarak antara 1 kolom dengan kolom lain".
+- Pengukuran live (tabel broker ADRO, 1440 px): lebar kolom = maks(judul, isi) + padding 12 px kiri-kanan, tetapi judul
+  dibatasi 14 karakter per baris (`.edge-sort-label max-width:14ch`), jadi judul panjang dilipat ("Porsi investor asing
+  (Rp)" 2 baris, 128 px menjadi 116 px) dan isi yang menentukan lebar; kolom angka rata kanan, teks rata kiri, sel rata
+  atas. Campuran kanan-kiri itu yang membuat jarak antar kolom terlihat tidak sama (contoh: kode "DX" 16 px di kolom 88 px).
+- Rancangan: judul dan isi rata kiri; judul dan isi tengah secara vertikal; lebar kolom = maks(judul dalam satu baris,
+  isi) + padding yang sama, sehingga jarak antar kolom seragam seperti tabel Markdown biasa; judul hanya dilipat bila
+  sangat panjang (batas dinaikkan, nilainya ditetapkan saat eksekusi dengan tangkapan layar desktop dan ponsel); angka
+  tetap `tabular-nums`; ikon urut tetap tidak memakan lebar; sel pertama lengket di ponsel tetap.
+- Uji: semua `th` dan `td` rata kiri dan tengah vertikal; tidak ada judul terlipat di bawah batas baru; tangkapan layar
+  desktop dan ponsel sebelum/sesudah; `test_visual.py`, `test_answer_view.py`.
+
 E3 dikonfirmasi user 2026-10-16 ("Ini masuk E3 (merapikan aturan) --> OK masukan exec jangan eksekusi dulu").
 
 **E4. Kartu router mengikuti saklar (R4).**
