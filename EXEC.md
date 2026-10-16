@@ -2608,6 +2608,25 @@ batas kunci ±USD 2,36.
   terlipat (di ponsel tabel bergeser ke samping), judul lebih panjang terlipat di lebar ±28 karakter.
 - Tangkapan layar desktop (1440) dan ponsel (390) diperiksa.
 
+**Fase 7 (penutupan, 2026-10-16, selesai):**
+- Uji ulang Q1–Q3: memakai lengan B A/B E2 (orc `7f60539f`, yang masih aktif; Fase 6 hanya EDGE), tanpa biaya
+  tambahan.
+  - Q1: "3 bulan terakhir" dibaca 63 hari bursa (15 Jul–16 Okt 2026); M173 teks diperbaiki (E7).
+  - Q2: angka miliar/triliun benar di lengan B (Rp 1,51 dan 1,24 triliun); M179 tetap OPEN karena lengan A
+    menunjukkan masalahnya.
+  - Q3: angka dan sumbernya benar, tetapi kalimatnya menyebut 46,7% "sedikit di bawah" 46,0%. Ini temuan baru,
+    ERRORS M180 (OPEN, usulan menunggu go).
+- Skenario ekspor live (standar, `conv_e33b7eae…`, USD ±0,06):
+  - "net beli asing harian BBRI September 2026" dijawab LIMITED dengan jujur: data asing berhenti 31 Agustus, jadi
+    Agustus yang ditampilkan.
+  - "Minta data harian Agustus itu dalam Excel ya" menghasilkan XLSX dalam 22 detik, berisi 19 baris yang sama dengan
+    tabel jawaban, lembar input `bbri_foreign_diag` (E1), lembar kolom, definisi dan asal data. sha256 cocok.
+- Status ERRORS:
+  - FIXED: M174, M176, M178.
+  - Teks diperbaiki: M173.
+  - OPEN: M175 (U3 ditolak, opsi baru menunggu), M177, M179, M180.
+- Sisa batas kunci orc ±USD 1,30.
+
 E3 dikonfirmasi user 2026-10-16 ("Ini masuk E3 (merapikan aturan) --> OK masukan exec jangan eksekusi dulu").
 
 **E4. Kartu router mengikuti saklar (R4).**
