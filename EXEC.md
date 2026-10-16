@@ -2361,6 +2361,25 @@ sebuah hasil. Ini termasuk generated table dll."
 - Terkait: router tidak melihat jawaban AI sebelumnya (M176, terverifikasi); opsi mengirim penutup jawaban terakhir ke
   router menunggu keputusan user.
 
+**E10. `query_metric` diperluas dalam batas Governor, dengan panduan dan penolakan yang jelas.** User 2026-10-16:
+"OK untuk 1-3 deh... guide untuk AI terkait dengan query metric ini juga harus jelas ya. Agar AI tahu kalau rejection
+harus kemana. Jadi 2: AI tahu apa yang buat di reject dan kalau ke reject, rejection harus jelas. -> masukan exec jangan
+execute dulu."
+- (1) Satu baris per saham sebagai bentuk baku: metrik aliran memakai papan baku (nilai papan menunggu keputusan U5).
+- (2) Peringkat di database: summary Governor menerima urut menurut ukuran dan N teratas (N ≤ 200), sehingga peringkat
+  seluruh pasar selesai dalam satu panggilan; EXPLAIN terukur (seluruh pasar, setahun) sebelum dibangun.
+- (3) Kelompok saham dari tabel referensi (misalnya Industry = Banks) lewat `restrictions` summary, tanpa daftar saham
+  diketik AI.
+- Panduan sebelum memanggil (catatan METRICS, diturunkan dari kode dan katalog): metrik yang ada, dimensi dan apa yang
+  dijumlahkan bila dilepas, papan baku, batas saham (min(100, 200 ÷ baris per saham)), periode (260 hari bursa atau
+  3.660 hari), 200 baris hasil, dan kapan memakai data mentah (statistik, rumus, lebih dari batas).
+- Penolakan yang jelas: setiap penolakan (orc atau Governor) mengembalikan kode, batas yang terlampaui beserta angka
+  (diminta dan batasnya), dan satu langkah berikut yang bisa dijalankan: `NARROW_PERIOD`, `FEWER_DIMENSIONS`,
+  `SPLIT_ENTITIES`, `USE_TOP_N`, atau `USE_DATA_NEED`. Contoh: "48 saham melewati batas 100? tidak; 48 × 80 broker =
+  3.840 baris > 200 → kurangi dimensi Broker atau pakai data mentah".
+- Uji: setiap kode penolakan punya langkah berikut; peringkat seluruh pasar satu panggilan; kelompok Industry = Banks;
+  uji ulang tiga pertanyaan sejenis Q2/Q3 (nol penolakan yang tidak dijelaskan).
+
 E3 dikonfirmasi user 2026-10-16 ("Ini masuk E3 (merapikan aturan) --> OK masukan exec jangan eksekusi dulu").
 
 **E4. Kartu router mengikuti saklar (R4).**
