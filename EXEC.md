@@ -2569,6 +2569,33 @@ batas kunci ±USD 2,36.
     (`offered_action` kosong), jadi router memakai penutup jawaban; kontrak jawaban kini menyebut `offered_action`
     (snapshot prompt v013).
 
+**Fase 5 (orc, 2026-10-16, selesai, ter-deploy):** E2 dan A3.
+- Kode: `5a3337e` → orc `7f60539f` SUCCESS, startup tanpa `*_inactive`. Tes orc 1.879 lulus. Snapshot prompt v014.
+- E2: jalur cepat memakai prefiks statisnya sendiri, dirakit dari alat meja FASTLANE tanpa bagian RESEARCH PLANS,
+  MULTI-ANGLE PLAN, HYPOTHESIS PLAN, RESEARCH PLAN FORMS, MULTI-ANGLE FINDINGS, HYPOTHESIS FINDINGS dan INTERPRETING
+  RESEARCH; paragraf "insight" dipertahankan sebagai bagian INSIGHTS; kalimat MODES menjadi "every data need uses mode
+  ANALYSIS". Profil dev: prefiks standar 41.594 karakter, prefiks cepat 25.487 karakter (−39%). Jalur standar tidak
+  berubah.
+- A3: snapshot prompt merender profil dev sebenarnya (run memory, merged steps, table directives, alat registry dev
+  dari potret Railway di AI_TOOLS.md, skema dengan memo_note dan next_step) dan menyimpan prefiks cepat
+  (`fast_prompt.md`).
+- A/B 3 pertanyaan jalur cepat, DeepSeek V4.1 Flash high (A: orc `4140e697` sebelum E2; B: `7f60539f`):
+
+| | A | B |
+|---|---|---|
+| q1 return BRI/Mandiri/BCA 3 bulan | 82 dtk, USD 0,0067 | 33 dtk, USD 0,0192 |
+| q2 bank net beli asing Agustus 2026 | 172 dtk, USD 0,0313, 1 perbaikan gerbang | 102 dtk, USD 0,0274, 3 panggilan ditolak (argumen agregat) |
+| q3 LQ45 naik >5% lalu 5 hari | 158 dtk, USD 0,0184 | 392 dtk, USD 0,0251, 3 pencarian web, 2 galat kode |
+| Total | 412 dtk, USD 0,056 | 527 dtk, USD 0,072 |
+
+  - Angka q1 sama persis di kedua lengan; q2 sama datanya, tetapi lengan A menampilkan BBRI "Rp 2 triliun" untuk Rp 1,51
+    triliun (ERRORS M179), lengan B benar; q3 kesimpulannya berbeda (A p = 0,04 dengan galat baku per tanggal; B p =
+    0,689 dengan jendela tidak tumpang tindih): beda metode pilihan model, bukan beda prefiks.
+  - Kesimpulan: dengan 3 pertanyaan hasilnya belum menunjukkan penghematan yang jelas. Penghematan prefiks kecil karena
+    input sudah hampir seluruhnya dari cache, dan biaya B naik sebagian karena prefiks baru belum ter-cache. Waktu
+    lebih ditentukan oleh galat alat dan pencarian web daripada panjang prompt. E2 dibiarkan aktif; jalan balik:
+    redeploy orc `4140e697` (commit `95a3a69`).
+
 E3 dikonfirmasi user 2026-10-16 ("Ini masuk E3 (merapikan aturan) --> OK masukan exec jangan eksekusi dulu").
 
 **E4. Kartu router mengikuti saklar (R4).**
