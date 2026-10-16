@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-10-16 — EXEC-IMPL-1016 Fase 4 deployed (dev)
+
+- `56066b1`: market-ai-orc `4e9e7fd4`, edge-bff `761b8db3` SUCCESS (result tables in Sources, run progress).
+- `d2c9ed8`: edge-bff `c36d4622` SUCCESS (Sources table titles from the output name).
+- `801013b`: market-ai-orc `74ab0f54`, edge-bff `8c6ace94` SUCCESS (attach rows of an answer table).
+- No EDGE run was active before each orc push. No variable, service or database change; the progress lives in orc's
+  memory and the BFF proxies it (no `edge_bff` migration).
+
 ## 2026-10-15 — EXEC-IMPL-1016 Fase 3 deployed (dev)
 
 - `ba5b52b`: market-sql-governor `f70bf612`, market-python-sandbox `c5b30598`, market-ai-orc `cb8d5d2a`, all SUCCESS;

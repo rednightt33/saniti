@@ -2202,6 +2202,19 @@ user diberi tahu hanya bila provider menolak karena biaya. Berhenti hanya untuk 
     (bukan dari teks yang tampil), data mentah lewat `get_lineage`, muat, saring, rilis, dan `export_result`.
 - Tes: EDGE 105 (dua tes browser baru), orc 1.831 (`test_progress.py`), `AI_MODELS.md` dibuat ulang (nama call site
   router menjadi `_router_call_once`).
+- Deploy:
+  - `56066b1` (4.1, 4.3): orc `4e9e7fd4`, edge-bff `761b8db3` SUCCESS.
+  - `d2c9ed8` (judul tabel di Sources dari nama output): edge-bff `c36d4622` SUCCESS.
+  - `801013b` (4.2): orc `74ab0f54`, edge-bff `8c6ace94` SUCCESS.
+- Cek live:
+  - 4.3 `edge_5aa6abf8…`: progres terbaca lewat BFF tiap 4 detik selama 139 dtk (20 langkah: "Memahami pertanyaan",
+    "Menyusun langkah berikutnya", "Permintaan data", …); sebelum orc mulai `NOT_RUNNING`.
+  - 4.1: Sources di desktop dan ponsel menampilkan "Tabel hasil (1)" dengan isi, baris, kolom, data per dan tombol
+    ekspor; "Rujukan angka (8)" terlipat; tanpa luapan horizontal. Temuan yang diperbaiki: `label` output berisi status
+    validasi ("DATA_COVERAGE_VERIFIED"), bukan nama, dan output JSON ikut terdaftar.
+  - 4.2 `edge_b7fe6dfd…` lalu `edge_a2dc2f0b…`: jawaban pertama membawa `answer_tables` (out.o1, 5 baris, 5 kolom);
+    baris pertama (BK) dilampirkan ke "kenapa broker di baris yang saya lampirkan ini paling besar?". Jawaban kedua
+    menyebut BK dan menjelaskan dari data (beli Rp 297,86 miliar, jual Rp 47,12 miliar, net Rp 250,74 miliar).
 - `test_visual.py::test_typing_while_an_answer_arrives_keeps_focus` gagal sekali dalam suite penuh dan sekali di basis
   tanpa perubahan; lulus 3× sendirian. Ini masalah timing yang sudah ada, bukan akibat perubahan ini.
 
