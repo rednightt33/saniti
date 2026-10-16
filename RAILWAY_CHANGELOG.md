@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-10-16 — EXEC-1018B Fase 4 (fix), Fase 5 and Fase 6: market-ai-orc and edge-bff deploys
+
+- `95a3a69`: market-ai-orc `4140e697` SUCCESS (offer sentence in the next-step contract). Rollback for Fase 5.
+- `5a3337e`: market-ai-orc `7f60539f` SUCCESS (E2: the fast lane's own static prompt prefix; A3 snapshot of the dev
+  profile); startup without `*_inactive`.
+- `d3187bb`: edge-bff `827a16c4` SUCCESS (E11 question and attachments given back after a failed or stopped run, E12
+  run clock, E13 table alignment); the served page carries the new code. Rollback: edge-bff `c300a7b7`.
+- No EDGE run was active before each push. No variable, model, provider, mode or Railway configuration change.
+
 ## 2026-10-16 — EXEC-1018B Fase 2 and 4: market-ai-orc deploys
 
 - `8575273`: market-ai-orc `45c8c62c` SUCCESS (replaced outputs, supporting tables, export of a data request and the

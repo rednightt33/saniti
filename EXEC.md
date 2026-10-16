@@ -2596,6 +2596,18 @@ batas kunci ±USD 2,36.
     lebih ditentukan oleh galat alat dan pencarian web daripada panjang prompt. E2 dibiarkan aktif; jalan balik:
     redeploy orc `4140e697` (commit `95a3a69`).
 
+**Fase 6 (EDGE, 2026-10-16, selesai, ter-deploy):** E11, E12, E13.
+- Kode: `d3187bb` → edge-bff `827a16c4` SUCCESS; halaman live memuat kode baru. Tes EDGE 112 lulus.
+- E11 (M178): pertanyaan dan lampiran kembali ke kolom tanya bila run berakhir tanpa jawaban (gagal, dihentikan,
+  terputus), kecuali user sudah mengetik atau melampirkan hal baru. Status diambil dari run tersimpan (status Orc),
+  bukan dari status antrean FINISHED.
+- E12: jam run memakai waktu mulai paling awal yang tersirat dari setiap bacaan server, lalu naik satu tiap detik;
+  bacaan yang terlambat tidak menghentikan atau memundurkan jam. Animasi kecil per detik, mati bila
+  `prefers-reduced-motion`.
+- E13: judul dan isi tabel rata kiri dan di tengah secara vertikal (angka juga); judul sampai 28 karakter tidak pernah
+  terlipat (di ponsel tabel bergeser ke samping), judul lebih panjang terlipat di lebar ±28 karakter.
+- Tangkapan layar desktop (1440) dan ponsel (390) diperiksa.
+
 E3 dikonfirmasi user 2026-10-16 ("Ini masuk E3 (merapikan aturan) --> OK masukan exec jangan eksekusi dulu").
 
 **E4. Kartu router mengikuti saklar (R4).**
