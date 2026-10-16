@@ -2389,6 +2389,18 @@ dulu".
   dikembalikan ke kolom tanya beserta teks pesannya, sehingga kirim ulang membawanya lagi.
 - Uji: run gagal (BFF palsu) → chip kembali; run berhasil → chip kosong; desktop dan ponsel.
 
+**E12. Timer run berjalan mulus per detik (EDGE).** User 2026-10-16: "terkait dengan detik perhitungan waktu berjalan
+saat ini di FE seeperti longkap setiap detik.. bisa buat as smooth as 1 detik dengan animasi yang baik?", lalu "OK
+masukan exec".
+- Penyebab terverifikasi: waktu berjalan hanya diperbarui dari server setiap `PROGRESS_POLL_MS` = 2.500 ms
+  (`RunProgress`, `static/index.html` ±11119), jadi angka meloncat 2–3 detik; bukan karena EDGE tidak memakai React.
+- Rancangan: waktu mulai dan `elapsed_ms` dari server dipakai sebagai patokan; browser menambah sendiri tiap pergantian
+  detik (selaras jam, bukan interval yang bergeser); jawaban server berikutnya hanya mengoreksi selisih. Angka tetap
+  `tabular-nums`; detik yang berganti diberi transisi singkat (±200 ms), mati bila `prefers-reduced-motion`. Polling
+  langkah tetap 2.500 ms. Tab di latar belakang menghitung dari jam saat kembali, tidak dari jumlah detak.
+- Uji: angka naik tepat 1 tiap detik selama 10 detik (jam palsu di Playwright); koreksi tidak membuat angka mundur;
+  tanpa animasi saat `prefers-reduced-motion`; desktop dan ponsel.
+
 E3 dikonfirmasi user 2026-10-16 ("Ini masuk E3 (merapikan aturan) --> OK masukan exec jangan eksekusi dulu").
 
 **E4. Kartu router mengikuti saklar (R4).**
