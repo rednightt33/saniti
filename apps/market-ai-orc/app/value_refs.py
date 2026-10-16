@@ -654,6 +654,20 @@ UNIT_TOKENS = frozenset({"pct", "persen", "percent", "percentage", "porsi", "pro
 COUNT_TOKENS = frozenset({"count", "jumlah", "n", "hari", "days", "dates", "obs", "rows", "trades", "events"})
 
 
+# EXEC-TABLE-ALIGN (user 2026-10-16, "sesuai jenis teks yang di show"): a column that names a calendar label or an
+# identifier holds integers that are names, not quantities; an auto-format integer there is shown without thousands
+# grouping (2019, not 2.019), so EDGE reads it as a label. The value alone cannot tell a year from a price.
+LABEL_TOKENS = frozenset({"year", "years", "tahun", "yr", "fy", "id", "kode", "code", "nomor", "no"})
+
+
+def label_like(column: str) -> bool:
+    """A calendar label or an identifier by its column name (tahun, fiscal_year, broker_id); a count of them is not."""
+    tokens = [t for t in re.split(r"[^a-z0-9]+", str(column).lower()) if t]
+    if not tokens or tokens[0] in COUNT_TOKENS or tokens[-1] in COUNT_TOKENS or unit_like(column):
+        return False
+    return bool(set(tokens) & LABEL_TOKENS)
+
+
 def unit_like(column: str) -> bool:
     """A share, rate, percent, ratio or return by its column name; a count named at its start or end is not."""
     tokens = [t for t in re.split(r"[^a-z0-9]+", str(column).lower()) if t]
@@ -941,6 +955,10 @@ class _Number:
             out.unknown_values[self.expression] = self.resolved.value
         if used == "p" and self.resolved.value < P_FLOOR and self.resolved.value >= 0:
             out.values.append(Resolved(P_FLOOR, self.resolved.label))  # P24: the bound shown is a source too
+        value = self.resolved.value
+        if used == "auto" and unit is None and self.places is None and float(value).is_integer() \
+                and not FUNC_RE.match(self.expression) and label_like(_split(self.expression)[-1]):
+            return (MINUS if value < 0 else "") + str(abs(int(value)))  # a label, not a quantity: no grouping
         return format_value(self.resolved.value, used, self.places, unit)
 
 

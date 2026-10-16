@@ -454,3 +454,14 @@ def test_a_share_or_return_of_undeclared_unit_shown_as_a_bare_number_is_flagged(
     written = render("Setara {{out.o3.rows.0.net_asing_pct_transaksi|pct:1}}.", refs)
     assert written.unknown_units == ["out.o3.rows.0.net_asing_pct_transaksi"]  # a percent format on no unit, as before
     assert unit_like("net_asing_pct_transaksi") and not unit_like("jumlah_hari") and not unit_like("return_count")
+
+
+def test_an_integer_in_a_year_or_id_column_is_a_label_not_a_grouped_quantity() -> None:
+    # EXEC-TABLE-ALIGN (user 2026-10-16): "2019" in a year column, not "2.019"; a price of the same size keeps grouping
+    refs = ReferenceSources()
+    refs.add("out", "o1", {"rows": [{"tahun": 2019, "fiscal_year": 2021.0, "broker_id": 1234, "harga_awal": 2019,
+                                     "jumlah_tahun": 2019}]}, "DATA_COVERAGE_VERIFIED")
+    out = render("{{out.o1.rows.0.tahun}} {{out.o1.rows.0.fiscal_year}} {{out.o1.rows.0.broker_id}} "
+                 "{{out.o1.rows.0.harga_awal}} {{out.o1.rows.0.jumlah_tahun}} {{out.o1.rows.0.tahun|int}}", refs)
+    assert out.problems == []
+    assert out.text == "2019 2021 1234 2.019 2.019 2.019"  # an explicit format still decides

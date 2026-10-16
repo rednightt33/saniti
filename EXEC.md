@@ -2260,6 +2260,11 @@ sesuai jenis teks yang di show?"; "Setelah done pls run 3 A/B test ya".
   bersama judulnya; teks, kode, tanggal dan tahun rata kiri; tanpa center; perataan tulisan model diabaikan. Judul
   terlipat antar kata sampai sekitar 14 karakter; nilai pendek tetap satu baris; tanpa garis vertikal.
 - Tes: `test_ui_1015c.py::test_tables_align_by_content_wrap_long_titles_and_draw_no_vertical_line` (desktop dan ponsel).
+- Temuan A/B pertama: tahun tampil "2.019" karena orc memformat bilangan bulat dengan pemisah ribuan, sehingga kolom
+  Tahun tetap rata kanan. Nilai saja tidak bisa membedakan tahun dari harga (Rp 2.019), jadi tandanya diambil dari nama
+  kolom: kolom label kalender atau identitas (`tahun`, `year`, `fiscal_year`, `*_id`, `kode`) dengan format auto tampil
+  tanpa pemisah (`value_refs.label_like`); hitungan (`jumlah_tahun`) dan format yang ditulis (`|int`) tidak berubah.
+  Tes: `test_value_references.py::test_an_integer_in_a_year_or_id_column_is_a_label_not_a_grouped_quantity`.
 
 ### EXEC-REVIEW-1015: tinjauan semua EXEC terbuka dan arsitekturnya (2026-10-15; user: "please review all exec, inspect arsitektur ... contrast what ideal conditions would look like")
 
