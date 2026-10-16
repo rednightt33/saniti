@@ -2283,6 +2283,72 @@ Jawaban atas pertanyaan sebelum go:
   dikoreksi bersama.
 - Setiap angka di jawaban bisa ditelusuri sampai data mentahnya, dan penelusurannya dicek sistem.
 
+#### Hasil eksekusi (2026-10-16, berjalan)
+
+**Fase 2 (EDGE)**: selesai dan ter-deploy, edge-bff `97c087af` (`748224f`) SUCCESS.
+- Judul kolom tegak di tengah; mendatar mengikuti isi kolom.
+- Pertanyaan lanjutan dan Ide insight menjadi bagian lipat dengan jumlah di judul, tidak tebal, terlipat saat jawaban
+  datang.
+- Tes: `test_visual.py` (saran lanjutan) dan `test_ui_1015c.py` (judul tegak).
+
+**Fase 1.1 (sandbox)**: `saniti.hypothesis_test`, ter-deploy sandbox `6ebbc337` (`58bdf04`) SUCCESS.
+- Satu pencatat uji umum dengan empat bentuk: MEAN_DIFFERENCE, PROPORTION_DIFFERENCE, MEAN_VS_ZERO, CORRELATION.
+- Statistiknya dihitung mesin riset (`research_engines.general_test`) dengan sampel efektif per tanggal dan horizon.
+- Setiap uji tercatat sebagai `explore_test_call_*` dan ikut koreksi Benjamini–Hochberg.
+- Kapabilitas `explore_tests.hypothesis_test`.
+- Tes:
+  - nilai p sama dengan Welch pada rata-rata per tanggal (scipy);
+  - tanggal ganda dihitung sekali; hasil tumpang tindih mengecilkan sampel;
+  - dua tren tidak diberi interval (sampel efektif 3);
+  - tercatat dan dikoreksi bersama `explore_test` di sesi nyata.
+- Suite sandbox 868 lulus.
+
+**Fase 1.2–1.3 (orc)**: saklar `AI_FASTLANE_INSIGHT_V2`, ter-deploy orc `7332de5a` (`1044411`) SUCCESS, saklar
+masih mati.
+- Catatan INSIGHT v2:
+  - AI membentuk hipotesis sendiri; uji tidak wajib;
+  - statistik hanya dari `hypothesis_test`/`explore_test`/`event_study`;
+  - 8 metode disebut sebagai alat pilihan.
+- Gerbang M171 `UNRECORDED_TEST`:
+  - p-value atau batas interval yang ditampilkan dari tabel yang bukan hasil uji tercatat ditolak sekali, lalu diberi
+    baris Batasan;
+  - mode Jawab tidak terkena.
+- Tes: `test_fastlane.py` (v2 dan lengan A tidak berubah); suite orc lulus.
+- **Penyimpangan dari rencana: teks router tidak diubah.**
+  - Pilihan rute (INSIGHT atau bukan) tidak bergantung pada cara INSIGHT menguji.
+  - Router yang sama di kedua lengan membuat A/B bersih dan tidak butuh benchmark berbayar (sisa kunci USD 2,97).
+  - Kartu kemampuan router diperbarui saat v2 dijadikan default, beserta benchmark-nya.
+- **Penyimpangan: audit modul tidak dipakai untuk "uji di luar pencatatan".** `hypothesis_test` sendiri mengimpor
+  `scipy.stats`, sehingga sinyal itu salah. Yang dijaga adalah angka yang sampai ke user: gerbang `UNRECORDED_TEST`.
+
+**Fase 3 (lampiran dan telusur angka)**: kode dan tes selesai (`72ca6a0`), di-deploy setelah A/B.
+- orc:
+  - `answer_figures` (angka teks jawaban berurutan beserta rujukannya; angka tabel lewat `answer_tables`);
+  - `attachments[]` (`TABLE`/`TEXT` dengan `figures`, paling banyak 5; `attached_selection` lama tetap diterima);
+  - satu catatan lampiran dengan aturan hitung ulang;
+  - `reproductions` yang dinyatakan AI dicek backend sama persis (selisih relatif ≤ 1e-9 dan tampilan identik; asal
+    dari lampiran; hasil dari tabel run ini) → `reproductions` di respons, atau gerbang `REPRODUCTION` lalu baris
+    Batasan;
+  - `attached` di respons;
+  - router menerima satu baris lampiran (`mode4.routed_message`; `AI_ROUTER.md` aturan 7);
+  - riwayat giliran berikutnya menyebut lampirannya (`conversations.with_attached`).
+- BFF: `attachments` di `RunInput` dan daftar izin.
+- EDGE:
+  - angka teks menjadi span dengan rujukan; sel tabel membawa rujukan;
+  - tombol "Attach to question" dan klik baris dihapus;
+  - klik kanan pada teks terpilih membuka menu Copy / Attach selection as context; di ponsel bar mengambang;
+  - chip bisa ditumpuk sampai 5;
+  - jawaban menampilkan "Lampiran: …" dan "Dihitung ulang dari data mentah: sama persis dengan …".
+- Tes: `test_attachments.py` (orc), `test_edge.py`, `test_answer_view.py` (klik kanan desktop, bar ponsel),
+  `test_frontend_contract.py`.
+- **Penyimpangan: rumus Excel hidup (3.3a) ditunda.**
+  - Memverifikasinya butuh mesin rumus Excel di sandbox, yaitu dependensi baru.
+  - Yang dibangun: tabel kerja berisi data mentah, setiap langkah sebagai kolom, rumus per langkah ditulis, dan
+    pemeriksaan sama persis oleh backend.
+  - Usulan lanjutan untuk diputuskan user.
+- **Penyimpangan: benchmark router untuk baris lampiran tidak dijalankan.** Pesan tanpa lampiran sampai ke router
+  persis sama seperti sebelumnya, jadi set benchmark yang ada tidak terpengaruh. Dicek lewat cek live 3.7.
+
 #### Tinjauan EXEC/PLAN yang ada (2026-10-16)
 
 | Butir | Status | Kaitan dengan rencana ini |

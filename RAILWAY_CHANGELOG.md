@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-10-16 — EXEC-IMPL-1017 Fase 1–2 deployed (dev)
+
+- `748224f`: edge-bff `97c087af` SUCCESS (table titles in the middle; follow-ups and insight ideas fold).
+- `58bdf04`: market-python-sandbox `6ebbc337` SUCCESS (`saniti.hypothesis_test`; capability
+  `explore_tests.hypothesis_test`).
+- `1044411`: market-ai-orc `7332de5a` SUCCESS (insight v2 behind `AI_FASTLANE_INSIGHT_V2`, unset = off; startup without
+  `*_inactive`). No EDGE run was active before each push.
+- No variable changed yet; rollback: orc `9152f522`, sandbox `c5b30598`, edge-bff `a701e7b0`.
+
 ## 2026-10-16 — EXEC-TABLE-ALIGN deployed (dev)
 
 - `a391851`: edge-bff `57e722f3` SUCCESS (answer tables: no vertical line, long titles wrap, alignment from content).
