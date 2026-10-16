@@ -536,6 +536,17 @@ please advise metric baiknya seperti apa. berapa batas SQL governor?"
 6. Metrik baru cukup satu baris di `AI_metric_catalog` bila tabel dan kolomnya sudah ada; kandidat ditinjau user
    (nilai transaksi tetap ditunda, keputusan D-b).
 
+## Rujukan jauh ke belakang dan lampiran (pertanyaan user 2026-10-16, usulan)
+
+- Yang ada sekarang: data record (tabel, hasil, temuan, fakta) mencakup seluruh percakapan; langkah analisis menerima
+  riwayat sampai 50 item (25 giliran) dan `read_conversation_memory` untuk run yang lebih lama; router menerima tiga
+  pertanyaan user terakhir, nama tabel dan hasil, temuan, fakta, saran yang menunggu.
+- Celah: rujukan router hanya PENDING_SUGGESTION, NEWEST_RESULT, UNCLEAR, NONE; rujukan ke hasil lama menjadi UNCLEAR
+  lalu ditanya balik. Usulan: router boleh menyebut satu hasil dari daftar nama hasil yang sudah ia terima (rujukan
+  EARLIER_RESULT + nama), dan langkah analisis membukanya dengan alat yang ada (load_output, memori run).
+- Lampiran sudah sampai ke router (baris lampiran di pesan) dan ke langkah analisis (catatan lampiran, angka yang
+  dilampirkan) dan tersimpan di riwayat; celah M178 (lampiran hilang setelah run gagal).
+
 ## Rumus Excel hidup untuk angka yang dihitung ulang (penilaian 2026-10-16, menunggu keputusan)
 
 User 2026-10-16: "apakah heavey? if so how heavy? coba bandingkan best practice apakah ini memang diperlukan."
