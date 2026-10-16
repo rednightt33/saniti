@@ -2346,6 +2346,7 @@ AI bingung (ii) AI tidak tahu (iii) AI mengajukan dan di tolak".
     "Banks"); `query_metric` ditolak (maks 20 entitas); penutupan ditolak sekali; hanya papan Regular; nilai transaksi
     dobel (M175); kutipan dari keluaran lama (M174).
   - Angka q2/q3 belum dicek independen ke database (port publik database tidak terjangkau dari sesi ini).
+  - Tindak lanjut q2 per papan (pertanyaan user "apakah hasil di Q2 ini salah atau misleading?", 43 dtk): Regular Rp 159,12 miliar (19 hari), Nego Rp 0 (1 hari), Tunai tidak ada; total semua papan sama dengan Regular, jadi q2 tidak salah untuk kasus ini.
 - Audit prompt dan router serta penilaian rumus Excel: FUTURE_PLAN ("Audit system prompt dan router 2026-10-16",
   "Rumus Excel hidup …").
 
