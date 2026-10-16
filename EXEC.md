@@ -2318,7 +2318,7 @@ dulu".
 - Batas: tetap bergantung pada model membaca dengan benar; pemeriksaan kode tidak termasuk (U1 ditolak).
 - Uji: teks yang dirakit memuat contoh kelipatan yang benar untuk setiap entri `span`; snapshot prompt; cek live satu
   pertanyaan "3 bulan terakhir".
-- Terbuka: arti "3 bulan" 63 hari bursa (default jalur cepat) atau 60 (`Feature_01_Stock_Daily.return_60d_pct`).
+- Keputusan user 2026-10-16: "E7 opsi A OK"; "3 bulan ini kan pakai 63 hari kalau hitung return pakai daily data ya? kalau mau cepat tinggal pakai saja return_60d_pct". Jadi: dari data harian, 3 bulan = 63 hari bursa; jalan cepat boleh memakai `Feature_01_Stock_Daily.return_60d_pct`. Catatan untuk dikonfirmasi saat eksekusi: kolom itu 60 hari bursa, bukan 63, jadi jawaban yang memakainya menyebut "60 hari bursa" sebagai asumsi.
 
 E3 dikonfirmasi user 2026-10-16 ("Ini masuk E3 (merapikan aturan) --> OK masukan exec jangan eksekusi dulu").
 
