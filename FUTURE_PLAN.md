@@ -503,6 +503,8 @@ tidak pernah menjalankannya.
 - (b) Jalan keluar: langkah baca saja yang menemukan permintaan butuh hitungan memindahkan giliran sekali ke kelas yang
   menghitung, dalam giliran yang sama, tercatat di log.
 - (c) Tawaran langkah berikut di jawaban menjadi pilihan terstruktur, sehingga "gas", "ok", "jalan" menjalankannya.
+- (d) Ekspor data mentah yang sudah diambil: `export_result` menerima kebutuhan data yang sudah terkirim (baris dari database, lineage dan saringan diketahui), tanpa hitungan, sehingga boleh di giliran baca saja; di #5 AI mencobanya dengan alamat kebutuhan data dan ditolak. Menutup "minta data harian" tanpa perpindahan kelas.
+- Catatan METRICS seharusnya dikirim hanya di giliran yang menawarkan `query_metric` (meja ANALYSIS, FASTLANE): `_offer_metrics` membaca alat giliran, bukan daftar alat terdaftar.
 - Juga: catatan METRICS dikirim di setiap run (`_offer_metrics`) termasuk giliran yang tidak menawarkan `query_metric`
   (CLARIFY); masuk tinjauan E3.
 
