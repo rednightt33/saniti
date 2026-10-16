@@ -27,7 +27,6 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 | 8 | Round 2026-10-03 Fase E: E1 hit rate (M69 tahap 2), E2 ambil sekali beri label (G19 lapis 2) | 2026-10-03 (round disetujui) | Belum; E2 menunggu keputusan 6 | 8 |
 | 9 | C06 1a-permanen dan D06 peringatan Telegram | 2026-10-02 | Belum (sisanya sudah live) | 9 |
 | 10 | G2-B, S20, minimal 4 hipotesis, analisis faktor | 2026-10-02 (`G2_G3_REACTIVATION_PLAN.md` langkah 8, FINAL) | Belum; 4 keputusan rinci masih terbuka | 10 |
-| 11 | P9 kamus nilai dan alat "cari nilai" | Keputusan desain user 2026-10-01 | Belum; perlu cek ulang cakupan | 11 |
 | 12 | Prosedur tabel baru (FX, indeks, makro) | 2026-10-01 "record now, run later" | Menunggu pemicu: tabel baru | Saat ada tabel baru |
 | 13 | Feature04 otomatis setelah update harga, retry ticker/indikator gagal lewat Telegram | 2026-10-11 (implementation plan disetujui) | Selesai; dipindahkan ke `EXEC.md` EXEC-F04 | Selesai 2026-10-11 |
 | 15 | Finality equity, pemeriksaan koreksi lima sesi, dan Feature04 incremental dengan checkpoint state | 2026-10-12 ("Ok jalankan.") | Selesai; migration, 868-instrument shadow, 6.076 checkpoint, live five-session run dan zero-change repeat lulus | Selesai 2026-10-12 |
@@ -88,24 +87,6 @@ test"); rincian di `FACTOR_EVENT_RESEARCH_PLAN.md` langkah 1–5.
 - **Keputusan yang masih terbuka** (`FACTOR_EVENT_RESEARCH_PLAN.md` §12, dijawab sebelum mulai): urutan langkah,
   `AI_RESEARCH_MIN_ANGLES=4`, perlakuan bila data < 4 angle, `AI_RESEARCH_MIN_FAMILIES`.
 - **Status:** S20 OPEN, S22 PARTLY FIXED.
-
-## 11. P9 kamus nilai dan alat "cari nilai"
-
-**Asal:** `VALUE_DICTIONARY_PLAN.md`. Rencana dipisah atas permintaan user 2026-10-01, dengan keputusan desain user
-2026-10-01:
-- memperluas job `ai-data-coverage`;
-- dua jalur (katalog dan alat);
-- `get_system_capabilities` dijalankan sistem di awal run, pilihan (a).
-
-**Yang sudah menutup sebagian:**
-- `get_dimension_values` (tabel statis);
-- `lookup_reference` (tabel referensi, cari nama);
-- `get_system_capabilities` (P31).
-
-**Yang belum:** kamus nilai untuk kolom kategori di tabel bertanggal (G17 UNDERADDRESSED).
-
-**Sebelum eksekusi:** cocokkan ulang isi rencana dengan alat yang sudah ada. `pg_trgm` adalah keputusan terpisah
-(`FUTURE_PLAN.md` §3).
 
 ## 12. Prosedur tabel baru (FX, indeks, makro)
 

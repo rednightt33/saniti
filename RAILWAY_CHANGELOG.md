@@ -12,6 +12,9 @@
   `4537911` (Fase 3 code): market-ai-orc `2d781487`, edge-bff `c300a7b7` SUCCESS, startup without `*_inactive`.
   `railway config pull --force`: `.railway/railway.ts` lists the new name (preserve); `railway config plan` up to date.
   Way back: unset the variable (or `false`).
+- After the A/B: `aa1d71b` orc `18f8d97b` (M172); `c240d69` orc `82b35fc4` (router CLARIFY card, benchmark 84/84);
+  `6789857` orc `a8a7dc56` (read-only turns and attached figures), all SUCCESS; no EDGE run active before each push.
+  `AI_FASTLANE_INSIGHT_V2=true` stays on dev pending the user's decision.
 
 ## 2026-10-16 — EXEC-TABLE-ALIGN deployed (dev)
 

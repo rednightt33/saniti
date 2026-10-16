@@ -2247,7 +2247,7 @@ user diberi tahu hanya bila provider menolak karena biaya. Berhenti hanya untuk 
 - Bagian EXEC yang selesai (EXEC-OPEN-1015, UI-1015E, M164, EDGE-CTX, UI-1015B, M163) diberi status selesai di
   judulnya. Penghapusan dari EXEC.md (aturan AGENTS) menunggu user menyatakan eksekusi ini selesai ("conclude").
 
-### EXEC-IMPL-1017: hipotesis dari AI di jalur insight (A/B), penelusuran asal angka lewat lampiran, sisa EXEC-UI-1016 (dicatat 2026-10-16; go 2026-10-16, berjalan)
+### EXEC-IMPL-1017: hipotesis dari AI di jalur insight (A/B), penelusuran asal angka lewat lampiran, sisa EXEC-UI-1016 (dicatat 2026-10-16; go 2026-10-16; Fase 0–3 ter-deploy dan diuji live)
 
 **Go 2026-10-16:** "Yes, untuk minimal 4 hipotesis jalur standar. Yang kita rubah sekarang adalah jalur fast lane dan
 kita akan buat versi 2. Yes, untuk di ponsel memakai tombol mengambang. Terlipat saat jawaban datang untuk pertanyaan
@@ -2348,6 +2348,59 @@ masih mati.
   - Usulan lanjutan untuk diputuskan user.
 - **Penyimpangan: benchmark router untuk baris lampiran tidak dijalankan.** Pesan tanpa lampiran sampai ke router
   persis sama seperti sebelumnya, jadi set benchmark yang ada tidak terpengaruh. Dicek lewat cek live 3.7.
+
+**A/B Fase 1 (2026-10-16).**
+- Enam pertanyaan, sama di kedua lengan: jalur insight dipaksa lewat `chosen_option` EXPLORE, jalur cepat, DeepSeek
+  V4.1 Flash high.
+- Lengan A: saklar mati, orc `7332de5a`. Lengan B: `AI_FASTLANE_INSIGHT_V2=true`, orc `2d781487`.
+
+| | A (sekarang) | B (insight v2) |
+|---|---|---|
+| Total waktu 6 run | 1.405 dtk | 819 dtk (−42%) |
+| Median per run | 189 dtk | 136 dtk |
+| Biaya total | USD 0,123 | USD 0,109 |
+| Token penalaran total | 78.501 | 54.817 (−30%) |
+| Uji tercatat dan dikoreksi | 16 | 23 |
+| Statistik tak tercatat di jawaban akhir | – | 0 (gerbang menolak dua kali, q2 dan q3, lalu diperbaiki AI) |
+
+Per pertanyaan (detik A → B):
+- "kenapa BBRI turun lebih dalam dari BMRI" 232 → 219;
+- "setelah asing net buy beruntun" 323 → 115;
+- "faktor return GOTO" 498 → 184;
+- "bank turun ≥ 5%" 147 → 59;
+- "broker mendahului TLKM" 120 → 156;
+- "5 saham net beli asing" (daftar, tanpa uji) 86 → 86.
+
+Mutu:
+- Angka inti sama di kedua lengan: BBRI −28,7%, BMRI −5,8%, asing −Rp 37,87 triliun.
+- B lebih kritis terhadap hipotesisnya sendiri: "aliran asing tidak menjelaskan seluruh selisih", dengan pembagian
+  periode.
+- B q1 memuat periode yang tumpang tindih (Jun–Des dan Okt–Des), jadi penyajiannya masih bisa lebih rapi.
+- Pertanyaan daftar dijawab dengan tabel tanpa uji di kedua lengan.
+- Lulus syarat rencana: B tidak lebih lambat dan tidak ada angka uji tak tercatat.
+- `AI_FASTLANE_INSIGHT_V2` dibiarkan menyala di dev. Keputusan permanen di tangan user; jalan balik: hapus variabel.
+
+**Fase 3, cek live dan temuan (2026-10-16).**
+- Cek pertama (`edge_d7f2e126…`) menemukan cacat umum (ERRORS M172):
+  - langkah mode 4 tidak menerima lampiran;
+  - respons gabungan mode 4 membuang field jawaban.
+  - Perbaikan: `schemas.ANSWER_FIELDS` disalin mode 4; `sub()` meneruskan lampiran (orc `18f8d97b`, `aa1d71b`).
+- Router memilih CLARIFY (baca saja) untuk "ini dari mana? tunjukkan data mentah":
+  - kartu CLARIFY sekarang menyebut tidak bisa menghitung ulang angka;
+  - tiga kasus lampiran masuk set benchmark;
+  - benchmark: 84/84 kelas benar dua kali, horizon 14/14, varian 5/6 (pembanding lama 78/78, horizon 12/14,
+    varian 6/6); biaya ±USD 0,11; orc `82b35fc4` (`c240d69`).
+- Di percakapan yang sudah dua kali CLARIFY, router tetap memilih CLARIFY. Giliran baca saja kini memakai catatan
+  khusus: menampilkan input tersimpan beserta rumus dan pembulatannya, tanpa menyatakan reproduksi (orc `a8a7dc56`,
+  `6789857`).
+- Jawaban giliran baca saja sudah bisa dihitung ulang persis oleh pengguna. Contoh: dua harga penutupan beserta
+  tanggal, (3.162,5 ÷ 3.837,5) − 1 = −17,589577% → −17,6%.
+- Giliran yang menghitung (pilihan INSIGHT, `edge_…` di `conv_61b09ee1…`), lampiran 41,3% BMRI 2022:
+  - AI merilis tabel kerja;
+  - backend memastikan **sama persis** (`reproductions: MATCH`, out.o5 = out.o2 baris 7);
+  - deret harian BMRI 2022 (246 baris) diekspor ke Excel dengan lembar kolom, definisi dan asal data;
+  - waktu 252 dtk, biaya USD 0,028.
+  - Catatan: harga dasar 30 Des 2021 ada di tabel jawaban, tidak di file (file hanya 2022).
 
 #### Tinjauan EXEC/PLAN yang ada (2026-10-16)
 
