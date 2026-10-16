@@ -2522,6 +2522,31 @@ batas kunci ±USD 2,36.
   bursa (15 Juli–16 Oktober 2026), asumsi "Tiga bulan terakhir dihitung 63 hari perdagangan (1 bulan = 21 hari)";
   BBRI −6,7%, BBCA −15,5%, BMRI −19,3%; baris uji tetap jalur cepat tidak lagi ditambahkan karena tidak ada statistik.
 
+**Fase 2 (sandbox + orc, 2026-10-16, selesai, ter-deploy):** E6, E9 (d), (e), (f), E1.
+- Kode: sandbox `454272e` → `ac2241cb` SUCCESS; orc `8575273` → `45c8c62c` SUCCESS, startup tanpa `*_inactive`
+  (sandbox melaporkan `supporting_data` v1). Tes: orc 1.870 lulus, sandbox 874 + 7 tes baru lulus.
+- Tool_Catalog round Y (export_result v6, complete_analysis orc-v4) diterapkan lewat `mmig-job` (DRYRUN `cc9dee4f`,
+  APPLY `e32add87`, lalu dihapus) dan dibaca ulang: 157 → 159 baris.
+- E6: hasil dengan nama yang dirilis ulang di request yang sama menggantikan yang lama (sandbox merilis yang terbaru per
+  nama; orc menolak alamat lama dengan alamat baru, `replaced_outputs`).
+- E9(e): tabel kerja (`save_table`) dan `emit_table(..., support=True)` dirilis sebagai tabel pendukung, disimpan 30
+  hari (`output_type` SUPPORT, tanpa ubah skema), tampil terpisah di data record, tidak bisa dikutip. Batas 50 MB per
+  tabel dan 100 MB per penutupan; yang tidak disimpan disebut di `supporting_tables_not_kept`.
+- E9(d): `export_result(data_request=...)` mengekspor baris data request dari bundle; bila bundle kedaluwarsa, kebutuhan
+  data yang sama didaftarkan ulang dan diambil lagi (SQL sama), dengan `same_rows_as_original`.
+- E9(f): tabel pendukung lewat 30 hari dibangun ulang dari kode tersimpan di sesi baru tanpa AI; diekspor hanya bila
+  checksum sama persis, selain itu `EXPIRED_NOT_REBUILDABLE` dengan alasannya.
+- E1: XLSX hasil diberi lembar input untuk setiap input yang tanggalnya tidak tercakup file (termasuk baris pemanasan),
+  status per input dilaporkan (`INCLUDED`, `COVERED`, `NOT_INCLUDED`).
+- Cek live (`conv_bbfe5408…`):
+  - "September 2026": data broker baru sampai 31 Agustus, dijawab LIMITATION dengan benar;
+  - "Agustus 2026": 5 broker net beli teratas (UBS AK Rp 158,99 miliar) lewat `query_metric`, 96 dtk;
+  - "Minta data harian per broker … dalam Excel": router CONTINUE, XLSX 1.169 baris, 64 dtk; lembar input
+    `broker_profile` ditambahkan, transaksi broker COVERED;
+  - "Minta juga data mentah transaksi broker … dalam CSV": router CLARIFY (baca saja), `export_result(data_request)`
+    tanpa kode, CSV 1.169 baris, 75 dtk. Kasus M176 (#5–#9) kini selesai dalam satu giliran masing-masing.
+- Ditunda ke Fase 4: kartu CLARIFY router menyebut ekspor data di balik hasil; EDGE menandai tabel pendukung (Fase 6).
+
 E3 dikonfirmasi user 2026-10-16 ("Ini masuk E3 (merapikan aturan) --> OK masukan exec jangan eksekusi dulu").
 
 **E4. Kartu router mengikuti saklar (R4).**
