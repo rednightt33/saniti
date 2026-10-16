@@ -46,6 +46,7 @@ from . import lanes
 from . import modes
 from . import news as news_research
 from . import stop
+from . import user_texts as texts
 from .conversations import assistant_text
 from .orchestrator import MODE4_PART_TARGET_CHARS, AgentOrchestrator, current_answer_target, current_time_budget, \
     log_event
@@ -480,6 +481,7 @@ class _Mode4Run:
         explicit = continuation.action if pending else None
         chosen = self.request.chosen_option if self.owner.ask_back \
             and self.request.chosen_option in router.TURN_OPTION_ROUTES else None
+        raw_kind = None  # the router's own class, before the backend's rules
         if explicit is not None:
             kind, instruction = explicit, continuation.revision_instruction
         elif chosen is not None:
@@ -496,6 +498,7 @@ class _Mode4Run:
                                      newer, asked)
             raw, instruction, self.router_usage = self.inner.classify_turn(f"{self.base_id}-m4r",
                                                                            routed_message(self.request), context)
+            raw_kind = raw
             if self.owner.ask_back and raw in (router.ASK_BACK, None):
                 # EXEC-3: asked back, or the router failed twice: a question (fixed after a failure), nothing runs
                 return ask_back_response(self.inner, self.request, self.router_usage or {}, first=False,
@@ -508,6 +511,17 @@ class _Mode4Run:
             if kind != raw and raw in ("APPROVE", "REVISE") and newer:
                 log_event("mode4_stale_suggestion", request_id=self.request.request_id, router_kind=raw,
                           referent=(self.router_usage or {}).get("referent"), newer_results=newer[-5:])
+        offer = records.normalize(self.record).get("offer") if self.record else None
+        if raw_kind == "APPROVE" and kind == "CONTINUE" and not pending and offer:
+            # E9(c) (EXEC-1018B): a short yes to the action the previous answer offered runs that action's message
+            self.turn_kind = "CONTINUE"
+            self.notes.append(texts.OFFER_RUN_LINE.format(label=offer.get("label") or offer["message"][:80]))
+            log_event("mode4_offer_accepted", request_id=self.request.request_id,
+                      offered_by=offer.get("request_id"))
+            result = self.sub("continue", STEP_SUFFIX["CONTINUE"], str(offer["message"]), None,
+                              turn_kind="CONTINUE")
+            return self.finish(self._with_line(result, self.notes[-1], "assumptions"), round_="CONTINUE",
+                               passthrough=True)
         self.turn_kind = kind
         log_event("mode4_turn_routed", request_id=self.request.request_id, turn_kind=kind, pending=pending,
                   source="EXPLICIT" if explicit else "ROUTER")
@@ -530,6 +544,19 @@ class _Mode4Run:
             return self.first_round(cancelled_plan_id=continuation.plan_id if pending else None)
         result = self.sub(kind.lower(), STEP_SUFFIX[kind], self.request.message,
                           "ANALYSIS" if kind == "INSIGHT" else None, turn_kind=kind)
+        if kind in ("CLARIFY", "CONVERSATIONAL") and result is not None and result.needs_computation:
+            # E9(b) (EXEC-1018B, user "4. Otomatis"): the read-only step found the request needs a calculation; the
+            # same message runs once as CONTINUE in this turn, and the answer says the turn moved
+            reason = result.needs_computation
+            log_event("mode4_handoff", request_id=self.request.request_id, from_kind=kind, reason=reason[:300])
+            self.notes.append(texts.HANDOFF_LINE.format(reason=reason.rstrip(". ")))
+            moved = self.sub("continue", "m4h", self.request.message, None, turn_kind="CONTINUE")
+            if moved is not None and moved.response is not None:
+                self.turn_kind = kind = "CONTINUE"
+                if self.router_usage is not None:
+                    self.router_usage = {**self.router_usage, "handoff": reason[:300]}
+                result = self._with_line(moved, self.notes[-1], "assumptions")
+                self.results[-1] = result
         if pending and result is not None and result.response is not None \
                 and result.response.response_type in ("ANSWER", "LIMITATION"):
             # rule 4: the suggestion is still pending (the conversation store keeps it)
@@ -538,6 +565,14 @@ class _Mode4Run:
                 "limitations": _merge(result.response.limitations, [PENDING_LINE])})})
             self.results[-1] = result
         return self.finish(result, round_=kind, passthrough=True)
+
+    @staticmethod
+    def _with_line(result: AgentRunResponse | None, line: str, field: str) -> AgentRunResponse | None:
+        """The result with one backend line added to its answer's assumptions or limitations (shown to the user)."""
+        if result is None or result.response is None or result.response.response_type not in ("ANSWER", "LIMITATION"):
+            return result
+        return result.model_copy(update={"response": result.response.model_copy(update={
+            field: _merge([line], getattr(result.response, field))})})
 
     def _start_news(self, question: str) -> Future | None:
         """EXEC-Y Fase 2: /v1/ask runs next to the analysis (its own budget and deadline), in a thread that carries
@@ -769,6 +804,13 @@ class _Mode4Run:
         if pause is not None:
             execution = execution.model_copy(update={"pause": pause})
             self.record = {**records.normalize(self.record), "pause": pause}
+        # E9(c): the offer of the answer shown is the pending one; an answer without an offer clears it
+        shown = result if base is None else (analysis or base)
+        if self.record or (shown is not None and shown.offered_action):
+            self.record = records.normalize(self.record)
+            records.set_offer(self.record, self.request.request_id,
+                              shown.offered_action if shown is not None and response is not None
+                              and response.response_type in ("ANSWER", "LIMITATION") else None)
         labels = [r.evidence_label for r in (analysis, research) if r is not None and r.response is not None
                   and r.response.response_type in ("ANSWER", "LIMITATION")]
         combined = AgentRunResponse(

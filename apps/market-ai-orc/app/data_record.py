@@ -69,7 +69,8 @@ NOTE_HEADER = ("DATA RECORD (application context: the data this conversation has
 def empty() -> dict[str, Any]:
     return {"version": VERSION, "tables": {}, "needs": [], "outputs": [], "research": [], "next_alias": 1,
             "values": {}, "relationships": {}, "coverage": {}, "manuals": [], "findings": [], "seq": 0,
-            "suggestion": None, "answers": [], "columns": {}, "readings": [], "pause": None, "facts": []}
+            "suggestion": None, "answers": [], "columns": {}, "readings": [], "pause": None, "facts": [],
+            "offer": None}
 
 
 def normalize(record: Any) -> dict[str, Any]:
@@ -104,6 +105,9 @@ def normalize(record: Any) -> dict[str, Any]:
     # EXEC-W A1 (M121): the answer that paused and the choices it asked; the next message answers it
     pause = record.get("pause")
     clean["pause"] = dict(pause) if isinstance(pause, dict) and pause.get("cause") else None
+    # E9(c) (EXEC-1018B): the next step the latest answer offered; a short yes runs its message
+    offer = record.get("offer")
+    clean["offer"] = dict(offer) if isinstance(offer, dict) and offer.get("message") else None
     stored = record.get("next_alias")
     clean["next_alias"] = max(stored if isinstance(stored, int) and stored > 0 else 1,
                               max((_alias_number(o.get("ref")) for o in clean["outputs"]), default=0) + 1)
@@ -275,6 +279,13 @@ def add_need(record: dict[str, Any], request_id: str, result: dict[str, Any], mo
         entry["relationships"] = joins
     needs.append(entry)
     record["needs"] = needs[-MAX_NEEDS:]
+
+
+def set_offer(record: dict[str, Any], request_id: str, offer: dict[str, Any] | None) -> None:
+    """E9(c): the latest answer's offer replaces any earlier one (an answer without an offer clears it)."""
+    record["offer"] = {"request_id": request_id, "label": str(offer.get("label") or "")[:120],
+                       "message": str(offer.get("message") or "")[:1000]} \
+        if isinstance(offer, dict) and offer.get("message") else None
 
 
 def set_bundle(record: dict[str, Any], need_id: Any, bundle_id: Any) -> None:
@@ -598,7 +609,7 @@ def results_after_suggestion(record: dict[str, Any] | None, plan_id: str | None)
 def is_empty(record: dict[str, Any] | None) -> bool:
     return not has_data(record) and not (record or {}).get("manuals") and not (record or {}).get("suggestion") \
         and not (record or {}).get("readings") and not (record or {}).get("pause") \
-        and not (record or {}).get("facts")
+        and not (record or {}).get("facts") and not (record or {}).get("offer")
 
 
 def finding_line(entry: dict[str, Any]) -> str:

@@ -1,5 +1,5 @@
 {
- "note": "Later-message router cases (M80 b): export/show requests on existing results must be a read class (CLARIFY); the rest are controls. M82 (2026-10-05): cases with \"horizons\" also check design_value_changes (values, accepted actions; empty values: no horizon). variant_cases (variants, 2026-10-06; run with --ask-back): expect_changes lists the design value changes the reading must contain (name, value, action). optional_values: a value the message repeats (\"tetap uji yang 5 hari\") may also be read as ADD; the lock is the same. boundary_1016 (EXEC-IMPL-1016 O2, 2026-10-15): boundary cases after the conversation of edge_2f7523a7 (a search or list over new criteria, a why, a breakdown, a test, an export, another subject); a message with two reasonable classes lists both. attachment_1017 (EXEC-IMPL-1017 Fase 3, 2026-10-16): a message with the attachment line the routers read; asking for the raw data behind an attached figure or to recompute it needs a class that computes, asking what it means may stay CLARIFY.",
+ "note": "Later-message router cases (M80 b): export/show requests on existing results must be a read class (CLARIFY); the rest are controls. M82 (2026-10-05): cases with \"horizons\" also check design_value_changes (values, accepted actions; empty values: no horizon). variant_cases (variants, 2026-10-06; run with --ask-back): expect_changes lists the design value changes the reading must contain (name, value, action). optional_values: a value the message repeats (\"tetap uji yang 5 hari\") may also be read as ADD; the lock is the same. boundary_1016 (EXEC-IMPL-1016 O2, 2026-10-15): boundary cases after the conversation of edge_2f7523a7 (a search or list over new criteria, a why, a breakdown, a test, an export, another subject); a message with two reasonable classes lists both. attachment_1017 (EXEC-IMPL-1017 Fase 3, 2026-10-16): a message with the attachment line the routers read; asking for the raw data behind an attached figure or to recompute it needs a class that computes, asking what it means may stay CLARIFY. Contexts use the shape router.context() sends since EXEC-1018B Fase 4 (results as \"ref name: rows; columns\"; the older cases list ref and name only).",
  "cases": [
   {
    "message": "Ekspor tabel hasil uji tadi ke Excel.",
@@ -13,11 +13,11 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "sq_episode_net_buying_v2",
-     "crash_buyer_ranking_all_brokers_v2",
-     "research_input_sustained_breadth",
-     "research_findings_table"
+    "results": [
+     "out.o1 sq_episode_net_buying_v2",
+     "out.o2 crash_buyer_ranking_all_brokers_v2",
+     "out.o3 research_input_sustained_breadth",
+     "out.o4 research_findings_table"
     ],
     "findings": [
      "ANGLE:sustained_breadth",
@@ -51,11 +51,11 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "sq_episode_net_buying_v2",
-     "crash_buyer_ranking_all_brokers_v2",
-     "research_input_sustained_breadth",
-     "research_findings_table"
+    "results": [
+     "out.o1 sq_episode_net_buying_v2",
+     "out.o2 crash_buyer_ranking_all_brokers_v2",
+     "out.o3 research_input_sustained_breadth",
+     "out.o4 research_findings_table"
     ],
     "findings": [
      "ANGLE:sustained_breadth",
@@ -80,11 +80,11 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "sq_episode_net_buying_v2",
-     "crash_buyer_ranking_all_brokers_v2",
-     "research_input_sustained_breadth",
-     "research_findings_table"
+    "results": [
+     "out.o1 sq_episode_net_buying_v2",
+     "out.o2 crash_buyer_ranking_all_brokers_v2",
+     "out.o3 research_input_sustained_breadth",
+     "out.o4 research_findings_table"
     ],
     "findings": [
      "ANGLE:sustained_breadth",
@@ -118,11 +118,11 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "sq_episode_net_buying_v2",
-     "crash_buyer_ranking_all_brokers_v2",
-     "research_input_sustained_breadth",
-     "research_findings_table"
+    "results": [
+     "out.o1 sq_episode_net_buying_v2",
+     "out.o2 crash_buyer_ranking_all_brokers_v2",
+     "out.o3 research_input_sustained_breadth",
+     "out.o4 research_findings_table"
     ],
     "findings": [
      "ANGLE:sustained_breadth",
@@ -147,11 +147,11 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "sq_episode_net_buying_v2",
-     "crash_buyer_ranking_all_brokers_v2",
-     "research_input_sustained_breadth",
-     "research_findings_table"
+    "results": [
+     "out.o1 sq_episode_net_buying_v2",
+     "out.o2 crash_buyer_ranking_all_brokers_v2",
+     "out.o3 research_input_sustained_breadth",
+     "out.o4 research_findings_table"
     ],
     "findings": [
      "ANGLE:sustained_breadth",
@@ -176,11 +176,11 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "sq_episode_net_buying_v2",
-     "crash_buyer_ranking_all_brokers_v2",
-     "research_input_sustained_breadth",
-     "research_findings_table"
+    "results": [
+     "out.o1 sq_episode_net_buying_v2",
+     "out.o2 crash_buyer_ranking_all_brokers_v2",
+     "out.o3 research_input_sustained_breadth",
+     "out.o4 research_findings_table"
     ],
     "findings": [
      "ANGLE:sustained_breadth",
@@ -214,11 +214,11 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "sq_episode_net_buying_v2",
-     "crash_buyer_ranking_all_brokers_v2",
-     "research_input_sustained_breadth",
-     "research_findings_table"
+    "results": [
+     "out.o1 sq_episode_net_buying_v2",
+     "out.o2 crash_buyer_ranking_all_brokers_v2",
+     "out.o3 research_input_sustained_breadth",
+     "out.o4 research_findings_table"
     ],
     "findings": [
      "ANGLE:sustained_breadth",
@@ -252,11 +252,11 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "sq_episode_net_buying_v2",
-     "crash_buyer_ranking_all_brokers_v2",
-     "research_input_sustained_breadth",
-     "research_findings_table"
+    "results": [
+     "out.o1 sq_episode_net_buying_v2",
+     "out.o2 crash_buyer_ranking_all_brokers_v2",
+     "out.o3 research_input_sustained_breadth",
+     "out.o4 research_findings_table"
     ],
     "findings": [
      "ANGLE:sustained_breadth",
@@ -281,11 +281,11 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "sq_episode_net_buying_v2",
-     "crash_buyer_ranking_all_brokers_v2",
-     "research_input_sustained_breadth",
-     "research_findings_table"
+    "results": [
+     "out.o1 sq_episode_net_buying_v2",
+     "out.o2 crash_buyer_ranking_all_brokers_v2",
+     "out.o3 research_input_sustained_breadth",
+     "out.o4 research_findings_table"
     ],
     "findings": [
      "ANGLE:sustained_breadth",
@@ -311,11 +311,11 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "sq_episode_net_buying_v2",
-     "crash_buyer_ranking_all_brokers_v2",
-     "research_input_sustained_breadth",
-     "research_findings_table"
+    "results": [
+     "out.o1 sq_episode_net_buying_v2",
+     "out.o2 crash_buyer_ranking_all_brokers_v2",
+     "out.o3 research_input_sustained_breadth",
+     "out.o4 research_findings_table"
     ],
     "findings": [
      "ANGLE:sustained_breadth",
@@ -340,11 +340,11 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "sq_episode_net_buying_v2",
-     "crash_buyer_ranking_all_brokers_v2",
-     "research_input_sustained_breadth",
-     "research_findings_table"
+    "results": [
+     "out.o1 sq_episode_net_buying_v2",
+     "out.o2 crash_buyer_ranking_all_brokers_v2",
+     "out.o3 research_input_sustained_breadth",
+     "out.o4 research_findings_table"
     ],
     "findings": [
      "ANGLE:sustained_breadth",
@@ -378,11 +378,11 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "sq_episode_net_buying_v2",
-     "crash_buyer_ranking_all_brokers_v2",
-     "research_input_sustained_breadth",
-     "research_findings_table"
+    "results": [
+     "out.o1 sq_episode_net_buying_v2",
+     "out.o2 crash_buyer_ranking_all_brokers_v2",
+     "out.o3 research_input_sustained_breadth",
+     "out.o4 research_findings_table"
     ],
     "findings": [
      "ANGLE:sustained_breadth",
@@ -416,11 +416,11 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "sq_episode_net_buying_v2",
-     "crash_buyer_ranking_all_brokers_v2",
-     "research_input_sustained_breadth",
-     "research_findings_table"
+    "results": [
+     "out.o1 sq_episode_net_buying_v2",
+     "out.o2 crash_buyer_ranking_all_brokers_v2",
+     "out.o3 research_input_sustained_breadth",
+     "out.o4 research_findings_table"
     ],
     "findings": [
      "ANGLE:sustained_breadth",
@@ -454,11 +454,11 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "sq_episode_net_buying_v2",
-     "crash_buyer_ranking_all_brokers_v2",
-     "research_input_sustained_breadth",
-     "research_findings_table"
+    "results": [
+     "out.o1 sq_episode_net_buying_v2",
+     "out.o2 crash_buyer_ranking_all_brokers_v2",
+     "out.o3 research_input_sustained_breadth",
+     "out.o4 research_findings_table"
     ],
     "findings": [
      "ANGLE:sustained_breadth",
@@ -483,11 +483,11 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "sq_episode_net_buying_v2",
-     "crash_buyer_ranking_all_brokers_v2",
-     "research_input_sustained_breadth",
-     "research_findings_table"
+    "results": [
+     "out.o1 sq_episode_net_buying_v2",
+     "out.o2 crash_buyer_ranking_all_brokers_v2",
+     "out.o3 research_input_sustained_breadth",
+     "out.o4 research_findings_table"
     ],
     "findings": [
      "ANGLE:sustained_breadth",
@@ -510,7 +510,6 @@
     "tables": [
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [],
     "findings": [],
     "pending_suggestion": {
      "plan_id": "rp_h",
@@ -545,7 +544,6 @@
     "tables": [
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [],
     "findings": [],
     "pending_suggestion": {
      "plan_id": "rp_h",
@@ -586,7 +584,6 @@
     "tables": [
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [],
     "findings": [],
     "pending_suggestion": {
      "plan_id": "rp_h",
@@ -621,7 +618,6 @@
     "tables": [
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [],
     "findings": [],
     "pending_suggestion": {
      "plan_id": "rp_h",
@@ -649,7 +645,6 @@
     "tables": [
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [],
     "findings": [],
     "pending_suggestion": {
      "plan_id": "rp_h",
@@ -677,7 +672,6 @@
     "tables": [
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [],
     "findings": [],
     "pending_suggestion": {
      "plan_id": "rp_h",
@@ -705,9 +699,9 @@
     "tables": [
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "fall3_events",
-     "fall3_summary"
+    "results": [
+     "out.o1 fall3_events",
+     "out.o2 fall3_summary"
     ],
     "findings": [
      "HYPOTHESIS:fall3_up5"
@@ -744,11 +738,11 @@
      "Feature_03_Stock_Broker_Daily",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "broker_accum_h1_summary",
-     "broker_accum_h1_top_events",
-     "broker_accum_h2_summary",
-     "broker_accum_h2_top_events"
+    "results": [
+     "out.o1 broker_accum_h1_summary",
+     "out.o2 broker_accum_h1_top_events",
+     "out.o3 broker_accum_h2_summary",
+     "out.o4 broker_accum_h2_top_events"
     ],
     "findings": [
      "h1_20d",
@@ -774,11 +768,11 @@
      "Feature_03_Stock_Broker_Daily",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "broker_accum_h1_summary",
-     "broker_accum_h1_top_events",
-     "broker_accum_h2_summary",
-     "broker_accum_h2_top_events"
+    "results": [
+     "out.o1 broker_accum_h1_summary",
+     "out.o2 broker_accum_h1_top_events",
+     "out.o3 broker_accum_h2_summary",
+     "out.o4 broker_accum_h2_top_events"
     ],
     "findings": [
      "h1_20d",
@@ -802,9 +796,9 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "msci_rebalance_dates",
-     "foreign_broker_net_buy_before_effective"
+    "results": [
+     "out.o1 msci_rebalance_dates",
+     "out.o2 foreign_broker_net_buy_before_effective"
     ],
     "findings": [],
     "pending_suggestion": null
@@ -826,9 +820,9 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "msci_rebalance_dates",
-     "foreign_broker_net_buy_before_effective"
+    "results": [
+     "out.o1 msci_rebalance_dates",
+     "out.o2 foreign_broker_net_buy_before_effective"
     ],
     "findings": [],
     "pending_suggestion": null
@@ -850,9 +844,9 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "msci_rebalance_dates",
-     "foreign_broker_net_buy_before_effective"
+    "results": [
+     "out.o1 msci_rebalance_dates",
+     "out.o2 foreign_broker_net_buy_before_effective"
     ],
     "findings": [],
     "pending_suggestion": null
@@ -873,9 +867,9 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "msci_rebalance_dates",
-     "foreign_broker_net_buy_before_effective"
+    "results": [
+     "out.o1 msci_rebalance_dates",
+     "out.o2 foreign_broker_net_buy_before_effective"
     ],
     "findings": [],
     "pending_suggestion": null
@@ -897,9 +891,9 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "msci_rebalance_dates",
-     "foreign_broker_net_buy_before_effective"
+    "results": [
+     "out.o1 msci_rebalance_dates",
+     "out.o2 foreign_broker_net_buy_before_effective"
     ],
     "findings": [],
     "pending_suggestion": null
@@ -920,9 +914,9 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "msci_rebalance_dates",
-     "foreign_broker_net_buy_before_effective"
+    "results": [
+     "out.o1 msci_rebalance_dates",
+     "out.o2 foreign_broker_net_buy_before_effective"
     ],
     "findings": [],
     "pending_suggestion": null
@@ -943,9 +937,9 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "msci_rebalance_dates",
-     "foreign_broker_net_buy_before_effective"
+    "results": [
+     "out.o1 msci_rebalance_dates",
+     "out.o2 foreign_broker_net_buy_before_effective"
     ],
     "findings": [],
     "pending_suggestion": null
@@ -966,9 +960,9 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "msci_rebalance_dates",
-     "foreign_broker_net_buy_before_effective"
+    "results": [
+     "out.o1 msci_rebalance_dates",
+     "out.o2 foreign_broker_net_buy_before_effective"
     ],
     "findings": [],
     "pending_suggestion": null
@@ -989,9 +983,9 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "msci_rebalance_dates",
-     "foreign_broker_net_buy_before_effective"
+    "results": [
+     "out.o1 msci_rebalance_dates",
+     "out.o2 foreign_broker_net_buy_before_effective"
     ],
     "findings": [],
     "pending_suggestion": null
@@ -1013,9 +1007,9 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "msci_rebalance_dates",
-     "foreign_broker_net_buy_before_effective"
+    "results": [
+     "out.o1 msci_rebalance_dates",
+     "out.o2 foreign_broker_net_buy_before_effective"
     ],
     "findings": [],
     "pending_suggestion": null
@@ -1036,9 +1030,9 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "msci_rebalance_dates",
-     "foreign_broker_net_buy_before_effective"
+    "results": [
+     "out.o1 msci_rebalance_dates",
+     "out.o2 foreign_broker_net_buy_before_effective"
     ],
     "findings": [],
     "pending_suggestion": null
@@ -1060,9 +1054,9 @@
      "IDX_Broker_Summary",
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "msci_rebalance_dates",
-     "foreign_broker_net_buy_before_effective"
+    "results": [
+     "out.o1 msci_rebalance_dates",
+     "out.o2 foreign_broker_net_buy_before_effective"
     ],
     "findings": [],
     "pending_suggestion": null
@@ -1082,9 +1076,9 @@
     "tables": [
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "ytd_return_bbri_bmri",
-     "ytd_return_bbri_bmri_v2"
+    "results": [
+     "out.o1 ytd_return_bbri_bmri",
+     "out.o2 ytd_return_bbri_bmri_v2"
     ],
     "findings": [],
     "pending_suggestion": null
@@ -1104,9 +1098,9 @@
     "tables": [
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "ytd_return_bbri_bmri",
-     "ytd_return_bbri_bmri_v2"
+    "results": [
+     "out.o1 ytd_return_bbri_bmri",
+     "out.o2 ytd_return_bbri_bmri_v2"
     ],
     "findings": [],
     "pending_suggestion": null
@@ -1126,9 +1120,9 @@
     "tables": [
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "ytd_return_bbri_bmri",
-     "ytd_return_bbri_bmri_v2"
+    "results": [
+     "out.o1 ytd_return_bbri_bmri",
+     "out.o2 ytd_return_bbri_bmri_v2"
     ],
     "findings": [],
     "pending_suggestion": null
@@ -1138,6 +1132,288 @@
     "INSIGHT"
    ],
    "group": "attachment_1017"
+  },
+  {
+   "message": "Gas",
+   "context": {
+    "earlier_questions": [
+     "Broker mana yang paling banyak net buy saham ADRO selama Agustus 2026? Tampilkan 5 teratas."
+    ],
+    "tables": [
+     "IDX_Broker_Profile",
+     "IDX_Broker_Summary"
+    ],
+    "results": [
+     "out.o1 top5_net_buy_adro_aug2026: 5 rows; columns broker_code, broker_name, net_value, active_days; net buy per broker, Regular board, August 2026"
+    ],
+    "findings": [],
+    "pending_suggestion": null,
+    "pending_offer": {
+     "label": "data harian per broker ADRO Agustus 2026 ke Excel",
+     "message": "Hitung data harian per broker untuk ADRO Agustus 2026 dan ekspor ke Excel."
+    },
+    "previous_answer_end": "... UBS Sekuritas (AK) net beli Rp 158,99 miliar. Kalau Anda mau, saya bisa menghitung data harian per broker untuk ADRO selama Agustus 2026 dan mengekspornya ke Excel."
+   },
+   "kinds": [
+    "OFFER_ACCEPTED"
+   ],
+   "group": "offer_1018b"
+  },
+  {
+   "message": "Ok boleh, lanjut",
+   "context": {
+    "earlier_questions": [
+     "Broker mana yang paling banyak net buy saham ADRO selama Agustus 2026? Tampilkan 5 teratas."
+    ],
+    "tables": [
+     "IDX_Broker_Profile",
+     "IDX_Broker_Summary"
+    ],
+    "results": [
+     "out.o1 top5_net_buy_adro_aug2026: 5 rows; columns broker_code, broker_name, net_value, active_days; net buy per broker, Regular board, August 2026"
+    ],
+    "findings": [],
+    "pending_suggestion": null,
+    "pending_offer": {
+     "label": "data harian per broker ADRO Agustus 2026 ke Excel",
+     "message": "Hitung data harian per broker untuk ADRO Agustus 2026 dan ekspor ke Excel."
+    },
+    "previous_answer_end": "... UBS Sekuritas (AK) net beli Rp 158,99 miliar. Kalau Anda mau, saya bisa menghitung data harian per broker untuk ADRO selama Agustus 2026 dan mengekspornya ke Excel."
+   },
+   "kinds": [
+    "OFFER_ACCEPTED"
+   ],
+   "group": "offer_1018b"
+  },
+  {
+   "message": "Ya, yang harian itu",
+   "context": {
+    "earlier_questions": [
+     "Broker mana yang paling banyak net buy saham ADRO selama Agustus 2026? Tampilkan 5 teratas."
+    ],
+    "tables": [
+     "IDX_Broker_Profile",
+     "IDX_Broker_Summary"
+    ],
+    "results": [
+     "out.o1 top5_net_buy_adro_aug2026: 5 rows; columns broker_code, broker_name, net_value, active_days; net buy per broker, Regular board, August 2026"
+    ],
+    "findings": [],
+    "pending_suggestion": null,
+    "pending_offer": {
+     "label": "data harian per broker ADRO Agustus 2026 ke Excel",
+     "message": "Hitung data harian per broker untuk ADRO Agustus 2026 dan ekspor ke Excel."
+    },
+    "previous_answer_end": "... UBS Sekuritas (AK) net beli Rp 158,99 miliar. Kalau Anda mau, saya bisa menghitung data harian per broker untuk ADRO selama Agustus 2026 dan mengekspornya ke Excel."
+   },
+   "kinds": [
+    "OFFER_ACCEPTED"
+   ],
+   "group": "offer_1018b"
+  },
+  {
+   "message": "Yg saya remark\n[Lampiran user: \"saya bisa menghitung data harian per broker untuk ADRO selama Agustus 2026 dan mengekspornya ke Excel\"]",
+   "context": {
+    "earlier_questions": [
+     "Broker mana yang paling banyak net buy saham ADRO selama Agustus 2026? Tampilkan 5 teratas."
+    ],
+    "tables": [
+     "IDX_Broker_Profile",
+     "IDX_Broker_Summary"
+    ],
+    "results": [
+     "out.o1 top5_net_buy_adro_aug2026: 5 rows; columns broker_code, broker_name, net_value, active_days; net buy per broker, Regular board, August 2026"
+    ],
+    "findings": [],
+    "pending_suggestion": null,
+    "pending_offer": {
+     "label": "data harian per broker ADRO Agustus 2026 ke Excel",
+     "message": "Hitung data harian per broker untuk ADRO Agustus 2026 dan ekspor ke Excel."
+    },
+    "previous_answer_end": "... UBS Sekuritas (AK) net beli Rp 158,99 miliar. Kalau Anda mau, saya bisa menghitung data harian per broker untuk ADRO selama Agustus 2026 dan mengekspornya ke Excel."
+   },
+   "kinds": [
+    "OFFER_ACCEPTED",
+    "CONTINUE"
+   ],
+   "group": "offer_1018b"
+  },
+  {
+   "message": "Tidak usah, cukup ini saja. Terima kasih.",
+   "context": {
+    "earlier_questions": [
+     "Broker mana yang paling banyak net buy saham ADRO selama Agustus 2026? Tampilkan 5 teratas."
+    ],
+    "tables": [
+     "IDX_Broker_Profile",
+     "IDX_Broker_Summary"
+    ],
+    "results": [
+     "out.o1 top5_net_buy_adro_aug2026: 5 rows; columns broker_code, broker_name, net_value, active_days; net buy per broker, Regular board, August 2026"
+    ],
+    "findings": [],
+    "pending_suggestion": null,
+    "pending_offer": {
+     "label": "data harian per broker ADRO Agustus 2026 ke Excel",
+     "message": "Hitung data harian per broker untuk ADRO Agustus 2026 dan ekspor ke Excel."
+    },
+    "previous_answer_end": "... UBS Sekuritas (AK) net beli Rp 158,99 miliar. Kalau Anda mau, saya bisa menghitung data harian per broker untuk ADRO selama Agustus 2026 dan mengekspornya ke Excel."
+   },
+   "kinds": [
+    "CANCEL",
+    "CONVERSATIONAL"
+   ],
+   "group": "offer_1018b"
+  },
+  {
+   "message": "Kenapa UBS paling banyak beli?",
+   "context": {
+    "earlier_questions": [
+     "Broker mana yang paling banyak net buy saham ADRO selama Agustus 2026? Tampilkan 5 teratas."
+    ],
+    "tables": [
+     "IDX_Broker_Profile",
+     "IDX_Broker_Summary"
+    ],
+    "results": [
+     "out.o1 top5_net_buy_adro_aug2026: 5 rows; columns broker_code, broker_name, net_value, active_days; net buy per broker, Regular board, August 2026"
+    ],
+    "findings": [],
+    "pending_suggestion": null,
+    "pending_offer": {
+     "label": "data harian per broker ADRO Agustus 2026 ke Excel",
+     "message": "Hitung data harian per broker untuk ADRO Agustus 2026 dan ekspor ke Excel."
+    },
+    "previous_answer_end": "... UBS Sekuritas (AK) net beli Rp 158,99 miliar. Kalau Anda mau, saya bisa menghitung data harian per broker untuk ADRO selama Agustus 2026 dan mengekspornya ke Excel."
+   },
+   "kinds": [
+    "INSIGHT"
+   ],
+   "group": "offer_1018b"
+  },
+  {
+   "message": "Minta data hariannya dalam Excel",
+   "context": {
+    "earlier_questions": [
+     "Broker mana yang paling banyak net buy saham ADRO selama Agustus 2026? Tampilkan 5 teratas."
+    ],
+    "tables": [
+     "IDX_Broker_Profile",
+     "IDX_Broker_Summary"
+    ],
+    "results": [
+     "out.o1 top5_net_buy_adro_aug2026: 5 rows; columns broker_code, broker_name, net_value, active_days; net buy per broker, Regular board, August 2026"
+    ],
+    "findings": [],
+    "pending_suggestion": null,
+    "previous_answer_end": "... UBS Sekuritas (AK) net beli Rp 158,99 miliar."
+   },
+   "kinds": [
+    "CONTINUE",
+    "INSIGHT",
+    "CLARIFY"
+   ],
+   "group": "exists_1018b"
+  },
+  {
+   "message": "Ekspor tabel 5 broker tadi ke Excel",
+   "context": {
+    "earlier_questions": [
+     "Broker mana yang paling banyak net buy saham ADRO selama Agustus 2026? Tampilkan 5 teratas."
+    ],
+    "tables": [
+     "IDX_Broker_Profile",
+     "IDX_Broker_Summary"
+    ],
+    "results": [
+     "out.o1 top5_net_buy_adro_aug2026: 5 rows; columns broker_code, broker_name, net_value, active_days; net buy per broker, Regular board, August 2026"
+    ],
+    "findings": [],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "CLARIFY"
+   ],
+   "group": "exists_1018b"
+  },
+  {
+   "message": "Minta juga data mentah transaksi broker yang dipakai, dalam CSV",
+   "context": {
+    "earlier_questions": [
+     "Broker mana yang paling banyak net buy saham ADRO selama Agustus 2026? Tampilkan 5 teratas."
+    ],
+    "tables": [
+     "IDX_Broker_Profile",
+     "IDX_Broker_Summary"
+    ],
+    "results": [
+     "out.o1 top5_net_buy_adro_aug2026: 5 rows; columns broker_code, broker_name, net_value, active_days; net buy per broker, Regular board, August 2026",
+     "out.o2 adro_broker_daily_aug2026: 1169 rows; columns date, broker_code, broker_name, investor_type, buy_value, sell_value, net_value"
+    ],
+    "findings": [],
+    "pending_suggestion": null,
+    "supporting_tables": [
+     "out.o3 daily_rows: 1169 rows; columns Symbol, date, broker_code, investor_type, board, buy_value, sell_value, net_value"
+    ],
+    "previous_answer_end": "... File adro_broker_daily_aug2026.xlsx siap diunduh (1.169 baris)."
+   },
+   "kinds": [
+    "CLARIFY"
+   ],
+   "group": "exists_1018b"
+  },
+  {
+   "message": "Kirim ulang file harian tadi",
+   "context": {
+    "earlier_questions": [
+     "Broker mana yang paling banyak net buy saham ADRO selama Agustus 2026? Tampilkan 5 teratas."
+    ],
+    "tables": [
+     "IDX_Broker_Profile",
+     "IDX_Broker_Summary"
+    ],
+    "results": [
+     "out.o1 top5_net_buy_adro_aug2026: 5 rows; columns broker_code, broker_name, net_value, active_days; net buy per broker, Regular board, August 2026",
+     "out.o2 adro_broker_daily_aug2026: 1169 rows; columns date, broker_code, broker_name, investor_type, buy_value, sell_value, net_value"
+    ],
+    "findings": [],
+    "pending_suggestion": null,
+    "supporting_tables": [
+     "out.o3 daily_rows: 1169 rows; columns Symbol, date, broker_code, investor_type, board, buy_value, sell_value, net_value"
+    ],
+    "previous_answer_end": "... File adro_broker_daily_aug2026.xlsx siap diunduh (1.169 baris)."
+   },
+   "kinds": [
+    "CLARIFY"
+   ],
+   "group": "exists_1018b"
+  },
+  {
+   "message": "Sekarang buat yang sama untuk BUMI",
+   "context": {
+    "earlier_questions": [
+     "Broker mana yang paling banyak net buy saham ADRO selama Agustus 2026? Tampilkan 5 teratas."
+    ],
+    "tables": [
+     "IDX_Broker_Profile",
+     "IDX_Broker_Summary"
+    ],
+    "results": [
+     "out.o1 top5_net_buy_adro_aug2026: 5 rows; columns broker_code, broker_name, net_value, active_days; net buy per broker, Regular board, August 2026",
+     "out.o2 adro_broker_daily_aug2026: 1169 rows; columns date, broker_code, broker_name, investor_type, buy_value, sell_value, net_value"
+    ],
+    "findings": [],
+    "pending_suggestion": null,
+    "supporting_tables": [
+     "out.o3 daily_rows: 1169 rows; columns Symbol, date, broker_code, investor_type, board, buy_value, sell_value, net_value"
+    ],
+    "previous_answer_end": "... File adro_broker_daily_aug2026.xlsx siap diunduh (1.169 baris)."
+   },
+   "kinds": [
+    "CONTINUE",
+    "NEW_TOPIC"
+   ],
+   "group": "exists_1018b"
   }
  ],
  "variant_cases": [
@@ -1150,7 +1426,6 @@
     "tables": [
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [],
     "findings": [],
     "pending_suggestion": {
      "plan_id": "rp_h",
@@ -1182,8 +1457,8 @@
     "tables": [
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [
-     "bbca_volume_days"
+    "results": [
+     "out.o1 bbca_volume_days"
     ],
     "findings": [],
     "pending_suggestion": null,
@@ -1209,7 +1484,6 @@
     "tables": [
      "Price_Stock_Indonesia_IDX"
     ],
-    "outputs": [],
     "findings": [],
     "pending_suggestion": {
      "plan_id": "rp_h",

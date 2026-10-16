@@ -454,3 +454,9 @@ CONVENTION_NUMBER_KINDS = {"CONFIDENCE_LEVEL": "tingkat kepercayaan standar", "D
 def convention_numbers_line(accepted: list[tuple[str, str]]) -> str:
     items = "; ".join(f"{number} ({CONVENTION_NUMBER_KINDS.get(kind, kind)})" for number, kind in accepted[:10])
     return f"Angka berikut tidak berasal dari tabel hasil: {items}."
+
+
+# E9(b) and E9(c) (EXEC-1018B Fase 4, user 2026-10-16 "4. Otomatis"): the turn moved to an analysis step, and an
+# offer the user accepted
+HANDOFF_LINE = "Permintaan ini butuh hitungan baru ({reason}), jadi langsung dikerjakan sebagai analisis lanjutan."
+OFFER_RUN_LINE = "Menjalankan tawaran sebelumnya: {label}."

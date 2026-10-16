@@ -442,10 +442,33 @@ FACTS_PROPERTY: dict[str, Any] = {
               "required": ["kind", "subject", "value", "meaning", "sources"]}}
 
 
+# E9(b) and E9(c) (EXEC-1018B Fase 4, user 2026-10-16 "4. Otomatis"): what the answer hands on. Taken out of the
+# response before it is parsed (like facts); mode 4 acts on them
+NEEDS_COMPUTATION_PROPERTY: dict[str, Any] = {
+    "type": ["string", "null"], "maxLength": 300,
+    "description": ("Only in a turn whose application note says nothing is computed in it: when the request needs "
+                    "data or a calculation this turn cannot do, one short sentence of what must be computed. The "
+                    "system then hands the same message to an analysis step at once, so do not offer it in prose. "
+                    "Null in every other case.")}
+OFFERED_ACTION_PROPERTY: dict[str, Any] = {
+    "anyOf": [{"type": "object", "additionalProperties": False,
+               "properties": {"label": {"type": "string", "maxLength": 120,
+                                        "description": "The offer in a few words, in the user's language."},
+                              "message": {"type": "string", "maxLength": 1000,
+                                          "description": "The request that runs when the user accepts, written as "
+                                                         "the user would ask it, complete on its own (subject, "
+                                                         "period, scope, format)."}},
+               "required": ["label", "message"]}, {"type": "null"}],
+    "description": ("The one next step this answer offers the user, when it offers one; a short yes from the user "
+                    "(ya, ok, gas, jalan) runs its message. Null when the answer offers nothing. A research plan is "
+                    "offered as a plan, not here.")}
+
+
 def final_response_schema(research_plan_confirmation: bool, methodology: bool = False,
                           research_findings: bool = False, multi_angle: bool = False,
                           value_references: bool = False, hypothesis_plans: bool = False,
-                          memo_note: bool = False, conversation_facts: bool = False) -> dict[str, Any]:
+                          memo_note: bool = False, conversation_facts: bool = False,
+                          next_step: bool = False) -> dict[str, Any]:
     """FINAL_RESPONSE_SCHEMA, or with Research Plan confirmation the same schema plus RESEARCH_PLAN_CONFIRMATION and a
     required nullable research_plan, and with AI_ENABLE_METHODOLOGY a required nullable methodology; with research
     findings (only together with plan confirmation) the plan's experiments carry the findings values and a required
@@ -484,6 +507,10 @@ def final_response_schema(research_plan_confirmation: bool, methodology: bool = 
     if conversation_facts:
         schema = {**schema, "properties": {**schema["properties"], "facts": FACTS_PROPERTY},
                   "required": [*schema["required"], "facts"]}
+    if next_step:
+        schema = {**schema, "properties": {**schema["properties"], "needs_computation": NEEDS_COMPUTATION_PROPERTY,
+                                           "offered_action": OFFERED_ACTION_PROPERTY},
+                  "required": [*schema["required"], "needs_computation", "offered_action"]}
     return schema
 
 
@@ -786,7 +813,7 @@ class ClaimAnnotation(BaseModel):
 
 # EXEC-IMPL-1017 Fase 3: the response fields that belong to the answer shown (its tables, figures, reproductions and the
 # user's attachments); a wrapper that assembles a new response (mode 4) carries them from the step it shows
-ANSWER_FIELDS = ("answer_tables", "answer_figures", "reproductions", "attached")
+ANSWER_FIELDS = ("answer_tables", "answer_figures", "reproductions", "attached", "offered_action")
 
 
 class AgentRunResponse(BaseModel):
@@ -836,13 +863,19 @@ class AgentRunResponse(BaseModel):
     # EXEC-IMPL-1017 Fase 3: what the user attached to this message, short ({kind, quote | ref, figures | rows}); absent
     # when nothing was attached
     attached: list[dict[str, Any]] | None = None
+    # E9(b) (EXEC-1018B): a read-only step found the request needs a calculation (one sentence); mode 4 hands the
+    # message on. Absent otherwise
+    needs_computation: str | None = None
+    # E9(c): the next step the answer offers ({label, message}); a short yes runs its message. Absent otherwise
+    offered_action: dict[str, str] | None = None
 
     @model_serializer(mode="wrap")
     def _without_mode4(self, handler: Any) -> Any:
         data = handler(self)
         if isinstance(data, dict):
             for key in ("mode4", "annotations", "data_record", "artifacts", "evidence", "options", "follow_ups",
-                        "answer_tables", "answer_figures", "reproductions", "attached"):
+                        "answer_tables", "answer_figures", "reproductions", "attached", "needs_computation",
+                        "offered_action"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data

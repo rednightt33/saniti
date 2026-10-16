@@ -47,6 +47,8 @@ def classify(case: dict) -> tuple[str | None, float, list[dict] | None]:
         pending = case["context"].get("pending_suggestion") is not None
         kind = router.apply_rules(parsed.turn_kind, pending, case["context"].get("results_after_pending_suggestion"),
                                   parsed.referent)
+        if parsed.turn_kind == "APPROVE" and not pending and case["context"].get("pending_offer"):
+            kind = "OFFER_ACCEPTED"  # E9(c): mode 4 runs the offered action's message (app/mode4.py)
         changes = [c.model_dump() for c in parsed.design_value_changes]
         return kind, float((data.get("usage") or {}).get("cost") or 0), changes
     except Exception:  # noqa: BLE001 - a failed call (the backend's fallback class)

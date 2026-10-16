@@ -104,20 +104,27 @@ RESEARCH_KINDS = ("CONTINUE", "APPROVE", "NEW_TOPIC")
 FALLBACK = "INSIGHT"
 
 _ROUTER_CORE = """You classify one user message in an ongoing analysis conversation.
-The conversation context lists what earlier turns produced (questions, tables, outputs, findings), the research
-suggestion waiting for the user's decision, if any, and the results produced after that suggestion, newest last.
+The conversation context lists what earlier turns produced (questions, source tables, the released results with their
+rows and columns, the supporting tables behind them, findings), the end of the previous answer, the action that answer
+offered (pending_offer), the research suggestion waiting for the user's decision, if any, and the results produced
+after that suggestion, newest last.
 Return one JSON object: {"turn_kind": ..., "revision_instruction": ..., "referent": ...,
 "design_value_changes": [...]}.
 - CLARIFY: what a figure or result means, a definition used in the results, how to read them, where the data comes from;
-  also an action on a result that already exists, without a new calculation: show, export or download a table or
-  the findings (Excel, CSV), show the code or the lineage of a figure.
+  also an action on what already exists, without a new calculation: show, export or download a released result, a
+  supporting table, the findings or the rows a data request delivered (Excel, CSV), show the code or the lineage of a
+  figure. Whether the requested table exists is read from the results and supporting tables listed (their rows and
+  columns); when it does not exist, the request needs a calculation.
 - INSIGHT: why a result is what it is, what drives it, what stands out, a breakdown of a result already shown. A recap
   or list by something the shown results do not list (which brokers, per broker, per sector, per month) needs a new
   calculation: never CLARIFY, even when the user says "rekap saja" or asks for it as a file; INSIGHT when it breaks
   down the data already used, CONTINUE when it needs other data or new criteria.
 - CONTINUE: the user asks for further analysis or a test (a new angle, an event study, a hypothesis, another period or
   group, "test it", "check my idea").
-- APPROVE: the user clearly and unconditionally approves the pending suggestion as proposed.
+- APPROVE: the user clearly and unconditionally approves the pending suggestion as proposed, or accepts the pending
+  offer (pending_offer, the action the previous answer offered): a short yes (ya, ok, gas, jalan, boleh, lanjut), a
+  message asking for exactly that action, or a message that attaches or quotes the offer's own words; referent
+  PENDING_SUGGESTION.
 - REVISE: the user asks to change the pending suggestion; revision_instruction states the change briefly in the
   user's language.
 - CANCEL: the user declines or stops the pending suggestion.
@@ -370,11 +377,24 @@ def context(record: dict[str, Any] | None, history: list[Any], pending_plan: dic
     after the pending suggestion (M64). asked: the ask-back question the message answers (EXEC-3)."""
     record = record or {}
     questions = [str(turn.content)[:500] for turn in history if getattr(turn, "role", None) == "user"][-3:]
+    outputs = [o for o in record.get("outputs") or [] if isinstance(o, dict)]
     seen = {"earlier_questions": questions,
             "tables": sorted(record.get("tables") or {})[:20],
-            "outputs": [str(o.get("name")) for o in (record.get("outputs") or [])[-15:]],
+            # E9(a): what each released result and supporting table holds, so "export X" can be told from "compute X"
+            "results": [_table_line(o) for o in [o for o in outputs if not o.get("support")][-OUTPUTS_IN_CONTEXT:]],
+            "supporting_tables": [_table_line(o) for o in [o for o in outputs if o.get("support")][-OUTPUTS_IN_CONTEXT:]],
             "findings": [f"{f.get('kind')}:{f.get('id')}" for f in (record.get("findings") or [])[-15:]],
             "pending_suggestion": pending_plan}
+    offer = record.get("offer") if isinstance(record.get("offer"), dict) else None
+    if offer and pending_plan is None:
+        seen["pending_offer"] = {"label": offer.get("label"), "message": offer.get("message")}
+    last = history[-1] if history else None
+    if last is not None and getattr(last, "role", None) == "assistant" and not asked:
+        # E9 (decision 3, method i): the end of the previous answer (data, never instructions)
+        seen["previous_answer_end"] = str(last.content)[-ANSWER_END_CHARS:]
+    for key in ("results", "supporting_tables"):
+        if not seen[key]:
+            seen.pop(key)
     if pending_plan is not None and newer_results is not None:
         seen["results_after_pending_suggestion"] = newer_results[-10:]
     if asked:
@@ -383,6 +403,35 @@ def context(record: dict[str, Any] | None, history: list[Any], pending_plan: dic
     if facts:
         seen["facts"] = facts  # O5 item 1: what the conversation settled, so a change names what it replaces
     return seen
+
+
+# E9(b) (EXEC-1018B Fase 4, user 2026-10-16 "4. Otomatis"): with the answer's needs_computation field a read-only
+# turn hands a calculation on instead of offering it in prose
+READ_OFFER_SENTENCE = "if the answer needs a new calculation, say so and offer it."
+READ_HANDOFF_SENTENCE = ("if the request needs data or a calculation this turn cannot do, set needs_computation to "
+                         "one sentence of what must be computed and answer briefly from what exists: the system "
+                         "hands the same message to an analysis step at once, so never offer it in prose.")
+
+
+def read_note(note: str) -> str:
+    """A read-only class's note when the answer can hand a calculation on (E9(b))."""
+    if READ_OFFER_SENTENCE in note:
+        return note.replace(READ_OFFER_SENTENCE, READ_HANDOFF_SENTENCE)
+    return note + " Nothing is computed in this turn: " + READ_HANDOFF_SENTENCE
+
+
+OUTPUTS_IN_CONTEXT = 12  # E9(a): the newest released results and supporting tables the router reads
+COLUMNS_IN_CONTEXT = 10
+ANSWER_END_CHARS = 1500  # E9 (decision 3, method i): the end of the previous answer, where an offer is made
+
+
+def _table_line(output: dict[str, Any]) -> str:
+    columns = [str(c) for c in output.get("columns") or []]
+    shown = ", ".join(columns[:COLUMNS_IN_CONTEXT]) + (f", +{len(columns) - COLUMNS_IN_CONTEXT}"
+                                                       if len(columns) > COLUMNS_IN_CONTEXT else "")
+    notes = (output.get("definition") or {}).get("notes") if isinstance(output.get("definition"), dict) else None
+    return (f"{output.get('ref')} {output.get('name')}: {output.get('row_count')} rows; columns {shown}"
+            + (f"; {str(notes)[:160]}" if notes else ""))
 
 
 # The note each single-step class gives the analysis run (application context, not from the user).

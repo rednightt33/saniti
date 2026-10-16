@@ -2608,6 +2608,8 @@ class RunState:
     turn_notes: list[tuple[str, bool]] = field(default_factory=list)
     # O5 item 1 (EXEC-IMPL-1016): the facts the final answer settled (its "facts" field), recorded after it passes
     answer_facts: list[dict[str, Any]] = field(default_factory=list)
+    needs_computation: str | None = None  # E9(b)
+    offered_action: dict[str, str] | None = None  # E9(c)
     # Research Plan confirmation: what this request may do (turn), which final response types and tools it allows
     # (None: every registered tool), the guard for submit_data_need_spec, and the continuation to return.
     plan_turn: str | None = None
@@ -2884,7 +2886,11 @@ class AgentOrchestrator:
         self.final_schema = final_response_schema(self.plan_confirmation, self.methodology, self.research_findings,
                                                   self.multi_angle, self.value_references, self.hypothesis_plans,
                                                   memo_note=run_memory is not None,
-                                                  conversation_facts=self.value_references)
+                                                  conversation_facts=self.value_references,
+                                                  next_step=self.value_references)
+        # E9(b)/(c) (EXEC-1018B Fase 4): the answer names a calculation a read-only turn cannot do, and the next step
+        # it offers; mode 4 acts on both
+        self.next_step = self.value_references
         contract = response_contract(self.plan_confirmation, self.methodology, self.research_findings,
                                      self.multi_angle, self.value_references, self.hypothesis_plans,
                                      memo_note=run_memory is not None)
@@ -3096,6 +3102,10 @@ class AgentOrchestrator:
                 answer_figures=state.answer_figures or None,
                 reproductions=state.reproductions or None,
                 attached=state.attached or None,
+                needs_computation=state.needs_computation
+                if state.plan_meta.get("turn_kind") in READ_TURN_KINDS else None,
+                offered_action=state.offered_action
+                if final.response_type in ("ANSWER", "LIMITATION") else None,
             )
             if state.exhausted is not None:
                 # G23 D: the answer is delivered, and the limit that ended the run stays visible for statistics
@@ -4090,6 +4100,8 @@ class AgentOrchestrator:
             state.tool_filter = frozenset(available) & self.registry.names_with_effect(frozenset(effects))
             state.allowed_types = BASE_TYPES
         note = router.NOTES.get(kind)
+        if note and self.next_step and kind in READ_TURN_KINDS:
+            note = router.read_note(note)  # E9(b): the turn hands a calculation on instead of offering it
         if note:
             state.turn_notes.append((note, False))
         log_event("conversation_turn_routed", request_id=state.request_id, turn_kind=kind,
@@ -4473,6 +4485,14 @@ class AgentOrchestrator:
                 declared = dropped.pop("reproductions", None)  # EXEC-IMPL-1017 Fase 3, kept apart like facts
                 state.declared_reproductions = [d for d in declared if isinstance(d, dict)][:5] \
                     if isinstance(declared, list) else []
+                needed = dropped.pop("needs_computation", None)
+                state.needs_computation = needed.strip()[:300] if isinstance(needed, str) and needed.strip() \
+                    else None
+                offer = dropped.pop("offered_action", None)
+                state.offered_action = {"label": str(offer["label"]).strip()[:120],
+                                        "message": str(offer["message"]).strip()[:1000]} \
+                    if isinstance(offer, dict) and str(offer.get("label") or "").strip() \
+                    and str(offer.get("message") or "").strip() else None
                 facts = dropped.pop("facts", None)
                 if isinstance(facts, list):
                     state.answer_facts = [f for f in facts if isinstance(f, dict)][:8]  # O5 item 1, kept apart
