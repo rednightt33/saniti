@@ -2510,6 +2510,18 @@ Kemampuan yang hanya ada di backend tanpa jalan dari AI tidak dibangun.
 **Biaya berbayar perkiraan:** benchmark router 3× dua kali (±USD 0,6), A/B E2 (±0,3), cek live (±0,5): ±USD 1,4; sisa
 batas kunci ±USD 2,36.
 
+#### Hasil eksekusi EXEC-1018B
+
+**Fase 1 (orc, 2026-10-16, selesai, ter-deploy):** E7, E8, E3, E4, E5, U6.
+- Rollback sebelum Fase 1: orc `771be370`, sandbox `6ebbc337`, edge-bff `c300a7b7`.
+- Kode: commit `0b1a2e6`; orc `8cdad7a8` SUCCESS; startup tanpa `*_inactive` baru. Tes orc 1.854 lulus.
+- Tool_Catalog round X (`20261016_001_round_x_tool_catalog.sql`, 21 alat dengan "Limits:" di skema) diterapkan lewat
+  `mmig-job` (DRYRUN lalu APPLY, lalu dihapus) dan dibaca ulang: 136 → 157 baris.
+- Snapshot prompt v012 (`metric-path-when-offered`).
+- Cek live Q1 "Bandingkan return harga saham BRI, Mandiri dan BCA selama 3 bulan terakhir" (85,6 dtk): kini 63 hari
+  bursa (15 Juli–16 Oktober 2026), asumsi "Tiga bulan terakhir dihitung 63 hari perdagangan (1 bulan = 21 hari)";
+  BBRI −6,7%, BBCA −15,5%, BMRI −19,3%; baris uji tetap jalur cepat tidak lagi ditambahkan karena tidak ada statistik.
+
 E3 dikonfirmasi user 2026-10-16 ("Ini masuk E3 (merapikan aturan) --> OK masukan exec jangan eksekusi dulu").
 
 **E4. Kartu router mengikuti saklar (R4).**
