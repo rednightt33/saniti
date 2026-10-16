@@ -2297,6 +2297,11 @@ router bila teks router berubah, deploy sampai SUCCESS, cek live kecil.
 - Rancangan: catatan METRICS menulis per metrik dimensi mana yang dijumlahkan bila tidak dipilih, dan batas
   `MAX_ENTITIES`/`MAX_PERIODS`, diturunkan dari katalog metrik dan konstanta kode. Uji: teks berubah bila katalog atau
   konstanta berubah.
+- Keputusan user 2026-10-16: "Tolong tambahkan maksimal 100 saham ya": `MAX_ENTITIES` 20 → 100. Yang tetap berlaku:
+  batas 200 baris hasil Governor (baris = saham × kombinasi dimensi; `broker_net_value` per broker untuk banyak saham
+  cepat melewatinya), batas waktu 20 detik dan biaya scan. Saat eksekusi: ukur EXPLAIN untuk 100 saham × 60 hari
+  pada `Feature_03` dan `IDX_Broker_Summary` (aturan AGENTS, kinerja) dan tulis di catatan METRICS bahwa hasil di atas
+  200 baris ditolak beserta cara menghindarinya (lebih sedikit dimensi, atau data mentah).
 
 **E6. Keluaran yang digantikan tidak dirilis (U2, M174).** User 2026-10-16: "U2 --> OK masukan exec jangan eksekusi
 dulu".
@@ -2319,6 +2324,37 @@ dulu".
 - Uji: teks yang dirakit memuat contoh kelipatan yang benar untuk setiap entri `span`; snapshot prompt; cek live satu
   pertanyaan "3 bulan terakhir".
 - Keputusan user 2026-10-16: "E7 opsi A OK"; "3 bulan ini kan pakai 63 hari kalau hitung return pakai daily data ya? kalau mau cepat tinggal pakai saja return_60d_pct". Jadi: dari data harian, 3 bulan = 63 hari bursa; jalan cepat boleh memakai `Feature_01_Stock_Daily.return_60d_pct`. Catatan untuk dikonfirmasi saat eksekusi: kolom itu 60 hari bursa, bukan 63, jadi jawaban yang memakainya menyebut "60 hari bursa" sebagai asumsi.
+
+**E8. Catatan METRICS hanya di giliran yang menawarkan `query_metric`.** User 2026-10-16: "OK --> masukan exec jangan
+jalankan dulu".
+- Penyebab: `_offer_metrics` memeriksa alat terdaftar di aplikasi, bukan alat giliran; giliran baca saja (CLARIFY)
+  menerima daftar metrik tanpa alatnya.
+- Rancangan: syaratnya alat yang ditawarkan di giliran itu (meja ANALYSIS, FASTLANE), diturunkan dari `tool_desks`.
+  Kalimat DATA SOURCES di system prompt ikut diperiksa dalam E2/E3.
+- Uji: giliran CLARIFY tanpa catatan METRICS; giliran ANALYSIS dan jalur cepat dengan catatan.
+
+**E9. Permintaan data atau file yang belum dirilis (M176 a–d).** User 2026-10-16: "OK untuk semua opsi a-d, tapi
+sebetulnya ini bukan hanya soal data RAW saja, kadang user juga minta data underlying agar bisa menghitung dari mana
+sebuah hasil. Ini termasuk generated table dll."
+- (a) Router melihat tabel hasil percakapan (nama, satu baris = apa, kolom), dari data record.
+- (b) Serah-terima: langkah baca saja yang menemukan permintaan butuh hitungan memindahkan giliran sekali ke kelas yang
+  menghitung, dalam giliran yang sama, tercatat di log.
+- (c) Tawaran langkah berikut di jawaban menjadi pilihan terstruktur, sehingga "gas", "ok", "jalan" menjalankannya.
+- (d) `export_result` menerima kebutuhan data yang sudah terkirim (baris database, saringan dan asal diketahui), tanpa
+  hitungan AI; boleh di giliran baca saja.
+- Pemeriksaan infrastruktur 2026-10-16 untuk "data underlying termasuk tabel yang dibuat":
+  - tabel hasil yang dirilis: disimpan di bucket (R-STORE), bisa diekspor kapan saja; tercakup;
+  - data mentah dari database (bundle): disimpan sandbox 24 jam (`PY_SANDBOX_BUNDLE_RETENTION_HOURS`); sesudahnya bisa
+    diambil ulang dengan SQL yang sama (opsi D "SQL sama = data sama"); tercakup oleh (d) bila (d) mengambil ulang
+    dari spesifikasi tersimpan;
+  - tabel kerja AI (`save_table`) dan tabel antara di kode: hanya hidup di sesi (idle 15 menit, maksimal 1 jam), tidak
+    disimpan; **tidak tercakup** oleh a–d. Kode analisisnya tersimpan di memori run.
+  - Pilihan untuk tabel antara (perlu keputusan user): (e) saat analisis selesai, tabel kerja yang dipakai hasil ikut
+    disimpan sebagai tabel pendukung (bisa diekspor, tidak dikutip), atau (f) backend menjalankan ulang kode tersimpan
+    atas data yang sama untuk membuat ulang tabel antara saat diminta (tanpa AI, hasil dicek sama dengan hasil lama).
+    (e) lebih sederhana, menambah penyimpanan; (f) tanpa penyimpanan, butuh waktu jalan ulang.
+- Terkait: router tidak melihat jawaban AI sebelumnya (M176, terverifikasi); opsi mengirim penutup jawaban terakhir ke
+  router menunggu keputusan user.
 
 E3 dikonfirmasi user 2026-10-16 ("Ini masuk E3 (merapikan aturan) --> OK masukan exec jangan eksekusi dulu").
 
