@@ -2268,6 +2268,13 @@ sesuai jenis teks yang di show?"; "Setelah done pls run 3 A/B test ya".
 - Temuan A/B kedua (ponsel): sel pertama yang menempel tidak ikut warna baris saat disorot atau dipilih, sehingga baris
   terlihat terbelah. Sekarang sel itu memakai warna sorot dan warna pilih barisnya (tetap tidak tembus pandang).
   Tes: tabel yang sama, baris pertama disorot di lebar 390.
+- Permintaan user 2026-10-16 (tangkapan layar ponsel): "jarak antar kolom tidak konsisten, tolong dibenarkan".
+  Penyebab terukur: judul kolom berisi tombol urut dengan padding sendiri, ditambah ikon urut tak terlihat yang tetap
+  memakan tempat. Hasilnya judul 45 px lebih lebar daripada sel data, sehingga kolom yang lebarnya ditentukan judul
+  mendapat ruang kosong 45 px dan kolom yang ditentukan isinya tidak. Perbaikan: tombol judul memakai padding persis
+  sama dengan sel data, dan ikon diletakkan di celah antar kolom (absolut, tanpa lebar). Setiap kolom jadi selebar judul
+  atau isi terlebarnya ditambah padding yang sama; kolom teks yang terlipat hanya menyisakan tepi kanan tak rata (kurang
+  dari satu kata). Tes: tabel yang sama, sisa lebar per kolom di desktop dan ponsel (gagal dengan kode lama: 45 px).
 
 ### EXEC-REVIEW-1015: tinjauan semua EXEC terbuka dan arsitekturnya (2026-10-15; user: "please review all exec, inspect arsitektur ... contrast what ideal conditions would look like")
 

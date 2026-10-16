@@ -9821,8 +9821,15 @@ html.dark .edge-flow-done{background:#1e9a59;}
 .edge-md-table .data-table th {white-space:normal;letter-spacing:0;text-transform:none;font-size:.78rem;font-weight:600;vertical-align:bottom;}
 /* EXEC-TABLE-ALIGN (user 2026-10-16, "angkanya kecil, tapi kolomnya lebar ... bisa di wrap saja?"): a long title wraps
    between words within about fourteen characters, so the column is as wide as its values or its longest title word */
-.edge-md-table .data-table th .edge-sort-label {display:block;max-width:14ch;white-space:normal;overflow-wrap:normal;word-break:normal;}
-.edge-md-table .data-table th.num .edge-sort-label {text-align:right;margin-left:auto;}
+.edge-md-table .data-table th .edge-sort-label {position:relative;display:inline-block;max-width:14ch;white-space:normal;overflow-wrap:normal;word-break:normal;vertical-align:bottom;}
+.edge-md-table .data-table th.num .edge-sort-label {text-align:right;}
+/* EXEC-TABLE-ALIGN (user 2026-10-16, "jarak antar kolom tidak konsisten"): the title's controls take no width of their
+   own, so a column is as wide as its widest title or value plus the same cell padding as every other column; the sort
+   button (the whole title is clickable) has exactly the cells' padding and its icon sits in the gap beside the title (after a text title, before a number's) */
+.edge-md-table .data-table th .edge-sort {display:block;width:100%;padding:8px 12px;text-align:left;}  /* = the cells' padding */
+.edge-md-table .data-table th.num .edge-sort {text-align:right;}
+.edge-md-table .data-table th .edge-sort-icon {position:absolute;bottom:1px;left:calc(100% + 2px);}
+.edge-md-table .data-table th.num .edge-sort-icon {left:auto;right:calc(100% + 2px);}
 .edge-md-table .data-table th,.edge-md-table .data-table td {text-align:left;}
 .edge-md-table .data-table .num {text-align:right;white-space:nowrap;}
 /* EXEC-UI-1015D (user 2026-10-15, "seek best practice"): a data table as wide as its content (not stretched to the card),
@@ -9836,6 +9843,7 @@ html.dark .edge-flow-done{background:#1e9a59;}
 .edge-table-dialog-body .data-table td.edge-col-text {max-width:40ch;}
 @media (max-width:720px) {
  .edge-md-table .data-table th,.edge-md-table .data-table td {padding:6px 10px;}
+ .edge-md-table .data-table th .edge-sort {padding:6px 10px;}
  .edge-md-table .data-table th:first-child,.edge-md-table .data-table td:first-child {position:sticky;left:0;z-index:1;background:var(--card);}
  .edge-md-table .data-table th:first-child {background:var(--secondary);}
  html.dark .monitor-layout .result .edge-md-table .data-table td:first-child {background:#252c35;}
@@ -9850,7 +9858,6 @@ html.dark .edge-flow-done{background:#1e9a59;}
 .edge-md-table .data-table th.edge-sortable {padding:0;}
 .edge-md-table .data-table th.edge-sortable:hover {background:color-mix(in srgb, var(--secondary), var(--foreground) 7%);}
 .edge-sort {all:unset;box-sizing:border-box;display:flex;align-items:center;gap:6px;width:100%;padding:10px 13px;cursor:pointer;font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;}
-.edge-md-table .data-table th.num .edge-sort {flex-direction:row-reverse;justify-content:flex-start;}  /* the title ends where its numbers end; the sort icon sits on its left */
 .edge-sort:focus-visible {outline:2px solid var(--ring, currentColor);outline-offset:-2px;}
 .edge-sort-icon {display:inline-flex;opacity:0;flex:none;}
 .edge-sort-icon .icon {margin:0;}
@@ -11470,8 +11477,8 @@ function MdTable({head, align, rows, numeric, ctx, title = "", plain = false, in
     return element("th", cellProps(column, {className:`edge-sortable${active ? " sorted" : ""}`, "aria-sort":active ? sort.dir : "none"}),
       element("button", {type:"button", className:"edge-sort", onClick:() => setSort(next(column)),
         "aria-label":`${String(value).replace(/[*_`]/g, "")}: ${active && sort.dir === "descending" ? "urutkan naik" : active ? "kembalikan urutan asli" : "urutkan turun"}`},
-        element("span", {className:"edge-sort-label"}, mdInline(value, ctx)),
-        element("span", {className:"edge-sort-icon"}, element(Icon, {name:active ? (sort.dir === "descending" ? "arrow-down" : "arrow-up") : "sort-arrows", size:13}))));
+        element("span", {className:"edge-sort-label"}, mdInline(value, ctx),
+          element("span", {className:"edge-sort-icon"}, element(Icon, {name:active ? (sort.dir === "descending" ? "arrow-down" : "arrow-up") : "sort-arrows", size:13})))));
   };
   // EXEC-UI-1015 U4 (user 2026-10-15): an answer table shows its first rows in the current order, the rest fold behind
   // a button; a total row stays visible, sorting reorders every row, and the wide dialog and print show them all

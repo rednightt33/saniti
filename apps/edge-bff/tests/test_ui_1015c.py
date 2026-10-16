@@ -273,6 +273,23 @@ def test_tables_align_by_content_wrap_long_titles_and_draw_no_vertical_line(fixt
             shadows = tables.nth(table).evaluate("""t => [...t.querySelectorAll('th,td')].map(c => {
                 const s = getComputedStyle(c); return [s.boxShadow, s.borderLeftWidth, s.borderRightWidth]; })""")
             assert all(box == 'none' and left == '0px' and right == '0px' for box, left, right in shadows), shadows[:3]
+        # "jarak antar kolom tidak konsisten": every column is its widest title or value plus the same cell padding;
+        # the title's sort control adds no width of its own
+        for table in range(3):
+            slack = tables.nth(table).evaluate("""t => { const text = n => { const r = document.createRange();
+                r.selectNodeContents(n); return r.getBoundingClientRect().width; };
+              return [...t.tHead.rows[0].cells].map((th, i) => { const s = getComputedStyle(th);
+                const b = getComputedStyle(th.querySelector('.edge-sort'));
+                const inner = th.getBoundingClientRect().width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight)
+                  - parseFloat(b.paddingLeft) - parseFloat(b.paddingRight);
+                const label = th.querySelector('.edge-sort-label').getBoundingClientRect().width;
+                const values = Math.max(...[...t.tBodies[0].rows].map(r => text(r.cells[i])));
+                const wraps = [...t.tBodies[0].rows].some(r => r.cells[i].getClientRects().length && text(r.cells[i]) &&
+                  (() => { const g = document.createRange(); g.selectNodeContents(r.cells[i]); return g.getClientRects().length > 1; })());
+                const word = Math.max(...[...t.tBodies[0].rows].flatMap(r => r.cells[i].innerText.split(/\\s+/)).map(w => w.length)) * 9;
+                return [Math.round(inner - Math.max(label, values)), wraps, word]; }); }""")
+            # a one-line column has no leftover; a folded text column keeps at most its ragged edge, under one word
+            assert all(abs(gap) <= 2 or (wraps and 0 <= gap < word) for gap, wraps, word in slack), (width, table, slack)
         # the phone's sticky first cell takes its row's hover colour (the row reads as one band)
         row = tables.nth(1).locator('tbody tr').first
         row.locator('td').nth(1).hover()
