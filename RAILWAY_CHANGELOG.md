@@ -6,6 +6,7 @@
 - `4100b6b`: market-ai-orc `9152f522` SUCCESS (an integer in a year or id column shows as a label, 2019 not 2.019).
   No EDGE run was active before the push.
 - `8173de1`: edge-bff `c7cb3848` SUCCESS (the phone's sticky first cell follows its row's hover and pick colour).
+- `e1bd034`: edge-bff `a701e7b0` SUCCESS (every column gets the same gap: the title's sort control takes no width).
 - No variable, service or database change.
 
 ## 2026-10-16 — EXEC-IMPL-1016 Fase 4 deployed (dev)
