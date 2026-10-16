@@ -2498,6 +2498,15 @@ Kemampuan yang hanya ada di backend tanpa jalan dari AI tidak dibangun.
 
 **Fase 7: penutupan.** ERRORS (M173–M178 status), changelog, uji ulang Q1–Q3 dan skenario ekspor, laporan.
 
+**Keputusan user dan go 2026-10-16:** "1. OK 2. Skip E10 3. OK 4. Otomatis 5. OK … Jalankan."
+- (1) "3 bulan" selalu 63 hari bursa; kolom jendela tetap seperti `return_60d_pct` hanya dipakai bila user menyebut
+  jendela itu sendiri (E7).
+- (2) E10 dilewati seluruhnya (peringkat di Governor, saringan referensi, papan baku, peta penolakan); E5 tetap
+  (catatan METRICS, batas 100 saham).
+- (3) Router membaca penutup jawaban terakhir (metode i) bersama E9(c), di Fase 4.
+- (4) Serah-terima E9(b) otomatis; jawaban menyebut bahwa giliran dipindah.
+- (5) U6 (batas setiap isian alat ditulis otomatis di skema yang dikirim) masuk Fase 1.
+
 **Biaya berbayar perkiraan:** benchmark router 3× dua kali (±USD 0,6), A/B E2 (±0,3), cek live (±0,5): ±USD 1,4; sisa
 batas kunci ±USD 2,36.
 
