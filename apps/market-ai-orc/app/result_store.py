@@ -33,6 +33,7 @@ MAX_CODE_CHARS = 65_536
 RESTORE_MAX_TABLES = 40  # the sandbox's carried limit
 RESTORE_MAX_BYTES = 500 * 1024 * 1024  # per session open
 EXTENSIONS = {"PARQUET": "parquet", "CSV": "csv", "PNG": "png", "JSON": "json", "TEXT": "txt", "BIN": "bin"}
+SUPPORT_RETENTION_DAYS = 30  # E9(e) (user decision 2026-10-16 "masa pemiympanan 1 bulan"): supporting tables
 WRITE_TIMEOUT = "60s"  # the login's default statement_timeout (5 s) is for chat rows, not a 20 MB table
 
 
@@ -162,7 +163,7 @@ class ResultStore:
                 "SELECT output_id, name, format, byte_count, checksum_sha256, storage, object_key, label, definition, "
                 "units, lineage, data_as_of::text AS data_as_of, request_id, execution_id "
                 'FROM public."AI_conversation_output" WHERE conversation_id = %s AND format = \'PARQUET\' '
-                "ORDER BY created_at DESC LIMIT %s", (conversation_id, limit)).fetchall()
+                "AND output_type <> 'SUPPORT' ORDER BY created_at DESC LIMIT %s", (conversation_id, limit)).fetchall()
         return [StoredOutput(**row) for row in rows]
 
     def content(self, conversation_id: str, stored: StoredOutput) -> bytes:
@@ -187,6 +188,32 @@ class ResultStore:
                 'FROM public."AI_conversation_output" WHERE conversation_id = %s AND output_id = %s',
                 (conversation_id, output_id)).fetchone()
         return StoredOutput(**row) if row else None
+
+    def purge_support(self, conversation_id: str, days: int = SUPPORT_RETENTION_DAYS) -> int:
+        """E9(e): a supporting table is kept `days` days; older ones are deleted (bucket object first). The data record
+        keeps its name, checksum and lineage, so export_result can rebuild it from the stored code (E9(f))."""
+        with self._connect() as connection, connection.transaction():
+            rows = connection.execute(
+                'SELECT output_id, object_key FROM public."AI_conversation_output" WHERE conversation_id = %s '
+                "AND output_type = 'SUPPORT' AND created_at < CURRENT_TIMESTAMP - make_interval(days => %s) "
+                "FOR UPDATE", (conversation_id, days)).fetchall()
+            if not rows:
+                return 0
+            keys = [r["object_key"] for r in rows if r["object_key"]]
+            if keys and self.bucket is not None:
+                self.bucket.delete(keys)
+            connection.execute('DELETE FROM public."AI_conversation_output" WHERE output_id = ANY(%s)',
+                               ([r["output_id"] for r in rows],))
+        _log("support_tables_purged", conversation_id=conversation_id, tables=len(rows))
+        return len(rows)
+
+    def executions_of_session(self, conversation_id: str, session_id: str) -> list[dict[str, Any]]:
+        """E9(f): the stored code of every execution of one session, in the order it ran."""
+        with self._connect() as connection:
+            return connection.execute(
+                "SELECT execution_id, request_id, code, code_truncated, code_sha256, status "
+                'FROM public."AI_conversation_execution" WHERE conversation_id = %s AND session_id = %s '
+                "ORDER BY created_at, execution_id", (conversation_id, session_id)).fetchall()
 
     def outputs_of_execution(self, conversation_id: str, execution_id: str) -> list[dict[str, Any]]:
         """The outputs one execution released (a chart's tables), without content."""

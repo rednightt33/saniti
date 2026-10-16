@@ -48,6 +48,7 @@ from .tools.registry import ToolError
 from .tools.request_data import GovernorClient
 from .result_store import ResultBucket, ResultStore
 from .run_memory import MemoryStore
+from .tools.export import SUPPORTING_DATA_VERSION
 from .tools.session import (BACKTEST_VERSION, EVENT_STUDY_VERSION, EXPLORE_TESTS_VERSION, RESULT_STORE_VERSION, SESSION_ATTACH_VERSION, SESSION_RELEASE_VERSION, close_sessions,
                             output_file, release_request, restore_carried)
 from .tools.artifacts import STORED_TABLES_VERSION, read_output_any
@@ -479,6 +480,13 @@ def create_app(
                 uploader = lambda sid, rid, meta, data: restore_carried(sandbox, sid, rid, meta, data)  # noqa: E731
                 if bucket is not None:
                     conversations.before_delete = lambda ids: bucket.delete(result_store.object_keys(ids))
+                # E9 (EXEC-1018B): supporting tables, a data request's rows, an approved need extracted again
+                supporting = sandbox.runtime().get("supporting_data") or {}
+                sandbox.supporting_data = supporting.get("enabled") is True \
+                    and supporting.get("version") == SUPPORTING_DATA_VERSION
+                if not sandbox.supporting_data:
+                    log_event("supporting_data_inactive", reason="the sandbox does not report supporting_data "
+                                                                 f"version {SUPPORTING_DATA_VERSION}")
                 log_event("result_store_active", bucket=bucket is not None)
             else:
                 log_event("result_store_inactive", reason="the sandbox does not report result_store version "

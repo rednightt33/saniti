@@ -189,6 +189,17 @@ class ReferenceSources:
     origins: dict[tuple[str, str], str] = field(default_factory=dict)
     # M126: (namespace, key) -> the page an outside value was read from (http or https only), linked where it is shown
     links: dict[tuple[str, str], str] = field(default_factory=dict)
+    # E6 (EXEC-1018B, M174): (namespace, key) -> the reference of the output that replaced it in this request
+    superseded: dict[tuple[str, str], str] = field(default_factory=dict)
+
+    # E9(e): (namespace, key) -> why an object the run knows may not be cited (a supporting table)
+    not_citable: dict[tuple[str, str], str] = field(default_factory=dict)
+
+    def supersede(self, namespace: str, key: str, replaced_by: str) -> None:
+        self.superseded[(namespace, str(key))] = replaced_by
+
+    def refuse(self, namespace: str, key: str, reason: str) -> None:
+        self.not_citable[(namespace, str(key))] = reason
 
     def add(self, namespace: str, key: str, value: Any, label: str, units: dict[str, Any] | None = None,
             origin: str | None = None, link: str | None = None) -> None:
@@ -326,12 +337,18 @@ class ReferenceSources:
             raise ReferenceError_(f"'{path}': unknown namespace {namespace!r}; this run has "
                                   f"{sorted(n for n in self.objects if self.objects[n]) or 'no referable values'}")
         entry = self.objects[namespace].get(key)
+        if (namespace, key) in self.not_citable:
+            raise ReferenceError_(f"'{path}': {self.not_citable[(namespace, key)]}")
         if entry is None:
             raise ReferenceError_(f"'{path}': {namespace}.{key} does not exist; available: "
                                   f"{', '.join(self.refs(namespace)[:12])}")
         value, label = entry
         # a refusal names the object as the model can write it (out.o1), never by its long id
         shown = next((a for a, k in self.aliases.get(namespace, {}).items() if k == key), key)
+        if (namespace, key) in self.superseded:
+            raise ReferenceError_(f"'{path}': {namespace}.{shown} was replaced in this request by "
+                                  f"{self.superseded[(namespace, key)]} (the same name emitted again); cite "
+                                  f"{self.superseded[(namespace, key)]} with the same field path")
         try:
             return _walk(value, rest, f"{namespace}.{shown}", path), label
         except MissingField:

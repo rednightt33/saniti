@@ -150,7 +150,11 @@ def build_default_registry(
                     for spec in export_specs(sandbox_client, timeout_seconds=sandbox_timeout_seconds,
                                              max_result_bytes=python_analysis_max_bytes,
                                              column_meanings=_column_meanings(catalog_reader),
-                                             table_facts=_export_tables(catalog_reader), governor=governor_client):
+                                             table_facts=_export_tables(catalog_reader), governor=governor_client,
+                                             # E9 (EXEC-1018B): the same approved need extracted again
+                                             rebuild=ExecutionPlanner(sandbox_client, governor_client,
+                                                                      preflight=preflight_parts, limits=bundle_limits,
+                                                                      parallel_parts=planner_parallel_parts).prepare):
                         registry.register(spec)
                 if lineage_tool:
                     # D3 (AI_ENABLE_LINEAGE_TOOL): where an output's numbers came from

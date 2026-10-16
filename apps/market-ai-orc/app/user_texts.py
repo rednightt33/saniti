@@ -327,6 +327,10 @@ EXPORT_READING = {
     "unchecked": "Tidak dapat dicek otomatis terhadap tabel sumber.",
     "activity_only": "Tabel sumber hanya mencatat hari yang ada aktivitasnya; hari tanpa baris berarti tidak ada "
                      "aktivitas, bukan data yang hilang.",
+    # E1 (EXEC-1018B): the rows a result was computed from, in their own sheets
+    "inputs_field": "Lembar input",
+    "inputs": "Baris data yang dipakai untuk menghitung tabel ini, termasuk baris sebelum periodenya (misalnya harga "
+              "dasar atau baris pemanasan), ada di lembar {sheets}.",
 }
 
 

@@ -1,5 +1,16 @@
 # Railway changelog
 
+## 2026-10-16 — EXEC-1018B Fase 2: sandbox deploy and Tool_Catalog round Y
+
+- `454272e`: market-python-sandbox `ac2241cb` SUCCESS (newest output per name released, supporting tables, bundle
+  dataset file, need carry, XLSX input sheets; capability `supporting_data` v1). An EDGE run of the user's conversation
+  was running when the commit was pushed (found right after the push); it completed normally at 17:54 before the new
+  sandbox went live. Rollback: sandbox `6ebbc337`.
+- Temporary service `mmig-job` (empty service, CLI upload; `DATABASE_URL=${{Postgres.DATABASE_URL}}` as a reference,
+  never printed, and `MODE`): DRYRUN `cc9dee4f` rolled back, APPLY `e32add87` committed
+  `20261016_002_round_y_tool_catalog.sql`. Deleted with `railway service delete`; read back absent. No other service,
+  variable or configuration changed.
+
 ## 2026-10-16 — Temporary migration job for Tool_Catalog round X
 
 - Temporary service `mmig-job` (empty service, CLI upload of a one-shot Python job; variables

@@ -243,3 +243,35 @@ def test_an_old_kept_data_date_offers_a_recomputation_and_the_answer_is_noted() 
     from app import data_record as records
 
     assert "Earlier answers of this conversation" in records.note(result.data_record)
+
+
+def test_supporting_tables_are_kept_thirty_days_and_never_restored_as_results(databases) -> None:  # noqa: F811
+    """E9(e) (EXEC-1018B): a supporting table is stored like a result but typed SUPPORT: it is not put back into a
+    later session as a carried table, and after SUPPORT_RETENTION_DAYS it is deleted (bucket object first)."""
+    admin, login = databases
+    conversation_id, bucket = conversation(admin), FakeBucket()
+    store = ResultStore(login, bucket)
+    store.save_output(conversation_id, "r1", entry(out(11)), b"result")
+    store.save_output(conversation_id, "r1", entry(out(12), type="SUPPORT"), b"step")
+    store.save_output(conversation_id, "r1", entry(out(13), type="SUPPORT", rows=rs.POSTGRES_MAX_ROWS + 1), b"big")
+    assert {t.output_id for t in store.stored_tables(conversation_id)} == {out(11)}
+    assert store.purge_support(conversation_id) == 0  # still within its days
+    with psycopg.connect(admin, autocommit=True) as connection:
+        connection.execute('UPDATE public."AI_conversation_output" SET created_at = now() - interval \'31 days\' '
+                           "WHERE output_id = ANY(%s)", ([out(11), out(12), out(13)],))
+    assert store.purge_support(conversation_id) == 2
+    assert store.output(conversation_id, out(12)) is None and store.output(conversation_id, out(11)) is not None
+    assert bucket.deleted == [f"outputs/{conversation_id}/{out(13)}.parquet"]
+
+
+def test_the_code_of_a_session_is_read_back_in_the_order_it_ran(databases) -> None:  # noqa: F811
+    admin, login = databases
+    conversation_id = conversation(admin)
+    store = ResultStore(login)
+    session = "sess_" + "1" * 24
+    for n, code in enumerate(["a = 1", "b = 2"]):
+        store.save_execution(conversation_id, "r1", {"execution_id": "exe_" + f"{n:024x}", "session_id": session,
+                                                    "code": code, "status": "OK"})
+    store.save_execution(conversation_id, "r1", {"execution_id": "exe_" + "f" * 24, "session_id": "sess_" + "2" * 24,
+                                                "code": "other", "status": "OK"})
+    assert [e["code"] for e in store.executions_of_session(conversation_id, session)] == ["a = 1", "b = 2"]

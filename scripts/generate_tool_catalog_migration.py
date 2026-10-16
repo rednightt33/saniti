@@ -551,8 +551,24 @@ ROUNDS = {
                     "entities (E5). No behaviour change otherwise."],
         "limits": {"query_metric": "at most 100 entities and 4 periods per call; at most 200 rows (Governor summary)"},
     },
+    "round_y": {
+        "target": ROOT / "database/migrations/20261016_002_round_y_tool_catalog.sql",
+        "versions": {"export_result": ("v5", "v6"),
+                     "complete_analysis": ("orc-v3", "orc-v4")},
+        "contracts": {"export_result": ("input_schema", "data_request"),
+                      "complete_analysis": ("purpose", "replaced_outputs")},
+        "title": "the data behind a result, replaced outputs",
+        "header": "EXEC.md EXEC-1018B Fase 2 (E6, E9 d/e/f, E1; user \"Jalankan.\", 2026-10-16)",
+        "design": "EXEC.md EXEC-1018B (E1, E6, E9); ERRORS_AND_SOLUTIONS.md M174, M176",
+        "limits_design": "EXEC.md EXEC-1018B",
+        "summary": ["export_result exports the rows a data request delivered (data_request, need_id), a supporting",
+                    "table (working tables kept 30 days, rebuilt from the stored code after that and exported only on",
+                    "an exact match), and adds input sheets to an XLSX of a result (E1, E9). complete_analysis says a",
+                    "name emitted again replaces the earlier output (E6)."],
+        "limits": {"export_result": "input sheets at most 200,000 rows together; a supporting table kept 30 days"},
+    },
 }
-NEWEST = "round_x"
+NEWEST = "round_y"
 
 
 def _tools_doc():

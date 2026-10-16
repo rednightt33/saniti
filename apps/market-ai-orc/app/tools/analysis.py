@@ -20,6 +20,7 @@ apps/market-python-sandbox/app/models.py and app/spec.py (tests enforce it).
 from __future__ import annotations
 
 import contextvars
+import json
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -593,6 +594,9 @@ class SandboxClient:
         # EXEC-V 2026-10-08 (option D): the sandbox reports part_reuse (POST /v1/parts/lookup, reuse_of parts)
         self.part_reuse = False
         self.part_reuse_version = 0  # V-f: 2 when the sandbox also takes same_as parts
+        # E9 (EXEC-1018B): the sandbox reports supporting_data v1 (supporting tables, a bundle dataset as one file,
+        # an approved need carried into a later request)
+        self.supporting_data = False
         self._client = httpx.Client(base_url=base_url.rstrip("/"), timeout=timeout_seconds, transport=transport,
                                     headers={"Authorization": f"Bearer {api_key}"})
 
@@ -701,6 +705,33 @@ class SandboxClient:
             return None
         body = self._json(response)
         return body if body.get("conversation_reuse") else None
+
+    def dataset_file(self, bundle_id: str, data_request_id: str, request_id: str
+                     ) -> tuple[int, bytes, dict[str, Any]]:
+        """E9(d): one data request's delivered rows as Parquet -> (200, file, meta), or (status, b"", error body)."""
+        import base64
+
+        response = self._call("GET", f"/v1/bundles/{bundle_id}/datasets/{data_request_id}/file",
+                              params={"request_id": request_id})
+        if response.status_code == 200:
+            header = response.headers.get("x-saniti-dataset-meta") or ""
+            try:
+                meta = json.loads(base64.urlsafe_b64decode(header.encode() + b"==="))
+            except ValueError:
+                meta = {}
+            return 200, response.content, meta if isinstance(meta, dict) else {}
+        return response.status_code, b"", self._json(response)
+
+    def carry_need(self, need_id: str, request_id: str) -> dict[str, Any]:
+        """E9(d/f): an approved need of this conversation registered again for this request (same contract)."""
+        response = self._call("POST", f"/v1/data-needs/{need_id}/carry", json={"request_id": request_id})
+        body = self._json(response)
+        if response.status_code == 200 and body.get("need_id"):
+            return body
+        error = body.get("error") if isinstance(body.get("error"), dict) else {}
+        if response.status_code in (404, 422) and error:
+            return {"status": "REJECTED", "code": error.get("code"), "message": error.get("message")}
+        raise ToolError(f"The Python sandbox is unavailable (HTTP {response.status_code}).")
 
     def get_need(self, need_id: str) -> dict[str, Any] | None:
         """The approved contract of a DataNeedSpec (backend use only: the Execution Planner reads it)."""

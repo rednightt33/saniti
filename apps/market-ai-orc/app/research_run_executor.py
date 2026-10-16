@@ -213,7 +213,8 @@ class ResearchRunExecutor:
                 self.open_group = None
             if result.get("released_outputs"):
                 result["released_contents"] = released_contents(
-                    self.client, group["session_id"], result["released_outputs"], self.timeout, self.request_id,
+                    self.client, group["session_id"], [o for o in result["released_outputs"] if not o.get("support")],
+                    self.timeout, self.request_id,
                     byte_budget=max(0, self.max_result_bytes // 3), final_status=result.get("final_status"))
         return result
 

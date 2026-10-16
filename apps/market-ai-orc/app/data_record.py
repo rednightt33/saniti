@@ -277,6 +277,13 @@ def add_need(record: dict[str, Any], request_id: str, result: dict[str, Any], mo
     record["needs"] = needs[-MAX_NEEDS:]
 
 
+def set_bundle(record: dict[str, Any], need_id: Any, bundle_id: Any) -> None:
+    """E9(d): the bundle that delivered a need's data, so export_result(data_request=...) can find its rows."""
+    for need in record["needs"]:
+        if need.get("need_id") == need_id and isinstance(bundle_id, str):
+            need["bundle_id"] = bundle_id
+
+
 def drop_need(record: dict[str, Any], need_id: str) -> None:
     """PLAN 14: an attached data need the analysis never read leaves the record (the columns it extracted stay listed
     under their tables as extracted)."""
@@ -304,7 +311,8 @@ def _next_seq(record: dict[str, Any]) -> int:
 def add_output(record: dict[str, Any], request_id: str, *, alias: str, output_id: str, session_id: str | None,
                name: Any, columns: list[str], row_count: Any, label: str | None = None,
                kind: str | None = None, definition: dict[str, Any] | None = None,
-               lineage: dict[str, Any] | None = None) -> None:
+               lineage: dict[str, Any] | None = None, support: dict[str, Any] | None = None) -> None:
+    """support (E9(e), EXEC-1018B): a supporting table {checksum_sha256, keep_until}: exported on request, never cited."""
     earlier = next((o for o in record["outputs"] if o.get("output_id") == output_id), None)
     outputs = [o for o in record["outputs"] if o.get("output_id") != output_id]
     # M64: an output read again keeps the place it was produced at; only a new output is newer than what came before
@@ -320,7 +328,9 @@ def add_output(record: dict[str, Any], request_id: str, *, alias: str, output_id
                     # R-STORE: the last date of the data it was computed from, and whether the conversation keeps it
                     **({"data_as_of": d} if (d := (lineage or {}).get("data_as_of") if isinstance(lineage, dict)
                                               else (earlier or {}).get("data_as_of")) else {}),
-                    **({"stored": earlier["stored"]} if earlier and "stored" in earlier else {})})
+                    **({"stored": earlier["stored"]} if earlier and "stored" in earlier else {}),
+                    **({"support": support} if isinstance(support, dict)
+                       else {"support": earlier["support"]} if earlier and "support" in earlier else {})})
     record["outputs"] = outputs[-MAX_OUTPUTS:]
     record["next_alias"] = max(record.get("next_alias") or 1, _alias_number(f"out.{alias}") + 1)
 
@@ -703,6 +713,7 @@ def _need_line(need: dict[str, Any]) -> str:
     the relationships it declared."""
     line = f"- {need.get('need_id')} ({need.get('mode') or 'ANALYSIS'}, {need.get('request_id')}): " + "; ".join(
         f"{r.get('logical_name')}={r.get('source_table')}({', '.join(r.get('columns') or [])})"
+        + (f" [{r['data_request_id']}]" if r.get("data_request_id") else "")
         + (f" where {r['scope']}" if r.get("scope") else "")
         + (f" restricted to {'; '.join(r['restrictions'])}" if r.get("restrictions") else "")
         for r in need.get("requests") or [])
@@ -711,6 +722,27 @@ def _need_line(need: dict[str, Any]) -> str:
     if need.get("relationships"):
         line += "; relationships " + "; ".join(need["relationships"])
     return line
+
+
+SUPPORT_HEADER = ("Supporting tables (E9: the steps and working tables behind the results, newest first; export them "
+                  "with export_result(ref) when the user asks for the data behind a result, never cite them):")
+
+
+def output_line(o: dict[str, Any]) -> str:
+    return (f"- {o.get('ref')} = {o.get('output_id')} \"{o.get('name')}\" "
+            + (f"{o['type']} " if o.get("type") not in (None, "TABLE") else "")
+            + f"({o.get('row_count')} rows; "
+            f"{', '.join(o.get('columns') or [])}) session {o.get('session_id')}, {o.get('request_id')}"
+            + (f", label {o['label']}" if o.get("label") else "")
+            + (f", data to {o['data_as_of']}" if o.get("data_as_of") else "")
+            + f"; definition: {definition_text(o.get('definition'))}")
+
+
+def support_line(o: dict[str, Any]) -> str:
+    support = o.get("support") if isinstance(o.get("support"), dict) else {}
+    return (f"- {o.get('ref')} \"{o.get('name')}\" ({o.get('row_count')} rows; {', '.join(o.get('columns') or [])}) "
+            f"{o.get('request_id')}" + (f", kept until {support['keep_until']}" if support.get("keep_until") else "")
+            + " (after that the export rebuilds it from the stored code)")
 
 
 def full_note(record: dict[str, Any]) -> str:
@@ -772,15 +804,9 @@ def full_note(record: dict[str, Any]) -> str:
     always = [
         ("Approved data needs (newest first; the filter each request applied):", [
             _need_line(n) for n in reversed(record["needs"])]),
-        ("Released outputs (newest first):", [
-            f"- {o.get('ref')} = {o.get('output_id')} \"{o.get('name')}\" "
-            + (f"{o['type']} " if o.get("type") not in (None, "TABLE") else "")
-            + f"({o.get('row_count')} rows; "
-            f"{', '.join(o.get('columns') or [])}) session {o.get('session_id')}, {o.get('request_id')}"
-            + (f", label {o['label']}" if o.get("label") else "")
-            + (f", data to {o['data_as_of']}" if o.get("data_as_of") else "")
-            + f"; definition: {definition_text(o.get('definition'))}"
-            for o in reversed(record["outputs"])]),
+        ("Released outputs (newest first):", [output_line(o) for o in reversed(record["outputs"])
+                                               if not o.get("support")]),
+        (SUPPORT_HEADER, [support_line(o) for o in reversed(record["outputs"]) if o.get("support")]),
         ("Research angles (newest first):", [
             f"- {r.get('angle_id')} ({r.get('request_id')}): " + "; ".join(
                 f"{d['source_table']}({', '.join(d['columns'])})" for d in r.get("datasets") or [])
@@ -830,15 +856,9 @@ def note(record: dict[str, Any]) -> str:
             for rid, r in sorted(record.get("relationships", {}).items())]),
         ("Approved data needs (newest first; the filter each request applied):", [
             _need_line(n) for n in reversed(record["needs"])]),
-        ("Released outputs (newest first):", [
-            f"- {o.get('ref')} = {o.get('output_id')} \"{o.get('name')}\" "
-            + (f"{o['type']} " if o.get("type") not in (None, "TABLE") else "")
-            + f"({o.get('row_count')} rows; "
-            f"{', '.join(o.get('columns') or [])}) session {o.get('session_id')}, {o.get('request_id')}"
-            + (f", label {o['label']}" if o.get("label") else "")
-            + (f", data to {o['data_as_of']}" if o.get("data_as_of") else "")
-            + f"; definition: {definition_text(o.get('definition'))}"
-            for o in reversed(record["outputs"])]),
+        ("Released outputs (newest first):", [output_line(o) for o in reversed(record["outputs"])
+                                               if not o.get("support")]),
+        (SUPPORT_HEADER, [support_line(o) for o in reversed(record["outputs"]) if o.get("support")]),
         ("Research angles (newest first):", [
             f"- {r.get('angle_id')} ({r.get('request_id')}): " + "; ".join(
                 f"{d['source_table']}({', '.join(d['columns'])})" for d in r.get("datasets") or [])

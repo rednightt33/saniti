@@ -299,7 +299,9 @@ COMPLETE_DESCRIPTION = (
     "claims_forbidden) and, on PASS, the released outputs with their content (JSON outputs and the first table rows). "
     "Only released outputs may be cited in the answer; disclose the warnings. On FAIL follow next_action: RUN_PYTHON "
     "(read what was not processed, then complete again), REVISE_DATA_NEED_SPEC, or REPORT_LIMITATION. The backend "
-    "does not recalculate your formulas: never say a calculation was independently verified."
+    "does not recalculate your formulas: never say a calculation was independently verified. An output name emitted "
+    "again by a later run replaces the earlier output of that name: only the newest is released, and an earlier "
+    "address is refused with the new one (replaced_outputs); give different results different names."
 )
 RESULT_STORE_VERSION = 1  # R-STORE: the sandbox's output file and carried restore routes
 SESSION_ATTACH_VERSION = 1  # PLAN 14: the sandbox's POST /v1/sessions/{session_id}/attach
@@ -593,7 +595,8 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
         if result.get("status") == "COMPLETED" and result.get("released_outputs"):
             envelope = _size({"ok": True, "tool": "complete_analysis", "result": {**result, "released_contents": []}})
             result["released_contents"] = released_contents(
-                client, arguments.session_id, result["released_outputs"], timeout_seconds, request_id(),
+                client, arguments.session_id, [o for o in result["released_outputs"] if not o.get("support")],
+                timeout_seconds, request_id(),
                 byte_budget=max(0, max_result_bytes - envelope - RESULT_ENVELOPE_MARGIN),
                 final_status=result.get("final_status"))
         return result

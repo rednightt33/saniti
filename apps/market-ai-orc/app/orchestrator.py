@@ -10,7 +10,7 @@ import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
@@ -70,7 +70,7 @@ from .tools.analysis import DataDate, current_conversation_key, current_data_dat
 from .tools.data_need import declares_findings
 from .tools.envelope import envelope
 from .tools.registry import strict_parameters_schema
-from .result_store import restore_missing, store_released
+from .result_store import SUPPORT_RETENTION_DAYS, restore_missing, store_released
 from .tools.artifacts import RunResults, current_results
 from .tools.session import current_carried_outputs, current_carried_restorer
 from .tools.system import current_step_tools
@@ -2113,6 +2113,9 @@ CONTENTS_NOT_SHOWN_NOTE = (
     "the first tables, JSON and text, never a chart). Each has its ref and is in the data record: read a table or JSON "
     "with get_session_output by its output_id before you describe it; a chart's picture is not readable, so describe "
     "it only from the table it was drawn from.")
+SUPPORTING_TABLES_NOTE = (
+    "Supporting tables {refs}: the working tables and steps behind the results, kept {days} days for export. They are "
+    "not results: never cite them; when the user asks for the data behind a result, export_result(ref) gives the file.")
 CARRIED_INPUTS_INSTRUCTION = (
     "carried_inputs names tables that are not released outputs of this conversation: {unknown}. Name a table by its "
     "ref in the data record ({known}), or set carried_inputs to null.")
@@ -3665,7 +3668,7 @@ class AgentOrchestrator:
                 owner = entry.get("session_id") or result.get("session_id") if isinstance(entry, dict) else None
                 if owner and entry.get("output_id"):
                     state.store_outputs.append({
-                        **entry, "session_id": owner,
+                        **entry, "session_id": owner, **({"type": "SUPPORT"} if entry.get("support") else {}),
                         "label": "CALCULATION_VERIFIED" if str(entry["output_id"]) in verified | state.verified_outputs
                         else "DATA_COVERAGE_VERIFIED"})
 
@@ -3715,6 +3718,11 @@ class AgentOrchestrator:
         says which were stored. Never fails the answer."""
         if self.result_store is None or not conversation_id or not (state.store_outputs or state.store_executions):
             return
+        try:  # E9(e): supporting tables older than their retention leave the store (the record keeps how to rebuild)
+            self.result_store.purge_support(conversation_id)
+        except Exception as exc:  # noqa: BLE001 - storing never fails the answer
+            log_event("result_store_failed", request_id=state.request_id, step="purge_support",
+                      error=type(exc).__name__)
         fetch = self.output_fetcher
         stored = store_released(self.result_store, lambda sid, oid: fetch(sid, oid, state.request_id),
                                 conversation_id, state.request_id, state.store_outputs)
@@ -5385,6 +5393,9 @@ class AgentOrchestrator:
         elif name == "prepare_data_bundle" and result.get("status") == "READY":
             if result.get("reused"):
                 state.reuse["bundles_reused"] = state.reuse.get("bundles_reused", 0) + 1
+            # E9(d): the bundle that delivered the need, so export_result(data_request=...) finds its rows
+            records.set_bundle(state.data_record, result.get("need_id") or (arguments or {}).get("need_id"),
+                               result.get("input_bundle_id"))
             state.context_numbers.extend(numbers_in(result.get("datasets"), ints_only=True))
             state.warning_codes |= {str(w.get("code")) for w in result.get("relationship_warnings") or []
                                     if isinstance(w, dict)}
@@ -5672,11 +5683,43 @@ class AgentOrchestrator:
                                else "DATA_COVERAGE_VERIFIED", kind=entry.get("type"), definition=definition,
                                lineage=entry.get("lineage") if isinstance(entry.get("lineage"), dict) else None)
 
+        def supporting_table(entry: dict[str, Any]) -> None:
+            """E9(e) (EXEC-1018B): a supporting table gets a ref for export_result and its place in the data record;
+            citing it is refused (it is an intermediate step, not a result)."""
+            output_id = str(entry["output_id"])
+            alias = state.ref_aliases.get(output_id)
+            if alias is None:
+                alias = state.ref_aliases[output_id] = f"o{state.ref_next}"
+                state.ref_next += 1
+            entry["ref"] = f"out.{alias}"
+            sources.refuse("out", output_id, f"out.{alias} is a supporting table (an intermediate step kept for "
+                                             "export): export it with export_result, never cite it; cite a released "
+                                             "result table")
+            sources.alias("out", alias, output_id)
+            keep_until = (datetime.now(timezone.utc).date() + timedelta(days=SUPPORT_RETENTION_DAYS)).isoformat()
+            records.add_output(state.data_record, state.request_id, alias=alias, output_id=output_id,
+                               session_id=entry.get("session_id") or session_id, name=entry.get("name"),
+                               columns=[str(c) for c in entry.get("columns") or []], row_count=entry.get("row_count"),
+                               kind="SUPPORT", lineage=entry.get("lineage") if isinstance(entry.get("lineage"), dict)
+                               else None, support={"checksum_sha256": entry.get("checksum_sha256"),
+                                                   "keep_until": keep_until})
+
         def released(result: dict[str, Any]) -> None:
             """A (user decision 2026-10-02): every released output gets its ref and its place in the data record, not
             only the ones whose content the result previews (the first tables, JSON and text); charts and the rest
             are listed with content_shown false and a note, and a table's rows are read on demand."""
             lineage = {str(e.get("output_id")): e for e in result.get("released_outputs") or [] if isinstance(e, dict)}
+            supporting = [e for e in result.get("released_outputs") or []
+                          if isinstance(e, dict) and e.get("output_id") and e.get("support")]
+            fresh = {(bool(e.get("support")), str(e.get("name"))): str(e["output_id"])
+                     for e in result.get("released_outputs") or []
+                     if isinstance(e, dict) and e.get("output_id") and e.get("name")}
+            # E6 (EXEC-1018B, M174): an output an earlier completion of this session released in this request is
+            # replaced by the one of the same name (and kind) released now; its address is refused with the new one
+            replaced = [o for o in state.data_record.get("outputs") or []
+                        if o.get("request_id") == state.request_id and o.get("session_id") == session_id
+                        and (bool(o.get("support")), str(o.get("name"))) in fresh
+                        and str(o.get("output_id")) not in lineage]
             for entry in result.get("released_contents") or []:
                 if isinstance(entry, dict) and "lineage" not in entry and isinstance(
                         lineage.get(str(entry.get("output_id")), {}).get("lineage"), dict):
@@ -5684,11 +5727,26 @@ class AgentOrchestrator:
                 output(entry)
             shown = {str(c.get("output_id")) for c in result.get("released_contents") or [] if isinstance(c, dict)}
             hidden = [e for e in result.get("released_outputs") or []
-                      if isinstance(e, dict) and e.get("output_id") and str(e["output_id"]) not in shown]
+                      if isinstance(e, dict) and e.get("output_id") and str(e["output_id"]) not in shown
+                      and not e.get("support")]
             for entry in hidden:
                 output(entry)
             if hidden:
                 result["contents_not_shown_note"] = CONTENTS_NOT_SHOWN_NOTE
+            for entry in supporting:
+                supporting_table(entry)
+            if supporting:
+                result["supporting_tables_note"] = SUPPORTING_TABLES_NOTE.format(
+                    refs=", ".join(str(e.get("ref")) for e in supporting), days=SUPPORT_RETENTION_DAYS)
+            if replaced:
+                gone = {str(o["output_id"]) for o in replaced}
+                state.data_record["outputs"] = [o for o in state.data_record["outputs"]
+                                                if str(o.get("output_id")) not in gone]
+                for old_output in replaced:
+                    new_ref = f"out.{state.ref_aliases.get(fresh[(bool(old_output.get('support')), str(old_output.get('name')))], '')}"
+                    sources.supersede("out", str(old_output["output_id"]), new_ref)
+                result["replaced_outputs"] = [{"ref": o.get("ref"), "replaced_by": sources.superseded[
+                    ("out", str(o["output_id"]))]} for o in replaced]
 
         if name == "complete_research_run":
             for finding in result.get("research_findings") or []:
