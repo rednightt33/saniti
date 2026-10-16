@@ -508,6 +508,34 @@ tidak pernah menjalankannya.
 - Juga: catatan METRICS dikirim di setiap run (`_offer_metrics`) termasuk giliran yang tidak menawarkan `query_metric`
   (CLARIFY); masuk tinjauan E3.
 
+## Memaksimalkan `query_metric` dalam batas SQL Governor (saran 2026-10-16, menunggu keputusan)
+
+Permintaan user 2026-10-16: "saya mau maximize this feature, tapi dengan constrain yang ada dari sql governor juga.
+please advise metric baiknya seperti apa. berapa batas SQL governor?"
+
+**Batas Governor untuk `/v1/summary` (jalur `query_metric`), dibaca dari kode dan konfigurasi dev:**
+- hasil paling banyak 200 baris (`summary.MAX_ROWS`); periode paling panjang 260 hari bursa atau 3.660 hari kalender;
+- nilai dalam satu daftar (IN) paling banyak 500 (`extract_max_in_values`);
+- perkiraan baris yang dipindai paling banyak 2.000.000; biaya rencana paling banyak 600.000;
+- batas waktu query 20 detik; fungsi SUM, MIN, MAX, FIRST, LAST, COUNT; dimensi hanya boleh dilepas bila katalog kolom
+  mengizinkan penjumlahannya (`cross_entity_aggregation`).
+
+**Saran:**
+1. Satu baris per saham sebagai bentuk baku: papan baku (U5) membuat net asing 1 baris per saham, bukan 3; dengan 200
+   baris, 100 saham (keputusan user) selalu muat.
+2. Peringkat di database: tambahkan urut dan N teratas (`ORDER BY` ukuran, `LIMIT` N ≤ 200) ke summary, sehingga
+   "5 saham net beli asing terbesar 2024" dari seluruh pasar selesai dalam satu panggilan tanpa mengirim semua saham.
+   Pemindaian `Feature_03` seluruh pasar setahun ±900 saham × 260 hari × 3 papan ≈ 0,7 juta baris, di bawah 2 juta
+   (diukur dengan EXPLAIN sebelum dibangun).
+3. Kelompok saham dari tabel referensi: saringan "Industry = Banks" (atau indeks) lewat `restrictions` yang sudah ada
+   di spesifikasi summary, jadi AI tidak mengetik daftar saham.
+4. Batas saham diturunkan, bukan diketik: min(100, 200 ÷ baris per saham menurut dimensi yang diminta), ditulis di
+   catatan METRICS.
+5. `broker_net_value` paling berat (±200 baris sumber per saham per hari): banyak saham hanya untuk periode pendek atau
+   satu broker; batas pastinya dari EXPLAIN.
+6. Metrik baru cukup satu baris di `AI_metric_catalog` bila tabel dan kolomnya sudah ada; kandidat ditinjau user
+   (nilai transaksi tetap ditunda, keputusan D-b).
+
 ## Rumus Excel hidup untuk angka yang dihitung ulang (penilaian 2026-10-16, menunggu keputusan)
 
 User 2026-10-16: "apakah heavey? if so how heavy? coba bandingkan best practice apakah ini memang diperlukan."

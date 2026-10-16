@@ -2353,6 +2353,11 @@ sebuah hasil. Ini termasuk generated table dll."
     disimpan sebagai tabel pendukung (bisa diekspor, tidak dikutip), atau (f) backend menjalankan ulang kode tersimpan
     atas data yang sama untuk membuat ulang tabel antara saat diminta (tanpa AI, hasil dicek sama dengan hasil lama).
     (e) lebih sederhana, menambah penyimpanan; (f) tanpa penyimpanan, butuh waktu jalan ulang.
+- Keputusan user 2026-10-16 untuk tabel antara: "gapapa, kita pakai E - dengan masa pemiympanan 1 bulan. Apabila lewat 1 bulan dan user minta, maka bisa go for option F.. harus jelas aturannya di backend agar AI tahu apa yang perlu ia lakukan." Rancangan:
+  - (e) saat analisis lolos, tabel kerja (`save_table`) dan tabel yang dipakai tabel hasil disimpan sebagai tabel pendukung (disimpan seperti tabel hasil, tidak bisa dikutip, bisa diekspor), masa simpan 30 hari;
+  - (f) sesudah 30 hari: backend menjalankan ulang kode tersimpan atas data yang diambil ulang dengan SQL yang sama, tanpa AI, dan hanya mengekspor bila tabel hasil jalan ulang sama persis dengan tabel hasil lama; bila tidak sama, ekspor ditolak dengan alasan tertulis;
+  - aturan di backend, bukan di prompt: `export_result` sendiri memilih jalur (tersimpan, atau jalan ulang) dan mengembalikan status yang jelas (`STORED`, `REBUILT`, `EXPIRED_NOT_REBUILDABLE`); deskripsi alat menyebut tiga status itu, jadi AI cukup memanggil ekspor dan melaporkan statusnya.
+  - Uji: ekspor tabel pendukung < 30 hari; ekspor > 30 hari (jam disimulasikan) dengan jalan ulang sama persis; jalan ulang yang berbeda ditolak.
 - Terkait: router tidak melihat jawaban AI sebelumnya (M176, terverifikasi); opsi mengirim penutup jawaban terakhir ke
   router menunggu keputusan user.
 
