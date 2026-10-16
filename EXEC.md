@@ -2247,7 +2247,7 @@ user diberi tahu hanya bila provider menolak karena biaya. Berhenti hanya untuk 
 - Bagian EXEC yang selesai (EXEC-OPEN-1015, UI-1015E, M164, EDGE-CTX, UI-1015B, M163) diberi status selesai di
   judulnya. Penghapusan dari EXEC.md (aturan AGENTS) menunggu user menyatakan eksekusi ini selesai ("conclude").
 
-### EXEC-IMPL-1017: hipotesis dari AI di jalur insight (A/B), penelusuran asal angka lewat lampiran, sisa EXEC-UI-1016 (dicatat 2026-10-16; go 2026-10-16; Fase 0–3 ter-deploy dan diuji live)
+### EXEC-IMPL-1017: hipotesis dari AI di jalur insight (A/B), penelusuran asal angka lewat lampiran, sisa EXEC-UI-1016 (dicatat 2026-10-16; go 2026-10-16; Fase 0–4 selesai, ter-deploy dan diuji live)
 
 **Go 2026-10-16:** "Yes, untuk minimal 4 hipotesis jalur standar. Yang kita rubah sekarang adalah jalur fast lane dan
 kita akan buat versi 2. Yes, untuk di ponsel memakai tombol mengambang. Terlipat saat jawaban datang untuk pertanyaan
@@ -2283,7 +2283,7 @@ Jawaban atas pertanyaan sebelum go:
   dikoreksi bersama.
 - Setiap angka di jawaban bisa ditelusuri sampai data mentahnya, dan penelusurannya dicek sistem.
 
-#### Hasil eksekusi (2026-10-16, berjalan)
+#### Hasil eksekusi (2026-10-16, selesai)
 
 **Fase 2 (EDGE)**: selesai dan ter-deploy, edge-bff `97c087af` (`748224f`) SUCCESS.
 - Judul kolom tegak di tengah; mendatar mengikuti isi kolom.
@@ -2401,6 +2401,12 @@ Mutu:
   - deret harian BMRI 2022 (246 baris) diekspor ke Excel dengan lembar kolom, definisi dan asal data;
   - waktu 252 dtk, biaya USD 0,028.
   - Catatan: harga dasar 30 Des 2021 ada di tabel jawaban, tidak di file (file hanya 2022).
+- Cek UI live (2026-10-16, tanpa panggilan model), edge-bff `c300a7b7`:
+  - jawaban terakhir menandai 9 angka teks dan 8 sel tabel dengan asalnya; baris "Lampiran" dan "sama persis" tampil;
+  - desktop: klik kanan pada teks terpilih memunculkan menu Copy dan "Attach selection as context"; Attach menambah
+    chip berisi kutipan dan "3 angka" (41,3%, Rp 3.512,5, Rp 4.962,5);
+  - ponsel (390 px, sentuh): memilih teks memunculkan bar mengambang dengan dua tombol yang sama; chip sama;
+  - kegagalan pertama skrip cek berasal dari skrip (titik klik dihitung sebelum gulir selesai), bukan dari EDGE.
 
 #### Tinjauan EXEC/PLAN yang ada (2026-10-16)
 
