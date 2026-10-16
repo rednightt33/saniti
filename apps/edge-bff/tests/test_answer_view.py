@@ -528,3 +528,72 @@ def test_on_a_phone_a_selection_shows_the_floating_bar(fixture_server, browser_p
         assert page.locator('.edge-attached-chip').count() == 1
     finally:
         ctx.close()
+
+
+def test_a_failed_answer_gives_its_question_and_attachments_back(fixture_server, browser_page):
+    """E11 (EXEC-1018B, M178): a run that ends without an answer (failed or stopped) gives its question and its
+    attachments back to the composer, so nothing the user wrote or picked is lost; a completed run clears them."""
+    origin, orc = fixture_server
+    page = browser_page
+    sign_in(page, origin)
+    original, built = built_answer(orc)
+    orc.run = built
+    submit(page, 'uji sinyal volume')
+    saved(page)
+    attach_by_right_click(page, '.edge-md-table tbody tr:nth-child(2)')
+    assert page.locator('.edge-attached-chip').count() == 1
+
+    def failing(owner, id, payload):
+        result = original(owner, id, payload)
+        result.update(status='FAILED', error={'code': 'DUMMY_FAILURE'})
+        return result
+    orc.run = failing
+    try:
+        submit(page, 'baris ini dari mana?')
+        composer = page.get_by_placeholder('Ask a research question…')
+        for _ in range(200):  # Orc received the question (the composer was cleared when it was accepted)
+            if len(orc.calls) == 2:
+                break
+            page.wait_for_timeout(50)
+        assert len(orc.calls) == 2
+        page.wait_for_function("() => document.querySelector('textarea').value === 'baris ini dari mana?'", timeout=15000)
+        assert page.locator('.edge-attached-chip').count() == 1
+        assert len(orc.calls[-1][2]['attachments']) == 1  # the same chip was sent, and came back
+    finally:
+        orc.run = original
+
+
+def test_the_run_clock_counts_each_second_and_never_goes_back(fixture_server, browser_page):
+    """E12 (EXEC-1018B, user 2026-10-16 "as smooth as 1 detik"): the running time moves by one second each second
+    between Orc's readings; a reading that is behind the shown time never moves it back."""
+    origin, orc = fixture_server
+    page = browser_page
+    sign_in(page, origin)
+    original = orc.run
+    release = threading.Event()
+
+    def slow(owner, id, payload):
+        orc.PROGRESS = {id: {'status': 'RUNNING', 'elapsed_ms': 42000, 'earlier_steps': 0, 'steps': [
+            {'label': 'Kode analisis', 'state': 'running', 'started_ms': 0, 'duration_ms': 42000}]}}
+        release.wait(timeout=30)
+        return original(owner, id, {**payload, 'message': 'fx:answer_table'})
+    orc.run = slow
+    try:
+        submit(page, 'net beli asing BBRI')
+        clock = page.locator('.edge-run-clock')
+        clock.wait_for(timeout=10000)
+        seen = []
+        for _ in range(9):  # 4.5 s: across at least one more reading (every 2.5 s) of the same, older elapsed time
+            seen.append(int(clock.get_attribute('data-seconds')))
+            page.wait_for_timeout(500)
+        assert seen == sorted(seen), seen  # never back
+        assert 3 <= seen[-1] - seen[0] <= 5, seen  # about one per second
+        assert page.evaluate("() => matchMedia('(prefers-reduced-motion: reduce)').matches") or \
+            clock.evaluate("c => getComputedStyle(c).animationName") in ('edge-tick-odd', 'edge-tick-even')
+        page.emulate_media(reduced_motion='reduce')
+        assert clock.evaluate("c => getComputedStyle(c).animationName") == 'none'
+    finally:
+        page.emulate_media(reduced_motion='no-preference')
+        release.set()
+        orc.run = original
+    saved(page)

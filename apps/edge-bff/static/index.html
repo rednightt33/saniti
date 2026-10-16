@@ -9854,6 +9854,15 @@ html.dark .edge-flow-done{background:#1e9a59;}
  html.dark .monitor-layout .result .edge-md-table .data-table tbody tr:hover td:first-child {background:#303844;}
  html.dark .monitor-layout .result .edge-md-table .data-table tbody tr.edge-row-picked td:first-child {background:linear-gradient(color-mix(in srgb, var(--primary, #4f7cff) 16%, transparent),color-mix(in srgb, var(--primary, #4f7cff) 16%, transparent)),#252c35;}
 }
+/* E13 (EXEC-1018B, user 2026-10-16 "Nama kolom rata kiri dan center, isi juga rata kiri"; replaces EXEC-UI-1016's
+   alignment): every title and cell left-aligned and vertically centred, numbers included (still tabular figures); a
+   title stays on one line up to about twenty-eight characters, so a column is as wide as its widest title or value
+   plus the same padding as every other column */
+.edge-md-table .data-table th,.edge-md-table .data-table td,.edge-md-table .data-table .num {text-align:left;vertical-align:middle;}
+.edge-md-table .data-table th .edge-sort-label {max-width:none;white-space:nowrap;vertical-align:middle;}
+.edge-md-table .data-table th.edge-title-long .edge-sort-label {max-width:28ch;white-space:normal;}
+.edge-md-table .data-table th.num .edge-sort-label,.edge-md-table .data-table th.num .edge-sort {text-align:left;}
+.edge-md-table .data-table th.num .edge-sort-icon {left:calc(100% + 2px);right:auto;}
 /* EXEC-SORT: the title cell keeps its look; hover darkens it and shows the sort icon, the sorted column shows its arrow */
 .edge-md-table .data-table th.edge-sortable {padding:0;}
 .edge-md-table .data-table th.edge-sortable:hover {background:color-mix(in srgb, var(--secondary), var(--foreground) 7%);}
@@ -9954,6 +9963,13 @@ th.edge-sortable:hover .edge-sort-icon,.edge-sort:focus-visible .edge-sort-icon,
 .edge-run-progress {margin:6px 0 0 30px;display:flex;flex-direction:column;gap:4px;font:.8rem Inter,"Segoe UI",sans-serif;color:var(--muted-foreground);}
 .edge-run-progress-now {display:flex;gap:8px;align-items:baseline;}
 .edge-run-progress-time {font-variant-numeric:tabular-nums;color:var(--foreground);}
+/* E12: each new second fades in briefly (two identical animations, so the change of name restarts it) */
+.edge-run-clock {display:inline-block;}
+.edge-run-clock.odd {animation:edge-tick-odd .2s ease-out;}
+.edge-run-clock.even {animation:edge-tick-even .2s ease-out;}
+@keyframes edge-tick-odd {from {opacity:.45;transform:translateY(-2px);} to {opacity:1;transform:none;}}
+@keyframes edge-tick-even {from {opacity:.45;transform:translateY(-2px);} to {opacity:1;transform:none;}}
+@media (prefers-reduced-motion: reduce) {.edge-run-clock.odd, .edge-run-clock.even {animation:none;}}
 .edge-run-progress-done > summary {cursor:pointer;}
 .edge-run-progress-done ol {margin:4px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:2px;}
 .edge-run-progress-done li {display:flex;gap:6px;align-items:baseline;}
@@ -10714,6 +10730,12 @@ function Monitor({ go }) {
     const stoppingId=initialValue(viewRecord,"stoppingId",()=>null), setStoppingId=next=>updateValue(viewRecord,"stoppingId",next);
     const followRef=(viewRecord.refs.followRef ??= {current:null});
     const submissionRef=(viewRecord.refs.submissionRef ??= {current:null});
+    // E11 (EXEC-1018B, M178): what each sent message carried (its text and attachments), so a run that fails or is
+    // stopped gives them back to the composer instead of losing them
+    const sentRef=(viewRecord.refs.sentRef ??= {current:{}});
+    const giveBack=requestId=>{const sent=sentRef.current[requestId];if(!sent)return;delete sentRef.current[requestId];
+      if(sent.attachments.length)setAttached(current=>Array.isArray(current)&&current.length?current:sent.attachments);
+      setPrompt(current=>current&&current.trim()?current:sent.question);};
     const pendingReply=initialValue(viewRecord,"pendingReply",()=>null),setPendingReply=next=>updateValue(viewRecord,"pendingReply",next);
     // EXEC-IMPL-1016 Fase 4.2 (EDGE-CTX A), EXEC-IMPL-1017 Fase 3: what the user attached to the next question, from a
     // selection anywhere in an answer (at most 5; each chip can be removed)
@@ -10739,7 +10761,12 @@ function Monitor({ go }) {
       followRef.current=Edge.follow(requestId,snapshot=>{
         if(snapshot.conversation_id && conversationId!==snapshot.conversation_id){const old=conversationId;conversationId=snapshot.conversation_id;setItems(current=>current.map(c=>c.id===old?{...c,id:conversationId}:c));setSelectedId(current=>current===old?conversationId:current);}
         updateRun(conversationId,requestId,r=>Edge.stateRun(snapshot,r));
-        if(Edge.terminal(snapshot) && snapshot.conversation_id){Edge.messages(snapshot.conversation_id).then(loaded=>setItems(current=>current.map(c=>c.id===loaded.id?loaded:c))).catch(e=>setApiError(e.message));}
+        // E11: whether the run answered is read from the saved run as the conversation shows it (the queue's FINISHED
+        // only says delivery ended; Orc's own status says whether there is an answer)
+        const settle=status=>{if(status==="completed")delete sentRef.current[requestId];else giveBack(requestId);};
+        if(Edge.terminal(snapshot) && snapshot.conversation_id){Edge.messages(snapshot.conversation_id).then(loaded=>{setItems(current=>current.map(c=>c.id===loaded.id?loaded:c));
+          settle(loaded.runs.find(r=>r.id===requestId)?.status ?? Edge.stateRun(snapshot,{}).status);}).catch(e=>{settle(Edge.stateRun(snapshot,{}).status);setApiError(e.message);});}
+        else if(Edge.terminal(snapshot))settle(Edge.stateRun(snapshot,{}).status);
       },e=>setApiError(e.message));
     };
     onLifecycle(viewRecord,"backend-init",()=>{
@@ -10765,6 +10792,7 @@ function Monitor({ go }) {
       const pending=submissionRef.current?.fingerprint===fingerprint?submissionRef.current:{fingerprint,key:crypto.randomUUID()};submissionRef.current=pending;
       try{const accepted=await Edge.createRun({...payload,submission_key:pending.key});const now=new Date().toISOString(),id=accepted.conversation_id || existing || holder?.id || "draft:"+accepted.request_id;
         if(afterStop && accepted.after_request_id)setStoppingId(accepted.after_request_id);
+        sentRef.current[accepted.request_id]={question,attachments:attached.length&&!plain?attached:[]};
         const r={id:accepted.request_id,question,status:"submitted",mode:"Standard",createdAt:now,attachments:[],sources:[],steps:[{id:"queued",label:"Queued",status:"running",detail:"Accepted by server"}]};
         setItems(current=>{const found=current.find(c=>c.id===id);if(found)return current.map(c=>c.id===id && !c.runs.some(x=>x.id===r.id)?{...c,messages:[...c.messages,{id:r.id+"-user",role:"user",content:question,createdAt:now,runId:r.id}],runs:[...c.runs,r]}:c);return [{id,title:question.slice(0,80),bookmarked:false,createdAt:now,updatedAt:now,messages:[{id:r.id+"-user",role:"user",content:question,createdAt:now,runId:r.id}],runs:[r]},...current];});
         setSelectedId(id);setSelectedRunId(r.id);setAutoOpenRunId(r.id);setDetailsOpen(true);setPrompt("");setPendingReply(null);setInputHint(null);if(!plain)setAttached([]);submissionRef.current=null;followRun(id,r.id);
@@ -11123,7 +11151,7 @@ function RunProgress({ run }) {
     onLifecycle(viewRecord, "poll", () => {
         let stopped = false, timer = null;
         const poll = async () => {
-            try { const next = await Edge.api(`/runs/${encodeURIComponent(run.id)}/progress`); if (!stopped) updateValue(viewRecord, "data", next); }
+            try { const next = await Edge.api(`/runs/${encodeURIComponent(run.id)}/progress`); if (!stopped) updateValue(viewRecord, "data", next && {...next, receivedAt: performance.now()}); }
             catch { /* progress is a convenience: a failed read keeps the last one */ }
             if (!stopped) timer = setTimeout(poll, PROGRESS_POLL_MS);
         };
@@ -11134,7 +11162,7 @@ function RunProgress({ run }) {
     if (!view) return null;
     return element("div", { className: "edge-run-progress" },
         element("div", { className: "edge-run-progress-now" },
-            view.elapsed && element("span", { className: "edge-run-progress-time" }, view.elapsed),
+            view.elapsed && element(RunClock, { elapsedMs: data.elapsed_ms, at: data.receivedAt }),
             view.current && element("span", null, view.current)),
         view.done.length > 0 && element("details", { className: "edge-run-progress-done" },
             element("summary", null, view.doneTitle),
@@ -11142,6 +11170,30 @@ function RunProgress({ run }) {
             element("ol", null, view.done.map((step, index) => element("li", { key: index },
                 element("span", null, step.label), step.note && element("em", null, step.note),
                 step.duration && element("small", null, step.duration))))));
+}
+
+// E12 (EXEC-1018B, user 2026-10-16 "as smooth as 1 detik"): each server reading implies when the run started (the
+// time it arrived minus its elapsed time); the clock keeps the earliest start any reading implied, so a reading that
+// lags (sent before its arrival) neither stalls the clock nor moves it back. It redraws at each whole second (aligned
+// to the clock, so a background tab is right when it comes back)
+function RunClock({ elapsedMs, at }) {
+    const viewRecord = currentView;
+    const shown = initialValue(viewRecord, "shown", () => 0);
+    const startRef = (viewRecord.refs.start ??= { current: Infinity });
+    startRef.current = Math.min(startRef.current, (at || performance.now()) - (Number(elapsedMs) || 0));
+    onLifecycle(viewRecord, "tick", () => {
+        let timer = null, stopped = false;
+        const tick = () => {
+            if (stopped) return;
+            const ms = Math.max(0, performance.now() - startRef.current);
+            updateValue(viewRecord, "shown", previous => Math.max(previous || 0, Math.floor(ms / 1000)));
+            timer = setTimeout(tick, 1000 - (ms % 1000) + 5);
+        };
+        tick();
+        return () => { stopped = true; clearTimeout(timer); };
+    }, [elapsedMs, at]);
+    return element("span", { className: `edge-run-progress-time edge-run-clock ${shown % 2 ? "odd" : "even"}`,
+        "data-seconds": String(shown) }, EdgeView.durationText(shown * 1000));
 }
 
 function RunStatus({ run, stopping, expanded, toggle, retry }) {
@@ -11565,6 +11617,7 @@ function TableDialog({spec}) {
 }
 const TABLE_VISIBLE_ROWS = 10;
 const TABLE_SHORT_CELL = 16;  // characters: a cell this short reads as a code, date or number
+const TABLE_TITLE_LINE = 28;  // characters: a column title this short stays on one line (E13, CSS 28ch)
 function MdTable({head, align, rows, numeric, ctx, title = "", plain = false, initialSort = null, source = null}) {
   const view = currentView;
   // EXEC-IMPL-1017 Fase 3 (user 2026-10-16: "tanpa ada menu tambahan"): a table has no attach controls; its cells carry
@@ -11599,7 +11652,8 @@ function MdTable({head, align, rows, numeric, ctx, title = "", plain = false, in
   };
   const header = (value, column) => {
     const active = sort.column === column;
-    return element("th", cellProps(column, {className:`edge-sortable${active ? " sorted" : ""}`, "aria-sort":active ? sort.dir : "none"}),
+    const long = String(value).replace(/[*_`]/g, "").trim().length > TABLE_TITLE_LINE;
+    return element("th", cellProps(column, {className:`edge-sortable${active ? " sorted" : ""}${long ? " edge-title-long" : ""}`, "aria-sort":active ? sort.dir : "none"}),
       element("button", {type:"button", className:"edge-sort", onClick:() => setSort(next(column)),
         "aria-label":`${String(value).replace(/[*_`]/g, "")}: ${active && sort.dir === "descending" ? "urutkan naik" : active ? "kembalikan urutan asli" : "urutkan turun"}`},
         element("span", {className:"edge-sort-label"}, mdInline(value, ctx),

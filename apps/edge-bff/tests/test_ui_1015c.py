@@ -8,7 +8,7 @@ import urllib.request
 
 from test_answer_view import fixture_server  # noqa: F401 (fixture)
 from test_ui_1015 import FIXTURES  # noqa: F401 (registers the ui1015 fixtures)
-from test_visual import browser_page, dummy_orc, saved, server, sign_in, submit  # noqa: F401 (fixtures)
+from test_visual import browser_page, capture, dummy_orc, saved, server, sign_in, submit  # noqa: F401 (fixtures)
 
 
 def box(page, selector):
@@ -231,15 +231,21 @@ Broker teratas:
 | TPIA | 31 Mei 2024 | BK – J.P. Morgan Sekuritas Indonesia | Rp 1,2 miliar |
 | GGRM | 31 Mei 2024 | AK – UBS Sekuritas Indonesia | Rp 71,5 miliar |
 """
+# the lines a title's text takes (its text nodes only: the sort icon sits beside the text, not on a line of its own)
+TEXT_LINES = """s => { const w = document.createTreeWalker(s, NodeFilter.SHOW_TEXT); const tops = new Set();
+    for (let n = w.nextNode(); n; n = w.nextNode()) { const r = document.createRange(); r.selectNodeContents(n);
+      [...r.getClientRects()].filter(x => x.width > 0).forEach(x => tops.add(Math.round(x.top))); }
+    return tops.size; }"""
 FIXTURES['table_align'] = copy.deepcopy(FIXTURES['answer_table'])
 FIXTURES['table_align']['response']['answer'] = ALIGN
 
 
-def test_tables_align_by_content_wrap_long_titles_and_draw_no_vertical_line(fixture_server, browser_page):
-    """EXEC-TABLE-ALIGN (user 2026-10-16, screenshots: "tidak perlu ada garis vertical"; "angkanya kecil, tapi kolomnya
-    lebar, karena kolom title yang panjang ... bisa di wrap"; "seragamkan"): quantities right-aligned with their title,
-    text, codes, dates and years left, whatever alignment the writer typed; a long title wraps so the column is about as
-    wide as its values; no vertical line, also with the phone's sticky first column."""
+def test_tables_align_left_and_middle_keep_titles_on_one_line_and_draw_no_vertical_line(fixture_server, browser_page):
+    """E13 (EXEC-1018B, user 2026-10-16 "Nama kolom rata kiri dan center, isi juga rata kiri"; replaces EXEC-TABLE-ALIGN's
+    right-aligned quantities and fourteen-character titles): every title and cell left-aligned and vertically centred,
+    numbers included and whatever alignment the writer typed; a title up to about twenty-eight characters stays on one
+    line, so the column is its widest title or value plus the same padding; no vertical line, also with the phone's
+    sticky first column."""
     origin, _ = fixture_server
     page = browser_page
     for width in (1440, 390):
@@ -248,27 +254,23 @@ def test_tables_align_by_content_wrap_long_titles_and_draw_no_vertical_line(fixt
         submit(page, 'fx:table_align')
         saved(page)
         tables = page.locator('article.result').last.locator('.edge-md-table table')
-
-        def aligned(table):
-            return tables.nth(table).evaluate("""t => [...t.rows].map(r => [...r.cells].map(c => {
-                const label = c.querySelector('.edge-sort-label'); const s = getComputedStyle(label || c);
-                return label ? (getComputedStyle(c).textAlign === 'right' || c.classList.contains('num') ? 'R' : 'L')
-                             : (s.textAlign === 'right' ? 'R' : 'L'); }))""")
-        assert aligned(0)[0] == ['L', 'L', 'R', 'R'] and aligned(0)[1] == ['L', 'L', 'R', 'R']  # years left, typed ":---:" ignored
-        assert aligned(1)[1] == ['L', 'R', 'R', 'R'] and aligned(2)[1] == ['L', 'L', 'L', 'R']  # dates left, Rupiah right
+        for table in range(3):
+            cells = tables.nth(table).evaluate("""t => [...t.rows].flatMap(r => [...r.cells].map(c => {
+                const inner = c.querySelector('.edge-sort') || c; return [getComputedStyle(inner).textAlign,
+                getComputedStyle(c).verticalAlign]; }))""")
+            assert all(align in ('left', 'start') and middle == 'middle' for align, middle in cells), (width, table, cells[:6])
         title = tables.nth(1).locator('th').nth(2)
-        lines = title.locator('.edge-sort-label').evaluate("s => Math.round(s.getBoundingClientRect().height / parseFloat(getComputedStyle(s).lineHeight))")
+        lines = title.locator('.edge-sort-label').evaluate(TEXT_LINES)
         cell = tables.nth(1).locator('tbody tr').first.locator('td').nth(2)
-        assert lines >= 2  # "Ayunan wajar 185 hari" wraps
-        assert title.evaluate('t => t.getBoundingClientRect().width') < 130  # about its values, not its one-line title
+        assert lines == 1  # "Ayunan wajar 185 hari" stays on one line
         assert cell.evaluate("td => getComputedStyle(td).whiteSpace") == 'nowrap'
-        # a number column's title ends where its numbers end (the hidden sort icon takes no room on the right)
+        # a column's title starts where its values start (the same padding everywhere)
         for column in (1, 2, 3):
-            head_right = tables.nth(1).locator('th').nth(column).locator('.edge-sort-label').evaluate(
-                "s => { const r = document.createRange(); r.selectNodeContents(s); const b = r.getBoundingClientRect(); return b.right; }")
-            cell_right = tables.nth(1).locator('tbody tr').first.locator('td').nth(column).evaluate(
-                "td => { const r = document.createRange(); r.selectNodeContents(td); return r.getBoundingClientRect().right; }")
-            assert abs(head_right - cell_right) <= 4, (column, head_right, cell_right)
+            head_left = tables.nth(1).locator('th').nth(column).locator('.edge-sort-label').evaluate(
+                "s => { const r = document.createRange(); r.selectNodeContents(s); return r.getBoundingClientRect().left; }")
+            cell_left = tables.nth(1).locator('tbody tr').first.locator('td').nth(column).evaluate(
+                "td => { const r = document.createRange(); r.selectNodeContents(td); return r.getBoundingClientRect().left; }")
+            assert abs(head_left - cell_left) <= 4, (column, head_left, cell_left)
         for table in range(3):
             shadows = tables.nth(table).evaluate("""t => [...t.querySelectorAll('th,td')].map(c => {
                 const s = getComputedStyle(c); return [s.boxShadow, s.borderLeftWidth, s.borderRightWidth]; })""")
@@ -290,8 +292,6 @@ def test_tables_align_by_content_wrap_long_titles_and_draw_no_vertical_line(fixt
                 return [Math.round(inner - Math.max(label, values)), wraps, word]; }); }""")
             # a one-line column has no leftover; a folded text column keeps at most its ragged edge, under one word
             assert all(abs(gap) <= 2 or (wraps and 0 <= gap < word) for gap, wraps, word in slack), (width, table, slack)
-        # EXEC-IMPL-1017 Fase 2: titles sit in the middle of the header row
-        assert all(v == 'middle' for v in tables.nth(1).evaluate("t => [...t.tHead.rows[0].cells].map(c => getComputedStyle(c).verticalAlign)"))
         # the phone's sticky first cell takes its row's hover colour (the row reads as one band)
         row = tables.nth(1).locator('tbody tr').first
         row.locator('td').nth(1).hover()
@@ -300,4 +300,36 @@ def test_tables_align_by_content_wrap_long_titles_and_draw_no_vertical_line(fixt
         assert first in (other, row_color) if width > 720 else first == row_color, (width, first, other, row_color)
         if directory := __import__('os').environ.get('EDGE_UI_ARTIFACT_DIR'):
             page.locator('article.result').last.locator('.edge-answer').screenshot(path=f'{directory}/table-align-{width}.png')
+        page.context.clear_cookies()
+
+
+TITLES = """Judul pendek dan panjang:
+
+| Saham | Rata-rata nilai beli bersih asing harian | Ayunan wajar 185 hari |
+|---|---|---|
+| BBRI | Rp 1,2 miliar | 28% |
+| BMRI | Rp 71,5 miliar | 29% |
+"""
+FIXTURES['table_titles'] = copy.deepcopy(FIXTURES['answer_table'])
+FIXTURES['table_titles']['response']['answer'] = TITLES
+
+
+def test_a_short_title_never_wraps_and_a_long_title_folds_within_its_width(fixture_server, browser_page):
+    """E13 (EXEC-1018B): a title of up to twenty-eight characters stays on one line at every width (on a phone the
+    table scrolls sideways instead); a longer title folds between words within about twenty-eight characters."""
+    origin, _ = fixture_server
+    page = browser_page
+    lines = TEXT_LINES
+    for width in (1440, 390):
+        page.set_viewport_size({'width': width, 'height': 900})
+        sign_in(page, origin)
+        submit(page, 'fx:table_titles')
+        saved(page)
+        heads = page.locator('article.result').last.locator('.edge-md-table table th')
+        assert heads.nth(0).evaluate("t => t.classList.contains('edge-title-long')") is False
+        assert heads.nth(1).evaluate("t => t.classList.contains('edge-title-long')") is True
+        assert heads.nth(2).locator('.edge-sort-label').evaluate(lines) == 1, width
+        assert heads.nth(1).locator('.edge-sort-label').evaluate(lines) == 2, width
+        heads.nth(0).evaluate("t => t.closest('.edge-md-table').scrollIntoView({block: 'center'})")
+        capture(page, f'e13-table-titles-{width}')
         page.context.clear_cookies()
