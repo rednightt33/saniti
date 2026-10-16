@@ -342,7 +342,7 @@ User 2026-10-12: "masukan perplexity API ke future plan". Riset dari dokumen res
   cek apakah filter domain `.go.id` bekerja.
 - **Rollout:** dev saja, flag default mati; rollback dengan mengganti `WEB_SEARCH_BACKEND`.
 
-## Mode insight: dimatikan? (penilaian 2026-10-16, menunggu keputusan user)
+## Mode insight: dimatikan? (penilaian 2026-10-16; diputuskan 2026-10-16: INSIGHT tetap dengan hipotesis dari AI, lihat EXEC-IMPL-1017 Fase 1)
 
 Pertanyaan user 2026-10-16: "boleh tau mode insight apakah berguna? bagaimana kalo di disable? jadi hanya mode hitung
 biasa dan mode jawab. coba assess". Data dari 110 giliran tersimpan di dev:

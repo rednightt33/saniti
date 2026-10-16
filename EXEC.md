@@ -2247,6 +2247,208 @@ user diberi tahu hanya bila provider menolak karena biaya. Berhenti hanya untuk 
 - Bagian EXEC yang selesai (EXEC-OPEN-1015, UI-1015E, M164, EDGE-CTX, UI-1015B, M163) diberi status selesai di
   judulnya. Penghapusan dari EXEC.md (aturan AGENTS) menunggu user menyatakan eksekusi ini selesai ("conclude").
 
+### EXEC-IMPL-1017: hipotesis dari AI di jalur insight (A/B), penelusuran asal angka lewat lampiran, sisa EXEC-UI-1016 (dicatat 2026-10-16; rencana disetujui untuk dibuat; menunggu go per fase)
+
+**Keputusan user 2026-10-16:**
+- Insight: "terkait dengan poin 1, mari kita jalankan dan kita A/B testing. Siapkan fallback dan identify mungkin sistem
+  prompt, router prompt dan lain sebagainya perlu dirubah ... Which is hipotesa dari AI. Namun setiap uji menghasilkan
+  p-value atau interval tetap lewat satu pencatatan umum. Dan 8 metode boleh dipakai tapi bukan kewajiban. But you
+  should remember ya, bahwa di metode ini AI tidak wajib untuk generate p-value itu sendiri."
+- Lampiran: "Attach of selection bukan mengekspor table as is ... AI bisa mengeluarkan detail dari mana dia mendapatkan
+  angka tersebut ... dia akan keluarin tuh data daily closing price, sehingga user bisa menghitung sendiri" dan "yes,
+  saya mau itu masukkan ke exec, silahkan di assess kira-kira butuh apa saja."
+- Lalu: "review existing atau approved exec dan inspect backend untuk generate implementation plan."
+- Approval to plan, bukan go: setiap fase berjalan setelah "go" (AGENTS).
+
+**Tujuan:**
+- Pertanyaan yang bersifat "mencari tahu" dijawab cepat.
+- AI membentuk hipotesisnya sendiri dengan semua kemampuan sandbox (bolak-balik ambil data, hitung, tabel antara).
+- Uji statistik tidak wajib. Bila ada angka p-value atau interval, angka itu dihitung dan dicatat sistem, lalu
+  dikoreksi bersama.
+- Setiap angka di jawaban bisa ditelusuri sampai data mentahnya, dan penelusurannya dicek sistem.
+
+#### Tinjauan EXEC/PLAN yang ada (2026-10-16)
+
+| Butir | Status | Kaitan dengan rencana ini |
+|---|---|---|
+| EXEC-UI-1016 butir 1 (judul tegak tengah) dan 3 (saran terlipat) | dicatat, menunggu go; butir 3 masih menunggu jawaban "terbuka atau terlipat" | Fase 2 |
+| EXEC-UI-1016 butir 2 (klik kanan / tekan lama, seluruh jawaban) | desain dicatat | Fase 3, diperluas dengan penelusuran asal angka |
+| Penilaian mode insight (FUTURE_PLAN) | **diputuskan**: INSIGHT tetap, sifatnya berubah | Fase 1 |
+| M171 (uji dengan kode sendiri tidak tercatat) | OPEN | Fase 1.3 |
+| PLAN 10 "minimal 4 hipotesis" (`AI_RESEARCH_MIN_ANGLES`) | disetujui 2026-10-02, belum dibangun | Bertentangan dengan "uji tidak wajib" di jalur cepat. Usulan: PLAN 10 hanya untuk jalur riset standar. **Perlu konfirmasi user.** |
+| PLAN 11 kamus nilai | selesai lewat EXEC-IMPL-1016 Fase 3 | dihapus dari PLAN di Fase 4 |
+| PLAN 14 lampiran data ke sesi terbuka | menyala di dev (`AI_ENABLE_SESSION_ATTACH`) | Dipakai Fase 1: AI bisa menambah data tanpa sesi baru. Hasil A/B Fase 1 sekaligus jadi bukti live PLAN 14 |
+| PLAN 8, 9, M145, M154/M155, EXEC-DETAILS butir 1 | usulan atau menunggu user | tidak tersentuh |
+| O4 (M166), O5 butir 5 | ditunda | tidak tersentuh |
+
+#### Pemeriksaan backend (2026-10-16)
+
+- Sandbox `research_engines.py` sudah punya bahan statistik:
+  - sampel efektif per tanggal dengan horizon (`_group_stats`, `_thinned`);
+  - `_welch`, `_proportion_difference`, `_correlation`;
+  - `adjust_p_values` (Benjamini–Hochberg).
+- Pencatatan uji sudah ada: `explore_test_call_*` → `app/explore_tests.summarize` → `final_status.explore_tests`.
+  Batas 20 uji per sesi (`MAX_EXPLORE_TESTS`). `event_study` sudah ikut tercatat.
+- Audit modul (`final_status.modules_used`) mencatat modul yang diimpor kode sukses; aktif bila arsip audit menyala.
+- orc: catatan INSIGHT (`EXPLORE_INSIGHT_NOTE`, `EXPLORE_TEST_RULE`, `FASTLANE_EXPLORATORY_INSIGHT`); kartu kemampuan
+  router (`conversation_router.py` 152, 454: "each one research method"); baris bukti (`_explore_evidence`).
+- Jawaban ke EDGE sudah membawa:
+  - `answer_tables` (sel tabel → output dan baris);
+  - `evidence` (daftar rujukan yang dikutip).
+- Yang belum ada: posisi setiap angka di teks jawaban beserta rujukannya. Tanpa itu EDGE tidak tahu angka yang
+  diblok berasal dari mana.
+- `get_lineage` menelusuri tabel → kode → data → saringan → query → tabel sumber, tetapi per tabel, bukan per angka.
+  Belum ada pemeriksaan bahwa penjelasan sebuah angka menghasilkan angka yang sama.
+- Router tidak menerima `attached_selection`.
+
+#### Fase 0: persiapan (tanpa perubahan perilaku)
+
+- Catat deploy aktif untuk rollback (orc, sandbox, edge-bff).
+- Cek saldo akun dan batas kunci OpenRouter (pernah jadi penghalang; EXEC-IMPL-1016 Fase 0).
+- Biaya berbayar diperkirakan:
+  - A/B Fase 1 sekitar USD 1–2,5;
+  - benchmark router sekitar USD 0,35 per putaran;
+  - cek live Fase 3 sekitar USD 0,3.
+
+#### Fase 1: INSIGHT v2, hipotesis dari AI (A/B, bisa dikembalikan)
+
+**Saklar dan jalan balik:**
+- Saklar baru `AI_FASTLANE_INSIGHT_V2` di orc (default mati).
+- Mati = perilaku sekarang, persis. Itu jalan balik dan lengan A dari A/B.
+- Sandbox melaporkan kemampuan baru (`explore_tests` versi 2). orc hanya menyalakan v2 bila sandbox melaporkannya;
+  kalau tidak, dicatat `insight_v2_inactive`.
+
+**1.1 Sandbox: satu pencatat uji umum `saniti.test(...)`.**
+- Sistem menghitung uji dari frame yang disiapkan AI; AI tidak menghitung p-value sendiri.
+- Bentuk uji:
+  - selisih rata-rata dua kelompok (Welch);
+  - selisih proporsi;
+  - rata-rata terhadap nol;
+  - korelasi (Pearson/Spearman).
+- Semuanya dengan sampel efektif per tanggal dan horizon (tanggal sama dihitung sekali, hasil tumpang-tindih sekali).
+- Hasil: estimasi, interval, p-value, sampel efektif, tanda sampel kecil. Tercatat sebagai `explore_test_call_*`
+  sehingga ikut koreksi Benjamini–Hochberg dan baris bukti.
+- `explore_test` (8 metode) dan `event_study` tetap ada, tetapi pilihan, bukan kewajiban.
+- Tes: hasil sama dengan hitungan acuan scipy pada data sintetis; tanggal ganda dan horizon dihitung benar; tercatat
+  dan terkoreksi.
+
+**1.2 orc: catatan INSIGHT baru, hanya saat saklar menyala.**
+- AI membentuk hipotesis sendiri dari pertanyaan dan data, lalu memeriksanya dengan kode apa pun (tabel antara, data
+  tambahan lewat PLAN 14).
+- Uji tidak wajib: jawaban deskriptif yang jujur sah.
+- Bila jawaban menyebut p-value, interval atau "signifikan", angkanya wajib dari `saniti.test`, `explore_test` atau
+  `event_study`.
+- Pustaka 8 metode disebut sebagai alat yang tersedia, tidak dijabarkan panjang. Ini juga memotong panjang catatan,
+  sehingga penalaran lebih singkat.
+- Batas: paling banyak 20 uji tercatat per sesi (sudah dipaksa kode); tidak ada minimal.
+- Prompt yang berubah: `EXPLORE_INSIGHT_NOTE`, `EXPLORE_TEST_RULE`, `FASTLANE_EXPLORATORY_INSIGHT`.
+- Kartu kemampuan router (INSIGHT dan EXPLORE: "AI membentuk dan memeriksa hipotesisnya sendiri; uji dicatat sistem")
+  dan `FIRST_ROUTES` EXPLORE.
+- Wajib menyertai: `AI_ROUTER.md`, snapshot prompt, `AI_TOOLS.md` (helper sandbox baru, `PLAIN`), benchmark router
+  sebelum dan sesudah (teks router berubah).
+
+**1.3 M171: jaminan di kode, bukan di prompt.**
+- Di run INSIGHT v2, angka yang ditampilkan sebagai p-value (`|p`, satuan `P_VALUE`) atau interval wajib merujuk ke
+  output uji tercatat (`explore_*`, `test_*`, event study).
+- Bila tidak, ditolak sekali dengan saran memakai `saniti.test`. Bila tetap, angka itu diberi label tidak tercatat di
+  Batasan.
+- Bila audit modul melihat fungsi uji scipy/statsmodels dipakai di sesi INSIGHT, baris bukti menyebut "ada uji di luar
+  pencatatan".
+- Tes untuk ketiga jalur.
+
+**1.4 Bukan bagian fase ini (dicatat agar tidak melebar):**
+- Salah rute (3 dari 7 INSIGHT sebenarnya cari/daftar) hanya dibantu kartu kemampuan yang lebih jelas.
+- Kalau A/B masih menunjukkan salah rute, usulan terpisah.
+
+**1.5 A/B (berbayar).**
+- Lengan A: saklar mati. Lengan B: saklar nyala. Model dan level sama.
+- Set pertanyaan:
+  - 10 pertanyaan nyata dari data (4 "kenapa", 3 cari/daftar yang salah rute, 3 sentimen);
+  - 5 pertanyaan explore baru dari data kita, misalnya "apa yang membedakan saham yang naik >20% setelah rebalancing
+    MSCI".
+- Ukuran:
+  - waktu dan biaya per run;
+  - jumlah uji tercatat, uji di luar pencatatan, perbaikan gerbang;
+  - jawaban benar (cek SQL independen untuk angka utama);
+  - jawaban menjawab pertanyaan (penilaian berdampingan).
+- Lulus bila B tidak lebih lambat dari A dan tidak ada angka uji tak tercatat di jawaban. Keputusan menyalakan permanen
+  di tangan user.
+
+#### Fase 2: EXEC-UI-1016 butir 1 dan 3 (EDGE saja)
+
+- Judul kolom tegak di tengah; mendatar mengikuti isi (best practice).
+- Pertanyaan lanjutan dan Ide insight tidak tebal, bisa dilipat. Terbuka atau terlipat menunggu jawaban user.
+- Tes `test_ui_1015c.py`.
+
+#### Fase 3: lampirkan pilihan dan telusuri asal angka
+
+**3.1 orc: posisi angka di jawaban.**
+- Renderer rujukan (`value_refs.render`) mencatat posisi setiap angka yang ia tulis di teks jawaban beserta
+  rujukannya.
+- Dikirim sebagai `figure_spans` `[{start, end, ref, shown}]`, dibuat kode, bukan model. Sel tabel memakai
+  `answer_tables` yang sudah ada.
+- Snapshot skema. Tes posisi setelah anotasi dan tabel.
+
+**3.2 Kontrak `attached_selection` menjadi daftar (paling banyak 5).**
+- `TABLE`: bentuk sekarang.
+- `TEXT`: kutipan (≤ 1.000 karakter), jawaban asal, bagian, dan `figures`: rujukan setiap angka yang ikut terblok
+  (dari `figure_spans` dan `answer_tables`).
+- Bentuk lama (satu objek) tetap diterima.
+- Berlaku di orc `schemas.py`, BFF `RunInput` dan daftar izin, EDGE.
+
+**3.3 orc: menelusuri angka.**
+- Bila pesan membawa angka terlampir dan user menanyakan asalnya, catatan giliran meminta AI:
+  - membaca `get_lineage` dan kode yang membuat angka itu;
+  - memuat data mentah untuk baris itu (entitas, periode);
+  - merilis tabel kerja: data mentah dengan tanggal, langkah antara, hasil;
+  - menjelaskan rumusnya dalam kata-kata;
+  - mengekspor bila diminta.
+- **Pemeriksaan sistem:** AI menyebut hasil tabel kerjanya. Backend membandingkan dengan nilai angka yang dilampirkan
+  (toleransi sesuai pembulatan yang ditampilkan).
+  - Cocok → baris "Dihitung ulang dari data mentah: cocok".
+  - Beda → ditolak sekali.
+  - Tetap beda → Batasan menyebut selisihnya.
+- Berlaku untuk angka apa pun: return, rata-rata, jumlah, net beli, hasil uji (input dan metodenya).
+
+**3.4 Router melihat lampiran.**
+- Ringkasan pendek (jenis, jawaban asal, 200 karakter pertama, jumlah angka).
+- `AI_ROUTER.md`; benchmark router dengan kasus lampiran ("ini dari mana?", "kenapa ini?").
+
+**3.5 Riwayat.**
+- Giliran berikutnya tahu pesan sebelumnya membawa lampiran.
+- Pesan user di EDGE menampilkan chip lampirannya. BFF sudah menyimpannya di `jobs.input`.
+
+**3.6 EDGE.**
+- Desktop: klik kanan pada teks yang diblok membuka menu EDGE (Copy, Attach selection as context). Tanpa blok, menu
+  bawaan peramban.
+- Ponsel: menu tekan lama milik sistem tidak bisa ditambah item. Setelah teks diblok, EDGE menampilkan tombol mengambang
+  kecil di dekat pilihan (Copy, Attach), seperti "Ask ChatGPT". Ini tafsiran dari "tekan lama memunculkan pilihan
+  yang sama"; dicek ke user saat go.
+- Tombol "Attach to question" dan klik baris dihapus.
+- Chip bisa ditumpuk dan dihapus.
+- Tes Playwright desktop dan ponsel.
+
+**3.7 Cek live.** "Return 20,2% ini dari mana?" pada jawaban tahunan BBRI: tabel kerja berisi close akhir tahun dan
+data harian, cocok dengan 20,2%, dan bisa diekspor.
+
+#### Fase 4: penutupan
+
+- ERRORS: M171 diperbarui; temuan baru dicatat.
+- Changelog.
+- PLAN 11 dihapus dari PLAN.
+- Laporan sebelum/sesudah.
+
+**Urutan dan ketergantungan:**
+- Fase 1 dan 2 terpisah, boleh berurutan atau berselang.
+- Fase 3.1 bisa dikerjakan paralel dengan Fase 1, karena hanya renderer.
+- Fase 3.3–3.4 setelah 3.1–3.2.
+- Benchmark router Fase 1 dan Fase 3.4 bisa digabung bila keduanya siap bersamaan, menghemat satu putaran.
+
+**Pertanyaan untuk user sebelum go:**
+1. PLAN 10 (minimal 4 hipotesis) hanya untuk jalur riset standar?
+2. Ponsel: tombol mengambang setelah teks diblok, sebagai ganti item di menu tekan lama?
+3. EXEC-UI-1016 butir 3: Pertanyaan lanjutan dan Ide insight terbuka atau terlipat saat jawaban datang?
+
 ### EXEC-UI-1016: judul tabel, lampirkan pilihan lewat klik kanan di seluruh jawaban, saran lanjutan terlipat (dicatat 2026-10-16; "Konfirmasi ya, masukan EXEC jangan execute dulu"; jawaban user dicatat; menunggu go)
 
 **Permintaan user 2026-10-16** (tangkapan layar tabel desktop dan menu klik kanan Claude): "1. Header boleh buat header
