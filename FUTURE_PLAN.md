@@ -387,3 +387,97 @@ biasa dan mode jawab. coba assess". Data dari 110 giliran tersimpan di dev:
 ## Data tambahan ke sesi analisis yang sedang terbuka (usulan 2026-10-15)
 
 Dipindah ke `PLAN.md` butir 14 (user 2026-10-15: "Ok untuk solusi ... Boleh dirumuskan designnya?").
+
+## Audit system prompt dan router 2026-10-16 (diminta user 2026-10-16, belum dieksekusi)
+
+Permintaan user: "sekarang saya mau kamu lakukan audit terhadap system prompt dan router. review apa yang sudah ada dan
+apa yang belum ada. setelah itu cek dengan best practice yang saat ini ada." Bahan: prompt dev yang dirakit dengan saklar
+dev sesungguhnya (orc `771be370`), teks kedua router, benchmark 2026-10-16, dan log penalaran tiga pertanyaan live
+EXEC-1018. Pembanding: Anthropic "Effective context engineering for AI agents" dan "Writing effective tools for agents",
+OpenAI GPT-4.1 Prompting Guide (dipakai juga di `PROMPT_AUDIT_2026-10-05.md`).
+
+**Ukuran yang dibaca model per panggilan (jalur cepat, dev):**
+- System prompt 41.503 karakter (±13,8 rb token), 23 bagian; 84 kata mutlak (never/always/must/only).
+- Catatan giliran (turn brief) ±8,7 rb karakter, 6 bagian, setiap giliran.
+- 22 alat ditawarkan di setiap panggilan; skema jawaban akhir ±19 rb karakter.
+- Q1: 229 rb token input untuk 5 panggilan (±46 rb per panggilan).
+
+### Yang sudah ada (sesuai praktik baik)
+
+- Bagian Markdown berjudul; kalimat yang menyebut alat hanya ditulis bila alat itu ditawarkan (P31).
+- Satu prefiks statis per deployment, sehingga cache prompt terpakai.
+- Catatan giliran sudah disatukan menjadi satu brief (O3).
+- Router: keluaran terstruktur dengan enum, kartu kemampuan diturunkan dari kode (O2), tanya balik dengan batas, fallback
+  tetap, tanggal hari ini, set benchmark 84 + 128 kasus yang dijalankan sebelum deploy.
+- Jaminan di kode, bukan di prompt: alat dikunci per langkah, angka bersumber, uji tercatat (M171), lampiran dicek persis.
+
+### Yang belum ada
+
+| No | Temuan | Bukti | Praktik baik |
+|---|---|---|---|
+| A1 | 37,7% system prompt (±15,6 rb karakter: RESEARCH PLANS, MULTI-ANGLE PLAN, HYPOTHESIS PLAN, RESEARCH PLAN FORMS, MULTI-ANGLE/HYPOTHESIS FINDINGS) berisi aturan rencana riset jalur standar, padahal jalur cepat (default) melarang alat riset | ukuran bagian prompt dev | konteks minimal dan relevan per tugas; satu prefiks statis per jalur tetap bisa di-cache |
+| A2 | Instruksi tersebar di tiga lapis (system prompt, brief, deskripsi alat) dan bisa bertentangan | Q2: "the fast-lane notes say to send a data need. However, the DATA SOURCES rule says query_metric" | satu sumber per aturan; instruksi yang bertentangan dihapus |
+| A3 | Riwayat prompt tidak mencatat yang benar-benar dibaca dev: profil snapshot 39.099 karakter vs dev 41.503 (tanpa run memory, merged steps, table directives, daftar alat asli); catatan giliran (v2, lampiran, jalur cepat) tidak pernah di-snapshot, jadi perubahan prompt EXEC-IMPL-1017 tidak punya versi | `scripts/snapshot_system_prompt.py` DEV | versi untuk setiap instruksi yang dibaca model |
+| A4 | Kuantitas di kata-kata user tidak dikunci di kode (M173) | Q1 | jaminan di kode, bukan aturan prompt |
+| A5 | Bacaan papan pasar tidak punya default: Q2 menggabung semua papan, Q3 hanya Regular | jawaban Q2/Q3 | default tafsir tertulis (seperti O5) |
+| A6 | Batas alat hanya ada di skema JSON: `query_metric` maks 20 entitas ditolak sekali (Q3); arti agregasi bila dimensi dihilangkan tidak jelas ("presumably sums across boards", Q2 dan Q3) | log | deskripsi alat menyebut batas, default dan apa yang terjadi |
+| A7 | Hasil yang ditulis ulang dalam satu request tetap bisa dikutip (M174) | Q3 | — (kontrak backend) |
+| A8 | Katalog tanpa identitas pasar (M175) | Q3 | — (metadata) |
+| R1 | Gerbang benchmark router satu kali jalan, padahal hasil berbeda pada kode yang sama (126/128 FAIL lalu 127/128 PASS) | benchmark 2026-10-16 | ulang k kali, putuskan dengan mayoritas, catat kasus tidak stabil |
+| R2 | Tidak ada umpan balik dari produksi: kasus benchmark ditulis tangan; salah rute live tidak dikumpulkan | — | pantau salah rute, masukkan ke set evaluasi |
+| R3 | Router giliran condong ke kelas giliran sebelumnya (CLARIFY berulang, EXEC-IMPL-1017 Fase 3) | live 2026-10-16 | rute dari pesan sekarang; riwayat hanya konteks |
+| R4 | Kartu kemampuan router teks tetap; bila saklar v2 dimatikan, kartu tetap menyebut v2 | kode | turunkan dari saklar saat start |
+
+### Usulan (menunggu keputusan user)
+
+- **U1 (M173), kuantitas user dikunci.** Penyebab terverifikasi: model menghitung "3 bulan" sebagai 21 hari bursa;
+  kode tidak membaca atau memeriksa. Kelas: setiap kuantitas bersatuan di pesan user pada giliran analisis, di semua
+  tabel. Perbaikan (orc, backend): baca rentang relatif dari pesan (angka × kata satuan; hari bursa per satuan dari
+  `FASTLANE_DEFAULTS`), tulis sebagai fakta di brief, dan cek tanggal awal dan akhir tabel rilis; beda ditolak sekali.
+  Menutup juga "minggu", "tahun", "hari". Tidak menutup "top N" dan ambang (tahap kedua). Risiko: kalimat dengan dua
+  rentang ("3 bulan terakhir dibanding 1 tahun") harus menghasilkan dua fakta, bukan satu. Uji: kasus 1 minggu, 6 bulan,
+  2 tahun, dua rentang, rentang bernama (Agustus 2026, tidak kena). Permanen.
+- **U2 (M174), keluaran yang digantikan berhenti jadi sumber.** Nama yang dirilis ulang dalam satu request menggantikan
+  yang lama; rujukan ke yang lama ditolak sekali dengan alamat baru. Berlaku untuk penolakan penutupan, perbaikan kode,
+  rilis ulang satuan. Tidak berlaku antar giliran (hasil giliran lalu tetap sah). Uji: rilis ulang lalu kutip yang
+  lama. Permanen.
+- **U3 (M175), identitas di katalog.** Cek baca-saja di database bahwa total beli = total jual di setiap baris; bila
+  benar, Column_Catalog Feature_02, Feature_03, IDX_Broker_Summary menyebut identitas dan cara menghitung nilai
+  transaksi; profil data melaporkan kolom yang sama persis. Lapisan: metadata. Permanen.
+- **U4 (A1–A3), prompt per jalur.** Dua prefiks statis: jalur cepat tanpa bagian rencana riset, jalur standar seperti
+  sekarang; aturan yang dobel di brief dan system prompt disatukan; snapshot memakai profil dev asli dan ikut mencatat
+  brief per jenis giliran. Risiko: cache dua prefiks; perubahan perilaku jalur cepat, jadi butuh A/B kecil. Permanen.
+- **U5 (A5), default bacaan papan.** Entri `flow_board_scope` di `FASTLANE_DEFAULTS` (unit "reading"), nilai dipilih
+  user (semua papan atau Regular). Berlaku untuk net asing, net broker, aliran investor. Permanen.
+- **U6 (A6), batas alat di deskripsi.** Deskripsi `query_metric` menyebut batas entitas dari `MAX_ENTITIES` dan bahwa
+  dimensi yang dihilangkan dijumlahkan; diturunkan dari kode. Permanen.
+- **U7 (R1–R4), router.** Benchmark diulang 3 kali dan diputuskan mayoritas; log keputusan router plus sinyal salah
+  rute (giliran berikut minta hitung setelah CLARIFY, tanya ulang) dikumpulkan mingguan sebagai kasus baru; kartu
+  kemampuan dari saklar. Permanen.
+
+## Rumus Excel hidup untuk angka yang dihitung ulang (penilaian 2026-10-16, menunggu keputusan)
+
+User 2026-10-16: "apakah heavey? if so how heavy? coba bandingkan best practice apakah ini memang diperlukan."
+
+- **Kenapa berat:** AI menghitung dengan Python bebas (pandas); kode semacam itu tidak bisa diterjemahkan otomatis ke
+  rumus Excel secara umum.
+- **Opsi A (ringan, ±0,5 hari):** file memuat semua input mentah (termasuk input di luar periode, lihat
+  M-harga-dasar di bawah), lembar "langkah" berisi input, rumus dalam teks, dan hasil. Tanpa risiko beda angka.
+- **Opsi B (sedang, ±2–3 hari):** AI menyatakan rumus reproduksi dalam bahasa ekspresi terbatas (+ − × ÷, pangkat,
+  ROUND, SUM/AVERAGE rentang) atas sel input bernama. Backend menghitung ekspresi yang sama dengan Python untuk cek
+  sama persis, lalu menulis rumus Excel beserta nilai tersimpannya. Risiko: pembulatan Excel (setengah ke atas) beda
+  dengan Python, simpangan baku sampel vs populasi, nilai tersimpan (openpyxl tidak menghitung rumus).
+- **Opsi C (berat):** menerjemahkan semua kode: tidak layak.
+- **Praktik baik:** standar pemodelan keuangan (FAST, ICAEW Financial Modelling Code) meminta rumus hidup untuk model
+  yang dibangun di Excel. Ekspor data dari platform analitik dan penyedia data umumnya nilai saja ditambah dokumentasi.
+  Untuk tujuan user ("bisa hitung sendiri, hasilnya sama persis"), yang wajib adalah input lengkap dan langkah yang
+  jelas; rumus hidup menambah kenyamanan, bukan kebenaran.
+- **Rekomendasi:** belum diperlukan. Kerjakan opsi A dan kelengkapan input lebih dulu; opsi B nanti bila user ingin
+  rumus yang bisa diklik.
+
+**Harga dasar di luar file (dijelaskan ke user 2026-10-16):** return 41,3% BMRI 2022 = (penutupan 30 Des 2022 ÷
+penutupan 30 Des 2021) − 1. File Excel yang diekspor hanya memuat 246 baris tahun 2022 (3 Jan–30 Des 2022), jadi
+harga dasar 30 Des 2021 (Rp 3.512,5) tidak ada di file; orang yang menghitung dari file saja akan memakai 3 Jan 2022 dan
+mendapat angka lain. Kelas: setiap angka yang inputnya keluar dari jendela yang diekspor (return dengan harga dasar,
+jendela bergulir yang butuh pemanasan, YoY, jendela estimasi event study). Usulan: ekspor di giliran reproduksi memuat
+semua baris input tabel kerja (atau backend menolak ekspor yang tanggalnya tidak mencakup input reproduksi).

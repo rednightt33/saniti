@@ -2265,6 +2265,19 @@ AI bingung (ii) AI tidak tahu (iii) AI mengajukan dan di tolak".
   13/14 (satu kasus horizon goyah); router pesan pertama run 1 126/128 FAIL (dua sapaan/pertanyaan sumber data ditanya
   balik, kasus tidak stabil), run 2 127/128 PASS (no-ask asked 0/118), sama dengan pembanding IMPL-1016 (127/128).
   Biaya sekitar USD 0,17.
+- Deploy: orc `771be370` (`a66e4b5`) SUCCESS; startup tanpa `*_inactive`.
+- Uji 3 pertanyaan (bukan A/B), jalur cepat, DeepSeek V4.1 Flash high, semua COMPLETED, biaya total sekitar USD 0,030:
+  - q1 "Bandingkan return harga saham BRI, Mandiri dan BCA selama 3 bulan terakhir" (64 dtk): `search_values`
+    memetakan BRI/Mandiri/BCA ke BBRI/BMRI/BBCA; **salah: dihitung 21 hari bursa, bukan 3 bulan** (ERRORS M173).
+  - q2 "Berapa net buy Mandiri Sekuritas di saham Telkom selama Agustus 2026?" (95 dtk): `lookup_reference` menemukan
+    kode CC, `query_metric` net Rp 159,12 miliar (semua papan); TLKM dipakai tanpa dicek.
+  - q3 "Saham sektor perbankan mana yang paling banyak dibeli bersih oleh investor asing pada Agustus 2026?" (244 dtk,
+    12 panggilan): `get_dimension_values` tiga kali (match "bank" di Sector kosong, lalu daftar Sector, lalu Industry
+    "Banks"); `query_metric` ditolak (maks 20 entitas); penutupan ditolak sekali; hanya papan Regular; nilai transaksi
+    dobel (M175); kutipan dari keluaran lama (M174).
+  - Angka q2/q3 belum dicek independen ke database (port publik database tidak terjangkau dari sesi ini).
+- Audit prompt dan router serta penilaian rumus Excel: FUTURE_PLAN ("Audit system prompt dan router 2026-10-16",
+  "Rumus Excel hidup …").
 
 ### EXEC-IMPL-1017: hipotesis dari AI di jalur insight (A/B), penelusuran asal angka lewat lampiran, sisa EXEC-UI-1016 (dicatat 2026-10-16; go 2026-10-16; Fase 0–4 selesai, ter-deploy dan diuji live)
 
