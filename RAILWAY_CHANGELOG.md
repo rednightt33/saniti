@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-10-16 — Temporary migration job for Tool_Catalog round X
+
+- Temporary service `mmig-job` (empty service, CLI upload of a one-shot Python job; variables
+  `DATABASE_URL=${{Postgres.DATABASE_URL}}` as a reference, never printed, and `MODE`): DRYRUN deployment `12318567`
+  rolled back, then `MODE=APPLY` deployment `7d8fdc28` committed `20261016_001_round_x_tool_catalog.sql` (details in
+  `DATABASE_CHANGELOG.md`). Deleted with `railway service delete`; read back absent. No other service, variable or
+  configuration changed.
+
 ## 2026-10-16 — EXEC-IMPL-1017 Fase 1–2 deployed (dev)
 
 - `748224f`: edge-bff `97c087af` SUCCESS (table titles in the middle; follow-ups and insight ideas fold).

@@ -203,9 +203,10 @@ def test_without_tests_recorded_nothing_is_said_and_none_held_says_so() -> None:
 
     result, _ = explore_run(explored=None)
     assert not any("Bukti statistik" in line for line in result.response.limitations)
-    # Mode Jawab v2: no recorded test, so the line says the model's own code computed any test
+    # E3 (EXEC-1018B, q1/q3 2026-10-16): the answer shows no p-value or interval, so no line about tests at all
     from app.user_texts import FASTLANE_ANSWER_LINE
-    assert FASTLANE_ANSWER_LINE in result.response.limitations and ANALYSIS_PATH_LINE not in result.response.limitations
+    assert FASTLANE_ANSWER_LINE not in result.response.limitations
+    assert ANALYSIS_PATH_LINE not in result.response.limitations
     assert EXPLORE_NONE_HELD in explore_evidence_line(4, 0, 0, 2) and "2 uji sampel" in explore_evidence_line(4, 0, 0, 2)
 
 
@@ -767,3 +768,17 @@ def test_a_statistic_shown_from_a_table_no_recorded_test_released_is_found(monke
                                                                              "out.own.rows.0.ci_low"]
     state.plan_meta = {"insight_v2": False}  # an answer turn (Mode Jawab) may test with its own code
     assert orchestrator._unrecorded_statistics(state, shown.statistics) == []
+
+
+def test_the_span_rule_shows_each_unit_with_its_worked_multiple_from_the_table(monkeypatch) -> None:
+    """M173 (EXEC-1018B E7, user 2026-10-16 "3 bulan ini kan pakai 63 hari"): the note paired the typed example
+    '3 bulan terakhir' with the value of one month; every example is now computed from the table it explains."""
+    from app import fastlane_defaults
+    from app.orchestrator import FASTLANE_DECISIONS_NOTE
+
+    text = fastlane_defaults.spans_text()
+    assert "1 bulan = 21 trading days, N bulan = N × 21 (e.g. 3 bulan = 63)" in text
+    assert "e.g. 3 minggu = 15" in text and "e.g. 3 tahun = 756" in text
+    assert "'3 bulan terakhir'" not in FASTLANE_DECISIONS_NOTE
+    monkeypatch.setitem(fastlane_defaults.FASTLANE_DEFAULTS["span_month_trading_days"], "value", 20)
+    assert "e.g. 3 bulan = 60" in fastlane_defaults.spans_text()

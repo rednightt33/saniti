@@ -73,6 +73,55 @@ PROVIDER_SCHEMA_KEYWORDS = {"type", "properties", "required", "additionalPropert
 logger = logging.getLogger("market_ai_orc")
 
 
+LIMIT_KEYWORDS = ("minItems", "maxItems", "minLength", "maxLength", "minimum", "maximum", "exclusiveMinimum",
+                  "exclusiveMaximum", "pattern")
+
+
+def _limits(node: dict[str, Any], defs: dict[str, Any]) -> list[str]:
+    """U6 (EXEC-1018B, user 2026-10-16: the model met query_metric's 20-entity limit only when refused): the value limits
+    of one field, in words, read from the same Pydantic schema the call is validated against."""
+    if "$ref" in node:
+        node = defs[node["$ref"].rsplit("/", 1)[-1]]
+    words: list[str] = []
+    for branch in [node, *[b for b in node.get("anyOf") or [] if isinstance(b, dict)]]:
+        if "$ref" in branch:
+            branch = defs[branch["$ref"].rsplit("/", 1)[-1]]
+        if "minItems" in branch and "maxItems" in branch:
+            words.append(f"{branch['minItems']} to {branch['maxItems']} items")
+        elif "maxItems" in branch:
+            words.append(f"at most {branch['maxItems']} items")
+        elif "minItems" in branch:
+            words.append(f"at least {branch['minItems']} items")
+        if "maxLength" in branch:
+            words.append(f"at most {branch['maxLength']} characters")
+        if "minLength" in branch and branch["minLength"] > 1:
+            words.append(f"at least {branch['minLength']} characters")
+        low = branch.get("minimum", branch.get("exclusiveMinimum"))
+        high = branch.get("maximum", branch.get("exclusiveMaximum"))
+        if low is not None or high is not None:
+            words.append(f"from {low} to {high}" if low is not None and high is not None
+                         else f"at least {low}" if low is not None else f"at most {high}")
+        if "pattern" in branch:
+            words.append(f"matching {branch['pattern']}")
+        items = branch.get("items")
+        if isinstance(items, dict):
+            inner = _limits(items, defs)
+            if inner:
+                words.append("each item " + ", ".join(inner))
+    return list(dict.fromkeys(words))
+
+
+def _with_limits(spec: Any, resolved: Any, defs: dict[str, Any]) -> Any:
+    if not isinstance(spec, dict) or not isinstance(resolved, dict):
+        return resolved
+    words = _limits(spec, defs)
+    if not words:
+        return resolved
+    text = "Limits: " + "; ".join(words) + "."
+    description = str(resolved.get("description") or "").strip()
+    return {**resolved, "description": f"{description} {text}".strip() if text not in description else description}
+
+
 def _provider_schema(node: Any, defs: dict[str, Any], owner: str) -> Any:
     if isinstance(node, list):
         return [_provider_schema(item, defs, owner) for item in node]
@@ -91,7 +140,8 @@ def _provider_schema(node: Any, defs: dict[str, Any], owner: str) -> Any:
         if key not in PROVIDER_SCHEMA_KEYWORDS:
             continue
         if key == "properties":
-            result[key] = {name: _provider_schema(spec, defs, owner) for name, spec in value.items()}
+            result[key] = {name: _with_limits(spec, _provider_schema(spec, defs, owner), defs)
+                           for name, spec in value.items()}
         elif key in ("items", "anyOf"):
             result[key] = _provider_schema(value, defs, owner)
         else:
@@ -122,7 +172,7 @@ def strict_parameters_schema(model: type[BaseModel]) -> dict[str, Any]:
     schema = model.model_json_schema()
     defs = schema.get("$defs", {})
     properties = {
-        name: _provider_schema(spec, defs, model.__name__)
+        name: _with_limits(spec, _provider_schema(spec, defs, model.__name__), defs)
         for name, spec in schema.get("properties", {}).items()
     }
     return {

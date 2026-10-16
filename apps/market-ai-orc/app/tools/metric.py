@@ -30,7 +30,9 @@ WHERE m.is_active
 ORDER BY m.metric_id
 '''
 MAX_PERIODS = 4
-MAX_ENTITIES = 20
+MAX_ENTITIES = 100  # E5 (EXEC-1018B, user 2026-10-16: "Tolong tambahkan maksimal 100 saham ya")
+SUMMARY_MAX_ROWS = 200  # the Governor's /v1/summary row limit (market-sql-governor app/summary.py MAX_ROWS)
+MAX_TRADING_DAYS = 260  # Period.trading_days and the Governor's summary limit
 METRICS_HEADER = ("METRICS (application context from the backend, not from the user): official metrics query_metric "
                   "answers in one database summary per period. Use it for these metrics over a period; anything "
                   "else goes through submit_data_need_spec.")
@@ -48,8 +50,19 @@ def read_metrics(reader: Any) -> list[dict[str, Any]]:
         return [dict(row) for row in run(METRIC_SQL, ())]
 
 
+def limits_text() -> str:
+    """E5 (EXEC-1018B): what query_metric returns and where it stops, from the constants the tool and the Governor
+    enforce, so the model knows a limit before a call is refused."""
+    return (f"Limits: at most {MAX_ENTITIES} entities and {MAX_PERIODS} periods per call; a period is the last N trading "
+            f"days (N up to {MAX_TRADING_DAYS}) or a date range; one call returns at most {SUMMARY_MAX_ROWS} rows, and "
+            f"its rows are the entities times the combinations of the dimensions kept, so many entities fit only with "
+            f"few dimensions. A dimension left out of dimensions is summed over (each metric's default keeps its "
+            f"dimensions separate); the Governor refuses a sum its catalog does not allow. Above these limits, or for "
+            f"statistics, rankings across many entities or formulas, use submit_data_need_spec.")
+
+
 def menu(metrics: list[dict[str, Any]]) -> str:
-    lines = [METRICS_HEADER]
+    lines = [METRICS_HEADER, limits_text()]
     for m in metrics:
         lines.append(f"- {m['metric_id']}: {m['label']}. {m['description']} Dimensions: "
                      f"{', '.join(m['allowed_dimensions'])} (default {', '.join(m['default_dimensions']) or 'none'}); "
@@ -68,7 +81,7 @@ class Filter(BaseModel):
 class Period(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    trading_days: int | None = Field(ge=1, le=260, description="The last N trading days up to as_of.")
+    trading_days: int | None = Field(ge=1, le=MAX_TRADING_DAYS, description="The last N trading days up to as_of.")
     start_date: str | None = Field(pattern=r"^\d{4}-\d{2}-\d{2}$", description="A date range start.")
     end_date: str | None = Field(pattern=r"^\d{4}-\d{2}-\d{2}$", description=(
         "A date range end; null: up to as_of (the latest data)."))

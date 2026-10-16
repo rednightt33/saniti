@@ -223,6 +223,12 @@ ADDED |= {
     "a name, initials or part of a name (BRI, Mandiri) is matched with search_values on the request's own table and "
     "column first, and when it gives several candidates, ask.",
 }
+# E3 (EXEC-1018B, user 2026-10-16 "Ini masuk E3 (merapikan aturan) --> OK"): the metric path holds only on a turn that
+# offers query_metric (E8: a read-only turn gets neither the tool nor its menu)
+REMOVED |= {"An official metric of the metric catalog over periods is answered by query_metric in one call, without a "
+            "data need or a session."}
+ADDED |= {"When query_metric is offered, an official metric of the metric catalog over periods is answered by it in "
+          "one call, without a data need or a session."}
 # the reader section added about six percent (the budget was two percent over the pass-2 fixture); EXEC-Y Fase 3's
 # four sentences about half a percent more; EXEC-STYLE about half a percent more; EXEC-M143 about one percent more;
 # EXEC-DAYS about a third of a percent more; O1 early (EXEC-IMPL-1016) about one percent more

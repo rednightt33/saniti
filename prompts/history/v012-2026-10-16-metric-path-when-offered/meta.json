@@ -1,0 +1,10 @@
+{
+ "version": 12,
+ "date": "2026-10-16",
+ "name": "metric-path-when-offered",
+ "decision": "EXEC-1018B E3/E8, user 2026-10-16: \"Ini masuk E3 (merapikan aturan) --> OK\", go \"Jalankan.\"",
+ "change": "DATA SOURCES: the metric path holds when query_metric is offered in the turn (a read-only turn gets neither the tool nor the METRICS menu, E8).",
+ "prompt_chars": 39119,
+ "prompt_sha256": "e25cd0b3d4dfeb97ec85187719946f134982679046ba32ad56d8e9b9055be30f",
+ "schema_sha256": "4098ec4dd2c0369458196e48daf85c2f6b836e3d09562b9b5161f20f21b8193d"
+}

@@ -46,6 +46,8 @@ registering the new versions of the tools whose contract changed in that round.
   run_python v8 (PLAN 14: a later data need joins the open session).
 - round_v (20261015_013, applied): submit_data_need_spec v14 and get_dimension_values v2 (every text value in a scope
   is a stored value; EXEC-IMPL-1016 Fase 1.3).
+- round_x (20261016_001): every tool whose arguments carry a value limit, its next version with the limits
+  written into the argument descriptions (U6, EXEC-1018B Fase 1) and query_metric up to 100 entities (E5).
 - round_w (20261015_015): the first row of search_values and get_dimension_values v3 (the user's words matched to
   stored codes and values: names, initials, part of a name; EXEC-IMPL-1016 Fase 3, O1).
 
@@ -494,8 +496,63 @@ ROUNDS = {
         "limits": {"search_values": "at most 10 terms of 1-60 characters per call; at most 8 candidates per term; "
                                     "values, names and aliases only, never counts or measures"},
     },
+    "round_x": {
+        "target": ROOT / "database/migrations/20261016_001_round_x_tool_catalog.sql",
+        "versions": {
+                     "submit_data_need_spec": ("v14", "v15"),
+                     "check_research_feasibility": ("v6", "v7"),
+                     "run_python": ("v8", "v9"),
+                     "inspect_session": ("v2", "v3"),
+                     "get_session_output": ("v2", "v3"),
+                     "get_lineage": ("v1", "v2"),
+                     "export_result": ("v4", "v5"),
+                     "query_metric": ("v2", "v3"),
+                     "find_web_fact": ("v2", "v3"),
+                     "prepare_data_bundle": ("v3", "v4"),
+                     "open_analysis_session": ("v3", "v4"),
+                     "complete_analysis": ("orc-v2", "orc-v3"),
+                     "lookup_reference": ("v2", "v3"),
+                     "check_references": ("v3", "v4"),
+                     "research_web": ("v2", "v3"),
+                     "read_conversation_memory": ("v1", "v2"),
+                     "attach_data_bundle": ("v1", "v2"),
+                     "get_dimension_values": ("v3", "v4"),
+                     "search_values": ("v1", "v2"),
+                     "get_method_guide": ("v1", "v2"),
+                     "run_research_code": ("v2", "v3")},
+        "contracts": {
+                      "submit_data_need_spec": ("input_schema", "Limits:"),
+                      "check_research_feasibility": ("input_schema", "Limits:"),
+                      "run_python": ("input_schema", "Limits:"),
+                      "inspect_session": ("input_schema", "Limits:"),
+                      "get_session_output": ("input_schema", "Limits:"),
+                      "get_lineage": ("input_schema", "Limits:"),
+                      "export_result": ("input_schema", "Limits:"),
+                      "query_metric": ("input_schema", "Limits:"),
+                      "find_web_fact": ("input_schema", "Limits:"),
+                      "prepare_data_bundle": ("input_schema", "Limits:"),
+                      "open_analysis_session": ("input_schema", "Limits:"),
+                      "complete_analysis": ("input_schema", "Limits:"),
+                      "lookup_reference": ("input_schema", "Limits:"),
+                      "check_references": ("input_schema", "Limits:"),
+                      "research_web": ("input_schema", "Limits:"),
+                      "read_conversation_memory": ("input_schema", "Limits:"),
+                      "attach_data_bundle": ("input_schema", "Limits:"),
+                      "get_dimension_values": ("input_schema", "Limits:"),
+                      "search_values": ("input_schema", "Limits:"),
+                      "get_method_guide": ("input_schema", "Limits:"),
+                      "run_research_code": ("input_schema", "Limits:")},
+        "title": "value limits in the argument descriptions",
+        "header": "EXEC.md EXEC-1018B Fase 1 (U6; user \"5. OK ... Jalankan.\", 2026-10-16)",
+        "design": "EXEC.md EXEC-1018B (U6, E5); ERRORS_AND_SOLUTIONS.md M173-M178 context, FUTURE_PLAN U6",
+        "limits_design": "EXEC.md EXEC-1018B",
+        "summary": ["Every argument limit the tool validates (items, characters, ranges, patterns) is written into the",
+                    "argument's description in the schema the model receives (U6); query_metric takes up to 100",
+                    "entities (E5). No behaviour change otherwise."],
+        "limits": {"query_metric": "at most 100 entities and 4 periods per call; at most 200 rows (Governor summary)"},
+    },
 }
-NEWEST = "round_w"
+NEWEST = "round_x"
 
 
 def _tools_doc():
@@ -507,7 +564,12 @@ def _tools_doc():
 
 def definitions(round_name: str = NEWEST) -> dict[str, dict]:
     wanted = set(ROUNDS[round_name]["versions"]) | set(ROUNDS[round_name].get("new") or {})
-    return {name: d for name, d in _tools_doc()._registry().items() if name in wanted}
+    doc = _tools_doc()
+    registry = doc._registry()
+    for switch in doc.SWITCHES:  # a tool on a switch the dev profile leaves off (find_web_fact) keeps its own row
+        for name, definition in doc._registry((switch,)).items():
+            registry.setdefault(name, definition)
+    return {name: d for name, d in registry.items() if name in wanted}
 
 
 def _new_tools(spec: dict, found: dict[str, dict]) -> tuple[str, str, str]:

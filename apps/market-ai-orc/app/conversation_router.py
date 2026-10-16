@@ -35,7 +35,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from . import data_record as records
-from . import research_library
+from . import lanes, research_library
 from .tools import registry as registry_effects
 
 TURN_KINDS = ("CLARIFY", "INSIGHT", "CONTINUE", "APPROVE", "REVISE", "CANCEL", "NEW_TOPIC", "CONVERSATIONAL")
@@ -139,20 +139,42 @@ revision_instruction is null unless turn_kind is REVISE.
 """
 
 
+# E4 (EXEC-1018B, user 2026-10-16): what INSIGHT and EXPLORE do on the fast lane follows AI_FASTLANE_INSIGHT_V2; the
+# texts are rendered for the default (on) and swapped when the switch is off (router_instructions, first_instructions)
+INSIGHT_FAST_V2 = ("on the fast lane (the default) it forms its own hypotheses about what drives that result and "
+                   "checks them on the data, every statistical test recorded by the system and corrected together "
+                   "(the research methods {methods} are optional tools)")
+INSIGHT_FAST_V1 = ("on the fast lane (the default) it may test what drives that result from up to {angles} angles, "
+                   "each one research method ({methods}), corrected together")
+EXPLORE_FAST_V2 = ("EXPLORE one step that forms its own hypotheses and checks them on the data, every statistical "
+                   "test recorded by the system and corrected together.")
+EXPLORE_FAST_V1 = "EXPLORE one step that tests up to {angles} angles, each one research method."
+
+
+def _method_names() -> str:
+    return ", ".join(m["method_id"].replace("_", " ") for m in research_library.LIBRARY)
+
+
+def _v1(text: str) -> str:
+    """The router text with the insight v1 sentences (AI_FASTLANE_INSIGHT_V2 off)."""
+    methods = _method_names()
+    return text.replace(INSIGHT_FAST_V2.format(methods=methods),
+                        INSIGHT_FAST_V1.format(angles=lanes.EXPLORE_MAX_ANGLES, methods=methods)) \
+        .replace(EXPLORE_FAST_V2, EXPLORE_FAST_V1.format(angles=lanes.EXPLORE_MAX_ANGLES))
+
+
 def route_capabilities() -> str:
     """O2 (EXEC-IMPL-1016 Fase 2, user 2026-10-15: "router diberi tahu fungsi dan kemampuan setiap jalur"): what each
     class makes the application do, so the router chooses by the work a message needs. The parts the code holds are
     derived from it: the research library's methods and the explore angle limit (no list typed here)."""
-    methods = ", ".join(m["method_id"].replace("_", " ") for m in research_library.LIBRARY)
+    methods = _method_names()
     cards = (
         ("CLARIFY", "reads only: the conversation's results, their tables and findings, the catalog and the method "
                     "manuals; it can show or export an existing table; it fetches no data and computes nothing, so it "
                     "cannot show the raw data behind a figure or recompute it (a figure the user attached and asks how "
                     "it was obtained, to see its raw data or to check it needs a class that computes)"),
         ("INSIGHT", "one analysis step on the data the conversation already used, starting from the result it "
-                    "explains; on the fast lane (the default) it forms its own hypotheses about what drives that "
-                    "result and checks them on the data, every statistical test recorded by the system and corrected "
-                    f"together (the research methods {methods} are optional tools)"),
+                    "explains; " + INSIGHT_FAST_V2.format(methods=methods)),
         ("CONTINUE", "one analysis step that may fetch new data and run code: figures, a ranking, a list or a search "
                      "over new criteria, dates, stocks, periods or groups, or a test of the user's own question; on "
                      "the fast lane it is answered at once, on the standard lane a test becomes a research plan the "
@@ -284,8 +306,9 @@ ROUTER_SCHEMA_ASK_BACK: dict[str, Any] = {
 }
 
 
-def router_instructions(ask_back: bool) -> str:
-    return ROUTER_INSTRUCTIONS_ASK_BACK if ask_back else ROUTER_INSTRUCTIONS
+def router_instructions(ask_back: bool, insight_v2: bool = True) -> str:
+    text = ROUTER_INSTRUCTIONS_ASK_BACK if ask_back else ROUTER_INSTRUCTIONS
+    return text if insight_v2 else _v1(text)
 
 
 def router_schema(ask_back: bool) -> dict[str, Any]:
@@ -457,9 +480,8 @@ TITLE_RULE = ("title: the conversation's name in two to five words, in the langu
 # default since 2026-10-16)
 FAST_LANE_ROUTES = (
     "Choose the route by what the message asks, never by what it costs. On the fast lane (the default) no plan waits "
-    "for approval: ANALYSIS is one analysis step, RESEARCH one step that tests the user's own question, EXPLORE one "
-    "step that forms its own hypotheses and checks them on the data, every statistical test recorded by the system and "
-    "corrected together.")
+    "for approval: ANALYSIS is one analysis step, RESEARCH one step that tests the user's own question, "
+    + EXPLORE_FAST_V2)
 FIRST_INSTRUCTIONS = (
     "You route the FIRST message of a conversation in a stock-market analysis app (Indonesian stocks, a warehouse of "
     "prices, broker and foreign flows, a web fact finder). Choose exactly one route:\n"
@@ -527,8 +549,9 @@ FIRST_SCHEMA_ASK_BACK: dict[str, Any] = {
 }
 
 
-def first_instructions(ask_back: bool) -> str:
-    return FIRST_INSTRUCTIONS_ASK_BACK if ask_back else FIRST_INSTRUCTIONS
+def first_instructions(ask_back: bool, insight_v2: bool = True) -> str:
+    text = FIRST_INSTRUCTIONS_ASK_BACK if ask_back else FIRST_INSTRUCTIONS
+    return text if insight_v2 else _v1(text)
 
 
 def first_schema(ask_back: bool) -> dict[str, Any]:

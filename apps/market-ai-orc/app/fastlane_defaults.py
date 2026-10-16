@@ -71,7 +71,19 @@ def readings_text() -> str:
                      if entry["unit"] == "reading")
 
 
+SPAN_EXAMPLE_MULTIPLE = 3  # M173 (EXEC-1018B E7): the worked multiple shown beside each span unit
+
+
 def spans_text() -> str:
-    """The relative spans in trading days, for the note's span rule."""
-    return "; ".join(f"{entry['span']} = {entry['value']} {entry['unit']}" for entry in FASTLANE_DEFAULTS.values()
-                     if "span" in entry)
+    """The relative spans in trading days, for the note's span rule: each unit with its worked multiple, both from the
+    table (M173, user 2026-10-16 "3 bulan ini kan pakai 63 hari"; an example typed apart from its value was read as
+    '3 bulan = 21'), so a changed value changes its example too."""
+    parts = []
+    for entry in FASTLANE_DEFAULTS.values():
+        if "span" not in entry:
+            continue
+        count, unit = entry["span"].split(" ", 1)
+        n = SPAN_EXAMPLE_MULTIPLE
+        parts.append(f"{entry['span']} = {entry['value']} {entry['unit']}, N {unit} = N × {entry['value']} "
+                     f"(e.g. {n} {unit} = {n * entry['value'] // int(count)})")
+    return "; ".join(parts)

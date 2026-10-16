@@ -1226,8 +1226,8 @@ OUTSIDE_DATA_RESEARCH_RULE = (
     "period, but a web number is never an input\nof a calculation.")
 OUTSIDE_DATA_REFERENCE_RULE = ("\nAn attribute the reference tables hold (a sector, an industry, a company\n"
                                "profile) is read with lookup_reference, never from the web.")
-METRIC_PATH_RULE = ("An official metric of the metric catalog over periods is answered by\nquery_metric in one "
-                    "call, without a data need or a session.\n")
+METRIC_PATH_RULE = ("When query_metric is offered, an official metric of the metric catalog over periods is\n"
+                    "answered by it in one call, without a data need or a session.\n")
 B4_SENTENCE = "They are the backend's numbers: cite them; never recompute them or state another verdict."
 B4_REFERENCE = "They are the backend's numbers and are cited like the angle findings above."
 B5_ANGLE_PARTS = ("1. answer: the direct answer to the angle's question in words that match its status; 2. usefulness: why it "
@@ -1832,7 +1832,9 @@ FASTLANE_NOTE = (PLAN_NOTE_PREFIX + "this message runs on the fast lane. Answer 
                  "Plan and without asking for approval: form the hypothesis or the comparison yourself from the "
                  "question, get the data, compute, and answer. Work in few steps: (1) pick the tables from the catalog "
                  "and read only the details you need; (2) send one data need that holds everything the analysis needs "
-                 "(the flows and the prices, the whole period including any outcome window); when it is large (many "
+                 "(the flows and the prices, the whole period including any outcome window); an official metric of "
+                 "the METRICS note is answered by query_metric and a reference attribute by lookup_reference, without "
+                 "a data need; when it is large (many "
                  "stocks over a long period), check its size with check_data_feasibility first and size it to what "
                  "fits; (3) write the analysis as one complete script per run_python (build the frames, compute, emit "
                  "the tables), not one small step per call, and complete the analysis in the same call when the tool "
@@ -1875,8 +1877,9 @@ FASTLANE_DECISIONS_NOTE = (
     "with |pct (|pp for a difference); its unit decides the scaling, so never convert it yourself; show a table with "
     "{{{{table ...}}}}; write the answer after complete_analysis, when the out.oN addresses exist. (8) Returns over a "
     "span: a named calendar period (YTD, a named month, quarter or year) uses "
-    "saniti.period_return; a relative span ('1 minggu terakhir', '3 bulan terakhir', '1 tahun terakhir') is counted in "
-    "trading days back from the last available date: {spans}; its base is the close the given number of trading days "
+    "saniti.period_return; a relative span ('N minggu/bulan/tahun terakhir') is counted in trading days back from the "
+    "last available date, N times the unit: {spans}; a precomputed column with a fixed window (a 20- or 60-day return) "
+    "answers a span only when the user names that same window; its base is the close the given number of trading days "
     "before the last date (the last close before the span, as for a named period), so request enough history; state "
     "the first and last date in assumptions. Event forward returns, rolling returns and a date-to-date formula of the "
     "user keep their own definitions. (9) Category values: get_catalog_details COLUMNS lists a column's allowed values "
@@ -2491,6 +2494,8 @@ class RunState:
     provider_response_id: str | None = None
     final_rejections: int = 0
     tools_offered: bool = False
+    shown_statistics: bool = False  # E3: the answer shows a p-value or an interval bound
+    metric_note: str | None = None  # E8: the METRICS menu sent in this run, removed when the turn lacks query_metric
     tools_locked: bool = False
     tools_withdrawn_reason: str | None = None
     structured_only: bool = False
@@ -3033,7 +3038,9 @@ class AgentOrchestrator:
                     and not state.plan_meta.get("explore_reported"):
                 line = texts.FASTLANE_ANSWER_LINE if state.plan_meta.get("explore_mode") == lanes.ANSWER \
                     else ANALYSIS_PATH_LINE
-                if line not in final.limitations:
+                if line == texts.FASTLANE_ANSWER_LINE and not state.shown_statistics:
+                    line = None  # E3 (EXEC-1018B, q1/q3 2026-10-16): no test shown, no line about tests
+                if line and line not in final.limitations:
                     final = final.model_copy(update={"limitations": [*final.limitations, line]})
             final = self._fast_sections(state, final)
             if final.response_type == "RESEARCH_PLAN_CONFIRMATION" and isinstance(final.research_plan, ResearchPlanV2) \
@@ -3531,6 +3538,7 @@ class AgentOrchestrator:
         menu = getattr(self.registry, "metric_menu", None)
         if menu and "query_metric" in self.registry.names():
             state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": menu})
+            state.metric_note = menu
 
     def _offer_methods(self, state: RunState) -> None:
         """4b: the menu of analysis methods, then the manuals opened earlier in the conversation (current version), as
@@ -4039,6 +4047,10 @@ class AgentOrchestrator:
         notes as one application note, before the user's message. A read-only turn (CLARIFY, CONVERSATIONAL, FACT)
         gets no note about data work (its tools cannot fetch data). log: turn_brief, its parts and size."""
         kind = state.plan_meta.get("turn_kind")
+        if state.metric_note and state.tool_filter is not None and "query_metric" not in state.tool_filter:
+            # E8 (EXEC-1018B, user 2026-10-16): the metric menu goes only to a turn that offers query_metric
+            state.input_items = [item for item in state.input_items if item.get("content") != state.metric_note]
+            state.metric_note = None
         parts = [text for text, data_work in state.turn_notes if not (data_work and kind in READ_TURN_KINDS)]
         if not parts:
             return
@@ -4080,7 +4092,7 @@ class AgentOrchestrator:
         """The conversation router's model call (one small tool-free call, reasoning low): the turn kind and a
         revision instruction, with its usage record. A failure returns None (the backend's rules pick the class)."""
         parsed, record = self._router_call(
-            request_id, "turn-router", router.router_instructions(self.ask_back),
+            request_id, "turn-router", router.router_instructions(self.ask_back, self.insight_v2),
             dumps({"today": self._today().isoformat(), "conversation": context, "user_message": message[:4000]}),
             "conversation_turn",
             router.router_schema(self.ask_back), router.TurnClassification, "conversation_router_failed",
@@ -4108,7 +4120,7 @@ class AgentOrchestrator:
         """The first-message router (ROUTER_BENCHMARK_2026-10-04.md; one small tool-free call, reasoning low): the
         route and its reason, with its usage record. A failure returns None (the backend's fallback applies)."""
         parsed, record = self._router_call(
-            request_id, "first-router", router.first_instructions(self.ask_back),
+            request_id, "first-router", router.first_instructions(self.ask_back, self.insight_v2),
             router.dated(message[:4000], self._today()),
             "first_message_route", router.first_schema(self.ask_back), router.FirstRoute,
             "first_message_router_failed", attempts=2 if self.ask_back else 1,
@@ -6135,6 +6147,8 @@ class AgentOrchestrator:
         if unknown:
             self._gate_once(state, "UNITS", UNITS_INSTRUCTION.format(
                 references=", ".join(dict.fromkeys(unknown[:12]))) + units_advice(unknown_values))
+        # E3 (EXEC-1018B): the fixed line about tests the model computed is written only when the answer shows one
+        state.shown_statistics = bool(statistics)
         unrecorded = self._unrecorded_statistics(state, statistics)
         if unrecorded:
             log_event("ai_statistic_unrecorded", request_id=state.request_id, references=unrecorded[:12])

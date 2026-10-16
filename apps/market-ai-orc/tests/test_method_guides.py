@@ -67,8 +67,14 @@ def test_the_tool_definition_is_its_tool_catalog_row() -> None:
     registry = ToolRegistry()
     registry.register(method_guide_spec(["free_code"]))
     [definition] = registry.definitions()
-    assert definition["parameters"] == module.TOOL_INPUT
+    # U6 (EXEC-1018B round X): the argument limits joined the schema; the newest row is round X's, the frozen
+    # 20261002_001 row keeps the schema it was applied with
+    frozen = {**module.TOOL_INPUT, "properties": {"name": {**module.TOOL_INPUT["properties"]["name"],
+              "description": module.TOOL_INPUT["properties"]["name"]["description"] + " Limits: at most 64 characters."}}}
+    assert definition["parameters"] == frozen
     assert definition["description"] == module._load_description()
+    newest = (script.parents[1] / "database/migrations/20261016_001_round_x_tool_catalog.sql").read_text()
+    assert json.dumps(definition["parameters"], sort_keys=True, separators=(",", ":")).replace("'", "''") in newest
 
 
 def guided_registry(names: list[str]) -> ToolRegistry:

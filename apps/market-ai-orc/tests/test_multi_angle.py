@@ -804,8 +804,9 @@ def test_the_catalog_migration_adds_no_method_rows_and_matches_the_tool_definiti
     # check_research_feasibility v3 (G13 scope check) in 20260930_003 (frozen); its newest registration, v4 (time
     # range end LATEST, 20261003_005), is checked by test_data_need_tool's round B test under the dev flags
     assert "check_research_feasibility" in scope
-    latest = {"start_research_run": first, "run_research_code": fixes, "complete_research_run": fixes,
-              "get_research_library": fixes}
+    # run_research_code's newest registration (v3, argument limits in its schema, U6 EXEC-1018B round X) is checked
+    # by test_data_need_tool's newest-round test under the dev flags, like check_research_feasibility
+    latest = {"start_research_run": first, "complete_research_run": fixes, "get_research_library": fixes}
     t = httpx.MockTransport(lambda r: httpx.Response(404))
     registry = build_default_registry(
         object(), cursor_secret=b"x" * 32, governor_client=GovernorClient("http://g", "k" * 40, 90, transport=t),
