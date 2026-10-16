@@ -33,6 +33,10 @@ DEV = dict(lookup_fact=False, dataneed=True, plan_confirmation=True, period_retu
            derived_frequency=True, research_findings=True, multi_angle=True, angle_limits=(2, 5, 0),
            value_references=True, hypothesis_plans=True)
 DEV_TOOLS = frozenset({"query_metric", "lookup_reference", "research_web"})
+# A3 (EXEC-1018B Fase 5): what dev really renders on top of the prompt tests' profile: the run memory, merged steps and
+# table directives switches (dev: on), and the tools of the dev registry, derived from the switches AI_TOOLS.md's dev
+# snapshot lists (taken from Railway); the fast lane's own prefix (E2) is kept beside the standard one
+LIVE = dict(memo_note=True, merged_steps=True, table_directives=True)
 HEADER = """# System prompt history
 
 Every version of what the orc model reads at the start of each call: the system prompt and the final-response schema,
@@ -60,27 +64,60 @@ whenever the rendered prompt or schema changes (AGENTS.md, Mandatory workflow).
 
 
 RENDER = """
-import json, sys
+import importlib.util, inspect, json, sys
 sys.path.insert(0, sys.argv[1])
 from app.orchestrator import build_system_prompt
 from app.schemas import final_response_schema
-dev, tools = json.loads(sys.argv[2]), frozenset(json.loads(sys.argv[3]))
+dev, tools, live, off = (json.loads(sys.argv[2]), frozenset(json.loads(sys.argv[3])), json.loads(sys.argv[4]),
+                         tuple(json.loads(sys.argv[5])))
 dev["angle_limits"] = tuple(dev["angle_limits"])
-prompt = build_system_prompt(**dev, tools=tools, tool_envelope=True)
-schema = final_response_schema(True, True, True, True, True, True, conversation_facts=True)  # O5 (EXEC-IMPL-1016)
-print(json.dumps({"prompt": prompt, "schema": json.dumps(schema, ensure_ascii=False, indent=1, sort_keys=True) + "\\n"}))
+fast = None
+if "research_sections" in inspect.signature(build_system_prompt).parameters:
+    # A3: the dev registry's tools and the live switches (trees before EXEC-1018B Fase 5 render the old profile)
+    spec = importlib.util.spec_from_file_location("tools_doc", sys.argv[6])
+    doc = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(doc)
+    registry = doc._build(off)
+    from app import tool_desks as desks
+    names = frozenset(registry.names())
+    effect = lambda name: getattr(registry.get(name), "effect", None)
+    prompt = build_system_prompt(**dev, **live, tools=names, tool_envelope=True)
+    fast = build_system_prompt(**dev, **live, tools=desks.tools("FASTLANE", names, effect), tool_envelope=True,
+                               research_sections=False)
+    schema = final_response_schema(True, True, True, True, True, True, memo_note=True, conversation_facts=True,
+                                   next_step=True)
+else:
+    prompt = build_system_prompt(**dev, tools=tools, tool_envelope=True)
+    schema = final_response_schema(True, True, True, True, True, True, conversation_facts=True)
+print(json.dumps({"prompt": prompt, "fast": fast,
+                  "schema": json.dumps(schema, ensure_ascii=False, indent=1, sort_keys=True) + "\\n"}))
 """
+
+
+def dev_off_switches() -> list[str]:
+    """A3: the switches AI_TOOLS.md's dev snapshot (taken from Railway, names and on/off only) lists as off."""
+    text = (ROOT / "AI_TOOLS.md").read_text(encoding="utf-8")
+    block = text.split("<!-- dev-snapshot:start -->", 1)[-1].split("<!-- dev-snapshot:end -->", 1)[0]
+    return sorted(re.findall(r"\| `(AI_[A-Z0-9_]+)` \| off \|", block))
 
 
 def render(source: Path) -> tuple[str, str]:
     """The dev system prompt and final-response schema of the orc tree at source, rendered in its own process so the
     caller's loaded modules (a test run, another tree) are never replaced."""
-    done = subprocess.run([sys.executable, "-c", RENDER, str(source), json.dumps(DEV), json.dumps(sorted(DEV_TOOLS))],
+    prompt, schema, _ = render_all(source)
+    return prompt, schema
+
+
+def render_all(source: Path) -> tuple[str, str, str | None]:
+    """render(), plus the fast lane's prefix (E2) when the tree builds one."""
+    done = subprocess.run([sys.executable, "-c", RENDER, str(source), json.dumps(DEV), json.dumps(sorted(DEV_TOOLS)),
+                           json.dumps(LIVE), json.dumps(dev_off_switches()),
+                           str(ROOT / "scripts" / "generate_ai_tools_doc.py")],
                           capture_output=True, text=True, encoding="utf-8", check=False)
     if done.returncode:
         raise SystemExit(f"rendering {source} failed:\n{done.stderr[-2000:]}")
     out = json.loads(done.stdout)
-    return out["prompt"], out["schema"]
+    return out["prompt"], out["schema"], out.get("fast")
 
 
 def sha(text: str) -> str:
@@ -94,21 +131,30 @@ def versions() -> list[Path]:
 def record(slug: str, decision: str, change: str, source: Path, date: str) -> None:
     if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", slug):
         raise SystemExit("slug: lower-case words joined by hyphens")
-    prompt, schema = render(source)
+    prompt, schema, fast = render_all(source)
     existing = versions()
     if existing and (existing[-1] / "system_prompt.md").read_text(encoding="utf-8") == prompt \
-            and (existing[-1] / "response_schema.json").read_text(encoding="utf-8") == schema:
+            and (existing[-1] / "response_schema.json").read_text(encoding="utf-8") == schema \
+            and _fast_text(existing[-1]) == fast:
         raise SystemExit(f"nothing changed since {existing[-1].name}; no snapshot written")
     number = len(existing) + 1
     folder = HISTORY / f"v{number:03d}-{date}-{slug}"
     folder.mkdir(parents=True)
     (folder / "system_prompt.md").write_text(prompt, encoding="utf-8")
     (folder / "response_schema.json").write_text(schema, encoding="utf-8")
+    if fast is not None:
+        (folder / "fast_prompt.md").write_text(fast, encoding="utf-8")
     meta = {"version": number, "date": date, "name": slug, "decision": decision, "change": change,
-            "prompt_chars": len(prompt), "prompt_sha256": sha(prompt), "schema_sha256": sha(schema)}
+            "prompt_chars": len(prompt), "prompt_sha256": sha(prompt), "schema_sha256": sha(schema),
+            **({"fast_prompt_chars": len(fast), "fast_prompt_sha256": sha(fast)} if fast is not None else {})}
     (folder / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     write_index()
     print(f"recorded {folder.relative_to(ROOT)} (prompt {len(prompt):,} chars, sha256 {sha(prompt)[:12]})")
+
+
+def _fast_text(folder: Path) -> str | None:
+    path = folder / "fast_prompt.md"
+    return path.read_text(encoding="utf-8") if path.exists() else None
 
 
 def write_index() -> None:
@@ -118,7 +164,9 @@ def write_index() -> None:
         rows.append(f"| v{m['version']:03d} | {m['date']} | [{m['name']}](history/{folder.name}/system_prompt.md) | "
                     f"{m['prompt_chars']:,} | `{m['prompt_sha256'][:12]}` | `{m['schema_sha256'][:12]}` | "
                     f"{m['decision']} |")
-        details.append(f"### v{m['version']:03d} {m['name']} ({m['date']})\n\n{m['change']}\n")
+        fast = (f" Fast lane prefix: [{m['fast_prompt_chars']:,} chars](history/{folder.name}/fast_prompt.md), "
+                f"sha256 `{m['fast_prompt_sha256'][:12]}`.") if m.get("fast_prompt_sha256") else ""
+        details.append(f"### v{m['version']:03d} {m['name']} ({m['date']})\n\n{m['change']}{fast}\n")
     INDEX.parent.mkdir(parents=True, exist_ok=True)
     INDEX.write_text(HEADER + "\n".join(rows) + "\n\n## Changes\n\n" + "\n".join(details), encoding="utf-8")
 
@@ -127,10 +175,12 @@ def check() -> None:
     existing = versions()
     if not existing:
         raise SystemExit("no snapshot yet")
-    prompt, schema = render(ROOT / "apps" / "market-ai-orc")
+    prompt, schema, fast = render_all(ROOT / "apps" / "market-ai-orc")
     newest = existing[-1]
     stale = [name for name, text in (("system_prompt.md", prompt), ("response_schema.json", schema))
              if (newest / name).read_text(encoding="utf-8") != text]
+    if _fast_text(newest) != fast:
+        stale.append("fast_prompt.md")
     if stale:
         raise SystemExit(f"the code renders a new {', '.join(stale)}; record it: scripts/snapshot_system_prompt.py record")
     print(f"current: {newest.name}")

@@ -596,6 +596,10 @@ effect" only for NOT_SUPPORTED; describe the occurrences of an ANECDOTAL
 or INSUFFICIENT sample as possible anomalies, not as a pattern. The answer
 field tells the user the findings in their language and in plain words,
 with how far the sample can be trusted."""
+# E2 (EXEC-1018B): on the fast lane a research question runs as an exploratory analysis (EXEC-FASTLANE K1)
+FAST_MODE_SENTENCE = "On this lane every data need uses mode ANALYSIS: no research plan runs."
+# E2 (EXEC-1018B): the part of INTERPRETING RESEARCH that holds for any answer, the fast lane's general section
+INSIGHT_RULES = "\n\nINSIGHTS\n" + INTERPRETING_RULES.split("\n\n")[-1]
 # The only plan form of the plain DataNeed flow: its findings rules in one block
 RESEARCH_FINDINGS_RULES = ("\n\nRESEARCH FINDINGS\n" + FINDINGS_PLAN_FIELDS + " " + FINDINGS_SAMPLE + "\n"
                            + FINDINGS_SESSION + " " + FINDINGS_RETURNED + INTERPRETING_RULES)
@@ -1122,7 +1126,7 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
                         angle_limits: tuple[int, int, int] = (2, 6, 0), value_references: bool = False,
                         hypothesis_plans: bool = False, tools: frozenset[str] = frozenset(),
                         tool_envelope: bool = False, memo_note: bool = False, merged_steps: bool = False,
-                        table_directives: bool = False) -> str:
+                        table_directives: bool = False, research_sections: bool = True) -> str:
     """The system prompt for the registered tools. It is fixed for a deployment (AI_ENABLE_LOOKUP_FACT,
     AI_ENABLE_DATANEED, AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION, AI_ENABLE_STANDARD_PERIOD_RETURN,
     AI_FINAL_CONTRACT_IN_PROMPT, AI_ENABLE_TOOL_ENVELOPE), so every call of every run shares one byte-identical
@@ -1130,7 +1134,9 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
     named-period-return rules exist only in the DataNeed flow. tools: the names of the offered tools; a sentence that
     names a tool is written only when that tool is offered (P31, prompt audit 2026-10-05 A1, A2, A5). The result is
     formatted as Markdown (prompt audit C and pass 2): block titles as headings, one line per paragraph or item, and a
-    paragraph longer than MAX_PARAGRAPH_CHARS one line per rule."""
+    paragraph longer than MAX_PARAGRAPH_CHARS one line per rule. research_sections False (E2, EXEC-1018B): the fast
+    lane's prefix, without the research plan, plan form and research findings sections its tools cannot use; the
+    insight rule they share stays as a general section."""
     template = SYSTEM_PROMPT_TEMPLATE
     # Multi-Angle Research replaces the Research Plan, plan feasibility and findings rules (it needs all three flows)
     multi_angle = multi_angle and dataneed and plan_confirmation and plan_feasibility
@@ -1159,6 +1165,10 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
             research = _without_sentence(HYPOTHESIS_FINDINGS_RULES, B4_SENTENCE, B4_REFERENCE) + INTERPRETING_RULES
             if value_references:
                 findings = _without_sentence(findings, B5_ANGLE_PARTS, B5_REFERENCE)
+        if not research_sections:
+            # E2 (EXEC-1018B, A1): no research plan runs on this lane; what an insight is stays (INSIGHT_RULES)
+            plan_rules, findings, research = "", "", INSIGHT_RULES
+            mode_sentence = FAST_MODE_SENTENCE
         # prompt audit C and pass 2: general -> data -> answer -> research
         sections = [common, CATALOG_PROTOCOL_RULES if catalog_protocol else "", data_sources_block(tools),
                     dataneed_rules(tools).replace("{modes_research}", "\n" + mode_sentence + " " + ANALYSIS_NEEDS_NO_PLAN),
@@ -1169,22 +1179,27 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
         template = "\n\n".join(section.strip("\n") for section in sections if section.strip())
     elif dataneed:
         common, _ = SYSTEM_PROMPT_TEMPLATE.split("DATA QUERY RULES\n", 1)
-        template = common + data_sources_block(tools) + "\n\n" + dataneed_rules(tools).replace("{modes_research}", "") \
-            + (RESEARCH_PLAN_RULES if plan_confirmation else "") \
-            + (PLAN_FEASIBILITY_RULES if plan_confirmation and plan_feasibility else "") \
+        planned = plan_confirmation and research_sections  # E2: the fast lane's prefix runs no research plan
+        template = common + data_sources_block(tools) + "\n\n" + dataneed_rules(tools).replace(
+            "{modes_research}", "" if research_sections else "\n" + FAST_MODE_SENTENCE) \
+            + (RESEARCH_PLAN_RULES if planned else "") \
+            + (PLAN_FEASIBILITY_RULES if planned and plan_feasibility else "") \
             + (PERIOD_RETURN_RULES if period_return else "") + (CATALOG_PROTOCOL_RULES if catalog_protocol else "") \
             + (CONVERSATION_REUSE_RULES if conversation_reuse else "") + (METHODOLOGY_RULES if methodology else "") \
             + (POINT_IN_TIME_RULES if point_in_time else "") + (DERIVED_FREQUENCY_RULES if derived_frequency else "") \
-            + (RESEARCH_FINDINGS_RULES if research_findings else "") + value_rules
+            + (RESEARCH_FINDINGS_RULES if research_findings and research_sections else "") + value_rules \
+            + ("" if research_sections else INSIGHT_RULES)
     if merged_steps and dataneed:
         for old, new in MERGED_STEP_RULES:
             template = template.replace(old, new)
     if final_contract:
         # plan_confirmation and methodology reach here only together with dataneed (see AgentOrchestrator.__init__)
-        contract = response_contract(plan_confirmation, methodology, research_findings, multi_angle,
-                                     value_references, dual, memo_note)
-        template = template.replace(STRICT_SCHEMA_LINE, final_contract_block(contract, plan_confirmation,
-                                                                             research_findings, multi_angle, dual))
+        planned = plan_confirmation and research_sections  # E2: the fast lane's prefix names no plan or findings
+        contract = response_contract(planned, methodology, research_findings and planned, multi_angle and planned,
+                                     value_references, dual and planned, memo_note)
+        template = template.replace(STRICT_SCHEMA_LINE, final_contract_block(contract, planned,
+                                                                             research_findings and planned,
+                                                                             multi_angle and planned, dual and planned))
     # Multi-Angle Research: the negotiated angle limits (AI_RESEARCH_MIN_ANGLES / MAX_ANGLES / MIN_FAMILIES), in words
     low, high, families = angle_limits
     families_rule = (f" The angles use at least {NUMBER_WORDS[families]} of the five method families."
@@ -2885,6 +2900,19 @@ class AgentOrchestrator:
                                                  memo_note=run_memory is not None,
                                                  merged_steps=self.merged_steps,
                                                  table_directives=self.table_directives)
+        # E2 (EXEC-1018B, A1): the fast lane's own static prefix, built from the tools its desk offers and without the
+        # research plan and findings sections (a second cacheable prefix; the standard lane's is unchanged)
+        self.fast_system_prompt = build_system_prompt(
+            settings.ai_enable_lookup_fact, self.dataneed, self.plan_confirmation, period_return,
+            settings.ai_final_contract_in_prompt, self.catalog_protocol, self.conversation_reuse, self.methodology,
+            self.plan_feasibility, self.point_in_time, self.derived_frequency, self.research_findings,
+            self.multi_angle, (int(self.research_limits.get("min_angles", 2)),
+                               int(self.research_limits.get("max_angles", 6)),
+                               int(self.research_limits.get("min_families") or 0)),
+            self.value_references, self.hypothesis_plans, self._process_tools("FASTLANE"),
+            bool(getattr(settings, "ai_enable_tool_envelope", False)), memo_note=run_memory is not None,
+            merged_steps=self.merged_steps, table_directives=self.table_directives, research_sections=False) \
+            if self.dataneed and getattr(settings, "ai_enable_fastlane", False) else None
         self.final_schema = final_response_schema(self.plan_confirmation, self.methodology, self.research_findings,
                                                   self.multi_angle, self.value_references, self.hypothesis_plans,
                                                   memo_note=run_memory is not None,
@@ -2909,17 +2937,18 @@ class AgentOrchestrator:
         return desks.tools(process, frozenset(self.registry.names()),
                            lambda name: getattr(self.registry.get(name), "effect", None))
 
-    def _instructions(self) -> str:
-        """The system prompt, followed by the catalog summary when one is available. The summary is documentation for
-        planning only; its numbers (dates, counts) are not answer sources, so _source_index reads the system prompt
-        alone."""
+    def _instructions(self, fast: bool = False) -> str:
+        """The system prompt (fast: the fast lane's, E2), followed by the catalog summary when one is available. The
+        summary is documentation for planning only; its numbers (dates, counts) are not answer sources, so
+        _source_index reads the system prompt alone."""
         summary = ""
         if self.catalog_summary is not None:
             try:
                 summary = self.catalog_summary.text()
             except Exception:  # noqa: BLE001 - without a summary the model uses the discovery tools
                 summary = ""
-        return self.system_prompt + ("\n\n" + summary if summary else "")
+        prompt = self.fast_system_prompt if fast and getattr(self, "fast_system_prompt", None) else self.system_prompt
+        return prompt + ("\n\n" + summary if summary else "")
 
     def _provider(self, model: str | None = None) -> dict[str, Any]:
         """OpenRouter provider preferences. provider.sort (AI_PROVIDER_SORT) turns load balancing off and tries the
@@ -3824,6 +3853,7 @@ class AgentOrchestrator:
             # EXEC-FASTLANE: one turn, no Research Plan, no approval (K1); a reply to a pending plan (continuation)
             # and the read-only turn kinds (narrowed later by _apply_turn_kind) keep the current behaviour
             state.allowed_types, state.tool_filter = BASE_TYPES, self._process_tools("FASTLANE")
+            state.instructions = self._instructions(fast=True)  # E2: the fast lane's prefix
             state.guard = ResearchGuard(required=True)
             step = FASTLANE_DRAFT_STEP if self._fast_draft_check() else FASTLANE_NO_DRAFT_STEP
             mode = self._explore_mode()

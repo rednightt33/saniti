@@ -1,0 +1,12 @@
+{
+ "version": 14,
+ "date": "2026-10-16",
+ "name": "exec-1018b-fast-prefix",
+ "decision": "User 2026-10-16: \"1. OK 2. Skip E10 3. OK 4. Otomatis 5. OK ... Jalankan.\" (EXEC-1018B Fase 5, E2 and A3)",
+ "change": "E2: the fast lane gets its own static prefix without the research plan, plan form and findings sections (insight rule kept as INSIGHTS; data needs in mode ANALYSIS). A3: the snapshot renders the real dev profile (run memory, merged steps, table directives, the dev registry's tools from AI_TOOLS.md's Railway snapshot) and the schema with memo_note and next_step; the fast prefix is kept as fast_prompt.md.",
+ "prompt_chars": 41594,
+ "prompt_sha256": "235a54f8917264a2dd1d1a69520a270ce919bf38f5f5201f8bb2750bf1d12e59",
+ "schema_sha256": "ef9b0ecbca7d7a3b0c5e08e3062a04dddce274ebff1b74d121fbe791a3787883",
+ "fast_prompt_chars": 25415,
+ "fast_prompt_sha256": "d8e071fb16a8d483497f35cf722efd28a7940549fa141a0db2ab423a430193bc"
+}

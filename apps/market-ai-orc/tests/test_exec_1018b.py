@@ -163,3 +163,20 @@ def test_a_supporting_table_is_stored_as_support() -> None:
     orc._track_results(state, "complete_analysis", ToolOutcome("c", "complete_analysis", True, {"result": result}),
                        {"session_id": "sess_1"})
     assert {o["output_id"]: o["type"] for o in state.store_outputs} == {"out_r": "TABLE", "out_s": "SUPPORT"}
+
+
+def test_the_fast_lane_prefix_drops_the_research_sections_and_keeps_the_rest() -> None:
+    """E2 (EXEC-1018B, A1): the fast lane's prefix has no research plan, plan form or findings section and no tool its
+    desk does not offer; the insight rule stays; the standard prefix is unchanged by the switch."""
+    from app.orchestrator import INSIGHT_RULES, build_system_prompt
+    from test_prompt_pass2 import DEV, DEV_TOOLS
+
+    standard = build_system_prompt(**DEV, tools=DEV_TOOLS, tool_envelope=True)
+    fast = build_system_prompt(**DEV, tools=DEV_TOOLS, tool_envelope=True, research_sections=False)
+    assert standard == build_system_prompt(**DEV, tools=DEV_TOOLS, tool_envelope=True, research_sections=True)
+    for heading in ("RESEARCH PLANS", "MULTI-ANGLE PLAN", "HYPOTHESIS PLAN", "RESEARCH PLAN FORMS",
+                    "MULTI-ANGLE FINDINGS", "HYPOTHESIS FINDINGS", "INTERPRETING RESEARCH"):
+        assert f"# {heading}" in standard and f"# {heading}" not in fast
+    assert "# INSIGHTS" in fast and INSIGHT_RULES.split("\n")[-1][:40] in fast.replace("\n", " ")
+    assert "research_plan has exactly" not in fast and "every data need uses mode ANALYSIS" in fast
+    assert len(fast) < 0.75 * len(standard)

@@ -782,3 +782,16 @@ def test_the_span_rule_shows_each_unit_with_its_worked_multiple_from_the_table(m
     assert "'3 bulan terakhir'" not in FASTLANE_DECISIONS_NOTE
     monkeypatch.setitem(fastlane_defaults.FASTLANE_DEFAULTS["span_month_trading_days"], "value", 20)
     assert "e.g. 3 bulan = 60" in fastlane_defaults.spans_text()
+
+
+def test_e2_the_fast_lane_sends_its_own_prefix_and_the_standard_lane_keeps_its_own() -> None:
+    """E2 (EXEC-1018B, A1): every call of a fast-lane run carries the fast prefix (no research sections); a standard
+    run carries the standard prefix, byte-identical to before."""
+    script = [*flow(), final_response(answer("Return YTD BBCA 12,35% dan BBRI turun 4,32%."))]
+    _, fast, _ = run(script, lane=lanes.FAST, path="RESEARCH")
+    _, standard, _ = run(script, lane=lanes.STANDARD, path="ANALYSIS")
+    fast_prefix, standard_prefix = fast.payloads[0]["instructions"], standard.payloads[0]["instructions"]
+    assert {p["instructions"] for p in fast.payloads} == {fast_prefix}
+    assert len(fast_prefix) < len(standard_prefix)
+    assert "every data need uses mode ANALYSIS" in fast_prefix and "every data need uses mode ANALYSIS" not in \
+        standard_prefix

@@ -34,6 +34,7 @@ whenever the rendered prompt or schema changes (AGENTS.md, Mandatory workflow).
 | v011 | 2026-10-15 | [names-to-search-values](history/v011-2026-10-15-names-to-search-values/system_prompt.md) | 39,099 | `322029a86b77` | `667c512aab9c` | EXEC-IMPL-1016 Fase 3 (O1 dictionary), user 2026-10-15: "Next lanjutkan tanpa minta saya naikan limit"; matching "Alias + persis + potongan" |
 | v012 | 2026-10-16 | [metric-path-when-offered](history/v012-2026-10-16-metric-path-when-offered/system_prompt.md) | 39,119 | `e25cd0b3d4df` | `4098ec4dd2c0` | EXEC-1018B E3/E8, user 2026-10-16: "Ini masuk E3 (merapikan aturan) --> OK", go "Jalankan." |
 | v013 | 2026-10-16 | [exec-1018b-next-step](history/v013-2026-10-16-exec-1018b-next-step/system_prompt.md) | 39,190 | `f9c74fe4abd9` | `4098ec4dd2c0` | User 2026-10-16: "1. OK 2. Skip E10 3. OK 4. Otomatis 5. OK ... Jalankan." (EXEC-1018B Fase 4, E9 b/c) |
+| v014 | 2026-10-16 | [exec-1018b-fast-prefix](history/v014-2026-10-16-exec-1018b-fast-prefix/system_prompt.md) | 41,594 | `235a54f89172` | `ef9b0ecbca7d` | User 2026-10-16: "1. OK 2. Skip E10 3. OK 4. Otomatis 5. OK ... Jalankan." (EXEC-1018B Fase 5, E2 and A3) |
 
 ## Changes
 
@@ -88,3 +89,7 @@ DATA SOURCES: the metric path holds when query_metric is offered in the turn (a 
 ### v013 exec-1018b-next-step (2026-10-16)
 
 Final response gains needs_computation (a read-only turn hands a calculation to CONTINUE) and offered_action (a short yes runs the offer); the contract names offered_action; the read-only class note asks for needs_computation instead of an offer in prose.
+
+### v014 exec-1018b-fast-prefix (2026-10-16)
+
+E2: the fast lane gets its own static prefix without the research plan, plan form and findings sections (insight rule kept as INSIGHTS; data needs in mode ANALYSIS). A3: the snapshot renders the real dev profile (run memory, merged steps, table directives, the dev registry's tools from AI_TOOLS.md's Railway snapshot) and the schema with memo_note and next_step; the fast prefix is kept as fast_prompt.md. Fast lane prefix: [25,415 chars](history/v014-2026-10-16-exec-1018b-fast-prefix/fast_prompt.md), sha256 `d8e071fb16a8`.
