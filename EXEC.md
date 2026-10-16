@@ -2380,6 +2380,15 @@ execute dulu."
 - Uji: setiap kode penolakan punya langkah berikut; peringkat seluruh pasar satu panggilan; kelompok Industry = Banks;
   uji ulang tiga pertanyaan sejenis Q2/Q3 (nol penolakan yang tidak dijelaskan).
 
+**E11. Lampiran tidak hilang bila run gagal (M178).** User 2026-10-16: "Ok terkait M178 maskan exec jangan jalankan
+dulu".
+- Penyebab terverifikasi (log `conv_bef8e72a…`): #10 membawa lampiran (catatan giliran 5 bagian, 3.018 karakter),
+  gagal 429; kiriman ulang #11 dan #12 tanpa lampiran (4 bagian). EDGE mengosongkan lampiran saat kirim
+  (`static/index.html` ±10770) dan run gagal tidak masuk riwayat.
+- Rancangan (EDGE): lampiran tetap tersimpan untuk pesan itu sampai run selesai; bila FAILED atau INTERRUPTED, lampiran
+  dikembalikan ke kolom tanya beserta teks pesannya, sehingga kirim ulang membawanya lagi.
+- Uji: run gagal (BFF palsu) → chip kembali; run berhasil → chip kosong; desktop dan ponsel.
+
 E3 dikonfirmasi user 2026-10-16 ("Ini masuk E3 (merapikan aturan) --> OK masukan exec jangan eksekusi dulu").
 
 **E4. Kartu router mengikuti saklar (R4).**
