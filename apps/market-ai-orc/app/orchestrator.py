@@ -1700,8 +1700,19 @@ REPRODUCE_NOTE = (
     "database (a web fact) has no workings: say so and name its source.")
 
 
-def attachments_note(items: list[Any]) -> str:
-    """EXEC-IMPL-1017 Fase 3: one note for what the user attached (tables and passages), with the reproduction rule."""
+# a turn that reads only (CLARIFY, CONVERSATIONAL) releases no new table, so no reproduction can be checked: it shows
+# the stored inputs and the formula and offers the recomputation (live check 2026-10-16: a declared reproduction from an
+# earlier table was refused and cost a repair)
+REPRODUCE_READ_ONLY_NOTE = (
+    "This turn reads only and releases no new table: when the user asks how an attached figure was obtained, show the "
+    "inputs the stored tables hold for it (with what identifies them: dates, codes, the source table) and the formula "
+    "and rounding that give exactly the figure, and offer to recompute it from the full raw data; declare no "
+    "reproductions.")
+
+
+def attachments_note(items: list[Any], read_only: bool = False) -> str:
+    """EXEC-IMPL-1017 Fase 3: one note for what the user attached (tables and passages), with the reproduction rule
+    (the read-only form on a turn that computes nothing)."""
     parts = []
     for item in items:
         if getattr(item, "kind", "TABLE") == "TEXT":
@@ -1712,7 +1723,7 @@ def attachments_note(items: list[Any]) -> str:
                 figures=SELECTION_FIGURES.format(figures=figures) if figures else ""))
         else:
             parts.append(selection_note(item))
-    return " ".join(parts) + " " + REPRODUCE_NOTE
+    return " ".join(parts) + " " + (REPRODUCE_READ_ONLY_NOTE if read_only else REPRODUCE_NOTE)
 
 
 def attached_summary(items: list[Any]) -> list[dict[str, Any]]:
@@ -3778,7 +3789,8 @@ class AgentOrchestrator:
             # is reproduced; kept on read turns too (not data work)
             state.attached_figures = attached_figure_refs(attached)
             state.attached = attached_summary(attached)
-            state.turn_notes.append((attachments_note(attached), False))
+            state.turn_notes.append((attachments_note(
+                attached, read_only=router.current_turn_kind.get() in EXPLAIN_ONLY_KINDS), False))
         if state.lane == lanes.FAST and self.dataneed and request.continuation is None \
                 and state.forced_path in (None, "ANALYSIS", "RESEARCH"):
             # EXEC-FASTLANE: one turn, no Research Plan, no approval (K1); a reply to a pending plan (continuation)

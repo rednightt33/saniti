@@ -128,3 +128,12 @@ def test_a_mode4_turn_gives_every_step_the_attachments_and_keeps_the_answers_fie
     for name in ANSWER_FIELDS:
         assert getattr(result, name) == getattr(shown, name), name
     assert set(ANSWER_FIELDS) <= set(AgentRunResponse.model_fields)
+
+
+def test_a_read_only_turn_shows_the_stored_inputs_and_declares_no_reproduction() -> None:
+    from app.orchestrator import EXPLAIN_ONLY_KINDS, REPRODUCE_READ_ONLY_NOTE
+
+    request = AgentRunRequest.model_validate({"request_id": "r", "message": "x", "attachments": [TEXT]})
+    note = attachments_note(request.attachments, read_only=True)
+    assert note.endswith(REPRODUCE_READ_ONLY_NOTE) and "declare no reproductions" in note and REPRODUCE_NOTE not in note
+    assert "CLARIFY" in EXPLAIN_ONLY_KINDS
