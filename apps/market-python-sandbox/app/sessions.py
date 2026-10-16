@@ -937,7 +937,7 @@ class SessionManager:
             "seed": s.random_seed, "reference_date": manifest["reference_date"],
             **({"observe_modules": True} if self.audit is not None else {}),
             **({"extra_helpers": [*(["event_summary"] if s.research_findings_enabled else []),
-                                  *(RESEARCH_HELPERS if research else []), *(["explore_test"] if explore else [])]}
+                                  *(RESEARCH_HELPERS if research else []), *(["explore_test", "hypothesis_test"] if explore else [])]}
                if s.research_findings_enabled or research or explore else {}),
             **({"research_v2": research} if research else {}),
             # M28: the approved hypothesis plan's findings values (success_rule, min_effect, ...), read by event_summary

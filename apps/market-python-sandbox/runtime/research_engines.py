@@ -1015,6 +1015,97 @@ BELOW_USER_MINIMUM = "BELOW_USER_MINIMUM_EFFECT"
 OUTCOME_UNIT_ESTIMATES = ("MEAN_DIFFERENCE", "SPREAD")
 
 
+# ---------------------------------------------------------------- the general exploratory test (EXEC-IMPL-1017 Fase 1)
+
+GENERAL_TESTS = ("MEAN_DIFFERENCE", "PROPORTION_DIFFERENCE", "MEAN_VS_ZERO", "CORRELATION")
+
+
+def general_test(kind: str, frame, *, value: str | None = None, group: str | None = None, a: Any = None,
+                 b: Any = None, x: str | None = None, y: str | None = None, horizon: int = 1,
+                 correlation: str = "PEARSON", alpha: float = ALPHA) -> dict[str, Any]:
+    """One test of a hypothesis the model formed itself, computed here with the engines' conventions: dates are
+    clusters (a date's rows count once), outcomes `horizon` observations long that overlap count once (the effective
+    sample), and the interval and the two-sided p-value come from those counts. The model prepares the frame; it never
+    computes the statistics.
+
+    MEAN_DIFFERENCE: mean of `value` in group a minus group b (Welch on per-date means).
+    PROPORTION_DIFFERENCE: share of true `value` (0/1 or bool) in a minus b (Newcombe on the effective counts).
+    MEAN_VS_ZERO: mean of `value` against zero (t on per-date means).
+    CORRELATION: `x` with `y` (per-date means of a panel; Fisher z on an autocorrelation-adjusted count)."""
+    import numpy as np
+    import pandas as pd
+    from scipy import stats
+
+    if kind not in GENERAL_TESTS:
+        raise EngineError("TEST_KIND", f"kind is one of {GENERAL_TESTS}.")
+    if not isinstance(horizon, int) or horizon < 1:
+        raise EngineError("HORIZON", "horizon is the outcome's length in observations, at least 1.")
+    if "date" not in frame.columns:
+        raise EngineError("MISSING_COLUMN", "frame needs a date column.")
+    data = frame.copy()
+    data["date"] = pd.to_datetime(data["date"], errors="coerce")
+    data = data[data["date"].notna()]
+    calendar = _calendar(_date_keys(data["date"]))
+    out: dict[str, Any] = {"kind": kind, "estimate": None, "ci": None, "p_value": None, "effective": 0,
+                           "rows": int(len(data)), "groups": None}
+
+    def need(*columns: str | None) -> None:
+        missing = [c for c in columns if not c or c not in data.columns]
+        if missing:
+            raise EngineError("MISSING_COLUMN", f"{kind} needs the columns {[c for c in columns]}; missing {missing}.")
+
+    if kind == "CORRELATION":
+        need(x, y)
+        _, xs, ys = _daily_series(data[["date", x, y]].dropna(), x, y)
+        result = _correlation(xs, ys, "SPEARMAN" if str(correlation).upper() == "SPEARMAN" else "PEARSON", alpha)
+        out.update(estimate_kind="CORRELATION", estimate=_finite(result["estimate"]), ci=result["ci"],
+                   p_value=_finite(result["p_value"]), effective=int(result["effective"]), rows=int(result["n"]))
+        return out
+    need(value)
+    if kind == "MEAN_VS_ZERO":
+        values = pd.to_numeric(data[value], errors="coerce")
+        g = _group_stats(values, _date_keys(data["date"]), calendar, horizon)
+        out.update(estimate_kind="MEAN_DIFFERENCE", estimate=g["mean"], effective=g["effective"], rows=g["rows"])
+        if g["mean"] is not None and g["effective"] >= MIN_EFFECTIVE and g["sd_of_date_means"]:
+            se = g["sd_of_date_means"] / math.sqrt(g["effective"])
+            df = g["effective"] - 1
+            t_crit = float(stats.t.ppf(1 - alpha / 2, df))
+            out.update(ci=[g["mean"] - t_crit * se, g["mean"] + t_crit * se],
+                       p_value=float(2 * stats.t.sf(abs(g["mean"] / se), df)))
+        return out
+    need(group)
+    labels = [label for label in pd.unique(data[group].dropna())]
+    if a is None and b is None:
+        if len(labels) != 2:
+            raise EngineError("GROUPS", f"{group} holds {len(labels)} labels; name the two to compare with a= and b=.")
+        a, b = sorted(labels, key=str)
+    if a not in labels or b not in labels:
+        raise EngineError("GROUPS", f"a and b must be labels of {group}; it holds {sorted(map(str, labels))[:12]}.")
+    parts = {}
+    for name, label in (("a", a), ("b", b)):
+        rows = data[data[group] == label]
+        series = pd.to_numeric(rows[value].astype("float64") if rows[value].dtype == bool else rows[value],
+                               errors="coerce")
+        parts[name] = (series, _group_stats(series, _date_keys(rows["date"]), calendar, horizon))
+    ga, gb = parts["a"][1], parts["b"][1]
+    out["groups"] = {"a": {"label": str(a), "rows": ga["rows"], "effective": ga["effective"], "mean": ga["mean"]},
+                     "b": {"label": str(b), "rows": gb["rows"], "effective": gb["effective"], "mean": gb["mean"]}}
+    out["effective"] = int(min(ga["effective"], gb["effective"]))
+    if kind == "MEAN_DIFFERENCE":
+        result = _welch(ga, gb, alpha)
+        out.update(estimate_kind="MEAN_DIFFERENCE", estimate=result["estimate"], ci=result["ci"],
+                   p_value=result["p_value"])
+        return out
+    values = {k: v[0].dropna() for k, v in parts.items()}
+    if any(not np.isin(v.to_numpy(), (0.0, 1.0)).all() for v in values.values()):
+        raise EngineError("NOT_BINARY", f"PROPORTION_DIFFERENCE needs {value} as 0/1 or true/false.")
+    result = _proportion_difference(int(values["a"].sum()), ga["rows"], ga["effective"], int(values["b"].sum()),
+                                    gb["rows"], gb["effective"], alpha)
+    out.update(estimate_kind="RATE_DIFFERENCE", estimate=result["estimate"], ci=result["ci"],
+               p_value=result["p_value"])
+    return out
+
+
 def directed_effect(estimate: float, expected_direction: str) -> float:
     """The estimate measured in the expected direction (HIGHER: as is; LOWER: negated; DIFFERENT: its size)."""
     if expected_direction == "LOWER":

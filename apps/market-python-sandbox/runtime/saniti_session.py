@@ -39,6 +39,10 @@ needs; nothing here computes an indicator or checks a formula.
     explore_test(method_id, frame, parameters=None, horizon=1, outcome_unit="PERCENT", stability=False, ...)
                                     EXEC-FASTLANE B3: an exploratory test with a research library method (fast lane
                                     only); the answer's tests are corrected together by the harness
+    hypothesis_test(kind, frame, value=..., group=..., a=..., b=..., x=..., y=..., horizon=1, ...)
+                                    EXEC-IMPL-1017: a test of the model's own hypothesis (MEAN_DIFFERENCE,
+                                    PROPORTION_DIFFERENCE, MEAN_VS_ZERO, CORRELATION), computed and recorded by the
+                                    system with the same correction (fast lane only)
     insufficient_data(request, range_id=None, value=None, unit=..., requirement_type=..., reason="")
                                     stop: the data cannot support the analysis; revise the DataNeedSpec
     intermediate_path(name)         a private file path for intermediate results
@@ -74,7 +78,8 @@ __all__ = [
 ]
 # pre-bound only when the session config lists them (session.json extra_helpers, set by a feature flag)
 EXTRA_HELPERS = ("event_summary", "research_conditional", "research_persistence", "research_group_comparison",
-                 "research_quantiles", "research_temporal_dependency", "research_custom", "explore_test")
+                 "research_quantiles", "research_temporal_dependency", "research_custom", "explore_test",
+                 "hypothesis_test")
 
 REQUESTS: dict[str, dict[str, Any]] = {}
 REFERENCE_DATE: str | None = None
@@ -885,6 +890,65 @@ def explore_test(method_id: str, frame, *, parameters: dict[str, Any] | None = N
     _write_explore_call(label, {"source": "explore_test", "output": f"explore_{label}", **row})
     _log({"call": "explore_test", "name": label, "method_id": method_id, "rows": int(len(canonical))})
     return {"name": label, **row, "output": table,
+            "note": "Exploratory: the system corrects all tests of this answer together (Benjamini-Hochberg) and "
+                    "states in the answer how many hold; describe the effect and its interval, never call it "
+                    "significant, proven or a cause yourself."}
+
+
+def hypothesis_test(kind: str, frame, *, value: str | None = None, group: str | None = None, a: Any = None,
+                    b: Any = None, x: str | None = None, y: str | None = None, horizon: int = 1,
+                    outcome_unit: str = "OTHER", correlation: str = "PEARSON", name: str | None = None,
+                    question: str = "") -> dict[str, Any]:
+    """EXEC-IMPL-1017 (fast lane insight v2): test a hypothesis you formed yourself; the system computes and records
+    the statistics, you only prepare the frame. kind: MEAN_DIFFERENCE (value by group a vs b), PROPORTION_DIFFERENCE
+    (share of a 0/1 or true/false value by group a vs b), MEAN_VS_ZERO (value against zero) or CORRELATION (x with
+    y). frame: a DataFrame with a date column and the named columns (one row per entity and date, or per date).
+    Dates are clusters and outcomes `horizon` observations long that overlap count once (the effective sample); the
+    result has an estimate, its interval and a two-sided p-value. outcome_unit: PERCENT, DECIMAL or OTHER, the unit of
+    value (for the estimate's display).
+
+    Releases the table explore_<name> (one row) and records the test; the system corrects all of this answer's tests
+    together and states how many hold, so never call a result significant yourself. A test is optional: describe
+    what the data shows when no test is needed."""
+    import pandas as pd
+    import research_engines
+
+    if not _EXPLORE["enabled"]:
+        raise SanitiError("hypothesis_test is available only on the fast lane with exploratory tests switched on.")
+    if not isinstance(frame, pd.DataFrame):
+        raise SanitiError("frame must be a pandas DataFrame with a date column and the columns the test names.")
+    if outcome_unit not in research_engines.UNITS:
+        raise SanitiError(f"outcome_unit is one of {research_engines.UNITS}.")
+    label = name if name is not None else f"test_{len(_EXPLORE_NAMES) + len(_EXPLORE_PENDING) + 1}"
+    if not isinstance(label, str) or not _re.fullmatch(r"[A-Za-z0-9_]{1,40}", label):
+        raise SanitiError("name is 1-40 letters, digits or '_'.")
+    try:
+        result = research_engines.general_test(kind, frame, value=value, group=group, a=a, b=b, x=x, y=y,
+                                               horizon=horizon, correlation=correlation)
+    except research_engines.EngineError as exc:
+        raise SanitiError(f"{exc.code}: {exc}") from None
+    ci = result.get("ci") or [None, None]
+    effective = int(result.get("effective") or 0)
+    groups = result.get("groups")
+    candidate = f"{groups['a']['label']} vs {groups['b']['label']}" if groups else (
+        f"{x} ~ {y}" if kind == "CORRELATION" else value)
+    row = {"method_id": f"hypothesis_test:{kind}", "question": str(question)[:300], "candidate": candidate,
+           "estimate_kind": result.get("estimate_kind"), "estimate": result.get("estimate"), "ci_low": ci[0],
+           "ci_high": ci[1], "p_value": result.get("p_value"), "effective": effective,
+           "sample_flag": _explore_flag(effective), "stability": None, "outcome_unit": outcome_unit,
+           "horizon": horizon}
+    value_unit = research_engines.estimate_units(result.get("estimate_kind"), outcome_unit).get("estimate")
+    units = {"p_value": "P_VALUE", **({c: value_unit for c in ("estimate", "ci_low", "ci_high")} if value_unit else {})}
+    table = emit_table(f"explore_{label}", pd.DataFrame([{k: row[k] for k in EXPLORE_COLUMNS}]),
+                       f"Exploratory test {label}: {kind}" + (f" ({question})" if question else ""), units=units,
+                       definition={"filters": [], "thresholds": {"kind": kind, "horizon": horizon,
+                                                                 "value": value, "group": group,
+                                                                 "a": None if a is None else str(a),
+                                                                 "b": None if b is None else str(b), "x": x, "y": y},
+                                   "notes": "hypothesis_test (exploratory, research engine statistics)"})
+    _write_explore_call(label, {"source": "hypothesis_test", "output": f"explore_{label}", **row})
+    _log({"call": "hypothesis_test", "name": label, "kind": kind, "rows": int(result.get("rows") or 0)})
+    return {"name": label, **row, "groups": groups, "output": table,
             "note": "Exploratory: the system corrects all tests of this answer together (Benjamini-Hochberg) and "
                     "states in the answer how many hold; describe the effect and its interval, never call it "
                     "significant, proven or a cause yourself."}

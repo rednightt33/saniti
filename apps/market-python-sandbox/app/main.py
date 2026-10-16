@@ -182,7 +182,10 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                 "event_study": {"enabled": dataneed is not None, "version": EVENT_STUDY_VERSION},
                 # EXEC-FASTLANE B3: saniti.explore_test and final_status.explore_tests (analysis sessions)
                 "explore_tests": {"enabled": dataneed is not None and settings.explore_tests_enabled,
-                                  "version": EXPLORE_TESTS_VERSION},
+                                  "version": EXPLORE_TESTS_VERSION,
+                                  # EXEC-IMPL-1017: saniti.hypothesis_test, the model's own hypotheses tested and
+                                  # recorded with the same correction (market-ai-orc insight v2 needs it)
+                                  "hypothesis_test": True},
                 # P32 layer 3: saniti.backtest, re-run by the harness at complete_analysis
                 "backtest": {"enabled": dataneed is not None, "version": BACKTEST_VERSION},
                 # 4b: the method guides (menu and manual), hash-bound with market-ai-orc and AI_method_guide

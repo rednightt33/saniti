@@ -125,7 +125,7 @@ def complete(env) -> dict:
 @requires_root
 def test_explore_tests_are_released_recorded_and_corrected_at_completion(explored) -> None:
     capability = explored["api"].get("/v1/runtime", headers=HEADERS).json()["explore_tests"]
-    assert capability == {"enabled": True, "version": explore_tests.EXPLORE_TESTS_VERSION}
+    assert capability == {"enabled": True, "version": explore_tests.EXPLORE_TESTS_VERSION, "hypothesis_test": True}
     body = run(explored, FRAME + "first = explore_test('conditional_distribution', frame, horizon=3, name='drops', "
                                  "stability=True)\n"
                                  "second = explore_test('conditional_distribution', frame.assign(condition="
@@ -175,3 +175,80 @@ def test_without_the_flag_nothing_changes(plain) -> None:
                       "'close'}, 3, name='dips', min_events=1)")
     assert body["status"] == "OK" and not any(o["name"].startswith(explore_tests.PREFIX) for o in body["outputs"])
     assert "explore_tests" not in complete(plain)["final_status"]
+
+
+# ------------------------------------------------------------------------------ EXEC-IMPL-1017: the model's own hypotheses
+
+
+def panel(seed: int = 3, days: int = 120, entities: int = 4):
+    import numpy as np
+    import pandas as pd
+
+    rng = np.random.default_rng(seed)
+    dates = pd.bdate_range("2024-01-01", periods=days)
+    rows = [{"date": d, "entity": f"E{e}", "value": rng.normal(0.4 if (i % 2) else 0.0, 1.0),
+             "group": "up" if (i % 2) else "down", "flag": bool(rng.random() < (0.6 if i % 2 else 0.4)),
+             "noise": rng.normal(0, 1)}
+            for i, d in enumerate(dates) for e in range(entities)]
+    frame = pd.DataFrame(rows)
+    daily = pd.Series(rng.normal(0, 1, days), index=dates)  # a series without trend: its dates are independent
+    frame["x"] = frame["date"].map(daily)
+    frame["y"] = frame["x"] * 0.8 + frame["noise"] * 0.3
+    return frame
+
+
+def test_a_mean_difference_counts_a_date_once_and_matches_welch_on_date_means() -> None:
+    import numpy as np
+    from scipy import stats
+
+    frame = panel()
+    result = E.general_test("MEAN_DIFFERENCE", frame, value="value", group="group", a="up", b="down")
+    means = frame.groupby(["group", "date"])["value"].mean()
+    up, down = means["up"].to_numpy(), means["down"].to_numpy()
+    reference = stats.ttest_ind(up, down, equal_var=False)
+    # four entities on one date are one observation: the effective sample is the dates, not the rows
+    assert result["effective"] == 60 and result["rows"] == 480
+    assert result["estimate"] == pytest.approx(frame[frame.group == "up"].value.mean() - frame[frame.group == "down"].value.mean())
+    assert result["p_value"] == pytest.approx(reference.pvalue, rel=1e-6)
+    assert result["ci"][0] < result["estimate"] < result["ci"][1]
+
+
+def test_overlapping_outcomes_count_once_and_each_kind_reports_an_interval() -> None:
+    frame = panel()
+    daily = E.general_test("MEAN_VS_ZERO", frame, value="value", horizon=1)
+    weekly = E.general_test("MEAN_VS_ZERO", frame, value="value", horizon=5)
+    assert weekly["effective"] < daily["effective"] and weekly["estimate"] == pytest.approx(daily["estimate"])
+    share = E.general_test("PROPORTION_DIFFERENCE", frame, value="flag", group="group", a="up", b="down")
+    assert share["estimate_kind"] == "RATE_DIFFERENCE" and share["ci"] is not None and share["p_value"] is not None
+    corr = E.general_test("CORRELATION", frame, x="x", y="y", correlation="SPEARMAN")
+    assert corr["estimate"] > 0.5 and corr["ci"][0] < corr["estimate"] < corr["ci"][1]
+    trend = E.general_test("CORRELATION", frame.assign(x=frame["date"].rank(method="dense"),
+                                                       y=frame["date"].rank(method="dense") * 2), x="x", y="y")
+    assert trend["effective"] == 3 and trend["p_value"] is None  # two trends: no honest interval, so none is given
+
+
+def test_the_general_test_names_what_is_wrong() -> None:
+    frame = panel()
+    for kwargs, code in (({"kind": "ANOVA"}, "TEST_KIND"), ({"kind": "MEAN_DIFFERENCE", "value": "value"}, "MISSING_COLUMN"),
+                         ({"kind": "MEAN_DIFFERENCE", "value": "value", "group": "entity"}, "GROUPS"),
+                         ({"kind": "PROPORTION_DIFFERENCE", "value": "value", "group": "group"}, "NOT_BINARY")):
+        kind = kwargs.pop("kind")
+        with pytest.raises(E.EngineError) as caught:
+            E.general_test(kind, frame, **kwargs)
+        assert caught.value.code == code
+
+
+@requires_root
+def test_a_hypothesis_test_is_released_recorded_and_corrected_with_the_others(explored) -> None:
+    body = run(explored, FRAME + "frame['group'] = frame['condition'].map({True: 'drop', False: 'other'})\n"
+                                 "own = hypothesis_test('MEAN_DIFFERENCE', frame, value='outcome', group='group', "
+                                 "a='drop', b='other', horizon=3, outcome_unit='PERCENT', name='own')\n"
+                                 "lib = explore_test('conditional_distribution', frame, horizon=3, name='lib')\n"
+                                 "print(own['effective'], own['candidate'])")
+    assert body["status"] == "OK", body
+    effective, candidate = body["stdout"].split(maxsplit=1)
+    assert 0 < int(effective) < 60 and candidate.strip() == "drop vs other"
+    released = {o["name"]: o for o in body["outputs"]}
+    assert released["explore_own"]["units"]["p_value"] == "P_VALUE" and "explore_test_call_own" in released
+    summary = complete(explored)["final_status"]["explore_tests"]
+    assert {t["name"] for t in summary["tests"]} == {"own", "lib"} and summary["count"] == 2
