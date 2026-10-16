@@ -5,7 +5,7 @@
 - `a391851`: edge-bff `57e722f3` SUCCESS (answer tables: no vertical line, long titles wrap, alignment from content).
 - `4100b6b`: market-ai-orc `9152f522` SUCCESS (an integer in a year or id column shows as a label, 2019 not 2.019).
   No EDGE run was active before the push.
-- Phone sticky first cell follows its row's hover and pick colour: commit and deployment below this entry's update.
+- `8173de1`: edge-bff `c7cb3848` SUCCESS (the phone's sticky first cell follows its row's hover and pick colour).
 - No variable, service or database change.
 
 ## 2026-10-16 — EXEC-IMPL-1016 Fase 4 deployed (dev)
