@@ -146,7 +146,9 @@ def route_capabilities() -> str:
     methods = ", ".join(m["method_id"].replace("_", " ") for m in research_library.LIBRARY)
     cards = (
         ("CLARIFY", "reads only: the conversation's results, their tables and findings, the catalog and the method "
-                    "manuals; it can show or export an existing table; it fetches no data and computes nothing"),
+                    "manuals; it can show or export an existing table; it fetches no data and computes nothing, so it "
+                    "cannot show the raw data behind a figure or recompute it (a figure the user attached and asks how "
+                    "it was obtained, to see its raw data or to check it needs a class that computes)"),
         ("INSIGHT", "one analysis step on the data the conversation already used, starting from the result it "
                     "explains; on the fast lane (the default) it may test what drives that result from up to "
                     f"{lanes.EXPLORE_MAX_ANGLES} angles, each one research method ({methods}), corrected together"),

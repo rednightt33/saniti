@@ -1,5 +1,5 @@
 {
- "note": "Later-message router cases (M80 b): export/show requests on existing results must be a read class (CLARIFY); the rest are controls. M82 (2026-10-05): cases with \"horizons\" also check design_value_changes (values, accepted actions; empty values: no horizon). variant_cases (variants, 2026-10-06; run with --ask-back): expect_changes lists the design value changes the reading must contain (name, value, action). optional_values: a value the message repeats (\"tetap uji yang 5 hari\") may also be read as ADD; the lock is the same. boundary_1016 (EXEC-IMPL-1016 O2, 2026-10-15): boundary cases after the conversation of edge_2f7523a7 (a search or list over new criteria, a why, a breakdown, a test, an export, another subject); a message with two reasonable classes lists both.",
+ "note": "Later-message router cases (M80 b): export/show requests on existing results must be a read class (CLARIFY); the rest are controls. M82 (2026-10-05): cases with \"horizons\" also check design_value_changes (values, accepted actions; empty values: no horizon). variant_cases (variants, 2026-10-06; run with --ask-back): expect_changes lists the design value changes the reading must contain (name, value, action). optional_values: a value the message repeats (\"tetap uji yang 5 hari\") may also be read as ADD; the lock is the same. boundary_1016 (EXEC-IMPL-1016 O2, 2026-10-15): boundary cases after the conversation of edge_2f7523a7 (a search or list over new criteria, a why, a breakdown, a test, an export, another subject); a message with two reasonable classes lists both. attachment_1017 (EXEC-IMPL-1017 Fase 3, 2026-10-16): a message with the attachment line the routers read; asking for the raw data behind an attached figure or to recompute it needs a class that computes, asking what it means may stay CLARIFY.",
  "cases": [
   {
    "message": "Ekspor tabel hasil uji tadi ke Excel.",
@@ -1072,6 +1072,72 @@
     "CONTINUE"
    ],
    "group": "boundary_1016"
+  },
+  {
+   "message": "Angka yang saya lampirkan ini dari mana? Tunjukkan data mentah dan langkah hitungnya supaya saya bisa hitung sendiri dan hasilnya sama persis.\n[Lampiran user: \"2019 | BBRI | Rp 3.571 | Rp 4.293 | 20,2% | 245\"]",
+   "context": {
+    "earlier_questions": [
+     "Berapa return YTD BBRI dan BMRI setiap tahun 2019 sampai 2023, beserta jumlah hari bursanya? tampilkan dalam tabel"
+    ],
+    "tables": [
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "ytd_return_bbri_bmri",
+     "ytd_return_bbri_bmri_v2"
+    ],
+    "findings": [],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "INSIGHT",
+    "CONTINUE"
+   ],
+   "group": "attachment_1017"
+  },
+  {
+   "message": "cek ulang angka ini dari data harian\n[Lampiran user: \"2019 | BBRI | Rp 3.571 | Rp 4.293 | 20,2% | 245\"]",
+   "context": {
+    "earlier_questions": [
+     "Berapa return YTD BBRI dan BMRI setiap tahun 2019 sampai 2023, beserta jumlah hari bursanya? tampilkan dalam tabel"
+    ],
+    "tables": [
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "ytd_return_bbri_bmri",
+     "ytd_return_bbri_bmri_v2"
+    ],
+    "findings": [],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "INSIGHT",
+    "CONTINUE"
+   ],
+   "group": "attachment_1017"
+  },
+  {
+   "message": "20,2% ini maksudnya apa?\n[Lampiran user: \"2019 | BBRI | Rp 3.571 | Rp 4.293 | 20,2% | 245\"]",
+   "context": {
+    "earlier_questions": [
+     "Berapa return YTD BBRI dan BMRI setiap tahun 2019 sampai 2023, beserta jumlah hari bursanya? tampilkan dalam tabel"
+    ],
+    "tables": [
+     "Price_Stock_Indonesia_IDX"
+    ],
+    "outputs": [
+     "ytd_return_bbri_bmri",
+     "ytd_return_bbri_bmri_v2"
+    ],
+    "findings": [],
+    "pending_suggestion": null
+   },
+   "kinds": [
+    "CLARIFY",
+    "INSIGHT"
+   ],
+   "group": "attachment_1017"
   }
  ],
  "variant_cases": [
