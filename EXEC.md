@@ -2247,7 +2247,23 @@ user diberi tahu hanya bila provider menolak karena biaya. Berhenti hanya untuk 
 - Bagian EXEC yang selesai (EXEC-OPEN-1015, UI-1015E, M164, EDGE-CTX, UI-1015B, M163) diberi status selesai di
   judulnya. Penghapusan dari EXEC.md (aturan AGENTS) menunggu user menyatakan eksekusi ini selesai ("conclude").
 
-### EXEC-IMPL-1017: hipotesis dari AI di jalur insight (A/B), penelusuran asal angka lewat lampiran, sisa EXEC-UI-1016 (dicatat 2026-10-16; rencana disetujui untuk dibuat; menunggu go per fase)
+### EXEC-IMPL-1017: hipotesis dari AI di jalur insight (A/B), penelusuran asal angka lewat lampiran, sisa EXEC-UI-1016 (dicatat 2026-10-16; go 2026-10-16, berjalan)
+
+**Go 2026-10-16:** "Yes, untuk minimal 4 hipotesis jalur standar. Yang kita rubah sekarang adalah jalur fast lane dan
+kita akan buat versi 2. Yes, untuk di ponsel memakai tombol mengambang. Terlipat saat jawaban datang untuk pertanyaan
+lanjutan dan ide insight. Untuk approve exec, termasuk yang di atas, silakan dilanjutkan eksekusi sekarang."
+
+Jawaban atas pertanyaan sebelum go:
+- PLAN 10 (minimal 4 hipotesis) hanya untuk jalur riset standar.
+- Di ponsel, tombol mengambang muncul setelah teks diblok.
+- Pertanyaan lanjutan dan Ide insight terlipat saat jawaban datang.
+
+**Fase 0 (2026-10-16):**
+- Rollback: orc `9152f522` (`4100b6b`), sandbox `c5b30598` (`ba5b52b`), edge-bff `a701e7b0` (`e1bd034`), Governor
+  `33e8d485` (`2334b44`).
+- Kunci OpenRouter: batas USD 45, terpakai 42,02, sisa USD 2,98. Kerja berbayar diatur hemat. Penolakan biaya
+  dilaporkan ke user (aturan user sejak EXEC-IMPL-1016).
+
 
 **Keputusan user 2026-10-16:**
 - Insight: "terkait dengan poin 1, mari kita jalankan dan kita A/B testing. Siapkan fallback dan identify mungkin sistem
@@ -2469,10 +2485,6 @@ ditampilkan, dan file Excel yang dihitung ulang memberi angka yang sama.
 - Fase 3.3–3.4 setelah 3.1–3.2.
 - Benchmark router Fase 1 dan Fase 3.4 bisa digabung bila keduanya siap bersamaan, menghemat satu putaran.
 
-**Pertanyaan untuk user sebelum go:**
-1. PLAN 10 (minimal 4 hipotesis) hanya untuk jalur riset standar?
-2. Ponsel: tombol mengambang setelah teks diblok, sebagai ganti item di menu tekan lama?
-3. EXEC-UI-1016 butir 3: Pertanyaan lanjutan dan Ide insight terbuka atau terlipat saat jawaban datang?
 
 ### EXEC-UI-1016: judul tabel, lampirkan pilihan lewat klik kanan di seluruh jawaban, saran lanjutan terlipat (dicatat 2026-10-16; "Konfirmasi ya, masukan EXEC jangan execute dulu"; jawaban user dicatat; menunggu go)
 

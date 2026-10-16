@@ -83,6 +83,8 @@ test"); rincian di `FACTOR_EVENT_RESEARCH_PLAN.md` langkah 1–5.
 - **Jalur di sekitar event:** AAR, CAAR, CAR beberapa jendela.
 - **Minimal 4 hipotesis teruji.**
 - **Analisis faktor** setelah langkah 1–4 terbukti.
+- **Lingkup (user 2026-10-16):** "Yes, untuk minimal 4 hipotesis jalur standar": hanya jalur riset standar; jalur cepat
+  (EXEC-IMPL-1017 insight v2) tidak mewajibkan hipotesis atau uji.
 - **Keputusan yang masih terbuka** (`FACTOR_EVENT_RESEARCH_PLAN.md` §12, dijawab sebelum mulai): urutan langkah,
   `AI_RESEARCH_MIN_ANGLES=4`, perlakuan bila data < 4 angle, `AI_RESEARCH_MIN_FAMILIES`.
 - **Status:** S20 OPEN, S22 PARTLY FIXED.
