@@ -2291,6 +2291,24 @@ router bila teks router berubah, deploy sampai SUCCESS, cek live kecil.
   tabel) dari system prompt, brief tiap jenis giliran dan deskripsi alat; setiap aturan yang muncul di lebih dari satu
   lapis dipilih satu tempat. Hasil tinjauan dilaporkan ke user sebelum teks diubah.
 
+**E5. Arti `query_metric` jelas bagi AI (U8).** User 2026-10-16: "U8 --> OK masukan exec jangan eksekusi dulu".
+- Penyebab: deskripsi alat dan catatan METRICS tidak menyebut bahwa dimensi yang tidak dipilih dijumlahkan (Governor
+  yang memutuskan boleh atau tidak); Q2 dan Q3 menulis "presumably".
+- Rancangan: catatan METRICS menulis per metrik dimensi mana yang dijumlahkan bila tidak dipilih, dan batas
+  `MAX_ENTITIES`/`MAX_PERIODS`, diturunkan dari katalog metrik dan konstanta kode. Uji: teks berubah bila katalog atau
+  konstanta berubah.
+
+**E6. Keluaran yang digantikan tidak dirilis (U2, M174).** User 2026-10-16: "U2 --> OK masukan exec jangan eksekusi
+dulu".
+- Penyebab terverifikasi: saat penutupan lolos, sandbox (`dataneed_service`) merilis keluaran dari semua run yang
+  berhasil di sesi, termasuk keluaran sebelum penutupan yang ditolak; nama yang sama dirilis dua kali.
+- Rancangan: dalam satu request hanya keluaran terbaru per nama yang dirilis, yang lama ditandai digantikan; orc menolak
+  sekali rujukan ke yang lama dengan alamat baru; kalimat di alat sesi menyebut aturan ini.
+- Uji: rilis ulang setelah penutupan ditolak lalu kutip yang lama (ditolak, alamat baru disebut); dua nama berbeda
+  tetap dirilis keduanya; hasil giliran lalu tidak tersentuh.
+
+E3 dikonfirmasi user 2026-10-16 ("Ini masuk E3 (merapikan aturan) --> OK masukan exec jangan eksekusi dulu").
+
 **E4. Kartu router mengikuti saklar (R4).**
 - Bukti: `route_capabilities()` dan `FAST_LANE_ROUTES` adalah teks tetap saat impor; bila `AI_FASTLANE_INSIGHT_V2=false`
   kartu tetap menyebut v2.
