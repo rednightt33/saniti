@@ -494,6 +494,18 @@ OpenAI GPT-4.1 Prompting Guide (dipakai juga di `PROMPT_AUDIT_2026-10-05.md`).
   (2) jalur data mentah: entri bacaan `flow_board_scope` di `FASTLANE_DEFAULTS`, dibaca AI sebagai asumsi tertulis;
   (3) teks katalog yang sudah ada ("jangan gabung tanpa sengaja") tetap. Usulan: (1) + (2). Nilai baku menunggu user.
 
+## Export dan pilihan yang ditawarkan (usulan 2026-10-16, M176, menunggu keputusan)
+
+Dari percakapan `conv_bef8e72a…`: tiga permintaan "minta … dalam bentuk excel" untuk data yang belum dirilis masuk kelas
+CLARIFY (baca saja), AI menulis tawaran "jalankan di langkah berikutnya", dan "Gas" / "Yg saya remark" / "Cek remark"
+tidak pernah menjalankannya.
+- (a) Router melihat tabel hasil percakapan (nama, satu baris = apa, kolom), diturunkan dari data record.
+- (b) Jalan keluar: langkah baca saja yang menemukan permintaan butuh hitungan memindahkan giliran sekali ke kelas yang
+  menghitung, dalam giliran yang sama, tercatat di log.
+- (c) Tawaran langkah berikut di jawaban menjadi pilihan terstruktur, sehingga "gas", "ok", "jalan" menjalankannya.
+- Juga: catatan METRICS dikirim di setiap run (`_offer_metrics`) termasuk giliran yang tidak menawarkan `query_metric`
+  (CLARIFY); masuk tinjauan E3.
+
 ## Rumus Excel hidup untuk angka yang dihitung ulang (penilaian 2026-10-16, menunggu keputusan)
 
 User 2026-10-16: "apakah heavey? if so how heavy? coba bandingkan best practice apakah ini memang diperlukan."
