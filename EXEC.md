@@ -2247,6 +2247,46 @@ user diberi tahu hanya bila provider menolak karena biaya. Berhenti hanya untuk 
 - Bagian EXEC yang selesai (EXEC-OPEN-1015, UI-1015E, M164, EDGE-CTX, UI-1015B, M163) diberi status selesai di
   judulnya. Penghapusan dari EXEC.md (aturan AGENTS) menunggu user menyatakan eksekusi ini selesai ("conclude").
 
+### EXEC-UI-1016: judul tabel di tengah, lampirkan pilihan lewat klik kanan, saran lanjutan terlipat (dicatat 2026-10-16; "Konfirmasi ya, masukan EXEC jangan execute dulu"; menunggu go)
+
+**Permintaan user 2026-10-16** (tangkapan layar tabel desktop dan menu klik kanan Claude): "1. Header boleh buat header
+middle align dan center. 2. Lalu yang di table actually sama seperti select as context tanpa ada menu tambahan. Jadi
+fungsinya klik kanan kayak claude. 3. Untuk pertanyaan lanjutan dan ide insight tidak usah di bold dan apakah bisa dibuat
+collapse dan expand sama seperti asumsi dan batasan? Disclosure Triangle". Keputusan: "Konfirmasi ya, masukan EXEC jangan
+execute dulu". Semua butir hanya di EDGE (`static/index.html`, teks di `static/edge-labels.js`); kecuali butir 2b, tidak
+ada perubahan orc atau BFF.
+
+**Butir 1: judul kolom rata tengah, tegak di tengah.**
+- Setiap judul kolom tabel jawaban: `text-align:center`, `vertical-align:middle`. Ini mengganti aturan EXEC-TABLE-ALIGN
+  "judul angka rata kanan bersama angkanya" khusus untuk judul; isi sel tetap: angka rata kanan, teks/kode/tanggal/tahun
+  rata kiri.
+- Ikon urut tetap tanpa lebar (aturan jarak kolom EXEC-TABLE-ALIGN tetap berlaku): letaknya di sisi kanan judul.
+- Tes `test_ui_1015c.py` (perataan) diubah: judul tengah, isi sel tidak berubah, sisa lebar kolom tetap 0.
+
+**Butir 2: lampirkan pilihan sebagai konteks lewat klik kanan, seperti Claude.**
+- Tombol "Attach to question" dan petunjuk "Klik baris untuk memilih" di atas tabel dihapus, begitu juga klik baris
+  untuk memilih. Tidak ada kontrol tambahan di tabel.
+- User memblok teks (sel tabel atau teks jawaban), lalu klik kanan. Menu EDGE muncul dengan "Attach selection as
+  context" (teks di `edge-labels.js`). Pilihan menjadi chip di kolom tanya, seperti sekarang.
+- 2a. Pilihan di dalam tabel hasil (tabel yang punya penanda sumber, EXEC-EDGE-CTX A) dipetakan ke baris dan kolom
+  sumbernya, jadi `attached_selection` tetap membawa `output_id`, baris dan kolom, dan AI bisa membaca data aslinya.
+- 2b. Pilihan di luar tabel (teks jawaban) dikirim sebagai kutipan teks dengan asal jawabannya (request id). Ini
+  menambah satu bentuk di kontrak `attached_selection` (orc `schemas.py`, BFF `RunInput` dan daftar izin) dengan batas
+  ukuran yang sama.
+
+**Butir 3: Pertanyaan lanjutan dan Ide insight tidak tebal, bisa dilipat.**
+- Judul dan isi kedua bagian tidak tebal.
+- Masing-masing menjadi bagian lipat dengan segitiga (`<details>`/`<summary>`), bentuk sama dengan Asumsi dan Batasan
+  (`edge-notes`), dengan jumlah di judul, misalnya "Pertanyaan lanjutan (3)".
+- Pertanyaan terbuka: terbuka atau terlipat saat jawaban datang (Asumsi dan Batasan terlipat sendiri, EXEC-UI-1015)?
+
+**Pertanyaan terbuka (dijawab sebelum go):**
+1. Butir 1: judul kolom angka juga di tengah, walau angkanya rata kanan?
+2. Butir 2: menu klik kanan hanya berisi "Attach selection as context", atau ditambah Copy seperti Claude? Berlaku di
+   seluruh jawaban (2b) atau hanya di tabel?
+3. Butir 2 di ponsel (tidak ada klik kanan): tekan lama pada teks yang diblok memunculkan pilihan yang sama?
+4. Butir 3: terbuka atau terlipat saat jawaban datang?
+
 ### EXEC-TABLE-ALIGN: tabel jawaban tanpa garis vertikal, judul panjang terlipat, perataan seragam (2026-10-16; dikerjakan)
 
 **Permintaan user 2026-10-16** (tangkapan layar desktop dan ponsel): "tidak perlu ada garis vertical"; "jarak antara

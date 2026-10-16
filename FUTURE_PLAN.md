@@ -342,6 +342,38 @@ User 2026-10-12: "masukan perplexity API ke future plan". Riset dari dokumen res
   cek apakah filter domain `.go.id` bekerja.
 - **Rollout:** dev saja, flag default mati; rollback dengan mengganti `WEB_SEARCH_BACKEND`.
 
+## Mode insight: dimatikan? (penilaian 2026-10-16, menunggu keputusan user)
+
+Pertanyaan user 2026-10-16: "boleh tau mode insight apakah berguna? bagaimana kalo di disable? jadi hanya mode hitung
+biasa dan mode jawab. coba assess". Data dari 110 giliran tersimpan di dev:
+
+| Jalur | Jumlah | Median waktu | Median biaya | Hasil uji eksploratif |
+|---|---|---|---|---|
+| CLARIFY | 20 | 67 dtk | USD 0,010 | – |
+| ANALYSIS | 17 | 106 dtk | USD 0,023 | – |
+| INSIGHT (giliran lanjutan) | 7 | 247 dtk | USD 0,021 | 0 dari 7 |
+| EXPLORE (pesan pertama) | 3 | 242 dtk | USD 0,08 | 0 dari 3 |
+
+- 3 dari 7 giliran INSIGHT adalah permintaan cari atau hitung (run `edge_2f7523a7…`, return bulanan GOTO, broker
+  penjual). Ketiga EXPLORE adalah pertanyaan sentimen atau komentar analis (web).
+- User 2026-10-14: "saya hanya butuh nama brokernya saja, bukan uji research".
+- Penyebab: kelas router dibedakan oleh kemampuan di belakangnya (uji multi-sudut), bukan oleh maksud user, sehingga
+  batasnya dengan ANALYSIS, CLARIFY dan FACT kabur.
+- Usulan (router dan catatan orc, permanen, bisa dikembalikan lewat saklar):
+  - INSIGHT dan EXPLORE dihapus dari pilihan router;
+  - "kenapa" atas hasil lama masuk ANALYSIS di data percakapan, dengan aturan "mulai dari tabel lama, keterkaitan bukan
+    sebab";
+  - penjelasan tanpa hitungan baru masuk CLARIFY;
+  - sentimen atau berita masuk FACT, atau router bertanya balik;
+  - uji riset hanya bila diminta jelas.
+- Biaya dan pemeriksaan: benchmark router sebelum dan sesudah (±USD 0,35), `AI_ROUTER.md`, snapshot prompt; 10
+  pertanyaan nyata di atas diulang dan diukur.
+- Langkah sementara: `AI_FASTLANE_EXPLORE_TESTS=false` hanya menghapus uji multi-sudut; salah rute tetap terjadi.
+- Keputusan terbuka:
+  1. "Mode jawab" = CLARIFY?
+  2. Uji riset yang diminta jelas tetap ada?
+  3. Ide insight di bawah jawaban ikut dihapus?
+
 ## Data tambahan ke sesi analisis yang sedang terbuka (usulan 2026-10-15)
 
 Dipindah ke `PLAN.md` butir 14 (user 2026-10-15: "Ok untuk solusi ... Boleh dirumuskan designnya?").
