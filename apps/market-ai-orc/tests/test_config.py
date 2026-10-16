@@ -30,6 +30,8 @@ def test_valid_configuration_loads_with_defaults() -> None:
     assert settings.ai_final_response_max_retries == 2
     assert settings.openrouter_http_referer is None
     assert settings.openrouter_x_title == "Saniti Market AI"
+    assert settings.ai_fastlane_insight_v2 is True  # EXEC-1018, user 2026-10-16 "yes default"; "false" is the way back
+    assert make_settings(AI_FASTLANE_INSIGHT_V2="false").ai_fastlane_insight_v2 is False
 
 
 def test_overrides_are_applied() -> None:

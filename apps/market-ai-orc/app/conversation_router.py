@@ -35,7 +35,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from . import data_record as records
-from . import lanes, research_library
+from . import research_library
 from .tools import registry as registry_effects
 
 TURN_KINDS = ("CLARIFY", "INSIGHT", "CONTINUE", "APPROVE", "REVISE", "CANCEL", "NEW_TOPIC", "CONVERSATIONAL")
@@ -150,8 +150,9 @@ def route_capabilities() -> str:
                     "cannot show the raw data behind a figure or recompute it (a figure the user attached and asks how "
                     "it was obtained, to see its raw data or to check it needs a class that computes)"),
         ("INSIGHT", "one analysis step on the data the conversation already used, starting from the result it "
-                    "explains; on the fast lane (the default) it may test what drives that result from up to "
-                    f"{lanes.EXPLORE_MAX_ANGLES} angles, each one research method ({methods}), corrected together"),
+                    "explains; on the fast lane (the default) it forms its own hypotheses about what drives that "
+                    "result and checks them on the data, every statistical test recorded by the system and corrected "
+                    f"together (the research methods {methods} are optional tools)"),
         ("CONTINUE", "one analysis step that may fetch new data and run code: figures, a ranking, a list or a search "
                      "over new criteria, dates, stocks, periods or groups, or a test of the user's own question; on "
                      "the fast lane it is answered at once, on the standard lane a test becomes a research plan the "
@@ -452,11 +453,13 @@ TITLE_RULE = ("title: the conversation's name in two to five words, in the langu
               "naming the subject and the measure (for example \"Harga Saham BBCA\" or \"BBRI Foreign Flow\"), never a "
               "question and never longer than the message.")
 # O2 (EXEC-IMPL-1016 Fase 2): what each route runs, from FIRST_ROUTES (until now only in AI_ROUTER.md), and how the
-# fast lane changes it (app/mode4.py: no plan; EXPLORE tests up to lanes.EXPLORE_MAX_ANGLES angles)
+# fast lane changes it (app/mode4.py: no plan; EXPLORE forms its own hypotheses, EXEC-IMPL-1017 insight v2, the
+# default since 2026-10-16)
 FAST_LANE_ROUTES = (
     "Choose the route by what the message asks, never by what it costs. On the fast lane (the default) no plan waits "
     "for approval: ANALYSIS is one analysis step, RESEARCH one step that tests the user's own question, EXPLORE one "
-    f"step that tests up to {lanes.EXPLORE_MAX_ANGLES} angles, each one research method.")
+    "step that forms its own hypotheses and checks them on the data, every statistical test recorded by the system and "
+    "corrected together.")
 FIRST_INSTRUCTIONS = (
     "You route the FIRST message of a conversation in a stock-market analysis app (Indonesian stocks, a warehouse of "
     "prices, broker and foreign flows, a web fact finder). Choose exactly one route:\n"

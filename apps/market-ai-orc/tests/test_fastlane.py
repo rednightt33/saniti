@@ -147,7 +147,7 @@ def test_a_refused_data_size_says_how_much_fits() -> None:
 
 EXPLORED = {"version": 1, "policy": "BENJAMINI_HOCHBERG", "alpha": 0.05, "count": 3, "held": 1, "unstable": 1,
             "small_samples": 0, "tests": []}
-EXPLORE_ON = {**FAST_ON, "AI_FASTLANE_EXPLORE_TESTS": "true"}
+EXPLORE_ON = {**FAST_ON, "AI_FASTLANE_EXPLORE_TESTS": "true", "AI_FASTLANE_INSIGHT_V2": "false"}  # v1, the way back
 
 
 def explore_run(*, lane=lanes.FAST, settings=EXPLORE_ON, capable=True, mode=None, turn_kind=None, explored=EXPLORED,

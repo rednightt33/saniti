@@ -165,7 +165,7 @@ class Settings:
     # own hypotheses, tests are optional and go through saniti.hypothesis_test / explore_test / event_study, and an
     # answer showing a statistic from anything else is refused once. Needs the sandbox's hypothesis_test capability;
     # off keeps the insight note of EXEC-FASTLANE B3 (the A arm of the A/B and the way back)
-    ai_fastlane_insight_v2: bool = False
+    ai_fastlane_insight_v2: bool = True  # EXEC-IMPL-1017, user 2026-10-16 "yes default"
     # PLAN 14 (user 2026-10-15): a later data need of the same answer may be attached to its open analysis session
     # (attach_data_bundle); active only while the sandbox reports session_attach
     ai_enable_session_attach: bool = False
@@ -441,7 +441,7 @@ class Settings:
             ai_enable_fastlane=_boolean(env, "AI_ENABLE_FASTLANE", False),
             ai_fastlane_draft_check=_boolean(env, "AI_FASTLANE_DRAFT_CHECK", True),
             ai_fastlane_explore_tests=_boolean(env, "AI_FASTLANE_EXPLORE_TESTS", False),
-            ai_fastlane_insight_v2=_boolean(env, "AI_FASTLANE_INSIGHT_V2", False),
+            ai_fastlane_insight_v2=_boolean(env, "AI_FASTLANE_INSIGHT_V2", True),
             ai_enable_session_attach=_boolean(env, "AI_ENABLE_SESSION_ATTACH", False),
             ai_fastlane_abandoned_sessions=_boolean(env, "AI_FASTLANE_ABANDONED_SESSIONS", False),
             ai_fastlane_convention_numbers=_boolean(env, "AI_FASTLANE_CONVENTION_NUMBERS", False),

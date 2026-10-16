@@ -2247,6 +2247,25 @@ user diberi tahu hanya bila provider menolak karena biaya. Berhenti hanya untuk 
 - Bagian EXEC yang selesai (EXEC-OPEN-1015, UI-1015E, M164, EDGE-CTX, UI-1015B, M163) diberi status selesai di
   judulnya. Penghapusan dari EXEC.md (aturan AGENTS) menunggu user menyatakan eksekusi ini selesai ("conclude").
 
+### EXEC-1018: insight v2 menjadi default, teks router v2, uji 3 pertanyaan, audit prompt dan router (dicatat 2026-10-16)
+
+**Keputusan user 2026-10-16** (atas lima keputusan terbuka EXEC-IMPL-1017): "1. yes default", "2. apakah heavey? if so
+how heavy? coba bandingkan best practice apakah ini memang diperlukan.", "3. maksudnya?", "4. sekarang saya mau kamu
+lakukan audit terhadap system prompt dan router. review apa yang sudah ada dan apa yang belum ada. setelah itu cek dengan
+best practice yang saat ini ada.", "5. dirubah ya karena v2 default ya saat ini berlaku.", "tolong lakukan test sekarang 3
+pertanyaan (bukan a/b) dan lihat apakah feature search value/ get dimension value works? review jawaban AI log dimana (i)
+AI bingung (ii) AI tidak tahu (iii) AI mengajukan dan di tolak".
+
+**Hasil:**
+- Butir 1: `AI_FASTLANE_INSIGHT_V2` default kode menjadi `true` (`app/config.py`); dev sudah `true`. Jalan balik:
+  `AI_FASTLANE_INSIGHT_V2=false` (catatan v1, tes `test_fastlane.py` memakai v1 secara eksplisit).
+- Butir 5: kartu INSIGHT router giliran dan kalimat EXPLORE router pesan pertama kini menyebut hipotesis dari AI, setiap
+  uji dicatat sistem dan dikoreksi bersama, metode pustaka opsional; batas "5 sudut" dihapus dari teks router.
+  `AI_ROUTER.md` dibuat ulang. Benchmark sesudah perubahan (`--ask-back`): router giliran 84/84, varian 6/6, horizon
+  13/14 (satu kasus horizon goyah); router pesan pertama run 1 126/128 FAIL (dua sapaan/pertanyaan sumber data ditanya
+  balik, kasus tidak stabil), run 2 127/128 PASS (no-ask asked 0/118), sama dengan pembanding IMPL-1016 (127/128).
+  Biaya sekitar USD 0,17.
+
 ### EXEC-IMPL-1017: hipotesis dari AI di jalur insight (A/B), penelusuran asal angka lewat lampiran, sisa EXEC-UI-1016 (dicatat 2026-10-16; go 2026-10-16; Fase 0–4 selesai, ter-deploy dan diuji live)
 
 **Go 2026-10-16:** "Yes, untuk minimal 4 hipotesis jalur standar. Yang kita rubah sekarang adalah jalur fast lane dan

@@ -220,17 +220,18 @@ def test_both_routers_are_told_todays_date() -> None:
 def test_the_routers_read_what_each_class_and_route_runs_derived_from_the_code() -> None:
     """O2 (EXEC-IMPL-1016 Fase 2, user 2026-10-15: "router diberi tahu fungsi dan kemampuan setiap jalur"): the turn
     router reads what each class makes the application do, the first-message router what each route runs; the parts
-    the code holds (the research methods, the angle limit, the route actions) are read from it, so a new method or a
-    changed limit reaches the routers without editing their text."""
+    the code holds (the research methods, the route actions) are read from it, so a new method reaches the routers
+    without editing their text. EXEC-1018 (user 2026-10-16, insight v2 the default): INSIGHT and EXPLORE form their own
+    hypotheses, the methods are optional tools and no angle limit is named."""
     from app import lanes, research_library
 
     for ask_back in (False, True):
         text = router.router_instructions(ask_back)
         assert router.ROUTE_CAPABILITIES in text
-        assert f"up to {lanes.EXPLORE_MAX_ANGLES} angles" in text
+        assert f"up to {lanes.EXPLORE_MAX_ANGLES} angles" not in text and "forms its own hypotheses" in text
         assert all(m["method_id"].replace("_", " ") in text for m in research_library.LIBRARY)
         first = router.first_instructions(ask_back)
         assert all(f"runs {action}" in first for _, action in router.FIRST_ROUTES.values())
-        assert router.FAST_LANE_ROUTES in first
+        assert router.FAST_LANE_ROUTES in first and "forms its own hypotheses" in first
     for kind in ("CLARIFY", "INSIGHT", "CONTINUE", "NEW_TOPIC", "CONVERSATIONAL"):
         assert f"  {kind}: " in router.ROUTE_CAPABILITIES
