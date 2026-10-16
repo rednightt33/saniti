@@ -1090,7 +1090,7 @@ analisis (BBRI).
 
 **Jalan balik:** redeploy orc `63e29b62` dan deployment sandbox sebelumnya, atau revert commit EXEC-V.
 
-### EXEC-W: rencana eksekusi putaran 2026-10-08 (butir EXEC-V yang disetujui; menunggu "go")
+### EXEC-W: rencana eksekusi putaran 2026-10-08 (butir EXEC-V yang disetujui; dikerjakan, W-A1–W-A6 ter-deploy)
 
 **Permintaan user 2026-10-08:** "now untuk yg ada di exec tolong cek backend dan architecture dan propose plan untuk
 approved exec this round." Rencana ini usulan; eksekusi mulai hanya setelah "go".
@@ -1738,7 +1738,7 @@ P1–P5).** **Dibangun dan ter-deploy 2026-10-09** (go "1 3 dan 4 - jalankan sek
     "coba lagi" hampir hilang; I2 tampilan "Stopping…" menyebut bahwa langkah yang sedang berjalan ditunggu selesai;
     I3 (opsional) rute batal untuk job sesi sandbox, sehingga `run_python` yang lama bisa dihentikan di tengah.
 
-### EXEC-Y: rencana implementasi putaran 2026-10-09 (review semua butir EXEC yang disetujui; menunggu "go")
+### EXEC-Y: rencana implementasi putaran 2026-10-09 (review semua butir EXEC yang disetujui; dikerjakan, Fase 1–3 ter-deploy)
 
 **Permintaan user 2026-10-09:** "Ok, untuk semua yang ada di exec pls review lagi baik secara arsitektur dan eksekusi.
 Kalau ada yg tidak cocok feel free to contrast alih2 merubah arsitektur secara massive. Buat implementation plan dulu
@@ -2019,7 +2019,7 @@ OpenRouter $0,37 dari batas $41 (satu run bisa menghabiskannya); dicek setelah s
 
 - **U5 pemilih model di ponsel (disetujui 2026-10-15; Jalur ikut dipindah, user: "ya dipindah"; belum dieksekusi).** User 2026-10-15 (dua tangkapan layar ponsel): "retain existing design untuk model selection; pindahkan reasoning selection ke kotak A; untuk size dan lokasi bs disesuaikan dengan nomor (1)". Dibaca sebagai: kartu model (logo, nama, harga input/output, id) tetap; pilihan level berpikir (Rendah/Tinggi/Maks) pindah dari baris terpisah di bawah daftar ke ruang kosong di kanan setiap kartu model ("kotak A"), hanya aktif pada kartu model yang dipilih; panel pemilih menempati area kosong percakapan di atas kolom tanya (area "1"), bukan menutupi seluruh layar.
 
-### EXEC-IMPL-1016: rencana implementasi EXEC-OPEN-1015, UI-1015E, EDGE-CTX dan UI-1015B (Fase 0–1 selesai 2026-10-15; go Fase 2–5 2026-10-15)
+### EXEC-IMPL-1016: rencana implementasi EXEC-OPEN-1015, UI-1015E, EDGE-CTX dan UI-1015B (Fase 0–4 selesai dan ter-deploy 2026-10-15/16; Fase 5 penutupan)
 
 **Persetujuan user 2026-10-15:** rencana diminta ("Ok, pls create implementation plan. Inspect current architecture to
 ensure plan take that into account."), saldo diisi ("Done di isi"), lalu "Ok jalankan" untuk Fase 0 + Fase 1. Fase 2–5
@@ -2218,6 +2218,35 @@ user diberi tahu hanya bila provider menolak karena biaya. Berhenti hanya untuk 
 - `test_visual.py::test_typing_while_an_answer_arrives_keeps_focus` gagal sekali dalam suite penuh dan sekali di basis
   tanpa perubahan; lulus 3× sendirian. Ini masalah timing yang sudah ada, bukan akibat perubahan ini.
 
+**Fase 5 — penutupan (2026-10-16):**
+- Perbandingan EXEC dengan perilaku ter-deploy: semua butir EXEC-IMPL-1016 Fase 1–4 ter-deploy dan dicek live. Yang
+  dibangun lebih sempit atau berbeda dari rencana tercatat di fase masing-masing (kamus diturunkan saat berjalan, bukan
+  tabel + job; progres lewat proxy BFF, bukan kolom job; tabel dicocokkan lewat judul, bukan penanda; lampiran per
+  baris, belum per kolom/sel; kemampuan `value_lookup` diturunkan dari efek alat).
+- Sebelum dan sesudah (run sejenis `edge_2f7523a7…` dan kasus yang memicu O1):
+
+| Kasus | Sebelum | Sesudah |
+|---|---|---|
+| "Cari saja … tanggal efektif …" | INSIGHT, 336 dtk, gerbang hasil lama salah sasaran | CONTINUE, 139 dtk, fakta EVENT_DATE tercatat |
+| Kode saham di scope | 9 panggilan `get_dimension_values` ditolak | aturan di prompt dan deskripsi alat; `search_values` |
+| "BRI", "Mandiri" | ditebak model | `search_values`: BRI ambigu (BBRI/AGRO), Mandiri → kandidat; jawaban menyebut kode |
+| Kode salah "BBRX" | 0 baris, diam-diam | `VALUE_NOT_FOUND` dengan kandidat, model bertanya balik (32 dtk) |
+| Rasio tanpa satuan | gerbang UNITS di akhir, kode dijalankan ulang | peringatan saat rilis, saran yang lolos cek |
+| G13 cakupan entitas | mati (cek selalu false) | aktif lewat `search_values` |
+| Gabung `Symbol`/`ticker` | dua kolom entitas | satu kolom, salinan kanan dicatat |
+| Saat run berjalan | "AI request running" | waktu, langkah sekarang, langkah selesai |
+| Bukti di Sources | daftar rujukan angka | tabel hasil + "Ask AI to export data" |
+| Bertanya soal baris tabel | ketik ulang | lampirkan baris (chip), model membaca tabelnya |
+
+- Sisa dan usulan (menunggu keputusan user, tidak dikerjakan):
+  - O4 (M166, kalender MSCI) dan O5 butir 5 (anggaran penalaran, A/B): ditunda user.
+  - Satu baris alias kurasi "BRI" → BBRI (`AI_entity_alias`, MANUAL) agar "BRI" tidak ambigu dengan AGRO.
+  - Jalur lama `/v1/query` dan `/v1/lookup` (mati di dev) belum memakai cek kamus.
+  - Lampiran per kolom atau per sel; pilihan dari kandidat ambigu belum wajib ditulis di asumsi.
+  - `test_visual.py::test_typing_while_an_answer_arrives_keeps_focus` kadang gagal karena timing (juga di basis).
+- Bagian EXEC yang selesai (EXEC-OPEN-1015, UI-1015E, M164, EDGE-CTX, UI-1015B, M163) diberi status selesai di
+  judulnya. Penghapusan dari EXEC.md (aturan AGENTS) menunggu user menyatakan eksekusi ini selesai ("conclude").
+
 ### EXEC-REVIEW-1015: tinjauan semua EXEC terbuka dan arsitekturnya (2026-10-15; user: "please review all exec, inspect arsitektur ... contrast what ideal conditions would look like")
 
 **Keputusan user 2026-10-15:** "O5 nanti dulu A/B test tidak perlu dahulu. Sisanya OK untuk O5 masukan exec jangan execute
@@ -2254,7 +2283,7 @@ butir 2 → O2/O3, butir 3 → O5 butir 1, butir 4 → O1. PLAN 11 (kamus nilai 
 - Fase 4 (kontrak EDGE): EDGE-CTX B lalu A; UI-1015B.
 - Kebersihan EXEC.md (dokumen saja) kapan saja.
 
-### EXEC-OPEN-1015: empat item run `edge_2f7523a7…` yang wajib dibereskan (dicatat 2026-10-15; menunggu keputusan dan "go")
+### EXEC-OPEN-1015: empat item run `edge_2f7523a7…` yang wajib dibereskan (dicatat 2026-10-15; O1, O2, O3, O5 butir 1–4 selesai lewat EXEC-IMPL-1016; O4 dan O5 butir 5 ditunda)
 
 **Permintaan user 2026-10-15:** "Jangan sampai item2 tersebut lepas/terlewat, ingatkan terus sampai kita conclude
 eksekusi dan go, saya mau kita bereskan." Setiap balasan kepada user menyebut status keempat item ini sampai semuanya
@@ -2262,10 +2291,10 @@ tuntas (dieksekusi dan diverifikasi, atau diputuskan tidak dikerjakan).
 
 | # | Item | Status |
 |---|---|---|
-| O1 | `get_dimension_values`, aturan nilai teks tersimpan, nama → kode (alias, `resolve_entities`) | masuk EXEC 2026-10-15, tidak dijalankan; menunggu go |
-| O2 | Pertanyaan "Cari saja …" masuk kelas INSIGHT | akar masalah terbukti; usulan menunggu keputusan |
-| O3 | Penolakan `INSIGHT_SOURCE_NOT_OPENED` | akar masalah terbukti; ikut O2 |
-| O5 | Waktu berpikir habis untuk ragu (tanggal, arti pertanyaan), bukan untuk hitung | masuk EXEC 2026-10-15 (butir 1–4), tidak dijalankan; butir 5 (anggaran penalaran, A/B) ditunda |
+| O1 | `get_dimension_values`, aturan nilai teks tersimpan, nama → kode (alias, `resolve_entities`) | selesai (EXEC-IMPL-1016 Fase 1.3 dan 3): kamus nilai, `search_values`, cek nilai di sandbox dan Governor summary; terverifikasi live |
+| O2 | Pertanyaan "Cari saja …" masuk kelas INSIGHT | selesai (Fase 2.1): kartu kemampuan router; live "Cari saja …" kini CONTINUE |
+| O3 | Penolakan `INSIGHT_SOURCE_NOT_OPENED` | selesai (Fase 2.2): gerbang dari isi jawaban, satu brief per giliran |
+| O5 | Waktu berpikir habis untuk ragu (tanggal, arti pertanyaan), bukan untuk hitung | butir 1–4 selesai (Fase 2.3–2.4: fakta percakapan, tafsir default, bertindak lebih awal); butir 5 (anggaran penalaran, A/B) ditunda |
 | O4 | Kalender MSCI disusun ulang dari ingatan | ditunda user 2026-10-15 ("O4 skip dulu"); M166 tetap OPEN |
 
 **Keputusan user 2026-10-15 (putaran 3):** "O1: get_dimension_value harus ada, karena ini penting"; "O2: saya setuju hanya
@@ -2427,7 +2456,7 @@ daftar entitas dirilis sebagai tabel hasil terstruktur dengan sumber per baris, 
 (`load_output`); (b) nanti: tabel katalog peristiwa indeks (MSCI, FTSE, LQ45, IDX80) dari siaran resmi lewat pipeline,
 sejalan dengan kalender makro (BI, FOMC, rilis data) — perlu cek Part A dan keputusan user sebelum dimuat.
 
-### EXEC-UI-1015E: kepala jawaban dan baris metadata (dicatat 2026-10-15; "masukan EXEC jangan execute dulu")
+### EXEC-UI-1015E: kepala jawaban dan baris metadata (dicatat 2026-10-15; "masukan EXEC jangan execute dulu"; selesai lewat EXEC-IMPL-1016 Fase 1.2, ter-deploy)
 
 **Permintaan user 2026-10-15** (tangkapan layar kepala jawaban): "A. kembalikan seperti awal tapi tanpa tulisan AI ya;
 B. ini nama mode saja langsung; C. tidak perlu ada fast lane, karena ini default".
@@ -2438,7 +2467,7 @@ B. ini nama mode saja langsung; C. tidak perlu ada fast lane, karena ini default
 - C: "Fast lane" dihapus dari baris metadata (jalur cepat adalah bawaan sejak D1).
 - Cek: tes EDGE untuk kepala dan baris metadata; QA live desktop dan ponsel.
 
-### EXEC-M164: aturan alat terlihat sebelum dilanggar (dicatat 2026-10-15; "Solusi M164 OK ... jangan execute dulu")
+### EXEC-M164: aturan alat terlihat sebelum dilanggar (dicatat 2026-10-15; "Solusi M164 OK ... jangan execute dulu"; selesai lewat EXEC-IMPL-1016 Fase 1.3 dan 3, ter-deploy)
 
 **Akar masalah (terbukti dari penalaran `edge_b90899…` iterasi 1 dan kode):** aturan DATA NEED di prompt orc "take exact
 values from get_dimension_values and never type a member list yourself" ditulis untuk saringan lewat tabel lain (mis.
@@ -2455,7 +2484,7 @@ tertulis di deskripsi alat atau prompt (kolom entitas, tabel bertanggal, satuan 
   prompt dan `AI_TOOLS.md` ikut diperbarui; tes: satu permintaan dengan kode saham dari user tidak memanggil
   `get_dimension_values`.
 
-### EXEC-EDGE-CTX: lampirkan pilihan tabel sebagai konteks (A) dan bukti data di Sources (B) (dicatat 2026-10-15; "OK, masukan exec ya. Jangan execute dulu")
+### EXEC-EDGE-CTX: lampirkan pilihan tabel sebagai konteks (A) dan bukti data di Sources (B) (dicatat 2026-10-15; "OK, masukan exec ya. Jangan execute dulu"; selesai lewat EXEC-IMPL-1016 Fase 4.1 dan 4.2, ter-deploy)
 
 Dipindah dari `FUTURE_PLAN.md`. Fakta: setiap angka tabel jawaban berasal dari tabel hasil sandbox (`{{table out.oN}}`),
 tetapi EDGE hanya menerima teks tabelnya; data mentah di balik angka bisa dikeluarkan dengan alat yang ada (muat ulang
@@ -2505,7 +2534,7 @@ berjarak buat nice and bold"; "screenshot 1-3 lihat jarak antara kolom tidak com
 - Cek: tes EDGE (tidak ada baris Jalur, `lane=fast` terkirim, label Inggris, kepala jawaban, lebar kolom: tabel 3 kolom
   pendek tidak melebar, tidak ada kata terpotong di tengah), QA live desktop dan ponsel dengan tangkapan layar.
 
-### EXEC-M163: batas waktu panggilan model yang benar-benar berlaku, catatan INSIGHT, tindak lanjut memakai tabel jawaban sebelumnya (dicatat 2026-10-15; butir 1 go 2026-10-15)
+### EXEC-M163: batas waktu panggilan model yang benar-benar berlaku, catatan INSIGHT, tindak lanjut memakai tabel jawaban sebelumnya (dicatat 2026-10-15; butir 1 go 2026-10-15; selesai lewat EXEC-IMPL-1016 butir 1 dan Fase 2, ter-deploy)
 
 **Go butir 1 2026-10-15** (user: "Klien model: jawaban dibaca sebagai aliran dan ditutup tepat pada batas waktu total
 ... --> ini OK"). **Hasil:** `2e201d7` → market-ai-orc `ed07e66c` SUCCESS: setiap panggilan model dibaca sebagai aliran
@@ -2559,7 +2588,7 @@ berikut (desktop saja, ponsel tidak berubah oleh butir ini):
 - Tes: `tests/test_ui_1015c.py` (6) dan penyesuaian `test_visual.py` (baris sesi hanya di ponsel, pengaturan ponsel lewat
   menu akun); suite EDGE 101 lulus. Tes mengetik kadang gagal sudah ada sebelum perubahan ini (ERRORS M162).
 
-### EXEC-UI-1015B: progres run seperti Claude (dinilai 2026-10-15; usulan, menunggu "go")
+### EXEC-UI-1015B: progres run seperti Claude (dinilai 2026-10-15; usulan, menunggu "go"; selesai lewat EXEC-IMPL-1016 Fase 4.3, ter-deploy)
 
 **Permintaan user 2026-10-15** (tangkapan layar aplikasi Claude dan EDGE): "saat ini ketika AI thinking, maka tulisannya ai request is running. Bisa kamu buat seperti claude? Coba assess dulu kondisi backend ya".
 - **Kondisi sekarang (diperiksa di kode):** `POST /v1/agent/run` di orc berjalan sekali jalan sampai selesai; `GET /v1/agent/requests/{id}` menjawab 404 selama run berjalan; BFF hanya tahu state (QUEUED/RUNNING/FINISHED) dan mengumumkan `tool_progress: false`; EDGE menulis satu langkah "AI request running" (`edge-client.js`). Langkah rinci (alat, iterasi, gerbang, `hurdles`) hanya ada di log orc dan baru terlihat di panel Flow sesudah selesai.
