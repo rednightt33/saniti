@@ -482,6 +482,18 @@ OpenAI GPT-4.1 Prompting Guide (dipakai juga di `PROMPT_AUDIT_2026-10-05.md`).
   dan `first_message_router_cases.json` (128 kasus), ditulis pengembang; bukan di system prompt. Prompt router sendiri
   memuat ±30 contoh kalimat pendek. Usulan U7 tetap: kumpulkan pesan live yang salah rute sebagai kasus baru.
 
+- **U1b (pengganti U1, 2026-10-16):** U1 membaca kalimat user dengan aturan tetap, sehingga rapuh terhadap salah ketik
+  dan bentuk lain ("tiga bulan", "3bln", "kuartal terakhir"); user mempertanyakannya. Alternatif yang tidak membaca
+  kalimat: AI menyatakan rentang yang ia pakai dalam ruas terstruktur (angka, satuan, kutipan kata user), membaca
+  bahasa tetap tugas AI; kode menghitung jumlah hari bursa dari `FASTLANE_DEFAULTS` dan mencocokkan dengan tanggal
+  tabel hasil. Menangkap salah hitung, tidak menangkap salah baca AI atas kata user (kutipannya tampil di jawaban).
+  Belum diputuskan.
+- **U5, tempat penegakan pilihan papan (2026-10-16):** tiga lapisan, dari yang paling kuat:
+  (1) katalog metrik: `default_scope` metrik aliran (`net_foreign_value`, `broker_net_value`) diisi papan baku, jadi
+  `query_metric` memakainya kecuali AI meminta papan lain secara eksplisit (database yang menerapkan);
+  (2) jalur data mentah: entri bacaan `flow_board_scope` di `FASTLANE_DEFAULTS`, dibaca AI sebagai asumsi tertulis;
+  (3) teks katalog yang sudah ada ("jangan gabung tanpa sengaja") tetap. Usulan: (1) + (2). Nilai baku menunggu user.
+
 ## Rumus Excel hidup untuk angka yang dihitung ulang (penilaian 2026-10-16, menunggu keputusan)
 
 User 2026-10-16: "apakah heavey? if so how heavy? coba bandingkan best practice apakah ini memang diperlukan."

@@ -2307,6 +2307,19 @@ dulu".
 - Uji: rilis ulang setelah penutupan ditolak lalu kutip yang lama (ditolak, alamat baru disebut); dua nama berbeda
   tetap dirilis keduanya; hasil giliran lalu tidak tersentuh.
 
+**E7. Kalimat rentang relatif diperbaiki (M173, opsi A).** User 2026-10-16: "Opsi A: perbaiki kalimatnya saja ...
+--> OK masukan exec jangan execute dulu".
+- Penyebab terverifikasi: aturan (8) catatan keputusan jalur cepat menulis contoh '1 minggu terakhir', '3 bulan
+  terakhir', '1 tahun terakhir' lalu nilai "1 minggu = 5; 1 bulan = 21; 1 tahun = 252"; contoh '3 bulan' berdiri di
+  posisi nilai 1 bulan dan model memasangkannya (penalaran q1).
+- Rancangan: contoh di kalimat diturunkan dari tabel yang sama (`FASTLANE_DEFAULTS`, entri `span`), sejajar dengan
+  nilainya, ditambah aturan kelipatan yang dihitung dari tabel ("N minggu = N × 5, N bulan = N × 21, N tahun = N × 252;
+  contoh 3 bulan = 63"); tidak ada contoh yang diketik terpisah dari nilainya.
+- Batas: tetap bergantung pada model membaca dengan benar; pemeriksaan kode tidak termasuk (U1 ditolak).
+- Uji: teks yang dirakit memuat contoh kelipatan yang benar untuk setiap entri `span`; snapshot prompt; cek live satu
+  pertanyaan "3 bulan terakhir".
+- Terbuka: arti "3 bulan" 63 hari bursa (default jalur cepat) atau 60 (`Feature_01_Stock_Daily.return_60d_pct`).
+
 E3 dikonfirmasi user 2026-10-16 ("Ini masuk E3 (merapikan aturan) --> OK masukan exec jangan eksekusi dulu").
 
 **E4. Kartu router mengikuti saklar (R4).**
