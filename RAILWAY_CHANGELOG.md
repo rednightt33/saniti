@@ -8,6 +8,10 @@
 - `1044411`: market-ai-orc `7332de5a` SUCCESS (insight v2 behind `AI_FASTLANE_INSIGHT_V2`, unset = off; startup without
   `*_inactive`). No EDGE run was active before each push.
 - No variable changed yet; rollback: orc `9152f522`, sandbox `c5b30598`, edge-bff `a701e7b0`.
+- A/B arm B: `AI_FASTLANE_INSIGHT_V2=true` set on `market-ai-orc` dev (CLI, `--skip-deploys`), deployed with
+  `4537911` (Fase 3 code): market-ai-orc `2d781487`, edge-bff `c300a7b7` SUCCESS, startup without `*_inactive`.
+  `railway config pull --force`: `.railway/railway.ts` lists the new name (preserve); `railway config plan` up to date.
+  Way back: unset the variable (or `false`).
 
 ## 2026-10-16 — EXEC-TABLE-ALIGN deployed (dev)
 
