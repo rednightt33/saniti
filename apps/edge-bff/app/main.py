@@ -54,6 +54,24 @@ class PlanReply(Strict):
         return self
 
 
+class AttachedSelection(Strict):
+    """EXEC-IMPL-1016 Fase 4.2 (EDGE-CTX A): part of an earlier answer's table attached to the question (Orc checks
+    the same bounds)."""
+    ref: str = Field(pattern=r'^out\.[A-Za-z0-9_]{1,40}$')
+    output_id: str | None = Field(default=None, max_length=100)
+    title: str | None = Field(default=None, max_length=200)
+    columns: list[str] = Field(default_factory=list, max_length=12)
+    rows: list[int] = Field(default_factory=list, max_length=50)
+    shown_values: list[list[str]] = Field(default_factory=list, max_length=50)
+
+    @model_validator(mode='after')
+    def check_bounds(self):
+        if any(not 1 <= len(c) <= 100 for c in self.columns) or any(r < 0 for r in self.rows) \
+                or any(len(row) > 12 or any(len(cell) > 80 for cell in row) for row in self.shown_values):
+            raise ValueError('Selection out of bounds')
+        return self
+
+
 class RunInput(Strict):
     submission_key: str = Field(min_length=1, max_length=100, pattern=r'^[A-Za-z0-9._:-]+$')
     message: str = Field(min_length=1, max_length=16000)
@@ -66,6 +84,7 @@ class RunInput(Strict):
     lane: str | None = Field(default=None, pattern=r'^(standard|fast)$')
     # EXEC-Y Fase 1 (S3): sent while a run is active = stop that run and run this message next
     after_stop: bool = False
+    attached_selection: AttachedSelection | None = None
 
     @model_validator(mode='after')
     def check_message(self):

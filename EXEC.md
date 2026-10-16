@@ -2187,6 +2187,19 @@ user diberi tahu hanya bila provider menolak karena biaya. Berhenti hanya untuk 
     yang hilang.
   - EDGE: di bawah "AI request running" tampil waktu berjalan, langkah sekarang, dan "Langkah selesai (N)" yang dilipat;
     hilang saat jawaban tiba (durasi total sudah tampil di jawaban).
+- 4.2 EDGE-CTX A:
+  - orc mengirim `answer_tables` di jawaban: untuk tiap tabel yang dibangun dari instruksi tabel, judul kolom yang
+    tampil, kolom hasil di baliknya, dan posisi baris yang tampil di tabel rilis (`rows[_row=N]`), plus `output_id`.
+  - EDGE mencocokkan tabel yang dirender lewat judul dan jumlah baris, bukan lewat penanda tersembunyi di teks jawaban
+    (penyimpangan dari rencana: penanda bisa terbaca oleh gerbang angka dan ikut tersimpan di riwayat). Tabel yang
+    diketik model sendiri tidak punya peta, jadi tidak bisa dilampirkan.
+  - Pada tabel yang bisa dilampirkan: klik baris untuk memilih, tombol "Attach to question" (atau "Attach N rows").
+    Pilihan tampil sebagai chip di dalam kotak tanya, bisa dihapus, dan ikut pesan berikutnya sebagai
+    `attached_selection {ref, output_id, title, columns, rows, shown_values}`. Satu lampiran per pertanyaan.
+  - Pilihan per kolom atau per sel belum dibuat; yang dilampirkan adalah baris (semua kolom yang tampil).
+  - BFF dan orc memeriksa batas yang sama (12 kolom, 50 baris, sel 80 karakter, ref `out.*`).
+  - orc menambahkan satu catatan ke brief giliran: tabel dan baris yang dilampirkan, angka dibaca ulang dari tabelnya
+    (bukan dari teks yang tampil), data mentah lewat `get_lineage`, muat, saring, rilis, dan `export_result`.
 - Tes: EDGE 105 (dua tes browser baru), orc 1.831 (`test_progress.py`), `AI_MODELS.md` dibuat ulang (nama call site
   router menjadi `_router_call_once`).
 - `test_visual.py::test_typing_while_an_answer_arrives_keeps_focus` gagal sekali dalam suite penuh dan sekali di basis

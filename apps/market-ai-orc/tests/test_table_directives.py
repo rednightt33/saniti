@@ -241,3 +241,50 @@ def test_the_delivered_answer_has_no_stray_title_row() -> None:
     state = RunState(request_id="r", started=0.0, input_items=[])
     done = orc._finalize_findings(state, answer("Data:\n\n| A | B |\n| --- | --- |\n\n| A | B |\n|---|---|\n| 1 | 2 |"))
     assert done.answer == "Data:\n\n| A | B |\n|---|---|\n| 1 | 2 |"
+
+
+# ---------------------------------------------------------------- EXEC-IMPL-1016 Fase 4.2 (EDGE-CTX A)
+
+def test_a_shown_table_reports_its_titles_columns_and_row_positions() -> None:
+    """EDGE attaches a selection of an answer table: the answer carries each table's shown titles, the output column
+    behind each, and each shown row's position in the released table (after sorting and the row cap)."""
+    orc = orchestrator(True)
+    state = RunState(request_id="r", started=0.0, input_items=[])
+    released(state, orc, SECTORS, {"median_pct": "PERCENT", "share": "FRACTION"})
+    state.data_record["outputs"] = [{"ref": "out.o1", "output_id": "out_sector"}]
+    orc._resolve_references(state, answer(
+        "Energi memimpin.\n\n{{table out.o1; Sektor = sector; Median = median_pct|pctv:1; Bagian = {n|int} "
+        "({share|pct:1}); sort -median_pct; top 2}}"))
+    assert state.answer_tables == [{"ref": "out.o1", "output_id": "out_sector",
+                                     "titles": ["Sektor", "Median", "Bagian"],
+                                     "columns": ["sector", "median_pct", "n"], "rows": [3, 0]}]
+
+
+def test_an_attached_selection_reaches_the_model_as_a_note() -> None:
+    from app.orchestrator import selection_note
+    from app.schemas import AgentRunRequest
+
+    request = AgentRunRequest.model_validate({"request_id": "r", "message": "kenapa baris ini tinggi?",
+                                              "attached_selection": {
+                                                  "ref": "out.o1", "output_id": "out_sector", "title": "Median",
+                                                  "columns": ["sector", "median_pct"], "rows": [3],
+                                                  "shown_values": [["Basic / Ind", "7,0%"]]}})
+    note = selection_note(request.attached_selection)
+    assert "table out.o1 (output out_sector)" in note and "rows 3" in note and "Basic / Ind | 7,0%" in note
+    assert "never from the shown text" in note and "get_lineage" in note
+    for bad in ({"ref": "out.o1; drop"}, {"ref": "out.o1", "rows": [-1]},
+                {"ref": "out.o1", "shown_values": [["x"] * 13]}, {"ref": "out.o1", "extra": 1}):
+        with pytest.raises(ValueError):
+            AgentRunRequest.model_validate({"request_id": "r", "message": "x", "attached_selection": bad})
+
+
+def test_a_run_with_an_attached_selection_sends_the_note_to_the_model() -> None:
+    from conftest import final_response
+    from test_orchestrator import orchestrator as make_orchestrator, request
+
+    agent, client = make_orchestrator([final_response({"response_type": "ANSWER", "answer": "Baik.", "assumptions": [],
+                                                       "limitations": []})])
+    agent.run(request("kenapa ini?", attached_selection={"ref": "out.o3", "columns": ["broker"], "rows": [0, 4],
+                                                        "shown_values": [["YP"], ["CC"]]}))
+    sent = str(client.payloads[0]["input"])
+    assert "The user attached part of an earlier answer's table" in sent and "table out.o3" in sent

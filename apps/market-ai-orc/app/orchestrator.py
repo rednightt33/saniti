@@ -1673,6 +1673,24 @@ TURN_BRIEF_HEADER = ("This turn's application notes, in one brief: each part ref
 READ_TURN_KINDS = ("CLARIFY", "CONVERSATIONAL", "FACT")
 
 
+# EXEC-IMPL-1016 Fase 4.2 (EDGE-CTX A, user 2026-10-15): part of an earlier answer's table the user attached
+SELECTION_NOTE = (
+    "The user attached part of an earlier answer's table to this question: table {ref}{output}{title}; columns {columns}; "
+    "rows {rows} (positions in that released table, rows[_row=N]); as shown to the user: {shown}. Read the figures "
+    "again from that table (load_output or get_session_output), never from the shown text. For its raw data, follow "
+    "the table's lineage (get_lineage), load the source data, filter it to these rows and release it; export it "
+    "(export_result) when the user asks for a file.")
+
+
+def selection_note(selection: Any) -> str:
+    shown = "; ".join(" | ".join(row) for row in selection.shown_values[:10]) or "not given"
+    return SELECTION_NOTE.format(
+        ref=selection.ref, output=f" (output {selection.output_id})" if selection.output_id else "",
+        title=f", titled {selection.title!r}" if selection.title else "",
+        columns=", ".join(selection.columns) or "all shown", rows=", ".join(map(str, selection.rows)) or "all shown",
+        shown=shown[:1500])
+
+
 def turn_brief(notes: list[str]) -> str:
     """One application note from this turn's notes, in order."""
     parts = ["- " + note.strip() for note in notes]
@@ -2414,6 +2432,7 @@ class RunState:
     referenced: list[str] = field(default_factory=list)  # D6: value references of the final answer (DIRUJUK)
     typed_answer: str | None = None  # O4: the final answer with its value references removed (the typed figures)
     table_footers: dict[str, str] = field(default_factory=dict)  # EXEC-TABLE: line under a cut table, by its mark
+    answer_tables: list[dict[str, Any]] = field(default_factory=list)  # EXEC-IMPL-1016 4.2: shown tables' shape
     empty_turn_retries: int = 0  # M78: turns with neither text nor a tool call, retried with the same tools
     runaway_retries: int = 0  # M150: empty turns at the output cap, retried once with reasoning lowered
     reasoning_lowered: bool = False  # M150: the next loop call runs with ModelChoice.lowered
@@ -2933,6 +2952,7 @@ class AgentOrchestrator:
                 annotations=[ClaimAnnotation(**a) for a in state.claim_annotations] or None,
                 artifacts=state.artifacts or None,
                 evidence=self._evidence(state),
+                answer_tables=state.answer_tables or None,
             )
             if state.exhausted is not None:
                 # G23 D: the answer is delivered, and the limit that ended the run stays visible for statistics
@@ -3629,6 +3649,9 @@ class AgentOrchestrator:
         """Decide what this request may do with research: propose a plan (no continuation), execute a verified
         approved plan, revise, re-plan after a failed verification, cancel, or ask again (unrelated reply). Sets the
         allowed final response types, the tool filter, the guard and an application note."""
+        if request.attached_selection is not None:
+            # EXEC-IMPL-1016 Fase 4.2 (EDGE-CTX A): what the user attached; kept on read turns too (not data work)
+            state.turn_notes.append((selection_note(request.attached_selection), False))
         if state.lane == lanes.FAST and self.dataneed and request.continuation is None \
                 and state.forced_path in (None, "ANALYSIS", "RESEARCH"):
             # EXEC-FASTLANE: one turn, no Research Plan, no approval (K1); a reply to a pending plan (continuation)
@@ -5892,6 +5915,8 @@ class AgentOrchestrator:
             # the answer cites the table (evidence), not each of its cells
             expansion = table_directives.expand(final.answer, state.ref_sources)
             state.table_footers = expansion.footers
+            ids = {o.get("ref"): o.get("output_id") for o in state.data_record.get("outputs") or []}
+            state.answer_tables = [{**layout, "output_id": ids.get(layout["ref"])} for layout in expansion.layouts]
             if expansion.count:
                 cited = table_directives.TABLE_RE.sub(" ", cited)
                 final = final.model_copy(update={"answer": expansion.text})

@@ -88,6 +88,7 @@ class Expansion:
     tables: list[dict[str, Any]] = field(default_factory=list)  # logged: ref, rows shown, row count, columns
     refs: list[str] = field(default_factory=list)  # the tables shown (cited as evidence, not every cell)
     footers: dict[str, str] = field(default_factory=dict)  # mark -> line, put in once the gates passed
+    layouts: list[dict[str, Any]] = field(default_factory=list)  # EXEC-IMPL-1016 4.2: the shown tables' shape for EDGE
     count: int = 0  # instructions read
 
 
@@ -181,8 +182,11 @@ def _empty(value: Any) -> bool:
     return value is None or (isinstance(value, float) and not math.isfinite(value))
 
 
-def build(directive: Directive, sources: ReferenceSources) -> tuple[str, int, int]:
-    """The Markdown table with one generated reference per cell; (table, rows shown, rows in the output)."""
+def build(directive: Directive, sources: ReferenceSources, layout: dict[str, Any] | None = None
+          ) -> tuple[str, int, int]:
+    """The Markdown table with one generated reference per cell; (table, rows shown, rows in the output). layout, when
+    given, receives the table's shape for EDGE (EXEC-IMPL-1016 Fase 4.2): each shown column's title and the output
+    column of its first cell, and each shown row's position in the complete released table."""
     rows, row_count, positional = _table(sources, directive.ref)
     present = list(dict.fromkeys(c for row in rows[:50] for c in row if c != "_row"))
     listed = ", ".join(present[:30]) or "none"
@@ -242,6 +246,11 @@ def build(directive: Directive, sources: ReferenceSources) -> tuple[str, int, in
             parts = iter(column.cells)
             cells.append(CELL_RE.sub(lambda _m: cell(row, position, *next(parts)), column.pattern))
         lines.append("| " + " | ".join(cells) + " |")
+    if layout is not None:
+        layout.update(titles=[c.title.replace("|", "/") for c in directive.columns],
+                      columns=[c.cells[0][0] for c in directive.columns],
+                      rows=[row.get("_row", positions[id(row)]) if positional else positions[id(row)]
+                            for row in shown])
     return "\n".join(lines), len(shown), row_count
 
 
@@ -266,7 +275,8 @@ def expand(text: str | None, sources: ReferenceSources, marks: bool = True) -> E
         out.count += 1
         try:
             directive = parse(match.group("body"))
-            table, shown, total = build(directive, sources)
+            layout: dict[str, Any] = {}
+            table, shown, total = build(directive, sources, layout)
         except DirectiveError as exc:
             out.problems.append(str(exc) + FIX_ONLY)
             out.failed.append(match.group(0)[:200])
@@ -274,6 +284,7 @@ def expand(text: str | None, sources: ReferenceSources, marks: bool = True) -> E
         out.refs.append(directive.ref)
         out.tables.append({"ref": directive.ref, "rows": shown, "row_count": total,
                            "columns": len(directive.columns)})
+        out.layouts.append({"ref": directive.ref, **layout})
         footer = ""
         if total > shown:
             template = TABLE_CAPPED_LINE if directive.asked > MAX_ROWS else TABLE_ROWS_LINE

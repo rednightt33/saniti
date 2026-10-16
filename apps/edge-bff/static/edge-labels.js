@@ -77,6 +77,9 @@ window.EdgeLabels = {
     // EXEC-IMPL-1016 Fase 4.3 (UI-1015B): what a running answer is doing, from Orc's steps
     progressDone:"Langkah selesai ({n})", progressEarlier:"{n} langkah sebelumnya",
     progressRefused:"ditolak, dicoba lagi", progressFailed:"gagal",
+    // EXEC-IMPL-1016 Fase 4.2 (EDGE-CTX A): part of an answer table attached to the next question
+    attachTable:"Attach to question", attachRows:"Attach {n} rows", attachedChip:"{title} · {n} baris",
+    attachRemove:"Remove attachment", attachHint:"Klik baris untuk memilih",
     sourceAsOf:"Data per", askExport:"Ask AI to export data", exportMessage:"Ekspor data tabel {ref} ({name}) ke Excel",
     approveMessage:"Setujui rencana riset", cancelMessage:"Batalkan rencana riset",
     // EXEC-MODELS: the model and reasoning-level choice next to the composer

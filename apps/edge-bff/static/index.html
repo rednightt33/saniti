@@ -9917,6 +9917,14 @@ th.edge-sortable:hover .edge-sort-icon,.edge-sort:focus-visible .edge-sort-icon,
 .edge-source-ref {align-self:flex-start;font:.72rem ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted-foreground);}
 .edge-source-action {align-self:flex-start;padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--secondary);color:var(--foreground);font:500 .78rem Inter,"Segoe UI",sans-serif;cursor:pointer;}
 .edge-source-action:hover {background:var(--accent,var(--secondary));}
+/* EXEC-IMPL-1016 Fase 4.2 (EDGE-CTX A): rows of a built answer table picked and attached to the next question */
+.edge-row-pickable {cursor:pointer;}
+.edge-row-picked td {background:color-mix(in srgb, var(--primary, #4f7cff) 16%, transparent);}
+.edge-table-attach {display:flex;align-items:center;gap:8px;margin:0 0 6px;}
+.edge-table-attach-button {padding:4px 9px;border:1px solid var(--border);border-radius:7px;background:var(--secondary);color:var(--foreground);font:500 .76rem Inter,"Segoe UI",sans-serif;cursor:pointer;}
+.edge-table-attach small {font-size:.72rem;color:var(--muted-foreground);}
+.edge-attached-chip {gap:6px;}
+.edge-attached-chip button {margin-left:auto;border:0;background:none;color:var(--muted-foreground);font-size:1rem;cursor:pointer;}
 /* EXEC-IMPL-1016 Fase 4.3 (UI-1015B): the steps of a running answer */
 .edge-run-progress {margin:6px 0 0 30px;display:flex;flex-direction:column;gap:4px;font:.8rem Inter,"Segoe UI",sans-serif;color:var(--muted-foreground);}
 .edge-run-progress-now {display:flex;gap:8px;align-items:baseline;}
@@ -10679,6 +10687,8 @@ function Monitor({ go }) {
     const followRef=(viewRecord.refs.followRef ??= {current:null});
     const submissionRef=(viewRecord.refs.submissionRef ??= {current:null});
     const pendingReply=initialValue(viewRecord,"pendingReply",()=>null),setPendingReply=next=>updateValue(viewRecord,"pendingReply",next);
+    // EXEC-IMPL-1016 Fase 4.2 (EDGE-CTX A): part of an answer table attached to the next question (one at a time)
+    const attached=initialValue(viewRecord,"attached",()=>null),setAttached=next=>updateValue(viewRecord,"attached",next);
     const inputHint=initialValue(viewRecord,"inputHint",()=>null),setInputHint=next=>updateValue(viewRecord,"inputHint",next);
     const selectConversation = async id => {setHistoryOpen(false);setLoadingConversation(true);setApiError("");setSelectedId(id);setSelectedRunId(null);setPendingReply(null);try{const loaded=await Edge.messages(id);setItems(current=>current.map(x=>x.id===id?loaded:x));}catch(e){setApiError(e.message);}finally{setLoadingConversation(false);}};
     // EXEC-DELETE (user 2026-10-12): the trash button asks first, then hides the conversation from this list only
@@ -10715,14 +10725,14 @@ function Monitor({ go }) {
       const holder=afterStop && executionRun ? items.find(c=>c.runs.some(r=>r.id===executionRun.id)) : null;
       const target=holder ? holder.id : selectedId;
       const existing=target?.startsWith("conv_")?target:null;
-      const payload={message:question,...edgeModelChoice(),...(existing?{conversation_id:existing}:{}),...(afterStop?{after_stop:true}:{}),...extra,...(pendingReply&&!plain?{plan_reply:{...pendingReply,revision_instruction:question.slice(0,2000)}}:{})};
+      const payload={message:question,...edgeModelChoice(),...(existing?{conversation_id:existing}:{}),...(afterStop?{after_stop:true}:{}),...(attached&&!plain?{attached_selection:attached}:{}),...extra,...(pendingReply&&!plain?{plan_reply:{...pendingReply,revision_instruction:question.slice(0,2000)}}:{})};
       const fingerprint=JSON.stringify(payload);
       const pending=submissionRef.current?.fingerprint===fingerprint?submissionRef.current:{fingerprint,key:crypto.randomUUID()};submissionRef.current=pending;
       try{const accepted=await Edge.createRun({...payload,submission_key:pending.key});const now=new Date().toISOString(),id=accepted.conversation_id || existing || holder?.id || "draft:"+accepted.request_id;
         if(afterStop && accepted.after_request_id)setStoppingId(accepted.after_request_id);
         const r={id:accepted.request_id,question,status:"submitted",mode:"Standard",createdAt:now,attachments:[],sources:[],steps:[{id:"queued",label:"Queued",status:"running",detail:"Accepted by server"}]};
         setItems(current=>{const found=current.find(c=>c.id===id);if(found)return current.map(c=>c.id===id && !c.runs.some(x=>x.id===r.id)?{...c,messages:[...c.messages,{id:r.id+"-user",role:"user",content:question,createdAt:now,runId:r.id}],runs:[...c.runs,r]}:c);return [{id,title:question.slice(0,80),bookmarked:false,createdAt:now,updatedAt:now,messages:[{id:r.id+"-user",role:"user",content:question,createdAt:now,runId:r.id}],runs:[r]},...current];});
-        setSelectedId(id);setSelectedRunId(r.id);setAutoOpenRunId(r.id);setDetailsOpen(true);setPrompt("");setPendingReply(null);setInputHint(null);submissionRef.current=null;followRun(id,r.id);
+        setSelectedId(id);setSelectedRunId(r.id);setAutoOpenRunId(r.id);setDetailsOpen(true);setPrompt("");setPendingReply(null);setInputHint(null);if(!plain)setAttached(null);submissionRef.current=null;followRun(id,r.id);
         // V5 (user 2026-10-14: "ketika saya click enter, chat tidak otomatis ke scroll ke bawah"): the new question is shown
         setAutoFollow(true);requestAnimationFrame(()=>requestAnimationFrame(()=>scrollRef.current?.scrollTo({top:scrollRef.current.scrollHeight,behavior:"auto"})));
       }catch(e){setApiError(e.message);}finally{setSubmitting(false);}
@@ -10737,6 +10747,7 @@ function Monitor({ go }) {
     // user's message (a pause reads it); input: the user writes first, with the choice as the composer's hint.
     const focusComposer=()=>requestAnimationFrame(()=>composerRef.current?.focus());
     const act=action=>{
+      if(action.type==="attach"){setAttached(action.selection);focusComposer();return;}
       if(action.type==="route")return void submit({chosen_option:action.route},action.message,{plain:true});
       if(action.type==="message")return void submit({},action.message,{plain:true});
       if(action.type==="input"){setPendingReply(null);setInputHint(action.hint);setPrompt("");focusComposer();return;}
@@ -10848,6 +10859,9 @@ function Monitor({ go }) {
                         element("span", { className: "pulse" }),
                         element("span", null, executionRun?.status === "streaming" ? "Streaming research result…" : executionRun?.steps.find(step => step.status === "running")?.label ?? "Research running…"),
                         element("strong", null, executionRun?.mode)),
+                    attached && element("div",{className:"composer-status edge-attached-chip"},element(Icon,{name:"attach",size:13}),
+                    element("span",null,EdgeView.selectionLabel(attached)),
+                    element("button",{type:"button","aria-label":edgeUi().attachRemove,title:edgeUi().attachRemove,onClick:()=>setAttached(null)},"×")),
                     context && element("div", { className: "research-context" },
                         element("span", null, "Context"),
                         element("strong", null,
@@ -11345,8 +11359,10 @@ function renderMarkdown(text, ctx = {}) {
       // "Rp 83,27 triliun" left in one column): figures right when every cell of the column is one, words left
       const figure = value => MD_NUMERIC.test(value) || (/\d/.test(value) && value.length <= 40 && value.trim().split(/\s+/).length <= 5);
       const numeric = head.map((_, column) => { const values = rows.map(row => (row[column] ?? "").trim()).filter(Boolean); return values.length > 0 && values.every(figure); });
-      ctx.tables = (ctx.tables || 0) + 1;
-      blocks.push(element(MdTable, {key:`t${ctx.tables}-${mdHash(line + "\n" + rows.map(row => row.join("|")).join("\n"))}`, head, align, rows, numeric, ctx,
+      ctx.tableCount = (ctx.tableCount || 0) + 1;
+      // EXEC-IMPL-1016 Fase 4.2: a table Orc built from a table instruction can be attached to the next question
+      const source = ctx.attach ? EdgeView.tableSource(ctx.tables, head, rows.length, ctx.usedTables || []) : null;
+      blocks.push(element(MdTable, {key:`t${ctx.tableCount}-${mdHash(line + "\n" + rows.map(row => row.join("|")).join("\n"))}`, head, align, rows, numeric, ctx, source,
         title:title.replace(/[*_`]/g, "").replace(/:$/, "").trim()}));
       continue;
     }
@@ -11403,8 +11419,11 @@ function TableDialog({spec}) {
 }
 const TABLE_VISIBLE_ROWS = 10;
 const TABLE_SHORT_CELL = 16;  // characters: a cell this short reads as a code, date or number
-function MdTable({head, align, rows, numeric, ctx, title = "", plain = false, initialSort = null}) {
+function MdTable({head, align, rows, numeric, ctx, title = "", plain = false, initialSort = null, source = null}) {
   const view = currentView;
+  const attachable = Boolean(source && ctx?.attach && !plain);
+  const picked = initialValue(view, "picked", () => []);
+  const togglePick = index => updateValue(view, "picked", current => current.includes(index) ? current.filter(i => i !== index) : [...current, index]);
   const sort = initialValue(view, "sort", () => initialSort ?? ({column:null, dir:null}));
   const expandRef = initialValue(view, "expandRef", () => ({current:null}));
   const setSort = next => updateValue(view, "sort", next);
@@ -11447,24 +11466,31 @@ function MdTable({head, align, rows, numeric, ctx, title = "", plain = false, in
   const folded = item => folds && !showAll && !pinned.includes(item) && ordered.indexOf(item) >= TABLE_VISIBLE_ROWS;
   const table = () => element("table", {className:"data-table"},
     element("thead", null, element("tr", null, head.map((value, column) => header(value, column)))),
-    element("tbody", null, [...ordered, ...pinned].map(item => element("tr", {key:`r${item.index}`, className:folded(item) ? "edge-row-folded" : undefined},
+    element("tbody", null, [...ordered, ...pinned].map(item => element("tr", {key:`r${item.index}`,
+      className:[folded(item) ? "edge-row-folded" : null, attachable ? "edge-row-pickable" : null, attachable && picked.includes(item.index) ? "edge-row-picked" : null].filter(Boolean).join(" ") || undefined,
+      ...(attachable ? {onClick:() => togglePick(item.index), "aria-selected":picked.includes(item.index)} : {})},
       head.map((_, column) => element("td", cellProps(column), mdInline(item.row[column] ?? "", ctx)))))));
   if (plain) return table();
   const ui = edgeUi();
   const hidden = free.length - TABLE_VISIBLE_ROWS;
   const open = () => openTableDialog({title:title || ui.tableTitle, description:ui.tableRows.replace("{n}", rows.length),
     returnFocusRef:expandRef, table:{head, align, rows, numeric, ctx, initialSort:sort}});
+  const attach = () => { ctx.attach(EdgeView.selection(source, rows, picked, title)); updateValue(view, "picked", []); };
   return element("div", {className:"edge-md-table-frame"},
     element("button", {type:"button", className:"edge-table-expand", ref:expandRef, title:ui.tableExpand,
       "aria-label":ui.tableExpand, onClick:open}, element(Icon, {name:"maximize", size:14})),
+    attachable && element("div", {className:"edge-table-attach"},
+      element("button", {type:"button", className:"edge-table-attach-button", onClick:attach},
+        picked.length ? ui.attachRows.replace("{n}", picked.length) : ui.attachTable),
+      !picked.length && element("small", null, ui.attachHint)),
     element("div", {className:"edge-md-table"}, table()),
     folds && element("button", {type:"button", className:"edge-table-more", "aria-expanded":showAll,
       onClick:() => updateValue(view, "showAll", !showAll)},
       showAll ? ui.tableFewerRows : ui.tableMoreRows.replace("{n}", hidden)));
 }
 
-function Markdown({text, claims, className = "", fast = false}) {
-  return element("div", {className:`edge-md ${className}`}, renderMarkdown(text, {claims, fast}));
+function Markdown({text, claims, className = "", fast = false, tables = null, attach = null}) {
+  return element("div", {className:`edge-md ${className}`}, renderMarkdown(text, {claims, fast, tables, attach, usedTables:[]}));
 }
 
 // ---- One generic view for structured data ----
@@ -11580,7 +11606,8 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
   element("h1",null,run.result.title),
   element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",{className:"edge-run-model"},element(EdgeModelLogo,{option:edgeModelOption(v.meta.model)}),element("span",null,element("span",{className:"edge-run-model-name",title:v.meta.model},edgeModelOption(v.meta.model).label),v.meta.reasoningLevel?" \u00B7 "+(edgeUi().modelLevels?.[v.meta.reasoningLevel]??v.meta.reasoningLevel):null)),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.duration&&element("span",{className:"edge-duration",title:"Lama proses"},"\u23F1 "+v.meta.duration),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
   v.evidence&&element("div",{className:"edge-tags"},element("span",{className:"edge-badge neutral",title:v.evidence.code},v.evidence.label)),
-  v.answer&&element("div",{className:"content-block edge-answer"},element(Markdown,{text:v.answer,claims,fast})),
+  v.answer&&element("div",{className:"content-block edge-answer"},element(Markdown,{text:v.answer,claims,fast,
+    tables:run.raw?.answer_tables,attach:act?(selection=>act({type:"attach",selection})):null})),
   v.clarification&&element(ResponseChoices,{scope:run.id+":clarify",enabled,act,
     prompt:element("div",{className:"edge-choices-prompt"},element(Markdown,{text:v.clarification.text,claims})),
     choices:v.clarification.choices.length?[...v.clarification.choices,{key:"WRITE_OTHER",label:edgeUi().writeOther,action:{type:"input",hint:edgeUi().writeOtherHint}}]:[]}),

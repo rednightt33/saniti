@@ -420,3 +420,42 @@ def test_a_running_answer_shows_its_steps_from_orc(fixture_server, browser_page)
         orc.run = original
     saved(page)
     assert page.locator('.edge-run-progress').count() == 0
+
+
+def test_rows_of_a_built_table_attach_to_the_next_question(fixture_server, browser_page):
+    """EXEC-IMPL-1016 Fase 4.2 (EDGE-CTX A, user 2026-10-15): a table Orc built from a table instruction (answer_tables
+    names its titles, output columns and row positions) offers "Attach to question"; picked rows become a chip above
+    the composer and travel with the next message as attached_selection; a table the model typed itself offers none."""
+    origin, orc = fixture_server
+    page = browser_page
+    sign_in(page, origin)
+    original = orc.run
+
+    def built(owner, id, payload):
+        result = original(owner, id, {**payload, 'message': 'fx:answer_table'})
+        result['answer_tables'] = [{'ref': 'out.o2', 'output_id': 'out_abc', 'rows': [4, 9],
+                                    'titles': ['Ukuran', 'Setelah sinyal', 'Baseline', 'Selisih (95% CI)', 'p'],
+                                    'columns': ['measure', 'signal', 'base', 'diff', 'p']}]
+        orc.saved[id]['response'] = result
+        return result
+    orc.run = built
+    submit(page, 'uji sinyal volume')
+    saved(page)
+    orc.run = original
+    table = article(page).locator('.edge-md-table-frame').first
+    assert table.get_by_role('button', name='Attach to question', exact=True).count() == 1
+    table.locator('tbody tr').nth(1).click()
+    assert table.locator('tr.edge-row-picked').count() == 1
+    table.get_by_role('button', name='Attach 1 rows', exact=True).click()
+    chip = page.locator('.edge-attached-chip')
+    assert chip.is_visible() and '1 baris' in chip.inner_text()
+    capture(page, 'x-attach-chip-dark')
+    submit(page, 'kenapa baris ini lebih tinggi?')
+    saved(page, 2)
+    sent = orc.calls[-1][2]['attached_selection']
+    assert sent['ref'] == 'out.o2' and sent['output_id'] == 'out_abc' and sent['rows'] == [9]
+    assert sent['columns'][:2] == ['measure', 'signal'] and sent['shown_values'][0][0].startswith('Frekuensi naik')
+    assert page.locator('.edge-attached-chip').count() == 0  # one attachment per question
+    submit(page, 'fx:answer_table')  # no answer_tables: a typed table cannot be attached
+    saved(page, 3)
+    assert article(page).locator('.edge-table-attach').count() == 0

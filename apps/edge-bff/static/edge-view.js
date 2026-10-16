@@ -165,6 +165,31 @@
       earlier:data.earlier_steps ? ui.progressEarlier.replace('{n}', String(data.earlier_steps)) : null};
   }
 
+  // EXEC-IMPL-1016 Fase 4.2 (EDGE-CTX A): Orc's answer_tables say, per table built from a table instruction, its titles,
+  // the output column behind each and the shown rows' positions. A rendered table takes the first unused entry with the
+  // same titles and row count; a table the model typed itself has none and cannot be attached.
+  const plain = text => String(text ?? '').replace(/[*_`]/g, '').trim();
+  function tableSource(tables, head, rowCount, used) {
+    if (!Array.isArray(tables)) return null;
+    const titles = head.map(plain);
+    const index = tables.findIndex((t, i) => !used.includes(i) && Array.isArray(t?.titles) && Array.isArray(t?.rows)
+      && t.rows.length === rowCount && t.titles.length === titles.length && t.titles.every((x, k) => plain(x) === titles[k]));
+    if (index < 0) return null;
+    used.push(index);
+    return tables[index];
+  }
+  function selection(source, rows, picked, title) {
+    const chosen = picked.length ? [...picked].sort((a, b) => a - b) : rows.map((_, i) => i);
+    return {ref:source.ref, ...(source.output_id ? {output_id:source.output_id} : {}),
+      ...(title ? {title:String(title).slice(0, 200)} : {}), columns:(source.columns || []).slice(0, 12),
+      rows:chosen.slice(0, 50).map(i => source.rows[i]).filter(Number.isInteger),
+      shown_values:chosen.slice(0, 50).map(i => (rows[i] || []).slice(0, 12).map(cell => plain(cell).slice(0, 80)))};
+  }
+  function selectionLabel(sel) {
+    const ui = L().ui;
+    return ui.attachedChip.replace('{title}', sel.title || sel.ref).replace('{n}', String(sel.rows.length));
+  }
+
   // EXEC-DURATION (user 2026-10-12): how long a run took, from Orc's execution.duration_ms
   function durationText(ms) {
     if (typeof ms !== 'number' || !Number.isFinite(ms) || ms < 0) return null;
@@ -240,5 +265,5 @@
     }
     return index;
   }
-  window.EdgeView = {VERSION, toView, sources, planIndex, durationText, progressView, format:{empty, label, number, valueText, verdict}};
+  window.EdgeView = {VERSION, toView, sources, planIndex, durationText, progressView, tableSource, selection, selectionLabel, format:{empty, label, number, valueText, verdict}};
 })();

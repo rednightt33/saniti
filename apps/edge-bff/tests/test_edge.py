@@ -326,3 +326,20 @@ def test_without_a_model_list_from_orc_the_page_is_told_so(settings,store):
     with TestClient(create_app(settings,store,NoModels())) as c:
         login(c);r=c.get('/api/v1/models')
         assert r.status_code==503 and r.json()['error']['code']=='MODELS_UNAVAILABLE'
+
+def test_an_attached_selection_reaches_orc_and_a_bad_one_is_refused(settings,store):
+    """EXEC-IMPL-1016 Fase 4.2 (EDGE-CTX A): part of an answer table travels to Orc as attached_selection; the BFF holds
+    the same bounds as Orc. Fase 4.3: the progress route reads the owner's run only."""
+    orc=FakeOrc()
+    with TestClient(create_app(settings,store,orc)) as c:
+        h=login(c)
+        sel={'ref':'out.o2','output_id':'out_abc','title':'Net beli','columns':['broker'],'rows':[3],'shown_values':[['YP']]}
+        r=c.post('/api/v1/runs',headers=h,json={'message':'kenapa ini?','submission_key':'att','attached_selection':sel});assert r.status_code==202,r.text
+        id=r.json()['request_id'];asyncio.run(Worker(settings,store,orc).process(store.claim(90)))
+        assert orc.calls[-1][2]['attached_selection']==sel
+        for bad in ({**sel,'ref':'x; drop'},{**sel,'rows':[-1]},{**sel,'shown_values':[['x'*81]]},{**sel,'columns':['c']*13},{**sel,'extra':1}):
+            assert c.post('/api/v1/runs',headers=h,json={'message':'x','submission_key':'bad','attached_selection':bad}).status_code==422
+        assert c.get('/api/v1/runs/'+id+'/progress').json()=={'status':'NOT_RUNNING','steps':[]}
+        orc.PROGRESS={id:{'status':'RUNNING','elapsed_ms':5,'steps':[],'earlier_steps':0}}
+        assert c.get('/api/v1/runs/'+id+'/progress').json()['status']=='RUNNING'
+        assert c.get('/api/v1/runs/edge_unknown/progress').status_code==404

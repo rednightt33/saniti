@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_serializer, model_validator
 
@@ -51,6 +51,28 @@ class PlanReply(BaseModel):
         return self
 
 
+class AttachedSelection(BaseModel):
+    """EXEC-IMPL-1016 Fase 4.2 (EDGE-CTX A): part of an earlier answer's table the user attached to the question: the
+    released table (ref, output_id), the output columns and the row positions chosen in it, and the cells as EDGE
+    showed them. Context for the model, never data: figures are read again from the table itself."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ref: str = Field(pattern=r"^out\.[A-Za-z0-9_]{1,40}$")
+    output_id: str | None = Field(default=None, max_length=100)
+    title: str | None = Field(default=None, max_length=200)
+    columns: list[Annotated[str, Field(min_length=1, max_length=100)]] = Field(default_factory=list, max_length=12)
+    rows: list[Annotated[int, Field(ge=0)]] = Field(default_factory=list, max_length=50)
+    shown_values: list[list[Annotated[str, Field(max_length=80)]]] = Field(default_factory=list, max_length=50)
+
+    @field_validator("shown_values")
+    @classmethod
+    def _rows_bounded(cls, value: list[list[str]]) -> list[list[str]]:
+        if any(len(row) > 12 for row in value):
+            raise ValueError("shown_values rows hold at most 12 cells")
+        return value
+
+
 class AgentRunRequest(BaseModel):
     """Caller input. extra="forbid" means callers cannot smuggle in system prompts."""
 
@@ -87,6 +109,8 @@ class AgentRunRequest(BaseModel):
     # EXEC-FASTLANE (app/lanes.py): "fast" answers a data question in one turn (needs AI_ENABLE_FASTLANE); null or
     # "standard" keeps the current behaviour
     lane: Literal["standard", "fast"] | None = None
+    # EXEC-IMPL-1016 Fase 4.2 (EDGE-CTX A): part of an earlier answer's table attached to this question; null otherwise
+    attached_selection: AttachedSelection | None = None
 
     @field_validator("message")
     @classmethod
@@ -767,12 +791,17 @@ class AgentRunResponse(BaseModel):
     # EXEC-Y Fase 2 (app/follow_ups.py): what the user could ask next ([{kind, label}]; kind FOLLOW_UP, INSIGHT_IDEA or
     # DATA_TEST); a click sends the label as the next message. Absent when there is none
     follow_ups: list[dict[str, str]] | None = None
+    # EXEC-IMPL-1016 Fase 4.2 (EDGE-CTX A): the shape of each table the answer shows from a table instruction, in the
+    # answer's order ({ref, output_id, titles, columns, rows}: the shown titles, the output column behind each, and the
+    # shown rows' positions in the released table), so EDGE can attach a selection of it. Absent when there is none
+    answer_tables: list[dict[str, Any]] | None = None
 
     @model_serializer(mode="wrap")
     def _without_mode4(self, handler: Any) -> Any:
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("mode4", "annotations", "data_record", "artifacts", "evidence", "options", "follow_ups"):
+            for key in ("mode4", "annotations", "data_record", "artifacts", "evidence", "options", "follow_ups",
+                        "answer_tables"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data
