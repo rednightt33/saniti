@@ -2265,6 +2265,9 @@ sesuai jenis teks yang di show?"; "Setelah done pls run 3 A/B test ya".
   kolom: kolom label kalender atau identitas (`tahun`, `year`, `fiscal_year`, `*_id`, `kode`) dengan format auto tampil
   tanpa pemisah (`value_refs.label_like`); hitungan (`jumlah_tahun`) dan format yang ditulis (`|int`) tidak berubah.
   Tes: `test_value_references.py::test_an_integer_in_a_year_or_id_column_is_a_label_not_a_grouped_quantity`.
+- Temuan A/B kedua (ponsel): sel pertama yang menempel tidak ikut warna baris saat disorot atau dipilih, sehingga baris
+  terlihat terbelah. Sekarang sel itu memakai warna sorot dan warna pilih barisnya (tetap tidak tembus pandang).
+  Tes: tabel yang sama, baris pertama disorot di lebar 390.
 
 ### EXEC-REVIEW-1015: tinjauan semua EXEC terbuka dan arsitekturnya (2026-10-15; user: "please review all exec, inspect arsitektur ... contrast what ideal conditions would look like")
 

@@ -273,6 +273,12 @@ def test_tables_align_by_content_wrap_long_titles_and_draw_no_vertical_line(fixt
             shadows = tables.nth(table).evaluate("""t => [...t.querySelectorAll('th,td')].map(c => {
                 const s = getComputedStyle(c); return [s.boxShadow, s.borderLeftWidth, s.borderRightWidth]; })""")
             assert all(box == 'none' and left == '0px' and right == '0px' for box, left, right in shadows), shadows[:3]
+        # the phone's sticky first cell takes its row's hover colour (the row reads as one band)
+        row = tables.nth(1).locator('tbody tr').first
+        row.locator('td').nth(1).hover()
+        first, other = row.evaluate("r => [...r.cells].slice(0, 2).map(c => getComputedStyle(c).backgroundColor)")
+        row_color = row.evaluate("r => getComputedStyle(r).backgroundColor")
+        assert first in (other, row_color) if width > 720 else first == row_color, (width, first, other, row_color)
         if directory := __import__('os').environ.get('EDGE_UI_ARTIFACT_DIR'):
             page.locator('article.result').last.locator('.edge-answer').screenshot(path=f'{directory}/table-align-{width}.png')
         page.context.clear_cookies()

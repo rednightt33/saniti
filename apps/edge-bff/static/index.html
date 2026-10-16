@@ -9840,6 +9840,11 @@ html.dark .edge-flow-done{background:#1e9a59;}
  .edge-md-table .data-table th:first-child {background:var(--secondary);}
  html.dark .monitor-layout .result .edge-md-table .data-table td:first-child {background:#252c35;}
  html.dark .monitor-layout .result .edge-md-table .data-table th:first-child {background:#303844;}
+ /* the sticky first cell follows its row's hover and pick colour, kept opaque so scrolled cells stay hidden */
+ .edge-md-table .data-table tbody tr:hover td:first-child {background:var(--surface);}
+ .edge-md-table .data-table tbody tr.edge-row-picked td:first-child {background:linear-gradient(color-mix(in srgb, var(--primary, #4f7cff) 16%, transparent),color-mix(in srgb, var(--primary, #4f7cff) 16%, transparent)),var(--card);}
+ html.dark .monitor-layout .result .edge-md-table .data-table tbody tr:hover td:first-child {background:#303844;}
+ html.dark .monitor-layout .result .edge-md-table .data-table tbody tr.edge-row-picked td:first-child {background:linear-gradient(color-mix(in srgb, var(--primary, #4f7cff) 16%, transparent),color-mix(in srgb, var(--primary, #4f7cff) 16%, transparent)),#252c35;}
 }
 /* EXEC-SORT: the title cell keeps its look; hover darkens it and shows the sort icon, the sorted column shows its arrow */
 .edge-md-table .data-table th.edge-sortable {padding:0;}

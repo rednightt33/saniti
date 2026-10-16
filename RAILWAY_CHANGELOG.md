@@ -1,5 +1,13 @@
 # Railway changelog
 
+## 2026-10-16 — EXEC-TABLE-ALIGN deployed (dev)
+
+- `a391851`: edge-bff `57e722f3` SUCCESS (answer tables: no vertical line, long titles wrap, alignment from content).
+- `4100b6b`: market-ai-orc `9152f522` SUCCESS (an integer in a year or id column shows as a label, 2019 not 2.019).
+  No EDGE run was active before the push.
+- Phone sticky first cell follows its row's hover and pick colour: commit and deployment below this entry's update.
+- No variable, service or database change.
+
 ## 2026-10-16 — EXEC-IMPL-1016 Fase 4 deployed (dev)
 
 - `56066b1`: market-ai-orc `4e9e7fd4`, edge-bff `761b8db3` SUCCESS (result tables in Sources, run progress).
