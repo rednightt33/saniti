@@ -188,10 +188,17 @@ def test_follow_up_questions_and_insight_ideas_are_clicked_as_the_next_message(d
     sign_in(page, origin)
     submit(page, 'Dummy follow ups')
     saved(page)
-    assert page.get_by_text('Pertanyaan lanjutan', exact=True).is_visible()
-    assert page.get_by_text('Ide insight', exact=True).is_visible()
+    # EXEC-IMPL-1017 Fase 2 (user 2026-10-16): each group folds like Assumptions, closed when the answer arrives, its
+    # count in the title, and the suggestions are not bold
+    follow = page.locator('details.edge-next-group summary', has_text='Ide insight (')  # the question is an insight idea
+    assert follow.is_visible() and page.locator('details.edge-next-group summary', has_text='Pertanyaan lanjutan (').is_visible()
+    question = page.get_by_role('button', name='Bulan apa jual asing BBRI paling besar?', exact=True)
+    assert not question.is_visible()  # folded when the answer arrives
+    follow.click()
+    assert question.is_visible()
+    assert question.locator('strong').evaluate('n => getComputedStyle(n).fontWeight') == '400'
     capture(page, 'follow-ups')
-    page.get_by_role('button', name='Bulan apa jual asing BBRI paling besar?', exact=True).click()
+    question.click()
     saved(page, 2)
     assert orc.calls[-1][2]['message'] == 'Bulan apa jual asing BBRI paling besar?'
     assert orc.calls[-1][2]['conversation_id'] == orc.saved[orc.calls[0][1]]['conversation_id']

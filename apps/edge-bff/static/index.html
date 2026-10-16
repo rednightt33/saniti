@@ -9818,7 +9818,7 @@ html.dark .edge-flow-done{background:#1e9a59;}
  .edge-table-dialog-body {padding:8px 10px 16px;}
 }
 .edge-md-table .data-table {margin-top:0;font-size:.86rem;font-variant-numeric:tabular-nums;}
-.edge-md-table .data-table th {white-space:normal;letter-spacing:0;text-transform:none;font-size:.78rem;font-weight:600;vertical-align:bottom;}
+.edge-md-table .data-table th {white-space:normal;letter-spacing:0;text-transform:none;font-size:.78rem;font-weight:600;vertical-align:middle;}  /* EXEC-IMPL-1017 Fase 2 (user 2026-10-16): titles sit in the middle; across, they follow their column (best practice) */
 /* EXEC-TABLE-ALIGN (user 2026-10-16, "angkanya kecil, tapi kolomnya lebar ... bisa di wrap saja?"): a long title wraps
    between words within about fourteen characters, so the column is as wide as its values or its longest title word */
 .edge-md-table .data-table th .edge-sort-label {position:relative;display:inline-block;max-width:14ch;white-space:normal;overflow-wrap:normal;word-break:normal;vertical-align:bottom;}
@@ -10084,6 +10084,9 @@ html.dark .monitor-layout .details-panel>.tabs button:focus-visible{outline-colo
 .edge-next .edge-choices {flex-direction:column;align-items:stretch;}
 .edge-next .edge-choices .btn {justify-content:flex-start;text-align:left;white-space:normal;height:auto;min-height:36px;padding:8px 12px;line-height:1.4;}
 .edge-next .edge-choice {flex:0 0 auto;padding:12px 14px;}  /* EXEC-CHOICES: a suggestion is one line in a column */
+.edge-next-group {margin-top:6px;}
+.edge-next-group>.edge-choices {margin-top:8px;}
+.edge-next-group .edge-choice-copy strong {font-weight:400;}  /* EXEC-IMPL-1017 Fase 2: suggestions are not bold */
 @media (max-width:720px) {
  /* V4 (user 2026-10-14, red box): the space between the last message (or "AI request running") and the composer */
  .monitor-layout .research-scroll {padding-bottom:8px;}
@@ -11639,8 +11642,11 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
     v.findings.items.map(finding=>element(FindingCard,{key:finding.key,finding,claims}))),
   v.lists.map(list),
   v.methodology&&element("section",{className:"content-block edge-block"},element(SectionTitle,null,v.methodology.label),element(Markdown,{text:v.methodology.text,claims,fast})),
-  v.next&&element("div",{className:"content-block edge-next"},v.next.map((group,index)=>element(ResponseChoices,{key:group.key,title:group.label,boundary:index===0,
-    scope:run.id+":next:"+group.key,enabled,act,choices:group.choices}))),
+  // EXEC-IMPL-1017 Fase 2 (user 2026-10-16: "tidak usah di bold ... collapse dan expand sama seperti asumsi dan batasan";
+  // "Terlipat saat jawaban datang"): each group of suggestions folds like Assumptions and Limitations, with its count
+  v.next&&element("div",{className:"content-block edge-next"},v.next.map(group=>element("details",{key:group.key,className:"edge-more edge-notes edge-next-group"},
+    element("summary",null,`${group.label} (${group.choices.length})`),
+    group.choices.length>0&&element(ChoiceBar,{choices:group.choices,enabled,act,scope:run.id+":next:"+group.key})))),
   element(ResponseActions,{run,togglePin,artifacts:v.artifacts}));
 }
 function ShareResearchPopover({run,close}) {return element("div",{className:"share-popover"},element("p",null,"Public sharing unavailable"),element(Button,{onClick:close},"Close"));}

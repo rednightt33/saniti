@@ -290,6 +290,8 @@ def test_tables_align_by_content_wrap_long_titles_and_draw_no_vertical_line(fixt
                 return [Math.round(inner - Math.max(label, values)), wraps, word]; }); }""")
             # a one-line column has no leftover; a folded text column keeps at most its ragged edge, under one word
             assert all(abs(gap) <= 2 or (wraps and 0 <= gap < word) for gap, wraps, word in slack), (width, table, slack)
+        # EXEC-IMPL-1017 Fase 2: titles sit in the middle of the header row
+        assert all(v == 'middle' for v in tables.nth(1).evaluate("t => [...t.tHead.rows[0].cells].map(c => getComputedStyle(c).verticalAlign)"))
         # the phone's sticky first cell takes its row's hover colour (the row reads as one band)
         row = tables.nth(1).locator('tbody tr').first
         row.locator('td').nth(1).hover()
