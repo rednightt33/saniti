@@ -2415,6 +2415,92 @@ sih... coba cek saja bagaimana ini di render secara front end, terutama jarak an
 - Uji: semua `th` dan `td` rata kiri dan tengah vertikal; tidak ada judul terlipat di bawah batas baru; tangkapan layar
   desktop dan ponsel sebelum/sesudah; `test_visual.py`, `test_answer_view.py`.
 
+#### Rencana implementasi EXEC-1018B (disusun 2026-10-16, belum dieksekusi)
+
+Permintaan user 2026-10-16: "Review all exec. Inspect infrasturuktur untuk buat implementation plan in detail.
+Perhatikan apakah AI akan terbentur atau tidak ... jangan membuat fitur yang mana AI tidak bisa akses sama seperti case2
+sebelumnya. Kemudian apabila adda yang contraddiction feel free to let me know dan minta konfirmasi ke saya".
+
+**Fakta infrastruktur yang dipakai rencana (dibaca dari kode 2026-10-16):**
+- R-STORE (`app/result_store.py`) menyimpan setiap tabel hasil seumur percakapan (`AI_conversation_output`, Postgres
+  ≤ 20 MB / 50.000 baris, lebih besar ke bucket) dan kode setiap eksekusi (`AI_conversation_execution`).
+- Sandbox: bundle data mentah 24 jam, tabel hasil 24 jam, sesi idle 15 menit / maks 1 jam; tabel kerja hanya di sesi.
+- `export_result` menerima `ref`, `output_id`, `evidence_id` saja; ada di meja CLARIFY/READ dan ANALYSIS/FASTLANE.
+- Governor `/v1/summary`: `restrictions` (semi-join ke tabel lain) sudah ada; urut dan N teratas belum ada; batas 200
+  baris, 260 hari bursa, IN 500, scan 2 juta, biaya 600.000, 20 detik.
+- Instruksi system prompt bisa per run (`state.instructions`), jadi prefiks per jalur mungkin tanpa memecah cache
+  (satu prefiks statis per jalur).
+- Router turn: `conversation_router.context()` (tiga pertanyaan user, nama tabel/hasil, temuan, fakta, saran menunggu);
+  mode 4 `routed()` menjalankan satu kelas per giliran.
+
+**Aturan akses AI (untuk setiap butir):** setiap kemampuan baru harus (1) ditawarkan di meja giliran yang membutuhkannya
+(`tool_desks`), (2) disebut di deskripsi alat atau catatan yang dikirim di giliran itu saja, (3) punya penolakan dengan
+kode, angka batas dan satu langkah berikut yang bisa dijalankan, (4) diuji dengan satu run live yang memakai jalur itu.
+Kemampuan yang hanya ada di backend tanpa jalan dari AI tidak dibangun.
+
+**Fase 1: teks dan catatan (orc, kecil, tanpa skema baru).**
+- E7 kalimat rentang dari `FASTLANE_DEFAULTS` (+ contoh kelipatan dihitung).
+- E8 `_offer_metrics` membaca alat giliran.
+- E3: `FASTLANE_NOTE` langkah 2 diberi pengecualian metrik resmi dan atribut referensi; `FASTLANE_ANSWER_LINE` hanya bila
+  ada statistik, kalimatnya sesuai asal uji (tercatat sistem atau tidak); tinjauan kalimat per alat dilaporkan ke user
+  sebelum teks lain diubah.
+- E4 kartu router dirakit saat start dari saklar (v2, explore tests, mode 4); `AI_ROUTER.md` dari profil dev.
+- E5 catatan METRICS: dimensi yang dijumlahkan bila dilepas, batas saham min(100, 200 ÷ baris per saham), periode,
+  200 baris; `MAX_ENTITIES` 100 setelah EXPLAIN 100 saham × 60 hari (`Feature_03`, `IDX_Broker_Summary`).
+- Uji: tes orc, snapshot prompt (profil dev sebenarnya), benchmark router 3× (mayoritas), satu cek live "3 bulan".
+
+**Fase 2: keluaran dan penyimpanan (sandbox + orc).**
+- E6 nama yang dirilis ulang dalam satu request menggantikan yang lama (sandbox `dataneed_service` merilis yang terbaru
+  per nama); orc menolak rujukan ke yang lama dengan alamat baru; kalimat alat sesi menyebutnya.
+- E9(e) tabel pendukung: saat penutupan lolos, tabel kerja (`save_table`) dan tabel antara yang ditandai `emit_table(...,
+  support=True)` disimpan lewat R-STORE dengan jenis `SUPPORT`, masa simpan 30 hari, tidak bisa dikutip; data record
+  mendaftarnya terpisah dari tabel hasil (router dan AI melihatnya).
+- E9(f) jalan ulang sesudah 30 hari: `export_result` sendiri mengambil ulang data dengan spesifikasi tersimpan (SQL
+  sama = data sama) dan menjalankan kode tersimpan di sesi baru tanpa AI; diekspor hanya bila tabel hasil jalan ulang
+  sama persis dengan yang tersimpan; status `STORED`, `REBUILT`, `EXPIRED_NOT_REBUILDABLE` di hasil alat.
+- E9(d) `export_result` menerima `data_request` (bundle terkirim): dari sandbox bila masih ada, selain itu diambil ulang
+  dari Governor dengan spesifikasi tersimpan; tanpa kode AI; boleh di meja baca saja.
+- E1 ekspor di giliran reproduksi memuat tabel kerja dan input lewat (d)/(e): bila tanggal input di luar file, lembar
+  input ditambahkan (bukan ditolak).
+- Akses AI: argumen baru `data_request`/`support` di skema `export_result`, disebut di deskripsinya; daftar tabel
+  pendukung di data record; tiga status ekspor di deskripsi.
+- Uji: sandbox (supersede, support), orc (ekspor bundle, ekspor support, jalan ulang sama/tidak sama dengan jam
+  disimulasikan), satu cek live: "minta data harian broker ADRO dalam Excel" di percakapan baru.
+
+**Fase 3: `query_metric` diperluas (Governor + orc + katalog).**
+- E10(2) Governor summary: `order_by` ukuran (ASC/DESC) dan `limit` ≤ 200; EXPLAIN seluruh pasar setahun `Feature_03`.
+- E10(3) `query_metric` menerima `group_filter` (tabel referensi, kolom, nilai) yang diterjemahkan ke `restrictions`.
+- E10(1) papan baku di `default_scope` metrik aliran (menunggu U5).
+- Penolakan: semua kode Governor dan orc dipetakan ke `next_action` (`NARROW_PERIOD`, `FEWER_DIMENSIONS`,
+  `SPLIT_ENTITIES`, `USE_TOP_N`, `USE_DATA_NEED`) dengan angka diminta dan batas.
+- Akses AI: argumen baru di skema dan deskripsi; contoh di catatan METRICS; Tool_Catalog round baru; `AI_TOOLS.md`.
+- Uji: Governor (top-N, restrictions, penolakan), orc (pemetaan penolakan), live: "5 saham net beli asing terbesar 2024",
+  "net asing saham bank Agustus 2026" (satu panggilan masing-masing).
+
+**Fase 4: router dan alur (orc, mode 4).**
+- E9(a) `router.context()` menambah tabel hasil dan pendukung (nama, satu baris = apa, kolom) dari data record.
+- E9(b) serah-terima: skema jawaban giliran baca saja mendapat ruas `needs_computation` (alasan singkat); mode 4
+  `routed()` menjalankan sekali kelas CONTINUE dengan pesan yang sama bila ruas itu terisi; tercatat di log dan di jawaban.
+- E9(c) tawaran terstruktur: ruas `offered_action` (label, pesan yang dijalankan); disimpan di data record sebagai saran
+  menunggu; router membaca "gas/ok/jalan" sebagai APPROVE atas tawaran itu dan menjalankan pesannya.
+- Snapshot prompt (skema berubah), `AI_ROUTER.md`, benchmark router dengan kasus baru (export data yang belum ada,
+  "gas" setelah tawaran, rujukan lampiran) 3×.
+- Uji live: ulang skenario `conv_bef8e72a…` #5–#9 di percakapan baru.
+
+**Fase 5: prompt per jalur (orc, A/B kecil).**
+- E2 dua prefiks statis (cepat tanpa bagian rencana riset; standar seperti sekarang), dipilih per run lewat
+  `state.instructions`; bagian INTERPRETING RESEARCH yang dibutuhkan jalur cepat (uji tercatat) dipindah ke bagian umum.
+- A/B 3 pertanyaan jalur cepat sebelum/sesudah (waktu, token, penolakan).
+
+**Fase 6: EDGE.**
+- E11 lampiran dikembalikan bila run gagal; E12 timer mulus; E13 tabel seragam.
+- Tes EDGE, tangkapan layar desktop/ponsel, cek live tanpa panggilan model.
+
+**Fase 7: penutupan.** ERRORS (M173–M178 status), changelog, uji ulang Q1–Q3 dan skenario ekspor, laporan.
+
+**Biaya berbayar perkiraan:** benchmark router 3× dua kali (±USD 0,6), A/B E2 (±0,3), cek live (±0,5): ±USD 1,4; sisa
+batas kunci ±USD 2,36.
+
 E3 dikonfirmasi user 2026-10-16 ("Ini masuk E3 (merapikan aturan) --> OK masukan exec jangan eksekusi dulu").
 
 **E4. Kartu router mengikuti saklar (R4).**
