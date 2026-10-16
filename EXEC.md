@@ -2410,6 +2410,26 @@ user diberi tahu hanya bila provider menolak karena biaya. Berhenti hanya untuk 
   - Tetap beda → Batasan menyebut selisihnya.
 - Berlaku untuk angka apa pun: return, rata-rata, jumlah, net beli, hasil uji (input dan metodenya).
 
+**3.3a Klarifikasi user 2026-10-16:** "penelusuran angka yang saya jelaskan hanya contoh, bukan spesifik yang harus
+dilakukan seperti itu. Goalnya adalah ketika AI attach selection, maka user ataupun pengguna bisa benar-benar melakukan
+perhitungan sendiri menggunakan data dan hasilnya harus sama exactly seperti yang AI show."
+
+Akibatnya pada desain:
+- Bentuk tabel kerja tidak ditentukan. AI memilih langkah yang paling jelas untuk angka itu. Yang wajib adalah hasilnya.
+- **Lengkap.** Setiap input mentah ada beserta pengenalnya (tanggal, kode, tabel sumber dan saringannya), setiap
+  langkah antara ada, dan aturan pembulatan tampilan disebut. Orang lain bisa mengulang tanpa bertanya.
+- **Sama persis.**
+  - Backend membandingkan hasil tabel kerja dengan nilai tersimpan angka asli pada presisi penuh, bukan hanya
+    tampilannya: selisih relatif ≤ 1e-9, hanya untuk sisa pembulatan bilangan pecahan.
+  - Bila dibulatkan dengan aturan tampilan yang sama, hasilnya harus menghasilkan teks yang persis sama dengan yang
+    ditampilkan.
+  - Yang lolos hanya yang sama persis. "Mendekati" tidak dianggap cocok.
+- **Bisa dihitung sendiri di luar EDGE.** Ekspor Excel memuat data mentah dan rumus Excel yang hidup untuk setiap
+  langkah, bukan hanya angka hasil. Membuka file dan menghitung ulang memberi angka yang sama. Ini dites otomatis
+  dengan menghitung ulang rumus file.
+- Bila sumber angka tidak bisa diulang dari data mentah (misalnya fakta web), jawaban menyebutnya terang-terangan dan
+  menunjuk sumbernya. Tidak ada tabel kerja palsu.
+
 **3.4 Router melihat lampiran.**
 - Ringkasan pendek (jenis, jawaban asal, 200 karakter pertama, jumlah angka).
 - `AI_ROUTER.md`; benchmark router dengan kasus lampiran ("ini dari mana?", "kenapa ini?").
@@ -2428,8 +2448,13 @@ user diberi tahu hanya bila provider menolak karena biaya. Berhenti hanya untuk 
 - Chip bisa ditumpuk dan dihapus.
 - Tes Playwright desktop dan ponsel.
 
-**3.7 Cek live.** "Return 20,2% ini dari mana?" pada jawaban tahunan BBRI: tabel kerja berisi close akhir tahun dan
-data harian, cocok dengan 20,2%, dan bisa diekspor.
+**3.7 Cek live.** Tiga angka dari jenis berbeda, misalnya:
+- return tahunan;
+- jumlah net beli broker;
+- satu hasil uji.
+
+Masing-masing dilampirkan dan ditanyakan asalnya. Setiap kali: tabel kerja lengkap, cocok persis dengan angka yang
+ditampilkan, dan file Excel yang dihitung ulang memberi angka yang sama.
 
 #### Fase 4: penutupan
 
