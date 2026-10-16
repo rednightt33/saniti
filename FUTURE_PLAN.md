@@ -455,6 +455,33 @@ OpenAI GPT-4.1 Prompting Guide (dipakai juga di `PROMPT_AUDIT_2026-10-05.md`).
   rute (giliran berikut minta hitung setelah CLARIFY, tanya ulang) dikumpulkan mingguan sebagai kasus baru; kartu
   kemampuan dari saklar. Permanen.
 
+### Tambahan 2026-10-16 (pertanyaan user atas temuan uji)
+
+- **Kenapa AI tidak tahu batas 20 entitas (terverifikasi di kode):** `tools/registry._provider_schema` hanya mengirim
+  kata kunci `type, properties, required, additionalProperties, items, anyOf, enum, description` ke penyedia model.
+  `maxItems`, `minItems`, `maxLength`, `minLength`, `minimum`, `maximum` dan `pattern` dibuang; Pydantic tetap
+  menegakkannya. Di model alat ada 159 ruas berbatas, 143 di antaranya tanpa angka di deskripsinya, jadi model baru
+  tahu batas setelah ditolak.
+  - **U6 (diganti):** saat membuang batas, `_provider_schema` menulis batas itu ke deskripsi ruas secara otomatis
+    ("at most 20 items", "1–260", pola tanggal). Berlaku untuk semua alat, termasuk yang ditambah nanti. Lapisan:
+    registry alat. Tidak menutup batas yang hanya diperiksa di backend (Governor, sandbox): batas itu ditulis di
+    deskripsi alatnya dari konstanta kode. Risiko: deskripsi alat sedikit lebih panjang (cache sekali). Uji: setiap ruas
+    berbatas memuat batasnya di skema yang dikirim; `AI_TOOLS.md` dibuat ulang.
+- **U8, arti `query_metric`:** deskripsi alat dan catatan METRICS tidak menyebut bahwa dimensi yang dihilangkan
+  dijumlahkan (Governor memutuskan apakah boleh); Q2 dan Q3 menulis "presumably". Perbaikan: catatan METRICS menulis
+  per metrik dimensi mana yang dijumlahkan bila dihilangkan, diturunkan dari katalog metrik dan aturan Governor.
+- **U2 (penyebab terverifikasi):** saat penutupan lolos, `dataneed_service` merilis semua keluaran dari setiap run yang
+  berhasil di sesi, termasuk keluaran sebelum penutupan yang ditolak; nama yang sama jadi dirilis dua kali. Perbaikan di
+  sandbox: untuk nama yang sama dalam satu request hanya yang terbaru dirilis, yang lama ditandai digantikan; orc
+  menolak sekali rujukan ke yang lama dengan alamat baru.
+- **U9, kata kategori user vs nilai tersimpan:** "perbankan" tidak cocok dengan Sector ("Financials"); nilai benar ada
+  di Industry ("Banks"); butuh 3 panggilan. Perbaikan: `get_dimension_values`/`search_values` yang tidak menemukan
+  kecocokan di kolom yang diminta menyebut kolom kategori lain di tabel yang sama yang cocok (diturunkan dari kamus
+  nilai). Terjemahan "perbankan" ke "bank" tetap penilaian model.
+- **R2, benchmark ditulis tangan:** maksudnya kasus uji router di `tests/fixtures/turn_router_cases.json` (84 kasus)
+  dan `first_message_router_cases.json` (128 kasus), ditulis pengembang; bukan di system prompt. Prompt router sendiri
+  memuat ±30 contoh kalimat pendek. Usulan U7 tetap: kumpulkan pesan live yang salah rute sebagai kasus baru.
+
 ## Rumus Excel hidup untuk angka yang dihitung ulang (penilaian 2026-10-16, menunggu keputusan)
 
 User 2026-10-16: "apakah heavey? if so how heavy? coba bandingkan best practice apakah ini memang diperlukan."

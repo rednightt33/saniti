@@ -2247,6 +2247,58 @@ user diberi tahu hanya bila provider menolak karena biaya. Berhenti hanya untuk 
 - Bagian EXEC yang selesai (EXEC-OPEN-1015, UI-1015E, M164, EDGE-CTX, UI-1015B, M163) diberi status selesai di
   judulnya. Penghapusan dari EXEC.md (aturan AGENTS) menunggu user menyatakan eksekusi ini selesai ("conclude").
 
+### EXEC-1018B: input lengkap di ekspor, prompt jalur cepat tanpa aturan riset, aturan dirapikan, kartu router dari saklar (dicatat 2026-10-16; disetujui untuk dicatat, belum dieksekusi)
+
+**Kata-kata user 2026-10-16:**
+- Ekspor: "ok dengan usulan, masukan EXEC jangan execute dulu" (usulan: ekspor ikut memuat semua input yang dipakai
+  hitungan).
+- A1: "Ok please remove yang tidak relevan. Masukan EXEC jangan eksekusi dulu".
+- A2: "Review dan rapihkan. Masukan EXEC jangan eksekusi dulu".
+- R4: "Review dan rapihkan. Masukan EXEC jangan eksekusi dulu".
+
+Eksekusi dimulai hanya setelah go user. Setiap butir: tes lokal, snapshot prompt bila teks prompt berubah, benchmark
+router bila teks router berubah, deploy sampai SUCCESS, cek live kecil.
+
+**E1. Ekspor memuat semua input hitungan** (FUTURE_PLAN "Harga dasar di luar file").
+- Penyebab terverifikasi: `export_result` mengekspor satu tabel rilis apa adanya; tidak ada yang mengaitkan tabel itu
+  dengan input yang dipakai angka di jawaban. Kasus: return 41,3% BMRI 2022, harga dasar 30 Des 2021 tidak di file.
+- Kelas: angka yang inputnya keluar dari jendela yang ditampilkan: return dengan harga dasar, jendela bergulir (baris
+  pemanasan), YoY, jendela estimasi event study, rentang relatif.
+- Rancangan: pada ekspor data mentah di giliran yang punya reproduksi atau tabel kerja, backend membandingkan rentang
+  tanggal file dengan tanggal input tabel kerja (lineage); bila ada input di luar file, file ditambah lembar input itu
+  atau ekspor ditolak sekali dengan nama input yang hilang. Lapisan: orc `export_result` + lineage.
+- Uji: kasus 41,3% (harga dasar masuk file), jendela bergulir 20 hari, YoY; satu kasus yang tidak kena (ekspor tabel
+  yang semua inputnya di dalam periode).
+
+**E2. Prompt jalur cepat tanpa aturan rencana riset (A1).**
+- Bukti: 37,7% system prompt dev (±15,6 rb karakter: RESEARCH PLANS, MULTI-ANGLE PLAN, HYPOTHESIS PLAN, RESEARCH PLAN
+  FORMS, MULTI-ANGLE FINDINGS, HYPOTHESIS FINDINGS) berlaku hanya untuk alat riset yang dilarang di jalur cepat.
+- Rancangan: `build_system_prompt` merakit dua prefiks statis, jalur cepat dan jalur standar; bagian riset hanya di
+  jalur standar. Pemilihan dari alat yang ditawarkan per jalur (diturunkan dari `tool_desks`, bukan daftar baru).
+  INTERPRETING RESEARCH dicek: yang dipakai jalur cepat (membaca uji tercatat) dipindah ke bagian umum.
+- Snapshot prompt mencatat kedua prefiks; profil snapshot memakai saklar dev sebenarnya (A3).
+- Risiko: cache dua prefiks; perubahan perilaku jalur cepat, jadi uji 3–4 pertanyaan sebelum/sesudah.
+
+**E3. Aturan yang bertentangan dirapikan (A2).** Temuan yang sudah terverifikasi:
+- `FASTLANE_NOTE` langkah (2) "send one data need" tanpa pengecualian, bertentangan dengan DATA SOURCES (metrik resmi
+  lewat `query_metric`, atribut referensi lewat `lookup_reference`). Terlihat di penalaran Q2.
+- `user_texts.FASTLANE_ANSWER_LINE` ("Uji statistik (bila ada) dihitung AI dengan kode dan tidak diperiksa ulang
+  sistem") ditulis di setiap jawaban mode Jawab, juga bila tidak ada uji (Q1, Q3); di insight v2 uji tercatat sistem.
+  Ditulis hanya bila jawaban memuat statistik, dengan kalimat yang sesuai asal ujinya.
+- Teks alat menyebut hasil run yang *gagal* tidak dirilis, tetapi tidak menyebut hasil run yang berhasil sebelum
+  penutupan ditolak (M174); diselesaikan bersama perbaikan backend M174.
+- Langkah tinjauan menyeluruh: skrip mengumpulkan kalimat per alat dan per topik (data need, unit, rujukan nilai,
+  tabel) dari system prompt, brief tiap jenis giliran dan deskripsi alat; setiap aturan yang muncul di lebih dari satu
+  lapis dipilih satu tempat. Hasil tinjauan dilaporkan ke user sebelum teks diubah.
+
+**E4. Kartu router mengikuti saklar (R4).**
+- Bukti: `route_capabilities()` dan `FAST_LANE_ROUTES` adalah teks tetap saat impor; bila `AI_FASTLANE_INSIGHT_V2=false`
+  kartu tetap menyebut v2.
+- Rancangan: kartu dirakit saat start dari saklar dan alat yang aktif (v2, explore tests, mode 4), sama seperti
+  system prompt; `AI_ROUTER.md` dibuat dari profil dev. Tinjau juga kartu lain terhadap perilaku hilir (CLARIFY baca
+  saja, INSIGHT, CONTINUE).
+- Uji: kartu berubah bila saklar berubah; benchmark router sebelum deploy (diulang, lihat FUTURE_PLAN U7).
+
 ### EXEC-1018: insight v2 menjadi default, teks router v2, uji 3 pertanyaan, audit prompt dan router (dicatat 2026-10-16)
 
 **Keputusan user 2026-10-16** (atas lima keputusan terbuka EXEC-IMPL-1017): "1. yes default", "2. apakah heavey? if so
