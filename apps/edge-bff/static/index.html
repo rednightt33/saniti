@@ -9933,6 +9933,15 @@ th.edge-sortable:hover .edge-sort-icon,.edge-sort:focus-visible .edge-sort-icon,
 .edge-source-ref {align-self:flex-start;font:.72rem ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted-foreground);}
 .edge-source-action {align-self:flex-start;padding:6px 10px;border:1px solid var(--border);border-radius:7px;background:var(--secondary);color:var(--foreground);font:500 .78rem Inter,"Segoe UI",sans-serif;cursor:pointer;}
 .edge-source-action:hover {background:var(--accent,var(--secondary));}
+/* EXEC-IMPL-1017 Fase 3: what was attached to a question, and an attached figure recomputed exactly */
+.edge-attached-line,.edge-reproduced {display:flex;align-items:center;gap:6px;margin:4px 0 8px;color:var(--muted-foreground);font-size:.8rem;}
+.edge-reproduced {color:var(--positive, #1f9d55);}
+/* EXEC-IMPL-1017 Fase 3: the menu on selected text (right click) and its floating form on a touch screen */
+.edge-selection-menu {position:fixed;z-index:300;display:flex;flex-direction:column;min-width:220px;padding:4px;border:1px solid var(--border);border-radius:10px;background:var(--card);box-shadow:0 8px 24px #0000002b;font:500 13px Inter,"Segoe UI",sans-serif;}
+.edge-selection-menu button {all:unset;box-sizing:border-box;padding:8px 12px;border-radius:7px;color:var(--foreground);cursor:pointer;white-space:nowrap;}
+.edge-selection-menu button:hover,.edge-selection-menu button:focus-visible {background:var(--secondary);}
+.edge-selection-menu.floating {flex-direction:row;min-width:0;border-radius:999px;}
+.edge-selection-menu.floating button {padding:8px 14px;border-radius:999px;}
 /* EXEC-IMPL-1016 Fase 4.2 (EDGE-CTX A): rows of a built answer table picked and attached to the next question */
 .edge-row-pickable {cursor:pointer;}
 .edge-row-picked td {background:color-mix(in srgb, var(--primary, #4f7cff) 16%, transparent);}
@@ -10706,8 +10715,15 @@ function Monitor({ go }) {
     const followRef=(viewRecord.refs.followRef ??= {current:null});
     const submissionRef=(viewRecord.refs.submissionRef ??= {current:null});
     const pendingReply=initialValue(viewRecord,"pendingReply",()=>null),setPendingReply=next=>updateValue(viewRecord,"pendingReply",next);
-    // EXEC-IMPL-1016 Fase 4.2 (EDGE-CTX A): part of an answer table attached to the next question (one at a time)
-    const attached=initialValue(viewRecord,"attached",()=>null),setAttached=next=>updateValue(viewRecord,"attached",next);
+    // EXEC-IMPL-1016 Fase 4.2 (EDGE-CTX A), EXEC-IMPL-1017 Fase 3: what the user attached to the next question, from a
+    // selection anywhere in an answer (at most 5; each chip can be removed)
+    const attachedValue=initialValue(viewRecord,"attached",()=>[]),attached=Array.isArray(attachedValue)?attachedValue:[];
+    const setAttached=next=>updateValue(viewRecord,"attached",next);
+    const addAttached=item=>{if(!item)return;if(attached.length>=5){setInputHint(edgeUi().attachLimit);return;}
+      setAttached([...attached,item]);focusComposer();};
+    viewRecord.refs.attachHandler=addAttached;
+    if(!viewRecord.refs.attachInstalled){viewRecord.refs.attachInstalled=true;
+      window.addEventListener("edge-attach",event=>viewRecord.refs.attachHandler?.(event.detail));}
     const inputHint=initialValue(viewRecord,"inputHint",()=>null),setInputHint=next=>updateValue(viewRecord,"inputHint",next);
     const selectConversation = async id => {setHistoryOpen(false);setLoadingConversation(true);setApiError("");setSelectedId(id);setSelectedRunId(null);setPendingReply(null);try{const loaded=await Edge.messages(id);setItems(current=>current.map(x=>x.id===id?loaded:x));}catch(e){setApiError(e.message);}finally{setLoadingConversation(false);}};
     // EXEC-DELETE (user 2026-10-12): the trash button asks first, then hides the conversation from this list only
@@ -10744,14 +10760,14 @@ function Monitor({ go }) {
       const holder=afterStop && executionRun ? items.find(c=>c.runs.some(r=>r.id===executionRun.id)) : null;
       const target=holder ? holder.id : selectedId;
       const existing=target?.startsWith("conv_")?target:null;
-      const payload={message:question,...edgeModelChoice(),...(existing?{conversation_id:existing}:{}),...(afterStop?{after_stop:true}:{}),...(attached&&!plain?{attached_selection:attached}:{}),...extra,...(pendingReply&&!plain?{plan_reply:{...pendingReply,revision_instruction:question.slice(0,2000)}}:{})};
+      const payload={message:question,...edgeModelChoice(),...(existing?{conversation_id:existing}:{}),...(afterStop?{after_stop:true}:{}),...(attached.length&&!plain?{attachments:attached}:{}),...extra,...(pendingReply&&!plain?{plan_reply:{...pendingReply,revision_instruction:question.slice(0,2000)}}:{})};
       const fingerprint=JSON.stringify(payload);
       const pending=submissionRef.current?.fingerprint===fingerprint?submissionRef.current:{fingerprint,key:crypto.randomUUID()};submissionRef.current=pending;
       try{const accepted=await Edge.createRun({...payload,submission_key:pending.key});const now=new Date().toISOString(),id=accepted.conversation_id || existing || holder?.id || "draft:"+accepted.request_id;
         if(afterStop && accepted.after_request_id)setStoppingId(accepted.after_request_id);
         const r={id:accepted.request_id,question,status:"submitted",mode:"Standard",createdAt:now,attachments:[],sources:[],steps:[{id:"queued",label:"Queued",status:"running",detail:"Accepted by server"}]};
         setItems(current=>{const found=current.find(c=>c.id===id);if(found)return current.map(c=>c.id===id && !c.runs.some(x=>x.id===r.id)?{...c,messages:[...c.messages,{id:r.id+"-user",role:"user",content:question,createdAt:now,runId:r.id}],runs:[...c.runs,r]}:c);return [{id,title:question.slice(0,80),bookmarked:false,createdAt:now,updatedAt:now,messages:[{id:r.id+"-user",role:"user",content:question,createdAt:now,runId:r.id}],runs:[r]},...current];});
-        setSelectedId(id);setSelectedRunId(r.id);setAutoOpenRunId(r.id);setDetailsOpen(true);setPrompt("");setPendingReply(null);setInputHint(null);if(!plain)setAttached(null);submissionRef.current=null;followRun(id,r.id);
+        setSelectedId(id);setSelectedRunId(r.id);setAutoOpenRunId(r.id);setDetailsOpen(true);setPrompt("");setPendingReply(null);setInputHint(null);if(!plain)setAttached([]);submissionRef.current=null;followRun(id,r.id);
         // V5 (user 2026-10-14: "ketika saya click enter, chat tidak otomatis ke scroll ke bawah"): the new question is shown
         setAutoFollow(true);requestAnimationFrame(()=>requestAnimationFrame(()=>scrollRef.current?.scrollTo({top:scrollRef.current.scrollHeight,behavior:"auto"})));
       }catch(e){setApiError(e.message);}finally{setSubmitting(false);}
@@ -10766,7 +10782,7 @@ function Monitor({ go }) {
     // user's message (a pause reads it); input: the user writes first, with the choice as the composer's hint.
     const focusComposer=()=>requestAnimationFrame(()=>composerRef.current?.focus());
     const act=action=>{
-      if(action.type==="attach"){setAttached(action.selection);focusComposer();return;}
+      if(action.type==="attach"){addAttached(action.selection);return;}
       if(action.type==="route")return void submit({chosen_option:action.route},action.message,{plain:true});
       if(action.type==="message")return void submit({},action.message,{plain:true});
       if(action.type==="input"){setPendingReply(null);setInputHint(action.hint);setPrompt("");focusComposer();return;}
@@ -10878,9 +10894,9 @@ function Monitor({ go }) {
                         element("span", { className: "pulse" }),
                         element("span", null, executionRun?.status === "streaming" ? "Streaming research result…" : executionRun?.steps.find(step => step.status === "running")?.label ?? "Research running…"),
                         element("strong", null, executionRun?.mode)),
-                    attached && element("div",{className:"composer-status edge-attached-chip"},element(Icon,{name:"attach",size:13}),
-                    element("span",null,EdgeView.selectionLabel(attached)),
-                    element("button",{type:"button","aria-label":edgeUi().attachRemove,title:edgeUi().attachRemove,onClick:()=>setAttached(null)},"×")),
+                    attached.map((item,index)=>element("div",{key:`attached-${index}`,className:"composer-status edge-attached-chip"},element(Icon,{name:"attach",size:13}),
+                    element("span",null,EdgeView.selectionLabel(item)),
+                    element("button",{type:"button","aria-label":edgeUi().attachRemove,title:edgeUi().attachRemove,onClick:()=>setAttached(attached.filter((_,i)=>i!==index))},"×"))),
                     context && element("div", { className: "research-context" },
                         element("span", null, "Context"),
                         element("strong", null,
@@ -11256,6 +11272,77 @@ function edgeVerdict(verdict) {
   return element("span", {className:`edge-badge ${verdict.tone}`, title:verdict.code}, verdict.label);
 }
 
+// EXEC-IMPL-1017 Fase 3 (user 2026-10-16: "select as context ... fungsinya klik kanan kayak claude"; "di ponsel memakai
+// tombol mengambang"): on text selected in an answer, a right click opens EDGE's menu (Copy, Attach selection as
+// context); on a touch screen a small bar floats under the selection. The menu lives outside the app's view tree and
+// builds its buttons with textContent only. Attaching sends the passage with the value reference of every figure and
+// table cell inside it (data-fig-ref) to the composer.
+const EdgeSelection = (() => {
+  let menu = null, timer = null;
+  const close = () => { if (menu) { menu.remove(); menu = null; } };
+  const current = () => {
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || !selection.rangeCount) return null;
+    const range = selection.getRangeAt(0), base = range.commonAncestorContainer;
+    const node = base.nodeType === 1 ? base : base.parentElement;
+    const article = node?.closest?.("article.result");
+    const text = selection.toString().trim();
+    return article && text ? {range, article, text} : null;
+  };
+  const build = ({range, article, text}) => {
+    const figures = [...article.querySelectorAll("[data-fig-ref]")].filter(node => range.intersectsNode(node))
+      .map(node => ({ref:node.getAttribute("data-fig-ref"), shown:node.textContent.trim()}));
+    const start = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
+    const section = start?.closest?.("[data-section]")?.getAttribute("data-section") || "OTHER";
+    return EdgeView.textSelection({requestId:article.id.replace(/-response$/, ""), section, quote:text, figures});
+  };
+  const show = (x, y, info, floating) => {
+    close();
+    const ui = edgeUi();
+    menu = document.createElement("div");
+    menu.className = "edge-selection-menu" + (floating ? " floating" : "");
+    menu.setAttribute("role", "menu");
+    const item = (label, run) => {
+      const button = document.createElement("button");
+      button.type = "button"; button.setAttribute("role", "menuitem"); button.textContent = label;
+      button.addEventListener("mousedown", event => event.preventDefault());
+      button.addEventListener("click", () => { run(); close(); });
+      menu.appendChild(button);
+    };
+    item(ui.selectionCopy, () => navigator.clipboard?.writeText(info.text).catch(() => {}));
+    item(ui.selectionAttach, () => {
+      window.dispatchEvent(new CustomEvent("edge-attach", {detail:build(info)}));
+      window.getSelection()?.removeAllRanges();
+    });
+    document.body.appendChild(menu);
+    menu.style.left = Math.max(8, Math.min(x, innerWidth - menu.offsetWidth - 8)) + "px";
+    menu.style.top = Math.max(8, Math.min(y, innerHeight - menu.offsetHeight - 8)) + "px";
+  };
+  const coarse = () => typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+  if (typeof document !== "undefined") {
+    document.addEventListener("contextmenu", event => {
+      const info = current();
+      if (!info || !info.range.intersectsNode(event.target)) { close(); return; }
+      event.preventDefault();
+      show(event.clientX, event.clientY, info, false);
+    });
+    document.addEventListener("selectionchange", () => {
+      if (!coarse()) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const info = current();
+        if (!info) { close(); return; }
+        const box = info.range.getBoundingClientRect();
+        const below = box.bottom + 12, visible = box.bottom > 0 && below < innerHeight - 140;
+        show(visible ? box.left : 16, visible ? below : innerHeight - 150, info, true);
+      }, 350);
+    });
+    document.addEventListener("mousedown", event => { if (menu && !menu.contains(event.target)) close(); });
+    document.addEventListener("keydown", event => { if (event.key === "Escape") close(); });
+  }
+  return {close};
+})();
+
 // ---- Markdown: blocks, then inline spans; anything else stays plain text ----
 const MD_INLINE = [
   ["code", /`([^`\n]+)`/],
@@ -11263,6 +11350,41 @@ const MD_INLINE = [
   ["strong", /\*\*(?=\S)([\s\S]+?)\*\*|(?<![\w])__(?=\S)([\s\S]+?)__(?![\w])/],
   ["em", /\*(?=[^\s*])([^*\n]+?)\*|(?<![\w])_(?=[^\s_])([^_\n]+?)_(?![\w])/]
 ];
+// EXEC-IMPL-1017 Fase 3: the answer's figures (Orc's answer_figures, in order) become spans that carry their value
+// reference, so a selected passage knows where each of its figures comes from. A figure is matched as a whole number
+// (no digit or decimal mark next to it); one Orc lists but the text no longer shows is skipped
+const MD_FIGURE_EDGE = /[\d.,]/;
+function mdFigures(text, ctx) {
+  const queue = ctx?.figures;
+  if (!queue || queue.next >= queue.list.length) return [text];
+  const out = [];
+  let rest = String(text);
+  const find = shown => {
+    for (let from = 0; ; ) {
+      const at = rest.indexOf(shown, from);
+      if (at < 0) return -1;
+      const before = at ? rest[at - 1] : "", after = rest[at + shown.length] ?? "";
+      if (!(/\d/.test(shown[0]) && MD_FIGURE_EDGE.test(before)) && !(/\d/.test(shown.at(-1)) && /\d/.test(after))) return at;
+      from = at + 1;
+    }
+  };
+  while (rest && queue.next < queue.list.length) {
+    let hit = -1, at = -1;
+    for (let k = queue.next; k < Math.min(queue.list.length, queue.next + 4); k++) {
+      const shown = String(queue.list[k]?.shown || "");
+      const found = shown ? find(shown) : -1;
+      if (found >= 0) { hit = k; at = found; break; }
+    }
+    if (hit < 0) break;
+    const figure = queue.list[hit];
+    if (at) out.push(rest.slice(0, at));
+    out.push(element("span", {className:"edge-fig", "data-fig-ref":figure.ref}, figure.shown));
+    rest = rest.slice(at + figure.shown.length);
+    queue.next = hit + 1;
+  }
+  if (rest) out.push(rest);
+  return out;
+}
 function mdInline(text, ctx) {
   const out = [];
   let rest = String(text);
@@ -11272,9 +11394,9 @@ function mdInline(text, ctx) {
       const match = pattern.exec(rest);
       if (match && (!best || match.index < best.match.index)) best = {kind, match};
     }
-    if (!best) { out.push(rest); break; }
+    if (!best) { out.push(...mdFigures(rest, ctx)); break; }
     const {kind, match} = best, inner = match[1] ?? match[2];
-    if (match.index) out.push(rest.slice(0, match.index));
+    if (match.index) out.push(...mdFigures(rest.slice(0, match.index), ctx));
     if (kind === "code") out.push(element("code", null, inner));
     else if (kind === "link") {
       const href = Edge.safeUrl(match[2]);
@@ -11445,9 +11567,9 @@ const TABLE_VISIBLE_ROWS = 10;
 const TABLE_SHORT_CELL = 16;  // characters: a cell this short reads as a code, date or number
 function MdTable({head, align, rows, numeric, ctx, title = "", plain = false, initialSort = null, source = null}) {
   const view = currentView;
-  const attachable = Boolean(source && ctx?.attach && !plain);
-  const picked = initialValue(view, "picked", () => []);
-  const togglePick = index => updateValue(view, "picked", current => current.includes(index) ? current.filter(i => i !== index) : [...current, index]);
+  // EXEC-IMPL-1017 Fase 3 (user 2026-10-16: "tanpa ada menu tambahan"): a table has no attach controls; its cells carry
+  // their value reference and are attached by selecting them (right click, or the bar on a phone)
+  ctx = ctx ? {...ctx, figures:null} : ctx;
   const sort = initialValue(view, "sort", () => initialSort ?? ({column:null, dir:null}));
   const expandRef = initialValue(view, "expandRef", () => ({current:null}));
   const setSort = next => updateValue(view, "sort", next);
@@ -11491,30 +11613,26 @@ function MdTable({head, align, rows, numeric, ctx, title = "", plain = false, in
   const table = () => element("table", {className:"data-table"},
     element("thead", null, element("tr", null, head.map((value, column) => header(value, column)))),
     element("tbody", null, [...ordered, ...pinned].map(item => element("tr", {key:`r${item.index}`,
-      className:[folded(item) ? "edge-row-folded" : null, attachable ? "edge-row-pickable" : null, attachable && picked.includes(item.index) ? "edge-row-picked" : null].filter(Boolean).join(" ") || undefined,
-      ...(attachable ? {onClick:() => togglePick(item.index), "aria-selected":picked.includes(item.index)} : {})},
-      head.map((_, column) => element("td", cellProps(column), mdInline(item.row[column] ?? "", ctx)))))));
+      className:folded(item) ? "edge-row-folded" : undefined},
+      head.map((_, column) => { const ref = source ? EdgeView.cellRef(source, item.index, column) : null;
+        return element("td", cellProps(column, ref ? {"data-fig-ref":ref} : {}), mdInline(item.row[column] ?? "", ctx)); })))));
   if (plain) return table();
   const ui = edgeUi();
   const hidden = free.length - TABLE_VISIBLE_ROWS;
   const open = () => openTableDialog({title:title || ui.tableTitle, description:ui.tableRows.replace("{n}", rows.length),
     returnFocusRef:expandRef, table:{head, align, rows, numeric, ctx, initialSort:sort}});
-  const attach = () => { ctx.attach(EdgeView.selection(source, rows, picked, title)); updateValue(view, "picked", []); };
   return element("div", {className:"edge-md-table-frame"},
     element("button", {type:"button", className:"edge-table-expand", ref:expandRef, title:ui.tableExpand,
       "aria-label":ui.tableExpand, onClick:open}, element(Icon, {name:"maximize", size:14})),
-    attachable && element("div", {className:"edge-table-attach"},
-      element("button", {type:"button", className:"edge-table-attach-button", onClick:attach},
-        picked.length ? ui.attachRows.replace("{n}", picked.length) : ui.attachTable),
-      !picked.length && element("small", null, ui.attachHint)),
     element("div", {className:"edge-md-table"}, table()),
     folds && element("button", {type:"button", className:"edge-table-more", "aria-expanded":showAll,
       onClick:() => updateValue(view, "showAll", !showAll)},
       showAll ? ui.tableFewerRows : ui.tableMoreRows.replace("{n}", hidden)));
 }
 
-function Markdown({text, claims, className = "", fast = false, tables = null, attach = null}) {
-  return element("div", {className:`edge-md ${className}`}, renderMarkdown(text, {claims, fast, tables, attach, usedTables:[]}));
+function Markdown({text, claims, className = "", fast = false, tables = null, attach = null, figures = null}) {
+  return element("div", {className:`edge-md ${className}`}, renderMarkdown(text, {claims, fast, tables, attach, usedTables:[],
+    figures:Array.isArray(figures) && figures.length ? {list:figures, next:0} : null}));
 }
 
 // ---- One generic view for structured data ----
@@ -11622,7 +11740,7 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
  const v=EdgeView.toView(run.raw,{domainStatus:run.domainStatus,planIndex}), claims=new Map(v.claims), fast=v.meta.lane==="fast";
  const items=values=>element("ul",{className:"edge-list"},values.map(x=>element("li",null,typeof x==="string"?mdInline(fast?fastDates(x):x,{claims}):DataValue({value:x}))));
  // EXEC-STYLE S3: assumptions and limitations sit folded under the answer, with their count
- const list=part=>element("details",{key:part.label,className:"content-block edge-block edge-more edge-notes"},element("summary",null,`${part.label} (${part.items.length})`),items(part.items));
+ const list=part=>element("details",{key:part.label,className:"content-block edge-block edge-more edge-notes","data-section":part.label===edgeUi().limitations?"LIMITATIONS":"ASSUMPTIONS"},element("summary",null,`${part.label} (${part.items.length})`),items(part.items));
  const notes=v.plan&&[v.plan.notes.assumptions,v.plan.notes.limitations].some(part=>part.items.length)?element("div",{className:"edge-plan-notes"},
    [v.plan.notes.assumptions,v.plan.notes.limitations].map(part=>part.items.length>0&&element("div",null,element("span",{className:"edge-eyebrow"},part.label),items(part.items)))):null;
  return element("article",{className:"result",id:run.id+"-response",tabIndex:-1},
@@ -11630,8 +11748,11 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
   element("h1",null,run.result.title),
   element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",{className:"edge-run-model"},element(EdgeModelLogo,{option:edgeModelOption(v.meta.model)}),element("span",null,element("span",{className:"edge-run-model-name",title:v.meta.model},edgeModelOption(v.meta.model).label),v.meta.reasoningLevel?" \u00B7 "+(edgeUi().modelLevels?.[v.meta.reasoningLevel]??v.meta.reasoningLevel):null)),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.duration&&element("span",{className:"edge-duration",title:"Lama proses"},"\u23F1 "+v.meta.duration),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
   v.evidence&&element("div",{className:"edge-tags"},element("span",{className:"edge-badge neutral",title:v.evidence.code},v.evidence.label)),
-  v.answer&&element("div",{className:"content-block edge-answer"},element(Markdown,{text:v.answer,claims,fast,
-    tables:run.raw?.answer_tables,attach:act?(selection=>act({type:"attach",selection})):null})),
+  v.attached.length>0&&element("div",{className:"edge-attached-line"},element(Icon,{name:"attach",size:13}),
+    element("span",null,edgeUi().attachedPrefix+": "+v.attached.join("; "))),
+  v.answer&&element("div",{className:"content-block edge-answer","data-section":"ANSWER"},element(Markdown,{text:v.answer,claims,fast,
+    tables:run.raw?.answer_tables,attach:act?(selection=>act({type:"attach",selection})):null,figures:run.raw?.answer_figures})),
+  v.reproduced.map((line,index)=>element("div",{key:`reproduced-${index}`,className:"edge-reproduced"},element(Icon,{name:"check",size:13}),element("span",null,line))),
   v.clarification&&element(ResponseChoices,{scope:run.id+":clarify",enabled,act,
     prompt:element("div",{className:"edge-choices-prompt"},element(Markdown,{text:v.clarification.text,claims})),
     choices:v.clarification.choices.length?[...v.clarification.choices,{key:"WRITE_OTHER",label:edgeUi().writeOther,action:{type:"input",hint:edgeUi().writeOtherHint}}]:[]}),

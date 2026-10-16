@@ -187,7 +187,33 @@
   }
   function selectionLabel(sel) {
     const ui = L().ui;
-    return ui.attachedChip.replace('{title}', sel.title || sel.ref).replace('{n}', String(sel.rows.length));
+    if (sel && sel.kind === 'TEXT') {
+      const quote = plain(sel.quote).replace(/\s+/g, ' ');
+      const short = quote.length > 48 ? quote.slice(0, 47) + '…' : quote;
+      return ui.attachedText.replace('{quote}', short)
+        .replace('{n}', String((sel.figures || []).length));
+    }
+    const rows = Array.isArray(sel.rows) ? sel.rows.length : Number(sel.rows) || 0;
+    return ui.attachedChip.replace('{title}', sel.title || sel.ref).replace('{n}', String(rows));
+  }
+  // EXEC-IMPL-1017 Fase 3 (user 2026-10-16: "select as context ... klik kanan kayak claude"): a passage the user
+  // selected anywhere in an answer, with the figures in it as Orc listed them (answer_figures) or as an answer
+  // table's cells (answer_tables); Orc reads each figure again from its reference
+  const ATTACH_SECTIONS = ['ANSWER', 'ASSUMPTIONS', 'LIMITATIONS', 'FINDINGS', 'PLAN', 'OTHER'];
+  function textSelection({requestId, section, quote, figures}) {
+    const seen = new Set();
+    const kept = (figures || []).filter(f => f && typeof f.ref === 'string' && f.ref.length <= 200
+      && !/[{}|\n]/.test(f.ref) && !seen.has(f.ref) && seen.add(f.ref)).slice(0, 20)
+      .map(f => ({ref:f.ref, shown:plain(f.shown).slice(0, 40) || f.ref.slice(-40)}));
+    return {kind:'TEXT', ...(requestId ? {request_id:String(requestId).slice(0, 100)} : {}),
+      section:ATTACH_SECTIONS.includes(section) ? section : 'OTHER',
+      quote:String(quote || '').replace(/\s+\n/g, '\n').trim().slice(0, 1000), figures:kept};
+  }
+  // the reference of an answer table's cell: its released table, the source row and the output column
+  function cellRef(source, rowIndex, column) {
+    const row = source && Array.isArray(source.rows) ? source.rows[rowIndex] : undefined;
+    const name = source && Array.isArray(source.columns) ? source.columns[column] : undefined;
+    return Number.isInteger(row) && name ? `${source.ref}.rows[_row=${row}].${name}` : null;
   }
 
   // EXEC-DURATION (user 2026-10-12): how long a run took, from Orc's execution.duration_ms
@@ -225,7 +251,12 @@
       lists,
       methodology:final.methodology ? {label:ui.methodology, text:final.methodology} : null,
       artifacts:(envelope?.artifacts || []).map(file => ({id:file.export_id, label:file.file_name || file.filename || file.export_id})),
-      next:next(envelope?.follow_ups)
+      next:next(envelope?.follow_ups),
+      // EXEC-IMPL-1017 Fase 3: what the user attached to this question, and the attached figures the backend found
+      // exactly recomputed from raw data
+      attached:(envelope?.attached || []).map(item => selectionLabel(item)),
+      reproduced:(envelope?.reproductions || []).filter(r => r?.status === 'MATCH')
+        .map(r => ui.reproduced.replace('{figure}', String(r.figure ?? '')))
     };
   }
   // EXEC-UI-1013B (gambar 1): the router's choices that share a route come as numbered lines of the question; Orc also
@@ -265,5 +296,5 @@
     }
     return index;
   }
-  window.EdgeView = {VERSION, toView, sources, planIndex, durationText, progressView, tableSource, selection, selectionLabel, format:{empty, label, number, valueText, verdict}};
+  window.EdgeView = {VERSION, toView, sources, planIndex, durationText, progressView, tableSource, selection, selectionLabel, textSelection, cellRef, format:{empty, label, number, valueText, verdict}};
 })();

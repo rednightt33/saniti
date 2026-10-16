@@ -213,9 +213,10 @@ class Mode4Orchestrator:
             route, usage, source = CHOICE_ROUTES[chosen], {"status": "CHOICE", "choice": chosen}, "CHOICE"
         else:
             reply = self.ask_back and bool(request.history) and router.first_stage(request.history)
+            message = routed_message(request)
             route, _, usage = self.inner.classify_first(
                 f"{request.request_id[:190]}-m4f",
-                router.exchange_text(request.history, request.message) if reply else request.message)
+                router.exchange_text(request.history, message) if reply else message)
         if self.ask_back and route in (router.ASK_BACK, None):
             asked = sum(router.asked_back(m.content) for m in request.history if m.role == "assistant")
             if asked < MAX_ASK_BACKS:
@@ -259,6 +260,16 @@ class Mode4Orchestrator:
                   caller_path=request.analysis_path, step=step, analysis_path=path, status=result.status,
                   **({"choice": chosen} if chosen else {}))
         return result.model_copy(update={"execution": result.execution.model_copy(update={"mode": mode})})
+
+
+def routed_message(request: AgentRunRequest) -> str:
+    """EXEC-IMPL-1017 Fase 3.4: the routers read what the user attached with the message ("ini dari mana?" names a
+    figure only through it); without attachments the message is unchanged."""
+    from .orchestrator import attached_line, attached_summary
+
+    items = [*([request.attached_selection] if request.attached_selection is not None else []), *request.attachments]
+    line = attached_line(attached_summary(items)) if items else ""
+    return f"{request.message}\n{line}" if line else request.message
 
 
 def with_user_facts(record: dict[str, Any] | None, request_id: str, usage: dict[str, Any] | None
@@ -481,7 +492,7 @@ class _Mode4Run:
             context = router.context(self.record, history, plan_digest_v2(continuation.plan) if pending else None,
                                      newer, asked)
             raw, instruction, self.router_usage = self.inner.classify_turn(f"{self.base_id}-m4r",
-                                                                           self.request.message, context)
+                                                                           routed_message(self.request), context)
             if self.owner.ask_back and raw in (router.ASK_BACK, None):
                 # EXEC-3: asked back, or the router failed twice: a question (fixed after a failure), nothing runs
                 return ask_back_response(self.inner, self.request, self.router_usage or {}, first=False,

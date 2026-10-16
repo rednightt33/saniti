@@ -65,6 +65,8 @@ CAUSES: dict[str, Cause] = {
     "INSIGHT_SOURCE_NOT_OPENED": Cause(ANNOTATE),
     # EXEC-IMPL-1017 (M171): an insight v2 answer shows a statistic no recorded test produced, asked once
     "UNRECORDED_TEST": Cause(ANNOTATE),
+    # EXEC-IMPL-1017 Fase 3: a declared reproduction of an attached figure that is not exactly equal, asked once
+    "REPRODUCTION": Cause(ANNOTATE),
     "PLAN_NOT_EXECUTED": Cause(ANNOTATE),  # the approved plan stays pending (M19)
     "RESEARCH_RUN_INCOMPLETE": Cause(ANNOTATE),
     # Research Plan checks

@@ -12,6 +12,7 @@ Saklar: `AI_ENABLE_FIRST_TURN_ROUTER` (router pesan pertama), `AI_ENABLE_CONVERS
 4. A failed or empty router call runs one analysis step (the caller's analysis_path when set).
 5. In mode 4 the research plan is made only when the analysis step's answer has figures from data (its evidence label is set); otherwise the analysis answer is returned alone. The plan waits for the user's approval (EXEC-P1, 2026-10-06); with AI_MODE4_AUTO_RESEARCH it runs at once and one suggestion follows.
 6. Later messages are read by the conversation router (its classes are listed below); a reply to a waiting plan continues it. A later message the conversation router classes NEW_TOPIC is routed again like a first message (rules 2 to 5), so no default mode runs inside a conversation either.
+7. A message with something the user attached (a passage or part of a table of an earlier answer, EXEC-IMPL-1017) reaches both routers with one line naming it after the message (app/mode4.routed_message), so "ini dari mana?" is routed knowing what "ini" is; a message without attachments reaches them unchanged.
 
 ## Rute pesan pertama
 

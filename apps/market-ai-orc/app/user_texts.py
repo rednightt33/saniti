@@ -419,6 +419,9 @@ EXPLORE_UNSTABLE = " {unstable} uji arahnya tidak konsisten di dua paruh periode
 EXPLORE_SMALL = " {small} uji sampel efektifnya kecil atau kurang kuat untuk efek sekecil itu."
 
 
+# EXEC-IMPL-1017 Fase 3: a recomputation of an attached figure that did not come out the same
+NOT_REPRODUCED_LINE = ("Hitungan ulang angka yang dilampirkan belum sama persis dengan angka aslinya; selisihnya "
+                       "dijelaskan di jawaban.")
 # EXEC-IMPL-1017 (M171): an insight answer still shows a statistic no recorded test produced
 UNRECORDED_TEST_LINE = ("Sebagian angka uji di jawaban ini tidak dihitung oleh pencatat uji sistem, sehingga tidak ikut "
                         "dikoreksi bersama uji lainnya; baca angka itu sebagai gambaran saja.")

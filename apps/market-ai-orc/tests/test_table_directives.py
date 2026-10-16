@@ -286,5 +286,5 @@ def test_a_run_with_an_attached_selection_sends_the_note_to_the_model() -> None:
                                                        "limitations": []})])
     agent.run(request("kenapa ini?", attached_selection={"ref": "out.o3", "columns": ["broker"], "rows": [0, 4],
                                                         "shown_values": [["YP"], ["CC"]]}))
-    sent = str(client.payloads[0]["input"])
+    sent = " ".join(str(item.get("content")) for item in client.payloads[0]["input"])
     assert "The user attached part of an earlier answer's table" in sent and "table out.o3" in sent

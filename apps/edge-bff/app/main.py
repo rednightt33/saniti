@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import secrets
 import time
+from typing import Literal
 import httpx
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
@@ -57,6 +58,7 @@ class PlanReply(Strict):
 class AttachedSelection(Strict):
     """EXEC-IMPL-1016 Fase 4.2 (EDGE-CTX A): part of an earlier answer's table attached to the question (Orc checks
     the same bounds)."""
+    kind: Literal['TABLE'] = 'TABLE'
     ref: str = Field(pattern=r'^out\.[A-Za-z0-9_]{1,40}$')
     output_id: str | None = Field(default=None, max_length=100)
     title: str | None = Field(default=None, max_length=200)
@@ -72,6 +74,22 @@ class AttachedSelection(Strict):
         return self
 
 
+class AttachedFigure(Strict):
+    """EXEC-IMPL-1017 Fase 3: one figure inside an attached passage, with the value reference EDGE read from Orc's
+    answer_figures or answer_tables (Orc checks the same bounds and reads the figure again from it)."""
+    ref: str = Field(min_length=3, max_length=200, pattern=r'^[A-Za-z][A-Za-z0-9_]*\.[^{}|\n]+$')
+    shown: str = Field(min_length=1, max_length=40)
+
+
+class AttachedText(Strict):
+    """EXEC-IMPL-1017 Fase 3: a passage of an earlier answer the user selected and attached."""
+    kind: Literal['TEXT']
+    request_id: str | None = Field(default=None, max_length=100)
+    section: Literal['ANSWER', 'ASSUMPTIONS', 'LIMITATIONS', 'FINDINGS', 'PLAN', 'OTHER'] = 'ANSWER'
+    quote: str = Field(min_length=1, max_length=1000)
+    figures: list[AttachedFigure] = Field(default_factory=list, max_length=20)
+
+
 class RunInput(Strict):
     submission_key: str = Field(min_length=1, max_length=100, pattern=r'^[A-Za-z0-9._:-]+$')
     message: str = Field(min_length=1, max_length=16000)
@@ -85,6 +103,8 @@ class RunInput(Strict):
     # EXEC-Y Fase 1 (S3): sent while a run is active = stop that run and run this message next
     after_stop: bool = False
     attached_selection: AttachedSelection | None = None
+    # EXEC-IMPL-1017 Fase 3: selections attached anywhere in earlier answers (at most 5)
+    attachments: list[AttachedSelection | AttachedText] = Field(default_factory=list, max_length=5)
 
     @model_validator(mode='after')
     def check_message(self):

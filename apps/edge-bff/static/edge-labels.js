@@ -80,6 +80,10 @@ window.EdgeLabels = {
     // EXEC-IMPL-1016 Fase 4.2 (EDGE-CTX A): part of an answer table attached to the next question
     attachTable:"Attach to question", attachRows:"Attach {n} rows", attachedChip:"{title} · {n} baris",
     attachRemove:"Remove attachment", attachHint:"Klik baris untuk memilih",
+    // EXEC-IMPL-1017 Fase 3: the menu on selected text (right click; on a phone a floating bar) and its chip
+    selectionCopy:"Copy", selectionAttach:"Attach selection as context", attachedText:"“{quote}” · {n} angka",
+    attachLimit:"Maksimal 5 lampiran per pertanyaan", attachedPrefix:"Lampiran",
+    reproduced:"Dihitung ulang dari data mentah: sama persis dengan {figure}",
     sourceAsOf:"Data per", askExport:"Ask AI to export data", exportMessage:"Ekspor data tabel {ref} ({name}) ke Excel",
     approveMessage:"Setujui rencana riset", cancelMessage:"Batalkan rencana riset",
     // EXEC-MODELS: the model and reasoning-level choice next to the composer

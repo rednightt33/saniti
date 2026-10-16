@@ -336,9 +336,16 @@ def test_an_attached_selection_reaches_orc_and_a_bad_one_is_refused(settings,sto
         sel={'ref':'out.o2','output_id':'out_abc','title':'Net beli','columns':['broker'],'rows':[3],'shown_values':[['YP']]}
         r=c.post('/api/v1/runs',headers=h,json={'message':'kenapa ini?','submission_key':'att','attached_selection':sel});assert r.status_code==202,r.text
         id=r.json()['request_id'];asyncio.run(Worker(settings,store,orc).process(store.claim(90)))
-        assert orc.calls[-1][2]['attached_selection']==sel
+        assert orc.calls[-1][2]['attached_selection']=={**sel,'kind':'TABLE'}  # EXEC-IMPL-1017: one kind of attachments
         for bad in ({**sel,'ref':'x; drop'},{**sel,'rows':[-1]},{**sel,'shown_values':[['x'*81]]},{**sel,'columns':['c']*13},{**sel,'extra':1}):
             assert c.post('/api/v1/runs',headers=h,json={'message':'x','submission_key':'bad','attached_selection':bad}).status_code==422
+        # EXEC-IMPL-1017 Fase 3: passages attached anywhere in an answer, with their figures, at most five
+        text={'kind':'TEXT','request_id':'edge_1','section':'ANSWER','quote':'Return 20,2%','figures':[{'ref':'out.o1.rows[_row=0].r','shown':'20,2%'}]}
+        r=c.post('/api/v1/runs',headers=h,json={'message':'ini dari mana?','submission_key':'att2','attachments':[text,{**sel,'kind':'TABLE'}]});assert r.status_code==202,r.text
+        asyncio.run(Worker(settings,store,orc).process(store.claim(90)))
+        assert orc.calls[-1][2]['attachments']==[text,{**sel,'kind':'TABLE'}]
+        for bad in ([text]*6,[{**text,'quote':''}],[{**text,'figures':[{'ref':'{{x}}','shown':'1'}]}],[{**text,'kind':'HTML'}],[{**text,'extra':1}]):
+            assert c.post('/api/v1/runs',headers=h,json={'message':'x','submission_key':'bad2','attachments':bad}).status_code==422
         assert c.get('/api/v1/runs/'+id+'/progress').json()=={'status':'NOT_RUNNING','steps':[]}
         orc.PROGRESS={id:{'status':'RUNNING','elapsed_ms':5,'steps':[],'earlier_steps':0}}
         assert c.get('/api/v1/runs/'+id+'/progress').json()['status']=='RUNNING'

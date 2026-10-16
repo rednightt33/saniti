@@ -439,6 +439,9 @@ FIRST_ROUTE_RULES = (
     "Later messages are read by the conversation router (its classes are listed below); a reply to a waiting plan "
     "continues it. A later message the conversation router classes NEW_TOPIC is routed again like a first message "
     "(rules 2 to 5), so no default mode runs inside a conversation either.",
+    "A message with something the user attached (a passage or part of a table of an earlier answer, EXEC-IMPL-1017) "
+    "reaches both routers with one line naming it after the message (app/mode4.routed_message), so \"ini dari mana?\" "
+    "is routed knowing what \"ini\" is; a message without attachments reaches them unchanged.",
 )
 
 # EXEC-UI-1012 C (user 2026-10-12: "sesuai bahasa penanya dan only first question"): the conversation's name in the

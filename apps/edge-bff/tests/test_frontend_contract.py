@@ -18,7 +18,7 @@ from conftest import FakeOrc
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = json.loads((ROOT / 'tests' / 'fixtures' / 'orc_responses.json').read_text())
 PARTS = {'version', 'status', 'meta', 'evidence', 'claims', 'answer', 'clarification', 'pause', 'plan', 'findings', 'lists',
-         'methodology', 'artifacts', 'next'}
+         'methodology', 'artifacts', 'next', 'attached', 'reproduced'}  # EXEC-IMPL-1017 Fase 3
 ACTIONS = {'route', 'message', 'input', 'plan'}
 
 

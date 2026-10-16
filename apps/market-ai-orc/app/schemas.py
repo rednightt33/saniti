@@ -58,6 +58,7 @@ class AttachedSelection(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    kind: Literal["TABLE"] = "TABLE"  # EXEC-IMPL-1017 Fase 3: one kind of attachments[]
     ref: str = Field(pattern=r"^out\.[A-Za-z0-9_]{1,40}$")
     output_id: str | None = Field(default=None, max_length=100)
     title: str | None = Field(default=None, max_length=200)
@@ -71,6 +72,29 @@ class AttachedSelection(BaseModel):
         if any(len(row) > 12 for row in value):
             raise ValueError("shown_values rows hold at most 12 cells")
         return value
+
+
+class AttachedFigure(BaseModel):
+    """EXEC-IMPL-1017 Fase 3: one figure inside an attached passage: the value reference the answer showed it from
+    (answer_figures) and the text shown. Context, never data: the figure is read again from its reference."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ref: str = Field(min_length=3, max_length=200, pattern=r"^[A-Za-z][A-Za-z0-9_]*\.[^{}|\n]+$")
+    shown: str = Field(min_length=1, max_length=40)
+
+
+class AttachedText(BaseModel):
+    """EXEC-IMPL-1017 Fase 3 (user 2026-10-16: "Attach of selection ... AI bisa mengeluarkan detail dari mana dia
+    mendapatkan angka tersebut"): a passage of an earlier answer the user selected, with the figures in it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["TEXT"]
+    request_id: str | None = Field(default=None, max_length=100)
+    section: Literal["ANSWER", "ASSUMPTIONS", "LIMITATIONS", "FINDINGS", "PLAN", "OTHER"] = "ANSWER"
+    quote: str = Field(min_length=1, max_length=1000)
+    figures: list[AttachedFigure] = Field(default_factory=list, max_length=20)
 
 
 class AgentRunRequest(BaseModel):
@@ -111,6 +135,9 @@ class AgentRunRequest(BaseModel):
     lane: Literal["standard", "fast"] | None = None
     # EXEC-IMPL-1016 Fase 4.2 (EDGE-CTX A): part of an earlier answer's table attached to this question; null otherwise
     attached_selection: AttachedSelection | None = None
+    # EXEC-IMPL-1017 Fase 3: what the user selected and attached, anywhere in earlier answers (at most 5); the single
+    # attached_selection above stays accepted as one TABLE item
+    attachments: list[AttachedSelection | AttachedText] = Field(default_factory=list, max_length=5)
 
     @field_validator("message")
     @classmethod
@@ -795,13 +822,22 @@ class AgentRunResponse(BaseModel):
     # answer's order ({ref, output_id, titles, columns, rows}: the shown titles, the output column behind each, and the
     # shown rows' positions in the released table), so EDGE can attach a selection of it. Absent when there is none
     answer_tables: list[dict[str, Any]] | None = None
+    # EXEC-IMPL-1017 Fase 3: the figures of the answer text in their order ({ref, shown}), written by the code that
+    # rendered them, so EDGE knows where a selected figure comes from. Absent when there is none
+    answer_figures: list[dict[str, Any]] | None = None
+    # EXEC-IMPL-1017 Fase 3: attached figures this answer recomputed from raw data, as the backend checked them
+    # ({figure, original, result, status MATCH}); absent when there is none
+    reproductions: list[dict[str, Any]] | None = None
+    # EXEC-IMPL-1017 Fase 3: what the user attached to this message, short ({kind, quote | ref, figures | rows}); absent
+    # when nothing was attached
+    attached: list[dict[str, Any]] | None = None
 
     @model_serializer(mode="wrap")
     def _without_mode4(self, handler: Any) -> Any:
         data = handler(self)
         if isinstance(data, dict):
             for key in ("mode4", "annotations", "data_record", "artifacts", "evidence", "options", "follow_ups",
-                        "answer_tables"):
+                        "answer_tables", "answer_figures", "reproductions", "attached"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data

@@ -774,6 +774,8 @@ class Rendering:
     failed: list[str] = field(default_factory=list)  # the expressions of the other unresolved references
     # EXEC-IMPL-1017 (M171): the references shown as a statistic (a p-value or an interval bound)
     statistics: list[str] = field(default_factory=list)
+    # EXEC-IMPL-1017 Fase 3: each number shown, in order: (expression, the text written, inside a table row)
+    figures: list[tuple[str, str, bool]] = field(default_factory=list)
     # P22: units the model typed next to a reference whose format already shows them ("{{x|pp}} pp" -> "1,00 pp")
     dropped_units: list[str] = field(default_factory=list)
     # P23: references shown by their data's unit rather than as written: {reference, format, shown_as, unit}
@@ -1068,6 +1070,9 @@ def _without_repeated_units(text: str, replace, out: Rendering) -> str:
                 out.dropped_units.append(before[repeat.start():repeat.end()].strip(" *_"))
                 before = before[:repeat.start()] + (repeat.group("emph") or "")
         parts.append(before + shown)
+        if number is not None and shown.strip():
+            line = text[text.rfind("\n", 0, match.start()) + 1:match.start()]
+            out.figures.append((number.expression, shown, line.lstrip().startswith("|")))  # as finally written
         tail = UNIT_TAIL_RE.search(shown)
         if number is not None and not tail and not follows_reference:
             scale = SCALE_AFTER_RE.match(text, position)

@@ -61,7 +61,8 @@ class OrcClient:
         # Strict whitelist; no browser provider/path/history overrides. EXEC-MODELS: the model and reasoning level
         # are forwarded and checked by Orc against its offered models (an unknown one is refused there).
         body = {k: payload[k] for k in ('message', 'conversation_id', 'chosen_option', 'plan_reply', 'model',
-                                        'reasoning_level', 'lane', 'attached_selection') if k in payload}
+                                        'reasoning_level', 'lane', 'attached_selection', 'attachments')
+                if k in payload and payload[k] not in (None, [])}
         body.update(request_id=request_id, history_mode='SERVER')
         return self._call('POST', '/v1/agent/run', owner, body)
 

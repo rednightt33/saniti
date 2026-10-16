@@ -422,13 +422,33 @@ def test_a_running_answer_shows_its_steps_from_orc(fixture_server, browser_page)
     assert page.locator('.edge-run-progress').count() == 0
 
 
-def test_rows_of_a_built_table_attach_to_the_next_question(fixture_server, browser_page):
-    """EXEC-IMPL-1016 Fase 4.2 (EDGE-CTX A, user 2026-10-15): a table Orc built from a table instruction (answer_tables
-    names its titles, output columns and row positions) offers "Attach to question"; picked rows become a chip above
-    the composer and travel with the next message as attached_selection; a table the model typed itself offers none."""
-    origin, orc = fixture_server
-    page = browser_page
-    sign_in(page, origin)
+SELECT_JS = """(selector) => { const answers = document.querySelectorAll('article.result'), last = answers[answers.length - 1];
+    const [css, text] = selector.split('|'); const node = [...last.querySelectorAll(css)].find(n => !text || n.textContent.includes(text));
+    node.scrollIntoView({block: 'center'});
+    const range = document.createRange(); range.selectNodeContents(node); const s = window.getSelection(); s.removeAllRanges(); s.addRange(range);
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, {acceptNode: t => t.textContent.trim() ? 1 : 3});
+    const first = walker.nextNode(), word = document.createRange(); word.setStart(first, 0); word.setEnd(first, Math.min(3, first.length));
+    const box = word.getBoundingClientRect(); return {x: box.left + box.width / 2, y: box.top + box.height / 2}; }"""
+
+
+def attach_by_right_click(page, selector):
+    menu = page.locator('.edge-selection-menu')
+    for _ in range(3):  # a refresh of the answer while selecting drops the selection, as it would for a user
+        page.evaluate(SELECT_JS, selector)
+        page.wait_for_timeout(250)  # the layout settles (the composer grows with a chip) before the click
+        point = page.evaluate(SELECT_JS, selector)
+        page.mouse.click(point['x'], point['y'], button='right')
+        if menu.count():
+            break
+        page.wait_for_timeout(300)
+    assert menu.is_visible() and menu.get_by_role('menuitem', name='Copy', exact=True).is_visible()
+    if os.environ.get('EDGE_UI_ARTIFACT_DIR'):
+        page.screenshot(path=os.path.join(os.environ['EDGE_UI_ARTIFACT_DIR'], 'x-selection-menu.png'))
+    menu.get_by_role('menuitem', name='Attach selection as context', exact=True).click()
+    assert menu.count() == 0
+
+
+def built_answer(orc):
     original = orc.run
 
     def built(owner, id, payload):
@@ -436,26 +456,75 @@ def test_rows_of_a_built_table_attach_to_the_next_question(fixture_server, brows
         result['answer_tables'] = [{'ref': 'out.o2', 'output_id': 'out_abc', 'rows': [4, 9],
                                     'titles': ['Ukuran', 'Setelah sinyal', 'Baseline', 'Selisih (95% CI)', 'p'],
                                     'columns': ['measure', 'signal', 'base', 'diff', 'p']}]
+        result['answer_figures'] = [{'ref': 'out.o1.rows[_row=0].events', 'shown': '19'},
+                                    {'ref': 'out.o1.rows[_row=0].baseline_days', 'shown': '449'}]
         orc.saved[id]['response'] = result
         return result
+    return original, built
+
+
+def test_a_selection_anywhere_in_an_answer_attaches_with_its_figures_by_right_click(fixture_server, browser_page):
+    """EXEC-IMPL-1017 Fase 3 (user 2026-10-16: "sama seperti select as context tanpa ada menu tambahan ... klik kanan
+    kayak claude"): a table has no attach controls; text selected in the answer (a sentence or table cells) opens
+    EDGE's menu (Copy, Attach selection as context) on a right click; the passage travels with the next question with
+    the value reference of every figure and cell inside it."""
+    origin, orc = fixture_server
+    page = browser_page
+    sign_in(page, origin)
+    original, built = built_answer(orc)
     orc.run = built
     submit(page, 'uji sinyal volume')
     saved(page)
     orc.run = original
-    table = article(page).locator('.edge-md-table-frame').first
-    assert table.get_by_role('button', name='Attach to question', exact=True).count() == 1
-    table.locator('tbody tr').nth(1).click()
-    assert table.locator('tr.edge-row-picked').count() == 1
-    table.get_by_role('button', name='Attach 1 rows', exact=True).click()
-    chip = page.locator('.edge-attached-chip')
-    assert chip.is_visible() and '1 baris' in chip.inner_text()
-    capture(page, 'x-attach-chip-dark')
-    submit(page, 'kenapa baris ini lebih tinggi?')
+    answer = article(page)
+    assert answer.locator('.edge-table-attach').count() == 0 and answer.locator('tr.edge-row-pickable').count() == 0
+    figures = answer.locator('span.edge-fig')
+    assert figures.count() == 2 and figures.nth(1).get_attribute('data-fig-ref') == 'out.o1.rows[_row=0].baseline_days'
+    attach_by_right_click(page, '.edge-answer p|Periode studi')  # "Periode studi ... 19 hari ... 449 hari ..."
+    attach_by_right_click(page, '.edge-md-table tbody tr:nth-child(2)')  # the second row of the built table
+    chips = page.locator('.edge-attached-chip')
+    assert chips.count() == 2 and '2 angka' in chips.nth(0).inner_text()
+    capture(page, 'x-attach-selection')
+    def reproduced(owner, id, payload):
+        result = original(owner, id, payload)
+        result.update(attached=[{'kind': 'TEXT', 'quote': 'Periode studi 2 Jan 2023', 'figures': ['19', '449']}],
+                      reproductions=[{'figure': '449', 'original': 'out.o1.rows[_row=0].baseline_days',
+                                      'result': 'out.o9.rows[_row=0].days', 'status': 'MATCH'}])
+        orc.saved[id]['response'] = result
+        return result
+    orc.run = reproduced
+    submit(page, 'ini dari mana?')
     saved(page, 2)
-    sent = orc.calls[-1][2]['attached_selection']
-    assert sent['ref'] == 'out.o2' and sent['output_id'] == 'out_abc' and sent['rows'] == [9]
-    assert sent['columns'][:2] == ['measure', 'signal'] and sent['shown_values'][0][0].startswith('Frekuensi naik')
-    assert page.locator('.edge-attached-chip').count() == 0  # one attachment per question
-    submit(page, 'fx:answer_table')  # no answer_tables: a typed table cannot be attached
-    saved(page, 3)
-    assert article(page).locator('.edge-table-attach').count() == 0
+    orc.run = original
+    answer = article(page)
+    assert 'Lampiran: “Periode studi 2 Jan 2023” · 2 angka' in answer.locator('.edge-attached-line').inner_text()
+    assert 'sama persis dengan 449' in answer.locator('.edge-reproduced').inner_text()
+    sent = orc.calls[-1][2]['attachments']
+    assert [a['kind'] for a in sent] == ['TEXT', 'TEXT'] and sent[0]['section'] == 'ANSWER'
+    assert [f['ref'] for f in sent[0]['figures']] == ['out.o1.rows[_row=0].events', 'out.o1.rows[_row=0].baseline_days']
+    assert 'Periode studi' in sent[0]['quote'] and sent[0]['request_id']
+    assert {f['ref'] for f in sent[1]['figures']} >= {'out.o2.rows[_row=9].measure', 'out.o2.rows[_row=9].signal'}
+    assert page.locator('.edge-attached-chip').count() == 0  # sent with the question
+
+
+def test_on_a_phone_a_selection_shows_the_floating_bar(fixture_server, browser_page):
+    """EXEC-IMPL-1017 Fase 3 (user 2026-10-16: "di ponsel memakai tombol mengambang"): a touch screen has no right
+    click; selecting text in an answer shows a small bar under it with the same two actions."""
+    origin, orc = fixture_server
+    ctx = browser_page.context.browser.new_context(viewport={'width': 390, 'height': 844}, has_touch=True, is_mobile=True)
+    page = ctx.new_page()
+    try:
+        sign_in(page, origin)
+        original, built = built_answer(orc)
+        orc.run = built
+        submit(page, 'uji sinyal volume')
+        saved(page)
+        orc.run = original
+        page.evaluate(SELECT_JS, '.edge-answer p|Periode studi')
+        bar = page.locator('.edge-selection-menu.floating')
+        bar.wait_for(state='visible', timeout=3000)
+        capture(page, 'x-attach-floating-phone')
+        bar.get_by_role('menuitem', name='Attach selection as context', exact=True).click()
+        assert page.locator('.edge-attached-chip').count() == 1
+    finally:
+        ctx.close()

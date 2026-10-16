@@ -66,6 +66,23 @@ def _request_public(value: Any) -> Any:
     return value
 
 
+
+def with_attached(item: Any) -> str:
+    """EXEC-IMPL-1017 Fase 3.5: a later turn knows what the user attached to an earlier message (the response's
+    code-written summary), shown after the message in the history."""
+    response = item.get("response") if hasattr(item, "get") else None
+    if isinstance(response, str):
+        try:
+            response = json.loads(response)
+        except ValueError:
+            response = None
+    attached = (response or {}).get("attached") if isinstance(response, dict) else None
+    if not attached:
+        return item["user_message"]
+    from .orchestrator import attached_line
+
+    return f"{item['user_message']}\n{attached_line(attached)}"
+
 class ConversationError(Exception):
     """A refused conversation request: code and message for the caller, and the HTTP status."""
 
@@ -333,7 +350,7 @@ class ConversationStore:
                    ORDER BY turn_index DESC LIMIT %s''', (conversation_id, self.max_history_turns)).fetchall()
         history: list[HistoryMessage] = []
         for item in reversed(rows):
-            history.append(HistoryMessage(role="user", content=item["user_message"][:MAX_MESSAGE_CHARACTERS]))
+            history.append(HistoryMessage(role="user", content=with_attached(item)[:MAX_MESSAGE_CHARACTERS]))
             history.append(HistoryMessage(role="assistant", content=history_text(item, True) if self.memory_tool
                                           else item["assistant_text"][:MAX_MESSAGE_CHARACTERS]))
         return TurnStart(conversation_id, turn_index, generation, created, history=history, state=state,
