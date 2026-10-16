@@ -369,6 +369,16 @@ biasa dan mode jawab. coba assess". Data dari 110 giliran tersimpan di dev:
 - Biaya dan pemeriksaan: benchmark router sebelum dan sesudah (±USD 0,35), `AI_ROUTER.md`, snapshot prompt; 10
   pertanyaan nyata di atas diulang dan diukur.
 - Langkah sementara: `AI_FASTLANE_EXPLORE_TESTS=false` hanya menghapus uji multi-sudut; salah rute tetap terjadi.
+- Fakta kode jalur cepat (diperiksa 2026-10-16, atas pertanyaan user):
+  - Jalur cepat punya dua mode (`app/lanes.py` ANSWER/INSIGHT). ANSWER (Mode Jawab): rute ANALYSIS dan RESEARCH pesan
+    pertama, dan giliran lanjutan selain INSIGHT. Mode ini menghitung; bila user menanyakan apakah sesuatu berlaku,
+    AI menguji satu pertanyaan itu dengan kodenya sendiri, tanpa hipotesis lain dan tanpa pemeriksaan sistem.
+  - INSIGHT: rute EXPLORE pesan pertama dan kelas INSIGHT giliran lanjutan. AI membuat sudut (hipotesis) sendiri,
+    paling banyak 5, masing-masing satu metode pustaka riset lewat `saniti.explore_test`. Sistem mencatat setiap uji,
+    mengoreksinya bersama (Benjamini–Hochberg) dan menulis baris bukti.
+  - Gerbang riset (Research Plan, persetujuan user, Research Governor) tidak pernah berjalan di jalur cepat: meja
+    FASTLANE melarang `start_research_run`, `run_research_code`, `complete_research_run`. Gerbang itu hanya ada di jalur
+    standar atau saat membalas rencana yang menunggu.
 - Keputusan terbuka:
   1. "Mode jawab" = CLARIFY?
   2. Uji riset yang diminta jelas tetap ada?

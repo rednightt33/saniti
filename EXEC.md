@@ -2247,7 +2247,7 @@ user diberi tahu hanya bila provider menolak karena biaya. Berhenti hanya untuk 
 - Bagian EXEC yang selesai (EXEC-OPEN-1015, UI-1015E, M164, EDGE-CTX, UI-1015B, M163) diberi status selesai di
   judulnya. Penghapusan dari EXEC.md (aturan AGENTS) menunggu user menyatakan eksekusi ini selesai ("conclude").
 
-### EXEC-UI-1016: judul tabel di tengah, lampirkan pilihan lewat klik kanan, saran lanjutan terlipat (dicatat 2026-10-16; "Konfirmasi ya, masukan EXEC jangan execute dulu"; menunggu go)
+### EXEC-UI-1016: judul tabel, lampirkan pilihan lewat klik kanan di seluruh jawaban, saran lanjutan terlipat (dicatat 2026-10-16; "Konfirmasi ya, masukan EXEC jangan execute dulu"; jawaban user dicatat; menunggu go)
 
 **Permintaan user 2026-10-16** (tangkapan layar tabel desktop dan menu klik kanan Claude): "1. Header boleh buat header
 middle align dan center. 2. Lalu yang di table actually sama seperti select as context tanpa ada menu tambahan. Jadi
@@ -2256,36 +2256,75 @@ collapse dan expand sama seperti asumsi dan batasan? Disclosure Triangle". Keput
 execute dulu". Semua butir hanya di EDGE (`static/index.html`, teks di `static/edge-labels.js`); kecuali butir 2b, tidak
 ada perubahan orc atau BFF.
 
-**Butir 1: judul kolom rata tengah, tegak di tengah.**
-- Setiap judul kolom tabel jawaban: `text-align:center`, `vertical-align:middle`. Ini mengganti aturan EXEC-TABLE-ALIGN
-  "judul angka rata kanan bersama angkanya" khusus untuk judul; isi sel tetap: angka rata kanan, teks/kode/tanggal/tahun
-  rata kiri.
-- Ikon urut tetap tanpa lebar (aturan jarak kolom EXEC-TABLE-ALIGN tetap berlaku): letaknya di sisi kanan judul.
-- Tes `test_ui_1015c.py` (perataan) diubah: judul tengah, isi sel tidak berubah, sisa lebar kolom tetap 0.
+**Jawaban user 2026-10-16 atas pertanyaan terbuka:** "1. ... atur saja sesuai best practice. 2. ... Yes both 3. ...
+seluruh jawaban (mungkin perlu design / ubah API call ke AI agar tahu. coba kamu research terkait ini dulu sebelum masuk
+plan 4. ... Yes". Keputusan: "Masukan exec jangan execute 4 point diatas." Butir 3 (lipat) belum dijawab: terbuka atau
+terlipat saat jawaban datang.
 
-**Butir 2: lampirkan pilihan sebagai konteks lewat klik kanan, seperti Claude.**
-- Tombol "Attach to question" dan petunjuk "Klik baris untuk memilih" di atas tabel dihapus, begitu juga klik baris
-  untuk memilih. Tidak ada kontrol tambahan di tabel.
-- User memblok teks (sel tabel atau teks jawaban), lalu klik kanan. Menu EDGE muncul dengan "Attach selection as
-  context" (teks di `edge-labels.js`). Pilihan menjadi chip di kolom tanya, seperti sekarang.
-- 2a. Pilihan di dalam tabel hasil (tabel yang punya penanda sumber, EXEC-EDGE-CTX A) dipetakan ke baris dan kolom
-  sumbernya, jadi `attached_selection` tetap membawa `output_id`, baris dan kolom, dan AI bisa membaca data aslinya.
-- 2b. Pilihan di luar tabel (teks jawaban) dikirim sebagai kutipan teks dengan asal jawabannya (request id). Ini
-  menambah satu bentuk di kontrak `attached_selection` (orc `schemas.py`, BFF `RunInput` dan daftar izin) dengan batas
-  ukuran yang sama.
+**Butir 1: judul kolom tegak di tengah, mendatar mengikuti isi kolomnya.**
+- Semua judul kolom `vertical-align:middle` (permintaan user).
+- Mendatar (user: "atur saja sesuai best practice"): judul mengikuti perataan isi kolomnya. Judul kolom angka rata
+  kanan di atas angkanya; judul kolom teks, kode, tanggal dan tahun rata kiri. Ini konvensi umum di alat tabel: Genero
+  `headerAlignment` "auto" dan tabel Splunk membuat judul mengikuti data, dan judul rata kiri di atas angka kecil di
+  kolom lebar disebut tampak berantakan. Judul di tengah di atas angka rata kanan membuat tepi judul dan tepi angka
+  tidak segaris, sehingga mata harus mencocokkan dua tepi. Ini juga aturan yang sudah berjalan (EXEC-TABLE-ALIGN), jadi
+  butir ini hanya mengubah tegaknya.
+- Ikon urut tetap tanpa lebar; sisa lebar kolom tetap 0.
+- Tes `test_ui_1015c.py` (perataan) ditambah: judul tegak di tengah.
+
+**Butir 2: menu klik kanan dan tekan lama, berlaku di seluruh jawaban.**
+- Tombol "Attach to question", petunjuk "Klik baris untuk memilih" dan klik baris untuk memilih dihapus. Tidak ada
+  kontrol tambahan di tabel.
+- Blok teks di jawaban mana pun (teks jawaban, tabel, Asumsi, Batasan, temuan), lalu klik kanan (desktop) atau tekan lama
+  (ponsel). Menu EDGE berisi **Copy** dan **Attach selection as context** (teks di `edge-labels.js`). Tanpa pilihan
+  teks, klik kanan tetap memakai menu bawaan peramban.
+- Pilihan menjadi chip di kolom tanya. Beberapa pilihan boleh ditumpuk sampai batasnya (lihat desain), masing-masing
+  bisa dihapus.
+
+**Riset (2026-10-16) untuk butir 2 "seluruh jawaban":**
+- ChatGPT web: memblok teks di jawaban memunculkan "Ask ChatGPT". Kutipan ditaruh di atas kotak pesan dan dikirim
+  bersama pesan berikutnya, satu kutipan per kali. Laporan pengguna di forum, bukan dokumen resmi OpenAI. Pengguna
+  meminta beberapa kutipan sekaligus, dan ekstensi pihak ketiga menumpuk tiap kutipan sebagai blockquote. Alat lain
+  (meinGPT "quote a passage") juga menaruh kutipan di depan pesan agar model tahu rujukannya.
+- Pelajaran: bentuk yang umum adalah "kutipan + pesan". Untuk EDGE, kutipan teks saja tidak cukup: angka di jawaban
+  berasal dari data, dan aturan EDGE melarang AI mengambil angka dari teks tampilan. Kutipan perlu membawa asal setiap
+  angkanya.
+
+**Desain kontrak (diusulkan, belum dibangun):**
+- `attached_selection` menjadi daftar, paling banyak 5 pilihan per pesan. Setiap pilihan bertipe:
+  - `TABLE`: bentuk sekarang (`ref`, `output_id`, kolom, baris, nilai tampil). Pilihan di tabel hasil yang punya
+    penanda sumber dipetakan ke baris dan kolom sumbernya.
+  - `TEXT`: `request_id` jawaban asal, `section` (jawaban, asumsi, batasan, temuan, rencana), `quote` (≤ 1.000
+    karakter), dan `figures`: rujukan nilai (`{{out...}}`, `finding...`) dari setiap angka yang ikut terblok. EDGE sudah
+    tahu rujukan tiap angka dari anotasi jawaban.
+- Batas ukuran tetap ketat. Kontrak lama (satu objek) diterima selama masa transisi dan dibaca sebagai satu `TABLE`.
+- orc (`schemas.py`, catatan pilihan):
+  - Satu catatan menyebut setiap pilihan sebagai kutipan dari jawaban tertentu, data dan bukan instruksi.
+  - Angka dibaca ulang dari rujukannya (`load_output`/`get_session_output`, temuan), tidak dari teks kutipan.
+  - Kutipan tanpa angka dipakai sebagai rujukan "ini" dalam pertanyaan.
+- **Router juga harus melihat pilihan.** Sekarang router tidak menerima `attached_selection`, sehingga "kenapa ini?"
+  dengan lampiran diklasifikasikan tanpa tahu "ini". Router mendapat ringkasan pendek: jenis, jawaban asal, 200
+  karakter pertama. Ini mengubah masukan router, jadi wajib `AI_ROUTER.md` dan benchmark router sebelum dan sesudah
+  (berbayar ±USD 0,35), dengan kasus lampiran baru.
+- **Riwayat:**
+  - BFF sudah menyimpan pilihan di `jobs.input`.
+  - Riwayat percakapan yang dikirim ke AI di giliran berikutnya harus menyebut bahwa pesan itu membawa lampiran
+    (ringkas).
+  - Pesan user di EDGE menampilkan chip lampirannya.
+- Snapshot prompt (catatan dan deskripsi ruas skema berubah).
+- Tes: kontrak orc ↔ BFF ↔ EDGE; pilihan teks dengan dan tanpa angka; pilihan melintasi tabel dan teks; batas ukuran;
+  menu klik kanan dan tekan lama (Playwright, desktop dan ponsel); router benchmark.
 
 **Butir 3: Pertanyaan lanjutan dan Ide insight tidak tebal, bisa dilipat.**
 - Judul dan isi kedua bagian tidak tebal.
 - Masing-masing menjadi bagian lipat dengan segitiga (`<details>`/`<summary>`), bentuk sama dengan Asumsi dan Batasan
   (`edge-notes`), dengan jumlah di judul, misalnya "Pertanyaan lanjutan (3)".
-- Pertanyaan terbuka: terbuka atau terlipat saat jawaban datang (Asumsi dan Batasan terlipat sendiri, EXEC-UI-1015)?
+- Terbuka atau terlipat saat jawaban datang: menunggu jawaban user.
 
-**Pertanyaan terbuka (dijawab sebelum go):**
-1. Butir 1: judul kolom angka juga di tengah, walau angkanya rata kanan?
-2. Butir 2: menu klik kanan hanya berisi "Attach selection as context", atau ditambah Copy seperti Claude? Berlaku di
-   seluruh jawaban (2b) atau hanya di tabel?
-3. Butir 2 di ponsel (tidak ada klik kanan): tekan lama pada teks yang diblok memunculkan pilihan yang sama?
-4. Butir 3: terbuka atau terlipat saat jawaban datang?
+**Urutan bila go:**
+1. Butir 1 dan 3 (EDGE saja).
+2. Butir 2 bagian EDGE untuk tabel (menu, tekan lama, tanpa tombol), dengan kontrak lama.
+3. Kontrak daftar + `TEXT` (orc, BFF, EDGE) + router + snapshot prompt + benchmark.
 
 ### EXEC-TABLE-ALIGN: tabel jawaban tanpa garis vertikal, judul panjang terlipat, perataan seragam (2026-10-16; dikerjakan)
 
