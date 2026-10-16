@@ -107,3 +107,24 @@ def test_a_run_reports_what_was_attached_and_the_answers_figures() -> None:
     result = agent.run(request("ini dari mana?", attachments=[TEXT]))
     body = result.model_dump(mode="json")
     assert body["attached"][0]["quote"] == TEXT["quote"] and "reproductions" not in body
+
+
+def test_a_mode4_turn_gives_every_step_the_attachments_and_keeps_the_answers_fields() -> None:
+    """Live check 2026-10-16 (edge_d7f2e126…): a CLARIFY turn's step ran without the attachment and the combined
+    response dropped answer_tables/answer_figures/attached. Every step of the message gets the attachments, and every
+    answer-level field (schemas.ANSWER_FIELDS) survives mode 4's combined response."""
+    from app.schemas import ANSWER_FIELDS, AgentRunResponse
+    from test_conversation_router import HISTORY, routed, single
+    from test_mode4 import m4
+
+    script = single("m4q")
+    shown = script["m4q"].model_copy(update={"answer_tables": [{"ref": "out.o2"}],
+                                             "answer_figures": [{"ref": "out.o1.rows[_row=0].r", "shown": "20,2%"}],
+                                             "reproductions": [{"figure": "20,2%", "status": "MATCH"}],
+                                             "attached": [{"kind": "TEXT", "quote": "q"}]})
+    wrapper, inner = routed({"m4q": shown}, "CLARIFY")
+    result = wrapper.run(m4(request_id="q3", message="ini dari mana?", history=HISTORY, attachments=[TEXT]))
+    assert inner.requests[0].attachments[0].quote == TEXT["quote"]
+    for name in ANSWER_FIELDS:
+        assert getattr(result, name) == getattr(shown, name), name
+    assert set(ANSWER_FIELDS) <= set(AgentRunResponse.model_fields)

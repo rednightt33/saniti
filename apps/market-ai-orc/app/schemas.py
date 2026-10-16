@@ -784,6 +784,11 @@ class ClaimAnnotation(BaseModel):
     note: str
 
 
+# EXEC-IMPL-1017 Fase 3: the response fields that belong to the answer shown (its tables, figures, reproductions and the
+# user's attachments); a wrapper that assembles a new response (mode 4) carries them from the step it shows
+ANSWER_FIELDS = ("answer_tables", "answer_figures", "reproductions", "attached")
+
+
 class AgentRunResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

@@ -55,7 +55,7 @@ from .research_plan import ContinuationIn, ContinuationOut
 from .research_plan_v2 import ContinuationInV2, ContinuationOutV2, current_angle_bounds, plan_digest_v2
 from .tools.request_data import current_conversation_id, current_turn_id
 from .user_words import MESSAGE_SEPARATOR, current_design_changes, current_turn_referent, current_user_words
-from .schemas import (MAX_HISTORY_ITEMS, MAX_MESSAGE_CHARACTERS, AgentRunRequest, AgentRunResponse,
+from .schemas import (ANSWER_FIELDS, MAX_HISTORY_ITEMS, MAX_MESSAGE_CHARACTERS, AgentRunRequest, AgentRunResponse,
                       AnalysisPathExecution, ExecutionMetadata, FinalResponse, HistoryMessage, ModeExecution,
                       ReplyClassifierUsage)
 
@@ -408,10 +408,13 @@ class _Mode4Run:
             log_event("mode4_step_skipped", request_id=self.request.request_id, step=step, seconds_left=int(left))
             return None
         history = list(self.request.history if history is None else history)[-MAX_HISTORY_ITEMS:]
+        # EXEC-IMPL-1017 Fase 3: every step of this message sees what the user attached to it
         sub_request = AgentRunRequest(request_id=request_id, conversation_id=self.request.conversation_id,
                                       message=message[:MAX_MESSAGE_CHARACTERS], history=history,
                                       metadata=self.request.metadata, continuation=continuation,
-                                      analysis_path=analysis_path)
+                                      analysis_path=analysis_path,
+                                      attached_selection=self.request.attached_selection,
+                                      attachments=self.request.attachments)
         budget, angle_bounds = current_time_budget.set(left), current_angle_bounds.set(bounds)
         kind = router.current_turn_kind.set(turn_kind)
         # M69 tahap 1 / H2: the plan gates bind thresholds and horizons to the user's messages, not to this step's
@@ -779,7 +782,9 @@ class _Mode4Run:
             mode4=block, data_record=self.record or None,
             artifacts=_artifacts(analysis, research, suggestion, result),
             evidence=[e for r in (analysis, research, suggestion) if r is not None for e in r.evidence or []]
-            + (self.news_evidence if base is not None else []) or (result.evidence if base is None else None) or None)
+            + (self.news_evidence if base is not None else []) or (result.evidence if base is None else None) or None,
+            # EXEC-IMPL-1017 Fase 3: the shown answer's tables, figures, reproductions and attachments (its first part)
+            **{name: getattr(result if base is None else (analysis or base), name) for name in ANSWER_FIELDS})
         log_event("mode4_completed", request_id=self.request.request_id, round=round_, status=combined.status,
                   steps=[(s["step"], s["status"]) for s in self.steps], cost=execution.cost,
                   duration_ms=execution.duration_ms, suggestion=suggestion is not None)
