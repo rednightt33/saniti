@@ -88,6 +88,11 @@ OUTPUT_EXTENSIONS = {"PARQUET": "parquet", "CSV": "csv", "PNG": "png", "JSON": "
 VALUE_UNITS = ("FRACTION", "PERCENT", "P_VALUE")
 
 
+# E9(e) (EXEC-1018B): working tables kept as supporting tables at a completion
+SUPPORT_TABLE_BYTES = 50 * 1024 * 1024
+SUPPORT_TOTAL_BYTES = 100 * 1024 * 1024
+
+
 def _output_definition(definition: Any) -> dict[str, Any] | None:
     """H1: the definition the runtime validated (a dict; {} states no filter beyond the data request). Anything else
     or anything oversized is dropped, so the completion asks for it again."""
@@ -1402,7 +1407,8 @@ class SessionManager:
                       "meta": {**{k: entry.get(k) for k in ("description", "title", "characters") if entry.get(k)},
                                **({"units": units} if (units := _output_units(entry.get("units"), columns)) else {}),
                                **({"definition": defined} if (defined := _output_definition(entry.get("definition")))
-                                  is not None else {})},
+                                  is not None else {}),
+                               **({"support": True} if entry.get("support") is True and kind == "TABLE" else {})},
                       "released": 0, "created_at": now.isoformat(),
                       "expires_at": (now + timedelta(hours=s.result_retention_hours)).isoformat()}
             self.store.insert_output(record)
@@ -1578,6 +1584,56 @@ class SessionManager:
                   "expires_at": (now + timedelta(hours=self.settings.result_retention_hours)).isoformat()}
         self.store.insert_output(record)
         return record
+
+    def write_working_tables(self, session_id: str, execution_id: str) -> tuple[list[dict[str, Any]], list[str]]:
+        """E9(e) (EXEC-1018B): every working table of the session (save_table) as a supporting output, byte for byte
+        (its checksum is the working file's), released with the completion and kept 30 days by the orchestrator.
+        A table already released unchanged by this session is not copied again; tables beyond SUPPORT_TABLE_BYTES
+        each or SUPPORT_TOTAL_BYTES together are not kept (their names are returned second)."""
+        import hashlib
+
+        import pyarrow.parquet as pq
+
+        folder = Path(self.settings.jobs_dir) / session_id / "intermediate" / "tables"
+        if not folder.is_dir():
+            return [], []
+        released = {o.get("checksum_sha256") for o in self.store.outputs_for(session_id)
+                    if o.get("released") and isinstance(o.get("meta"), dict) and o["meta"].get("working_table")}
+        records, skipped, total = [], [], 0
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        for path in sorted(folder.glob("*.parquet")):
+            try:
+                if not path.is_file() or path.is_symlink():
+                    continue
+                size = path.stat().st_size
+                if size > SUPPORT_TABLE_BYTES or total + size > SUPPORT_TOTAL_BYTES:
+                    skipped.append(path.stem)
+                    continue
+                data = path.read_bytes()
+                if hashlib.sha256(data).hexdigest() in released:
+                    continue
+                total += size
+                meta = pq.ParquetFile(path)
+                columns, rows = meta.schema_arrow.names, meta.metadata.num_rows
+            except Exception:  # noqa: BLE001 - an unreadable working table is not kept
+                continue
+            output_id = f"out_{secrets.token_hex(12)}"
+            relative = f"{session_id}/{output_id}.parquet"
+            target = self.outputs_root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+            os.chmod(target, 0o400)
+            record = {"output_id": output_id, "session_id": session_id, "execution_id": execution_id,
+                      "name": path.stem[:80], "type": "TABLE", "format": "PARQUET", "relative_path": relative,
+                      "byte_count": len(data), "row_count": rows, "columns": columns,
+                      "checksum_sha256": hashlib.sha256(data).hexdigest(),
+                      "meta": {"backend": True, "support": True, "working_table": True,
+                               "description": f"Working table {path.stem} (save_table)"},
+                      "released": 0, "created_at": now.isoformat(),
+                      "expires_at": (now + timedelta(hours=self.settings.result_retention_hours)).isoformat()}
+            self.store.insert_output(record)
+            records.append(record)
+        return records, skipped
 
     def _epoch_of(self, output: dict[str, Any]) -> int:
         execution = self.store.get_execution(output["execution_id"]) or {}

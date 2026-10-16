@@ -112,8 +112,52 @@ def _pairs(value: Any, prefix: str = "") -> list[tuple[str, str]]:
     return [(prefix or "value", "" if value is None else str(value))]
 
 
-def export(data: bytes, meta: dict[str, Any]) -> tuple[bytes, str, str]:
-    """(file bytes, mime type, extension). XLSX adds a 'definisi' and a 'lineage' sheet when they are given."""
+INPUT_MAX_ROWS = 200_000  # E1: all input sheets of one XLSX together
+INPUT_SHEET_PREFIX = "input "
+
+
+def _span(table, column: str) -> tuple[str, str] | None:
+    import pyarrow.compute as pcompute
+
+    if column not in table.column_names or table.num_rows == 0:
+        return None
+    ends = pcompute.min_max(table.column(column))
+    low, high = ends["min"].as_py(), ends["max"].as_py()
+    return (str(low)[:10], str(high)[:10]) if low is not None and high is not None else None
+
+
+def plan_inputs(table, inputs: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """E1 (EXEC-1018B): which inputs of the result get their own sheet. An input whose dates the result file already
+    spans (it has the input's time column, from the input's first to its last date) is covered; the others are
+    included while all input sheets stay within INPUT_MAX_ROWS rows. Returns (included, statuses)."""
+    import pyarrow.parquet as pq
+
+    included, statuses, rows = [], [], 0
+    for item in inputs:
+        status = {"data_request_id": item.get("data_request_id"), "sheet": item.get("sheet")}
+        if item.get("error"):
+            statuses.append({**status, "status": "NOT_INCLUDED", "reason": item["error"]})
+            continue
+        frame = pq.read_table(io.BytesIO(item["data"]))
+        column = item.get("time_column")
+        mine, theirs = (_span(table, column), _span(frame, column)) if column else (None, None)
+        if mine and theirs and mine[0] <= theirs[0] and mine[1] >= theirs[1]:
+            statuses.append({**status, "status": "COVERED", "rows": frame.num_rows})
+            continue
+        if rows + frame.num_rows > INPUT_MAX_ROWS:
+            statuses.append({**status, "status": "NOT_INCLUDED", "reason": "TOO_MANY_ROWS", "rows": frame.num_rows})
+            continue
+        rows += frame.num_rows
+        included.append({**item, "table": frame})
+        statuses.append({**status, "status": "INCLUDED", "rows": frame.num_rows,
+                         **({"from": theirs[0], "to": theirs[1]} if theirs else {})})
+    return included, statuses
+
+
+def export(data: bytes, meta: dict[str, Any], inputs: list[dict[str, Any]] | None = None
+           ) -> tuple[bytes, str, str] | tuple[bytes, str, str, list[dict[str, Any]]]:
+    """(file bytes, mime type, extension). XLSX adds a 'definisi' and a 'lineage' sheet when they are given. With
+    inputs (E1) an XLSX also gets one sheet per input the file does not cover, and the statuses come fourth."""
     import pyarrow.csv as pc
     import pyarrow.parquet as pq
 
@@ -131,13 +175,16 @@ def export(data: bytes, meta: dict[str, Any]) -> tuple[bytes, str, str]:
         if table.num_rows > XLSX_MAX_ROWS:
             raise StoredTableError("EXPORT_TOO_LARGE", f"{table.num_rows} rows exceed the XLSX limit of "
                                    f"{XLSX_MAX_ROWS}.", 413, next_action="Choose PARQUET or CSV, or export fewer rows.")
-        out = io.BytesIO(_xlsx(table, meta))
+        included, statuses = plan_inputs(table, inputs) if inputs else ([], [])
+        out = io.BytesIO(_xlsx(table, meta, included))
     body = out.getvalue()
     if len(body) > limit:
         raise StoredTableError("EXPORT_TOO_LARGE", f"The {target} file is {len(body)} bytes; the limit is {limit}.",
                                413, next_action="Export fewer columns or rows, or choose PARQUET.",
                                size_bytes=len(body), limit_bytes=limit)
     mime, ext = EXPORT_FORMATS[target]
+    if inputs is not None:
+        return body, mime, ext, (statuses if target == "XLSX" else [])
     return body, mime, ext
 
 
@@ -147,17 +194,36 @@ COLUMN_SHEET = ("kolom", ("Kolom", "Nama asli", "Arti", "Satuan"), ("label", "na
 MAX_COLUMN_ROWS = 200
 
 
-def _xlsx(table, meta: dict[str, Any]) -> bytes:
-    from openpyxl import Workbook
-
-    book = Workbook(write_only=True)
-    sheet = book.create_sheet("data")
-    headers = meta.get("headers") if isinstance(meta.get("headers"), dict) else {}
+def _append_table(sheet, table, headers: dict[str, Any]) -> None:
     sheet.append([str(headers.get(name) or name)[:200] for name in table.column_names])
     for batch in table.to_batches(max_chunksize=5000):
         columns = [batch.column(i).to_pylist() for i in range(batch.num_columns)]
         for row in zip(*columns):
             sheet.append([_cell(v) for v in row])
+
+
+def _sheet_name(name: Any, taken: set[str]) -> str:
+    import re
+
+    base = re.sub(r"[\[\]:*?/\\]", "_", f"{INPUT_SHEET_PREFIX}{name}")[:31]
+    title, n = base, 2
+    while title.lower() in taken:
+        title, n = f"{base[:28]}_{n}", n + 1
+    taken.add(title.lower())
+    return title
+
+
+def _xlsx(table, meta: dict[str, Any], inputs: list[dict[str, Any]] | None = None) -> bytes:
+    from openpyxl import Workbook
+
+    book = Workbook(write_only=True)
+    sheet = book.create_sheet("data")
+    headers = meta.get("headers") if isinstance(meta.get("headers"), dict) else {}
+    _append_table(sheet, table, headers)
+    taken = {"data", "kolom", "definisi", "asal data"}
+    for item in inputs or []:  # E1: the rows the result was computed from, warm-up rows included
+        _append_table(book.create_sheet(_sheet_name(item.get("sheet") or item.get("data_request_id"), taken)),
+                      item["table"], {})
     columns = meta.get("columns")
     if isinstance(columns, list) and columns:
         title, head, keys = COLUMN_SHEET
@@ -171,6 +237,10 @@ def _xlsx(table, meta: dict[str, Any]) -> bytes:
         rows = _pairs(meta[key]) if meta.get(key) else []
         if key == "definition" and texts:
             rows += _reading_rows(table, meta, texts)
+        if key == "definition" and inputs and texts.get("inputs"):
+            rows.append((texts.get("inputs_field") or "inputs", texts["inputs"].format(
+                sheets=", ".join(f"{INPUT_SHEET_PREFIX}{i.get('sheet') or i.get('data_request_id')}"
+                                 for i in inputs))))
         if rows:
             extra = book.create_sheet(title)
             extra.append(["field", "value"])

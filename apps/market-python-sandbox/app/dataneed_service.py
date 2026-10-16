@@ -6,6 +6,7 @@ verified dataset cache), executor, isolation self-test and settings, so the secu
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import secrets
@@ -83,6 +84,18 @@ def reference_date(reference_time: datetime, tz: str) -> date:
     return moment.astimezone(zone).date()
 
 
+def newest_per_name(outputs: list[dict[str, Any]], executions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """E6 (EXEC-1018B, M174): a name emitted by a later execution replaces the outputs of that name from earlier
+    executions; outputs sharing a name within one execution are all kept. Order kept."""
+    seq = {e["execution_id"]: int(e.get("seq") or 0) for e in executions}
+    latest: dict[str, int] = {}
+    for output in outputs:
+        name = str(output.get("name") or output["output_id"])
+        latest[name] = max(latest.get(name, 0), seq.get(output.get("execution_id"), 0))
+    return [o for o in outputs
+            if seq.get(o.get("execution_id"), 0) == latest[str(o.get("name") or o["output_id"])]]
+
+
 def undefined_outputs(outputs: list[dict[str, Any]]) -> list[str]:
     """H1: the names of tables and JSON results whose latest version has no definition (backend records and charts or
     text are exempt; the latest output of a name counts, so emitting it again with a definition fixes it)."""
@@ -91,9 +104,9 @@ def undefined_outputs(outputs: list[dict[str, Any]]) -> list[str]:
         latest[str(output.get("name") or "")] = output
     missing = []
     for name, output in latest.items():
-        if output.get("type") not in ("TABLE", "JSON") or name.startswith(BACKEND_RECORDS):
-            continue
         meta = output.get("meta") if isinstance(output.get("meta"), dict) else {}
+        if output.get("type") not in ("TABLE", "JSON") or name.startswith(BACKEND_RECORDS) or meta.get("support"):
+            continue
         if not isinstance(meta.get("definition"), dict):
             missing.append(name)
     return missing
@@ -954,6 +967,9 @@ class DataNeedService:
         outputs = [o for o in self.store.outputs_for(session_id)
                    if any(e["execution_id"] == o["execution_id"] and e["status"] == "OK" for e in executions)
                    and not (isinstance(o.get("meta"), dict) and o["meta"].get("backend"))]
+        # E6 (EXEC-1018B, M174): a name emitted again in this epoch replaces the earlier output (a rerun after a
+        # refused completion, a code repair, a units rerun); only the newest of each name is evaluated and released
+        outputs = newest_per_name(outputs, executions)
         manifest = execution_manifest(record, bundle, executions, outputs)
         if self.settings.conversation_reuse:
             manifest.update(epoch=epoch, need_id=need_id)
@@ -1231,7 +1247,7 @@ class DataNeedService:
                 "data_request_ids": sorted(r["data_request_id"] for r in requests if r["processing"] == "INHERITED")}
         coverage = {"coverage_status": coverage_status, "requests": requests,
                     "delivery_issues": [i for r in delivery.get("requests") or [] for i in r.get("issues") or []][:10]}
-        released = []
+        released, not_kept = [], []
         if passed:
             # M80 (a): the backend's research findings also as a standard table (export, chart, value references)
             found = ([grouped["findings"][a] for a in sorted(grouped["findings"])] if grouped is not None else []) \
@@ -1242,10 +1258,15 @@ class DataNeedService:
                 outputs = [*outputs, self.sessions.write_backend_table(
                     session_id, ok_runs[-1]["execution_id"], findings_table.NAME, table_rows, findings_table.COLUMNS,
                     definition=findings_table.DEFINITION, units=findings_table.UNITS)]
+            if ok_runs:  # E9(e): the session's working tables, kept as supporting tables
+                working, not_kept = self.sessions.write_working_tables(session_id, ok_runs[-1]["execution_id"])
+                outputs = [*outputs, *working]
             self.store.release_outputs([o["output_id"] for o in outputs])
             # an event study's declaration record is released for the audit but not listed for the answer
             code_of = {e["execution_id"]: e.get("code_sha256") for e in executions}
             released = [{**{k: o[k] for k in ("output_id", "name", "type", "format", "row_count", "columns")},
+                         **({"support": True, "checksum_sha256": o.get("checksum_sha256")}
+                            if isinstance(o.get("meta"), dict) and o["meta"].get("support") else {}),
                          **({"definition": (o.get("meta") or {})["definition"]}
                             if isinstance(o.get("meta"), dict) and "definition" in o["meta"] else {}),
                          # H1: the execution, code and data that produced it
@@ -1263,6 +1284,8 @@ class DataNeedService:
                   "execution_manifest_sha256": sha256_json(manifest)}
         if recompleted is not None:
             result["previous_completion_id"] = recompleted["completion_id"]
+        if passed and not_kept:
+            result["supporting_tables_not_kept"] = not_kept[:20]
         if passed:
             result["next_action"] = "ANSWER_FROM_RELEASED_OUTPUTS"
         elif undefined:
@@ -1366,6 +1389,81 @@ class DataNeedService:
     def get_bundle(self, bundle_id: str) -> dict[str, Any] | None:
         record = self.store.get_bundle(bundle_id)
         return None if record is None else {**record["manifest"], "status": record["status"]}
+
+    def dataset_file(self, bundle_id: str, data_request_id: str, request_id: str,
+                     conversation_key: str | None, buffers: bool = False) -> tuple[bytes, dict[str, Any]]:
+        """E9(d) (EXEC-1018B): the rows a bundle delivered for one data request, as one Parquet file: the approved
+        ranges only (warm-up buffers left out), ordered by time and entity. For the bundle's own request or a later
+        request of the same conversation. BUNDLE_EXPIRED when its files are gone (re-extract with the same need).
+        buffers=True (E1, the inputs of a result): every delivered row, warm-up rows included."""
+        import io
+
+        import duckdb
+
+        record = self.store.get_bundle(bundle_id)
+        allowed = record is not None and (record.get("request_id") == request_id or (
+            conversation_key is not None and record.get("conversation_key") == conversation_key))
+        if not allowed:
+            raise DataNeedError("BUNDLE_NOT_FOUND", "No bundle with this id belongs to this request or conversation.",
+                                404)
+        manifest = record["manifest"]
+        dataset = next((d for d in manifest.get("datasets") or [] if d.get("data_request_id") == data_request_id),
+                       None)
+        if dataset is None:
+            raise DataNeedError("DATA_REQUEST_NOT_FOUND", f"The bundle has no data request {data_request_id!r}; it "
+                                f"has {[d.get('data_request_id') for d in manifest.get('datasets') or []]}.", 404)
+        files = [self.bundles.path_of(bundle_id, p["file"]) for p in dataset.get("partitions") or [] if p.get("file")]
+        identity = sorted(str(p.get("data_sha256") or p.get("checksum_sha256")) for p in dataset.get("partitions") or [])
+        if record["status"] != "READY" or not files or not all(f.is_file() for f in files):
+            raise DataNeedError("BUNDLE_EXPIRED", "The bundle's files are no longer kept (24 hours); the data is "
+                                "extracted again from the same approved need.", 410, need_id=record.get("need_id"),
+                                status=record["status"], rows_identity=sha256_json(identity))
+        time_column, entity = dataset.get("time_column"), dataset.get("entity_column")
+        quote = lambda name: '"' + str(name).replace('"', '""') + '"'  # noqa: E731
+        where, params = "", []
+        ranges = [r for r in dataset.get("ranges") or [] if r.get("start") and r.get("end")]
+        if time_column and ranges and not buffers:
+            where = " WHERE " + " OR ".join(f"CAST({quote(time_column)} AS DATE) BETWEEN CAST(? AS DATE) AND "
+                                            f"CAST(? AS DATE)" for _ in ranges)
+            params = [v for r in ranges for v in (r["start"], r["end"])]
+        order = [quote(c) for c in (time_column, entity) if c]
+        connection = duckdb.connect()
+        try:
+            table = connection.execute(
+                f"SELECT DISTINCT * FROM read_parquet(?){where}" + (f" ORDER BY {', '.join(order)}" if order else ""),
+                [[str(f) for f in files], *params]).fetch_arrow_table()
+        finally:
+            connection.close()
+        import pyarrow.parquet as pq
+
+        buffer = io.BytesIO()
+        pq.write_table(table, buffer, compression="zstd")
+        return buffer.getvalue(), {"rows": table.num_rows, "columns": table.column_names,
+                                   "source_table": dataset.get("source_table"), "time_column": time_column,
+                                   "logical_name": dataset.get("logical_name"), "need_id": record.get("need_id"),
+                                   "ranges": [{k: r.get(k) for k in ("range_id", "start", "end")} for r in ranges],
+                                   "rows_identity": sha256_json(identity),
+                                   "file_sha256": hashlib.sha256(buffer.getvalue()).hexdigest()}
+
+    def carry_need(self, need_id: str, request_id: str, conversation_key: str | None) -> dict[str, Any]:
+        """E9(d/f) (EXEC-1018B): an approved need of an earlier request of this conversation, registered again for
+        this request with the same approved contract (the same Governor SQL, so the same rows), without the model.
+        Its bundle is then prepared as usual; parts still kept are reused, the rest extracted again."""
+        record = self.store.get_need(need_id)
+        if record is None or not record["extraction_allowed"] or conversation_key is None \
+                or record.get("conversation_key") != conversation_key:
+            raise DataNeedError("NEED_NOT_FOUND", "No approved data need with this id belongs to this conversation.",
+                                404)
+        if record["request_id"] == request_id:
+            return {"status": "APPROVED", "need_id": need_id, "carried_from": need_id}
+        carried = f"need_{secrets.token_hex(12)}"
+        result = {**record["result"], "need_id": carried, "carried_from": need_id}
+        self.store.insert_need({**{k: record.get(k) for k in (
+            "request_group_id", "revision", "mode", "status", "spec_sha256", "submitted", "approved", "governance",
+            "research", "extraction_allowed", "contract_sha256")}, "need_id": carried, "request_id": request_id,
+            "result": result, "created_at": utc_now(), "conversation_key": conversation_key})
+        self._log("data_need_carried", request_id=request_id, need_id=carried, carried_from=need_id)
+        return {"status": "APPROVED", "need_id": carried, "carried_from": need_id}
 
     def bundle_lineage(self, bundle_id: str, request_id: str, conversation_key: str | None) -> dict[str, Any]:
         """D3 (round 2026-10-03): how a bundle was made, for its own request or a later request of the same

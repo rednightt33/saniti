@@ -2105,8 +2105,9 @@ def saved_tables() -> list[dict[str, Any]]:
 
 def save_table(name: str, frame) -> dict[str, Any]:
     """Keep a frame as a working table of this session, readable with load_table(name) in any later run_python of
-    the session (a table of the same name is replaced). Not released and not an output: it never counts against
-    the session's outputs and cannot be cited; emit_table the result you cite. All working tables share a disk
+    the session (a table of the same name is replaced). Not an output: it never counts against the session's outputs
+    and cannot be cited; emit_table the result you cite. When the analysis completes, every working table is kept 30
+    days as a supporting table the user may export (E9). All working tables share a disk
     quota (working_table_bytes); a table that would exceed it is refused and nothing is written."""
     import pyarrow.parquet as pq
 
@@ -2320,12 +2321,14 @@ def _definition(definition) -> dict[str, Any] | None:
 
 
 def emit_table(name: str, data, description: str = "", units: dict[str, str] | None = None,
-               definition: dict[str, Any] | None = None) -> dict[str, Any]:
+               definition: dict[str, Any] | None = None, support: bool = False) -> dict[str, Any]:
     """A TABLE output (stored as Parquet; readable back page by page). units: {column: FRACTION | PERCENT | P_VALUE}
     for the columns holding a share, a percent or a p-value, so the answer formats them right: declare every share,
     rate, ratio of parts or return column (FRACTION: 0.12 is 12%; PERCENT: 12 is 12%); a column named like one, or
     holding only decimals within ±1.5, without a unit is warned (UNIT_UNDECLARED). definition: how the table was made (filters applied in code, period, entities,
-    thresholds, notes; {} when the code added no filter to the data request); required for a released table."""
+    thresholds, notes; {} when the code added no filter to the data request); required for a released table.
+    support=True: a supporting table (an intermediate step the user may ask for): released and kept 30 days for export,
+    never cited in the answer; a definition is optional."""
     import pyarrow.parquet as pq
 
     table = _arrow(data)
@@ -2336,7 +2339,7 @@ def emit_table(name: str, data, description: str = "", units: dict[str, str] | N
     pq.write_table(table, _os.path.join(_OUTPUT_DIR, file_name), compression="zstd")
     return _record("TABLE", "PARQUET", name, file_name, description, columns=table.column_names,
                    row_count=table.num_rows, **({"units": declared} if declared else {}),
-                   **({"definition": defined} if defined is not None else {}))
+                   **({"definition": defined} if defined is not None else {}), **({"support": True} if support else {}))
 
 
 def emit_chart(figure=None, name: str = "chart", title: str = "", description: str = "") -> dict[str, Any]:

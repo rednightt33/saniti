@@ -146,6 +146,9 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                                  "version": RESTORE_VERSION, "restore_max_bytes": settings.restore_max_bytes},
                 # D3 (round 2026-10-03): GET /v1/bundles/{id}/lineage, Governor query ids in new bundle manifests
                 "bundle_lineage": {"enabled": dataneed is not None, "version": 1},
+                # E9 (EXEC-1018B): working tables released as supporting tables, a bundle dataset as one file, and an
+                # approved need carried into a later request of the conversation
+                "supporting_data": {"enabled": dataneed is not None, "version": 1},
                 # D0 (round 2026-10-03): POST /v1/stored-tables/{op} on a stored table uploaded by market-ai-orc
                 "stored_tables": {"enabled": dataneed is not None, "version": stored_tables.STORED_TABLES_VERSION,
                                   "ops": list(stored_tables.OPS), "max_bytes": settings.restore_max_bytes,
@@ -396,6 +399,32 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
         except DataNeedError as exc:
             return dataneed_error(exc)
 
+    @app.get("/v1/bundles/{bundle_id}/datasets/{data_request_id}/file", dependencies=dataneed_routes)
+    def bundle_dataset_file(bundle_id: str, data_request_id: str, request_id: str = Query(..., max_length=128),
+                            key: str | None = Depends(conversation_key)) -> Any:
+        """E9(d): one data request's delivered rows (approved ranges, no buffers) as Parquet; metadata in a header."""
+        if not BUNDLE_ID.fullmatch(bundle_id) or not re.fullmatch(r"[A-Za-z0-9_]{1,80}", data_request_id):
+            raise HTTPException(status_code=404, detail="Unknown bundle or data request")
+        try:
+            data, meta = dataneed.dataset_file(bundle_id, data_request_id, request_id, key)
+        except DataNeedError as exc:
+            return dataneed_error(exc)
+        return Response(content=data, media_type="application/octet-stream", headers={
+            "X-Saniti-Checksum-Sha256": hashlib.sha256(data).hexdigest(),
+            "X-Saniti-Dataset-Meta": base64.urlsafe_b64encode(json.dumps(meta, default=str).encode()).decode()})
+
+    @app.post("/v1/data-needs/{need_id}/carry", dependencies=dataneed_routes)
+    def carry_need(need_id: str, body: Any = Body(...), key: str | None = Depends(conversation_key)) -> Any:
+        """E9(d/f): an approved need of this conversation registered again for this request (same contract)."""
+        if not NEED_ID.fullmatch(need_id) or not isinstance(body, dict) or set(body) != {"request_id"} \
+                or not isinstance(body["request_id"], str) or not re.fullmatch(REQUEST_ID, body["request_id"]):
+            return JSONResponse(status_code=422, content={"status": "REJECTED", "error": {
+                "code": "INVALID_REQUEST", "message": "Body must be {request_id}."}})
+        try:
+            return dataneed.carry_need(need_id, body["request_id"], key)
+        except DataNeedError as exc:
+            return dataneed_error(exc)
+
     @app.get("/v1/bundles/{bundle_id}", dependencies=dataneed_routes)
     def get_bundle(bundle_id: str) -> Any:
         """The complete bundle manifest with its Data Quality Manifests and delivery coverage (backend and audit)."""
@@ -537,7 +566,8 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
             return session_error(exc)
 
     @app.post("/v1/stored-tables/{op}", dependencies=dataneed_routes)
-    async def stored_table(op: str, request: Request, x_saniti_output_meta: str | None = Header(default=None)) -> Any:
+    async def stored_table(op: str, request: Request, x_saniti_output_meta: str | None = Header(default=None),
+                           key: str | None = Depends(conversation_key)) -> Any:
         """D0: page, export or recount a stored table without a session. The body is the stored file; its metadata
         (format, checksum_sha256 and the operation's arguments) is base64url JSON in X-Saniti-Output-Meta."""
         if op not in stored_tables.OPS:
@@ -557,7 +587,10 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                                                int(meta.get("limit") or 100))
             if op == "recount":
                 return await run_in_threadpool(stored_tables.recount, data, meta)
-            body, mime, ext = await run_in_threadpool(stored_tables.export, data, meta)
+            inputs = await run_in_threadpool(export_inputs, meta, key) if meta.get("inputs") else None
+            exported = await run_in_threadpool(stored_tables.export, data, meta, inputs)
+            body, mime, ext = exported[:3]
+            statuses = exported[3] if len(exported) > 3 else None
         except stored_tables.StoredTableError as exc:
             content: dict[str, Any] = {"status": "REJECTED", "error": {"code": exc.code, "message": exc.message,
                                                                         **exc.details}}
@@ -568,7 +601,25 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
             return JSONResponse(status_code=422, content={"status": "REJECTED", "error": {
                 "code": "STORED_TABLE_UNREADABLE", "message": f"The file could not be read: {type(exc).__name__}."}})
         return Response(content=body, media_type=mime, headers={
-            "X-Saniti-Checksum-Sha256": hashlib.sha256(body).hexdigest(), "X-Saniti-Extension": ext})
+            "X-Saniti-Checksum-Sha256": hashlib.sha256(body).hexdigest(), "X-Saniti-Extension": ext,
+            **({"X-Saniti-Inputs": base64.urlsafe_b64encode(json.dumps(statuses).encode()).decode()}
+               if statuses is not None else {})})
+
+    def export_inputs(meta: dict[str, Any], key: str | None) -> list[dict[str, Any]]:
+        """E1: the delivered rows (warm-up included) of each input a result was computed from, read from its bundle;
+        an input whose bundle is gone is listed with the reason, never guessed."""
+        items = []
+        for item in (meta.get("inputs") or [])[:6]:
+            if not isinstance(item, dict) or dataneed is None:
+                continue
+            entry = {"data_request_id": item.get("data_request_id"), "sheet": item.get("sheet")}
+            try:
+                data, info = dataneed.dataset_file(str(item.get("bundle_id")), str(item.get("data_request_id")),
+                                                   str(meta.get("request_id") or ""), key, buffers=True)
+                items.append({**entry, "data": data, "time_column": info.get("time_column")})
+            except DataNeedError as exc:
+                items.append({**entry, "error": exc.code})
+        return items
 
     @app.get("/v1/sessions/{session_id}/outputs/{output_id}", dependencies=dataneed_routes)
     def session_output(session_id: str, output_id: str, request_id: str = Query(..., max_length=128),

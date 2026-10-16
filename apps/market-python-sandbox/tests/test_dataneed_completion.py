@@ -137,3 +137,26 @@ def test_a_discarded_output_emitted_again_by_a_corrected_run_is_released(session
     assert {o["name"] for o in good["outputs"]} == names and "discarded_outputs" not in good
     result = complete(session)
     assert {o["name"] for o in result["released_outputs"]} >= names
+
+
+def test_a_name_emitted_again_by_a_later_run_replaces_the_earlier_output(session) -> None:
+    """E6 (EXEC-1018B, M174): a rerun in the same request that emits a name again releases only the newest output of
+    that name; other names of the earlier run stay."""
+    first = ok(session, YTD + "\nemit_json('kept', {'n': 1}, definition={})")["outputs"]
+    second = ok(session, "emit_table('last_close', last.head(2), definition={})")["outputs"]
+    result = complete(session)
+    released = {o["name"]: o["output_id"] for o in result["released_outputs"]}
+    assert released["last_close"] == second[0]["output_id"]
+    assert released["kept"] == next(o["output_id"] for o in first if o["name"] == "kept")
+    assert [o["output_id"] for o in first if o["name"] == "last_close"][0] not in released.values()
+
+
+def test_outputs_sharing_a_name_within_one_run_are_all_kept() -> None:
+    from app.dataneed_service import newest_per_name
+
+    executions = [{"execution_id": "e1", "seq": 1}, {"execution_id": "e2", "seq": 2}]
+    outputs = [{"output_id": "a", "name": "chart", "execution_id": "e1"},
+               {"output_id": "b", "name": "chart", "execution_id": "e2"},
+               {"output_id": "c", "name": "chart", "execution_id": "e2"},
+               {"output_id": "d", "name": "table", "execution_id": "e1"}]
+    assert [o["output_id"] for o in newest_per_name(outputs, executions)] == ["b", "c", "d"]
