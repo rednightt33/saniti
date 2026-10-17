@@ -345,6 +345,10 @@ class Settings:
     ai_mode_switch: int = 1
     # the wall-clock budget of one whole mode 4 request (its sub-runs share it; each also keeps AI_MAX_ANALYSIS_SECONDS)
     ai_mode4_max_seconds: int = 3600
+    # EXEC-MANUAL (user 2026-10-17, troubleshooting only): Claude answers the agent loop of a run that chose
+    # manual_agent.MANUAL_MODEL; a step with no reply in AI_MANUAL_AGENT_WAIT_SECONDS goes to AI_MODEL (the fallback)
+    ai_enable_manual_agent: bool = False
+    ai_manual_agent_wait_seconds: int = 600
     # IP2 solution 2: archive every finished run to market-audit-store through ai_audit.ingest_outbox (INSERT only,
     # AUDIT_OUTBOX_DATABASE_URL). With AI_AUDIT_STORE_REQUIRED false an archive failure is logged and never changes
     # the answer; true withholds the answer when the run cannot be handed to the outbox (regulated mode).
@@ -506,6 +510,8 @@ class Settings:
             ai_enable_tool_envelope=_boolean(env, "AI_ENABLE_TOOL_ENVELOPE", False),
             ai_enable_mode4=_boolean(env, "AI_ENABLE_MODE4", False),
             ai_mode4_max_seconds=_integer(env, "AI_MODE4_MAX_SECONDS", 3600, minimum=60),
+            ai_enable_manual_agent=_boolean(env, "AI_ENABLE_MANUAL_AGENT", False),
+            ai_manual_agent_wait_seconds=_integer(env, "AI_MANUAL_AGENT_WAIT_SECONDS", 600, minimum=30),
             ai_mode_switch=_integer(env, "AI_MODE_SWITCH", 1),
             ai_audit_store_enabled=_boolean(env, "AI_AUDIT_STORE_ENABLED", False),
             ai_audit_store_required=_boolean(env, "AI_AUDIT_STORE_REQUIRED", False),
@@ -533,6 +539,10 @@ class Settings:
             )
         if settings.ai_max_output_tokens >= settings.ai_max_context_tokens:
             raise ConfigError("AI_MAX_OUTPUT_TOKENS must be below AI_MAX_CONTEXT_TOKENS")
+        if settings.ai_enable_manual_agent and \
+                settings.ai_manual_agent_wait_seconds > settings.ai_max_analysis_seconds:
+            # EXEC-MANUAL: a wait longer than the run's own limit would never reach its fallback
+            raise ConfigError("AI_MANUAL_AGENT_WAIT_SECONDS must not exceed AI_MAX_ANALYSIS_SECONDS")
         if settings.ai_max_output_tokens >= settings.ai_max_context_tokens * settings.ai_context_soft_limit_ratio:
             raise ConfigError(
                 "AI_MAX_OUTPUT_TOKENS must be below AI_MAX_CONTEXT_TOKENS x AI_CONTEXT_SOFT_LIMIT_RATIO"

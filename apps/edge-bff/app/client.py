@@ -110,6 +110,17 @@ class OrcClient:
         """EXEC-MODELS: Orc's offered models, their reasoning levels and their prices per one million tokens."""
         return self._call('GET', '/v1/models', owner)
 
+    def manual(self, owner, method, path, body=None):
+        """EXEC-MANUAL (troubleshooting): the model calls waiting for Claude, and Claude's reply to one; Orc answers
+        404 while its switch is off. Returns (status code, body)."""
+        try:
+            response = self.client.request(method, '/v1/dev/manual/steps' + path, json=body,
+                headers={'Authorization': f'Bearer {self.settings.orc_key}', 'X-Saniti-Owner': owner})
+            data = response.json()
+        except (httpx.HTTPError, ValueError) as e:
+            raise OrcError() from e
+        return response.status_code, public_data(data)
+
     def messages(self, owner, conversation_id, after=-1, limit=20):
         return self._call('GET', f'/v1/conversations/{conversation_id}/messages?after={after}&limit={limit}', owner)
 

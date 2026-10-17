@@ -398,6 +398,22 @@ def create_app(settings=None, store=None, orc=None):
         return StreamingResponse(stream(), media_type='text/event-stream', headers={
             'Cache-Control':'no-store, no-transform', 'X-Accel-Buffering':'no', 'Content-Encoding':'identity'})
 
+    # EXEC-MANUAL (user 2026-10-17, troubleshooting only): Claude reads the waiting model calls of a run that chose
+    # the manual model and posts its reply; Orc decides (404 while its switch is off)
+    @app.get('/api/v1/dev/manual/steps')
+    async def manual_steps(_=Depends(session)):
+        code, data = await asyncio.to_thread(orc.manual, settings.owner, 'GET', '')
+        return JSONResponse(data, status_code=code)
+
+    @app.post('/api/v1/dev/manual/steps/{step_id}')
+    async def manual_answer(step_id: str, request: Request, _=Depends(session)):
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, 'Invalid JSON')
+        code, data = await asyncio.to_thread(orc.manual, settings.owner, 'POST', '/' + step_id[:64], body)
+        return JSONResponse(data, status_code=code)
+
     models_cache = {'at': None, 'data': None}
 
     @app.get('/api/v1/models')

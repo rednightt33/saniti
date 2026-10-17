@@ -29,7 +29,8 @@ from .modes import MODES, current_caller_path, effective_default, path_for, reso
 from . import follow_ups, progress, stop
 from .orchestrator import AgentOrchestrator, log_event
 from .provider_log import ProviderLogger
-from .model_choices import EDGE_DEFAULT, MODEL_CHOICES, ModelChoiceError, current_model_choice
+from .manual_agent import ManualAgent
+from .model_choices import EDGE_DEFAULT, MODEL_CHOICES, ModelChoiceError, current_model_choice, offered
 from .model_choices import resolve as resolve_model_choice
 from .lanes import LaneError, current_lane
 from .lanes import resolve as resolve_lane
@@ -133,6 +134,7 @@ def create_app(
     orchestrator: AgentOrchestrator | None = None,
     conversations: ConversationStore | None = None,
     model_prices: ModelPrices | None = None,
+    manual_agent: ManualAgent | None = None,
 ) -> FastAPI:
     """App factory; uvicorn runs it with --factory so config is validated at startup, not import."""
     _configure_logging()
@@ -149,6 +151,7 @@ def create_app(
                           restart_sweep_seconds=settings.ai_conversation_restart_sweep_seconds or None) \
         if conversations else None
     owned_client: OpenRouterClient | None = None
+    manual: ManualAgent | None = manual_agent  # EXEC-MANUAL; tests pass their own
     if orchestrator is None:
         owned_client = OpenRouterClient(
             settings.openrouter_api_key,
@@ -495,7 +498,12 @@ def create_app(
             log_event("result_store_inactive", reason="needs conversation reuse, the conversation store and the sandbox")
         if result_store is None and registry.disable("export_result"):
             log_event("export_inactive", reason="exports are kept with the conversation: the result store is inactive")
-        orchestrator = AgentOrchestrator(settings, owned_client, registry, auditor=auditor,
+        # EXEC-MANUAL: with the switch on, a manual run's loop calls wait for Claude; all others pass through
+        if settings.ai_enable_manual_agent:
+            manual = ManualAgent(owned_client, settings, log=log_event)
+            log_event("manual_agent_active", wait_seconds=settings.ai_manual_agent_wait_seconds,
+                      fallback_model=settings.ai_model)
+        orchestrator = AgentOrchestrator(settings, manual or owned_client, registry, auditor=auditor,
                                          catalog_summary=summary, provider_logger=provider_logger,
                                          provider_policy=provider_policy, provider_policies=provider_policies,
                                          session_closer=closer, session_releaser=releaser,
@@ -629,12 +637,28 @@ def create_app(
         return {"models": [{"model": option.model, "label": option.label, "reasoning_levels": list(option.levels),
                             **(prices.get(option.model) or {"input_per_million": None, "output_per_million": None,
                                                             "cache_read_per_million": None})}
-                           for option in MODEL_CHOICES],
+                           for option in offered(settings)],
                 "prices_fetched_at": fetched_at, "edge_default": dict(EDGE_DEFAULT),
                 "server_default": {"model": settings.ai_model, "reasoning": settings.reasoning(
                     settings.ai_reasoning_effort)},
                 # EXEC-FASTLANE: a message may choose lane "fast" (EDGE shows the lane choice only then)
                 "lane_selection": bool(settings.ai_enable_fastlane)}
+
+    @app.get("/v1/dev/manual/steps", dependencies=[Depends(authorize)])
+    def manual_steps() -> dict[str, Any]:
+        """EXEC-MANUAL: the model calls waiting for Claude, each with the exact payload the model would get."""
+        if manual is None:
+            raise HTTPException(status_code=404, detail="Not Found")
+        return {"steps": manual.pending(), "wait_seconds": settings.ai_manual_agent_wait_seconds}
+
+    @app.post("/v1/dev/manual/steps/{step_id}", dependencies=[Depends(authorize)])
+    def manual_answer(step_id: str, body: dict[str, Any]) -> JSONResponse:
+        """EXEC-MANUAL: Claude's reply to one waiting step, in the model's response shape ({"output": [...]})."""
+        if manual is None:
+            raise HTTPException(status_code=404, detail="Not Found")
+        outcome = manual.answer(step_id[:64], body.get("response"))
+        code = {"ANSWERED": 200, "NOT_WAITING": 409, "INVALID": 422}[outcome]
+        return JSONResponse(status_code=code, content={"status": outcome})
 
     @app.post("/v1/agent/run", response_model=AgentRunResponse, dependencies=[Depends(authorize)])
     def run_agent(payload: AgentRunRequest,

@@ -202,6 +202,46 @@ Urutan sisa:
 
 Tumpang tindih: U1, U2, U3, U4 (bagian EDGE) dan U5 mengubah `static/index.html` → satu putaran EDGE; U4 (orc) dan PLAN 14 sama-sama di `orchestrator.py`/alat → urut, bukan paralel; UI-1015B menyentuh `edge-client.js` status run → sesudah putaran EDGE.
 
+### EXEC-MANUAL: Claude menjawab sebagai AI untuk troubleshooting (go 2026-10-17, dikerjakan)
+
+User 2026-10-17: "Oke, buat nomor satu ya, saklar yang aktif. Ini hanya untuk mode troubleshooting aja. Cek infrastruktur
+dan buat yang diperlukan tanpa merubah terlalu banyak. Ensure ada jalur fallback ketika nanti diperlukan di kemudian
+hari. masukan exec". Sebelumnya: "kedepannya kamu yang bertindak untuk menjawab pertanyaan tersebut dengan menggunakan
+constraint di model … instead of melihat feedback dari si AI di open router, kamulah yang langsung merasakan feedback
+dari sistem kita".
+- Cek infrastruktur (2026-10-17): otak run hanya satu titik di orc (`client.create(payload)` ke OpenRouter); daftar model
+  EDGE dibaca dari orc `/v1/models` lewat BFF (cache 10 menit); BFF meneruskan `model` yang cocok pola id; orc satu
+  replika (registri di memori, sama seperti `stop.py`); batas run dev `AI_MAX_ANALYSIS_SECONDS=1800`, BFF menunggu orc
+  sampai 3.900 detik. Tidak perlu service baru.
+- Rancangan: pembungkus klien `app/manual_agent.py`. Panggilan dengan model `saniti/claude-manual` diantrikan; Claude
+  membaca paket yang sama persis dengan yang diterima model dan membalas dalam bentuk balasan model. Panggilan lain
+  (router, saran lanjutan, model lain) langsung ke OpenRouter seperti biasa. Alat, gerbang, persetujuan data dan cek
+  jawaban akhir tidak berubah.
+- Saklar: `AI_ENABLE_MANUAL_AGENT` (orc, mati secara bawaan; dev saja). Mati: pilihan "Claude (manual)" hilang dari
+  EDGE, rute dev menjawab 404, perilaku sama persis seperti sebelumnya.
+- Jalur fallback: langkah yang tidak dijawab dalam `AI_MANUAL_AGENT_WAIT_SECONDS` (bawaan 600) diteruskan ke `AI_MODEL`
+  dengan level berpikir server, dan sisa run itu ikut model tersebut; tombol Stop mengakhiri penantian. Jalan balik
+  penuh: matikan saklar.
+- Rute: orc `GET /v1/dev/manual/steps`, `POST /v1/dev/manual/steps/{step_id}`; BFF `GET/POST /api/v1/dev/manual/...`
+  (sesi EDGE). Skrip Claude: `scripts/manual_agent.py`.
+- Uji: balasan diteruskan apa adanya; batas tunggu → fallback ke `AI_MODEL`; Stop; saklar mati → 404 dan model tidak
+  ditawarkan; BFF meneruskan rute dengan sesi.
+
+### EXEC-M181: run lambat karena panggilan model tanpa kemajuan (disetujui 2026-10-17, belum dieksekusi)
+
+User 2026-10-17: "Oke, untuk M181, masukkan exec, jangan eksekusi dulu."
+- Akar (terverifikasi, ERRORS M181): batas 90 detik jalur cepat hanya untuk panggilan pertama yang macet per run;
+  panggilan lain menunggu `AI_REQUEST_TIMEOUT_SECONDS` (dev 600) per percobaan, sampai 3 percobaan. `edge_7a07`: satu
+  panggilan MiMo 622 detik. Penyedia yang macet tidak tercatat (`ai_model_call_provider lookup: NOT_FOUND`).
+- Kelas: setiap panggilan model di semua jalur dan model saat endpoint penyedia diam.
+- Rancangan: batas per panggilan berdasarkan kemajuan (tanpa byte pertama dalam N detik, atau tanpa byte baru selama M
+  detik), berlaku di setiap panggilan; anggaran waktu run terlihat di EDGE; endpoint penyedia tercatat di setiap
+  panggilan (memperbaiki pencarian `NOT_FOUND`). Mengulang di endpoint lain dari model yang sama termasuk perubahan
+  penyedia, perlu persetujuan user.
+- Pertanyaan saat go: nilai N dan M; apakah `AI_REQUEST_TIMEOUT_SECONDS` dev diturunkan sebagai pengaman total.
+- Uji: penyedia tiruan yang diam dipotong di N; penyedia yang lambat tetapi terus mengalir tidak dipotong; pencarian
+  endpoint mengembalikan nama penyedia untuk id dari Responses API.
+
 ### EXEC-M179: angka berskala tidak kehilangan digit pentingnya (disetujui 2026-10-17, belum dieksekusi)
 
 User 2026-10-17: "Ok M179 masukan exec". Persetujuan ini untuk masuk EXEC; eksekusi menunggu go.

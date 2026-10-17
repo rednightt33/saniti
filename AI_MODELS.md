@@ -73,6 +73,7 @@ Nilai seperti `self.settings.ai_model` atau `slot.model` dibaca dari setelan di 
 | `AI_ENABLE_FIRST_TURN_ROUTER` | `False` |
 | `AI_ENABLE_MODE4` | `False` |
 | `AI_LOG_PROVIDER` | `False` |
+| `AI_MANUAL_AGENT_WAIT_SECONDS` | `600` |
 | `AI_MAX_ANALYSIS_SECONDS` | `600` |
 | `AI_MAX_CONTEXT_TOKENS` | `64000` |
 | `AI_MAX_HISTORY_TOKENS` | `4000` |

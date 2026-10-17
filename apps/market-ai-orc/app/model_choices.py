@@ -45,6 +45,13 @@ MODEL_CHOICES: tuple[ModelOption, ...] = (
     ModelOption("qwen/qwen3.8-flash", "Qwen3.8 Flash", "enabled", reasoning_budget=8000),
 )
 BY_MODEL = {option.model: option for option in MODEL_CHOICES}
+# EXEC-MANUAL (user 2026-10-17): Claude answers as the model, offered only with AI_ENABLE_MANUAL_AGENT (troubleshooting)
+MANUAL_OPTION = ModelOption("saniti/claude-manual", "Claude (manual)", "enabled")
+
+
+def offered(settings: Any) -> tuple[ModelOption, ...]:
+    """The models a message may choose now: MODEL_CHOICES, and the manual option when its switch is on."""
+    return MODEL_CHOICES + ((MANUAL_OPTION,) if getattr(settings, "ai_enable_manual_agent", False) else ())
 EDGE_DEFAULT = {"model": "deepseek/deepseek-v4.1-flash", "reasoning_level": "high"}
 
 
@@ -96,10 +103,10 @@ def resolve(model: str | None, level: str | None, settings: Any) -> ModelChoice:
         return ModelChoice(settings.ai_model, settings.reasoning(settings.ai_reasoning_effort), None, False,
                            lowered=lowered_reasoning(BY_MODEL.get(settings.ai_model), settings))
     name = model or settings.ai_model
-    option = BY_MODEL.get(name)
+    option = next((o for o in offered(settings) if o.model == name), None)
     if option is None:
         raise ModelChoiceError("MODEL_NOT_ALLOWED", f"model {name} is not offered; the models are "
-                               + ", ".join(o.model for o in MODEL_CHOICES) + ".")
+                               + ", ".join(o.model for o in offered(settings)) + ".")
     if level is None:
         level = EDGE_DEFAULT["reasoning_level"] if option.form == "effort" else "on"
     if level not in option.levels:
