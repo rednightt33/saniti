@@ -10,7 +10,7 @@ import time
 from contextlib import asynccontextmanager
 from functools import partial
 
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, status
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from .catalog_store import CatalogStore
@@ -652,7 +652,7 @@ def create_app(
         return {"steps": manual.pending(), "wait_seconds": settings.ai_manual_agent_wait_seconds}
 
     @app.post("/v1/dev/manual/steps/{step_id}", dependencies=[Depends(authorize)])
-    def manual_answer(step_id: str, body: dict[str, Any]) -> JSONResponse:
+    def manual_answer(step_id: str, body: dict[str, Any] = Body(...)) -> JSONResponse:
         """EXEC-MANUAL: Claude's reply to one waiting step, in the model's response shape ({"output": [...]})."""
         if manual is None:
             raise HTTPException(status_code=404, detail="Not Found")

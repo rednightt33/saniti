@@ -126,3 +126,36 @@ def test_a_reply_must_have_the_model_shape_and_answers_once() -> None:
     player.join(timeout=5)
     assert result["output"][-1]["name"] == "get_system_capabilities" and result["model"] == MANUAL_MODEL
     assert agent.answer("x", "not a response") == "INVALID"
+
+
+def test_the_dev_routes_list_a_waiting_step_and_take_a_reply_over_http() -> None:
+    settings = make_settings(**ON)
+    agent = ManualAgent(ScriptedClient([]), settings, poll_seconds=0.01)
+    client = TestClient(create_app(settings, orchestrator=AgentOrchestrator(settings, agent, build_default_registry()),
+                                   manual_agent=agent))
+    result: list[dict] = []
+
+    def wait() -> None:
+        token = current_request_id.set("http1")
+        try:
+            result.append(agent.create({"model": MANUAL_MODEL, "input": []}))
+        finally:
+            current_request_id.reset(token)
+    waiter = threading.Thread(target=wait, daemon=True)
+    with client:
+        waiter.start()
+        for _ in range(200):
+            steps = client.get("/v1/dev/manual/steps", headers=AUTH).json()["steps"]
+            if steps:
+                break
+            time.sleep(0.01)
+        step = steps[0]["step_id"]
+        assert steps[0]["request_id"] == "http1" and steps[0]["payload"]["model"] == MANUAL_MODEL
+        assert client.post(f"/v1/dev/manual/steps/{step}", headers=AUTH, json={"response": "x"}).status_code == 422
+        reply = client.post(f"/v1/dev/manual/steps/{step}", headers=AUTH,
+                            json={"response": tool_call_response("get_system_capabilities")})
+        assert reply.status_code == 200 and reply.json() == {"status": "ANSWERED"}
+        waiter.join(timeout=5)
+        assert client.post(f"/v1/dev/manual/steps/{step}", headers=AUTH,
+                           json={"response": {"output": []}}).status_code == 409
+    assert result[0]["output"][-1]["name"] == "get_system_capabilities"
