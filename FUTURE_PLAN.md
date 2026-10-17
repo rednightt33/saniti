@@ -573,3 +573,37 @@ harga dasar 30 Des 2021 (Rp 3.512,5) tidak ada di file; orang yang menghitung da
 mendapat angka lain. Kelas: setiap angka yang inputnya keluar dari jendela yang diekspor (return dengan harga dasar,
 jendela bergulir yang butuh pemanasan, YoY, jendela estimasi event study). Usulan: ekspor di giliran reproduksi memuat
 semua baris input tabel kerja (atau backend menolak ekspor yang tanggalnya tidak mencakup input reproduksi).
+
+## Claude "di posisi AI" dan jejak run lengkap (usulan 2026-10-17, menunggu keputusan)
+
+Permintaan user 2026-10-17: "boleh pikirkan cara agar kita bisa buat kamu yg di AI shoes instead of a/b testing terus?
+so ketika saya tanya, coba kamu run pakai model kita end to end supaya lebih cepat trouble shoot".
+
+- **Akar masalah (terverifikasi pada run `edge_7a07`, `edge_98750`):** log tidak menyimpan apa yang dilihat dan ditulis
+  model per panggilan (masukan, keluaran mentah, argumen dan hasil alat, galat sandbox, endpoint penyedia); log Railway
+  terpotong per deployment. Tanpa itu setiap dugaan harus diuji ulang dengan run baru (A/B).
+- **Kelas:** setiap investigasi run (lambat, salah tafsir, gerbang, galat kode), di semua model dan jalur.
+- **T1 Jejak run (dev saja, saklar `AI_CAPTURE_TRACE`):** setiap panggilan model disimpan per `request_id`: payload
+  ringkas (hash prefiks statis + bagian giliran), keluaran mentah termasuk teks pendek, panggilan alat dan hasilnya,
+  galat sandbox, waktu per langkah, endpoint penyedia. Disimpan di Postgres dengan masa simpan 14 hari. Skrip
+  `scripts/trace_run.py <request_id>` mencetak garis waktu.
+- **T2 Ulang dari langkah N:** panggilan ke-N diulang dengan payload yang sama (model kita, satu panggilan, biaya kecil),
+  atau dengan perubahan prompt yang diuji, tanpa menjalankan seluruh run.
+- **T3 Claude di posisi AI:** endpoint dev `POST /v1/dev/agent-step` menjalankan satu panggilan alat atas nama run
+  (alat yang sama, gerbang yang sama, persetujuan data tetap berlaku). Claude memakai alat persis seperti model untuk
+  menemukan instruksi atau pesan galat yang kurang jelas, tanpa variasi model.
+- **T4 Uji ujung ke ujung atas permintaan:** pertanyaan user dikirim ke EDGE dev dengan model pilihannya
+  (`live_submit.py`, sudah ada), lalu laporan T1 dibuat otomatis.
+- **Batas:** tidak menggantikan A/B ketika yang diukur adalah variasi model antar-run. T3 memakai kredensial dev,
+  tidak pernah prod.
+- **Uji:** jejak `edge_7a07` serupa menunjukkan panggilan 622 s dan endpointnya; ulang langkah 2 dari `edge_98750`
+  menunjukkan teks 10 token; satu panggilan T3 yang ditolak gerbang menghasilkan pesan yang sama dengan model.
+
+## Run lambat (M181, usulan 2026-10-17, menunggu keputusan)
+
+- Batas waktu per panggilan berdasarkan kemajuan, untuk semua panggilan dan jalur: tanpa keluaran pertama dalam N detik,
+  atau tanpa byte baru selama M detik, panggilan dipotong dan diulang sekali.
+- Anggaran waktu per run yang terlihat di EDGE.
+- Endpoint penyedia tercatat di setiap panggilan (memperbaiki `lookup: NOT_FOUND`).
+- Mengulang di endpoint lain dari model yang sama termasuk perubahan penyedia, jadi perlu persetujuan user.
+- Uji: penyedia tiruan yang diam 30 detik dipotong di N; penyedia yang lambat tapi terus mengalir tidak dipotong.
