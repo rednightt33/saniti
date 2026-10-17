@@ -202,6 +202,24 @@ Urutan sisa:
 
 Tumpang tindih: U1, U2, U3, U4 (bagian EDGE) dan U5 mengubah `static/index.html` → satu putaran EDGE; U4 (orc) dan PLAN 14 sama-sama di `orchestrator.py`/alat → urut, bukan paralel; UI-1015B menyentuh `edge-client.js` status run → sesudah putaran EDGE.
 
+### EXEC-M179: angka berskala tidak kehilangan digit pentingnya (disetujui 2026-10-17, belum dieksekusi)
+
+User 2026-10-17: "Ok M179 masukan exec". Persetujuan ini untuk masuk EXEC; eksekusi menunggu go.
+- Akar (terverifikasi, kode): `value_refs.format_value` format `rp` membagi angka ke triliun, miliar atau juta lalu
+  memakai jumlah desimal yang diminta rujukan; `rp:0` menampilkan 1,51 triliun sebagai "Rp 2 triliun" (A/B E2 lengan
+  A, ERRORS M179).
+- Kelas: setiap angka berskala (rupiah, nanti volume dan seri makro atau lintas aset berskala) yang presisinya dipilih
+  model, di teks dan tabel.
+- Rancangan (lapisan backend, penjamin kebenaran angka): angka yang diskalakan selalu tampil dengan minimal tiga digit
+  penting; desimal yang diminta model dipakai bila lebih banyak. Contoh: 1,51 triliun → "Rp 1,51 triliun"; 209,74
+  miliar dengan `rp:0` → "Rp 210 miliar"; 5,16 miliar dengan `rp:0` → "Rp 5,16 miliar". Angka tanpa skala tidak
+  berubah. Bila tampilan berubah dari permintaan, dicatat di log (`ai_reference_precision_raised`).
+- Tidak tercakup: format persen atau desimal biasa dengan desimal sedikit (mis. 0,4% dengan `pct:0` menjadi "0%").
+  Pertanyaan untuk user saat go: aturan yang sama diterapkan juga ke format itu?
+- Uji: kasus di atas, angka negatif, batas skala (999,6 miliar → "Rp 1,00 triliun" bukan "Rp 1.000 miliar"),
+  pemeriksaan bahwa setiap tampilan dibaca balik sama oleh `provenance.parse_numbers`; snapshot prompt bila teks
+  format di prompt berubah.
+
 ### EXEC-IMPL-1015: rencana implementasi butir yang disetujui (2026-10-15; go 2026-10-15; selesai kecuali cek berbayar)
 
 **Hasil (2026-10-15).** Fase 1 EDGE `e3ccf5d` (edge-bff `0eb6c761`); Fase 2 `c997c4d` + `bb2430d` (sandbox `b1f26312`,
