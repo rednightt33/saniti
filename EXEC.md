@@ -226,6 +226,17 @@ dari sistem kita".
   (sesi EDGE). Skrip Claude: `scripts/manual_agent.py`.
 - Uji: balasan diteruskan apa adanya; batas tunggu → fallback ke `AI_MODEL`; Stop; saklar mati → 404 dan model tidak
   ditawarkan; BFF meneruskan rute dengan sesi.
+- **Hasil 2026-10-17 (dev, aktif):**
+  - Kode: `ec34ff6` → orc `ee8717a3` dan edge-bff `1e349164`, keduanya SUCCESS; perbaikan rute balasan `01608fd` → orc
+    `141c172c` SUCCESS. Tes orc 1.885 lulus, EDGE/BFF 114 lulus.
+  - Variabel dev: `AI_ENABLE_MANUAL_AGENT=true` (market-ai-orc). Log startup: `manual_agent_active`, tunggu 600 detik,
+    fallback `deepseek/deepseek-v4.1-flash`.
+  - Uji live 1 (`edge_57a62b10…`): rute balasan menolak body (422, bug yang hanya terlihat lewat HTTP), langkah tidak
+    terjawab, jadi setelah 600 detik `manual_agent_fallback NO_REPLY` dan 7 panggilan berikutnya ke DeepSeek; run
+    COMPLETED (644 detik). Jalur fallback terbukti.
+  - Uji live 2 (`edge_64b81f15…`, sesudah perbaikan): Claude membaca paket yang sama dengan model (instruksi, catatan
+    router, 16 alat), memanggil `discover_catalog`, menerima hasilnya di langkah berikutnya, lalu menulis jawaban akhir;
+    run COMPLETED dalam 63 detik, 2 iterasi, model `saniti/claude-manual`, tanpa hambatan.
 
 ### EXEC-M181: run lambat karena panggilan model tanpa kemajuan (disetujui 2026-10-17, belum dieksekusi)
 

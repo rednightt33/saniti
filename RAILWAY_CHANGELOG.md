@@ -1,5 +1,17 @@
 # Railway changelog
 
+## 2026-10-17 — EXEC-MANUAL: Claude as the model for troubleshooting (dev)
+
+User: "Oke, buat nomor satu ya, saklar yang aktif. Ini hanya untuk mode troubleshooting aja … Ensure ada jalur fallback".
+
+- `ec34ff6`: market-ai-orc `ee8717a3` SUCCESS and edge-bff `1e349164` SUCCESS; `01608fd` (reply route body):
+  market-ai-orc `141c172c` SUCCESS. No EDGE run was active before each push.
+- Variable: `AI_ENABLE_MANUAL_AGENT=true` on market-ai-orc dev (set with `--skip-deploys`, applied by the deploy above);
+  `AI_MANUAL_AGENT_WAIT_SECONDS` not set (default 600). `railway config pull --force` added it to `.railway/railway.ts`
+  as `preserve()`; `railway config plan`: up to date.
+- No model, provider, mode or other variable changed. Way back: unset `AI_ENABLE_MANUAL_AGENT` (the manual model is no
+  longer offered and the dev routes answer 404).
+
 ## 2026-10-16 — EXEC-1018B Fase 4 (fix), Fase 5 and Fase 6: market-ai-orc and edge-bff deploys
 
 - `95a3a69`: market-ai-orc `4140e697` SUCCESS (offer sentence in the next-step contract). Rollback for Fase 5.
