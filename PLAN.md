@@ -20,6 +20,40 @@ Aturan:
 
 Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 
+## Anggaran reasoning dan penyajian — persetujuan target, audit dahulu
+
+**Persetujuan target, 2026-10-19 (kata user):** "Saya setuju terkait reasoning 48, penyajian 48k"
+
+**Permintaan lanjutan (kata user):** "Untuk point 1-3 boleh di cek sekali lagi apakah kodenya memang belum demikian?"
+
+Target terbaru: kapasitas reasoning 48.000 token dan penyajian 48.000 token. Ini menggantikan angka usulan
+sebelumnya; bukan perubahan konfigurasi yang sudah dijalankan. Apabila kedua komponen dibatasi dalam satu
+panggilan, plafon gabungannya perlu menampung 96.000 token; pembagian angka terpisah tidak boleh diklaim
+didukung semua model sebelum kontrak provider dan jalur implementasinya diverifikasi. Bila dipisah menjadi
+beberapa panggilan, tiap panggilan masih memiliki kontrak output/reasoning sendiri. Pemakaian maksimum tidak
+wajib dihabiskan. Model/level pilihan user tidak boleh diturunkan diam-diam.
+
+Audit poin 1–3 terhadap source deployment Orc `5679bd5`, deployment SUCCESS `4138d8bd`:
+
+1. **Batas dan level belum sesuai target.** Konfigurasi output total masih 24.000 per panggilan; MiMo On masih
+   dibatasi 12.000 di `model_choices.py`, Qwen On memakai `reasoning.max_tokens=8000`. Timeout fastlane 90 detik
+   dan penurunan Low/Off setelah timeout/output kosong pada batas masih ada; model berlevel juga menjadi Low
+   setelah respons pertama fastlane. Target 48.000/48.000 dan penghapusan penurunan itu belum diimplementasikan.
+2. **Penyimpanan hasil sebagian sudah ada, bukan fitur dari nol.** Sandbox mencatat eksekusi dan menyalin output
+   sebelum model membacanya (`sessions.py`). Orc melacak hasil selama loop (`_track_results`), tetapi menyalin
+   released output/kode ke penyimpanan percakapan melalui `_store_results` dan menyimpan run memory melalui
+   `_save_memory` setelah loop/finalisasi kembali, termasuk jalur kegagalan yang tertangani. Ini bukan checkpoint
+   penuh setiap langkah yang menjamin kelanjutan setelah proses Orc mati.
+3. **Jatah baru dan perbaikan jawaban sebagian sudah ada.** Tiap panggilan memperoleh cap baru lewat `_payload`;
+   `_request_structured_final`, `_echo_draft`, dan `_reject_final` sudah meminta final/perbaikan dengan konteks
+   yang tersedia. Belum ada anggaran penyajian 48.000 terpisah, cadangan token jawaban yang dijamin, atau dua
+   tahap reasoning/penyajian yang selalu dipaksakan. Jangan menambah panggilan final bila hasil normal sudah sah.
+
+Mekanisme table directives/value references sudah aktif; ini tetap dipertahankan, bukan pekerjaan baru.
+Open details: pemetaan batas reasoning yang benar-benar didukung per model/provider, jatah satu versus beberapa
+panggilan, timeout dan retry, serta validasi bahwa keluaran terpotong tidak dinyatakan selesai. Angka token tidak
+menjamin analisis sudah tuntas. Status: **target disetujui, audit desain; belum ada perintah eksekusi kode/deploy**.
+
 ## Ringkasan
 
 | No | Butir | Disetujui | Status | Urutan usulan |
@@ -30,6 +64,7 @@ Kode masalah (M, P, S, G, W, R, C, D) merujuk ke `ERRORS_AND_SOLUTIONS.md`.
 | 12 | Prosedur tabel baru (FX, indeks, makro) | 2026-10-01 "record now, run later" | Menunggu pemicu: tabel baru | Saat ada tabel baru |
 | 13 | Feature04 otomatis setelah update harga, retry ticker/indikator gagal lewat Telegram | 2026-10-11 (implementation plan disetujui) | Selesai; dipindahkan ke `EXEC.md` EXEC-F04 | Selesai 2026-10-11 |
 | 15 | Finality equity, pemeriksaan koreksi lima sesi, dan Feature04 incremental dengan checkpoint state | 2026-10-12 ("Ok jalankan.") | Selesai; migration, 868-instrument shadow, 6.076 checkpoint, live five-session run dan zero-change repeat lulus | Selesai 2026-10-12 |
+| 16 | Target reasoning 48.000 dan penyajian 48.000 token; audit ulang batas, penyimpanan, dan finalisasi | 2026-10-19 (target) | Audit selesai; pemetaan per model dan rencana implementasi belum dieksekusi | Menunggu perintah eksekusi |
 
 Eksekusi yang sudah disetujui (dulu butir 1–7 dan 1b–1k) ada di `EXEC.md`.
 
