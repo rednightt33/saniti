@@ -5453,3 +5453,49 @@ dikembalikan `15604ac8` SUCCESS (terbaca: GOAL_ANSWERS true, FALLBACK false, ROU
 **Belum dikerjakan (perlu keputusan user):** M192 (DEFINITION: aturan sebelum menulis, SCOPE ADD, pesan pemicu, catatan
 tanpa JSON); router percakapan tanpa saran rencana di jalur Cepat; peringatan `attach_to_session_id`; tanggal timestamp di
 tabel; benchmark PDF/PNG di ponsel nyata (tes browser lokal lulus, belum di HP fisik).
+
+### EXEC-UI-1019B + peringatan sesi (dicatat 2026-10-19, belum dijalankan)
+
+**Disetujui user (2026-10-19):**
+- Peringatan `attach_to_session_id`: "OK masukan exec". Bila model meminta data digabung ke sesi yang bukan milik
+  jawaban yang sedang berjalan, hasil `submit_data_need_spec` memuat peringatan yang menyebut bahwa sesi baru dibuka dan
+  hasil lama dibaca dengan `load_output`.
+
+**Diminta user, menunggu konfirmasi pemahaman (user: "Konfirmasi apabila kamu paham. Jangan jalankan dulu"):**
+1. Jarak antarbagian jawaban (Metodologi → Pertanyaan lanjutan → Ide insight) terlalu dekat dan tidak seragam: satu
+   ukuran jarak standar.
+2. Judul kolom tabel yang panjang dibungkus (lebar kolom mengikuti isi, judul tidak melebarkan kolom).
+3. Tabel di tengah area jawaban.
+4. Tombol salin diberi tulisan "Copy".
+5. Panel Pinned responses dan Response History: judul beku saat digulir; ada ruang kosong di atas "Pinned responses".
+6. Kartu PNG terlalu panjang: kartu lebih lebar (usulan 760 px CSS, gambar 1.520 px) supaya teks tidak terlalu
+   terbungkus; jarak kiri/kanan sekarang 26 px CSS.
+7. Kartu PNG dan PDF memuat model yang dipakai (nama model dan level penalaran).
+8. Semua teks bahasa Indonesia di antarmuka EDGE diterjemahkan ke bahasa Inggris, kecuali pesan user dan jawaban AI.
+9. Penilaian adopsi 7 butir dari branch `codex/orc-budget-96k` (penalaran sesudah panggilan pertama, potongan 90 detik,
+   timeout penyedia diulang dengan pemberitahuan ke user, pengaman M150, MiMo On, Qwen On, batas token per panggilan).
+
+**Lanjutan keputusan user (2026-10-19; semuanya "masukan exec jangan execute dulu"):**
+- **M192 (DEFINITION):** disetujui masuk EXEC: (1) aturan di CITING AND CHECKS: menyebut "sama seperti hasil sebelumnya"
+  wajib menyebut yang berbeda; (2) saham tambahan dari fakta SCOPE ADD bukan definisi berbeda bila rumus, periode dan
+  filter sama; (3) pesan penolakan mengutip kalimat pemicu dan field yang berbeda; (4) catatan untuk user dalam kalimat
+  biasa berbahasa Indonesia tanpa JSON (`user_texts.py`).
+- **Adopsi dari branch `codex/orc-budget-96k` (kode branch `64796ac` dibaca; frekuensi dari log orc tersimpan ±150 run
+  sejak 2026-10-13), hanya tujuh perilaku ini, di balik saklar, tanpa checkpoint/migrasi branch:**
+  1. Penalaran tetap sesuai pilihan di semua panggilan (bukan Low sesudah panggilan pertama). Risiko pasti: A/B branch
+     +43% token penalaran, ±+57 s, ±+17% biaya.
+  2. Potongan 90 detik (`lanes.FAST_CALL_SECONDS`) dihapus; batas umum `AI_REQUEST_TIMEOUT_SECONDS` (600 s) dan tombol
+     Stop. Terjadi 2× pada 2026-10-19 (j2 ON dan OFF), masing-masing membuang 90 s lalu turun ke Low tanpa terlihat.
+     Dipasang bersama butir 1.
+  3. Timeout penyedia: diulang sekali **di level yang sama** dan user diberi tahu lewat langkah progres ("Penyedia AI
+     tidak merespons, mencoba sekali lagi"), bukan gagal langsung seperti branch. Risiko: panggilan pertama mungkin sudah
+     tertagih. 0 kasus di log.
+  4. M150: tetap diulang sekali tetapi **di level yang sama** dengan catatan "jawab lebih ringkas" dan pemberitahuan ke
+     user; terulang lagi → gagal dengan pesan jelas (branch: langsung gagal). 2 kasus (2026-10-13, 113 s dan 163 s).
+  5. MiMo On: batas 12.000 tetap sampai MiMo Flash diuji 2–3 pertanyaan di 24.000.
+  6. Qwen On: batas penalaran diatur lewat `AI_MAX_REASONING_TOKENS` (dari branch).
+  7. Batas token per panggilan tetap 24.000; 48.000 hanya setelah uji penyedia. Di luar kasus M150 tidak ada panggilan
+     yang mencapai 24.000.
+- **Kartu PNG/PDF:** baris metadata seperti baris di bawah judul jawaban (screenshot user: Request ID, logo dan nama
+  model · level, token, durasi) **tanpa biaya**.
+- **Terjemahan:** baris yang ditambahkan sistem di dalam jawaban (`user_texts.py`) tetap bahasa Indonesia.
