@@ -4025,3 +4025,18 @@ variables, schedules and `.railway/railway.ts` are unchanged. Source `5679bd5`: 
 both SUCCESS, 2026-10-19 03:37 UTC. Orc logs confirm sandbox runtime initialized, Mode 4/default 4 and result
 store active. Both services and unchanged sandbox have one running replica. Evidence and limits are maintained
 in `verification/sandbox_recovery/README.md`. No configuration apply, Railway upload or production database mutation.
+## 2026-10-19 — EDGE composer and Details frontend
+
+User approved desktop/mobile visual and interaction testing before completion (verbatim approval and evidence:
+`verification/bff_ui_1019/README.md`). Git main source `7c6bf18462eb84053ac0358cf46dbf887b076cfd` deployed
+edge-bff (`c3656044-2817-44a7-9b55-54910bab416f`) in lucid-patience / dev through the existing GitHub connection.
+Deployment `98142fe9-9b86-4276-b417-c5660bd809da` reached SUCCESS on 2026-10-19 05:09:22 UTC; one running
+replica, zero crashed replicas, startup complete. Shared answer/composer alignment, mouse/touch/keyboard composer
+resizing, preserved Details state on submit, frozen section headers and newest-first history. All 127 distinct BFF
+checks have passing results across the recorded groups; the final affected group passes 12/12. Desktop and touch-mobile
+screenshots were inspected, including light/dark and short viewports. Direct public host readback is blocked by the
+execution environment proxy; live verification uses exact Git metadata, healthchecked deployment, replica state and logs.
+
+No Railway configuration, variables, IaC, API, database or Orc source changes, and no Railway upload/config apply.
+Orc remains on `4138d8bd-70e9-451d-9e77-faf91f6966c2`; sandbox remains on
+`84fa7fa3-6bda-46af-8162-7d13d42fde7b`, both SUCCESS. Local disposable test database removed after testing.

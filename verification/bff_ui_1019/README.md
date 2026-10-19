@@ -53,7 +53,15 @@ offset before/after resize across all four target sizes (see `results.json`).
 Inspected before changes: lucid-patience / dev, edge-bff `c3656044-2817-44a7-9b55-54910bab416f`, GitHub
 `rednightt33/saniti`, branch `main`, root `/apps/edge-bff`, watch `/apps/edge-bff/**`, one replica, `/ready` healthcheck.
 Active baseline `22c9671d-c117-4db6-9b6e-cd9e5a53f7d9` SUCCESS; no staged BFF changes. Delivery uses Git push and
-Railway's existing source connection. Exact new deployment verification pending. Direct public asset/health readback from this execution environment is blocked
+Railway's existing source connection. Deployment **98142fe9-9b86-4276-b417-c5660bd809da** reached **SUCCESS** at 2026-10-19 05:09:22 UTC
+(12:09:22 WIB). Railway metadata confirms source `7c6bf18462eb84053ac0358cf46dbf887b076cfd`, branch `main`.
+One replica running, zero crashed replicas, no BFF warnings/criticals or recent failures. Runtime logs show application
+startup complete and Uvicorn serving port 8080. Uvicorn INFO lines are labelled error by the log transport because they
+use stderr; no application exception is present. Orc remains on `4138d8bd-70e9-451d-9e77-faf91f6966c2`; sandbox
+remains on `84fa7fa3-6bda-46af-8162-7d13d42fde7b`, both SUCCESS. The disposable local PostgreSQL container was stopped
+and removed after testing. Approval is archived here; the completed item was removed from `EXEC.md`.
+
+ Direct public asset/health readback from this execution environment is blocked
 by the outbound proxy (HTTP CONNECT 403); verification will use Railway's exact Git source metadata, healthchecked
 SUCCESS status, replica state and runtime logs. The visual/interaction tests above run against the real local BFF.
 No live inference or live conversation/data mutation is used.

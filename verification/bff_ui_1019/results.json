@@ -104,5 +104,19 @@
     "ui1019-mobile-small-light.png": "fb0d26b5fa8219fb8f80c76b81d60408485cbb023310a383069a15b267709972",
     "ui1019-mobile-small-resized.png": "0823d7c31c7ca27d1796efdc212476c5c27a50ec243bd802938379f590c04cb5",
     "ui1019-mobile-small-short-viewport.png": "e7914539d95607112bc2693fca28490dae4a1017459f18304791ae3fdb1616b0"
+  },
+  "deployment": {
+    "service": "edge-bff",
+    "id": "98142fe9-9b86-4276-b417-c5660bd809da",
+    "status": "SUCCESS",
+    "source_commit": "7c6bf18462eb84053ac0358cf46dbf887b076cfd",
+    "branch": "main",
+    "success_at_utc": "2026-10-19T05:09:22.551Z",
+    "replicas": {
+      "running": 1,
+      "crashed": 0,
+      "total": 1
+    },
+    "verification": "Railway deployment metadata, replica state, healthchecked SUCCESS and startup logs; direct public host blocked by execution proxy"
   }
 }

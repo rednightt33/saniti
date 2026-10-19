@@ -995,7 +995,8 @@ change yet.
   ditampilkan di bawah header, tanpa menggeser summary ke belakangnya. Toggle memakai `touch-action:manipulation`
   serta menangani touch release yang tidak bergeser dan mengabaikan click susulannya; jalur mouse/keyboard tetap native.
   Event trace pada kasus gagal membuktikan touch/pointer down-up terjadi tanpa compatibility click setelah drag.
-- **Status:** implemented and locally verified (8 new desktop/touch-mobile tests); Git deployment
-  verification tracked in `verification/bff_ui_1019/README.md`.
+- **Status:** CLOSED — 127 distinct checks have passing results; final affected group 12/12. Git main
+  `7c6bf18`, BFF `98142fe9-9b86-4276-b417-c5660bd809da` SUCCESS (2026-10-19 05:09 UTC).
+  Evidence and verification limits: `verification/bff_ui_1019/README.md`.
 - **Lesson:** uji alignment dengan scrollbar yang memakan ruang, cek aturan CSS lama saat mengubah
   positioning, dan uji scroll/keyboard/touch serta reload, bukan screenshot viewport saja.
