@@ -1,5 +1,14 @@
 # Railway changelog
 
+## 2026-10-19 — Temporary branch deployment for the ORC budget A/B (dev)
+
+User: "kita jalankan A/B dulu ya 3 questions each" (then: 24k as now; temporary deploy approved, EDGE history reads
+may fail meanwhile). `market-ai-orc` / `dev`: `railway up` of branch `codex/orc-budget-96k` `b6b0f36` → `17e75c52`
+FAILED (uploaded with `--path-as-root`, which the service root directory `/apps/market-ai-orc` does not accept; live
+deployment unchanged), then `bea24111` → SUCCESS 10:42 UTC; `orc-test-runner` `c84597cb` (A, before) and `2dd91ee3`
+(B). `main` `416b360` restored with `railway up` → `414f2ada` SUCCESS 10:53 UTC. No variable, migration or schema
+change; the checkpoint migration was not applied (database TCP is blocked from this session). Results in EXEC.md.
+
 ## 2026-10-17 — EXEC-MANUAL: Claude as the model for troubleshooting (dev)
 
 User: "Oke, buat nomor satu ya, saklar yang aktif. Ini hanya untuk mode troubleshooting aja … Ensure ada jalur fallback".

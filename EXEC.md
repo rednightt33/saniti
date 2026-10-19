@@ -5163,3 +5163,28 @@ balik; penolakan gerbang naik di run B; biaya melewati batas; langkah di luar re
   Penyebabnya bug gerbang yang sudah ada (M143: kata skala "juta"/"miliar" sesudah rujukan ke kolom yang sudah
   berskala), bukan perubahan gaya; usulan perbaikan menunggu keputusan user. Laporan lengkap A/B (8 jawaban) di luar
   repo (jawaban AI tidak disimpan di repo publik).
+
+### A/B branch `codex/orc-budget-96k` vs `main` (2026-10-19, user: "kita jalankan A/B dulu ya 3 questions each")
+
+Branch belum dirilis (rilis ditahan). Kode branch `b6b0f36` dipasang sementara di orc dev dengan `railway up`
+(tanpa merge, tanpa migrasi `execution_checkpoint`, setelan dev tetap: total 24.000 token) untuk run B, lalu `main`
+dipasang kembali. Pertanyaan sama dengan A/B V5 (t1, j2, s1), jalur Cepat, DeepSeek V4.1 Flash High, n=1.
+
+| Ukuran | A `main` | B branch |
+|---|---|---|
+| Waktu total | 340 s | 577 s |
+| Biaya | USD 0,092 | USD 0,108 |
+| Token keluaran (penyedia) | 44,6 rb | 57,4 rb |
+| Token penalaran | 27,6 rb | 39,4 rb |
+| t1 / j2 / s1 | 38 / 149 / 153 s | 148 / 316 / 113 s |
+| Penyedia | Together, Morph, InferenceNet | Decart, Ionstream, Morph |
+
+- Semua 6 run COMPLETED ANSWER; tidak ada `OUTPUT_BUDGET_EXHAUSTED`. Checkpoint B gagal disimpan seperti diduga
+  (kolom belum ada: `CHECKPOINT_NOT_SAVED`), run tetap selesai.
+- Penyedia lagi-lagi berbeda: t1 B dilayani Decart 92 token/s (A: Together 340 token/s). Dengan kecepatan penyedia A,
+  B diperkirakan ≈ +57 s (bukan +237 s): j2 B memakai token keluaran 2× (32,9 rb vs 16,1 rb; penalaran 26,9 rb vs
+  7,8 rb, tiap panggilan kerja 4–7 rb token penalaran karena level tidak turun ke Low), s1 B justru lebih sedikit.
+- Hambatan: A 3 (kelengkapan analisis, JSON jawaban diulang, nilai filter); B 3 + 2 label (kode error, JSON
+  jawaban diulang, kolom agregat tidak cocok). Tidak ada hambatan yang berasal dari batas token.
+- Log orc B mencatat `output_tokens` = batas panggilan (24.000), bukan pemakaian; angka pemakaian diambil dari log
+  penyedia (`native_output_tokens`).
