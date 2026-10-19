@@ -4048,4 +4048,6 @@ presentation recovery through existing ORC/BFF/DB services. Planned variables: A
 AI_MAX_REASONING_TOKENS=48000 after numeric acceptance, AI_MAX_PRESENTATION_TOKENS=48000 target. No live variable,
 service source, replica, helper timeout, provider routing or deployment changed in this local implementation.
 Apply/check the additive DB migration before pushing main (Git source auto-deploy). Network policy currently blocks
-Postgres TCP and live app/OpenRouter access from this workspace; remaining rollout and evidence are in EXEC-ORC-BUDGET.
+Postgres TCP and live app/OpenRouter access from this workspace. User decision 2026-10-19: “Tahan rilis; simpan
+branch dahulu”. Release is held; `codex/orc-budget-96k` is saved without main push, live migration, variable change
+or deployment. Future rollout and evidence are in EXEC-ORC-BUDGET.

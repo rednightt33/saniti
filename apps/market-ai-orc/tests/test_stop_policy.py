@@ -50,13 +50,15 @@ def test_a_forced_ending_always_pauses_with_a_question() -> None:
 
 def test_no_limitation_is_built_outside_the_policy() -> None:
     """A LIMITATION is built only where its ending is decided by the policy (_forced, _plan_not_feasible) or by a
-    budget whose way back is still the user's decision (_exhausted, M121 g pending)."""
+    budget whose way back is still the user's decision (_exhausted, M121 g pending), or presentation failure with
+    saved computation and explicit presentation_recovery choices (_saved_results_preview, EXEC-ORC-BUDGET)."""
     builders = [m.start() for m in re.finditer(r'FinalResponse\(response_type="LIMITATION"', SOURCE)]
     owners = []
     for position in builders:
         owner = re.findall(r"\n    def (\w+)\(", SOURCE[:position])[-1]
         owners.append(owner)
-    assert set(owners) <= {"_forced", "_plan_not_feasible", "_exhausted"}, owners
+    assert set(owners) <= {"_forced", "_plan_not_feasible", "_exhausted", "_saved_results_preview"}, owners
+    assert stop_policy.cause_of("PRESENTATION_FAILED").outcome == stop_policy.ALTERNATIVES
 
 
 def test_each_note_says_what_happens_to_a_kept_response() -> None:

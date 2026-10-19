@@ -1,6 +1,8 @@
 # ORC executor budget and presentation recovery
 
-Status, 2026-10-19: **implemented and validated locally; live rollout pending network access**.
+Status, 2026-10-19: **implemented and validated locally; release held at the user's request**.
+Source is saved on `codex/orc-budget-96k`. User decision: “Tahan rilis; simpan branch dahulu”.
+Do not migrate, change live settings, deploy, or push main until the user resumes release.
 User authorized implementation and then the shared 96k alternative. Approval and the complete plan are in
 `EXEC.md` / `EXEC-ORC-BUDGET`. Existing live deployment/configuration remain unchanged.
 
@@ -35,6 +37,9 @@ User authorized implementation and then the shared 96k alternative. Approval and
   model/level in the same owned conversation. It skips routing/planning, locks tools, checks artifacts before a paid
   call and presents the saved question/sources/coverage/date. It never queries current prices or recalculates. The
   latest conversation data record survives. Source checkpoints stay separated per Mode4 step.
+- If presentation fails after READY, up to three saved TABLE outputs can be shown as explicitly partial previews,
+  through the existing reference/provenance gates and 50-row/12-column display limits. No new inference, price
+  extraction or calculation is started. A rendering failure preserves the original provider failure and recovery.
 - BFF exposes safe recovery choices and collapsed call settings; the retry button names the model/level and warns of
   AI usage costs. Full-request retry fills the composer and restores its original supported model/level. EdgeView is
   version 2. Pin/history/resize/panel behavior and the worker/SSE/lease protocol are preserved.
@@ -45,7 +50,7 @@ User authorized implementation and then the shared 96k alternative. Approval and
 
 | Validation | Result |
 |---|---|
-| ORC full suite with disposable PostgreSQL 17 | 1,933 passed |
+| ORC full suite with disposable PostgreSQL 17 | 1,935 passed |
 | BFF complete suite | 131 passed |
 | BFF affected checks after full-retry choice preservation | 18 passed |
 | Migration operator smoke test | NOT_APPLIED → APPLIED → ALREADY_APPLIED → ALREADY_APPLIED |
@@ -55,7 +60,8 @@ User authorized implementation and then the shared 96k alternative. Approval and
 Tests cover all offered executor levels on both lanes, Mode4 inheritance, incomplete-but-valid JSON, truncated tool
 arguments, reasoning exhaustion, silence/keep-alive cancellation, root time remaining, >90-second completion without
 replay, ownership/old-generation refusal, restart/reference reservation, missing results before inference, and
-presentation without data/computation tools. No live inference or live data mutation was performed.
+presentation without data/computation tools, saved partial table previews, and preservation of the original
+provider failure when preview rendering fails. No live inference or live data mutation was performed.
 
 UI uses real local BFF authentication, queue, SSE and disposable PostgreSQL with an upstream fixture, at 1920×1080,
 1280×800, 390×844 and 360×740. Mouse/touch, reload without dispatch, budget disclosure and sent settings pass; zero
@@ -65,7 +71,9 @@ visually inspected; two review examples are included:
 - [Mobile recovery](UI_MOBILE_RECOVERY.png)
 - [Desktop budget/settings](UI_DESKTOP_BUDGET.png)
 
-## Remaining rollout
+## Remaining rollout — held
+
+These are future steps after a new user instruction to resume, not authorization to deploy now.
 
 1. Workspace network policy currently omits HTTPS `openrouter.ai` / `edge-bff-dev.up.railway.app` and TCP
    `shuttle.proxy.rlwy.net:40042`. This blocks direct live migration and capability/golden validation. Existing

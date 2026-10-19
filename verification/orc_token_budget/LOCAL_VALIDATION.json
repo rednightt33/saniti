@@ -2,10 +2,10 @@
   "date": "2026-10-19",
   "scope": "local validation; no live schema/config/deployment mutation",
   "orc_full_regression": {
-    "passed": 1933,
+    "passed": 1935,
     "warnings": 1,
-    "seconds": 42.47,
-    "log": "/tmp/orc-budget-final-tests.log"
+    "seconds": 44.85,
+    "log": "/tmp/orc-budget-held-final-tests.log"
   },
   "bff_full_regression": {
     "passed": 131,
@@ -122,11 +122,12 @@
     "apps/market-ai-orc/app/model_choices.py": "87d0155e7b64306a16d89c410ccbc248bf49057e3ccba182d11c2c2db3bc5d2a",
     "apps/market-ai-orc/app/model_prices.py": "11e398bd50c6a7aefbc6de43a42d935087da57cc490e6e8b90aff031f27aea26",
     "apps/market-ai-orc/app/openrouter_client.py": "342988ff37a8f49490e154a379e20181b2354fca2c5f2b1aba5dbdc5ad1f56a9",
-    "apps/market-ai-orc/app/orchestrator.py": "81a92fd68ef22f219628ac93fa0fa8e34250f0f95f49f553f2a5744adf3a0493",
+    "apps/market-ai-orc/app/orchestrator.py": "b4c37b62e9e0c9a6d6cf079f0a52998e1aee2e101aed56c2aca8ca959028b41c",
     "apps/market-ai-orc/app/presentation_checkpoint.py": "1c5b1340aadfe2956b1bbf516bcfe69f99e36a7e0576893bf05c4ec09e26f3e2",
     "apps/market-ai-orc/app/result_store.py": "a5cf961fb2b463a38e58379ca03fcdf4e9dd9081c59b96a40603994bd84faa67",
     "apps/market-ai-orc/app/schemas.py": "f7e84a0ac008d2d812bc0c4f27b3cfb795ff4d8ab15045c7bca848a3265d061a",
-    "apps/market-ai-orc/app/user_texts.py": "13f0dc7f07bd23c2997efd0dc9d3de99522571502e58371b14a617aa14ce3dc8",
+    "apps/market-ai-orc/app/stop_policy.py": "bc4e4e0e5eadc73168291ecfde9b1b09eba094a2bd50780d1195b32fa7269fef",
+    "apps/market-ai-orc/app/user_texts.py": "3e95abe4c5e9667f3919c77d6607569acea94b52cb034ba6b45f971fb1e4e7b4",
     "apps/market-ai-orc/tests/test_api.py": "ee9818a8d0ab02f315ad88aa9a90c5f2c02fd315c9669155375e35e7e5275d23",
     "apps/market-ai-orc/tests/test_conversations.py": "a03c7579b83e4dc72339c4cf7d10df03eb6a198b66f6530b8b9485e97e7527c4",
     "apps/market-ai-orc/tests/test_exec_models.py": "0995e5b09d8abcbbec55675ac254c884428362cee5dbda57d40eaaa5fc872892",
@@ -134,8 +135,9 @@
     "apps/market-ai-orc/tests/test_fastlane.py": "2e044aa878289b32a01145678609b15b78f1c42228b2ae759bf2767495190d07",
     "apps/market-ai-orc/tests/test_manual_agent.py": "8339412ead7353a9ef0337c62ca27d0b37f2c7f3b279acfb87e47525c68271a0",
     "apps/market-ai-orc/tests/test_openrouter_client.py": "aab97bc31700de62fc4d841b00b9a33fd8118b6c118ca826690be3f5fddf145e",
-    "apps/market-ai-orc/tests/test_presentation_checkpoint.py": "f764bee5bc3d355da94e1f5fdab9f0d450d73b92864c18108bd9625258deaff1",
+    "apps/market-ai-orc/tests/test_presentation_checkpoint.py": "a525fc06bf1dedd1a79442ab0b4208ba852b34fa327a67004ec0967cb8802107",
     "apps/market-ai-orc/tests/test_provider_down.py": "2d03205f98e8c6a494e58938e65f5ca6cc9b5f2921e5b56a51a74237bdc1a0e4",
+    "apps/market-ai-orc/tests/test_stop_policy.py": "b84f984013aa3099845035b8a1a24d7a9a51838e22d43d68233b5340dfdfeb3f",
     "database/migrations/20261019_001_orc_execution_checkpoint.sql": "aaf2ac13bfb0ab3b61ebd016538a2dd34c58177b3adad46a53ac80df5e37c31a",
     "scripts/apply_orc_checkpoint_migration.py": "e650bcd2fe1ed4934ca6d463bb490eff1728e6cf23ce63f82ca570916dfb1e4d",
     "scripts/generate_ai_models_doc.py": "c2cd7a3deccbb0622db8fa01ac5befca5f9a31a21fca2623d42ddf60f81b1b2b"
@@ -159,5 +161,15 @@
     "python": "3.12",
     "postgres": "17 disposable",
     "pyarrow": "21.0.0 (test-only cross-service dataset fixtures; production requirements unchanged)"
+  },
+  "release": {
+    "status": "HELD_BY_USER",
+    "decision_date": "2026-10-19",
+    "decision": "Tahan rilis; simpan branch dahulu",
+    "branch": "codex/orc-budget-96k",
+    "live_migration_applied": false,
+    "live_config_changed": false,
+    "live_deployment_changed": false,
+    "main_pushed": false
   }
 }

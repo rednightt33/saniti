@@ -84,6 +84,8 @@ CAUSES: dict[str, Cause] = {
     "PLAN_VARIANT_COVERAGE": Cause(ANNOTATE),
     # conditions outside the checks
     "REPAIR_BUDGET": Cause(ALTERNATIVES),
+    # EXEC-ORC-BUDGET: saved computation is kept; explicit model/level choices live in presentation_recovery.
+    "PRESENTATION_FAILED": Cause(ALTERNATIVES),
     "SANDBOX_BUSY": Cause(PAUSE, "Ruang analisis sedang penuh dipakai jawaban lain.", ("CONTINUE", "ACCEPT_PARTIAL")),
     "MAX_ITERATIONS": Cause(PENDING_DECISION),
     "ANALYSIS_TIMEOUT": Cause(PENDING_DECISION),

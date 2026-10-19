@@ -24,12 +24,14 @@ class SavedStore(MemoryStore):
         return SimpleNamespace(storage="POSTGRES", checksum_sha256="a" * 64) if entry and entry[0] == conversation_id else None
 
 
-def completed_checkpoint():
+def completed_checkpoint(preview=False):
     saved, fetched, store = {}, [], SavedStore()
     def write(step, document):
         saved[step] = copy.deepcopy(document)
         return True
-    tools = Tools([completed()])
+    released = completed()
+    released["released_contents"][0]["units"] = {"ytd_return": "FRACTION"}
+    tools = Tools([released])
     class FinalTimeout(ScriptedClient):
         def create(self, payload, **options):
             if len(self.responses) == 1:
@@ -37,9 +39,11 @@ def completed_checkpoint():
                 assert OUTPUT in store.outputs  # storage happened before final generation began
             return super().create(payload, **options)
     script = FinalTimeout([*flow(), ProviderError("slow final", code="PROVIDER_TIMEOUT")])
-    agent = AgentOrchestrator(make_settings(AI_ENABLE_DATANEED="true"), script, tools.registry(), result_store=store,
+    agent = AgentOrchestrator(make_settings(AI_ENABLE_DATANEED="true",
+                              AI_ENABLE_VALUE_REFERENCES=str(preview).lower(),
+                              AI_ENABLE_TABLE_DIRECTIVES=str(preview).lower()), script, tools.registry(), result_store=store,
                               output_fetcher=lambda *args: (fetched.append(args), b"result")[1],
-                              carried_uploader=lambda *args: {})
+                              carried_uploader=lambda *args: {}, row_reader=no_recalculation)
     token = checkpoints.current.set(checkpoints.Context("original", write))
     try:
         result = agent.run(AgentRunRequest(request_id="original", conversation_id=CONV, message="Hitung return BBCA"))
@@ -48,17 +52,19 @@ def completed_checkpoint():
     assert result.error.code == "PROVIDER_TIMEOUT"
     assert result.execution.presentation_recovery["available"] is True
     assert len(fetched) == 1  # the terminal save did not fetch/copy the same output again
-    return saved["original"], store
+    assert len(script.payloads) == len(flow()) + 1  # no new inference to build a preview
+    return saved["original"], store, result
 
 
 def test_completed_results_are_saved_before_the_presentation_call():
-    document, _ = completed_checkpoint()
+    document, _, result = completed_checkpoint()
+    assert result.status == "FAILED"
     assert document["scope"] == "saved_computation" and "reasoning" not in document
     assert all(output.get("checksum_sha256") for output in document["outputs"])
 
 
 def test_retry_uses_the_saved_contract_and_offers_no_query_or_computation_tools():
-    document, store = completed_checkpoint()
+    document, store, _ = completed_checkpoint()
     script = ScriptedClient([final_response(answer("Hasil tersimpan sudah tersedia."))])
     agent = AgentOrchestrator(make_settings(AI_ENABLE_DATANEED="true"), script, Tools([]).registry(), result_store=store,
                               output_fetcher=no_recalculation, carried_uploader=no_recalculation)
@@ -74,7 +80,7 @@ def test_retry_uses_the_saved_contract_and_offers_no_query_or_computation_tools(
 
 
 def test_missing_saved_results_stop_before_any_paid_call():
-    document, store = completed_checkpoint()
+    document, store, _ = completed_checkpoint()
     store.outputs.clear()
     script = ScriptedClient([])
     agent = AgentOrchestrator(make_settings(), script, Tools([]).registry(), result_store=store,
@@ -86,3 +92,22 @@ def test_missing_saved_results_stop_before_any_paid_call():
     finally:
         checkpoints.resume.reset(token)
     assert result.error.code == "PRESENTATION_RESULTS_UNAVAILABLE" and script.payloads == []
+
+
+def test_final_timeout_exposes_saved_table_without_more_inference_or_calculation():
+    _, _, result = completed_checkpoint(preview=True)
+    assert result.status == "LIMITED", result.error
+    assert result.response.response_type == "LIMITATION"
+    assert "BBCA" in result.response.answer and "BBRI" in result.response.answer
+    assert "{{table" not in result.response.answer
+    assert result.answer_tables[0]["output_id"] == OUTPUT
+    assert any("belum merupakan jawaban lengkap" in line for line in result.response.limitations)
+
+
+def test_preview_render_error_preserves_original_provider_failure(monkeypatch):
+    def unavailable(*args):
+        raise ValueError("saved table unreadable")
+    monkeypatch.setattr(AgentOrchestrator, "_resolve_references", unavailable)
+    _, _, result = completed_checkpoint(preview=True)
+    assert result.status == "FAILED" and result.error.code == "PROVIDER_TIMEOUT"
+    assert result.response is None and result.execution.presentation_recovery["available"] is True

@@ -8016,6 +8016,12 @@ class AgentOrchestrator:
         return any(c.get("status") == "COMPLETED" for c in state.completions.values())
 
     def _failed(self, state: RunState, code: str, message: str) -> AgentRunResponse:
+        if state.checkpoint_ready and self.table_directives and self.value_references and code in (
+                "PROVIDER_TIMEOUT", "PROVIDER_NETWORK_ERROR", "PROVIDER_INCOMPLETE", "OUTPUT_BUDGET_EXHAUSTED",
+                "INVALID_FINAL_RESPONSE"):
+            preview = self._saved_results_preview(state, code, message)
+            if preview is not None:
+                return preview
         return AgentRunResponse(
             request_id=state.request_id,
             status="FAILED",
@@ -8023,6 +8029,49 @@ class AgentOrchestrator:
             execution=self._execution(state),
             error=service_error(code, message),
         )
+
+    def _saved_results_preview(self, state: RunState, code: str, message: str) -> AgentRunResponse | None:
+        """Bounded display of already released tables when writing failed; no new inference, extraction or script.
+
+        At most three result previews limit artifact I/O; existing 50-row/12-column display limits still apply.
+        This is explicitly partial and goes through the existing reference/provenance/validation gates.
+        """
+        if stop_policy.cause_of("PRESENTATION_FAILED").outcome != stop_policy.ALTERNATIVES:
+            return None
+        owned = {str(output["output_id"]) for output in state.store_outputs}
+        parts = [texts.SAVED_RESULTS_PREVIEW_LINE]
+        shown = 0
+        for output in state.data_record.get("outputs") or []:
+            ref = str(output.get("ref") or "")
+            if (output.get("output_id") not in owned or output.get("support") or output.get("type") != "TABLE"
+                    or not re.fullmatch(r"out\.o\d+", ref)):
+                continue
+            columns = [column for column in output.get("columns") or [] if isinstance(column, str)
+                       and table_directives.SAFE_COLUMN_RE.fullmatch(column) and ";" not in column
+                       and "\n" not in column][:table_directives.MAX_COLUMNS]
+            if not columns:
+                continue
+            parts.append("{{table " + ref + "; " + "; ".join(column.replace("_", " ") + " = " + column
+                         for column in columns) + f"; top {table_directives.MAX_ROWS}" + "}}")
+            shown += 1
+            if shown >= 3:
+                break
+        if not shown:
+            return None
+        try:
+            final = FinalResponse(response_type="LIMITATION", answer="\n\n".join(parts), assumptions=[],
+                                  limitations=[texts.SAVED_RESULTS_PREVIEW_LIMITATION])
+            final, forced = self._resolve_references(state, final)
+            if forced:
+                return None
+            final = self._finalize_findings(state, self._validation_gate(state, final))
+            return AgentRunResponse(request_id=state.request_id, status="LIMITED", response=final,
+                execution=self._execution(state), error=service_error(code, message),
+                evidence_label=state.evidence_label, evidence=self._evidence(state),
+                answer_tables=state.answer_tables or None, artifacts=state.artifacts or None)
+        except Exception as exc:  # preview failure must not hide the original provider failure or start more work
+            log_event("saved_results_preview_failed", request_id=state.request_id, error=type(exc).__name__)
+            return None
 
     def service_unavailable(self, request: AgentRunRequest, exc: ProviderError) -> AgentRunResponse:
         """M160: a turn whose router found the model provider down ends here: no step runs and no question is asked."""

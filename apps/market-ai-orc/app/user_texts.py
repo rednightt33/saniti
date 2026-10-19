@@ -15,6 +15,9 @@ PRESENTATION_UNAVAILABLE_LINE = ("Hasil tersimpan untuk penulisan ulang belum te
                                  "Data tidak dihitung ulang otomatis.")
 PROGRESS_PRESENTING = "Menyusun jawaban dari hasil tersimpan"
 PROGRESS_PROVIDER_RETRY = "Penyedia sedang sibuk, mencoba sekali lagi dengan pilihan AI yang sama"
+SAVED_RESULTS_PREVIEW_LINE = "Penulisan jawaban belum selesai. Berikut cuplikan hasil perhitungan yang sudah tersimpan."
+SAVED_RESULTS_PREVIEW_LIMITATION = ("Cuplikan ini belum merupakan jawaban lengkap atas seluruh permintaan. "
+                                    "Hasil lengkap tetap tersimpan; penulisannya dapat dicoba kembali.")
 
 import re
 

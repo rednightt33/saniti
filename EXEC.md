@@ -5396,7 +5396,9 @@ Router/helper yang tetap Low harus teridentifikasi sebagai peran tersendiri, buk
 **Keputusan yang masih perlu review:** kemampuan split strict per model/provider (G0); pemetaan kapasitas
 penyajian versus hard cap literal 48k; timeout di atas 600 bila perlu beserta dampak idle; dan aktivasi checkpoint/
 retry lintas-request. Kebutuhan itu tidak mengurangi target 48k/48k atau mengizinkan downgrade diam-diam.
-**Status:** audit dan implementation plan selesai ditulis; aplikasi/config/schema/deployment belum dieksekusi.
+**Status:** kode diimplementasikan dan diuji lokal; schema/config/deployment live belum diubah. Rilis ditahan
+atas keputusan user 2026-10-19: “Tahan rilis; simpan branch dahulu”. Source disimpan di `codex/orc-budget-96k`;
+jangan migrasi, ubah variabel live, deploy, atau push main sebelum instruksi melanjutkan rilis.
 
 ### Progres implementasi lokal (2026-10-19)
 
@@ -5411,9 +5413,9 @@ retry lintas-request. Kebutuhan itu tidak mengurangi target 48k/48k atau mengizi
   dipakai ulang setelah crash. Tidak menulis respons terminal atau run memory sebelum waktunya.
 - Retry penyajian SERVER memakai antrean BFF biasa, id baru, sumber/coverage/tanggal lama dan tool terkunci;
   artifact hilang/berubah berhenti sebelum AI. Model/level asli terlihat pada tombol.
-- ORC full regression: 1933 passed; tes terdampak diulang setelah koreksi terakhir. BFF: 131 passed, termasuk
+- ORC full regression: 1935 passed, termasuk cuplikan tabel tersimpan saat penyajian gagal. BFF: 131 passed, termasuk
   desktop/mobile dengan mouse/touch, auth/queue/SSE, reload tanpa dispatch tambahan, dan preview round-trip.
 - Migrasi sudah diuji pada PostgreSQL disposable; belum diterapkan live. Kode live, variabel dan deployment belum
-  diubah. Rollout diblokir akses jaringan workspace (Postgres TCP dan HTTPS aplikasi/OpenRouter).
-- Urutan live: migration+catalog readback → push main/deploy Git SUCCESS → bounded G0/48k acceptance probe →
+  diubah. User memilih menahan rilis dan menyimpan branch; akses jaringan live juga belum tersedia.
+- Urutan live setelah user melanjutkan rilis: migration+catalog readback → push main/deploy Git SUCCESS → bounded G0/48k acceptance probe →
   aktivasi konfigurasi terverifikasi → golden/readback. Tidak mendorong main saat migrasi belum siap.

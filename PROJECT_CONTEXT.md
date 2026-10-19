@@ -254,3 +254,5 @@ User authorized EXEC-ORC-BUDGET implementation and the transparent shared 96k al
 `verification/orc_token_budget/IMPLEMENTATION.md`. This is not a change to active deployments or dev values. Before
 main auto-deploy, apply and verify the additive checkpoint migration; then validate provider acceptance and activate
 only supported settings. Preserve the existing Git source, single replicas, helper limits and market-data grants.
+Release is now held at the user's request (“Tahan rilis; simpan branch dahulu”, 2026-10-19); source is saved on
+`codex/orc-budget-96k`. The rollout steps require a new user instruction to resume.
