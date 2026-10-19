@@ -5250,6 +5250,33 @@ based instead of hardcode. Propose ke saya"; "#1 keep tabel 10 baris, #5 keep, #
 - Catatan uji eksplorasi → "explain in the answer what the tested effects mean for the question; the system adds
   the evidence line, so do not repeat it" (menggantikan "do not write your own caveat paragraph about testing").
 
+**Tambahan keputusan user (2026-10-19, lanjutan):**
+- Teks prompt di atas masuk EXEC, **belum dieksekusi**.
+- Prinsip (catatan user untuk nomor 2): "Setiap kegagalan AI karena ada penolakan dan lain sebagainya adalah kegagalan
+  kita yang tidak memberikan guide yang jelas mengenai keberadaan gate tersebut dan apa yang harus dilakukan". Jadi
+  setiap gerbang yang bisa menolak wajib punya: (a) aturan yang terlihat model sebelum menulis, (b) cara lolosnya,
+  (c) contoh benar/salah, (d) pesan penolakan yang menyebut letak dan perbaikannya.
+- Usulan panduan terpusat (menunggu persetujuan bentuk): lokasi sekarang tetap (VALUE REFERENCES, TABLES, menu
+  alamat, pesan penolakan) **ditambah** satu bagian terpusat di prompt jalur Cepat, misalnya "CITING AND CHECKS":
+  per gerbang yang masih menolak (PROVENANCE, INSIGHT_SOURCE_NOT_OPENED, REPRODUCTION, UNRECORDED_TEST, DEFINITION,
+  METHODOLOGY, format JSON) dan yang hanya memberi label (TYPED_FIGURES, UNITS, REFERENCE, METHODOLOGY_PROVENANCE):
+  kapan terpicu, cara lolos, satu contoh benar dan satu salah (termasuk `{{out.o3.rows[ticker=BBCA].avg_1m|rp}}`,
+  `{{table …; …}}`, membuka hasil lama dengan `get_session_output` sebelum dikutip bersama hasil baru, tanda kutip
+  di dalam JSON). Di prompt (selalu terbaca, bagian prefix yang di-cache), bukan hanya panduan metode yang dibuka
+  sesuai kebutuhan; setiap panduan metode merujuk ke bagian ini.
+- Jalur Claude sanity: user mengonfirmasi maksudnya. Batas waktu yang dimaksud: `AI_MANUAL_AGENT_WAIT_SECONDS`
+  (tidak di-set di dev, jadi bawaan 600 detik per langkah, `config.py`); langkah yang tidak dijawab dalam 600 detik
+  diteruskan ke `AI_MODEL` dengan level server, dan sisa run itu mengikuti model tersebut.
+- **Bagikan kartu jawaban (usulan, menunggu keputusan):** EDGE sekarang hanya punya Pin, Salin teks dan unduh
+  lampiran (Excel); `ShareResearchPopover` masih "Public sharing unavailable". Benchmark lokal 2026-10-19 (kartu
+  fixture `answer_table`, Chromium): desktop 674×2089 px CSS → PNG 143 KB, JPEG q85 131 KB; ponsel 366×3142 → PNG
+  88 KB, JPEG 75 KB; PDF A4 vektor 90 KB, 2 halaman, teks bisa dipilih. Tangkapan elemen biasa ikut memuat bilah atas
+  dan kotak pesan EDGE, jadi fitur ini butuh tampilan khusus kartu. Sumber luar: WhatsApp standar memperkecil gambar ke
+  ±1.600 px sisi terpanjang (HD maks. 4.096 px) dan tetap mengompres; dokumen tidak dikompres ulang; JPEG membuat
+  artefak di sekitar huruf, PNG tajam untuk teks. Kartu ponsel 3.142 px di 1.600 px → teks 15 px menjadi ±7–8 px.
+  Rekomendasi: **PDF sebagai format utama** (teks tajam di zoom apa pun, multi-halaman, tabel utuh, kecil, dikirim
+  sebagai dokumen), **PNG** opsional untuk jawaban pendek (±1 layar) atau gambar sampul; JPEG tidak dipakai.
+
 **Jalur "Claude sanity" (usulan, menunggu konfirmasi):** memakai EXEC-MANUAL yang sudah live
 (`AI_ENABLE_MANUAL_AGENT=true`): pesan di EDGE dengan model "Claude (manual)", setiap panggilan model menunggu
 sebagai langkah berisi payload persis yang diterima model (prompt, catatan, hasil alat, penolakan), dijawab lewat
