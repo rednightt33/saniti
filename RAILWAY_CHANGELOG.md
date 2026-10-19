@@ -4049,3 +4049,19 @@ execution environment proxy; live verification uses exact Git metadata, healthch
 No Railway configuration, variables, IaC, API, database or Orc source changes, and no Railway upload/config apply.
 Orc remains on `4138d8bd-70e9-451d-9e77-faf91f6966c2`; sandbox remains on
 `84fa7fa3-6bda-46af-8162-7d13d42fde7b`, both SUCCESS. Local disposable test database removed after testing.
+
+## 2026-10-19 — EXEC-FASTLANE-LEN + EXEC-SHARE-UI (orc, edge-bff, three orc variables)
+
+User go 2026-10-19 ("Ok, execute") for the plan in `EXEC.md` (EXEC-FASTLANE-LEN, EXEC-SHARE-UI). Before the push the orc
+logs showed no running `edge_` run. Git main `1ced83a` (`202f8a0` orc, `1ced83a` EDGE) deployed by the GitHub connection:
+market-ai-orc (`41dc17ee-3bac-41ef-90ec-8b9356815c71`) deployment `dbff9866-938d-4815-b7b1-3ae660a3e572` SUCCESS and
+edge-bff (`c3656044-2817-44a7-9b55-54910bab416f`) deployment `2e0a470b-0407-48e6-9649-c3e2359ad0b0` SUCCESS, both
+2026-10-19 15:45 UTC. Live check: `/html-to-image.js` served (200, 20,562 bytes), `edge-labels.js` holds the share
+labels, the page no longer holds the Research Mode menu.
+
+Variables set on market-ai-orc / dev (names only): `AI_FASTLANE_GOAL_ANSWERS=true`, `AI_MANUAL_AGENT_FALLBACK=false`,
+`AI_MANUAL_AGENT_ROUTERS=true`; read back with `railway variables --kv`; redeploy `e4928da1-4d1d-471f-9428-c47c3d683bd7`
+SUCCESS 15:47 UTC. `.railway/railway.ts` keeps the three with `preserve()`. Fallback: set
+`AI_FASTLANE_GOAL_ANSWERS=false` (fast prefix and checks as before), `AI_MANUAL_AGENT_FALLBACK=true` and
+`AI_MANUAL_AGENT_ROUTERS=false` (manual path as before). Model `deepseek/deepseek-v4.1-flash-1017` is offered in code
+(reasoning low, high and max each probed once on OpenRouter, cost below USD 0.0001).

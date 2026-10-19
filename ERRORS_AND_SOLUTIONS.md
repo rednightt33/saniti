@@ -1000,3 +1000,47 @@ change yet.
   Evidence and verification limits: `verification/bff_ui_1019/README.md`.
 - **Lesson:** uji alignment dengan scrollbar yang memakan ruang, cek aturan CSS lama saat mengubah
   positioning, dan uji scroll/keyboard/touch serta reload, bukan screenshot viewport saja.
+
+### M190 — Edit atas field jawaban terpisah ditolak ("fields names keys the response does not have: reproductions") (2026-10-19)
+
+- **Symptom:** run `edge_c1ad148e…-m4h`: model mencoba menghapus `reproductions` lewat edit sesudah penolakan
+  REPRODUCTION; edit ditolak dan model harus menulis ulang jawaban (bagian dari 5 panggilan tambahan, ±53 s).
+- **Verified cause:** `_apply_edit` mengizinkan hanya `FinalResponse.model_fields`; `reproductions`, `offered_action`,
+  `needs_computation`, `memo_note` dan `facts` disimpan terpisah sesudah `_parse_final_output`, jadi
+  `edit_repair.apply` menolaknya (`edit_repair.py:72`).
+- **Solution:** `SEPARATE_ANSWER_FIELDS` ikut boleh diedit (semua jalur; perilaku lain tidak berubah).
+  Tes `tests/test_fastlane_len.py`. Git `202f8a0`, orc `dbff9866` SUCCESS.
+- **Status:** CLOSED.
+- **Lesson:** setiap field yang boleh ditulis model juga harus bisa diperbaiki lewat jalur perbaikan yang ditawarkan.
+
+### M191 — Jawaban akhir rusak karena tanda kutip mentah; contoh JSON reproduksi berkurung ganda (2026-10-19)
+
+- **Symptom:** semua kasus "JSON terpotong" di 12 run terakhir berakhir `finish_reason=stop` jauh di bawah batas token;
+  model diminta ulang (FINAL_REASK). Contoh `reproductions` di catatan lampiran tampil sebagai `[{{"original": …}}]`.
+- **Verified cause:** jawaban akhir di giliran alat tidak dikunci skema (`_payload`), dan tidak ada aturan escape;
+  `"kata"` mentah di dalam string mengakhiri string JSON. `REPRODUCE_NOTE` ditulis dengan `{{ }}` seolah akan di-`format`,
+  tetapi dikirim apa adanya, jadi contoh JSON-nya mirip alamat nilai.
+- **Solution (di balik `AI_FASTLANE_GOAL_ANSWERS`, jalur Cepat):** aturan #9 di CITING AND CHECKS; `edit_repair.repair_quotes`
+  meng-escape tanda kutip yang tidak bisa menutup string sebelum minta ulang (log `ai_final_quotes_repaired`); catatan
+  reproduksi memakai kurung tunggal. Live 2026-10-19 (`edge_43d32073…-m4n`, Claude manual): jawaban dengan kutip mentah
+  diterima tanpa minta ulang.
+- **Status:** CLOSED (jalur Cepat); jalur Standar tetap seperti semula.
+- **Lesson:** sebuah prompt yang dikirim tanpa `format` tidak boleh ditulis dengan escape `format`.
+
+### M192 — Gerbang DEFINITION menolak penambahan saham yang diminta user dan menaruh JSON mentah di Asumsi (2026-10-19)
+
+- **Symptom:** sanity run Claude manual `edge_43d32073…-m4n` ("Tambahkan BBNI ke perbandingan tadi, dengan cara hitung
+  yang sama"): jawaban "dengan rumus, periode dan filter yang sama seperti jawaban sebelumnya (bedanya hanya daftar saham …)"
+  ditolak sekali, lalu dikirim dengan "Catatan sistem: klaim bahwa hasil ini mengikuti definisi … tidak didukung;
+  bank_returns_4 uses {"entities": …}" berbahasa Inggris dan JSON di Asumsi.
+- **Verified cause:** `definition_check.CLAIM` cocok dengan frasa "sama seperti jawaban sebelumnya" dan `COMPARED` ikut
+  membandingkan `entities`; daftar saham yang bertambah atas permintaan user (fakta SCOPE ADD) dihitung sebagai definisi
+  berbeda. Pesan penolakan tidak menyebut kalimat pemicu, jadi edit yang tetap memakai frasa itu gagal lagi;
+  `DEFINITION_CLAIM_NOTICE` menempelkan `describe()` (JSON) ke Asumsi. Gerbang ini belum punya aturan sebelum menulis
+  (prinsip gerbang AGENTS.md, butir a–d).
+- **Solution (usulan, menunggu persetujuan):** (1) poin baru di CITING AND CHECKS: frasa "sama seperti / konsisten dengan
+  hasil sebelumnya" diperiksa terhadap filter, periode, ambang dan daftar saham; sebut yang berbeda; (2) daftar saham yang
+  lebih besar karena fakta SCOPE ADD dianggap sama bila sisanya sama; (3) pesan penolakan mengutip kalimat pemicu dan
+  nama field yang berbeda; (4) catatan akhir dalam bahasa Indonesia tanpa JSON (`user_texts.py`).
+- **Status:** OPEN.
+- **Lesson:** gerbang yang mencocokkan kata harus memberi tahu kata mana yang memicunya.

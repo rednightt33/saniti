@@ -5398,3 +5398,58 @@ aktif sebelum deploy):**
   OpenRouter dicek dulu (terakhir USD 0,62).
 - **Catat:** EXEC, RAILWAY_CHANGELOG (variabel per nama), README orc, `.railway/railway.ts` `preserve()`, AI_MODELS.md,
   ERRORS (edit `reproductions`, JSON tanda kutip), riwayat prompt.
+
+### EXEC-FASTLANE-LEN + EXEC-SHARE-UI dikerjakan (2026-10-19, user: "Ok, execute")
+
+Keputusan rencana dipakai sesuai usulan: nama saklar `AI_FASTLANE_GOAL_ANSWERS`, `AI_MANUAL_AGENT_FALLBACK`,
+`AI_MANUAL_AGENT_ROUTERS`; perbaikan edit (#4) untuk semua jalur; contoh CITING AND CHECKS memakai placeholder; satu deploy
+orc untuk F1–F4.
+
+**Kode (main `202f8a0` orc, `1ced83a` EDGE; tes orc 1.638 lulus, EDGE 130 lulus):**
+- F0 AGENTS.md "Gates and evidence" (prinsip gerbang a–d; kerja berdasarkan inspeksi).
+- F1 prefix Cepat berbasis tujuan + CITING AND CHECKS (snapshot prompt v015); catatan uji eksplorasi.
+- F2 reproduksi hanya untuk angka lampiran, label teks ditolak dengan alasan; contoh JSON reproduksi berkurung tunggal
+  (temuan inspeksi: `REPRODUCE_NOTE` tidak pernah di-`format`, jadi `{{ }}` sampai ke model); edit field jawaban
+  terpisah (semua jalur); perbaikan otomatis tanda kutip mentah (log `ai_final_quotes_repaired`).
+- F3 jalur manual tanpa fallback (langkah di luar run berhenti sesudah `AI_MANUAL_AGENT_WAIT_SECONDS` dan fallback router
+  backend berlaku) dan router lewat Claude.
+- F4 `deepseek/deepseek-v4.1-flash-1017` (low/high/max diuji; token penalaran 18/29/36).
+- F5 EDGE: Research Mode dihapus; "Bagikan" PDF (cetak kartu saja) dan PNG (html-to-image 1.11.13 MIT di `static/`,
+  540 px CSS sampai 2× = 1.080 px; Web Share atau unduh); kartu terang apa pun temanya, logo EDGE kiri atas, kaki halaman
+  tanggal data, ID permintaan, "Dibuat oleh EDGE AI; bukan saran investasi".
+
+**Deploy:** orc `dbff9866`, edge-bff `2e0a470b` SUCCESS; saklar → orc `e4928da1` SUCCESS; A/B OFF `c06e9016`; ON
+dikembalikan `15604ac8` SUCCESS (terbaca: GOAL_ANSWERS true, FALLBACK false, ROUTERS true).
+
+**Sanity run Claude manual (Claude sebagai model, nol panggilan OpenRouter untuk run ini):**
+- `edge_c9062928…` (s1): router pesan pertama, loop agen dan saran lanjutan lewat Claude; 5 panggilan, 0 penolakan,
+  data need → bundle → sesi dalam satu panggilan, `run_python complete=true`; jawaban 3.276 karakter, 2 tabel; Batasan
+  kosong.
+- `edge_43d32073…` (lanjutan "Tambahkan BBNI … cara hitung yang sama"): hasil lama dibuka dengan `load_output` dan
+  tanggal jendela dicek sama; tanda kutip mentah diperbaiki otomatis (live); **DEFINITION menolak** karena frasa "sama
+  seperti jawaban sebelumnya" dan daftar saham bertambah, lalu catatan JSON mentah masuk Asumsi (M192, usulan, belum
+  dikerjakan).
+- Gesekan lain yang terlihat dari sisi model: catatan router percakapan menyebut "hypothesis plan … for approval" di jalur
+  Cepat; `attach_to_session_id` ke sesi jawaban lama diabaikan tanpa peringatan (sesi baru dibuka); langkah router tampil
+  sebagai request "unknown" di daftar langkah manual.
+
+**A/B (DeepSeek V4.1 Flash high, jalur Cepat, n=1 per pertanyaan; runner ON `65f6b8b5`, OFF `4596f0b8`):**
+
+| | ON waktu / biaya / panggilan | OFF waktu / biaya / panggilan | ON / OFF karakter jawaban | Gerbang ON / OFF |
+|---|---|---|---|---|
+| t1 asing → return 5 hari | 177 s / 0,039 / 10 (Decart) | 130 s / 0,022 / 6 (Wafer) | 2.672 / 1.367 | – / – |
+| j2 akumulasi broker | 258 s / 0,045 / 7 (DigitalOcean) | 421 s / 0,049 / 8 (AtlasCloud, Decart) | 2.484 / 2.517 | – / TYPED_FIGURES label |
+| s1 tiga bank | 193 s / 0,027 / 7 (Relace) | 221 s / 0,031 / 12 (AtlasCloud) | 3.684 / 2.624 | – / UNRECORDED_TEST tolak 1×, TYPED_FIGURES label |
+| Total | 627 s / USD 0,112 | 772 s / USD 0,101 | | 0 / 1 penolakan, 2 label |
+
+- ON: nol penolakan dan nol label angka diketik di s1; t1 dan s1 lebih lengkap (t1 menjelaskan ukuran, pembanding,
+  interval, contoh hari terbesar, arti bagi investor dan batas data); t1 ON punya 3 SCRIPT_ERROR sandbox (bukan gerbang).
+- OFF s1: 3 kesalahan `get_session_output` dan satu penolakan UNRECORDED_TEST.
+- Waktu dipengaruhi penyedia (berbeda tiap run), jadi selisih waktu bukan bukti; biaya ON +11% sejalan dengan jawaban
+  lebih panjang.
+- Catatan kualitas ON t1: tanggal tabel tampil `2025-05-14 00:00:00` (model merilis kolom timestamp) dan periode mulai
+  2018 (default "maksimal 5 tahun" tidak diikuti). Usulan, belum dikerjakan.
+
+**Belum dikerjakan (perlu keputusan user):** M192 (DEFINITION: aturan sebelum menulis, SCOPE ADD, pesan pemicu, catatan
+tanpa JSON); router percakapan tanpa saran rencana di jalur Cepat; peringatan `attach_to_session_id`; tanggal timestamp di
+tabel; benchmark PDF/PNG di ponsel nyata (tes browser lokal lulus, belum di HP fisik).
