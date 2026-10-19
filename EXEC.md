@@ -5321,3 +5321,20 @@ kotak pesan dihapus; "tambahkan satu model lagi, deepseek/deepseek-v4.1-flash"; 
     dan dokumen), iPhone Safari dan Android Chrome.
   - Sumber: web.dev "How to share files", W3C Web Share API, apitemplate.io "HTML to PDF conversion methods",
     pspdfkit "html2pdf", 360dialog (pemrosesan gambar WhatsApp), Superchat/Chatarmin (ukuran gambar WhatsApp).
+
+**Lanjutan keputusan user (2026-10-19, EXEC-FASTLANE-LEN + EXEC-SHARE-UI; belum dijalankan):**
+- **Model tambahan:** "DeepSeek: DeepSeek V4.1 Flash 1017" = OpenRouter `deepseek/deepseek-v4.1-flash-1017` (dicek di
+  `GET /api/v1/models` 2026-10-19: konteks 1.048.576, mendukung `reasoning`, `tools`, `structured_outputs`,
+  `response_format`; harga tercantum input USD 0,15/1 jt, output USD 0,60/1 jt token). Ditambahkan ke
+  `MODEL_CHOICES` sebagai pilihan baru (model `deepseek/deepseek-v4.1-flash` yang ada tetap). Level penalaran yang
+  diterima diverifikasi dulu dari endpoint OpenRouter sebelum ditawarkan.
+- **AGENTS.md (disetujui, ditulis saat eksekusi):**
+  1. Prinsip gerbang: setiap penolakan AI adalah kegagalan panduan kita. Setiap gerbang yang bisa menolak wajib punya
+     (a) aturan yang terlihat model sebelum menulis, (b) cara lolosnya, (c) contoh benar dan salah, (d) pesan
+     penolakan yang menyebut letak masalah dan cara memperbaikinya. Gerbang baru atau berubah tidak dirilis tanpa
+     keempatnya.
+  2. Setiap kode yang dieksekusi dan setiap pernyataan tentang perilaku sistem didasarkan pada inspeksi kode, log dan
+     data live saat itu, bukan ingatan percakapan; sebutkan file:baris, log atau ID run sebagai bukti.
+- **Status:** semua butir EXEC-FASTLANE-LEN (1–5, teks prompt berbasis tujuan, panduan terpusat) dan EXEC-SHARE-UI
+  (tombol bagikan PDF+PNG, hapus "Standard", model 1017) dicatat; teks final bagian "CITING AND CHECKS" dan dua usulan
+  jalur Claude manual (matikan fallback, router) masih menunggu persetujuan. Tidak ada yang dieksekusi.
