@@ -976,3 +976,26 @@ change yet.
 - **Status:** OPEN — inspected and documented; user authorised prompt/design, not implementation/rollout.
 - **Lesson:** merujuk hasil lama tidak membuat permintaan transformasi menjadi read-only. Jawaban sukses
   harus diuji terhadap deliverable yang diminta, dan klaim pekerjaan berjalan harus memiliki bukti tool.
+
+### M189 — Composer tidak sejajar, Details terbuka saat submit, header ikut tergulir (2026-10-19)
+
+- **Symptom:** tepi jawaban tidak sejajar dengan input; Enter membuka panel kanan yang ditutup user;
+  header Pinned responses / Response History hilang saat digulir, history tertua tampil dahulu, dan
+  input tidak menawarkan resize sentuh.
+- **Verified cause:** jawaban dipusatkan dalam padding kiri/kanan yang berbeda (24/32 px), sementara
+  composer dipusatkan terhadap workspace penuh tanpa memperhitungkan scrollbar. Fungsi submit selalu
+  memanggil `setDetailsOpen(true)`. Header bukan sticky; history memetakan array kronologis langsung.
+  Textarea memakai `resize:none` dan handler ketik selalu mereset tinggi. Reproduksi kode lama: offset
+  kiri/kanan -4 px pada desktop compact. Offset lama `left/right:32px` juga perlu dinetralkan ketika
+  composer diberi `position:relative` untuk handle baru.
+- **Solution:** satu perhitungan lebar/pusat memakai padding dan lebar scrollbar aktual; handle border
+  dengan Pointer Events, pointer capture, cleanup, tombol panah dan batas tinggi viewport. Tinggi manual
+  dipertahankan saat mengetik pada sesi halaman. Submit mempertahankan pilihan panel; header sticky
+  pada masing-masing area scroll; history membalik salinan array tanpa mengubah urutan pin. Entry terbaru
+  ditampilkan di bawah header, tanpa menggeser summary ke belakangnya. Toggle memakai `touch-action:manipulation`
+  serta menangani touch release yang tidak bergeser dan mengabaikan click susulannya; jalur mouse/keyboard tetap native.
+  Event trace pada kasus gagal membuktikan touch/pointer down-up terjadi tanpa compatibility click setelah drag.
+- **Status:** implemented and locally verified (8 new desktop/touch-mobile tests); Git deployment
+  verification tracked in `verification/bff_ui_1019/README.md`.
+- **Lesson:** uji alignment dengan scrollbar yang memakan ruang, cek aturan CSS lama saat mengubah
+  positioning, dan uji scroll/keyboard/touch serta reload, bukan screenshot viewport saja.

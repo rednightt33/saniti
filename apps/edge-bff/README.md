@@ -43,6 +43,13 @@ The page is edited as one HTML file and its API wiring is not locked to the view
 - In Details, the line between Pinned responses and Response History is dragged (pointer events: touch or mouse; arrow
   keys) and its height kept in this browser (`edge-pins-height`); each section title collapses its section
   (`edge-pins-open`, `edge-flow-open`) (EXEC-DETAILS).
+- Responses and the composer share the same reading column, including the space used by a classic scrollbar.
+  Drag the small grip on the composer's top border up to enlarge the message box or down to shrink it (mouse or
+  touch); focus it and use Arrow Up/Down for keyboard resizing. The chosen height survives typing during the current
+  page session and is capped by the viewport so the conversation and send controls stay accessible. Enter submits on
+  desktop; Shift+Enter and touch keyboards retain multiline editing. Sending preserves the Details open/closed choice.
+  Pinned responses and Response History each keep their header visible while their own list scrolls; history is newest
+  first, while pinned order is unchanged (EXEC-UI-1019, verification: `verification/bff_ui_1019/README.md`).
 - Each finished answer shows how long it took (Orc's `execution.duration_ms`, else the saved start-to-finish time)
   next to its tokens and in its Response History line (EXEC-DURATION).
 - `EdgeView.toView(envelope)` returns display-ready parts (status, meta, answer, clarification, pause, plan, findings,

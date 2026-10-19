@@ -51,7 +51,7 @@ def test_response_history_leads_back_to_each_response(fixture_server, browser_pa
     submit(page, 'fx:ui1015_long_table')
     saved(page, 2)
     scroll = "() => document.querySelector('.research-scroll').scrollTop"
-    first = page.locator('.edge-flow-accordion').first
+    first = page.locator('.edge-flow-accordion').last  # newest-first history: oldest response is last
     if not first.evaluate('n => n.open'):
         first.locator('summary').click()
     page.wait_for_timeout(200)
@@ -78,7 +78,7 @@ def test_a_jump_from_the_bottom_of_a_long_conversation_is_not_pulled_back(fixtur
         saved(page, n)
     page.evaluate("() => { const s = document.querySelector('.research-scroll'); s.scrollTo({top: s.scrollHeight, behavior: 'instant'}); s.dispatchEvent(new Event('scroll')); }")
     page.wait_for_timeout(400)
-    first = page.locator('.edge-flow-accordion').first
+    first = page.locator('.edge-flow-accordion').last  # retain the test's jump to the oldest response
     if not first.evaluate('n => n.open'):
         first.locator('summary').click()
     run_id = first.get_attribute('id').replace('edge-history-', '')

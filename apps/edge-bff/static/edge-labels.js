@@ -56,6 +56,7 @@ window.EdgeLabels = {
   units: {PERCENT:"%", BASIS_POINT:" bp", DECIMAL:""},
   operators: {">=":"≥", "<=":"≤", ">":">", "<":"<"},
   ui: {
+    composerResize:"Resize message box", composerResizeHint:"Drag up or down to resize. Arrow keys also work.",
     yes:"Ya", no:"Tidak", items:"item", periods:"periode", notStated:"Tidak disebut",
     successDefault:"sukses = hasil di atas nol", minEffectDefault:"backend memakai nilai bawaannya",
     plan:"Rencana riset", planPending:"Menunggu persetujuan", experiment:"Eksperimen", angle:"Sudut",

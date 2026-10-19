@@ -744,7 +744,9 @@ def test_details_split_drags_by_touch_on_a_phone(dummy_orc, browser_page):
         page.wait_for_timeout(200)
         assert pins.bounding_box()['height'] > before + 90
         page.get_by_role('button', name='Pinned responses').tap()
+        page.wait_for_function('() => document.querySelector(".edge-pins-head button").getAttribute("aria-expanded") === "false"')
         page.get_by_role('button', name='Response History').tap()
+        page.wait_for_function('() => document.querySelector(".edge-history-head button").getAttribute("aria-expanded") === "false"')
         heads = [page.get_by_role('button', name=n).bounding_box()['y'] for n in ('Pinned responses', 'Response History')]
         assert 0 < heads[1] - heads[0] < 80
         assert not page.evaluate('() => document.documentElement.scrollWidth > window.innerWidth')

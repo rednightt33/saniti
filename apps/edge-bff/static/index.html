@@ -9621,7 +9621,7 @@ html:not(.dark) .monitor-layout .user-message .message-attachments span {color:#
 
 .edge-pins {overscroll-behavior:contain;}
 /* EXEC-DETAILS: collapsible section titles and the drag line between the two sections */
-.edge-section-toggle {all:unset;box-sizing:border-box;display:flex;align-items:center;gap:6px;width:100%;cursor:pointer;font:inherit;color:inherit;}
+.edge-section-toggle {all:unset;box-sizing:border-box;touch-action:manipulation;display:flex;align-items:center;gap:6px;width:100%;cursor:pointer;font:inherit;color:inherit;}
 .edge-section-toggle>.edge-disclosure-chevron {margin-left:auto;transition:transform 120ms ease;}
 .edge-section-toggle[aria-expanded="true"]>.edge-disclosure-chevron {transform:rotate(180deg);}
 .edge-section-toggle:focus-visible {outline:2px solid var(--ring, currentColor);outline-offset:2px;border-radius:4px;}
@@ -9709,7 +9709,8 @@ html.dark .edge-flow-done{background:#1e9a59;}
 .monitor-layout .research-scroll{padding-bottom:6px;}
 .monitor-layout .research-exchange:last-of-type,.monitor-layout .research-exchange:last-of-type .edge-inline-progress{margin-bottom:0;}
 .monitor-layout .research-exchange,.monitor-layout .research-empty,.monitor-layout .research-loading{width:100%;max-width:var(--conversation-max-width);margin-left:auto;margin-right:auto;}
-.monitor-layout .composer{width:calc(100% - var(--conversation-left) - var(--conversation-right));max-width:var(--conversation-max-width);margin-left:auto;margin-right:auto;}
+/* Use the scroll area's available width, including classic scrollbars, for both reading rails. */
+.monitor-layout .composer{width:calc(100% - var(--conversation-left) - var(--conversation-right) - var(--edge-conversation-scrollbar,0px));max-width:var(--conversation-max-width);margin-left:max(var(--conversation-left),calc((100% + var(--conversation-left) - var(--conversation-right) - var(--edge-conversation-scrollbar,0px) - var(--conversation-max-width))/2));margin-right:auto;}
 .monitor-layout .jump-latest{right:max(var(--conversation-right),calc((100% - var(--conversation-max-width))/2));}
 @media print{.monitor-layout .research-exchange{max-width:none;}}
 
@@ -10140,6 +10141,19 @@ html.dark .monitor-layout .details-panel>.tabs button:focus-visible{outline-colo
  .composer>div:last-child>.btn.primary .btn-label {position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;}
  .composer .mode-menu {position:fixed;left:12px;right:12px;bottom:calc(var(--edge-composer-height,98px) + 16px + env(safe-area-inset-bottom));width:auto;max-width:none;}
 }
+/* EXEC-UI-1019: border resizing works with mouse, touch and keyboard; keep room for the conversation. */
+.monitor-layout .composer {position:relative;left:auto;right:auto;padding-top:20px;}
+.monitor-layout .composer textarea {max-height:min(50dvh,var(--edge-composer-text-max,50dvh));}
+.edge-composer-resizer {position:absolute;left:calc(50% - 44px);top:-12px;width:88px;height:32px;z-index:6;cursor:row-resize;touch-action:none;border-radius:8px;outline:none;}
+.edge-composer-resizer:after {content:"";position:absolute;left:26px;right:26px;top:11px;height:4px;border-radius:2px;background:var(--border);}
+.edge-composer-resizer:is(:hover,:focus-visible,.dragging):after {background:var(--muted-foreground);}
+.edge-composer-resizer:focus-visible {box-shadow:0 0 0 2px var(--muted-foreground);}
+/* Each header belongs to its own scroll area; opaque backgrounds cover the scrolling rows. */
+.edge-pins-head,.edge-history-head {position:sticky;z-index:4;background:var(--background);}
+.edge-pins-head {top:0;margin-top:-15px;padding-top:15px;padding-bottom:11px;margin-bottom:0;}
+.edge-history-head {top:0;margin-top:-10px;padding-top:15px;}
+/* Cover the scroll container's top padding too, so rows cannot peek above the frozen title. */
+.edge-pins-head:before,.edge-history-head:before {content:"";position:absolute;left:0;right:0;bottom:100%;height:15px;background:inherit;pointer-events:none;}
 </style>
 </head>
 <body><div id="root"></div>
@@ -10677,16 +10691,19 @@ function Monitor({ go }) {
     const tableMenu = initialValue(viewRecord, "tableMenu", () => ((() => { const seed = null; return typeof seed === "function" ? seed() : seed; })())), setTableMenu = next => updateValue(viewRecord, "tableMenu", next);
     const expandedTable = initialValue(viewRecord, "expandedTable", () => ((() => { const seed = null; return typeof seed === "function" ? seed() : seed; })())), setExpandedTable = next => updateValue(viewRecord, "expandedTable", next);
     const modeAnchorRef = (viewRecord.refs.modeAnchorRef ??= { current: null });
+    const composerHeight=initialValue(viewRecord,"composerHeight",()=>null),setComposerHeight=next=>updateValue(viewRecord,"composerHeight",next);
     const composerRef = (viewRecord.refs.composerRef ??= { current: null });
     const composerPanelRef = (viewRecord.refs.composerPanelRef ??= {current:null});
     onLifecycle(viewRecord,"composer-size",()=>{
       const panel=composerPanelRef.current,workspace=panel?.closest(".research-workspace");
       if(!panel||!workspace)return;
       // EXEC-UI-1015 U5: the phone model menu lines up with the composer, so its place and width are shared too
-      const update=()=>{const box=panel.getBoundingClientRect();
+      const update=()=>{const box=panel.getBoundingClientRect(),scroll=workspace.querySelector(".research-scroll"),field=composerRef.current;
+        workspace.style.setProperty("--edge-conversation-scrollbar",((scroll?.offsetWidth??0)-(scroll?.clientWidth??0))+"px");
+        if(field)workspace.style.setProperty("--edge-composer-text-max",Math.max(parseFloat(getComputedStyle(field).minHeight),workspace.clientHeight-(box.height-field.getBoundingClientRect().height)-110)+"px");
         workspace.style.setProperty("--edge-composer-height",box.height+"px");
         workspace.style.setProperty("--edge-composer-left",box.left+"px");workspace.style.setProperty("--edge-composer-width",box.width+"px");};
-      const observer=new ResizeObserver(update);observer.observe(panel);observer.observe(workspace);update();
+      const observer=new ResizeObserver(update);observer.observe(panel);observer.observe(workspace);const scroll=workspace.querySelector(".research-scroll");if(scroll)observer.observe(scroll);update();
       addEventListener("resize",update);
       return()=>{observer.disconnect();removeEventListener("resize",update);};
     },[]);
@@ -10718,7 +10735,8 @@ function Monitor({ go }) {
         const frame = requestAnimationFrame(() => {
             const container = historyScrollRef.current, item = document.getElementById(`edge-history-${autoOpenRunId}`);
             if (!container || !item) return;
-            container.scrollTo({top:Math.max(0,container.scrollTop + item.getBoundingClientRect().top - container.getBoundingClientRect().top - 12),behavior:"auto"});
+            // History is newest first; reveal the new entry below its fixed header.
+            container.scrollTo({top:0,behavior:"auto"});
         });
         return () => cancelAnimationFrame(frame);
     }, [autoOpenRunId, detailsOpen]);
@@ -10795,7 +10813,7 @@ function Monitor({ go }) {
         sentRef.current[accepted.request_id]={question,attachments:attached.length&&!plain?attached:[]};
         const r={id:accepted.request_id,question,status:"submitted",mode:"Standard",createdAt:now,attachments:[],sources:[],steps:[{id:"queued",label:"Queued",status:"running",detail:"Accepted by server"}]};
         setItems(current=>{const found=current.find(c=>c.id===id);if(found)return current.map(c=>c.id===id && !c.runs.some(x=>x.id===r.id)?{...c,messages:[...c.messages,{id:r.id+"-user",role:"user",content:question,createdAt:now,runId:r.id}],runs:[...c.runs,r]}:c);return [{id,title:question.slice(0,80),bookmarked:false,createdAt:now,updatedAt:now,messages:[{id:r.id+"-user",role:"user",content:question,createdAt:now,runId:r.id}],runs:[r]},...current];});
-        setSelectedId(id);setSelectedRunId(r.id);setAutoOpenRunId(r.id);setDetailsOpen(true);setPrompt("");setPendingReply(null);setInputHint(null);if(!plain)setAttached([]);submissionRef.current=null;followRun(id,r.id);
+        setSelectedId(id);setSelectedRunId(r.id);setAutoOpenRunId(r.id);setPrompt("");setPendingReply(null);setInputHint(null);if(!plain)setAttached([]);submissionRef.current=null;followRun(id,r.id);
         // V5 (user 2026-10-14: "ketika saya click enter, chat tidak otomatis ke scroll ke bawah"): the new question is shown
         setAutoFollow(true);requestAnimationFrame(()=>requestAnimationFrame(()=>scrollRef.current?.scrollTo({top:scrollRef.current.scrollHeight,behavior:"auto"})));
       }catch(e){setApiError(e.message);}finally{setSubmitting(false);}
@@ -10918,6 +10936,7 @@ function Monitor({ go }) {
                 pendingReply && element("div",{className:"composer-status"},"Describe the plan revision",element("button",{onClick:()=>setPendingReply(null)},"Dismiss")),
                 inputHint && element("div",{className:"composer-status"},inputHint,element("button",{onClick:()=>setInputHint(null)},"Dismiss")),
                 element("div", { key: "research-composer", ref:composerPanelRef, className: `composer ${active ? "running" : ""} ${prompt.trim() ? "has-text" : ""}` },
+                    element(ComposerResizeHandle,{fieldRef:composerRef,height:composerHeight,setHeight:setComposerHeight}),
                     active && element("div", { className: "composer-status" },
                         element("span", { className: "pulse" }),
                         element("span", null, executionRun?.status === "streaming" ? "Streaming research result…" : executionRun?.steps.find(step => step.status === "running")?.label ?? "Research running…"),
@@ -10943,7 +10962,7 @@ function Monitor({ go }) {
                                 file.state === "uploading" ? "Uploading" : file.state === "ready" ? "Ready" : "Failed")),
                         element("button", { onClick: () => setAttachments(current => current.filter(item => item.name !== file.name)), "aria-label": `Remove ${file.name}` },
                             element(Icon, { name: "close" })))),
-                    element("textarea", { ref: composerRef, rows: 1, value: prompt, onChange: event => { typePrompt(event.target.value); event.target.style.height = "auto"; event.target.style.height = `${Math.min(event.target.scrollHeight, 140)}px`; }, placeholder: context ? `Ask anything about ${context.symbol}…` : "Ask a research question…", onKeyDown: event => { if (event.key === "Enter" && !event.shiftKey && !event.isComposing && !touchKeyboard()) {
+                    element("textarea", { ref: composerRef, rows: 1, value: prompt, style:composerHeight===null?undefined:{height:composerHeight+"px"}, onChange: event => { typePrompt(event.target.value); if(composerHeight===null){event.target.style.height = "auto"; event.target.style.height = `${Math.min(event.target.scrollHeight, 140)}px`;} }, placeholder: context ? `Ask anything about ${context.symbol}…` : "Ask a research question…", onKeyDown: event => { if (event.key === "Enter" && !event.shiftKey && !event.isComposing && !touchKeyboard()) {
                             event.preventDefault();
                             submit();
                         } } }),
@@ -11251,18 +11270,52 @@ function ResponseFlowItem({run,initiallyOpen=false,jump}) {
 }
 // EXEC-DETAILS: a section title that collapses and expands its section
 function SectionToggle({label,open,toggle,controls}) {
-    return element("button",{type:"button",className:"edge-section-toggle","aria-expanded":open,"aria-controls":controls,onClick:toggle},
+    // Some touch browsers suppress the compatibility click immediately after a drag. Handle an unmoved
+    // touch release directly; suppress only its later click, while keyboard/mouse activation stays native.
+    const touch=cachedValue(currentView,"touch",()=>({start:null,released:false,ignoreUntil:0}),[]);
+    const down=event=>{if(event.pointerType==="touch"){touch.released=false;touch.start={id:event.pointerId,x:event.clientX,y:event.clientY};}};
+    const up=event=>{const start=touch.start;touch.start=null;if(!start||start.id!==event.pointerId)return;
+        const box=event.currentTarget.getBoundingClientRect();
+        if(Math.hypot(event.clientX-start.x,event.clientY-start.y)>8||event.clientX<box.left||event.clientX>box.right||event.clientY<box.top||event.clientY>box.bottom)return;
+        touch.released=true;};
+    const end=event=>{if(!touch.released)return;touch.released=false;event.preventDefault();touch.ignoreUntil=performance.now()+750;toggle();};
+    const click=event=>{if(event.detail===0||(event.pointerType==="mouse"&&!event.sourceCapabilities?.firesTouchEvents)||performance.now()>touch.ignoreUntil)toggle();};
+    return element("button",{type:"button",className:"edge-section-toggle","aria-expanded":open,"aria-controls":controls,onPointerDown:down,onPointerUp:up,onPointerCancel:()=>{touch.start=null;touch.released=false;},onTouchEnd:end,onTouchCancel:()=>{touch.start=null;touch.released=false;},onClick:click},
         element("span",null,label),element(DisclosureChevron));
 }
 function ResponseFlows({runs,autoOpenRunId,open=true,toggle,jump}) {
     return element("div",{className:"edge-flow-list"},element("div",{className:"edge-history-head"},element(SectionToggle,{label:"Response History",open,toggle,controls:"edge-flow-items"})),
-        open&&element("div",{id:"edge-flow-items"},runs.map(run=>element(ResponseFlowItem,{key:run.id,run,initiallyOpen:run.id===autoOpenRunId,jump}))));
+        open&&element("div",{id:"edge-flow-items"},[...runs].reverse().map(run=>element(ResponseFlowItem,{key:run.id,run,initiallyOpen:run.id===autoOpenRunId,jump}))));
 }
 function PinnedResponses({runs,unpin,jump,open=true,toggle,height}) {
     const pinned=runs.filter(run=>run.pinned&&run.result);
     return element("section",{className:"edge-pins","aria-label":"Pinned responses",style:open&&height?{flex:`0 0 ${height}px`,height:`${height}px`}:undefined},
         element("div",{className:"edge-pins-head"},element(SectionToggle,{label:"Pinned responses",open,toggle,controls:"edge-pins-items"})),
         open&&element("div",{id:"edge-pins-items"},pinned.length?pinned.map(run=>element(PinnedResponseCard,{key:run.id,run,unpin:()=>unpin(run.id),jump:()=>jump(run.id)})):element("p",{className:"edge-pins-empty"},"No pinned responses")));
+}
+function ComposerResizeHandle({fieldRef,height,setHeight}) {
+    const view=currentView,drag=cachedValue(view,"drag",()=>({cleanup:null}),[]);
+    onLifecycle(view,"drag-cleanup",()=>()=>drag.cleanup?.(),[]);
+    const bounds=()=>{const field=fieldRef.current,style=field&&getComputedStyle(field);
+        const panel=field?.closest(".composer"),workspace=field?.closest(".research-workspace"),chrome=panel&&field?panel.getBoundingClientRect().height-field.getBoundingClientRect().height:0;
+        return {field,min:parseFloat(style?.minHeight)||24,max:Math.max(parseFloat(style?.minHeight)||24,Math.min(innerHeight*.5,(workspace?.clientHeight??600)-chrome-110))};};
+    const start=event=>{
+        if(event.button!==0)return;
+        const {field,min,max}=bounds();if(!field)return;
+        event.preventDefault();drag.cleanup?.();
+        const handle=event.currentTarget,pointer=event.pointerId,startY=event.clientY,startHeight=field.getBoundingClientRect().height;
+        let next=startHeight;
+        handle.setPointerCapture?.(pointer);
+        const move=e=>{if(e.pointerId!==pointer)return;next=Math.round(Math.min(max,Math.max(min,startHeight+startY-e.clientY)));field.style.height=next+"px";handle.setAttribute("aria-valuenow",String(next));};
+        const end=e=>{if(e.pointerId!==pointer)return;drag.cleanup?.();setHeight(next);};
+        const oldSelect=document.body.style.userSelect;document.body.style.userSelect="none";handle.classList.add("dragging");
+        drag.cleanup=()=>{document.removeEventListener("pointermove",move);document.removeEventListener("pointerup",end);document.removeEventListener("pointercancel",end);if(handle.hasPointerCapture?.(pointer))handle.releasePointerCapture(pointer);document.body.style.userSelect=oldSelect;handle.classList.remove("dragging");drag.cleanup=null;};
+        document.addEventListener("pointermove",move);document.addEventListener("pointerup",end);document.addEventListener("pointercancel",end);
+    };
+    const key=event=>{if(event.key!=="ArrowUp"&&event.key!=="ArrowDown")return;event.preventDefault();
+        const {field,min,max}=bounds();if(field)setHeight(Math.min(max,Math.max(min,field.getBoundingClientRect().height+(event.key==="ArrowUp"?24:-24))));};
+    const {field,min,max}=bounds();
+    return element("div",{className:"edge-composer-resizer",role:"separator","aria-orientation":"horizontal","aria-label":edgeUi().composerResize,title:edgeUi().composerResizeHint,tabIndex:0,"aria-valuemin":Math.round(min),"aria-valuemax":Math.round(max),"aria-valuenow":Math.round(field?.getBoundingClientRect().height??height??min),onPointerDown:start,onKeyDown:key});
 }
 // EXEC-DETAILS: press and drag the line between Pinned responses and Response History up or down (touch or mouse);
 // arrow keys move it too

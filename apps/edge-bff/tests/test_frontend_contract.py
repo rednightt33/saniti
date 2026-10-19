@@ -149,8 +149,11 @@ def test_the_mobile_layout_never_reaches_a_wider_screen(tmp_path, width, phone):
     with playwright.sync_playwright() as pw:
         browser = pw.chromium.launch(executable_path=os.environ.get('EDGE_TEST_CHROMIUM', '/usr/bin/chromium'), headless=True, args=['--no-sandbox'])
         page = browser.new_page(viewport={'width': width, 'height': 900})
-        page.route('**/*', lambda route: route.continue_() if route.request.url.startswith(('file:', 'data:')) else route.abort())
-        page.goto(built.as_uri())
+        # An intercepted HTTP document also works where the browser blocks file:// navigation.
+        preview_url = 'http://127.0.0.1:7777/preview.html'
+        page.route('**/*', lambda route: route.fulfill(content_type='text/html', body=built.read_text())
+                   if route.request.url == preview_url else route.abort())
+        page.goto(preview_url)
         page.wait_for_selector('article.result')
         page.click('.composer .mode-anchor > .btn')  # the open mode menu is covered too
         result = page.evaluate(MOBILE_ONLY)
