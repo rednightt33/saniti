@@ -938,11 +938,17 @@ change yet.
 - **Sandbox lifecycle:** shutdown normal 18 Oktober 16:22 WIB, deployment baru `reason=redeploy`
   dibuat 16:31 dan siap 16:32; source commit sandbox tetap `454272e`. Manifest deployment menyebut
   `sleepApplication=false`. Tidak ada bukti autosleep/OOM/crash pada kejadian ini. Akun pemicu tercatat,
-  tetapi belum diketahui apakah stop/redeploy dilakukan manusia atau otomatisasi.
+  tetapi belum diketahui apakah stop/redeploy dilakukan manusia atau otomatisasi. User kemudian
+  menjelaskan kredit Railway habis lalu ditambah sebelum redeploy (keterangan user; billing tidak
+  diaudit). Inspeksi ulang: sandbox dan Orc Online dengan deployment yang sama, bug tetap belum diperbaiki.
 - **Proposed solution:** dependency startup wajib valid sebelum registry/ready, retry dalam deadline,
   satu snapshot runtime yang konsisten, pertahankan client setelah siap; BFF simpan pesan terlebih
   dahulu dengan validasi owner lokal lalu tunggu/rekonsiliasi melalui worker yang ada. Rincian dan
-  acceptance di PLAN.md, ORC-SANDBOX-READINESS. Kode dan live belum diubah.
+  acceptance di PLAN.md, ORC-SANDBOX-READINESS. Tambahan user: readiness on-demand ketika AI
+  memilih jalur sandbox, progress "Initiating sandbox session." melalui transport existing, retry
+  bounded tanpa replay POST ambigu. Startup gate tetap diperlukan karena on-demand guard tidak
+  dapat memanggil tool yang sudah dihilangkan dari registry. Kredit platform harus tersedia;
+  aplikasi tidak dapat memulihkan penghentian billing sendiri. Kode dan live belum diubah.
 - **Status:** OPEN — root cause verified; user authorized infrastructure inspection and implementation
   planning on 2026-10-19, not application rollout.
 - **Lesson:** availability process dan kemampuan yang dapat dipakai bukan hal yang sama. Dependency

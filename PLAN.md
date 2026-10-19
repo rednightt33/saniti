@@ -565,6 +565,8 @@ Edit langsung dari git instead of hardcode langsung di railway. Cek dulu apakah 
 User kemudian meminta pemeriksaan penyebab sandbox tidak tersedia lebih dahulu. Inspeksi tersebut selesai;
 hasil di bawah masuk plan. **Belum ada perintah menjalankan perubahan aplikasi atau deploy.** M187 di error ledger.
 
+**Tambahan permintaan plan, 2026-10-19 (kata user):** "Boleh buat plan untuk mitigasi ini? mungkin AI orc ketika aware dia butuh samdbox, makandia akan trigger something sehinga di frontend akan keluar tekos ‘Initiating sandbox session.’" User juga meminta penyebab sandbox Online tetapi belum bisa dipakai diperbaiki dalam scope yang sama. User menjelaskan kredit Railway sebelumnya habis dan ditambah sebelum redeploy; ini keterangan user, bukan hasil audit billing.
+
 ### Preflight Git dan infra
 
 - Repo `rednightt33/saniti`, branch source `main`; baseline `7cb16c6560645f36c77f07a4236acbf749f6fce4`.
@@ -592,7 +594,9 @@ hasil di bawah masuk plan. **Belum ada perintah menjalankan perubahan aplikasi a
 18 Oktober 16:22 WIB: sandbox lama shutdown normal. Deployment baru dibuat 16:31 dengan metadata
 `reason=redeploy`, source commit sama; sandbox baru ready 16:32. Record menyebut akun yang memicu,
 tetapi belum membuktikan manusia atau otomatisasi yang menjalankan stop/redeploy. Tidak menyimpulkan
-crash, OOM atau autosleep dari kejadian ini. Ada jeda service tidak tersedia sekitar sepuluh menit.
+crash, OOM atau autosleep dari kejadian ini. Ada jeda service tidak tersedia sekitar sepuluh menit. Keterangan user mengenai kredit habis lalu top-up
+konsisten dengan stop/redeploy tersebut; billing belum diverifikasi independen. Pemeriksaan ulang sesudahnya
+menunjukkan Orc dan sandbox sama-sama Online, masing-masing satu replica, pada deployment yang sama.
 
 Orc mulai lebih dahulu dan pada 16:31 mencatat `python_sandbox_not_ready`, menutup client, menetapkan
 `sandbox=None`, lalu membangun registry tanpa tool kalkulasi. `/ready` tetap sukses. Registry, callback
@@ -616,9 +620,19 @@ rekonsiliasi request ID; itu dipertahankan untuk mencegah kalkulasi ganda.
 2. **Metadata:** ambil satu snapshot runtime valid untuk seluruh negosiasi startup. Kegagalan/JSON
    kosong tidak disimpan sebagai kemampuan permanen. Optional feature/version yang tidak didukung
    tetap mengikuti guard yang ada; tidak menyalakan flag atau melewati validasi.
-3. **Gangguan setelah startup:** pertahankan client dan registry; error jaringan tetap dilaporkan
-   sebagai sementara. Panggilan berikutnya boleh membuat koneksi lagi. Jangan replay POST kalkulasi
-   otomatis atau menjanjikan sesi yang hilang dapat dipulihkan. Tidak rebuild Orc/registry di tengah run.
+3. **Persiapan sesuai kebutuhan AI:** pertahankan client dan registry setelah startup valid. Ketika AI
+   memilih tool yang membutuhkan sandbox, jalur backend memastikan dependency siap sebelum pekerjaan
+   baru dikirim. AI tetap menentukan kebutuhan analisis; jangan menebak dari keyword pertanyaan.
+   Pakai helper readiness bersama untuk seluruh jalur pembukaan sesi, termasuk research; DataNeed
+   yang mengakses sandbox sebelum sesi juga memakai guard ini. GET readiness/runtime boleh dicoba
+   ulang dengan backoff, deadline monotonic usulan maksimum 90 detik dan dibatasi sisa deadline run.
+   Stop diperiksa selama menunggu; batasi timeout tiap GET. Request bersamaan berbagi pemeriksaan
+   readiness yang sedang berjalan, tetapi identitas/progress dan sesi tetap terpisah per request.
+   Validasi runtime pulih terhadap kontrak startup; ketidakcocokan bukan alasan menyalakan kemampuan
+   baru diam-diam. Pertahankan registry, callback dan mode; tidak rebuild global di tengah run.
+   Jangan replay POST kalkulasi atau pembukaan sesi ambigu otomatis. Sandbox restart dapat menghapus
+   sesi yang sudah ada; tandai kehilangan sesi dengan jelas, jangan klaim melanjutkan Python lama.
+   Deadline recovery berakhir sebagai dependency tidak tersedia, bukan sukses atau jawaban kalkulasi.
 4. **BFF submit:** auth, format dan kepemilikan lokal tetap di awal. Simpan pesan secara durable sebelum
    pengecekan remote conversation. Pindahkan validasi remote ke worker ketika Orc siap; pisahkan
    conversation expired/owner mismatch dari dependency sementara tidak tersedia.
@@ -627,18 +641,39 @@ rekonsiliasi request ID; itu dipertahankan untuk mencegah kalkulasi ganda.
    sebelum POST. Readiness bukan bukti POST sebelumnya tidak pernah berjalan. Probe menunggu tidak
    memakai attempt_count pengiriman dan tidak membuat request ID baru. Pertahankan deadline delivery
    yang sudah dikonfigurasi (default timeout 3900 + lease 90 detik); jangan mengubahnya diam-diam.
-6. **UI:** gunakan status yang ada dengan teks singkat "Menunggu layanan siap" untuk kondisi ini.
-   Teks di `edge-labels.js`, pemetaan di `edge-client.js`; tidak perlu mengganti layout. Saat deadline
+6. **UI/progress:** sebelum Orc menerima run, BFF menampilkan "Waiting for services to be ready."
+   melalui status delivery yang sudah ada. Jangan menyebut sesi sandbox sebelum kebutuhan analisis
+   diketahui. Setelah AI memilih jalur sandbox dan backend benar-benar memeriksa kesiapan/membuka
+   sesi, tampilkan tepat **"Initiating sandbox session."**. Setelah sesi berhasil dibuka, lanjutkan
+   progress kalkulasi yang sudah ada; saat gagal, step gagal dan alasan dependency ditampilkan jelas.
+   Gunakan `progress.step` Orc dan endpoint BFF `/runs/{request_id}/progress`, yang sudah dipoll UI;
+   tidak perlu transport/service progress baru. Pastikan step menutupi readiness dan open session,
+   seluruh jalur sesi, serta tidak muncul untuk chat yang tidak memanggil sandbox. Wording frontend
+   di `edge-labels.js`, backend label di `user_texts.py`, response adapter di `edge-view.js` jika perlu.
+   Bedakan dependency-wait dari RECOVERING pengiriman umum menggunakan reason terstruktur pada
+   status yang ada; jangan mengganti semua error recovery dengan label sandbox. Saat deadline
    tercapai, tampilkan delivery terputus dengan pesan tetap tersimpan; tidak mengklaim pekerjaan remote
    pasti dibatalkan. Stop selama menunggu tetap berfungsi.
+
+Alur target: pertanyaan tersimpan → tunggu Orc bila perlu → AI memilih kebutuhan analisis →
+"Initiating sandbox session." → cek readiness terbatas → buka sesi pada bundle READY → kalkulasi →
+hasil. Persiapan sesi ini memanggil API aplikasi sandbox, bukan Railway redeploy. Untuk kejadian saat
+ini, rollout Orc yang sudah diperbaiki diperlukan agar registry lama yang tidak lengkap diganti.
+Startup gate menyelesaikan dependency terlambat saat redeploy; guard on-demand menyelesaikan gangguan
+setelah startup. Keduanya diperlukan: label frontend saja tidak memulihkan tool yang hilang.
 
 ### Scope dan biaya
 
 Kode utama: Orc `app/main.py`, `app/tools/analysis.py`, pengaturan default bila diperlukan, serta test;
-BFF `app/main.py`, `app/client.py`, `app/worker.py`, label/pemetaan status dan test. Tidak perlu schema
+Orc session/DataNeed/research entry points dan progress/user_texts; BFF `app/main.py`, `app/client.py`,
+`app/worker.py`, label/pemetaan status, adapter progress bila perlu dan test. Tidak perlu schema
 baru, perubahan warehouse, cron harga/Feature04, model/provider, service sandbox atau service baru.
 Tidak ada probe baru saat idle. Retry hanya pada startup atau saat ada job menunggu dependency.
-Tidak ada LLM call sebelum runtime wajib siap. Resident RAM sandbox sekitar 197 MB tidak diturunkan
+Tidak ada LLM call sebelum runtime startup wajib siap. Saat dependency putus setelah startup, retry
+kesiapan dilakukan backend dalam tool, tanpa meminta model mengulang planning tiap percobaan.
+Tidak menambah Railway credential/permission ke AI. Jika kredit masih habis dan platform menghentikan
+service, aplikasi tidak dapat menghidupkannya sendiri; kredit/layanan harus dipulihkan di Railway.
+Alert saldo/anggaran Railway dapat diaktifkan pemilik akun; automation top-up di luar scope ini. Resident RAM sandbox sekitar 197 MB tidak diturunkan
 oleh perbaikan ini; sleep/RAM merupakan keputusan terpisah. Mengubah startup agar chat ringan tetap
 berjalan tanpa sandbox memerlukan lifecycle runtime dinamis yang lebih besar dan di luar usulan minimal.
 
@@ -649,6 +684,12 @@ berjalan tanpa sandbox memerlukan lifecycle runtime dinamis yang lebih besar dan
 - Test `/ready` sukses tetapi runtime gagal/invalid: tidak membentuk kemampuan dari snapshot kosong;
   snapshot sukses dipakai konsisten dan hanya diambil sekali selama inisialisasi.
 - Test client yang telah siap mengalami gangguan lalu pulih tanpa penghapusan registry/replay POST.
+- Test AI memilih sandbox setelah dependency sempat offline: label "Initiating sandbox session."
+  tampil saat readiness/open berlangsung, satu sesi baru yang terkonfirmasi, kalkulasi benar dan hasil
+  bersumber dari tool. Chat tanpa sandbox tidak menampilkan label itu. Uji jalur DataNeed/research,
+  runtime tidak kompatibel, timeout, Stop, open POST ambigu, sesi lama hilang dan request bersamaan;
+  tidak ada LLM retry loop, busy loop atau kebocoran owner. Dependency pulih setelah waktu startup
+  habis harus dapat diinisialisasi oleh proses Orc sehat berikutnya; tidak menerima registry kosong.
 - BFF percakapan baru/lama saat Orc belum ready: pesan tersimpan, owner/expiry diperiksa, UI menunggu,
   pulih lalu kirim satu kali dengan ID tetap. Test request sudah RUNNING/COMPLETED, POST ambigu,
   cold-start berbarengan, lease fencing, stop dan deadline agar tidak ada kehilangan/duplikasi.
