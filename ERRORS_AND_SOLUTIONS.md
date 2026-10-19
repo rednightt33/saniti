@@ -956,3 +956,23 @@ change yet.
 - **Lesson:** availability process dan kemampuan yang dapat dipakai bukan hal yang sama. Dependency
   yang belum siap saat startup tidak boleh meninggalkan deployment sehat dengan fitur hilang permanen.
   Idle, sleeping, shutdown normal dan crash perlu dibedakan dari metadata serta log lifecycle.
+
+### M188 — Permintaan seluruh bank dalam tabel lebar dijawab dengan pemenang bulanan (2026-10-19)
+
+- **Symptom:** `edge_ac1cb75b15c5898d023bfa70abccd063` meminta seluruh saham bank, rata-rata return hari
+  positif per bulan, peringkat dan format satu baris per saham/kolom per bulan. Jawaban menampilkan hanya
+  10 pemenang bulanan dan mengklaim penataan ulang sedang berjalan.
+- **Verified cause:** persisted mode4 round CLARIFY; router memahami kebutuhan kolom bulanan tetapi
+  menganggapnya tindakan atas hasil lama tanpa kalkulasi. Tool filter menghilangkan Python; log hanya
+  memuat export_result. Tabel yang dirender `out.o2` adalah pemuncak_bulanan (10 baris), sedangkan
+  `out.o1` peringkat_bulanan berisi 480 baris saham-bulan. Tidak ada pivot/run_python atau mode4_handoff;
+  needs_computation tersimpan null. Kode memiliki batas 50 baris/12 kolom, sehingga 48 saham × bulan
+  tidak terhalang oleh batas baris saat itu. Pemeriksaan sumber angka tidak membuktikan pemenuhan bentuk
+  dan cakupan output. Definisi rata-rata hari positif berasal dari pertanyaan awal user, bukan dugaan audit.
+- **Proposal:** dua profil fastlane, Existing dan Unified (prompt gabungan router/analis), dengan cakupan
+  tool, statistik, konteks, replay, hasil dan audit ditangani bersama; observable fulfilment checks terhadap
+  grain/cakupan eksplisit. Candidate prompt dan inspeksi: prompts/fastlane_unified/. Tidak mengeksekusi
+  ulang permintaan atau mengubah angka sumber pada tahap desain ini.
+- **Status:** OPEN — inspected and documented; user authorised prompt/design, not implementation/rollout.
+- **Lesson:** merujuk hasil lama tidak membuat permintaan transformasi menjadi read-only. Jawaban sukses
+  harus diuji terhadap deliverable yang diminta, dan klaim pekerjaan berjalan harus memiliki bukti tool.

@@ -557,3 +557,28 @@ monitor memberi status belum selesai sampai semua dependencies valid. Migrasi ti
 Kedua ambiguitas material sudah diputuskan user (2026-10-11, "both ya"): error nyata termasuk unexpected NULL yang terbukti,
 NULL sah dikecualikan, dan dependency closure wajib. Pilihan batch/ticker disediakan menu, default latest unresolved.
 Implementation plan memakai keputusan tersebut dan disetujui user pada 2026-10-11; belum ada perintah go eksekusi/deployment.
+
+## FASTLANE-UNIFIED — dua profil dan satu AI untuk memahami serta menjalankan permintaan
+
+**Persetujuan menyusun prompt/desain, 2026-10-19 (kata user):** "Okay, buatkan prompt ya. Buat 2 lane terpisah. 1 existing, 1 lagi adalah AI router yang digabung dengan AI pelaksana. Jadi bisa fallback jika diperlukan. Also, sebelum buat prompt, please inspect current infra dulu agar prompt tidak contradict dengan kondisi backend. Semua yang berkaitan dengan ORC dependensinya harus di cek agar perubahan ini tidak hanya isolated."
+
+Inspeksi read-only selesai terhadap Orc, BFF, SQL Governor, Python sandbox, Web Governor, audit store,
+Postgres utama dan web, sumber Git, koneksi credential/reference, batas/flag nonrahasia dan tabel operasional.
+Baseline main `7c8712b`, aplikasi Orc/BFF aktif `5679bd5`. Bukti nonrahasia:
+`prompts/fastlane_unified/INFRA_INSPECTION.json`; batas verifikasi/notifikasi Postgres dicatat di brief.
+
+Draft prompt: `prompts/fastlane_unified/DRAFT_SYSTEM_PROMPT.md`.
+Spesifikasi dua jalur, perubahan kontrak antarlayanan, fallback dan acceptance:
+`prompts/fastlane_unified/README.md`. Keduanya **belum dimuat ke runtime**.
+
+Usulan dua pilihan EDGE: Fast — Existing dan Fast — Unified. Pertahankan lane=fast agar semua batas dan
+perlakuan fastlane tetap konsisten; tambahkan routing_mode existing/unified yang tervalidasi dan disimpan
+per request. Standard tidak diubah. Existing tetap default; Unified berada di balik gate baru yang belum
+ada. Jangan mematikan router global atau hanya menempel prompt pada turn yang masih dikunci CLARIFY.
+Pilihan model user tetap sama, backend tetap menjaga tool/data ownership, biaya melalui batas yang ada,
+statistik, sumber angka, readiness, queue/lease/Stop, penyimpanan dan audit. Fallback tidak me-replay
+pekerjaan yang sudah berjalan. Inspeksi menemukan output/metadata routing memengaruhi lebih dari prompt:
+insight-v2, judul, facts/memori, pending plan, fingerprints, quick choices dan audit harus ikut ditangani.
+
+User belum memerintahkan eksekusi kode atau deployment untuk item ini. Implementation agent brief siap
+pada dokumen tersebut; uji A/B berbayar, default baru atau perubahan live menunggu perintah eksekusi.

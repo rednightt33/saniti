@@ -1,0 +1,168 @@
+{
+  "observed_at_utc": "2026-10-19 04:21:31 UTC",
+  "git_baseline": "7c8712b473166b44deecca7e4a7f609e81df6afe",
+  "project_id": "8aef1702-030b-49cb-9df7-5ac2e0a42691",
+  "environment_id": "4d3e5af2-302b-4a2e-84e2-7d7476d6ff49",
+  "services": [
+    {
+      "component": "orc",
+      "id": "41dc17ee-3bac-41ef-90ec-8b9356815c71",
+      "name": "market-ai-orc",
+      "source": {
+        "repo": "rednightt33/saniti",
+        "branch": "main",
+        "rootDirectory": "/apps/market-ai-orc",
+        "checkSuites": false
+      },
+      "active_deployment_id": "4138d8bd-70e9-451d-9e77-faf91f6966c2",
+      "source_commit": "5679bd505980787a6742d5bbdc4d252965e3d3bb",
+      "status": "SUCCESS",
+      "replicas": {
+        "sfo": {
+          "numReplicas": 1
+        }
+      },
+      "healthcheck": "/ready",
+      "staged_changes": []
+    },
+    {
+      "component": "bff",
+      "id": "c3656044-2817-44a7-9b55-54910bab416f",
+      "name": "edge-bff",
+      "source": {
+        "repo": "rednightt33/saniti",
+        "branch": "main",
+        "rootDirectory": "/apps/edge-bff",
+        "checkSuites": false
+      },
+      "active_deployment_id": "22c9671d-c117-4db6-9b6e-cd9e5a53f7d9",
+      "source_commit": "5679bd505980787a6742d5bbdc4d252965e3d3bb",
+      "status": "SUCCESS",
+      "replicas": {
+        "sfo": {
+          "numReplicas": 1
+        }
+      },
+      "healthcheck": "/ready",
+      "staged_changes": []
+    },
+    {
+      "component": "sandbox",
+      "id": "225b1be1-d7f5-4b2d-a4c7-052eb53af818",
+      "name": "market-python-sandbox",
+      "source": {
+        "repo": "rednightt33/saniti",
+        "branch": "main",
+        "rootDirectory": "/apps/market-python-sandbox",
+        "checkSuites": false
+      },
+      "active_deployment_id": "84fa7fa3-6bda-46af-8162-7d13d42fde7b",
+      "source_commit": "454272ee8c1f643ca97b9c93ca791723b483971c",
+      "status": "SUCCESS",
+      "replicas": {
+        "sfo": {
+          "numReplicas": 1
+        }
+      },
+      "healthcheck": "/ready",
+      "staged_changes": []
+    },
+    {
+      "component": "sql",
+      "id": "1a322795-4f93-4c51-a25e-5fcfc5ab4722",
+      "name": "market-sql-governor",
+      "source": {
+        "repo": "rednightt33/saniti",
+        "branch": "main",
+        "rootDirectory": "/apps/market-sql-governor",
+        "checkSuites": false
+      },
+      "active_deployment_id": "d4c22eaa-11a3-479c-a926-497e8f213f0c",
+      "source_commit": "2334b44bb75b8c9a33ddf9088df78eeda234113a",
+      "status": "SUCCESS",
+      "replicas": {
+        "sfo": {
+          "numReplicas": 1
+        }
+      },
+      "healthcheck": "/ready",
+      "staged_changes": []
+    },
+    {
+      "component": "web",
+      "id": "1c43a00e-9deb-4b17-84f0-acfa35142ac6",
+      "name": "market-web-governor",
+      "source": {
+        "repo": "rednightt33/saniti",
+        "branch": "main",
+        "rootDirectory": "/apps/market-web-governor",
+        "checkSuites": false
+      },
+      "active_deployment_id": "46bd709d-2f2e-457b-bd43-a438e48d8520",
+      "source_commit": "2c093df9155a204f367085d6f277ea9bfebab469",
+      "status": "SUCCESS",
+      "replicas": {
+        "sfo": {
+          "numReplicas": 1
+        }
+      },
+      "healthcheck": "/ready",
+      "staged_changes": []
+    },
+    {
+      "component": "audit",
+      "id": "956b1479-e8c6-4f6d-bd39-2af46390a22a",
+      "name": "market-audit-store",
+      "source": {
+        "repo": "rednightt33/saniti",
+        "branch": "main",
+        "rootDirectory": "/apps/market-audit-store",
+        "checkSuites": false
+      },
+      "active_deployment_id": "776f4e5a-ed3a-4009-8800-a96062cb34e0",
+      "source_commit": "bcb13226f78ae6785d7b4fcb0c6de54a20045afe",
+      "status": "SUCCESS",
+      "replicas": {
+        "sfo": {
+          "numReplicas": 1
+        }
+      },
+      "healthcheck": "/ready",
+      "staged_changes": []
+    }
+  ],
+  "database_observations": {
+    "main_online": true,
+    "main_unresolved_critical_count": 1,
+    "critical_reason": "Not exposed by inspected health tool; not diagnosed or dismissed.",
+    "web_database_online": true,
+    "read_only_query_transaction": "on",
+    "relations_present": [
+      "ai_audit.ingest_outbox",
+      "edge_bff.jobs",
+      "public.AI_conversation",
+      "public.AI_conversation_turn",
+      "public.AI_conversation_run_memory",
+      "public.AI_research_run_audit",
+      "public.AI_method_guide",
+      "public.AI_metric_catalog",
+      "public.AI_research_library",
+      "public.Table_Catalog",
+      "public.Column_Catalog"
+    ]
+  },
+  "credential_links": {
+    "bff_orc": true,
+    "orc_sandbox": true,
+    "orc_sql_governor": true,
+    "sandbox_dataset_access": true,
+    "orc_web_governor": true,
+    "sandbox_audit_store": true,
+    "sql_audit_store": true
+  },
+  "limitations": [
+    "No live inference, data extraction, code execution, export, fault injection, configuration update or deployment performed for this design task.",
+    "Configured endpoint hosts and credential equality were checked; this is not an end-to-end network or object-storage write test.",
+    "Railway environment has an existing staged patch with zero changes; it was not applied."
+  ]
+}
