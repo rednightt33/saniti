@@ -5188,3 +5188,69 @@ dipasang kembali. Pertanyaan sama dengan A/B V5 (t1, j2, s1), jalur Cepat, DeepS
   jawaban diulang, kolom agregat tidak cocok). Tidak ada hambatan yang berasal dari batas token.
 - Log orc B mencatat `output_tokens` = batas panggilan (24.000), bukan pemakaian; angka pemakaian diambil dari log
   penyedia (`native_output_tokens`).
+
+### EXEC-FASTLANE-LEN: jawaban jalur Cepat berbasis tujuan, aturan kutip hasil lama, perbaikan gerbang (dicatat 2026-10-19, belum dijalankan)
+
+**Keputusan user (2026-10-19):** "kita stick dengan main"; "Selain yang tidak saya sebutkan harus dirubah dengan goal
+based instead of hardcode. Propose ke saya"; "#1 keep tabel 10 baris, #5 keep, #6 keep, #7 keep"; "usulan 2 OK, 3 OK,
+4 OK, 5 OK"; "Masukan exec jangan jalankan dulu."
+
+**Temuan dari kode (`main` `efab6e8`, `prompts/history/v014…/fast_prompt.md`, log orc live 19 Okt):**
+- Tidak ada pemotong teks jawaban. `ANSWER_TARGET_CHARS=2500` / `MODE4_PART_TARGET_CHARS=1500` hanya untuk log
+  `ai_answer_long` (1500 tidak pernah dikirim ke model); `FinalResponse.answer` tanpa `max_length`. Batas keras hanya
+  tabel `{{table}}` (50 baris, 12 kolom), saran lanjutan (5/3) dan 24.000 token per panggilan.
+- Pembatas panjang ada di prompt: rule 13 (±2.500 karakter), WRITING FOR THE READER ("one or two sentences", "the two
+  or three figures", "short sentences"), TABLES ("the text around it stays short … only the few figures"), VALUE
+  REFERENCES ("write it by its address or leave it out", jumlah contoh dengan kata), catatan uji eksplorasi ("do not
+  write your own caveat paragraph").
+- Gerbang yang masih meminta satu putaran di jalur Cepat (mode saran hanya untuk TYPED_FIGURES, UNITS, REFERENCE,
+  `ADVICE_KINDS` `orchestrator.py:1443`, dan METHODOLOGY_PROVENANCE): PROVENANCE (angka yang tidak cocok apa pun;
+  live `edge_06173be6…`: angka "7", ±53 s), INSIGHT_SOURCE_NOT_OPENED, REPRODUCTION, UNRECORDED_TEST, DEFINITION,
+  METHODOLOGY kosong, gerbang data (ANALYSIS/ROUTING) dan format JSON (FINAL_REASK).
+- Jawaban akhir yang ditulis di giliran alat tidak dikunci skema JSON (`orchestrator.py` `_payload`: `text.format`
+  hanya tanpa tools); skema ketat baru dipakai sesudah satu kali minta ulang. Tidak ada aturan escape tanda kutip.
+- Run `edge_c1ad148e…-m4h` ("Minta datanya in excel ya", 4 m 12 s): REPRODUCTION menolak reproduksi atas lampiran
+  berupa label teks "Q1 (turun terbesar)" ("does not resolve to one number", tanpa menyebut bahwa itu teks); edit
+  untuk menghapus `reproductions` gagal ("fields names keys the response does not have: reproductions"); lalu
+  INSIGHT_SOURCE_NOT_OPENED (hasil lama `out.o7` dikutip di samping tabel baru tanpa dibuka). 5 panggilan tambahan,
+  ±53 s.
+- Sumber aturan rujukan untuk model: VALUE REFERENCES dan TABLES di prompt (bentuk `{{…}}`, `rows[kolom=nilai]`,
+  format `|…`, `{{table …; …}}`), menu alamat di setiap hasil alat (`AI_ENABLE_ADDRESS_MENU=true`,
+  `ADDRESS_MENU_NOTE`), dan pesan penolakan. Pra-cek draf `check_references` ditarik di jalur Cepat
+  (`AI_FASTLANE_DRAFT_CHECK=false`). Kewajiban membuka hasil lama sebelum dikutip bersama hasil baru hanya ada di
+  pesan penolakan `EARLIER_RESULT_INSTRUCTION` (dan, untuk insight, panduan `free_code`); label bukti hasil lama ada
+  di CONVERSATION REUSE (prompt baris 135).
+
+**Disetujui (belum dijalankan; jalur Cepat saja, di balik saklar, jalur Standar tetap):**
+1. Aturan panjang berbasis tujuan menggantikan angka/jumlah di prompt jalur Cepat (prefix sendiri, `fast_prompt`);
+   tetap: tabel 10 baris (rule 13 bagian tabel), rule 14 (#5), batas bagian `FASTLANE_SECTIONS_NOTE` (#6),
+   Batasan dikosongkan V5 (#7). Teks pengganti: usulan di bawah, **menunggu persetujuan teks**.
+2. Aturan baru: hasil lama yang dikutip bersama hasil baru dibuka dulu (`get_session_output` / `load_output`).
+3. `REPRODUCE_NOTE` hanya untuk angka lampiran dan hanya saat user meminta cek/asal angka; pesan REPRODUCTION
+   menyebut bila lampiran berupa teks.
+4. Perbaiki edit yang menolak field `reproductions`.
+5. Tanda kutip di dalam JSON: satu kalimat aturan (pakai ‘…’ atau `\"`) dan/atau perbaikan otomatis sebelum minta
+   ulang.
+
+**Usulan teks (menunggu persetujuan user):**
+- Rule 13 → "Answer the whole question: cover every part the user asked for and every released result the answer
+  needs (the main finding, the figures by group or period, the comparison they are judged against, what drives them
+  and what they mean for the reader). Length follows the question: a fact gets a short answer, an analysis as much
+  as its results need, without repeating a figure or padding. Each table in it within ten rows unless the user asks
+  for more or the table lists every group of a breakdown, up to fifty rows …" (kalimat tabel tetap).
+- WRITING FOR THE READER → "Lead with the conclusion. Then give the figures the conclusion rests on, each with what
+  it is compared with, then what it means for the reader, then the caveats that change how far it can be trusted.
+  Every released result that answers part of the question appears in the answer, in the text or in a table." dan
+  "Write the way people talk: one idea per sentence, everyday words, active verbs."
+- TABLES → "The table already shows its figures, so the text around it explains them rather than repeating them:
+  say what the table means, which rows stand out and why, and cite each figure the explanation needs by its
+  address; …" (sisa kalimat tetap).
+- VALUE REFERENCES → "… write it by its address; when a figure the answer needs has no address yet, release it in
+  the analysis first" (menggantikan "or leave it out").
+- Catatan uji eksplorasi → "explain in the answer what the tested effects mean for the question; the system adds
+  the evidence line, so do not repeat it" (menggantikan "do not write your own caveat paragraph about testing").
+
+**Jalur "Claude sanity" (usulan, menunggu konfirmasi):** memakai EXEC-MANUAL yang sudah live
+(`AI_ENABLE_MANUAL_AGENT=true`): pesan di EDGE dengan model "Claude (manual)", setiap panggilan model menunggu
+sebagai langkah berisi payload persis yang diterima model (prompt, catatan, hasil alat, penolakan), dijawab lewat
+`scripts/manual_agent.py`; fallback ke `AI_MODEL` sesudah `AI_MANUAL_AGENT_WAIT_SECONDS`.
