@@ -5505,3 +5505,59 @@ tabel; benchmark PDF/PNG di ponsel nyata (tes browser lokal lulus, belum di HP f
   Inter 14 px 400 kapital dengan jarak huruf 0,14em (`.brand`). Inter dimuat dengan benar (`@import` di awal stylesheet,
   CSP mengizinkan). Opsi menunggu pilihan user: (1) "Monitor" 500 dan warna teks penuh; (2) gaya kapital seperti "EDGE";
   (3) user mengirim screenshot bila bentuk hurufnya berbeda (kemungkinan font cadangan).
+
+### Rencana implementasi EXEC-UI-1019B + M192 + adopsi branch + logo (2026-10-19, belum dijalankan)
+
+**Persetujuan tambahan user (2026-10-19):** logo baru (lingkaran gelap dengan "E" putih, tulisan "EDGE") untuk favicon,
+PNG dan PDF: "Favicon dan PNG dan PDF. Sudah bagus" (draf SVG dari outline Inter 700/600, warna `#030213`). Top bar EDGE
+tetap memakai tanda "E" kotak.
+
+**Hasil inspeksi kode (main `631371a`) yang menentukan arah:**
+- Peringatan sesi: orc sudah menulis `attach_note` (`orchestrator.py:4904`, `4937-4942`), tetapi `tools/envelope.py:142-152`
+  membangun ulang setiap langkah gabungan hanya dari `result`, jadi catatan itu tidak pernah sampai ke model (sanity run
+  `edge_43d32073…-m4n`: kunci langkah gabungan hanya status/tool/data/warnings/errors). Perbaikan: catatan menjadi satu
+  `warnings` berkode `SESSION_NOT_ATTACHED` (semua jalur; bug).
+- M192: gerbang `orchestrator.py:6884-6905` + `definition_check.py:15-60`; pembacaan router per pesan tersedia lewat
+  `current_design_changes` (fakta SCOPE ADD).
+- Tujuh perilaku branch, kondisi main: potongan 90 s `orchestrator.py:4506-4517`; Low sesudah panggilan pertama
+  `orchestrator.py:4772-4777`; M150 `orchestrator.py:4646-4656` (`MAX_REASONING_RUNAWAY_RETRIES = 1`); MiMo `output_cap=12000`
+  dan Qwen `reasoning_budget=8000` di `model_choices.py:44-45`. Timeout penyedia di luar panggilan 90 s **diulang diam-diam
+  sampai 3 kali** (`openrouter_client.py:15,268,314`; `AI_REQUEST_TIMEOUT_SECONDS=600`, `AI_MAX_ANALYSIS_SECONDS=1800`).
+- EDGE: baris metadata jawaban `index.html:11968` (biaya di `.edge-cost`); logo model `MODEL_LOGOS` (DeepSeek dan Qwen
+  `<img>`; GLM dan MiMo memakai CSS mask, yang tidak dijamin ikut tergambar oleh html-to-image → di kartu diganti `<img>`);
+  jarak bagian `.content-block` 29 px vs `.edge-next-group` 6 px (`index.html:9725,10137`); judul kolom satu baris sampai
+  28 karakter (`TABLE_TITLE_LINE`, `index.html:11785`, CSS `9887-9888`), jadi "Volume sepekan vs rata-rata 3 bulan" (36)
+  dibungkus di 28ch dan judul ≤28 tetap satu baris; tabel `width:auto` rata kiri (`9863`); judul panel beku M189
+  `index.html:10176-10180` berlatar `var(--background)` + `:before` 15 px (asal ruang kosong di atas "Pinned responses",
+  diverifikasi di browser saat eksekusi); label ±250 entri `edge-labels.js` + teks tetap di `index.html` (11147, 11163,
+  11924, 11968, tanggal `id-ID` kartu); tes yang memeriksa teks Indonesia: `test_answer_view`, `test_frontend_contract`,
+  `test_share_card`, `test_visual`.
+
+**Fase (satu push = deploy orc + edge-bff; sebelum push cek log orc tanpa run `edge_` aktif):**
+- **G1 orc – peringatan sesi** (bug, semua jalur): `envelope.py` meneruskan `attach_note`; tes envelope.
+- **G2 orc – M192** (saklar `AI_FASTLANE_GOAL_ANSWERS` untuk butir 1; butir 2–4 perbaikan gerbang semua jalur): (1) CITING
+  AND CHECKS poin 10; (2) `definition_check.problems(..., added_entities=…)`: entitas baru dari SCOPE ADD diabaikan bila
+  filter, periode dan ambang sama dan entitas lama termuat; (3) pesan penolakan mengutip kalimat pemicu (span `CLAIM`) dan
+  nama field yang berbeda; (4) `DEFINITION_CLAIM_NOTICE` pindah ke `user_texts.py`, bahasa Indonesia tanpa JSON.
+  Snapshot prompt v016.
+- **G3 orc – perilaku branch** (saklar baru `AI_FASTLANE_KEEP_REASONING`, default mati; jalur Standar tidak berubah):
+  penalaran tetap pilihan user di semua panggilan; potongan 90 s dihapus (batas `AI_REQUEST_TIMEOUT_SECONDS`); timeout
+  penyedia: klien dipanggil `attempts=1`, orc mengulang sekali di level yang sama dengan langkah progres "AI provider did
+  not respond, trying once more", kedua kali gagal dengan pesan; M150: ulang sekali di level yang sama + catatan ringkas +
+  langkah progres. Qwen: `AI_MAX_REASONING_TOKENS` (default 8000 = sama). MiMo 12.000 dan batas 24.000 tidak berubah.
+  Tes `test_fastlane`, `test_exec_models`, `test_manual_agent`; AI_MODELS.md; README; railway.ts `preserve()`.
+- **G4 EDGE – tampilan:** jarak bagian seragam; tabel di tengah (`margin-inline:auto`); judul kolom panjang dibungkus;
+  "Copy" bertulisan; judul panel beku memakai latar panelnya, tanpa ruang kosong; font "Monitor" (menunggu pilihan).
+- **G5 EDGE – label Inggris:** semua `edge-labels.js` dan teks tetap antarmuka; jawaban AI, tanggal di jawaban
+  (`fastDates`) dan baris sistem di dalam jawaban tetap mengikuti bahasanya; tes disesuaikan.
+- **G6 EDGE – kartu dan logo:** `static/edge-logo.svg` (+ versi gelap), `favicon.svg`, `favicon-32.png`,
+  `apple-touch-icon.png` (180 px, latar putih karena iOS mengisi transparansi dengan hitam) dari SVG baru; kepala kartu
+  memakai logo; baris metadata (Request, logo + model · level, token, durasi) tanpa biaya; lebar kartu (menunggu angka).
+- **G7 live:** deploy SUCCESS; saklar `AI_FASTLANE_KEEP_REASONING` dinyalakan; uji 3 pertanyaan (t1, j2, s1) dibanding
+  baseline ON hari ini (627 s, USD 0,112), saldo dicek dulu; kartu PNG/PDF dan favicon dicek di browser.
+- **Catat:** EXEC, RAILWAY_CHANGELOG, ERRORS (M192 CLOSED, M193 peringatan sesi), README orc/EDGE, AI_MODELS.md, riwayat
+  prompt.
+
+**Masih perlu keputusan user sebelum eksekusi:** lebar kartu PNG (usulan 760 px CSS); font "Monitor" (opsi 1 atau 2);
+bahasa langkah progres orc ("Memahami pertanyaan", "Menyusun langkah berikutnya", `user_texts.PROGRESS_*`), yang tampil di
+antarmuka di luar jawaban; uji live hanya ON (±USD 0,11) atau A/B ON/OFF (±USD 0,21).
