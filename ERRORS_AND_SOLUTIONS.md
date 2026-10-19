@@ -941,14 +941,18 @@ change yet.
   tetapi belum diketahui apakah stop/redeploy dilakukan manusia atau otomatisasi. User kemudian
   menjelaskan kredit Railway habis lalu ditambah sebelum redeploy (keterangan user; billing tidak
   diaudit). Inspeksi ulang: sandbox dan Orc Online dengan deployment yang sama, bug tetap belum diperbaiki.
-- **Selected implementation:** user chose automatic request-driven recovery (2026-10-19, EXEC-SANDBOX-RECOVERY).
+- **Selected implementation:** user chose automatic request-driven recovery (2026-10-19; approval and evidence in verification/sandbox_recovery/README.md).
   Orc HTTP remains available; the full agent factory is deferred until readiness plus a valid authenticated runtime
   handshake succeed. Single-flight, five-second cooldown, one consistent snapshot; no partial registry serves a run.
   BFF checks execution readiness before consuming a dispatch attempt, retains request ID/lease/deadline/Stop and
   shows a dependency-specific waiting message. Real session opens show "Initiating sandbox session." through
   existing progress. No idle polling or infrastructure changes; later connection errors do not remove tools.
   No automatic POST replay or promise to restore lost sessions. Credit must be restored at platform level.
-- **Status:** implementation and local regression tests complete; exact live rollout verification pending.
+- **Status:** FIXED — source commit `5679bd5`; exact Orc `4138d8bd-70e9-451d-9e77-faf91f6966c2` and BFF
+  `22c9671d-c117-4db6-9b6e-cd9e5a53f7d9` deployments SUCCESS on 2026-10-19. Orc logs confirm initialized
+  sandbox runtime, active Mode 4/default 4 and result store; all three services Online. Delayed recovery,
+  owner scope, queue/Stop/deadline and visible progress verified locally, with no paid live inference or
+  deliberate live outage. Evidence and verification limits: verification/sandbox_recovery/README.md.
 - **Lesson:** availability process dan kemampuan yang dapat dipakai bukan hal yang sama. Dependency
   yang belum siap saat startup tidak boleh meninggalkan deployment sehat dengan fitur hilang permanen.
   Idle, sleeping, shutdown normal dan crash perlu dibedakan dari metadata serta log lifecycle.

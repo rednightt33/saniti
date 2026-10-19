@@ -557,9 +557,3 @@ monitor memberi status belum selesai sampai semua dependencies valid. Migrasi ti
 Kedua ambiguitas material sudah diputuskan user (2026-10-11, "both ya"): error nyata termasuk unexpected NULL yang terbukti,
 NULL sah dikecualikan, dan dependency closure wajib. Pilihan batch/ticker disediakan menu, default latest unresolved.
 Implementation plan memakai keputusan tersebut dan disetujui user pada 2026-10-11; belum ada perintah go eksekusi/deployment.
-
-## ORC-SANDBOX-READINESS
-
-User selected request-driven recovery and authorized implementation on 2026-10-19.
-Execution details and exact decision are now in EXEC.md, EXEC-SANDBOX-RECOVERY.
-The earlier strict startup barrier proposal is superseded by deferred one-time initialization.

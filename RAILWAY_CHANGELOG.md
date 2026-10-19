@@ -4016,9 +4016,12 @@ No persistent service/environment configuration, IaC, permissions, source writer
 
 ## 2026-10-19 — Orc/BFF sandbox initialization recovery
 
-User selected request-driven recovery in EXEC-SANDBOX-RECOVERY. Source changes target only Git main services
+User selected request-driven recovery; approval/evidence: verification/sandbox_recovery/README.md. Source changes target only Git main services
 market-ai-orc (`41dc17ee-3bac-41ef-90ec-8b9356815c71`) and edge-bff (`c3656044-2817-44a7-9b55-54910bab416f`) in
 lucid-patience / dev. Deferred single-flight agent initialization, execution readiness handshake and existing BFF
 queue/progress replace permanent startup tool disablement. Sandbox itself, Railway settings, healthcheck limits,
-variables, schedules and `.railway/railway.ts` are unchanged. Exact rollout/readback pending; evidence is maintained
+variables, schedules and `.railway/railway.ts` are unchanged. Source `5679bd5`: Orc deployment
+`4138d8bd-70e9-451d-9e77-faf91f6966c2` and BFF deployment `22c9671d-c117-4db6-9b6e-cd9e5a53f7d9`
+both SUCCESS, 2026-10-19 03:37 UTC. Orc logs confirm sandbox runtime initialized, Mode 4/default 4 and result
+store active. Both services and unchanged sandbox have one running replica. Evidence and limits are maintained
 in `verification/sandbox_recovery/README.md`. No configuration apply, Railway upload or production database mutation.

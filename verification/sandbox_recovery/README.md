@@ -1,7 +1,9 @@
 # Sandbox readiness recovery — 2026-10-19
 
+User approval (2026-10-19, verbatim): "Kita itu saja ya, coba buat implementation ya. Boleh saya confirm bahwa masalah utama adalah ketika re deploy, Orc aktif dulu barubkemudian samdbox aktif. Tapi orc todak tahu kalau sandbox sudah aktif?"
+
 Scope: lucid-patience / dev, market-ai-orc and edge-bff, Git main source. User decision and limitations:
-EXEC-SANDBOX-RECOVERY. Root cause M187. No Railway configuration changes or production database mutation.
+the Orc/BFF READMEs. Execution approval was recorded in EXEC.md with source commit 5679bd5, then archived here after live verification. Root cause M187. No Railway configuration changes or production database mutation.
 
 ## Behaviour covered
 
@@ -33,6 +35,17 @@ EXEC-SANDBOX-RECOVERY. Root cause M187. No Railway configuration changes or prod
 
 ## Rollout/readback
 
-Pending source push and exact deployment verification. No deliberate live outage will be induced.
+Source commit **5679bd505980787a6742d5bbdc4d252965e3d3bb** pushed to main and read back.
+
+- Orc **4138d8bd-70e9-451d-9e77-faf91f6966c2**: SUCCESS, 19 October 2026 03:37:49 UTC (10:37:49 WIB).
+- BFF **22c9671d-c117-4db6-9b6e-cd9e5a53f7d9**: SUCCESS, 03:37:34 UTC (10:37:34 WIB).
+- Both serve one running replica. Sandbox remains Online on unchanged deployment **84fa7fa3-6bda-46af-8162-7d13d42fde7b**.
+- Exact Orc deployment logs include `sandbox_runtime_initialized`, `mode4_active`, `ai_mode_selected` effective 4,
+  `result_store_active` and GET /ready 200. BFF logs show normal startup. Readback: `live_readback.json`.
+- No deliberate live outage or paid live-model calculation was performed. An authenticated localhost readiness
+  probe over Railway SSH was unavailable because no SSH keys are configured; no keys/account permissions were
+  created to work around this. Source, deployment state, initialization events and health are verified; the
+  cold-start failure/recovery and UI flow are verified by the local integration tests described above.
+- Disposable test Postgres was stopped and auto-removed after tests. Production data and sandbox service untouched.
 Before rollout, Orc's active deployment logs for 03:15–03:35 UTC contained only periodic metadata/credit events,
-no run-start event. Source main was re-fetched and remained at the reviewed plan baseline.
+no run-start event. The final 90-minute pre-push window contained only the previously completed 02:13 UTC request and periodic events, with no new active run. Source main was re-fetched and remained at the reviewed plan baseline.

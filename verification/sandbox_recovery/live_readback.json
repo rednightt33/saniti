@@ -1,0 +1,86 @@
+{
+  "source_commit": "5679bd505980787a6742d5bbdc4d252965e3d3bb",
+  "project": "lucid-patience",
+  "environment": "dev",
+  "verified_at_utc": "2026-10-19 03:39:32 UTC",
+  "services": [
+    {
+      "name": "market-ai-orc",
+      "id": "41dc17ee-3bac-41ef-90ec-8b9356815c71",
+      "state": "online",
+      "deployments": [
+        {
+          "id": "4138d8bd-70e9-451d-9e77-faf91f6966c2",
+          "status": "SUCCESS",
+          "createdAt": "2026-10-19T03:37:01.873Z",
+          "statusUpdatedAt": "2026-10-19T03:37:49.402Z"
+        }
+      ],
+      "replicas": {
+        "running": 1,
+        "crashed": 0,
+        "total": 1
+      }
+    },
+    {
+      "name": "edge-bff",
+      "id": "c3656044-2817-44a7-9b55-54910bab416f",
+      "state": "online",
+      "deployments": [
+        {
+          "id": "22c9671d-c117-4db6-9b6e-cd9e5a53f7d9",
+          "status": "SUCCESS",
+          "createdAt": "2026-10-19T03:37:01.836Z",
+          "statusUpdatedAt": "2026-10-19T03:37:34.078Z"
+        }
+      ],
+      "replicas": {
+        "running": 1,
+        "crashed": 0,
+        "total": 1
+      }
+    },
+    {
+      "name": "market-python-sandbox",
+      "id": "225b1be1-d7f5-4b2d-a4c7-052eb53af818",
+      "state": "online",
+      "deployments": [
+        {
+          "id": "84fa7fa3-6bda-46af-8162-7d13d42fde7b",
+          "status": "SUCCESS",
+          "createdAt": "2026-10-18T09:31:04.114Z",
+          "statusUpdatedAt": "2026-10-18T09:32:53.436Z"
+        }
+      ],
+      "replicas": {
+        "running": 1,
+        "crashed": 0,
+        "total": 1
+      }
+    }
+  ],
+  "orc_startup": [
+    {
+      "timestamp": "2026-10-19T03:37:47.349879281Z",
+      "event": "result_store_active"
+    },
+    {
+      "timestamp": "2026-10-19T03:37:47.349899803Z",
+      "event": "mode4_active"
+    },
+    {
+      "timestamp": "2026-10-19T03:37:47.349908834Z",
+      "event": "ai_mode_selected",
+      "effective": 4
+    },
+    {
+      "timestamp": "2026-10-19T03:37:47.349926457Z",
+      "event": "sandbox_runtime_initialized"
+    }
+  ],
+  "limitations": [
+    "No live outage induced; delayed dependency recovery tested locally.",
+    "No paid live inference executed.",
+    "Authenticated live readiness SSH probe unavailable: no SSH keys configured. Runtime initialized and health verified from exact deployment logs."
+  ]
+}
