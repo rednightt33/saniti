@@ -5338,3 +5338,63 @@ kotak pesan dihapus; "tambahkan satu model lagi, deepseek/deepseek-v4.1-flash"; 
 - **Status:** semua butir EXEC-FASTLANE-LEN (1–5, teks prompt berbasis tujuan, panduan terpusat) dan EXEC-SHARE-UI
   (tombol bagikan PDF+PNG, hapus "Standard", model 1017) dicatat; teks final bagian "CITING AND CHECKS" dan dua usulan
   jalur Claude manual (matikan fallback, router) masih menunggu persetujuan. Tidak ada yang dieksekusi.
+
+### Rencana implementasi EXEC-FASTLANE-LEN + EXEC-SHARE-UI (2026-10-19, belum dijalankan)
+
+**Persetujuan user (2026-10-19):** "CITING AND CHECKS … OK"; jalur Claude manual "ya for now both" (fallback dimatikan
+dan router ikut lewat Claude); "masukan juga logo edge … di pojok kiri atau kanan atas" (kartu bagikan).
+
+**Hasil inspeksi yang mengubah rencana (bukti kode/live):**
+- Angka di system prompt standar dihitung sebagai sumber angka (`orchestrator.py` `_source_index`, `self.system_prompt`
+  masuk `CONTEXT`), dan `test_prompt_pass2` menjaga "no new digit". Prompt jalur Cepat terpisah
+  (`fast_system_prompt`, `research_sections=False`), tetapi contoh "CITING AND CHECKS" tetap memakai placeholder
+  (`<angka diketik>`), bukan nilai nyata, agar tidak menjadi sumber atau contoh yang menyesatkan. Isi 9 poin tidak
+  berubah.
+- Bug edit (#4): `_apply_edit` hanya mengizinkan `FinalResponse.model_fields`; `reproductions`, `offered_action`,
+  `needs_computation`, `memo_note` disimpan terpisah (`ANSWER_FIELDS`), jadi edit atasnya ditolak
+  (`edit_repair.py:72`).
+- JSON (#5): jawaban akhir di giliran alat tidak dikunci skema (`_payload`); `_parse_final_output` sudah toleran
+  baris baru (`strict=False`) tetapi tidak tanda kutip yang tidak di-escape.
+- Jalur manual: hanya panggilan dengan `model == saniti/claude-manual` yang ditahan (`ManualAgent.create`); router
+  (`_router_call_once`, pengklasifikasi balasan rencana, saran lanjutan) selalu memakai `AI_MODEL`; fallback di
+  `ManualAgent._fallback` sesudah `AI_MANUAL_AGENT_WAIT_SECONDS` (600). `current_model_choice` diset di `main.py`
+  sekitar seluruh run, jadi router di dalam run bisa membaca pilihan manual.
+- Model 1017: `deepseek/deepseek-v4.1-flash-1017` punya banyak endpoint (harga per endpoint mirip Flash, mis. input
+  USD 0,05–0,10 dan output USD 0,10–0,60 per 1 jt; koreksi: angka USD 0,15/0,60 dari daftar model adalah harga
+  tertinggi, bukan rata-rata); level penalaran per endpoint tidak dilaporkan (`supported_reasoning_efforts` kosong)
+  → uji kecil per level sebelum ditawarkan. Logo EDGE otomatis (prefix `deepseek`, `MODEL_LOGOS`).
+- EDGE: CSP `script-src 'self'` → pustaka PNG harus disajikan dari origin sendiri (`/{name}.js` sudah melayani file
+  apa pun di `static/`); logo EDGE yang ada: `favicon.svg` / tanda "E" (`brand-mark`).
+- Tidak ada perubahan skema database; tidak ada layanan baru.
+
+**Fase (setiap fase: tes lokal penuh, diff dicek, commit, push `main`, deploy SUCCESS, cek live tidak ada run `edge_`
+aktif sebelum deploy):**
+- **F0 – AGENTS.md:** dua aturan (prinsip gerbang; kerja berdasarkan inspeksi kode/log/data live, bukan ingatan).
+- **F1 – orc, prompt jalur Cepat (saklar baru `AI_FASTLANE_GOAL_ANSWERS`, default mati):** teks pengganti rule 13
+  (bagian tabel tetap), WRITING #2/#3, TABLES #4, VALUE REFERENCES #8, catatan uji #9, bagian baru "CITING AND
+  CHECKS" (9 poin, termasuk #2 kutip hasil lama dan #5 aturan tanda kutip) hanya di `fast_system_prompt`. Tes: prompt
+  standar identik (`test_prompt_pass2`, `test_prompt_history`), prompt Cepat memuat bagian baru hanya dengan saklar,
+  snapshot prompt v015 direkam saat saklar dinyalakan di dev.
+- **F2 – orc, gerbang:** #3 `REPRODUCE_NOTE` hanya untuk angka lampiran dan saat user meminta cek/asal angka, pesan
+  REPRODUCTION menyebut lampiran berupa teks; #4 `_apply_edit` mengizinkan field jawaban terpisah; #5 perbaikan
+  otomatis tanda kutip sebelum minta ulang (escape `"` yang berada di dalam string, maks. beberapa kali, lalu
+  validasi skema penuh; gagal → minta ulang seperti sekarang). #3 dan #5 di balik saklar jalur Cepat; #4 perbaikan
+  bug untuk semua jalur (perilaku lain tidak berubah) — dikonfirmasi user saat persetujuan rencana.
+- **F3 – orc, jalur Claude manual:** saklar `AI_MANUAL_AGENT_FALLBACK` (default `true` = perilaku sekarang; dev `false`):
+  tanpa fallback, langkah menunggu sampai dijawab atau dihentikan (batas tetap waktu run dan EDGE); saklar
+  `AI_MANUAL_AGENT_ROUTERS` (dev `true`): router pesan pertama, router percakapan, pengklasifikasi balasan rencana dan
+  saran lanjutan memakai `saniti/claude-manual` bila run memilih model manual.
+- **F4 – orc, model 1017:** uji level penalaran (beberapa panggilan kecil, biaya sen), tambah ke `MODEL_CHOICES`,
+  regenerasi `AI_MODELS.md`, tes `test_exec_models`.
+- **F5 – EDGE:** hapus "Research Mode" (Standard/Deep Research); tombol "Bagikan" di `ResponseActions` dengan menu PDF
+  dan PNG; tampilan khusus kartu (logo EDGE pojok kiri atas, judul, pertanyaan, jawaban, tabel tanpa lipatan, Asumsi,
+  Metodologi, kaki halaman: tanggal data, ID permintaan, "Dibuat oleh EDGE AI; bukan saran investasi"); PDF lewat
+  cetak peramban dengan `@media print` khusus kartu; PNG lewat pustaka SVG (html-to-image, MIT, disajikan dari
+  `static/`), lebar ±1080 px, skala 2×; Web Share API (`canShare` → `share`) dengan fallback unduh. Tes browser:
+  menu, tata letak kartu tanpa bilah atas/kotak pesan, PNG tidak kosong dan memuat logo, ponsel dan desktop.
+- **F6 – live:** saklar dinyalakan di dev; sanity run lewat jalur Claude manual (Claude sebagai model) untuk satu
+  pertanyaan analisis dan satu pertanyaan lanjutan yang mengutip hasil lama; lalu A/B 3 pertanyaan (t1, j2, s1) ON vs
+  OFF: waktu, biaya, penolakan per gerbang, panjang dan kelengkapan jawaban; benchmark PDF/PNG di HP. Saldo
+  OpenRouter dicek dulu (terakhir USD 0,62).
+- **Catat:** EXEC, RAILWAY_CHANGELOG (variabel per nama), README orc, `.railway/railway.ts` `preserve()`, AI_MODELS.md,
+  ERRORS (edit `reproductions`, JSON tanda kutip), riwayat prompt.
