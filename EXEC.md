@@ -5499,3 +5499,9 @@ tabel; benchmark PDF/PNG di ponsel nyata (tes browser lokal lulus, belum di HP f
 - **Kartu PNG/PDF:** baris metadata seperti baris di bawah judul jawaban (screenshot user: Request ID, logo dan nama
   model · level, token, durasi) **tanpa biaya**.
 - **Terjemahan:** baris yang ditambahkan sistem di dalam jawaban (`user_texts.py`) tetap bahasa Indonesia.
+- **Label antarmuka EDGE (user: "Ok 1 aja"):** semua label tetap bahasa Inggris (bukan mengikuti bahasa user); jawaban AI
+  dan baris sistem di dalamnya tetap mengikuti bahasa user. Tombol salin cukup "Copy" (bukan "Copy AI response").
+- **Font "Monitor" di sebelah logo:** diukur di browser: Inter 14 px 400, warna `--text-2`, tanpa jarak huruf; "EDGE"
+  Inter 14 px 400 kapital dengan jarak huruf 0,14em (`.brand`). Inter dimuat dengan benar (`@import` di awal stylesheet,
+  CSP mengizinkan). Opsi menunggu pilihan user: (1) "Monitor" 500 dan warna teks penuh; (2) gaya kapital seperti "EDGE";
+  (3) user mengirim screenshot bila bentuk hurufnya berbeda (kemungkinan font cadangan).
