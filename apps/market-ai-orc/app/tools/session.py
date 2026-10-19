@@ -17,6 +17,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..compaction import dumps
+from .. import progress, user_texts
 from .analysis import SandboxClient
 from .artifacts import current_results, read_execution, read_output_any, resolve_ref
 from .registry import ToolError, ToolSpec
@@ -333,6 +334,16 @@ logger = logging.getLogger("market_ai_orc")
 
 def open_with_wait(client: SandboxClient, body: dict[str, Any], timeout: float,
                    clock=time.monotonic, sleep=time.sleep) -> dict[str, Any]:
+    # Shared by direct analysis and the grouped research executor.
+    with progress.step(user_texts.PROGRESS_SANDBOX_SESSION) as mark:
+        result = _open_with_wait(client, body, timeout, clock, sleep)
+        if result.get("status") == "REJECTED":
+            mark("refused")
+        return result
+
+
+def _open_with_wait(client: SandboxClient, body: dict[str, Any], timeout: float,
+                    clock=time.monotonic, sleep=time.sleep) -> dict[str, Any]:
     """POST /v1/sessions; while every slot is in use by other answers (SESSION_CAPACITY_EXCEEDED with no session of
     this request), wait and try again for as long as the answer's time allows (EXEC-W A5), without the model. The
     result names how long the backend waited (waited_seconds) and how often it asked (open_attempts)."""

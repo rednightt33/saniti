@@ -941,16 +941,14 @@ change yet.
   tetapi belum diketahui apakah stop/redeploy dilakukan manusia atau otomatisasi. User kemudian
   menjelaskan kredit Railway habis lalu ditambah sebelum redeploy (keterangan user; billing tidak
   diaudit). Inspeksi ulang: sandbox dan Orc Online dengan deployment yang sama, bug tetap belum diperbaiki.
-- **Proposed solution:** dependency startup wajib valid sebelum registry/ready, retry dalam deadline,
-  satu snapshot runtime yang konsisten, pertahankan client setelah siap; BFF simpan pesan terlebih
-  dahulu dengan validasi owner lokal lalu tunggu/rekonsiliasi melalui worker yang ada. Rincian dan
-  acceptance di PLAN.md, ORC-SANDBOX-READINESS. Tambahan user: readiness on-demand ketika AI
-  memilih jalur sandbox, progress "Initiating sandbox session." melalui transport existing, retry
-  bounded tanpa replay POST ambigu. Startup gate tetap diperlukan karena on-demand guard tidak
-  dapat memanggil tool yang sudah dihilangkan dari registry. Kredit platform harus tersedia;
-  aplikasi tidak dapat memulihkan penghentian billing sendiri. Kode dan live belum diubah.
-- **Status:** OPEN — root cause verified; user authorized infrastructure inspection and implementation
-  planning on 2026-10-19, not application rollout.
+- **Selected implementation:** user chose automatic request-driven recovery (2026-10-19, EXEC-SANDBOX-RECOVERY).
+  Orc HTTP remains available; the full agent factory is deferred until readiness plus a valid authenticated runtime
+  handshake succeed. Single-flight, five-second cooldown, one consistent snapshot; no partial registry serves a run.
+  BFF checks execution readiness before consuming a dispatch attempt, retains request ID/lease/deadline/Stop and
+  shows a dependency-specific waiting message. Real session opens show "Initiating sandbox session." through
+  existing progress. No idle polling or infrastructure changes; later connection errors do not remove tools.
+  No automatic POST replay or promise to restore lost sessions. Credit must be restored at platform level.
+- **Status:** implementation and local regression tests complete; exact live rollout verification pending.
 - **Lesson:** availability process dan kemampuan yang dapat dipakai bukan hal yang sama. Dependency
   yang belum siap saat startup tidak boleh meninggalkan deployment sehat dengan fitur hilang permanen.
   Idle, sleeping, shutdown normal dan crash perlu dibedakan dari metadata serta log lifecycle.

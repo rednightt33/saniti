@@ -4012,3 +4012,13 @@ Scope `lucid-patience` / `dev`, primary `Postgres` service `bb21a9f4-a9d3-4a51-9
 User: "Alright, proceeed untuk semua ticker." Scope `lucid-patience` (`8aef1702-030b-49cb-9df7-5ac2e0a42691`) / `dev` (`4d3e5af2-302b-4a2e-84e2-7d7476d6ff49`) / primary `Postgres` (`bb21a9f4-a9d3-4a51-945f-fa86b63f4b86`). Temporary private sandbox `ecd8c8d5-5b5a-4d24-a0f2-62fcaa38eb66` ran the unchanged pinned Feature04 v3 engine, serial atomic backfill for 844 actual price-source tickers, global read-only validation and metadata-only coverage migration. 843 new ticker commits plus one verified BBCA skip; 1,318,633 verified rows; failed 0.
 
 No persistent service/environment configuration, IaC, permissions, source writer, deployment or scheduler changes. Source data, original indicators and BBCA payload/timestamps preserved. Credentials remained server-resolved/environment-only. Explicit sandbox destruction observed terminal DESTROYED; `verification/feature04/smi_full_execution_cleanup.json`. Full evidence `verification/feature04/SMI_ALL_TICKERS.md`.
+
+
+## 2026-10-19 — Orc/BFF sandbox initialization recovery
+
+User selected request-driven recovery in EXEC-SANDBOX-RECOVERY. Source changes target only Git main services
+market-ai-orc (`41dc17ee-3bac-41ef-90ec-8b9356815c71`) and edge-bff (`c3656044-2817-44a7-9b55-54910bab416f`) in
+lucid-patience / dev. Deferred single-flight agent initialization, execution readiness handshake and existing BFF
+queue/progress replace permanent startup tool disablement. Sandbox itself, Railway settings, healthcheck limits,
+variables, schedules and `.railway/railway.ts` are unchanged. Exact rollout/readback pending; evidence is maintained
+in `verification/sandbox_recovery/README.md`. No configuration apply, Railway upload or production database mutation.

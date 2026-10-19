@@ -199,3 +199,14 @@ it or deleting jobs requires a separate destructive decision. No original market
 
 Local container validation also confirmed uid 10001 can read root-owned code/static after COPY, and health/auth/CSRF/
 queue persistence work in the image. Copied private file modes are normalized with read/traverse permission only.
+
+
+## Waiting for sandbox initialization
+
+Before a new dispatch, the worker first reconciles the original request ID, then reads Orc's authenticated
+`/v1/agent/readiness`. An initializing response uses RECOVERING / SERVICES_INITIALIZING, shown as
+`Waiting for services to be ready.`; it does not consume a dispatch attempt. Existing delivery deadlines,
+lease/heartbeat, ownership, Stop and ambiguous-delivery reconciliation remain in force. Stop is checked again after
+readiness. Older Orc without this additive endpoint remains supported during rolling deployment.
+The existing progress endpoint shows `Initiating sandbox session.` during an actual session open, then the ordinary
+calculation steps. No new queue, progress transport, browser credential or service is required. See M187.

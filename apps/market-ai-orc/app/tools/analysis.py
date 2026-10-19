@@ -597,13 +597,15 @@ class SandboxClient:
         # E9 (EXEC-1018B): the sandbox reports supporting_data v1 (supporting tables, a bundle dataset as one file,
         # an approved need carried into a later request)
         self.supporting_data = False
+        self.runtime_snapshot: dict[str, Any] | None = None
         self._client = httpx.Client(base_url=base_url.rstrip("/"), timeout=timeout_seconds, transport=transport,
                                     headers={"Authorization": f"Bearer {api_key}"})
 
     def ready(self) -> bool:
         try:
             response = self._client.get("/ready", timeout=5)
-            return response.status_code == 200 and response.json().get("status") == "ready"
+            body = response.json()
+            return response.status_code == 200 and isinstance(body, dict) and body.get("status") == "ready"
         except (httpx.HTTPError, ValueError):
             return False
 
@@ -671,6 +673,8 @@ class SandboxClient:
 
     def runtime(self) -> dict[str, Any]:
         """The sandbox's runtime description (capabilities such as conversation_reuse); {} when unreadable."""
+        if self.runtime_snapshot is not None:
+            return self.runtime_snapshot
         try:
             response = self._client.get("/v1/runtime", timeout=10)
             body = response.json() if response.status_code == 200 else {}

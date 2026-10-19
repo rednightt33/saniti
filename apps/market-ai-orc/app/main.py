@@ -6,7 +6,6 @@ import logging
 import re
 import sys
 import threading
-import time
 from contextlib import asynccontextmanager
 from functools import partial
 
@@ -26,7 +25,8 @@ from .audit import RunAuditor
 from .audit_outbox import AuditOutbox
 from .mode4 import Mode4Orchestrator
 from .modes import MODES, current_caller_path, effective_default, path_for, resolve_mode
-from . import follow_ups, progress, stop
+from . import follow_ups, progress, stop, user_texts
+from .runtime_recovery import RuntimeRecovery
 from .orchestrator import AgentOrchestrator, log_event
 from .provider_log import ProviderLogger
 from .manual_agent import ManualAgent
@@ -73,15 +73,6 @@ def _configure_logging() -> None:
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
         logger.propagate = False
-
-
-def _sandbox_ready(sandbox: SandboxClient, attempts: int = 3, delay_seconds: float = 2.0) -> bool:
-    for attempt in range(attempts):
-        if sandbox.ready():
-            return True
-        if attempt + 1 < attempts:
-            time.sleep(delay_seconds)
-    return False
 
 
 def _with_research_library(multi_angle: dict, catalog: CatalogStore | None) -> tuple[dict | None, str | None]:
@@ -159,6 +150,13 @@ def create_app(
             x_title=settings.openrouter_x_title,
             http_referer=settings.openrouter_http_referer,
         )
+    sandbox_client = SandboxClient(settings.py_sandbox_url, settings.py_sandbox_api_key or "",
+                                   settings.py_sandbox_request_timeout_seconds,
+                                   settings.py_sandbox_poll_wait_seconds) \
+        if orchestrator is None and settings.py_sandbox_url else None
+
+    def initialize_runtime(sandbox: SandboxClient | None) -> AgentOrchestrator:
+        nonlocal manual, model_prices
         catalog = None
         if settings.catalog_database_url:
             catalog = CatalogStore(
@@ -170,16 +168,6 @@ def create_app(
         if settings.sql_governor_url:
             governor = GovernorClient(settings.sql_governor_url, settings.sql_governor_api_key or "",
                                       settings.sql_governor_timeout_seconds)
-        sandbox = None
-        if settings.py_sandbox_url:
-            sandbox = SandboxClient(settings.py_sandbox_url, settings.py_sandbox_api_key or "",
-                                    settings.py_sandbox_request_timeout_seconds, settings.py_sandbox_poll_wait_seconds)
-            if not _sandbox_ready(sandbox):
-                # Intentionally disabled: python_analysis stays false until the sandbox is ready at startup.
-                logging.getLogger("market_ai_orc").warning(
-                    '{"event":"python_sandbox_not_ready","python_analysis":false}')
-                sandbox.close()
-                sandbox = None
         # Research Plan feasibility needs both services' endpoints: the sandbox reports the capability (fail closed)
         feasibility = False
         if settings.ai_enable_plan_feasibility and settings.ai_require_research_plan_confirmation \
@@ -503,7 +491,7 @@ def create_app(
             manual = ManualAgent(owned_client, settings, log=log_event)
             log_event("manual_agent_active", wait_seconds=settings.ai_manual_agent_wait_seconds,
                       fallback_model=settings.ai_model)
-        orchestrator = AgentOrchestrator(settings, manual or owned_client, registry, auditor=auditor,
+        agent = AgentOrchestrator(settings, manual or owned_client, registry, auditor=auditor,
                                          catalog_summary=summary, provider_logger=provider_logger,
                                          provider_policy=provider_policy, provider_policies=provider_policies,
                                          session_closer=closer, session_releaser=releaser,
@@ -514,21 +502,29 @@ def create_app(
                                          derived_frequency=derived_frequency, audit_outbox=audit_outbox,
                                          row_reader=row_reader, run_memory=run_memory,
                                          explore_tests=explore_tests, insight_v2=insight_v2)
+        if settings.ai_enable_mode4 and isinstance(agent, AgentOrchestrator):
+            # mode 4 builds on the caller-chosen paths and on Multi-Angle Research (its plans are research_plan/v2)
+            if agent.analysis_path and agent.multi_angle:
+                agent = Mode4Orchestrator(agent)
+                log_event("mode4_active", max_seconds=settings.ai_mode4_max_seconds,
+                          sandbox_min_angles=agent.sandbox_min)
+            else:
+                log_event("mode4_inactive", reason="needs AI_ENABLE_ANALYSIS_PATH and an active Multi-Angle Research")
+        # mode switcher (app/modes.py): AI_MODE_SWITCH, or AUTO when this deployment cannot run that mode
+        default_mode = effective_default(settings.ai_mode_switch, agent)
+        log_event("ai_mode_selected", switch=settings.ai_mode_switch, name=MODES[settings.ai_mode_switch],
+                  effective=default_mode, effective_name=MODES[default_mode])
+        if default_mode != settings.ai_mode_switch:
+            log_event("mode_switch_fallback", switch=settings.ai_mode_switch, effective=default_mode,
+                      reason="the mode is not active on this deployment (see analysis_path_inactive / mode4_inactive)")
+        return agent
+
     if settings.ai_enable_mode4 and isinstance(orchestrator, AgentOrchestrator):
-        # mode 4 builds on the caller-chosen paths and on Multi-Angle Research (its plans are research_plan/v2)
         if orchestrator.analysis_path and orchestrator.multi_angle:
             orchestrator = Mode4Orchestrator(orchestrator)
-            log_event("mode4_active", max_seconds=settings.ai_mode4_max_seconds,
-                      sandbox_min_angles=orchestrator.sandbox_min)
-        else:
-            log_event("mode4_inactive", reason="needs AI_ENABLE_ANALYSIS_PATH and an active Multi-Angle Research")
-    # mode switcher (app/modes.py): AI_MODE_SWITCH, or AUTO when this deployment cannot run that mode
+    recovery = RuntimeRecovery(initialize_runtime, sandbox_client, initial=orchestrator)
+    orchestrator = recovery.get()
     default_mode = effective_default(settings.ai_mode_switch, orchestrator)
-    log_event("ai_mode_selected", switch=settings.ai_mode_switch, name=MODES[settings.ai_mode_switch],
-              effective=default_mode, effective_name=MODES[default_mode])
-    if default_mode != settings.ai_mode_switch:
-        log_event("mode_switch_fallback", switch=settings.ai_mode_switch, effective=default_mode,
-                  reason="the mode is not active on this deployment (see analysis_path_inactive / mode4_inactive)")
     ready = {"value": False}
     # M160: the key's remaining credit, logged at start and every AI_PROVIDER_CREDIT_CHECK_SECONDS
     credit = CreditMonitor(owned_client, settings.ai_provider_credit_check_seconds, settings.ai_provider_credit_low_usd) \
@@ -550,7 +546,12 @@ def create_app(
         close = getattr(orchestrator, "close", None)
         if callable(close):
             close()
-        orchestrator.registry.close()
+        if orchestrator is not None:
+            orchestrator.registry.close()
+        if sandbox_client is not None:
+            sandbox_client.close()
+        if model_prices is not None:
+            model_prices.stop()
         if owned_client is not None:
             owned_client.close()
 
@@ -559,6 +560,16 @@ def create_app(
         docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan,
     )
     app.state.orchestrator = orchestrator
+
+    def ensure_runtime() -> bool:
+        nonlocal orchestrator, default_mode
+        found = recovery.get()
+        if found is None:
+            return False
+        orchestrator = found
+        default_mode = effective_default(settings.ai_mode_switch, found)
+        app.state.orchestrator = found
+        return True
     expected = f"Bearer {settings.internal_api_key}"
 
     def authorize(authorization: str | None = Header(default=None)) -> None:
@@ -574,6 +585,11 @@ def create_app(
         if not ready["value"]:
             raise HTTPException(status_code=503, detail="Not ready")
         return {"status": "ready"}
+
+    @app.get("/v1/agent/readiness", dependencies=[Depends(authorize)])
+    def agent_readiness() -> dict[str, str]:
+        """On-demand dependency handshake for the queue; health probes never poll dependencies."""
+        return {"status": "ready" if ensure_runtime() else "initializing"}
 
     def refuse(error: ConversationError) -> JSONResponse:
         return JSONResponse(status_code=error.http_status,
@@ -678,6 +694,9 @@ def create_app(
         try:
             # EXEC-IMPL-1016 Fase 4.3 (UI-1015B): the run's steps, readable while it runs (app/progress.py)
             with progress.tracking(payload.request_id, x_saniti_owner):
+                if not ensure_runtime():
+                    return JSONResponse(status_code=503, headers={"Retry-After": "5"}, content={
+                        "detail": {"code": "SANDBOX_INITIALIZING", "message": user_texts.PROGRESS_SERVICES_WAIT}})
                 return run_chosen(payload, x_saniti_owner)
         finally:
             current_lane.reset(lane_token)

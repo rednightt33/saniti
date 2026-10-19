@@ -386,13 +386,16 @@ def test_python_analysis_capability_follows_the_registry() -> None:
 def test_startup_registers_analysis_tools_only_when_the_sandbox_is_ready(monkeypatch) -> None:
     from app import main
 
-    monkeypatch.setattr(main.time, "sleep", lambda _: None)
+    monkeypatch.setattr(SandboxClient, "runtime", lambda self: {"versions": {"python": "3.12"}, "isolation": {"isolation_enforced": True}})
     env = {"PY_SANDBOX_URL": "http://sandbox.test", "PY_SANDBOX_API_KEY": SANDBOX_KEY}
     for ready, expected in ((False, False), (True, True)):
         monkeypatch.setattr(SandboxClient, "ready", lambda self, value=ready: value)
         app = main.create_app(make_settings(**env))
-        caps = app.state.orchestrator.registry.execute("c1", "get_system_capabilities", "{}").output["result"]
-        assert ("run_python_analysis" in caps["capabilities"]) is expected
+        if not expected:
+            assert app.state.orchestrator is None
+        else:
+            caps = app.state.orchestrator.registry.execute("c1", "get_system_capabilities", "{}").output["result"]
+            assert "run_python_analysis" in caps["capabilities"]
 
 
 @pytest.mark.parametrize(("overrides", "message"), [

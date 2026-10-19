@@ -67,6 +67,8 @@ HURDLE_TOOL_STEP = "Satu langkah kerja"
 # label above is named by what it does (its ToolSpec effect)
 PROGRESS_ROUTING = "Memahami pertanyaan"
 PROGRESS_THINKING = "Menyusun langkah berikutnya"
+PROGRESS_SERVICES_WAIT = "Waiting for services to be ready."
+PROGRESS_SANDBOX_SESSION = "Initiating sandbox session."
 PROGRESS_EFFECTS = {"READS": "Membaca katalog dan hasil", "OWN_ARTIFACT": "Menyimpan hasil",
                     "FETCHES_DATA": "Mengambil data", "FETCHES_WEB": "Pencarian web",
                     "COMPUTES": "Menjalankan analisis"}

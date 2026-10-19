@@ -238,3 +238,12 @@ matching changelog.
 - Database change history: `DATABASE_CHANGELOG.md` and `database/migrations/`.
 - Railway change history: `RAILWAY_CHANGELOG.md` and Git commit history.
 - Mandatory agent behavior: `AGENTS.md`.
+
+
+## Sandbox startup recovery contract (2026-10-19)
+
+Orc HTTP health and agent execution readiness are distinct. With a configured sandbox, initialization can be
+retried on demand after a dependency misses startup; only a complete runtime is admitted to AI execution.
+BFF checks `/v1/agent/readiness` after request-ID reconciliation and before counting a dispatch. Pending work uses
+SERVICES_INITIALIZING on existing RECOVERING state, with existing deadline/lease/Stop. No background dependency
+poller or new infrastructure is introduced. See EXEC-SANDBOX-RECOVERY, M187 and the Orc/BFF READMEs.

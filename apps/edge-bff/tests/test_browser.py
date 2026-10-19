@@ -9,6 +9,46 @@ import uvicorn
 from app.main import create_app
 from conftest import FakeOrc
 
+
+def test_dependency_wait_then_session_initialization_is_visible_without_duplicate_dispatch(server):
+    """Real BFF queue + Postgres + browser, deterministic upstream; no paid model call."""
+    playwright = pytest.importorskip('playwright.sync_api')
+    origin, orc = server
+    ready, finish = threading.Event(), threading.Event()
+    original_run = orc.run
+    orc.execution_ready = lambda owner: ready.is_set()
+    def run(owner, request_id, payload):
+        orc.PROGRESS = {request_id: {'status': 'RUNNING', 'elapsed_ms': 0, 'earlier_steps': 0,
+                                    'steps': [{'label': 'Initiating sandbox session.', 'state': 'running',
+                                               'started_ms': 0, 'duration_ms': 0}]}}
+        assert finish.wait(20)
+        return original_run(owner, request_id, payload)
+    orc.run = run
+    with playwright.sync_playwright() as pw:
+        browser = pw.chromium.launch(executable_path=os.environ.get('EDGE_TEST_CHROMIUM', '/usr/bin/chromium'),
+                                     headless=True, args=['--no-sandbox'])
+        try:
+            page = browser.new_page()
+            page.route('https://fonts.*/*', lambda route: route.abort())
+            page.goto(origin + '/monitor')
+            page.locator('#auth-login').fill('owner')
+            page.locator('#auth-password').fill('local-test-password')
+            page.get_by_role('button', name='Sign In', exact=True).click()
+            composer = page.get_by_placeholder('Ask a research question…')
+            composer.fill('Calculate in sandbox')
+            page.get_by_role('button', name='Submit', exact=True).click()
+            page.get_by_text('Waiting for services to be ready.', exact=True).first.wait_for()
+            assert not orc.calls
+            ready.set()
+            page.get_by_text('Initiating sandbox session.', exact=True).first.wait_for()
+            finish.set()
+            page.locator('article.result').wait_for()
+            assert len(orc.calls) == 1
+        finally:
+            ready.set()
+            finish.set()
+            browser.close()
+
 @pytest.fixture
 def server(settings,store):
     class BrowserOrc(FakeOrc):

@@ -5163,3 +5163,43 @@ balik; penolakan gerbang naik di run B; biaya melewati batas; langkah di luar re
   Penyebabnya bug gerbang yang sudah ada (M143: kata skala "juta"/"miliar" sesudah rujukan ke kolom yang sudah
   berskala), bukan perubahan gaya; usulan perbaikan menunggu keputusan user. Laporan lengkap A/B (8 jawaban) di luar
   repo (jawaban AI tidak disimpan di repo publik).
+
+
+## EXEC-SANDBOX-RECOVERY — request-driven runtime initialization (2026-10-19)
+
+User decision (verbatim): "Kita itu saja ya, coba buat implementation ya. Boleh saya confirm bahwa masalah utama adalah ketika re deploy, Orc aktif dulu barubkemudian samdbox aktif. Tapi orc todak tahu kalau sandbox sudah aktif?"
+This selects the automatic tool recovery alternative, replacing the strict startup barrier in the prior plan.
+Earlier requested exact UI wording: "Initiating sandbox session."
+
+Implementation: keep Orc HTTP online when the configured sandbox misses startup. Retain its client and defer the
+entire agent factory (registry, negotiated capabilities, callbacks, session management, result store, mode 4/default)
+until /ready succeeds and one authenticated runtime snapshot has versions and enforced isolation. Retry only on
+incoming work, no more frequently than every five seconds. A nonblocking single-flight lock prevents concurrent
+initializers; publish only the completed runtime. No AI run is admitted with a partial registry. Until the first
+initialization finishes, all AI requests wait; conversation/status HTTP reads remain available. This does not keep
+a separate degraded chat agent alive or hot-swap registries of running requests.
+
+BFF reconciles request ID first, then checks the new authenticated GET /v1/agent/readiness before charging a dispatch
+attempt. Waiting uses existing RECOVERING with SERVICES_INITIALIZING, lease/heartbeat and the existing delivery deadline.
+Stop is rechecked after readiness. Unknown/ambiguous POST remains governed by the existing three-dispatch limit;
+waiting for dependency does not consume it. The readiness client accepts older Orc's missing endpoint during rollout.
+UI says "Waiting for services to be ready." for that reason only. Direct and grouped research sessions share the real
+open-session progress step "Initiating sandbox session."; no session step for a chat without session creation.
+
+After initialization, transient disconnection does not remove the client or tool registry; subsequent calls can
+reconnect. This change does not replay ambiguous session/calculation POSTs, rebuild lost Python variables, automatically
+redeploy Railway, replenish platform credit or renegotiate capabilities after an incompatible sandbox upgrade.
+No new service, queue schema, infrastructure setting, model/provider setting, cron or market data change.
+Git source main remains the deployment path. No direct Railway config edits or uploaded source.
+
+Verification before rollout: Orc 1618 passed / 272 conditional skips; local Postgres conversation/reuse/result/session
+subset 74 passed; BFF queue/client/readiness 35 passed. Canonical real-Orc response and frontend contract tests:
+11 passed; four existing file:// mobile preview cases blocked by managed Chromium ERR_BLOCKED_BY_ADMINISTRATOR.
+HTTP browser recovery/progress case is tested separately; final outcome and exact live deployments will be recorded
+in verification/sandbox_recovery/README.md. AI_TOOLS generator run, no resulting tool catalog diff; no prompt/model
+or router contract change. Production database is untouched; test Postgres is disposable loopback Docker only.
+
+Rollout: check no active Orc execution before push, push only scoped files, wait for exact Git-source Orc and BFF
+deployments SUCCESS, verify initialized runtime and mode/capability logs. No live outage is induced. Roll back to the
+previous source commit if initialization/regression fails, while leaving durable queue/result data intact.
+Status: implemented locally; rollout verification pending.

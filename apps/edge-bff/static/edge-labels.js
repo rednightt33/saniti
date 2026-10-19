@@ -6,6 +6,7 @@
    record: the parts of the conversation's data record shown in Sources, by name; a part not named here stays in
    "Detail teknis" only (P4, 2026-10-08). */
 window.EdgeLabels = {
+  servicesWaiting: "Waiting for services to be ready.",
   fields: {
     objective:"Tujuan", universe:"Cakupan", time_scope:"Periode", analysis_frequency:"Frekuensi", original_question:"Pertanyaan",
     root_hypothesis:"Hipotesis utama", hypothesis:"Hipotesis", angle_question:"Pertanyaan sudut", condition:"Kondisi",

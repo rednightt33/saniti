@@ -105,6 +105,17 @@ class Worker:
                         # EXEC-Y Fase 1: stopped before it reached Orc; nothing is dispatched
                         await self.call(self.store.transition, row, 'FAILED', error_code='STOPPED_BY_USER')
                         return
+                    if not await self.call(self.orc.execution_ready, row['owner_key']):
+                        # No dispatch took place. Waiting cannot exhaust the three
+                        # ambiguous-POST attempts or spend provider tokens.
+                        raise OrcError('SERVICES_INITIALIZING')
+                    current = await self.call(self.store.job, row['owner_key'], row['request_id'])
+                    if (current['input'] or {}).get('stop_requested'):
+                        await self.call(self.store.transition, row, 'FAILED', error_code='STOPPED_BY_USER')
+                        return
+                    if time.monotonic() >= deadline:
+                        await self.call(self.store.transition, row, 'INTERRUPTED', error_code='RECOVERY_TIMEOUT')
+                        return
                     if not await self.call(self.store.attempted, row):
                         return
                     row['attempt_count'] += 1
@@ -121,7 +132,8 @@ class Worker:
                 if error.status in (400, 422):
                     await self.call(self.store.transition, row, 'FAILED', error_code=error.code)
                     return
-                await self.call(self.store.transition, row, 'RECOVERING', error_code='ORC_RECOVERING')
+                await self.call(self.store.transition, row, 'RECOVERING', error_code=(
+                    'SERVICES_INITIALIZING' if error.code == 'SERVICES_INITIALIZING' else 'ORC_RECOVERING'))
                 await self.sleep(self.settings.poll_seconds)
             if time.monotonic() >= deadline:
                 # End the delivery attempt honestly; do not imply upstream cancellation.

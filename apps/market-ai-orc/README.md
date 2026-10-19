@@ -2468,3 +2468,21 @@ Missing and foreign request IDs both return the same `REQUEST_NOT_FOUND` 404. Di
 `HISTORY_MODE_UNAVAILABLE` 404; a caller must distinguish this from request absence. Invalid owner remains 400.
 The stored response excludes POST's conversation decoration and private reasoning/memo/diagnostic keys.
 No existing run/runner behavior, feature flag, model/provider/mode or storage schema changes.
+
+
+## Sandbox recovery after startup
+
+When PY_SANDBOX_URL is configured but the sandbox starts later, HTTP health remains online and the complete agent
+initialization is deferred. An incoming execution/readiness check retries the handshake, with a five-second cooldown
+and a single initializer. Ready plus a valid authenticated runtime (enforced isolation and versions) is required.
+A single successful snapshot supplies every capability, callback and mode negotiation. No model runs with a partial
+registry, and no idle retry thread is added. All AI requests wait until this initial negotiation completes.
+
+Authenticated GET `/v1/agent/readiness` returns `ready` or `initializing`; it is the BFF's on-demand execution check,
+separate from Railway's process `/ready`. Direct POST `/v1/agent/run` returns temporary 503 SANDBOX_INITIALIZING if
+initialization is pending, before beginning a conversation turn or calling a model. The queue checks readiness before
+dispatch, preserves the request ID, and does not spend dispatch attempts while waiting. Once initialized, the registry
+and client are retained across connection failures. A sandbox restart can still lose active Python sessions; this
+mechanism does not replay ambiguous POSTs or restore those variables. Incompatible capability upgrades require a
+normal Orc rollout. New session opens, including grouped research, report `Initiating sandbox session.` via the
+existing owner-scoped progress endpoint. Platform credit remains a Railway responsibility. See M187.

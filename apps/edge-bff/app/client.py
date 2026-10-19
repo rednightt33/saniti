@@ -69,6 +69,11 @@ class OrcClient:
     def request(self, owner, request_id):
         return self._call('GET', f'/v1/agent/requests/{request_id}', owner)
 
+    def execution_ready(self, owner):
+        state = self._call('GET', '/v1/agent/readiness', owner)
+        # Rolling deploy compatibility with the older Orc, which has no route.
+        return state is None or state.get('status') == 'ready'
+
     def stop(self, owner, request_id):
         """The stop button: STOPPING when Orc flagged the running request, NOT_RUNNING when it is not running there
         (not dispatched yet, finished, or another owner's). Orc answers 202 or 404; never a POST replay."""
