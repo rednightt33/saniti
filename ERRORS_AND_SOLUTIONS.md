@@ -923,3 +923,28 @@ change yet.
   scope example). Fast-lane fixes: typed figures, units and references are labelled without a repair round;
   methodology numbers pass; code literals and derived numbers pass with a label; the remaining refusal quotes the
   words around each number; catalog details list CHECK values; the decisions note has an AND scope example.
+
+### M187 — Orc tetap tanpa tool kalkulasi setelah sandbox pulih (2026-10-19)
+
+- **Symptom:** `edge_53fbcd8f586f0f674ead86d27a086eb9` (19 Oktober 02:09 WIB) dan
+  `edge_0abf7e606ba1a4a1ebc372b667c672d3` (09:12 WIB) selesai LIMITED dengan nol tool call,
+  sandbox NOT_USED dan tidak ada `run_python` pada tools_offered, meskipun sandbox kemudian Online.
+- **Verified root cause:** Orc deployment `7eff177f-5b4d-424b-842d-df10a55a5817`, commit `01608fd`,
+  mencatat `python_sandbox_not_ready` pada 18 Oktober 16:31 WIB. `main.py:177–182` menutup client dan
+  menetapkan None, lalu membangun registry dan callback sekali di app factory. Tidak ada pemulihan
+  kemampuan ketika dependency siap kemudian. `/ready` Orc hanya memeriksa lifecycle aplikasi.
+  BFF juga memanggil remote conversation sebelum menyimpan pertanyaan lama ke antrean, sehingga
+  startup Orc yang belum selesai dapat menyebabkan submit gagal sebelum durable queue.
+- **Sandbox lifecycle:** shutdown normal 18 Oktober 16:22 WIB, deployment baru `reason=redeploy`
+  dibuat 16:31 dan siap 16:32; source commit sandbox tetap `454272e`. Manifest deployment menyebut
+  `sleepApplication=false`. Tidak ada bukti autosleep/OOM/crash pada kejadian ini. Akun pemicu tercatat,
+  tetapi belum diketahui apakah stop/redeploy dilakukan manusia atau otomatisasi.
+- **Proposed solution:** dependency startup wajib valid sebelum registry/ready, retry dalam deadline,
+  satu snapshot runtime yang konsisten, pertahankan client setelah siap; BFF simpan pesan terlebih
+  dahulu dengan validasi owner lokal lalu tunggu/rekonsiliasi melalui worker yang ada. Rincian dan
+  acceptance di PLAN.md, ORC-SANDBOX-READINESS. Kode dan live belum diubah.
+- **Status:** OPEN — root cause verified; user authorized infrastructure inspection and implementation
+  planning on 2026-10-19, not application rollout.
+- **Lesson:** availability process dan kemampuan yang dapat dipakai bukan hal yang sama. Dependency
+  yang belum siap saat startup tidak boleh meninggalkan deployment sehat dengan fitur hilang permanen.
+  Idle, sleeping, shutdown normal dan crash perlu dibedakan dari metadata serta log lifecycle.

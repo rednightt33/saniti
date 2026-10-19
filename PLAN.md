@@ -557,3 +557,111 @@ monitor memberi status belum selesai sampai semua dependencies valid. Migrasi ti
 Kedua ambiguitas material sudah diputuskan user (2026-10-11, "both ya"): error nyata termasuk unexpected NULL yang terbukti,
 NULL sah dikecualikan, dan dependency closure wajib. Pilihan batch/ticker disediakan menu, default latest unresolved.
 Implementation plan memakai keputusan tersebut dan disetujui user pada 2026-10-11; belum ada perintah go eksekusi/deployment.
+
+## ORC-SANDBOX-READINESS — startup lengkap dan pertanyaan BFF menunggu dependency
+
+**Persetujuan menyusun plan, 2026-10-19:** user: "Okay, inspect infra dan siapkan implementation plan.
+Edit langsung dari git instead of hardcode langsung di railway. Cek dulu apakah bisa atau tidak."
+User kemudian meminta pemeriksaan penyebab sandbox tidak tersedia lebih dahulu. Inspeksi tersebut selesai;
+hasil di bawah masuk plan. **Belum ada perintah menjalankan perubahan aplikasi atau deploy.** M187 di error ledger.
+
+### Preflight Git dan infra
+
+- Repo `rednightt33/saniti`, branch source `main`; baseline `7cb16c6560645f36c77f07a4236acbf749f6fce4`.
+  Git fetch berhasil, permission akun terhubung admin, dan push dry-run main berhasil. Push nyata plan
+  tetap harus dibaca kembali sebelum menyatakan dokumentasinya sudah terbit.
+- Project lucid-patience `8aef1702-030b-49cb-9df7-5ac2e0a42691`, environment dev
+  `4d3e5af2-302b-4a2e-84e2-7d7476d6ff49`.
+- Orc `41dc17ee-3bac-41ef-90ec-8b9356815c71`: Git main, root `/apps/market-ai-orc`, Dockerfile,
+  watch `/apps/market-ai-orc/**`, satu replica, `/ready`, healthcheck 120 detik, restart ALWAYS.
+  Deployment `7eff177f-5b4d-424b-842d-df10a55a5817`, commit `01608fd968981ae41ed22ebd240f02e9edb8fe90`.
+- BFF `c3656044-2817-44a7-9b55-54910bab416f`: Git main, root `/apps/edge-bff`, Dockerfile,
+  watch `/apps/edge-bff/**`, satu worker Uvicorn, `/ready`, healthcheck 120 detik, restart ALWAYS.
+  Deployment `1a6a3146-7b9c-40f0-a5a8-4587368e1c3f`. Antrean durable dan lease sudah tersedia.
+- Sandbox `225b1be1-d7f5-4b2d-a4c7-052eb53af818`: Git main, root `/apps/market-python-sandbox`,
+  satu replica, `/ready`, healthcheck 300 detik, restart ALWAYS, volume `/data`.
+  Deployment `84fa7fa3-6bda-46af-8162-7d13d42fde7b`, commit `454272ee8c1f643ca97b9c93ca791723b483971c`.
+  Manifest deployment mencatat `sleepApplication=false`; tidak ada sleep karena idle pada kejadian ini.
+- Semua service tersebut mengikuti Git. Implementasi bisa lewat commit source main; tidak perlu Railway
+  upload, perubahan dashboard, service baru, perubahan secret atau perubahan start command.
+  `.railway/railway.ts` sudah mencatat kontrak deploy yang relevan. Docs-only commit di luar watch path
+  tidak dimaksudkan menjalankan rollout aplikasi.
+
+### Penyebab yang terverifikasi
+
+18 Oktober 16:22 WIB: sandbox lama shutdown normal. Deployment baru dibuat 16:31 dengan metadata
+`reason=redeploy`, source commit sama; sandbox baru ready 16:32. Record menyebut akun yang memicu,
+tetapi belum membuktikan manusia atau otomatisasi yang menjalankan stop/redeploy. Tidak menyimpulkan
+crash, OOM atau autosleep dari kejadian ini. Ada jeda service tidak tersedia sekitar sepuluh menit.
+
+Orc mulai lebih dahulu dan pada 16:31 mencatat `python_sandbox_not_ready`, menutup client, menetapkan
+`sandbox=None`, lalu membangun registry tanpa tool kalkulasi. `/ready` tetap sukses. Registry, callback
+sesi, mode efektif dan result store dibuat sekali. Request 19 Oktober 02:09
+`edge_53fbcd8f586f0f674ead86d27a086eb9` dan 09:12 `edge_0abf7e606ba1a4a1ebc372b667c672d3`
+berakhir LIMITED, tool_calls=0, sandbox NOT_USED; `run_python` tidak ditawarkan.
+
+BFF punya celah berbeda: pada percakapan lama, submit memanggil `orc.messages` sebelum `store.submit`.
+Jika Orc belum tersedia, pertanyaan belum masuk antrean. Worker sudah mempunyai RECOVERING dan
+rekonsiliasi request ID; itu dipertahankan untuk mencegah kalkulasi ganda.
+
+### Perubahan minimal yang diusulkan
+
+1. **Orc startup:** saat sandbox diwajibkan konfigurasi, tunggu `/ready` dan runtime valid sebelum
+   membuat registry. Satu deadline monotonic dengan backoff dan timeout per GET dibatasi sisa waktu.
+   Usulan default total 90 detik di `config.py`, dengan headroom terhadap healthcheck 120 detik;
+   ukur keseluruhan startup sebelum menetapkannya. Jangan memperpanjang timeout Railway langsung.
+   Jangan lanjut menerima request dengan fallback `sandbox=None` ketika kemampuan kalkulasi diwajibkan.
+   Jika deadline habis, startup gagal jelas dan deployment tidak sehat; Railway mengikuti kebijakan
+   restart yang sudah ada. Ini tidak menjamin availability selama sandbox memang tidak tersedia.
+2. **Metadata:** ambil satu snapshot runtime valid untuk seluruh negosiasi startup. Kegagalan/JSON
+   kosong tidak disimpan sebagai kemampuan permanen. Optional feature/version yang tidak didukung
+   tetap mengikuti guard yang ada; tidak menyalakan flag atau melewati validasi.
+3. **Gangguan setelah startup:** pertahankan client dan registry; error jaringan tetap dilaporkan
+   sebagai sementara. Panggilan berikutnya boleh membuat koneksi lagi. Jangan replay POST kalkulasi
+   otomatis atau menjanjikan sesi yang hilang dapat dipulihkan. Tidak rebuild Orc/registry di tengah run.
+4. **BFF submit:** auth, format dan kepemilikan lokal tetap di awal. Simpan pesan secara durable sebelum
+   pengecekan remote conversation. Pindahkan validasi remote ke worker ketika Orc siap; pisahkan
+   conversation expired/owner mismatch dari dependency sementara tidak tersedia.
+5. **BFF worker:** pakai queue, lease, heartbeat, stop dan RECOVERING yang ada. Selama job menunggu,
+   cek readiness dengan timeout pendek/backoff bertahap; setelah siap tetap rekonsiliasi request ID
+   sebelum POST. Readiness bukan bukti POST sebelumnya tidak pernah berjalan. Probe menunggu tidak
+   memakai attempt_count pengiriman dan tidak membuat request ID baru. Pertahankan deadline delivery
+   yang sudah dikonfigurasi (default timeout 3900 + lease 90 detik); jangan mengubahnya diam-diam.
+6. **UI:** gunakan status yang ada dengan teks singkat "Menunggu layanan siap" untuk kondisi ini.
+   Teks di `edge-labels.js`, pemetaan di `edge-client.js`; tidak perlu mengganti layout. Saat deadline
+   tercapai, tampilkan delivery terputus dengan pesan tetap tersimpan; tidak mengklaim pekerjaan remote
+   pasti dibatalkan. Stop selama menunggu tetap berfungsi.
+
+### Scope dan biaya
+
+Kode utama: Orc `app/main.py`, `app/tools/analysis.py`, pengaturan default bila diperlukan, serta test;
+BFF `app/main.py`, `app/client.py`, `app/worker.py`, label/pemetaan status dan test. Tidak perlu schema
+baru, perubahan warehouse, cron harga/Feature04, model/provider, service sandbox atau service baru.
+Tidak ada probe baru saat idle. Retry hanya pada startup atau saat ada job menunggu dependency.
+Tidak ada LLM call sebelum runtime wajib siap. Resident RAM sandbox sekitar 197 MB tidak diturunkan
+oleh perbaikan ini; sleep/RAM merupakan keputusan terpisah. Mengubah startup agar chat ringan tetap
+berjalan tanpa sandbox memerlukan lifecycle runtime dinamis yang lebih besar dan di luar usulan minimal.
+
+### Acceptance dan rollout melalui Git
+
+- Test sandbox down lalu ready: registry lengkap, callback/mode sesuai kontrak dan startup terukur
+  masih dalam healthcheck; test down terus berhenti tepat deadline tanpa status ready palsu/LLM call.
+- Test `/ready` sukses tetapi runtime gagal/invalid: tidak membentuk kemampuan dari snapshot kosong;
+  snapshot sukses dipakai konsisten dan hanya diambil sekali selama inisialisasi.
+- Test client yang telah siap mengalami gangguan lalu pulih tanpa penghapusan registry/replay POST.
+- BFF percakapan baru/lama saat Orc belum ready: pesan tersimpan, owner/expiry diperiksa, UI menunggu,
+  pulih lalu kirim satu kali dengan ID tetap. Test request sudah RUNNING/COMPLETED, POST ambigu,
+  cold-start berbarengan, lease fencing, stop dan deadline agar tidak ada kehilangan/duplikasi.
+- Ubah test lama yang menganggap startup tanpa tool sebagai hasil sukses; jalankan regression startup,
+  registry/mode/capability, client, BFF delivery, ownership, idempotency dan status UI. Tidak perlu
+  mengubah prompt/model untuk masalah ini. Jika generator AI_TOOLS/AI_MODELS terdampak pengaturan,
+  jalankan generator dan contract test sesuai AGENTS.md; jangan mengubah tool catalog tanpa perubahan definisi.
+- Setelah user go: re-fetch main, isolasi patch dari pekerjaan lain, implementasi dan test lokal; review
+  diff lalu commit/push main. Verifikasi exact deployment SUCCESS masing-masing service dan log tool
+  aktif; baru jalankan satu uji kalkulasi kecil yang disepakati untuk membuktikan sandbox dipanggil.
+- Rollback per service ke commit yang diketahui, dengan sandbox disiapkan lebih dahulu. Queue dan
+  hasil tersimpan dipertahankan; tidak menghapus state atau replay pekerjaan secara massal.
+- Saat selesai, perbarui M187, README Orc/BFF, PROJECT_CONTEXT bila kontrak berubah,
+  RAILWAY_CHANGELOG dan bukti verifikasi; keluarkan item dari plan hanya setelah live terverifikasi.
+
+**Status:** infra/source dan jalur Git terinspeksi; implementasi/deployment belum dijalankan.
