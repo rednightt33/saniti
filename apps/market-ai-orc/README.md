@@ -292,7 +292,7 @@ Gate and final-response log events (always on):
 | `AI_ENABLE_ASK_BACK` | no | `false` | EXEC-3 (user approvals 2026-10-05/06): the routers may ask back (one question with quick choices, nothing runs; `options` in the response, the picked route sent back as `chosen_option`), a failed router call is retried once then asked back with a fixed question, the routers return the understood intent and every design value (variants: ADD, REPLACE, REMOVE) and the plan-reply reader returns them too (P3b); plans keep every value the user named and every test of the conversation is corrected together (Holm or Benjamini-Hochberg) in the answer. Router output cap 4,000 tokens (M98). Needs `AI_ENABLE_FIRST_TURN_ROUTER`. [AI_ROUTER.md](../../AI_ROUTER.md) |
 | `AI_ENABLE_RUN_MEMORY` | no | `false` | EXEC-C (user decisions 2026-10-06: Q1 memo, Q2 backend + AI): every run of a server-side conversation leaves a memory in `AI_conversation_run_memory` (migration 20261006_003): a backend memo plus the model's `memo_note` (a new final-response field, never shown to the user), the full texts, the citable sources and the reasoning. Later runs read the memos after the history (append-only), cite the earlier sources by the same address, and read the full texts with `read_conversation_memory` (READS, on every desk). The data record note is never cut, answers keep their assumptions, limitations and methodology in history, failed turns become history, mode 4 steps hand each other whole texts. Needs `AI_ENABLE_CONVERSATION_STORE`; inactive (logged `run_memory_inactive`) while the table is not readable |
 | `AI_ENABLE_MERGED_STEPS` | no | `false` | EXEC-P5 (user approval 2026-10-06): an APPROVED data need is followed at once by `prepare_data_bundle` and `open_analysis_session`, and `run_python(complete=true)` by `complete_analysis`, in the same turn and through the same gates; their results come back as `merged_steps`. The tools stay offered to retry a step that failed |
-| `AI_ENABLE_FASTLANE` | no | `false` | EXEC-FASTLANE (`app/lanes.py`): a message may send `lane: "fast"`: a data question (routes ANALYSIS, RESEARCH, EXPLORE and CONTINUE/INSIGHT turns) is answered in one turn on the FASTLANE desk with the lane note, as an exploratory analysis without a Research Plan or approval; calls after the first think low (models with levels); one call per run is cut at 90 s and asked again with lower reasoning; a refused data size returns `fits`. Off, or `lane` absent/`standard`: the current behaviour (fallback); `lane: "fast"` is refused with `LANE_NOT_AVAILABLE`. `/v1/models` reports `lane_selection` |
+| `AI_ENABLE_FASTLANE` | no | `false` | EXEC-FASTLANE (`app/lanes.py`): a message may send `lane: "fast"`: a data question (routes ANALYSIS, RESEARCH, EXPLORE and CONTINUE/INSIGHT turns) is answered in one turn on the FASTLANE desk with the lane note, as an exploratory analysis without a Research Plan or approval; all executor calls retain the selected model/reasoning; the general call/run deadlines apply; a refused data size returns `fits`. Off, or `lane` absent/`standard`: the current behaviour (fallback); `lane: "fast"` is refused with `LANE_NOT_AVAILABLE`. `/v1/models` reports `lane_selection` |
 | `AI_FASTLANE_DRAFT_CHECK` | no | `true` | EXEC-FASTLANE B2b: `false` withdraws `check_references` (the draft pre-check) from every fast-lane step and drops its step from the lane note; the answer gates still check every figure and correct units. The standard lane always keeps it |
 | `AI_FASTLANE_EXPLORE_TESTS` | no | `false` | EXEC-FASTLANE B3: on the fast lane the note tells the model to test with `saniti.explore_test` (research engine statistics, no Research Governor): a message is answered (test only the user's question) unless the first-message router chose EXPLORE or the conversation router INSIGHT (insight: at most 5 angles from the research library, `stability=True`, every pattern claim through `explore_test`). Mode Jawab v2 (2026-10-14): an answered message is tested by the model with its own code (scipy, statsmodels, pandas), the helpers offered where they fit, with a short method checklist; without a recorded test its line says the model's code computed any test (`FASTLANE_ANSWER_LINE`). The answer gets the system's "Bukti statistik" line (tests tried, holding after Benjamini-Hochberg, unstable, small samples) instead of the analysis path's no-test line. Active only with `AI_ENABLE_FASTLANE` and a sandbox reporting `explore_tests` (`PY_SANDBOX_EXPLORE_TESTS_ENABLED`); the standard lane never changes |
 | `AI_FASTLANE_ABANDONED_SESSIONS` | no | `false` | EXEC-FASTLANE F1: on the fast lane an analysis session that ran code but was left without `complete_analysis` (the data need was sent again) does not block the answer when another session of the run COMPLETED (it released nothing, so the answer cannot cite it); logged `ai_session_abandoned`. Off, or the standard lane: it blocks as before |
@@ -405,11 +405,13 @@ Returns `{"status": "ready"}` once configuration has loaded and the app has star
 User decision 2026-10-13: a message may choose the agent loop's model and reasoning level (`app/model_choices.py`):
 `deepseek/deepseek-v4.1-flash` and `z-ai/glm-5.3-flash` take `low`, `high` or `max` (sent as `reasoning.effort`; the
 levels OpenRouter lists as their `supported_efforts`); `xiaomi/mimo-v2.6-flash` and `qwen/qwen3.8-flash` take `off` or
-`on` (sent as `reasoning.enabled`; Qwen `on` as `reasoning.max_tokens` 8000). EXEC-LOGOS (2026-10-13): MiMo V2.6 Pro is
-no longer offered (M150), and MiMo Flash `on` runs each loop call with `max_output_tokens` at most 12000 (the cap
-includes reasoning; MiMo takes no reasoning budget). A loop call that ends at its output cap with no text and no tool
-call (a reasoning runaway, `ai_reasoning_runaway`) is asked again once with reasoning lowered for that one call (`off`,
-or `low` for a model with levels and for the server default), then the chosen reasoning returns. `POST /v1/agent/run` takes `model` and `reasoning_level`; a model or level not offered gets HTTP
+`on` (sent as `reasoning.enabled`; Qwen `on` sends `reasoning.max_tokens=AI_MAX_REASONING_TOKENS`).
+EXEC-ORC-BUDGET (2026-10-19) replaces M150's model caps and executor downgrades: every executor model uses
+`AI_MAX_OUTPUT_TOKENS` (approved dev target 96000). A reasoning-only exhausted call is not automatically repeated.
+A nonempty truncated presentation gets at most one repair, with tools locked and the same model/level. DeepSeek,
+GLM and MiMo share the combined limit; there is no guaranteed 48k/48k partition. Qwen's configured numeric budget
+requires provider acceptance testing; a numeric reasoning cap does not impose a separate 48k answer cap.
+`POST /v1/agent/run` takes `model` and `reasoning_level`; a model or level not offered gets HTTP
 400 (`MODEL_NOT_ALLOWED`, `REASONING_LEVEL_NOT_SUPPORTED`) before anything runs. The choice applies to every call of the
 agent loop, mode 4 steps included (`ai_model_chosen`); the routers, the follow-up suggestions, the plan-reply
 classifier and the web-fact check keep `AI_MODEL` with reasoning low. Without a choice nothing changes (`AI_MODEL`,
@@ -2486,3 +2488,40 @@ and client are retained across connection failures. A sandbox restart can still 
 mechanism does not replay ambiguous POSTs or restore those variables. Incompatible capability upgrades require a
 normal Orc rollout. New session opens, including grouped research, report `Initiating sandbox session.` via the
 existing owner-scoped progress endpoint. Platform credit remains a Railway responsibility. See M187.
+
+
+## Executor budget and presentation recovery (2026-10-19)
+
+Implementation source is Git. See `EXEC.md` / `verification/orc_token_budget/` for rollout state; local code is not
+proof of an active live configuration. Approved target: `AI_MAX_OUTPUT_TOKENS=96000`,
+`AI_MAX_REASONING_TOKENS=48000` for numeric-capable Qwen after G0, `AI_MAX_PRESENTATION_TOKENS=48000` as a presentation
+target, not a provider hard answer limit. Code defaults retain 8000 total / 8000 numeric reasoning and 48000 target;
+explicit dev settings control activation. Router/classifier/follow-up and Web Governor settings remain separate.
+
+The executor resolves one immutable budget per sub-run. Every work/final/repair call keeps its requested model/level.
+Metadata `execution.token_budget` states the contract and its limitations; `execution.model_calls` records requested
+model, served model, requested/sent reasoning setting, cap, phase and incomplete reason. It never contains hidden
+reasoning. Manual troubleshooting retains its previously authorized fallback and records its served settings.
+
+There is no fastlane-specific 90-second call cap. The existing general provider cap (dev 600 seconds) is bounded by
+the inner/root deadline, including a transient HTTP retry and backoff. An explicit transient HTTP refusal gets at most
+one retry with the same payload. Timeout, network loss and malformed 2xx bodies do not trigger a transport replay.
+A timed-out call's billing is unknown unless usage was received. Stop prevents the next dispatch; it does not promise
+a refund or termination of inference already running at the provider. Web helper 90 seconds and BFF lease 90 seconds
+are independent and unchanged.
+
+Forward migration `20261019_001_orc_execution_checkpoint.sql` adds one nullable bounded JSONB column,
+`AI_conversation_turn.execution_checkpoint`, registered in the catalogs. Owner/conversation/lease-generation CAS
+writes per-sub-run WORK or READY_FOR_PRESENTATION metadata; it is never a terminal response or hidden reasoning.
+Released output and execution persistence occurs before READY. DataNeed completion/coverage gates must pass;
+READY describes the saved computation, not proof that every natural-language deliverable is complete. A new
+computation invalidates READY before it starts. Checkpoint metadata is limited to 256 KiB; incomplete persistence or
+source contracts disable recovery instead of silently dropping required scope.
+
+SERVER-only `presentation_retry_of` plus optional `presentation_retry_step` creates a new normal queued request in
+the same owned conversation, with an explicit model/level and a new id. Only an ended source with a READY checkpoint
+is eligible. The retry locks tools, restores the saved question/contract/sources/date, and presents the saved results.
+Missing/changed artifacts fail before a paid model call. It neither queries prices nor runs a calculation. The latest
+conversation data record is preserved rather than replaced with the old snapshot. Mode4 checkpoints stay separate
+per sub-run; presentation retry bypasses routing/planning and names the saved step. No extra writer call is added
+when the ordinary answer is already valid.

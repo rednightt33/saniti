@@ -107,3 +107,9 @@ Local refresh:
 python -m pip install -r requirements-schema.txt
 DATABASE_URL="postgresql://..." python scripts/sync_database_schema.py
 ```
+
+## ORC executor budget implementation (2026-10-19)
+
+Source implementation and local validation of the approved 96k combined executor budget, fixed reasoning choice
+and saved-results presentation retry are documented in [verification/orc_token_budget/IMPLEMENTATION.md](verification/orc_token_budget/IMPLEMENTATION.md).
+Live migration/config/deployment remain pending; do not treat source changes as live settings.

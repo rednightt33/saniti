@@ -214,6 +214,10 @@ class Settings:
     # every this many seconds (0 = never) and logged; below the threshold (USD) ai_provider_credit_low is logged.
     ai_provider_credit_check_seconds: int = 900
     ai_provider_credit_low_usd: float = 2.0
+    # Explicit numeric reasoning budgets apply only to supported models (currently Qwen). Keep legacy defaults
+    # until deployment G0 accepts 48k; dev activation sets 48k reasoning + 48k presentation target / 96k total.
+    ai_max_reasoning_tokens: int = 8000
+    ai_max_presentation_tokens: int = 48000
     # The final-response JSON contract (and, with Research Plan confirmation, the plan's field skeleton) is part of the
     # system prompt, so a finished run answers in JSON at once instead of a prose draft that is re-asked as JSON.
     ai_final_contract_in_prompt: bool = False
@@ -404,6 +408,8 @@ class Settings:
             ai_reasoning_effort=env.get("AI_REASONING_EFFORT", "").strip().lower() or "high",
             ai_request_timeout_seconds=_integer(env, "AI_REQUEST_TIMEOUT_SECONDS", 180),
             ai_max_output_tokens=_integer(env, "AI_MAX_OUTPUT_TOKENS", 8000),
+            ai_max_reasoning_tokens=_integer(env, "AI_MAX_REASONING_TOKENS", 8000),
+            ai_max_presentation_tokens=_integer(env, "AI_MAX_PRESENTATION_TOKENS", 48000),
             ai_max_tool_iterations=_integer(env, "AI_MAX_TOOL_ITERATIONS", 8),
             ai_max_tool_calls=_integer(env, "AI_MAX_TOOL_CALLS", 12),
             ai_max_identical_tool_calls=_integer(env, "AI_MAX_IDENTICAL_TOOL_CALLS", 2),

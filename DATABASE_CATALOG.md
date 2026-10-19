@@ -218,3 +218,9 @@ FROM public.check_analysis_data_readiness(
 9. Run `python scripts/sync_database_schema.py --host <proxy-host> --port <proxy-port>` to refresh `DATABASE_SCHEMA.md`, append `DATABASE_CHANGELOG.md`, verify catalog coverage, and push the documentation/migration commit to `main`. The schema generator uses catalog descriptions for registered tables and columns.
 
 These rules are also mandatory in `AGENTS.md`, `README.md`, and `database/migrations/README.md`. Do not edit an applied migration or commit credentials.
+
+## Pending checkpoint metadata, 2026-10-19
+
+Migration `20261019_001_orc_execution_checkpoint.sql` registers the new internal
+`AI_conversation_turn.execution_checkpoint` column in Column_Catalog and its source paths in Table_Catalog. Local
+PostgreSQL verification passed. No live catalog or market-data grants have changed; readback is required at rollout.

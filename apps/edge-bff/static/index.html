@@ -10828,6 +10828,7 @@ function Monitor({ go }) {
     // user's message (a pause reads it); input: the user writes first, with the choice as the composer's hint.
     const focusComposer=()=>requestAnimationFrame(()=>composerRef.current?.focus());
     const act=action=>{
+      if(action.type==="presentation")return void submit({presentation_retry_of:action.requestId,presentation_retry_step:action.stepId,model:action.model,reasoning_level:action.level},edgeUi().presentationMessage,{plain:true});
       if(action.type==="attach"){addAttached(action.selection);return;}
       if(action.type==="route")return void submit({chosen_option:action.route},action.message,{plain:true});
       if(action.type==="message")return void submit({},action.message,{plain:true});
@@ -10838,7 +10839,10 @@ function Monitor({ go }) {
       }
     };
     const planIndex=EdgeView.planIndex(selected?.runs.map(r=>r.raw));
-    const retry=target=>{setPendingReply(null);submissionRef.current=null;setPrompt(target.question);requestAnimationFrame(()=>composerRef.current?.focus());};
+    const retry=target=>{setPendingReply(null);submissionRef.current=null;setPrompt(target.question);
+      const meta=EdgeView.toView(target.raw).meta,option=edgeModels.data?.models?.find(o=>o.model===meta.model);
+      if(meta.model&&meta.reasoningLevel){if(option?.reasoning_levels.includes(meta.reasoningLevel))keepModelChoice({model:meta.model,reasoning_level:meta.reasoningLevel});else setApiError(edgeUi().retryModelUnavailable);}
+      requestAnimationFrame(()=>composerRef.current?.focus());};
     const startResize = (event) => { if (collapsed)
         return; event.preventDefault(); const startX = event.clientX, startWidth = sidebarWidth; let nextWidth = startWidth; const move = (pointer) => { nextWidth = Math.min(360, Math.max(180, startWidth + pointer.clientX - startX)); setSidebarWidth(nextWidth); }; const up = () => { localStorage.setItem("edge-monitor-width", String(nextWidth)); document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); }; document.addEventListener("pointermove", move); document.addEventListener("pointerup", up); };
     const toggleCollapsed = () => setCollapsed(current => { localStorage.setItem("edge-monitor-collapsed", String(!current)); return !current; });
@@ -10928,6 +10932,7 @@ function Monitor({ go }) {
                     element("div", {className:"user-message-footer"},element("div", { className:"user-sent-at" }, formatMessageJakarta(message.createdAt)),element(MessageClipboardActions,{getText:()=>message.content,kind:"user"})),
                     messageRun && element(fragment, null,
                         element(RunStatus, { run: messageRun, stopping: stoppingId === messageRun.id, expanded: expandedRuns.includes(messageRun.id), toggle: () => { setSelectedRunId(messageRun.id); setSourceDetail(null); setActiveSection("conditions"); setExpandedRuns(current => current.includes(messageRun.id) ? current.filter(id => id !== messageRun.id) : [...current, messageRun.id]); }, retry: () => retry(messageRun) }),
+                        element(PresentationChoices,{run:messageRun,act,enabled:!active&&!submitting}),
                         messageRun.result && element(ResearchDocument, { run: messageRun, togglePin: () => togglePin(messageRun), act, planIndex, enabled: !active && !submitting && messageRun.id === latestRun(selected)?.id, planEnabled: !active && !submitting && (!selected.plan || selected.plan.status === "PENDING") && messageRun.id === latestRun(selected)?.id, tableMenu: tableMenu, setTableMenu: setTableMenu, expand: () => setExpandedTable(messageRun) }))); })),
                 !autoFollow && element("button", { className: "jump-latest", onClick: () => { setAutoFollow(true); scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); } },
                     element(Icon, { name: "arrow-down" }),
@@ -11843,6 +11848,11 @@ function PauseCard({pause, enabled, act, scope}) {
     choices:(()=>{const first=pause.choices.findIndex(choice=>!edgeChoiceDraft(choice.action));
       return pause.choices.map((choice,index)=>({...choice,primary:index===first}));})()});  // the first choice sent at once leads
 }
+function PresentationChoices({run,act,enabled}) {
+ const v=EdgeView.toView(run.raw);
+ return v.recovery.length ? element(ResponseChoices,{title:edgeUi().presentationTitle,help:edgeUi().presentationHelp,
+   choices:v.recovery,scope:run.id+":presentation",act,enabled}) : null;
+}
 function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
  const v=EdgeView.toView(run.raw,{domainStatus:run.domainStatus,planIndex}), claims=new Map(v.claims), fast=v.meta.lane==="fast";
  const items=values=>element("ul",{className:"edge-list"},values.map(x=>element("li",null,typeof x==="string"?mdInline(fast?fastDates(x):x,{claims}):DataValue({value:x}))));
@@ -11854,6 +11864,8 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
   element("div",{className:"result-kicker"},element(Icon,{name:"spark"}),edgeUi().answerKicker+" · "+v.status.label,element("i",{className:`edge-dot ${v.status.tone}`,"aria-hidden":"true"})),
   element("h1",null,run.result.title),
   element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",{className:"edge-run-model"},element(EdgeModelLogo,{option:edgeModelOption(v.meta.model)}),element("span",null,element("span",{className:"edge-run-model-name",title:v.meta.model},edgeModelOption(v.meta.model).label),v.meta.reasoningLevel?" \u00B7 "+(edgeUi().modelLevels?.[v.meta.reasoningLevel]??v.meta.reasoningLevel):null)),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.duration&&element("span",{className:"edge-duration",title:"Lama proses"},"\u23F1 "+v.meta.duration),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
+  v.meta.tokenBudget&&element("p",{className:"text-muted edge-budget-note"},v.meta.tokenBudget),
+  v.meta.calls.length>0&&element("details",{className:"edge-more edge-notes"},element("summary",null,edgeUi().callSettingsTitle),element(DataRows,{value:v.meta.calls})),
   v.evidence&&element("div",{className:"edge-tags"},element("span",{className:"edge-badge neutral",title:v.evidence.code},v.evidence.label)),
   v.attached.length>0&&element("div",{className:"edge-attached-line"},element(Icon,{name:"attach",size:13}),
     element("span",null,edgeUi().attachedPrefix+": "+v.attached.join("; "))),

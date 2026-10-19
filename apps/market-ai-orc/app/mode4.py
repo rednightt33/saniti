@@ -936,6 +936,7 @@ class _Mode4Run:
             **totals, "cost": round(sum(costs), 6) if costs else None,
             "duration_ms": int((self.inner.clock() - self.started) * 1000),
             "analyses": [a for e in runs for a in e.analyses],
+            "model_calls": [c for e in runs for c in (e.model_calls or [])] or None,
             # EXEC-FRICTION: every sub-run's hurdles in order, and the kejedot index summed over them
             "hurdles": [h for e in runs for h in (e.hurdles or [])] or None,
             "friction": {key: sum((e.friction or {}).get(key, 0) for e in runs)

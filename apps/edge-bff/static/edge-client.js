@@ -65,8 +65,9 @@
   }
   // EXEC-UI-1012 C: the first question's answer is headed by the short title Orc's first-message router wrote
   const routerTitle = response => String(response?.mode4?.router?.title || '').split(/\s+/).join(' ').trim().slice(0, 80) || null;
+  const withRecovery = (raw, recovery, id) => recovery ? {...(raw || {request_id:id,status:'FAILED'}),presentation_recovery:recovery} : raw;
   function adaptRun(turn, ui = {}) {
-    const raw = turn.response;
+    const raw = withRecovery(turn.response, turn.presentation_recovery, turn.request_id);
     const final = raw?.response;
     const failed = turn.status === 'FAILED' || turn.status === 'INTERRUPTED' || raw?.status === 'FAILED';
     return {id:turn.request_id,question:turn.user_message || ui.title || 'Research response',createdAt:turn.created_at,completedAt:turn.completed_at,
@@ -87,7 +88,7 @@
     status:snapshot.error_code === 'STOPPED_BY_USER' ? 'cancelled' : terminal(snapshot) ? snapshot.state === 'FINISHED' && snapshot.run_status !== 'FAILED' && !snapshot.expired ? 'completed' : 'failed' : snapshot.state === 'QUEUED' ? 'submitted' : 'running',
     domainStatus:snapshot.run_status,paused:Boolean((snapshot.response || previous.raw)?.execution?.pause),stopped:Boolean((snapshot.response || previous.raw)?.execution?.stopped),error:snapshot.expired ? 'Conversation expired; the saved response is no longer available.' : snapshot.error_code || snapshot.response?.error?.code,
     errorText:snapshot.expired ? undefined : (snapshot.response || previous.raw)?.error?.user_message,
-    completedAt:snapshot.completed_at,raw:snapshot.response || previous.raw,
+    completedAt:snapshot.completed_at,raw:withRecovery(snapshot.response || previous.raw,snapshot.presentation_recovery,snapshot.request_id),
     result:snapshot.response?.response ? {title:routerTitle(snapshot.response) || previous.question.slice(0,80),condition:snapshot.response.response.answer || snapshot.response.response.clarification_question || '',final:snapshot.response.response} : previous.result,
     sources:snapshot.response ? [...(snapshot.response.evidence || []),...(snapshot.response.annotations || []),...(snapshot.response.data_record ? [{name:'Data record',record:snapshot.response.data_record}] : [])] : previous.sources,
     steps:[{id:'state',label:{QUEUED:'Queued',RUNNING:'AI request running',RECOVERING:snapshot.error_code === 'SERVICES_INITIALIZING' ? EdgeLabels.servicesWaiting : 'Recovering delivery',FINISHED:'Saved response: '+statusLabel('completed',snapshot.run_status,snapshot.response?.execution?.pause),FAILED:'Request failed',INTERRUPTED:'Delivery interrupted'}[snapshot.state],status:terminal(snapshot) ? snapshot.state === 'FINISHED' && snapshot.run_status !== 'FAILED' && !snapshot.expired ? 'completed' : 'failed' : 'running',detail:snapshot.updated_at}]

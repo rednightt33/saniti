@@ -247,3 +247,10 @@ retried on demand after a dependency misses startup; only a complete runtime is 
 BFF checks `/v1/agent/readiness` after request-ID reconciliation and before counting a dispatch. Pending work uses
 SERVICES_INITIALIZING on existing RECOVERING state, with existing deadline/lease/Stop. No background dependency
 poller or new infrastructure is introduced. See M187, verification/sandbox_recovery/README.md and the Orc/BFF READMEs.
+
+## Pending ORC budget rollout, 2026-10-19
+
+User authorized EXEC-ORC-BUDGET implementation and the transparent shared 96k alternative. Local code/tests are in
+`verification/orc_token_budget/IMPLEMENTATION.md`. This is not a change to active deployments or dev values. Before
+main auto-deploy, apply and verify the additive checkpoint migration; then validate provider acceptance and activate
+only supported settings. Preserve the existing Git source, single replicas, helper limits and market-data grants.

@@ -1,0 +1,163 @@
+{
+  "date": "2026-10-19",
+  "scope": "local validation; no live schema/config/deployment mutation",
+  "orc_full_regression": {
+    "passed": 1933,
+    "warnings": 1,
+    "seconds": 42.47,
+    "log": "/tmp/orc-budget-final-tests.log"
+  },
+  "bff_full_regression": {
+    "passed": 131,
+    "warnings": 3,
+    "seconds": 388.94,
+    "log": "/tmp/bff-budget-full-tests.log"
+  },
+  "bff_after_retry_choice_change": {
+    "passed": 18,
+    "warnings": 3,
+    "seconds": 28.55,
+    "log": "/tmp/bff-budget-final-tests.log"
+  },
+  "migration_runner": {
+    "actions": [
+      "NOT_APPLIED",
+      "APPLIED",
+      "ALREADY_APPLIED",
+      "ALREADY_APPLIED"
+    ],
+    "database": "disposable PostgreSQL 17",
+    "live_applied": false
+  },
+  "audit_store_v1_contract": {
+    "safe_call_metadata_accepted": true,
+    "hidden_reasoning_key_found": false
+  },
+  "system_prompt": {
+    "snapshot": "v014-2026-10-16-exec-1018b-fast-prefix",
+    "render_unchanged": true,
+    "record_command_result": "nothing changed; no duplicate snapshot written"
+  },
+  "ui": {
+    "viewports": [
+      [
+        1920,
+        1080
+      ],
+      [
+        1280,
+        800
+      ],
+      [
+        390,
+        844
+      ],
+      [
+        360,
+        740
+      ]
+    ],
+    "touch": "Chromium emulation, not physical mobile",
+    "page_errors": [],
+    "artifacts": [
+      {
+        "file": "budget-desktop-compact-retry-available.png",
+        "bytes": 78634,
+        "sha256": "603ec3a706b4f4313149b866c9366d0f4b14f74529a3f4a9d6a85e7eb3b3bd35"
+      },
+      {
+        "file": "budget-desktop-compact-sent-settings.png",
+        "bytes": 128038,
+        "sha256": "58a7966840ab7f458e37e87ee22b0af582f12d0367ce800f7ed2fed5cc7d4570"
+      },
+      {
+        "file": "budget-desktop-wide-retry-available.png",
+        "bytes": 86053,
+        "sha256": "14091219dccb1698673756b3816290dad5047694cad2028018a55264004b0131"
+      },
+      {
+        "file": "budget-desktop-wide-sent-settings.png",
+        "bytes": 149887,
+        "sha256": "9be54eeb588bfbd8515f84c579cf138a891403c151010ce022878d2f455661b3"
+      },
+      {
+        "file": "budget-mobile-retry-available.png",
+        "bytes": 38294,
+        "sha256": "d5d295a5f8764a65ea26e55a0ce3ac7024e8466e3a5c8d939318ab47e60c3ac4"
+      },
+      {
+        "file": "budget-mobile-sent-settings.png",
+        "bytes": 61847,
+        "sha256": "81106ba32de9c040b334ee76cea3497693f762d6e7fb909949e82ffb18ca2e97"
+      },
+      {
+        "file": "budget-mobile-small-retry-available.png",
+        "bytes": 37715,
+        "sha256": "7161a4999d247180a6006adce2afd8792816fa09e14c725ace28fa9a5898a15e"
+      },
+      {
+        "file": "budget-mobile-small-sent-settings.png",
+        "bytes": 56110,
+        "sha256": "086e27fc1ad89eb1b7eda129f0355d6f4fadb0879dacf6e73fb32c5b8a8249af"
+      }
+    ]
+  },
+  "code_file_sha256": {
+    "apps/edge-bff/app/main.py": "77fc620aeac6898491bc546c15b47b4206e2ee8997d911d2b0aa62a0e2a6f6a9",
+    "apps/edge-bff/static/edge-client.js": "f33cb7e9ca0d36582623565c780bd3dffde0e38fca44ff807ee48e6a7c680b4d",
+    "apps/edge-bff/static/edge-labels.js": "0d1879fba8fb580d76f226548f8581438214c3aad87e531bd9014627aeabed1d",
+    "apps/edge-bff/static/edge-view.js": "c990739aa2574e6b0212439440a5694c51ed3e7c831cd33c4443e39c96169c60",
+    "apps/edge-bff/static/index.html": "f48d1360ea419160c4d6fbc94b83a66317493f1a3cb42a1fb8a628af3b217326",
+    "apps/edge-bff/tests/test_budget_recovery.py": "3292f186fa4dee1f40cf47c9331d74de2e0e1d47c695a515cfa9c157ff8e5457",
+    "apps/edge-bff/tests/test_frontend_contract.py": "e27679b91c732d2e35420a178514abdd14ae20da8c4c006e98830eb1d4272832",
+    "apps/market-ai-orc/app/audit_outbox.py": "ba165a54e92eb8c88b36791fc3189a835de3148264c0e64771d793d4129b33de",
+    "apps/market-ai-orc/app/config.py": "75effd981fb11276cde06b5358d8d384702fb2cdbfcf08205e7a3bcd8de4923a",
+    "apps/market-ai-orc/app/conversations.py": "55f916e4ad0cbbcea22ee886469af2b5ecc2b72bd1284f50e47681ca6af80015",
+    "apps/market-ai-orc/app/data_record.py": "a841e0eec0fd0491d6f2136b187de21f5af8763622df146f2c742f4edb10c70f",
+    "apps/market-ai-orc/app/execution_budget.py": "456bc62620400ab8c9ce926ffdf3c914e305ec8b65dafec36f3a7b096c627aa1",
+    "apps/market-ai-orc/app/lanes.py": "cd1b7bd069938b02e5cf506816264a53c9bee6230c4d65d3201c6e2774631448",
+    "apps/market-ai-orc/app/main.py": "b7af3fb2e282028a9cf2c9ea4082b108bb07dfc59f6ecafc7283eedd82f2a5d6",
+    "apps/market-ai-orc/app/manual_agent.py": "08eee098234dda47c662453114a232c69814bdb6fac835772fe9e13608ba29d2",
+    "apps/market-ai-orc/app/mode4.py": "26ecfc457ca96146c2417b19f5dd13d82e55ac7031717ea78983a88dc2d1a9b8",
+    "apps/market-ai-orc/app/model_choices.py": "87d0155e7b64306a16d89c410ccbc248bf49057e3ccba182d11c2c2db3bc5d2a",
+    "apps/market-ai-orc/app/model_prices.py": "11e398bd50c6a7aefbc6de43a42d935087da57cc490e6e8b90aff031f27aea26",
+    "apps/market-ai-orc/app/openrouter_client.py": "342988ff37a8f49490e154a379e20181b2354fca2c5f2b1aba5dbdc5ad1f56a9",
+    "apps/market-ai-orc/app/orchestrator.py": "81a92fd68ef22f219628ac93fa0fa8e34250f0f95f49f553f2a5744adf3a0493",
+    "apps/market-ai-orc/app/presentation_checkpoint.py": "1c5b1340aadfe2956b1bbf516bcfe69f99e36a7e0576893bf05c4ec09e26f3e2",
+    "apps/market-ai-orc/app/result_store.py": "a5cf961fb2b463a38e58379ca03fcdf4e9dd9081c59b96a40603994bd84faa67",
+    "apps/market-ai-orc/app/schemas.py": "f7e84a0ac008d2d812bc0c4f27b3cfb795ff4d8ab15045c7bca848a3265d061a",
+    "apps/market-ai-orc/app/user_texts.py": "13f0dc7f07bd23c2997efd0dc9d3de99522571502e58371b14a617aa14ce3dc8",
+    "apps/market-ai-orc/tests/test_api.py": "ee9818a8d0ab02f315ad88aa9a90c5f2c02fd315c9669155375e35e7e5275d23",
+    "apps/market-ai-orc/tests/test_conversations.py": "a03c7579b83e4dc72339c4cf7d10df03eb6a198b66f6530b8b9485e97e7527c4",
+    "apps/market-ai-orc/tests/test_exec_models.py": "0995e5b09d8abcbbec55675ac254c884428362cee5dbda57d40eaaa5fc872892",
+    "apps/market-ai-orc/tests/test_execution_budget.py": "ca9ee8ae5174344815776967c660a6502ea97133115a39deecbe0fb6f23b7494",
+    "apps/market-ai-orc/tests/test_fastlane.py": "2e044aa878289b32a01145678609b15b78f1c42228b2ae759bf2767495190d07",
+    "apps/market-ai-orc/tests/test_manual_agent.py": "8339412ead7353a9ef0337c62ca27d0b37f2c7f3b279acfb87e47525c68271a0",
+    "apps/market-ai-orc/tests/test_openrouter_client.py": "aab97bc31700de62fc4d841b00b9a33fd8118b6c118ca826690be3f5fddf145e",
+    "apps/market-ai-orc/tests/test_presentation_checkpoint.py": "f764bee5bc3d355da94e1f5fdab9f0d450d73b92864c18108bd9625258deaff1",
+    "apps/market-ai-orc/tests/test_provider_down.py": "2d03205f98e8c6a494e58938e65f5ca6cc9b5f2921e5b56a51a74237bdc1a0e4",
+    "database/migrations/20261019_001_orc_execution_checkpoint.sql": "aaf2ac13bfb0ab3b61ebd016538a2dd34c58177b3adad46a53ac80df5e37c31a",
+    "scripts/apply_orc_checkpoint_migration.py": "e650bcd2fe1ed4934ca6d463bb490eff1728e6cf23ce63f82ca570916dfb1e4d",
+    "scripts/generate_ai_models_doc.py": "c2cd7a3deccbb0622db8fa01ac5befca5f9a31a21fca2623d42ddf60f81b1b2b"
+  },
+  "live_blockers": {
+    "https_required": [
+      "openrouter.ai",
+      "edge-bff-dev.up.railway.app"
+    ],
+    "tcp_required": [
+      "shuttle.proxy.rlwy.net:40042"
+    ],
+    "policy_file": "/etc/codex/network-policy.json"
+  },
+  "provider_activation": {
+    "combined_96000": "approved; not live-activated",
+    "qwen_numeric_48000": "public support declaration verified; acceptance probe pending network",
+    "split_guaranteed": false
+  },
+  "test_runtime": {
+    "python": "3.12",
+    "postgres": "17 disposable",
+    "pyarrow": "21.0.0 (test-only cross-service dataset fixtures; production requirements unchanged)"
+  }
+}

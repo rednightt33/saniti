@@ -217,3 +217,18 @@ lease/heartbeat, ownership, Stop and ambiguous-delivery reconciliation remain in
 readiness. Older Orc without this additive endpoint remains supported during rolling deployment.
 The existing progress endpoint shows `Initiating sandbox session.` during an actual session open, then the ordinary
 calculation steps. No new queue, progress transport, browser credential or service is required. See M187.
+
+
+## Presentation recovery contract (2026-10-19)
+
+RunInput accepts additive `presentation_retry_of` and `presentation_retry_step`. They remain in the persisted job
+input/fingerprint and pass through the existing auth/CSRF, queue, worker, owner and conversation checks. Recovery
+uses a new request/submission id and an explicit model/level; it does not bypass the worker or replay an old
+calculation. Orc authorizes checkpoint ownership/readiness and validates the stored artifacts.
+
+The snapshot/history adapter forwards only safe recovery choices, never checkpoint bodies or provider reasoning.
+The failed/limited response offers **Retry presentation** for a saved computation with its model/level in the button.
+The existing full-request retry remains distinct. Token-budget wording explicitly says that 96k is combined and a
+48k/48k split is not guaranteed. Safe call settings are collapsed by default. `EdgeView` contract version is now 2.
+Desktop/mobile browser tests use real BFF auth, queue, SSE and a disposable PostgreSQL database with a deterministic
+upstream; no inference is purchased. See `verification/orc_token_budget/` for artifacts and rollout status.

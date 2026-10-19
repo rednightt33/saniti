@@ -8,6 +8,14 @@ internal name, a code or an English sentence.
 """
 from __future__ import annotations
 
+OUTPUT_BUDGET_EXHAUSTED_LINE = ("Batas token tercapai sebelum jawaban lengkap diterima. Permintaan tidak diulang "
+                               "otomatis; pilihan model dan tingkat penalaran tetap.")
+PROVIDER_INCOMPLETE_LINE = "Penyedia AI menghentikan respons sebelum selesai. Hasil ini belum dapat dinyatakan lengkap."
+PRESENTATION_UNAVAILABLE_LINE = ("Hasil tersimpan untuk penulisan ulang belum tersedia atau sudah kedaluwarsa. "
+                                 "Data tidak dihitung ulang otomatis.")
+PROGRESS_PRESENTING = "Menyusun jawaban dari hasil tersimpan"
+PROGRESS_PROVIDER_RETRY = "Penyedia sedang sibuk, mencoba sekali lagi dengan pilihan AI yang sama"
+
 import re
 
 # ---- codes as words ----

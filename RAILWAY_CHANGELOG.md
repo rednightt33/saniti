@@ -4040,3 +4040,12 @@ execution environment proxy; live verification uses exact Git metadata, healthch
 No Railway configuration, variables, IaC, API, database or Orc source changes, and no Railway upload/config apply.
 Orc remains on `4138d8bd-70e9-451d-9e77-faf91f6966c2`; sandbox remains on
 `84fa7fa3-6bda-46af-8162-7d13d42fde7b`, both SUCCESS. Local disposable test database removed after testing.
+
+## 2026-10-19 — ORC budget implementation prepared; not deployed
+
+Approved source changes: remove executor 90s cap/downgrades; shared 96k target; numeric Qwen cap only after G0;
+presentation recovery through existing ORC/BFF/DB services. Planned variables: AI_MAX_OUTPUT_TOKENS=96000,
+AI_MAX_REASONING_TOKENS=48000 after numeric acceptance, AI_MAX_PRESENTATION_TOKENS=48000 target. No live variable,
+service source, replica, helper timeout, provider routing or deployment changed in this local implementation.
+Apply/check the additive DB migration before pushing main (Git source auto-deploy). Network policy currently blocks
+Postgres TCP and live app/OpenRouter access from this workspace; remaining rollout and evidence are in EXEC-ORC-BUDGET.

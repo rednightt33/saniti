@@ -111,6 +111,9 @@ def normalize(record: Any) -> dict[str, Any]:
     stored = record.get("next_alias")
     clean["next_alias"] = max(stored if isinstance(stored, int) and stored > 0 else 1,
                               max((_alias_number(o.get("ref")) for o in clean["outputs"]), default=0) + 1)
+    if isinstance(record.get("reference_sequences"), dict):
+        clean["reference_sequences"] = {k: v for k, v in record["reference_sequences"].items()
+                                        if k in ("fact", "metric", "reference") and type(v) is int and v >= 0}
     return clean
 
 

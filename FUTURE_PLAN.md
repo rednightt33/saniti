@@ -602,8 +602,9 @@ so ketika saya tanya, coba kamu run pakai model kita end to end supaya lebih cep
 ## Run lambat (M181, usulan 2026-10-17, menunggu keputusan)
 
 Audit dan implementation plan 2026-10-19 untuk target yang disetujui user (reasoning 48k, penyajian 48k,
-tanpa penurunan level diam-diam) ada di `PLAN.md`, bagian "Anggaran reasoning dan penyajian"; bukti di
-`verification/orc_token_budget/`. Belum dieksekusi. Rencana tersebut membatasi retry/deadline dan mewajibkan
+tanpa penurunan level diam-diam) ada di `EXEC.md`, bagian `EXEC-ORC-BUDGET`; bukti di
+`verification/orc_token_budget/`. User memberi go pada 2026-10-19 dan menyetujui alternatif 96k gabungan bagi
+provider tanpa split numerik. Implementasi lokal dan tes berlangsung; migrasi/config/deployment live belum dilakukan. Rencana tersebut membatasi retry/deadline dan mewajibkan
 verifikasi kemampuan provider; daftar berikut adalah usulan M181 sebelumnya, bukan tambahan yang otomatis
 disetujui atau jaminan bahwa byte keepalive menunjukkan kemajuan reasoning.
 

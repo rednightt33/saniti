@@ -265,27 +265,24 @@ def chosen_run(model: str, level: str, script: list) -> tuple[ScriptedClient, An
     return scripted, result
 
 
-def test_mimo_flash_on_has_a_lower_output_cap_per_call() -> None:
+def test_mimo_flash_uses_the_same_combined_limit_with_thinking_on_or_off() -> None:
     scripted, _ = chosen_run("xiaomi/mimo-v2.6-flash", "on", [final_response(ANSWER)])
-    assert scripted.payloads[0]["max_output_tokens"] == min(12000, make_settings().ai_max_output_tokens)
+    assert scripted.payloads[0]["max_output_tokens"] == make_settings().ai_max_output_tokens
     scripted, _ = chosen_run("xiaomi/mimo-v2.6-flash", "off", [final_response(ANSWER)])
     assert scripted.payloads[0]["max_output_tokens"] == make_settings().ai_max_output_tokens
 
 
-@pytest.mark.parametrize("model,level,lowered", [
-    ("xiaomi/mimo-v2.6-flash", "on", {"enabled": False}),
-    ("deepseek/deepseek-v4.1-flash", "max", {"effort": "low"}),
-    ("z-ai/glm-5.3-flash", "high", {"effort": "low"}),  # GLM cannot turn thinking off
+@pytest.mark.parametrize("model,level", [
+    ("xiaomi/mimo-v2.6-flash", "on"),
+    ("deepseek/deepseek-v4.1-flash", "max"),
+    ("z-ai/glm-5.3-flash", "high"),
 ])
-def test_a_runaway_call_is_asked_again_once_with_reasoning_lowered(model, level, lowered) -> None:
-    cap = resolve(model, level, make_settings()).output_cap or make_settings().ai_max_output_tokens
-    cap = min(cap, make_settings().ai_max_output_tokens)
-    scripted, result = chosen_run(model, level, [runaway_response(cap), tool_call_response("get_system_capabilities"),
-                                                 final_response(ANSWER)])
-    assert result.status == "COMPLETED"
-    chosen = resolve(model, level, make_settings()).reasoning
-    assert [p["reasoning"] for p in scripted.payloads] == [chosen, lowered, chosen]  # one call only, then back
-    assert scripted.payloads[1]["tools"]
+def test_reasoning_exhaustion_does_not_start_another_paid_call(model, level) -> None:
+    cap = make_settings().ai_max_output_tokens
+    scripted, result = chosen_run(model, level, [runaway_response(cap), final_response(ANSWER)])
+    assert result.status == "FAILED" and result.error.code == "OUTPUT_BUDGET_EXHAUSTED"
+    assert len(scripted.payloads) == 1
+    assert scripted.payloads[0]["reasoning"] == resolve(model, level, make_settings()).reasoning
 
 
 def test_an_empty_turn_below_the_cap_is_not_a_runaway() -> None:
@@ -295,18 +292,10 @@ def test_an_empty_turn_below_the_cap_is_not_a_runaway() -> None:
     assert [p["reasoning"] for p in scripted.payloads] == [{"enabled": True}] * 2
 
 
-def test_a_second_runaway_falls_back_to_the_empty_turn_retry() -> None:
-    cap = min(12000, make_settings().ai_max_output_tokens)
-    scripted, result = chosen_run("xiaomi/mimo-v2.6-flash", "on", [runaway_response(cap), runaway_response(cap),
-                                                                    final_response(ANSWER)])
-    assert result.status == "COMPLETED"
-    assert [p["reasoning"] for p in scripted.payloads] == [{"enabled": True}, {"enabled": False}, {"enabled": True}]
-
-
-def test_without_a_choice_a_runaway_lowers_the_server_default_to_low() -> None:
+def test_without_a_choice_reasoning_exhaustion_does_not_repeat_the_server_default() -> None:
     settings = make_settings()
     scripted = ScriptedClient([runaway_response(settings.ai_max_output_tokens), final_response(ANSWER)])
     from test_orchestrator import request
-    AgentOrchestrator(settings, scripted, build_default_registry()).run(request())
-    assert scripted.payloads[1]["reasoning"] == settings.reasoning("low")
+    result = AgentOrchestrator(settings, scripted, build_default_registry()).run(request())
+    assert result.error.code == "OUTPUT_BUDGET_EXHAUSTED" and len(scripted.payloads) == 1
     assert scripted.payloads[0]["reasoning"] == settings.reasoning(settings.ai_reasoning_effort)

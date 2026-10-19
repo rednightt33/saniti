@@ -105,6 +105,8 @@ class RunInput(Strict):
     attached_selection: AttachedSelection | None = None
     # EXEC-IMPL-1017 Fase 3: selections attached anywhere in earlier answers (at most 5)
     attachments: list[AttachedSelection | AttachedText] = Field(default_factory=list, max_length=5)
+    presentation_retry_of: str | None = Field(default=None, max_length=200, pattern=r'^[A-Za-z0-9._:-]+$')
+    presentation_retry_step: str | None = Field(default=None, max_length=200, pattern=r'^[A-Za-z0-9._:-]+$')
 
     @model_validator(mode='after')
     def check_message(self):
@@ -208,6 +210,8 @@ def create_app(settings=None, store=None, orc=None):
         if row['state'] in TERMINAL and row['conversation_id']:
             found = await asyncio.to_thread(orc.request, settings.owner, request_id)
             data['response'] = found.get('response') if found else None
+            if found and found.get('presentation_recovery'):
+                data['presentation_recovery'] = found['presentation_recovery']
             data['expired'] = found is None
         return jsonable_encoder(data)
 

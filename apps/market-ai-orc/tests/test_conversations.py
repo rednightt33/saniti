@@ -30,7 +30,8 @@ REPO = Path(__file__).resolve().parents[3]
 MIGRATIONS = [REPO / "database/migrations/20260927_002_create_ai_conversation_store.sql",
               REPO / "database/migrations/20261003_006_conversation_results.sql",
               REPO / "database/migrations/20261003_009_conversation_evidence.sql",
-              REPO / "database/migrations/20261006_003_conversation_run_memory.sql"]
+              REPO / "database/migrations/20261006_003_conversation_run_memory.sql",
+              REPO / "database/migrations/20261019_001_orc_execution_checkpoint.sql"]
 AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}"}
 
 # The columns of the legacy documentation tables the migration writes to (DATABASE_SCHEMA.md).
@@ -116,6 +117,53 @@ class Api:
 def server(request_id: str, message: str, conversation_id: str | None = None, **extra) -> dict:
     return {"request_id": request_id, "message": message, "conversation_id": conversation_id,
             "history_mode": "SERVER", **extra}
+
+
+def test_checkpoint_is_fenced_and_survives_an_interrupted_runner(databases):
+    from app import data_record as records
+    from datetime import datetime, timedelta, timezone
+    from dataclasses import replace
+    admin, login = databases
+    store = ConversationStore(login, retention_days=30, lease_seconds=900)
+    request = AgentRunRequest(request_id="checkpoint-original", message="hitungan", history_mode="SERVER")
+    start = store.begin("checkpoint-owner", request, fingerprint(request))
+    record = records.empty()
+    record.update(next_alias=4, reference_sequences={"fact":9,"metric":3,"reference":2})
+    ready = {"phase":"READY_FOR_PRESENTATION", "model":"deepseek/deepseek-v4.1-flash",
+             "reasoning_level":"max", "outputs":[], "data_record":record}
+    assert not store.write_checkpoint("foreign-owner", start, request.request_id, "step-a", ready)
+    assert not store.write_checkpoint("checkpoint-owner", replace(start,generation=start.generation+1),
+                                      request.request_id, "step-a", ready)
+    assert store.write_checkpoint("checkpoint-owner", start, request.request_id, "step-a", ready)
+    assert store.write_checkpoint("checkpoint-owner", start, request.request_id, "step-b", {"phase":"WORK"})
+    with psycopg.connect(admin) as connection:
+        status, response, saved_record = connection.execute('''SELECT t.status,t.response,c.state->'data_record'
+            FROM public."AI_conversation_turn" t JOIN public."AI_conversation" c USING(conversation_id)
+            WHERE t.request_id=%s''', (request.request_id,)).fetchone()
+        assert status == "RUNNING" and response is None  # checkpoint is never a terminal response
+        assert saved_record["next_alias"] == 4 and saved_record["reference_sequences"]["fact"] == 9
+    with pytest.raises(ConversationError, match="still running"):
+        store.presentation_checkpoint("checkpoint-owner", start.conversation_id, request.request_id, "step-a")
+    store.interrupt_started_before(datetime.now(timezone.utc) + timedelta(seconds=1))
+    restarted = ConversationStore(login, retention_days=30, lease_seconds=900)
+    assert restarted.presentation_checkpoint("checkpoint-owner", start.conversation_id,
+                                             request.request_id, "step-a") == ready
+    public = restarted.request("checkpoint-owner", request.request_id)
+    assert len(public["presentation_recovery"]["choices"]) == 1 and "execution_checkpoint" not in public
+    assert not restarted.write_checkpoint("checkpoint-owner", start, request.request_id, "step-a", ready)
+    next_request = AgentRunRequest(request_id="checkpoint-next", conversation_id=start.conversation_id,
+                                   message="next", history_mode="SERVER")
+    following = restarted.begin("checkpoint-owner", next_request, fingerprint(next_request))
+    assert following.state["data_record"]["next_alias"] == 4  # a new process cannot reuse the lost run's aliases
+    assert following.state["data_record"]["reference_sequences"]["fact"] == 9
+    restarted.abandon(following, next_request.request_id, "TEST_COMPLETE")
+    with pytest.raises(ConversationError) as refused:
+        restarted.presentation_checkpoint("foreign-owner", start.conversation_id, request.request_id, "step-a")
+    assert refused.value.http_status == 404
+    with psycopg.connect(admin) as connection:
+        assert connection.execute('SELECT execution_checkpoint->\'steps\'->\'step-b\'->>\'phase\' '
+                                  'FROM public."AI_conversation_turn" WHERE request_id=%s',
+                                  (request.request_id,)).fetchone()[0] == "WORK"
 
 
 def test_client_mode_is_unchanged_and_needs_no_store() -> None:

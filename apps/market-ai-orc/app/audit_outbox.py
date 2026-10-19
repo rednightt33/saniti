@@ -97,7 +97,11 @@ def tool_event(*, tool: str, call_id: str, iteration: int, arguments: Any, outpu
 def model_event(record: dict[str, Any], occurred_at: datetime) -> dict[str, Any]:
     """An observable model call: iteration, latency and provider response id; never its content or reasoning."""
     return {"type": "model.call", "occurred_at": occurred_at.isoformat(),
-            **{k: record.get(k) for k in ("iteration", "call", "provider_response_id", "latency_ms", "status")
+            **{k: record.get(k) for k in ("iteration", "call", "provider_response_id", "latency_ms", "status",
+                                        "requested_model", "served_model", "reasoning_level", "sent_reasoning",
+                                        "sent_reasoning_level", "fallback_reason",
+                                        "max_output_tokens", "phase", "incomplete_reason", "cost_status",
+                                        "sub_run", "policy_version")
                if record.get(k) is not None}}
 
 

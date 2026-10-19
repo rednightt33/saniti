@@ -2021,3 +2021,11 @@ dev through temporary Railway service `mmig-job` (DRYRUN `1922db71`, rolled back
 deleted and is absent from the project). Readback: `check_references` v1, v2 and v3 present, all inactive like every
 market-ai-orc row; v3's schema carries `draft` and `methodology`. No table, column, Feature, routine or data change.
 Hash added to `APPLIED.sha256`; no applied migration was rewritten.
+
+## 2026-10-19 — ORC checkpoint migration prepared; live execution pending
+
+User go: “Okay, jalankan implementation plan tersebut.” Forward migration
+`20261019_001_orc_execution_checkpoint.sql` adds one nullable JSONB column to AI_conversation_turn and its catalog
+metadata, with a 256 KiB bound and no new grants/indexes. PostgreSQL 17 disposable tests verify ownership/generation
+fencing, READY reference reservation, interrupted-run recovery, and separation from terminal response/run memory.
+The migration has not been applied to Railway PostgreSQL; no price/Feature04 row was changed.

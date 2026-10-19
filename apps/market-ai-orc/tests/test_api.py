@@ -69,6 +69,7 @@ def test_run_returns_deterministic_envelope(api: TestClient) -> None:
         "input_tokens", "output_tokens", "reasoning_tokens", "total_tokens", "cached_input_tokens",
         "cache_write_tokens", "cost", "duration_ms", "tools_withdrawn_reason", "analyses", "validation_gate", "number_provenance", "research",
         "analysis_final_status", "research_plan", "methodology_provenance", "mode", "friction",
+        "model_calls", "token_budget",
     }
     # the kejedot index (round 2026-10-03 D0): nothing hit a wall in this run
     assert body["execution"]["friction"] == {"rejected_tool_calls": 0, "gate_repairs": 0, "repeated_data_orders": 0,

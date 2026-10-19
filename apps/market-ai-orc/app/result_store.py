@@ -59,6 +59,10 @@ class ResultBucket:
     def get(self, key: str) -> bytes:
         return self.client.get_object(Bucket=self.name, Key=key)["Body"].read()
 
+    def available(self, key: str, size: int) -> bool:
+        """Verify a saved object before a paid presentation retry, without downloading its whole dataset."""
+        return self.client.head_object(Bucket=self.name, Key=key).get("ContentLength") == size
+
     def delete(self, keys: list[str]) -> None:
         for start in range(0, len(keys), 1000):
             chunk = keys[start:start + 1000]

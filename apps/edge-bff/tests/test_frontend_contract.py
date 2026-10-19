@@ -18,7 +18,7 @@ from conftest import FakeOrc
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = json.loads((ROOT / 'tests' / 'fixtures' / 'orc_responses.json').read_text())
 PARTS = {'version', 'status', 'meta', 'evidence', 'claims', 'answer', 'clarification', 'pause', 'plan', 'findings', 'lists',
-         'methodology', 'artifacts', 'next', 'attached', 'reproduced'}  # EXEC-IMPL-1017 Fase 3
+         'methodology', 'artifacts', 'next', 'attached', 'reproduced', 'recovery'}  # EXEC-IMPL-1017 Fase 3
 ACTIONS = {'route', 'message', 'input', 'plan'}
 
 
@@ -77,7 +77,7 @@ def choices(view):
 def test_every_saved_response_maps_to_the_same_parts(views):
     for name, out in views.items():
         assert set(out['view']) == PARTS, name
-        assert out['view']['version'] == 1
+        assert out['view']['version'] == 2
         assert {'label', 'tone', 'code'} <= set(out['view']['status']), name
 
 

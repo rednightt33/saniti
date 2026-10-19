@@ -4,8 +4,8 @@ jalur baru saja untuk nanti A/B test"; "harus selalu ada fallback"): the lane of
 STANDARD is the current behaviour and the fallback: with AI_ENABLE_FASTLANE off, or a message that names no lane or
 the standard one, nothing differs from before. FAST (only with the switch on) answers a data question in one turn:
 the analysis step runs on the FASTLANE desk with the lane note (no Research Plan, no approval, results labelled
-exploratory), the calls after the first one think at a lower level, a call is cut at FAST_CALL_SECONDS and asked
-again once with lower reasoning, and a data request too large for one extraction is told how much would fit.
+exploratory), and a data request too large for one extraction is told how much would fit. EXEC-ORC-BUDGET
+(2026-10-19): executor calls retain the chosen reasoning level and use the general call/run deadlines.
 """
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ from typing import Any
 
 STANDARD, FAST = "standard", "fast"
 LANES = (STANDARD, FAST)
-FAST_CALL_SECONDS = 90.0  # R4: a longer call is cut and asked again once with lower reasoning
 
 # set by the API around one request (mode 4 steps run in the same context and inherit it)
 current_lane: contextvars.ContextVar[str | None] = contextvars.ContextVar("current_lane", default=None)

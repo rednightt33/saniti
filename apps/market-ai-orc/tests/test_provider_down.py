@@ -53,6 +53,16 @@ def make(responses: dict[str, list[httpx.Response]]) -> tuple[OpenRouterClient, 
 OK = httpx.Response(200, json={"id": "resp_ok", "output": []})
 
 
+class Body(httpx.AsyncByteStream):
+    """Chunks supplied by the provider, including compressed bodies and keep-alive bytes."""
+    def __init__(self, chunks):
+        self.chunks = chunks
+
+    async def __aiter__(self):
+        for chunk in self.chunks:
+            yield chunk
+
+
 @pytest.mark.parametrize("status", [401, 402])
 def test_an_account_refusal_is_classified_from_its_status_and_not_retried(status: int) -> None:
     client, seen = make({"responses": [refusal(status)], "key": [key(5.0)]})
@@ -96,7 +106,7 @@ def test_unavailable_after_every_retry_is_down_and_a_timeout_is_not() -> None:
     client, seen = make({"responses": [refusal(503)], "key": [key(5.0)]})
     with pytest.raises(ProviderError) as raised:
         client.create({})
-    assert raised.value.code == "PROVIDER_UNAVAILABLE" and raised.value.service_down and len(seen) == 3
+    assert raised.value.code == "PROVIDER_UNAVAILABLE" and raised.value.service_down and len(seen) == 2
     assert not ProviderError("slow", code="PROVIDER_TIMEOUT").service_down
 
 
@@ -137,7 +147,17 @@ def test_a_refusal_of_the_request_itself_keeps_the_ask_back() -> None:
     wrapper, scripted = mode4([rejected, rejected])
     result = wrapper.run(AgentRunRequest(request_id="down-3", message="Bagaimana BBRI kemarin?"))
     assert result.status == "NEEDS_CLARIFICATION" and result.execution.mode.route == "ROUTER_FAILED"
-    assert len(scripted.payloads) == 2  # retried once, as before
+    assert len(scripted.payloads) == 1  # the same explicit 400 is not submitted again by the helper wrapper
+
+
+def test_incomplete_helper_json_does_not_route_or_start_another_call() -> None:
+    from conftest import final_response
+    partial = {**final_response({"route":"ANALYSIS","reason":"data"}), "status":"incomplete",
+               "incomplete_details":{"reason":"max_output_tokens"}}
+    wrapper, scripted = mode4([partial, final_response({"route":"ANALYSIS","reason":"data"})])
+    result = wrapper.run(AgentRunRequest(request_id="incomplete-router", message="Hitung return BBRI"))
+    assert result.status == "NEEDS_CLARIFICATION" and result.execution.mode.route == "ROUTER_FAILED"
+    assert len(scripted.payloads) == 1
 
 
 def test_follow_ups_with_the_provider_down_never_fail_the_answer() -> None:
@@ -175,18 +195,19 @@ def test_a_call_ends_at_its_total_deadline_even_while_bytes_keep_coming(monkeypa
             yield b" "
         yield b'{"id": "resp_late", "output": []}'
 
-    slow, _ = make({"responses": [httpx.Response(200, content=keep_alive())], "key": [key(5.0)]})
+    slow, _ = make({"responses": [httpx.Response(200, stream=Body(keep_alive()))], "key": [key(5.0)]})
     with pytest.raises(ProviderError) as raised:
         slow.create({}, timeout=90.0, attempts=1)
     assert raised.value.code == "PROVIDER_TIMEOUT" and not raised.value.service_down
-    assert 90.0 < now[0] <= 120.0 and logged == ["ai_provider_call_deadline"]
+    assert now[0] == 30.0 and logged.count("ai_provider_call_deadline") == 1
+    assert logged.count("ai_provider_attempt") == 1  # client's general cap; no ambiguous replay
 
     def prompt():
         now[0] += 20.0
         yield b'{"id": "resp_ok",'
         yield b' "output": []}'
 
-    quick, _ = make({"responses": [httpx.Response(200, content=prompt())], "key": [key(5.0)]})
+    quick, _ = make({"responses": [httpx.Response(200, stream=Body(prompt()))], "key": [key(5.0)]})
     assert quick.create({}, timeout=90.0, attempts=1)["id"] == "resp_ok"
 
 
@@ -200,7 +221,7 @@ def test_a_compressed_answer_is_read_once_decoded(encoding: str) -> None:
 
     body = b'{"id": "resp_zip", "output": []}'
     packed = zlib.compress(body) if encoding == "deflate" else __import__("gzip").compress(body)
-    zipped = httpx.Response(200, content=iter([packed[:7], packed[7:]]),  # streamed, as from the network
+    zipped = httpx.Response(200, stream=Body([packed[:7], packed[7:]]),  # streamed, as from the network
                             headers={"content-encoding": encoding, "content-type": "application/json"})
     client, _ = make({"responses": [zipped], "key": [key(5.0)]})
     assert client.create({}, timeout=90.0, attempts=1)["id"] == "resp_zip"
@@ -209,7 +230,7 @@ def test_a_compressed_answer_is_read_once_decoded(encoding: str) -> None:
 def test_a_body_that_cannot_be_decoded_is_a_provider_error_not_an_internal_one() -> None:
     """M168: an undecodable 2xx body is the provider's malformed answer (PROVIDER_MALFORMED_RESPONSE), never an
     exception that ends the run as INTERNAL_ERROR."""
-    broken = httpx.Response(200, content=iter([b"not gzip at all"]), headers={"content-encoding": "gzip"})
+    broken = httpx.Response(200, stream=Body([b"not gzip at all"]), headers={"content-encoding": "gzip"})
     client, _ = make({"responses": [broken], "key": [key(5.0)]})
     with pytest.raises(ProviderError) as raised:
         client.create({}, timeout=90.0, attempts=1)

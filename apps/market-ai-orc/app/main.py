@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import time
 import logging
 import re
 import sys
@@ -26,6 +27,7 @@ from .audit_outbox import AuditOutbox
 from .mode4 import Mode4Orchestrator
 from .modes import MODES, current_caller_path, effective_default, path_for, resolve_mode
 from . import follow_ups, progress, stop, user_texts
+from . import presentation_checkpoint as checkpoints
 from .runtime_recovery import RuntimeRecovery
 from .orchestrator import AgentOrchestrator, log_event
 from .provider_log import ProviderLogger
@@ -46,7 +48,7 @@ from .tools.catalog import CatalogTools
 from .tools.library import read_research_library
 from .tools.method_guides import active_guides, guides_problem, menu as guide_menu, read_method_guides
 from .tools.registry import ToolError
-from .tools.request_data import GovernorClient
+from .tools.request_data import GovernorClient, current_run_deadline
 from .result_store import ResultBucket, ResultStore
 from .run_memory import MemoryStore
 from .tools.export import SUPPORTING_DATA_VERSION
@@ -650,7 +652,14 @@ def create_app(
         million tokens (read every hour; null until the first read), with EDGE's starting choice and the server
         default used when a message chooses nothing."""
         prices, fetched_at = model_prices.snapshot() if model_prices is not None else ({}, None)
+        capabilities = model_prices.capabilities() if model_prices is not None else {}
         return {"models": [{"model": option.model, "label": option.label, "reasoning_levels": list(option.levels),
+                            "token_budget": {"total_output_tokens": settings.ai_max_output_tokens,
+                                             "reasoning_max_tokens": settings.ai_max_reasoning_tokens
+                                             if option.numeric_reasoning else None,
+                                             "presentation_target_tokens": settings.ai_max_presentation_tokens,
+                                             "split_guaranteed": False},
+                            "capabilities": capabilities.get(option.model),
                             **(prices.get(option.model) or {"input_per_million": None, "output_per_million": None,
                                                             "cache_read_per_million": None})}
                            for option in offered(settings)],
@@ -691,6 +700,7 @@ def create_app(
         except LaneError as error:
             return refuse(ConversationError(error.code, str(error), 400))
         token, lane_token = current_model_choice.set(choice), current_lane.set(lane)
+        root_deadline = current_run_deadline.set(time.monotonic() + settings.longest_run_seconds)
         try:
             # EXEC-IMPL-1016 Fase 4.3 (UI-1015B): the run's steps, readable while it runs (app/progress.py)
             with progress.tracking(payload.request_id, x_saniti_owner):
@@ -699,6 +709,7 @@ def create_app(
                         "detail": {"code": "SANDBOX_INITIALIZING", "message": user_texts.PROGRESS_SERVICES_WAIT}})
                 return run_chosen(payload, x_saniti_owner)
         finally:
+            current_run_deadline.reset(root_deadline)
             current_lane.reset(lane_token)
             current_model_choice.reset(token)
 
@@ -717,6 +728,9 @@ def create_app(
                 return refuse(ConversationError("ANALYSIS_PATH_CONFLICT", "analysis_path ANALYSIS cannot reply to a "
                                                 "Research Plan; send the reply without it.", 400))
         if payload.history_mode == "CLIENT":
+            if payload.presentation_retry_of is not None:
+                return refuse(ConversationError("PRESENTATION_RETRY_NEEDS_SERVER_MODE",
+                                                "Saved presentation needs its owned conversation.", 400))
             if payload.plan_reply is not None:
                 return refuse(ConversationError("PLAN_REPLY_NEEDS_SERVER_MODE", "plan_reply is for history_mode "
                                                 "SERVER; with CLIENT send the continuation of the plan.", 400))
@@ -728,6 +742,7 @@ def create_app(
                 return follow_ups.attach(orchestrator, payload.message, result)
             finally:
                 current_caller_path.reset(caller)
+        saved_checkpoint = None
         try:
             if conversations is None:
                 raise ConversationError("HISTORY_MODE_UNAVAILABLE", "history_mode SERVER needs "
@@ -740,6 +755,15 @@ def create_app(
                                         "Plan itself; reply with the message, or with plan_reply for an explicit "
                                         "APPROVE, REVISE or CANCEL.", 400)
             owner = owner_from_header(x_saniti_owner)
+            if payload.presentation_retry_of is not None:
+                if not payload.conversation_id or not payload.model or not payload.reasoning_level \
+                        or payload.request_id == payload.presentation_retry_of or payload.plan_reply \
+                        or payload.chosen_option or payload.attachments or payload.attached_selection:
+                    raise ConversationError("PRESENTATION_RETRY_INVALID",
+                                            "Use a new request id, the same conversation, and an explicit model "
+                                            "and reasoning level for presentation-only retry.", 400)
+                saved_checkpoint = conversations.presentation_checkpoint(owner, payload.conversation_id,
+                    payload.presentation_retry_of, payload.presentation_retry_step)
             start = conversations.begin(owner, payload, fingerprint(payload))
         except ConversationError as error:
             return refuse(error)
@@ -747,28 +771,46 @@ def create_app(
             return JSONResponse(content={**start.replay, "conversation": {
                 "conversation_id": start.conversation_id, "turn_index": start.turn_index, "persistence": "SAVED",
                 "replayed": True, "research_plan": plan_summary(start.state)}})
-        request, mode = routed(payload.model_copy(update={"conversation_id": start.conversation_id,
-                                                          "history": start.history,
-                                                          "continuation": start.continuation}), start.continuation)
+        if saved_checkpoint is not None:
+            request = payload.model_copy(update={"conversation_id": start.conversation_id, "history": [],
+                                                 "continuation": None, "analysis_path": "ANALYSIS"})
+            mode = ModeExecution(mode=2, name="ANALYSIS", source="CALLER")
+        else:
+            request, mode = routed(payload.model_copy(update={"conversation_id": start.conversation_id,
+                                                              "history": start.history,
+                                                              "continuation": start.continuation}), start.continuation)
         try:
             # M47: the conversation's data record from earlier turns (AI_conversation.state)
             record = (start.state or {}).get(DATA_RECORD_KEY)
             extra = {"data_record": record} if record else {}
             caller = current_caller_path.set(payload.analysis_path if mode.source == "CALLER" else None)
+            checkpoint_context = checkpoints.current.set(checkpoints.Context(payload.request_id,
+                lambda step_id, document: conversations.write_checkpoint(owner, start, payload.request_id,
+                                                                          step_id, document)))
+            resume_context = checkpoints.resume.set(saved_checkpoint)
             try:
                 with stop.running(payload.request_id, owner) as flag:
-                    if getattr(orchestrator, "conversation_reuse", False):
+                    if saved_checkpoint is not None:
+                        # Skip route selection and Mode4 planning: this request can only present its saved step.
+                        executor = getattr(orchestrator, "inner", orchestrator)
+                        result = executor.run(request, **extra)
+                        result = result.model_copy(update={"data_record": record})  # preserve newer conversation data
+                    elif getattr(orchestrator, "conversation_reuse", False):
                         result = orchestrator.run(request, conversation_key=reuse_key(owner, start.conversation_id),
                                                   **extra)
                     else:
                         result = orchestrator.run(request, **extra)
                     result = stopped(result, flag)
             finally:
+                checkpoints.resume.reset(resume_context)
+                checkpoints.current.reset(checkpoint_context)
                 current_caller_path.reset(caller)
         except Exception:
             conversations.abandon(start, payload.request_id, "INTERNAL_ERROR")
             raise
-        result = follow_ups.attach(orchestrator, payload.message, with_mode(result, mode))  # EXEC-Y Fase 2
+        result = with_mode(result, mode)
+        if saved_checkpoint is None:
+            result = follow_ups.attach(orchestrator, payload.message, result)  # no paid helper for a presentation retry
         saved = conversations.finish(start, payload.request_id, result)
         return JSONResponse(content={**result.model_dump(mode="json"), "conversation": {
             "conversation_id": start.conversation_id, "turn_index": start.turn_index,

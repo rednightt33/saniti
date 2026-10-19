@@ -95,6 +95,9 @@ def test_a_step_without_a_reply_falls_back_to_the_server_model_for_the_rest_of_t
         second = agent.create({"model": MANUAL_MODEL, "reasoning": {"enabled": True}, "input": []})
     finally:
         current_request_id.reset(token)
+    assert first.pop("_executor_settings") == {"model": settings.ai_model,
+        "reasoning": settings.reasoning(settings.ai_reasoning_effort), "fallback_reason": "MANUAL_NO_REPLY"}
+    assert second.pop("_executor_settings")["fallback_reason"] == "MANUAL_EARLIER_STEP"
     assert first == final_response(ANSWER) and second == final_response(ANSWER)
     assert [p["model"] for p in real.payloads] == [settings.ai_model] * 2
     assert real.payloads[0]["reasoning"] == settings.reasoning(settings.ai_reasoning_effort)

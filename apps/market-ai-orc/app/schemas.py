@@ -138,6 +138,8 @@ class AgentRunRequest(BaseModel):
     # EXEC-IMPL-1017 Fase 3: what the user selected and attached, anywhere in earlier answers (at most 5); the single
     # attached_selection above stays accepted as one TABLE item
     attachments: list[AttachedSelection | AttachedText] = Field(default_factory=list, max_length=5)
+    presentation_retry_of: str | None = Field(default=None, max_length=200, pattern=r"^[A-Za-z0-9._:-]+$")
+    presentation_retry_step: str | None = Field(default=None, max_length=200, pattern=r"^[A-Za-z0-9._:-]+$")
 
     @field_validator("message")
     @classmethod
@@ -722,6 +724,10 @@ class ExecutionMetadata(BaseModel):
     # EXEC-MODELS: the reasoning level the caller chose for this message (model holds the chosen model); omitted when
     # the server default ran
     reasoning_level: str | None = None
+    # Safe execution settings and provider ids for each executor call; never internal reasoning text.
+    model_calls: list[dict[str, Any]] | None = None
+    token_budget: dict[str, Any] | None = None
+    presentation_recovery: dict[str, Any] | None = None
     # EXEC-FASTLANE: the lane the caller chose for this message; omitted when none was named
     lane: str | None = None
 
@@ -732,7 +738,7 @@ class ExecutionMetadata(BaseModel):
         data = handler(self)
         if isinstance(data, dict):
             for key in ("analysis_path", "mode", "analysis_final_statuses", "friction", "hurdles", "pause", "stopped",
-                        "reasoning_level", "lane"):
+                        "reasoning_level", "model_calls", "token_budget", "presentation_recovery", "lane"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data

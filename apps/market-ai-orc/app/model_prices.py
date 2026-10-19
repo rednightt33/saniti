@@ -42,6 +42,7 @@ class ModelPrices:
         self.clock = clock
         self.wall_clock = wall_clock
         self._prices: dict[str, dict[str, float | None]] = {}
+        self._capabilities: dict[str, dict[str, Any]] = {}
         self._fetched_at: str | None = None
         self._read_at: float | None = None
         self._lock = threading.Lock()
@@ -56,12 +57,21 @@ class ModelPrices:
             listed = None
         wanted = {option.model for option in MODEL_CHOICES}
         found: dict[str, dict[str, float | None]] = {}
+        capabilities: dict[str, dict[str, Any]] = {}
         for item in listed or []:
             if isinstance(item, dict) and item.get("id") in wanted:
                 pricing = item.get("pricing") or {}
                 found[item["id"]] = {"input_per_million": per_million(pricing.get("prompt")),
                                      "output_per_million": per_million(pricing.get("completion")),
                                      "cache_read_per_million": per_million(pricing.get("input_cache_read"))}
+                reasoning = item.get("reasoning") or {}
+                capabilities[item["id"]] = {
+                    "numeric_reasoning_supported": reasoning.get("supports_max_tokens") is True,
+                    "supported_efforts": [x for x in reasoning.get("supported_efforts") or []
+                                          if x in ("none", "minimal", "low", "medium", "high", "max")],
+                    "max_completion_tokens": (item.get("top_provider") or {}).get("max_completion_tokens"),
+                    "context_length": item.get("context_length"),
+                    "source": "openrouter_models", "numeric_budget_acceptance": "not_checked_by_model_list"}
         with self._lock:
             self._read_at = self.clock()
             self._refreshing = False
@@ -70,6 +80,7 @@ class ModelPrices:
                          fetched_at=self._fetched_at)
                 return
             self._prices = {**self._prices, **found}
+            self._capabilities = capabilities
             self._fetched_at = self.wall_clock().isoformat(timespec="seconds")
             fetched_at = self._fetched_at
         self.log("ai_model_prices_refreshed", status="OK", models=len(found), fetched_at=fetched_at,
@@ -106,3 +117,8 @@ class ModelPrices:
         if stale:
             self._start_refresh()
         return prices, fetched_at
+
+    def capabilities(self) -> dict[str, dict[str, Any]]:
+        """Public capability declarations, not evidence that a numeric value was accepted or enforced."""
+        with self._lock:
+            return {name: dict(values) for name, values in self._capabilities.items()}

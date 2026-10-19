@@ -4180,3 +4180,10 @@ Per-trading-date Stockbit broker-summary load progress, retries, and review stat
 | Name | Definition |
 |---|---|
 | `stockbit_broker_summary_load_log_pkey` | `CREATE UNIQUE INDEX stockbit_broker_summary_load_log_pkey ON public.stockbit_broker_summary_load_log USING btree (target_table, trade_date)` |
+
+## Pending migration: ORC presentation checkpoint (2026-10-19)
+
+`database/migrations/20261019_001_orc_execution_checkpoint.sql` is tested locally and **not applied live**. It adds
+nullable `AI_conversation_turn.execution_checkpoint` JSONB with version/object/256 KiB constraints. The live schema
+listing above remains unchanged until migration/readback. READY writes also reserve the existing conversation data
+record/aliases and scalar-reference counters under the same owner/lease fence; response/status remain RUNNING.

@@ -81,6 +81,7 @@ class ManualAgent:
             with self._lock:
                 self._steps.pop(step.step_id, None)
         reply = dict(step.reply or {})
+        reply.pop("_executor_settings", None)
         reply.setdefault("id", f"manual-{step.step_id}")
         reply.setdefault("model", MANUAL_MODEL)
         reply.setdefault("usage", {})
@@ -93,7 +94,14 @@ class ManualAgent:
         model = self.settings.ai_model
         self.log("manual_agent_fallback", request_id=request_id, reason=reason, model=model)
         sent = {**payload, "model": model, "reasoning": self.settings.reasoning(self.settings.ai_reasoning_effort)}
-        return self.real.create(sent)
+        from .openrouter_client import ProviderError
+        try:
+            reply = self.real.create(sent)
+        except ProviderError as exc:
+            exc.sent_settings = {"model":model, "reasoning":sent["reasoning"], "fallback_reason":"MANUAL_" + reason}
+            raise
+        return {**reply, "_executor_settings": {"model": model, "reasoning": sent["reasoning"],
+                                                "fallback_reason": "MANUAL_" + reason}}
 
     def pending(self) -> list[dict[str, Any]]:
         with self._lock:

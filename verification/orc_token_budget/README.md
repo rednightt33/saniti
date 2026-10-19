@@ -1,7 +1,7 @@
 # Audit ORC: reasoning dan penyajian 48k/48k
 
-Inspeksi 19 Oktober 2026, `lucid-patience/dev`. Rencana implementasi yang belum dieksekusi ada di
-[`PLAN.md`](../../PLAN.md#anggaran-reasoning-dan-penyajian--persetujuan-target-audit-dahulu).
+Inspeksi 19 Oktober 2026, `lucid-patience/dev`. Baseline audit sebelum implementasi; rencana disetujui untuk dijalankan pada 2026-10-19 dan dipindahkan ke
+[`EXEC.md`](../../EXEC.md#exec-orc-budget--reasoning-dan-penyajian-2026-10-19).
 Baseline Git saat audit: `cf82949`; versi aplikasi per service ada di `INFRA_INSPECTION.json`.
 
 ## Bukti dan batas inspeksi
@@ -113,3 +113,5 @@ Selector: dua test downgrade di `test_fastlane.py`; parameter reasoning, MiMo ca
 `test_exec_models.py`; timeout retry di `test_openrouter_client.py`; persistence di `test_result_store.py` dan
 failed-run memory di `test_run_memory.py`. Parameterized selector menghasilkan lebih dari delapan test cases.
 Belum menguji implementasi baru atau UI baru; acceptance untuk perubahan ada di PLAN.
+
+Source implementation and local validation: [IMPLEMENTATION.md](IMPLEMENTATION.md). Live migration/config/deployment remain pending; the audit above describes the inspected baseline.

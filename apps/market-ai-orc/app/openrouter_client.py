@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import threading
@@ -12,7 +13,7 @@ import httpx
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 NON_RETRYABLE_429_CODES = {"credit_balance_exhausted", "insufficient_quota"}
 RETRYABLE_STATUS_CODES = {408, 409, 429}
-MAX_ATTEMPTS = 3
+MAX_ATTEMPTS = 2  # at most one retry of an explicit transient HTTP refusal
 # M160 (user 2026-10-15, "Ok, confirmed. Go."): a refusal of the account (key revoked, no credit, key limit reached)
 # is not a refusal of one request. HTTP 401 and 402 say so themselves; for any other refusal the key's own record
 # (GET /key, limit_remaining) decides, so a provider's wording or status for "limit reached" needs no list here.
@@ -76,6 +77,26 @@ def response_usage(response: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def output_cut_reason(response: dict[str, Any], cap: int) -> str | None:
+    """Provider completion flags take precedence over parseable JSON and absent/inexact token usage."""
+    details = response.get("incomplete_details") or {}
+    reason = details.get("reason") if isinstance(details, dict) else None
+    finish = response.get("finish_reason")
+    for choice in response.get("choices") or []:
+        if isinstance(choice, dict) and choice.get("finish_reason"):
+            finish = choice["finish_reason"]
+    if reason in ("max_output_tokens", "max_tokens", "length") or finish in ("length", "max_tokens"):
+        return "OUTPUT_BUDGET_EXHAUSTED"
+    if response_usage(response)["output_tokens"] >= cap:
+        return "OUTPUT_BUDGET_EXHAUSTED"
+    if response.get("status") in ("incomplete", "failed", "cancelled") or reason or response.get("error") \
+            or finish in ("content_filter", "error", "cancelled"):
+        return "PROVIDER_INCOMPLETE"
+    if any(isinstance(item, dict) and item.get("status") == "incomplete" for item in response.get("output") or []):
+        return "PROVIDER_INCOMPLETE"
+    return None
+
+
 class OpenRouterClient:
     """OpenRouter Responses transport with bounded retry and no provider-side storage."""
 
@@ -102,6 +123,7 @@ class OpenRouterClient:
             transport=transport,
         )
         self.timeout_seconds = timeout_seconds
+        self._response_transport = transport
         self._lock = threading.Lock()
         self._blocked_until = 0.0
         self._blocked_reason = ""
@@ -227,7 +249,7 @@ class OpenRouterClient:
 
     def create(self, payload: dict[str, Any], *, timeout: float | None = None,
                attempts: int | None = None) -> dict[str, Any]:
-        """EXEC-FASTLANE R4: timeout (seconds) and attempts override the client's own for one call."""
+        """One operation, including any explicit HTTP retry, within the call and remaining run deadlines."""
         self._check_breaker()
         try:
             result = self._create(payload, timeout=timeout, attempts=attempts)
@@ -239,43 +261,73 @@ class OpenRouterClient:
         return result
 
     def _post_within(self, payload: dict[str, Any], timeout: float | None) -> httpx.Response:
-        """M163 (user 2026-10-15, go for EXEC-M163 item 1): one POST /responses that ends at a total deadline. An httpx
-        timeout only bounds each wait for the next bytes, so a provider that keeps the connection alive while the model
-        thinks was never cut (the fast lane's 90 s cap never fired). The body is read as a stream and the call is
-        closed once the deadline has passed; a wait without any bytes still ends at the same length. The deadline is
-        the call's timeout, else the client's own."""
+        """Cancel the HTTP operation at its total deadline, including silence after earlier keep-alive bytes.
+
+        The public client is synchronous (the API runs it in a worker thread). Async I/O here allows cancellation of
+        a pending read; checking the clock only between sync chunks allowed another full timeout on each read.
+        Metadata GETs keep the existing pooled synchronous client. No background inference thread outlives timeout.
+        """
         seconds = float(timeout if timeout is not None else self.timeout_seconds)
         deadline = time.monotonic() + seconds
-        with self.client.stream("POST", "/responses", json=payload, timeout=seconds) as response:
-            chunks: list[bytes] = []
-            for chunk in response.iter_bytes():
-                chunks.append(chunk)
-                if time.monotonic() > deadline:
-                    _log("ai_provider_call_deadline", seconds=seconds)
-                    raise httpx.ReadTimeout(f"no complete response within {seconds:g} s")
-            # M168: the bytes are already decoded, so the headers that describe the transport (compression, length)
-            # are dropped; kept, they made the new response decode the body a second time (DecodingError)
-            headers = [(k, v) for k, v in response.headers.multi_items() if k.lower() not in TRANSPORT_HEADERS]
-            return httpx.Response(response.status_code, headers=headers, content=b"".join(chunks),
-                                  request=response.request)
+
+        async def post() -> httpx.Response:
+            async with asyncio.timeout(seconds):
+                async with httpx.AsyncClient(base_url=OPENROUTER_BASE_URL, headers=self.client.headers,
+                                             timeout=seconds, transport=self._response_transport) as client:
+                    async with client.stream("POST", "/responses", json=payload) as response:
+                        chunks: list[bytes] = []
+                        async for chunk in response.aiter_bytes():
+                            chunks.append(chunk)
+                            if time.monotonic() >= deadline:
+                                raise TimeoutError
+                        # M168: iterated bytes are decoded already, so do not decode compression a second time.
+                        headers = [(k, v) for k, v in response.headers.multi_items()
+                                   if k.lower() not in TRANSPORT_HEADERS]
+                        return httpx.Response(response.status_code, headers=headers, content=b"".join(chunks),
+                                              request=response.request)
+
+        try:
+            return asyncio.run(post())
+        except TimeoutError as exc:
+            _log("ai_provider_call_deadline", seconds=seconds)
+            raise httpx.ReadTimeout(f"no complete response within {seconds:g} s") from exc
 
     def _create(self, payload: dict[str, Any], *, timeout: float | None, attempts: int | None) -> dict[str, Any]:
+        from . import stop
+        from . import progress, user_texts
+        from .tools.request_data import current_request_id, current_run_deadline
+
         last_error: ProviderError | None = None
-        tries = attempts or MAX_ATTEMPTS
+        seconds = min(float(timeout or self.timeout_seconds), float(self.timeout_seconds))
+        deadline = min(time.monotonic() + seconds, current_run_deadline.get() or float("inf"))
+        tries = min(max(1, attempts or MAX_ATTEMPTS), MAX_ATTEMPTS)
         for attempt in range(tries):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise ProviderError("openrouter operation deadline reached; no new call sent", code="PROVIDER_TIMEOUT")
+            if stop.requested():
+                raise ProviderError("request stopped; no new call sent", code="STOPPED_BY_USER")
+            _log("ai_provider_attempt", request_id=current_request_id.get(), attempt=attempt + 1,
+                 model=payload.get("model"), sent_reasoning=payload.get("reasoning"),
+                 max_output_tokens=payload.get("max_output_tokens"), remaining_seconds=round(remaining, 3))
             try:
-                response = self._post_within(payload, timeout)
-            except httpx.TimeoutException:
-                last_error = ProviderError("openrouter request timed out", code="PROVIDER_TIMEOUT")
+                response = self._post_within(payload, remaining)
+            except httpx.TimeoutException as exc:
+                # An ambiguous interruption may already have consumed tokens. Never silently send it again.
+                _log("ai_provider_attempt_interrupted", request_id=current_request_id.get(), attempt=attempt + 1,
+                     code="PROVIDER_TIMEOUT", cost_status="UNKNOWN", retried=False)
+                raise ProviderError("openrouter request timed out; not retried", code="PROVIDER_TIMEOUT") from exc
             except httpx.DecodingError as exc:
                 # M168: a body that cannot be decoded is the provider's malformed answer, not retried (tokens may
                 # already be spent) and never an exception that ends the run as INTERNAL_ERROR
                 raise ProviderError("openrouter returned a body that cannot be decoded",
                                     code="PROVIDER_MALFORMED_RESPONSE") from exc
-            except httpx.NetworkError as exc:
-                last_error = ProviderError(
+            except (httpx.NetworkError, httpx.RemoteProtocolError) as exc:
+                _log("ai_provider_attempt_interrupted", request_id=current_request_id.get(), attempt=attempt + 1,
+                     code="PROVIDER_NETWORK_ERROR", cost_status="UNKNOWN", retried=False)
+                raise ProviderError(
                     f"openrouter network error: {type(exc).__name__}", code="PROVIDER_NETWORK_ERROR"
-                )
+                ) from exc
             else:
                 if 200 <= response.status_code < 300:
                     # A 2xx already consumed tokens, so a malformed body is not retried.
@@ -293,6 +345,7 @@ class OpenRouterClient:
                             code="PROVIDER_MALFORMED_RESPONSE",
                             status_code=response.status_code,
                         )
+                    result.pop("_executor_settings", None)  # reserved for the local manual-agent adapter only
                     return result
                 detail, error_type, error_code = self._error_detail(response)
                 refused = None
@@ -311,10 +364,16 @@ class OpenRouterClient:
                     detail, code="PROVIDER_UNAVAILABLE", status_code=response.status_code
                 )
             if attempt < tries - 1:
-                time.sleep(1.5 * (2 ** attempt))
+                delay = 1.5 * (2 ** attempt)
+                if time.monotonic() + delay >= deadline:
+                    raise ProviderError("openrouter operation deadline reached before retry", code="PROVIDER_TIMEOUT")
+                _log("ai_provider_retry", request_id=current_request_id.get(), attempt=attempt + 2,
+                     status_code=response.status_code, remaining_seconds=round(deadline - time.monotonic(), 3))
+                with progress.step(user_texts.PROGRESS_PROVIDER_RETRY):
+                    time.sleep(delay)
         assert last_error is not None
         raise ProviderError(
-            f"openrouter request failed after {MAX_ATTEMPTS} attempts: {last_error}",
+            f"openrouter request failed after {tries} attempts: {last_error}",
             code=last_error.code,
             status_code=last_error.status_code,
         )

@@ -90,6 +90,11 @@ window.EdgeLabels = {
     approveMessage:"Setujui rencana riset", cancelMessage:"Batalkan rencana riset",
     // EXEC-MODELS: the model and reasoning-level choice next to the composer
     // EXEC-UI-1015D (user 2026-10-15): the model picker in English; every EDGE message runs the fast lane (no lane choice)
+    retryModelUnavailable:"The original model or reasoning level is unavailable. Choose a model explicitly before resending.",
+    budgetShared:"Up to {total} tokens per call, shared by reasoning and the answer. A 48k/48k split is not guaranteed.",
+    budgetNumeric:"Up to {total} combined tokens per call; requested reasoning cap: {reasoning}. Answer length is not guaranteed.",
+    callSettingsTitle:"AI call settings", presentationTitle:"Saved calculation results", presentationHelp:"Retry writing from these saved results only. This does not repeat data queries or calculations, and may incur AI usage costs.",
+    presentationRetry:"Retry presentation", presentationMessage:"Sajikan ulang hasil perhitungan tersimpan untuk pertanyaan asal. Pertahankan tanggal data, sumber, cakupan dan batasannya.",
     modelTitle:"Choose model and reasoning", modelHead:"AI model", modelPricesNote:"Price per 1M tokens",
     modelInput:"Input", modelOutput:"Output", modelLevel:"Reasoning", lane:"Lane", lanes:{standard:"Standard", fast:"Fast"}, answerKicker:"EDGE", modelUpdated:"Prices updated",
     modelLevels:{low:"Low", medium:"Medium", high:"High", max:"Max", off:"Off", on:"On"},

@@ -1,6 +1,6 @@
 """EXEC-FASTLANE B1/B2 (user 2026-10-13: "kita buat jalur baru saja untuk nanti A/B test", "harus selalu ada
 fallback", "B1 + B2 berturut2"): lane "fast" answers a data question in one turn on the FASTLANE desk with the lane
-note; the calls after the first think low; one call is cut at FAST_CALL_SECONDS and asked again lower; a refused data
+note; executor calls keep the selected reasoning and general deadline; a refused data
 size says how much fits. Without the switch, or with no lane named, nothing differs from before."""
 from __future__ import annotations
 
@@ -66,7 +66,7 @@ def names(payload):
     return {t["name"] for t in payload.get("tools", [])}
 
 
-def test_the_fast_lane_answers_in_one_turn_on_its_desk_with_lower_reasoning_after_the_first_call() -> None:
+def test_the_fast_lane_keeps_the_chosen_reasoning_throughout_its_work() -> None:
     result, scripted, tools = run([*flow(), final_response(answer("Return YTD BBCA 12,35% dan BBRI turun 4,32%."))],
                                   lane=lanes.FAST, path="RESEARCH")
     assert result.status == "COMPLETED" and tools.modes == ["ANALYSIS"]
@@ -76,8 +76,8 @@ def test_the_fast_lane_answers_in_one_turn_on_its_desk_with_lower_reasoning_afte
     assert "check_research_feasibility" not in names(scripted.payloads[0])
     assert "run_python" in names(scripted.payloads[0])
     assert scripted.payloads[0]["reasoning"] == {"effort": "high"}
-    assert {json.dumps(p["reasoning"]) for p in scripted.payloads[1:]} == {json.dumps({"effort": "low"})}
-    assert all(o == {"timeout": lanes.FAST_CALL_SECONDS, "attempts": 1} for o in scripted.options)
+    assert {json.dumps(p["reasoning"]) for p in scripted.payloads[1:]} == {json.dumps({"effort": "high"})}
+    assert all(o == {} for o in scripted.options)
     assert result.execution.lane == "fast" and result.execution.research_plan is None
 
 
@@ -97,13 +97,16 @@ def test_without_the_draft_check_the_fast_lane_withdraws_check_references_and_it
     assert "check_references" in names(standard.payloads[0])
 
 
-def test_a_call_cut_at_the_time_limit_is_asked_again_once_with_lower_reasoning() -> None:
+def test_a_timed_out_executor_call_is_not_repeated_with_lower_reasoning() -> None:
     timeout = ProviderError("openrouter request timed out", code="PROVIDER_TIMEOUT")
     result, scripted, _ = run([timeout, final_response(ANSWER)], lane=lanes.FAST,
                               model=("deepseek/deepseek-v4.1-flash", "max"))
-    assert result.status == "COMPLETED"
-    assert scripted.payloads[1]["reasoning"] == {"effort": "low"}
-    assert scripted.options == [{"timeout": lanes.FAST_CALL_SECONDS, "attempts": 1}, {}]  # one cut per run
+    assert result.status == "FAILED" and result.error.code == "PROVIDER_TIMEOUT"
+    assert len(scripted.payloads) == 1
+    assert scripted.payloads[0]["reasoning"] == {"effort": "max"}
+    assert scripted.options == [{}]
+    assert result.execution.model_calls[0]["sent_reasoning"] == {"effort":"max"}
+    assert result.execution.model_calls[0]["cost_status"] == "UNKNOWN"
 
 
 @pytest.mark.parametrize("lane", [None, lanes.STANDARD])

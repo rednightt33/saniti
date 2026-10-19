@@ -23,7 +23,9 @@ def make_client(
 
     def recording(request: httpx.Request) -> httpx.Response:
         seen.append(request)
-        return handler(request)
+        response = handler(request)
+        # A reusable fixture response must not retain the stream wrapper of a previous sync/async request.
+        return httpx.Response(response.status_code, headers=response.headers, content=response.content)
 
     return OpenRouterClient(API_KEY, 30, transport=httpx.MockTransport(recording), **kwargs), seen
 
@@ -67,16 +69,16 @@ def test_optional_referer_header() -> None:
     assert seen[0].headers["HTTP-Referer"] == "https://saniti.example"
 
 
-def test_timeout_is_retried() -> None:
-    client, seen = make_client(sequence(httpx.ReadTimeout("slow"), OK))
-    assert client.create({})["id"] == "resp_ok"
-    assert len(seen) == 2
-
-
-def test_network_error_is_retried() -> None:
-    client, seen = make_client(sequence(httpx.ConnectError("down"), OK))
-    assert client.create({})["id"] == "resp_ok"
-    assert len(seen) == 2
+@pytest.mark.parametrize("failure,code", [
+    (httpx.ReadTimeout("slow"), "PROVIDER_TIMEOUT"),
+    (httpx.ConnectError("down"), "PROVIDER_NETWORK_ERROR"),
+    (httpx.RemoteProtocolError("connection lost"), "PROVIDER_NETWORK_ERROR"),
+])
+def test_an_ambiguous_interruption_is_not_retried(failure, code) -> None:
+    client, seen = make_client(sequence(failure, OK))
+    with pytest.raises(ProviderError) as raised:
+        client.create({})
+    assert raised.value.code == code and len(seen) == 1
 
 
 @pytest.mark.parametrize("status", [500, 502, 503, 408, 409])
@@ -113,9 +115,9 @@ def test_client_error_is_not_retried() -> None:
 
 def test_persistent_server_error_stops_after_bounded_attempts() -> None:
     client, seen = make_client(sequence(error(503)))
-    with pytest.raises(ProviderError, match="after 3 attempts") as raised:
+    with pytest.raises(ProviderError, match="after 2 attempts") as raised:
         client.create({})
-    assert len(seen) == 3
+    assert len(seen) == 2
     assert raised.value.code == "PROVIDER_UNAVAILABLE"
 
 
@@ -123,7 +125,7 @@ def test_persistent_timeout_reports_timeout_code() -> None:
     client, seen = make_client(sequence(httpx.ReadTimeout("slow")))
     with pytest.raises(ProviderError) as raised:
         client.create({})
-    assert len(seen) == 3
+    assert len(seen) == 1
     assert raised.value.code == "PROVIDER_TIMEOUT"
 
 

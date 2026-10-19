@@ -4,7 +4,7 @@
    The page renders the view model only, so a change in Orc's response is a change here; a change in look is a change
    in the page's HTML/CSS; a change in wording is a change in edge-labels.js. VERSION changes when a part changes shape. */
 (() => {
-  const VERSION = 1;
+  const VERSION = 2;
   const L = () => window.EdgeLabels;
   const empty = value => value == null || value === "" || (Array.isArray(value) && !value.length) || (typeof value === "object" && !Array.isArray(value) && !Object.keys(value).length);
   const label = key => L().fields[key] ?? String(key).replace(/_/g, " ").replace(/^./, c => c.toUpperCase());
@@ -226,6 +226,20 @@
     return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
   }
 
+  function tokenBudget(value) {
+    if (!value || !Number.isFinite(value.total_output_tokens)) return null;
+    const ui=L().ui, formatted = n => new Intl.NumberFormat('en-US').format(n);
+    return (value.reasoning_max_tokens ? ui.budgetNumeric : ui.budgetShared)
+      .replace('{total}',formatted(value.total_output_tokens)).replace('{reasoning}',formatted(value.reasoning_max_tokens || 0));
+  }
+  function recovery(envelope) {
+    const found=envelope?.presentation_recovery || envelope?.execution?.presentation_recovery;
+    const failed=envelope?.status==='FAILED'||envelope?.status==='LIMITED'||envelope?.error || (envelope?.mode4?.steps || []).some(step=>step.status==='FAILED');
+    if (!found?.available || !failed) return [];
+    return (found.choices || []).filter(c=>c.presentation_retry_of && c.model && c.reasoning_level).map((c,index)=>({
+      key:c.presentation_retry_step || index,label:L().ui.presentationRetry+' · '+(c.model_label || c.model)+' · '+(L().ui.modelLevels[c.reasoning_level] || c.reasoning_level),
+      action:{type:'presentation',requestId:c.presentation_retry_of,stepId:c.presentation_retry_step,model:c.model,level:c.reasoning_level}}));
+  }
   // ---- the whole answer ----
   function toView(envelope, {domainStatus, planIndex} = {}) {
     const ui = L().ui, final = envelope?.response || {}, execution = envelope?.execution || {}, pause = execution.pause;
@@ -237,7 +251,8 @@
     return {
       version:VERSION,
       status:status(envelope, domainStatus),
-      meta:{requestId:envelope?.request_id ?? null, model:execution.model ?? null, reasoningLevel:execution.reasoning_level ?? null, lane:execution.lane ?? null, tokens:execution.total_tokens, cost:execution.cost ?? null, duration:durationText(execution.duration_ms)},
+      meta:{requestId:envelope?.request_id ?? null, model:execution.model ?? null, reasoningLevel:execution.reasoning_level ?? null, tokenBudget:tokenBudget(execution.token_budget), calls:execution.model_calls || [], lane:execution.lane ?? null, tokens:execution.total_tokens, cost:execution.cost ?? null, duration:durationText(execution.duration_ms)},
+      recovery:recovery(envelope),
       evidence:envelope?.evidence_label ? {code:envelope.evidence_label, label:ui.evidencePrefix + (L().evidence[envelope.evidence_label] ?? envelope.evidence_label)} : null,
       claims:(envelope?.annotations || []).filter(item => item?.quote).map(item => [String(item.quote).trim(), item.note || item.kind]),
       // EXEC-UI-1013B: a question that is the whole answer is shown once, in the choices part

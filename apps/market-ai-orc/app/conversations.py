@@ -39,6 +39,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from . import conversation_plans as plans
+from . import presentation_checkpoint as checkpoints
 from .research_plan import ContinuationIn
 from .research_plan_v2 import ContinuationInV2
 from .schemas import MAX_HISTORY_ITEMS, MAX_MESSAGE_CHARACTERS, AgentRunRequest, AgentRunResponse, HistoryMessage
@@ -115,6 +116,10 @@ def fingerprint(request: AgentRunRequest) -> str:
             "continuation": request.continuation.model_dump(mode="json") if request.continuation else None}
     if request.plan_reply is not None:  # absent from the fingerprints stored before phase H2
         body["plan_reply"] = request.plan_reply.model_dump(mode="json")
+    if request.presentation_retry_of is not None:
+        body.update(presentation_retry_of=request.presentation_retry_of,
+                    presentation_retry_step=request.presentation_retry_step,
+                    model=request.model, reasoning_level=request.reasoning_level, lane=request.lane)
     return hashlib.sha256(json.dumps(body, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
@@ -387,6 +392,63 @@ class ConversationStore:
                 time.sleep(self.save_retry_seconds)
         return False
 
+    def write_checkpoint(self, owner: str, start: TurnStart, request_id: str, step_id: str,
+                         document: dict[str, Any]) -> bool:
+        """One bounded CAS transaction; no external calls while the row is locked. Never expands market grants."""
+        if not checkpoints.bounded(document):
+            return False
+        try:
+            with self._connect() as connection:
+                # Use the same conversation-before-turn lock order as begin(). No I/O outside Postgres under lock.
+                held = connection.execute('''SELECT conversation_id FROM public."AI_conversation"
+                    WHERE conversation_id=%s AND owner_key=%s AND active_request_id=%s
+                      AND lease_generation=%s AND lease_expires_at>CURRENT_TIMESTAMP FOR UPDATE''',
+                    (start.conversation_id, owner, request_id, start.generation)).fetchone()
+                if held is None:
+                    return False
+                saved = connection.execute('''UPDATE public."AI_conversation_turn" t
+                    SET execution_checkpoint = jsonb_set(
+                      COALESCE(t.execution_checkpoint, '{"version":1,"steps":{}}'::jsonb), %s::text[], %s)
+                    FROM public."AI_conversation" c
+                    WHERE t.request_id=%s AND t.conversation_id=%s AND t.status='RUNNING'
+                      AND t.lease_generation=%s AND c.conversation_id=t.conversation_id
+                      AND c.owner_key=%s AND c.active_request_id=%s AND c.lease_generation=%s
+                      AND c.lease_expires_at>CURRENT_TIMESTAMP''',
+                    (["steps", step_id], Jsonb(document), request_id, start.conversation_id, start.generation,
+                     owner, request_id, start.generation)).rowcount == 1
+                if not saved:
+                    connection.rollback()
+                    return False
+                if document.get("phase") == "READY_FOR_PRESENTATION" and isinstance(document.get("data_record"), dict):
+                    # Reserve immutable output aliases and scalar-reference counters before a possible process loss.
+                    # response/status and Research Plan state remain untouched until ordinary finish().
+                    connection.execute('''UPDATE public."AI_conversation" SET state=jsonb_set(state,
+                        '{data_record}'::text[], %s) WHERE conversation_id=%s''',
+                        (Jsonb(document["data_record"]), start.conversation_id))
+                return True
+        except psycopg.Error:
+            logger.warning(json.dumps({"event":"presentation_checkpoint_failed", "request_id":request_id}))
+            return False
+
+    def presentation_checkpoint(self, owner: str, conversation_id: str, request_id: str,
+                                step_id: str | None) -> dict[str, Any]:
+        with self._connect() as connection:
+            row = connection.execute('''SELECT t.status, t.execution_checkpoint
+                FROM public."AI_conversation_turn" t JOIN public."AI_conversation" c USING(conversation_id)
+                WHERE t.request_id=%s AND t.conversation_id=%s AND c.owner_key=%s
+                  AND c.expires_at>CURRENT_TIMESTAMP''', (request_id, conversation_id, owner)).fetchone()
+        if row is None:
+            raise ConversationError("PRESENTATION_CHECKPOINT_NOT_FOUND", "No saved presentation for this owner.",404)
+        if row["status"] == "RUNNING":
+            raise ConversationError("PRESENTATION_SOURCE_RUNNING", "The original request is still running.",409)
+        document = row["execution_checkpoint"] or {}
+        available = checkpoints.choices(document, request_id)
+        if step_id is None and len(available) == 1:
+            step_id = available[0]["presentation_retry_step"]
+        if not any(item["presentation_retry_step"] == step_id for item in available):
+            raise ConversationError("PRESENTATION_CHECKPOINT_NOT_READY", "No ready saved computation for this step.",409)
+        return document["steps"][step_id]
+
     def _finish_once(self, start: TurnStart, request_id: str, result: AgentRunResponse, *, retry: bool) -> bool:
         body = result.model_dump(mode="json")
         response = result.response
@@ -453,7 +515,8 @@ class ConversationStore:
             with self._connect() as connection:
                 row = connection.execute(
                     '''SELECT t.request_id, t.conversation_id, t.turn_index, t.status AS turn_status,
-                              t.run_status, t.response, t.error_code, t.created_at, t.completed_at
+                              t.run_status, t.response, t.error_code, t.created_at, t.completed_at,
+                              t.execution_checkpoint
                        FROM public."AI_conversation_turn" t
                        JOIN public."AI_conversation" c USING (conversation_id)
                        WHERE t.request_id = %s AND c.owner_key = %s''', (request_id, owner)).fetchone()
@@ -461,6 +524,9 @@ class ConversationStore:
             raise ConversationError("CONVERSATION_STORE_UNAVAILABLE", "The conversation store failed.", 503) from exc
         if row is None:
             raise ConversationError("REQUEST_NOT_FOUND", "No such request for this owner.", 404)
+        recovery = checkpoints.choices(row.pop("execution_checkpoint", None), request_id)
+        if recovery and row["turn_status"] != "RUNNING":
+            row["presentation_recovery"] = {"available": True, "choices": recovery}
         return {key: value.isoformat() if hasattr(value, "isoformat") else _request_public(value)
                 for key, value in row.items()}
 
@@ -479,7 +545,7 @@ class ConversationStore:
                     raise ConversationError("CONVERSATION_NOT_FOUND", "No such conversation for this owner.", 404)
                 rows = connection.execute(
                     '''SELECT turn_index, request_id, status, run_status, response_type, user_message, response,
-                              error_code, created_at, completed_at
+                              error_code, created_at, completed_at, execution_checkpoint
                        FROM public."AI_conversation_turn"
                        WHERE conversation_id = %s AND turn_index > %s ORDER BY turn_index LIMIT %s''',
                     (conversation_id, -1 if after is None else after, limit + 1)).fetchall()
@@ -489,6 +555,10 @@ class ConversationStore:
             raise ConversationError("CONVERSATION_STORE_UNAVAILABLE", "The conversation store failed.", 503) from exc
         items = [{key: (value.isoformat() if hasattr(value, "isoformat") else value) for key, value in row.items()}
                  for row in rows[:limit]]
+        for item in items:
+            recovery = checkpoints.choices(item.pop("execution_checkpoint", None), item["request_id"])
+            if recovery and item["status"] != "RUNNING":
+                item["presentation_recovery"] = {"available": True, "choices": recovery}
         has_more = len(rows) > limit
         return {
             "conversation_id": conversation_id,

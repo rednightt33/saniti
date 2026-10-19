@@ -50,8 +50,8 @@ PURPOSE = {
         "APPROVE, ...); serta cek katalog sebelum web (P34: apakah atribut yang mau dicari di web sudah ada di kolom "
         "tabel referensi database); serta saran sesudah jawaban (EXEC-Y Fase 2, suggest_follow_ups: pertanyaan "
         "lanjutan, ide insight dari data yang sudah dibaca, dan satu uji dengan data di EXPLORE). Dengan AI_ENABLE_ASK_BACK (EXEC-3) kedua router juga boleh menjawab ASK_BACK "
-        "(pertanyaan + pilihan cepat), mengembalikan maksud user dan semua nilai desain (varian), dan panggilan yang "
-        "gagal diulang sekali.",
+        "(pertanyaan + pilihan cepat), mengembalikan maksud user dan semua nilai desain (varian); jawaban berstruktur "
+        "tidak valid diperbaiki sekali. Timeout/network tidak diulang oleh wrapper helper.",
     "market-ai-orc:orchestrator.py:_classify_reply":
         "Membaca balasan user atas rencana riset yang menunggu (setuju, ubah, batal, topik lain); dengan "
         "AI_ENABLE_ASK_BACK juga rujukan dan nilai desain yang ditambah, diganti atau dihapus (P3b).",
