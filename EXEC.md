@@ -5281,3 +5281,43 @@ based instead of hardcode. Propose ke saya"; "#1 keep tabel 10 baris, #5 keep, #
 (`AI_ENABLE_MANUAL_AGENT=true`): pesan di EDGE dengan model "Claude (manual)", setiap panggilan model menunggu
 sebagai langkah berisi payload persis yang diterima model (prompt, catatan, hasil alat, penolakan), dijawab lewat
 `scripts/manual_agent.py`; fallback ke `AI_MODEL` sesudah `AI_MANUAL_AGENT_WAIT_SECONDS`.
+
+### EXEC-SHARE-UI: bagikan kartu jawaban (PDF + PNG), hapus pilihan "Standard", model, jalur Claude manual (dicatat 2026-10-19, belum dijalankan)
+
+**Keputusan user (2026-10-19, dengan screenshot):** tombol share di baris aksi jawaban (sebelah Pin dan Salin);
+format "PDF dan PNG alright", "Benchmark dengan best practice mengenai implementationnya"; pilihan "Standard" di
+kotak pesan dihapus; "tambahkan satu model lagi, deepseek/deepseek-v4.1-flash"; "masukan exec jangan execute dulu".
+
+- **Pilihan "Standard" di kotak pesan:** komponen "Research Mode" (`index.html`, `mode-anchor`): Standard dan
+  "Deep Research" (nonaktif, "Coming soon"); hanya tampilan, tidak mengubah permintaan. Rencana: hapus tombol dan
+  menunya; tes EDGE disesuaikan.
+- **Model `deepseek/deepseek-v4.1-flash`:** sudah ditawarkan (`model_choices.py` `MODEL_CHOICES` pertama, dan default
+  EDGE `EDGE_DEFAULT`). **Perlu klarifikasi** model mana yang dimaksud sebelum ada perubahan.
+- **Jalur Claude manual (EXEC-MANUAL):** maksud user: tidak ada model OpenRouter yang menjawab run yang memilih Claude;
+  Claude yang menjalankan peran model, user menghentikan run yang terlalu lama. Kondisi kode sekarang: (1) langkah yang
+  tidak dijawab dalam `AI_MANUAL_AGENT_WAIT_SECONDS` (bawaan 600 s) diteruskan ke `AI_MODEL` dan sisa run mengikutinya
+  (`manual_agent.py` `_fallback`); (2) hanya panggilan loop agen yang lewat Claude; router pesan pertama, router
+  percakapan dan saran lanjutan tetap memakai model OpenRouter (docstring `manual_agent.py`). Usulan (menunggu
+  persetujuan): saklar untuk mematikan fallback pada run manual (langkah menunggu sampai dijawab atau dihentikan user);
+  router tetap OpenRouter kecuali user minta lain.
+- **Bagikan kartu (rencana, menunggu persetujuan):**
+  - Tombol "Bagikan" di `ResponseActions` (baris Pin/Salin/Unduh), menu: PDF dan PNG.
+  - Satu tampilan khusus kartu (tanpa bilah atas, kotak pesan, panel): judul, pertanyaan, jawaban, tabel (semua baris
+    yang tampil di jawaban, tanpa lipatan), Asumsi dan Metodologi terbuka, kaki halaman: tanggal data, ID permintaan,
+    "Dibuat oleh EDGE AI; bukan saran investasi". Tanpa memo internal, kode, atau label teknis.
+  - **PDF:** praktik terbaik untuk teks yang bisa dipilih dan tata letak setia adalah render peramban (headless
+    Chrome/Playwright di server) atau cetak bawaan peramban; html2canvas/html2pdf menghasilkan PDF berisi gambar (teks
+    tidak bisa dipilih). Tahap 1: cetak peramban dari tampilan kartu (`@media print` khusus kartu; CSS cetak sebagian
+    sudah ada, `edge-export-print`), tanpa dependensi baru. Tahap 2 bila perlu file langsung tanpa dialog cetak
+    (terutama iPhone): endpoint edge-bff yang merender kartu dengan Chromium headless (biaya: image lebih besar dan
+    memori; diukur dulu).
+  - **PNG:** dibuat di peramban dari tampilan kartu dengan pustaka berbasis SVG yang menyematkan font (mis.
+    html-to-image), lebar tetap ±1080 px, skala 2× agar tajam, tunggu font dan gambar selesai dimuat; untuk kartu
+    yang lebih tinggi dari ±1,5 layar ponsel, sarankan PDF (WhatsApp standar memperkecil gambar ke ±1.600 px sisi
+    terpanjang).
+  - **Berbagi:** Web Share API (`navigator.canShare({files})`, lalu `navigator.share`) di HTTPS, dengan fallback unduh
+    file; JPEG tidak dipakai.
+  - **Benchmark sebelum memilih tahap 2:** ukuran file, waktu buat, ketajaman setelah dikirim lewat WhatsApp (gambar
+    dan dokumen), iPhone Safari dan Android Chrome.
+  - Sumber: web.dev "How to share files", W3C Web Share API, apitemplate.io "HTML to PDF conversion methods",
+    pspdfkit "html2pdf", 360dialog (pemrosesan gambar WhatsApp), Superchat/Chatarmin (ukuran gambar WhatsApp).
