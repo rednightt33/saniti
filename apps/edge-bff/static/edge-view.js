@@ -296,5 +296,13 @@
     }
     return index;
   }
-  window.EdgeView = {VERSION, toView, sources, planIndex, durationText, progressView, tableSource, selection, selectionLabel, textSelection, cellRef, format:{empty, label, number, valueText, verdict}};
+  // EXEC-SHARE-UI (user 2026-10-19): what the share card's footer names: the request and the latest date of the data
+  // this answer's tables were read to (data_as_of of its released outputs; any output when none of this request has one)
+  function shareInfo(envelope) {
+    const outputs = (envelope?.data_record?.outputs || []).filter(o => o && typeof o.data_as_of === 'string' && o.data_as_of);
+    const own = outputs.filter(o => o.request_id === envelope?.request_id);
+    const dates = (own.length ? own : outputs).map(o => o.data_as_of.slice(0, 10)).sort();
+    return {requestId:envelope?.request_id ?? null, dataAsOf:dates.length ? dates[dates.length - 1] : null};
+  }
+  window.EdgeView = {VERSION, toView, sources, planIndex, durationText, progressView, tableSource, selection, selectionLabel, textSelection, cellRef, shareInfo, format:{empty, label, number, valueText, verdict}};
 })();

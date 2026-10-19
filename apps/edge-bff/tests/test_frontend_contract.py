@@ -155,7 +155,6 @@ def test_the_mobile_layout_never_reaches_a_wider_screen(tmp_path, width, phone):
                    if route.request.url == preview_url else route.abort())
         page.goto(preview_url)
         page.wait_for_selector('article.result')
-        page.click('.composer .mode-anchor > .btn')  # the open mode menu is covered too
         result = page.evaluate(MOBILE_ONLY)
         browser.close()
     assert result['removed'] == 1

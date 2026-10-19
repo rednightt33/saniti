@@ -74,6 +74,17 @@ python preview/edge_preview.py import preview/edge_preview.html  # back to stati
 the script route, the round trip and the view contract on every saved response (`tests/fixtures/orc_responses.json`);
 `tests/test_answer_view.py` drives the real page through the BFF with those responses.
 
+### Sharing an answer (EXEC-SHARE-UI, 2026-10-19)
+
+"Bagikan" in an answer's action row offers PDF and PNG of one card: the EDGE logo, the question, the answer with
+every table row, its assumptions and methodology, and a footer (latest data date of its tables, request ID, "Dibuat oleh
+EDGE AI; bukan saran investasi"). The card is a cleaned clone of the answer in light colours (`EdgeShare` in
+`static/index.html`, footer data from `EdgeView.shareInfo`). PDF: the browser prints the card alone
+(`body.edge-share-printing`). PNG: `static/html-to-image.js` (html-to-image 1.11.13, MIT, `static/html-to-image.LICENSE`,
+loaded on first use; the CSP allows scripts from this origin only) draws it 540 CSS px wide at up to 2x (1,080 px),
+then the Web Share API shares it, or it is downloaded. Tests: `tests/test_share_card.py`. The composer's "Research
+Mode" menu (Standard / Deep Research, display only) was removed the same day.
+
 ## Persistence and ownership
 
 Orc owns history, answers, methodology, evidence, usage and exports. BFF accesses them only through authenticated

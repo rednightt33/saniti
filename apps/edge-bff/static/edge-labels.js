@@ -98,6 +98,10 @@ window.EdgeLabels = {
     choiceDraft:"Isi kotak pesan dulu", choiceWrite:"Tulis",
     tableExpand:"Perbesar tabel", tableTitle:"Tabel", tableRows:"{n} baris", tableMoreRows:"Tampilkan {n} baris lagi", tableFewerRows:"Sembunyikan baris", historyJump:"Lihat di percakapan", railDetails:"Show Details", railHideDetails:"Hide Details", railBookmark:"Bookmark", railShare:"Public sharing unavailable", accountSettings:"Pengaturan",
     choiceChosen:"Dipilih \u00B7 balasan terkirim", choiceChosenDraft:"Dipilih \u00B7 tulis di kotak pesan",
-    writeOther:"Tulis jawaban lain", writeOtherHint:"Tulis jawaban Anda di kotak pesan", exploreNote:"Termasuk riset berita"
+    writeOther:"Tulis jawaban lain", writeOtherHint:"Tulis jawaban Anda di kotak pesan", exploreNote:"Termasuk riset berita",
+    // EXEC-SHARE-UI (user 2026-10-19): the share button of an answer and its card
+    share:"Bagikan", sharePdf:"PDF (dokumen)", sharePng:"PNG (gambar)", sharePreparing:"Menyiapkan gambar…",
+    shareFailed:"Gambar gagal dibuat; coba PDF", shareQuestion:"Pertanyaan", shareDataAsOf:"Data sampai {date}",
+    shareRequest:"Permintaan {id}", shareFooter:"Dibuat oleh EDGE AI; bukan saran investasi"
   }
 };

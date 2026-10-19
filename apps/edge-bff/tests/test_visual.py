@@ -388,10 +388,7 @@ def test_submit_error_keyboard_disabled_controls_and_resizing(dummy_orc, browser
     saved(page)
     assert len(orc.calls) == 1
     assert attempts[0]['message'] == orc.calls[0][2]['message']
-    page.get_by_role('button', name='Standard', exact=True).click()
-    assert page.locator('.mode-menu button').filter(has_text='Deep Research').is_disabled()
-    page.keyboard.press('Escape')
-    assert not page.locator('.mode-menu').count()
+    assert not page.locator('.mode-anchor').count()  # EXEC-SHARE-UI: the Research Mode menu is removed
     for label in ('Data Scope', 'Attachments are not available yet', 'Public sharing unavailable', 'Support unavailable', 'Notifications unavailable'):
         assert page.get_by_role('button', name=label, exact=True).is_disabled()
     page.get_by_role('button', name='Account menu', exact=True).click()
