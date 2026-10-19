@@ -147,3 +147,72 @@ def _replace(value: Any, text: str, new: str) -> Any:
     if isinstance(value, list):
         return [_replace(v, text, new) for v in value]
     return value
+
+
+# EXEC-FASTLANE-LEN #5 (AI_FASTLANE_GOAL_ANSWERS, user 2026-10-19): every "cut-off JSON" final of the 12-run sample was a
+# raw quote inside a string ('"rata-rata "harian" ..."'), not the token cap; the backend escapes such a quote itself
+# before it asks for the reply again. A quote ends a string only where JSON may continue after it.
+LITERALS = ("true", "false", "null")
+
+
+def repair_quotes(raw: str) -> str | None:
+    """The final reply with each raw quote inside a JSON string escaped, as JSON text, or None when the reply already
+    parses, is not a JSON object, or still does not parse after the repair. A quote is taken as the end of its string
+    only when what follows can continue the JSON (a colon, a closing bracket, or a comma before the next value);
+    otherwise it is part of the text and escaped. The result goes through every check as any reply does."""
+    candidate = raw.strip()
+    if candidate.startswith("```"):
+        lines = candidate.splitlines()
+        if len(lines) < 3 or lines[-1].strip() != "```":
+            return None
+        candidate = "\n".join(lines[1:-1]).strip()
+    if not candidate.startswith("{"):
+        return None
+    try:
+        json.loads(candidate, strict=False)
+        return None
+    except ValueError:
+        pass
+    out, inside, index, changed = [], False, 0, False
+    while index < len(candidate):
+        char = candidate[index]
+        if inside and char == "\\":
+            out.append(candidate[index:index + 2])
+            index += 2
+            continue
+        if char == '"':
+            if not inside:
+                inside = True
+            elif _ends_string(candidate, index + 1):
+                inside = False
+            else:
+                out.append('\\"')
+                changed = True
+                index += 1
+                continue
+        out.append(char)
+        index += 1
+    if not changed:
+        return None
+    repaired = "".join(out)
+    try:
+        data = json.loads(repaired, strict=False)
+    except ValueError:
+        return None
+    return repaired if isinstance(data, dict) else None
+
+
+def _ends_string(text: str, start: int) -> bool:
+    """Whether a quote just before start can close a JSON string: what follows is a colon, a closing bracket, the end,
+    or a comma followed by the start of a JSON value."""
+    rest = text[start:].lstrip()
+    if not rest or rest[0] in ":}]":
+        return True
+    if rest[0] != ",":
+        return False
+    after = rest[1:].lstrip()
+    if not after:
+        return False
+    if after[0] in '"{[-0123456789':
+        return True
+    return after.startswith(LITERALS)

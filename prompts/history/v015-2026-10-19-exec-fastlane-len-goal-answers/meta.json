@@ -1,0 +1,12 @@
+{
+ "version": 15,
+ "date": "2026-10-19",
+ "name": "exec-fastlane-len-goal-answers",
+ "decision": "User 2026-10-19: 'Selain yang tidak saya sebutkan harus dirubah dengan goal based instead of hardcode'; 'Teks final CITING AND CHECKS ... OK'; 'Ok, execute' (AI_FASTLANE_GOAL_ANSWERS on dev)",
+ "change": "Fast prefix only: rule 13 length cap, WRITING, TABLES and VALUE REFERENCES length wording replaced by goal-based rules (table limit kept); new CITING AND CHECKS section. Standard prompt and schema unchanged.",
+ "prompt_chars": 41594,
+ "prompt_sha256": "235a54f8917264a2dd1d1a69520a270ce919bf38f5f5201f8bb2750bf1d12e59",
+ "schema_sha256": "ef9b0ecbca7d7a3b0c5e08e3062a04dddce274ebff1b74d121fbe791a3787883",
+ "fast_prompt_chars": 27539,
+ "fast_prompt_sha256": "67dbef0291447983b116146d8604251799c4cb86d1e0a9e2eff650aaa84f9c7c"
+}

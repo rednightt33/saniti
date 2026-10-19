@@ -7,7 +7,9 @@ with that reply as with a model's (the same tools, gates, data approvals and fin
 routers, follow-up suggestions, other models) goes to OpenRouter unchanged.
 
 Fallback: a step with no reply within AI_MANUAL_AGENT_WAIT_SECONDS is sent to AI_MODEL at the server's reasoning
-level, and the rest of that run follows it; the stop button ends a wait. Switched off (AI_ENABLE_MANUAL_AGENT), the
+level, and the rest of that run follows it; the stop button ends a wait. With AI_MANUAL_AGENT_FALLBACK false (user
+2026-10-19) no OpenRouter model answers a manual run: a step waits until it is answered, the run is stopped or its time
+is up, and with AI_MANUAL_AGENT_ROUTERS true the routers of a manual run come here too (orchestrator._router_model). Switched off (AI_ENABLE_MANUAL_AGENT), the
 model is not offered and nothing comes here. The service runs one replica (railway.ts), so the steps live in memory.
 """
 from __future__ import annotations
@@ -21,7 +23,7 @@ from typing import Any
 
 from . import stop
 from .model_choices import MANUAL_OPTION
-from .tools.request_data import current_request_id
+from .tools.request_data import current_request_id, current_run_deadline
 
 MANUAL_MODEL = MANUAL_OPTION.model
 POLL_SECONDS = 1.0
@@ -66,13 +68,25 @@ class ManualAgent:
         with self._lock:
             self._steps[step.step_id] = step
         self.log("manual_agent_step_waiting", request_id=request_id, step_id=step.step_id)
+        fallback = getattr(self.settings, "ai_manual_agent_fallback", True)
         deadline = self.clock() + self.settings.ai_manual_agent_wait_seconds
+        run_deadline = current_run_deadline.get()
         try:
             while not step.done.wait(self.poll_seconds):
                 if stop.requested():
                     # an empty turn: the loop sees the stop flag before its next call and ends as STOPPED_BY_USER
                     self.log("manual_agent_step_stopped", request_id=request_id, step_id=step.step_id)
                     return {"id": f"manual-{step.step_id}", "model": MANUAL_MODEL, "output": [], "usage": {}}
+                if not fallback:
+                    # no AI_MODEL: the run's own time limit ends a step of the run; a call outside a run (a router
+                    # before the run starts) gives up after AI_MANUAL_AGENT_WAIT_SECONDS and the backend's own
+                    # fallback for a failed router applies
+                    expired = time.monotonic() >= run_deadline if run_deadline is not None else self.clock() >= deadline
+                    if expired:
+                        self.log("manual_agent_step_expired", request_id=request_id, step_id=step.step_id,
+                                 in_run=run_deadline is not None)
+                        return {"id": f"manual-{step.step_id}", "model": MANUAL_MODEL, "output": [], "usage": {}}
+                    continue
                 if self.clock() >= deadline:
                     with self._lock:
                         self._fallen = (self._fallen + [request_id])[-KEEP_FALLEN:]

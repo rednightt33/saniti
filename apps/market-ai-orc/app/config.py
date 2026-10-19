@@ -195,6 +195,10 @@ class Settings:
     # limitations move to assumptions or, for the coverage and source lines, are dropped; a LIMITATION keeps them), and a
     # |pp figure is shown with %
     ai_fastlane_v5_presentation: bool = False
+    # EXEC-FASTLANE-LEN (user 2026-10-19): the fast lane asks for a complete answer instead of a length (prefix rules and
+    # CITING AND CHECKS), a reproduction only for an attached number, and a raw quote in the final JSON is repaired
+    # before the reply is asked again
+    ai_fastlane_goal_answers: bool = False
     # OpenRouter provider routing for the agent's model calls: provider.sort "price", "throughput" or "latency". Unset
     # keeps OpenRouter's default load balancing, which is weighted to the lowest price.
     ai_provider_sort: str | None = None
@@ -349,6 +353,12 @@ class Settings:
     # manual_agent.MANUAL_MODEL; a step with no reply in AI_MANUAL_AGENT_WAIT_SECONDS goes to AI_MODEL (the fallback)
     ai_enable_manual_agent: bool = False
     ai_manual_agent_wait_seconds: int = 600
+    # EXEC-SHARE-UI (user 2026-10-19: "Tidak ada model openrouter yang akan menjalankan request kalau saya pilih mode
+    # claude ... ya for now both"): AI_MANUAL_AGENT_FALLBACK false keeps a manual step waiting until it is answered, the
+    # user stops the run or the run's time is up (no AI_MODEL fallback); AI_MANUAL_AGENT_ROUTERS true sends the
+    # routers, the plan-reply classifier and the follow-up suggestions of a manual run to Claude as well
+    ai_manual_agent_fallback: bool = True
+    ai_manual_agent_routers: bool = False
     # IP2 solution 2: archive every finished run to market-audit-store through ai_audit.ingest_outbox (INSERT only,
     # AUDIT_OUTBOX_DATABASE_URL). With AI_AUDIT_STORE_REQUIRED false an archive failure is logged and never changes
     # the answer; true withholds the answer when the run cannot be handed to the outbox (regulated mode).
@@ -453,6 +463,7 @@ class Settings:
             ai_fastlane_decision_rules=_boolean(env, "AI_FASTLANE_DECISION_RULES", False),
             ai_fastlane_gate_advice=_boolean(env, "AI_FASTLANE_GATE_ADVICE", False),
             ai_fastlane_v5_presentation=_boolean(env, "AI_FASTLANE_V5_PRESENTATION", False),
+            ai_fastlane_goal_answers=_boolean(env, "AI_FASTLANE_GOAL_ANSWERS", False),
             ai_provider_sort=(env.get("AI_PROVIDER_SORT") or "").strip().lower() or None,
             ai_log_provider=_boolean(env, "AI_LOG_PROVIDER", False),
             ai_provider_max_cache_price_ratio=_ratio(env, "AI_PROVIDER_MAX_CACHE_PRICE_RATIO", 0.0, 0.0, 1.0)
@@ -512,6 +523,8 @@ class Settings:
             ai_mode4_max_seconds=_integer(env, "AI_MODE4_MAX_SECONDS", 3600, minimum=60),
             ai_enable_manual_agent=_boolean(env, "AI_ENABLE_MANUAL_AGENT", False),
             ai_manual_agent_wait_seconds=_integer(env, "AI_MANUAL_AGENT_WAIT_SECONDS", 600, minimum=30),
+            ai_manual_agent_fallback=_boolean(env, "AI_MANUAL_AGENT_FALLBACK", True),
+            ai_manual_agent_routers=_boolean(env, "AI_MANUAL_AGENT_ROUTERS", False),
             ai_mode_switch=_integer(env, "AI_MODE_SWITCH", 1),
             ai_audit_store_enabled=_boolean(env, "AI_AUDIT_STORE_ENABLED", False),
             ai_audit_store_required=_boolean(env, "AI_AUDIT_STORE_REQUIRED", False),
@@ -539,7 +552,7 @@ class Settings:
             )
         if settings.ai_max_output_tokens >= settings.ai_max_context_tokens:
             raise ConfigError("AI_MAX_OUTPUT_TOKENS must be below AI_MAX_CONTEXT_TOKENS")
-        if settings.ai_enable_manual_agent and \
+        if settings.ai_enable_manual_agent and settings.ai_manual_agent_fallback and \
                 settings.ai_manual_agent_wait_seconds > settings.ai_max_analysis_seconds:
             # EXEC-MANUAL: a wait longer than the run's own limit would never reach its fallback
             raise ConfigError("AI_MANUAL_AGENT_WAIT_SECONDS must not exceed AI_MAX_ANALYSIS_SECONDS")

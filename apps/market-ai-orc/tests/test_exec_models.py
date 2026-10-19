@@ -27,8 +27,9 @@ AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}"}
 
 def test_the_five_offered_models_and_the_edge_default() -> None:
     # EXEC-LOGOS: MiMo V2.6 Pro is no longer offered (user: "Keluarin saja Mimo pro ya")
-    assert [o.model for o in MODEL_CHOICES] == ["deepseek/deepseek-v4.1-flash", "z-ai/glm-5.3-flash",
-                                                "xiaomi/mimo-v2.6-flash", "qwen/qwen3.8-flash"]
+    # EXEC-SHARE-UI (user 2026-10-19): DeepSeek V4.1 Flash 1017 added beside V4.1 Flash
+    assert [o.model for o in MODEL_CHOICES] == ["deepseek/deepseek-v4.1-flash", "deepseek/deepseek-v4.1-flash-1017",
+                                                "z-ai/glm-5.3-flash", "xiaomi/mimo-v2.6-flash", "qwen/qwen3.8-flash"]
     assert EDGE_DEFAULT == {"model": "deepseek/deepseek-v4.1-flash", "reasoning_level": "high"}
 
 

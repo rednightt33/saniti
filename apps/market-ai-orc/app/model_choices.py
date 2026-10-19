@@ -40,6 +40,9 @@ class ModelOption:
 
 MODEL_CHOICES: tuple[ModelOption, ...] = (
     ModelOption("deepseek/deepseek-v4.1-flash", "DeepSeek V4.1 Flash", "effort"),
+    # EXEC-SHARE-UI (user 2026-10-19: "DeepSeek: DeepSeek V4.1 Flash 1017"); low, high and max each accepted by
+    # OpenRouter on 2026-10-19 (one small call per level, reasoning tokens 18, 29, 36)
+    ModelOption("deepseek/deepseek-v4.1-flash-1017", "DeepSeek V4.1 Flash 1017", "effort"),
     ModelOption("z-ai/glm-5.3-flash", "GLM 5.3 Flash", "effort"),
     ModelOption("xiaomi/mimo-v2.6-flash", "MiMo V2.6 Flash", "enabled", output_cap=12000),
     ModelOption("qwen/qwen3.8-flash", "Qwen3.8 Flash", "enabled", reasoning_budget=8000),

@@ -34,6 +34,18 @@ forbids asking back is a defect unless a guarantee requires it. For every rule i
 3. If the model judges wrongly, is there a way out by asking back? If not, add one.
 4. Which test locks the rule, and must that test change?
 
+## Gates and evidence
+
+User decisions 2026-10-19 (verbatim in `EXEC.md`, EXEC-FASTLANE-LEN):
+
+- Every refusal the AI meets is a failure of our guidance, not of the model. Every gate that can refuse a model reply
+  must have (a) a rule the model sees before it writes, (b) how to pass it, (c) one right and one wrong example, and
+  (d) a refusal message that names where the problem is and how to fix it. A new or changed gate does not ship
+  without all four.
+- Every code change that is executed and every claim about how the system behaves rests on inspecting the code, the
+  logs and the live data at that moment, not on memory of the conversation; cite the file:line, log or run ID as
+  evidence.
+
 ## Mandatory workflow
 
 1. Confirm the requested scope and exact target names with the user when ambiguous.

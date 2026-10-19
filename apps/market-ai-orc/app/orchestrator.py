@@ -60,7 +60,7 @@ from . import variant_correction
 from .user_words import user_values, design_values, variants
 from .user_words import allowed_periods, current_design_changes, current_turn_referent, current_user_words, \
     locked_horizons
-from .model_choices import ModelChoice, current_model_choice
+from .model_choices import MANUAL_OPTION, ModelChoice, current_model_choice
 from .provenance import (CONTEXT, typed_figures, LABEL_ORDER, SourceIndex, analysis_label, check_answer, code_numbers, numbers_in,
                          parse_numbers, released_numbers, requested_statistics, weakest)
 from .value_refs import (PERCENT_FORMATS, pp_as_percent, FUNC_RE, OUTSIDE_LABELS, OUTSIDE_NAMESPACES, REF_RE, SOURCES_IN_TEXT, UNITS, ReferenceSources, Resolved,
@@ -1126,7 +1126,8 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
                         angle_limits: tuple[int, int, int] = (2, 6, 0), value_references: bool = False,
                         hypothesis_plans: bool = False, tools: frozenset[str] = frozenset(),
                         tool_envelope: bool = False, memo_note: bool = False, merged_steps: bool = False,
-                        table_directives: bool = False, research_sections: bool = True) -> str:
+                        table_directives: bool = False, research_sections: bool = True,
+                        goal_answers: bool = False) -> str:
     """The system prompt for the registered tools. It is fixed for a deployment (AI_ENABLE_LOOKUP_FACT,
     AI_ENABLE_DATANEED, AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION, AI_ENABLE_STANDARD_PERIOD_RETURN,
     AI_FINAL_CONTRACT_IN_PROMPT, AI_ENABLE_TOOL_ENVELOPE), so every call of every run shares one byte-identical
@@ -1136,7 +1137,8 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
     formatted as Markdown (prompt audit C and pass 2): block titles as headings, one line per paragraph or item, and a
     paragraph longer than MAX_PARAGRAPH_CHARS one line per rule. research_sections False (E2, EXEC-1018B): the fast
     lane's prefix, without the research plan, plan form and research findings sections its tools cannot use; the
-    insight rule they share stays as a general section."""
+    insight rule they share stays as a general section. goal_answers (EXEC-FASTLANE-LEN, fast prefix only): the
+    goal-based answer rules and CITING AND CHECKS."""
     template = SYSTEM_PROMPT_TEMPLATE
     # Multi-Angle Research replaces the Research Plan, plan feasibility and findings rules (it needs all three flows)
     multi_angle = multi_angle and dataneed and plan_confirmation and plan_feasibility
@@ -1220,6 +1222,8 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
             .replace("{min_angles}", NUMBER_WORDS[low]).replace("{max_angles}", NUMBER_WORDS[high])
             .replace("{families_rule}", families_rule)
             .replace("{reader_example}", READER_EXAMPLE if value_references else ""))
+    if goal_answers and not research_sections:
+        text = goal_answer_rules(text)
     return markdown_prompt(text)
 
 
@@ -1311,6 +1315,63 @@ def markdown_prompt(text: str) -> str:
     return "\n".join(rule for line in out for rule in _rule_lines(line))
 
 
+# EXEC-FASTLANE-LEN (AI_FASTLANE_GOAL_ANSWERS, user 2026-10-19: "Selain yang tidak saya sebutkan harus dirubah dengan
+# goal based instead of hardcode"): the fast lane's prefix asks for a complete answer instead of a length; the table
+# limit of rule 13, rule 14, the section caps and the V5 limitations stay. Each pair is matched across line breaks.
+GOAL_ANSWER_RULES = (
+    ("13. Keep the final answer focused and proportional to the user's question: the answer within about two and a "
+     "half thousand characters and each table in it",
+     "13. Answer the whole question: cover every part the user asked for and every released result the answer needs "
+     "(the main finding, the figures by group or period, the comparison they are judged against, what drives them and "
+     "what they mean for the reader). Length follows the question: a fact gets a short answer, an analysis as much as "
+     "its results need, without repeating a figure or padding. Each table in the answer"),
+    ("- Lead with the conclusion in one or two sentences. Then give the two or three figures that carry it,",
+     "- Lead with the conclusion. Then give the figures the conclusion rests on,"),
+    ("then the caveats that change how far it can be trusted.",
+     "then the caveats that change how far it can be trusted. Every released result that answers part of the question "
+     "appears in the answer, in the text or in a table."),
+    ("Write the way people talk: short sentences, everyday words, active verbs.",
+     "Write the way people talk: one idea per sentence, everyday words, active verbs."),
+    ("the text around it stays short: say what the table means in words and cite only the few figures that carry the "
+     "conclusion, each by its address;",
+     "the text around it explains them rather than repeating them: say what the table means, which rows stand out and "
+     "why, and cite each figure the explanation needs by its address;"),
+    ("write it by its address or leave it out.",
+     "write it by its address; when a figure the answer needs has no address yet, release it in the analysis first."),
+)
+# EXEC-FASTLANE-LEN (user 2026-10-19: "Teks final 'CITING AND CHECKS' ... OK"; AGENTS.md, Gates and evidence): every
+# check that can send an answer back, with how to pass it, in one place the model reads before it writes. The examples
+# hold placeholders, never real figures.
+CITING_CHECKS_RULES = """
+
+CITING AND CHECKS
+The system checks every answer before the user sees it. Follow these and nothing is sent back.
+1. A figure from data: copy its {{address}} from the "addresses" list of the tool result that released it, then add a format. Right: `BBCA rata-rata {{out.o3.rows[ticker=BBCA].avg_1m|rp}} per hari.` Wrong: `BBCA rata-rata Rp<angka yang diketik sendiri> per hari.` A typed figure is shown with a "typed figure" label. A figure the answer needs that no table holds yet: release it in run_python first.
+2. A table is one instruction, parts separated by ";": `{{table out.o2; Saham = ticker; Return = ret_5d|pct:1; sort -ret_5d; top 10}}`.
+3. A share, return or percent: release its column with units= (FRACTION or PERCENT) and cite it with |pct; otherwise it is labelled.
+4. A number that matches no source (a released output, the user's message, the data need, the bundle summary) is refused once. A parameter typed in your code is accepted with a label.
+5. An earlier result next to new results: open it first (get_session_output, or load_output in run_python), keep its filters, period and thresholds or say how yours differ. Otherwise it is refused once.
+6. Methodology numbers come from the same sources, the data need or your code.
+7. On an explore turn a p-value or interval comes only from saniti.hypothesis_test, explore_test or event_study; any other is refused once.
+8. A reproduction is only for an attached number the user asks you to check; never for a label or text.
+9. The final reply is one JSON object. Inside a string write a quoted word as ‘kata’ or \\"kata\\" and a line break as \\n; a raw " ends the string and the reply is sent back."""
+EXPLORE_GOAL_CAVEAT = ("and explain in the answer what the tested effects mean for the question; the system adds the "
+                       "evidence line, so do not repeat it.")
+
+
+def goal_answer_rules(text: str) -> str:
+    """EXEC-FASTLANE-LEN: the fast prefix with GOAL_ANSWER_RULES applied (matched across line breaks; a section the
+    deployment does not render, such as TABLES without table directives, is skipped; tests/test_fastlane_len.py checks
+    that the dev profile takes every pair) and CITING AND CHECKS added at its end."""
+    for old, new in GOAL_ANSWER_RULES:
+        pattern = re.compile(r"\s+".join(re.escape(word) for word in old.split()))
+        text = pattern.sub(lambda _: new, text, count=1)
+    return text.rstrip("\n") + CITING_CHECKS_RULES
+
+
+# EXEC-FASTLANE-LEN #4 (edge_c1ad148e: "fields names keys the response does not have: reproductions"): the answer's
+# fields the backend keeps apart from the response schema (_run, after _parse_final_output) may be edited like the others
+SEPARATE_ANSWER_FIELDS = frozenset({"memo_note", "reproductions", "needs_computation", "offered_action", "facts"})
 SYSTEM_PROMPT = build_system_prompt(True)
 RUN_CONTEXT_NOTE = ("Run context from the application, not from the user: the reference date is {date} ({tz}). A "
                     "relative or open-ended period ('last 3 months', 'since <date>') ends on this date; the data may "
@@ -1717,6 +1778,13 @@ REPRODUCE_NOTE = (
     "database (a web fact) has no workings: say so and name its source.")
 
 
+# EXEC-FASTLANE-LEN (user 2026-10-19; edge_c1ad148e: a reproduction declared for an attached text label was refused):
+# what may be reproduced, said before the rule
+REPRODUCE_SCOPE_NOTE = (
+    "Reproduce only an attached number, and only when the user asks to check it or how it was obtained; an attached "
+    "label or text (a group name, a ticker, a sentence) has no reproduction, so declare none for it.")
+REPRODUCTION_TEXT_PROBLEM = ("{original} is text (\"{text}\"), not a number: a label or text has no reproduction, so "
+                             "remove it from reproductions")
 # a turn that reads only (CLARIFY, CONVERSATIONAL) releases no new table, so no reproduction can be checked: it shows
 # the stored inputs and the formula and offers the recomputation (live check 2026-10-16: a declared reproduction from an
 # earlier table was refused and cost a repair)
@@ -1727,9 +1795,10 @@ REPRODUCE_READ_ONLY_NOTE = (
     "reproductions.")
 
 
-def attachments_note(items: list[Any], read_only: bool = False) -> str:
+def attachments_note(items: list[Any], read_only: bool = False, goal: bool = False) -> str:
     """EXEC-IMPL-1017 Fase 3: one note for what the user attached (tables and passages), with the reproduction rule
-    (the read-only form on a turn that computes nothing)."""
+    (the read-only form on a turn that computes nothing). goal (EXEC-FASTLANE-LEN): the rule says first that only an
+    attached number the user asks to check is reproduced."""
     parts = []
     for item in items:
         if getattr(item, "kind", "TABLE") == "TEXT":
@@ -1740,7 +1809,12 @@ def attachments_note(items: list[Any], read_only: bool = False) -> str:
                 figures=SELECTION_FIGURES.format(figures=figures) if figures else ""))
         else:
             parts.append(selection_note(item))
-    return " ".join(parts) + " " + (REPRODUCE_READ_ONLY_NOTE if read_only else REPRODUCE_NOTE)
+    rule = REPRODUCE_READ_ONLY_NOTE if read_only else REPRODUCE_NOTE
+    if goal:
+        # EXEC-FASTLANE-LEN: the JSON example is shown with single braces (the note is never formatted, so its doubled
+        # braces reached the model and looked like a value reference)
+        rule = REPRODUCE_SCOPE_NOTE + " " + rule.replace("{{", "{").replace("}}", "}")
+    return " ".join(parts) + " " + rule
 
 
 def attached_summary(items: list[Any]) -> list[dict[str, Any]]:
@@ -2058,10 +2132,17 @@ def units_advice(values: dict[str, float]) -> str:
     return text
 
 
-def explore_note(mode: str, decisions: bool = False, v2: bool = False) -> str:
+def explore_note(mode: str, decisions: bool = False, v2: bool = False, goal: bool = False) -> str:
     """EXEC-FASTLANE B3: the note of a fast-lane run's explore mode; INSIGHT lists the research library's methods in one
     line each (no get_research_library call). V4: with the decision rules, the answer mode decides its method once the
-    data is ready. EXEC-IMPL-1017: insight v2 names the methods only, as tools the model may use."""
+    data is ready. EXEC-IMPL-1017: insight v2 names the methods only, as tools the model may use. goal
+    (EXEC-FASTLANE-LEN): the answer explains the tested effects instead of leaving out a caveat paragraph."""
+    note = _explore_note(mode, decisions, v2)
+    return note.replace("and do not write your own caveat paragraph about testing.", EXPLORE_GOAL_CAVEAT) if goal \
+        else note
+
+
+def _explore_note(mode: str, decisions: bool, v2: bool) -> str:
     if mode == lanes.INSIGHT and v2:
         return EXPLORE_INSIGHT_V2_NOTE.format(methods=", ".join(m["method_id"] for m in research_library.LIBRARY))
     if mode != lanes.INSIGHT:
@@ -2911,7 +2992,8 @@ class AgentOrchestrator:
                                int(self.research_limits.get("min_families") or 0)),
             self.value_references, self.hypothesis_plans, self._process_tools("FASTLANE"),
             bool(getattr(settings, "ai_enable_tool_envelope", False)), memo_note=run_memory is not None,
-            merged_steps=self.merged_steps, table_directives=self.table_directives, research_sections=False) \
+            merged_steps=self.merged_steps, table_directives=self.table_directives, research_sections=False,
+            goal_answers=bool(getattr(settings, "ai_fastlane_goal_answers", False))) \
             if self.dataneed and getattr(settings, "ai_enable_fastlane", False) else None
         self.final_schema = final_response_schema(self.plan_confirmation, self.methodology, self.research_findings,
                                                   self.multi_angle, self.value_references, self.hypothesis_plans,
@@ -3847,7 +3929,8 @@ class AgentOrchestrator:
             state.attached_figures = attached_figure_refs(attached)
             state.attached = attached_summary(attached)
             state.turn_notes.append((attachments_note(
-                attached, read_only=router.current_turn_kind.get() in EXPLAIN_ONLY_KINDS), False))
+                attached, read_only=router.current_turn_kind.get() in EXPLAIN_ONLY_KINDS,
+                goal=self._goal_answers(state)), False))
         if state.lane == lanes.FAST and self.dataneed and request.continuation is None \
                 and state.forced_path in (None, "ANALYSIS", "RESEARCH"):
             # EXEC-FASTLANE: one turn, no Research Plan, no approval (K1); a reply to a pending plan (continuation)
@@ -3871,7 +3954,8 @@ class AgentOrchestrator:
             if mode is not None:
                 state.plan_meta["explore_mode"] = mode
                 state.plan_meta["insight_v2"] = v2
-                state.turn_notes.append((explore_note(mode, decisions=decisions, v2=v2), True))
+                state.turn_notes.append((explore_note(mode, decisions=decisions, v2=v2,
+                                                      goal=self._goal_answers(state)), True))
             log_event("ai_lane_turn", request_id=request.request_id, lane=state.lane, forced_path=state.forced_path,
                       **({"explore_mode": mode} if mode is not None else {}), **({"insight_v2": True} if v2 else {}))
             return
@@ -4268,6 +4352,15 @@ class AgentOrchestrator:
             return self._router_call_once(request_id, session, instructions, content, schema_name, schema, model,
                                           failure_event, **options)
 
+    def _router_model(self) -> str:
+        """The model of a router call: AI_MODEL, or Claude (manual) when the run chose it and AI_MANUAL_AGENT_ROUTERS
+        is on (EXEC-SHARE-UI, user 2026-10-19: no OpenRouter model runs a manual request)."""
+        choice = current_model_choice.get()
+        if getattr(self.settings, "ai_manual_agent_routers", False) and choice is not None \
+                and choice.model == MANUAL_OPTION.model:
+            return choice.model
+        return self.settings.ai_model
+
     def _router_call_once(self, request_id: str, session: str, instructions: str, content: str, schema_name: str,
                           schema: dict[str, Any], model: Any, failure_event: str,
                           usage_state: RunState | None = None, attempts: int = 1,
@@ -4282,7 +4375,7 @@ class AgentOrchestrator:
         turn) raises it instead, so the run ends with the service line and the user is not asked back."""
         state = usage_state or RunState(request_id=request_id, started=self.clock(), input_items=[])
         payload: dict[str, Any] = {
-            "model": self.settings.ai_model, "session_id": session_key(f"{request_id}:{session}"),
+            "model": self._router_model(), "session_id": session_key(f"{request_id}:{session}"),
             "instructions": instructions,
             "input": [{"role": "user", "content": content}],
             "reasoning": self.settings.reasoning("low"),
@@ -4335,7 +4428,7 @@ class AgentOrchestrator:
         """A free-text reply to a plan, read by one small tool-free model call constrained to APPROVE, REVISE, CANCEL
         or UNRELATED. Any failure is UNRELATED, which never approves anything."""
         payload: dict[str, Any] = {
-            "model": self.settings.ai_model, "session_id": session_key(f"{state.request_id}:plan-reply"),
+            "model": self._router_model(), "session_id": session_key(f"{state.request_id}:plan-reply"),
             "instructions": CLASSIFIER_INSTRUCTIONS + (router.REPLY_READING_RULE if self.ask_back else ""),
             "input": [{"role": "user", "content": dumps({"research_plan": plan_digest_v2(plan)
                                                          if isinstance(plan, ResearchPlanV2) else plan_digest(plan),
@@ -4499,6 +4592,12 @@ class AgentOrchestrator:
             unapplied = None
             if state.repair_base is not None:
                 raw, unapplied = self._apply_edit(state, raw)
+            if unapplied is None and self._goal_answers(state):
+                repaired = edit_repair.repair_quotes(raw)  # EXEC-FASTLANE-LEN #5: before the reply is asked again
+                if repaired is not None:
+                    log_event("ai_final_quotes_repaired", request_id=state.request_id, iteration=state.iterations,
+                              chars=len(raw))
+                    raw = repaired
             state.current_raw = raw
             if unapplied is not None and state.edit_retry_base is not None:
                 # EXEC-R R4b: one more edit against the same draft, with the exact cause (was a full rewrite)
@@ -5979,6 +6078,10 @@ class AgentOrchestrator:
                 accepted.append((shown, "CODE_PARAMETER"))
         return accepted
 
+    def _goal_answers(self, state: RunState) -> bool:
+        """EXEC-FASTLANE-LEN: the fast lane's goal-based answers and its clearer checks."""
+        return getattr(state, "lane", None) == lanes.FAST and getattr(self.settings, "ai_fastlane_goal_answers", False)
+
     def _advice(self, state: RunState) -> bool:
         """EXEC-FASTLANE V5: the fast lane's gates advise instead of asking for a repair round."""
         return state.lane == lanes.FAST and getattr(self.settings, "ai_fastlane_gate_advice", False)
@@ -6316,6 +6419,9 @@ class AgentOrchestrator:
                 problems.append(f"{result or '(empty)'} is not a table released in this run")
                 continue
             shown_original, shown_result = (render("{{" + e + "}}", state.ref_sources) for e in (original, result))
+            if self._goal_answers(state) and not shown_original.failed and not shown_original.values:
+                problems.append(REPRODUCTION_TEXT_PROBLEM.format(original=original, text=shown_original.text[:80]))
+                continue
             if shown_original.failed or shown_result.failed or not shown_original.values or not shown_result.values:
                 problems.append(f"{original} or {result} does not resolve to one number")
                 continue
@@ -7569,7 +7675,7 @@ class AgentOrchestrator:
             state.edit_retry_used = False
             return raw, None
         try:
-            merged, counts = edit_repair.apply(base, reply, set(FinalResponse.model_fields))
+            merged, counts = edit_repair.apply(base, reply, set(FinalResponse.model_fields) | SEPARATE_ANSWER_FIELDS)
         except edit_repair.EditNotApplied as exc:
             retry = not state.edit_retry_used
             state.edit_retry_used = True

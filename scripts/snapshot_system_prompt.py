@@ -36,7 +36,8 @@ DEV_TOOLS = frozenset({"query_metric", "lookup_reference", "research_web"})
 # A3 (EXEC-1018B Fase 5): what dev really renders on top of the prompt tests' profile: the run memory, merged steps and
 # table directives switches (dev: on), and the tools of the dev registry, derived from the switches AI_TOOLS.md's dev
 # snapshot lists (taken from Railway); the fast lane's own prefix (E2) is kept beside the standard one
-LIVE = dict(memo_note=True, merged_steps=True, table_directives=True)
+# EXEC-FASTLANE-LEN (user 2026-10-19, "Ok, execute"): AI_FASTLANE_GOAL_ANSWERS on dev changes the fast prefix only
+LIVE = dict(memo_note=True, merged_steps=True, table_directives=True, goal_answers=True)
 HEADER = """# System prompt history
 
 Every version of what the orc model reads at the start of each call: the system prompt and the final-response schema,
@@ -81,6 +82,8 @@ if "research_sections" in inspect.signature(build_system_prompt).parameters:
     from app import tool_desks as desks
     names = frozenset(registry.names())
     effect = lambda name: getattr(registry.get(name), "effect", None)
+    params = inspect.signature(build_system_prompt).parameters
+    live = {key: value for key, value in live.items() if key in params}  # a tree before a switch renders without it
     prompt = build_system_prompt(**dev, **live, tools=names, tool_envelope=True)
     fast = build_system_prompt(**dev, **live, tools=desks.tools("FASTLANE", names, effect), tool_envelope=True,
                                research_sections=False)
