@@ -1,0 +1,203 @@
+{
+  "observed_at_utc": "2026-10-19T08:46:18.811468+00:00",
+  "values": {
+    "orc": {
+      "AI_MAX_OUTPUT_TOKENS": "24000",
+      "AI_REQUEST_TIMEOUT_SECONDS": "600",
+      "AI_MAX_ANALYSIS_SECONDS": "1800",
+      "AI_MODE4_MAX_SECONDS": "unset",
+      "AI_MAX_CONTEXT_TOKENS": "500000",
+      "AI_CONTEXT_SOFT_LIMIT_RATIO": "unset",
+      "AI_MAX_HISTORY_TOKENS": "150000",
+      "AI_MAX_TOOL_ITERATIONS": "60",
+      "AI_MAX_TOOL_CALLS": "60",
+      "AI_MAX_IDENTICAL_TOOL_CALLS": "unset",
+      "AI_FINAL_RESPONSE_MAX_RETRIES": "unset",
+      "AI_REASONING_EFFORT": "medium",
+      "AI_ENABLE_FASTLANE": "true",
+      "AI_ENABLE_MODE4": "true",
+      "AI_MODE_SWITCH": "4",
+      "AI_MODEL": "deepseek/deepseek-v4.1-flash",
+      "AI_MODEL_SWITCH": "1",
+      "AI_ENABLE_DATANEED": "true",
+      "AI_ENABLE_RESULT_STORE": "true",
+      "AI_ENABLE_RUN_MEMORY": "true",
+      "AI_ENABLE_TABLE_DIRECTIVES": "true",
+      "AI_ENABLE_VALUE_REFERENCES": "true",
+      "AI_ENABLE_CONVERSATION_STORE": "true",
+      "AI_ENABLE_CONVERSATION_REUSE": "true",
+      "AI_ENABLE_EDIT_REPAIR": "true",
+      "AI_ENABLE_WEB_FACT": "false",
+      "AI_ENABLE_WEB_RESEARCH": "true",
+      "AI_ENABLE_AUDIT_OUTBOX": "unset",
+      "AI_AUDIT_STORE_REQUIRED": "false",
+      "AI_CONVERSATION_LEASE_SECONDS": "unset",
+      "AI_CONVERSATION_RETENTION_DAYS": "unset",
+      "AI_CONVERSATION_UPKEEP_SECONDS": "unset",
+      "PY_SANDBOX_REQUEST_TIMEOUT_SECONDS": "unset",
+      "PY_SANDBOX_SESSION_TIMEOUT_SECONDS": "unset",
+      "SQL_GOVERNOR_TIMEOUT_SECONDS": "unset",
+      "AI_CAPTURE_REASONING": "true",
+      "AI_REPLAY_REASONING": "true",
+      "AI_ENABLE_MANUAL_AGENT": "true",
+      "AI_AUDIT_STORE_ENABLED": "true",
+      "AI_CONVERSATION_RESTART_SWEEP_SECONDS": "180",
+      "AI_PROVIDER_MAX_CACHE_PRICE_RATIO": "0.25",
+      "AI_PROVIDER_MIN_THROUGHPUT": "50"
+    },
+    "bff": {
+      "EDGE_ORC_TIMEOUT_SECONDS": "3900",
+      "EDGE_LEASE_SECONDS": "90",
+      "EDGE_HEARTBEAT_SECONDS": "20",
+      "EDGE_POLL_SECONDS": "2",
+      "EDGE_SESSION_SECONDS": "86400",
+      "EDGE_WORKER_ENABLED": "true"
+    },
+    "sandbox": {
+      "PY_SANDBOX_MAX_SESSIONS": "4",
+      "PY_SANDBOX_MAX_SESSIONS_PER_REQUEST": "unset",
+      "PY_SANDBOX_SESSION_EXECUTION_SECONDS": "unset",
+      "PY_SANDBOX_SESSION_CPU_SECONDS": "unset",
+      "PY_SANDBOX_SESSION_IDLE_SECONDS": "unset",
+      "PY_SANDBOX_SESSION_MAX_SECONDS": "unset",
+      "PY_SANDBOX_RESULT_RETENTION_HOURS": "24",
+      "PY_SANDBOX_RECORD_RETENTION_DAYS": "unset",
+      "PY_SANDBOX_BUNDLE_RETENTION_HOURS": "24",
+      "PY_SANDBOX_DATANEED_ENABLED": "true",
+      "PY_SANDBOX_AUDIT_STORE_REQUIRED": "unset",
+      "PY_SANDBOX_MAX_RUNTIME_SECONDS": "unset",
+      "PY_SANDBOX_ENABLE_CONVERSATION_REUSE": "true",
+      "PY_SANDBOX_AUDIT_ENABLED": "unset"
+    },
+    "sql": {
+      "SQL_MAX_EXECUTION_SECONDS": "unset",
+      "SQL_STATEMENT_TIMEOUT_SECONDS": "unset",
+      "SQL_CONNECT_TIMEOUT_SECONDS": "unset",
+      "SQL_DATASET_RETENTION_HOURS": "unset",
+      "SQL_GOVERNOR_AUDIT_TIMEOUT_SECONDS": "unset",
+      "SQL_GOVERNOR_AUDIT_STORE_REQUIRED": "unset"
+    },
+    "web": {
+      "WEB_OPENROUTER_TIMEOUT_SECONDS": "90",
+      "WEB_OPENROUTER_MAX_OUTPUT_TOKENS": "8000",
+      "WEB_OPENROUTER_REASONING_EFFORT": "unset",
+      "WEB_ASK_TIMEOUT_SECONDS": "unset",
+      "WEB_ORC_MAX_SECONDS": "unset",
+      "WEB_ORC_MAX_CALLS": "unset",
+      "WEB_ORC_MAX_COST_USD": "unset",
+      "WEB_ASK_RETENTION_DAYS": "unset",
+      "WEB_ASK_MAX_SECONDS": "unset",
+      "WEB_ORC_RESEARCH_SECONDS": "unset",
+      "WEB_ORC_QUICK_SECONDS": "unset",
+      "WEB_ORC_MAX_CALLS_PER_RUN": "unset",
+      "WEB_ORC_MAX_USD_PER_RUN": "unset",
+      "WEB_ORC_WORKERS": "unset"
+    },
+    "audit": {
+      "AUDIT_MAX_ARTIFACT_BYTES": "unset",
+      "AUDIT_MAX_EVENTS_PER_CALL": "unset",
+      "AUDIT_OUTBOX_MAX_ATTEMPTS": "unset",
+      "AUDIT_STATEMENT_TIMEOUT_SECONDS": "unset",
+      "AUDIT_RETENTION_STANDARD_DAYS": "unset"
+    },
+    "pgweb": {
+      "PGWEB_READONLY": "unset",
+      "PGWEB_SESSIONS": "unset",
+      "PGWEB_QUERY_TIMEOUT": "unset"
+    }
+  },
+  "credential_links": {
+    "bff_orc": {
+      "both_present": true,
+      "equal": true
+    },
+    "orc_sandbox": {
+      "both_present": true,
+      "equal": true
+    },
+    "orc_sql": {
+      "both_present": true,
+      "equal": true
+    },
+    "orc_web": {
+      "both_present": true,
+      "equal": true
+    },
+    "sandbox_dataset": {
+      "both_present": true,
+      "equal": true
+    }
+  },
+  "database": {
+    "http_status": 200,
+    "read_only_metadata": {
+      "transaction_read_only": "on",
+      "database_name": "railway",
+      "login": "pgweb",
+      "relations": [
+        {
+          "relation": "public.\"AI_conversation\"",
+          "present": true
+        },
+        {
+          "relation": "public.\"AI_conversation_turn\"",
+          "present": true
+        },
+        {
+          "relation": "public.\"AI_conversation_run_memory\"",
+          "present": true
+        },
+        {
+          "relation": "public.\"AI_conversation_output\"",
+          "present": true
+        },
+        {
+          "relation": "public.\"AI_conversation_execution\"",
+          "present": true
+        },
+        {
+          "relation": "public.\"AI_conversation_export\"",
+          "present": true
+        },
+        {
+          "relation": "public.\"AI_research_run_audit\"",
+          "present": true
+        }
+      ],
+      "columns": [
+        {
+          "table": "AI_conversation_run_memory",
+          "column": "content",
+          "type": "jsonb"
+        },
+        {
+          "table": "AI_conversation_turn",
+          "column": "response",
+          "type": "jsonb"
+        },
+        {
+          "table": "AI_conversation_run_memory",
+          "column": "status",
+          "type": "text"
+        },
+        {
+          "table": "AI_conversation_run_memory",
+          "column": "memo",
+          "type": "text"
+        },
+        {
+          "table": "AI_conversation_turn",
+          "column": "request_id",
+          "type": "text"
+        },
+        {
+          "table": "AI_conversation_turn",
+          "column": "status",
+          "type": "text"
+        }
+      ]
+    },
+    "rows_affected": 0,
+    "query_duration_ms": 3
+  }
+}

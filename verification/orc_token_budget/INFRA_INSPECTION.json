@@ -1,0 +1,731 @@
+{
+  "observed_at_utc": "2026-10-19 08:45:15 UTC",
+  "project_id": "8aef1702-030b-49cb-9df7-5ac2e0a42691",
+  "environment_id": "4d3e5af2-302b-4a2e-84e2-7d7476d6ff49",
+  "audit_git_baseline": "cf82949",
+  "source_services": [
+    {
+      "name": "market-ai-orc",
+      "id": "41dc17ee-3bac-41ef-90ec-8b9356815c71",
+      "state": "live",
+      "source": {
+        "repo": "rednightt33/saniti",
+        "branch": "main",
+        "rootDirectory": "/apps/market-ai-orc",
+        "checkSuites": false
+      },
+      "build": {
+        "builder": "DOCKERFILE",
+        "watchPatterns": [
+          "/apps/market-ai-orc/**"
+        ],
+        "buildEnvironment": "V3",
+        "dockerfilePath": "Dockerfile"
+      },
+      "deploy": {
+        "startCommand": "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080",
+        "healthcheckPath": "/ready",
+        "healthcheckTimeout": 120,
+        "restartPolicyType": "ALWAYS",
+        "useLegacyStacker": false,
+        "ipv6EgressEnabled": false,
+        "runtime": "V2",
+        "multiRegionConfig": {
+          "sfo": {
+            "numReplicas": 1
+          }
+        }
+      },
+      "stagedChanges": [],
+      "volumes": [],
+      "active": [
+        {
+          "id": "4138d8bd-70e9-451d-9e77-faf91f6966c2",
+          "createdAt": "2026-10-19T03:37:01.873Z",
+          "status": "SUCCESS",
+          "commit": "5679bd505980787a6742d5bbdc4d252965e3d3bb",
+          "branch": "main"
+        }
+      ],
+      "error": false
+    },
+    {
+      "name": "edge-bff",
+      "id": "c3656044-2817-44a7-9b55-54910bab416f",
+      "state": "live",
+      "source": {
+        "repo": "rednightt33/saniti",
+        "branch": "main",
+        "rootDirectory": "/apps/edge-bff",
+        "checkSuites": false
+      },
+      "build": {
+        "builder": "DOCKERFILE",
+        "watchPatterns": [
+          "/apps/edge-bff/**"
+        ],
+        "buildEnvironment": "V3",
+        "dockerfilePath": "Dockerfile"
+      },
+      "deploy": {
+        "startCommand": "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080 --workers 1 --no-access-log --no-proxy-headers",
+        "healthcheckPath": "/ready",
+        "healthcheckTimeout": 120,
+        "restartPolicyType": "ALWAYS",
+        "useLegacyStacker": false,
+        "ipv6EgressEnabled": false,
+        "runtime": "V2",
+        "multiRegionConfig": {
+          "sfo": {
+            "numReplicas": 1
+          }
+        }
+      },
+      "stagedChanges": [],
+      "volumes": [],
+      "active": [
+        {
+          "id": "98142fe9-9b86-4276-b417-c5660bd809da",
+          "createdAt": "2026-10-19T05:08:55.242Z",
+          "status": "SUCCESS",
+          "commit": "7c6bf18462eb84053ac0358cf46dbf887b076cfd",
+          "branch": "main"
+        }
+      ],
+      "error": false
+    },
+    {
+      "name": "market-python-sandbox",
+      "id": "225b1be1-d7f5-4b2d-a4c7-052eb53af818",
+      "state": "live",
+      "source": {
+        "repo": "rednightt33/saniti",
+        "branch": "main",
+        "rootDirectory": "/apps/market-python-sandbox",
+        "checkSuites": false
+      },
+      "build": {
+        "builder": "DOCKERFILE",
+        "watchPatterns": [
+          "/apps/market-python-sandbox/**"
+        ],
+        "buildEnvironment": "V3",
+        "dockerfilePath": "Dockerfile"
+      },
+      "deploy": {
+        "startCommand": "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080",
+        "healthcheckPath": "/ready",
+        "healthcheckTimeout": 300,
+        "restartPolicyType": "ALWAYS",
+        "useLegacyStacker": false,
+        "ipv6EgressEnabled": false,
+        "runtime": "V2",
+        "multiRegionConfig": {
+          "sfo": {
+            "numReplicas": 1
+          }
+        }
+      },
+      "stagedChanges": [],
+      "volumes": [
+        {
+          "name": "market-python-sandbox-data",
+          "mountPath": "/data",
+          "sizeMB": 50000
+        }
+      ],
+      "active": [
+        {
+          "id": "84fa7fa3-6bda-46af-8162-7d13d42fde7b",
+          "createdAt": "2026-10-18T09:31:04.114Z",
+          "status": "SUCCESS",
+          "commit": "454272ee8c1f643ca97b9c93ca791723b483971c",
+          "branch": "main"
+        }
+      ],
+      "error": false
+    },
+    {
+      "name": "market-sql-governor",
+      "id": "1a322795-4f93-4c51-a25e-5fcfc5ab4722",
+      "state": "live",
+      "source": {
+        "repo": "rednightt33/saniti",
+        "branch": "main",
+        "rootDirectory": "/apps/market-sql-governor",
+        "checkSuites": false
+      },
+      "build": {
+        "builder": "DOCKERFILE",
+        "watchPatterns": [
+          "/apps/market-sql-governor/**"
+        ],
+        "buildEnvironment": "V3",
+        "dockerfilePath": "Dockerfile"
+      },
+      "deploy": {
+        "startCommand": "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080",
+        "healthcheckPath": "/ready",
+        "healthcheckTimeout": 120,
+        "restartPolicyType": "ALWAYS",
+        "useLegacyStacker": false,
+        "ipv6EgressEnabled": false,
+        "runtime": "V2",
+        "multiRegionConfig": {
+          "sfo": {
+            "numReplicas": 1
+          }
+        }
+      },
+      "stagedChanges": [],
+      "volumes": [],
+      "active": [
+        {
+          "id": "d4c22eaa-11a3-479c-a926-497e8f213f0c",
+          "createdAt": "2026-10-18T09:31:00.444Z",
+          "status": "SUCCESS",
+          "commit": "2334b44bb75b8c9a33ddf9088df78eeda234113a",
+          "branch": "main"
+        }
+      ],
+      "error": false
+    },
+    {
+      "name": "market-web-governor",
+      "id": "1c43a00e-9deb-4b17-84f0-acfa35142ac6",
+      "state": "live",
+      "source": {
+        "repo": "rednightt33/saniti",
+        "branch": "main",
+        "rootDirectory": "/apps/market-web-governor",
+        "checkSuites": false
+      },
+      "build": {
+        "builder": "DOCKERFILE",
+        "watchPatterns": [
+          "/apps/market-web-governor/**"
+        ],
+        "buildEnvironment": "V3",
+        "dockerfilePath": "Dockerfile"
+      },
+      "deploy": {
+        "startCommand": "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080",
+        "healthcheckPath": "/ready",
+        "healthcheckTimeout": 120,
+        "restartPolicyType": "ALWAYS",
+        "useLegacyStacker": false,
+        "ipv6EgressEnabled": true,
+        "runtime": "V2",
+        "multiRegionConfig": {
+          "sfo": {
+            "numReplicas": 1
+          }
+        }
+      },
+      "stagedChanges": [],
+      "volumes": [
+        {
+          "name": "market-web-governor-data",
+          "mountPath": "/data",
+          "sizeMB": 50000
+        }
+      ],
+      "active": [
+        {
+          "id": "46bd709d-2f2e-457b-bd43-a438e48d8520",
+          "createdAt": "2026-10-18T09:31:02.268Z",
+          "status": "SUCCESS",
+          "commit": "2c093df9155a204f367085d6f277ea9bfebab469",
+          "branch": "main"
+        }
+      ],
+      "error": false
+    },
+    {
+      "name": "market-audit-store",
+      "id": "956b1479-e8c6-4f6d-bd39-2af46390a22a",
+      "state": "live",
+      "source": {
+        "repo": "rednightt33/saniti",
+        "branch": "main",
+        "rootDirectory": "/apps/market-audit-store",
+        "checkSuites": false
+      },
+      "build": {
+        "builder": "DOCKERFILE",
+        "watchPatterns": [
+          "/apps/market-audit-store/**"
+        ],
+        "buildEnvironment": "V3",
+        "dockerfilePath": "Dockerfile"
+      },
+      "deploy": {
+        "startCommand": "uvicorn app.main:create_app --factory --host 0.0.0.0 --port 8080",
+        "healthcheckPath": "/ready",
+        "healthcheckTimeout": 120,
+        "restartPolicyType": "ALWAYS",
+        "useLegacyStacker": false,
+        "ipv6EgressEnabled": false,
+        "runtime": "V2",
+        "multiRegionConfig": {
+          "sfo": {
+            "numReplicas": 1
+          }
+        }
+      },
+      "stagedChanges": [],
+      "volumes": [],
+      "active": [
+        {
+          "id": "776f4e5a-ed3a-4009-8800-a96062cb34e0",
+          "createdAt": "2026-10-18T09:31:01.142Z",
+          "status": "SUCCESS",
+          "commit": "bcb13226f78ae6785d7b4fcb0c6de54a20045afe",
+          "branch": "main"
+        }
+      ],
+      "error": false
+    },
+    {
+      "name": "Postgres",
+      "id": "bb21a9f4-a9d3-4a51-945f-fa86b63f4b86",
+      "state": "live",
+      "source": {
+        "image": "ghcr.io/railwayapp-templates/postgres-ssl:18"
+      },
+      "build": {
+        "builder": "RAILPACK",
+        "buildEnvironment": "V3"
+      },
+      "deploy": {
+        "useLegacyStacker": false,
+        "ipv6EgressEnabled": false,
+        "runtime": "V2",
+        "multiRegionConfig": {
+          "sfo": {
+            "numReplicas": 1
+          }
+        },
+        "requiredMountPath": "/var/lib/postgresql/data"
+      },
+      "stagedChanges": [],
+      "volumes": [
+        {
+          "name": "postgres-volume",
+          "mountPath": "/var/lib/postgresql/data",
+          "sizeMB": 50000
+        }
+      ],
+      "active": [
+        {
+          "id": "ebdeb88b-7b29-4fab-af99-bee4c98f0da5",
+          "createdAt": "2026-10-18T09:31:03.609Z",
+          "status": "SUCCESS",
+          "image": "ghcr.io/railwayapp-templates/postgres-ssl:18"
+        }
+      ],
+      "error": false
+    },
+    {
+      "name": "Postgres-E8GM",
+      "id": "4b193143-be17-456b-bc00-c1760ef5db82",
+      "state": "live",
+      "source": {
+        "image": "ghcr.io/railwayapp-templates/postgres-ssl:18"
+      },
+      "build": {
+        "builder": "RAILPACK",
+        "buildEnvironment": "V3"
+      },
+      "deploy": {
+        "useLegacyStacker": false,
+        "ipv6EgressEnabled": false,
+        "runtime": "V2",
+        "multiRegionConfig": {
+          "sfo": {
+            "numReplicas": 1
+          }
+        },
+        "requiredMountPath": "/var/lib/postgresql/data"
+      },
+      "stagedChanges": [],
+      "volumes": [
+        {
+          "name": "postgres-volume-Oz3T",
+          "mountPath": "/var/lib/postgresql/data",
+          "sizeMB": 50000
+        }
+      ],
+      "active": [
+        {
+          "id": "fda65fb7-e1f5-4913-8078-9477b035b281",
+          "createdAt": "2026-10-18T09:31:03.495Z",
+          "status": "SUCCESS",
+          "image": "ghcr.io/railwayapp-templates/postgres-ssl:18"
+        }
+      ],
+      "error": false
+    }
+  ],
+  "health": [
+    {
+      "name": "Postgres",
+      "state": "online",
+      "replicas": {
+        "running": 1,
+        "crashed": 0,
+        "total": 1
+      },
+      "issues": {
+        "warningCount": 0,
+        "criticalCount": 1
+      }
+    },
+    {
+      "name": "edge-bff",
+      "state": "online",
+      "replicas": {
+        "running": 1,
+        "crashed": 0,
+        "total": 1
+      },
+      "issues": {
+        "warningCount": 0,
+        "criticalCount": 0
+      }
+    },
+    {
+      "name": "market-ai-orc",
+      "state": "online",
+      "replicas": {
+        "running": 1,
+        "crashed": 0,
+        "total": 1
+      },
+      "issues": {
+        "warningCount": 0,
+        "criticalCount": 0
+      }
+    },
+    {
+      "name": "market-python-sandbox",
+      "state": "online",
+      "replicas": {
+        "running": 1,
+        "crashed": 0,
+        "total": 1
+      },
+      "issues": {
+        "warningCount": 0,
+        "criticalCount": 0
+      }
+    },
+    {
+      "name": "Postgres-E8GM",
+      "state": "online",
+      "replicas": {
+        "running": 1,
+        "crashed": 0,
+        "total": 1
+      },
+      "issues": {
+        "warningCount": 0,
+        "criticalCount": 0
+      }
+    },
+    {
+      "name": "market-web-governor",
+      "state": "online",
+      "replicas": {
+        "running": 1,
+        "crashed": 0,
+        "total": 1
+      },
+      "issues": {
+        "warningCount": 0,
+        "criticalCount": 0
+      }
+    },
+    {
+      "name": "market-audit-store",
+      "state": "online",
+      "replicas": {
+        "running": 1,
+        "crashed": 0,
+        "total": 1
+      },
+      "issues": {
+        "warningCount": 0,
+        "criticalCount": 0
+      }
+    },
+    {
+      "name": "market-sql-governor",
+      "state": "online",
+      "replicas": {
+        "running": 1,
+        "crashed": 0,
+        "total": 1
+      },
+      "issues": {
+        "warningCount": 0,
+        "criticalCount": 0
+      }
+    }
+  ],
+  "resource_metrics": {
+    "hours_back": 4,
+    "sample_rate_seconds": 300,
+    "services": [
+      {
+        "service": {
+          "id": "41dc17ee-3bac-41ef-90ec-8b9356815c71",
+          "name": "market-ai-orc"
+        },
+        "environment": {
+          "id": "4d3e5af2-302b-4a2e-84e2-7d7476d6ff49",
+          "name": "dev"
+        },
+        "metrics": [
+          {
+            "measurement": "CPU_USAGE",
+            "current": 0.004408413333333333,
+            "average": 0.0015291649659863943,
+            "min": 0,
+            "max": 0.004408413333333333,
+            "sampleCount": 49
+          },
+          {
+            "measurement": "MEMORY_USAGE_GB",
+            "current": 0.152338944,
+            "average": 0.14662838741043088,
+            "min": 0,
+            "max": 0.152338944,
+            "sampleCount": 49
+          },
+          {
+            "measurement": "DISK_USAGE_GB",
+            "current": 0,
+            "average": 0,
+            "min": 0,
+            "max": 0,
+            "sampleCount": 49
+          }
+        ]
+      },
+      {
+        "service": {
+          "id": "c3656044-2817-44a7-9b55-54910bab416f",
+          "name": "edge-bff"
+        },
+        "environment": {
+          "id": "4d3e5af2-302b-4a2e-84e2-7d7476d6ff49",
+          "name": "dev"
+        },
+        "metrics": [
+          {
+            "measurement": "CPU_USAGE",
+            "current": 0.008491236666666666,
+            "average": 0.004657566598639456,
+            "min": 0,
+            "max": 0.01322342,
+            "sampleCount": 49
+          },
+          {
+            "measurement": "MEMORY_USAGE_GB",
+            "current": 0.105366528,
+            "average": 0.09951178726789763,
+            "min": 0,
+            "max": 0.20320080457142856,
+            "sampleCount": 49
+          },
+          {
+            "measurement": "DISK_USAGE_GB",
+            "current": 0,
+            "average": 0,
+            "min": 0,
+            "max": 0,
+            "sampleCount": 49
+          }
+        ]
+      },
+      {
+        "service": {
+          "id": "225b1be1-d7f5-4b2d-a4c7-052eb53af818",
+          "name": "market-python-sandbox"
+        },
+        "environment": {
+          "id": "4d3e5af2-302b-4a2e-84e2-7d7476d6ff49",
+          "name": "dev"
+        },
+        "metrics": [
+          {
+            "measurement": "CPU_USAGE",
+            "current": 0.024287133333333336,
+            "average": 0.016905744829931985,
+            "min": 0,
+            "max": 0.024287133333333336,
+            "sampleCount": 49
+          },
+          {
+            "measurement": "MEMORY_USAGE_GB",
+            "current": 0.541604352,
+            "average": 0.5122928533851634,
+            "min": 0,
+            "max": 0.561363968,
+            "sampleCount": 49
+          },
+          {
+            "measurement": "DISK_USAGE_GB",
+            "current": 1.14475008,
+            "average": 1.1210467369795925,
+            "min": 0,
+            "max": 1.14475008,
+            "sampleCount": 49
+          }
+        ]
+      },
+      {
+        "service": {
+          "id": "bb21a9f4-a9d3-4a51-945f-fa86b63f4b86",
+          "name": "Postgres"
+        },
+        "environment": {
+          "id": "4d3e5af2-302b-4a2e-84e2-7d7476d6ff49",
+          "name": "dev"
+        },
+        "metrics": [
+          {
+            "measurement": "CPU_USAGE",
+            "current": 0.022733636666666664,
+            "average": 0.012141775918367344,
+            "min": 0,
+            "max": 0.022733636666666664,
+            "sampleCount": 49
+          },
+          {
+            "measurement": "MEMORY_USAGE_GB",
+            "current": 0.274676224,
+            "average": 0.20423532553287987,
+            "min": 0,
+            "max": 0.274676224,
+            "sampleCount": 49
+          },
+          {
+            "measurement": "DISK_USAGE_GB",
+            "current": 40.93882368,
+            "average": 40.10333748244901,
+            "min": 0,
+            "max": 40.93882368,
+            "sampleCount": 49
+          }
+        ]
+      }
+    ]
+  },
+  "log_windows": {
+    "calls_and_timeouts_start_utc": "2026-10-17T00:00:00Z",
+    "runaway_and_truncation_start_utc": "2026-10-12T00:00:00Z"
+  },
+  "log_summary": {
+    "model_calls": 227,
+    "calls_by_model": [
+      {
+        "model": "xiaomi/mimo-v2.6-flash",
+        "calls": 159,
+        "output_tokens_median": 1667,
+        "output_tokens_max": 12000,
+        "reasoning_tokens_max": 11999,
+        "latency_ms_p95": 56107,
+        "latency_ms_max": 611586
+      },
+      {
+        "model": "deepseek/deepseek-v4.1-flash",
+        "calls": 61,
+        "output_tokens_median": 1173,
+        "output_tokens_max": 6505,
+        "reasoning_tokens_max": 5657,
+        "latency_ms_p95": 57817,
+        "latency_ms_max": 602369
+      },
+      {
+        "model": "saniti/claude-manual",
+        "calls": 2,
+        "output_tokens_median": 0,
+        "output_tokens_max": 0,
+        "reasoning_tokens_max": 0,
+        "latency_ms_p95": 41524,
+        "latency_ms_max": 41524
+      },
+      {
+        "model": "z-ai/glm-5.3-flash",
+        "calls": 5,
+        "output_tokens_median": 970,
+        "output_tokens_max": 1899,
+        "reasoning_tokens_max": 1107,
+        "latency_ms_p95": 20274,
+        "latency_ms_max": 20274
+      }
+    ],
+    "reasoning_runaway": 7,
+    "fastlane_90_second_timeouts": 10,
+    "tool_output_truncated": 1,
+    "final_output_truncated": 0,
+    "limitations": [
+      "Completed provider-response usage only; cancelled attempts without usage are not costed.",
+      "Mixed reasoning levels and routes; not a controlled Max-only benchmark.",
+      "Zero matching final-truncation events does not prove no historical truncation."
+    ]
+  },
+  "baseline_tests": {
+    "passed": 15,
+    "skipped": 1,
+    "warning_count": 1,
+    "seconds": 0.69,
+    "note": "Existing mocked tests only; no live inference, extraction, sandbox execution or fault injection."
+  },
+  "limitations": [
+    "No live settings, application code, database grants or deployments changed.",
+    "PGweb metadata access is read-only; ai_audit is not accessible with this role.",
+    "Documentation is not proof every endpoint honors a 48000-token reasoning limit.",
+    "Main Postgres has one critical notification of unconfirmed cause; approximately 40.94 GB disk used on a configured 50 GB volume."
+  ],
+  "source_comparison": [
+    {
+      "service": "market-ai-orc",
+      "deployed_commit": "5679bd505980787a6742d5bbdc4d252965e3d3bb",
+      "changed_paths": [],
+      "application_code_changed": false
+    },
+    {
+      "service": "edge-bff",
+      "deployed_commit": "7c6bf18462eb84053ac0358cf46dbf887b076cfd",
+      "changed_paths": [],
+      "application_code_changed": false
+    },
+    {
+      "service": "market-python-sandbox",
+      "deployed_commit": "454272ee8c1f643ca97b9c93ca791723b483971c",
+      "changed_paths": [],
+      "application_code_changed": false
+    },
+    {
+      "service": "market-sql-governor",
+      "deployed_commit": "2334b44bb75b8c9a33ddf9088df78eeda234113a",
+      "changed_paths": [],
+      "application_code_changed": false
+    },
+    {
+      "service": "market-web-governor",
+      "deployed_commit": "2c093df9155a204f367085d6f277ea9bfebab469",
+      "changed_paths": [],
+      "application_code_changed": false
+    },
+    {
+      "service": "market-audit-store",
+      "deployed_commit": "bcb13226f78ae6785d7b4fcb0c6de54a20045afe",
+      "changed_paths": [],
+      "application_code_changed": false
+    }
+  ]
+}
