@@ -5561,3 +5561,29 @@ tetap memakai tanda "E" kotak.
 **Masih perlu keputusan user sebelum eksekusi:** lebar kartu PNG (usulan 760 px CSS); font "Monitor" (opsi 1 atau 2);
 bahasa langkah progres orc ("Memahami pertanyaan", "Menyusun langkah berikutnya", `user_texts.PROGRESS_*`), yang tampil di
 antarmuka di luar jawaban; uji live hanya ON (±USD 0,11) atau A/B ON/OFF (±USD 0,21).
+
+**Keputusan user atas pertanyaan rencana (2026-10-19):** lebar kartu PNG 760 px CSS: "OK"; font "Monitor": "Yes"
+(opsi belum disebut, dikonfirmasi ulang); langkah progres orc ke bahasa Inggris: "Ya"; uji A/B: "nanti saja". Seluruh
+EXEC ini **pending** ("Stop jalankan exec, pending dulu ya"), ditangani sekaligus dengan temuan di bawah.
+
+**Temuan run live 2026-10-19 (log orc deployment `15604ac8`, jawaban tersimpan di EDGE; belum dikerjakan):**
+- `edge_b6559a4f…-m4n` (Qwen3.8 Flash, "Analisis lanjutan"): (1) tabel sektor rusak: jawaban memuat judul tabel Markdown
+  yang diketik model, lalu baris `| ` sebelum tabel hasil instruksi `{{table …}}` dan ` |` sesudahnya (log
+  `ai_table_directive typed_tables=2`); model menaruh instruksi tabel di dalam sel tabel Markdown, dan menulis sendiri baris
+  "Menampilkan 10 dari 29 baris" di samping baris sistem. (2) dua panggilan pertama ditolak bentuk argumen
+  (`get_session_output`: session_id/output_id/ref `string_pattern_mismatch`; `open_analysis_session`: close_session_id),
+  lalu data need dikirim ulang; backend memakai lagi sesi hangat (`carried_restored ALREADY_PRESENT`, siap 0 s), jadi data
+  tidak ditarik ulang tetapi ±33 s dan 4 panggilan terbuang; `run_python complete` dikirim sebagai teks (`bool_parsing`).
+  (3) jawaban akhir pertama berupa prosa (`ai_final_reask`). (4) model menawarkan event study yang dihitung ulang backend.
+- `edge_7bdd6096…` (Qwen3.8 Flash): tabel 10 dari 48 baris tanpa tombol buka: orc memotong ke 10 baris
+  (`rows=10, row_count=48`), EDGE hanya bisa melipat baris yang dikirim = M185 (OPEN).
+- `edge_984c2ef8…-m4q` (DeepSeek 1017, menilai tabrakan run Qwen di atas): klaim sebagian benar menurut prompt v015:
+  bentuk jawaban dan cara mengutip ada di CITING AND CHECKS; bentuk argumen hanya di deskripsi parameter alat; pemulihan
+  bundel kedaluwarsa hanya di pesan galat (CONVERSATION REUSE poin 3 hanya mencakup sesi yang hilang).
+
+**Usulan (menunggu persetujuan):** (a) CITING AND CHECKS: instruksi tabel di barisnya sendiri, tidak di dalam tabel
+Markdown, dan baris "Menampilkan N dari M" ditulis sistem; (b) `table_directives` membersihkan judul/pipa ketikan model di
+sekitar instruksi tabel; (c) CITING AND CHECKS: bentuk argumen (id disalin persis dari hasil alat, `complete` true/false)
+dan pemulihan kedaluwarsa (kirim ulang `submit_arguments` yang sama); (d) log nilai argumen yang ditolak (tanpa data
+sensitif) untuk diagnosis; (e) M185: tabel tanpa `top` mengirim sampai 50 baris, EDGE menampilkan 10 dan tombol buka;
+(f) langkah progres seluruhnya bahasa Inggris (termasuk "ditolak, dicoba lagi").
