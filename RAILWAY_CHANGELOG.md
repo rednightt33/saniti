@@ -4065,3 +4065,18 @@ SUCCESS 15:47 UTC. `.railway/railway.ts` keeps the three with `preserve()`. Fall
 `AI_FASTLANE_GOAL_ANSWERS=false` (fast prefix and checks as before), `AI_MANUAL_AGENT_FALLBACK=true` and
 `AI_MANUAL_AGENT_ROUTERS=false` (manual path as before). Model `deepseek/deepseek-v4.1-flash-1017` is offered in code
 (reasoning low, high and max each probed once on OpenRouter, cost below USD 0.0001).
+
+## 2026-10-20 — Push A: orc streaming switch, keep-reasoning switch, central checks (orc only)
+
+User go 2026-10-20 ("Ya oke, okay, standar juga boleh. Jalankan semua end to end") for the final plan in `EXEC.md`.
+Before the push the orc logs of deployment `15604ac8` showed no `edge_` run on 2026-10-20 (credit monitor only). Git main
+`fc8111e` (`88539d7` P1, `fc8111e` P2) deployed market-ai-orc (`41dc17ee-3bac-41ef-90ec-8b9356815c71`) by the GitHub
+connection: deployment `73097768-76a0-4f56-a527-052e07e7d17c` SUCCESS; startup complete, `/ready` 200, no error lines.
+edge-bff stays on `2e0a470b-0407-48e6-9649-c3e2359ad0b0`; sandbox and governor unchanged.
+
+New switches in code, not set on Railway yet (default off, so live behaviour is the earlier one except the every-lane
+message and table fixes listed in the orc README "Rejection messages that say what to do"): `AI_PROVIDER_STREAMING`,
+`AI_STREAM_FIRST_CONTENT_SECONDS`, `AI_STREAM_IDLE_SECONDS`, `AI_STREAM_TOOL_IDLE_SECONDS`, `AI_FASTLANE_KEEP_REASONING`,
+`AI_MAX_REASONING_TOKENS`. Rollback: redeploy `15604ac8-2969-49b3-8979-dc9bf984a989` (commit `1ced83a`).
+OpenRouter credit read from the orc credit log at 06:57 UTC: limit_remaining USD 0.24 (enough for one live set of three
+questions; no A/B).
