@@ -4145,8 +4145,10 @@ was waited out at 14:05 UTC before the database migration).
   SUCCESS on `7e159c6`.
 - Live checks: runner `b2016161` (suite `onboard_l3_20261020`, 3 items, USD 0.061) and `c0305b56`
   (`onboard_l3b_20261020`, 2 items, USD 0.033): all COMPLETED ANSWER; results in EXEC.md EXEC-ONBOARD-1.
-- No variable changed; `.railway/railway.ts` unchanged. The orc switches stay as they were (`AI_PROVIDER_STREAMING=false`,
-  `AI_FASTLANE_KEEP_REASONING=false`, `AI_PROVIDER_SORT=throughput`; decision (b) still waits for the user's go).
+- No variable changed by this work; `.railway/railway.ts` unchanged. Correction (read back 2026-10-20 after the
+  user's DeepSeek max report): market-ai-orc / dev has `AI_PROVIDER_STREAMING=true`, `AI_FASTLANE_KEEP_REASONING=true`,
+  `AI_PROVIDER_SORT=throughput`, `AI_MAX_OUTPUT_TOKENS=24000`; the earlier line of this entry said the first two were
+  false, which was not read back and was wrong. They were already true at 13:45 UTC (runaway log `same_level=true`).
 - OpenRouter credit after the checks: about USD 0.25 remaining (key read in memory only).
 - Rollback: orc `687ac7cc` (before this change), sandbox `a6ddafb9`; catalog exposure off by a forward migration
   (`is_active = false` on the three AI_table_catalog rows).
