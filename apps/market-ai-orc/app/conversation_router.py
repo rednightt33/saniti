@@ -531,9 +531,15 @@ FAST_LANE_ROUTES = (
     "Choose the route by what the message asks, never by what it costs. On the fast lane (the default) no plan waits "
     "for approval: ANALYSIS is one analysis step, RESEARCH one step that tests the user's own question, "
     + EXPLORE_FAST_V2)
+# What the warehouse holds, as the router reads it. EXEC-ONBOARD-1 (2026-10-20): without bond yields and the stored
+# indicators the router sent "yield obligasi 10 tahun" to FACT (the web) although the catalog holds it; a new data
+# domain is added here when it is onboarded (NEW_TABLE_ONBOARDING_PLAN.md, the guideline's list of hand-written places)
+WAREHOUSE_SCOPE = ("Indonesian stocks, a warehouse of stock prices, broker and foreign flows, Indonesian and US "
+                   "government bond prices and yields, and stored technical indicators and candlestick patterns, a "
+                   "web fact finder")
 FIRST_INSTRUCTIONS = (
-    "You route the FIRST message of a conversation in a stock-market analysis app (Indonesian stocks, a warehouse of "
-    "prices, broker and foreign flows, a web fact finder). Choose exactly one route:\n"
+    "You route the FIRST message of a conversation in a stock-market analysis app (" + WAREHOUSE_SCOPE + "). "
+    "Choose exactly one route:\n"
     + "\n".join(f"- {route}: {criterion}; runs {action}" for route, (criterion, action) in FIRST_ROUTES.items())
     + "\n" + FAST_LANE_ROUTES
     + "\nWhen a message both asks for data and is ambiguous, prefer ANALYSIS over CHAT or FACT (a data question "
@@ -562,8 +568,8 @@ FIRST_ROUTE_GUIDE: dict[str, tuple[str, str]] = {
     ASK_BACK: ("a few seconds; nothing runs until the user answers", "TLKM gimana?"),
 }
 FIRST_INSTRUCTIONS_ASK_BACK = (
-    "You route the FIRST message of a conversation in a stock-market analysis app (Indonesian stocks, a warehouse of "
-    "prices, broker and foreign flows, a web fact finder). First understand what the user actually wants: the "
+    "You route the FIRST message of a conversation in a stock-market analysis app (" + WAREHOUSE_SCOPE + "). "
+    "First understand what the user actually wants: the "
     "subject, the measure, the period and how deep the work should go. Then choose exactly one route (when; time and "
     "cost; an example):\n"
     + "\n".join(f"- {route}: {criterion}; runs {action} ({FIRST_ROUTE_GUIDE[route][0]}; e.g. "

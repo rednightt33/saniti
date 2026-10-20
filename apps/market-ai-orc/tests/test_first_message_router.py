@@ -175,3 +175,13 @@ def test_a_new_topic_keeps_the_depth_the_caller_itself_chose() -> None:
     finally:
         modes.current_caller_path.reset(token)
     assert [(r.request_id, r.analysis_path) for r in inner.requests] == [("q", "RESEARCH")]
+
+
+def test_the_router_knows_bond_yields_and_stored_indicators_are_warehouse_data() -> None:
+    """EXEC-ONBOARD-1 (L3 2026-10-20): "yield obligasi pemerintah Indonesia 10 tahun" was routed to FACT (the web)
+    because the router's description of the warehouse named only stock prices and flows."""
+    from app import conversation_router as r
+    for ask_back in (False, True):
+        text = r.first_instructions(ask_back)
+        assert r.WAREHOUSE_SCOPE in text
+        assert "government bond prices and yields" in text and "technical indicators" in text

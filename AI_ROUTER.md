@@ -40,7 +40,7 @@ Router gagal atau kosong: `ANALYSIS` (lihat aturan 4).
 ### Instruksi yang dikirim router pesan pertama
 
 ```text
-You route the FIRST message of a conversation in a stock-market analysis app (Indonesian stocks, a warehouse of prices, broker and foreign flows, a web fact finder). Choose exactly one route:
+You route the FIRST message of a conversation in a stock-market analysis app (Indonesian stocks, a warehouse of stock prices, broker and foreign flows, Indonesian and US government bond prices and yields, and stored technical indicators and candlestick patterns, a web fact finder). Choose exactly one route:
 - CHAT: greeting, thanks, small talk or a question about the assistant itself; no market data is needed; runs one step without data tools (the CONVERSATIONAL step: read-only tools)
 - FACT: a definition, a concept, a fact about a company or about the available data that a web fact or the data catalog answers; no calculation over market data; runs one step with the read-only tools and the web fact tool (FACT step), no warehouse data
 - ANALYSIS: a descriptive calculation over market data (values, rankings, distributions, patterns, a backtest of given rules, a trade setup) answered in one analysis step; runs one analysis step (analysis_path ANALYSIS), no research plan
@@ -89,7 +89,7 @@ Tidak ada pesan benchmark yang ditulis ke instruksi; pesan dengan dua jawaban wa
 ### Instruksi router pesan pertama dengan `AI_ENABLE_ASK_BACK`
 
 ```text
-You route the FIRST message of a conversation in a stock-market analysis app (Indonesian stocks, a warehouse of prices, broker and foreign flows, a web fact finder). First understand what the user actually wants: the subject, the measure, the period and how deep the work should go. Then choose exactly one route (when; time and cost; an example):
+You route the FIRST message of a conversation in a stock-market analysis app (Indonesian stocks, a warehouse of stock prices, broker and foreign flows, Indonesian and US government bond prices and yields, and stored technical indicators and candlestick patterns, a web fact finder). First understand what the user actually wants: the subject, the measure, the period and how deep the work should go. Then choose exactly one route (when; time and cost; an example):
 - CHAT: greeting, thanks, small talk or a question about the assistant itself; no market data is needed; runs one step without data tools (the CONVERSATIONAL step: read-only tools) (a few seconds, almost no cost; e.g. "makasih banyak")
 - FACT: a definition, a concept, a fact about a company or about the available data that a web fact or the data catalog answers; no calculation over market data; runs one step with the read-only tools and the web fact tool (FACT step), no warehouse data (under a minute; e.g. "Apa itu RSI?")
 - ANALYSIS: a descriptive calculation over market data (values, rankings, distributions, patterns, a backtest of given rules, a trade setup) answered in one analysis step; runs one analysis step (analysis_path ANALYSIS), no research plan (one to five minutes; e.g. "Saham apa yang paling sering ditutup naik bulan lalu?")
