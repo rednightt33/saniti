@@ -6062,19 +6062,26 @@ Konfirmasi."). Status: DIKERJAKAN 2026-10-20 (user "Ok view saja ya untuk no 1. 
 **EXEC-OUTPUT-REUSE – hitungan atas tabel yang sudah dirilis tanpa data need baru (user 2026-10-20: "lihat
 edge_d0109b90... menjawab pertanyaan tsb tidak perlu data request sebenarnya kan.. karena tinggal olah data yang ada di
 sandbox"). Status: DICATAT, belum dieksekusi.**
-- Fakta log orc (`edge_d0109b90…`, GLM 5.3 Flash, jalur Cepat, 22:29-22:30 WIB): langkah 1 CLARIFY (alat baca-saja)
-  membaca dua output yang sudah dirilis dan menyerahkan hitungan ke langkah 2 (CONTINUE). Langkah 2: `run_python` ke
-  sesi hangat gagal (sesi sudah kedaluwarsa); `open_analysis_session` pada bundle lama gagal (bundle tidak READY);
-  model lalu mengirim ulang data need (`submit_data_need_spec` ditolak sekali karena bentuk argumen, lalu diterima),
-  bundle READY dalam ±1 detik dan sesi terbuka lagi; baru setelah itu dua `run_python` menghitung dari tabel
-  `bmri_maxret_by_date` (43 baris) yang sudah ada. Langkah 2: 8 panggilan model, 34 s, USD 0,038; jalan memutar
-  (4 panggilan pertama) ±10 s.
-- Akar masalah di kode: sesi analisis hanya bisa dibuka di atas bundle READY (`OpenAnalysisSessionArgs.input_bundle_id`
-  wajib, `apps/market-ai-orc/app/tools/session.py`). Bila sesi hangat sudah hilang, satu-satunya jalan adalah data need
-  ulang, walaupun yang dibutuhkan hanya output yang sudah dirilis (dibaca dengan `load_output`).
+- Fakta log orc + sandbox (`edge_d0109b90…`, GLM 5.3 Flash, jalur Cepat, 22:29-22:30 WIB; dikoreksi 2026-10-20
+  setelah user bertanya "memangnya sesi kadaluarsa berapa lama?"): langkah 1 CLARIFY membaca dua output yang sudah
+  dirilis dan menyerahkan hitungan ke langkah 2. Langkah 2: `run_python` ke sesi `sess_c5fa…` dan
+  `open_analysis_session` pada bundle `bundle_f9029…` ditolak sandbox. Sesi itu TIDAK kedaluwarsa: dibuka 22:26:34 WIB
+  oleh giliran sebelumnya dan masih hidup (batas idle `PY_SANDBOX_SESSION_IDLE_SECONDS` default 900 s, tidak diubah di
+  Railway; baru ±4 menit). Penolakannya karena sesi dan bundle terikat ke `request_id` yang membuatnya
+  (`market-python-sandbox/app/sessions.py` `_session`: "No session with this id exists for this request" →
+  `SESSION_NOT_FOUND`; `open`: "No READY bundle with this id exists for this request" → `BUNDLE_NOT_READY`), dan
+  setiap pesan baru adalah request baru. Jalan yang dirancang (prompt orc, aturan CONVERSATION RESOURCES no. 2):
+  kirim ulang `data_need_spec` yang tercantum → `bundle_reused` (data tidak diambil ulang dari database) →
+  `open_analysis_session` memasang kembali sesi hangat (`session_attached` epoch 2, 22:30:39). Model melewatkan aturan
+  itu dan mencoba langsung dulu, lalu menyimpulkan sendiri bahwa sesi kedaluwarsa (kesimpulan model, bukan fakta).
+  Total langkah 2: 8 panggilan model, 34 s, USD 0,038; jalan memutar ±4 panggilan, ±10 s.
+- Akar masalah di kode: memakai sesi hangat atau output yang sudah dirilis di pesan baru selalu butuh data need ulang
+  (sesi dan bundle terikat request), dan pesan penolakan sandbox tidak menyebut langkah yang benar sehingga model
+  menebak "kedaluwarsa".
 - Rencana: (1) `open_analysis_session` tanpa bundle (sesi khusus output: hanya `load_output` atas output percakapan
-  ini, tanpa data baru dari Governor); (2) bila sesi hangat hilang dan pekerjaan hanya memakai output yang dirilis,
-  orc membuka sesi khusus output itu otomatis dan memberi tahu model; (3) catatan alat/prompt: hitungan atas output yang
+  ini, tanpa data baru dari Governor); (2) `run_python`/`open_analysis_session` dengan id sesi atau bundle dari pesan sebelumnya di
+  percakapan yang sama memasang kembali sesi hangat itu (tanpa data need), dan penolakan yang tersisa menyebut langkah
+  yang benar; (3) catatan alat/prompt: hitungan atas output yang
   sudah dirilis tidak memerlukan data need baru. Perubahan kontrak alat → Tool_Catalog round berikutnya; tes orc dan
   sandbox; deploy orc (+ sandbox bila endpoint sesi tanpa bundle perlu). Diukur ulang dengan pertanyaan lanjutan yang
   sama: tanpa `submit_data_need_spec`, jumlah panggilan dan waktu turun.
