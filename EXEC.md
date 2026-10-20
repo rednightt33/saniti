@@ -6085,3 +6085,20 @@ sandbox"). Status: DICATAT, belum dieksekusi.**
   sudah dirilis tidak memerlukan data need baru. Perubahan kontrak alat → Tool_Catalog round berikutnya; tes orc dan
   sandbox; deploy orc (+ sandbox bila endpoint sesi tanpa bundle perlu). Diukur ulang dengan pertanyaan lanjutan yang
   sama: tanpa `submit_data_need_spec`, jumlah panggilan dan waktu turun.
+- **Keputusan user 2026-10-20 ("Ok untuk rekomendasi kamu, plus tambah ini … hanya berlaku di same conversation ID"):**
+  disetujui rencana (1) sesi tanpa bundle khusus output percakapan, (2) pesan baru memakai sesi/bundle hangat dari
+  pesan sebelumnya tanpa data need, dan bila sesi hangat hilang orc membuka sesi khusus output otomatis, (3) catatan
+  alat/prompt bahwa hitungan atas output yang sudah dirilis tidak perlu data need; plus penolakan yang tersisa menyebut
+  langkah yang benar. Lingkup: hanya kunci percakapan yang sama, yaitu `reuse_key(owner, conversation_id)` yang dibuat
+  server (`apps/market-ai-orc/app/main.py`), tidak pernah dari argumen alat atau model. Status: dicatat, belum
+  dieksekusi.
+- Risiko dan mitigasi yang ikut dikerjakan: (a) kebocoran antar percakapan/pemilik — sandbox membandingkan kunci yang
+  disimpan bersama sesi/output dengan kunci request, id dari percakapan lain tetap `SESSION_NOT_FOUND`; tes untuk
+  pemilik lain dan percakapan lain. (b) Data lama dipakai untuk pertanyaan yang butuh data baru — aturan "data lebih
+  baru, periode/kolom/entitas lain butuh data need" tetap; jawaban menyebut tanggal hitung dan `data_as_of` output yang
+  dipakai. (c) Label bukti — output baru dari sesi khusus output mewarisi label bukti dan peringatan output sumbernya,
+  tidak otomatis `DATA_COVERAGE_VERIFIED`; `complete_analysis` dicek untuk sesi tanpa bundle. (d) Sesi riset — sesi
+  RESEARCH tidak pernah dipakai ulang atau diambil alih (aturan sandbox sekarang tetap); rencana riset baru tetap lewat
+  persetujuan. (e) Isi namespace dari pesan sebelumnya — variabel lama terlihat seperti pada attach sekarang; output
+  baru hanya dari pesan ini. (f) Dua run bersamaan dalam satu percakapan — lease percakapan sudah membatasi satu run
+  aktif; dites. (g) Kapasitas — `PY_SANDBOX_MAX_SESSIONS` dan idle 900 s tetap berlaku.
