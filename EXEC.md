@@ -5722,3 +5722,23 @@ menekan Stop bisa menunggu sampai 600 s (+ ulangan).
 3. Langkah progres menampilkan lama berpikir ("Thinking… 2m 10s").
 - Usulan lanjutan (menunggu persetujuan): panggilan streaming dengan pendeteksi "penyedia masih mengeluarkan output"
   (batas token pertama + batas jeda antar-event isi, komentar keep-alive OpenRouter tidak dihitung).
+
+**EXEC-M181 – pengukuran dan keputusan (user 2026-10-20: "Alright, sekarang masukkan ke exec"; belum dijalankan).**
+- Uji streaming (izin user, kunci dipakai hanya di memori, total ±USD 0,03): `POST /responses` `stream: true` ke
+  DeepSeek V4.1 Flash (high), GLM 5.3 Flash (high), MiMo V2.6 Flash (on). Putaran 1 pertanyaan pendek; putaran 2 payload
+  bentuk orc (instruksi jalur Cepat dev ±28 rb token + 19 definisi alat), skenario TOOL dan LONG. Hasil: ketiga model
+  mengalirkan penalaran (`response.reasoning_text.delta`), jawaban (`response.output_text.delta`) dan argumen alat
+  (`response.function_call_arguments.delta`); potongan isi pertama 1,2–7,1 s; jeda terpanjang antar-potongan isi 4,2 s
+  (p99 ≤ 0,8 s) termasuk penalaran 107–174 s; keep-alive `: OPENROUTER PROCESSING` sampai 83 per 107 s di sela isi, jadi
+  pengukur byte tidak pernah mendeteksi macet: **hanya event isi yang dihitung**. MiMo TOOL berpikir aktif 82 s sebelum
+  memanggil alat (hampir terpotong 90 s). Skenario LONG ketiganya habis jatah pada penalaran (pola M37), stream tertutup
+  tanpa `response.completed`.
+- Log orc tersimpan 12–19 Okt (1.265 panggilan unik): p95 DeepSeek 60 s, GLM 101 s, MiMo Flash 49 s, Qwen 51 s; maks
+  405 s (MiMo Pro, 24.000 token); 15 panggilan sah > 90 s; panggilan terlama = output 12–24 rb token (8–18 s per 1.000).
+- **Batas:** N = 45 s tanpa event isi pertama; M = 30 s tanpa event isi baru; total 600 s tetap sebagai pengaman terakhir
+  (tidak pernah tercapai kerja sah). Setiap panggilan mencatat waktu isi pertama, jeda terpanjang, jumlah keep-alive untuk
+  kalibrasi ulang sesudah 1–2 minggu.
+- **Saat macet (user 2026-10-20, pilihan rekomendasi):** ulang otomatis 1× di level yang sama dengan langkah progres yang
+  terlihat; macet lagi → run berhenti dengan pesan jelas (penyedia tidak mengirim output selama N/M detik) dan pilihan
+  **Retry** (model dan level sama) serta **ganti model** (menu model yang ada). Langkah yang sudah selesai tetap tersimpan
+  (`_store_results` dipanggil sesudah blok `finally`, `orchestrator.py:3254`, juga untuk run FAILED).
