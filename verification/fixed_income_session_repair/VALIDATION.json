@@ -66,7 +66,7 @@
     "temporary_service": "DELETED from dev",
     "backup_volume": "7f146278-0e8c-40d0-b2cc-7f244252170d; retained unattached,100MB",
     "backup_paths": "/repair/fi-selected-20261020-a/{plan.json,pre-migration-backup.json,before.json,prepare-result.json,apply-result.json}",
-    "main_rollout": "BLOCKED_BY_AUTOMATIC_APPROVAL_REVIEW: main release requires owner approval; no main push/deployment"
+    "main_rollout": "APPROVED 2026-10-20: user \u201cOkay, merge and release ke main ya\u201d; deployment verification pending"
   },
   "sha256": {
     "scripts/repair_fixed_income_dates.py": "eacfb4628b4bf85bc8b28b8cb9070f89389bafd117e52553dad2ffe7840e628c",

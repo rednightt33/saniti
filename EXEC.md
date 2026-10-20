@@ -5930,3 +5930,7 @@ Research ($0,101/$0,15). Penyedia baru diketahui sesudah panggilan pertama (lalu
   `AI_PROVIDER_SORT=throughput` selama A/B lalu dikembalikan (izin user). Syarat: kredit OpenRouter diisi ulang
   (sisa USD 0,081; perkiraan biaya ±USD 0,25, sampai ±0,4 dengan penyedia mahal); sebelum tiap ganti saklar cek tidak
   ada run `edge_` aktif; saklar dikembalikan ke ON sesudahnya. **Dijalankan hanya sesudah user mengonfirmasi eksekusi.**
+
+## EXEC-FI-MAIN-RELEASE — 2026-10-20
+
+User: “Okay, merge and release ke main ya”. Approved merge/release of PR37 after the successful six-date ID+US repair. Verify the four fixed-income cron deployments on the merged commit; preserve existing cron clocks and start commands. Do not rerun migration011 or the repair. Prior automatic-approval hold is superseded by this explicit instruction.
