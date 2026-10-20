@@ -6130,3 +6130,15 @@ sandbox"). Status: DICATAT, belum dieksekusi.**
      no data" (sesi percakapan tidak membuka jalan riset tanpa persetujuan).
   Setelah perubahan: snapshot prompt baru, kalimat yang disetujui di `tests/test_prompt_pass2.py`, Tool_Catalog round,
   method guide bila menyebut alur ini; tes penolakan memeriksa pesan menyebut sebab dan langkah.
+- User 2026-10-20: "Ok, masukan exec jangan execute dulu ya" — seluruh EXEC-OUTPUT-REUSE (rencana, lingkup percakapan
+  sama, mitigasi, pindai prompt, penolakan polos) dicatat; menunggu go.
+
+**Catatan RAM Postgres 2026-10-20 (user: "berapa batas ram/memory saat ini. ada spike di ram and its quite costly").
+Status: investigasi, tanpa perubahan.** `railway metrics` 7 hari: batas memori setiap layanan dev 24 GB (`limit_mb`
+24576); puncak Postgres 15,6 GB (20 Okt 10:16 UTC naik dari 3,35 ke 15,45 GB; 13:28 UTC +2,4 GB; turun ke ±7,5 GB
+14:16 UTC dan ±1-2 GB sejak 15:40 UTC); puncak lain kecil (sandbox 3,47 GB, orc 0,57 GB, Governor 0,47 GB). Log Postgres
+10:07 UTC: query Governor atas `Feature_02_Broker_Rolling` (agregasi rentang tanggal) kena statement timeout,
+bertepatan dengan A/B j2 (akumulasi broker); kenaikan 13:28 UTC bertepatan dengan job baca dan DRYRUN EXEC-ONBOARD-1
+(scan penuh Feature 04, ±2,4 GB halaman dibaca). Dugaan (belum diverifikasi): angka memori kontainer memasukkan cache
+halaman file dari scan besar. Pembacaan `shared_buffers`/`work_mem`/ukuran tabel tertunda: `railway up` menjawab
+"Deploys have been paused temporarily" (variabel sementara `DATABASE_URL` terverifikasi sudah dihapus).
