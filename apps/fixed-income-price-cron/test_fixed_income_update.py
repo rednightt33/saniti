@@ -37,7 +37,26 @@ def test_recovery_window_includes_unobserved_latest_candidate():
     observed = [date(2026, 9, day) for day in (7, 8, 9, 10, 11)]
     assert recovery_module.correction_target_dates(
         observed, date(2026, 9, 14), 5
-    ) == [*observed, date(2026, 9, 14)]
+    ) == [*observed[1:], date(2026, 9, 14)]
+
+
+def test_recovery_window_includes_both_missing_recent_sessions():
+    observed = [date(2026, 10, day) for day in (5, 6, 7, 8, 9)]
+    assert recovery_module.correction_target_dates(observed, date(2026, 10, 13), 5) == [
+        date(2026, 10, day) for day in (7, 8, 9, 12, 13)
+    ]
+
+
+@pytest.mark.parametrize("raw,expected", [
+    (datetime(2026, 10, 12, 21, tzinfo=timezone.utc), date(2026, 10, 13)),
+    (datetime(2026, 10, 11, 21, tzinfo=timezone.utc), date(2026, 10, 12)),
+    (datetime(2026, 1, 11, 22, tzinfo=timezone.utc), date(2026, 1, 12)),
+    (datetime(2026, 10, 12, 23, tzinfo=timezone.utc), date(2026, 10, 13)),
+])
+def test_observed_provider_session_anchors(raw, expected):
+    assert module.resolve_bar_date(
+        int(raw.timestamp()), "America/New_York", "NEXT_BUSINESS_DAY"
+    ) == expected
 
 
 def test_latest_completed_session_waits_for_close_delay():
@@ -300,6 +319,28 @@ def test_request_series_keeps_source_timestamp_and_exact_session(monkeypatch):
     assert rows[0]["source_bar_time"] == datetime.fromtimestamp(timestamp, timezone.utc)
     assert rows[0]["is_final"] is True
     assert rows[0]["finalized_at"] == final_at
+
+
+@pytest.mark.parametrize("actual_zone,actual_session", [
+    ("Etc/UTC", "1700-1700"),
+    ("America/New_York", "1900-1730"),
+    ("America/New_York", None),
+])
+def test_source_session_drift_is_rejected(monkeypatch, actual_zone, actual_session):
+    monkeypatch.setattr(module.random, "randrange", lambda _n: 1)
+    ws = FakeSocket([
+        module.frame("symbol_resolved", ["cs", "symbol_1_1", {
+            "timezone": actual_zone, "session": actual_session,
+        }]),
+        module.frame("series_completed", ["cs", "s1"]),
+    ])
+    series = module.Series(1, "Indonesia", "ID 10Y", "ID10Y", "TVC:ID10", "price", "PCTPAR")
+    stamp = datetime(2026, 10, 13, 10, tzinfo=timezone.utc)
+    with pytest.raises(RuntimeError, match="SOURCE_SESSION_MISMATCH"):
+        module.request_series(
+            ws, "cs", series, 7, 5, stamp.date(), stamp.date(), stamp, stamp,
+            "NEXT_BUSINESS_DAY", "America/New_York", "1700-1700",
+        )
 
 
 def test_tls_cannot_be_disabled(monkeypatch):

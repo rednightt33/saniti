@@ -4180,3 +4180,7 @@ Per-trading-date Stockbit broker-summary load progress, retries, and review stat
 | Name | Definition |
 |---|---|
 | `stockbit_broker_summary_load_log_pkey` | `CREATE UNIQUE INDEX stockbit_broker_summary_load_log_pkey ON public.stockbit_broker_summary_load_log USING btree (target_table, trade_date)` |
+
+## Pending fixed-income provider-session migration (2026-10-20)
+
+Not part of the live schema snapshot above. Migration `20261013_011_verify_fixed_income_sessions.sql` adds required text columns `provider_timezone_name` (verified TradingView timezone) and `provider_session` (daily session anchor) to `Fixed_Income_Market_Schedule`. Both ID and US use NEXT_BUSINESS_DAY source mapping under the reviewed policy. Refresh the physical inventory only after live application/readback.

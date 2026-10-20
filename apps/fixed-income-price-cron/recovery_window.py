@@ -7,7 +7,7 @@ import argparse
 import os
 import subprocess
 import sys
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import psycopg
@@ -21,10 +21,20 @@ PRICE_TABLE = 'public."Price_Fixed_Income"'
 def correction_target_dates(
     observed: list[date], latest_candidate: date, session_count: int
 ) -> list[date]:
-    selected = sorted(set(item for item in observed if item <= latest_candidate))[-session_count:]
-    if latest_candidate not in selected:
-        selected.append(latest_candidate)
-    return sorted(set(selected))
+    if session_count < 1:
+        raise ValueError("session_count must be positive")
+    selected = {item for item in observed if item <= latest_candidate}
+    latest_observed = max(selected, default=None)
+    candidate = latest_candidate
+    # Include missing recent weekday candidates, not only dates already stored.
+    # A provider holiday is reported as NO_CURRENT_CANDLE, never filled by old data.
+    for _ in range(session_count):
+        while candidate.weekday() >= 5:
+            candidate -= timedelta(days=1)
+        if latest_observed is None or candidate > latest_observed:
+            selected.add(candidate)
+        candidate -= timedelta(days=1)
+    return sorted(selected)[-session_count:]
 
 
 def load_targets(database_url: str, market_code: str) -> tuple[list[date], int]:

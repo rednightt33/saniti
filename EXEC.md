@@ -5820,3 +5820,9 @@ perbaikan bug/pesan):**
   alat ditawarkan. Dengan M 30 s saja, panggilan sah DeepSeek di atas akan terpotong palsu. Total 600 s tetap.
 - Temuan teknis: `response.close()` dari utas lain tidak memutus pembacaan socket yang menunggu (diuji dengan server
   lokal yang diam); pengawas mematikan socket (`shutdown`) dulu, lalu menutup respons.
+
+## EXEC-FI-SELECTED-DATES — 2026-10-20 (approved, live blocked)
+
+User: “lakukan cleansing … 19-Oct, 16-Oct, 15-Oct, 14-Oct, 13-Oct, 30-Sep … re-ingest and recalculate feature 04”. Scope answers: “Indonesia dan US”; “Ya, hitung ulang tanggal terdampak agar konsisten”. Dates are in2026.
+
+Implementation and operator sequence: `verification/fixed_income_session_repair/README.md`. Replacement availability is verified before cleansing; backup, stale-state guards and atomic apply are required. Pending migration adds provider timezone/session verification; economic closing clocks remain unchanged. Local tests passed; live execution awaits access to Railway sandbox WSS `ssh.railway.com:2226`. No live data/config/schema change has occurred. Save on `codex/fixed-income-session-repair`; main rollout remains pending safe execution sequencing.

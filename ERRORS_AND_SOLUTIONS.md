@@ -1044,3 +1044,9 @@ change yet.
   nama field yang berbeda; (4) catatan akhir dalam bahasa Indonesia tanpa JSON (`user_texts.py`).
 - **Status:** OPEN.
 - **Lesson:** gerbang yang mencocokkan kata harus memberi tahu kata mana yang memicunya.
+
+## Fixed-income selected-date repair — 2026-10-20 status
+
+Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: locally tested, NOT applied live; fresh provider coverage remains pending. Scope and evidence: `verification/fixed_income_session_repair/README.md`.
+
+Execution blocker: Railway sandbox exec reported tunnel failure; HTTPS probe to ssh.railway.com:2226 failed and that endpoint is absent from workspace allowed networking. No live writes occurred; owned sandbox destroyed. Required remedy is supported environment network access, not a relay or credential copy. Lesson: a successful Railway API connection does not establish access to its sandbox execution endpoint.

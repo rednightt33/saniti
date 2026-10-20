@@ -2021,3 +2021,7 @@ dev through temporary Railway service `mmig-job` (DRYRUN `1922db71`, rolled back
 deleted and is absent from the project). Readback: `check_references` v1, v2 and v3 present, all inactive like every
 market-ai-orc row; v3's schema carries `draft` and `methodology`. No table, column, Feature, routine or data change.
 Hash added to `APPLIED.sha256`; no applied migration was rewritten.
+
+## 2026-10-20 — Selected fixed-income repair prepared; not applied
+
+Approved ID+US price/yield dates: September30; October13,14,15,16,19 (2026), plus affected downstream bond Features. Read-only baseline:178 selected source/89 selected Feature rows; ID missing on selected October dates. Forward provider-session migration and atomic SHA-pinned repair operator prepared with local transaction/formula tests. No live cleansing, migration or recalculation yet. Evidence and pending steps: `verification/fixed_income_session_repair/README.md`.

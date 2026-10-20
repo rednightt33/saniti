@@ -32,7 +32,7 @@ from websocket import WebSocketTimeoutException, create_connection
 WS_URL = "wss://data.tradingview.com/socket.io/websocket"
 ORIGIN = "https://www.tradingview.com"
 TIMEFRAME = "1D"
-DATE_MAPPING_VERSION = "schedule-driven-session-label-v3"
+DATE_MAPPING_VERSION = "verified-provider-session-label-v4"
 PRICE_TABLE = 'public."Price_Fixed_Income"'
 UNIVERSE_TABLE = 'public."Universe_Fixed_income"'
 SCHEDULE_TABLE = 'public."Fixed_Income_Market_Schedule"'
@@ -72,6 +72,8 @@ class MarketSchedule:
     source_date_mapping: str
     enabled: bool
     correction_lookback_sessions: int
+    provider_timezone_name: str | None = None
+    provider_session: str | None = None
 
     @property
     def timezone(self) -> ZoneInfo:
@@ -272,6 +274,8 @@ def request_series(
     close_at: datetime,
     finalized_at: datetime,
     source_date_mapping: str,
+    expected_timezone: str | None = None,
+    expected_session: str | None = None,
 ) -> tuple[list[dict], str]:
     alias = f"symbol_{series.ordinal}_{random.randrange(1_000_000)}"
     series_id = f"s{series.ordinal}"
@@ -293,6 +297,7 @@ def request_series(
 
     received: dict[int, list] = {}
     provider_timezone: str | None = None
+    provider_session: str | None = None
     completed = False
     deadline = time.monotonic() + timeout
     while not completed and time.monotonic() < deadline:
@@ -311,6 +316,7 @@ def request_series(
                 payload = params[-1] if params else {}
                 if isinstance(payload, dict):
                     provider_timezone = payload.get("timezone")
+                    provider_session = payload.get("session")
             elif method == "timescale_update" and len(params) >= 2:
                 payload = params[1]
                 if not isinstance(payload, dict):
@@ -333,6 +339,14 @@ def request_series(
         raise TimeoutError(f"Timed out after {timeout:g}s")
     if not provider_timezone:
         raise RuntimeError("TradingView did not return the resolved symbol timezone")
+    if expected_timezone is not None and provider_timezone != expected_timezone:
+        raise RuntimeError(
+            f"SOURCE_SESSION_MISMATCH: timezone {provider_timezone!r}; expected {expected_timezone!r}"
+        )
+    if expected_session is not None and provider_session != expected_session:
+        raise RuntimeError(
+            f"SOURCE_SESSION_MISMATCH: session {provider_session!r}; expected {expected_session!r}"
+        )
 
     rows: list[dict] = []
     for timestamp in sorted(received):
@@ -363,6 +377,15 @@ def request_series(
                 "finalized_at": finalized_at,
             }
         )
+    if rows:
+        print(json.dumps({
+            "event": "source_session_verified", "symbol": series.tradingview_symbol,
+            "provider_timezone": provider_timezone, "provider_session": provider_session,
+            "source_date_mapping": source_date_mapping, "target_date": target_date.isoformat(),
+            "latest_source_bar_time": rows[-1]["source_bar_time"].isoformat(),
+            "latest_observation_date": rows[-1]["date"].isoformat(),
+            "date_mapping_version": DATE_MAPPING_VERSION,
+        }), flush=True)
     return rows, provider_timezone
 
 
@@ -378,7 +401,7 @@ def read_schedule(connection: psycopg.Connection, market_code: str) -> MarketSch
         f"""
         SELECT market_code,country,timezone_name,session_close_local,
                finality_delay_minutes,source_date_mapping,enabled,
-               correction_lookback_sessions
+               correction_lookback_sessions,provider_timezone_name,provider_session
         FROM {SCHEDULE_TABLE} WHERE market_code=%s
         """,
         (market_code,),
@@ -451,6 +474,8 @@ def fetch_worker(
     timeout: float,
     delay: float,
     disable_proxy: bool,
+    expected_timezone: str | None = None,
+    expected_session: str | None = None,
 ) -> list[FetchOutcome]:
     outcomes: list[FetchOutcome] = []
     ws = None
@@ -471,6 +496,8 @@ def fetch_worker(
                 close_at,
                 finalized_at,
                 source_date_mapping,
+                expected_timezone,
+                expected_session,
             )
             dates = tuple(sorted({row["date"] for row in rows}))
             row = candle_for_target(rows, target_date)
@@ -522,6 +549,8 @@ def fetch_all(
     finalized_at: datetime,
     source_date_mapping: str,
     args: argparse.Namespace,
+    expected_timezone: str | None = None,
+    expected_session: str | None = None,
 ) -> list[FetchOutcome]:
     chunks = partition(universe, args.workers)
     outcomes: list[FetchOutcome] = []
@@ -540,6 +569,8 @@ def fetch_all(
                 args.timeout,
                 args.delay,
                 args.no_proxy,
+                expected_timezone,
+                expected_session,
             )
             for worker_id, chunk in enumerate(chunks, start=1)
         ]
@@ -847,6 +878,8 @@ def main() -> int:
             finalized_at,
             schedule.source_date_mapping,
             args,
+            schedule.provider_timezone_name,
+            schedule.provider_session,
         )
         rows = [item.row for item in outcomes if item.row is not None]
         if args.dry_run:
@@ -893,12 +926,12 @@ def main() -> int:
                 changed=0,
                 forced_status="SKIPPED",
                 forced_error=(
-                    "NO_CURRENT_CANDLE: TradingView returned only older completed sessions; "
+                    "NO_CURRENT_CANDLE: no source bar resolved to the target session; "
                     f"no row was written for {target_date.isoformat()}"
                 ),
             )
             notify_telegram_monitor(execution_id)
-            print(json.dumps({"event": "run_skipped", "reason": "non_trading_day"}))
+            print(json.dumps({"event": "run_skipped", "reason": "no_current_candle"}))
             return 0
 
         try:

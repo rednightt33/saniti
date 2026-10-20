@@ -218,3 +218,7 @@ FROM public.check_analysis_data_readiness(
 9. Run `python scripts/sync_database_schema.py --host <proxy-host> --port <proxy-port>` to refresh `DATABASE_SCHEMA.md`, append `DATABASE_CHANGELOG.md`, verify catalog coverage, and push the documentation/migration commit to `main`. The schema generator uses catalog descriptions for registered tables and columns.
 
 These rules are also mandatory in `AGENTS.md`, `README.md`, and `database/migrations/README.md`. Do not edit an applied migration or commit credentials.
+
+## Pending fixed-income session metadata — 2026-10-20
+
+Migration `20261013_011_verify_fixed_income_sessions.sql` updates the schedule Table_Catalog definition and registers provider_timezone_name/provider_session plus the corrected source_date_mapping definition in Column_Catalog. These describe provider anchors, separately from the economic-market timezone/close. No Feature formula or relationship changes. Not applied live. Operator evidence: `verification/fixed_income_session_repair/README.md`.

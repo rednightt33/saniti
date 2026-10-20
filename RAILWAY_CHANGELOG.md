@@ -4080,3 +4080,7 @@ message and table fixes listed in the orc README "Rejection messages that say wh
 `AI_MAX_REASONING_TOKENS`. Rollback: redeploy `15604ac8-2969-49b3-8979-dc9bf984a989` (commit `1ced83a`).
 OpenRouter credit read from the orc credit log at 06:57 UTC: limit_remaining USD 0.24 (enough for one live set of three
 questions; no A/B).
+
+## 2026-10-20 — Fixed-income repair execution blocked; live apps unchanged
+
+Created ephemeral read-only sandbox f2caa869-a2f8-490c-8ab9-0fa538822a0a for provider/database preflight. Remote exec failed at workspace network access to ssh.railway.com:2226; no command executed in it. Sandbox destroyed successfully in this task. No service code/config/cron changes deployed. Git repair branch is pending coordinated schema/code rollout; recovery wrappers are not active merely because their files exist.

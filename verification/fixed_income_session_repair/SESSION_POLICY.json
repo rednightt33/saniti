@@ -1,0 +1,12 @@
+{
+  "ID": {
+    "source_date_mapping": "NEXT_BUSINESS_DAY",
+    "provider_timezone_name": "America/New_York",
+    "provider_session": "1700-1700"
+  },
+  "US": {
+    "source_date_mapping": "NEXT_BUSINESS_DAY",
+    "provider_timezone_name": "America/New_York",
+    "provider_session": "1900-1730"
+  }
+}
