@@ -5805,3 +5805,8 @@ perbaikan bug/pesan):**
 - **Catat:** EXEC, ERRORS (M181 CLOSED, M185, M192, M193 sesi), RAILWAY_CHANGELOG (deploy + nama saklar), README orc/EDGE,
   AI_MODELS.md, riwayat prompt, `.railway/railway.ts` `preserve()`.
 - **Masih terbuka (tidak menghalangi):** batas idle sesi sandbox; jadwal A/B.
+- **Go (user 2026-10-20: "Ya oke, okay, standar juga boleh. Jalankan semua end to end. Slow saja.")**:
+  `AI_PROVIDER_STREAMING` berlaku di semua jalur. Baseline live sebelum eksekusi: orc `15604ac8` dan edge-bff `2e0a470b`
+  (keduanya commit `1ced83a`; `main` sesudahnya hanya dokumen). Tes orc lokal di main tanpa perubahan: 1.878 lulus,
+  31 gagal karena lingkungan (role Postgres lokal sisa uji lama, `test_data_access_postgres`, `test_catalog_postgres`,
+  `test_ip2`); acuan eksekusi = tidak ada kegagalan baru di luar 31 itu.
