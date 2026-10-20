@@ -5694,3 +5694,15 @@ Cepat tidak menyebut `save_table`. Usulan (menunggu persetujuan): supporting tab
     (`export_inputs`). Unduhan per tabel memang tanpa sheet data input (kolom tampil + sheet definisi).
   - Opsi B (orc menulis XLSX) ditolak: `pyarrow` 156 MB terpasang (+40 MB RAM saat import, openpyxl +7 MB, diukur),
     image orc membesar, dua pembuat Excel; selisih biaya < USD 1/bulan, satu-satunya kelebihan hanya saat sandbox down.
+- **Excel tabel + data input, opsi A disetujui (user 2026-10-20 "Ok, opsi A")**: ikon unduh per tabel menghasilkan XLSX
+  berisi tabel (semua baris, kolom tampil, sheet definisi) plus sheet data input. Input dibaca dari bundle selama masih
+  ada (24 jam sejak dibuat, atau lebih cepat bila `PY_SANDBOX_BUNDLE_STORE_BYTES` 8 GiB terlampaui); sesudahnya
+  kebutuhan data yang sama ditarik ulang lewat Governor dengan SQL yang sama (jalur `_fresh_bundle` /
+  `_export_data_request`, `tools/export.py:269-320`), file diberi status `REBUILT` dan tanggal tarikan. Batas sheet input
+  `INPUT_MAX_ROWS` tetap (lebihnya `NOT_INCLUDED`/`TOO_MANY_ROWS`).
+  - Temuan kode: data mentah tidak disimpan di Postgres; salinan hanya di bundle sandbox (24 jam) dan bucket Governor
+    `market-sql-datasets` (7 hari, `SQL_DATASET_RETENTION_HOURS` default 168, tidak di-set di Railway). Opsi B (simpan
+    input di orc 30 hari) dan C (bucket Governor 30 hari) tidak dipilih.
+  - Jangka waktu: selama percakapan ada (`AI_CONVERSATION_RETENTION_DAYS` 30; catatan kebutuhan data di sandbox
+    `PY_SANDBOX_RECORD_RETENTION_DAYS` 30). Periode data boleh berapa pun lamanya (tabel sumber permanen).
+  - Terbuka: tampilan EDGE saat tarik ulang lama ("Menyiapkan file…" lalu unduh otomatis), belum dijawab user.
