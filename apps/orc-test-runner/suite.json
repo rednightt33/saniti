@@ -1,39 +1,9 @@
 {
-  "prefix": "ma-export-20261020a",
+  "prefix": "ma-export-20261020b",
   "workers": 1,
   "audit_wait_seconds": 0,
   "items": [],
   "table_exports": [
-    {
-      "conversation_id": "conv_085e4f89be6d78430b616ae7a3aca207",
-      "output_id": "out_8e55ba7f4fa082ece9a0c167",
-      "columns": [
-        "date",
-        "foreign_net_value",
-        "ret_5d"
-      ],
-      "titles": [
-        "Tanggal",
-        "Net beli asing",
-        "Return 5 hari sesudahnya"
-      ]
-    },
-    {
-      "conversation_id": "conv_41dd045d5de856431a835803eebe4ff5",
-      "output_id": "out_4276fa85b40f1e5fa894a2f4",
-      "columns": [
-        "ticker",
-        "jumlah_episode_hit",
-        "return_terbaik",
-        "akumulasi_terakhir"
-      ],
-      "titles": [
-        "Saham",
-        "Episode >10%",
-        "Return 20 hari terbaik",
-        "Tanggal akumulasi terakhir"
-      ]
-    },
     {
       "conversation_id": "conv_7bda1ed0ef44874139b92231a3418918",
       "output_id": "out_f12a9a724864eef9deb4f262",

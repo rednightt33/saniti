@@ -5820,3 +5820,39 @@ perbaikan bug/pesan):**
   alat ditawarkan. Dengan M 30 s saja, panggilan sah DeepSeek di atas akan terpotong palsu. Total 600 s tetap.
 - Temuan teknis: `response.close()` dari utas lain tidak memutus pembacaan socket yang menunggu (diuji dengan server
   lokal yang diam); pengawas mematikan socket (`shutdown`) dulu, lalu menutup respons.
+
+**Hasil eksekusi rencana final (2026-10-20, dikerjakan end to end atas go user).**
+- **Push A** (`fc8111e`, P1+P2): orc `73097768` SUCCESS. **Push B** (`1bdf26b`, P3+P4): orc `d6f698fa`, edge-bff
+  `ffc4d6a3`, sandbox `a6ddafb9` SUCCESS. Saklar `AI_PROVIDER_STREAMING=true` dan `AI_FASTLANE_KEEP_REASONING=true`
+  (orc dev, dibaca ulang; redeploy `16f4f0bc` SUCCESS); `.railway/railway.ts` `preserve()`; `railway config plan`
+  tanpa drift. **Perbaikan** (`10e4973`): orc `9760b967` SUCCESS (lihat unduhan di bawah).
+- **P4 EDGE:** semua label antarmuka bahasa Inggris; tiga teks `*Message` (dikirim sebagai pesan user: minta ekspor,
+  setujui dan batalkan rencana) tetap bahasa Indonesia karena menjadi isi percakapan. Ikon unduh per tabel + "Preparing
+  file…"; status gagal penyedia (`PROVIDER_STALLED`/`PROVIDER_TIMEOUT`/`REASONING_RUNAWAY`) dengan **Retry** (model dan
+  level run itu) dan **Change model**; lama langkah berjalan ("Thinking · 2m 6s"); kartu 760 px dengan logo baru dan
+  baris metadata tanpa biaya; judul kolom > 14 karakter dilipat. Suite EDGE penuh 136 lulus (130 acuan + 6 tes browser baru), lalu
+  1 tes API rute BFF lulus (`tests/test_ui_1019b.py`); satu tes lama yang kadang gagal juga di acuan (`test_browser` balasan rencana, race
+  waktu) dibuat menunggu panggilan orc.
+- **Cek live** (runner `f9dafbc2`, jalur Cepat, DeepSeek V4.1 Flash high, n=1, **bukan A/B**):
+
+| | 2026-10-20 (streaming + keep reasoning) | V5 ON 2026-10-14 (acuan lama) |
+|---|---|---|
+| t1 asing → return 5 hari | 181,5 s / USD 0,024 / 10 alat | 91,3 s / 0,020 / 11 |
+| j2 akumulasi broker | 689,9 s / USD 0,110 / 16 alat | 285,7 s / 0,038 / 17 |
+| s1 tiga bank | 383,0 s / USD 0,019 / 13 alat | 267,5 s / 0,041 / 16 |
+| Total | 1.254 s / USD 0,153 | 644 s / USD 0,099 |
+
+  3/3 COMPLETED ANSWER. 30 panggilan streaming, semua `completed`: isi pertama 0,9–5,4 s (median 1,6 s), jeda
+  terpanjang antar-event isi 5,9 s (batas 30 s), keep-alive sampai 34 per panggilan, panggilan terlama 208,9 s (dulu
+  dipotong di 90 s). Tidak ada macet palsu, ulangan penyedia atau runaway. **Temuan:** run jauh lebih lama dan j2
+  hampir 3× lebih mahal; penyebab paling mungkin `AI_FASTLANE_KEEP_REASONING` (panggilan sesudah yang pertama tetap
+  high, tanpa potongan 90 s), bukan streaming. n=1 dan penyedia OpenRouter bisa berbeda per run, jadi belum bukti;
+  keputusan (biarkan, matikan saklar, atau A/B saat kredit ada) di tangan user. Kredit OpenRouter sesudah cek:
+  USD 0,081.
+- **Unduhan tabel live** (runner, tanpa model): 2 tabel hari ini (68 dan 138 baris) dan 2 tabel 14 Okt: semua HTTP
+  200, XLSX, sha256 cocok, pemilik lain 404. Ditemukan: data record sebelum 16 Okt tidak menyimpan `bundle_id`, jadi
+  tabel lama keluar **tanpa** sheet input. Diperbaiki (`10e4973`): input ditarik ulang langsung; ulang cek (runner
+  `6856e46f`): `perbandingan_return` REBUILT dengan 2 sheet input (390 dan 297 baris); `stocks` REBUILT tetapi input
+  1,18 juta dan 880 ribu baris tidak dimuat (`TOO_MANY_ROWS`, batas yang disepakati; tarikannya tetap 23 s).
+- **Belum dicek live:** tampilan EDGE di HP (kartu, favicon, ikon unduh) hanya lewat tes browser lokal; login EDGE
+  live tidak dipakai dari sesi ini.
