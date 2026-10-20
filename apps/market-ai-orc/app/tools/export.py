@@ -186,11 +186,24 @@ def export_specs(client: SandboxClient, *, timeout_seconds: float, max_result_by
         need = next((n for n in results.record.get("needs") or []
                      if n.get("need_id") == ((entry or {}).get("lineage") or (stored.lineage if stored else None)
                                              or {}).get("need_id")), None)
-        if arguments.format == "XLSX" and need and need.get("bundle_id") and getattr(client, "supporting_data", False):
+        rebuilt_inputs = None
+        bundle_id = need.get("bundle_id") if need else None
+        if arguments.format == "XLSX" and need and not bundle_id and need.get("requests") \
+                and isinstance(arguments, TableExportArgs) and getattr(client, "supporting_data", False):
+            # the table download (live check 2026-10-20): a conversation from before bundle ids were kept in the data
+            # record (EXEC-1018B Fase 2, 2026-10-16) has no bundle to read, so its inputs are extracted again at once
+            fresh = _fresh_bundle(client, results, str(need["need_id"]), rebuild)
+            bundle_id = fresh.get("bundle_id")
+            rebuilt_inputs = {"status": "REBUILT" if bundle_id else REBUILD_FAILED,
+                              **({"message": fresh.get("message")} if not bundle_id else {})}
+            if bundle_id:
+                meta["definition"] = {**(meta.get("definition") or {}), texts.INPUTS_REBUILT_FIELD:
+                                      texts.INPUTS_REBUILT.format(date=_today())}
+        if arguments.format == "XLSX" and need and bundle_id and getattr(client, "supporting_data", False):
             # E1 (EXEC-1018B): every input of the result the file does not span gets its own sheet (warm-up rows
             # included); the sandbox decides from the file and the bundle, and reports each input
             meta["request_id"] = results.request_id
-            meta["inputs"] = [{"bundle_id": need["bundle_id"], "data_request_id": r.get("data_request_id"),
+            meta["inputs"] = [{"bundle_id": bundle_id, "data_request_id": r.get("data_request_id"),
                                "sheet": r.get("logical_name") or r.get("data_request_id")}
                               for r in need.get("requests") or [] if r.get("data_request_id")][:6]
         if arguments.format == "XLSX":
@@ -203,8 +216,7 @@ def export_specs(client: SandboxClient, *, timeout_seconds: float, max_result_by
         status, body, headers = stored_op(client, "export", data, meta, timeout=timeout_seconds)
         if status != 200:
             return _refused(status, body)
-        rebuilt_inputs = None
-        if isinstance(arguments, TableExportArgs) and meta.get("inputs") and need is not None:
+        if isinstance(arguments, TableExportArgs) and meta.get("inputs") and need is not None and rebuilt_inputs is None:
             # the table download (user 2026-10-20 "Ok, opsi A"): inputs whose bundle the sandbox no longer keeps are
             # extracted again with the same approved need, and the file is written once more with them
             gone = [i for i in _input_statuses(headers) if i.get("status") == "NOT_INCLUDED"
