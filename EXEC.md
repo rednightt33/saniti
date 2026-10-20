@@ -5603,3 +5603,19 @@ sensitif) untuk diagnosis; (e) M185: tabel tanpa `top` mengirim sampai 50 baris,
   CONVERSATION RESOURCES, nilai ya/tidak `true`/`false`; (2) pesan penolakan argumen menyebut nilai yang sah atau tempat
   menyalinnya. Log bentuk nilai (butir 3) tidak dikerjakan.
 - **Font "Monitor": opsi 1** (tebal 500, warna teks penuh).
+
+**Keputusan user 2026-10-20 (lanjutan; "masukan exec jangan execute dulu"):**
+- **Prinsip (user): semua aturan untuk AI terpusat** di satu tempat (CITING AND CHECKS di prefix jalur Cepat), tidak
+  tersebar; pesan penolakan tetap ada untuk saat AI masih gagal, dan wajib menyebut jelas apa yang harus dilakukan.
+- **B1 disetujui:** poin baru CITING AND CHECKS: "IDs (session_id, output_id, bundle_id, need_id) are copied exactly from
+  a tool result or CONVERSATION RESOURCES, never composed; a yes/no field is true or false, not text."
+- **B2 disetujui:** pesan penolakan argumen ditambah di orchestrator sesudah `self.registry.execute(...)`
+  (`orchestrator.py:5053`): untuk `INVALID_ARGUMENTS` pada field id, sebut nilai yang sah (sesi run, output data record,
+  CONVERSATION RESOURCES) dan tempat menyalinnya; semua jalur (perbaikan pesan).
+- **Kedaluwarsa terpusat (dari pemeriksaan kode 2026-10-20):** alasan kedaluwarsa tidak dijelaskan di mana pun ke AI:
+  prompt v015 tidak memuat kata "expire"; CONVERSATION RESOURCES hanya mencantumkan `expires_at`; pesan sandbox
+  `BUNDLE_EXPIRED` hanya "The bundle has expired; prepare it again" (`sessions.py:530,854`). Penyebabnya batas simpan
+  sandbox: bundel data 24 jam (`PY_SANDBOX_BUNDLE_RETENTION_HOURS=24`), hasil 24 jam (`PY_SANDBOX_RESULT_RETENTION_HOURS=24`),
+  sesi menganggur (`PY_SANDBOX_SESSION_IDLE_SECONDS`, bawaan 900 s). Usulan poin CITING AND CHECKS: data yang disiapkan
+  untuk sebuah jawaban disimpan terbatas (lihat `expires_at`); bila kedaluwarsa, kirim ulang `submit_arguments` yang sama
+  dari CONVERSATION RESOURCES; pesan `BUNDLE_EXPIRED` menyebut langkah yang sama.
