@@ -5875,3 +5875,43 @@ user: ikon unduh dan fullscreen menempel di tepi atas tabel. Penyebab di kode (`
 jadi celahnya hanya 2 px.
 - Rencana (belum dijalankan): `padding-top:38px` (celah 8 px); tes browser yang mengukur jarak tepi bawah tombol ke
   tepi atas tabel (8 px ± 1) di lebar desktop dan HP; deploy edge-bff saja.
+
+**Disetujui dicatat (user 2026-10-20: "Ok opsi A ya – masukan exec jangan execute dulu") – harga di EDGE = harga
+penyedia yang melayani.** Temuan: menu model menampilkan harga daftar OpenRouter (`/models` `pricing`), yaitu harga
+endpoint termurah (DeepSeek V4.1 Flash: OpenInference fp4 $0,056/$0,12 per 1 juta token), sedangkan orc memakai load
+balancing bawaan (acak berbobot harga), jadi run dilayani InferenceNet ($0,103/$0,715), Makora ($0,26/$1,17) atau Sail
+Research ($0,101/$0,15). Penyedia baru diketahui sesudah panggilan pertama (lalu menempel per percakapan lewat
+`session_id`).
+- Rencana opsi A (belum dijalankan): pengaturan baru orc urutan penyedia per model (`provider.order`, satu penyedia
+  utama per model, `allow_fallbacks` tetap true agar run tidak gagal saat penyedia down); `/v1/models` mengirim nama
+  penyedia utama dan harga endpoint-nya dari OpenRouter `/models/{id}/endpoints` (dibaca tiap jam seperti sekarang);
+  EDGE menampilkan harga itu dan nama penyedianya; baris metadata jawaban menyebut penyedia yang benar-benar melayani
+  (sudah tercatat di `ai_model_call_provider`) dan menandai bila fallback ke penyedia lain. Sticky routing OpenRouter
+  dilewati bila `order` diset; penyedia tetap sama sehingga cache prompt tetap terpakai.
+- Perlu keputusan user sebelum eksekusi: penyedia utama per model (usulan dari harga, presisi fp8 dan kecepatan akan
+  diajukan). Dampak: waktu dan biaya run lebih stabil (cek 20 Okt: selisih kecepatan antar-penyedia ±1,5×).
+
+**Temuan UI EDGE dari tangkapan layar user (2026-10-20; diagnosis dari kode dan ukuran di browser, belum dieksekusi):**
+1. Judul jawaban terpotong ("…identify candle yang ada buying p"): bila router tidak memberi judul, EDGE memakai
+   `user_message.slice(0, 80)` (`edge-client.js` `adaptRun`/`stateRun`), memotong di tengah kata. Usulan: potong di batas
+   kata terdekat ≤ 80 karakter + "…".
+2. Jarak kepala jawaban tidak rata: judul → baris metadata 10 px, metadata → baris "Evidence" 4 px, "Evidence" → jawaban
+   24 px (`.edge-tags` margin `4px 0 16px`). Usulan: metadata → Evidence 10 px (sama dengan judul → metadata), Evidence →
+   jawaban tetap 24 px (jarak antar-bagian).
+3. Hover ikon bookmark/hapus di daftar percakapan tidak terlihat: `.conversation-bookmark:hover` memakai `--accent`, yang
+   sama dengan warna baris terpilih (terukur sama-sama `oklch(0.269 0 0)` di mode gelap) dan hampir sama dengan hover
+   baris. Usulan: warna hover tombol sendiri yang kontras di baris biasa, baris hover dan baris terpilih.
+4. "Data Scope" vs nama model di kotak pesan: keluarga dan tebal huruf sama (Inter 500), ukuran beda: nama model 0,78rem
+   (10,9 px), "Data Scope" 0,875rem (12,25 px). Usulan: "Data Scope" ikut ukuran dan warna pemilih model.
+5. Kotak pesan saat aktif/berisi: `.composer:focus-within, .composer.has-text` mengganti warna border menjadi
+   `--selection-outline` (terlihat tebal). Usulan: border tetap warna biasa, diganti bayangan halus pada kotak.
+6. Jarak pesan user → progres: `.user-message-footer` min-height 30 px + margin bawah 19 px, lalu
+   `.edge-inline-progress` min-height 35 px dengan teks di tengah, jadi teks progres ±40 px di bawah jam kirim. Usulan:
+   margin bawah 8 px saat diikuti progres dan teks progres rata atas.
+7. Progres tidak ikut menggulir: efek gulir otomatis hanya jalan saat `items`/`selectedId`/`autoFollow` berubah; langkah
+   progres (`RunProgress`) memperbarui state-nya sendiri, jadi halaman tidak ikut turun. Usulan: selama `autoFollow`
+   aktif, pertumbuhan isi (langkah baru) menggulir ke bawah; gulir manual user ke atas tetap mematikan `autoFollow`.
+8. Tambahan: label "Standard" di status kotak pesan saat run berjalan berasal dari `mode:"Standard"` yang ditulis tetap
+   di kode lama, padahal semua pesan EDGE berjalan di jalur Cepat. Usulan: hapus label itu.
+- Catatan: "Bagikan"/"Bukti: …" di tangkapan layar berasal dari tab yang dimuat sebelum deploy edge-bff `ffc4d6a3`;
+  EDGE live kini menyajikan label Inggris (dicek: `Share`, `Evidence: `; `Cache-Control: no-store`).
