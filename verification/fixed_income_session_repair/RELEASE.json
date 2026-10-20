@@ -1,0 +1,68 @@
+{
+  "approval": {
+    "date": "2026-10-20",
+    "user_words": "Okay, merge and release ke main ya"
+  },
+  "pr_url": "https://github.com/rednightt33/saniti/pull/37",
+  "merge_commit": "e3f7dfd9e2be074d019304eb32c999b88af8028d",
+  "deployments": [
+    {
+      "service_id": "303de1ee-0042-4f69-a1c1-bb0c28fb6331",
+      "deployment_id": "7b8ec1a6-4f1e-454c-9303-21b09a541bda",
+      "status": "SUCCESS",
+      "code_commit": "e3f7dfd9e2be074d019304eb32c999b88af8028d",
+      "updated_at": "2026-10-20T12:10:07.886Z"
+    },
+    {
+      "service_id": "9e86fa6c-3753-4ba9-9340-4c30702cd67a",
+      "deployment_id": "154d49df-0778-4a22-92a4-f5866dd9d109",
+      "status": "SUCCESS",
+      "code_commit": "e3f7dfd9e2be074d019304eb32c999b88af8028d",
+      "updated_at": "2026-10-20T12:10:03.680Z"
+    },
+    {
+      "service_id": "1e80a4b8-adff-4f42-88f4-82bc1a2b98bc",
+      "deployment_id": "dabbe502-78d1-44f6-bfeb-24a71485ca48",
+      "status": "SUCCESS",
+      "code_commit": "e3f7dfd9e2be074d019304eb32c999b88af8028d",
+      "updated_at": "2026-10-20T12:12:11.987Z"
+    },
+    {
+      "service_id": "e58619ff-2e07-45ae-b361-9cf65580233e",
+      "deployment_id": "fde3c6c1-41f5-4c56-8f06-5f59e5b7abf9",
+      "status": "SUCCESS",
+      "code_commit": "e3f7dfd9e2be074d019304eb32c999b88af8028d",
+      "updated_at": "2026-10-20T12:10:09.048Z"
+    },
+    {
+      "service_id": "bb1fcecc-a7b1-404f-b2af-9c3ab65a614f",
+      "deployment_id": "38d71d8e-b143-42b3-867e-77b1d4206dac",
+      "status": "SUCCESS",
+      "code_commit": "e3f7dfd9e2be074d019304eb32c999b88af8028d",
+      "updated_at": "2026-10-20T12:10:30.164Z"
+    }
+  ],
+  "cron_schedules_utc": {
+    "ID_daily": "0 10 * * *",
+    "ID_recovery": "0 11 * * *",
+    "US_daily": "0 23 * * *",
+    "US_recovery": "0 0 * * *"
+  },
+  "cron_schedules_wib": {
+    "ID_daily": "17:00",
+    "ID_recovery": "18:00",
+    "US_daily": "06:00",
+    "US_recovery": "07:00"
+  },
+  "cron_start_commands_changed": false,
+  "recovery_wrappers_activated": false,
+  "migration_rerun": false,
+  "repair_rerun": false,
+  "post_release_readback": {
+    "selected_price_rows_per_date": 48,
+    "bonds_queues_done": 24,
+    "bonds_column_statuses_success": 1224
+  },
+  "iac_plan": "up to date",
+  "runtime_note": "Cron images deployed successfully; next scheduled executions have not yet occurred. Feature04 worker reports the unchanged formula version."
+}
