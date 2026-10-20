@@ -1060,3 +1060,9 @@ change yet.
   langkah berikutnya (`RESUBMIT_DATA_NEED`, `LOAD_OUTPUT`; `tools/session.py` `EXPIRY_RECOVERY`).
 - **Status:** CLOSED 2026-10-20 (live di orc sejak Push A `73097768`).
 - **Lesson:** catatan sistem yang penting bagi model harus berada di bentuk yang benar-benar dibaca model.
+
+## Fixed-income selected-date repair — 2026-10-20 status
+
+Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. Scope and evidence: `verification/fixed_income_session_repair/README.md`.
+
+Execution blocker: Railway sandbox exec reported tunnel failure; HTTPS probe to ssh.railway.com:2226 failed and that endpoint is absent from workspace allowed networking. No live writes occurred; owned sandbox destroyed. Resolved for this task by the explicitly approved Git-based Railway job through MCP; no SSH or relay needed. The job was deleted after successful repair; its backup volume was retained. Lesson: a successful Railway API connection does not establish access to its sandbox execution endpoint.

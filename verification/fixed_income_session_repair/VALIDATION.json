@@ -1,0 +1,79 @@
+{
+  "recorded_at": "2026-10-20T09:20:11.083505+00:00",
+  "git_base": "1bdf26b61525a1530684f1cfa3bcbd7f425a022a",
+  "scope": {
+    "markets": [
+      "ID",
+      "US"
+    ],
+    "source_dates": [
+      "2026-09-30",
+      "2026-10-13",
+      "2026-10-14",
+      "2026-10-15",
+      "2026-10-16",
+      "2026-10-19"
+    ],
+    "metrics": [
+      "price",
+      "yield_to_maturity"
+    ],
+    "feature_asset_type": "bonds",
+    "downstream_features_authorized": true
+  },
+  "local_validation": {
+    "command": "FEATURE04_REPAIR_TEST_POSTGRES_URL=<disposable-local-db> python -m pytest features/feature04/tests apps/fixed-income-price-cron/test_fixed_income_update.py apps/idx-price-cron/test_price_update.py -q",
+    "passed": 109,
+    "elapsed_seconds": 13.79,
+    "postgres": "17-alpine disposable local container",
+    "provider_transport": "mocked",
+    "migration_rehearsal": "actual tracked SQL against local schedule and minimal catalogs; repeat guard verified",
+    "equivalence_tolerance": {
+      "abs": 1e-10,
+      "rel": 1e-12
+    },
+    "additional_job_checks": "Separate prepare/apply deployments; persistent stage marker; no replay on restart; mounted storage required",
+    "frozen_migration_checks": "2 passed by direct invocation of tracked functions (pytest Orc conftest needs unrelated missing pydantic dependency)"
+  },
+  "live": {
+    "provider_preflight": "SUCCESS: 48 verified provider series, 288 selected candles",
+    "migration": "APPLIED and schema/catalog read back",
+    "cleansing": "APPLIED atomically",
+    "recalculation": "312 rows / 51 output columns matched full reference; 174 inserted or updated",
+    "prepare_deployment": "e9ffd3bf-461e-43ea-b672-b97111ff7bb4",
+    "apply_deployment": "3e23614a-d23e-488d-a3e7-b8bdd2c1c8d8",
+    "git_job_commit": "d9038b36e2892c69ce2eeea6bab6dacab0474ab0",
+    "run_id": "8bff9518-6410-4738-a25f-699bc69da6d3",
+    "plan_sha256": "28872258ef4b41a354dabcde5cf7d04e1620f862105a7466a880bb8ce3366fa8",
+    "backup_sha256": "2c0bfd3af2a4ee0c1a9d503cea19c520eb8b875454f574602929fbf27b44cf55",
+    "readback": {
+      "invalid_selected_prices": 0,
+      "feature_close_mismatches": 0,
+      "repair_summary": {
+        "tickers": 24,
+        "suffix_rows_checked": 312,
+        "changed_rows": 174,
+        "first": "2026-09-30",
+        "last": "2026-10-19"
+      }
+    },
+    "selected_source_rows_before": 178,
+    "selected_source_rows_after": 288,
+    "selected_feature_rows_before": 89,
+    "selected_feature_rows_after": 144,
+    "queue_done": 24,
+    "successful_column_statuses": 1224,
+    "temporary_service": "DELETED from dev",
+    "backup_volume": "7f146278-0e8c-40d0-b2cc-7f244252170d; retained unattached,100MB",
+    "backup_paths": "/repair/fi-selected-20261020-a/{plan.json,pre-migration-backup.json,before.json,prepare-result.json,apply-result.json}",
+    "main_rollout": "APPROVED 2026-10-20: user \u201cOkay, merge and release ke main ya\u201d; deployment verification pending"
+  },
+  "sha256": {
+    "scripts/repair_fixed_income_dates.py": "eacfb4628b4bf85bc8b28b8cb9070f89389bafd117e52553dad2ffe7840e628c",
+    "database/migrations/20261013_011_verify_fixed_income_sessions.sql": "44e49cc1df0f3c1734c6031275e7af0d7720e45b6e10684bf2aea14844344076",
+    "apps/fixed-income-price-cron/fixed_income_update.py": "5d38514e6a67a3f040a572e3ee0e373d0c8ca4373fbcdbad52abf015f84ecbec",
+    "apps/fixed-income-price-cron/recovery_window.py": "50abfecc72c54f61d424282eadac615bea4e13f8b1de7c6c1ffd8a9f68322e35",
+    "features/feature04/tests/test_selected_date_repair.py": "9ebccfdfb9f9ddcafba274c5ed2c26bc5348709b7bdd5b7fd5ea425d9de8557d",
+    "verification/fixed_income_session_repair/SESSION_POLICY.json": "2d26fc28917cf941a56e3d8a2b2e23366c69921d65c339817e8be89ed4dbca13"
+  }
+}

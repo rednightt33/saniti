@@ -4103,3 +4103,19 @@ Same user go as Push A. Before each push the orc logs showed no `edge_` run.
 - OpenRouter credit after the check: limit_remaining USD 0.081 (09:09 UTC orc credit log).
 - Rollback: set `AI_PROVIDER_STREAMING=false` and `AI_FASTLANE_KEEP_REASONING=false` (earlier call path and fast-lane
   levels); code rollback orc `73097768` (Push A) or `15604ac8`, edge-bff `2e0a470b`.
+
+## 2026-10-20 — Fixed-income repair execution blocked; live apps unchanged
+
+Created ephemeral read-only sandbox f2caa869-a2f8-490c-8ab9-0fa538822a0a for provider/database preflight. Remote exec failed at workspace network access to ssh.railway.com:2226; no command executed in it. Sandbox destroyed successfully in this task. No service code/config/cron changes deployed. Git repair branch is pending coordinated schema/code rollout; recovery wrappers are not active merely because their files exist.
+
+### 2026-10-20 — Git-based fixed-income repair job provisioned
+
+User “Ok, jalankan” after approving the one-off Git-based method. Created empty service `fixed-income-selected-date-repair` ec0d3881-c14a-4ba4-98d4-4a763db3802e in lucid-patience/dev, restart NEVER, no cron, root /, Dockerfile apps/fixed-income-repair-job/Dockerfile. Dedicated100MB volume `fixed-income-repair-evidence` 7f146278-0e8c-40d0-b2cc-7f244252170d mounted at /repair. Runtime variables pin the six authorized dates, ID+US, prepare stage and read-only database reference; no secret values recorded. Source attachment/deployment and results pending. Existing apps unchanged.
+
+### 2026-10-20 — Fixed-income repair live result and cleanup
+
+Dev-only staged source attachment deployed commit d9038b3. Prepare e9ffd3bf-461e-43ea-b672-b97111ff7bb4 SUCCESS verified288 candles; apply3e23614a-d23e-488d-a3e7-b8bdd2c1c8d8 SUCCESS committed migration011 and atomic repair at18:43 WIB. No live execution via SSH. Automatic review rejected an all-environment source attachment; only the bounded dev patch was then committed after verifying it contained the four owned source fields. Temporary service ec0d3881-c14a-4ba4-98d4-4a763db3802e deleted from dev; evidence volume7f146278-0e8c-40d0-b2cc-7f244252170d retained unattached100MB. `railway config pull --force` and `railway config plan` run after configuration changes; final inventory verified: temporary service absent, evidence volume retained unattached, no staged changes, config plan up to date. No cron clocks or IDX services changed.
+
+### Cron code release remains pending approval
+
+Automatic approval review rejected pushing the repair branch to main: current authorization was interpreted as live data repair, not a default-branch code release. No main push or cron deployment occurred. Complete repair evidence and compatible ingestion code are saved on codex/fixed-income-session-repair. The already applied migration changes ID source mapping through the existing schedule-driven reader; the new strict provider-metadata guard in code still awaits release. No attempt to bypass the rejection.
