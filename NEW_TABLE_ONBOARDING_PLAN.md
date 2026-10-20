@@ -1,6 +1,7 @@
 # Plan 2: onboarding a new table for the AI (macro, fundamental, FX, cross-market, commodities, Features)
 
-Status (2026-10-20): **plan only, not executed.** Re-inspected 2026-10-20 at `main` `6850d7f` for the first two tables
+Status (2026-10-20, later): **first integration executed** (EXEC-ONBOARD-1: `Price_Fixed_Income` through the view `Price_Fixed_Income_Final`, `Universe_Fixed_income`, `Feature_04_Technical_Indicator`; validated L0-L3, section 6.6); **section 7 is the ingestion guideline** for the next raw table or Feature.
+Earlier status (2026-10-20): plan only, not executed. Re-inspected 2026-10-20 at `main` `6850d7f` for the first two tables
 to integrate, `Price_Fixed_Income` (raw) and `Feature_04_Technical_Indicator` (Feature): section 6 (user 2026-10-20:
 "Ini akan jadi 2 table (raw dan feature) yang kita integrate pertama kali … tinggal dibuat guidelinenya"); section 1b
 gains the fixed-income class; section 2 gains the current state of 2026-10-20.
@@ -294,3 +295,93 @@ After this integration the steps that worked (and the ones that needed code) bec
 next raw table or Feature: the section 1 answers as a template file, one migration pattern (view if needed, catalog
 rows, grants, calculation rows), the hand lists of section 2 replaced by catalog-derived values where this integration
 had to touch them, and the L0–L4 checks as a reusable runner suite.
+
+### 6.6 Result (2026-10-20, executed)
+
+User: "Ok view saja ya untuk no 1. Jalankan." Decisions: view for final rows (1), universe as a reference table (2),
+Feature 04 coverage from its two raw sources (3), live reads by one-off read-only jobs (4); preview in; Indonesian
+meanings DRAFT. Migrations `20261020_001` (objects, catalogs, grants, preview) and `20261020_002` (Tool_Catalog round Z);
+code `2ba744e`, fixes `a474a65` (M194) and `7e159c6` (M195). Measured, not assumed: the Feature 04 primary key
+`(ticker, trade_date, …)` answers the latest-session and one-week queries in 8-14 ms (PostgreSQL skip scan), so no index
+was added. Validation: L0 and L2 passed at the first attempt; L3 found two faults that no catalog check could find (the
+router's hand-written description of the warehouse, and a tool note that let the model prefer the reference formula
+over the stored column) and passed after the fixes; (d), (e) and the paid A/B regression were left for later (credit).
+Details: EXEC.md EXEC-ONBOARD-1, DATABASE_CHANGELOG.md, RAILWAY_CHANGELOG.md, ERRORS_AND_SOLUTIONS.md M194-M195.
+
+## 7. Ingestion guideline: onboarding the next raw table or Feature (from EXEC-ONBOARD-1)
+
+What worked for the first raw table and the first Feature, in the order it has to happen. Every step reads the code and
+the live database; nothing is written from memory. Ask the user only the decisions in 7.2.
+
+### 7.1 Read before writing (one read-only job, no model)
+
+1. The table's live shape: columns, types, key, CHECK lists, indexes, row count, date range, nulls per column, rows that
+   must not be seen (provisional, other timeframe), whether the declared key is unique on the rows to expose.
+2. Its `Table_Catalog`, `Column_Catalog` and, for a Feature, its active `Feature_Catalog` rows (unit, semantic role,
+   aggregations, definition, calculation, version) and `Feature_Relationship_Catalog`.
+3. Three model rows of each AI catalog for a comparable exposed table (`AI_table_catalog`, `AI_column_catalog`,
+   `AI_catalog_relationships`, `AI_calculation_catalog`, `AI_data_coverage`) and the CHECK constraints of those catalogs
+   (`DATABASE_SCHEMA.md`).
+4. Overlap with exposed entities (does a code mean two things?), the units per row, and the `AI_formula_reference` ids
+   the Feature implements (read their definitions: parameters, tie and zero conventions).
+
+Tools: `scratchpad/onboard-read/job.py` pattern (`default_transaction_read_only=on`, `OUT {json}` lines), run on
+`orc-test-runner` with `DATABASE_URL` set only for the run (`dbjob.sh`).
+
+### 7.2 Decisions for the user
+
+- Rows the AI may not see: a view with the filter (the catalog and the Governor have no row filter) or the base table.
+- Reference tables to expose with it (names, country, tenor) and which column is the entity name (`entity_name`).
+- Hidden columns (calculation state, load bookkeeping, source mappings): `ai_allowed = false`.
+- Coverage: which raw source each dataset derives from, or `coverage_enabled = false` for the first release.
+- Preview in or out; subject metadata (`data_domain`, `entity_type`, `asset_type`; NULL asset type for a cross-asset
+  Feature).
+
+### 7.3 One forward migration (template: `database/migrations/20261020_001_onboard_fixed_income_and_feature04.sql`)
+
+1. Preflight: nothing registered yet; the expected column and `Feature_Catalog` counts; roles and referenced formula rows
+   exist.
+2. The view (if decided), `REVOKE ALL FROM PUBLIC`, `GRANT SELECT` to `market_ai_sql_reader` (and
+   `market_ai_preview_owner` when previewed; `pgweb_reader` when present).
+3. `AI_table_catalog` (description written for discovery: the words a user would type, in English, with the key
+   filters to apply), `AI_column_catalog` from `information_schema.columns` joined to a VALUES list or `Feature_Catalog`
+   (unit, semantic type, aggregations, resample rule, `value_time_basis`, description and DRAFT `description_id`).
+4. `AI_catalog_relationships` with `supported_join_semantics` and time columns; every key column exposed.
+5. A Feature: one `AI_calculation_catalog` row per active definition (the `20260922_001` pattern); a column that holds a
+   reference formula names `AI_formula_reference:<id>` in `implementation_ref` and `parameters.formula_reference`
+   (`STORED_VARIANT` or `RELATED_NOT_IDENTICAL` with the difference read from the definitions).
+6. `public.ai_preview_table_rows` replaced when previewed (and `app/tools/preview.py` `ORDERING`; the test compares both).
+7. `Table_Catalog` / `Column_Catalog` for a view; migration path and `related_functions` on the touched rows.
+8. A verify block for every count, privilege (the AI reader cannot read a hidden base table) and relationship key.
+
+Rehearse with DRYRUN jobs (body without COMMIT, probes as the AI roles, bounded `EXPLAIN (ANALYZE, BUFFERS)` of the
+high-frequency patterns, ROLLBACK) until clean; check the orc logs for active `edge_` runs; APPLY; read back; add the
+hash to `APPLIED.sha256`.
+
+### 7.4 Hand-written places still to update (until each is derived from the catalog)
+
+| Place | What to add |
+|---|---|
+| `scripts/provision_market_sql_governor_login.py` `APPROVED` | the exposed objects |
+| `apps/ai-data-coverage/coverage_job.py` `RAW_SOURCES`, `SNAPSHOTS`, derived Feature functions, `FORBIDDEN_FEATURE_TABLES` | raw source, snapshot, derivation |
+| `apps/market-ai-orc/app/tools/preview.py` `PreviewTable`, `ORDERING` | when previewed |
+| `apps/market-python-sandbox/app/service.py` `PRICE_TABLES` | a table holding split-adjusted stock prices |
+| `apps/market-ai-orc/app/conversation_router.py` `WAREHOUSE_SCOPE` | the new data domain in a few words (M194) |
+| `apps/market-ai-orc/app/orchestrator.py` `OUTSIDE_DATA_*` examples, `tools/web_research.py` description | remove the domain from "outside" examples |
+| `apps/market-ai-orc/app/tools/research_planner.py` `ENTITY_TOKEN`, `NOT_ENTITIES` | entity codes of another shape |
+| `scripts/generate_tool_catalog_migration.py` | a round for every tool whose contract text changed |
+
+After an orc prompt change: `scripts/snapshot_system_prompt.py record`, the approved sentence in
+`tests/test_prompt_pass2.py`, the context budget of `tests/test_orchestrator.py` if it moved; `scripts/generate_ai_router_doc.py`
+after a router change.
+
+### 7.5 Validation (reusable)
+
+| Level | How | Pass |
+|---|---|---|
+| L0 | read-back queries in the APPLY job | counts, grants, view rows = base filter |
+| L1/L2 (no model) | `scratchpad/onboard-l2/job.py` pattern: coverage job once, then orc's own tools (`build_default_registry`) as role `market_ai_orc` | found by the user's words; units; hidden columns absent; formulas show `stored_in`; preview rows |
+| L3 (paid, a few cents each) | `orc-test-runner` suite like `suites/onboard_l3_20261020.json` (fast lane), then the answers from `AI_conversation_turn` against SQL ground truth | route is a data route; the new table is read; stored values equal SQL; no web for stored values; no recomputation of a stored indicator |
+| L4 | full orc, Governor, coverage suites; the A/B questions when credit allows | no new failure |
+
+Only L3 finds what the model does with the catalog: both faults of the first integration were found there.

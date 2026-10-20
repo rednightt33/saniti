@@ -5979,7 +5979,8 @@ dieksekusi).** Kartu share EDGE (PDF, PNG dan pilihan baru Word):
 **EXEC-ONBOARD-1 – integrasi pertama `Price_Fixed_Income` (raw) dan `Feature_04_Technical_Indicator` (Feature) ke AI
 (user 2026-10-20: "minta tolong agar price_fixed_income dan feature 04 bisa di expose ke AI … candle di feature 4 bisa
 di gabung juga ke catalog … Ensure semua ORC relevant … Map first and inspect architecture … Siapkan metode validasi …
-Konfirmasi."). Status: peta arsitektur dan rencana selesai; belum dieksekusi, menunggu konfirmasi user.**
+Konfirmasi."). Status: DIKERJAKAN 2026-10-20 (user "Ok view saja ya untuk no 1. Jalankan."; "Ok untuk no 2. Ok untuk no
+3. Ok untuk no 4."); hasil di bawah, setelah rencana awal.**
 - Peta dan rencana lengkap: `NEW_TABLE_ONBOARDING_PLAN.md` section 6 (dibaca dari kode `main` `6850d7f`). Ringkasnya:
   kedua tabel ada di database tetapi tidak terlihat AI (tanpa baris `AI_table_catalog`, tanpa grant, tidak di
   `APPROVED`/`RAW_SOURCES`/`ORDERING`). Jalur AI sudah digerakkan katalog; daftar tangan yang tersisa: grant/provisioning,
@@ -5995,3 +5996,31 @@ Konfirmasi."). Status: peta arsitektur dan rencana selesai; belum dieksekusi, me
 - Validasi (section 6.4): L0 database, L1 kontrak Governor, L2 alat orc lewat agen manual tanpa biaya model, L3 lima
   pertanyaan model (yield SUN 10 tahun, hammer sesi terakhir, RSI 14 BBRI, yield vs IHSG, kontrol inflasi tetap web),
   L4 regresi; lalu langkah yang berhasil dijadikan pedoman ingestion (section 6.5).
+- **Hasil 2026-10-20.** Migration `20261020_001` (view `Price_Fixed_Income_Final`, katalog AI tiga objek, 57 kontrak
+  kalkulasi Feature 04 dengan 19 rujukan formula, relasi 157-161, grant, preview sepuluh objek, Table/Column_Catalog)
+  dan `20261020_002` (Tool_Catalog round Z) diterapkan setelah tiga DRYRUN; terbaca kembali dari live
+  (DATABASE_CHANGELOG.md). Kode `2ba744e`: orc FORMULAS/matches `stored_in`, aturan data luar tanpa "yields" + kalimat
+  kolom tersimpan, preview, token G13 untuk kode obligasi; coverage job (sumber obligasi, Feature 04 dari dua sumber);
+  sandbox `PRICE_TABLES`; provisioning `APPROVED`; generator skema merender view; snapshot prompt v017. Deploy:
+  market-ai-orc `4e5bdbff`, market-python-sandbox `ddc081d2`, ai-data-coverage `a188d508` SUCCESS (Governor SKIPPED).
+- Validasi: L0 lolos (baris katalog, grant, view 121.911 baris = tabel dasar final 1D, base table ditolak untuk role AI).
+  L1/L2 tanpa model (job `37c61721`: coverage `--mode full` lalu kode alat orc sebagai role `market_ai_orc`): ketiga
+  objek ditemukan oleh "yield obligasi pemerintah", "government bond yield", "candle hammer", "RSI ..."; satuan tampil;
+  kolom tersembunyi tidak muncul; CALC_028 → `rsi_14`, CALC_161/162 → `cdl_engulfing`, CALC_166 → `cdl_hammer`,
+  CALC_165 → `cdl_doji`, CALC_040 → `adx_14`; preview 20 baris (10/14/49 kolom); coverage Feature 04 868 entitas
+  (844 saham + 24 obligasi). L3 (runner, jalur Cepat, DeepSeek V4.1 Flash high), putaran 1 (`b2016161`, USD 0,061):
+  (c) RSI BBRI 37,8 = `rsi_14` 37,85 LOLOS; (a) GAGAL: router pesan pertama memilih FACT (web) karena deskripsi gudang
+  datanya ditulis tangan tanpa obligasi (M194, perbaikan `a474a65`); (b) GAGAL secara isi: model menghitung geometri
+  hammer sendiri (23 saham) alih-alih membaca `cdl_hammer` (6 saham) (M195, perbaikan `7e159c6`). Orc `10b195fc`
+  SUCCESS; putaran 2 (`c0305b56`, USD 0,033): (a) route ANALYSIS, membaca view, 7,17% = 7,169 data, tanpa
+  `research_web` LOLOS; (b) tepat DUTI, FLMC, JSPT, LIFE, MKPI, UDNG = SQL LOLOS. (d) yield vs IHSG dan (e) kontrol
+  inflasi tidak dijalankan: sisa kredit OpenRouter sekitar USD 0,25 disisakan untuk pemakaian user. L4: suite orc 1960
+  lolos, Governor 172 lolos (121 skip), coverage 4 lolos; suite sandbox tidak bisa jalan penuh di container sesi ini
+  (proses analisis tidak boleh mengeksekusi Python venv di /tmp, masalah izin lingkungan; perubahan sandbox hanya satu
+  entri set); A/B berbayar t1/j2/s1 tidak dijalankan (kredit).
+- Temuan terbuka (tidak diubah): (1) `Table_Catalog.related_functions` `Price_Stock_Indonesia_IDX` tidak lagi memuat
+  fungsi preview; (2) `sync_database_catalog.py` berhenti karena tabel Stockbit (`idx_broker_summary_freq_*`,
+  `idx_net_foreign_summary_*`, `idx_stockbit_*`) belum punya `Table_Catalog`; (3) yield ID10Y bernilai sama 7,169 sejak
+  13 Oktober (sumber web menyebut 7,387% pada 19 Oktober) — perlu dicek di pipeline fixed income; (4) kolom kategori
+  view (`metric_type`) tidak punya CHECK, jadi nilai sahnya hanya ada di deskripsi; (5) `Universe_Fixed_income` di
+  preview memuat juga kolom yang `ai_allowed = false`.

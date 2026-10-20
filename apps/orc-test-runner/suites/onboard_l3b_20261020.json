@@ -1,0 +1,27 @@
+{
+  "prefix": "ma-onboard-l3b-20261020",
+  "workers": 1,
+  "audit_wait_seconds": 0,
+  "items": [
+    {
+      "id": "a_id10y_yield",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "expect": "EXEC-ONBOARD-1 L3: reads Price_Fixed_Income_Final (ID10Y, yield_to_maturity), no research_web for the stored yield",
+      "turns": [
+        "Berapa yield obligasi pemerintah Indonesia 10 tahun terakhir?"
+      ],
+      "lane": "fast"
+    },
+    {
+      "id": "b_hammer_last_session",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "expect": "EXEC-ONBOARD-1 L3: reads Feature_04 cdl_hammer <> 0 on the latest equity session, no recomputation",
+      "turns": [
+        "Saham apa yang membentuk pola hammer di sesi terakhir?"
+      ],
+      "lane": "fast"
+    }
+  ]
+}

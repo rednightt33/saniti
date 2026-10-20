@@ -1061,6 +1061,34 @@ change yet.
 - **Status:** CLOSED 2026-10-20 (live di orc sejak Push A `73097768`).
 - **Lesson:** catatan sistem yang penting bagi model harus berada di bentuk yang benar-benar dibaca model.
 
+### M194 — Pertanyaan yield SUN 10 tahun dijawab dari web padahal datanya sudah di katalog (2026-10-20)
+
+- **Symptom:** L3 EXEC-ONBOARD-1 (`ma-onboard-l3-20261020-a_id10y_yield`): "Berapa yield obligasi pemerintah Indonesia
+  10 tahun terakhir?" dijawab dengan titik-titik dari web; giliran itu tidak punya alat data.
+- **Verified cause:** router pesan pertama (`conversation_router.FIRST_INSTRUCTIONS*`) menggambarkan gudang data dengan
+  daftar tulisan tangan ("Indonesian stocks, a warehouse of prices, broker and foreign flows"), jadi yield dianggap data
+  makro dan dirutekan ke FACT (alat baca-saja + web). Model langkah FACT menemukan tabelnya tetapi jalur itu tidak
+  mengekstrak data.
+- **Solution:** satu konstanta `WAREHOUSE_SCOPE` di kedua varian instruksi router yang menyebut harga dan yield
+  obligasi pemerintah Indonesia/AS serta indikator teknikal dan pola candle tersimpan (`a474a65`,
+  `tests/test_first_message_router.py`); `AI_ROUTER.md` digenerate ulang.
+- **Status:** CLOSED 2026-10-20 (orc `10b195fc`; ulangan L3 route ANALYSIS, 7,17% dari view).
+- **Lesson:** onboarding domain data baru juga menyentuh deskripsi gudang data router; masuk daftar tempat tulisan
+  tangan di pedoman ingestion.
+
+### M195 — Pola hammer dihitung ulang dengan geometri sendiri alih-alih membaca `cdl_hammer` (2026-10-20)
+
+- **Symptom:** L3 EXEC-ONBOARD-1 (`..._b_hammer_last_session`): 23 saham "hammer" dari hitungan geometri, sedangkan
+  kolom `cdl_hammer` tersimpan berisi 6 saham pada sesi 20 Oktober.
+- **Verified cause:** catatan `stored_in` (orc `tools/catalog.py` `STORED_IN_NOTE`) membolehkan hitung ulang bila
+  "pertanyaan butuh definisi referensi persis", dan relasi `RELATED_NOT_IDENTICAL` pada CALC_166 membuat model memilih
+  definisi referensi.
+- **Solution:** catatan baru: pertanyaan yang menyebut indikator/pola tanpa definisinya sendiri membaca kolom tersimpan
+  dan menyebut definisinya; rumus dihitung hanya bila user meminta rumus itu, parameter atau ambang lain (`7e159c6`).
+- **Status:** CLOSED 2026-10-20 (ulangan L3: tepat 6 saham = SQL, "dibaca dari kode pola candle yang sudah tersimpan").
+- **Lesson:** label kejujuran ("tidak identik") perlu disertai arahan pemakaian default, atau model menganggapnya
+  larangan.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.

@@ -4129,3 +4129,24 @@ Release readback19:12 WIB: all four bonds crons SUCCESS on e3f7dfd: ID daily fde
 ## 2026-10-20 — Temporary Git job for manual Indonesia bonds October20
 
 User approval recorded in DATABASE_CHANGELOG.md. Dev-only service fixed-income-oct20-manual6ac72bad-25e7-4701-b4dc-2cd916af1cc5, pinned Git21d2e02, no cron, restart NEVER. Read-only dry-run f7d6b00b-c413-41a0-acbb-0fb0ebcc12e3 SUCCESS verified22/22 final candles. The selected-deployment redeploy1e48e1a1 preserved the old dry-run command and made no writes despite the changed live start command. A fresh scoped staged command deployment953de9c3-06fd-4938-aa63-475bef7b17b0 SUCCESS executed native manual ingestion; source execution7a4f0d58-9f23-4c72-8388-ff03f1a7b608 and all11 Feature04 ticker calculations succeeded at19:34 WIB. Temporary job had no Telegram variables, so its price notification was skipped; no existing notification settings changed. Service deleted from dev, no volume created, permanent cron schedules/start commands untouched. Config pull/plan run after changes; cleanup inventory/readback verified separately. No application source change or new deployment of permanent services required.
+
+## 2026-10-20 — EXEC-ONBOARD-1: fixed income and Feature 04 onboarded to the AI (orc, sandbox, ai-data-coverage)
+
+User: "Ok view saja ya untuk no 1. Jalankan." Before each push the orc logs showed no active `edge_` run (one user run
+was waited out at 14:05 UTC before the database migration).
+
+- Database (dev): migrations `20261020_001` and `20261020_002` applied by a one-off job on `orc-test-runner`
+  (`b0a9b920`), `DATABASE_URL=${{Postgres.DATABASE_URL}}` set only for the run and removed after (`VAR_REMOVED`); details
+  in DATABASE_CHANGELOG.md. Read-only rehearsals and live reads used the same pattern.
+- Git main `2ba744e`: market-ai-orc `4e5bdbff` SUCCESS, market-python-sandbox `ddc081d2` SUCCESS, ai-data-coverage
+  `a188d508` SUCCESS, market-sql-governor SKIPPED (no change). One manual coverage run (`--mode full`, job `37c61721`)
+  filled the new datasets.
+- L3 fixes: `a474a65` (router warehouse scope, M194) and `7e159c6` (stored column note, M195): market-ai-orc `10b195fc`
+  SUCCESS on `7e159c6`.
+- Live checks: runner `b2016161` (suite `onboard_l3_20261020`, 3 items, USD 0.061) and `c0305b56`
+  (`onboard_l3b_20261020`, 2 items, USD 0.033): all COMPLETED ANSWER; results in EXEC.md EXEC-ONBOARD-1.
+- No variable changed; `.railway/railway.ts` unchanged. The orc switches stay as they were (`AI_PROVIDER_STREAMING=false`,
+  `AI_FASTLANE_KEEP_REASONING=false`, `AI_PROVIDER_SORT=throughput`; decision (b) still waits for the user's go).
+- OpenRouter credit after the checks: about USD 0.25 remaining (key read in memory only).
+- Rollback: orc `687ac7cc` (before this change), sandbox `a6ddafb9`; catalog exposure off by a forward migration
+  (`is_active = false` on the three AI_table_catalog rows).
