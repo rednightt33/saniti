@@ -5631,3 +5631,19 @@ diverifikasi sistem.
 **Koreksi prinsip (user 2026-10-20):** CITING AND CHECKS bukan satu-satunya sumber; dua tempat wajib: (1) CITING AND
 CHECKS = aturan terpusat sebelum menulis; (2) pesan penolakan saat alat dijalankan = jelas apa yang salah, kenapa, dan
 apa yang harus dilakukan.
+
+**Disetujui user 2026-10-20 ("Ok sesuai, masukan exec jangan execute dulu"): susunan CITING AND CHECKS + pasangan pesan
+penolakan.**
+- CITING AND CHECKS dikelompokkan: **A. Answer shape** (alamat angka; tabel satu instruksi di barisnya sendiri, bukan di
+  dalam tabel Markdown, baris "Showing N of M rows" ditulis sistem; satuan; satu objek JSON); **B. Tool arguments** (id
+  disalin persis dari hasil alat atau CONVERSATION RESOURCES, true/false; nilai scope persis nilai katalog);
+  **C. Data lifetime and recovery** (bundel data sekitar sehari, sesi menganggur hitungan menit, tabel rilis ikut
+  percakapan dan dibaca `load_output`; bundel kedaluwarsa → kirim ulang `submit_arguments` yang sama; sesi hilang → buka
+  sesi baru, tabel lama dipulihkan); **D. Evidence** (angka bersumber; hasil lama dibuka dulu; metodologi; statistik
+  dengan kode sendiri secara default, alat sistem bila user minta verifikasi, sebut uji yang diverifikasi sistem; klaim
+  "sama seperti" menyebut yang berbeda, M192); **E. Reproduction**.
+- Pesan penolakan (menyebut langkah yang sama): tabel di dalam tabel Markdown dibersihkan (`table_directives.py`); minta
+  ulang JSON diawali "Your reply was text, not one JSON object; send only the JSON object" (`orchestrator.py:7604-7611`);
+  `INVALID_ARGUMENTS` pada field id menyebut nilai sah dan tempatnya (`orchestrator.py:5053`); `BUNDLE_EXPIRED` dari
+  sandbox ditambah alasan dan langkah di orc saat meneruskan error (sandbox tidak perlu deploy); UNRECORDED_TEST
+  dilonggarkan sesuai keputusan statistik; DEFINITION mengutip kalimat pemicu (M192).
