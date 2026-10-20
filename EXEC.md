@@ -5856,3 +5856,15 @@ perbaikan bug/pesan):**
   1,18 juta dan 880 ribu baris tidak dimuat (`TOO_MANY_ROWS`, batas yang disepakati; tarikannya tetap 23 s).
 - **Belum dicek live:** tampilan EDGE di HP (kartu, favicon, ikon unduh) hanya lewat tes browser lokal; login EDGE
   live tidak dipakai dari sesi ini.
+
+**Usulan disetujui dicatat (user 2026-10-20: "Ok please rubah masukan exec, jangan execute dulu") – teks hambatan
+gerbang mode saran.** Temuan (cek live 2026-10-20, j2): gerbang REFERENCE dalam mode saran (`AI_FASTLANE_GATE_ADVICE`,
+`outcome="ANNOTATED"`, `reason="advice_mode"`) hanya memberi label dan jawaban langsung dikirim, tanpa panggilan ulang
+ke model; tetapi daftar Process hurdles menulis "The answer check sent the draft back (…), not resolved."
+Penyebab di kode: `user_texts.hurdle_text` memakai satu teks `HURDLE_GATE` untuk semua hasil gerbang, dan
+`orchestrator._hurdles` menganggap hambatan GATE "teratasi" hanya bila hasilnya `REJECTED_FOR_REPAIR`/`ASKED_AGAIN`,
+jadi `ANNOTATED` selalu jatuh ke `HURDLE_OPEN` (", not resolved.").
+- Rencana (belum dijalankan): teks GATE mengikuti hasilnya. `ANNOTATED` → "The answer check labelled a part of the answer
+  ({why}); the answer was sent with the label." tanpa akhiran "not resolved"; `REJECTED_FOR_REPAIR` tetap "sent the
+  draft back … then fixed / not resolved"; FORCED (bila ada) disebut apa adanya. Tes `tests/test_hurdles.py` per hasil;
+  pesan EDGE tidak berubah (teks datang dari orc). Berlaku semua jalur (perbaikan teks), tanpa saklar.
