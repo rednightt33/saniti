@@ -5675,3 +5675,9 @@ Cepat tidak menyebut `save_table`. Usulan (menunggu persetujuan): supporting tab
   dan `load_output`), lalu file ditautkan ke sesi sebagai tautan disk read-only (`carried.py:195`, `os.link`), jadi RAM
   baru terpakai saat `load_output` dipanggil. Rencana: supporting table ikut di daftar itu dan ikut ditautkan
   (`result_store.py:166`), aturan di CITING AND CHECKS bagian C.
+- **Pemulihan supporting table disetujui (user 2026-10-20 "Ok, masukan exec")**: tabel kerja `save_table` ikut didaftar di
+  CONVERSATION RESOURCES dan ditautkan ke sesi baru (tanpa memakan RAM sampai `load_output`), aturan di CITING AND CHECKS C.
+- **Pertanyaan user: kenapa unduh Excel butuh sandbox hidup** (kode 2026-10-20): orc tidak punya pustaka pembaca Parquet
+  maupun penulis XLSX (`requirements.txt`: fastapi, httpx, pydantic, uvicorn, psycopg, boto3); tabel disimpan sebagai
+  Parquet; `export_result` mengirim byte tabel ke sandbox (`stored_op(client, "export", …)`, `tools/export.py`) yang
+  menulis XLSX beserta sheet definisi, asal data dan kelengkapan. Opsi menunggu keputusan user.
