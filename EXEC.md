@@ -6142,3 +6142,29 @@ bertepatan dengan A/B j2 (akumulasi broker); kenaikan 13:28 UTC bertepatan denga
 (scan penuh Feature 04, ±2,4 GB halaman dibaca). Dugaan (belum diverifikasi): angka memori kontainer memasukkan cache
 halaman file dari scan besar. Pembacaan `shared_buffers`/`work_mem`/ukuran tabel tertunda: `railway up` menjawab
 "Deploys have been paused temporarily" (variabel sementara `DATABASE_URL` terverifikasi sudah dihapus).
+- **Assessment penghematan (user 2026-10-20: "boleh di-assess dulu kira-kira kode apa yang perlu dibuat, dan apakah ini
+  akan memberikan penolakan baru ... Index juga sangat penting"). Status: assessment, belum dieksekusi.** Bukti log
+  Governor 09:30-14:30 UTC: satu run A/B `ma-ab2-off-20261020-j2_broker_accum` (10:07-10:19 UTC) mengirim 1.185 query
+  (1.172 ke `Feature_02_Broker_Rolling`): 812 estimasi (`estimate_only`, tiap estimasi = EXPLAIN + `count(*)` penuh atas
+  bagian itu, `SQL_ESTIMATE_COUNT_ENABLED=true`, 7 s), 373 ekstraksi, 34 keputusan partisi (DATE 29/2/3 bagian), 12
+  `REJECTED_COMPUTE_COST`; 4 data need, 234 bagian; estimasi scan ±1,2 miliar baris; waktu DB 868 s (estimasi 276 s,
+  ekstraksi 592 s). Estimasi berulang: 812 panggilan untuk 347 query berbeda (sampai 3 kali per bagian: preflight
+  kelayakan, lalu lagi sebelum ekstraksi; `apps/market-ai-orc/app/tools/data_planner.py` `_estimate`/`_estimate_parts`).
+  Pertanyaan sama di run ON: 65 query, ±36 juta baris. Satu ekstraksi Feature 02 (66.775 baris) butuh 17,9 s.
+  Opsi dan dampaknya ke penolakan:
+  1. orc: hasil estimasi preflight dipakai ulang untuk bagian yang sama (kunci `extraction_sha256`, dalam satu run)
+     — memangkas ±460 estimasi berulang; tanpa penolakan baru.
+  2. Governor: `count(*)` hanya bila perkiraan planner dekat batas (mis. planner × 4 > batas baris), selain itu
+     planner + `ROW_ESTIMATE_UNCERTAIN`; tanpa penolakan baru, risiko kecil bagian ternyata lebih besar saat ekstraksi
+     (ditangani split yang sudah ada).
+  3. Governor: cache hasil hitung per `query_hash` beberapa menit — tanpa penolakan baru.
+  4. Indeks Feature 02: indeks `(date, market_board, ticker)` sudah ada; ekstraksi tetap lambat karena mengambil baris
+     heap yang tersebar. Kandidat indeks penutup (INCLUDE kolom yang dibaca) hanya setelah `EXPLAIN (ANALYZE, BUFFERS)`
+     terukur (AGENTS.md: tanpa indeks spekulatif); dibuat `CONCURRENTLY`. Tanpa penolakan baru; menambah ukuran disk
+     dan waktu tulis refresh Feature 02.
+  5. Batas memori layanan Postgres di Railway (tanpa kode): tanpa penolakan baru bila batas ≥ kebutuhan kerja; terlalu
+     rendah → query lebih lambat (lebih banyak timeout hitung/ekstraksi) atau Postgres dihentikan OOM. Butuh
+     `shared_buffers`/`work_mem` dulu.
+  6. Memperketat `SQL_MAX_ESTIMATED_SCAN_ROWS`/`SQL_MAX_PLAN_COST` — MENAMBAH penolakan (`REJECTED_SCAN_SIZE`,
+     partisi lebih banyak); tidak disarankan.
+  Pengujian live (EXPLAIN, pengaturan Postgres, ukuran tabel) tertunda: Railway "Deploys have been paused temporarily".
