@@ -5742,3 +5742,66 @@ menekan Stop bisa menunggu sampai 600 s (+ ulangan).
   terlihat; macet lagi → run berhenti dengan pesan jelas (penyedia tidak mengirim output selama N/M detik) dan pilihan
   **Retry** (model dan level sama) serta **ganti model** (menu model yang ada). Langkah yang sudah selesai tetap tersimpan
   (`_store_results` dipanggil sesudah blok `finally`, `orchestrator.py:3254`, juga untuk run FAILED).
+
+### Rencana implementasi final semua EXEC yang disetujui (2026-10-20, belum dijalankan)
+
+**Kondisi kode (main `c8de72f`, dibaca 2026-10-20) yang menentukan rencana:**
+- Panggilan model: `openrouter_client.py` `_post_within` (241-260) non-streaming, stopwatch total; `_create` mengulang
+  timeout/jaringan/5xx sampai `MAX_ATTEMPTS = 3` (15, 262-320). `ManualAgent.create(payload, timeout, attempts)`
+  (`manual_agent.py:57`) meneruskan model lain ke klien asli; tes memakai `ScriptedClient.create(payload, **options)`.
+- Penurunan level: potongan 90 s `orchestrator.py:4505-4519` (`lanes.FAST_CALL_SECONDS`), M150 `4646-4656`, Low sesudah
+  panggilan pertama `4765-4777` (`_reasoning`). Saklar `AI_FASTLANE_KEEP_REASONING` dan `AI_MAX_REASONING_TOKENS` belum ada.
+- Stop dan batas run hanya dicek di awal loop (`orchestrator.py:4480-4486`; `stop.py`: "the call in flight finishes").
+- Progres: `progress.py` sudah mengirim `duration_ms` per langkah dan `elapsed_ms` (47-50).
+- Run gagal: `_failed` (7953) → EDGE `RunStatus` "Research failed" + tombol Retry yang mengembalikan pertanyaan ke kotak
+  pesan (`index.html:10854`, `11232-11234`); menu model ada di kotak pesan.
+- Tabel: EDGE sudah melipat baris di atas `TABLE_VISIBLE_ROWS` (`index.html:11827-11831`); orc memotong di
+  `table_directives.DEFAULT_ROWS = 10` (`MAX_ROWS = 50`); baris sistem `TABLE_ROWS_LINE` bahasa Indonesia (tetap).
+- Ekspor: unduhan EDGE `GET /api/v1/exports/{export_id}` (`edge-bff/app/main.py:474`) → orc `/v1/exports/{id}/download`
+  (`main.py:778`); belum ada endpoint ekspor tanpa AI. Sheet input dibaca dari bundle (`export.py:176-183`); bila
+  bundle hilang ditandai `NOT_INCLUDED` (sandbox `export_inputs`); tarik ulang hanya ada di `_export_data_request`
+  (`_fresh_bundle`, 269-320), jadi endpoint baru perlu menyiapkan bundle baru dulu lalu meneruskan `bundle_id`-nya.
+- Pemulihan supporting table: dikecualikan `result_store.py:166` (`output_type <> 'SUPPORT'`).
+- Pesan: penolakan argumen `registry.py:593-608`; `BUNDLE_EXPIRED` sandbox "prepare it again" (`sessions.py:530,854`)
+  diteruskan apa adanya oleh `tools/session.py`; minta ulang JSON `orchestrator.py:7604-7616`; `attach_note` hilang di
+  `envelope.py:142-152`; CITING AND CHECKS `orchestrator.py:1345`; catatan Insight `2082`; UNRECORDED_TEST `6436`.
+- Infrastruktur: semua layanan 1 replika `sfo` (`.railway/railway.ts`); EDGE menunggu orc sampai
+  `EDGE_ORC_TIMEOUT_SECONDS` 3900 s (`edge-bff/app/config.py:19`), jadi streaming orc↔OpenRouter tidak mengubah EDGE;
+  sandbox tidak perlu deploy (rute `/v1/stored-tables/export` dan `openpyxl` sudah ada).
+
+**Fase (tiap push = deploy SUCCESS dulu; sebelum push cek log orc tanpa run `edge_` aktif; standar tidak berubah kecuali
+perbaikan bug/pesan):**
+- **P1 orc – penyedia hidup/macet (M181, no. 23–27, Stop)**, saklar baru `AI_PROVIDER_STREAMING` (semua jalur, default
+  mati) dan `AI_FASTLANE_KEEP_REASONING` (jalur Cepat, default mati):
+  1. `openrouter_client`: `stream: true`; parser SSE (komentar `:` diabaikan, dihitung); jawaban akhir diambil dari objek
+     `response` pada `response.completed` / `response.incomplete` / `response.failed` (bentuk sama dengan non-streaming,
+     jadi orchestrator tidak berubah); N 45 s / M 30 s dihitung dari event isi; total 600 s tetap; utas pengawas menutup
+     koneksi bila Stop, batas run, N atau M terlampaui; log `ai_provider_stream` (isi pertama, jeda terpanjang,
+     keep-alive). Kode baru `PROVIDER_STALLED`. Timeout/macet tidak lagi diulang diam-diam 3×; 429/5xx tetap seperti sekarang.
+  2. Orchestrator: macet → ulang 1× di level sama + langkah progres; kedua kali → FAILED `PROVIDER_STALLED` dengan pesan
+     `user_texts`. Stop dicek juga di dalam panggilan (lewat klien).
+  3. KEEP_REASONING: level pilihan di semua panggilan; potongan 90 s dihapus; M150 ulang 1× di level sama + catatan
+     ringkas + langkah progres; Qwen `AI_MAX_REASONING_TOKENS` (default 8000). MiMo 12.000, batas 24.000 tetap.
+  4. Tes: penyedia tiruan diam (dipotong di N), mengalir lambat (tidak dipotong), hanya keep-alive (dipotong di M), Stop
+     di tengah panggilan, `response.incomplete`, tool call; `test_manual_agent`, `test_exec_models`, `test_fastlane`.
+- **P2 orc – aturan terpusat dan pesan penolakan** (saklar `AI_FASTLANE_GOAL_ANSWERS` untuk teks prompt; perbaikan pesan
+  semua jalur): CITING AND CHECKS A–E (B1, C kedaluwarsa, D statistik kode sendiri + M192); tabel (a)+(b) di
+  `table_directives`; M185 (`DEFAULT_ROWS` → tampil sampai 50, EDGE melipat 10; baris "Menampilkan" hanya bila >50 dan
+  menunjuk ikon unduh); B2 di `orchestrator.py` sesudah `registry.execute`; `BUNDLE_EXPIRED` + alasan dan langkah di
+  `tools/session.py`; awal minta ulang JSON; M192 (2)–(4); `attach_note` → warning `SESSION_NOT_ATTACHED`; statistik
+  (`EXPLORE_INSIGHT_V2_NOTE`, `_unrecorded_statistics`); supporting table dipulihkan (`result_store.py:166`) dan masuk
+  CONVERSATION RESOURCES. Snapshot prompt v016; `scripts/audit_feature_catalog_semantics.py` tidak terkait (tanpa Feature).
+- **P3 orc – unduhan per tabel**: `POST /v1/conversations/{id}/outputs/{output_id}/export` (pemilik dicek; tanpa model);
+  kolom/judul dari `answer_tables`; sheet input dari bundle, atau bundle baru lewat `_fresh_bundle` (status `REBUILT`,
+  tanggal tarikan); satu proses per tabel pada satu waktu; batas 20 MB dan `INPUT_MAX_ROWS` tetap.
+- **P4 EDGE**: UI-1019B (jarak, tabel tengah, judul kolom, "Copy", panel beku, kartu 760 px + metadata tanpa biaya,
+  "Monitor" 500, logo baru favicon/PNG/PDF), label dan langkah progres bahasa Inggris, ikon unduh + "Preparing file…",
+  lama berpikir di langkah progres ("Thinking… 2m 10s" dari `duration_ms`), status macet: pesan + **Retry** (kirim ulang
+  langsung, model sama) + **Change model** (buka menu model lalu kirim). Tes browser dan kontrak.
+- **Push:** A = P1+P2 (orc; saklar baru mati), B = P3+P4 (orc + edge-bff bersama karena EDGE memakai endpoint baru).
+- **Live:** saklar `AI_PROVIDER_STREAMING` dan `AI_FASTLANE_KEEP_REASONING` dinyalakan; 3 pertanyaan (t1, j2, s1) jalur
+  Cepat, cek log `ai_provider_stream` (tanpa potongan palsu), kartu, unduhan (termasuk tabel yang bundelnya > 24 jam),
+  favicon. A/B ditunda sesuai keputusan user. Fallback: matikan saklar.
+- **Catat:** EXEC, ERRORS (M181 CLOSED, M185, M192, M193 sesi), RAILWAY_CHANGELOG (deploy + nama saklar), README orc/EDGE,
+  AI_MODELS.md, riwayat prompt, `.railway/railway.ts` `preserve()`.
+- **Masih terbuka (tidak menghalangi):** batas idle sesi sandbox; jadwal A/B.
