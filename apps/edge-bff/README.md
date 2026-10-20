@@ -80,15 +80,20 @@ the script route, the round trip and the view contract on every saved response (
 
 ### Sharing an answer (EXEC-SHARE-UI, 2026-10-19; EXEC-UI-1019B)
 
-"Share" in an answer's action row offers PDF and PNG of one card: the EDGE logo (`static/edge-logo.svg`) and the
-date, the answer's metadata row (request, model logo, name and level, tokens, duration; no cost), the question, the
-answer with every table row, its assumptions and methodology, and a footer (latest data date of its tables, request
-ID, "Made by EDGE AI; not investment advice"). The card is a cleaned clone of the answer in light colours (`EdgeShare`
-in `static/index.html`, footer data from `EdgeView.shareInfo`). PDF: the browser prints the card alone
+"Share" in an answer's action row offers PDF, PNG and Word (.docx) of one card: the EDGE logo drawn inline as SVG
+(`EDGE_LOGO_SVG`, the same drawing as `static/edge-logo.svg`; an outside image came out empty in a user's PNG) and the
+date, the answer's metadata row (request, model logo, name and level, tokens, duration; no cost), the question in a
+black box, the evidence line in black with its green check on the right, the answer without its title and with every
+table row, Assumptions and Limitations closed (title and count), the methodology, and a footer (latest data date of its
+tables, request ID, "Not investment advice"). The card is a cleaned clone of the answer in light colours (`EdgeShare` in
+`static/index.html`, footer data from `EdgeView.shareInfo`). PDF: the browser prints the card alone
 (`body.edge-share-printing`). PNG: `static/html-to-image.js` (html-to-image 1.11.13, MIT, `static/html-to-image.LICENSE`,
-loaded on first use; the CSP allows scripts from this origin only) draws it 760 CSS px wide at up to 2x (1,520 px),
-then the Web Share API shares it, or it is downloaded. Tests: `tests/test_share_card.py`. The composer's "Research
-Mode" menu (Standard / Deep Research, display only) was removed the same day.
+loaded on first use; the CSP allows scripts from this origin only) draws it 760 CSS px wide at up to 3x (2,280 px; a
+card taller than about 2,340 CSS px takes a smaller ratio so it stays within 16 million pixels), then the Web Share API
+shares it, or it is downloaded. Word: `static/edge-docx.js` (no library, loaded on first use) writes WordprocessingML in
+an uncompressed ZIP: the logo as PNG, the question box, the answer with its tables as Word tables, Assumptions and
+Limitations written out (Word has no folded sections) and the footer. Tests: `tests/test_share_card.py`. The composer's
+"Research Mode" menu (Standard / Deep Research, display only) was removed on 2026-10-19.
 
 ### Table download, provider timeouts and the running step (2026-10-20)
 

@@ -8643,12 +8643,6 @@ th button:hover .sort-indicator,th button:focus-visible .sort-indicator {
   color: var(--muted-foreground);
   font-size: .75rem;
 }
-.run-inline-state.failed {
-  border-color: var(--destructive);
-  @supports (color: color-mix(in lab, red, red)) {
-    border-color: color-mix(in oklch,var(--destructive) 35%,var(--border));
-  }
-}
 .partial-result {
   margin-bottom: 14px;
   padding: 10px 12px;
@@ -9608,13 +9602,13 @@ html:not(.dark) .monitor-layout .user-message .message-attachments span {color:#
 .edge-share-stage {position:fixed;left:-10000px;top:0;width:760px;pointer-events:none;}
 .edge-share-card {width:760px;box-sizing:border-box;padding:28px 34px 20px;background:#fff;color:oklch(14.5% 0 0);font:14px/1.6 Inter,"Segoe UI",sans-serif;}
 .edge-share-head {display:flex;align-items:center;gap:9px;margin-bottom:14px;}
-.edge-share-head img {height:30px;width:auto;}
+.edge-share-head img,.edge-share-head svg {height:30px;width:auto;}
 .edge-share-meta {display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin:0 0 14px;font-size:11.5px;color:#717182;}
 .edge-share-meta>span {display:inline-flex;align-items:center;gap:6px;}
 .edge-share-meta img {width:16px;height:16px;}
 .edge-share-head span {margin-left:auto;font-size:12px;color:#717182;}
-.edge-share-question {margin:0 0 14px;padding:9px 12px;border-radius:8px;background:#f3f3f5;}
-.edge-share-question span {display:block;font-size:11px;color:#717182;}
+.edge-share-question {margin:0 0 14px;padding:9px 12px;border-radius:8px;background:#030213;color:#fff;}
+.edge-share-question span {display:block;font-size:11px;color:#b5b5bd;}
 .edge-share-question p {margin:2px 0 0;font-size:13px;}
 .edge-share-body {display:block;margin:0;padding:0;border:0;background:none;}
 .edge-share-body h1 {font-size:20px;line-height:1.3;margin:0 0 10px;}
@@ -9622,6 +9616,9 @@ html:not(.dark) .monitor-layout .user-message .message-attachments span {color:#
 .edge-share-body table {width:100%;font-size:11.5px;border-collapse:collapse;}
 .edge-share-body th,.edge-share-body td {padding:4px 6px;}
 .edge-share-body details>summary {list-style:none;}
+.edge-share-body .edge-evidence-line {display:flex;align-items:center;gap:6px;margin:0 0 14px;}
+.edge-share-body .edge-evidence-line>.edge-badge {padding:0;border:0;background:none;color:#030213;font-size:12px;font-weight:500;}
+.edge-share-body .edge-badge::before {display:none;}
 .edge-share-foot {margin-top:16px;padding-top:9px;border-top:1px solid #0000001a;display:flex;flex-direction:column;gap:1px;font-size:11px;color:#717182;}
 .edge-share-anchor {position:relative;display:inline-flex;align-items:center;gap:6px;}
 .edge-share-menu {position:absolute;bottom:calc(100% + 6px);left:0;z-index:30;display:flex;flex-direction:column;min-width:150px;padding:4px;border:1px solid var(--border);border-radius:8px;background:var(--popover,#fff);box-shadow:0 8px 24px #0000001f;}
@@ -10212,6 +10209,23 @@ html.dark .monitor-layout .details-panel>.tabs button:focus-visible{outline-colo
 .edge-pins-head {margin-top:-8px;padding-top:8px;}
 .edge-pins-head:before,.edge-history-head:before {height:8px;}
 .topbar nav button.nav-monitor {font-weight:500;color:var(--text);}
+/* EXEC-UI-1020C (user 2026-10-20 screenshots; go "Jalankan exec"). GLM/MiMo: a one-colour logo in the run label is drawn
+   in the main text colour, as in the model picker, not in the grey metadata colour. */
+.result-metadata .edge-run-model .edge-model-logo.mono {color:var(--foreground);}
+/* 6: the pinned title is sticky inside a scroll area with an 8 px top padding; top:0 pushed it 8 px down onto the
+   first row ("No pinned responses"); it now sticks where it stands */
+.edge-pins-head {top:-8px;}
+/* 7: the open or hovered response card stands one step above the panel in dark mode too (the dark panel and --card
+   are the same colour, so the card disappeared) */
+.details-panel {--edge-raised-bg:var(--card);}
+.app.dark .details-panel {--edge-raised-bg:oklch(21% 0 0);}
+.edge-flow-accordion[open]>summary,.edge-flow-accordion>summary:hover,.edge-pin-card {background:var(--edge-raised-bg);}
+.app.dark .edge-flow-accordion[open]>summary,.app.dark .edge-flow-accordion>summary:hover,.app.dark .edge-pin-card {box-shadow:0 0 0 1px oklch(100% 0 0 / 7%),0 2px 9px #00000040;}
+/* 8: one thin scrollbar in the Details panel, the conversation list and the model menu, coloured by the theme */
+.details-panel *,.conversation-list,.edge-model-options {scrollbar-width:thin;scrollbar-color:color-mix(in oklch,var(--muted-foreground) 45%,transparent) transparent;}
+.details-panel ::-webkit-scrollbar,.conversation-list::-webkit-scrollbar,.edge-model-options::-webkit-scrollbar {width:6px;height:6px;}
+.details-panel ::-webkit-scrollbar-thumb,.conversation-list::-webkit-scrollbar-thumb,.edge-model-options::-webkit-scrollbar-thumb {background:color-mix(in oklch,var(--muted-foreground) 45%,transparent);border-radius:3px;}
+.details-panel ::-webkit-scrollbar-track,.conversation-list::-webkit-scrollbar-track,.edge-model-options::-webkit-scrollbar-track {background:transparent;}
 /* EXEC 2026-10-20 (user screenshots 2-5) */
 /* the bookmark and delete buttons of a conversation show their hover on every row: plain, hovered or selected */
 .conversation .conversation-bookmark:hover:not(:disabled){background:color-mix(in oklch,var(--foreground) 14%,transparent);color:var(--foreground);}
@@ -11450,8 +11464,13 @@ function responseCopyText(button) {
 // request, not investment advice). PDF is the browser's print of the card alone (stage 1, no new dependency); PNG is
 // drawn in the browser by html-to-image (MIT, static/html-to-image.js, loaded on first use because the CSP allows scripts
 // from this origin only) at 540 CSS px and up to 2x, then shared with the Web Share API or downloaded.
+// EXEC share card (user 2026-10-20: "Ya lanjutkan untuk pengerjaan kartu share"; .docx asli, PNG lebih tajam): A the logo
+// inline (an outside image came out empty in a user's PNG), B a black question box, C no title, D the evidence line in
+// black with its green check on the right, E Assumptions and Limitations closed, F no "Made by EDGE AI"; PNG at up to 3x;
+// Word (.docx) from static/edge-docx.js, loaded on first use, with every section open.
+const EDGE_LOGO_SVG = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 152 64\" width=\"152\" height=\"64\"><circle cx=\"32\" cy=\"32\" r=\"26\" fill=\"#030213\"/><path d=\"M25.15138671875 42.2146484375V21.7853515625H38.82119140625V25.254218750000003H29.33322265625V30.19015625H38.09451171875V33.6041796875H29.33322265625V38.74578125H38.848613281249996V42.2146484375Z\" fill=\"#FFFFFF\"/><path d=\"M68.197265625 42.905V21.078828125H82.376953125V24.3747265625H72.1083984375V30.2633984375H81.615234375V33.5153515625H72.1083984375V39.6091015625H82.435546875V42.905Z\" fill=\"#030213\"/><path d=\"M94.344140625 42.905H86.961328125V21.078828125H94.490625Q97.742578125 21.078828125 100.0716796875 22.3825390625Q102.40078125 23.68625 103.65322265625 26.1325390625Q104.9056640625 28.578828125 104.9056640625 31.9626171875Q104.9056640625 35.375703125 103.65322265625 37.82931640625Q102.40078125 40.2829296875 100.03505859375 41.59396484375Q97.6693359375 42.905 94.344140625 42.905ZM90.8724609375 39.5212109375H94.1537109375Q96.4388671875 39.5212109375 97.96962890625 38.67892578125Q99.500390625 37.836640625 100.2767578125 36.15939453125Q101.053125 34.4821484375 101.053125 31.9626171875Q101.053125 29.4723828125 100.2767578125 27.8024609375Q99.500390625 26.1325390625 97.99892578125 25.297578125Q96.4974609375 24.4626171875 94.25625 24.4626171875H90.8724609375Z\" fill=\"#030213\"/><path d=\"M118.64531249999999 43.19796875Q115.62773437499999 43.19796875 113.35722656249999 41.8356640625Q111.08671874999999 40.473359375 109.81230468749999 37.9684765625Q108.53789062499999 35.46359375 108.53789062499999 32.0212109375Q108.53789062499999 28.4909375 109.84892578124999 25.97873046875Q111.15996093749999 23.4665234375 113.41582031249999 22.12619140625Q115.67167968749999 20.785859375 118.52812499999999 20.785859375Q120.32988281249999 20.785859375 121.88994140624999 21.313203125Q123.44999999999999 21.840546875 124.67314453124999 22.81466796875Q125.89628906249999 23.7887890625 126.67998046874999 25.121796875Q127.46367187499999 26.4548046875 127.71269531249999 28.051484375H123.71367187499999Q123.44999999999999 27.172578125 122.98857421874999 26.4841015625Q122.52714843749999 25.795625 121.87529296874999 25.297578125Q121.22343749999999 24.79953125 120.39580078124999 24.54318359375Q119.56816406249999 24.2868359375 118.57207031249999 24.2868359375Q116.81425781249999 24.2868359375 115.42998046874999 25.180390625Q114.04570312499999 26.0739453125 113.25468749999999 27.7878125Q112.46367187499999 29.5016796875 112.46367187499999 31.9919140625Q112.46367187499999 34.4528515625 113.25468749999999 36.17404296875Q114.04570312499999 37.895234375 115.43730468749999 38.79611328125Q116.82890624999999 39.6969921875 118.65996093749999 39.6969921875Q120.32988281249999 39.6969921875 121.55302734374999 39.0524609375Q122.77617187499999 38.4079296875 123.44999999999999 37.22140625Q124.07988281249999 36.0934765625 124.10917968749999 34.5700390625H119.07011718749999V31.4938671875H127.90312499999999V34.1159375Q127.90312499999999 36.9137890625 126.70927734374999 38.95724609375Q125.51542968749999 41.000703125 123.42802734374999 42.0993359375Q121.34062499999999 43.19796875 118.64531249999999 43.19796875Z\" fill=\"#030213\"/><path d=\"M132.29707031249998 42.905V21.078828125H146.47675781249998V24.3747265625H136.20820312499998V30.2633984375H145.71503906249998V33.5153515625H136.20820312499998V39.6091015625H146.53535156249998V42.905Z\" fill=\"#030213\"/></svg>";
 const EdgeShare = (() => {
-  const WIDTH = 760, MAX_PIXELS = 16e6;  // EXEC-UI-1019B: wider, so text wraps less and the card is shorter  // the canvas area every phone browser draws (iOS Safari: 16,777,216)
+  const WIDTH = 760, MAX_PIXELS = 16e6, MAX_RATIO = 3;  // EXEC-UI-1019B: wider, so text wraps less and the card is shorter  // the canvas area every phone browser draws (iOS Safari: 16,777,216)
   const DROP = ".result-actions,.result-metadata,.result-kicker,.edge-next,.edge-choices,.edge-choices-help,"
     + ".edge-table-more,.edge-table-tools,.message-clipboard-actions,.edge-plan-actions,script";
   const text = (tag, className, value) => { const node = document.createElement(tag); if (className) node.className = className; node.textContent = value; return node; };
@@ -11475,7 +11494,14 @@ const EdgeShare = (() => {
     return row;
   };
   const fileName = run => ("EDGE " + (run.result?.title || run.question || run.id)).replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
-  const card = run => {
+  const inlineLogo = () => {
+    const svg = document.importNode(new DOMParser().parseFromString(EDGE_LOGO_SVG, "image/svg+xml").documentElement, true);
+    svg.setAttribute("height", "30"); svg.setAttribute("width", String(Math.round(30 * 152 / 64)));
+    svg.setAttribute("role", "img"); svg.setAttribute("aria-label", "EDGE"); svg.classList.add("edge-share-logo");
+    return svg;
+  };
+  // notesOpen: Word has no folded sections, so Assumptions and Limitations are written out there
+  const card = (run, {notesOpen = false} = {}) => {
     const source = document.getElementById(run.id + "-response");
     if (!source) return null;
     const ui = edgeUi(), info = EdgeView.shareInfo(run.raw);
@@ -11483,15 +11509,15 @@ const EdgeShare = (() => {
     root.className = "edge-share-card";
     const head = document.createElement("div");
     head.className = "edge-share-head";
-    const logo = document.createElement("img");
-    logo.src = "/edge-logo.svg"; logo.alt = "EDGE"; logo.height = 30;
-    head.append(logo, text("span", null, today()));
+    head.append(inlineLogo(), text("span", null, today()));
     const row = meta(source);
     const body = source.cloneNode(true);
     body.removeAttribute("id"); body.removeAttribute("tabindex");
     body.className = "edge-share-body";
     body.querySelectorAll(DROP).forEach(node => node.remove());
-    body.querySelectorAll("details").forEach(node => { node.open = true; });
+    [...body.children].filter(node => node.tagName === "H1").forEach(node => node.remove());
+    body.querySelectorAll(".edge-evidence-line > svg").forEach(check => check.parentElement.append(check));
+    body.querySelectorAll("details").forEach(node => { node.open = notesOpen || !node.matches(".edge-notes[data-section]"); });
     body.querySelectorAll("tr.edge-row-folded").forEach(row => row.classList.remove("edge-row-folded"));
     body.querySelectorAll("button").forEach(button => button.replaceWith(document.createTextNode(button.textContent)));
     body.querySelectorAll("[id]").forEach(node => node.removeAttribute("id"));
@@ -11540,7 +11566,7 @@ const EdgeShare = (() => {
     try {
       const draw = await library();
       await document.fonts?.ready;
-      const ratio = Math.max(1, Math.min(2, Math.sqrt(MAX_PIXELS / (WIDTH * Math.max(node.offsetHeight, 1)))));
+      const ratio = Math.max(1, Math.min(MAX_RATIO, Math.sqrt(MAX_PIXELS / (WIDTH * Math.max(node.offsetHeight, 1)))));
       // skipFonts: the web font lives on another origin the CSP does not let the page fetch; the system font draws it
       const blob = await draw.toBlob(node, {pixelRatio:ratio, backgroundColor:"#ffffff", skipFonts:true});
       if (!blob || !blob.size) throw new Error("empty image");
@@ -11555,7 +11581,41 @@ const EdgeShare = (() => {
       holder.remove();
     }
   };
-  return {card, pdf, png};
+  let docxLoading = null;
+  const docxLibrary = () => window.EdgeDocx ? Promise.resolve(window.EdgeDocx) : (docxLoading ??= new Promise((ok, fail) => {
+    const script = document.createElement("script");
+    script.src = "/edge-docx.js";
+    script.onload = () => window.EdgeDocx ? ok(window.EdgeDocx) : fail(new Error("edge-docx missing"));
+    script.onerror = () => { docxLoading = null; fail(new Error("edge-docx unavailable")); };
+    document.head.append(script);
+  }));
+  // the logo as PNG bytes for Word (Word draws no SVG without a PNG fallback), drawn at 3x from the inline SVG
+  const logoPng = () => new Promise(resolve => {
+    const image = new Image(), width = 71, height = 30;
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = width * 3; canvas.height = height * 3;
+      canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(blob => blob ? blob.arrayBuffer().then(buffer => resolve({bytes:new Uint8Array(buffer), width, height}))
+        : resolve(null), "image/png");
+    };
+    image.onerror = () => resolve(null);
+    image.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(EDGE_LOGO_SVG);
+  });
+  const docx = async run => {
+    const node = card(run, {notesOpen:true});
+    if (!node) return "missing";
+    const [builder, logo] = await Promise.all([docxLibrary(), logoPng()]);
+    const pick = selector => node.querySelector(selector);
+    const blob = builder.build({logo, date:pick(".edge-share-head span")?.textContent || today(),
+      meta:[...(pick(".edge-share-meta")?.children || [])].map(span => span.textContent.replace(/\s+/g, " ").trim())
+        .filter(Boolean).join("  ·  "),
+      questionLabel:edgeUi().shareQuestion, question:run.question || "", body:pick(".edge-share-body"),
+      foot:[...node.querySelectorAll(".edge-share-foot span")].map(span => span.textContent)});
+    download(new File([blob], fileName(run) + ".docx", {type:blob.type}));
+    return "downloaded";
+  };
+  return {card, pdf, png, docx};
 })();
 function ShareAction({run}) {
  const view=currentView,ui=edgeUi();
@@ -11563,13 +11623,15 @@ function ShareAction({run}) {
  const status=initialValue(view,"shareStatus",()=>""),setStatus=next=>updateValue(view,"shareStatus",next);
  const pick=async kind=>{setOpen(false);
   if(kind==="pdf"){EdgeShare.pdf(run);return;}
-  setStatus(ui.sharePreparing);
-  try{await EdgeShare.png(run);setStatus("");}catch(error){setStatus(ui.shareFailed);}};
+  setStatus(kind==="docx"?ui.shareWordPreparing:ui.sharePreparing);
+  try{await (kind==="docx"?EdgeShare.docx(run):EdgeShare.png(run));setStatus("");}
+  catch(error){setStatus(kind==="docx"?ui.shareWordFailed:ui.shareFailed);}};
  return element("span",{className:"edge-share-anchor"},
   element("button",{className:"result-action",type:"button","aria-haspopup":"menu","aria-expanded":Boolean(open),onClick:()=>setOpen(!open)},element(Icon,{name:"share"}),ui.share),
   open&&element("div",{className:"edge-share-menu",role:"menu","aria-label":ui.share},
    element("button",{type:"button",role:"menuitem",onClick:()=>pick("pdf")},ui.sharePdf),
-   element("button",{type:"button",role:"menuitem",onClick:()=>pick("png")},ui.sharePng)),
+   element("button",{type:"button",role:"menuitem",onClick:()=>pick("png")},ui.sharePng),
+   element("button",{type:"button",role:"menuitem",onClick:()=>pick("docx")},ui.shareWord)),
   status&&element("span",{className:"clipboard-status",role:"status"},status));
 }
 function ResponseActions({run,togglePin,artifacts=[]}) {

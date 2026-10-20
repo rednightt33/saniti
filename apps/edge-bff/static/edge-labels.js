@@ -105,7 +105,8 @@ window.EdgeLabels = {
     // EXEC-SHARE-UI (user 2026-10-19): the share button of an answer and its card
     share:"Share", sharePdf:"PDF (document)", sharePng:"PNG (image)", sharePreparing:"Preparing image…",
     shareFailed:"The image could not be made; try PDF", shareQuestion:"Question", shareDataAsOf:"Data as of {date}",
-    shareRequest:"Request {id}", shareFooter:"Made by EDGE AI; not investment advice",
+    shareRequest:"Request {id}", shareFooter:"Not investment advice", shareWord:"Word (document)",
+    shareWordPreparing:"Preparing document…", shareWordFailed:"The document could not be made; try PDF",
     // EXEC-UI-1019B: the copy button says what it does; the scroll marker and table sorting in English
     copy:"Copy", copied:"Copied", markerQuestion:"Question", markerAnswer:"AI answer",
     markerLabel:"Position in the conversation; hold and drag to scroll",
