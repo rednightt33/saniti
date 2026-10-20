@@ -96,6 +96,11 @@ class ExportResultArgs(BaseModel):
         return self
 
 
+def _today() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).date().isoformat()
+
+
 def file_name(name: Any, output_id: str, extension: str) -> str:
     stem = re.sub(r"[^A-Za-z0-9._-]+", "_", str(name or output_id)).strip("._-")[:100] or output_id
     return f"{stem}.{extension}"
@@ -155,6 +160,11 @@ def export_specs(client: SandboxClient, *, timeout_seconds: float, max_result_by
                 **({"lineage": texts.export_lineage(lineage)}
                    if includes["lineage"] and arguments.format == "XLSX" else {})}
         names = [str(n) for n in (entry or {}).get("columns") or []][:MAX_COLUMNS]
+        # the table download of an answer (TableExportArgs.select): only the columns the answer shows, in its order
+        chosen = [c for c in getattr(arguments, "select", None) or [] if c in names]
+        if chosen:
+            names = list(dict.fromkeys(chosen))
+            meta["select"] = names
         # EXEC-Y Fase 3: a renamed source column (trading_date for Date) keeps its catalog meaning and its count; the
         # mapping is the model's reading of its own code, the catalog and the Governor check that the column exists
         copied = {item.column: item.source_column for item in arguments.source_columns or []
@@ -193,12 +203,34 @@ def export_specs(client: SandboxClient, *, timeout_seconds: float, max_result_by
         status, body, headers = stored_op(client, "export", data, meta, timeout=timeout_seconds)
         if status != 200:
             return _refused(status, body)
+        rebuilt_inputs = None
+        if isinstance(arguments, TableExportArgs) and meta.get("inputs") and need is not None:
+            # the table download (user 2026-10-20 "Ok, opsi A"): inputs whose bundle the sandbox no longer keeps are
+            # extracted again with the same approved need, and the file is written once more with them
+            gone = [i for i in _input_statuses(headers) if i.get("status") == "NOT_INCLUDED"
+                    and str(i.get("reason")) in ("BUNDLE_EXPIRED", "BUNDLE_NOT_FOUND")]
+            if gone:
+                fresh = _fresh_bundle(client, results, str(need["need_id"]), rebuild)
+                rebuilt_inputs = {"status": "REBUILT" if fresh.get("bundle_id") else REBUILD_FAILED,
+                                  **({"message": fresh.get("message")} if not fresh.get("bundle_id") else {})}
+                if fresh.get("bundle_id"):
+                    meta["inputs"] = [{**i, "bundle_id": fresh["bundle_id"]} for i in meta["inputs"]]
+                    # the file says its input sheets were extracted again, and when
+                    meta["definition"] = {**(meta.get("definition") or {}), texts.INPUTS_REBUILT_FIELD:
+                                          texts.INPUTS_REBUILT.format(date=_today())}
+                    again = stored_op(client, "export", data, meta, timeout=timeout_seconds)
+                    if again[0] == 200:
+                        status, body, headers = again
+                    else:
+                        rebuilt_inputs = {"status": REBUILD_FAILED, "message": "the file could not be written again"}
         kept = _kept(results, arguments.format, (entry or {}).get("ref") or output_id,
                      file_name(lineage["name"], output_id,
                                headers.get("x-saniti-extension") or arguments.format.lower()),
                      headers, body, includes)
         if (entry or {}).get("support") and kept.get("status") == "EXPORTED":
             kept["data_status"] = data_status
+        if rebuilt_inputs is not None and kept.get("status") == "EXPORTED":
+            kept["inputs_data_status"] = rebuilt_inputs
         inputs = _input_statuses(headers)
         if inputs and kept.get("status") == "EXPORTED":
             kept["inputs"] = inputs
@@ -214,6 +246,12 @@ def export_specs(client: SandboxClient, *, timeout_seconds: float, max_result_by
                      arguments_model=ExportResultArgs if supporting else ExportResultArgsBasic,
                      handler=handler, timeout_seconds=timeout_seconds * (8 if supporting else 1) + 30,
                      max_result_bytes=max_result_bytes)]
+
+
+class TableExportArgs(ExportResultArgs):
+    """The table download of an answer (user 2026-10-20, POST /v1/conversations/{id}/outputs/{output_id}/export):
+    export_result's arguments, never offered to the model, plus the columns the answer shows."""
+    select: list[str] | None = None
 
 
 class ExportResultArgsBasic(BaseModel):

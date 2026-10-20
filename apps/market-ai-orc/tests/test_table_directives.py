@@ -52,7 +52,7 @@ def test_an_instruction_becomes_a_sorted_table_of_formatted_values() -> None:
     lines = text.splitlines()
     assert lines[0] == "Median per sektor:" and lines[2] == "| Sektor | Median |" and lines[3] == "|---|---|"
     assert lines[4:7] == ["| Basic / Ind | 7,0% |", "| Energy | 4,3% |", "| Finance | 1,5% |"]
-    assert "_Menampilkan 3 dari 4 baris._" in text and text.endswith("Selesai.")
+    assert "_Menampilkan 3 dari 4 baris; tabel lengkap bisa diunduh lewat ikon unduh di tabel._" in text and text.endswith("Selesai.")
 
 
 def test_cells_are_references_by_position_so_every_figure_is_a_source() -> None:
@@ -77,7 +77,7 @@ def test_the_line_under_a_cut_table_waits_for_the_gates() -> None:
     expansion = td.expand("{{table out.o1; Sektor = sector; top 2}}", state.ref_sources)
     assert "Menampilkan" not in expansion.text and "[[tabel-baris-a]]" in expansion.text
     assert not any(ch.isdigit() for ch in "[[tabel-baris-a]]")
-    assert td.put_footers(expansion.text, expansion.footers).endswith("_Menampilkan 2 dari 4 baris._")
+    assert td.put_footers(expansion.text, expansion.footers).endswith("_Menampilkan 2 dari 4 baris; tabel lengkap bisa diunduh lewat ikon unduh di tabel._")
 
 
 @pytest.mark.parametrize("instruction,needle", [
@@ -113,7 +113,7 @@ def test_rows_beyond_the_first_page_are_read_from_the_released_table() -> None:
     _, state = tracked(rows=table[:200], units={}, row_count=450, reader=read)
     _, text = shown("{{table out.o1; Saham = ticker; Return = ret|dec:0; sort -ret; top 2}}", state)
     assert "| T449 | 449 |" in text and "| T448 | 448 |" in text
-    assert "_Menampilkan 2 dari 450 baris._" in text
+    assert "_Menampilkan 2 dari 450 baris; tabel lengkap bisa diunduh lewat ikon unduh di tabel._" in text
 
 
 def test_a_table_given_as_a_list_is_read_by_index() -> None:
@@ -135,7 +135,7 @@ def test_check_references_previews_a_table_only_with_the_flag() -> None:
     try:
         result = check(["table out.o1; Sektor = sector; Saham = n|int; top 1"], state.ref_sources)
         assert result["results"][0]["ok"] and "| Energy | 12 |" in result["results"][0]["shows"]
-        assert "_Menampilkan 1 dari 4 baris._" in result["results"][0]["shows"]
+        assert "_Menampilkan 1 dari 4 baris; tabel lengkap bisa diunduh lewat ikon unduh di tabel._" in result["results"][0]["shows"]
         refused = check(["{{table out.o1; Sektor = sektor}}"], state.ref_sources)
         assert not refused["results"][0]["ok"] and "column sektor does not exist" in refused["results"][0]["error"]
     finally:
@@ -178,7 +178,7 @@ def test_the_answer_shows_the_table_cites_it_once_and_types_no_figure() -> None:
     assert "7,0" not in (state.typed_answer or "") and "4,3" not in (state.typed_answer or "")
     assert "{{table" in state.raw_final["answer"]  # the model's own draft is kept for an edit
     done = orc._finalize_findings(state, final)
-    assert done.answer.endswith("_Menampilkan 2 dari 4 baris._") and "[[tabel-baris-" not in done.answer
+    assert done.answer.endswith("_Menampilkan 2 dari 4 baris; tabel lengkap bisa diunduh lewat ikon unduh di tabel._") and "[[tabel-baris-" not in done.answer
 
 
 def test_a_wrong_instruction_goes_to_the_reference_repair() -> None:
@@ -208,13 +208,13 @@ def test_a_table_shows_the_rows_asked_for_up_to_fifty() -> None:
     table = [{"ticker": f"T{i:04d}", "ret": float(i)} for i in range(1000)]
     _, state = tracked(rows=table, units={})
     _, text = shown("{{table out.o1; Saham = ticker; sort -ret; top 15}}", state)
-    assert text.count("\n| T") == 15 and "_Menampilkan 15 dari 1.000 baris._" in text
+    assert text.count("\n| T") == 15 and "_Menampilkan 15 dari 1.000 baris; tabel lengkap bisa diunduh lewat ikon unduh di tabel._" in text
     _, text = shown("{{table out.o1; Saham = ticker; sort -ret; top 40}}", state)  # a breakdown up to fifty shows whole
-    assert text.count("\n| T") == 40 and "_Menampilkan 40 dari 1.000 baris._" in text
+    assert text.count("\n| T") == 40 and "_Menampilkan 40 dari 1.000 baris; tabel lengkap bisa diunduh lewat ikon unduh di tabel._" in text
     _, text = shown("{{table out.o1; Saham = ticker; sort -ret; top 1000}}", state)
     assert text.count("\n| T") == td.MAX_ROWS == 50
-    assert "_Menampilkan 50 dari 1.000 baris; tabel di chat dibatasi 50 baris, tabel lengkap bisa diminta sebagai " \
-           "file Excel._" in text
+    assert "_Menampilkan 50 dari 1.000 baris; tabel di chat dibatasi 50 baris, tabel lengkap bisa diunduh lewat " \
+           "ikon unduh di tabel._" in text
 
 
 def test_a_title_row_without_data_rows_is_removed() -> None:

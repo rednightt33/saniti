@@ -16,6 +16,7 @@ from .catalog_store import CatalogStore
 from .catalog_summary import CatalogSummary
 from .config import Settings
 from .conversation_plans import DATA_RECORD_KEY
+from .table_export import TableExportError, TableExportRequest, export_table
 from .conversation_router import first_stage
 from .conversation_plans import summary as plan_summary
 from .conversations import (ConversationError, ConversationStore, UpkeepThread, fingerprint, owner_from_header,
@@ -817,5 +818,27 @@ def create_app(
                                                                after, limit))
         except ConversationError as error:
             return refuse(error)
+
+    @app.post("/v1/conversations/{conversation_id}/outputs/{output_id}/export", dependencies=[Depends(authorize)])
+    def export_answer_table(conversation_id: str, output_id: str, payload: TableExportRequest,
+                            x_saniti_owner: str | None = Header(default=None)) -> JSONResponse:
+        """The table download of an answer (user 2026-10-20): every row of a kept table as XLSX with the columns and
+        titles the answer shows, the definition sheet and the input sheets; no model call (app/table_export.py)."""
+        try:
+            owner = owner_from_header(x_saniti_owner)
+            body = export_table(registry=getattr(orchestrator, "registry", None),
+                                result_store=getattr(orchestrator, "result_store", None), conversations=conversations,
+                                owner=owner, conversation_id=conversation_id, output_id=output_id, request=payload)
+        except ConversationError as error:
+            return refuse(error)
+        except TableExportError as error:
+            log_event("table_export_refused", conversation_id=conversation_id[:80], output_id=output_id[:40],
+                      code=error.code)
+            return JSONResponse(status_code=error.status, content={"detail": {"code": error.code,
+                                                                              "message": error.message}})
+        log_event("table_exported", conversation_id=conversation_id[:80], output_id=output_id[:40],
+                  export_id=body.get("export_id"), bytes=body.get("size_bytes"),
+                  inputs_rebuilt=(body.get("inputs_data_status") or {}).get("status"))
+        return JSONResponse(content=body)
 
     return app

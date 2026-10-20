@@ -5675,7 +5675,7 @@ class AgentOrchestrator:
                 state.reuse["bundles_reused"] = state.reuse.get("bundles_reused", 0) + 1
             # E9(d): the bundle that delivered the need, so export_result(data_request=...) finds its rows
             records.set_bundle(state.data_record, result.get("need_id") or (arguments or {}).get("need_id"),
-                               result.get("input_bundle_id"))
+                               result.get("input_bundle_id"), result.get("expires_at"))
             state.context_numbers.extend(numbers_in(result.get("datasets"), ints_only=True))
             state.warning_codes |= {str(w.get("code")) for w in result.get("relationship_warnings") or []
                                     if isinstance(w, dict)}

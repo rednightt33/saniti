@@ -2405,6 +2405,16 @@ frontend, and Telegram.
   XLSX (definition and lineage sheets) or Parquet of an output, at most 20 MB, kept in `AI_conversation_export`. The
   model sees only id, name, size and format; the response lists `artifacts[]`; `GET /v1/exports/{export_id}/download`
   streams the file (same Bearer key, `X-Saniti-Owner` must own the conversation, otherwise 404).
+- **Table download of an answer (2026-10-20, `app/table_export.py`):** `POST
+  /v1/conversations/{conversation_id}/outputs/{output_id}/export` with `{"columns": [...], "titles": [...]}` (the
+  answer's `answer_tables` entry) runs export_result's handler without a model: XLSX of every row of the kept table,
+  only the columns shown with their titles (`TableExportArgs.select`, sent to the sandbox as meta `select`), the
+  definition and lineage sheets and the input sheets. An input the sandbox no longer keeps (`BUNDLE_EXPIRED`,
+  `BUNDLE_NOT_FOUND`) is extracted again with the same approved need (`_fresh_bundle`) and the file is written again
+  with the definition row "Data input: ditarik ulang …" (`inputs_data_status` REBUILT, or EXPIRED_NOT_REBUILDABLE with
+  the reason). One download per table at a time (409 `EXPORT_IN_PROGRESS`); another owner's conversation or an unknown
+  table is 404. The reply gives `export_id`, `file_name`, `size_bytes`, `download` and `inputs`; logs `table_exported`,
+  `table_export_refused`. A need records its bundle's `bundle_expires_at` when the sandbox reports it.
 - **query_metric (D5, `AI_ENABLE_QUERY_METRIC`):** the active metrics of `AI_metric_catalog`, read at startup and
   offered in a METRICS note each run; one SQL Governor `POST /v1/summary` per period (trading days of the table's own
   calendar up to the conversation's data date, or a date range). Values count as `DATABASE_AGGREGATE` for number

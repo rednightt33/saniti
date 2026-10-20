@@ -223,3 +223,17 @@ def test_the_routes_and_the_runtime_capability(reuse) -> None:  # noqa: F811
     refused = call("recount", meta_for(data, measure="MEAN", column="missing"))
     assert refused.status_code == 422 and refused.json()["error"]["code"] == "RECOUNT_INVALID"
     assert call("nope", meta_for(data)).status_code == 404
+
+
+def test_an_export_can_keep_only_the_columns_shown_in_the_answer() -> None:
+    """The table download of an answer (user 2026-10-20: only the columns shown, with their titles, every row)."""
+    from openpyxl import load_workbook
+
+    rows = [{"ticker": f"T{i:03d}", "ret": i / 100, "vol": i * 10, "note": "x"} for i in range(400)]
+    data = parquet(rows)
+    body, _, _ = stored_tables.export(data, meta_for(data, target="XLSX", select=["ret", "ticker", "missing"],
+                                                     headers={"ticker": "Saham", "ret": "Return"}))
+    sheet = list(load_workbook(io.BytesIO(body), read_only=True)["data"].iter_rows(values_only=True))
+    assert sheet[0] == ("Return", "Saham") and len(sheet) == 401 and sheet[400] == (3.99, "T399")
+    every, _, _ = stored_tables.export(data, meta_for(data, target="CSV", select=["missing"]))
+    assert every.decode().splitlines()[0].replace('"', "") == "ticker,ret,vol,note"  # nothing valid: every column

@@ -549,3 +549,9 @@ def definition_note(finding: dict) -> str:
 # computed with its own code; the reader is told it was not checked again
 OWN_TEST_LINE = ("Sebagian uji statistik di jawaban ini dihitung AI dengan kodenya sendiri dan tidak diperiksa ulang "
                  "sistem; minta verifikasi bila perlu kepastian lebih.")
+
+
+# the table download (user 2026-10-20 "Ok, opsi A"): an input sheet whose data the sandbox no longer kept was extracted
+# again with the same approved data need; the file's definition sheet says so (the file follows the answer's language)
+INPUTS_REBUILT_FIELD = "Data input"
+INPUTS_REBUILT = "ditarik ulang dari sumber pada {date} dengan permintaan data yang sama (data asli sudah tidak disimpan)"

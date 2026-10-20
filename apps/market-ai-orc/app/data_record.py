@@ -288,11 +288,16 @@ def set_offer(record: dict[str, Any], request_id: str, offer: dict[str, Any] | N
         if isinstance(offer, dict) and offer.get("message") else None
 
 
-def set_bundle(record: dict[str, Any], need_id: Any, bundle_id: Any) -> None:
-    """E9(d): the bundle that delivered a need's data, so export_result(data_request=...) can find its rows."""
+def set_bundle(record: dict[str, Any], need_id: Any, bundle_id: Any, expires_at: Any = None) -> None:
+    """E9(d): the bundle that delivered a need's data, so export_result(data_request=...) can find its rows; with
+    its expiry (the table download prepares the data again once it has passed)."""
     for need in record["needs"]:
         if need.get("need_id") == need_id and isinstance(bundle_id, str):
             need["bundle_id"] = bundle_id
+            if isinstance(expires_at, str) and expires_at:
+                need["bundle_expires_at"] = expires_at[:40]
+            else:
+                need.pop("bundle_expires_at", None)
 
 
 def drop_need(record: dict[str, Any], need_id: str) -> None:

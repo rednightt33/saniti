@@ -165,6 +165,12 @@ def export(data: bytes, meta: dict[str, Any], inputs: list[dict[str, Any]] | Non
     if target not in EXPORT_FORMATS:
         raise StoredTableError("EXPORT_FORMAT", f"target must be one of {', '.join(EXPORT_FORMATS)}.")
     table = _table(data, verify(data, meta))
+    # the table download of an answer (user 2026-10-20 "hanya kolom yang tampil di jawaban"): select names the columns
+    # to keep, in order; a name the table lacks is ignored, and no valid name keeps every column
+    select = [c for c in meta.get("select") or [] if isinstance(c, str) and c in table.column_names] \
+        if isinstance(meta.get("select"), list) else []
+    if select:
+        table = table.select(list(dict.fromkeys(select)))
     limit = min(int(meta.get("max_bytes") or EXPORT_MAX_BYTES), EXPORT_MAX_BYTES)
     out = io.BytesIO()
     if target == "CSV":

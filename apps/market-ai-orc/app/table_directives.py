@@ -41,9 +41,10 @@ EMPTY_CELL = "–"  # a missing value (null, NaN) is shown as a dash, not as a r
 SAFE_COLUMN_RE = re.compile(r"^[^{}|\[\]=]+$")
 FOOTER_MARK = "[[tabel-baris-{key}]]"  # letters only: no figure reaches the gates; replaced once they passed
 FOOTER_MARK_RE = re.compile(r"\[\[tabel-baris-[a-z]+\]\]")
-TABLE_ROWS_LINE = "_Menampilkan {shown} dari {total} baris._"
+# M185 (user 2026-10-20): the line under a cut table points to the table's download icon (every row, as Excel)
+TABLE_ROWS_LINE = "_Menampilkan {shown} dari {total} baris; tabel lengkap bisa diunduh lewat ikon unduh di tabel._"
 TABLE_CAPPED_LINE = ("_Menampilkan {shown} dari {total} baris; tabel di chat dibatasi {cap} baris, tabel lengkap bisa "
-                     "diminta sebagai file Excel._")
+                     "diunduh lewat ikon unduh di tabel._")
 # EXEC-ROWS: a Markdown table the model wrote with a title row and no data row (a stray header before a built table)
 EMPTY_TABLE_RE = re.compile(r"(?m)^[ \t]*\|[^\n]*\|[ \t]*\n[ \t]*\|?[ \t]*:?-{3,}[-:| \t]*\|?[ \t]*(?:\n(?![ \t]*\|)|\Z)")
 

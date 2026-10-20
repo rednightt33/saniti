@@ -1484,6 +1484,8 @@ Boundaries:
   `X-Saniti-Output-Meta` (base64url JSON: `format`, `checksum_sha256` and the operation's arguments). The checksum is
   verified; the size limit is `PY_SANDBOX_RESTORE_MAX_BYTES`. `page` reads rows like a session output; `export` writes
   CSV, Parquet or XLSX (`openpyxl`, sheets `data`, `definisi`, `lineage`), at most 20 MB (`EXPORT_TOO_LARGE`, 413);
+  meta `select` (2026-10-20, the table download of an answer) keeps only the named columns in that order (unknown names
+  are ignored; none valid keeps every column);
   `recount` recomputes COUNT, COUNT_DISTINCT, SUM, MIN, MAX or MEAN under `where` conditions and returns at most 200
   matching rows (evidence tier 2). Capability `stored_tables` v1. Since 2026-10-06 nothing calls `recount`: its only
   caller, market-ai-orc `get_evidence`, was removed (`EXEC.md` EXEC-E); the operation stays until its removal is

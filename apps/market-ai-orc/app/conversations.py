@@ -464,6 +464,23 @@ class ConversationStore:
         return {key: value.isoformat() if hasattr(value, "isoformat") else _request_public(value)
                 for key, value in row.items()}
 
+    def data_record(self, owner: str, conversation_id: str) -> dict[str, Any] | None:
+        """The conversation's data record (M47) for its owner, for the table download; a missing or foreign
+        conversation is CONVERSATION_NOT_FOUND."""
+        if not CONVERSATION_ID_RE.fullmatch(conversation_id):
+            raise ConversationError("CONVERSATION_NOT_FOUND", "No such conversation for this owner.", 404)
+        try:
+            with self._connect() as connection:
+                row = connection.execute(
+                    'SELECT state FROM public."AI_conversation" WHERE conversation_id = %s AND owner_key = %s',
+                    (conversation_id, owner)).fetchone()
+        except psycopg.Error as exc:
+            raise ConversationError("CONVERSATION_STORE_UNAVAILABLE", "The conversation store failed.", 503) from exc
+        if row is None:
+            raise ConversationError("CONVERSATION_NOT_FOUND", "No such conversation for this owner.", 404)
+        record = (row["state"] or {}).get(plans.DATA_RECORD_KEY) if isinstance(row["state"], dict) else None
+        return record if isinstance(record, dict) else None
+
     def messages(self, owner: str, conversation_id: str, after: int | None, limit: int | None) -> dict[str, Any]:
         limit = min(max(limit or MESSAGES_PAGE_DEFAULT, 1), MESSAGES_PAGE_MAX)
         if not CONVERSATION_ID_RE.fullmatch(conversation_id):
