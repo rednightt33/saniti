@@ -5708,3 +5708,17 @@ Cepat tidak menyebut `save_table`. Usulan (menunggu persetujuan): supporting tab
   - Terbuka: tampilan EDGE saat tarik ulang lama ("Menyiapkan file…" lalu unduh otomatis), disetujui (user 2026-10-20 "Ok gapapa").
   - Menggantikan kalimat "Unduhan per tabel memang tanpa sheet data input" pada butir opsi A sebelumnya: unduhan per
     tabel kini menyertakan sheet data input.
+
+**Tambahan no. 24–25 (potongan 90 s dan timeout penyedia), disetujui user 2026-10-20 ("Nomor A oke, masukkan ke exec"; belum
+dijalankan).** Temuan kode: timeout penyedia ditentukan stopwatch orc sendiri (`openrouter_client.py:241-260`
+`_post_within`, panggilan non-streaming, tidak ada `"stream"` di payload), tanpa membedakan penyedia macet dari model yang
+masih berpikir; di luar potongan 90 s diulang diam-diam sampai `MAX_ATTEMPTS = 3`. Tombol Stop dan batas run 1.800 s hanya
+dicek sebelum panggilan model berikutnya (`orchestrator.py:4480-4486`, `main.py:629`), jadi tanpa potongan 90 s user yang
+menekan Stop bisa menunggu sampai 600 s (+ ulangan).
+1. Stop (dan batas run) memutus panggilan yang sedang berjalan dalam hitungan detik; token yang sudah dipakai tetap
+   tertagih (sama seperti setiap pemutusan sekarang).
+2. Batas per panggilan jalur Cepat ditentukan dari durasi panggilan di log orc (p50/p95/maks per model), bukan tebakan;
+   timeout diulang 1× di level yang sama dengan pemberitahuan (no. 25), bukan 3× diam-diam.
+3. Langkah progres menampilkan lama berpikir ("Thinking… 2m 10s").
+- Usulan lanjutan (menunggu persetujuan): panggilan streaming dengan pendeteksi "penyedia masih mengeluarkan output"
+  (batas token pertama + batas jeda antar-event isi, komentar keep-alive OpenRouter tidak dihitung).
