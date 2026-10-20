@@ -5705,4 +5705,6 @@ Cepat tidak menyebut `save_table`. Usulan (menunggu persetujuan): supporting tab
     input di orc 30 hari) dan C (bucket Governor 30 hari) tidak dipilih.
   - Jangka waktu: selama percakapan ada (`AI_CONVERSATION_RETENTION_DAYS` 30; catatan kebutuhan data di sandbox
     `PY_SANDBOX_RECORD_RETENTION_DAYS` 30). Periode data boleh berapa pun lamanya (tabel sumber permanen).
-  - Terbuka: tampilan EDGE saat tarik ulang lama ("Menyiapkan file…" lalu unduh otomatis), belum dijawab user.
+  - Terbuka: tampilan EDGE saat tarik ulang lama ("Menyiapkan file…" lalu unduh otomatis), disetujui (user 2026-10-20 "Ok gapapa").
+  - Menggantikan kalimat "Unduhan per tabel memang tanpa sheet data input" pada butir opsi A sebelumnya: unduhan per
+    tabel kini menyertakan sheet data input.
