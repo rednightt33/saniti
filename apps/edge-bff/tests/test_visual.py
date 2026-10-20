@@ -31,11 +31,15 @@ def browser_page(request):
         try:
             yield page
             assert not errors, errors
-            allowed = lambda item: (item['status'] == 401 and item['path'] == '/api/v1/auth/session') or (item['status'] == 503 and item['path'] == '/api/v1/runs' and request.node.name == 'test_submit_error_keyboard_disabled_controls_and_resizing')
+            # the table download refused while its file is being prepared (test_ui_1019b) is an expected 409
+            busy = request.node.name == 'test_a_table_being_prepared_says_so_and_a_typed_table_has_no_download'
+            allowed = lambda item: (item['status'] == 401 and item['path'] == '/api/v1/auth/session') or (item['status'] == 503 and item['path'] == '/api/v1/runs' and request.node.name == 'test_submit_error_keyboard_disabled_controls_and_resizing') \
+                or (busy and item['status'] == 409 and item['path'].endswith('/export'))
             assert not [item for item in http_errors if not allowed(item)], http_errors
             unexpected_console = [item for item in console_errors if not (
                 'fonts.' in item['url'] or (item['url'].endswith('/api/v1/auth/session') and '401' in item['text'])
-                or (item['url'].endswith('/api/v1/runs') and '503' in item['text'] and request.node.name == 'test_submit_error_keyboard_disabled_controls_and_resizing'))]
+                or (item['url'].endswith('/api/v1/runs') and '503' in item['text'] and request.node.name == 'test_submit_error_keyboard_disabled_controls_and_resizing')
+                or (busy and item['url'].endswith('/export') and '409' in item['text']))]
             assert not unexpected_console, unexpected_console
             if artifacts:
                 (Path(artifacts) / (request.node.name + '.json')).write_text(json.dumps({'page_errors': errors, 'console_errors': console_errors, 'http_errors': http_errors, 'unexpected_console_errors': unexpected_console}, indent=2))
@@ -190,8 +194,8 @@ def test_follow_up_questions_and_insight_ideas_are_clicked_as_the_next_message(d
     saved(page)
     # EXEC-IMPL-1017 Fase 2 (user 2026-10-16): each group folds like Assumptions, closed when the answer arrives, its
     # count in the title, and the suggestions are not bold
-    follow = page.locator('details.edge-next-group summary', has_text='Ide insight (')  # the question is an insight idea
-    assert follow.is_visible() and page.locator('details.edge-next-group summary', has_text='Pertanyaan lanjutan (').is_visible()
+    follow = page.locator('details.edge-next-group summary', has_text='Insight ideas (')  # the question is an insight idea
+    assert follow.is_visible() and page.locator('details.edge-next-group summary', has_text='Follow-up questions (').is_visible()
     question = page.get_by_role('button', name='Bulan apa jual asing BBRI paling besar?', exact=True)
     assert not question.is_visible()  # folded when the answer arrives
     follow.click()
@@ -320,9 +324,9 @@ def test_responsive_history_details_preferences_and_keyboard(dummy_orc, browser_
     if width <= 720:  # EXEC-UI-1015C: on a phone settings opens from the account menu
         assert not page.get_by_role('button', name='Settings', exact=True).is_visible()
         page.get_by_role('button', name='Account menu', exact=True).click()
-        page.get_by_role('menuitem', name='Pengaturan', exact=True).click()
+        page.get_by_role('menuitem', name='Settings', exact=True).click()
     else:
-        assert not page.get_by_role('menuitem', name='Pengaturan').count()
+        assert not page.get_by_role('menuitem', name='Settings').count()
         page.get_by_role('button', name='Settings', exact=True).click()
     page.get_by_role('dialog', name='Appearance', exact=True).wait_for()
     page.get_by_role('button', name='Switch theme', exact=True).click()
@@ -430,12 +434,12 @@ def test_mobile_research_plan_and_clarification(server, browser_page):
     orc.run=mobile_reply
     sign_in(page, origin)
     submit(page, 'Plan mobile')
-    page.get_by_role('button', name='Revisi', exact=True).wait_for()
+    page.get_by_role('button', name='Revise', exact=True).wait_for()
     saved(page)
     page.locator('.research-scroll').evaluate('(node) => node.scrollTop = 0')
     no_clipping(page)
     capture(page, 'mobile-research-plan')
-    page.get_by_role('button', name='Revisi', exact=True).click()
+    page.get_by_role('button', name='Revise', exact=True).click()
     page.locator('.composer-status').filter(has_text='Describe the plan revision').wait_for()
     page.get_by_placeholder('Ask a research question…').fill('Use one year')
     page.get_by_role('button', name='Submit', exact=True).click()

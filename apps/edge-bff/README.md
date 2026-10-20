@@ -59,8 +59,12 @@ The page is edited as one HTML file and its API wiring is not locked to the view
   CANCEL with its plan id), `message` (the choice's words are sent) or `input` (the user writes first). `act()` in the
   page is the only place that sends one, so a new kind of choice from the backend needs no new button code.
 - The BFF serves every page script in `static/` by name (`/<name>.js`), so a new front-end file needs no route.
-- Backend codes reach the page as words: Orc writes its own lines in plain Indonesian (`app/user_texts.py`), and the
-  page words a code through `edge-labels.js` or, when a code has no words yet, shows it readable, never raw.
+- Backend codes reach the page as words: Orc writes the lines inside an answer in plain Indonesian and its interface
+  texts (progress steps, hurdles, run failures) in English (`app/user_texts.py`), and the page words a code through
+  `edge-labels.js` or, when a code has no words yet, shows it readable, never raw. EXEC-UI-1019B (user 2026-10-19:
+  "semua label tetap bahasa Inggris"): every label of the interface is English; the user's messages and the AI's
+  answer keep their own language, and the three `*Message` texts (sent as the user's own message: export request,
+  plan approval and cancellation) stay Indonesian.
 
 Editing workflow (no server, no login, no AI call):
 
@@ -74,16 +78,37 @@ python preview/edge_preview.py import preview/edge_preview.html  # back to stati
 the script route, the round trip and the view contract on every saved response (`tests/fixtures/orc_responses.json`);
 `tests/test_answer_view.py` drives the real page through the BFF with those responses.
 
-### Sharing an answer (EXEC-SHARE-UI, 2026-10-19)
+### Sharing an answer (EXEC-SHARE-UI, 2026-10-19; EXEC-UI-1019B)
 
-"Bagikan" in an answer's action row offers PDF and PNG of one card: the EDGE logo, the question, the answer with
-every table row, its assumptions and methodology, and a footer (latest data date of its tables, request ID, "Dibuat oleh
-EDGE AI; bukan saran investasi"). The card is a cleaned clone of the answer in light colours (`EdgeShare` in
-`static/index.html`, footer data from `EdgeView.shareInfo`). PDF: the browser prints the card alone
+"Share" in an answer's action row offers PDF and PNG of one card: the EDGE logo (`static/edge-logo.svg`) and the
+date, the answer's metadata row (request, model logo, name and level, tokens, duration; no cost), the question, the
+answer with every table row, its assumptions and methodology, and a footer (latest data date of its tables, request
+ID, "Made by EDGE AI; not investment advice"). The card is a cleaned clone of the answer in light colours (`EdgeShare`
+in `static/index.html`, footer data from `EdgeView.shareInfo`). PDF: the browser prints the card alone
 (`body.edge-share-printing`). PNG: `static/html-to-image.js` (html-to-image 1.11.13, MIT, `static/html-to-image.LICENSE`,
-loaded on first use; the CSP allows scripts from this origin only) draws it 540 CSS px wide at up to 2x (1,080 px),
+loaded on first use; the CSP allows scripts from this origin only) draws it 760 CSS px wide at up to 2x (1,520 px),
 then the Web Share API shares it, or it is downloaded. Tests: `tests/test_share_card.py`. The composer's "Research
 Mode" menu (Standard / Deep Research, display only) was removed the same day.
+
+### Table download, provider timeouts and the running step (2026-10-20)
+
+- A table Orc built from a kept result (its `answer_tables` entry has an `output_id`) shows a download icon beside
+  the enlarge icon. A click asks `POST /api/v1/conversations/{id}/outputs/{output_id}/export` with the columns and
+  titles the answer shows (each output column once); Orc writes every row as XLSX with the definition sheet and the
+  input sheets (extracted again when the sandbox no longer keeps them, marked with the date) and no model call. The
+  icon shows "Preparing file…" meanwhile, then the browser downloads `GET /api/v1/exports/{export_id}`. A second click
+  while Orc still writes the same table's file is refused (409 `EXPORT_IN_PROGRESS`, "This table's file is already
+  being prepared"). A table the model typed itself has no icon.
+- A run that failed because the AI provider sent no output (`PROVIDER_STALLED`, `PROVIDER_TIMEOUT`, after Orc's one
+  automatic retry) or kept thinking without answering (`REASONING_RUNAWAY`) says so and offers **Retry** (sent again
+  at once with the run's own model and level) and **Change model** (the question back in the message box with the
+  model menu open) (EXEC-M181, user 2026-10-20).
+- The step running now shows how long it has taken ("Thinking · 2m 10s"), counted on each second from Orc's
+  `duration_ms`.
+- EXEC-UI-1019B layout: one 24 px gap between the answer's sections, tables centred, a column title longer than 14
+  characters wraps within 14ch, the AI answer's copy button reads "Copy", the sticky panel heads use the panel colour,
+  and the favicon and app icons use the new round EDGE mark.
+- Tests: `tests/test_ui_1019b.py`.
 
 ## Persistence and ownership
 
@@ -139,6 +164,7 @@ No CORS is enabled. Responses are not cached. Inputs forbid unknown fields.
 | GET `/conversations/{id}/messages` | Canonical history pagination `after/limit`, UI metadata; 410 if expired |
 | PATCH `/conversations/{id}/preferences` | Desired `{bookmarked?,title?}` |
 | PATCH `/runs/{id}/preferences` | Desired `{pinned}`; canonical response must exist |
+| POST `/conversations/{id}/outputs/{output_id}/export` | `{columns, titles}` (at most 60 each); Orc writes the table's XLSX (no model call); `{export_id, file_name, size_bytes, format}`; 404 for another owner's conversation or a malformed output id; Orc's refusal code is kept (409 `EXPORT_IN_PROGRESS`) |
 | GET `/exports/{export_id}` | Owner-checked streaming proxy of an existing Orc artifact |
 
 `plan_reply` is `{plan_id, action: APPROVE|REVISE|CANCEL, revision_instruction?}`. The client reads the issued plan

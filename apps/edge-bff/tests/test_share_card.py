@@ -2,6 +2,7 @@
 a top corner; the composer's Research Mode menu removed, "item tersebut di remove saja"): an answer is shared as a card
 without EDGE's bars, composer or panels, printed alone for the PDF and drawn as a PNG in the browser."""
 import copy
+import re
 import struct
 
 from test_answer_view import FIXTURES, article, fixture_server  # noqa: F401 (fixture)
@@ -19,6 +20,9 @@ PRINTED = """() => {
     const stage = document.querySelector('body > .edge-share-stage');
     window.__printed = ({text: stage?.innerText || '', printing: document.body.classList.contains('edge-share-printing'),
              logo: stage?.querySelector('.edge-share-head img')?.getAttribute('src'), title: document.title,
+             width: stage?.querySelector('.edge-share-card')?.getBoundingClientRect().width,
+             meta: stage?.querySelector('.edge-share-meta')?.innerText || null,
+             metaLogos: stage?.querySelectorAll('.edge-share-meta img').length,
              buttons: stage?.querySelectorAll('button').length, folded: stage?.querySelectorAll('.edge-row-folded').length,
              closed: stage?.querySelectorAll('details:not([open])').length});
   };
@@ -43,21 +47,23 @@ def test_share_offers_pdf_and_png_and_the_pdf_prints_the_card_alone(fixture_serv
     submit(page, 'fx:share_card')
     saved(page)
     page.evaluate(PRINTED)
-    page.get_by_role('button', name='Bagikan', exact=True).click()
-    menu = page.get_by_role('menu', name='Bagikan')
-    assert menu.get_by_role('menuitem').all_inner_texts() == ['PDF (dokumen)', 'PNG (gambar)']
-    menu.get_by_role('menuitem', name='PDF (dokumen)').click()
+    page.get_by_role('button', name='Share', exact=True).click()
+    menu = page.get_by_role('menu', name='Share')
+    assert menu.get_by_role('menuitem').all_inner_texts() == ['PDF (document)', 'PNG (image)']
+    menu.get_by_role('menuitem', name='PDF (document)').click()
     card = page.wait_for_function('() => window.__printed').json_value()
     page.emulate_media(media='print')  # while the print dialog is open only the card is printed
     assert page.evaluate(ALONE)
     page.emulate_media(media='screen')
     page.evaluate("() => window.dispatchEvent(new Event('afterprint'))")
-    assert card['printing'] and card['logo'] == '/favicon.svg'
-    assert card['text'].startswith('EDGE') and 'Pertanyaan\n\nfx:share_card' in card['text']
-    assert 'Data sampai 17 Oktober 2026' in card['text']  # the latest date of the tables
-    assert 'Permintaan ' in card['text'] and 'Dibuat oleh EDGE AI; bukan saran investasi' in card['text']
-    assert 'Asumsi' in card['text'] and 'Data sampai akhir Agustus.' in card['text'] and 'Return harian dirata-rata.' in card['text']
-    for chrome in ('Pin', 'Submit', 'Bagikan', 'Request '):
+    # EXEC-UI-1019B: the new EDGE logo and the date in the head, a 760 px card, the answer's metadata row without its cost
+    assert card['printing'] and card['logo'] == '/edge-logo.svg' and round(card['width']) == 760
+    assert re.match(r'\d{1,2} [A-Z][a-z]+ \d{4}', card['text']) and 'Question\n\nfx:share_card' in card['text']
+    assert card['meta'] and card['meta'].startswith('Request ') and 'cost' not in card['meta'] and '$' not in card['meta']
+    assert 'Data as of 17 October 2026' in card['text']  # the latest date of the tables
+    assert 'Request ' in card['text'] and 'Made by EDGE AI; not investment advice' in card['text']
+    assert 'Assumptions' in card['text'] and 'Data sampai akhir Agustus.' in card['text'] and 'Return harian dirata-rata.' in card['text']
+    for chrome in ('Pin', 'Submit', 'Share', 'Reported cost', 'Copy'):
         assert chrome not in card['text'], chrome
     assert card['buttons'] == 0 and card['folded'] == 0 and card['closed'] == 0
     assert card['title'].startswith('EDGE ')
@@ -83,13 +89,13 @@ def test_png_draws_the_card_at_2x_and_downloads_it_without_web_share(fixture_ser
     sign_in(page, origin)
     submit(page, 'fx:share_card')
     saved(page)
-    page.get_by_role('button', name='Bagikan', exact=True).click()
+    page.get_by_role('button', name='Share', exact=True).click()
     with page.expect_download(timeout=20000) as info:
-        page.get_by_role('menuitem', name='PNG (gambar)').click()
+        page.get_by_role('menuitem', name='PNG (image)').click()
     download = info.value
     assert download.suggested_filename.startswith('EDGE ') and download.suggested_filename.endswith('.png')
     data = open(download.path(), 'rb').read()
     width, height = png_size(data)
-    assert width == 1080 and height > 400 and len(data) > 20000
+    assert width == 1520 and height > 400  # 760 CSS px at 2x (EXEC-UI-1019B) and len(data) > 20000
     assert not page.locator('.edge-share-stage').count()  # the off-screen card is removed again
     assert page.evaluate("() => typeof window.htmlToImage === 'object'")  # loaded on first use, from this origin

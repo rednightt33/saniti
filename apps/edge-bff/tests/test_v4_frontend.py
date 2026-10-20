@@ -21,18 +21,18 @@ def test_a_table_opens_in_a_wide_dialog_with_its_title_and_closes_with_escape(fi
     saved(page)
     frame = article(page).locator('.edge-md-table-frame')
     assert frame.count() == 1
-    frame.get_by_role('button', name='Perbesar tabel', exact=True).click()
+    frame.get_by_role('button', name='Enlarge table', exact=True).click()
     dialog = page.get_by_role('dialog')
     dialog.wait_for()
     assert dialog.locator('table.data-table tbody tr').count() == 2
-    assert dialog.locator('#dialog-description').inner_text() == '2 baris'
+    assert dialog.locator('#dialog-description').inner_text() == '2 rows'
     assert dialog.locator('#dialog-title').inner_text().startswith('Hasil uji')  # the section's heading
     box = dialog.bounding_box()
     assert box['width'] >= 1400 - 60  # wide: most of the 1600 px window
     page.keyboard.press('Escape')
     page.wait_for_function('() => !document.querySelector("[role=dialog]")')
     page.set_viewport_size({'width': 390, 'height': 760})
-    frame.get_by_role('button', name='Perbesar tabel', exact=True).click()
+    frame.get_by_role('button', name='Enlarge table', exact=True).click()
     box = page.get_by_role('dialog').bounding_box()
     assert box['x'] <= 1 and box['width'] >= 389  # full screen on a phone
     page.get_by_role('dialog').get_by_role('button', name='Close', exact=True).click()

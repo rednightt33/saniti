@@ -9605,11 +9605,13 @@ html:not(.dark) .monitor-layout .user-message .message-attachments span {color:#
 .edge-pin-body button {border:0;background:transparent;padding:8px 0 0;color:var(--foreground);font:11px Inter,"Segoe UI",sans-serif;cursor:pointer;}
 .edge-pins-empty {font-size:11px;color:var(--muted-foreground);}
 /* EXEC-SHARE-UI: the share card, drawn off screen in light colours whatever the theme; printed alone for the PDF */
-.edge-share-stage {position:fixed;left:-10000px;top:0;width:540px;pointer-events:none;}
-.edge-share-card {width:540px;box-sizing:border-box;padding:24px 26px 18px;background:#fff;color:oklch(14.5% 0 0);font:14px/1.6 Inter,"Segoe UI",sans-serif;}
+.edge-share-stage {position:fixed;left:-10000px;top:0;width:760px;pointer-events:none;}
+.edge-share-card {width:760px;box-sizing:border-box;padding:28px 34px 20px;background:#fff;color:oklch(14.5% 0 0);font:14px/1.6 Inter,"Segoe UI",sans-serif;}
 .edge-share-head {display:flex;align-items:center;gap:9px;margin-bottom:14px;}
-.edge-share-head img {width:28px;height:28px;border-radius:6px;}
-.edge-share-head strong {font-size:16px;letter-spacing:.06em;}
+.edge-share-head img {height:30px;width:auto;}
+.edge-share-meta {display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin:0 0 14px;font-size:11.5px;color:#717182;}
+.edge-share-meta>span {display:inline-flex;align-items:center;gap:6px;}
+.edge-share-meta img {width:16px;height:16px;}
 .edge-share-head span {margin-left:auto;font-size:12px;color:#717182;}
 .edge-share-question {margin:0 0 14px;padding:9px 12px;border-radius:8px;background:#f3f3f5;}
 .edge-share-question span {display:block;font-size:11px;color:#717182;}
@@ -9826,13 +9828,21 @@ html.dark .edge-flow-done{background:#1e9a59;}
 /* V4 (user 2026-10-14): expand a table into a wide dialog */
 .edge-md-table-frame {position:relative;margin:.4em 0 1em;padding-top:30px;}
 .edge-md-table-frame>.edge-md-table {margin:0;}
-.edge-table-expand {position:absolute;top:0;right:0;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--border);border-radius:6px;background:var(--background);color:var(--muted-foreground);cursor:pointer;}
+.run-inline-state.edge-provider-stalled {flex-wrap:wrap;}
+.run-inline-state>.edge-stalled-actions {flex-direction:row;flex-wrap:wrap;gap:8px;}
+.edge-table-tools {position:absolute;top:0;right:0;display:flex;align-items:center;gap:6px;}
+.edge-table-file-note {font-size:12px;color:var(--muted-foreground);white-space:nowrap;}
+.edge-table-file-note.failed {color:var(--destructive, #b42318);}
+.edge-table-download {display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--border);border-radius:6px;background:var(--background);color:var(--muted-foreground);cursor:pointer;}
+.edge-table-download:hover:not(:disabled),.edge-table-download:focus-visible {color:var(--foreground);background:var(--secondary);}
+.edge-table-download:disabled {cursor:progress;opacity:.6;}
+.edge-table-expand {display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--border);border-radius:6px;background:var(--background);color:var(--muted-foreground);cursor:pointer;}
 .edge-table-expand:hover,.edge-table-expand:focus-visible {color:var(--foreground);background:var(--secondary);}
 /* EXEC-UI-1015 U4: rows past the first ten fold behind one button below the table; print shows them all */
 .edge-md-table .data-table tr.edge-row-folded {display:none;}
 .edge-table-more {display:inline-flex;align-items:center;margin-top:6px;padding:5px 10px;border:1px solid var(--border);border-radius:999px;background:var(--background);color:var(--muted-foreground);font:500 12px Inter,"Segoe UI",sans-serif;cursor:pointer;}
 .edge-table-more:hover,.edge-table-more:focus-visible {color:var(--foreground);background:var(--secondary);}
-@media print {.edge-md-table .data-table tr.edge-row-folded {display:table-row!important;}.edge-table-more {display:none!important;}}
+@media print {.edge-md-table .data-table tr.edge-row-folded {display:table-row!important;}.edge-table-more,.edge-table-tools {display:none!important;}}
 .dialog-backdrop:has(.edge-table-dialog) {z-index:200;} /* above the top bar (120) and the side panels */
 .dialog.edge-table-dialog {width:min(1440px,calc(100vw - 48px));max-height:calc(100vh - 48px);}
 .edge-table-dialog-body {flex:1;overflow:auto;margin:0;padding:12px 18px 18px;}
@@ -10122,6 +10132,7 @@ html.dark .monitor-layout .details-panel>.tabs button:focus-visible{outline-colo
 .monitor-layout .user-message-footer .user-sent-at{margin:0;}
 .monitor-layout .message-clipboard-actions{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;}
 .monitor-layout .clipboard-action{width:30px;height:30px;padding:0;justify-content:center;}
+.monitor-layout .clipboard-action.with-label{width:auto;padding:0 10px;gap:6px;}
 .monitor-layout .clipboard-action .icon{width:16px;height:16px;}
 .monitor-layout .clipboard-status{font-size:10px;color:var(--muted-foreground);max-width:240px;}
 .monitor-layout .result-pin-action[aria-pressed="true"] .icon{fill:none;}
@@ -10178,6 +10189,24 @@ html.dark .monitor-layout .details-panel>.tabs button:focus-visible{outline-colo
 .edge-history-head {top:0;margin-top:-10px;padding-top:15px;}
 /* Cover the scroll container's top padding too, so rows cannot peek above the frozen title. */
 .edge-pins-head:before,.edge-history-head:before {content:"";position:absolute;left:0;right:0;bottom:100%;height:15px;background:inherit;pointer-events:none;}
+/* EXEC-UI-1019B (user 2026-10-19, "Konfirmasi apabila kamu paham"; go 2026-10-20). 1: one gap between every part of an
+   answer (it was 29 px between blocks and 6 px between the follow-up lists). 2: a column title longer than 14
+   characters wraps at 14ch ("label width >X maka teks di wrapped"; it was 28). 3: tables in the middle of the answer.
+   5: the frozen panel titles take the panel's own background, with no empty band above "Pinned responses".
+   9: "Monitor" in weight 500 and the full text colour. */
+:root {--edge-section-gap:24px;}
+.monitor-layout .result>.content-block {margin-top:var(--edge-section-gap);}
+.edge-next-group {margin-top:0;}
+.edge-next-group+.edge-next-group {margin-top:var(--edge-section-gap);}
+.edge-md-table .data-table {margin-inline:auto;}
+.edge-md-table .data-table th.edge-title-long .edge-sort-label {white-space:normal;max-width:14ch;}
+.details-panel {--edge-panel-bg:var(--background);}
+.app:not(.dark) .details-panel {--edge-panel-bg:var(--surface);}
+.edge-pins-head,.edge-history-head {background:var(--edge-panel-bg);}
+.edge-pins {padding-top:8px;}
+.edge-pins-head {margin-top:-8px;padding-top:8px;}
+.edge-pins-head:before,.edge-history-head:before {height:8px;}
+.topbar nav button.nav-monitor {font-weight:500;color:var(--text);}
 </style>
 </head>
 <body><div id="root"></div>
@@ -10852,6 +10881,12 @@ function Monitor({ go }) {
     };
     const planIndex=EdgeView.planIndex(selected?.runs.map(r=>r.raw));
     const retry=target=>{setPendingReply(null);submissionRef.current=null;setPrompt(target.question);requestAnimationFrame(()=>composerRef.current?.focus());};
+    // EXEC-M181 (user 2026-10-20: "user perlu tahu bahwa penyedia timeout dan diberikan opsi untuk retry panggilan"): a run
+    // whose AI provider stopped sending output is sent again at once with the same model and level, or its question goes
+    // back to the message box with the model menu open
+    const retryNow=target=>{const execution=target.raw?.execution||{};submissionRef.current=null;
+      void submit(execution.model?{model:execution.model,...(execution.reasoning_level?{reasoning_level:execution.reasoning_level}:{})}:{},target.question,{plain:true});};
+    const changeModel=target=>{retry(target);requestAnimationFrame(()=>{const trigger=document.querySelector(".composer .edge-model-trigger");if(trigger&&trigger.getAttribute("aria-expanded")!=="true")trigger.click();});};
     const startResize = (event) => { if (collapsed)
         return; event.preventDefault(); const startX = event.clientX, startWidth = sidebarWidth; let nextWidth = startWidth; const move = (pointer) => { nextWidth = Math.min(360, Math.max(180, startWidth + pointer.clientX - startX)); setSidebarWidth(nextWidth); }; const up = () => { localStorage.setItem("edge-monitor-width", String(nextWidth)); document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); }; document.addEventListener("pointermove", move); document.addEventListener("pointerup", up); };
     const toggleCollapsed = () => setCollapsed(current => { localStorage.setItem("edge-monitor-collapsed", String(!current)); return !current; });
@@ -10940,8 +10975,8 @@ function Monitor({ go }) {
                             file))) : null),
                     element("div", {className:"user-message-footer"},element("div", { className:"user-sent-at" }, formatMessageJakarta(message.createdAt)),element(MessageClipboardActions,{getText:()=>message.content,kind:"user"})),
                     messageRun && element(fragment, null,
-                        element(RunStatus, { run: messageRun, stopping: stoppingId === messageRun.id, expanded: expandedRuns.includes(messageRun.id), toggle: () => { setSelectedRunId(messageRun.id); setSourceDetail(null); setActiveSection("conditions"); setExpandedRuns(current => current.includes(messageRun.id) ? current.filter(id => id !== messageRun.id) : [...current, messageRun.id]); }, retry: () => retry(messageRun) }),
-                        messageRun.result && element(ResearchDocument, { run: messageRun, togglePin: () => togglePin(messageRun), act, planIndex, enabled: !active && !submitting && messageRun.id === latestRun(selected)?.id, planEnabled: !active && !submitting && (!selected.plan || selected.plan.status === "PENDING") && messageRun.id === latestRun(selected)?.id, tableMenu: tableMenu, setTableMenu: setTableMenu, expand: () => setExpandedTable(messageRun) }))); })),
+                        element(RunStatus, { run: messageRun, stopping: stoppingId === messageRun.id, expanded: expandedRuns.includes(messageRun.id), toggle: () => { setSelectedRunId(messageRun.id); setSourceDetail(null); setActiveSection("conditions"); setExpandedRuns(current => current.includes(messageRun.id) ? current.filter(id => id !== messageRun.id) : [...current, messageRun.id]); }, retry: () => retry(messageRun), retryNow: () => retryNow(messageRun), changeModel: () => changeModel(messageRun), enabled: !active && !submitting }),
+                        messageRun.result && element(ResearchDocument, { run: messageRun, conversationId: selected.id, togglePin: () => togglePin(messageRun), act, planIndex, enabled: !active && !submitting && messageRun.id === latestRun(selected)?.id, planEnabled: !active && !submitting && (!selected.plan || selected.plan.status === "PENDING") && messageRun.id === latestRun(selected)?.id, tableMenu: tableMenu, setTableMenu: setTableMenu, expand: () => setExpandedTable(messageRun) }))); })),
                 !autoFollow && element("button", { className: "jump-latest", onClick: () => { setAutoFollow(true); scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); } },
                     element(Icon, { name: "arrow-down" }),
                     "Jump to latest"),
@@ -11144,7 +11179,7 @@ function ResearchScrollMarker({ scrollRef, conversationId }) {
             const threshold = viewport.getBoundingClientRect().top + markerY;
             let active = points[0];
             for (const point of points) if (point.getBoundingClientRect().top <= threshold) active = point;
-            const label = active?.classList.contains("user-message") ? "Pertanyaan" : active?.classList.contains("result-kicker") ? "Jawaban AI" : labels[active?.id.split("-").at(-1)] ?? "Research";
+            const label = active?.classList.contains("user-message") ? edgeUi().markerQuestion : active?.classList.contains("result-kicker") ? edgeUi().markerAnswer : labels[active?.id.split("-").at(-1)] ?? "Research";
             marker.textContent = label;
             marker.setAttribute("aria-valuenow", String(Math.round(ratio * 100)));
             marker.setAttribute("aria-valuetext", label);
@@ -11160,7 +11195,7 @@ function ResearchScrollMarker({ scrollRef, conversationId }) {
         window.addEventListener("resize",update); update();
         return () => { resize.disconnect(); mutation.disconnect(); viewport.removeEventListener("scroll",update); window.removeEventListener("resize",update); marker.removeEventListener("pointerdown",down);marker.removeEventListener("pointermove",move);marker.removeEventListener("pointerup",end);marker.removeEventListener("pointercancel",end);marker.removeEventListener("lostpointercapture",end);marker.removeEventListener("keydown",key);viewport.classList.remove("edge-dragging"); };
     }, [conversationId]);
-    return element("div", {ref:markerRef,className:"edge-scroll-marker",role:"scrollbar",tabIndex:0,"aria-label":"Posisi research; tahan dan tarik untuk scroll","aria-orientation":"vertical","aria-valuemin":0,"aria-valuemax":100}, "Pertanyaan");
+    return element("div", {ref:markerRef,className:"edge-scroll-marker",role:"scrollbar",tabIndex:0,"aria-label":edgeUi().markerLabel,"aria-orientation":"vertical","aria-valuemin":0,"aria-valuemax":100}, edgeUi().markerQuestion);
 }
 
 // EXEC-IMPL-1016 Fase 4.3 (UI-1015B): while an answer runs, Orc's steps are read every PROGRESS_POLL_MS through the
@@ -11184,7 +11219,8 @@ function RunProgress({ run }) {
     return element("div", { className: "edge-run-progress" },
         element("div", { className: "edge-run-progress-now" },
             view.elapsed && element(RunClock, { elapsedMs: data.elapsed_ms, at: data.receivedAt }),
-            view.current && element("span", null, view.current)),
+            view.current && element("span", { className: "edge-run-progress-step" }, element("span", null, view.current),
+                view.currentStep && element(RunClock, { key: `step-${view.currentStep.started}`, elapsedMs: view.currentStep.ms, at: data.receivedAt, className: "edge-run-step-clock", prefix: " \u00B7 " }))),
         view.done.length > 0 && element("details", { className: "edge-run-progress-done" },
             element("summary", null, view.doneTitle),
             view.earlier && element("small", null, view.earlier),
@@ -11197,7 +11233,7 @@ function RunProgress({ run }) {
 // time it arrived minus its elapsed time); the clock keeps the earliest start any reading implied, so a reading that
 // lags (sent before its arrival) neither stalls the clock nor moves it back. It redraws at each whole second (aligned
 // to the clock, so a background tab is right when it comes back)
-function RunClock({ elapsedMs, at }) {
+function RunClock({ elapsedMs, at, className = "edge-run-progress-time edge-run-clock", prefix = "" }) {
     const viewRecord = currentView;
     const shown = initialValue(viewRecord, "shown", () => 0);
     const startRef = (viewRecord.refs.start ??= { current: Infinity });
@@ -11213,11 +11249,12 @@ function RunClock({ elapsedMs, at }) {
         tick();
         return () => { stopped = true; clearTimeout(timer); };
     }, [elapsedMs, at]);
-    return element("span", { className: `edge-run-progress-time edge-run-clock ${shown % 2 ? "odd" : "even"}`,
-        "data-seconds": String(shown) }, EdgeView.durationText(shown * 1000));
+    return element("span", { className: `${className} ${shown % 2 ? "odd" : "even"}`,
+        "data-seconds": String(shown) }, prefix + EdgeView.durationText(shown * 1000));
 }
 
-function RunStatus({ run, stopping, expanded, toggle, retry }) {
+const PROVIDER_STALL_CODES = new Set(["PROVIDER_STALLED", "PROVIDER_TIMEOUT", "REASONING_RUNAWAY"]);
+function RunStatus({ run, stopping, expanded, toggle, retry, retryNow, changeModel, enabled = true }) {
     const active = ["submitted", "running", "streaming"].includes(run.status);
     if (active) return element("div", { className: "edge-inline-progress-wrap" },
         element("div", { className: "edge-inline-progress", role: "status", "aria-live": "polite" },
@@ -11228,6 +11265,16 @@ function RunStatus({ run, stopping, expanded, toggle, retry }) {
     if (run.stopped && run.status === "completed") return element("div", { className: "run-inline-state cancelled", role: "status" },
         element("div", null, element("strong", null, edgeUi().stopped), element("span", null, edgeUi().stoppedHint)),
         element(Button, { icon: "refresh", onClick: retry }, edgeUi().editResend));
+    // EXEC-M181: the AI provider timed out (after Orc's one automatic retry) or kept thinking without answering
+    if (run.status === "failed" && PROVIDER_STALL_CODES.has(run.error) && retryNow) {
+        const ui = edgeUi(), runaway = run.error === "REASONING_RUNAWAY";
+        return element("div", { className: "run-inline-state failed edge-provider-stalled", role: "status", "data-error": run.error },
+            element("div", null, element("strong", null, runaway ? ui.runawayStalled : ui.providerStalled),
+                element("span", null, runaway ? ui.runawayStalledHint : ui.providerStalledHint)),
+            element("div", { className: "edge-stalled-actions" },
+                element(Button, { icon: "refresh", kind: "primary", onClick: retryNow, disabled: !enabled }, ui.retry),
+                element(Button, { onClick: changeModel, disabled: !enabled }, ui.changeModel)));
+    }
     if (run.status === "failed" || run.status === "cancelled") return element("div", { className: `run-inline-state ${run.status}`, role: "status" },
         element("div", null, element("strong", null, run.status === "failed" ? "Research failed" : "Research cancelled"), element("span", null, run.error === "STOPPED_BY_USER" ? edgeUi().stopped : run.errorText || run.error)),
         element(Button, { icon: "refresh", onClick: retry }, "Retry"));
@@ -11356,10 +11403,13 @@ function MessageClipboardActions({getText,kind}) {
  const copy=async event=>{const text=getText(event.currentTarget);try{
   if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(text);
   else {const field=document.createElement("textarea");field.value=text;field.style.position="fixed";field.style.opacity="0";document.body.append(field);field.select();const ok=document.execCommand("copy");field.remove();if(!ok)throw new Error("Copy unavailable");}
-  setStatus("Copied");
+  setStatus(edgeUi().copied);
  }catch(error){setStatus("Copy unavailable. Select the message and copy manually.");}};
  return element("span",{className:"message-clipboard-actions"},
-  element("button",{className:"result-action clipboard-action",type:"button",onClick:copy,title:kind==="user"?"Copy question":"Copy AI response","aria-label":kind==="user"?"Copy question":"Copy AI response"},element(Icon,{name:"copy"})),
+  // EXEC-UI-1019B (user 2026-10-19 "'Copy AI response' --> Ini hanya 'Copy'"): the answer's copy button says Copy
+  kind==="user"
+   ?element("button",{className:"result-action clipboard-action",type:"button",onClick:copy,title:"Copy question","aria-label":"Copy question"},element(Icon,{name:"copy"}))
+   :element("button",{className:"result-action clipboard-action with-label",type:"button",onClick:copy},element(Icon,{name:"copy"}),edgeUi().copy),
   element("span",{className:"clipboard-status",role:"status"},status));
 }
 function responseCopyText(button) {
@@ -11374,12 +11424,29 @@ function responseCopyText(button) {
 // drawn in the browser by html-to-image (MIT, static/html-to-image.js, loaded on first use because the CSP allows scripts
 // from this origin only) at 540 CSS px and up to 2x, then shared with the Web Share API or downloaded.
 const EdgeShare = (() => {
-  const WIDTH = 540, MAX_PIXELS = 16e6;  // the canvas area every phone browser draws (iOS Safari: 16,777,216)
+  const WIDTH = 760, MAX_PIXELS = 16e6;  // EXEC-UI-1019B: wider, so text wraps less and the card is shorter  // the canvas area every phone browser draws (iOS Safari: 16,777,216)
   const DROP = ".result-actions,.result-metadata,.result-kicker,.edge-next,.edge-choices,.edge-choices-help,"
-    + ".edge-table-more,.message-clipboard-actions,.edge-plan-actions,script";
+    + ".edge-table-more,.edge-table-tools,.message-clipboard-actions,.edge-plan-actions,script";
   const text = (tag, className, value) => { const node = document.createElement(tag); if (className) node.className = className; node.textContent = value; return node; };
-  const today = () => new Date().toLocaleDateString("id-ID", {day:"numeric", month:"long", year:"numeric"});
-  const longDate = iso => { const [y, m, d] = String(iso).split("-").map(Number); return y && m && d ? new Date(y, m - 1, d).toLocaleDateString("id-ID", {day:"numeric", month:"long", year:"numeric"}) : String(iso); };
+  // the card's labels and dates are the interface's (English); the question and the answer keep their language
+  const today = () => new Date().toLocaleDateString("en-GB", {day:"numeric", month:"long", year:"numeric"});
+  const longDate = iso => { const [y, m, d] = String(iso).split("-").map(Number); return y && m && d ? new Date(y, m - 1, d).toLocaleDateString("en-GB", {day:"numeric", month:"long", year:"numeric"}) : String(iso); };
+  // EXEC-UI-1019B (user 2026-10-19: the row under the answer's title, without the cost): Request, the model's logo, name
+  // and level, tokens, duration; a logo drawn as a CSS mask becomes an image, which the PNG renderer draws
+  const meta = source => {
+    const row = source.querySelector(".result-metadata")?.cloneNode(true);
+    if (!row) return null;
+    row.className = "edge-share-meta";
+    row.querySelectorAll(".edge-cost").forEach(node => node.remove());
+    row.querySelectorAll(".edge-model-logo.mono").forEach(node => {
+      const image = document.createElement("img");
+      image.src = (node.style.getPropertyValue("--logo").match(/url\("?([^")]+)"?\)/) || [])[1] || "";
+      image.alt = node.getAttribute("aria-label") || "";
+      node.replaceWith(image);
+    });
+    row.querySelectorAll("[title]").forEach(node => node.removeAttribute("title"));
+    return row;
+  };
   const fileName = run => ("EDGE " + (run.result?.title || run.question || run.id)).replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
   const card = run => {
     const source = document.getElementById(run.id + "-response");
@@ -11390,8 +11457,9 @@ const EdgeShare = (() => {
     const head = document.createElement("div");
     head.className = "edge-share-head";
     const logo = document.createElement("img");
-    logo.src = "/favicon.svg"; logo.alt = "EDGE"; logo.width = 28; logo.height = 28;
-    head.append(logo, text("strong", null, "EDGE"), text("span", null, today()));
+    logo.src = "/edge-logo.svg"; logo.alt = "EDGE"; logo.height = 30;
+    head.append(logo, text("span", null, today()));
+    const row = meta(source);
     const body = source.cloneNode(true);
     body.removeAttribute("id"); body.removeAttribute("tabindex");
     body.className = "edge-share-body";
@@ -11407,7 +11475,7 @@ const EdgeShare = (() => {
     foot.className = "edge-share-foot";
     [info.dataAsOf && ui.shareDataAsOf.replace("{date}", longDate(info.dataAsOf)), ui.shareRequest.replace("{id}", run.id),
       ui.shareFooter].filter(Boolean).forEach(line => foot.append(text("span", null, line)));
-    root.append(head, question, body, foot);
+    root.append(...[head, row, question, body, foot].filter(Boolean));
     return root;
   };
   const stage = node => { const holder = document.createElement("div"); holder.className = "edge-share-stage"; holder.append(node); document.body.append(holder); return holder; };
@@ -11724,8 +11792,11 @@ function renderMarkdown(text, ctx = {}) {
       const numeric = head.map((_, column) => { const values = rows.map(row => (row[column] ?? "").replace(/[*_`]/g, "").trim()).filter(Boolean); return values.length > 0 && values.every(figure) && !values.every(value => MD_DATE.test(value)); });
       ctx.tableCount = (ctx.tableCount || 0) + 1;
       // EXEC-IMPL-1016 Fase 4.2: a table Orc built from a table instruction can be attached to the next question
-      const source = ctx.attach ? EdgeView.tableSource(ctx.tables, head, rows.length, ctx.usedTables || []) : null;
-      blocks.push(element(MdTable, {key:`t${ctx.tableCount}-${mdHash(line + "\n" + rows.map(row => row.join("|")).join("\n"))}`, head, align, rows, numeric, ctx, source,
+      // the table download (user 2026-10-20): a table Orc kept can be downloaded whole as Excel
+      const found = ctx.attach || ctx.conversationId ? EdgeView.tableSource(ctx.tables, head, rows.length, ctx.usedTables || []) : null;
+      const source = ctx.attach ? found : null;
+      const download = ctx.conversationId && /^out_[0-9a-f]{24}$/.test(found?.output_id || "") ? {conversationId:ctx.conversationId, table:found} : null;
+      blocks.push(element(MdTable, {key:`t${ctx.tableCount}-${mdHash(line + "\n" + rows.map(row => row.join("|")).join("\n"))}`, head, align, rows, numeric, ctx, source, download,
         title:title.replace(/[*_`]/g, "").replace(/:$/, "").trim()}));
       continue;
     }
@@ -11782,8 +11853,36 @@ function TableDialog({spec}) {
 }
 const TABLE_VISIBLE_ROWS = 10;
 const TABLE_SHORT_CELL = 16;  // characters: a cell this short reads as a code, date or number
-const TABLE_TITLE_LINE = 28;  // characters: a column title this short stays on one line (E13, CSS 28ch)
-function MdTable({head, align, rows, numeric, ctx, title = "", plain = false, initialSort = null, source = null}) {
+const TABLE_TITLE_LINE = 14;  // characters: a longer column title wraps at 14ch (EXEC-UI-1019B "label width >X maka teks di wrapped"; was 28)
+// The table download (user 2026-10-20: "tambah ICON download ... excel", "Ok gapapa"): Orc writes every row of the
+// kept table with the columns and titles shown here, the definition sheet and the input sheets; the file then downloads
+const TABLE_DOWNLOAD_NOTE_MS = 6000;
+function downloadTableColumns(table) {
+  const columns = [], titles = [];
+  (table.columns || []).forEach((column, index) => {
+    if (typeof column === "string" && column && !columns.includes(column)) { columns.push(column); titles.push(String(table.titles?.[index] ?? column).slice(0, 200)); }
+  });
+  return {columns:columns.slice(0, 60), titles:titles.slice(0, 60)};
+}
+async function downloadTable(view, download) {
+  if (view.state.download === "preparing") return;
+  updateValue(view, "download", "preparing");
+  try {
+    const {columns, titles} = downloadTableColumns(download.table);
+    const file = await Edge.exportTable(download.conversationId, download.table.output_id, columns, titles);
+    const url = Edge.exportUrl(file.export_id);
+    if (!url) throw new Error("EXPORT_FAILED");
+    const link = document.createElement("a");
+    link.href = url; link.download = file.file_name || ""; link.rel = "noopener";
+    document.body.append(link); link.click(); link.remove();
+    updateValue(view, "download", null);
+  } catch (error) {
+    const state = error?.message === "EXPORT_IN_PROGRESS" ? "busy" : "failed";
+    updateValue(view, "download", state);
+    setTimeout(() => { if (view.state.download === state) updateValue(view, "download", null); }, TABLE_DOWNLOAD_NOTE_MS);
+  }
+}
+function MdTable({head, align, rows, numeric, ctx, title = "", plain = false, initialSort = null, source = null, download = null}) {
   const view = currentView;
   // EXEC-IMPL-1017 Fase 3 (user 2026-10-16: "tanpa ada menu tambahan"): a table has no attach controls; its cells carry
   // their value reference and are attached by selecting them (right click, or the bar on a phone)
@@ -11820,7 +11919,7 @@ function MdTable({head, align, rows, numeric, ctx, title = "", plain = false, in
     const long = String(value).replace(/[*_`]/g, "").trim().length > TABLE_TITLE_LINE;
     return element("th", cellProps(column, {className:`edge-sortable${active ? " sorted" : ""}${long ? " edge-title-long" : ""}`, "aria-sort":active ? sort.dir : "none"}),
       element("button", {type:"button", className:"edge-sort", onClick:() => setSort(next(column)),
-        "aria-label":`${String(value).replace(/[*_`]/g, "")}: ${active && sort.dir === "descending" ? "urutkan naik" : active ? "kembalikan urutan asli" : "urutkan turun"}`},
+        "aria-label":`${String(value).replace(/[*_`]/g, "")}: ${active && sort.dir === "descending" ? edgeUi().sortAscending : active ? edgeUi().sortRestore : edgeUi().sortDescending}`},
         element("span", {className:"edge-sort-label"}, mdInline(value, ctx),
           element("span", {className:"edge-sort-icon"}, element(Icon, {name:active ? (sort.dir === "descending" ? "arrow-down" : "arrow-up") : "sort-arrows", size:13})))));
   };
@@ -11840,17 +11939,24 @@ function MdTable({head, align, rows, numeric, ctx, title = "", plain = false, in
   const hidden = free.length - TABLE_VISIBLE_ROWS;
   const open = () => openTableDialog({title:title || ui.tableTitle, description:ui.tableRows.replace("{n}", rows.length),
     returnFocusRef:expandRef, table:{head, align, rows, numeric, ctx, initialSort:sort}});
+  const fileState = download ? initialValue(view, "download", () => null) : null;
+  const fileNote = {preparing:ui.tableDownloadPreparing, failed:ui.tableDownloadFailed, busy:ui.tableDownloadBusy}[fileState];
   return element("div", {className:"edge-md-table-frame"},
-    element("button", {type:"button", className:"edge-table-expand", ref:expandRef, title:ui.tableExpand,
-      "aria-label":ui.tableExpand, onClick:open}, element(Icon, {name:"maximize", size:14})),
+    element("div", {className:"edge-table-tools"},
+      fileNote && element("span", {className:`edge-table-file-note${fileState === "failed" ? " failed" : ""}`, role:"status"}, fileNote),
+      download && element("button", {type:"button", className:"edge-table-download", title:ui.tableDownload, "aria-label":ui.tableDownload,
+        "aria-busy":fileState === "preparing", disabled:fileState === "preparing", onClick:() => downloadTable(view, download)},
+        element(Icon, {name:"download", size:14})),
+      element("button", {type:"button", className:"edge-table-expand", ref:expandRef, title:ui.tableExpand,
+        "aria-label":ui.tableExpand, onClick:open}, element(Icon, {name:"maximize", size:14}))),
     element("div", {className:"edge-md-table"}, table()),
     folds && element("button", {type:"button", className:"edge-table-more", "aria-expanded":showAll,
       onClick:() => updateValue(view, "showAll", !showAll)},
       showAll ? ui.tableFewerRows : ui.tableMoreRows.replace("{n}", hidden)));
 }
 
-function Markdown({text, claims, className = "", fast = false, tables = null, attach = null, figures = null}) {
-  return element("div", {className:`edge-md ${className}`}, renderMarkdown(text, {claims, fast, tables, attach, usedTables:[],
+function Markdown({text, claims, className = "", fast = false, tables = null, attach = null, figures = null, conversationId = null}) {
+  return element("div", {className:`edge-md ${className}`}, renderMarkdown(text, {claims, fast, tables, attach, conversationId, usedTables:[],
     figures:Array.isArray(figures) && figures.length ? {list:figures, next:0} : null}));
 }
 
@@ -11955,7 +12061,7 @@ function PauseCard({pause, enabled, act, scope}) {
     choices:(()=>{const first=pause.choices.findIndex(choice=>!edgeChoiceDraft(choice.action));
       return pause.choices.map((choice,index)=>({...choice,primary:index===first}));})()});  // the first choice sent at once leads
 }
-function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
+function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex,conversationId}) {
  const v=EdgeView.toView(run.raw,{domainStatus:run.domainStatus,planIndex}), claims=new Map(v.claims), fast=v.meta.lane==="fast";
  const items=values=>element("ul",{className:"edge-list"},values.map(x=>element("li",null,typeof x==="string"?mdInline(fast?fastDates(x):x,{claims}):DataValue({value:x}))));
  // EXEC-STYLE S3: assumptions and limitations sit folded under the answer, with their count
@@ -11965,12 +12071,13 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex}) {
  return element("article",{className:"result",id:run.id+"-response",tabIndex:-1},
   element("div",{className:"result-kicker"},element(Icon,{name:"spark"}),edgeUi().answerKicker+" · "+v.status.label,element("i",{className:`edge-dot ${v.status.tone}`,"aria-hidden":"true"})),
   element("h1",null,run.result.title),
-  element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",{className:"edge-run-model"},element(EdgeModelLogo,{option:edgeModelOption(v.meta.model)}),element("span",null,element("span",{className:"edge-run-model-name",title:v.meta.model},edgeModelOption(v.meta.model).label),v.meta.reasoningLevel?" \u00B7 "+(edgeUi().modelLevels?.[v.meta.reasoningLevel]??v.meta.reasoningLevel):null)),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.duration&&element("span",{className:"edge-duration",title:"Lama proses"},"\u23F1 "+v.meta.duration),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
+  element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",{className:"edge-run-model"},element(EdgeModelLogo,{option:edgeModelOption(v.meta.model)}),element("span",null,element("span",{className:"edge-run-model-name",title:v.meta.model},edgeModelOption(v.meta.model).label),v.meta.reasoningLevel?" \u00B7 "+(edgeUi().modelLevels?.[v.meta.reasoningLevel]??v.meta.reasoningLevel):null)),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.duration&&element("span",{className:"edge-duration",title:"Processing time"},"\u23F1 "+v.meta.duration),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
   v.evidence&&element("div",{className:"edge-tags"},element("span",{className:"edge-badge neutral",title:v.evidence.code},v.evidence.label)),
   v.attached.length>0&&element("div",{className:"edge-attached-line"},element(Icon,{name:"attach",size:13}),
     element("span",null,edgeUi().attachedPrefix+": "+v.attached.join("; "))),
   v.answer&&element("div",{className:"content-block edge-answer","data-section":"ANSWER"},element(Markdown,{text:v.answer,claims,fast,
-    tables:run.raw?.answer_tables,attach:act?(selection=>act({type:"attach",selection})):null,figures:run.raw?.answer_figures})),
+    tables:run.raw?.answer_tables,attach:act?(selection=>act({type:"attach",selection})):null,figures:run.raw?.answer_figures,
+    conversationId:conversationId&&!String(conversationId).startsWith("draft:")?conversationId:null})),
   v.reproduced.map((line,index)=>element("div",{key:`reproduced-${index}`,className:"edge-reproduced"},element(Icon,{name:"check",size:13}),element("span",null,line))),
   v.clarification&&element(ResponseChoices,{scope:run.id+":clarify",enabled,act,
     prompt:element("div",{className:"edge-choices-prompt"},element(Markdown,{text:v.clarification.text,claims})),

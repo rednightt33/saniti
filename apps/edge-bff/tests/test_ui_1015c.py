@@ -56,7 +56,7 @@ def test_response_history_leads_back_to_each_response(fixture_server, browser_pa
         first.locator('summary').click()
     page.wait_for_timeout(200)
     before = page.evaluate(scroll)
-    first.get_by_role('button', name='Lihat di percakapan').click()
+    first.get_by_role('button', name='Go to message').click()
     page.wait_for_timeout(900)  # smooth scroll
     assert page.evaluate(scroll) < before  # moved up to the first response
     top = page.evaluate("""() => { const ex = document.querySelectorAll('.research-exchange')[0], s = document.querySelector('.research-scroll');
@@ -82,7 +82,7 @@ def test_a_jump_from_the_bottom_of_a_long_conversation_is_not_pulled_back(fixtur
     if not first.evaluate('n => n.open'):
         first.locator('summary').click()
     run_id = first.get_attribute('id').replace('edge-history-', '')
-    first.get_by_role('button', name='Lihat di percakapan').click()
+    first.get_by_role('button', name='Go to message').click()
     page.wait_for_timeout(1500)
     top = page.evaluate("""id => { const n = document.getElementById(id + '-response') || document.getElementById('edge-exchange-' + id),
         s = document.querySelector('.research-scroll'); return n.getBoundingClientRect().top - s.getBoundingClientRect().top; }""", run_id)
@@ -110,7 +110,7 @@ def test_on_a_phone_menu_and_new_sit_in_the_header_and_the_chat_is_full_width(fi
         assert page.locator('.workspace-tools').is_visible()  # the phone session bar stays
         assert not page.get_by_role('button', name='Settings', exact=True).is_visible()
         page.get_by_role('button', name='Account menu', exact=True).click()
-        page.get_by_role('menuitem', name='Pengaturan', exact=True).click()
+        page.get_by_role('menuitem', name='Settings', exact=True).click()
         page.get_by_role('dialog', name='Appearance', exact=True).wait_for()
         page.keyboard.press('Escape')
         page.get_by_role('button', name='Open history', exact=True).click()  # the history drawer still opens
@@ -243,9 +243,9 @@ FIXTURES['table_align']['response']['answer'] = ALIGN
 def test_tables_align_left_and_middle_keep_titles_on_one_line_and_draw_no_vertical_line(fixture_server, browser_page):
     """E13 (EXEC-1018B, user 2026-10-16 "Nama kolom rata kiri dan center, isi juga rata kiri"; replaces EXEC-TABLE-ALIGN's
     right-aligned quantities and fourteen-character titles): every title and cell left-aligned and vertically centred,
-    numbers included and whatever alignment the writer typed; a title up to about twenty-eight characters stays on one
-    line, so the column is its widest title or value plus the same padding; no vertical line, also with the phone's
-    sticky first column."""
+    numbers included and whatever alignment the writer typed; a title up to fourteen characters (EXEC-UI-1019B; was
+    twenty-eight) stays on one line, so the column is its widest title or value plus the same padding; no vertical
+    line, also with the phone's sticky first column."""
     origin, _ = fixture_server
     page = browser_page
     for width in (1440, 390):
@@ -262,7 +262,7 @@ def test_tables_align_left_and_middle_keep_titles_on_one_line_and_draw_no_vertic
         title = tables.nth(1).locator('th').nth(2)
         lines = title.locator('.edge-sort-label').evaluate(TEXT_LINES)
         cell = tables.nth(1).locator('tbody tr').first.locator('td').nth(2)
-        assert lines == 1  # "Ayunan wajar 185 hari" stays on one line
+        assert lines == 2  # EXEC-UI-1019B: "Ayunan wajar 185 hari" is longer than 14 characters, so it wraps
         assert cell.evaluate("td => getComputedStyle(td).whiteSpace") == 'nowrap'
         # a column's title starts where its values start (the same padding everywhere)
         for column in (1, 2, 3):
@@ -315,8 +315,8 @@ FIXTURES['table_titles']['response']['answer'] = TITLES
 
 
 def test_a_short_title_never_wraps_and_a_long_title_folds_within_its_width(fixture_server, browser_page):
-    """E13 (EXEC-1018B): a title of up to twenty-eight characters stays on one line at every width (on a phone the
-    table scrolls sideways instead); a longer title folds between words within about twenty-eight characters."""
+    """E13 (EXEC-1018B; EXEC-UI-1019B narrowed it to fourteen characters): a short title stays on one line at every width
+    (on a phone the table scrolls sideways instead); a longer title folds between words within about fourteen."""
     origin, _ = fixture_server
     page = browser_page
     lines = TEXT_LINES
@@ -328,8 +328,12 @@ def test_a_short_title_never_wraps_and_a_long_title_folds_within_its_width(fixtu
         heads = page.locator('article.result').last.locator('.edge-md-table table th')
         assert heads.nth(0).evaluate("t => t.classList.contains('edge-title-long')") is False
         assert heads.nth(1).evaluate("t => t.classList.contains('edge-title-long')") is True
-        assert heads.nth(2).locator('.edge-sort-label').evaluate(lines) == 1, width
-        assert heads.nth(1).locator('.edge-sort-label').evaluate(lines) == 2, width
+        # EXEC-UI-1019B (user 2026-10-19 "label width >X maka teks di wrapped"): a title longer than 14 characters wraps
+        # between words within 14ch, so a column is no wider than its values need
+        assert heads.nth(2).evaluate("t => t.classList.contains('edge-title-long')") is True
+        assert heads.nth(2).locator('.edge-sort-label').evaluate(lines) == 2, width
+        assert heads.nth(1).locator('.edge-sort-label').evaluate(lines) >= 3, width
+        assert heads.nth(0).locator('.edge-sort-label').evaluate(lines) == 1, width
         heads.nth(0).evaluate("t => t.closest('.edge-md-table').scrollIntoView({block: 'center'})")
         capture(page, f'e13-table-titles-{width}')
         page.context.clear_cookies()

@@ -109,13 +109,16 @@ def test_private_html_real_submit_reload_preferences_and_continuations(server):
         page.locator('article.result').wait_for()
         assert page.get_by_role('button',name='Pinned',exact=True).is_visible()
         assert page.get_by_role('button',name='Bookmark',exact=True).get_attribute('aria-pressed')=='true'
-        for action,label in (('APPROVE','Setujui & jalankan'),('REVISE','Revisi'),('CANCEL','Batalkan')):
+        for action,label in (('APPROVE','Approve & run'),('REVISE','Revise'),('CANCEL','Cancel')):
             page.get_by_role('button',name='New conversation',exact=True).click()
             composer.fill('Plan '+action);page.get_by_role('button',name='Submit',exact=True).click()
             button=page.get_by_role('button',name=label,exact=True);button.wait_for();button.click()
             if action=='REVISE':composer.fill('Use one year');page.get_by_role('button',name='Submit',exact=True).click()
             page.wait_for_function("() => document.querySelector('.composer-status')===null")
-            page.wait_for_timeout(300)
+            # the reply is sent after the click's redraw: wait for Orc to receive it (the composer can be idle before)
+            for _ in range(100):
+                if 'plan_reply' in orc.calls[-1][2]:break
+                page.wait_for_timeout(50)
             assert orc.calls[-1][2]['plan_reply']['action']==action
             if action=='REVISE':assert orc.calls[-1][2]['plan_reply']['revision_instruction']=='Use one year'
         page.get_by_role('button',name='New conversation',exact=True).click();composer.fill('Clarify');page.get_by_role('button',name='Submit',exact=True).click()

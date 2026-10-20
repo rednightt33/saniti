@@ -111,6 +111,28 @@ class OrcClient:
                 'elapsed_ms': int(data.get('elapsed_ms') or 0), 'steps': steps,
                 'earlier_steps': int(data.get('earlier_steps') or 0)}
 
+    def export_table(self, owner, conversation_id, output_id, columns, titles):
+        """The table download of an answer (user 2026-10-20): Orc writes every row of a kept table as XLSX with the
+        columns and titles the answer shows and keeps it for the export download route. Returns the export's id, file
+        name and size; Orc's own refusal code is kept (EXPORT_IN_PROGRESS, OUTPUT_NOT_FOUND, ...), never its text."""
+        try:
+            response = self.client.post(f'/v1/conversations/{conversation_id}/outputs/{output_id}/export',
+                json={'columns': columns, 'titles': titles},
+                headers={'Authorization': f'Bearer {self.settings.orc_key}', 'X-Saniti-Owner': owner})
+        except httpx.HTTPError as e:
+            raise OrcError('EXPORT_FAILED') from e
+        try:
+            data = response.json()
+        except ValueError:
+            data = {}
+        if response.status_code != 200:
+            detail = data.get('detail') if isinstance(data, dict) else None
+            code = detail.get('code') if isinstance(detail, dict) else None
+            code = code if isinstance(code, str) and re.fullmatch(r'[A-Z_]{3,60}', code) else 'EXPORT_FAILED'
+            raise OrcError(code, response.status_code if response.status_code in (404, 409, 410, 422) else 503)
+        return {k: public_data(data.get(k)) for k in ('export_id', 'file_name', 'size_bytes', 'format')
+                if isinstance(data, dict) and data.get(k) is not None}
+
     def models(self, owner):
         """EXEC-MODELS: Orc's offered models, their reasoning levels and their prices per one million tokens."""
         return self._call('GET', '/v1/models', owner)

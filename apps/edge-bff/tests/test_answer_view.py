@@ -81,7 +81,7 @@ def test_markdown_answer_renders_headings_bold_and_tables_as_elements(fixture_se
     assert article(page).locator('.result-kicker').text_content() == 'EDGE · Completed'
     assert page.locator('.workspace-tools .pill').inner_text().endswith('Completed')  # the frame stays English
     page.get_by_role('tab', name='Sources', exact=True).click()
-    assert page.locator('.sources').get_by_text('Catatan data percakapan').is_visible()
+    assert page.locator('.sources').get_by_text('Conversation data record').is_visible()
     capture(page, 'x-answer-table-dark')
     capture_answer(page, 'full-answer-table-dark')
     page.get_by_role('button', name='Switch to light theme', exact=True).click()
@@ -101,8 +101,8 @@ def test_plan_card_has_no_raw_json_and_its_buttons_reply_in_indonesian(fixture_s
     assert '"plan_version"' not in article(page).inner_text()
     experiments = FIXTURES['plan_v1']['response']['research_plan']['experiments']
     assert plan.locator('.edge-plan-item').count() == len(experiments)
-    assert 'Eksperimen 1' in plan.text_content() and 'Horizon' in plan.text_content()
-    assert 'Menunggu persetujuan' in plan.inner_text()
+    assert 'Experiment 1' in plan.text_content() and 'Horizon' in plan.text_content()
+    assert 'Awaiting approval' in plan.inner_text()
     assert page.locator('.workspace-tools .pill').inner_text().endswith('Awaiting approval')
     capture(page, 'x-plan-v1-dark')
     capture_answer(page, 'full-plan-v1-dark')
@@ -114,23 +114,23 @@ def test_plan_card_has_no_raw_json_and_its_buttons_reply_in_indonesian(fixture_s
     # EXEC-CHOICES: the "Response choices" panel under the plan: a labelled separator, Setujui as the main choice sent
     # at once, Revisi completed in the message box first
     panel = article(page).locator('.edge-response-choices')
-    assert panel.locator('.edge-boundary-label').inner_text().upper() == 'LANGKAH ANDA BERIKUTNYA'
-    approve = panel.get_by_role('button', name='Setujui & jalankan', exact=True)
-    revise = panel.get_by_role('button', name='Revisi', exact=True)
+    assert panel.locator('.edge-boundary-label').inner_text().upper() == 'YOUR NEXT STEP'
+    approve = panel.get_by_role('button', name='Approve & run', exact=True)
+    revise = panel.get_by_role('button', name='Revise', exact=True)
     # V4 (user 2026-10-14): a choice sent at once has no subtitle ("Kirim balasan langsung" removed)
     assert 'primary' in approve.get_attribute('class') and approve.locator('small').count() == 0
-    assert 'Isi kotak pesan dulu' in revise.inner_text() and 'Tulis' in revise.inner_text()
+    assert 'Fill in the message box first' in revise.inner_text() and 'Write' in revise.inner_text()
     calls = len(orc.calls)
     revise.click()
     page.locator('.composer-status').wait_for()
-    assert len(orc.calls) == calls and 'Dipilih' in revise.inner_text()  # nothing sent: the user writes first
+    assert len(orc.calls) == calls and 'Chosen' in revise.inner_text()  # nothing sent: the user writes first
     page.locator('.composer-status').get_by_role('button', name='Dismiss').click()
     approve.click()
     saved(page, 2)
     call = orc.calls[-1][2]
     assert call['plan_reply']['action'] == 'APPROVE' and call['message'] == 'Setujui rencana riset'
     chosen = article(page, 0).locator('.edge-choice.sent')
-    assert chosen.count() == 1 and 'Dipilih · balasan terkirim' in chosen.inner_text() and chosen.is_disabled()
+    assert chosen.count() == 1 and 'Chosen · reply sent' in chosen.inner_text() and chosen.is_disabled()
 
 
 def test_values_to_confirm_and_thresholds_are_readable(fixture_server, browser_page):
@@ -157,7 +157,7 @@ def test_multi_angle_plan_and_its_findings_with_backend_numbers(fixture_server, 
     saved(page)
     angles = FIXTURES['plan_v2']['response']['research_plan']['angles']
     assert article(page).locator('.edge-plan-item').count() == len(angles)
-    assert 'Sudut 1' in article(page).locator('.edge-plan').text_content()
+    assert 'Angle 1' in article(page).locator('.edge-plan').text_content()
     submit(page, 'fx:findings_v2')
     saved(page, 2)
     findings = article(page).locator('.edge-finding')
@@ -169,7 +169,7 @@ def test_multi_angle_plan_and_its_findings_with_backend_numbers(fixture_server, 
         assert titles[first['angle_id']] in findings.first.inner_text()
     assert findings.first.locator('.edge-badge').count() == 1
     assert findings.locator('.edge-metrics').count() >= 1
-    assert 'Jawaban' in findings.first.text_content()
+    assert 'Answer' in findings.first.text_content()
     article(page).locator('.edge-finding').first.scroll_into_view_if_needed()
     capture(page, 'x-findings-v2-dark')
     capture_answer(page, 'full-findings-v2-dark')
@@ -184,7 +184,7 @@ def test_single_experiment_finding_shows_the_backend_verdict(fixture_server, bro
     finding = article(page).locator('.edge-finding')
     assert finding.count() == len(FIXTURES['findings_v1']['response']['research_findings'])
     assert finding.first.locator('.edge-badge').inner_text().strip() in {
-        'Didukung', 'Didukung sebagian', 'Tidak didukung', 'Belum konklusif', 'Tidak dievaluasi'}
+        'Supported', 'Partly supported', 'Not supported', 'Inconclusive', 'Not evaluated'}
 
 
 def test_marked_claims_carry_their_note(fixture_server, browser_page):
@@ -206,7 +206,7 @@ def test_a_pause_shows_its_choices_as_buttons_once(fixture_server, browser_page)
     saved(page)
     pause = FIXTURES['paused']['execution']['pause']
     card = article(page).locator('.edge-response-choices.pause')
-    assert 'Jawaban ini dijeda' in card.inner_text() and pause['reason'] in card.inner_text()
+    assert 'This answer is paused' in card.inner_text() and pause['reason'] in card.inner_text()
     assert pause['question'] not in article(page).locator('.edge-answer').inner_text()  # not shown twice
     assert article(page).locator('.result-kicker').text_content() == 'EDGE · Paused'
     assert page.locator('.workspace-tools .pill').inner_text().endswith('Paused')
@@ -299,7 +299,7 @@ def test_numbered_choices_are_buttons_that_send_their_words_and_the_question_sho
     assert body.count(question) == 1 and '①' not in body and 'Balas dengan nomor' not in body
     panel = article(page).locator('.edge-response-choices')
     assert [panel.get_by_role('button', name=l, exact=True).count() for l in labels] == [1, 1, 1, 1]
-    assert panel.get_by_role('button', name='Tulis jawaban lain', exact=True).count() == 1
+    assert panel.get_by_role('button', name='Write another answer', exact=True).count() == 1
     orc.run = original
     panel.get_by_role('button', name=labels[2], exact=True).click()
     saved(page, 2)
@@ -327,11 +327,11 @@ def test_an_ask_back_offers_its_routes_and_writing_another_answer(fixture_server
     saved(page)
     panel = article(page).locator('.edge-response-choices')
     explore = panel.get_by_role('button', name='Eksplorasi', exact=True)
-    assert 'Termasuk riset berita' in explore.inner_text()
-    other = panel.get_by_role('button', name='Tulis jawaban lain', exact=True)
+    assert 'Includes news research' in explore.inner_text()
+    other = panel.get_by_role('button', name='Write another answer', exact=True)
     calls = len(orc.calls)
     other.click()
-    page.locator('.composer-status').filter(has_text='Tulis jawaban Anda di kotak pesan').wait_for()
+    page.locator('.composer-status').filter(has_text='Write your answer in the message box').wait_for()
     assert len(orc.calls) == calls
     orc.run = original
     explore.click()
@@ -371,15 +371,15 @@ def test_sources_list_the_answers_tables_with_an_export_request(fixture_server, 
     orc.run = original
     page.get_by_role('tab', name='Sources', exact=True).click()
     sources = page.locator('.sources')
-    assert sources.get_by_text('Tabel hasil (1)').is_visible()
+    assert sources.get_by_text('Result tables (1)').is_visible()
     assert sources.get_by_text('Net beli broker asing', exact=True).is_visible()
     assert sources.locator('.edge-source-ref').first.inner_text() == 'out.1'
     table = sources.locator('.edge-source').first.inner_text()
-    assert 'Baris\n12' in table and 'Kolom\n3' in table and 'Data per\n2026-10-15' in table and '{n}' not in table
+    assert 'Rows\n12' in table and 'Columns\n3' in table and 'Data as of\n2026-10-15' in table and '{n}' not in table
     assert 'older' not in sources.inner_text() and 'ringkasan' not in sources.inner_text()
     assert 'DATA_COVERAGE_VERIFIED' not in sources.inner_text() and 'Net beli harian per broker asing.' in table
     folded = sources.locator('details.edge-source-folded')
-    assert folded.count() == 1 and folded.locator('summary').inner_text().startswith('Rujukan angka')
+    assert folded.count() == 1 and folded.locator('summary').inner_text().startswith('Figure references')
     assert not folded.evaluate('node => node.open')
     capture(page, 'x-sources-tables-dark')
     sources.get_by_role('button', name='Ask AI to export data', exact=True).click()
@@ -411,9 +411,9 @@ def test_a_running_answer_shows_its_steps_from_orc(fixture_server, browser_page)
         assert progress.locator('.edge-run-progress-time').inner_text() == '42s'
         assert 'Kode analisis' in progress.locator('.edge-run-progress-now').inner_text()
         done = progress.locator('details.edge-run-progress-done')
-        assert done.locator('summary').inner_text() == 'Langkah selesai (2)' and not done.evaluate('n => n.open')
+        assert done.locator('summary').inner_text() == 'Steps done (2)' and not done.evaluate('n => n.open')
         done.locator('summary').click()
-        assert 'ditolak, dicoba lagi' in done.inner_text() and 'Memahami pertanyaan' in done.inner_text()
+        assert 'refused, trying again' in done.inner_text() and 'Memahami pertanyaan' in done.inner_text()
         capture(page, 'x-run-progress-dark')
     finally:
         release.set()
@@ -483,7 +483,7 @@ def test_a_selection_anywhere_in_an_answer_attaches_with_its_figures_by_right_cl
     attach_by_right_click(page, '.edge-answer p|Periode studi')  # "Periode studi ... 19 hari ... 449 hari ..."
     attach_by_right_click(page, '.edge-md-table tbody tr:nth-child(2)')  # the second row of the built table
     chips = page.locator('.edge-attached-chip')
-    assert chips.count() == 2 and '2 angka' in chips.nth(0).inner_text()
+    assert chips.count() == 2 and '2 figures' in chips.nth(0).inner_text()
     capture(page, 'x-attach-selection')
     def reproduced(owner, id, payload):
         result = original(owner, id, payload)
@@ -497,8 +497,8 @@ def test_a_selection_anywhere_in_an_answer_attaches_with_its_figures_by_right_cl
     saved(page, 2)
     orc.run = original
     answer = article(page)
-    assert 'Lampiran: “Periode studi 2 Jan 2023” · 2 angka' in answer.locator('.edge-attached-line').inner_text()
-    assert 'sama persis dengan 449' in answer.locator('.edge-reproduced').inner_text()
+    assert 'Attachment: “Periode studi 2 Jan 2023” · 2 figures' in answer.locator('.edge-attached-line').inner_text()
+    assert 'exactly equal to 449' in answer.locator('.edge-reproduced').inner_text()
     sent = orc.calls[-1][2]['attachments']
     assert [a['kind'] for a in sent] == ['TEXT', 'TEXT'] and sent[0]['section'] == 'ANSWER'
     assert [f['ref'] for f in sent[0]['figures']] == ['out.o1.rows[_row=0].events', 'out.o1.rows[_row=0].baseline_days']

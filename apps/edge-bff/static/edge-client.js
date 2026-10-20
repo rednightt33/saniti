@@ -109,6 +109,7 @@
     bookmark: (id,bookmarked) => api('/conversations/'+encodeURIComponent(id)+'/preferences',{bookmarked},'PATCH'),
     hideConversation: id => api('/conversations/'+encodeURIComponent(id),undefined,'DELETE'),
     pin: (id,pinned) => api('/runs/'+encodeURIComponent(id)+'/preferences',{pinned},'PATCH'),
+    exportTable: (conversationId, outputId, columns, titles) => api('/conversations/'+encodeURIComponent(conversationId)+'/outputs/'+encodeURIComponent(outputId)+'/export',{columns,titles}),
     exportUrl: id => /^exp_[0-9a-f]{24}$/.test(id) ? '/api/v1/exports/'+id : null,
     safeUrl: url => { try { const u = new URL(url); return ['http:','https:'].includes(u.protocol) && !u.hostname.endsWith('.railway.internal') ? u.href : null; } catch { return null; } }
   };

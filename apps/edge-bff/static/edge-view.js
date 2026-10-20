@@ -160,7 +160,9 @@
     const current = [...steps].reverse().find(step => step.state === 'running');
     const done = steps.filter(step => step.state !== 'running').map(step => ({label:step.label, note:note(step.state),
       duration:durationText(step.duration_ms)}));
+    // EXEC-M181 (plan P4): how long the step running now has taken ("Thinking · 2m 10s"), counted on by the page
     return {current:current ? current.label : null, elapsed:durationText(data.elapsed_ms), done,
+      currentStep:current ? {started:Number(current.started_ms) || 0, ms:Number(current.duration_ms) || 0} : null,
       doneTitle:ui.progressDone.replace('{n}', String(done.length)),
       earlier:data.earlier_steps ? ui.progressEarlier.replace('{n}', String(data.earlier_steps)) : null};
   }

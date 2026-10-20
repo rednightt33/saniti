@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 import secrets
 import time
-from typing import Literal
+from typing import Annotated, Literal
 import httpx
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
@@ -116,6 +116,11 @@ class RunInput(Strict):
 class ConversationPreferences(Strict):
     bookmarked: bool | None = None
     title: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class TableExport(Strict):
+    columns: list[Annotated[str, Field(max_length=120)]] = Field(default_factory=list, max_length=60)
+    titles: list[Annotated[str, Field(max_length=200)]] = Field(default_factory=list, max_length=60)
 
 
 class Pin(Strict):
@@ -249,9 +254,12 @@ def create_app(settings=None, store=None, orc=None):
 
     # EXEC-UI-1015C (user 2026-10-15, "Please also add Favicon"): the EDGE "E" mark for the browser tab and the phone
     # home screen. Public like the page itself, so the login screen shows it too.
+    # EXEC-UI-1019B (user 2026-10-19: "Favicon dan PNG dan PDF. Sudah bagus"): the round "E" mark and the EDGE logo of
+    # the shared card
     @app.get('/favicon.svg')
     @app.get('/favicon-32.png')
     @app.get('/apple-touch-icon.png')
+    @app.get('/edge-logo.svg')
     async def favicon(request: Request):
         name = request.url.path.lstrip('/')
         media = 'image/svg+xml' if name.endswith('.svg') else 'image/png'
@@ -470,6 +478,19 @@ def create_app(settings=None, store=None, orc=None):
             raise StoreError('RESPONSE_NOT_AVAILABLE', 409)
         return jsonable_encoder(await asyncio.to_thread(store.preferences, settings.owner, found['conversation_id'],
                                                         request_id=request_id, pinned=body.pinned))
+
+    @app.post('/api/v1/conversations/{conversation_id}/outputs/{output_id}/export')
+    async def export_table(conversation_id: str, output_id: str, body: TableExport, _=Depends(write)):
+        """The table download (user 2026-10-20): every row of an answer table as Excel; Orc writes the file (no model
+        call) and the page then downloads it through the export route below."""
+        if not re.fullmatch(r'out_[0-9a-f]{24}', output_id):
+            raise StoreError('OUTPUT_NOT_FOUND', 404)
+        await asyncio.to_thread(store.conversation, settings.owner, conversation_id)
+        data = await asyncio.to_thread(orc.export_table, settings.owner, conversation_id, output_id,
+                                       body.columns, body.titles)
+        if not re.fullmatch(r'exp_[0-9a-f]{24}', str(data.get('export_id') or '')):
+            raise OrcError('EXPORT_FAILED')
+        return jsonable_encoder(data)
 
     @app.get('/api/v1/exports/{export_id}')
     async def download(export_id: str, _=Depends(session)):

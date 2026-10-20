@@ -84,9 +84,9 @@ def test_a_long_table_shows_ten_rows_and_folds_the_rest_behind_one_button(fixtur
     rows = visible()
     assert len(rows) == 11 and rows[0].startswith('S01') and rows[9].startswith('S10') and rows[-1].startswith('Total')
     more = article(page).locator('.edge-table-more')
-    assert more.inner_text() == 'Tampilkan 20 baris lagi' and more.get_attribute('aria-expanded') == 'false'
+    assert more.inner_text() == 'Show 20 more rows' and more.get_attribute('aria-expanded') == 'false'
     more.click()
-    assert len(visible()) == ROWS + 1 and more.inner_text() == 'Sembunyikan baris'
+    assert len(visible()) == ROWS + 1 and more.inner_text() == 'Hide rows'
     more.click()
     assert len(visible()) == 11
     # sorting orders every row, then the first ten of that order show: descending puts S30 first

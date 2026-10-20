@@ -115,11 +115,11 @@ def test_every_artifact_field_the_view_reads_is_one_orc_sends(views):
 
 
 def test_the_data_record_summary_shows_only_parts_worded_for_the_reader(views):
-    """P4: version, next_alias, seq and the other bookkeeping of the record stay in Detail teknis."""
+    """P4: version, next_alias, seq and the other bookkeeping of the record stay in Technical details."""
     for name, out in views.items():
         record = out['sources']['record']
         if record:
-            assert set(record['summary']) <= {'Tabel hasil', 'Data yang dibaca', 'Temuan riset'}, name
+            assert set(record['summary']) <= {'Result tables', 'Data read', 'Research findings'}, name
             assert record['raw']  # the whole record is still there for the technical view
 
 
@@ -164,7 +164,7 @@ def test_the_mobile_layout_never_reaches_a_wider_screen(tmp_path, width, phone):
 def test_follow_ups_are_grouped_in_order_and_a_click_sends_the_words(views):
     """EXEC-Y Fase 2: questions first, then insight ideas, then the data test; each click is the next message."""
     groups = views['follow_ups']['view']['next']
-    assert [g['label'] for g in groups] == ['Pertanyaan lanjutan', 'Ide insight', 'Riset lanjutan']
+    assert [g['label'] for g in groups] == ['Follow-up questions', 'Insight ideas', 'Further research']
     assert all(c['action'] == {'type': 'message', 'message': c['label']} for g in groups for c in g['choices'])
     assert views['answer_table']['view']['next'] is None
 
@@ -172,7 +172,7 @@ def test_follow_ups_are_grouped_in_order_and_a_click_sends_the_words(views):
 def test_news_pages_are_listed_in_their_own_sources_part(views):
     """EXEC-Y (user decision B): the pages of the news section are in Sources, under their own title."""
     sections = views['follow_ups']['sources']['sections']
-    assert [s['title'] for s in sections] == ['Berita (1)']
+    assert [s['title'] for s in sections] == ['News (1)']
     item = sections[0]['items'][0]
     assert item['title'] == 'BI tahan suku bunga' and item['rows']['source_url'] == 'https://kontan.co.id/a'
 
@@ -180,10 +180,10 @@ def test_news_pages_are_listed_in_their_own_sources_part(views):
 def test_the_backends_hurdles_are_listed_in_the_details_panel(views):
     """EXEC-FRICTION (M142): what Orc refused on the way to the answer, as Orc worded it; nothing when none."""
     sections = views['hurdles']['sources']['sections']
-    hurdles = next(section for section in sections if section['title'].startswith('Hambatan proses'))
-    assert hurdles['title'] == 'Hambatan proses (2)'
+    hurdles = next(section for section in sections if section['title'].startswith('Process hurdles'))
+    assert hurdles['title'] == 'Process hurdles (2)'
     assert [item['title'] for item in hurdles['items']] == [
         'Permintaan data ditolak (kunci penggabungan tabel tidak sesuai), lalu diperbaiki.',
         'Kode analisis gagal dijalankan (kode berhenti karena galat), belum teratasi.']
-    assert not any(section['title'].startswith('Hambatan proses')
+    assert not any(section['title'].startswith('Process hurdles')
                    for out in views.values() if out is not views['hurdles'] for section in out['sources']['sections'])
