@@ -80,12 +80,14 @@ current_model_choice: contextvars.ContextVar[ModelChoice | None] = contextvars.C
                                                                                           default=None)
 
 
-def reasoning_for(option: ModelOption, level: str) -> dict[str, Any]:
-    """The OpenRouter reasoning setting of a level in the form the model accepts."""
+def reasoning_for(option: ModelOption, level: str, budget: int | None = None) -> dict[str, Any]:
+    """The OpenRouter reasoning setting of a level in the form the model accepts. budget (AI_MAX_REASONING_TOKENS)
+    replaces the option's own reasoning budget."""
     if option.form == "effort":
         return {"effort": level}
     if level == "on" and option.reasoning_budget:
-        return {"max_tokens": option.reasoning_budget}  # enabled is implied; OpenRouter takes effort or max_tokens
+        # enabled is implied; OpenRouter takes effort or max_tokens
+        return {"max_tokens": budget or option.reasoning_budget}
     return {"enabled": level == "on"}
 
 
@@ -116,5 +118,6 @@ def resolve(model: str | None, level: str | None, settings: Any) -> ModelChoice:
         raise ModelChoiceError("REASONING_LEVEL_NOT_SUPPORTED", f"{option.model} takes the reasoning levels "
                                + ", ".join(option.levels) + f"; {level} is not one of them.")
     cap = option.output_cap if level == "on" and option.output_cap else None
-    return ModelChoice(option.model, reasoning_for(option, level), level, True, output_cap=cap,
+    budget = getattr(settings, "ai_max_reasoning_tokens", None)
+    return ModelChoice(option.model, reasoning_for(option, level, budget), level, True, output_cap=cap,
                        lowered=lowered_reasoning(option, settings))

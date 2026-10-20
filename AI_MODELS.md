@@ -72,6 +72,7 @@ Nilai seperti `self.settings.ai_model` atau `slot.model` dibaca dari setelan di 
 | `AI_ENABLE_CONVERSATION_ROUTER` | `False` |
 | `AI_ENABLE_FIRST_TURN_ROUTER` | `False` |
 | `AI_ENABLE_MODE4` | `False` |
+| `AI_FASTLANE_KEEP_REASONING` | `False` |
 | `AI_LOG_PROVIDER` | `False` |
 | `AI_MANUAL_AGENT_ROUTERS` | `False` |
 | `AI_MANUAL_AGENT_WAIT_SECONDS` | `600` |
@@ -79,6 +80,7 @@ Nilai seperti `self.settings.ai_model` atau `slot.model` dibaca dari setelan di 
 | `AI_MAX_CONTEXT_TOKENS` | `64000` |
 | `AI_MAX_HISTORY_TOKENS` | `4000` |
 | `AI_MAX_OUTPUT_TOKENS` | `8000` |
+| `AI_MAX_REASONING_TOKENS` | `8000` |
 | `AI_MODE4_AUTO_RESEARCH` | `False` |
 | `AI_MODE4_MAX_SECONDS` | `3600` |
 | `AI_MODEL` | `"deepseek/deepseek-v4.1-flash"` |
@@ -92,10 +94,14 @@ Nilai seperti `self.settings.ai_model` atau `slot.model` dibaca dari setelan di 
 | `AI_PROVIDER_MIN_THROUGHPUT` | `0.0` |
 | `AI_PROVIDER_POLICY_TTL_SECONDS` | `3600` |
 | `AI_PROVIDER_SORT` | `""` |
+| `AI_PROVIDER_STREAMING` | `False` |
 | `AI_REASONING_EFFORT` | `"high"` |
 | `AI_REPLAY_REASONING` | `False` |
 | `AI_REQUEST_TIMEOUT_SECONDS` | `180` |
 | `AI_RESEARCH_PLAN_TTL_SECONDS` | `3600` |
+| `AI_STREAM_FIRST_CONTENT_SECONDS` | `45` |
+| `AI_STREAM_IDLE_SECONDS` | `30` |
+| `AI_STREAM_TOOL_IDLE_SECONDS` | `120` |
 
 ### `market-web-governor`
 

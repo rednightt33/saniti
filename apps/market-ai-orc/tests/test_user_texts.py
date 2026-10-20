@@ -39,9 +39,28 @@ def user_texts() -> dict[str, str]:
     return out
 
 
+def interface(name: str) -> bool:
+    return name.split("[")[0] in texts.INTERFACE_TEXTS
+
+
 def test_every_backend_text_for_the_user_is_plain_indonesian() -> None:
-    found = {name: issues for name, text in user_texts().items() if (issues := problems(text))}
+    found = {name: issues for name, text in user_texts().items() if not interface(name) and (issues := problems(text))}
     assert found == {}, found
+
+
+# Indonesian reads as such through its own function words
+INDONESIAN = re.compile(r"\b(yang|dan|dengan|untuk|tidak|belum|sudah|dari|ke|di|ini|itu|atau|sedang)\b")
+
+
+def test_the_interface_texts_are_english_without_internal_names() -> None:
+    """EXEC-UI-1019B: the progress steps, hurdles and run failures EDGE shows outside the answer are English."""
+    shown = {name: text for name, text in user_texts().items() if interface(name)}
+    assert shown, "INTERFACE_TEXTS names no text"
+    found = {name: words for name, text in shown.items()
+             if (words := INDONESIAN.findall(PLACEHOLDER.sub("", text).lower())
+                 + [m.group(0) for m in texts.INTERNAL_NAME.finditer(PLACEHOLDER.sub("", text))])}
+    assert found == {}, found
+    assert set(texts.INTERFACE_TEXTS) <= set(vars(texts)), set(texts.INTERFACE_TEXTS) - set(vars(texts))
 
 
 def test_pause_reasons_and_choices_are_plain_indonesian() -> None:

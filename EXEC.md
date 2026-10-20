@@ -5810,3 +5810,13 @@ perbaikan bug/pesan):**
   (keduanya commit `1ced83a`; `main` sesudahnya hanya dokumen). Tes orc lokal di main tanpa perubahan: 1.878 lulus,
   31 gagal karena lingkungan (role Postgres lokal sisa uji lama, `test_data_access_postgres`, `test_catalog_postgres`,
   `test_ip2`); acuan eksekusi = tidak ada kegagalan baru di luar 31 itu.
+- **P1 dikerjakan (2026-10-20) – penyesuaian batas dari pengukuran baru (dicatat, mohon dicek user):** uji live klien
+  baru menemukan GLM diam 17,1 s di tengah stream, dan uji argumen alat panjang menunjukkan **DeepSeek dan MiMo mengirim
+  argumen pemanggilan alat sekaligus di akhir** sesudah diam (DeepSeek 31 s untuk ±4.200 token; 25,6 s dan 18,8 s pada
+  uji ulang; MiMo diam 119 s lalu `response.failed`); item `function_call` baru muncul di akhir, jadi tidak ada penanda
+  awal. Jawaban akhir JSON tetap mengalir (DeepSeek 777 potongan, jeda maks 0,9 s). Karena itu batas jeda dibuat dua
+  tingkat: **30 s** (`AI_STREAM_IDLE_SECONDS`) untuk fase biasa dan **120 s** (`AI_STREAM_TOOL_IDLE_SECONDS`) bila alat
+  ditawarkan dan event isi terakhir adalah penalaran; isi pertama **45 s**, atau 120 s bila penalaran dimatikan dan
+  alat ditawarkan. Dengan M 30 s saja, panggilan sah DeepSeek di atas akan terpotong palsu. Total 600 s tetap.
+- Temuan teknis: `response.close()` dari utas lain tidak memutus pembacaan socket yang menunggu (diuji dengan server
+  lokal yang diam); pengawas mematikan socket (`shutdown`) dulu, lalu menutup respons.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import socket
 import threading
 import time
 from typing import Any
@@ -24,6 +25,18 @@ SERVICE_DOWN_CODES = {"PROVIDER_ACCOUNT_BLOCKED", "PROVIDER_QUOTA_EXHAUSTED", "P
 BREAKER_SECONDS = 120.0
 TRANSPORT_HEADERS = frozenset({"content-encoding", "content-length", "transfer-encoding"})
 KEY_STATUS_TTL_SECONDS = 60.0
+# EXEC-M181 (user 2026-10-20): the stream events that show the model is producing something. OpenRouter's keep-alive
+# comments (": OPENROUTER PROCESSING") arrive while a stalled provider keeps the connection open, so they never count
+# (measured 2026-10-20: up to 83 comments in 107 s between content events).
+CONTENT_EVENTS = frozenset({"response.reasoning_text.delta", "response.reasoning_summary_text.delta",
+                            "response.output_text.delta", "response.function_call_arguments.delta",
+                            "response.refusal.delta"})
+# the events that carry the whole response, in the same shape as a call without streaming
+REASONING_EVENTS = frozenset({"response.reasoning_text.delta", "response.reasoning_summary_text.delta"})
+FINAL_EVENTS = frozenset({"response.completed", "response.incomplete", "response.failed"})
+WATCH_SECONDS = 0.25
+# a call that ended because the run was stopped or ran out of time: never retried
+CALL_STOPPED, RUN_DEADLINE = "CALL_STOPPED", "RUN_DEADLINE"
 logger = logging.getLogger("market_ai_orc")
 
 
@@ -43,6 +56,22 @@ class ProviderError(RuntimeError):
     def service_down(self) -> bool:
         """M160: no model call can succeed for now (account refused, or the provider down after every retry)."""
         return self.code in SERVICE_DOWN_CODES
+
+
+def _interrupt(response: httpx.Response) -> None:
+    """Wake a read that waits on this response from another thread. Closing the response alone does not interrupt a
+    read blocked on its socket (tested 2026-10-20 against a silent server), so the socket is shut down first."""
+    stream = response.extensions.get("network_stream")
+    try:
+        sock = stream.get_extra_info("socket") if stream is not None else None
+        if sock is not None:
+            sock.shutdown(socket.SHUT_RDWR)
+    except OSError:
+        pass
+    try:
+        response.close()
+    except Exception:  # noqa: BLE001 - the reading thread still sees the reason on its next line
+        pass
 
 
 def response_usage(response: dict[str, Any]) -> dict[str, Any]:
@@ -87,6 +116,10 @@ class OpenRouterClient:
         x_title: str = "Saniti Market AI",
         http_referer: str | None = None,
         transport: httpx.BaseTransport | None = None,
+        streaming: bool = False,
+        first_content_seconds: float = 45.0,
+        idle_seconds: float = 30.0,
+        tool_idle_seconds: float = 120.0,
     ) -> None:
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -102,6 +135,9 @@ class OpenRouterClient:
             transport=transport,
         )
         self.timeout_seconds = timeout_seconds
+        self.streaming = streaming
+        self.first_content_seconds, self.idle_seconds = float(first_content_seconds), float(idle_seconds)
+        self.tool_idle_seconds = max(float(tool_idle_seconds), self.idle_seconds)
         self._lock = threading.Lock()
         self._blocked_until = 0.0
         self._blocked_reason = ""
@@ -226,11 +262,13 @@ class OpenRouterClient:
         return [m for m in listed if isinstance(m, dict)] if isinstance(listed, list) else None
 
     def create(self, payload: dict[str, Any], *, timeout: float | None = None,
-               attempts: int | None = None) -> dict[str, Any]:
-        """EXEC-FASTLANE R4: timeout (seconds) and attempts override the client's own for one call."""
+               attempts: int | None = None, retry_stalls: bool = True) -> dict[str, Any]:
+        """EXEC-FASTLANE R4: timeout (seconds) and attempts override the client's own for one call. EXEC-M181:
+        retry_stalls false raises a stalled or timed-out call at once, so the caller retries it where the user sees
+        it; other failures keep their retries."""
         self._check_breaker()
         try:
-            result = self._create(payload, timeout=timeout, attempts=attempts)
+            result = self._create(payload, timeout=timeout, attempts=attempts, retry_stalls=retry_stalls)
         except ProviderError as exc:
             if exc.code in ("PROVIDER_ACCOUNT_BLOCKED", "PROVIDER_QUOTA_EXHAUSTED"):
                 self._open_breaker(exc)
@@ -259,14 +297,133 @@ class OpenRouterClient:
             return httpx.Response(response.status_code, headers=headers, content=b"".join(chunks),
                                   request=response.request)
 
-    def _create(self, payload: dict[str, Any], *, timeout: float | None, attempts: int | None) -> dict[str, Any]:
+    def _stream_within(self, payload: dict[str, Any], timeout: float | None) -> httpx.Response:
+        """EXEC-M181 (user 2026-10-20): one streamed POST /responses. The call ends early when the provider sends no
+        content event within first_content_seconds, or none for idle_seconds after that (PROVIDER_STALLED), when the
+        run is stopped (CALL_STOPPED) or out of time (RUN_DEADLINE); the total limit stays the call's timeout. The
+        final event carries the whole response, which is returned as if it had been sent without streaming.
+
+        Measured 2026-10-20: DeepSeek and MiMo send a tool call's arguments in one piece at the end, after a silence
+        that grows with their length (31 s for about 4,200 tokens), and the function_call item only appears then. So
+        when tools are offered, the silence after reasoning (or from the start, with reasoning off) may be a tool call
+        being written: it ends at tool_idle_seconds instead."""
+        from .stop import current_stop  # the run's flags (both modules import this one)
+        from .tools.request_data import current_run_deadline
+
+        seconds = float(timeout if timeout is not None else self.timeout_seconds)
+        started = time.monotonic()
+        deadline, run_deadline, stop_flag = started + seconds, current_run_deadline.get(), current_stop.get()
+        seen: dict[str, Any] = {"first": None, "last": None, "kind": None, "gap": 0.0, "events": 0, "comments": 0,
+                                "reason": None, "limit": None}
+        tools = bool(payload.get("tools")) and payload.get("tool_choice") != "none"
+        thinking_off = (payload.get("reasoning") or {}).get("enabled") is False
+        first_limit = self.tool_idle_seconds if tools and thinking_off else self.first_content_seconds
+
+        def idle_limit() -> float:
+            return self.tool_idle_seconds if tools and seen["kind"] in REASONING_EVENTS else self.idle_seconds
+        done = threading.Event()
+        limits = httpx.Timeout(seconds, read=max(first_limit, self.tool_idle_seconds) + 5.0)
+        with self.client.stream("POST", "/responses", json={**payload, "stream": True}, timeout=limits) as response:
+            if response.status_code != 200 or "text/event-stream" not in response.headers.get("content-type", ""):
+                return httpx.Response(response.status_code, headers=self._kept_headers(response),
+                                      content=response.read(), request=response.request)
+
+            def watch() -> None:
+                while not done.wait(WATCH_SECONDS):
+                    now = time.monotonic()
+                    reason = (CALL_STOPPED if stop_flag is not None and stop_flag.is_set()
+                              else RUN_DEADLINE if run_deadline is not None and now >= run_deadline
+                              else "DEADLINE" if now >= deadline
+                              else "NO_FIRST_CONTENT" if seen["first"] is None and now - started >= first_limit
+                              else "IDLE" if seen["last"] is not None and now - seen["last"] >= idle_limit()
+                              else None)
+                    if reason is not None:
+                        seen["reason"] = reason
+                        seen["limit"] = first_limit if reason == "NO_FIRST_CONTENT" else idle_limit()
+                        _interrupt(response)
+                        return
+
+            watcher = threading.Thread(target=watch, name="provider-stream-watch", daemon=True)
+            watcher.start()
+            final: dict[str, Any] | None = None
+            failure: dict[str, Any] | None = None
+            try:
+                for line in response.iter_lines():
+                    if seen["reason"] is not None:
+                        break
+                    if line.startswith(":"):
+                        seen["comments"] += 1
+                        continue
+                    if not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        event = json.loads(data)
+                    except ValueError:
+                        continue
+                    kind = event.get("type") if isinstance(event, dict) else None
+                    if kind in CONTENT_EVENTS:
+                        now = time.monotonic()
+                        if seen["last"] is not None:
+                            seen["gap"] = max(seen["gap"], now - seen["last"])
+                        seen["first"] = seen["first"] or now
+                        seen["last"], seen["kind"] = now, kind
+                        seen["events"] += 1
+                    elif kind in FINAL_EVENTS and isinstance(event.get("response"), dict):
+                        final = event["response"]
+                    elif kind == "error" or (kind is None and isinstance(event, dict) and event.get("error")):
+                        failure = event
+            except (httpx.HTTPError, httpx.StreamError, ValueError) as exc:
+                if seen["reason"] is None and isinstance(exc, httpx.ReadTimeout):
+                    seen["reason"] = "NO_FIRST_CONTENT" if seen["first"] is None else "IDLE"
+                    seen["limit"] = first_limit if seen["first"] is None else idle_limit()
+                elif seen["reason"] is None:
+                    raise
+            finally:
+                done.set()
+        reason = seen["reason"]
+        _log("ai_provider_stream", outcome=reason or (final or {}).get("status") or ("error" if failure else "ended"),
+             seconds=round(time.monotonic() - started, 1),
+             first_content_ms=int((seen["first"] - started) * 1000) if seen["first"] else None,
+             max_content_gap_ms=int(seen["gap"] * 1000), content_events=seen["events"], keepalives=seen["comments"])
+        if reason == CALL_STOPPED:
+            raise ProviderError("the run was stopped during the model call", code=CALL_STOPPED)
+        if reason == RUN_DEADLINE:
+            raise ProviderError("the run's time ran out during the model call", code=RUN_DEADLINE)
+        if reason == "DEADLINE":
+            raise httpx.ReadTimeout(f"no complete response within {seconds:g} s")
+        if reason is not None:
+            raise ProviderError(f"the AI provider sent no output for {seen['limit']:g} s", code="PROVIDER_STALLED")
+        if final is not None:
+            return httpx.Response(200, json=final, request=response.request)
+        if failure is not None:  # an error inside the stream counts as the provider failing (retried like a 5xx)
+            error = failure.get("error") if isinstance(failure.get("error"), dict) else failure
+            return httpx.Response(502, json={"error": {"message": str(error.get("message") or "stream error")[:500],
+                                                       "code": error.get("code")}}, request=response.request)
+        raise httpx.ReadError("the stream ended without a final response")
+
+    @staticmethod
+    def _kept_headers(response: httpx.Response) -> list[tuple[str, str]]:
+        return [(k, v) for k, v in response.headers.multi_items() if k.lower() not in TRANSPORT_HEADERS]
+
+    def _create(self, payload: dict[str, Any], *, timeout: float | None, attempts: int | None,
+                retry_stalls: bool = True) -> dict[str, Any]:
         last_error: ProviderError | None = None
         tries = attempts or MAX_ATTEMPTS
         for attempt in range(tries):
             try:
-                response = self._post_within(payload, timeout)
+                response = self._stream_within(payload, timeout) if self.streaming \
+                    else self._post_within(payload, timeout)
+            except ProviderError as exc:
+                if exc.code != "PROVIDER_STALLED" or not retry_stalls:
+                    raise
+                last_error = exc
             except httpx.TimeoutException:
                 last_error = ProviderError("openrouter request timed out", code="PROVIDER_TIMEOUT")
+                if not retry_stalls:
+                    raise last_error
             except httpx.DecodingError as exc:
                 # M168: a body that cannot be decoded is the provider's malformed answer, not retried (tokens may
                 # already be spent) and never an exception that ends the run as INTERNAL_ERROR
@@ -314,7 +471,7 @@ class OpenRouterClient:
                 time.sleep(1.5 * (2 ** attempt))
         assert last_error is not None
         raise ProviderError(
-            f"openrouter request failed after {MAX_ATTEMPTS} attempts: {last_error}",
+            f"openrouter request failed after {tries} attempts: {last_error}",
             code=last_error.code,
             status_code=last_error.status_code,
         )

@@ -199,6 +199,20 @@ class Settings:
     # CITING AND CHECKS), a reproduction only for an attached number, and a raw quote in the final JSON is repaired
     # before the reply is asked again
     ai_fastlane_goal_answers: bool = False
+    # EXEC-M181 (user 2026-10-20, every lane): model calls are streamed and a provider that sends no content (reasoning,
+    # answer or tool-call text; keep-alive comments do not count) within AI_STREAM_FIRST_CONTENT_SECONDS, or none for
+    # AI_STREAM_IDLE_SECONDS after that, has stalled; AI_REQUEST_TIMEOUT_SECONDS stays the total limit of one call.
+    # AI_STREAM_TOOL_IDLE_SECONDS: the silence allowed after reasoning when tools are offered, since some providers
+    # send a tool call's arguments in one piece at the end (measured 2026-10-20: 31 s for about 4,200 tokens)
+    ai_provider_streaming: bool = False
+    ai_stream_first_content_seconds: int = 45
+    ai_stream_idle_seconds: int = 30
+    ai_stream_tool_idle_seconds: int = 120
+    # EXEC-UI-1019B branch behaviours (user 2026-10-19): the fast lane keeps the chosen reasoning on every call (no low
+    # after the first call, no 90 s cut) and a runaway is asked again at the same level with a shorter-answer note
+    ai_fastlane_keep_reasoning: bool = False
+    # reasoning.max_tokens of a model whose thinking is on/off with a budget (Qwen); 8000 was the fixed value
+    ai_max_reasoning_tokens: int = 8000
     # OpenRouter provider routing for the agent's model calls: provider.sort "price", "throughput" or "latency". Unset
     # keeps OpenRouter's default load balancing, which is weighted to the lowest price.
     ai_provider_sort: str | None = None
@@ -464,6 +478,12 @@ class Settings:
             ai_fastlane_gate_advice=_boolean(env, "AI_FASTLANE_GATE_ADVICE", False),
             ai_fastlane_v5_presentation=_boolean(env, "AI_FASTLANE_V5_PRESENTATION", False),
             ai_fastlane_goal_answers=_boolean(env, "AI_FASTLANE_GOAL_ANSWERS", False),
+            ai_provider_streaming=_boolean(env, "AI_PROVIDER_STREAMING", False),
+            ai_stream_first_content_seconds=_integer(env, "AI_STREAM_FIRST_CONTENT_SECONDS", 45, minimum=5),
+            ai_stream_idle_seconds=_integer(env, "AI_STREAM_IDLE_SECONDS", 30, minimum=5),
+            ai_stream_tool_idle_seconds=_integer(env, "AI_STREAM_TOOL_IDLE_SECONDS", 120, minimum=5),
+            ai_fastlane_keep_reasoning=_boolean(env, "AI_FASTLANE_KEEP_REASONING", False),
+            ai_max_reasoning_tokens=_integer(env, "AI_MAX_REASONING_TOKENS", 8000, minimum=1024),
             ai_provider_sort=(env.get("AI_PROVIDER_SORT") or "").strip().lower() or None,
             ai_log_provider=_boolean(env, "AI_LOG_PROVIDER", False),
             ai_provider_max_cache_price_ratio=_ratio(env, "AI_PROVIDER_MAX_CACHE_PRICE_RATIO", 0.0, 0.0, 1.0)
@@ -598,6 +618,12 @@ class Settings:
                               "PY_SANDBOX_REQUEST_TIMEOUT_SECONDS")
         if settings.ai_request_timeout_seconds > settings.ai_max_analysis_seconds:
             raise ConfigError("AI_REQUEST_TIMEOUT_SECONDS must not exceed AI_MAX_ANALYSIS_SECONDS")
+        if settings.ai_provider_streaming and max(settings.ai_stream_first_content_seconds,
+                                                  settings.ai_stream_idle_seconds,
+                                                  settings.ai_stream_tool_idle_seconds) \
+                >= settings.ai_request_timeout_seconds:
+            raise ConfigError("AI_STREAM_FIRST_CONTENT_SECONDS, AI_STREAM_IDLE_SECONDS and AI_STREAM_TOOL_IDLE_SECONDS "
+                              "must be below AI_REQUEST_TIMEOUT_SECONDS")
         if settings.ai_planner_parallel_parts > 4:
             raise ConfigError("AI_PLANNER_PARALLEL_PARTS must be from 1 to 4")
         if settings.ai_enable_web_fact and settings.ai_enable_web_research:

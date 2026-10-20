@@ -25,7 +25,7 @@ from . import friction as kejedot
 from .catalog_protocol import CACHE_NOTE, CACHEABLE_TOOLS, CatalogLedger, cache_key, gaps, record
 from .compaction import dumps, estimate_tokens, stable_hash, trim_history
 from .config import Settings
-from .openrouter_client import SERVICE_DOWN_CODES, ProviderError, response_usage
+from .openrouter_client import CALL_STOPPED, RUN_DEADLINE, SERVICE_DOWN_CODES, ProviderError, response_usage
 from .reasoning_capture import log_reasoning, reasoning_text
 from . import run_memory as memory
 from .research_plan import (CLASSIFIER_INSTRUCTIONS, CLASSIFIER_SCHEMA, ContinuationOut, PlanSigner,
@@ -1702,6 +1702,12 @@ MAX_EMPTY_TURN_RETRIES = 2
 # interrupted generation: it is asked again once with reasoning lowered (off, or low for a model with levels) for that
 # one call, then the chosen reasoning returns.
 MAX_REASONING_RUNAWAY_RETRIES = 1
+# AI_FASTLANE_KEEP_REASONING: the runaway's second call keeps the level and is told to think briefly
+RUNAWAY_NOTE = ("Application note, not from the user: your previous turn used the whole output budget on reasoning and "
+                "ended without a tool call or an answer. Think briefly this time: decide the next step and call the "
+                "tool, or give the final response.")
+# EXEC-M181: a call whose provider stalled is asked once more at the same level; a second stall fails the run
+MAX_PROVIDER_STALL_RETRIES = 1
 # M146 (EXEC-M146, user go 2026-10-13): deepseek-v4.1-flash sometimes writes its tool call in its own markup (DSML,
 # "<｜DSML｜ calls><｜DSML｜ invoke name=...>") as plain text, and the provider passes it on as content with no tool call
 # (sglang #40236, openclaw #159665). That turn is a tool call that never ran, not a draft answer: it is asked again with
@@ -2668,6 +2674,7 @@ class RunState:
     empty_turn_retries: int = 0  # M78: turns with neither text nor a tool call, retried with the same tools
     runaway_retries: int = 0  # M150: empty turns at the output cap, retried once with reasoning lowered
     reasoning_lowered: bool = False  # M150: the next loop call runs with ModelChoice.lowered
+    provider_retries: int = 0  # EXEC-M181: stalled calls asked again in this run
     tool_markup_retries: int = 0  # M146: turns that wrote a tool call as text, asked again with the same tools
     reference_date: Any = None  # the run's reference date in the analysis timezone
     data_date: Any = None  # R-STORE: the run's DataDate (the conversation's data date and whether NEWEST was asked)
@@ -4503,14 +4510,32 @@ class AgentOrchestrator:
                 raise RunFailure("CONTEXT_LIMIT", "Request would exceed AI_MAX_CONTEXT_TOKENS")
 
             call_started = time.monotonic()
-            # EXEC-FASTLANE R4: on the fast lane one call waits at most lanes.FAST_CALL_SECONDS (once per run)
-            capped = {"timeout": lanes.FAST_CALL_SECONDS, "attempts": 1} \
-                if state.lane == lanes.FAST and state.lane_timeouts == 0 else {}
+            # EXEC-FASTLANE R4: on the fast lane one call waits at most lanes.FAST_CALL_SECONDS (once per run), unless
+            # AI_FASTLANE_KEEP_REASONING lets every call work at the chosen level
+            capped: dict[str, Any] = {"timeout": lanes.FAST_CALL_SECONDS, "attempts": 1} \
+                if state.lane == lanes.FAST and state.lane_timeouts == 0 and not self._keeps_reasoning(state) else {}
+            if self.settings.ai_provider_streaming:
+                capped["retry_stalls"] = False  # EXEC-M181: a stalled call is asked again here, where the user sees it
             try:
                 with progress.step(texts.PROGRESS_THINKING):
                     response = self.client.create(payload, **capped)
             except ProviderError as exc:
-                if capped and exc.code == "PROVIDER_TIMEOUT":
+                if exc.code == CALL_STOPPED:  # the stop button during the call (app/stop.py)
+                    return self._exhausted(state, "STOPPED_BY_USER")
+                if exc.code == RUN_DEADLINE:
+                    return self._exhausted(state, "ANALYSIS_TIMEOUT")
+                if exc.code == "PROVIDER_STALLED" or (self.settings.ai_provider_streaming
+                                                       and exc.code == "PROVIDER_TIMEOUT" and "timeout" not in capped):
+                    if state.provider_retries >= MAX_PROVIDER_STALL_RETRIES:
+                        raise
+                    # EXEC-M181 (user 2026-10-20): asked once more at the same level, and the user sees it
+                    state.provider_retries += 1
+                    log_event("ai_provider_stall_retried", request_id=state.request_id, iteration=state.iterations + 1,
+                              code=exc.code, model=self._run_model(state))
+                    with progress.step(texts.PROGRESS_PROVIDER_RETRY):
+                        pass
+                    continue
+                if "timeout" in capped and exc.code == "PROVIDER_TIMEOUT":
                     state.lane_timeouts += 1
                     state.reasoning_lowered = True  # asked again once with lower reasoning
                     log_event("ai_lane_call_timeout", request_id=state.request_id, iteration=state.iterations + 1,
@@ -4644,17 +4669,28 @@ class AgentOrchestrator:
                 state.input_items.append({"role": "user", "content": str(exc) + self._offer_edit(state, raw)})
             except ValueError as exc:
                 issue = str(exc)
-                if tools and not raw.strip() and unapplied is None \
-                        and usage["output_tokens"] >= self._output_cap(state) \
-                        and state.runaway_retries < MAX_REASONING_RUNAWAY_RETRIES:
+                runaway = tools and not raw.strip() and unapplied is None \
+                    and usage["output_tokens"] >= self._output_cap(state)
+                if runaway and state.runaway_retries < MAX_REASONING_RUNAWAY_RETRIES:
                     state.runaway_retries += 1
-                    state.reasoning_lowered = True
-                    state.input_items.append({"role": "user", "content": EMPTY_TURN_NOTE})
+                    keep = self._keeps_reasoning(state)
+                    # AI_FASTLANE_KEEP_REASONING: the same level again with a note to think briefly, and the user
+                    # sees it; otherwise the one call after a runaway thinks lower (M150)
+                    state.reasoning_lowered = not keep
+                    state.input_items.append({"role": "user", "content": RUNAWAY_NOTE if keep else EMPTY_TURN_NOTE})
                     log_event("ai_reasoning_runaway", request_id=state.request_id, iteration=state.iterations,
                               model=self._run_model(state), provider=response.get("provider"),
                               latency_ms=latency_ms, output_tokens=usage["output_tokens"],
-                              reasoning_tokens=usage["reasoning_tokens"], output_cap=self._output_cap(state))
+                              reasoning_tokens=usage["reasoning_tokens"], output_cap=self._output_cap(state),
+                              same_level=keep)
+                    if keep:
+                        with progress.step(texts.PROGRESS_RUNAWAY_RETRY):
+                            pass
                     continue
+                if runaway and self._keeps_reasoning(state):
+                    # the branch behaviour (user 2026-10-19): a second runaway ends the run with a plain reason
+                    # instead of more full-budget calls
+                    raise RunFailure("REASONING_RUNAWAY", texts.REASONING_RUNAWAY_MESSAGE)
                 if tools and not raw.strip() and unapplied is None \
                         and state.empty_turn_retries < MAX_EMPTY_TURN_RETRIES:
                     state.empty_turn_retries += 1
@@ -4762,6 +4798,10 @@ class AgentOrchestrator:
         cap = choice.output_cap if choice is not None else None
         return min(cap, self.settings.ai_max_output_tokens) if cap else self.settings.ai_max_output_tokens
 
+    def _keeps_reasoning(self, state: RunState) -> bool:
+        """AI_FASTLANE_KEEP_REASONING (user 2026-10-19): the fast lane keeps the chosen reasoning on every call."""
+        return bool(self.settings.ai_fastlane_keep_reasoning) and state.lane == lanes.FAST
+
     def _reasoning(self, state: RunState) -> dict[str, Any]:
         choice = state.model_choice
         if state.reasoning_lowered:
@@ -4769,7 +4809,7 @@ class AgentOrchestrator:
             if choice is not None and choice.lowered is not None:
                 return choice.lowered
             return model_choices.lowered_reasoning(model_choices.BY_MODEL.get(self._run_model(state)), self.settings)
-        if state.lane == lanes.FAST and state.iterations >= 1:
+        if state.lane == lanes.FAST and state.iterations >= 1 and not self._keeps_reasoning(state):
             # EXEC-FASTLANE R4: the first call designs the work at the chosen level; the calls after it think low (a
             # model with on/off thinking keeps its choice)
             option = model_choices.BY_MODEL.get(self._run_model(state))

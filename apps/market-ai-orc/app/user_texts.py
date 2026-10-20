@@ -5,6 +5,10 @@ yet, the code made readable. Instructions to the model stay in English in the or
 
 tests/test_user_texts.py reads every text here (and the lines the orchestrator builds from them) and fails on an
 internal name, a code or an English sentence.
+
+EXEC-UI-1019B (user 2026-10-19: "semua label tetap bahasa Inggris"; "langkah progres orc ke bahasa Inggris: Ya"): the
+texts EDGE shows outside the answer (the run's progress steps, its hurdles and why a run failed) are English and are
+named in INTERFACE_TEXTS; every line inside the answer stays Indonesian.
 """
 from __future__ import annotations
 
@@ -68,6 +72,14 @@ HURDLE_TOOL_STEP = "Satu langkah kerja"
 PROGRESS_ROUTING = "Memahami pertanyaan"
 PROGRESS_THINKING = "Menyusun langkah berikutnya"
 PROGRESS_SERVICES_WAIT = "Waiting for services to be ready."
+# EXEC-M181 and the branch behaviours (user 2026-10-19/20): a call asked again is shown, never silent
+PROGRESS_PROVIDER_RETRY = "AI provider did not respond, trying once more"
+PROGRESS_RUNAWAY_RETRY = "AI used its whole budget on thinking, asking it to answer more briefly"
+REASONING_RUNAWAY_MESSAGE = ("The AI used its whole output budget on thinking twice without answering. Try again, "
+                             "choose a lower thinking level, or choose another model.")
+# the texts EDGE shows outside the answer: English (tests/test_user_texts.py)
+INTERFACE_TEXTS = frozenset({"PROGRESS_SERVICES_WAIT", "PROGRESS_SANDBOX_SESSION", "PROGRESS_PROVIDER_RETRY",
+                             "PROGRESS_RUNAWAY_RETRY", "REASONING_RUNAWAY_MESSAGE"})
 PROGRESS_SANDBOX_SESSION = "Initiating sandbox session."
 PROGRESS_EFFECTS = {"READS": "Membaca katalog dan hasil", "OWN_ARTIFACT": "Menyimpan hasil",
                     "FETCHES_DATA": "Mengambil data", "FETCHES_WEB": "Pencarian web",

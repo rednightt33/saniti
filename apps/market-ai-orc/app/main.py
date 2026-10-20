@@ -149,6 +149,10 @@ def create_app(
             settings.ai_request_timeout_seconds,
             x_title=settings.openrouter_x_title,
             http_referer=settings.openrouter_http_referer,
+            streaming=settings.ai_provider_streaming,
+            first_content_seconds=settings.ai_stream_first_content_seconds,
+            idle_seconds=settings.ai_stream_idle_seconds,
+            tool_idle_seconds=settings.ai_stream_tool_idle_seconds,
         )
     sandbox_client = SandboxClient(settings.py_sandbox_url, settings.py_sandbox_api_key or "",
                                    settings.py_sandbox_request_timeout_seconds,

@@ -55,9 +55,9 @@ class ManualAgent:
         return getattr(self.real, name)
 
     def create(self, payload: dict[str, Any], *, timeout: float | None = None,
-               attempts: int | None = None) -> dict[str, Any]:
+               attempts: int | None = None, **options: Any) -> dict[str, Any]:
         if payload.get("model") != MANUAL_MODEL:
-            return self.real.create(payload, timeout=timeout, attempts=attempts)
+            return self.real.create(payload, timeout=timeout, attempts=attempts, **options)
         request_id = current_request_id.get() or "unknown"
         with self._lock:
             fallen = request_id in self._fallen
