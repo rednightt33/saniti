@@ -6102,3 +6102,31 @@ sandbox"). Status: DICATAT, belum dieksekusi.**
   persetujuan. (e) Isi namespace dari pesan sebelumnya — variabel lama terlihat seperti pada attach sekarang; output
   baru hanya dari pesan ini. (f) Dua run bersamaan dalam satu percakapan — lease percakapan sudah membatasi satu run
   aktif; dites. (g) Kapasitas — `PY_SANDBOX_MAX_SESSIONS` dan idle 900 s tetap berlaku.
+- **Syarat tambahan user 2026-10-20 ("ensure system prompt di scan ulang, dan aturan ini reflect disana dan tidak ada
+  bentrok. Penolakan juga harus jelas. As plain as possible. Baca lagi rule agents MD"):** AGENTS.md "Gates and
+  evidence" berlaku: setiap penolakan punya (a) aturan yang dilihat model sebelum menulis, (b) cara lolos, (c) satu
+  contoh benar dan satu salah, (d) pesan yang menyebut letak masalah dan perbaikannya; setiap klaim berdasar kode/log.
+- Hasil pindai prompt (snapshot v017 + kode, 2026-10-20) — tempat yang sekarang bertentangan dengan aturan baru dan
+  harus diubah bersama:
+  1. `orchestrator.py` CONVERSATION REUSE no. 2 ("For a new computation on the same data, submit the listed
+     data_need_spec ...") → hitungan baru atas output/sesi percakapan ini tanpa data need; data need hanya bila butuh
+     data dari database yang belum ada.
+  2. CONVERSATION REUSE no. 3 (sesi hangat hilang → restored_outputs) → disatukan dengan sesi khusus output yang dibuka
+     orc otomatis.
+  3. CONVERSATION REUSE no. 4 tetap (data lebih baru/periode/kolom/entitas lain = data need baru); ditulis sebagai
+     batas aturan baru.
+  4. Prefix jalur Cepat CITING AND CHECKS C no. 7 ("DATA LIFETIME AND RECOVERY": bundle kedaluwarsa → kirim data need
+     lagi) → dipisah: perlu data baru = data need; hanya olah output = sesi percakapan.
+  5. `conversation_resources_note` ("To reuse one without extraction, call submit_data_need_spec ...") → menyebut
+     dulu cara memakai sesi/output tanpa data need.
+  6. `tools/session.py` `EXPIRY_RECOVERY` (`BUNDLE_EXPIRED`, `BUNDLE_NOT_FOUND` → `RESUBMIT_DATA_NEED`) dan deskripsi
+     `open_analysis_session` ("input_bundle_id of a READY bundle", wajib) → bundle opsional untuk sesi percakapan.
+  7. Penolakan sandbox `SESSION_NOT_FOUND` "No session with this id exists for this request" dan `BUNDLE_NOT_READY`
+     "No READY bundle with this id exists for this request" (`market-python-sandbox/app/sessions.py`) → kalimat polos
+     yang menyebut sebabnya (sesi/bundle milik pesan lain atau percakapan lain, atau sudah ditutup karena tidak
+     dipakai 15 menit) dan satu langkah perbaikan.
+  8. Tidak bentrok, tetap: DATA NEED "Numbers derived from data ... only from released outputs of a completed
+     analysis" (sesi percakapan tetap harus `complete_analysis`); rencana riset "Before the user approved the plan, use
+     no data" (sesi percakapan tidak membuka jalan riset tanpa persetujuan).
+  Setelah perubahan: snapshot prompt baru, kalimat yang disetujui di `tests/test_prompt_pass2.py`, Tool_Catalog round,
+  method guide bila menyebut alur ini; tes penolakan memeriksa pesan menyebut sebab dan langkah.
