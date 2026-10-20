@@ -222,3 +222,16 @@ These rules are also mandatory in `AGENTS.md`, `README.md`, and `database/migrat
 ## Applied fixed-income session metadata — 2026-10-20
 
 Migration `20261013_011_verify_fixed_income_sessions.sql` updates the schedule Table_Catalog definition and registers provider_timezone_name/provider_session plus the corrected source_date_mapping definition in Column_Catalog. These describe provider anchors, separately from the economic-market timezone/close. No Feature formula or relationship changes. Applied live and independently read back at18:43 WIB. Operator evidence: `verification/fixed_income_session_repair/README.md`.
+
+## AI exposure of fixed income and Feature 04 — 2026-10-20 (EXEC-ONBOARD-1)
+
+Migration `20261020_001` exposes three objects to the AI catalog: the view `Price_Fixed_Income_Final` (final daily bars
+of `Price_Fixed_Income`; the base table stays hidden because the catalog and the SQL Governor have no row filter),
+`Universe_Fixed_income` (reference, `instrument_name` marked `entity_name`) and `Feature_04_Technical_Indicator` (the
+calculation state columns `ai_allowed = false`). The view has its own `Table_Catalog` / `Column_Catalog` rows (category
+`Source`), because `scripts/sync_database_catalog.py` registers base tables only. Feature 04's `AI_calculation_catalog`
+rows follow the `20260922_001` pattern (one per active `Feature_Catalog` definition, version `v4`); an indicator or candle
+column that holds a formula of `AI_formula_reference` names it in `implementation_ref` as `AI_formula_reference:CALC_nnn`
+and in `parameters.formula_reference` with its relation, and market-ai-orc shows it as `stored_in` of that formula. Every
+Indonesian meaning written by this change is `DRAFT`. Earlier statements in this file that Feature 04 has no AI
+allowlist or permission change describe the state before 2026-10-20.

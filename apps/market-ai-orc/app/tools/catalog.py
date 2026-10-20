@@ -364,12 +364,31 @@ ORDER BY method_id LIMIT %s
 
 FORMULA_COUNT_SQL = 'SELECT count(*) AS formula_count FROM public."AI_formula_reference"'
 
+# EXEC-ONBOARD-1 (2026-10-20): the stored Feature columns that already hold a formula, from the calculation contracts
+# whose implementation_ref names it ('AI_formula_reference:<calculation_id>', migration 20261020_001), with the
+# relation (STORED_VARIANT or RELATED_NOT_IDENTICAL) and its note; only active tables and AI-allowed columns.
+STORED_IN_SQL = '''
+(SELECT coalesce(jsonb_agg(jsonb_build_object(
+            'table', k.target_table, 'column', k.target_columns[1], 'version', k.version,
+            'relation', k.parameters -> 'formula_reference' ->> 'relation',
+            'note', k.parameters -> 'formula_reference' ->> 'note')
+            ORDER BY k.target_table, k.target_columns[1]), '[]'::jsonb)
+ FROM public."AI_calculation_catalog" k
+ JOIN public."AI_table_catalog" t ON t.table_name = k.target_table AND t.is_active
+ WHERE k.status = 'ACTIVE' AND ('AI_formula_reference:' || f.calculation_id) = ANY(k.implementation_ref)
+   AND (k.output_definition ->> 'ai_allowed') IS DISTINCT FROM 'false') AS stored_in
+'''
+STORED_IN_NOTE = ("stored_in names a Feature column that already holds this formula (relation STORED_VARIANT: the "
+                  "same indicator with the stored parameters; RELATED_NOT_IDENTICAL: a related signal, read its note). "
+                  "Read that column instead of computing the formula again, unless the question needs other "
+                  "parameters or the reference definition exactly.")
+
 FORMULAS_SQL = '''
-SELECT calculation_id, calculation_name, description, required_inputs, formula_method,
-       parameters, output, implementation, count(*) OVER () AS total_matching
-FROM public."AI_formula_reference"
-WHERE (%s::text[] IS NULL OR calculation_id = ANY(%s::text[]))
-ORDER BY calculation_id LIMIT %s
+SELECT f.calculation_id, f.calculation_name, f.description, f.required_inputs, f.formula_method,
+       f.parameters, f.output, f.implementation, ''' + STORED_IN_SQL + ''', count(*) OVER () AS total_matching
+FROM public."AI_formula_reference" f
+WHERE (%s::text[] IS NULL OR f.calculation_id = ANY(%s::text[]))
+ORDER BY f.calculation_id LIMIT %s
 '''
 
 # Formula search (v2): a formula matches when a query keyword appears in its id, name or description. The whole
@@ -377,7 +396,7 @@ ORDER BY calculation_id LIMIT %s
 # the description 1), ties by calculation_id. Keywords are lower-case letters and digits only (no LIKE wildcard).
 FORMULA_SEARCH_SQL = '''
 SELECT f.calculation_id, f.calculation_name, f.description, f.required_inputs, m.matched_words, m.name_hit,
-       (lower(f.calculation_id) = %s OR lower(f.calculation_name) = %s) AS exact,
+       (lower(f.calculation_id) = %s OR lower(f.calculation_name) = %s) AS exact, ''' + STORED_IN_SQL + ''',
        count(*) OVER () AS total_matching
 FROM public."AI_formula_reference" f
 CROSS JOIN LATERAL (
@@ -748,9 +767,9 @@ RESEARCH_FULL = (
 RESEARCH_SUMMARY = ("method_id", "method_name", "category", "purpose", "implementation_status")
 FORMULA_FULL = (
     "calculation_id", "calculation_name", "description", "required_inputs", "formula_method",
-    "parameters", "output", "implementation",
+    "parameters", "output", "implementation", "stored_in",
 )
-FORMULA_SUMMARY = ("calculation_id", "calculation_name", "output")
+FORMULA_SUMMARY = ("calculation_id", "calculation_name", "output", "stored_in")
 RELATIONSHIP_FIELDS = (
     "relationship_id", "left_table", "left_columns", "right_table", "right_columns",
     "relationship_type", "temporal_rule", "safe_output_grain", "requires_preaggregation",
@@ -1111,11 +1130,13 @@ class CatalogTools:
             base["formula_catalog"]["matches"] = [
                 {"calculation_id": row["calculation_id"], "calculation_name": row.get("calculation_name"),
                  "match": "EXACT" if row["exact"] else "NAME" if row["name_hit"] else "DESCRIPTION",
-                 "matched_words": list(row["matched_words"])} for row in formula_rows]
+                 "matched_words": list(row["matched_words"]),
+                 **({"stored_in": _plain(row["stored_in"])} if row.get("stored_in") else {})} for row in formula_rows]
             base["formula_catalog"]["note"] = (
                 "Documented formula definitions, not verified or executable implementations. matches lists the "
                 "formulas matching the query keywords, best first; read full definitions with get_catalog_details "
-                "sections [FORMULAS] and formula_ids, in the same call as the tables.")
+                "sections [FORMULAS] and formula_ids, in the same call as the tables."
+                + (" " + STORED_IN_NOTE if any(row.get("stored_in") for row in formula_rows) else ""))
         entries = [{**_table_entry(row), **({"matched_words": list(row["matched_words"])} if words else {})}
                    for row in rows[:page_size]]
         kept, cut = _fit(entries, RESULT_BUDGET_BYTES - _size(base) - 1200)
@@ -1271,7 +1292,8 @@ class CatalogTools:
                 entries = [_entry(row, FORMULA_SUMMARY) for row in rows[: ROW_CAPS["FORMULAS"]]]
             kept, _ = _fit(entries, budget)
             result = {"detail": detail, "entries": kept, "returned": len(kept), "total_matching": total,
-                      "note": "Documented formula definitions, not verified or executable implementations."}
+                      "note": "Documented formula definitions, not verified or executable implementations."
+                              + (" " + STORED_IN_NOTE if any(e.get("stored_in") for e in kept) else "")}
             if detail == "SUMMARY" or len(kept) < total:
                 result["truncated"] = len(kept) < total
                 result["hint"] = "Pass formula_ids to retrieve full definitions for specific formulas."
@@ -1311,6 +1333,7 @@ class CatalogTools:
             "required_inputs": _short(row.get("required_inputs")),
             "match": "EXACT" if row["exact"] else "NAME" if row["name_hit"] else "DESCRIPTION",
             "matched_words": list(row["matched_words"]),
+            **({"stored_in": _plain(row["stored_in"])} if row.get("stored_in") else {}),
         } for row in rows[:FORMULA_SEARCH_LIMIT]]
         kept, _ = _fit(entries, budget)
         result: dict[str, Any] = {
@@ -1319,6 +1342,8 @@ class CatalogTools:
             "note": "Documented formula definitions, not verified or executable implementations. Pass the chosen "
                     "calculation_id values as formula_ids for full definitions.",
         }
+        if any(entry.get("stored_in") for entry in kept):
+            result["note"] += " " + STORED_IN_NOTE
         if len(kept) < total:
             result["truncated"] = True
             result["hint"] = ("More formulas match: make formula_query more specific, or page through "

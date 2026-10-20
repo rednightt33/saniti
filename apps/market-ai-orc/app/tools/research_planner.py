@@ -155,7 +155,9 @@ def _wider(a: dict[str, Any] | None, b: dict[str, Any] | None) -> dict[str, Any]
     return {"value": max(_calendar_days(a), _calendar_days(b)), "unit": "CALENDAR_DAYS"}
 
 
-ENTITY_TOKEN = re.compile(r"\b[A-Z]{4,6}\b")
+# a stock code (BBCA) or a bond benchmark code (ID10Y, US02MY: EXEC-ONBOARD-1): a capital letter, then four to six
+# characters in total of capitals and digits
+ENTITY_TOKEN = re.compile(r"\b[A-Z][A-Z0-9]{3,5}\b")
 # capitalised words that are not stock codes (market, currency and ratio names)
 NOT_ENTITIES = {"IHSG", "IDX", "BEI", "JCI", "LQ45", "IDR", "USD", "YTD", "MTD", "QTD", "ROE", "ROA", "EPS", "PER",
                 "PBV", "BUMN", "ARA", "ARB", "RUPS", "NULL", "TRUE", "FALSE", "ANSWER"}
@@ -193,7 +195,8 @@ class ResearchDataPlanner:
     # ------------------------------------------------------------------------------------------ scope (G13)
 
     def _named_entities(self, table: str, column: str, text: str) -> list[str]:
-        """The tokens of the question that are entities of this table (four to six capital letters, e.g. BBCA),
+        """The tokens of the question that are entities of this table (four to six capitals and digits, e.g. BBCA,
+        ID10Y),
         checked with the Governor; a failed check names nothing (the scope check then does not apply)."""
         found = []
         for token in dict.fromkeys(ENTITY_TOKEN.findall(text)):

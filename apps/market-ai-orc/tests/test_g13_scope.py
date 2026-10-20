@@ -70,3 +70,13 @@ def test_no_named_entity_or_a_failed_check_leaves_the_scope_alone() -> None:
     args = bbca_args()
     args["question"] = "Apakah saham yang turun tajam cenderung naik sesudahnya? IHSG sebagai pembanding."
     assert run_plan(planner_, args)["status"] == "FEASIBLE" and calls == []  # IHSG is never a stock code
+
+
+def test_a_bond_benchmark_code_is_a_named_entity_too() -> None:
+    """EXEC-ONBOARD-1: a bond benchmark code has digits (ID10Y); it is checked like a stock code."""
+    planner_, calls = scoped_planner(known=("ID10Y",))
+    args = bbca_args()
+    args["question"] = "Bagaimana yield ID10Y bergerak saat IHSG turun tajam?"
+    outcome = run_plan(planner_, args)
+    assert outcome["status"] == "REVISION_REQUIRED" and "names ID10Y" in outcome["view"]["issues"][0]["message"]
+    assert {token for _, _, token in calls} == {"ID10Y"}  # IHSG is never an entity

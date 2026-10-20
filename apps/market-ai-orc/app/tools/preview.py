@@ -16,10 +16,12 @@ PREVIEW_SQL = "SELECT public.ai_preview_table_rows(%s)::text AS payload"
 PreviewTable = Literal[
     "Feature_01_Stock_Daily", "Feature_02_Broker_Rolling", "Feature_03_Stock_Broker_Daily",
     "IDX_Broker_Profile", "IDX_Broker_Summary", "IDX_Stock_Universe", "Price_Stock_Indonesia_IDX",
+    "Price_Fixed_Income_Final", "Universe_Fixed_income", "Feature_04_Technical_Indicator",
 ]
 
-# Must equal the ORDER BY clauses in database/migrations/20260923_002_create_market_ai_preview_interface.sql
-# (the database function is the enforcement point; tests compare both).
+# Must equal the ORDER BY clauses of public.ai_preview_table_rows in its newest migration,
+# database/migrations/20261020_001_onboard_fixed_income_and_feature04.sql (first: 20260923_002); the database function
+# is the enforcement point; tests compare both.
 RECENT = "Rows with the most recent {date} first; ties broken by the remaining key columns, all descending."
 ORDERING: dict[str, tuple[str, str]] = {
     "Feature_01_Stock_Daily": ("date DESC, ticker DESC", RECENT.format(date="date")),
@@ -35,6 +37,14 @@ ORDERING: dict[str, tuple[str, str]] = {
     ),
     "IDX_Stock_Universe": ('"Ticker" ASC', "Primary key order (Ticker ascending); reference table without a date column."),
     "Price_Stock_Indonesia_IDX": ("date DESC, ticker DESC", RECENT.format(date="date")),
+    "Price_Fixed_Income_Final": ("date DESC, ticker DESC, metric_type DESC", RECENT.format(date="date")),
+    "Universe_Fixed_income": ("ticker ASC, metric_type ASC",
+                              "Primary key order (ticker, then metric_type, ascending); reference table without a date "
+                              "column."),
+    "Feature_04_Technical_Indicator": (
+        "trade_date DESC, asset_type DESC, ticker DESC",
+        RECENT.format(date="trade_date") + " The calculation state columns are left out.",
+    ),
 }
 NOTICE = (
     "Example rows only: at most 20 per table in a fixed deterministic order. They are not a "
@@ -45,7 +55,7 @@ NOTICE = (
 class PreviewArguments(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    table_name: PreviewTable = Field(description="One of the seven approved market-data tables.")
+    table_name: PreviewTable = Field(description="One of the ten approved market-data tables.")
 
 
 class PreviewTool:
@@ -94,7 +104,7 @@ def preview_spec(reader: CatalogReader, *, timeout_seconds: float) -> ToolSpec:
     return ToolSpec(
         name="preview_table_rows", effect="FETCHES_DATA",
         description=(
-            "Return up to 20 example rows (all columns) from one of seven approved market-data "
+            "Return up to 20 example rows (all columns) from one of ten approved market-data "
             "tables, in a fixed deterministic order stated in the result. No filters, offsets, "
             "custom limits, or pagination. Example records only, not a complete or representative "
             "dataset and not an analysis."

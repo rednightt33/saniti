@@ -1,0 +1,12 @@
+{
+ "version": 17,
+ "date": "2026-10-20",
+ "name": "onboard-fixed-income-feature04",
+ "decision": "Ok view saja ya untuk no 1. Jalankan. (EXEC-ONBOARD-1, 2026-10-20: expose Price_Fixed_Income and Feature 04; AI refers to stored indicator columns instead of computing them)",
+ "change": "Outside-data rules no longer give yields as an example of data outside the catalog; every outside-data rule adds: an indicator or candle pattern a Feature column already stores (a formula's stored_in) is read from that column, not computed again.",
+ "prompt_chars": 41727,
+ "prompt_sha256": "e47165812f9f17210801a2186d615d8be4a199886eeff66462eb38b2e5574f0b",
+ "schema_sha256": "ef9b0ecbca7d7a3b0c5e08e3062a04dddce274ebff1b74d121fbe791a3787883",
+ "fast_prompt_chars": 29124,
+ "fast_prompt_sha256": "e81903b9d9a6943836d1d6e54ab055fba6f9d44d32abafc293877490a86a85e8"
+}

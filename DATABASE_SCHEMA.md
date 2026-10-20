@@ -4187,6 +4187,50 @@ Per-trading-date Stockbit broker-summary load progress, retries, and review stat
 |---|---|
 | `stockbit_broker_summary_load_log_pkey` | `CREATE UNIQUE INDEX stockbit_broker_summary_load_log_pkey ON public.stockbit_broker_summary_load_log USING btree (target_table, trade_date)` |
 
+## Views
+
+Views below were read back from live dev after migration `20261020_001` (EXEC-ONBOARD-1, 2026-10-20) by `scripts/sync_database_schema.py`, which now renders views; the table sections above were not regenerated in that run (the migration changed no table structure).
+
+| View Name | Definition |
+|---|---|
+| `Price_Fixed_Income_Final` | View of the final daily (Timeframe 1D, is_final) bars of Price_Fixed_Income with the analytical columns only: country, instrument_name, ticker, metric_type, date, open, high, low, close, value_unit. The object exposed to the AI. |
+
+## Price_Fixed_Income_Final
+
+View of the final daily (Timeframe 1D, is_final) bars of Price_Fixed_Income with the analytical columns only: country, instrument_name, ticker, metric_type, date, open, high, low, close, value_unit. The object exposed to the AI.
+
+### Columns
+
+| Column | Type | Definition |
+|---|---|---|
+| `country` | `text` | Country of the bond market: Indonesia or United States. |
+| `instrument_name` | `text` | Source name of the series, for example Indonesia 10 Year Government Bonds Yield (the yield series) or Indonesia 10 Year Government Bonds (the price series). |
+| `ticker` | `text` | Benchmark code: country prefix ID or US, tenor and Y, for example ID10Y (Indonesia 10 year), ID01MY (1 month), US02Y. The price and the yield series share the ticker; metric_type tells them apart. |
+| `metric_type` | `text` | Which series the row holds: price (bond price quote) or yield_to_maturity (yield in percent). Filter it in every query. |
+| `date` | `date` | Market-local trading date of the final daily bar (Indonesia Asia/Jakarta, United States America/New_York). Market holidays have no row. |
+| `open` | `numeric` | Opening value of the day in the unit of value_unit (yield in percent, or the price quote). |
+| `high` | `numeric` | Highest value of the day in the unit of value_unit. |
+| `low` | `numeric` | Lowest value of the day in the unit of value_unit. |
+| `close` | `numeric` | Closing value of the day: the yield in percent (metric_type yield_to_maturity) or the price quote (metric_type price) in the unit of value_unit. A yield change is in percentage points. |
+| `value_unit` | `text` | Unit label of open/high/low/close as recorded from the source: percent (yields), PCTPAR (price as percent of par) or PCTDY (the source's quote unit of US Treasury bill price series). The PCTPAR and PCTDY meanings are inferred from the source labels. |
+
+### View definition
+
+```sql
+SELECT "Country" AS country,
+    instrument_name,
+    ticker::text AS ticker,
+    metric_type::text AS metric_type,
+    date,
+    open,
+    high,
+    low,
+    close,
+    value_unit::text AS value_unit
+   FROM "Price_Fixed_Income" p
+  WHERE is_final AND "Timeframe"::text = '1D'::text;
+```
+
 ## Applied fixed-income provider-session migration (2026-10-20)
 
 Applied and read back at18:43 WIB. Migration `20261013_011_verify_fixed_income_sessions.sql` adds required text columns `provider_timezone_name` (verified TradingView timezone) and `provider_session` (daily session anchor) to `Fixed_Income_Market_Schedule`. Both ID and US use NEXT_BUSINESS_DAY source mapping under the reviewed policy. The changed physical table section above has been refreshed from live readback.

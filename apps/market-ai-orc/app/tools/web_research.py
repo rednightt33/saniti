@@ -28,7 +28,7 @@ DESCRIPTION = (
     "for an analysis) and the expected shape when you know it; the same need about several companies is one call "
     "with them as subjects. The web governor searches, keeps only items quoted verbatim from their sources, labels "
     "false conflicts (different periods, definitions, units or releases) and, for a real conflict, the version it "
-    "prefers (chosen_by_ai) with every version kept. Never use it for prices, volumes, flows or any figure the "
+    "prefers (chosen_by_ai) with every version kept. Never use it for prices, yields, volumes, flows, indicators or any figure the "
     "database holds; a web number describes and is never an input of a calculation, while an event date may set an "
     "analysis period. A run has a limited web budget: ask for what the answer needs.")
 # added only when value references are on (a description never promises what the run cannot do; P31)

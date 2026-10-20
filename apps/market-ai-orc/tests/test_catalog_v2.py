@@ -428,6 +428,35 @@ def test_a_query_also_lists_the_documented_formulas_matching_its_keywords(migrat
     assert "matches" not in call(registry, "discover_catalog", {})["formula_catalog"]
 
 
+def test_a_formula_names_the_stored_feature_column_that_holds_it(migrated_db: str) -> None:
+    """EXEC-ONBOARD-1: a calculation contract whose implementation_ref names 'AI_formula_reference:<id>' is listed in
+    that formula's stored_in (search, full definition, discover matches); a hidden column is not."""
+    with psycopg.connect(migrated_db, autocommit=True) as c:
+        c.execute('''INSERT INTO public."AI_calculation_catalog" (calculation_name, version, target_table,
+            target_columns, definition, required_inputs, parameters, defaults, implementation_ref, alignment_rules,
+            missing_data_policy, output_definition, validation_evidence, status)
+            SELECT name, 'v4', 'Feature_02_Broker_Rolling', ARRAY[name], 'Stored RSI.', '{}',
+                   '{"formula_reference": {"relation": "STORED_VARIANT", "note": "14 changes"}}', '{}',
+                   ARRAY['x.sql', 'AI_formula_reference:zz_rsi_wilder'], 'r', 'n',
+                   jsonb_build_object('ai_allowed', allowed), ARRAY['e.md'], 'ACTIVE'
+            FROM (VALUES ('rsi_14', true), ('rsi_state', false)) AS v(name, allowed)''')
+    try:
+        registry = registry_for(migrated_db)
+        stored = [{"table": "Feature_02_Broker_Rolling", "column": "rsi_14", "version": "v4",
+                   "relation": "STORED_VARIANT", "note": "14 changes"}]
+        found = details(registry, [], ["FORMULAS"], formula_query="relative strength")["sections"]["FORMULAS"]
+        assert found["entries"][0]["stored_in"] == stored and "instead of computing" in found["note"]
+        full = details(registry, [], ["FORMULAS"], formula_ids=["zz_rsi_wilder"])["sections"]["FORMULAS"]
+        assert full["entries"][0]["stored_in"] == stored and "instead of computing" in full["note"]
+        page = call(registry, "discover_catalog", {"query": "RSI relative strength index"})
+        assert page["formula_catalog"]["matches"][0]["stored_in"] == stored
+        other = details(registry, [], ["FORMULAS"], formula_query="synthetic metric")["sections"]["FORMULAS"]
+        assert all("stored_in" not in e for e in other["entries"]) and "instead of computing" not in other["note"]
+    finally:
+        with psycopg.connect(migrated_db, autocommit=True) as c:
+            c.execute('''DELETE FROM public."AI_calculation_catalog" WHERE calculation_name IN ('rsi_14', 'rsi_state')''')
+
+
 def test_keywords_match_visible_column_names_and_descriptions_only(migrated_db: str) -> None:
     registry = registry_for(migrated_db)
     foreign = call(registry, "discover_catalog", {"query": "foreign investors"})

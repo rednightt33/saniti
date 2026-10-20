@@ -231,11 +231,14 @@ ADDED |= {"When query_metric is offered, an official metric of the metric catalo
           "one call, without a data need or a session."}
 # E9(c) (EXEC-1018B Fase 4, user 2026-10-16 "4. Otomatis"): an offer written in prose is also put in offered_action
 ADDED |= {"An offered next step also goes in offered_action;", "a short yes runs it."}
+# EXEC-ONBOARD-1 (user 2026-10-20 "agar mungkin AI bisa refer ke kolom ini sebagai optionality instead of hitung manual")
+ADDED |= {"An indicator or candle pattern a Feature column already stores (a formula's stored_in) is read from that "
+          "column, not computed again."}
 # the reader section added about six percent (the budget was two percent over the pass-2 fixture); EXEC-Y Fase 3's
 # four sentences about half a percent more; EXEC-STYLE about half a percent more; EXEC-M143 about one percent more;
 # EXEC-DAYS about a third of a percent more; O1 early (EXEC-IMPL-1016) about one percent more; EXEC-1018B E9(c) about
-# a fifth of a percent more
-SIZE_BUDGET = 1.138
+# a fifth of a percent more; EXEC-ONBOARD-1's stored-column sentence about a third of a percent more
+SIZE_BUDGET = 1.141
 
 SECTIONS = ["GENERAL RULES", "TOOL USE", "TOOL RESULTS", "FINAL RESPONSE", "WRITING FOR THE READER", "DATA DISCOVERY", "DATA SOURCES",
             "DATA NEED", "MODES", "TIME BASIS", "NAMED-PERIOD RETURNS", "WEEKLY AND MONTHLY", "CONVERSATION REUSE",

@@ -492,6 +492,24 @@ def table_names(connection: psycopg.Connection[Any], schema: str) -> list[str]:
     ]
 
 
+def view_definitions(connection: psycopg.Connection[Any], schema: str) -> list[tuple[str, str]]:
+    """Views of the schema with their SQL (EXEC-ONBOARD-1: Price_Fixed_Income_Final). Read only; views have no row in
+    the status table."""
+    return [
+        (row[0], row[1])
+        for row in connection.execute(
+            """
+            SELECT class.relname, pg_catalog.pg_get_viewdef(class.oid, true)
+            FROM pg_catalog.pg_class AS class
+            JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = class.relnamespace
+            WHERE namespace.nspname = %s AND class.relkind = 'v'
+            ORDER BY class.relname
+            """,
+            (schema,),
+        ).fetchall()
+    ]
+
+
 def ensure_status_table(connection: psycopg.Connection[Any], schema: str) -> None:
     create_statement = sql.SQL(
         """
@@ -1033,6 +1051,7 @@ def generate_document(
     indexes: dict[str, list[dict[str, str]]],
     comments: dict[str, str | None],
     statuses: list[dict[str, Any]],
+    views: list[tuple[str, str]] = (),
 ) -> str:
     lines = [
         "# Database schema",
@@ -1129,6 +1148,20 @@ def generate_document(
         else:
             lines.append("No indexes were found.")
 
+    if views:
+        lines.extend(["", "## Views", "", "| View Name | Definition |", "|---|---|"])
+        for name, _ in views:
+            description = comments.get(name) or "No description has been recorded."
+            lines.append(f"| {code(name)} | {markdown(description)} |")
+    for name, definition in views:
+        description = comments.get(name) or "No description has been recorded."
+        lines.extend(["", f"## {name}", "", description, "", "### Columns", "",
+                      "| Column | Type | Definition |", "|---|---|---|"])
+        for column in columns.get(name, []):
+            lines.append(f"| {code(column['name'])} | {code(column['type'])} | "
+                         f"{markdown(column['description'] or 'No column description has been recorded.')} |")
+        lines.extend(["", "### View definition", "", "```sql", definition.strip(), "```"])
+
     return "\n".join(lines) + "\n"
 
 
@@ -1182,8 +1215,9 @@ def main() -> int:
         indexes = fetch_indexes(connection, args.schema)
         comments = fetch_table_comments(connection, args.schema)
         apply_catalog_definitions(connection, args.schema, names, comments, columns)
+        views = view_definitions(connection, args.schema)
         document = generate_document(
-            args.schema, refreshed_at, names, columns, constraints, indexes, comments, statuses
+            args.schema, refreshed_at, names, columns, constraints, indexes, comments, statuses, views
         )
 
     write_atomically(args.output, document)

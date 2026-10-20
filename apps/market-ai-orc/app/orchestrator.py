@@ -1239,11 +1239,15 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
 # M125 C (user decision 2026-10-08): one reader-first answer, written where its figures can be value references
 READER_EXAMPLE = ('\nFor example, an answer in Indonesian for an inconclusive test:\n"**Belum bisa disimpulkan.** Lonjakan volume BBRI hanya terjadi {{finding.vol_spike.sample.effective|int}} kali dalam periode ini, terlalu sedikit untuk tahu apakah harganya cenderung naik sesudahnya. Lima hari setelah lonjakan, return rata-rata berbeda {{finding.vol_spike.angle_a.difference|pp}} dari hari biasa, selisih yang masih bisa muncul karena kebetulan. Periode yang lebih panjang atau beberapa saham bank sekaligus akan memberi jawaban yang lebih pasti".')
 # Prompt audit 2026-10-05 (PROMPT_AUDIT_2026-10-05.md, approved by the user): sentences derived from the offered tools
-OUTSIDE_DATA_RULE = ("Data the catalog does not contain (for example macro data, yields,\nfundamentals, or news) is "
-                     "unavailable: say so and never substitute\nanother dataset.")
+# EXEC-ONBOARD-1 (2026-10-20): government bond yields are in the catalog now (Price_Fixed_Income_Final), so "yields" is
+# no longer an example of outside data; an indicator a Feature column stores is read, not computed again
+STORED_FEATURE_SENTENCE = ("\nAn indicator or candle pattern a Feature column already stores (a formula's\nstored_in) "
+                           "is read from that column, not computed again.")
+OUTSIDE_DATA_RULE = ("Data the catalog does not contain (for example macro data, fundamentals,\nor news) is "
+                     "unavailable: say so and never substitute\nanother dataset." + STORED_FEATURE_SENTENCE)
 OUTSIDE_DATA_WEB_RULE = (
-    "Data the catalog does not contain (for example macro data, yields,\nfundamentals, or news) is not in the "
-    "database: say so and never substitute\nanother dataset. One public fact about a company (its status, "
+    "Data the catalog does not contain (for example macro data, fundamentals,\nor news) is not in the "
+    "database: say so and never substitute\nanother dataset." + STORED_FEATURE_SENTENCE + " One public fact about a company (its status, "
     "ownership,\ngroup or index membership) can be looked up with find_web_fact and is\nshown as a web fact; a web "
     "fact describes and never becomes a series, a\ndataset or an input of a calculation.")
 # Item 12 (plan 2026-10-05, user decision): with research_web, information outside the database is looked up for
@@ -1253,7 +1257,7 @@ OUTSIDE_DATA_RESEARCH_RULE = (
     "Information the catalog does not contain (for example macro data, events,\nnews, ownership or group membership) "
     "is looked up with research_web, for\ncontext or when the database lacks it, and is shown as a web fact; for\n"
     "market data the database wins. Cite web values by their references; an\nevent date may set an analysis "
-    "period, but a web number is never an input\nof a calculation.")
+    "period, but a web number is never an input\nof a calculation." + STORED_FEATURE_SENTENCE)
 OUTSIDE_DATA_REFERENCE_RULE = ("\nAn attribute the reference tables hold (a sector, an industry, a company\n"
                                "profile) is read with lookup_reference, never from the web.")
 METRIC_PATH_RULE = ("When query_metric is offered, an official metric of the metric catalog over periods is\n"

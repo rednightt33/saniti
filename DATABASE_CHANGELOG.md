@@ -2029,3 +2029,56 @@ Approved ID+US price/yield dates: September30; October13,14,15,16,19 (2026), plu
 ## 2026-10-20 — Manual Indonesia bonds October20 fill completed
 
 User: “Coba tarik manual saja untuk 20 oktober serta kalkulasi feature 4 manual, hanya untuk bonds ya.” At19:34 WIB, native Git-released ingestion (commit21d2e02), mode manual, marketID, explicit target2026-10-20 inserted22 final TradingView rows (11 price +11 yield; previously0). Execution7a4f0d58-9f23-4c72-8388-ff03f1a7b608 SUCCESS,0 missing. Existing live Feature04 worker completed11 ticker attempts, each source_rows1, checkpoint2026-10-19, all51 columns SUCCESS and0 failed. Readback:11 October20 Feature rows,561 column statuses SUCCESS validated through October20,0 close mismatches,0 US October20 rows,0 equity calculation attempts since this manual run. US October20 was not final and was excluded. No deletion, migration, formula change or history replay. Evidence: verification/fixed_income_session_repair/OCT20_MANUAL.json and OCT20_MANUAL_LOGS.json.
+
+## 2026-10-20 — EXEC-ONBOARD-1: Price_Fixed_Income (view), Universe_Fixed_income and Feature 04 exposed to the AI
+
+User: "Ok view saja ya untuk no 1. Jalankan." and "Ok untuk no 2. Ok untuk no 3. Ok untuk no 4." (EXEC.md
+EXEC-ONBOARD-1, NEW_TABLE_ONBOARDING_PLAN.md section 6). Two read-only live reads first (one-off jobs on
+`orc-test-runner` with `default_transaction_read_only=on`; `DATABASE_URL` set only for the run and removed after):
+every `Price_Fixed_Income` row is final `1D` (121,911 rows; `(ticker, date, metric_type)` unique among them; `volume`
+always NULL); `Price_Stock_Indonesia_IDX` has no provisional row; Feature 04 equity 1,324,453 rows / 844 tickers and
+bonds 60,540 rows / 24 tickers, no ticker in both; the 15 referenced `AI_formula_reference` rows exist.
+
+- Migration `20261020_001_onboard_fixed_income_and_feature04.sql` (SHA256
+  `c327df2e2475291447e1779de00e42cf1dd78df568e4bd8dce1899f57a3e3478`): view `Price_Fixed_Income_Final`
+  (`is_final AND "Timeframe" = '1D'`, ten analytical columns); `AI_table_catalog` rows for the view,
+  `Universe_Fixed_income` and `Feature_04_Technical_Indicator`; `AI_column_catalog` 10 + 14 + 57 rows (exposed 10 + 10
+  + 49; Feature 04 `tracking_*`, `temp_*`, `*_bar`, `calculation_version`, `calculated_at` and the universe's
+  `is_common_stock`, `tradingview_country`, `tradingview_symbol`, `updated_at` are `ai_allowed = false`); Indonesian
+  meanings `DRAFT`; five `AI_catalog_relationships` (157-161); 57 `AI_calculation_catalog` rows for Feature 04 from
+  its active `Feature_Catalog` v4 definitions, 19 of them naming an `AI_formula_reference` id in `implementation_ref`
+  and `parameters.formula_reference` (relation `STORED_VARIANT` or `RELATED_NOT_IDENTICAL`: candle codes against
+  geometric definitions, RSI both-zero 0 vs 50, inside bar strict vs ties); SELECT for `market_ai_sql_reader` and
+  `market_ai_preview_owner` (and `pgweb_reader` on the view); `public.ai_preview_table_rows(text)` replaced (ten
+  objects; Feature 04 rows without the hidden columns); `Table_Catalog` / `Column_Catalog` for the view, migration path
+  and `related_functions` on the touched rows. The base table `Price_Fixed_Income` stays unreadable to the AI roles.
+- Migration `20261020_002_round_z_tool_catalog.sql` (SHA256
+  `1f9b38b2e5da12baa838aed3ca71b80a89b46b63750e133985d35745d36872e9`, generator-made): `preview_table_rows` v2,
+  `research_web` v4 (inactive like every market-ai-orc row).
+- Rehearsal: three DRYRUN jobs (body without COMMIT, probes in the same transaction, ROLLBACK). The first two stopped at
+  the last check, which revealed that `Table_Catalog.related_functions` of `Price_Stock_Indonesia_IDX` no longer lists
+  `public.ai_preview_table_rows(text)` (earlier catalog drift, not changed here); the check was narrowed to the three
+  new objects. The third passed; probes: the AI reader reads the view (121,911 rows, 2016-01-01 to 2026-10-20) and is
+  refused on the base table; preview of Feature 04 20 rows / 49 columns, view 20 / 10, universe 20 / 14, the old
+  `Price_Stock_Indonesia_IDX` 20 / 18.
+- Performance (bounded `EXPLAIN (ANALYZE, BUFFERS)` in the rehearsal, no index added): Feature 04 latest session
+  `asset_type = 'equity' AND trade_date = '2026-10-20' AND cdl_hammer <> 0` 13.9 ms (bitmap scan on the primary key,
+  866 index searches); one week all tickers 8.3 ms (primary-key skip scan); one ticker one year 0.26 ms; view one ticker
+  one month 2.2 ms and one country one month 0.28 ms (`Price_Fixed_Income_date_idx`). The Feature 04 preview order
+  `trade_date DESC, asset_type DESC, ticker DESC LIMIT 20` is a parallel sequential scan with top-N sort, 433 ms
+  (preview is a rare tool call; accepted, no index).
+- APPLY job `b0a9b920` (after the orc logs showed no active `edge_` run, 14:05 UTC). Read-back: the three
+  `AI_table_catalog` rows active `BOUNDED_READ` (subjects MARKET/BOND/GOVERNMENT_BOND twice, MARKET/INSTRUMENT/NULL for
+  Feature 04); columns 57/49, 10/10, 14/10 with every exposed column DRAFT; relationships 157-161; 57 calculations, 19
+  with a formula reference; `preview_table_rows` v1-v2 and `research_web` v1-v4; grants to `market_ai_preview_owner`
+  and `market_ai_sql_reader` only on the three objects; view 121,911 rows up to 2026-10-20.
+- `scripts/sync_database_schema.py` (now renders views): `Synchronized 95 tables`; only its new views section was
+  copied into `DATABASE_SCHEMA.md`, because the regenerated table sections would overwrite hand-maintained text of
+  other changes (the fixed-income provider-session note, the Telegram relationship row). `scripts/sync_database_catalog.py`
+  stopped before reconciling: `Public tables need Table_Catalog entries` for the Stockbit tables
+  (`idx_broker_summary_freq_*`, `idx_net_foreign_summary_*`, `idx_stockbit_backfill_status`,
+  `idx_stockbit_value_corrections`) created outside this change; not registered here (open item for their owner).
+- Not changed: `Price_Fixed_Income`, `Feature_Catalog`, `Feature_Relationship_Catalog`, any data row. No Feature
+  definition changed, so `scripts/audit_feature_catalog_semantics.py` was not required.
+- Rollback (forward migration): `is_active = false` on the three `AI_table_catalog` rows and `is_allowed = false` on
+  relationships 157-161; revoke the grants; restore the seven-table preview function of `20260923_002`.

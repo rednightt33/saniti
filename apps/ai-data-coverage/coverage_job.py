@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh AI data coverage without reading Feature 01, 02, or 03 tables."""
+"""Refresh AI data coverage without reading Feature 01, 02, 03, or 04 tables."""
 
 from __future__ import annotations
 
@@ -21,6 +21,8 @@ READ_TABLES = frozenset(
         "IDX_Stock_Universe",
         "IDX_Broker_Profile",
         "Feature_Status",
+        "Price_Fixed_Income_Final",
+        "Universe_Fixed_income",
     }
 )
 WRITE_TABLES = frozenset({"AI_data_coverage"})
@@ -29,6 +31,7 @@ FORBIDDEN_FEATURE_TABLES = frozenset(
         "Feature_01_Stock_Daily",
         "Feature_02_Broker_Rolling",
         "Feature_03_Stock_Broker_Daily",
+        "Feature_04_Technical_Indicator",
     }
 )
 
@@ -36,7 +39,7 @@ RAW_SOURCES = {
     "Price_Stock_Indonesia_IDX": {
         "entity_column": "ticker",
         "date_column": "date",
-        "reference_for": ("Feature_01_Stock_Daily",),
+        "reference_for": ("Feature_01_Stock_Daily", "Feature_04_Technical_Indicator"),
     },
     "IDX_Broker_Summary": {
         "entity_column": "Symbol",
@@ -46,7 +49,19 @@ RAW_SOURCES = {
             "Feature_03_Stock_Broker_Daily",
         ),
     },
+    # EXEC-ONBOARD-1: the final daily bond bars (both metric types per ticker); Feature 04's bond rows come from the
+    # price series of this view
+    "Price_Fixed_Income_Final": {
+        "entity_column": "ticker",
+        "date_column": "date",
+        "reference_for": ("Feature_04_Technical_Indicator",),
+    },
 }
+SNAPSHOTS = ("IDX_Stock_Universe", "IDX_Broker_Profile", "Universe_Fixed_income")
+FEATURE_FOUR = "Feature_04_Technical_Indicator"
+# Feature 04 is calculated by an event-driven worker after final price changes; no status table here confirms it,
+# so its expected coverage stays UNVERIFIED (the expected range, not the stored one)
+FEATURE_FOUR_PIPELINE = "EVENT_DRIVEN_NOT_CONFIRMED"
 
 
 def validate_access_contract() -> None:
@@ -109,6 +124,20 @@ def raw_coverage_rows(
             {where_clause}
             GROUP BY "Symbol"
             ORDER BY "Symbol"
+            """,
+            parameters,
+        ).fetchall()
+    if dataset_name == "Price_Fixed_Income_Final":
+        where_clause = "" if mode == "full" else "WHERE date >= %s"
+        parameters = () if mode == "full" else (cutoff,)
+        return connection.execute(
+            f"""
+            SELECT ticker, min(date), max(date),
+                   count(*)::bigint, count(DISTINCT date)::bigint
+            FROM public."Price_Fixed_Income_Final"
+            {where_clause}
+            GROUP BY ticker
+            ORDER BY ticker
             """,
             parameters,
         ).fetchall()
@@ -250,6 +279,10 @@ def upsert_snapshot(
     elif dataset_name == "IDX_Broker_Profile":
         row_count = connection.execute(
             'SELECT count(*)::bigint FROM public."IDX_Broker_Profile"'
+        ).fetchone()[0]
+    elif dataset_name == "Universe_Fixed_income":
+        row_count = connection.execute(
+            'SELECT count(*)::bigint FROM public."Universe_Fixed_income"'
         ).fetchone()[0]
     else:
         raise ValueError(f"Unsupported snapshot dataset: {dataset_name}")
@@ -396,6 +429,84 @@ def upsert_manual_feature_expectations(
     )
 
 
+def upsert_feature_four_expectations(
+    connection: psycopg.Connection[Any],
+    checked_at: datetime,
+) -> None:
+    """Feature 04 expected coverage from its two raw sources: equity tickers inherit the stock price range (already
+    measured in AI_data_coverage), bond tickers the range of their price series in Price_Fixed_Income_Final (Feature
+    04 reads only metric_type price). No stock ticker is also a bond ticker (live read 2026-10-20)."""
+    connection.execute(
+        """
+        INSERT INTO public."AI_data_coverage" (
+            dataset_name, coverage_scope, entity_id,
+            reference_dataset_name, coverage_mode,
+            actual_min_date, actual_max_date,
+            expected_min_date, expected_max_date,
+            source_row_count, source_key_count,
+            pipeline_status, verification_status, quality_status,
+            check_error, last_checked_at, last_full_checked_at
+        )
+        SELECT
+            'Feature_04_Technical_Indicator', 'ENTITY', source.entity_id,
+            source.reference_dataset_name, 'EXPECTED_DERIVED',
+            NULL, NULL, source.expected_min_date, source.expected_max_date,
+            source.source_row_count, source.source_key_count,
+            %s, 'UNVERIFIED', 'WARNING', NULL, %s, source.last_full_checked_at
+        FROM (
+            SELECT entity_id, 'Price_Stock_Indonesia_IDX' AS reference_dataset_name,
+                   actual_min_date AS expected_min_date, actual_max_date AS expected_max_date,
+                   source_row_count, source_key_count, last_full_checked_at
+            FROM public."AI_data_coverage"
+            WHERE dataset_name = 'Price_Stock_Indonesia_IDX' AND coverage_scope = 'ENTITY'
+            UNION ALL
+            SELECT ticker, 'Price_Fixed_Income_Final', min(date), max(date),
+                   count(*)::bigint, count(DISTINCT date)::bigint, %s
+            FROM public."Price_Fixed_Income_Final"
+            WHERE metric_type = 'price'
+            GROUP BY ticker
+        ) AS source
+        ON CONFLICT (dataset_name, coverage_scope, (COALESCE(entity_id, ''))) DO UPDATE SET
+            reference_dataset_name = EXCLUDED.reference_dataset_name,
+            coverage_mode = EXCLUDED.coverage_mode,
+            actual_min_date = NULL,
+            actual_max_date = NULL,
+            expected_min_date = EXCLUDED.expected_min_date,
+            expected_max_date = EXCLUDED.expected_max_date,
+            source_row_count = EXCLUDED.source_row_count,
+            source_key_count = EXCLUDED.source_key_count,
+            pipeline_status = EXCLUDED.pipeline_status,
+            verification_status = EXCLUDED.verification_status,
+            quality_status = EXCLUDED.quality_status,
+            check_error = NULL,
+            last_checked_at = EXCLUDED.last_checked_at,
+            last_full_checked_at = EXCLUDED.last_full_checked_at
+        """,
+        (FEATURE_FOUR_PIPELINE, checked_at, checked_at),
+    )
+
+
+def prune_feature_four_entities(connection: psycopg.Connection[Any]) -> None:
+    """Full mode: a Feature 04 entity in neither raw source is dropped."""
+    connection.execute(
+        """
+        DELETE FROM public."AI_data_coverage" AS derived
+        WHERE derived.dataset_name = 'Feature_04_Technical_Indicator'
+          AND derived.coverage_scope = 'ENTITY'
+          AND NOT EXISTS (
+              SELECT 1 FROM public."AI_data_coverage" AS source
+              WHERE source.dataset_name = 'Price_Stock_Indonesia_IDX'
+                AND source.coverage_scope = 'ENTITY'
+                AND source.entity_id = derived.entity_id
+          )
+          AND NOT EXISTS (
+              SELECT 1 FROM public."Price_Fixed_Income_Final" AS bond
+              WHERE bond.metric_type = 'price' AND bond.ticker = derived.entity_id
+          )
+        """
+    )
+
+
 def prune_derived_entities(
     connection: psycopg.Connection[Any],
     feature_table: str,
@@ -421,7 +532,7 @@ def prune_derived_entities(
 def upsert_derived_dataset_summary(
     connection: psycopg.Connection[Any],
     dataset_name: str,
-    reference_dataset_name: str,
+    reference_dataset_name: str | None,
     checked_at: datetime,
 ) -> None:
     connection.execute(
@@ -499,7 +610,7 @@ def run(mode: str, recent_days: int) -> dict[str, Any]:
             upsert_raw_entities(connection, raw_dataset, rows, checked_at, mode)
             upsert_raw_dataset_summary(connection, raw_dataset, checked_at)
 
-        for snapshot in ("IDX_Stock_Universe", "IDX_Broker_Profile"):
+        for snapshot in SNAPSHOTS:
             if snapshot in enabled:
                 upsert_snapshot(connection, snapshot, checked_at)
 
@@ -535,6 +646,12 @@ def run(mode: str, recent_days: int) -> dict[str, Any]:
                 "IDX_Broker_Summary",
                 checked_at,
             )
+
+        if FEATURE_FOUR in enabled:
+            upsert_feature_four_expectations(connection, checked_at)
+            if mode == "full":
+                prune_feature_four_entities(connection)
+            upsert_derived_dataset_summary(connection, FEATURE_FOUR, None, checked_at)
 
         summary_rows = connection.execute(
             """

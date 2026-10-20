@@ -48,6 +48,9 @@ registering the new versions of the tools whose contract changed in that round.
   is a stored value; EXEC-IMPL-1016 Fase 1.3).
 - round_x (20261016_001): every tool whose arguments carry a value limit, its next version with the limits
   written into the argument descriptions (U6, EXEC-1018B Fase 1) and query_metric up to 100 entities (E5).
+- round_z (20261020_002): preview_table_rows v2 (ten objects: Price_Fixed_Income_Final, Universe_Fixed_income and
+  Feature_04_Technical_Indicator added) and research_web v4 (yields and indicators are figures the database holds);
+  EXEC-ONBOARD-1.
 - round_w (20261015_015): the first row of search_values and get_dimension_values v3 (the user's words matched to
   stored codes and values: names, initials, part of a name; EXEC-IMPL-1016 Fase 3, O1).
 
@@ -567,8 +570,24 @@ ROUNDS = {
                     "name emitted again replaces the earlier output (E6)."],
         "limits": {"export_result": "input sheets at most 200,000 rows together; a supporting table kept 30 days"},
     },
+    "round_z": {
+        "target": ROOT / "database/migrations/20261020_002_round_z_tool_catalog.sql",
+        "versions": {"preview_table_rows": ("v1", "v2"),
+                     "research_web": ("v3", "v4")},
+        "contracts": {"preview_table_rows": ("input_schema", "Feature_04_Technical_Indicator"),
+                      "research_web": ("purpose", "yields")},
+        "title": "fixed income and Feature 04 onboarded",
+        "header": "EXEC.md EXEC-ONBOARD-1 (user \"Ok view saja ya untuk no 1. Jalankan.\", 2026-10-20)",
+        "design": "NEW_TABLE_ONBOARDING_PLAN.md section 6; EXEC.md EXEC-ONBOARD-1",
+        "limits_design": "EXEC.md EXEC-ONBOARD-1",
+        "summary": ["preview_table_rows previews ten objects: the seven tables, Price_Fixed_Income_Final, Universe_Fixed_income",
+                    "and Feature_04_Technical_Indicator (without its calculation state columns; database function in",
+                    "20261020_001). research_web names yields and indicators among the figures the database holds."],
+        "limits": {"preview_objects": "ten approved objects; the ORDER BY of each is app/tools/preview.py ORDERING and "
+                                      "public.ai_preview_table_rows (20261020_001)"},
+    },
 }
-NEWEST = "round_y"
+NEWEST = "round_z"
 
 
 def _tools_doc():

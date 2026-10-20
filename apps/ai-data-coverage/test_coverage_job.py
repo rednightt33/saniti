@@ -15,7 +15,7 @@ def test_access_contract_allows_only_coverage_writes():
 def test_source_contains_no_feature_table_from_or_join():
     source = Path(coverage_job.__file__).read_text(encoding="utf-8")
     forbidden_scan = re.compile(
-        r'(?:FROM|JOIN)\s+public\."Feature_0[123]_[^"]+"',
+        r'(?:FROM|JOIN)\s+public\."Feature_0[1234]_[^"]+"',
         re.IGNORECASE,
     )
     assert forbidden_scan.search(source) is None
@@ -25,10 +25,18 @@ def test_raw_source_mapping_is_explicit():
     assert set(coverage_job.RAW_SOURCES) == {
         "Price_Stock_Indonesia_IDX",
         "IDX_Broker_Summary",
+        "Price_Fixed_Income_Final",
     }
     assert coverage_job.RAW_SOURCES["Price_Stock_Indonesia_IDX"]["reference_for"] == (
         "Feature_01_Stock_Daily",
+        "Feature_04_Technical_Indicator",
     )
+    # EXEC-ONBOARD-1: Feature 04 is derived from two raw sources (stock prices, bond price series)
+    assert coverage_job.RAW_SOURCES["Price_Fixed_Income_Final"]["reference_for"] == (
+        "Feature_04_Technical_Indicator",
+    )
+    assert "Feature_04_Technical_Indicator" in coverage_job.FORBIDDEN_FEATURE_TABLES
+    assert "Universe_Fixed_income" in coverage_job.SNAPSHOTS
     assert coverage_job.RAW_SOURCES["IDX_Broker_Summary"]["reference_for"] == (
         "Feature_02_Broker_Rolling",
         "Feature_03_Stock_Broker_Daily",
@@ -41,4 +49,4 @@ def test_every_upsert_names_the_functional_identity_index_columns():
     assert source.count(
         "ON CONFLICT (dataset_name, coverage_scope, "
         "(COALESCE(entity_id, ''))) DO UPDATE"
-    ) == 6
+    ) == 7

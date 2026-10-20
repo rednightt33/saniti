@@ -46,7 +46,8 @@ from .spec_v2 import (SPEC_VERSION_V2, AnalysisSpecV2, catalog_tables, normalize
 
 logger = logging.getLogger("market_python_sandbox")
 RUNTIME_VERSION = "market-python-sandbox/v2"
-PRICE_TABLES = {"Price_Stock_Indonesia_IDX", "Feature_01_Stock_Daily"}
+# tables whose prices carry the split-only adjustment of the IDX price source (Feature 04's equity close is that price)
+PRICE_TABLES = {"Price_Stock_Indonesia_IDX", "Feature_01_Stock_Daily", "Feature_04_Technical_Indicator"}
 PRICE_CHANGE_METHODS = {"RETURN", "FORWARD_RETURN", "EVENT_STUDY", "CORRELATION", "ROLLING_CORRELATION", "CUSTOM"}
 CORPORATE_ACTIONS_MESSAGE = (
     "Prices are split-adjusted as fetched (TradingView adjustment=splits) and are not dividend-adjusted; history stored "

@@ -174,6 +174,15 @@ import re as _re
 
 SCHEMA_DOC = REPO_ROOT / "DATABASE_SCHEMA.md"
 PREVIEW_MIGRATION = REPO_ROOT / "database/migrations/20260923_002_create_market_ai_preview_interface.sql"
+# the newest definition of the preview function (EXEC-ONBOARD-1, 2026-10-20): applied after the first migration so
+# the seven fixture tables are previewed by the function that runs in production
+ONBOARD_MIGRATION = REPO_ROOT / "database/migrations/20261020_001_onboard_fixed_income_and_feature04.sql"
+
+
+def preview_function_sql() -> str:
+    text = ONBOARD_MIGRATION.read_text()
+    start = text.index("CREATE OR REPLACE FUNCTION public.ai_preview_table_rows")
+    return text[start:text.index("$function$;", start) + len("$function$;")]
 MARKET_TABLES = (
     "Feature_01_Stock_Daily", "Feature_02_Broker_Rolling", "Feature_03_Stock_Broker_Daily",
     "IDX_Broker_Profile", "IDX_Broker_Summary", "IDX_Stock_Universe", "Price_Stock_Indonesia_IDX",

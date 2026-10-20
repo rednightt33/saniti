@@ -25,7 +25,7 @@ from app.tools.catalog_rows import CATALOG_TABLES  # noqa: E402
 from app.tools.preview import ORDERING  # noqa: E402
 from catalog_fixture import (  # noqa: E402
     FIXTURE_SQL, MARKET_ROWS, MARKET_TABLES, PREVIEW_MIGRATION, READER_MIGRATION, REPO_ROOT,
-    TRIGGER_FUNCTION_STUB, catalog_ddl, market_insert, market_primary_key, market_table_ddl,
+    TRIGGER_FUNCTION_STUB, catalog_ddl, market_insert, market_primary_key, market_table_ddl, preview_function_sql,
     RESEARCH_FIXTURE_SQL, research_catalog_ddl, FORMULA_FIXTURE_SQL, formula_catalog_ddl,
 )
 
@@ -80,6 +80,7 @@ def db() -> Iterator[dict[str, str]]:
         connection.execute('GRANT SELECT ON public."AI_research_catalog" TO market_ai_catalog_reader')
         connection.execute('GRANT SELECT ON public."AI_formula_reference" TO market_ai_catalog_reader')
         connection.execute(PREVIEW_MIGRATION.read_text())
+        connection.execute(preview_function_sql())
         connection.execute("ANALYZE")
     spec = importlib.util.spec_from_file_location("provision", REPO_ROOT / "scripts/provision_market_ai_orc_login.py")
     module = importlib.util.module_from_spec(spec)

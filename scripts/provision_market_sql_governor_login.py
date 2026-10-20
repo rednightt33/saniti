@@ -16,12 +16,17 @@ from psycopg.rows import dict_row
 
 LOGIN = "market_sql_governor"
 GROUP = "market_ai_sql_reader"
+# The objects market_ai_sql_reader may read, as granted by the migrations: the six AI catalogs (AI_entity_alias:
+# 20261015_014), the seven first market-data tables, the two reference histories (20260927_006) and the fixed-income
+# view, its universe and Feature 04 (20261020_001, EXEC-ONBOARD-1). Table_Catalog's column grants are not table reads.
 APPROVED = {
     "AI_table_catalog", "AI_column_catalog", "AI_catalog_relationships", "AI_calculation_catalog",
-    "AI_data_coverage", "Feature_01_Stock_Daily", "Feature_02_Broker_Rolling",
+    "AI_data_coverage", "AI_entity_alias", "Feature_01_Stock_Daily", "Feature_02_Broker_Rolling",
     "Feature_03_Stock_Broker_Daily", "IDX_Broker_Profile", "IDX_Broker_Summary",
-    "IDX_Stock_Universe", "Price_Stock_Indonesia_IDX",
+    "IDX_Stock_Universe", "Price_Stock_Indonesia_IDX", "IDX_Stock_Universe_History", "IDX_Broker_Profile_History",
+    "Price_Fixed_Income_Final", "Universe_Fixed_income", "Feature_04_Technical_Indicator",
 }
+CATALOGS = sum(name.startswith("AI_") for name in APPROVED)
 
 
 def main() -> None:
@@ -57,19 +62,22 @@ def main() -> None:
             """SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
                WHERE n.nspname = 'public' AND c.relkind IN ('r','p','v','m','f')
                  AND has_table_privilege(%s, c.oid, 'SELECT')""", (LOGIN,))}
+        # an approved object absent from this database (a test fixture with the first tables only) is not required
+        existing = {name for name in APPROVED if connection.execute(
+            "SELECT to_regclass(format('public.%%I', %s::text)) IS NOT NULL AS present", (name,)).fetchone()["present"]}
         writable = {row["relname"] for row in connection.execute(
             """SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
                WHERE n.nspname = 'public' AND c.relkind IN ('r','p','v','m','f')
                  AND has_table_privilege(%s, c.oid, 'INSERT,UPDATE,DELETE,TRUNCATE')""", (LOGIN,))}
     if memberships != {GROUP}:
         raise RuntimeError(f"{LOGIN} has unexpected role memberships: {sorted(memberships)}")
-    if readable != APPROVED:
+    if readable != existing:
         raise RuntimeError(f"{LOGIN} readable tables differ: extra={sorted(readable - APPROVED)} "
-                           f"missing={sorted(APPROVED - readable)}")
+                           f"missing={sorted(existing - readable)}")
     if writable:
         raise RuntimeError(f"{LOGIN} can write to: {sorted(writable)}")
-    print(f"{LOGIN} provisioned: read-only SELECT on {len(APPROVED)} approved tables "
-          "(5 AI catalogs + 7 market-data tables); no write privilege")
+    print(f"{LOGIN} provisioned: read-only SELECT on {len(existing)} of {len(APPROVED)} approved objects "
+          f"({CATALOGS} AI catalogs + {len(APPROVED) - CATALOGS} market-data objects); no write privilege")
 
 
 if __name__ == "__main__":
