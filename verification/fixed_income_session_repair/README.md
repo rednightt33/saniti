@@ -1,6 +1,6 @@
 # Fixed-income selected-date repair
 
-Status 2026-10-20: code prepared; local PostgreSQL tests only. No live migration,
+Status 2026-10-20: user resumed execution via an isolated Git-based Railway job. Live prepare is pending. No live migration,
 cleansing, re-ingestion, Feature writes, cron configuration changes or deployments.
 Execution is blocked by workspace network access to `ssh.railway.com:2226`
 (Railway sandbox WSS execution endpoint). Do not work around this with a relay.
@@ -97,3 +97,7 @@ Final suite: **107 passed in12.06s**, including the actual forward migration and
 The recovery-wrapper fixes remain code-only. Existing live recovery services call
 `fixed_income_update.py --mode recovery` directly; activating wrappers is a separate
 configuration rollout and must not be represented as already running.
+
+## Git-based job (approved replacement for sandbox execution)
+
+`apps/fixed-income-repair-job/Dockerfile` runs `scripts/run_fixed_income_repair_job.py`. No SSH, listening endpoint or arbitrary SQL execution API. Scope is supplied as explicit runtime variables. Prepare uses the pgweb read-only reference and stores the plan on a dedicated persistent volume. Apply is a separate deployment requiring exact plan and migration SHA256, a write-capable operator reference and the existing prepared plan. Stage-started markers and restart NEVER prevent accidental re-execution. Two additional real-Postgres job tests passed: prepare has no DB writes, apply/readback persist, restart does not repeat, and a missing volume fails before database access.
