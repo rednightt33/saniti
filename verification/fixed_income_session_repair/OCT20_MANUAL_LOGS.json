@@ -1,0 +1,84 @@
+{
+  "dry_run": {
+    "deployment_id": "f7d6b00b-c413-41a0-acbb-0fb0ebcc12e3",
+    "status": "SUCCESS",
+    "events": [
+      {
+        "timestamp": "2026-10-20T12:28:13.812880758Z",
+        "attributes": {
+          "event": "run_started",
+          "execution_id": "bec9207d-7d7f-48ad-a4f8-c399b86918fb",
+          "market": "ID",
+          "country": "Indonesia",
+          "mode": "manual",
+          "trigger_source": "MANUAL",
+          "target_date": "2026-10-20",
+          "market_close_at": "2026-10-20T09:00:00+00:00",
+          "date_mapping_version": "verified-provider-session-label-v4",
+          "series": 22
+        }
+      },
+      {
+        "timestamp": "2026-10-20T12:28:14.341172840Z",
+        "attributes": {
+          "event": "dry_run_completed",
+          "market": "ID",
+          "target_date": "2026-10-20",
+          "queried": 22,
+          "final": 22,
+          "available_date_counts": {
+            "2026-10-12": 22,
+            "2026-10-13": 22,
+            "2026-10-14": 22,
+            "2026-10-15": 22,
+            "2026-10-16": 22,
+            "2026-10-19": 22,
+            "2026-10-20": 22
+          },
+          "errors": null
+        }
+      }
+    ]
+  },
+  "manual_ingest": {
+    "deployment_id": "953de9c3-06fd-4938-aa63-475bef7b17b0",
+    "status": "SUCCESS",
+    "events": [
+      {
+        "timestamp": "2026-10-20T12:34:05.777373608Z",
+        "attributes": {
+          "event": "run_started",
+          "execution_id": "7a4f0d58-9f23-4c72-8388-ff03f1a7b608",
+          "market": "ID",
+          "country": "Indonesia",
+          "mode": "manual",
+          "trigger_source": "MANUAL",
+          "target_date": "2026-10-20",
+          "market_close_at": "2026-10-20T09:00:00+00:00",
+          "date_mapping_version": "verified-provider-session-label-v4",
+          "series": 22
+        }
+      },
+      {
+        "timestamp": "2026-10-20T12:34:12.826960175Z",
+        "attributes": {
+          "event": "telegram_notify_skipped",
+          "reason": "not_configured"
+        }
+      },
+      {
+        "timestamp": "2026-10-20T12:34:12.826963701Z",
+        "attributes": {
+          "event": "run_completed",
+          "execution_id": "7a4f0d58-9f23-4c72-8388-ff03f1a7b608",
+          "market": "ID",
+          "target_date": "2026-10-20",
+          "verified_final_series": 22,
+          "changed_series": 22,
+          "missing_series": 0,
+          "status": "SUCCESS"
+        }
+      }
+    ]
+  }
+}

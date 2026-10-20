@@ -1,0 +1,202 @@
+{
+  "user_approval": "Coba tarik manual saja untuk 20 oktober serta kalkulasi feature 4 manual, hanya untuk bonds ya.",
+  "date": "2026-10-20",
+  "scope": {
+    "market": "ID",
+    "asset_type": "bonds",
+    "trade_date": "2026-10-20",
+    "US_excluded": "October20 session not final yet; no non-final candle inserted"
+  },
+  "git_source": "21d2e0242b91dace4453af80af2cc06c91251e54",
+  "execution_id": "7a4f0d58-9f23-4c72-8388-ff03f1a7b608",
+  "manual_deployment": "953de9c3-06fd-4938-aa63-475bef7b17b0",
+  "manual_deployment_status": "SUCCESS",
+  "read_only_dry_run_deployment": "f7d6b00b-c413-41a0-acbb-0fb0ebcc12e3",
+  "source_rows_before": 0,
+  "readback": {
+    "at": "2026-10-20T12:34:48.051845+00:00",
+    "prices": [
+      {
+        "Country": "Indonesia",
+        "metric_type": "yield_to_maturity",
+        "n": 11,
+        "all_final": true
+      },
+      {
+        "Country": "Indonesia",
+        "metric_type": "price",
+        "n": 11,
+        "all_final": true
+      }
+    ],
+    "features": 11,
+    "queues": [
+      {
+        "status": "DONE",
+        "n": 24
+      }
+    ],
+    "logs": [
+      {
+        "ticker": "ID01MY",
+        "result": "SUCCESS",
+        "source_rows": 1,
+        "source_start": "2026-10-20",
+        "source_end": "2026-10-20",
+        "checkpoint_date": "2026-10-19",
+        "dirty_from_date": "2026-10-20",
+        "changed_rows": 1,
+        "successful_columns": 51,
+        "failed_columns": 0,
+        "started_at": "2026-10-20T12:34:16.835431+00:00"
+      },
+      {
+        "ticker": "ID01Y",
+        "result": "SUCCESS",
+        "source_rows": 1,
+        "source_start": "2026-10-20",
+        "source_end": "2026-10-20",
+        "checkpoint_date": "2026-10-19",
+        "dirty_from_date": "2026-10-20",
+        "changed_rows": 1,
+        "successful_columns": 51,
+        "failed_columns": 0,
+        "started_at": "2026-10-20T12:34:16.923341+00:00"
+      },
+      {
+        "ticker": "ID03MY",
+        "result": "SUCCESS",
+        "source_rows": 1,
+        "source_start": "2026-10-20",
+        "source_end": "2026-10-20",
+        "checkpoint_date": "2026-10-19",
+        "dirty_from_date": "2026-10-20",
+        "changed_rows": 1,
+        "successful_columns": 51,
+        "failed_columns": 0,
+        "started_at": "2026-10-20T12:34:17.011711+00:00"
+      },
+      {
+        "ticker": "ID03Y",
+        "result": "SUCCESS",
+        "source_rows": 1,
+        "source_start": "2026-10-20",
+        "source_end": "2026-10-20",
+        "checkpoint_date": "2026-10-19",
+        "dirty_from_date": "2026-10-20",
+        "changed_rows": 1,
+        "successful_columns": 51,
+        "failed_columns": 0,
+        "started_at": "2026-10-20T12:34:17.090067+00:00"
+      },
+      {
+        "ticker": "ID05Y",
+        "result": "SUCCESS",
+        "source_rows": 1,
+        "source_start": "2026-10-20",
+        "source_end": "2026-10-20",
+        "checkpoint_date": "2026-10-19",
+        "dirty_from_date": "2026-10-20",
+        "changed_rows": 1,
+        "successful_columns": 51,
+        "failed_columns": 0,
+        "started_at": "2026-10-20T12:34:16.68641+00:00"
+      },
+      {
+        "ticker": "ID06MY",
+        "result": "SUCCESS",
+        "source_rows": 1,
+        "source_start": "2026-10-20",
+        "source_end": "2026-10-20",
+        "checkpoint_date": "2026-10-19",
+        "dirty_from_date": "2026-10-20",
+        "changed_rows": 1,
+        "successful_columns": 51,
+        "failed_columns": 0,
+        "started_at": "2026-10-20T12:34:17.185334+00:00"
+      },
+      {
+        "ticker": "ID10Y",
+        "result": "SUCCESS",
+        "source_rows": 1,
+        "source_start": "2026-10-20",
+        "source_end": "2026-10-20",
+        "checkpoint_date": "2026-10-19",
+        "dirty_from_date": "2026-10-20",
+        "changed_rows": 1,
+        "successful_columns": 51,
+        "failed_columns": 0,
+        "started_at": "2026-10-20T12:34:17.285146+00:00"
+      },
+      {
+        "ticker": "ID15Y",
+        "result": "SUCCESS",
+        "source_rows": 1,
+        "source_start": "2026-10-20",
+        "source_end": "2026-10-20",
+        "checkpoint_date": "2026-10-19",
+        "dirty_from_date": "2026-10-20",
+        "changed_rows": 1,
+        "successful_columns": 51,
+        "failed_columns": 0,
+        "started_at": "2026-10-20T12:34:17.384744+00:00"
+      },
+      {
+        "ticker": "ID20Y",
+        "result": "SUCCESS",
+        "source_rows": 1,
+        "source_start": "2026-10-20",
+        "source_end": "2026-10-20",
+        "checkpoint_date": "2026-10-19",
+        "dirty_from_date": "2026-10-20",
+        "changed_rows": 1,
+        "successful_columns": 51,
+        "failed_columns": 0,
+        "started_at": "2026-10-20T12:34:17.483235+00:00"
+      },
+      {
+        "ticker": "ID25Y",
+        "result": "SUCCESS",
+        "source_rows": 1,
+        "source_start": "2026-10-20",
+        "source_end": "2026-10-20",
+        "checkpoint_date": "2026-10-19",
+        "dirty_from_date": "2026-10-20",
+        "changed_rows": 1,
+        "successful_columns": 51,
+        "failed_columns": 0,
+        "started_at": "2026-10-20T12:34:17.572028+00:00"
+      },
+      {
+        "ticker": "ID30Y",
+        "result": "SUCCESS",
+        "source_rows": 1,
+        "source_start": "2026-10-20",
+        "source_end": "2026-10-20",
+        "checkpoint_date": "2026-10-19",
+        "dirty_from_date": "2026-10-20",
+        "changed_rows": 1,
+        "successful_columns": 51,
+        "failed_columns": 0,
+        "started_at": "2026-10-20T12:34:17.667509+00:00"
+      }
+    ]
+  },
+  "validation": {
+    "feature_close_mismatches": 0,
+    "column_statuses": [
+      {
+        "status": "SUCCESS",
+        "validated_through": "2026-10-20",
+        "n": 561
+      }
+    ],
+    "price_rows": 22,
+    "unexpected_us_oct20_rows": 0,
+    "equity_attempts_since_manual": 0
+  },
+  "recalculation": "Existing live Feature04 worker processed the manual ingest event, exactly one new final session per ticker from checkpoint October19. No history replay or extra manual recomputation.",
+  "cleanup": "Temporary service6ac72bad-25e7-4701-b4dc-2cd916af1cc5 deleted; no volume created. Permanent crons unchanged.",
+  "deployment_note": "Redeploy1e48e1a1 reused the old dry-run command snapshot and wrote nothing; a fresh dev-only staged start-command deployment executed the write.",
+  "notifications": "Price notify skipped because temporary job had no Telegram credentials. Permanent cron/worker notification configuration was not changed."
+}

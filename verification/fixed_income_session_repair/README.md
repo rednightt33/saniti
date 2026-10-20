@@ -114,3 +114,7 @@ configuration rollout and must not be represented as already running.
 ## Main code release
 
 The owner explicitly approved “Okay, merge and release ke main ya” on2026-10-20. PR37 was merged at19:09 WIB as e3f7dfd9e2be074d019304eb32c999b88af8028d. The earlier approval hold is resolved. Four bonds cron deployments were triggered automatically from Git, retaining their schedules/start commands. No repair or migration replay. All four bonds cron deployments and the Feature04 worker reached SUCCESS on the merge commit. See RELEASE.json for exact IDs. Cron schedules remain ID17:00/18:00 WIB and US06:00/07:00 WIB. No scheduled production ingestion is claimed before those next runs.
+
+## October20 Indonesia follow-up
+
+User requested the missing next date separately after main release. Manual ingest completed at19:34 WIB:22 final price/yield rows,11 Feature rows,51 successful columns per ticker. Live worker calculated only October20 from October19 checkpoints. US October20 excluded until final. Temporary job deleted; no historical cleansing or additional formula computation. Evidence: OCT20_MANUAL.json and OCT20_MANUAL_LOGS.json.
