@@ -5668,3 +5668,10 @@ penolakan.**
 ekspor: pemulihan ke sesi baru mengecualikannya (`result_store.py:166`, `output_type <> 'SUPPORT'`) dan prompt jalur
 Cepat tidak menyebut `save_table`. Usulan (menunggu persetujuan): supporting table ikut dipulihkan ke sesi baru
 (`load_table`/`load_output`) dan disebut di CITING AND CHECKS bagian C.
+- **Isi Excel ikon unduh (user 2026-10-20 "OK, masukan exec"):** hanya kolom yang tampil di jawaban dengan judulnya,
+  ditambah sheet definisi seperti ekspor sekarang; seluruh baris tabel hasil.
+- **Pemulihan supporting table (menunggu persetujuan), cara AI tahu (kode 2026-10-20):** tabel lama sampai ke AI lewat
+  catatan CONVERSATION RESOURCES di awal run (`orchestrator.py:1020-1045`, daftar `released_outputs` dengan `output_id`
+  dan `load_output`), lalu file ditautkan ke sesi sebagai tautan disk read-only (`carried.py:195`, `os.link`), jadi RAM
+  baru terpakai saat `load_output` dipanggil. Rencana: supporting table ikut di daftar itu dan ikut ditautkan
+  (`result_store.py:166`), aturan di CITING AND CHECKS bagian C.
