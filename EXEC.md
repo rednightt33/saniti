@@ -5591,3 +5591,15 @@ sensitif) untuk diagnosis; (e) M185: tabel tanpa `top` mengirim sampai 50 baris,
   execute dulu").** Butir (c) bentuk argumen dijelaskan ulang ke user sesuai prinsip gerbang (aturan sebelum menulis +
   apa yang dilakukan saat ditolak); pesan penolakan argumen sekarang (`tools/registry.py:593-608`) menyebut field dan pola
   regex, tetapi tidak menyebut dari mana nilai yang benar disalin.
+
+**Keputusan user 2026-10-20 (semuanya "masukan exec", "jangan execute dulu semuanya"):**
+- **M185:** tabel tanpa `top` dikirim sampai 50 baris (`table_directives.DEFAULT_ROWS` 10 → tampil penuh sampai
+  `MAX_ROWS`), EDGE menampilkan 10 dan tombol buka; baris "Menampilkan X dari Y" hanya bila benar-benar dipotong (>50,
+  dengan tawaran Excel); rule 13 disesuaikan; placeholder kurung buatan model ("[nilai tidak dikutip]") ditolak sekali.
+- **Poin 7 CITING AND CHECKS diselaraskan dengan gerbang UNRECORDED_TEST** (gerbang hanya mode Insight,
+  `orchestrator.py` `_unrecorded_statistics` memeriksa `plan_meta["insight_v2"]`); arah (teks dibatasi ke Insight, atau
+  gerbang diperluas ke mode Jawab) dikonfirmasi ke user.
+- **Usulan B butir 1 dan 2 saja:** (1) CITING AND CHECKS: id sesi/output/bundel disalin persis dari hasil alat atau
+  CONVERSATION RESOURCES, nilai ya/tidak `true`/`false`; (2) pesan penolakan argumen menyebut nilai yang sah atau tempat
+  menyalinnya. Log bentuk nilai (butir 3) tidak dikerjakan.
+- **Font "Monitor": opsi 1** (tebal 500, warna teks penuh).
