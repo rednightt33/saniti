@@ -27,7 +27,7 @@ from .research_governance import GOVERNANCE_V2, check_request, check_request_v2,
 from . import findings_table
 from .research_findings import evaluate as evaluate_findings
 from .research_methods import sha256_json as research_sha256
-from .sessions import SessionError, SessionManager
+from .sessions import OUTPUTS_KIND, SessionError, SessionManager
 from .research_governance import review as governance_review
 from . import backtest_validation, event_study_validation, explore_tests, research_validation
 
@@ -687,15 +687,30 @@ class DataNeedService:
         if self.audit is not None:
             self.audit.stop()
 
-    def open_session(self, request_id: str, bundle_id: str, conversation_key: str | None = None,
+    def open_session(self, request_id: str, bundle_id: str | None, conversation_key: str | None = None,
                      carried_outputs: list[str] | None = None) -> dict[str, Any]:
         """A persistent session on a READY bundle; a RESEARCH need gets its approved compute budget.
 
         Conversation reuse (S2): a bundle of an earlier request is usable only through a binding to this request's
         own approved need (reuse_bundle); a WARM_IDLE session on that bundle in the same conversation is then
-        attached with a new epoch instead of starting a new worker."""
+        attached with a new epoch instead of starting a new worker.
+
+        EXEC-OUTPUT-REUSE (PY_SANDBOX_OUTPUT_SESSIONS): without a bundle, or with a bundle of an earlier message of
+        the same conversation and no data need of this message, the conversation's newest warm analysis session is
+        taken over (variables kept), else a session on the conversation's released tables opens (no data). Another
+        conversation's bundle or session is never reachable: the key comes from the orchestrator, never the model."""
         key = conversation_key if self.settings.conversation_reuse else None
+        outputs = self.settings.output_sessions_enabled and bool(key)
+        if bundle_id is None:
+            if not outputs:
+                raise SessionError("BUNDLE_REQUIRED", "A session needs the input_bundle_id of a READY bundle of this "
+                                                      "request: prepare the data need's bundle first.", 422,
+                                   "PREPARE_DATA_BUNDLE")
+            return self._conversation_session(request_id, key, None, carried_outputs)
         record = self.store.get_bundle(bundle_id)
+        if outputs and record is not None and record["request_id"] != request_id \
+                and record.get("conversation_key") == key and self.store.binding_for(request_id, bundle_id) is None:
+            return self._conversation_session(request_id, key, record, carried_outputs)
         binding = self.store.binding_for(request_id, bundle_id) if key and record is not None else None
         if binding is not None and binding["conversation_key"] != key:
             binding = None
@@ -728,6 +743,42 @@ class DataNeedService:
                                   bound=binding is not None, research=research_v2, carried_outputs=carried_outputs,
                                   findings=findings)
 
+    def _conversation_session(self, request_id: str, key: str, bundle: dict[str, Any] | None,
+                              carried_outputs: list[str] | None) -> dict[str, Any]:
+        """EXEC-OUTPUT-REUSE: this message computes on what the conversation already holds. The newest warm analysis
+        session of the conversation (on that bundle when one is named) is taken over with an epoch of kind OUTPUTS;
+        with none alive, a named READY bundle of an earlier message gets a new session (its data, the earlier need),
+        and otherwise a session on the released tables only opens. A research need's session or bundle never is."""
+        def research(need_id: str | None) -> bool:
+            return bool(need_id) and (self.store.get_need(need_id) or {}).get("mode") == "RESEARCH"
+
+        if bundle is not None and research(bundle.get("need_id")):
+            raise SessionError("BUNDLE_NOT_READY", self.sessions.refusal("BUNDLE_NOT_READY"), 404,
+                               "PREPARE_DATA_BUNDLE")
+        for warm in reversed(self.store.warm_sessions(key)):
+            if research(warm.get("need_id")) or warm["session_id"] not in self.sessions.workers \
+                    or (bundle is not None and warm["bundle_id"] != bundle["bundle_id"]):
+                continue
+            try:
+                view = self.sessions.attach(warm["session_id"], request_id, None, carried_outputs, kind=OUTPUTS_KIND)
+            except SessionError:
+                continue
+            self._log("session_taken_over", request_id=request_id, session_id=warm["session_id"],
+                      origin_request_id=warm.get("origin_request_id"))
+            return view
+        if bundle is not None and bundle["status"] == "READY" and bundle.get("need_id"):
+            view = self.sessions.open(request_id, bundle["bundle_id"], conversation_key=key,
+                                      need_id=bundle["need_id"], bound=True, carried_outputs=carried_outputs,
+                                      kind=OUTPUTS_KIND)
+            view["conversation_session"] = True
+            return view
+        view = self.sessions.open_outputs(request_id, key, carried_outputs)
+        if bundle is not None:  # its files are gone (expired or evicted); its released tables stay
+            view["note"] = (f"Bundle {bundle['bundle_id']} is no longer READY ({bundle['status']}), so this session "
+                            "reads only this conversation's released tables. Send its data need again only if the "
+                            "answer needs its raw rows.")
+        return view
+
     def attach_bundle(self, session_id: str, request_id: str, bundle_id: str,
                       conversation_key: str | None = None) -> dict[str, Any]:
         """PLAN 14: a READY analysis bundle of this request (or one bound to this request's need) joins the request's
@@ -738,7 +789,7 @@ class DataNeedService:
         if binding is not None and binding["conversation_key"] != key:
             binding = None
         if record is None or (record["request_id"] != request_id and binding is None):
-            raise SessionError("BUNDLE_NOT_READY", "No READY bundle with this id exists for this request.", 404,
+            raise SessionError("BUNDLE_NOT_READY", self.sessions.refusal("BUNDLE_NOT_READY"), 404,
                                "PREPARE_DATA_BUNDLE")
         need_id = binding["need_id"] if binding else record.get("need_id")
         if (self.store.get_need(need_id) or {}).get("mode") == "RESEARCH":
@@ -938,7 +989,7 @@ class DataNeedService:
         an INVALID finding is accepted as the group's terminal state)."""
         record = self.store.get_session(session_id)
         if record is None or record["request_id"] != request_id:
-            raise SessionError("SESSION_NOT_FOUND", "No session with this id exists for this request.", 404,
+            raise SessionError("SESSION_NOT_FOUND", self.sessions.refusal("SESSION_NOT_FOUND"), 404,
                                "OPEN_ANALYSIS_SESSION")
         epoch = int(record.get("epoch") or 1)
         self.sessions.touch_request(request_id)
@@ -973,7 +1024,9 @@ class DataNeedService:
         manifest = execution_manifest(record, bundle, executions, outputs)
         if self.settings.conversation_reuse:
             manifest.update(epoch=epoch, need_id=need_id)
-        processing = processing_coverage(need, manifest)
+        # EXEC-OUTPUT-REUSE: a session without a bundle has no need; its coverage is the released tables it read
+        outputs_only = need is None and record.get("epoch_kind") == OUTPUTS_KIND
+        processing = processing_coverage(need, manifest) if need is not None else []
         # data read in full by any earlier epoch of this session that completed with PASS (same bundle, same
         # namespace) stays in the namespace: it counts as INHERITED, labelled with the completions, never as read again
         # in this epoch. Every earlier passed epoch counts, not only the last one: an epoch that only reused variables
@@ -983,7 +1036,7 @@ class DataNeedService:
                      and (c.get("final_status") or {}).get("status") == "COMPLETED"] if epoch > 1 else []
         parent = ancestors[-1] if ancestors else None
         inherited: dict[str, dict[str, Any]] = {}
-        for ancestor in ancestors:
+        for ancestor in ancestors if need is not None else []:
             for item in processing_coverage(need, ancestor["execution_manifest"]):
                 if item["status"] == "PROCESSED":
                     inherited[item["data_request_id"]] = item
@@ -1047,6 +1100,11 @@ class DataNeedService:
         used_needs = [a["need_id"] for a in attached_view if a["status"] != "UNUSED"]
         coverage_status = "PASS" if delivery.get("coverage_status") == "PASS" and attached_ok and all(
             r["status"] == "PASS" for r in requests) else "FAIL"
+        carried_read = sorted({str(entry["output_id"]) for e in executions if e["status"] == "OK"
+                               for entry in e.get("access") or []
+                               if entry.get("call") == "load_output" and entry.get("output_id")})
+        if outputs_only and not carried_read:
+            coverage_status = "FAIL"  # nothing the answer rests on: no released table was read
         ok_runs = [e for e in executions if e["status"] == "OK"]
         insufficient = [e for e in executions if e["status"] == "INSUFFICIENT_INPUT_DATA"]
         if ok_runs and outputs and not (insufficient and insufficient[-1]["seq"] > ok_runs[-1]["seq"]):
@@ -1062,8 +1120,8 @@ class DataNeedService:
                                 or []})
         ranges_ok = all(r.get("status") == "OK" for d in read_datasets
                         for r in (d.get("quality") or {}).get("requested_ranges") or [])
-        research = need.get("research_governance") or {}
-        mode = need.get("mode")
+        research = (need or {}).get("research_governance") or {}
+        mode = (need or {}).get("mode")
         passed = coverage_status == "PASS" and execution == "SUCCESS"
         # multi-angle research: one backend finding per approved angle of this bundle group
         constraints = research.get("constraints") or {}
@@ -1155,6 +1213,11 @@ class DataNeedService:
             "research_constraints": research.get("constraints") if mode == "RESEARCH" else None,
             # IP1 Stage D: what the data may claim about time (HISTORICAL_DESCRIPTIVE or POINT_IN_TIME)
             "time_basis": bundle.get("time_basis") or DEFAULT_TIME_BASIS}
+        if record.get("epoch_kind") == OUTPUTS_KIND:
+            # EXEC-OUTPUT-REUSE: computed in this message without a data need of its own, on the conversation's
+            # released tables (and, in a taken-over session, the data its earlier messages read in full)
+            final["conversation_reuse"] = {"kind": OUTPUTS_KIND, "outputs_only": outputs_only,
+                                           "released_tables_read": carried_read}
         derived = [d for d in bundle["datasets"] if d.get("resample_semantics_version") is not None]
         if derived:
             # IP2 solution 1: how weekly/monthly figures were derived, and from which data and code
@@ -1326,6 +1389,12 @@ class DataNeedService:
             result["research_findings_status"] = findings["status"]
         elif execution == "INSUFFICIENT_INPUT_DATA":
             result["next_action"] = "REVISE_DATA_NEED_SPEC"
+        elif outputs_only and not carried_read:
+            result["next_action"] = "RUN_PYTHON"
+            result["message"] = ("This session has no bundle, so its results must come from this conversation's "
+                                 "released tables: read at least one with load_output(output_id) in a successful "
+                                 "execution, emit the result, then complete again. For data no released table holds, "
+                                 "send a data need instead.")
         elif coverage_status == "FAIL" and delivery.get("coverage_status") == "PASS":
             missing = [f"{r['logical_name']}:{g['range_id']}" if g else r["logical_name"] for r in requests
                        for g in (r["ranges"] or [None]) if (g or r)["status"] == "FAIL"
@@ -1348,7 +1417,7 @@ class DataNeedService:
                 result["session_status"] = "ACTIVE" if warm else "CLOSED"
         self.store.insert_completion({"completion_id": completion_id, "session_id": session_id,
                                       "request_id": request_id, "bundle_id": record["bundle_id"],
-                                      "need_id": need_id, "coverage_status": coverage_status,
+                                      "need_id": need_id or "", "coverage_status": coverage_status,
                                       "execution_manifest": manifest, "coverage": coverage,
                                       "final_status": result, "created_at": utc_now(), "epoch": epoch,
                                       "parent_completion_id": parent["completion_id"] if parent else None})

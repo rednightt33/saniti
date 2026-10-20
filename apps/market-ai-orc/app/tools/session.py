@@ -107,6 +107,18 @@ class OpenAnalysisSessionLimitArgs(OpenAnalysisSessionArgs):
         "readable, its variables are gone). Null otherwise."))
 
 
+class OpenConversationSessionArgs(Strict):
+    """EXEC-OUTPUT-REUSE (AI_OUTPUT_REUSE): input_bundle_id null opens this conversation's session on its released
+    tables (the warm session of an earlier message when one is alive), without a data need."""
+    input_bundle_id: str | None = Field(pattern=BUNDLE_PATTERN, description=(
+        "input_bundle_id of a READY bundle; null to compute on this conversation's released tables (or its warm "
+        "session) without a data need."))
+
+
+class OpenConversationSessionLimitArgs(OpenConversationSessionArgs):
+    close_session_id: str | None = OpenAnalysisSessionLimitArgs.model_fields["close_session_id"]
+
+
 class AttachDataBundleArgs(Strict):
     """PLAN 14 (user 2026-10-15): a READY bundle of a later data need of this answer joins an open session."""
     session_id: str = Field(pattern=SESSION_PATTERN, description="The open analysis session of this answer.")
@@ -174,10 +186,20 @@ EXPIRY_RECOVERY = {
         "The sandbox keeps a session's outputs about a day; a table released earlier in this conversation is still "
         "kept by the conversation: open a session and read it with load_output(output_id).", "LOAD_OUTPUT"),
 }
+# EXEC-OUTPUT-REUSE (AI_OUTPUT_REUSE): the released tables outlive the bundle, so the first step names the session
+# without a bundle; the data need comes back only for raw rows
+OUTPUT_EXPIRY_RECOVERY = {
+    **EXPIRY_RECOVERY,
+    "BUNDLE_EXPIRED": (
+        "The tables this conversation released stay: to compute on them, call open_analysis_session with "
+        "input_bundle_id null and read them with load_output (no data need). Send the data need again (its "
+        "submit_arguments in CONVERSATION RESOURCES) only if the answer needs the bundle's raw rows.",
+        "OPEN_ANALYSIS_SESSION"),
+}
 
 
-def _call(client: SandboxClient, method: str, path: str, timeout: float | None = None, **kwargs: Any
-          ) -> dict[str, Any]:
+def _call(client: SandboxClient, method: str, path: str, timeout: float | None = None,
+          recovery_texts: dict[str, tuple[str, str]] | None = None, **kwargs: Any) -> dict[str, Any]:
     if timeout is not None:
         kwargs["timeout"] = timeout
     response = client._call(method, path, **kwargs)
@@ -186,7 +208,7 @@ def _call(client: SandboxClient, method: str, path: str, timeout: float | None =
         return body
     error = body.get("error") if isinstance(body.get("error"), dict) else None
     if error and response.status_code in (404, 409, 410, 422, 429, 500, 503):
-        recovery = EXPIRY_RECOVERY.get(str(error.get("code") or ""))
+        recovery = (recovery_texts or EXPIRY_RECOVERY).get(str(error.get("code") or ""))
         message = str(error.get("message") or "")[:600]
         return {"status": "REJECTED", "code": error.get("code"),
                 "message": f"{message} {recovery[0]}".strip() if recovery else message,
@@ -206,6 +228,15 @@ OPEN_DESCRIPTION = (
     "sandbox: then open a new session on the same bundle)."
 )
 
+# EXEC-OUTPUT-REUSE (AI_OUTPUT_REUSE): what the open does without a bundle
+OPEN_OUTPUTS_SENTENCE = (
+    " input_bundle_id null: computing on this conversation's released tables needs no data need; the warm session of "
+    "an earlier message is taken over (its variables stay), else a session opens on the released tables only "
+    "(datasets empty; read them with load_output). A data need is for data no released table holds.")
+# a run_python on a session that is gone: the backend opens the conversation's session and runs the code there
+AUTO_OPEN_NOTE = ("Session {old} is gone ({code}), so the backend opened session {new} on this conversation's released "
+                  "tables and ran the code there; use {new} from now on. Variables of earlier messages are gone unless "
+                  "reused_session is true: read tables with load_output.")
 RUN_DESCRIPTION = (
     "Run Python in the session. pandas as pd, numpy as np and saniti with all its helpers are pre-bound; TA-Lib "
     "(import talib), scipy, statsmodels, polars, duckdb and matplotlib are available. Read data only through the "
@@ -547,12 +578,14 @@ ATTACH_SENTENCE = (" A later data need of this answer can join this session inst
 def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_timeout_seconds: float,
                   max_result_bytes: int, standard_period_return: bool = False, event_study: bool = False,
                   backtest: bool = False, merged_steps: bool = False, session_limit: int | None = None,
-                  session_attach: int | None = None) -> list[ToolSpec]:
+                  session_attach: int | None = None, output_reuse: bool = False) -> list[ToolSpec]:
+    texts = OUTPUT_EXPIRY_RECOVERY if output_reuse else EXPIRY_RECOVERY
+
     def request_id() -> str:
         return current_request_id.get() or ""
 
     def open_session(arguments: BaseModel) -> dict[str, Any]:
-        assert isinstance(arguments, OpenAnalysisSessionArgs)
+        assert isinstance(arguments, (OpenAnalysisSessionArgs, OpenConversationSessionArgs))
         closed = None
         close_id = getattr(arguments, "close_session_id", None)
         if close_id:
@@ -561,7 +594,9 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
                            json={"request_id": request_id()})
             if closed.get("status") == "REJECTED":
                 return {**closed, "message": f"close_session_id {close_id} was not closed: {closed.get('message')}"}
-        body: dict[str, Any] = {"request_id": request_id(), "bundle_id": arguments.input_bundle_id}
+        body: dict[str, Any] = {"request_id": request_id()}
+        if arguments.input_bundle_id is not None:
+            body["bundle_id"] = arguments.input_bundle_id
         carried = current_carried_outputs.get()
         if carried is not None:
             body["carried_outputs"] = carried
@@ -587,8 +622,31 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
 
     def run(arguments: BaseModel) -> dict[str, Any]:
         assert isinstance(arguments, RunPythonArgs)
-        return _call(client, "POST", f"/v1/sessions/{arguments.session_id}/execute", timeout=execution_timeout_seconds,
-                     json={"request_id": request_id(), "code": arguments.code})
+        result = _call(client, "POST", f"/v1/sessions/{arguments.session_id}/execute", timeout=execution_timeout_seconds,
+                       recovery_texts=texts, json={"request_id": request_id(), "code": arguments.code})
+        if not (output_reuse and result.get("status") == "REJECTED"
+                and result.get("code") in ("SESSION_NOT_FOUND", "SESSION_CLOSED")):
+            return result
+        # EXEC-OUTPUT-REUSE (user 2026-10-20: "Kalau sesi lama hilang ... orc membuka sesi itu otomatis"): the
+        # conversation's session (warm, else on its released tables; the sandbox keys it by this conversation)
+        body: dict[str, Any] = {"request_id": request_id()}
+        carried = current_carried_outputs.get()
+        if carried is not None:
+            body["carried_outputs"] = carried
+        opened = open_with_wait(client, body, timeout_seconds)
+        restore_into(opened, carried)
+        if not opened.get("session_id"):
+            return result
+        rerun = _call(client, "POST", f"/v1/sessions/{opened['session_id']}/execute",
+                      timeout=execution_timeout_seconds, recovery_texts=texts,
+                      json={"request_id": request_id(), "code": arguments.code})
+        rerun.setdefault("session_id", opened["session_id"])
+        rerun["session_opened"] = {k: opened.get(k) for k in ("session_id", "bundle_id", "reused_session",
+                                                               "outputs_only", "carried_output_ids", "variables")
+                                   if opened.get(k) not in (None, [])}
+        rerun["note"] = AUTO_OPEN_NOTE.format(old=arguments.session_id, code=result.get("code"),
+                                              new=opened["session_id"])
+        return rerun
 
     def inspect(arguments: BaseModel) -> dict[str, Any]:
         assert isinstance(arguments, InspectSessionArgs)
@@ -644,9 +702,12 @@ def session_specs(client: SandboxClient, *, timeout_seconds: float, execution_ti
                  arguments_model=CompleteAnalysisArgs,
                  handler=complete, timeout_seconds=timeout_seconds * 4, max_result_bytes=max_result_bytes),
         ToolSpec(name="open_analysis_session", effect="COMPUTES",
-                 description=OPEN_DESCRIPTION + (SESSION_LIMIT_SENTENCE.format(
-                     limit=NUMBER_WORDS.get(session_limit, str(session_limit))) if session_limit else ""),
-                 arguments_model=OpenAnalysisSessionLimitArgs if session_limit else OpenAnalysisSessionArgs,
+                 description=OPEN_DESCRIPTION + (OPEN_OUTPUTS_SENTENCE if output_reuse else "")
+                 + (SESSION_LIMIT_SENTENCE.format(limit=NUMBER_WORDS.get(session_limit, str(session_limit)))
+                    if session_limit else ""),
+                 arguments_model=((OpenConversationSessionLimitArgs if session_limit else OpenConversationSessionArgs)
+                                  if output_reuse else
+                                  (OpenAnalysisSessionLimitArgs if session_limit else OpenAnalysisSessionArgs)),
                  handler=open_session, timeout_seconds=timeout_seconds + 30 + MAX_BUSY_WAIT_SECONDS,
                  max_result_bytes=max_result_bytes),
         ToolSpec(name="run_python", effect="COMPUTES", description=RUN_DESCRIPTION + (PERIOD_RETURN_SENTENCE if standard_period_return

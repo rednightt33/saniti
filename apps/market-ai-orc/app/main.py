@@ -286,6 +286,13 @@ def create_app(
             if not session_attach:
                 log_event("session_attach_inactive",
                           reason=f"needs a sandbox reporting session_attach version {SESSION_ATTACH_VERSION}")
+        # EXEC-OUTPUT-REUSE (user 2026-10-20): sessions without a bundle, when switched on and the sandbox reports them
+        output_reuse = False
+        if settings.ai_output_reuse and settings.ai_enable_dataneed and settings.ai_enable_conversation_reuse \
+                and sandbox is not None:
+            output_reuse = (sandbox.runtime().get("output_sessions") or {}).get("enabled") is True
+            if not output_reuse:
+                log_event("output_reuse_inactive", reason="needs a sandbox reporting output_sessions enabled")
         multi_angle_active = multi_angle is not None and feasibility and composite
         hypothesis_plan = settings.ai_enable_hypothesis_plan and research_findings
         method_guides = None
@@ -404,6 +411,7 @@ def create_app(
             merged_steps=settings.ai_enable_merged_steps,
             session_limit=session_limit,
             session_attach=session_attach,
+            output_reuse=output_reuse,
         )
         auditor = RunAuditor(sandbox, settings.research_audit_database_url) \
             if sandbox is not None or settings.research_audit_database_url else None

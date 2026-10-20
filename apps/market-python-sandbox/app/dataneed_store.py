@@ -24,7 +24,8 @@ Schema versions (PRAGMA user_version): 0 is the original layout (CREATE TABLE IF
 reuse columns and tables of the implementation plan 2026-09-27 (S1/S2); 2 adds data_need_drafts; 3 adds executions.modules
 (the modules each execution's code imports, EXTRACTION_AND_AUDIT_PLAN.md item C); 4 adds research_runs, research_groups and
 research_findings (MULTI_ANGLE_RESEARCH.md); 5 adds bundle_bindings.aliases (EXEC-V stage 2: the later need's labels for
-the earlier bundle's requests; unused since the revision of 2026-10-08, which reuses parts by their SQL instead). Upgrades only add nullable or defaulted columns
+the earlier bundle's requests; unused since the revision of 2026-10-08, which reuses parts by their SQL instead); 6 adds
+sessions.attached (PLAN 14); 7 adds sessions.epoch_kind and session_epochs.kind (EXEC-OUTPUT-REUSE). Upgrades only add nullable or defaulted columns
 and new tables, so code without them still reads and writes the database.
 """
 from __future__ import annotations
@@ -137,7 +138,7 @@ CREATE INDEX IF NOT EXISTS completions_request ON completions (request_id);
 """
 
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 DRAFT_RETENTION_DAYS = 7
 # version -> (table, column, declaration) additions and statements; applied in order, each column only when missing
 UPGRADES: dict[int, tuple[list[tuple[str, str, str]], list[str]]] = {
@@ -183,6 +184,9 @@ UPGRADES: dict[int, tuple[list[tuple[str, str, str]], list[str]]] = {
     5: ([("bundle_bindings", "aliases", "TEXT")], []),
     # PLAN 14 (2026-10-15): the bundles attached to a session: [{need_id, bundle_id, epoch, attached_at, ...}]
     6: ([("sessions", "attached", "TEXT")], []),
+    # EXEC-OUTPUT-REUSE (2026-10-20): an epoch of a later message that computes on the conversation's released tables
+    # without its own data need is kind OUTPUTS (NULL: an epoch of an approved need, as before)
+    7: ([("sessions", "epoch_kind", "TEXT"), ("session_epochs", "kind", "TEXT")], []),
 }
 
 

@@ -45,6 +45,7 @@ SWITCHES = {
     "AI_ENABLE_WEB_RESEARCH": "web_research_client",
     "AI_ENABLE_RUN_MEMORY": "run_memory", "AI_ENABLE_MERGED_STEPS": "merged_steps",
     "AI_ENABLE_SESSION_ATTACH": "session_attach",
+    "AI_OUTPUT_REUSE": "output_reuse",
 }
 
 # One plain-language sentence per name (Indonesian, for non-developers).

@@ -263,6 +263,10 @@ class Settings:
     # Conversation reuse (phases S1/S2): in history_mode SERVER, released outputs, bundles and warm Python sessions of
     # earlier messages of the conversation. Needs the conversation store and a sandbox that reports the capability.
     ai_enable_conversation_reuse: bool = False
+    # EXEC-OUTPUT-REUSE (user 2026-10-20, go "Jalankan exec"): a later message computes on the conversation's released
+    # tables and warm session without a data need (open_analysis_session with input_bundle_id null; a run_python on a
+    # session that is gone opens one and runs there). Needs a sandbox reporting output_sessions. Off: as before.
+    ai_output_reuse: bool = False
     # R-STORE (round 2026-10-03 C2): released outputs and executions kept with the conversation; tables larger than
     # Postgres keeps go to the bucket named by RESULT_BUCKET_* (references to market-ai-conversation-outputs)
     ai_enable_result_store: bool = False
@@ -515,6 +519,7 @@ class Settings:
             ai_conversation_restart_sweep_seconds=_integer(env, "AI_CONVERSATION_RESTART_SWEEP_SECONDS", 0,
                                                            minimum=0),
             ai_enable_conversation_reuse=_boolean(env, "AI_ENABLE_CONVERSATION_REUSE", False),
+            ai_output_reuse=_boolean(env, "AI_OUTPUT_REUSE", False),
             ai_enable_result_store=_boolean(env, "AI_ENABLE_RESULT_STORE", False),
             ai_enable_lineage_tool=_boolean(env, "AI_ENABLE_LINEAGE_TOOL", False),
             ai_enable_export=_boolean(env, "AI_ENABLE_EXPORT", False),

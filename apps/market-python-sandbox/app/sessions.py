@@ -272,6 +272,10 @@ RESAMPLE_LOG_FIELDS = ("data_request_id", "source_frequency", "target_frequency"
                        "rules_sha256", "semantics_version", "incomplete_periods")
 
 
+# EXEC-OUTPUT-REUSE: the kind of an epoch (and of a bundle without data) that computes on released tables only
+OUTPUTS_KIND = "OUTPUTS"
+
+
 class SessionError(Exception):
     def __init__(self, code: str, message: str, http_status: int = 409, next_action: str | None = None,
                  **details: Any) -> None:
@@ -513,7 +517,7 @@ class SessionManager:
     def open(self, request_id: str, bundle_id: str, cpu_seconds: int | None = None, *,
              conversation_key: str | None = None, need_id: str | None = None, bound: bool = False,
              research: dict[str, Any] | None = None, carried_outputs: list[str] | None = None,
-             findings: dict[str, Any] | None = None) -> dict[str, Any]:
+             findings: dict[str, Any] | None = None, kind: str | None = None) -> dict[str, Any]:
         """A new session on a READY bundle of this request, or (bound) on an earlier bundle of the same conversation
         that the service bound to this request's approved need. EXEC-V 2026-10-08 ("membuka 1 tidak menutup yang
         lain"): a request holds up to PY_SANDBOX_MAX_SESSIONS_PER_REQUEST open sessions and opening one never closes
@@ -523,12 +527,10 @@ class SessionManager:
         s = self.settings
         record = self.store.get_bundle(bundle_id)
         if record is None or (record["request_id"] != request_id and not bound) or record["status"] != "READY":
-            raise SessionError("BUNDLE_NOT_READY", "No READY bundle with this id exists for this request.", 404,
-                               "PREPARE_DATA_BUNDLE")
+            raise SessionError("BUNDLE_NOT_READY", self.refusal("BUNDLE_NOT_READY"), 404, "PREPARE_DATA_BUNDLE")
         manifest = record["manifest"]
         if datetime.fromisoformat(manifest["expires_at"]) <= datetime.now(timezone.utc):
-            raise SessionError("BUNDLE_EXPIRED", "The bundle has expired; prepare it again.", 410,
-                               "PREPARE_DATA_BUNDLE")
+            raise SessionError("BUNDLE_EXPIRED", self.refusal("BUNDLE_EXPIRED"), 410, "PREPARE_DATA_BUNDLE")
         self._check_request_limit(request_id)
         with self._slot(request_id) as (uid, cpus):
             self._check_request_limit(request_id)  # a parallel open of the same request may have taken the place
@@ -550,9 +552,9 @@ class SessionManager:
                                    "executions": 0, "failed_executions": 0,
                                    "usage": {"cpu_seconds": 0.0, "cpu_budget": budget},
                                    "origin_request_id": request_id, "conversation_key": conversation_key,
-                                   "need_id": need_id, "epoch": 1, "epoch_start_seq": 0})
+                                   "need_id": need_id, "epoch": 1, "epoch_start_seq": 0, "epoch_kind": kind})
         self.store.insert_epoch({"session_id": session_id, "epoch": 1, "request_id": request_id, "need_id": need_id,
-                                 "start_seq": 0, "attached_at": now.isoformat()})
+                                 "start_seq": 0, "attached_at": now.isoformat(), "kind": kind})
         self._log("session_opened", request_id=request_id, session_id=session_id, bundle_id=bundle_id, uid=uid,
                   cpu_budget=budget, bound_bundle=bound, conversation=bool(conversation_key))
         self.carried_allowed[session_id] = self._allowed(need_id, carried_outputs)
@@ -560,6 +562,37 @@ class SessionManager:
         if research:
             view["research"] = research_view(research)
         self._offer_carried(session_id, view)
+        return view
+
+    def open_outputs(self, request_id: str, conversation_key: str,
+                     carried_outputs: list[str] | None = None) -> dict[str, Any]:
+        """EXEC-OUTPUT-REUSE (user 2026-10-20: "Sesi bisa dibuka tanpa bundle"): a session of a later message on the
+        conversation's released tables only, without a data need: an empty bundle record (no dataset, nothing read
+        from the Governor) bound to this request and conversation, whose epoch is kind OUTPUTS. The code reads the
+        conversation's tables with load_output; its completion passes on those tables (dataneed_service.complete)."""
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        earlier = sorted((b for b in self.store.all_bundles() if b.get("conversation_key") == conversation_key
+                          and b.get("need_id")), key=lambda b: b["created_at"])
+        reference = (earlier[-1]["manifest"].get("reference_date") if earlier else None) or now.date().isoformat()
+        bundle_id = f"bundle_{secrets.token_hex(12)}"
+        expires = (now + timedelta(seconds=max(self.settings.session_max_seconds, 86400))).isoformat()
+        manifest = {"input_bundle_id": bundle_id, "need_id": None, "request_group_id": OUTPUTS_KIND, "revision": 0,
+                    "mode": OUTPUTS_KIND, "kind": OUTPUTS_KIND, "reference_date": reference, "relationships": [],
+                    "relationship_warnings": [], "datasets": [], "byte_count": 0, "checksum_sha256": None,
+                    "coverage": {"coverage_status": "PASS", "requests": []}, "status": "READY",
+                    "created_at": now.isoformat(), "expires_at": expires}
+        self.store.insert_bundle({"bundle_id": bundle_id, "request_id": request_id, "need_id": "",
+                                  "request_group_id": OUTPUTS_KIND, "revision": 0, "status": "READY",
+                                  "checksum_sha256": None, "manifest": manifest, "created_at": now.isoformat(),
+                                  "expires_at": expires})
+        self.store.set_bundle_conversation(bundle_id, conversation_key)
+        view = self.open(request_id, bundle_id, conversation_key=conversation_key, carried_outputs=carried_outputs,
+                         kind=OUTPUTS_KIND)
+        view.update(conversation_session=True, outputs_only=True,
+                    note="No bundle: this session reads only this conversation's released tables (load_output). "
+                         "Send a data need when the answer needs data no released table holds.")
+        self._log("outputs_session_opened", request_id=request_id, session_id=view["session_id"],
+                  carried=len(view.get("carried_output_ids") or []))
         return view
 
     def _allowed(self, need_id: str | None, carried_outputs: list[str] | None) -> set[str] | None:
@@ -776,8 +809,8 @@ class SessionManager:
                 return None
         return self.profiles[key]
 
-    def attach(self, session_id: str, request_id: str, need_id: str,
-               carried_outputs: list[str] | None = None) -> dict[str, Any]:
+    def attach(self, session_id: str, request_id: str, need_id: str | None,
+               carried_outputs: list[str] | None = None, kind: str | None = None) -> dict[str, Any]:
         """A later request of the same conversation takes over a WARM_IDLE session (conversation reuse, S2): a new
         epoch starts for this request and its approved need. The namespace, the cumulative execution, failure and CPU
         counters and the expiry stay; earlier completions and released outputs are never changed."""
@@ -786,7 +819,8 @@ class SessionManager:
         if record is None or record["status"] != "WARM_IDLE" or worker is None or not worker.alive:
             raise SessionError("SESSION_NOT_REUSABLE", "The earlier session is no longer alive; open a new session on "
                                                        "the bundle.", 409, "OPEN_ANALYSIS_SESSION")
-        epoch = self._new_epoch(record, request_id, need_id)
+        epoch = self._new_epoch(record, request_id, need_id, kind)
+        need_id = need_id or record.get("need_id")
         bundle = self.store.get_bundle(record["bundle_id"])["manifest"]
         usage = record.get("usage") or {}
         view = self._view(session_id, record["bundle_id"], need_id, bundle, usage.get("cpu_budget"),
@@ -802,6 +836,8 @@ class SessionManager:
                 worker.lock.release()
         passed = [c for c in self.store.passed_completions(session_id)
                   if (c.get("final_status") or {}).get("status") == "COMPLETED"]
+        if kind == "OUTPUTS":
+            view["conversation_session"] = True  # EXEC-OUTPUT-REUSE: no data need of this message
         view.update({"reused_session": True, "epoch": epoch, "origin_request_id": record.get("origin_request_id"),
                      "parent_completion_id": passed[-1]["completion_id"] if passed else None,
                      "variables": variables,
@@ -901,15 +937,15 @@ class SessionManager:
                          "still defined. Data of an attached bundle the analysis never reads is reported as unused.")
         return view
 
-    def _new_epoch(self, record: dict[str, Any], request_id: str, need_id: str | None) -> int:
+    def _new_epoch(self, record: dict[str, Any], request_id: str, need_id: str | None, kind: str | None = None) -> int:
         epoch = int(record.get("epoch") or 1) + 1
         now = utc_now()
         self.store.update_session(record["session_id"], request_id=request_id, status="ACTIVE", epoch=epoch,
                                   epoch_start_seq=record["executions"], need_id=need_id or record.get("need_id"),
-                                  last_active_at=now)
+                                  last_active_at=now, epoch_kind=kind)
         self.store.insert_epoch({"session_id": record["session_id"], "epoch": epoch, "request_id": request_id,
                                  "need_id": need_id or record.get("need_id"), "start_seq": record["executions"],
-                                 "attached_at": now})
+                                 "attached_at": now, "kind": kind})
         return epoch
 
     def _launch(self, session_id: str, uid: int, cpus: list[int], directory: Path, manifest: dict[str, Any],
@@ -1036,11 +1072,47 @@ class SessionManager:
 
     # ------------------------------------------------------------------ commands
 
-    def _session(self, session_id: str, request_id: str, reopen: bool = False) -> tuple[dict[str, Any], Worker]:
+    def refusal(self, code: str) -> str:
+        """EXEC-OUTPUT-REUSE (user 2026-10-20: "Penolakan juga harus jelas. As plain as possible"): what is wrong and
+        the one step that fixes it; with output sessions on, the step names the session without a bundle."""
+        minutes = max(1, self.settings.session_idle_seconds // 60)
+        tables = (" To compute on this conversation's released tables, open a session without a bundle (no data need "
+                  "is needed); to read new data, send a data need.") if self.settings.output_sessions_enabled else \
+            " Open a new session on a READY bundle of this request."
+        return {
+            "SESSION_NOT_FOUND": "This session belongs to another message or conversation, or it closed after "
+                                 f"{minutes} minutes without use." + tables,
+            "BUNDLE_NOT_READY": "This bundle belongs to another message or conversation, or it is not READY." + tables,
+            "BUNDLE_EXPIRED": "This bundle expired (bundles are kept about a day)." + (
+                " Its released tables stay: open a session without a bundle to compute on them; send the data need "
+                "again only for its raw rows." if self.settings.output_sessions_enabled else " Prepare it again."),
+        }[code]
+
+    def take_over(self, record: dict[str, Any], request_id: str, conversation_key: str | None) -> bool:
+        """EXEC-OUTPUT-REUSE: a later message of the same conversation runs code in that conversation's warm session
+        without a data need of its own: a new epoch of kind OUTPUTS keeping the session's need (coverage is
+        inherited from its completed epochs). Never another conversation's session, a busy one or a research one."""
+        s = self.settings
+        worker = self.workers.get(record["session_id"])
+        if not (s.output_sessions_enabled and s.conversation_reuse and conversation_key
+                and record.get("conversation_key") == conversation_key and record["status"] == "WARM_IDLE"
+                and worker is not None and worker.alive):
+            return False
+        if record.get("need_id") and ((self.store.get_need(record["need_id"]) or {}).get("mode") == "RESEARCH"):
+            return False
+        self.attach(record["session_id"], request_id, None, kind="OUTPUTS")
+        self._log("session_taken_over", request_id=request_id, session_id=record["session_id"],
+                  origin_request_id=record.get("origin_request_id"))
+        return True
+
+    def _session(self, session_id: str, request_id: str, reopen: bool = False,
+                 conversation_key: str | None = None) -> tuple[dict[str, Any], Worker]:
         record = self.store.get_session(session_id)
+        if record is not None and record["request_id"] != request_id and reopen \
+                and self.take_over(record, request_id, conversation_key):
+            record = self.store.get_session(session_id)
         if record is None or record["request_id"] != request_id:
-            raise SessionError("SESSION_NOT_FOUND", "No session with this id exists for this request.", 404,
-                               "OPEN_ANALYSIS_SESSION")
+            raise SessionError("SESSION_NOT_FOUND", self.refusal("SESSION_NOT_FOUND"), 404, "OPEN_ANALYSIS_SESSION")
         if record["status"] == "WARM_IDLE" and reopen and session_id in self.workers:
             # M114 (EXEC-V 2026-10-08): the same request runs code again in a session it put back to WARM_IDLE; the
             # work stays in its epoch (a new epoch is only for a later message, attach), completing again releases it
@@ -1068,12 +1140,13 @@ class SessionManager:
             if record["status"] in ("ACTIVE", "BUSY"):
                 self.store.update_session(record["session_id"], last_active_at=now)
 
-    def execute(self, session_id: str, request_id: str, code: str) -> dict[str, Any]:
+    def execute(self, session_id: str, request_id: str, code: str, conversation_key: str | None = None
+                ) -> dict[str, Any]:
         s = self.settings
         if not isinstance(code, str) or not code.strip() or len(code) > s.max_code_chars:
             raise SessionError("INVALID_CODE", f"Code must be 1 to {s.max_code_chars} characters.", 422,
                                "REVISE_PYTHON_CODE")
-        record, worker = self._session(session_id, request_id, reopen=True)
+        record, worker = self._session(session_id, request_id, reopen=True, conversation_key=conversation_key)
         if record["executions"] >= s.session_max_executions:
             raise SessionError("SESSION_EXECUTION_LIMIT", f"The session has used its {s.session_max_executions} "
                                                           "executions.", 429, "COMPLETE_ANALYSIS")

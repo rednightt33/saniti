@@ -378,6 +378,8 @@ class ToolRegistry:
         self._schemas: dict[str, dict[str, Any]] = {}
         self._max_result_bytes = max_result_bytes
         self._executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="tool")
+        # capabilities the prompt follows (EXEC-OUTPUT-REUSE: "output_reuse" when sessions without a bundle exist)
+        self.features: set[str] = set()
 
     def register(self, spec: ToolSpec) -> None:
         if not TOOL_NAME_PATTERN.fullmatch(spec.name):

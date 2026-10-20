@@ -51,6 +51,8 @@ registering the new versions of the tools whose contract changed in that round.
 - round_z (20261020_002): preview_table_rows v2 (ten objects: Price_Fixed_Income_Final, Universe_Fixed_income and
   Feature_04_Technical_Indicator added) and research_web v4 (yields and indicators are figures the database holds);
   EXEC-ONBOARD-1.
+- round_aa (20261020_003): open_analysis_session v5 (input_bundle_id null: a session on the conversation's released
+  tables or its warm session, without a data need; EXEC-OUTPUT-REUSE).
 - round_w (20261015_015): the first row of search_values and get_dimension_values v3 (the user's words matched to
   stored codes and values: names, initials, part of a name; EXEC-IMPL-1016 Fase 3, O1).
 
@@ -586,8 +588,21 @@ ROUNDS = {
         "limits": {"preview_objects": "ten approved objects; the ORDER BY of each is app/tools/preview.py ORDERING and "
                                       "public.ai_preview_table_rows (20261020_001)"},
     },
+    "round_aa": {
+        "target": ROOT / "database/migrations/20261020_003_round_aa_tool_catalog.sql",
+        "versions": {"open_analysis_session": ("v4", "v5")},
+        "contracts": {"open_analysis_session": ("purpose", "needs no data need")},
+        "title": "sessions on released tables of one conversation",
+        "header": "EXEC.md EXEC-OUTPUT-REUSE (user \"Jalankan exec\", 2026-10-20)",
+        "design": "EXEC.md EXEC-OUTPUT-REUSE; market-python-sandbox PY_SANDBOX_OUTPUT_SESSIONS",
+        "limits_design": "EXEC.md EXEC-OUTPUT-REUSE",
+        "summary": ["open_analysis_session takes input_bundle_id null (AI_OUTPUT_REUSE): a later message computes on",
+                    "the conversation's released tables or takes over its warm session without a data need; another",
+                    "conversation's session, bundle or tables stay refused (the sandbox keys them by the conversation)."],
+        "limits": {"open_analysis_session": "same conversation only; a research session is never taken over"},
+    },
 }
-NEWEST = "round_z"
+NEWEST = "round_aa"
 
 
 def _tools_doc():

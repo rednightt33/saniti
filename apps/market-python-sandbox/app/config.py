@@ -147,6 +147,10 @@ class Settings:
     # session) and final_status.explore_tests, the answer's exploratory tests corrected together; market-ai-orc offers
     # it on the fast lane only
     explore_tests_enabled: bool = False
+    # EXEC-OUTPUT-REUSE (user 2026-10-20, go "Jalankan exec"; with conversation_reuse): a later message of the same
+    # conversation runs code in its warm session or opens a session without a bundle on the conversation's released
+    # tables, without a new data need; another conversation's session or bundle stays refused. Off: as before.
+    output_sessions_enabled: bool = False
     # item C (EXTRACTION_AND_AUDIT_PLAN.md): final_status.modules_used lists the modules the session's successful
     # executions imported; the per-execution record and log always carry them
     modules_audit_enabled: bool = False
@@ -325,6 +329,7 @@ class Settings:
             derived_frequency_enabled=_boolean(env, "PY_SANDBOX_DERIVED_FREQUENCY_ENABLED", False),
             research_findings_enabled=_boolean(env, "PY_SANDBOX_RESEARCH_FINDINGS_ENABLED", False),
             explore_tests_enabled=_boolean(env, "PY_SANDBOX_EXPLORE_TESTS_ENABLED", False),
+            output_sessions_enabled=_boolean(env, "PY_SANDBOX_OUTPUT_SESSIONS", False),
             modules_audit_enabled=_boolean(env, "PY_SANDBOX_MODULES_AUDIT_ENABLED", False),
             multi_angle_research_enabled=_boolean(env, "PY_SANDBOX_MULTI_ANGLE_RESEARCH_ENABLED", False),
             research_min_angles=_integer(env, "PY_SANDBOX_RESEARCH_MIN_ANGLES", 2, maximum=6),

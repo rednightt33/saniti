@@ -166,6 +166,9 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
                                     "max_sessions": settings.max_sessions,
                                     "max_sessions_per_request": settings.max_sessions_per_request},
                 # PLAN 14: POST /v1/sessions/{session_id}/attach, at most max_attachments bundles per session
+                # EXEC-OUTPUT-REUSE: sessions of a later message on the conversation's released tables
+                "output_sessions": {"enabled": dataneed is not None and settings.output_sessions_enabled
+                                    and settings.conversation_reuse},
                 "session_attach": {"enabled": dataneed is not None and settings.max_attachments > 0,
                                    "version": SESSION_ATTACH_VERSION, "max_attachments": settings.max_attachments},
                 # POST /v1/data-needs/check and GET /v1/data-need-drafts/{draft_id} (Research Plan feasibility)
@@ -461,16 +464,20 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
 
     @app.post("/v1/sessions", dependencies=dataneed_routes)
     def open_session(body: Any = Body(...), key: str | None = Depends(conversation_key)) -> Any:
-        """A persistent analysis session on a READY bundle of the same request."""
-        body = session_body(body, {"request_id", "bundle_id"}, {"carried_outputs"})
-        if body is None or not isinstance(body["bundle_id"], str) or not BUNDLE_ID.fullmatch(body["bundle_id"]):
+        """A persistent analysis session on a READY bundle of the same request. EXEC-OUTPUT-REUSE
+        (PY_SANDBOX_OUTPUT_SESSIONS): bundle_id null or left out opens the conversation's session on its released
+        tables (the conversation key header is required)."""
+        body = session_body(body, {"request_id"}, {"bundle_id", "carried_outputs"})
+        bundle_id = (body or {}).get("bundle_id")
+        if body is None or (bundle_id is not None and not (isinstance(bundle_id, str) and BUNDLE_ID.fullmatch(
+                bundle_id))) or (bundle_id is None and not settings.output_sessions_enabled):
             return invalid_body("{request_id, bundle_id, carried_outputs?}")
         carried = body.get("carried_outputs")
         if carried is not None and not (isinstance(carried, list) and len(carried) <= 40
                                         and all(isinstance(o, str) and len(o) <= 64 for o in carried)):
             return invalid_body("{request_id, bundle_id, carried_outputs: [output_id, ...] (at most 40)}")
         try:
-            return dataneed.open_session(body["request_id"], body["bundle_id"], conversation_key=key,
+            return dataneed.open_session(body["request_id"], bundle_id, conversation_key=key,
                                          carried_outputs=carried)
         except SessionError as exc:
             return session_error(exc)
@@ -488,13 +495,15 @@ def create_app(settings: Settings | None = None, service: AnalysisService | None
             return session_error(exc)
 
     @app.post("/v1/sessions/{session_id}/execute", dependencies=dataneed_routes)
-    def execute(session_id: str, body: Any = Body(...)) -> Any:
-        """Run code in the session's persistent namespace (one execution at a time)."""
+    def execute(session_id: str, body: Any = Body(...), key: str | None = Depends(conversation_key)) -> Any:
+        """Run code in the session's persistent namespace (one execution at a time). EXEC-OUTPUT-REUSE: a warm session
+        of an earlier message of the same conversation is taken over (the key comes from the orchestrator)."""
         body = session_body(body, {"request_id", "code"})
         if body is None:
             return invalid_body("{request_id, code}")
         try:
-            return dataneed.sessions.execute(session_id_or_404(session_id), body["request_id"], body["code"])
+            return dataneed.sessions.execute(session_id_or_404(session_id), body["request_id"], body["code"],
+                                             conversation_key=key)
         except SessionError as exc:
             return session_error(exc)
 

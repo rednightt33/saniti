@@ -1012,6 +1012,24 @@ only the code whose variables you need.
 4. Newer data, another period, other columns, entities or filters need
 a different DataNeedSpec, and the backend extracts again. Never present
 an earlier result as the latest data without its computation date."""
+# EXEC-OUTPUT-REUSE (user 2026-10-20: "ensure system prompt di scan ulang, dan aturan ini reflect disana dan tidak ada
+# bentrok"; AGENTS.md Gates and evidence a-c): with sessions without a bundle, items 2 and 3 above say the opposite
+# (a data need for every new computation, restored outputs only), so the whole section is replaced; item 4 stays the
+# boundary. The sandbox refusals and the tool texts say the same (app/tools/session.py, market-python-sandbox).
+CONVERSATION_REUSE_OUTPUT_RULES = """
+
+CONVERSATION REUSE
+A message of a kept conversation may begin with CONVERSATION RESOURCES:
+what earlier messages of the same conversation left in the sandbox.
+1. To show again, filter, sort or explain a result already computed,
+read its released output with get_session_output by its ref (out.oN;
+session_id null for an output of an earlier answer). A released output of an earlier message is a source for
+this answer, with its original evidence label and warnings; say when it
+was computed. Do not compute it again.
+2. A new computation on tables this conversation already released, or on the variables of its warm session, needs no data need: run_python on the warm session that CONVERSATION RESOURCES lists, or call open_analysis_session with input_bundle_id null; read the tables with load_output(output_id), emit the new result and call complete_analysis as usual (it releases only this message's outputs). Right: open_analysis_session with input_bundle_id null, then run_python with t = load_output("<output_id>"). Wrong: sending the listed data_need_spec again only to compute on a table that is already released.
+3. A session that is gone (unused for some minutes, evicted, restarted) is replaced by the backend: run_python on it opens this conversation's session and runs the code there (the result says so and names the new session_id); variables of earlier messages are then gone, so read tables with load_output.
+4. Newer data, another period, other columns, entities or filters need
+a data need (the listed data_need_spec, or a new one), and the backend extracts again. Never present an earlier result as the latest data without its computation date."""
 MAX_RESOURCES_NOTE_CHARS = 12000
 # user 2026-10-20 ("Goalnya adalah tidak perlu recalculate ulang lagi, hemat RAM"): saniti.save_table tables are kept
 # with the conversation and put back into every new session as tables that are loaded, never cited
@@ -1020,7 +1038,7 @@ WORKING_TABLES_HEADER = ("Working tables kept from earlier messages (saved with 
                          "released, so emit_table what you cite):")
 
 
-def conversation_resources_note(resources: dict[str, Any]) -> str:
+def conversation_resources_note(resources: dict[str, Any], output_reuse: bool = False) -> str:
     """The CONVERSATION RESOURCES note: released outputs first (reading them needs no computation), then bundles with
     the approved data_need_spec to resubmit; the specs of older bundles are dropped first to stay within the bound."""
     head = ("CONVERSATION RESOURCES (application context from earlier messages of this conversation, not from the "
@@ -1041,7 +1059,11 @@ def conversation_resources_note(resources: dict[str, Any]) -> str:
 
     def render(with_specs: list[Any]) -> str:
         # P10 (2026-10-01): the spec is labelled as the arguments to send, so it is not wrapped under its own key
-        lines = ["Data of earlier data needs. To reuse one without extraction, call submit_data_need_spec with its "
+        lines = [("Data of earlier data needs. Computing on released tables or the warm session needs no data need "
+                  "(CONVERSATION REUSE 2). Only to read a bundle's raw rows again, call submit_data_need_spec with its "
+                  "submit_arguments object itself as the arguments (unchanged, not inside another key):")
+                 if output_reuse else
+                 "Data of earlier data needs. To reuse one without extraction, call submit_data_need_spec with its "
                  "submit_arguments object itself as the arguments (unchanged, not inside another key):"]
         for bundle, spec in zip(bundles, with_specs):
             lines.append("- " + dumps({"bundle_id": bundle.get("bundle_id"), "extracted_at": bundle.get("extracted_at"),
@@ -1136,7 +1158,7 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
                         hypothesis_plans: bool = False, tools: frozenset[str] = frozenset(),
                         tool_envelope: bool = False, memo_note: bool = False, merged_steps: bool = False,
                         table_directives: bool = False, research_sections: bool = True,
-                        goal_answers: bool = False) -> str:
+                        goal_answers: bool = False, output_reuse: bool = False) -> str:
     """The system prompt for the registered tools. It is fixed for a deployment (AI_ENABLE_LOOKUP_FACT,
     AI_ENABLE_DATANEED, AI_REQUIRE_RESEARCH_PLAN_CONFIRMATION, AI_ENABLE_STANDARD_PERIOD_RETURN,
     AI_FINAL_CONTRACT_IN_PROMPT, AI_ENABLE_TOOL_ENVELOPE), so every call of every run shares one byte-identical
@@ -1149,6 +1171,7 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
     insight rule they share stays as a general section. goal_answers (EXEC-FASTLANE-LEN, fast prefix only): the
     goal-based answer rules and CITING AND CHECKS."""
     template = SYSTEM_PROMPT_TEMPLATE
+    reuse_rules = CONVERSATION_REUSE_OUTPUT_RULES if output_reuse else CONVERSATION_REUSE_RULES
     # Multi-Angle Research replaces the Research Plan, plan feasibility and findings rules (it needs all three flows)
     multi_angle = multi_angle and dataneed and plan_confirmation and plan_feasibility
     # G3: the hypothesis plan beside the multi-angle plan (needs research findings v1 for its verdicts)
@@ -1185,7 +1208,7 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
                     dataneed_rules(tools).replace("{modes_research}", "\n" + mode_sentence + " " + ANALYSIS_NEEDS_NO_PLAN),
                     POINT_IN_TIME_RULES if point_in_time else "", PERIOD_RETURN_RULES if period_return else "",
                     DERIVED_FREQUENCY_RULES if derived_frequency else "",
-                    CONVERSATION_REUSE_RULES if conversation_reuse else "", value_rules,
+                    reuse_rules if conversation_reuse else "", value_rules,
                     METHODOLOGY_RULES if methodology else "", plan_rules, findings, research]
         template = "\n\n".join(section.strip("\n") for section in sections if section.strip())
     elif dataneed:
@@ -1196,7 +1219,7 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
             + (RESEARCH_PLAN_RULES if planned else "") \
             + (PLAN_FEASIBILITY_RULES if planned and plan_feasibility else "") \
             + (PERIOD_RETURN_RULES if period_return else "") + (CATALOG_PROTOCOL_RULES if catalog_protocol else "") \
-            + (CONVERSATION_REUSE_RULES if conversation_reuse else "") + (METHODOLOGY_RULES if methodology else "") \
+            + (reuse_rules if conversation_reuse else "") + (METHODOLOGY_RULES if methodology else "") \
             + (POINT_IN_TIME_RULES if point_in_time else "") + (DERIVED_FREQUENCY_RULES if derived_frequency else "") \
             + (RESEARCH_FINDINGS_RULES if research_findings and research_sections else "") + value_rules \
             + ("" if research_sections else INSIGHT_RULES)
@@ -1232,7 +1255,7 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
             .replace("{families_rule}", families_rule)
             .replace("{reader_example}", READER_EXAMPLE if value_references else ""))
     if goal_answers and not research_sections:
-        text = goal_answer_rules(text)
+        text = goal_answer_rules(text, output_reuse and conversation_reuse)
     return markdown_prompt(text)
 
 
@@ -1381,18 +1404,33 @@ D: EVIDENCE
 11. Statistics: compute a test in your own run_python code and name the test and its sample. saniti.hypothesis_test, explore_test, event_study and backtest are for when the user asks for an extra check; then say which tests the system checked.
 E: REPRODUCTION
 12. A reproduction is only for an attached number the user asks you to check; never for a label or text."""
+CITING_LIFETIME = ("7. The sandbox keeps a prepared data bundle about a day and closes an idle analysis session after "
+                   "some minutes. Released tables and working tables saved with save_table stay with the conversation "
+                   "and come back into every new session: read them with load_output instead of computing them again. "
+                   "An expired bundle (BUNDLE_EXPIRED): send the same data need again (its submit_arguments in "
+                   "CONVERSATION RESOURCES). A session that is gone: open a new one.")
+# EXEC-OUTPUT-REUSE: the same lifetime rule, with the step that needs no data need first (AGENTS.md a-c)
+CITING_LIFETIME_OUTPUTS = (
+    "7. The sandbox keeps a prepared data bundle about a day and closes an idle analysis session after some minutes. "
+    "Released tables and working tables saved with save_table stay with the conversation. Computing on them needs no "
+    "data need: run_python on the warm session in CONVERSATION RESOURCES, or open_analysis_session with "
+    "input_bundle_id null, then load_output. Right: open_analysis_session with input_bundle_id null, then "
+    "load_output(\"<output_id>\"). Wrong: the same data need sent again only to recompute a released table. Send a "
+    "data need only for data no released table holds (newer dates, another period, other columns or stocks), or for "
+    "an expired bundle's raw rows.")
 EXPLORE_GOAL_CAVEAT = ("and explain in the answer what the tested effects mean for the question; the system adds the "
                        "evidence line, so do not repeat it.")
 
 
-def goal_answer_rules(text: str) -> str:
+def goal_answer_rules(text: str, output_reuse: bool = False) -> str:
     """EXEC-FASTLANE-LEN: the fast prefix with GOAL_ANSWER_RULES applied (matched across line breaks; a section the
     deployment does not render, such as TABLES without table directives, is skipped; tests/test_fastlane_len.py checks
     that the dev profile takes every pair) and CITING AND CHECKS added at its end."""
     for old, new in GOAL_ANSWER_RULES:
         pattern = re.compile(r"\s+".join(re.escape(word) for word in old.split()))
         text = pattern.sub(lambda _: new, text, count=1)
-    return text.rstrip("\n") + CITING_CHECKS_RULES
+    rules = CITING_CHECKS_RULES.replace(CITING_LIFETIME, CITING_LIFETIME_OUTPUTS) if output_reuse else CITING_CHECKS_RULES
+    return text.rstrip("\n") + rules
 
 
 # EXEC-FASTLANE-LEN #4 (edge_c1ad148e: "fields names keys the response does not have: reproductions"): the answer's
@@ -2957,6 +2995,8 @@ class AgentOrchestrator:
             log_event("catalog_protocol_inactive", reason="AI_ENABLE_DATANEED is off")
         self.conversation_reuse = settings.ai_enable_conversation_reuse and self.dataneed \
             and conversation_resources is not None
+        # EXEC-OUTPUT-REUSE: the registry offers sessions without a bundle (AI_OUTPUT_REUSE and a sandbox reporting them)
+        self.output_reuse = self.conversation_reuse and "output_reuse" in getattr(registry, "features", set())
         if settings.ai_enable_conversation_reuse and not self.conversation_reuse:
             log_event("conversation_reuse_inactive", reason="AI_ENABLE_DATANEED is off or the sandbox does not "
                                                             "report conversation_reuse")
@@ -3040,7 +3080,8 @@ class AgentOrchestrator:
                                                  bool(getattr(settings, "ai_enable_tool_envelope", False)),
                                                  memo_note=run_memory is not None,
                                                  merged_steps=self.merged_steps,
-                                                 table_directives=self.table_directives)
+                                                 table_directives=self.table_directives,
+                                                 output_reuse=self.output_reuse)
         # E2 (EXEC-1018B, A1): the fast lane's own static prefix, built from the tools its desk offers and without the
         # research plan and findings sections (a second cacheable prefix; the standard lane's is unchanged)
         self.fast_system_prompt = build_system_prompt(
@@ -3053,7 +3094,7 @@ class AgentOrchestrator:
             self.value_references, self.hypothesis_plans, self._process_tools("FASTLANE"),
             bool(getattr(settings, "ai_enable_tool_envelope", False)), memo_note=run_memory is not None,
             merged_steps=self.merged_steps, table_directives=self.table_directives, research_sections=False,
-            goal_answers=bool(getattr(settings, "ai_fastlane_goal_answers", False))) \
+            goal_answers=bool(getattr(settings, "ai_fastlane_goal_answers", False)), output_reuse=self.output_reuse) \
             if self.dataneed and getattr(settings, "ai_enable_fastlane", False) else None
         self.final_schema = final_response_schema(self.plan_confirmation, self.methodology, self.research_findings,
                                                   self.multi_angle, self.value_references, self.hypothesis_plans,
@@ -3767,7 +3808,7 @@ class AgentOrchestrator:
                                  or resources.get("working_tables")):
             log_event("conversation_resources", request_id=state.request_id, outputs=0, bundles=0)
             return
-        note = conversation_resources_note(resources)
+        note = conversation_resources_note(resources, self.output_reuse)
         state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": note})
         state.reuse = {"offered_outputs": len(resources.get("released_outputs") or []),
                        "offered_bundles": len(resources.get("bundles") or []),
@@ -5022,7 +5063,8 @@ class AgentOrchestrator:
         elif name == "run_python" and result.get("status") == "OK" and "complete_analysis" in desk:
             arguments = self._normalized_arguments(raw_arguments)
             if isinstance(arguments, dict) and arguments.get("complete") is True and arguments.get("session_id"):
-                steps.append(("complete_analysis", {"session_id": arguments["session_id"]}))
+                # EXEC-OUTPUT-REUSE: the code may have run in a session the backend opened for a gone one
+                steps.append(("complete_analysis", {"session_id": result.get("session_id") or arguments["session_id"]}))
         if not steps:
             return outcome
         merged: list[dict[str, Any]] = []
