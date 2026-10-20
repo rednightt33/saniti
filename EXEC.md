@@ -6168,3 +6168,132 @@ halaman file dari scan besar. Pembacaan `shared_buffers`/`work_mem`/ukuran tabel
   6. Memperketat `SQL_MAX_ESTIMATED_SCAN_ROWS`/`SQL_MAX_PLAN_COST` — MENAMBAH penolakan (`REJECTED_SCAN_SIZE`,
      partisi lebih banyak); tidak disarankan.
   Pengujian live (EXPLAIN, pengaturan Postgres, ukuran tabel) tertunda: Railway "Deploys have been paused temporarily".
+
+### Rencana implementasi semua EXEC yang disetujui dan belum dijalankan (2026-10-20 malam; belum dijalankan)
+
+User 2026-10-20: "Oke, untuk rekomendasi yang kamu ajukan, oke aja. Tapi tolong kembali ke agents MD, which is AI harus
+aware akan rule ini. Dan ketika ada rejection, maka harus jelas. Scan setiap approve exec dan buat implementation.
+Inspect database dan arsitektur dan dependency …" Semua fakta di bawah dibaca dari kode `main` `22bac1b`, variabel
+Railway dev (nama dan nilai non-rahasia), log Governor 10:13-17:24 UTC dan OpenRouter `/models` pada 2026-10-20.
+Aturan AGENTS.md "Gates and evidence" berlaku untuk setiap gerbang baru/berubah: (a) aturan yang dilihat AI sebelum
+menulis (CITING AND CHECKS), (b) cara lolos, (c) satu contoh benar dan satu salah, (d) pesan penolakan yang menyebut
+letak masalah dan langkah perbaikan.
+
+**Pindai status (kode + live):**
+- Sudah dikerjakan dan live, tidak perlu kerja lagi: keputusan statistik (kode AI sendiri default) –
+  `EXPLORE_OWN_TESTS` (`orchestrator.py:2140`), `_statistics_gate` menerima statistik kode sendiri dengan
+  `texts.OWN_TEST_LINE` (`orchestrator.py:6564-6579`), CITING AND CHECKS no. 11 (`orchestrator.py:1385`),
+  `AI_FASTLANE_GOAL_ANSWERS=true` (dibaca dari Railway). **Koreksi:** catatan sesi ini sebelumnya bahwa keputusan
+  statistik belum dikerjakan dan bentrok live itu salah; `EXPLORE_SYSTEM_ONLY` diganti `EXPLORE_OWN_TESTS` di
+  `orchestrator.py:2199` saat saklar menyala. Saklar (b): `AI_PROVIDER_STREAMING=true`,
+  `AI_FASTLANE_KEEP_REASONING=true`, `AI_PROVIDER_SORT=throughput` (dibaca). Temuan UI EDGE 1-8, baris Evidence,
+  label "Standard", celah ikon tabel: `7f86bdd` (`tests/test_ui_1020.py`).
+- Belum: R1 (RAM opsi 1), R2 (RAM opsi 2, diusulkan batal), H (teks hambatan), U (UI-1020C), M (MAX 128K),
+  S (kartu share + Word), O (EXEC-OUTPUT-REUSE), P (urutan penyedia opsi A, menunggu pilihan penyedia), ukur R4/R5.
+
+**R1 – estimasi kelayakan dipakai ulang oleh `prepare` (orc, semua jalur).**
+- Bukti: log Governor 10:13-17:24 UTC: 491 estimasi (195,6 s waktu DB), 141 di antaranya mengulang SQL yang sama dalam
+  request yang sama (80,0 s, 41%); 136 dari 139 pola ulangan adalah `draft_` (cek kelayakan) lalu `need_` (`prepare`
+  preflight). Penyebab di kode: `check_feasibility` (`data_planner.py:832`) dan `research_planner.py:511` memanggil
+  `estimate()` → `_estimate_parts` → `_preflight`; `prepare` (`data_planner.py:238`) memanggil `_preflight` lagi
+  untuk bagian yang sama; ada 5 instans `ExecutionPlanner` (`tools/__init__.py:135,155,172,246,262`), jadi cache harus
+  di tingkat modul.
+- Kode: cache modul `ESTIMATES` (kunci `(request_id, extraction_sha256)`, kunci thread, TTL 600 s, maks 4.096 entri)
+  di `data_planner.py`; disimpan hanya jawaban `WITHIN_LIMITS` dengan `row_basis=COUNTED`. `_estimate` dan
+  `estimate()` memakai jawaban tersimpan bila `count_cap` baru kosong atau `result_rows < count_cap`; selain itu
+  Governor dipanggil seperti sekarang. Jatah `PREFLIGHT_MAX_ESTIMATES` tetap dikurangi (perilaku rencana identik). Log
+  `planner_estimate_reused` (jumlah per `prepare`). Saklar `AI_PLANNER_REUSE_ESTIMATES` (default true, untuk mundur
+  cepat).
+- Tanpa penolakan baru (dari kode Governor): status `WITHIN_LIMITS` tidak bergantung pada `planned_parts`
+  (`extract.py:791-817`: `partitioning` mengembalikan None bila tidak ada batas yang terlampaui); hitungan `COUNTED` di
+  bawah cap identik dengan hitungan ber-cap yang lebih rendah (`governor.py:862-866`, `_counted`); ekstraksi tetap
+  dicek Governor dan dipecah saat runtime bila ukurannya berubah (`governor.py:808-818`, `_runtime_stop`). Tidak ada
+  aturan AI yang berubah, jadi tidak ada teks prompt atau pesan penolakan baru.
+- Tes: kelayakan lalu `prepare` di request yang sama → Governor menerima satu estimasi per SQL; request lain tidak
+  memakai ulang; `AT_LEAST`/`PLANNER`/`APPROVED_WITH_PARTITIONING` tidak dipakai ulang; cap di bawah hitungan →
+  Governor dipanggil. Deploy orc.
+
+**R2 – Governor menghitung hanya bila dekat batas: diusulkan BATAL (perlu konfirmasi user).** Bukti log yang sama:
+491 hitungan, total 132,4 s, median 174 ms, p90 550 ms, hanya 8 di atas 2 s; perkiraan planner rata-rata 12,5× terlalu
+besar (maks 55.231×) dan 55 kali terlalu kecil; 12 bagian dengan perkiraan > 500.000 baris ternyata ≤ 500.000; 33
+hitungan bernilai 0, yang dipakai `empty_requests` (`data_planner.py:788`, butuh `COUNTED`) untuk menolak permintaan
+kosong dengan jelas. Tanpa hitungan, planner memecah bagian yang sebenarnya muat (lebih banyak query) dan bisa menolak
+`TOO_MANY_PARTS`/`REJECTED_ROW_LIMIT` – penolakan baru, bertentangan dengan syarat user. Penghematannya kecil karena
+hitungan murah.
+
+**R4/R5 – indeks Feature_02 dan batas memori Postgres: tetap menunggu ukuran.** Job `scratchpad/pgmem` siap
+(`shared_buffers`, `work_mem`, `effective_cache_size`, ukuran tabel/indeks Feature_02, `EXPLAIN (ANALYZE, BUFFERS)` pola
+ekstraksi j2 dengan `statement_timeout`); dijalankan saat Railway menerima deploy lagi. Indeks penutup hanya bila
+pembacaan heap mendominasi dan ukurannya terbukti turun; dibuat `CONCURRENTLY` lewat migration maju + katalog.
+Catatan beban: run A/B OFF j2 mengirim 705 panggilan Governor di jendela log, run ON pertanyaan yang sama 65; kondisi
+OFF tidak lagi live.
+
+**H – teks hambatan gerbang mode saran (orc, semua jalur).** Kode terkonfirmasi: `user_texts.py:86` `HURDLE_GATE`,
+`:113-114` akhiran, `orchestrator.py:8072-8078` (`overcome` hanya untuk `REJECTED_FOR_REPAIR`/`ASKED_AGAIN`). Ubah:
+teks baru `HURDLE_GATE_LABELLED` untuk `ANNOTATED` tanpa akhiran "not resolved"; lainnya tetap. Teks untuk user, bukan
+aturan AI. Tes `tests/test_hurdles.py` per hasil gerbang.
+
+**M – level MAX = 128K token per panggilan (orc).** Fakta: `_output_cap` (`orchestrator.py:4858-4862`) membatasi semua
+level ke `AI_MAX_OUTPUT_TOKENS` (live 24000); batas panggilan `AI_REQUEST_TIMEOUT_SECONDS` 600; run
+`AI_MAX_ANALYSIS_SECONDS` 1800; konteks `AI_MAX_CONTEXT_TOKENS` 500000; EDGE menunggu 3900 s. OpenRouter `/models`
+2026-10-20: model ber-level MAX (DeepSeek V4.1 Flash, DeepSeek 1017, GLM 5.3 Flash) konteks 1.048.576, output penyedia
+teratas 943.718/393.216/943.718; endpoint terkecil 131.072. Kode: `AI_MAX_LEVEL_OUTPUT_TOKENS=128000` dan
+`AI_MAX_LEVEL_REQUEST_TIMEOUT_SECONDS=900`, hanya bila `choice.level == "max"`; validasi `config.py` (output < konteks ×
+rasio, timeout ≤ `AI_MAX_ANALYSIS_SECONDS`, batas stream di bawah timeout). Level lain tetap 24K / 600 s. Biaya satu
+panggilan penuh 128K: ±USD 0,015-0,15 tergantung penyedia. (c) tidak ikut kecuali user memutuskan. Tes
+`test_exec_models`. Variabel baru di `.railway/railway.ts` `preserve()`.
+
+**U – EXEC-UI-1020C (edge-bff).** Lokasi kode: `.run-inline-state.failed` `index.html:8646` (border merah → netral);
+logo mono `index.html:9538` dan `MODEL_LOGOS` `:11115-11120` (label run → `var(--foreground)`); Pinned `:11370`
+(`edge-pins-empty` di bawah judul); kartu terpilih Response History mode gelap (token baru); scrollbar tipis seragam
+(sekarang hanya 3 aturan). Tes browser baru `tests/test_ui_1020c.py`.
+
+**S – kartu share A-F, PNG 3×, Word (edge-bff).** Pembuat kartu `index.html` ±11483 (`.edge-share-card` `:9609`),
+footer `edge-labels.js:108`; `static/edge-docx.js` (160 baris, pembuat .docx tanpa pustaka) sudah ada lokal, belum
+di-commit, belum disambungkan ke menu Share. Sisa: logo SVG inline, kotak pertanyaan hitam, tanpa `h1`, Evidence
+kanan, catatan tertutup, footer, skala PNG 3× (maks 16 juta piksel), menu Word + muat saat dipakai; tes
+`tests/test_share_card.py` + tes Word (ZIP/XML valid, teks ada).
+
+**O – EXEC-OUTPUT-REUSE (sandbox lalu orc, di balik saklar).** Fakta kode: setiap panggilan sandbox dari orc sudah
+membawa kunci percakapan dari server (`tools/analysis.py:612-615`, header `CONVERSATION_HEADER` dari
+`current_conversation_key`; kunci `conversations.py:105` `reuse_key`); bundle menyimpan `conversation_key`
+(`dataneed_service.py:396`); sesi WARM_IDLE dicari per kunci (`dataneed_store.py:315`); penolakan sekarang:
+`_session` `sessions.py:1042` (`SESSION_NOT_FOUND`), `open` `:526` dan `open_session`/`attach_bundle`
+`dataneed_service.py:741` (`BUNDLE_NOT_READY`); `attach` butuh `need_id` (`sessions.py:779`); `complete` menilai
+cakupan dari need (`dataneed_service.py:962-976`). Store sandbox adalah SQLite internal, bukan PostgreSQL publik.
+- Sandbox (saklar `PY_SANDBOX_OUTPUT_SESSIONS`): (1) `_session`: sesi dari pesan lain di kunci percakapan yang sama dan
+  WARM_IDLE → diambil alih dengan epoch baru jenis `OUTPUTS` (tanpa need baru); kunci berbeda tetap ditolak.
+  (2) `open_outputs(request_id, key)`: sesi tanpa bundle (manifest tanpa dataset), output percakapan dimuat lewat
+  `stage_carried`/`load_output`. (3) `complete` untuk epoch `OUTPUTS`: cakupan data diganti cek bahwa setiap output
+  baru hanya membaca output percakapan; label bukti dan peringatan diwarisi dari output sumber, tidak pernah otomatis
+  `DATA_COVERAGE_VERIFIED`. (4) Sesi atau need RESEARCH tidak pernah diambil alih. (5) Pesan polos:
+  `SESSION_NOT_FOUND` → "This session belongs to another conversation, or it closed after 15 minutes without use.
+  To compute on this conversation's released tables, call open_analysis_session without input_bundle_id. To read new
+  data, send a data need." `BUNDLE_NOT_READY` dan `BUNDLE_EXPIRED` disusun sama (sebab + satu langkah).
+- orc (saklar `AI_OUTPUT_REUSE`): `OpenAnalysisSessionArgs.input_bundle_id` opsional (null = sesi output percakapan);
+  sesi hangat hilang → orc membuka sesi output otomatis dan menjalankan kode itu sekali di sana dengan catatan
+  "variabel pesan sebelumnya hilang; baca tabel dengan load_output"; `EXPIRY_RECOVERY` (`tools/session.py:165`)
+  membedakan "hanya olah tabel" vs "butuh data mentah".
+- Aturan AI (AGENTS.md a-c), tujuh tempat yang dicatat di pindai prompt di atas, termasuk CITING AND CHECKS no. 7,
+  diganti satu aturan: "Released tables of this conversation need no data need: keep using the session listed in
+  CONVERSATION RESOURCES, or call open_analysis_session without input_bundle_id, and read them with load_output. Send
+  a data need only for data no released table holds (newer dates, another period, other columns or stocks)."
+  Benar: `open_analysis_session({})` lalu `load_output("o2")`. Salah: kirim ulang `data_need_spec` hanya untuk
+  menghitung ulang `o2`. Snapshot prompt v018, kalimat disetujui di `tests/test_prompt_pass2.py`, tes yang memastikan
+  kalimat lama tidak tersisa.
+- Tool_Catalog round baru (`scripts/generate_tool_catalog_migration.py`, migration maju + `APPLIED.sha256`,
+  DATABASE_CHANGELOG); tidak ada perubahan tabel.
+- Tes: pemilik lain dan percakapan lain → ditolak dengan pesan baru; kunci sama dan WARM_IDLE → diambil alih; sesi hilang
+  → sesi output; RESEARCH tidak pernah; label bukti diwarisi; dua run di satu percakapan dibatasi lease. Deploy sandbox
+  dulu (parameter baru opsional), lalu orc; saklar dinyalakan sesudah keduanya SUCCESS; diukur dengan pertanyaan
+  lanjutan pola `edge_d0109b90…` (target: tanpa `submit_data_need_spec`, panggilan dan waktu turun).
+
+**P – urutan penyedia per model (opsi A):** menunggu pilihan penyedia utama per model dari user. Saat ini
+`AI_PROVIDER_SORT=throughput` live; bila opsi A dikerjakan, `order` menggantikan `sort` untuk model yang diatur.
+
+**Urutan eksekusi (setiap push: `git diff --check`, tes, push `main`, deploy SUCCESS; sebelum deploy orc cek log
+tanpa run `edge_` aktif):** Push 1 orc = R1 + H + M (+ dua variabel MAX); Push 2 edge-bff = U + S; Push 3 sandbox →
+orc = O (saklar mati) → nyalakan → ukur; R4/R5 saat Railway menerima deploy. Catat: EXEC, RAILWAY_CHANGELOG, ERRORS,
+README, DATABASE_CHANGELOG (Tool_Catalog). Status: **menunggu konfirmasi user** (pembatalan R2, (c) untuk MAX,
+penyedia opsi A, go eksekusi). Railway terakhir menjawab "Deploys have been paused temporarily"; dicek ulang saat
+eksekusi.
