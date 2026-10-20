@@ -38,26 +38,67 @@ def describe(definition: Any) -> str:
                       ensure_ascii=False, sort_keys=True, default=str) or "{}"
 
 
-def problems(text: str, produced: list[dict[str, Any]], opened: list[dict[str, Any]]) -> list[str]:
+def claim_sentence(text: str) -> str | None:
+    """M192 (3): the sentence of text that makes the claim, so a refusal can quote it."""
+    match = CLAIM.search(text or "")
+    if match is None:
+        return None
+    start = max((text.rfind(mark, 0, match.start()) for mark in (". ", "! ", "? ", "\n")), default=-1)
+    ends = [i for i in (text.find(mark, match.end()) for mark in (". ", "! ", "? ", "\n")) if i >= 0]
+    return " ".join(text[start + 1:(min(ends) + 1) if ends else len(text)].split())[:300]
+
+
+def _entities(definition: dict[str, Any]) -> set[str]:
+    return {str(e) for e in definition.get("entities") or [] if isinstance(e, (str, int))} \
+        if isinstance(definition.get("entities"), list) else set()
+
+
+def differences(definition: dict[str, Any], earlier: dict[str, Any], scope_added: bool = False) -> list[str]:
+    """M192 (3): the compared fields whose values differ. (2): with scope_added (the user asked to add stocks, a SCOPE
+    ADD fact) a list of stocks that keeps every earlier stock is not a difference."""
+    found = []
+    for field in COMPARED:
+        mine, theirs = _key({field: definition.get(field)}), _key({field: earlier.get(field)})
+        if mine == theirs:
+            continue
+        if field == "entities" and scope_added and _entities(earlier) and _entities(earlier) <= _entities(definition):
+            continue
+        found.append(field)
+    return found
+
+
+def findings(text: str, produced: list[dict[str, Any]], opened: list[dict[str, Any]],
+             scope_added: bool = False) -> list[dict[str, Any]]:
     """Why a consistency claim in text is not supported, or [] (no claim, or every result produced in the run has
     the definition of an earlier result it opened). produced/opened: [{"name", "definition"}]. M151 (EXEC-FASTLANE G3,
     run edge_80e733ba): a run that produced no new result (it only read or exported earlier ones) has nothing whose
-    definition could differ, so its claim is not checked."""
+    definition could differ, so its claim is not checked. Each finding: kind (NOT_OPENED, NO_DEFINITION, DIFFERENT),
+    the English problem for the model, and for DIFFERENT the produced and earlier definitions and the fields."""
     if not claims_consistency(text) or not produced:
         return []
     if not opened:
-        return ["the answer says its result follows an earlier result, but this run opened no earlier result "
-                "(load_output), so the backend cannot see that the definitions are the same"]
-    earlier = {_key(o["definition"]): o for o in opened if isinstance(o.get("definition"), dict)}
+        return [{"kind": "NOT_OPENED", "problem": "the answer says its result follows an earlier result, but this run "
+                 "opened no earlier result (load_output), so the backend cannot see that the definitions are the same"}]
+    earlier = [o for o in opened if isinstance(o.get("definition"), dict)]
     if not earlier:
-        return ["the earlier result(s) opened in this run carry no definition, so the claim cannot be checked: "
-                + ", ".join(str(o.get("name")) for o in opened)]
+        return [{"kind": "NO_DEFINITION", "problem": "the earlier result(s) opened in this run carry no definition, so "
+                 "the claim cannot be checked: " + ", ".join(str(o.get("name")) for o in opened)}]
     found = []
     for output in produced:
         definition = output.get("definition")
         if not isinstance(definition, dict):
             continue
-        if _key(definition) not in earlier:
-            found.append(f"{output.get('name')} uses {describe(definition)}, the earlier result(s) "
-                         + "; ".join(f"{o.get('name')} {describe(o.get('definition'))}" for o in opened))
+        apart = [(o, differences(definition, o["definition"], scope_added)) for o in earlier]
+        if any(not fields for _, fields in apart):
+            continue
+        closest, fields = min(apart, key=lambda pair: len(pair[1]))
+        found.append({"kind": "DIFFERENT", "fields": fields, "mine": definition, "earlier": closest["definition"],
+                      "problem": f"{output.get('name')} uses {describe(definition)}, the earlier result(s) "
+                      + "; ".join(f"{o.get('name')} {describe(o.get('definition'))}" for o in opened)
+                      + f" (different: {', '.join(fields)})"})
     return found
+
+
+def problems(text: str, produced: list[dict[str, Any]], opened: list[dict[str, Any]],
+             scope_added: bool = False) -> list[str]:
+    return [f["problem"] for f in findings(text, produced, opened, scope_added)]

@@ -36,6 +36,7 @@ whenever the rendered prompt or schema changes (AGENTS.md, Mandatory workflow).
 | v013 | 2026-10-16 | [exec-1018b-next-step](history/v013-2026-10-16-exec-1018b-next-step/system_prompt.md) | 39,190 | `f9c74fe4abd9` | `4098ec4dd2c0` | User 2026-10-16: "1. OK 2. Skip E10 3. OK 4. Otomatis 5. OK ... Jalankan." (EXEC-1018B Fase 4, E9 b/c) |
 | v014 | 2026-10-16 | [exec-1018b-fast-prefix](history/v014-2026-10-16-exec-1018b-fast-prefix/system_prompt.md) | 41,594 | `235a54f89172` | `ef9b0ecbca7d` | User 2026-10-16: "1. OK 2. Skip E10 3. OK 4. Otomatis 5. OK ... Jalankan." (EXEC-1018B Fase 5, E2 and A3) |
 | v015 | 2026-10-19 | [exec-fastlane-len-goal-answers](history/v015-2026-10-19-exec-fastlane-len-goal-answers/system_prompt.md) | 41,594 | `235a54f89172` | `ef9b0ecbca7d` | User 2026-10-19: 'Selain yang tidak saya sebutkan harus dirubah dengan goal based instead of hardcode'; 'Teks final CITING AND CHECKS ... OK'; 'Ok, execute' (AI_FASTLANE_GOAL_ANSWERS on dev) |
+| v016 | 2026-10-20 | [exec-1020-citing-groups](history/v016-2026-10-20-exec-1020-citing-groups/system_prompt.md) | 41,594 | `235a54f89172` | `ef9b0ecbca7d` | Ok sesuai, masukan exec (2026-10-20); Ya oke, jalankan semua end to end |
 
 ## Changes
 
@@ -98,3 +99,7 @@ E2: the fast lane gets its own static prefix without the research plan, plan for
 ### v015 exec-fastlane-len-goal-answers (2026-10-19)
 
 Fast prefix only: rule 13 length cap, WRITING, TABLES and VALUE REFERENCES length wording replaced by goal-based rules (table limit kept); new CITING AND CHECKS section. Standard prompt and schema unchanged. Fast lane prefix: [27,539 chars](history/v015-2026-10-19-exec-fastlane-len-goal-answers/fast_prompt.md), sha256 `67dbef029144`.
+
+### v016 exec-1020-citing-groups (2026-10-20)
+
+Fast prefix (AI_FASTLANE_GOAL_ANSWERS): CITING AND CHECKS in five groups (answer shape, tool arguments, data lifetime and recovery, evidence, reproduction) with ids copied exactly, expiry recovery, kept working tables, same-as claims naming what differs, statistics in the model's own code by default; rule 13 table rows up to fifty (M185). Standard prefix unchanged. Fast lane prefix: [28,991 chars](history/v016-2026-10-20-exec-1020-citing-groups/fast_prompt.md), sha256 `e7cb230d4ff3`.

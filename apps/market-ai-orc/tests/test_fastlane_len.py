@@ -56,9 +56,17 @@ def test_the_fast_prefix_asks_for_a_complete_answer_and_lists_the_checks_only_wi
         assert " ".join(old.split()) in " ".join(plain.split())
         assert old in new or " ".join(old.split()) not in " ".join(goal.split())
         assert " ".join(new.split()) in " ".join(goal.split())
-    # kept: the table limit of rule 13 and rule 14
-    assert "within ten rows unless the user asks for more" in fast_on and "14. Do not expose hidden" in fast_on
-    assert "## CITING AND CHECKS" in fast_on and fast_on.count("\n9. The final reply is one JSON object.") == 1
+    # kept: rule 14; M185 (user 2026-10-20): a table sends every row up to fifty and EDGE folds them
+    assert "within ten rows unless the user asks for more" not in fast_on and "14. Do not expose hidden" in fast_on
+    assert "shows every row the reader needs, up to fifty" in fast_on
+    assert "## CITING AND CHECKS" in fast_on and fast_on.count("\n4. The final reply is one JSON object.") == 1
+    # the five groups (user 2026-10-20 "Ok sesuai"): answer shape, tool arguments, data lifetime, evidence, reproduction
+    groups = ["## A: ANSWER SHAPE", "## B: TOOL ARGUMENTS", "## C: DATA LIFETIME AND RECOVERY", "## D: EVIDENCE",
+              "## E: REPRODUCTION"]
+    assert [fast_on.index(g) for g in groups] == sorted(fast_on.index(g) for g in groups)
+    assert "never composed" in fast_on and "BUNDLE_EXPIRED" in fast_on and "save_table" in fast_on
+    assert "stocks the user asked to add are not a difference" in fast_on and "Never put it inside a Markdown" in fast_on
+    assert "only from saniti.hypothesis_test" not in fast_on  # the statistics decision: own code by default
     assert "load_output" in fast_on and "‘kata’" in fast_on and '\\"kata\\"' in fast_on
     # the examples hold placeholders, never a real figure
     assert "<angka yang diketik sendiri>" in CITING_CHECKS_RULES and "triliun" not in CITING_CHECKS_RULES
@@ -196,3 +204,43 @@ def test_with_the_routers_switch_a_manual_runs_routers_go_to_claude() -> None:
             current_model_choice.reset(token)
         agent.suggest_follow_ups("r2", "{}")  # a run that did not choose Claude keeps AI_MODEL
         assert [p["model"] for p in client.payloads] == [expected or settings.ai_model, settings.ai_model]
+
+
+# ---------------------------------------------------------------- statistics: the model's own code by default
+
+def test_an_insight_turn_tests_with_its_own_code_and_offers_the_systems_tests_on_request() -> None:
+    """User 2026-10-20: "prioritas pertama/ default adalah pakai kode AI sendiri. Kode validasi untuk research hanya
+    untuk supplementary/ support ketika user minta additional verification"."""
+    from app.orchestrator import FASTLANE_EXPLORATORY_INSIGHT_V2, FASTLANE_EXPLORATORY_OWN_TESTS
+    from test_fastlane import V2_ON, explore_run
+    _, goal = explore_run(settings={**V2_ON, "AI_FASTLANE_GOAL_ANSWERS": "true"}, v2=True, mode=lanes.INSIGHT)
+    first = json.dumps(goal.payloads[0])
+    assert "compute it in your own run_python code" in first and "only from the system" not in first
+    assert "saniti.hypothesis_test" in first and "asks for an" in first
+    assert json.dumps(FASTLANE_EXPLORATORY_OWN_TESTS)[1:-1] in first
+    _, plain = explore_run(settings=V2_ON, v2=True, mode=lanes.INSIGHT)
+    assert "only from the system" in json.dumps(plain.payloads[0])
+    assert json.dumps(FASTLANE_EXPLORATORY_INSIGHT_V2)[1:-1] in json.dumps(plain.payloads[0])
+
+
+@pytest.mark.parametrize("goal", [True, False])
+def test_a_statistic_from_the_models_own_code_is_accepted_with_a_line_only_with_the_switch(goal) -> None:
+    from app.orchestrator import GateRejection
+    from app.schemas import FinalResponse
+    from app.user_texts import OWN_TEST_LINE, UNRECORDED_TEST_LINE
+    from test_fastlane import V2_ON
+    settings = {**V2_ON, "AI_FASTLANE_GOAL_ANSWERS": "true" if goal else "false"}
+    agent = AgentOrchestrator(make_settings(**settings), Recording([]), Counting([]).registry(), insight_v2=True)
+    state = RunState(request_id="s1", started=0.0, input_items=[])
+    state.lane = lanes.FAST
+    state.plan_meta["insight_v2"] = True
+    state.data_record["outputs"] = [{"ref": "out.own", "name": "own_regression"}]
+    final = FinalResponse.model_validate(ANSWER)
+    if goal:
+        kept = agent._statistics_gate(state, final, ["out.own.rows.0.p_value"])
+        assert kept.limitations == [*final.limitations, OWN_TEST_LINE] and not state.gate_kinds_rejected
+    else:
+        with pytest.raises(GateRejection):
+            agent._statistics_gate(state, final, ["out.own.rows.0.p_value"])
+        state.gate_kinds_rejected.add("UNRECORDED_TEST")
+        assert UNRECORDED_TEST_LINE in agent._statistics_gate(state, final, ["out.own.rows.0.p_value"]).limitations

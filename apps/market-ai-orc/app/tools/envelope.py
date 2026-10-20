@@ -114,6 +114,10 @@ def envelope(outcome: ToolOutcome, *, duration_ms: int | None = None, result_byt
     if result_bytes is not None:
         meta["result_bytes"] = result_bytes
     warnings = [{"code": code, "fields": output[key]} for key, code in EXTRA_WARNINGS.items() if output.get(key)]
+    if isinstance(output.get("attach_note"), str) and output["attach_note"]:
+        # M193 (user 2026-10-19 "OK masukan exec"): a merged step's note that the data went to a new session, not the
+        # one asked for, reaches the model as a warning (the step is rebuilt from its result, which dropped the note)
+        warnings.append({"code": "SESSION_NOT_ATTACHED", "message": output["attach_note"]})
     if not outcome.ok:
         error = output.get("error") if isinstance(output.get("error"), dict) else {}
         details = {k: v for k, v in error.items() if k not in ("code", "message", "next_action")} or None

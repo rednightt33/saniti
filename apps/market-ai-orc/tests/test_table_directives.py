@@ -288,3 +288,32 @@ def test_a_run_with_an_attached_selection_sends_the_note_to_the_model() -> None:
                                                         "shown_values": [["YP"], ["CC"]]}))
     sent = " ".join(str(item.get("content")) for item in client.payloads[0]["input"])
     assert "The user attached part of an earlier answer's table" in sent and "table out.o3" in sent
+
+
+MANY = [{"sector": f"S{n:02d}", "median_pct": float(n), "n": n, "share": n / 100} for n in range(48)]
+
+
+def test_a_table_without_top_sends_every_row_up_to_fifty() -> None:
+    """M185 (user 2026-10-20 "Ok M185 masukan exec untuk solusinya"; edge_7bdd6096: 10 of 48 rows reached EDGE, which
+    folds rows itself): without top every row up to MAX_ROWS goes out and no rows line is written."""
+    _, state = tracked(MANY)
+    expansion, text = shown("{{table out.o1; Sektor = sector; Median = median_pct|pctv:1}}", state)
+    assert expansion.tables[0]["rows"] == 48 and "Menampilkan" not in text
+    _, state = tracked(MANY)
+    expansion, text = shown("{{table out.o1; Sektor = sector; top 10}}", state)  # an explicit top still cuts
+    assert expansion.tables[0]["rows"] == 10 and "Menampilkan 10 dari 48 baris" in text
+
+
+def test_an_instruction_inside_a_markdown_table_is_taken_out_and_typed_rows_lines_dropped() -> None:
+    """(a)+(b) (user 2026-10-20 "A ok masukan exec"; edge_b6559a4f: a typed title row, the instruction in a cell and
+    the model's own "Menampilkan 10 dari 29 baris")."""
+    _, state = tracked()
+    wrapped = ("Per sektor:\n\n| Sektor | Median |\n|---|---|\n| {{table out.o1; Sektor = sector; Median = "
+               "median_pct|pctv:1; top 2}} |\n\n_Menampilkan 10 dari 29 baris._\n\nSelesai.")
+    expansion, _ = shown(wrapped, state)
+    assert expansion.unwrapped == 2 and expansion.tables[0]["rows"] == 2
+    cleaned, dropped = td.drop_empty_tables(expansion.text)
+    assert dropped == 1 and "{{table" not in cleaned and "Menampilkan 10 dari 29" not in cleaned
+    lines = [line for line in cleaned.splitlines() if line.startswith("|")]
+    assert lines[0].count("|") == 3 and not any(line.strip() in ("|", "| |") for line in cleaned.splitlines())
+    assert "Menampilkan 2 dari 4 baris" in cleaned  # the system's own line under the cut table

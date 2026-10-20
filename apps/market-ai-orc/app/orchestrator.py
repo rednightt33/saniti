@@ -1013,6 +1013,11 @@ only the code whose variables you need.
 a different DataNeedSpec, and the backend extracts again. Never present
 an earlier result as the latest data without its computation date."""
 MAX_RESOURCES_NOTE_CHARS = 12000
+# user 2026-10-20 ("Goalnya adalah tidak perlu recalculate ulang lagi, hemat RAM"): saniti.save_table tables are kept
+# with the conversation and put back into every new session as tables that are loaded, never cited
+WORKING_TABLES_HEADER = ("Working tables kept from earlier messages (saved with save_table; every new session gets "
+                         "them back: read one with load_output(name) instead of computing it again; they are not "
+                         "released, so emit_table what you cite):")
 
 
 def conversation_resources_note(resources: dict[str, Any]) -> str:
@@ -1029,6 +1034,10 @@ def conversation_resources_note(resources: dict[str, Any]) -> str:
                                      if o.get(k) not in (None, [])}))
     bundles = resources.get("bundles") or []
     specs = [b.get("data_need_spec") for b in bundles]
+    working = [WORKING_TABLES_HEADER] + ["- " + dumps({k: t.get(k) for k in ("name", "output_id", "rows", "columns",
+                                                                              "saved_at") if t.get(k) not in (None, [])})
+                                         for t in resources.get("working_tables") or []]
+    working = working if len(working) > 1 else []
 
     def render(with_specs: list[Any]) -> str:
         # P10 (2026-10-01): the spec is labelled as the arguments to send, so it is not wrapped under its own key
@@ -1039,7 +1048,7 @@ def conversation_resources_note(resources: dict[str, Any]) -> str:
                                        "expires_at": bundle.get("expires_at"), "mode": bundle.get("mode"),
                                        "warm_session": bundle.get("warm_session"),
                                        "datasets": bundle.get("datasets"), "submit_arguments": spec}))
-        return "\n".join([head, *(outputs if len(outputs) > 1 else []), *(lines if bundles else [])])
+        return "\n".join([head, *(outputs if len(outputs) > 1 else []), *(lines if bundles else []), *working])
 
     note = render(specs)
     for index in range(len(specs) - 1, -1, -1):
@@ -1338,6 +1347,11 @@ GOAL_ANSWER_RULES = (
      "why, and cite each figure the explanation needs by its address;"),
     ("write it by its address or leave it out.",
      "write it by its address; when a figure the answer needs has no address yet, release it in the analysis first."),
+    # M185 (user 2026-10-20): a table sends every row up to fifty; EDGE shows ten and folds the rest
+    ("within ten rows unless the user asks for more or the table lists every group of a breakdown, up to fifty rows "
+     "(the full table stays in its released output);",
+     "shows every row the reader needs, up to fifty (EDGE shows the first ten and folds the rest; the full table stays "
+     "in its released output and can be downloaded);"),
 )
 # EXEC-FASTLANE-LEN (user 2026-10-19: "Teks final 'CITING AND CHECKS' ... OK"; AGENTS.md, Gates and evidence): every
 # check that can send an answer back, with how to pass it, in one place the model reads before it writes. The examples
@@ -1345,16 +1359,24 @@ GOAL_ANSWER_RULES = (
 CITING_CHECKS_RULES = """
 
 CITING AND CHECKS
-The system checks every answer before the user sees it. Follow these and nothing is sent back.
+The system checks every answer and every tool call. Follow these and nothing is sent back. When something is still refused, the refusal says what is wrong and the step to take: take that step.
+A: ANSWER SHAPE
 1. A figure from data: copy its {{address}} from the "addresses" list of the tool result that released it, then add a format. Right: `BBCA rata-rata {{out.o3.rows[ticker=BBCA].avg_1m|rp}} per hari.` Wrong: `BBCA rata-rata Rp<angka yang diketik sendiri> per hari.` A typed figure is shown with a "typed figure" label. A figure the answer needs that no table holds yet: release it in run_python first.
-2. A table is one instruction, parts separated by ";": `{{table out.o2; Saham = ticker; Return = ret_5d|pct:1; sort -ret_5d; top 10}}`.
+2. A table is one instruction on its own line, parts separated by ";": `{{table out.o2; Saham = ticker; Return = ret_5d|pct:1; sort -ret_5d}}`. Never put it inside a Markdown table, and never type a title row or "|" around it. Write top only when the user asks for a number of rows: the system shows the first rows, folds the rest and writes the line saying how many rows are shown.
 3. A share, return or percent: release its column with units= (FRACTION or PERCENT) and cite it with |pct; otherwise it is labelled.
-4. A number that matches no source (a released output, the user's message, the data need, the bundle summary) is refused once. A parameter typed in your code is accepted with a label.
-5. An earlier result next to new results: open it first (get_session_output, or load_output in run_python), keep its filters, period and thresholds or say how yours differ. Otherwise it is refused once.
-6. Methodology numbers come from the same sources, the data need or your code.
-7. On an explore turn a p-value or interval comes only from saniti.hypothesis_test, explore_test or event_study; any other is refused once.
-8. A reproduction is only for an attached number the user asks you to check; never for a label or text.
-9. The final reply is one JSON object. Inside a string write a quoted word as ‘kata’ or \\"kata\\" and a line break as \\n; a raw " ends the string and the reply is sent back."""
+4. The final reply is one JSON object. Inside a string write a quoted word as ‘kata’ or \\"kata\\" and a line break as \\n; a raw " ends the string and the reply is sent back.
+B: TOOL ARGUMENTS
+5. Ids (session_id, output_id, bundle_id, need_id) are copied exactly from a tool result or CONVERSATION RESOURCES, never composed; a yes/no field is true or false, not text.
+6. A scope value (a ticker, a board, a sector) is written exactly as the catalog lists it.
+C: DATA LIFETIME AND RECOVERY
+7. The sandbox keeps a prepared data bundle about a day and closes an idle analysis session after some minutes. Released tables and working tables saved with save_table stay with the conversation and come back into every new session: read them with load_output instead of computing them again. An expired bundle (BUNDLE_EXPIRED): send the same data need again (its submit_arguments in CONVERSATION RESOURCES). A session that is gone: open a new one.
+D: EVIDENCE
+8. A number that matches no source (a released output, the user's message, the data need, the bundle summary) is refused once. A parameter typed in your code is accepted with a label.
+9. An earlier result next to new results: open it first (get_session_output, or load_output in run_python), keep its filters, period and thresholds or say how yours differ. Calling a result "the same as" or "consistent with" an earlier one is checked against its filters, period, stocks and thresholds: name what differs; stocks the user asked to add are not a difference.
+10. Methodology numbers come from the same sources, the data need or your code.
+11. Statistics: compute a test in your own run_python code and name the test and its sample. saniti.hypothesis_test, explore_test, event_study and backtest are for when the user asks for an extra check; then say which tests the system checked.
+E: REPRODUCTION
+12. A reproduction is only for an attached number the user asks you to check; never for a label or text."""
 EXPLORE_GOAL_CAVEAT = ("and explain in the answer what the tested effects mean for the question; the system adds the "
                        "evidence line, so do not repeat it.")
 
@@ -1460,12 +1482,10 @@ def annotate_claims(text: str, spans: list[tuple[str, int, int]]) -> tuple[str, 
     pieces.append(text[cursor:])
     return "".join(pieces), annotations
 DEFINITION_CLAIM_INSTRUCTION = (
-    "The answer says its result follows the definition of an earlier result, but the backend sees otherwise: "
-    "{problems}. Either use the earlier result's definition (open it with load_output and keep its filters, period "
-    "and thresholds), or keep your result and state plainly how its definition differs instead of calling it "
-    "consistent.")
-DEFINITION_CLAIM_NOTICE = ("Catatan sistem: klaim bahwa hasil ini mengikuti definisi hasil sebelumnya tidak didukung; "
-                           "{problems}.")
+    "The sentence \"{sentence}\" says the result follows the definition of an earlier result, but the backend sees "
+    "otherwise: {problems}. Either use the earlier result's definition (open it with load_output and keep its filters, "
+    "period, stocks and thresholds), or keep your result and rewrite that sentence to say what differs instead of "
+    "calling it the same.")
 DATANEED_GATE_INSTRUCTION = (
     "Your answer relies on data analysis that did not complete: {findings}. Only outputs released by "
     "complete_analysis may support an answer. Follow its next_action (process what was not read, revise the "
@@ -1708,6 +1728,7 @@ RUNAWAY_NOTE = ("Application note, not from the user: your previous turn used th
                 "tool, or give the final response.")
 # EXEC-M181: a call whose provider stalled is asked once more at the same level; a second stall fails the run
 MAX_PROVIDER_STALL_RETRIES = 1
+PROSE_REASK_INSTRUCTION = "Your reply was text, not one JSON object; send only the JSON object."
 # M146 (EXEC-M146, user go 2026-10-13): deepseek-v4.1-flash sometimes writes its tool call in its own markup (DSML,
 # "<｜DSML｜ calls><｜DSML｜ invoke name=...>") as plain text, and the provider passes it on as content with no tool call
 # (sglang #40236, openclaw #159665). That turn is a tool call that never ran, not a draft answer: it is asked again with
@@ -2019,10 +2040,12 @@ FASTLANE_EXPLORATORY_INSIGHT = (
     "(saniti.explore_test), never call it proven, a cause, a prediction or a trading signal.")
 
 
-def fastlane_note(step: str, mode: str | None, decisions: bool, v2: bool = False) -> str:
+def fastlane_note(step: str, mode: str | None, decisions: bool, v2: bool = False, goal: bool = False) -> str:
     note = FASTLANE_NOTE.format(draft_step=step)
     if v2 and mode == lanes.INSIGHT:  # EXEC-IMPL-1017: insight v2 tests only through the recorder, with any switches
-        return note.replace(FASTLANE_EXPLORATORY, FASTLANE_EXPLORATORY_INSIGHT_V2)
+        # the statistics decision (goal): the model's own code by default, the system's tests on request
+        return note.replace(FASTLANE_EXPLORATORY, FASTLANE_EXPLORATORY_OWN_TESTS if goal
+                            else FASTLANE_EXPLORATORY_INSIGHT_V2)
     if not decisions or mode is None:
         return note
     return note.replace(FASTLANE_EXPLORATORY, FASTLANE_EXPLORATORY_INSIGHT if mode == lanes.INSIGHT
@@ -2099,6 +2122,29 @@ EXPLORE_INSIGHT_V2_NOTE = (
     "interval from anything else is refused. Report the hypotheses the data supports first, say plainly which it does "
     "not, describe each tested effect with its interval, and never call a result significant, proven or a cause. When "
     "the user asks to find, list or rank something, answer with that table and run no tests.")
+# User 2026-10-20 ("prioritas pertama/ default adalah pakai kode AI sendiri. Kode validasi untuk research hanya untuk
+# supplementary/ support ketika user minta additional verification"), with AI_FASTLANE_GOAL_ANSWERS: an insight turn
+# computes its tests in its own code; the system's tests are offered when the user asks for an extra check
+EXPLORE_SYSTEM_ONLY = (
+    "When you do test, the statistics come only from the system: saniti.hypothesis_test(kind, frame, "
+    "value=, group=, a=, b=, x=, y=, horizon=) with kind MEAN_DIFFERENCE, PROPORTION_DIFFERENCE, MEAN_VS_ZERO or "
+    "CORRELATION, saniti.explore_test(method_id, frame, ...) for a research library method ({methods}), or "
+    "saniti.event_study. Never compute a p-value or an interval yourself (scipy, statsmodels): the system records "
+    "every test, counts rows on one date once and overlapping outcomes once, corrects the answer's tests together "
+    "(Benjamini-Hochberg) and writes the evidence line under the answer, and an answer showing a p-value or an "
+    "interval from anything else is refused.")
+EXPLORE_OWN_TESTS = (
+    "When you do test, compute it in your own run_python code (pandas, numpy, scipy or statsmodels) and release the "
+    "test's table with its method, sample and effect; count rows on one date once and overlapping outcomes once. "
+    "The system's tests (saniti.hypothesis_test(kind, frame, value=, group=, a=, b=, x=, y=, horizon=) with kind "
+    "MEAN_DIFFERENCE, PROPORTION_DIFFERENCE, MEAN_VS_ZERO or CORRELATION, saniti.explore_test(method_id, frame, ...) "
+    "for a research library method ({methods}), saniti.event_study, saniti.backtest) are for when the user asks for an "
+    "extra check: they record the test, correct the answer's tests together (Benjamini-Hochberg) and write the "
+    "evidence line, and the answer says which tests the system checked.")
+FASTLANE_EXPLORATORY_OWN_TESTS = (
+    "The results are exploratory: a test you compute is not checked again by the system unless it came from its own "
+    "tests (saniti.hypothesis_test, saniti.explore_test, saniti.event_study); a pattern is an association, never "
+    "proven, a cause, a prediction or a trading signal.")
 FASTLANE_EXPLORATORY_INSIGHT_V2 = (
     "The results are exploratory: a tested pattern is claimed only from the tests the system records "
     "(saniti.hypothesis_test, saniti.explore_test, saniti.event_study); a described pattern is an association, never "
@@ -2144,6 +2190,9 @@ def explore_note(mode: str, decisions: bool = False, v2: bool = False, goal: boo
     data is ready. EXEC-IMPL-1017: insight v2 names the methods only, as tools the model may use. goal
     (EXEC-FASTLANE-LEN): the answer explains the tested effects instead of leaving out a caveat paragraph."""
     note = _explore_note(mode, decisions, v2)
+    if goal and mode == lanes.INSIGHT and v2:
+        methods = ", ".join(m["method_id"] for m in research_library.LIBRARY)
+        note = note.replace(EXPLORE_SYSTEM_ONLY.format(methods=methods), EXPLORE_OWN_TESTS.format(methods=methods))
     return note.replace("and do not write your own caveat paragraph about testing.", EXPLORE_GOAL_CAVEAT) if goal \
         else note
 
@@ -3134,7 +3183,7 @@ class AgentOrchestrator:
         carried, reading, v5_tokens = None, None, []
         try:
             if self.conversation_reuse and conversation_key and request.history:
-                self._add_conversation_resources(state, conversation_key)
+                self._add_conversation_resources(state, conversation_key, request.conversation_id)
             self._prepare_plan_turn(request, state)
             if state.reply_reading is not None and current_design_changes.get() is None:
                 # P3b: outside a pipeline the plan-reply reader's reading binds this run's plan gates (M90)
@@ -3693,15 +3742,25 @@ class AgentOrchestrator:
                   manuals=len(state.data_record.get("manuals") or []), refreshed=refreshed,
                   manual_chars=len(note or ""))
 
-    def _add_conversation_resources(self, state: RunState, conversation_key: str) -> None:
+    def _add_conversation_resources(self, state: RunState, conversation_key: str,
+                                    conversation_id: str | None = None) -> None:
         """Conversation reuse: a bounded application note listing what earlier messages of the conversation left in
-        the sandbox (released outputs, bundles with the data_need_spec to resubmit, warm sessions). Its numbers are
-        not answer sources; the sandbox checks every later use."""
+        the sandbox (released outputs, bundles with the data_need_spec to resubmit, warm sessions) and the working
+        tables the conversation keeps (user 2026-10-20: put back into a new session, so they are not computed again).
+        Its numbers are not answer sources; the sandbox checks every later use."""
         try:
             resources = self.conversation_resources(conversation_key) if self.conversation_resources else None
         except Exception:  # noqa: BLE001 - without the note the run works as a fresh one
             resources = None
-        if not resources or not (resources.get("released_outputs") or resources.get("bundles")):
+        if self.result_store is not None and conversation_id:
+            try:
+                working = self.result_store.supporting_tables(conversation_id)
+            except Exception:  # noqa: BLE001 - the note works without the working tables
+                working = []
+            if working:
+                resources = {**(resources or {}), "working_tables": working}
+        if not resources or not (resources.get("released_outputs") or resources.get("bundles")
+                                 or resources.get("working_tables")):
             log_event("conversation_resources", request_id=state.request_id, outputs=0, bundles=0)
             return
         note = conversation_resources_note(resources)
@@ -3949,7 +4008,7 @@ class AgentOrchestrator:
             mode = self._explore_mode()
             decisions = getattr(self.settings, "ai_fastlane_decision_rules", False)
             v2 = self.insight_v2 and mode == lanes.INSIGHT
-            state.turn_notes.append((fastlane_note(step, mode, decisions, v2=v2), True))
+            state.turn_notes.append((fastlane_note(step, mode, decisions, v2=v2, goal=self._goal_answers(state)), True))
             if decisions:
                 state.turn_notes.append((decisions_note(), True))
             presentation = getattr(self.settings, "ai_fastlane_v5_presentation", False)
@@ -5000,6 +5059,35 @@ class AgentOrchestrator:
             output["result"] = {**output["result"], "next_action": following}
         return replace(outcome, output=output)
 
+    @staticmethod
+    def _name_valid_ids(state: RunState, outcome: ToolOutcome) -> None:
+        """B2 (user 2026-10-20 "Ok untk B1 dan B2"; edge_b6559a4f: session_id, output_id and ref refused as
+        string_pattern_mismatch): a refused id or yes/no field says which values are valid now and where to copy them
+        from, after the field and its pattern the registry names."""
+        error = outcome.output.get("error") if not outcome.ok and isinstance(outcome.output, dict) else None
+        if not isinstance(error, dict) or error.get("code") != "INVALID_ARGUMENTS":
+            return
+        message = str(error.get("message") or "")
+        fields = set(re.findall(r"(?:^|[;:]\s|\.)([a-z_]+)(?=: )", message))
+        hints = []
+        if fields & {"session_id", "close_session_id", "attach_to_session_id"}:
+            open_ids = [sid for sid, s in state.sessions.items() if not s.get("closed_by_model")]
+            hints.append("session ids open in this answer: " + (", ".join(open_ids[-6:]) or "none yet (open one with "
+                         "open_analysis_session; an earlier answer's output needs session_id null)"))
+        if fields & {"output_id", "ref"}:
+            outs = [f"{o.get('ref')} ({o.get('output_id')})" for o in state.data_record.get("outputs") or []
+                    if o.get("ref") and o.get("output_id")]
+            hints.append("released outputs: " + (", ".join(outs[-8:]) or "none yet in this answer"))
+        if fields & {"input_bundle_id", "bundle_id", "need_id"}:
+            needs = [f"{n.get('need_id')} -> {n.get('bundle_id') or 'not prepared'}"
+                     for n in state.data_record.get("needs") or [] if n.get("need_id")]
+            hints.append("data needs and their bundles: " + (", ".join(needs[-6:]) or "none yet in this answer"))
+        if hints:
+            message += (" Valid values now: " + "; ".join(hints) + ". Copy an id exactly from the tool result that "
+                        "returned it or from CONVERSATION RESOURCES; never compose one.")
+        if message != error.get("message"):
+            error["message"] = message[:1600]
+
     def _execute(self, state: RunState, call_id: str, name: str, raw_arguments: Any) -> ToolOutcome:
         if not state.tools_offered:
             return error_outcome(call_id, name, "TOOLS_NOT_AVAILABLE",
@@ -5091,6 +5179,7 @@ class AgentOrchestrator:
             if refused is not None:
                 return self._repair_budget(state, call_id, name, refused)
         outcome = self._repair_budget(state, call_id, name, self.registry.execute(call_id, name, raw_arguments))
+        self._name_valid_ids(state, outcome)
         if name == "lookup_reference" and outcome.ok:
             state.reference_reads += 1
         normalized = self._normalized_arguments(raw_arguments)
@@ -6336,7 +6425,8 @@ class AgentOrchestrator:
             typed = table_directives.typed_tables(cited)  # tables the model still wrote cell by cell (allowed)
             if expansion.count or typed:
                 log_event("ai_table_directive", request_id=state.request_id, iteration=state.iterations,
-                          tables=expansion.tables[:10], refused=len(expansion.failed), typed_tables=typed)
+                          tables=expansion.tables[:10], refused=len(expansion.failed), typed_tables=typed,
+                          unwrapped=expansion.unwrapped)
         state.referenced = list(dict.fromkeys(
             [m.group("expr").strip() for m in REF_RE.finditer(cited)]
             + (expansion.refs if self.table_directives and expansion.count else [])))
@@ -6402,13 +6492,7 @@ class AgentOrchestrator:
                 references=", ".join(dict.fromkeys(unknown[:12]))) + units_advice(unknown_values))
         # E3 (EXEC-1018B): the fixed line about tests the model computed is written only when the answer shows one
         state.shown_statistics = bool(statistics)
-        unrecorded = self._unrecorded_statistics(state, statistics)
-        if unrecorded:
-            log_event("ai_statistic_unrecorded", request_id=state.request_id, references=unrecorded[:12])
-            self._gate_once(state, "UNRECORDED_TEST", UNRECORDED_TEST_INSTRUCTION.format(
-                references=", ".join(unrecorded[:12])), needs=frozenset({"run_python"}))
-            rendered = rendered.model_copy(update={"limitations": [*rendered.limitations,
-                                                                   texts.UNRECORDED_TEST_LINE]})
+        rendered = self._statistics_gate(state, rendered, statistics)
         mismatched = self._check_reproductions(state)
         if mismatched:
             log_event("ai_reproduction_mismatch", request_id=state.request_id, pairs=mismatched[:5])
@@ -6472,6 +6556,23 @@ class AgentOrchestrator:
             state.reproductions.append({"figure": state.attached_figures.get(original) or shown_original.text,
                                         "original": original, "result": result, "status": "MATCH"})
         return problems
+
+    def _statistics_gate(self, state: RunState, rendered: FinalResponse, statistics: list[str]) -> FinalResponse:
+        """EXEC-IMPL-1017 Fase 1 (M171): an insight v2 answer showing a statistic no recorded test produced is sent back
+        once. The statistics decision (user 2026-10-20, AI_FASTLANE_GOAL_ANSWERS): the model's own code is the default,
+        so the statistic is accepted and the reader is told it was not checked again."""
+        unrecorded = self._unrecorded_statistics(state, statistics)
+        if unrecorded and self._goal_answers(state):
+            log_event("ai_statistic_own_code", request_id=state.request_id, references=unrecorded[:12])
+            if texts.OWN_TEST_LINE not in rendered.limitations:
+                rendered = rendered.model_copy(update={"limitations": [*rendered.limitations, texts.OWN_TEST_LINE]})
+        elif unrecorded:
+            log_event("ai_statistic_unrecorded", request_id=state.request_id, references=unrecorded[:12])
+            self._gate_once(state, "UNRECORDED_TEST", UNRECORDED_TEST_INSTRUCTION.format(
+                references=", ".join(unrecorded[:12])), needs=frozenset({"run_python"}))
+            rendered = rendered.model_copy(update={"limitations": [*rendered.limitations,
+                                                                   texts.UNRECORDED_TEST_LINE]})
+        return rendered
 
     def _unrecorded_statistics(self, state: RunState, statistics: list[str]) -> list[str]:
         """EXEC-IMPL-1017 Fase 1 (M171): on an insight v2 turn, the statistics the answer shows (p-values, interval
@@ -6935,14 +7036,22 @@ class AgentOrchestrator:
                   if isinstance(i, dict)]
         opened += [{"name": o.get("name"), "definition": o.get("definition")}
                    for o in outputs if str(o.get("output_id")) in reread]
-        found = definition_check.problems(final.answer, produced, opened)
+        # M192 (2): stocks the user asked to add (a SCOPE ADD fact of this message) are not a different definition
+        scope_added = any(str(c.get("name")) == "SCOPE" and c.get("action") == "ADD"
+                          for c in current_design_changes.get() or [] if isinstance(c, dict)) or any(
+            f.get("kind") == "SCOPE" and f.get("set_by") == state.request_id and not f.get("superseded_by")
+            for f in (state.data_record or {}).get("facts") or [] if isinstance(f, dict))
+        found = definition_check.findings(final.answer, produced, opened, scope_added)
         if not found:
             return final
-        text = "; ".join(found[:4])
-        self._gate_once(state, "DEFINITION", DEFINITION_CLAIM_INSTRUCTION.format(problems=text))
-        line = DEFINITION_CLAIM_NOTICE.format(problems=text)
+        # M192 (3): the refusal quotes the sentence that made the claim and names the fields that differ
+        self._gate_once(state, "DEFINITION", DEFINITION_CLAIM_INSTRUCTION.format(
+            sentence=definition_check.claim_sentence(final.answer) or "", problems="; ".join(
+                f["problem"] for f in found[:4])))
+        # M192 (4): the note under the answer is plain words, without the definitions as JSON
+        lines = list(dict.fromkeys(texts.definition_note(f) for f in found[:2]))
         state.definition_annotated = True
-        return final.model_copy(update={"limitations": [*final.limitations, line]})
+        return final.model_copy(update={"limitations": [*final.limitations, *lines]})
 
     def _findings_problems(self, state: RunState, final: FinalResponse) -> tuple[FinalResponse, list[str]]:
         """Research findings v1: an ANSWER resting on completed research experiments carries one research_findings
@@ -7647,8 +7756,11 @@ class AgentOrchestrator:
         state.final_reask_sent = True
         # M46 (2026-10-01): every re-ask names what was wrong (it used to only for a cut-off response, so a schema
         # refusal was rewritten blind)
-        state.input_items.append({"role": "user", "content": (issue + " " if issue else "")
-                                  + self.finalize_instruction + self._offer_edit(state, raw)})
+        # user 2026-10-20 (edge_b6559a4f: the first final reply was prose): a reply written as text is told so first
+        prose = bool(raw.strip()) and not raw.strip().startswith(("{", "```"))
+        state.input_items.append({"role": "user", "content": (PROSE_REASK_INSTRUCTION + " " if prose else "")
+                                  + (issue + " " if issue else "") + self.finalize_instruction
+                                  + self._offer_edit(state, raw)})
         log_event("ai_final_reask", request_id=state.request_id, iteration=state.iterations,
                   next_turn="STRICT_SCHEMA" if state.structured_only else "SAME_PREFIX",
                   looked_like_json=raw.strip().startswith(("{", "```")), output_chars=len(raw), issue=issue[:300])

@@ -28,7 +28,7 @@ def test_a_tool_call_written_as_text_is_asked_again_with_its_tools() -> None:
     assert not any(FINALIZE_PREFIX in str(i.get("content")) for i in retry["input"])
     hurdles = result.execution.hurdles or []
     assert any(h["name"] == "TOOL_MARKUP" and h["overcome"] for h in hurdles)
-    assert "panggilan alat tertulis sebagai teks" in texts.hurdle_text("FORMAT", "TOOL_MARKUP", None, "ASKED_AGAIN",
+    assert "a tool call was written as text" in texts.hurdle_text("FORMAT", "TOOL_MARKUP", None, "ASKED_AGAIN",
                                                                          True)
 
 

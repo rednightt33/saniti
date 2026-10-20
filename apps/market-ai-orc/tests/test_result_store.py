@@ -275,3 +275,29 @@ def test_the_code_of_a_session_is_read_back_in_the_order_it_ran(databases) -> No
     store.save_execution(conversation_id, "r1", {"execution_id": "exe_" + "f" * 24, "session_id": "sess_" + "2" * 24,
                                                 "code": "other", "status": "OK"})
     assert [e["code"] for e in store.executions_of_session(conversation_id, session)] == ["a = 1", "b = 2"]
+
+
+def test_working_tables_come_back_to_a_new_session_as_not_released_and_are_listed(databases) -> None:  # noqa: F811
+    """User 2026-10-20 ("Goalnya adalah tidak perlu recalculate ulang lagi, hemat RAM"; "Ok, masukan exec"): the kept
+    working tables are put back after the released tables, loadable but never citable, and CONVERSATION RESOURCES
+    lists them; a research session still takes only the tables its plan names."""
+    from app.orchestrator import WORKING_TABLES_HEADER, conversation_resources_note
+    admin, login = databases
+    conversation_id = conversation(admin)
+    store = ResultStore(login, FakeBucket())
+    store.save_output(conversation_id, "r1", entry(out(31), name="step_frame", type="SUPPORT"), b"step")
+    store.save_output(conversation_id, "r1", entry(out(32)), b"result")
+    uploads = []
+
+    def upload(session_id, meta, data):
+        uploads.append((meta["output_id"], meta["origin"]["evidence_label"]))
+        return {"status": "RESTORED"}
+    restore_missing(store, upload, conversation_id, "r2", "sess_" + "7" * 24, {"carried_output_ids": []}, None)
+    assert uploads == [(out(32), "DATA_COVERAGE_VERIFIED"), (out(31), "NOT_RELEASED")]  # released first
+    uploads.clear()
+    restore_missing(store, upload, conversation_id, "r3", "sess_" + "7" * 24, {"carried_output_ids": []}, [out(31)])
+    assert uploads == []  # a research plan never carries a working table
+    listed = store.supporting_tables(conversation_id)
+    assert [(t["name"], t["output_id"], t["rows"]) for t in listed] == [("step_frame", out(31), 2)]
+    note = conversation_resources_note({"working_tables": listed})
+    assert WORKING_TABLES_HEADER in note and "step_frame" in note and "load_output(name)" in note

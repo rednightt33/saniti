@@ -27,7 +27,9 @@ SORT_RE = re.compile(r"^sort\s+(?P<minus>-)?\s*(?P<column>.+)$", re.IGNORECASE)
 TOP_RE = re.compile(r"^top\s+(?P<rows>\d+)$", re.IGNORECASE)
 # Markdown table separator lines, to count the tables the model still writes cell by cell (logged, never refused)
 SEPARATOR_RE = re.compile(r"^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$", re.MULTILINE)
-DEFAULT_ROWS = 10  # rule 13: a table in the answer holds ten rows unless the user asks for more
+# M185 (user 2026-10-20 "Ok M185 masukan exec untuk solusinya"): a table without top sends every row up to MAX_ROWS;
+# EDGE shows ten and folds the rest behind a button (edge_7bdd6096: 10 of 48 rows reached EDGE, the rest unreachable)
+DEFAULT_ROWS = 50
 # EXEC-ROWS (user 2026-10-13, "Tp mesti ada safe guard kalau seandainya output user = 1000 rows?"; "25 baris"): a
 # table in the chat shows at most this many rows whatever top asks; the line below it gives the output's size and, when
 # more were asked, says the complete table can be asked for as an Excel file. EXEC-UI-1015 U4 (user 2026-10-15, "malah
@@ -90,6 +92,24 @@ class Expansion:
     footers: dict[str, str] = field(default_factory=dict)  # mark -> line, put in once the gates passed
     layouts: list[dict[str, Any]] = field(default_factory=list)  # EXEC-IMPL-1016 4.2: the shown tables' shape for EDGE
     count: int = 0  # instructions read
+    unwrapped: int = 0  # (a)+(b): instructions taken out of a Markdown table the model wrapped around them
+
+
+# (a)+(b) (user 2026-10-20 "A ok masukan exec"; edge_b6559a4f: Qwen typed a Markdown title row and put the instruction
+# in a cell, "| {{table ...}} |", so the built table came out between stray pipes, and typed its own "Menampilkan 10
+# dari 29 baris" beside the system's): the instruction stands on its own line and the rows line is the system's
+WRAPPED_RE = re.compile(r"(?m)^[ \t]*\|[ \t]*(?P<directive>\{\{\s*table\b(?:[^{}]|\{[^{}]*\})*\}\})[ \t]*(?:\|[ \t]*)*$")
+TYPED_ROWS_LINE_RE = re.compile(r"(?mi)^[ \t]*[_*]*\(?(?:menampilkan|showing)\s+\d[\d.,]*\s+(?:dari|of)\s+\d[\d.,]*\s+"
+                                r"(?:baris|rows)\b[^\n]*$\n?")
+
+
+def unwrap(text: str) -> tuple[str, int]:
+    """The instructions the model put inside a Markdown table cell, back on their own line, and the rows lines it
+    typed itself removed (the system writes its own under a cut table); returns the text and how many changed. The
+    title row the model typed above is then an empty table, which drop_empty_tables removes."""
+    text, wrapped = WRAPPED_RE.subn(lambda m: m.group("directive"), text)
+    text, typed = TYPED_ROWS_LINE_RE.subn("", text)
+    return text, wrapped + typed
 
 
 def typed_tables(text: str | None) -> int:
@@ -270,6 +290,7 @@ def expand(text: str | None, sources: ReferenceSources, marks: bool = True) -> E
     out = Expansion(text or "")
     if not text or not TABLE_RE.search(text):
         return out
+    text, out.unwrapped = unwrap(text)
 
     def replace(match: re.Match[str]) -> str:
         out.count += 1

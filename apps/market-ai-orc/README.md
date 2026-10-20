@@ -275,7 +275,13 @@ Gate and final-response log events (always on):
 | `AI_MODE4_MAX_SECONDS` | no | `3600` | Wall-clock budget of one whole mode 4 request (its sub-runs share it) |
 | `AI_MODE4_AUTO_RESEARCH` | no | `false` | EXEC-P1 (user approval 2026-10-06): false (default) ends mode 4's first round after the analysis and its Research Plan, which waits for the user's approval; an approval runs it and a next plan follows only when the user asks for one. true restores the earlier round (the plan runs at once, then one suggestion) |
 | `AI_REASONING_EFFORT` | no | `high` | One of `minimal`, `low`, `medium`, `high`, `xhigh`, `max`; the model must support it (`require_parameters` rejects it otherwise) |
-| `AI_REQUEST_TIMEOUT_SECONDS` | no | `180` | Timeout for one provider call |
+| `AI_REQUEST_TIMEOUT_SECONDS` | no | `180` | Timeout for one provider call (the total limit; with `AI_PROVIDER_STREAMING` a stalled call ends much earlier) |
+| `AI_PROVIDER_STREAMING` | no | `false` | EXEC-M181 (every lane): model calls are streamed (`stream: true`); the final event (`response.completed`, `.incomplete`, `.failed`) carries the same response object as a call without streaming. A provider that sends no content event (reasoning, answer or tool-call text; OpenRouter's `: OPENROUTER PROCESSING` keep-alive comments never count) within the first-content limit, or none for the idle limit after that, has stalled (`PROVIDER_STALLED`). The run asks such a call once more at the same level with the progress step "AI provider did not respond, trying once more", then fails with `PROVIDER_STALLED`; the stop button and the run's time limit end a call in flight (the socket is shut down). Log `ai_provider_stream` (first content, longest gap, keep-alives) per call |
+| `AI_STREAM_FIRST_CONTENT_SECONDS` | no | `45` | The first content event's limit (the tool limit when reasoning is off and tools are offered) |
+| `AI_STREAM_IDLE_SECONDS` | no | `30` | The silence allowed between content events while text streams |
+| `AI_STREAM_TOOL_IDLE_SECONDS` | no | `120` | The silence allowed after reasoning when tools are offered: DeepSeek and MiMo send a tool call's arguments in one piece at the end (measured 2026-10-20: 31 s for about 4,200 tokens). All three must stay below `AI_REQUEST_TIMEOUT_SECONDS` |
+| `AI_FASTLANE_KEEP_REASONING` | no | `false` | Branch behaviours (user 2026-10-19): every fast-lane call keeps the chosen reasoning (no low after the first call), the 90 s cut is gone, and a runaway (the whole output budget on reasoning) is asked again once at the same level with a note to think briefly and the progress step shown; a second runaway fails the run with `REASONING_RUNAWAY` |
+| `AI_MAX_REASONING_TOKENS` | no | `8000` | `reasoning.max_tokens` of a model whose thinking is on/off with a budget (Qwen) |
 | `AI_MAX_OUTPUT_TOKENS` | no | `8000` (dev: `24000` since 2026-09-30, M37) | `max_output_tokens` per call, reasoning tokens included. A tool call that reaches it is treated as truncated and not run (`MODEL_OUTPUT_TRUNCATED`): OpenRouter closes a cut-off call's JSON and still reports it completed. |
 | `AI_MAX_TOOL_ITERATIONS` | no | `8` | Maximum model calls per run |
 | `AI_MAX_TOOL_CALLS` | no | `12` | Maximum tool calls per run; after that, tools are withdrawn |
@@ -301,7 +307,7 @@ Gate and final-response log events (always on):
 | `AI_FASTLANE_DECISION_RULES` | no | `false` | EXEC-FASTLANE V4: on the fast lane a decisions note (`FASTLANE_DECISIONS_NOTE`) fixes the recurring choices: period (shortest coverage, at most `history_years`, to LATEST), no INNER join that cuts the prices of an outcome window, open-parameter defaults and the size check from `app/fastlane_defaults.py` (`FASTLANE_DEFAULTS`, see AGENTS.md "Fast-lane defaults"), method guides only for a helper about to be called, a new data need with `close_session_id` versus a fix in the same session, and value references by `units=`; the answer mode chooses its method once the data is ready (helper when it fits, else own code). The standard lane never changes |
 | `AI_FASTLANE_GATE_ADVICE` | no | `false` | EXEC-FASTLANE V5: on the fast lane the TYPED_FIGURES, UNITS and REFERENCE gates never ask for a repair round (the system's own fixes and labels apply), methodology numbers pass (logged `ai_gate_advised`), and PROVENANCE accepts a literal of the run's successful code ("parameter dari kode") or a number with one derived reading ("hitungan dari hasil"), labelled in the assumptions; a number matching nothing is asked once and the refusal quotes the words around it. Rules 9-10 of the decisions note (category values from catalog details, an AND scope example) come with `AI_FASTLANE_DECISION_RULES`. The standard lane never changes |
 | `AI_FASTLANE_V5_PRESENTATION` | no | `false` | EXEC-FASTLANE V5: a fast-lane ANSWER shows no limitations ("Batasan"): the coverage, number-source and analysis-path lines are dropped, every other line (the test evidence, unsourced numbers, the model's own caveats) moves to the assumptions (log `ai_limitations_folded`); a LIMITATION response keeps them. `\|pp` values show as `%`; the presentation note asks for no limitations and % for differences. The standard lane never changes |
-| `AI_FASTLANE_GOAL_ANSWERS` | no | `false` | EXEC-FASTLANE-LEN: the fast lane's own prefix asks for a complete answer instead of a length (rule 13 keeps only its table limit; WRITING, TABLES and VALUE REFERENCES lose "one or two sentences", "short", "or leave it out") and gains CITING AND CHECKS (every check that can send an answer back and how to pass it); the explore note asks to explain the tested effects; an attachment note says only an attached number is reproduced (and shows its JSON example with single braces); a reproduction of a text label is refused as text; a raw quote inside the final JSON is escaped before the reply is asked again (log `ai_final_quotes_repaired`). The standard lane never changes |
+| `AI_FASTLANE_GOAL_ANSWERS` | no | `false` | EXEC-FASTLANE-LEN: the fast lane's own prefix asks for a complete answer instead of a length (rule 13 keeps only its table limit; WRITING, TABLES and VALUE REFERENCES lose "one or two sentences", "short", "or leave it out") and gains CITING AND CHECKS (every check that can send an answer back and how to pass it); the explore note asks to explain the tested effects; an attachment note says only an attached number is reproduced (and shows its JSON example with single braces); a reproduction of a text label is refused as text; a raw quote inside the final JSON is escaped before the reply is asked again (log `ai_final_quotes_repaired`). EXEC 2026-10-20: CITING AND CHECKS in five groups (answer shape, tool arguments, data lifetime and recovery, evidence, reproduction); rule 13 sends a table's rows up to fifty (M185); an insight turn computes its tests in its own code by default (the system's tests on request; an unrecorded statistic is accepted with `OWN_TEST_LINE` instead of the UNRECORDED_TEST refusal). The standard lane never changes |
 | `AI_MANUAL_AGENT_FALLBACK` | no | `true` | EXEC-SHARE-UI: with `AI_ENABLE_MANUAL_AGENT`, `false` keeps a manual step waiting past `AI_MANUAL_AGENT_WAIT_SECONDS` until Claude answers, the user stops the run or the run's time is up (no `AI_MODEL` fallback); a call outside a run gives up after the wait and the router's own fallback applies (log `manual_agent_step_expired`) |
 | `AI_MANUAL_AGENT_ROUTERS` | no | `false` | EXEC-SHARE-UI: the routers, the plan-reply classifier and the follow-up suggestions of a run that chose `saniti/claude-manual` also go to Claude (`_router_model`); other runs keep `AI_MODEL` |
 
@@ -1198,7 +1204,12 @@ reference checks and a PROVENANCE repair took about three of its six and a half 
 
 - **Form:** `{{table out.o9; Sektor = sector; Median = median_pct|pp:2; Saham (porsi) = {n|int} ({share|pct:1});
   sort -median_pct; top 10}}`: parts separated by `;`, each column `Title = column[|format]` or a joined cell
-  `{column|format}` pattern, `sort [-]column`, `top N` (ten when omitted, at most 100), at most 12 columns.
+  `{column|format}` pattern, `sort [-]column`, `top N` (every row up to fifty when omitted, M185 2026-10-20: EDGE
+  shows ten and folds the rest; at most 50 shown), at most 12 columns.
+- **Wrapped instructions ((a)+(b), 2026-10-20):** an instruction the model put in a Markdown cell (`| {{table …}} |`)
+  is taken back to its own line and a rows line the model typed ("Menampilkan 10 dari 29 baris", "Showing … rows") is
+  removed before the build (`unwrap`, log `unwrapped`); the title row it typed above is then an empty table that
+  `drop_empty_tables` removes.
 - **Build:** `table_directives.expand` reads every row of the released table (`TableRows.all()`), sorts and cuts in
   code, and writes one value reference per cell by the row's position in the complete table (`rows[_row=N]`, or the
   index of a table given as a list). `value_refs.render`, units, provenance sources and every gate then run unchanged.
@@ -1214,6 +1225,28 @@ reference checks and a PROVENANCE repair took about three of its six and a half 
   cell by cell, allowed for a small table that mixes sources and never refused).
 - **Wayback:** the flag off gives the prompt of snapshot `v005` byte for byte (`test_table_directives.py`,
   `test_prompt_history.py`); then `git revert`; then the branch `wayback/pre-exec-table` (`main` `3708026`).
+
+### Rejection messages that say what to do (2026-10-20)
+
+User 2026-10-20: rules live in CITING AND CHECKS before the model writes, and a refusal says what is wrong, why and
+the step to take. Every lane:
+- **Ids (B2):** an `INVALID_ARGUMENTS` refusal of `session_id`, `output_id`, `ref`, `input_bundle_id`, `bundle_id` or
+  `need_id` adds the valid values of this answer (open sessions, released outputs, data needs and their bundles) and
+  says to copy an id exactly from a tool result or CONVERSATION RESOURCES (`_name_valid_ids`).
+- **Expired data:** `BUNDLE_EXPIRED`, `BUNDLE_NOT_FOUND` and `OUTPUT_EXPIRED` from the sandbox say why the data is
+  gone (the sandbox keeps a bundle and a session's outputs about a day) and the step that brings it back
+  (`tools/session.py` `EXPIRY_RECOVERY`; next_action `RESUBMIT_DATA_NEED` or `LOAD_OUTPUT`).
+- **Prose final reply:** the re-ask opens with "Your reply was text, not one JSON object; send only the JSON object."
+- **DEFINITION (M192):** the refusal quotes the sentence that made the "same as before" claim and names the fields that
+  differ; stocks the user asked to add (a SCOPE ADD reading of this message) are not a difference when the earlier
+  stocks are all kept; the note under the answer is plain Indonesian without JSON (`user_texts.definition_note`).
+- **Session attach (M193):** a merged step's note that the data went to a new session reaches the model through the
+  tool envelope as warning `SESSION_NOT_ATTACHED`.
+- **Working tables:** `saniti.save_table` tables kept with the conversation (30 days) come back into every new session
+  as `NOT_RELEASED` (loaded with `load_output(name)`, never cited) after the released tables, and CONVERSATION
+  RESOURCES lists them (`ResultStore.supporting_tables`); a research session still takes only its plan's tables.
+- **Interface language (EXEC-UI-1019B):** progress steps, hurdles and run failures EDGE shows outside the answer are
+  English (`user_texts.INTERFACE_TEXTS`, `HURDLE_WORDS`); every line inside the answer stays Indonesian.
 
 ### Scale words after a reference (M143)
 

@@ -58,7 +58,7 @@ def test_a_failed_run_that_later_succeeds_is_a_hurdle_overcome() -> None:
     hurdles = result.execution.hurdles
     assert [(h["stage"], h["name"], h["code"], h["outcome"], h["overcome"]) for h in hurdles] == [
         ("TOOL", "run_python", "SCRIPT_ERROR", "FAILED", True)]
-    assert hurdles[0]["text"] == "Kode analisis gagal dijalankan (kode berhenti karena galat), lalu diperbaiki."
+    assert hurdles[0]["text"] == "Analysis code failed (the code stopped with an error), then fixed."  # UI-1019B
     assert result.execution.friction["failed_executions"] == 1
 
 
@@ -69,7 +69,7 @@ def test_a_refused_data_need_is_a_hurdle_even_without_run_memory() -> None:
                      {"code": "RELATIONSHIP_KEY_MISMATCH", "field_path": "relationships[0].left_columns"}]}]})
     (hurdle,) = result.execution.hurdles
     assert hurdle["code"] == "RELATIONSHIP_KEY_MISMATCH" and hurdle["overcome"] is False
-    assert hurdle["text"] == "Permintaan data ditolak (kunci penggabungan tabel tidak sesuai), belum teratasi."
+    assert hurdle["text"] == "Data request refused (the keys joining the tables do not match), not resolved."
 
 
 def test_a_run_without_refusals_has_no_hurdles() -> None:
@@ -83,6 +83,6 @@ def test_a_bare_status_is_not_shown_as_the_reason() -> None:
     """Run A 2026-10-12: a lookup refused with only the status REJECTED read "ditolak (rejected)"."""
     from app.user_texts import hurdle_text
     assert hurdle_text("TOOL", "get_dimension_values", "REJECTED", "REFUSED", False) == \
-        "Satu langkah kerja ditolak, belum teratasi."
+        "A work step refused, not resolved."
     assert hurdle_text("TOOL", "submit_data_need_spec", "RELATIONSHIP_KEY_MISMATCH", "REFUSED", True) == \
-        "Permintaan data ditolak (kunci penggabungan tabel tidak sesuai), lalu diperbaiki."
+        "Data request refused (the keys joining the tables do not match), then fixed."

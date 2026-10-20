@@ -1,0 +1,12 @@
+{
+ "version": 16,
+ "date": "2026-10-20",
+ "name": "exec-1020-citing-groups",
+ "decision": "Ok sesuai, masukan exec (2026-10-20); Ya oke, jalankan semua end to end",
+ "change": "Fast prefix (AI_FASTLANE_GOAL_ANSWERS): CITING AND CHECKS in five groups (answer shape, tool arguments, data lifetime and recovery, evidence, reproduction) with ids copied exactly, expiry recovery, kept working tables, same-as claims naming what differs, statistics in the model's own code by default; rule 13 table rows up to fifty (M185). Standard prefix unchanged.",
+ "prompt_chars": 41594,
+ "prompt_sha256": "235a54f8917264a2dd1d1a69520a270ce919bf38f5f5201f8bb2750bf1d12e59",
+ "schema_sha256": "ef9b0ecbca7d7a3b0c5e08e3062a04dddce274ebff1b74d121fbe791a3787883",
+ "fast_prompt_chars": 28991,
+ "fast_prompt_sha256": "e7cb230d4ff3a4e790be997f9a56b5c47e320c841bb227127706e20e7abce0ff"
+}

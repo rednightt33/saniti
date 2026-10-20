@@ -60,38 +60,58 @@ WORDS = {
 
 # ---- the hurdles of a run (EXEC-FRICTION, M142): what the backend refused, in the order it happened ----
 HURDLE_STEPS = {
-    "submit_data_need_spec": "Permintaan data", "check_data_feasibility": "Cek kelayakan data",
-    "check_research_feasibility": "Cek kelayakan riset", "prepare_data_bundle": "Penyiapan data",
-    "open_analysis_session": "Pembukaan ruang analisis", "run_python": "Kode analisis",
-    "complete_analysis": "Penutupan analisis", "research_web": "Pencarian web", "query_metric": "Pengambilan metrik",
-    "lookup_reference": "Pencarian data referensi", "export_result": "Ekspor tabel",
+    "submit_data_need_spec": "Data request", "check_data_feasibility": "Data feasibility check",
+    "check_research_feasibility": "Research feasibility check", "prepare_data_bundle": "Data preparation",
+    "open_analysis_session": "Opening the analysis session", "run_python": "Analysis code",
+    "complete_analysis": "Closing the analysis", "research_web": "Web search", "query_metric": "Metric lookup",
+    "lookup_reference": "Reference data lookup", "export_result": "Table export",
 }
-HURDLE_TOOL_STEP = "Satu langkah kerja"
+HURDLE_TOOL_STEP = "A work step"
 # EXEC-IMPL-1016 Fase 4.3 (UI-1015B): the steps EDGE shows while a run works (app/progress.py); a tool without its own
 # label above is named by what it does (its ToolSpec effect)
-PROGRESS_ROUTING = "Memahami pertanyaan"
-PROGRESS_THINKING = "Menyusun langkah berikutnya"
+PROGRESS_ROUTING = "Understanding the question"
+PROGRESS_THINKING = "Planning the next step"
 PROGRESS_SERVICES_WAIT = "Waiting for services to be ready."
 # EXEC-M181 and the branch behaviours (user 2026-10-19/20): a call asked again is shown, never silent
 PROGRESS_PROVIDER_RETRY = "AI provider did not respond, trying once more"
 PROGRESS_RUNAWAY_RETRY = "AI used its whole budget on thinking, asking it to answer more briefly"
 REASONING_RUNAWAY_MESSAGE = ("The AI used its whole output budget on thinking twice without answering. Try again, "
                              "choose a lower thinking level, or choose another model.")
-# the texts EDGE shows outside the answer: English (tests/test_user_texts.py)
-INTERFACE_TEXTS = frozenset({"PROGRESS_SERVICES_WAIT", "PROGRESS_SANDBOX_SESSION", "PROGRESS_PROVIDER_RETRY",
-                             "PROGRESS_RUNAWAY_RETRY", "REASONING_RUNAWAY_MESSAGE"})
 PROGRESS_SANDBOX_SESSION = "Initiating sandbox session."
-PROGRESS_EFFECTS = {"READS": "Membaca katalog dan hasil", "OWN_ARTIFACT": "Menyimpan hasil",
-                    "FETCHES_DATA": "Mengambil data", "FETCHES_WEB": "Pencarian web",
-                    "COMPUTES": "Menjalankan analisis"}
-HURDLE_REFUSED = "{step} ditolak{why}"
-HURDLE_FAILED = "{step} gagal dijalankan{why}"
-HURDLE_GATE = "Pemeriksaan jawaban menolak draf{why}"
-HURDLE_FORMAT = "Bentuk jawaban diminta ulang{why}"
+PROGRESS_EFFECTS = {"READS": "Reading the catalog and results", "OWN_ARTIFACT": "Saving results",
+                    "FETCHES_DATA": "Fetching data", "FETCHES_WEB": "Web search",
+                    "COMPUTES": "Running the analysis"}
+HURDLE_REFUSED = "{step} refused{why}"
+HURDLE_FAILED = "{step} failed{why}"
+HURDLE_GATE = "The answer check sent the draft back{why}"
+HURDLE_FORMAT = "The answer's format was asked for again{why}"
+# why a step or a draft was refused, in the interface's words (EDGE shows the hurdles outside the answer)
+HURDLE_WORDS = {
+    "RELATIONSHIP_KEY_MISMATCH": "the keys joining the tables do not match",
+    "INVALID_REQUEST_ID": "the data request's name breaks the naming rule",
+    "AGGREGATE_COLUMNS_MISMATCH": "the summary columns break the rules", "AGGREGATE_INVALID": "the summary breaks the rules",
+    "REVISION_REQUIRED": "the request needs a fix", "INVALID_ARGUMENTS": "the step's inputs had the wrong format",
+    "SCRIPT_ERROR": "the code stopped with an error", "TIMEOUT": "time ran out", "TOOL_TIMEOUT": "time ran out",
+    "SESSION_CAPACITY_EXCEEDED": "the analysis space was full", "NOT_FEASIBLE": "it cannot be run",
+    "TYPED_FIGURES": "figures typed without a reference", "PROVENANCE": "figures without a source",
+    "DEFINITION": "said to match an earlier result whose definition differs", "REFERENCE": "a figure's reference was "
+    "not recognised", "UNITS": "a figure's unit was missing", "UNRECORDED_TEST": "a statistic no recorded test made",
+    "REPRODUCTION": "a reproduction did not hold", "ROUTING": "the answer needed an analysis result",
+    "FINAL_REASK": "the answer had to be sent again in the right format",
+    "TOOL_MARKUP": "a tool call was written as text", "FINAL_REJECTED": "the answer's format did not fit",
+    "BUNDLE_EXPIRED": "the prepared data had expired", "OUTPUT_EXPIRED": "the result had expired",
+    "FAILED": "failed", "INCOMPLETE": "incomplete",
+}
+# the texts EDGE shows outside the answer: English (tests/test_user_texts.py)
+INTERFACE_TEXTS = frozenset({
+    "PROGRESS_ROUTING", "PROGRESS_THINKING", "PROGRESS_SERVICES_WAIT", "PROGRESS_SANDBOX_SESSION", "PROGRESS_EFFECTS",
+    "PROGRESS_PROVIDER_RETRY", "PROGRESS_RUNAWAY_RETRY", "REASONING_RUNAWAY_MESSAGE", "HURDLE_STEPS",
+    "HURDLE_TOOL_STEP", "HURDLE_REFUSED", "HURDLE_FAILED", "HURDLE_GATE", "HURDLE_FORMAT", "HURDLE_WORDS",
+    "HURDLE_OVERCOME", "HURDLE_OPEN"})
 # a bare status says nothing the sentence does not already say: no reason is shown (Run A 2026-10-12: "(rejected)")
 HURDLE_BARE_STATUSES = frozenset({"REJECTED", "ERROR", "FAILED", "INCOMPLETE"})
-HURDLE_OVERCOME = ", lalu diperbaiki."
-HURDLE_OPEN = ", belum teratasi."
+HURDLE_OVERCOME = ", then fixed."
+HURDLE_OPEN = ", not resolved."
 
 
 def hurdle_text(stage: str, name: str | None, code: str | None, outcome: str | None, overcome: bool) -> str:
@@ -100,16 +120,22 @@ def hurdle_text(stage: str, name: str | None, code: str | None, outcome: str | N
         return f" ({text})" if text else ""
 
     parts = [part.strip() for part in str(code or name or "").split(",") if part.strip()]
-    why = reason(", ".join(words(part) for part in parts if part.upper() not in HURDLE_BARE_STATUSES)
-                 or ("" if parts else words(outcome)))
+    why = reason(", ".join(hurdle_words(part) for part in parts if part.upper() not in HURDLE_BARE_STATUSES)
+                 or ("" if parts else hurdle_words(outcome)))
     if stage == "GATE":
-        line = HURDLE_GATE.format(why=reason(words(name)) if not code else why)
+        line = HURDLE_GATE.format(why=reason(hurdle_words(name)) if not code else why)
     elif stage == "FORMAT":
-        line = HURDLE_FORMAT.format(why=reason(words(name)))
+        line = HURDLE_FORMAT.format(why=reason(hurdle_words(name)))
     else:
         step = HURDLE_STEPS.get(str(name or ""), HURDLE_TOOL_STEP)
         line = (HURDLE_FAILED if outcome == "FAILED" else HURDLE_REFUSED).format(step=step, why=why)
     return line + (HURDLE_OVERCOME if overcome else HURDLE_OPEN)
+
+
+def hurdle_words(code: object) -> str:
+    """A hurdle's code in the interface's words; a code not listed yet is made readable instead of shown raw."""
+    text = str(code or "").strip()
+    return HURDLE_WORDS.get(text.upper(), text.replace("_", " ").lower())
 
 
 def words(code: object) -> str:
@@ -474,3 +500,52 @@ def convention_numbers_line(accepted: list[tuple[str, str]]) -> str:
 # offer the user accepted
 HANDOFF_LINE = "Permintaan ini butuh hitungan baru ({reason}), jadi langsung dikerjakan sebagai analisis lanjutan."
 OFFER_RUN_LINE = "Menjalankan tawaran sebelumnya: {label}."
+
+
+# M192 (4) (user 2026-10-19 "Ok untuk M192 masukan exec"): the note under an answer whose "same as before" claim the
+# backend could not confirm, in plain words without JSON (it showed `bank_returns_4 uses {"entities": ...}`)
+DEFINITION_NOTE = "Catatan sistem: jawaban menyebut hasil ini sama dengan hasil sebelumnya, {why}."
+DEFINITION_NOT_OPENED = ("tetapi hasil sebelumnya tidak dibuka dalam analisis ini, jadi kesamaannya belum bisa "
+                         "diperiksa")
+DEFINITION_NO_RECORD = "tetapi hasil sebelumnya tidak menyimpan cara hitungnya, jadi kesamaannya belum bisa diperiksa"
+DEFINITION_DIFFERENT = "padahal {fields} berbeda: hasil ini {mine}; hasil sebelumnya {earlier}"
+DEFINITION_FIELDS = {"filters": "filter", "period": "periode", "entities": "daftar saham", "thresholds": "ambang"}
+DEFINITION_NONE = {"filters": "tanpa filter", "period": "tanpa periode tertulis", "entities": "tanpa daftar saham",
+                   "thresholds": "tanpa ambang"}
+MAX_NAMED_STOCKS = 6
+
+
+def _definition_part(field: str, value: object) -> str:
+    if _empty(value):
+        return DEFINITION_NONE[field]
+    if field == "filters" and isinstance(value, list):
+        return "filter " + "; ".join(filter_text(item) for item in value)
+    if field == "period" and isinstance(value, dict):
+        return "periode " + EXPORT_PERIOD.format(start=value.get("start") or value.get("from") or "-",
+                                                 end=value.get("end") or value.get("to") or "-")
+    if field == "entities" and isinstance(value, list):
+        shown = ", ".join(map(str, value[:MAX_NAMED_STOCKS])) + (", …" if len(value) > MAX_NAMED_STOCKS else "")
+        return f"{len(value)} saham ({shown})"
+    if isinstance(value, dict):
+        return f"{DEFINITION_FIELDS[field]} " + "; ".join(f"{words(k)} {v}" for k, v in value.items())
+    return f"{DEFINITION_FIELDS[field]} {value}"
+
+
+def definition_note(finding: dict) -> str:
+    """One finding of definition_check.findings as the plain note under the answer."""
+    if finding.get("kind") == "NOT_OPENED":
+        return DEFINITION_NOTE.format(why=DEFINITION_NOT_OPENED)
+    if finding.get("kind") != "DIFFERENT":
+        return DEFINITION_NOTE.format(why=DEFINITION_NO_RECORD)
+    fields = [f for f in finding.get("fields") or [] if f in DEFINITION_FIELDS]
+    mine, earlier = finding.get("mine") or {}, finding.get("earlier") or {}
+    return DEFINITION_NOTE.format(why=DEFINITION_DIFFERENT.format(
+        fields=" dan ".join(DEFINITION_FIELDS[f] for f in fields),
+        mine=", ".join(_definition_part(f, mine.get(f)) for f in fields),
+        earlier=", ".join(_definition_part(f, earlier.get(f)) for f in fields)))
+
+
+# the statistics decision (user 2026-10-20, AI_FASTLANE_GOAL_ANSWERS): an insight answer may show a test the AI
+# computed with its own code; the reader is told it was not checked again
+OWN_TEST_LINE = ("Sebagian uji statistik di jawaban ini dihitung AI dengan kodenya sendiri dan tidak diperiksa ulang "
+                 "sistem; minta verifikasi bila perlu kepastian lebih.")

@@ -203,3 +203,16 @@ def test_attaching_keeps_research_findings_and_the_hypothesis_plan_detected() ->
     for model in (SubmitDataNeedSpecArgsFindings, SubmitDataNeedSpecArgsV2Findings, SubmitDataNeedSpecArgsPITFindings):
         assert declares_findings(model) and declares_findings(with_attach(model))
     assert not declares_findings(SubmitDataNeedSpecArgs) and not declares_findings(with_attach(SubmitDataNeedSpecArgs))
+
+
+def test_with_the_tool_envelope_the_note_reaches_the_model_as_a_warning() -> None:
+    """M193 (user 2026-10-19 "OK masukan exec"; sanity run edge_43d32073…-m4n): the envelope rebuilt each merged step
+    from its result and dropped attach_note, so the model never learnt the data went to a new session."""
+    tools = AttachTools()
+    other = "sess_" + "9" * 24
+    script = [call("submit_data_need_spec", need(other), "c1"),
+              final_response(answer("Belum selesai.", "LIMITATION", ["x"]))]
+    _, scripted, _ = run(script, tools, AI_ENABLE_TOOL_ENVELOPE="true")
+    merged = outputs(scripted)[0]["merged_steps"]
+    warnings = [w for step in merged for w in step.get("warnings") or []]
+    assert any(w["code"] == "SESSION_NOT_ATTACHED" and other in w["message"] for w in warnings), merged

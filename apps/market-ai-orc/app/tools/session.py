@@ -159,6 +159,23 @@ class GetSessionOutputArgs(Strict):
         return self
 
 
+# User 2026-10-20 ("dimana penjelasan kenapa bundle bisa expired?"; CITING AND CHECKS C): a refusal for data the
+# sandbox no longer keeps says why it is gone and the step that brings it back (the sandbox's own message only said
+# "prepare it again"). Retention: PY_SANDBOX_BUNDLE_RETENTION_HOURS and PY_SANDBOX_RESULT_RETENTION_HOURS (24).
+EXPIRY_RECOVERY = {
+    "BUNDLE_EXPIRED": (
+        "The sandbox keeps the data prepared for an answer about a day, so this bundle is gone. Send the same data "
+        "need again (its submit_arguments in CONVERSATION RESOURCES, or the data_need_spec you sent): parts fetched "
+        "earlier in this conversation are reused, then open a session on the new bundle.", "RESUBMIT_DATA_NEED"),
+    "BUNDLE_NOT_FOUND": (
+        "This bundle id is not one the sandbox knows; copy input_bundle_id exactly from prepare_data_bundle's result, "
+        "or send the data need again if it was prepared in an earlier message.", "RESUBMIT_DATA_NEED"),
+    "OUTPUT_EXPIRED": (
+        "The sandbox keeps a session's outputs about a day; a table released earlier in this conversation is still "
+        "kept by the conversation: open a session and read it with load_output(output_id).", "LOAD_OUTPUT"),
+}
+
+
 def _call(client: SandboxClient, method: str, path: str, timeout: float | None = None, **kwargs: Any
           ) -> dict[str, Any]:
     if timeout is not None:
@@ -169,8 +186,11 @@ def _call(client: SandboxClient, method: str, path: str, timeout: float | None =
         return body
     error = body.get("error") if isinstance(body.get("error"), dict) else None
     if error and response.status_code in (404, 409, 410, 422, 429, 500, 503):
-        return {"status": "REJECTED", "code": error.get("code"), "message": str(error.get("message") or "")[:600],
-                "next_action": body.get("next_action") or "REPORT_LIMITATION",
+        recovery = EXPIRY_RECOVERY.get(str(error.get("code") or ""))
+        message = str(error.get("message") or "")[:600]
+        return {"status": "REJECTED", "code": error.get("code"),
+                "message": f"{message} {recovery[0]}".strip() if recovery else message,
+                "next_action": (recovery[1] if recovery else None) or body.get("next_action") or "REPORT_LIMITATION",
                 **{k: v for k, v in error.items() if k in ("close_reason", "retry_after_seconds", "execution_id",
                                                            "waited_seconds", "open_sessions",
                                                            "max_sessions_per_request", "attached", "max_attachments",

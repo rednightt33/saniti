@@ -393,7 +393,8 @@ def test_a_consistency_claim_with_another_definition_is_repaired_or_stated() -> 
     state.gate_kinds_rejected.add("DEFINITION")
     kept = orc._definition_claims(state, final)
     assert kept.answer == final.answer and state.definition_annotated
-    assert any("tidak didukung" in line and "Regular" in line for line in kept.limitations)
+    # M192 (4): the note says in plain words what differs, without JSON
+    assert any("padahal filter berbeda" in line and "Regular" in line and "{" not in line for line in kept.limitations)
 
 
 def test_m151_reading_and_exporting_earlier_tables_is_not_a_new_definition() -> None:

@@ -82,6 +82,7 @@ class StoredOutput:
     data_as_of: str | None
     request_id: str
     execution_id: str | None
+    output_type: str = "TABLE"
 
 
 class ResultStore:
@@ -156,15 +157,29 @@ class ResultStore:
 
     # --------------------------------------------------------------------------------------------------- read
 
-    def stored_tables(self, conversation_id: str, limit: int = RESTORE_MAX_TABLES) -> list[StoredOutput]:
-        """The conversation's stored Parquet tables, newest first (what a new session may carry)."""
+    def stored_tables(self, conversation_id: str, limit: int = RESTORE_MAX_TABLES,
+                      include_support: bool = False) -> list[StoredOutput]:
+        """The conversation's stored Parquet tables, newest first (what a new session may carry). include_support
+        (user 2026-10-20 "Ok, masukan exec": working tables are put back too, so they are not computed again) adds the
+        supporting tables after the released ones."""
+        support = "" if include_support else "AND output_type <> 'SUPPORT' "
         with self._connect() as connection:
             rows = connection.execute(
                 "SELECT output_id, name, format, byte_count, checksum_sha256, storage, object_key, label, definition, "
-                "units, lineage, data_as_of::text AS data_as_of, request_id, execution_id "
+                "units, lineage, data_as_of::text AS data_as_of, request_id, execution_id, output_type "
                 'FROM public."AI_conversation_output" WHERE conversation_id = %s AND format = \'PARQUET\' '
-                "AND output_type <> 'SUPPORT' ORDER BY created_at DESC LIMIT %s", (conversation_id, limit)).fetchall()
+                f"{support}ORDER BY (output_type = 'SUPPORT'), created_at DESC LIMIT %s",
+                (conversation_id, limit)).fetchall()
         return [StoredOutput(**row) for row in rows]
+
+    def supporting_tables(self, conversation_id: str, limit: int = 20) -> list[dict[str, Any]]:
+        """The conversation's kept working tables (saniti.save_table), newest first, for CONVERSATION RESOURCES."""
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT output_id, name, row_count AS rows, columns, created_at::text AS saved_at "
+                'FROM public."AI_conversation_output" WHERE conversation_id = %s AND output_type = \'SUPPORT\' '
+                "AND format = 'PARQUET' ORDER BY created_at DESC LIMIT %s", (conversation_id, limit)).fetchall()
+        return [dict(row) for row in rows]
 
     def content(self, conversation_id: str, stored: StoredOutput) -> bytes:
         if stored.storage == "BUCKET":
@@ -372,7 +387,7 @@ def restore_missing(store: ResultStore, upload: Callable[[str, dict[str, Any], b
     present = set(view.get("carried_output_ids") or []) | {
         str(o.get("output_id")) for o in view.get("carried_outputs") or [] if isinstance(o, dict)}
     started, total, result = time.monotonic(), 0, []
-    for stored in store.stored_tables(conversation_id):
+    for stored in store.stored_tables(conversation_id, include_support=allowed is None):
         if stored.output_id in present or (allowed is not None and stored.output_id not in allowed):
             continue
         if total + stored.byte_count > RESTORE_MAX_BYTES:
@@ -383,7 +398,9 @@ def restore_missing(store: ResultStore, upload: Callable[[str, dict[str, Any], b
             meta = {"output_id": stored.output_id, "name": stored.name, "format": "PARQUET",
                     "checksum_sha256": stored.checksum_sha256, "definition": stored.definition, "units": stored.units,
                     "data_as_of": stored.data_as_of, "execution_id": stored.execution_id,
-                    "origin": {"evidence_label": stored.label, "request_id": stored.request_id,
+                    # a working table comes back as not released: it is loaded, never cited
+                    "origin": {"evidence_label": "NOT_RELEASED" if stored.output_type == "SUPPORT" else stored.label,
+                               "request_id": stored.request_id,
                                **({"need_id": stored.lineage.get("need_id")} if isinstance(stored.lineage, dict)
                                   else {})}}
             answer = upload(session_id, meta, data)
