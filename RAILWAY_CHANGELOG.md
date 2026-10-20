@@ -4099,6 +4099,7 @@ Same user go as Push A. Before each push the orc logs showed no `edge_` run.
 - Fix found by that check: tables of conversations kept before 2026-10-16 came without input sheets (their data record
   names no bundle). Git main `10e4973`: market-ai-orc `9760b967` SUCCESS (edge-bff and sandbox SKIPPED); rerun in
   runner `6856e46f` (suite `export_20261020b`): both 2026-10-14 tables HTTP 200 with `inputs_data_status` REBUILT; `perbandingan_return` has its two input sheets (390 and 297 rows), `stocks` reports its inputs NOT_INCLUDED `TOO_MANY_ROWS` (1,180,302 and 880,630 rows; the agreed limit).
+- Records commit `63d39e0` (orc README among them) redeployed market-ai-orc `687ac7cc` SUCCESS with the same code and variables; edge-bff and sandbox SKIPPED.
 - OpenRouter credit after the check: limit_remaining USD 0.081 (09:09 UTC orc credit log).
 - Rollback: set `AI_PROVIDER_STREAMING=false` and `AI_FASTLANE_KEEP_REASONING=false` (earlier call path and fast-lane
   levels); code rollback orc `73097768` (Push A) or `15604ac8`, edge-bff `2e0a470b`.
