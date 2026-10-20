@@ -5975,3 +5975,23 @@ dieksekusi).** Kartu share EDGE (PDF, PNG dan pilihan baru Word):
 - Tes: `tests/test_share_card.py` diperbarui (logo inline, kotak hitam, tanpa h1, Evidence kanan, catatan tertutup,
   footer, lebar PNG 2.280) + tes Word (file dibuka sebagai ZIP, XML valid, teks pertanyaan/jawaban/tabel ada); suite
   EDGE penuh; deploy edge-bff saja, cek SUCCESS; lalu cek visual (PNG, PDF, Word) sesudah A/B selesai (sudah).
+
+**EXEC-ONBOARD-1 – integrasi pertama `Price_Fixed_Income` (raw) dan `Feature_04_Technical_Indicator` (Feature) ke AI
+(user 2026-10-20: "minta tolong agar price_fixed_income dan feature 04 bisa di expose ke AI … candle di feature 4 bisa
+di gabung juga ke catalog … Ensure semua ORC relevant … Map first and inspect architecture … Siapkan metode validasi …
+Konfirmasi."). Status: peta arsitektur dan rencana selesai; belum dieksekusi, menunggu konfirmasi user.**
+- Peta dan rencana lengkap: `NEW_TABLE_ONBOARDING_PLAN.md` section 6 (dibaca dari kode `main` `6850d7f`). Ringkasnya:
+  kedua tabel ada di database tetapi tidak terlihat AI (tanpa baris `AI_table_catalog`, tanpa grant, tidak di
+  `APPROVED`/`RAW_SOURCES`/`ORDERING`). Jalur AI sudah digerakkan katalog; daftar tangan yang tersisa: grant/provisioning,
+  coverage job, preview, `PRICE_TABLES` sandbox, contoh "yields" di prompt dan deskripsi `research_web`.
+- Gabungan candle/indikator ke katalog: baris `AI_calculation_catalog` untuk Feature 04 (keluarga indikator dan candle)
+  yang menunjuk id `AI_formula_reference` terkait (CALC_021/022/028/032–034/040/042/049/050/161/162/165/166/167), dan
+  perubahan orc agar entri formula menyebut kolom tersimpan (mis. RSI → `rsi_14`), dengan catatan bahwa kode TA-Lib
+  berkaitan tetapi tidak identik dengan definisi referensi.
+- Keputusan yang diminta (section 6.3): view `Price_Fixed_Income_Final` (hanya baris final 1D) vs tabel dasar;
+  `Universe_Fixed_income` sebagai tabel referensi; Feature 04 lintas aset (kolom state Pine disembunyikan); coverage dua
+  sumber atau mati dulu; preview; `description_id` DRAFT; akses database baca-saja untuk pembacaan live (TCP proxy
+  sementara atau job sekali jalan).
+- Validasi (section 6.4): L0 database, L1 kontrak Governor, L2 alat orc lewat agen manual tanpa biaya model, L3 lima
+  pertanyaan model (yield SUN 10 tahun, hammer sesi terakhir, RSI 14 BBRI, yield vs IHSG, kontrol inflasi tetap web),
+  L4 regresi; lalu langkah yang berhasil dijadikan pedoman ingestion (section 6.5).

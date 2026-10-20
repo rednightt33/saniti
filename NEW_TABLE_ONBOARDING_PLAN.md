@@ -1,6 +1,10 @@
 # Plan 2: onboarding a new table for the AI (macro, fundamental, FX, cross-market, commodities, Features)
 
-Status (2026-10-09): **plan only, not executed.** Recorded 2026-10-01 (user decision: record now, run later); section 1a
+Status (2026-10-20): **plan only, not executed.** Re-inspected 2026-10-20 at `main` `6850d7f` for the first two tables
+to integrate, `Price_Fixed_Income` (raw) and `Feature_04_Technical_Indicator` (Feature): section 6 (user 2026-10-20:
+"Ini akan jadi 2 table (raw dan feature) yang kita integrate pertama kali … tinggal dibuat guidelinenya"); section 1b
+gains the fixed-income class; section 2 gains the current state of 2026-10-20.
+Earlier status (2026-10-09): plan only, not executed. Recorded 2026-10-01 (user decision: record now, run later); section 1a
 added 2026-10-02 (G18 phase 1). Re-inspected 2026-10-09 against the code and the live dev catalog, after the user said
 they plan to load macro, fundamental, FX, cross-market and commodity data and then Features ("ini adalah proses
 onboarding only"). The 2026-10-09 inspection added section 0 (how a table becomes visible to the AI), items 14–21 of
@@ -112,6 +116,7 @@ Part C lists the risks; these are the decisions that settle them, asked before t
 | Fundamental (financial statements, ratios) | period type (quarter, half, year; cumulative or quarterly flow); fiscal period end versus filing date (availability); restatements kept as versions; reporting currency (some IDX issuers report in USD) and scale (reports in thousands or millions); consolidated or parent; TTM and ratios as Features (section 1c), not stored raw | A2.7, A3.11, A3.14 |
 | FX | quote convention (`USDIDR` = IDR per 1 USD), the fixing or close used (JISDOR, market close, time zone), mid or bid/ask; 24/5 calendar against IDX days, joined `AS_OF` backward | A1.2, A2.5–6, C calendar, currency |
 | Cross-market (foreign indices, ADRs, US yields) | exchange calendar and time zone (a US close lands on the next Jakarta date); index level is never summed; total-return or price index | A2.5–6, A3.14, C time zones |
+| Fixed income (government bonds; added 2026-10-20) | price and yield in one value column are different quantities: the metric (`metric_type` price / yield_to_maturity) and its unit (`value_unit`) stay in the grain, nothing sums across instruments; only final daily rows are visible (`is_final`, timeframe `1D`); market calendar and close time per country (`Fixed_Income_Market_Schedule`); the identity the AI uses (`ticker`) and its universe (`Universe_Fixed_income`, exposed as a reference table); tenor and country as searchable words; yields are levels (LAST over time, never SUM) | A1.1, A2.5–6, A3.11, A4.18, C units |
 | Commodities | spot or futures; for futures the contract and roll rule (continuous series method); unit (USD/bbl, USD/t, USD/oz) and currency; exchange and time zone | A3.11, A3.14, C continuity |
 
 ## 1c. Derived Feature tables (added 2026-10-09)
@@ -149,6 +154,20 @@ do not enumerate). "Current state" is the code and live catalog on 2026-10-09. R
 | 12 | `apps/market-ai-orc/app/user_texts.py` `SOURCE_NAMES` (`fact` and `metric` = "data pasar"), `WARNING_LINES["FREQUENCY_GAPS"]` ("Sebagian saham …") | reader labels that assume stock data | a macro value would read as "data pasar", a gap as "saham" | the label from the table's `data_domain` / `entity_type` (reader text) |
 | 13 | `apps/market-ai-orc/app/freshness.py` | for an SLA below 7 days, age counts Monday–Friday | right for IDX; for a 24/5 FX table about right; public holidays not in the catalog | unchanged until a calendar per table exists (A2.6) |
 | 14 | `apps/market-ai-orc/app/catalog_summary.py` (prompt summary, off on dev) and `MAX_DISCOVERED_TABLES = 50` | at most 24,000 characters, then without column descriptions, then no summary; discovery without a keyword lists 50 tables | many new tables push the summary out (if switched on) and past 50 tables discovery needs a keyword | keep off, or summarise by domain; searchable descriptions (item 11) carry discovery |
+
+**Current state 2026-10-20 (read from the code at `6850d7f`):** rows 1–5, 7–9, 11–14 unchanged. Row 1:
+`APPROVED` still lists 5 catalogs + 7 tables. Row 3: `RAW_SOURCES` still lists `Price_Stock_Indonesia_IDX` and
+`IDX_Broker_Summary` only, and `validate_access_contract` forbids the job to read Feature tables, so a Feature's coverage
+can only be derived (`reference_for`) from one raw source; a Feature built from two raw sources (Feature 04: equity
+prices and fixed-income prices) is new. Row 4: `PRICE_TABLES = {Price_Stock_Indonesia_IDX, Feature_01_Stock_Daily}`.
+Row 7: `OUTSIDE_DATA_RULE` (orchestrator, standard and fast prompts) still names "macro data, yields, fundamentals" as
+outside the catalog; it becomes false for bond yields as soon as `Price_Fixed_Income` is visible. Row 8: `research_web`
+still says "not in the market database". Row 10 depends on the pending router decision (`prompts/fastlane_unified/`).
+New since 2026-10-09: fast-lane category values come from single-column `CHECK` lists (`tools/catalog.py`
+`check_value_lists`; governor `catalog_contract.check_value_lists`), entity names and aliases (`AI_column_catalog.
+entity_name`, migration `20261015_014`), the table download with input sheets (row limit per input), and value
+references by key; none lists tables by hand. There is no row-level filter in `AI_table_catalog` or the Governor:
+a table is visible whole, so a table holding provisional rows needs a view (section 6).
 
 Method guides and research engines (event study, backtest, the `saniti` helpers) were built on IDX stock prices; using
 them on macro or FX series is a new method decision, and a guide change needs a new guide version and `AI_TOOLS.md`.
@@ -204,3 +223,74 @@ AI do not see it, and the checks of section 4 that read the table directly can r
 - Open: which of the section 3 "must land first" proposals the user approves, and in which order relative to the
   first load.
 - Data can be loaded before those land if it stays unexposed (`is_active = false`).
+
+## 6. First integration: `Price_Fixed_Income` (raw) and `Feature_04_Technical_Indicator` (Feature) (2026-10-20)
+
+User 2026-10-20: expose both tables to the AI; join Feature 04's candle and indicator columns to the calculation
+catalogs so the AI can use the stored column instead of computing it; every Orc part (tools, catalogs) updated; map and
+inspect first, everything from the code; a method to check that the AI knows the tables exist. **Plan, not executed.**
+Facts below are from the code and documents at `main` `6850d7f` (`DATABASE_SCHEMA.md` synced from the live database
+on 2026-10-12); the live values marked "live read" are not yet read in this inspection.
+
+### 6.1 Current state of the two tables
+
+| | `Price_Fixed_Income` | `Feature_04_Technical_Indicator` |
+|---|---|---|
+| Content | final daily OHLC per fixed-income instrument and country; `metric_type` `price` or `yield_to_maturity` in the same `open/high/low/close` columns, `value_unit` per row; finality evidence (`is_final`, `market_close_at`, `finalized_at`, `source_bar_time`) | 57 columns: identity, `close`, SMA/EMA/RSI/MACD/ATR/Bollinger/ADX, 25 TA-Lib candle codes (`cdl_*`), `inside_bar`, Pine SMI and swing state, calculation metadata; equity 844 tickers / 1,318,633 rows and bonds 24 tickers / 60,409 rows (`DATABASE_CATALOG.md`) |
+| Key | `(tradingview_symbol, date, metric_type, "Timeframe")`; FK `(ticker, metric_type)` → `Universe_Fixed_income` | `ticker, trade_date, timeframe` with `asset_type` (`equity`/`bonds`) |
+| Visible to the AI | **no**: no `AI_table_catalog` row, no grant to `market_ai_sql_reader`, not in `APPROVED`, `RAW_SOURCES`, `ORDERING` | **no**: "No AI allowlist or permission change" (`DATABASE_CATALOG.md`); `Feature_Catalog` v4 has 57 active definitions |
+| Refresh | fixed-income crons per market (`apps/fixed-income-price-cron`), schedule in `Fixed_Income_Market_Schedule` | event-driven `feature-04-worker` after final price changes |
+
+### 6.2 Where the change lands (code map, 2026-10-20)
+
+| Layer | Place (read at run time) | Change for these two tables |
+|---|---|---|
+| Database grants | `GRANT SELECT … TO market_ai_sql_reader` (V1); `scripts/provision_market_sql_governor_login.py` `APPROVED` | grant the exposed objects; add them to `APPROVED` (fix the row-1 drift for the history tables in the same change) |
+| Visibility | `AI_table_catalog` (`is_active`, `ai_access_level`), read by Orc `tools/catalog.py` `VISIBLE_TABLES` and Governor `policy.py` | one row per exposed object with subject metadata, `row_presence`, `freshness_sla`, `coverage_enabled` |
+| Columns | `AI_column_catalog` → Orc `get_catalog_details` COLUMNS, Governor `catalog_contract.py`, sandbox `app/logical.py`, `runtime/validator.py`, `runtime/saniti_session.py`, `tools/metric.py` | every column with unit, `semantic_type`, permissions, resample and cross-entity rules, `value_time_basis`, `description_id`; Feature 04 state columns (`tracking_*`, `temp_*`, `*_bar`, `calculation_version`, `calculated_at`) `ai_allowed = false` |
+| Category values | single-column `CHECK` lists (`metric_type`, `asset_type` exist) | `Timeframe`, `Country`, `value_unit` need a `CHECK` or stay free text (decision) |
+| Joins | `AI_catalog_relationships` (Governor, DataNeed, `saniti` join helpers) | Feature 04 ↔ `Price_Stock_Indonesia_IDX` / `Feature_01_Stock_Daily` on `(ticker, trade_date/date)` EXACT_DATE (safe only for equity rows); Feature 04 ↔ bond price view on `(ticker, trade_date/date)`; bond price view ↔ `Universe_Fixed_income` |
+| Stored calculations | `AI_calculation_catalog` (V5: only a migration fills it) → `get_catalog_details` CALCULATIONS | one row per indicator family and per candle family on `Feature_04_Technical_Indicator`, `implementation_ref` naming the related `AI_formula_reference` ids |
+| Formula reference | `AI_formula_reference` (200 rows from `AI_Calculation_Formula.xlsx`; FORMULAS section and `discover_catalog` formula matches) | indicator and candle formulas exist: CALC_021 SMA, 022 EMA, 028 RSI Wilder, 032–034 MACD, 040 ADX, 042 ATR Wilder, 049/050 Bollinger, 161/162 engulfing, 165 doji ratio, 166 hammer geometry, 167 inside bar. Orc change: a formula entry shows the stored column that holds it ("stored in Feature_04_Technical_Indicator.rsi_14, v4"), read by joining `AI_calculation_catalog.implementation_ref`; a stored TA-Lib code is described as related, not identical, to the reference definition (TA-Lib engulfing returns +100/−100 for bullish/bearish; CALC_161 is bullish only) |
+| Coverage | `apps/ai-data-coverage/coverage_job.py` `RAW_SOURCES` (hand list; Feature tables never read) | add the bond source; Feature 04 coverage derived from two raw sources by `asset_type` (code change), or `coverage_enabled = false` for the first release (decision) |
+| Freshness | `app/freshness.py` (Monday–Friday below 7 days) | `freshness_sla` 1 day for both; bond markets with other holidays read as late on those days (known limit) |
+| Preview | `tools/preview.py` `ORDERING`, DB function `ai_preview_table_rows` | add both (or leave out of preview for the first release; decision) |
+| Corporate actions | sandbox `PRICE_TABLES` | add Feature 04 (its equity `close` is the raw price); bonds have no corporate actions |
+| Prompt and tools | `orchestrator.py` `OUTSIDE_DATA_RULE`, `OUTSIDE_DATA_WEB_RULE`, `OUTSIDE_DATA_RESEARCH_RULE` (standard and fast prompts), `tools/web_research.py` `research_web` description, `tools/reference.py` database check before a web lookup | remove "yields" from the outside-the-catalog examples; the web check covers a bond yield the catalog holds; a candle/indicator rule: a stored Feature column is read before an indicator is computed; prompt snapshot and `AI_TOOLS.md` |
+| Entities | `tools/research_planner.py` `ENTITY_TOKEN` (`[A-Z]{4,6}`), entity names (`entity_name`) | bond tickers (live read) may not match the token; `instrument_name` marked as the entity name column |
+| Method guides | `AI_method_guide` v8 | a note that candle and indicator questions start from Feature 04; new guide version |
+| Records | `Table_Catalog`, `Column_Catalog`, `Feature_Catalog`, `Tool_Catalog`, `DATABASE_SCHEMA.md`, `DATABASE_CHANGELOG.md`, `AI_TOOLS.md`, `PROJECT_CONTEXT.md` (approved-table count) | per `AGENTS.md` step 5 |
+
+### 6.3 Decisions before execution
+
+1. **Final rows only.** No row filter exists in the catalog or the Governor. Proposed: expose a view
+   `Price_Fixed_Income_Final` (`WHERE is_final AND "Timeframe" = '1D'`) instead of the base table; the base table stays
+   hidden. Live read first: rows with `is_final = false` and the `Timeframe` values. The same live read for
+   `Price_Stock_Indonesia_IDX` (already exposed, also has `is_final`): if it holds provisional rows, the AI sees them
+   today (separate finding).
+2. **Reference table.** Expose `Universe_Fixed_income` (country, instrument, unit) as a reference table (no time column),
+   so `lookup_reference` and joins can name an instrument.
+3. **Feature 04 cross-asset.** `asset_type` subject metadata NULL (mixed) with `asset_type` as a filter dimension; join
+   rules per asset (live read: no ticker in both universes); the Pine state columns hidden.
+4. **Coverage** derived from two sources (code) or off for the first release.
+5. **Preview** in or out for the first release.
+6. **Indonesian meanings** (`description_id`) written as DRAFT by the agent, reviewed by the user.
+7. **Live reads** need database access: a temporary Railway TCP proxy (as in `PROJECT_CONTEXT.md`) or a one-off job;
+   read-only queries only.
+
+### 6.4 Validation: does the AI know the tables exist (prepared, not run)
+
+| Level | Method | Pass |
+|---|---|---|
+| L0 Database (no model) | read-only queries: catalog rows, grants, view row counts against the base table with the filter, `sync_database_catalog.py` strict | every link V1–V8 present; counts equal |
+| L1 Governor contract (no model) | `POST /v1/catalog/contract` for the two tables from a one-off job; a bounded `/v1/extract` of one bond and one equity ticker with `SELECT count(*)` ground truth | contract loads, units and values present, counts equal (G13) |
+| L2 Orc tools without a model | the manual agent (`AI_ENABLE_MANUAL_AGENT`, model `saniti/claude-manual`): a runner answers each step with a fixed tool call (`discover_catalog` "yield obligasi", "candle hammer"; `get_catalog_details` COLUMNS, CALCULATIONS, FORMULAS for `rsi`) and records the tool results | the tables are found by their own words; COLUMNS show units; CALCULATIONS list the Feature 04 rows; the RSI formula names `rsi_14` |
+| L3 Model awareness (paid, fast lane) | fixed questions through `orc-test-runner`: (a) "Berapa yield obligasi pemerintah Indonesia 10 tahun terakhir?" (b) "Saham apa yang membentuk pola hammer di sesi terakhir?" (c) "RSI 14 BBRI hari ini berapa?" (d) "Bandingkan pergerakan yield SUN 10 tahun dengan IHSG sebulan terakhir" (e) control: "Berapa inflasi Indonesia terakhir?" (still web) | (a)–(d) read the new tables through a data need, no `research_web` for the stored values, no `run_python` recomputation of a stored indicator; figures equal SQL ground truth; (e) unchanged |
+| L4 Regression | Orc, Governor, sandbox, coverage test suites; the existing A/B questions t1, j2, s1 | no new failure; no change in their tables and answers caused by the new catalog rows |
+
+### 6.5 What becomes the guideline
+
+After this integration the steps that worked (and the ones that needed code) become the ingestion guideline for the
+next raw table or Feature: the section 1 answers as a template file, one migration pattern (view if needed, catalog
+rows, grants, calculation rows), the hand lists of section 2 replaced by catalog-derived values where this integration
+had to touch them, and the L0–L4 checks as a reusable runner suite.
