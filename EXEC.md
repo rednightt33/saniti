@@ -5820,3 +5820,113 @@ perbaikan bug/pesan):**
   alat ditawarkan. Dengan M 30 s saja, panggilan sah DeepSeek di atas akan terpotong palsu. Total 600 s tetap.
 - Temuan teknis: `response.close()` dari utas lain tidak memutus pembacaan socket yang menunggu (diuji dengan server
   lokal yang diam); pengawas mematikan socket (`shutdown`) dulu, lalu menutup respons.
+
+**Hasil eksekusi rencana final (2026-10-20, dikerjakan end to end atas go user).**
+- **Push A** (`fc8111e`, P1+P2): orc `73097768` SUCCESS. **Push B** (`1bdf26b`, P3+P4): orc `d6f698fa`, edge-bff
+  `ffc4d6a3`, sandbox `a6ddafb9` SUCCESS. Saklar `AI_PROVIDER_STREAMING=true` dan `AI_FASTLANE_KEEP_REASONING=true`
+  (orc dev, dibaca ulang; redeploy `16f4f0bc` SUCCESS); `.railway/railway.ts` `preserve()`; `railway config plan`
+  tanpa drift. **Perbaikan** (`10e4973`): orc `9760b967` SUCCESS (lihat unduhan di bawah).
+- **P4 EDGE:** semua label antarmuka bahasa Inggris; tiga teks `*Message` (dikirim sebagai pesan user: minta ekspor,
+  setujui dan batalkan rencana) tetap bahasa Indonesia karena menjadi isi percakapan. Ikon unduh per tabel + "Preparing
+  file…"; status gagal penyedia (`PROVIDER_STALLED`/`PROVIDER_TIMEOUT`/`REASONING_RUNAWAY`) dengan **Retry** (model dan
+  level run itu) dan **Change model**; lama langkah berjalan ("Thinking · 2m 6s"); kartu 760 px dengan logo baru dan
+  baris metadata tanpa biaya; judul kolom > 14 karakter dilipat. Suite EDGE penuh 136 lulus (130 acuan + 6 tes browser baru), lalu
+  1 tes API rute BFF lulus (`tests/test_ui_1019b.py`); satu tes lama yang kadang gagal juga di acuan (`test_browser` balasan rencana, race
+  waktu) dibuat menunggu panggilan orc.
+- **Cek live** (runner `f9dafbc2`, jalur Cepat, DeepSeek V4.1 Flash high, n=1, **bukan A/B**):
+
+| | 2026-10-20 (streaming + keep reasoning) | V5 ON 2026-10-14 (acuan lama) |
+|---|---|---|
+| t1 asing → return 5 hari | 181,5 s / USD 0,024 / 10 alat | 91,3 s / 0,020 / 11 |
+| j2 akumulasi broker | 689,9 s / USD 0,110 / 16 alat | 285,7 s / 0,038 / 17 |
+| s1 tiga bank | 383,0 s / USD 0,019 / 13 alat | 267,5 s / 0,041 / 16 |
+| Total | 1.254 s / USD 0,153 | 644 s / USD 0,099 |
+
+  3/3 COMPLETED ANSWER. 30 panggilan streaming, semua `completed`: isi pertama 0,9–5,4 s (median 1,6 s), jeda
+  terpanjang antar-event isi 5,9 s (batas 30 s), keep-alive sampai 34 per panggilan, panggilan terlama 208,9 s (dulu
+  dipotong di 90 s). Tidak ada macet palsu, ulangan penyedia atau runaway. **Temuan:** run jauh lebih lama dan j2
+  hampir 3× lebih mahal; penyebab paling mungkin `AI_FASTLANE_KEEP_REASONING` (panggilan sesudah yang pertama tetap
+  high, tanpa potongan 90 s), bukan streaming. n=1 dan penyedia OpenRouter bisa berbeda per run, jadi belum bukti;
+  keputusan (biarkan, matikan saklar, atau A/B saat kredit ada) di tangan user. Kredit OpenRouter sesudah cek:
+  USD 0,081.
+- **Unduhan tabel live** (runner, tanpa model): 2 tabel hari ini (68 dan 138 baris) dan 2 tabel 14 Okt: semua HTTP
+  200, XLSX, sha256 cocok, pemilik lain 404. Ditemukan: data record sebelum 16 Okt tidak menyimpan `bundle_id`, jadi
+  tabel lama keluar **tanpa** sheet input. Diperbaiki (`10e4973`): input ditarik ulang langsung; ulang cek (runner
+  `6856e46f`): `perbandingan_return` REBUILT dengan 2 sheet input (390 dan 297 baris); `stocks` REBUILT tetapi input
+  1,18 juta dan 880 ribu baris tidak dimuat (`TOO_MANY_ROWS`, batas yang disepakati; tarikannya tetap 23 s).
+- **Belum dicek live:** tampilan EDGE di HP (kartu, favicon, ikon unduh) hanya lewat tes browser lokal; login EDGE
+  live tidak dipakai dari sesi ini.
+
+**Usulan disetujui dicatat (user 2026-10-20: "Ok please rubah masukan exec, jangan execute dulu") – teks hambatan
+gerbang mode saran.** Temuan (cek live 2026-10-20, j2): gerbang REFERENCE dalam mode saran (`AI_FASTLANE_GATE_ADVICE`,
+`outcome="ANNOTATED"`, `reason="advice_mode"`) hanya memberi label dan jawaban langsung dikirim, tanpa panggilan ulang
+ke model; tetapi daftar Process hurdles menulis "The answer check sent the draft back (…), not resolved."
+Penyebab di kode: `user_texts.hurdle_text` memakai satu teks `HURDLE_GATE` untuk semua hasil gerbang, dan
+`orchestrator._hurdles` menganggap hambatan GATE "teratasi" hanya bila hasilnya `REJECTED_FOR_REPAIR`/`ASKED_AGAIN`,
+jadi `ANNOTATED` selalu jatuh ke `HURDLE_OPEN` (", not resolved.").
+- Rencana (belum dijalankan): teks GATE mengikuti hasilnya. `ANNOTATED` → "The answer check labelled a part of the answer
+  ({why}); the answer was sent with the label." tanpa akhiran "not resolved"; `REJECTED_FOR_REPAIR` tetap "sent the
+  draft back … then fixed / not resolved"; FORCED (bila ada) disebut apa adanya. Tes `tests/test_hurdles.py` per hasil;
+  pesan EDGE tidak berubah (teks datang dari orc). Berlaku semua jalur (perbaikan teks), tanpa saklar.
+
+**Usulan dicatat (user 2026-10-20: "ok masukan exec, jangan eksekusi dulu ya") – celah ikon tabel.** Tangkapan layar
+user: ikon unduh dan fullscreen menempel di tepi atas tabel. Penyebab di kode (`apps/edge-bff/static/index.html`):
+`.edge-md-table-frame` memberi `padding-top:30px`, sedangkan `.edge-table-tools` (tombol 28 px) ditempel di `top:0`,
+jadi celahnya hanya 2 px.
+- Rencana (belum dijalankan): `padding-top:38px` (celah 8 px); tes browser yang mengukur jarak tepi bawah tombol ke
+  tepi atas tabel (8 px ± 1) di lebar desktop dan HP; deploy edge-bff saja.
+
+**Disetujui dicatat (user 2026-10-20: "Ok opsi A ya – masukan exec jangan execute dulu") – harga di EDGE = harga
+penyedia yang melayani.** Temuan: menu model menampilkan harga daftar OpenRouter (`/models` `pricing`), yaitu harga
+endpoint termurah (DeepSeek V4.1 Flash: OpenInference fp4 $0,056/$0,12 per 1 juta token), sedangkan orc memakai load
+balancing bawaan (acak berbobot harga), jadi run dilayani InferenceNet ($0,103/$0,715), Makora ($0,26/$1,17) atau Sail
+Research ($0,101/$0,15). Penyedia baru diketahui sesudah panggilan pertama (lalu menempel per percakapan lewat
+`session_id`).
+- Rencana opsi A (belum dijalankan): pengaturan baru orc urutan penyedia per model (`provider.order`, satu penyedia
+  utama per model, `allow_fallbacks` tetap true agar run tidak gagal saat penyedia down); `/v1/models` mengirim nama
+  penyedia utama dan harga endpoint-nya dari OpenRouter `/models/{id}/endpoints` (dibaca tiap jam seperti sekarang);
+  EDGE menampilkan harga itu dan nama penyedianya; baris metadata jawaban menyebut penyedia yang benar-benar melayani
+  (sudah tercatat di `ai_model_call_provider`) dan menandai bila fallback ke penyedia lain. Sticky routing OpenRouter
+  dilewati bila `order` diset; penyedia tetap sama sehingga cache prompt tetap terpakai.
+- Perlu keputusan user sebelum eksekusi: penyedia utama per model (usulan dari harga, presisi fp8 dan kecepatan akan
+  diajukan). Dampak: waktu dan biaya run lebih stabil (cek 20 Okt: selisih kecepatan antar-penyedia ±1,5×).
+
+**Temuan UI EDGE dari tangkapan layar user (2026-10-20; diagnosis dari kode dan ukuran di browser, belum dieksekusi):**
+1. Judul jawaban terpotong ("…identify candle yang ada buying p"): bila router tidak memberi judul, EDGE memakai
+   `user_message.slice(0, 80)` (`edge-client.js` `adaptRun`/`stateRun`), memotong di tengah kata. Usulan: potong di batas
+   kata terdekat ≤ 80 karakter + "…".
+2. Jarak kepala jawaban tidak rata: judul → baris metadata 10 px, metadata → baris "Evidence" 4 px, "Evidence" → jawaban
+   24 px (`.edge-tags` margin `4px 0 16px`). Usulan: metadata → Evidence 10 px (sama dengan judul → metadata), Evidence →
+   jawaban tetap 24 px (jarak antar-bagian).
+3. Hover ikon bookmark/hapus di daftar percakapan tidak terlihat: `.conversation-bookmark:hover` memakai `--accent`, yang
+   sama dengan warna baris terpilih (terukur sama-sama `oklch(0.269 0 0)` di mode gelap) dan hampir sama dengan hover
+   baris. Usulan: warna hover tombol sendiri yang kontras di baris biasa, baris hover dan baris terpilih.
+4. "Data Scope" vs nama model di kotak pesan: keluarga dan tebal huruf sama (Inter 500), ukuran beda: nama model 0,78rem
+   (10,9 px), "Data Scope" 0,875rem (12,25 px). Usulan: "Data Scope" ikut ukuran dan warna pemilih model.
+5. Kotak pesan saat aktif/berisi: `.composer:focus-within, .composer.has-text` mengganti warna border menjadi
+   `--selection-outline` (terlihat tebal). Usulan: border tetap warna biasa, diganti bayangan halus pada kotak.
+6. Jarak pesan user → progres: `.user-message-footer` min-height 30 px + margin bawah 19 px, lalu
+   `.edge-inline-progress` min-height 35 px dengan teks di tengah, jadi teks progres ±40 px di bawah jam kirim. Usulan:
+   margin bawah 8 px saat diikuti progres dan teks progres rata atas.
+7. Progres tidak ikut menggulir: efek gulir otomatis hanya jalan saat `items`/`selectedId`/`autoFollow` berubah; langkah
+   progres (`RunProgress`) memperbarui state-nya sendiri, jadi halaman tidak ikut turun. Usulan: selama `autoFollow`
+   aktif, pertumbuhan isi (langkah baru) menggulir ke bawah; gulir manual user ke atas tetap mematikan `autoFollow`.
+8. Tambahan: label "Standard" di status kotak pesan saat run berjalan berasal dari `mode:"Standard"` yang ditulis tetap
+   di kode lama, padahal semua pesan EDGE berjalan di jalur Cepat. Usulan: hapus label itu.
+- Catatan: "Bagikan"/"Bukti: …" di tangkapan layar berasal dari tab yang dimuat sebelum deploy edge-bff `ffc4d6a3`;
+  EDGE live kini menyajikan label Inggris (dicek: `Share`, `Evidence: `; `Cache-Control: no-store`).
+
+**Disetujui dicatat (user 2026-10-20, tangkapan layar "T"; belum dieksekusi, menunggu konfirmasi eksekusi user):**
+- **Baris Evidence:** selain jarak yang disamakan (butir 2 di atas: metadata → Evidence 10 px), baris "Evidence: …"
+  memakai ukuran dan jenis huruf yang sama dengan "Request edge_…" di baris metadata (terukur 9,52 px di layout
+  monitor; tag sekarang 14 px), ditambah ikon centang putih di dalam lingkaran hijau di sebelah kirinya (seperti
+  tangkapan layar user), untuk label bukti yang positif. Label bukti lain (mis. "Exploratory, not verified") tanpa
+  ikon hijau; tesnya memeriksa ukuran huruf, ikon dan jaraknya.
+- **Label "Standard":** dihapus dari status kotak pesan saat run berjalan (butir 8 di atas), disetujui.
+- **A/B fastlane sekarang vs kondisi V5 ON 14 Okt:** 6 run (t1, j2, s1 × 1 ulangan × 2 kondisi), urutan diselang-seling.
+  ON = `AI_PROVIDER_STREAMING` dan `AI_FASTLANE_KEEP_REASONING` menyala (kondisi sekarang); OFF = keduanya mati (tanpa
+  streaming, potongan 90 s dan level low sesudah panggilan pertama, setara V5). Penyedia dikunci untuk kedua kondisi:
+  bila opsi A (urutan penyedia per model) sudah dikerjakan, lewat pengaturan itu; bila belum,
+  `AI_PROVIDER_SORT=throughput` selama A/B lalu dikembalikan (izin user). Syarat: kredit OpenRouter diisi ulang
+  (sisa USD 0,081; perkiraan biaya ±USD 0,25, sampai ±0,4 dengan penyedia mahal); sebelum tiap ganti saklar cek tidak
+  ada run `edge_` aktif; saklar dikembalikan ke ON sesudahnya. **Dijalankan hanya sesudah user mengonfirmasi eksekusi.**

@@ -174,3 +174,19 @@ def test_a_need_keeps_its_bundles_expiry() -> None:
     assert rec["needs"][0] == {"need_id": NEED, "bundle_id": OLD_BUNDLE, "bundle_expires_at": "2026-10-21T07:00:00+00:00"}
     records.set_bundle(rec, NEED, NEW_BUNDLE)
     assert rec["needs"][0] == {"need_id": NEED, "bundle_id": NEW_BUNDLE}  # an unknown expiry is not kept
+
+
+def test_a_conversation_kept_before_bundle_ids_extracts_its_inputs_again() -> None:
+    """Live check 2026-10-20: data records from before 2026-10-16 name no bundle_id; the download extracts the inputs
+    again at once (one sandbox write) instead of leaving the input sheets out."""
+    fake, rebuilds = Inputs(), []
+    registry, store, conversations = setup(fake, rebuilds)
+    for need in conversations.rec["needs"]:
+        need.pop("bundle_id", None)
+        need.pop("bundle_expires_at", None)
+    body = export_table(registry=registry, result_store=store, conversations=conversations, owner="owner-a",
+                        conversation_id="conv_1", output_id=RESULT, request=request())
+    assert rebuilds == [NEW_NEED] and len(fake.exports) == 1
+    assert fake.exports[0]["inputs"][0]["bundle_id"] == NEW_BUNDLE
+    assert fake.exports[0]["definition"][texts.INPUTS_REBUILT_FIELD].startswith("ditarik ulang dari sumber pada ")
+    assert body["inputs_data_status"] == {"status": "REBUILT"} and body["inputs"][0]["status"] == "INCLUDED"

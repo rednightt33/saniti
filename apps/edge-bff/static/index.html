@@ -9826,10 +9826,15 @@ html.dark .edge-flow-done{background:#1e9a59;}
 .edge-md a,.edge-data-rows a {color:inherit;text-decoration:underline;text-underline-offset:2px;}
 .edge-md-table {overflow-x:auto;margin:.4em 0 1em;max-width:100%;}
 /* V4 (user 2026-10-14): expand a table into a wide dialog */
-.edge-md-table-frame {position:relative;margin:.4em 0 1em;padding-top:30px;}
+.edge-md-table-frame {position:relative;margin:.4em 0 1em;padding-top:36px;}  /* 28 px buttons + an 8 px gap (EXEC 2026-10-20) */
 .edge-md-table-frame>.edge-md-table {margin:0;}
 .run-inline-state.edge-provider-stalled {flex-wrap:wrap;}
 .run-inline-state>.edge-stalled-actions {flex-direction:row;flex-wrap:wrap;gap:8px;}
+/* EXEC 2026-10-20 (user screenshots): the evidence line in the metadata row's type, with a green check when positive;
+   the same 10 px under the metadata row as the metadata row under the title */
+.monitor-layout .edge-tags.edge-evidence-line{display:flex;align-items:center;gap:6px;margin:10px 0 16px;}
+.monitor-layout .edge-tags.edge-evidence-line>.edge-badge{font-size:.68rem;line-height:1.5;font-weight:400;color:var(--muted-foreground);}
+.edge-evidence-check{flex:none;}
 .edge-table-tools {position:absolute;top:0;right:0;display:flex;align-items:center;gap:6px;}
 .edge-table-file-note {font-size:12px;color:var(--muted-foreground);white-space:nowrap;}
 .edge-table-file-note.failed {color:var(--destructive, #b42318);}
@@ -10207,6 +10212,18 @@ html.dark .monitor-layout .details-panel>.tabs button:focus-visible{outline-colo
 .edge-pins-head {margin-top:-8px;padding-top:8px;}
 .edge-pins-head:before,.edge-history-head:before {height:8px;}
 .topbar nav button.nav-monitor {font-weight:500;color:var(--text);}
+/* EXEC 2026-10-20 (user screenshots 2-5) */
+/* the bookmark and delete buttons of a conversation show their hover on every row: plain, hovered or selected */
+.conversation .conversation-bookmark:hover:not(:disabled){background:color-mix(in oklch,var(--foreground) 14%,transparent);color:var(--foreground);}
+/* "Data Scope" in the type of the model picker beside it */
+.composer [title="Data Scope is not available yet"]{font:500 .78rem Inter,"Segoe UI",sans-serif;}
+.composer [title="Data Scope is not available yet"] .icon{width:13px;height:13px;}
+/* the message box in use: a soft shadow instead of a darker border */
+.composer:focus-within,.composer.has-text,.monitor-layout .composer:focus-within,.monitor-layout .composer.has-text{border-color:var(--border);box-shadow:0 6px 20px -6px rgb(0 0 0 / .18),0 2px 6px -2px rgb(0 0 0 / .10);}
+html.dark .composer:focus-within,html.dark .composer.has-text{box-shadow:0 6px 22px -6px rgb(0 0 0 / .6),0 2px 6px -2px rgb(0 0 0 / .4);}
+/* a running answer's progress sits close under the question */
+.monitor-layout .user-message-footer:has(+ .edge-inline-progress-wrap){margin-bottom:6px;}
+.monitor-layout .edge-inline-progress-wrap>.edge-inline-progress{min-height:24px;}
 </style>
 </head>
 <body><div id="root"></div>
@@ -10770,6 +10787,16 @@ function Monitor({ go }) {
 
     onLifecycle(viewRecord, "effect1", () => { const timer = window.setTimeout(() => setSearchQuery(query), 180); return () => window.clearTimeout(timer); }, [query]);
     onLifecycle(viewRecord, "effect2", () => { sessionStorage.setItem("edge-details-open", String(detailsOpen)); }, [detailsOpen]);
+    // EXEC 2026-10-20 (user screenshot 5): a running answer's progress grows without changing the conversation; while
+    // the page follows the latest message, every change in the conversation keeps it at the bottom
+    onLifecycle(viewRecord, "follow-growth", () => {
+        const scroller = scrollRef.current; if (!scroller) return;
+        let frame = 0;
+        const follow = () => { if (frame || !viewRecord.state.autoFollow) return; frame = requestAnimationFrame(() => { frame = 0;
+            if (viewRecord.state.autoFollow && scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight > 1) scroller.scrollTop = scroller.scrollHeight; }); };
+        const watch = new MutationObserver(follow); watch.observe(scroller, {childList:true, subtree:true, characterData:true});
+        return () => { watch.disconnect(); cancelAnimationFrame(frame); };
+    }, [scrollRef.current]);
     onLifecycle(viewRecord, "effect3", () => { if (autoFollow)
         requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })); }, [items, selectedId, autoFollow]);
     onLifecycle(viewRecord, "reveal-new-history", () => {
@@ -10854,7 +10881,7 @@ function Monitor({ go }) {
         if(afterStop && accepted.after_request_id)setStoppingId(accepted.after_request_id);
         sentRef.current[accepted.request_id]={question,attachments:attached.length&&!plain?attached:[]};
         const r={id:accepted.request_id,question,status:"submitted",mode:"Standard",createdAt:now,attachments:[],sources:[],steps:[{id:"queued",label:"Queued",status:"running",detail:"Accepted by server"}]};
-        setItems(current=>{const found=current.find(c=>c.id===id);if(found)return current.map(c=>c.id===id && !c.runs.some(x=>x.id===r.id)?{...c,messages:[...c.messages,{id:r.id+"-user",role:"user",content:question,createdAt:now,runId:r.id}],runs:[...c.runs,r]}:c);return [{id,title:question.slice(0,80),bookmarked:false,createdAt:now,updatedAt:now,messages:[{id:r.id+"-user",role:"user",content:question,createdAt:now,runId:r.id}],runs:[r]},...current];});
+        setItems(current=>{const found=current.find(c=>c.id===id);if(found)return current.map(c=>c.id===id && !c.runs.some(x=>x.id===r.id)?{...c,messages:[...c.messages,{id:r.id+"-user",role:"user",content:question,createdAt:now,runId:r.id}],runs:[...c.runs,r]}:c);return [{id,title:Edge.shortTitle(question),bookmarked:false,createdAt:now,updatedAt:now,messages:[{id:r.id+"-user",role:"user",content:question,createdAt:now,runId:r.id}],runs:[r]},...current];});
         setSelectedId(id);setSelectedRunId(r.id);setAutoOpenRunId(r.id);setPrompt("");setPendingReply(null);setInputHint(null);if(!plain)setAttached([]);submissionRef.current=null;followRun(id,r.id);
         // V5 (user 2026-10-14: "ketika saya click enter, chat tidak otomatis ke scroll ke bawah"): the new question is shown
         setAutoFollow(true);requestAnimationFrame(()=>requestAnimationFrame(()=>scrollRef.current?.scrollTo({top:scrollRef.current.scrollHeight,behavior:"auto"})));
@@ -10988,7 +11015,7 @@ function Monitor({ go }) {
                     active && element("div", { className: "composer-status" },
                         element("span", { className: "pulse" }),
                         element("span", null, executionRun?.status === "streaming" ? "Streaming research result…" : executionRun?.steps.find(step => step.status === "running")?.label ?? "Research running…"),
-                        element("strong", null, executionRun?.mode)),
+                        null),
                     attached.map((item,index)=>element("div",{key:`attached-${index}`,className:"composer-status edge-attached-chip"},element(Icon,{name:"attach",size:13}),
                     element("span",null,EdgeView.selectionLabel(item)),
                     element("button",{type:"button","aria-label":edgeUi().attachRemove,title:edgeUi().attachRemove,onClick:()=>setAttached(attached.filter((_,i)=>i!==index))},"×"))),
@@ -12072,7 +12099,7 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex,conve
   element("div",{className:"result-kicker"},element(Icon,{name:"spark"}),edgeUi().answerKicker+" · "+v.status.label,element("i",{className:`edge-dot ${v.status.tone}`,"aria-hidden":"true"})),
   element("h1",null,run.result.title),
   element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",{className:"edge-run-model"},element(EdgeModelLogo,{option:edgeModelOption(v.meta.model)}),element("span",null,element("span",{className:"edge-run-model-name",title:v.meta.model},edgeModelOption(v.meta.model).label),v.meta.reasoningLevel?" \u00B7 "+(edgeUi().modelLevels?.[v.meta.reasoningLevel]??v.meta.reasoningLevel):null)),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.duration&&element("span",{className:"edge-duration",title:"Processing time"},"\u23F1 "+v.meta.duration),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
-  v.evidence&&element("div",{className:"edge-tags"},element("span",{className:"edge-badge neutral",title:v.evidence.code},v.evidence.label)),
+  v.evidence&&element("div",{className:"edge-tags edge-evidence-line"},v.evidence.positive&&element("svg",{className:"edge-evidence-check",width:12,height:12,viewBox:"0 0 16 16","aria-hidden":"true"},element("circle",{cx:"8",cy:"8",r:"8",fill:"#16a34a"}),element("path",{d:"M4.6 8.3l2.2 2.2 4.6-4.8",fill:"none",stroke:"#ffffff",strokeWidth:"1.9",strokeLinecap:"round",strokeLinejoin:"round"})),element("span",{className:"edge-badge neutral",title:v.evidence.code},v.evidence.label)),
   v.attached.length>0&&element("div",{className:"edge-attached-line"},element(Icon,{name:"attach",size:13}),
     element("span",null,edgeUi().attachedPrefix+": "+v.attached.join("; "))),
   v.answer&&element("div",{className:"content-block edge-answer","data-section":"ANSWER"},element(Markdown,{text:v.answer,claims,fast,

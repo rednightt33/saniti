@@ -4081,6 +4081,29 @@ message and table fixes listed in the orc README "Rejection messages that say wh
 OpenRouter credit read from the orc credit log at 06:57 UTC: limit_remaining USD 0.24 (enough for one live set of three
 questions; no A/B).
 
+## 2026-10-20 — Push B, switches on, live check and a table-download fix (orc, edge-bff, sandbox)
+
+Same user go as Push A. Before each push the orc logs showed no `edge_` run.
+
+- Push B, git main `1bdf26b` (`40414d1` P3 table download, `1bdf26b` P4 EDGE): market-ai-orc `d6f698fa` SUCCESS,
+  edge-bff (`c3656044-2817-44a7-9b55-54910bab416f`) `ffc4d6a3` SUCCESS, market-python-sandbox
+  (`225b1be1-d7f5-4b2d-a4c7-052eb53af818`) `a6ddafb9` SUCCESS (stored-table export honours `select`).
+- Variables set on market-ai-orc / dev (names only): `AI_PROVIDER_STREAMING=true`, `AI_FASTLANE_KEEP_REASONING=true`;
+  read back with `railway variable list --json`; redeploy `16f4f0bc` SUCCESS 08:38 UTC. The stream limits keep their
+  code defaults (first content 45 s, idle 30 s, tool idle 120 s; total `AI_REQUEST_TIMEOUT_SECONDS=600`).
+  `railway config pull --force` added both names as `preserve()` to `.railway/railway.ts`; `railway config plan`:
+  up to date (the IaC SDK was installed in a scratch folder and found the CLI through `_`, as recorded earlier in this changelog).
+- Live check: `orc-test-runner` `f9dafbc2` (suite `live_20261020a`: t1, j2, s1, fast lane, DeepSeek V4.1 Flash high):
+  3/3 COMPLETED ANSWER; 30 streamed calls, all `completed`, no stall. Table downloads: runner `1e3634e7` (suite
+  `export_20261020a`, no model call) 4/4 HTTP 200, XLSX, sha256 matches, another owner 404.
+- Fix found by that check: tables of conversations kept before 2026-10-16 came without input sheets (their data record
+  names no bundle). Git main `10e4973`: market-ai-orc `9760b967` SUCCESS (edge-bff and sandbox SKIPPED); rerun in
+  runner `6856e46f` (suite `export_20261020b`): both 2026-10-14 tables HTTP 200 with `inputs_data_status` REBUILT; `perbandingan_return` has its two input sheets (390 and 297 rows), `stocks` reports its inputs NOT_INCLUDED `TOO_MANY_ROWS` (1,180,302 and 880,630 rows; the agreed limit).
+- Records commit `63d39e0` (orc README among them) redeployed market-ai-orc `687ac7cc` SUCCESS with the same code and variables; edge-bff and sandbox SKIPPED.
+- OpenRouter credit after the check: limit_remaining USD 0.081 (09:09 UTC orc credit log).
+- Rollback: set `AI_PROVIDER_STREAMING=false` and `AI_FASTLANE_KEEP_REASONING=false` (earlier call path and fast-lane
+  levels); code rollback orc `73097768` (Push A) or `15604ac8`, edge-bff `2e0a470b`.
+
 ## 2026-10-20 — Fixed-income repair execution blocked; live apps unchanged
 
 Created ephemeral read-only sandbox f2caa869-a2f8-490c-8ab9-0fa538822a0a for provider/database preflight. Remote exec failed at workspace network access to ssh.railway.com:2226; no command executed in it. Sandbox destroyed successfully in this task. No service code/config/cron changes deployed. Git repair branch is pending coordinated schema/code rollout; recovery wrappers are not active merely because their files exist.

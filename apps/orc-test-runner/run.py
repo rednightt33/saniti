@@ -98,6 +98,49 @@ def download_check(artifact):
             "xlsx": data[:2] == b"PK", "other_owner_http": other}
 
 
+def table_export(spec):
+    """The table download of an answer (2026-10-20): POST /v1/conversations/{id}/outputs/{output_id}/export writes
+    every row of a kept table as XLSX (no model call; inputs extracted again when the sandbox no longer keeps them);
+    the file then downloads for its owner only."""
+    path = f"/v1/conversations/{spec['conversation_id']}/outputs/{spec['output_id']}/export"
+    body = {"columns": spec.get("columns") or [], "titles": spec.get("titles") or []}
+    request = urllib.request.Request(BASE + path, data=json.dumps(body).encode(), method="POST", headers={
+        "Authorization": f"Bearer {KEY}", "Content-Type": "application/json", "X-Saniti-Owner": "golden-multi-angle"})
+    started = time.time()
+    try:
+        with urllib.request.urlopen(request, timeout=1800) as response:
+            code, result = response.status, json.loads(response.read())
+    except urllib.error.HTTPError as error:
+        code, result = error.code, {"http_error": error.read().decode()[:1000]}
+    except Exception as error:  # noqa: BLE001
+        code, result = 0, {"client_error": f"{type(error).__name__}: {error}"[:500]}
+    entry = {"output_id": spec["output_id"], "http": code, "seconds": round(time.time() - started, 1),
+             **{k: result.get(k) for k in ("export_id", "file_name", "size_bytes", "inputs", "inputs_data_status",
+                                           "http_error", "client_error") if result.get(k) is not None}}
+    if code == 200 and result.get("download"):
+        import hashlib, io, zipfile
+        got = {}
+        for owner in ("golden-multi-angle", "someone-else"):
+            fetch = urllib.request.Request(BASE + result["download"], headers={
+                "Authorization": f"Bearer {KEY}", "X-Saniti-Owner": owner})
+            try:
+                with urllib.request.urlopen(fetch, timeout=120) as response:
+                    got[owner] = (response.status, response.read(), response.headers.get("X-Saniti-Sha256"))
+            except urllib.error.HTTPError as error:
+                got[owner] = (error.code, b"", None)
+        status, data, sha = got["golden-multi-angle"]
+        sheets = []
+        try:
+            names = zipfile.ZipFile(io.BytesIO(data)).namelist()
+            sheets = [n for n in names if n.startswith("xl/worksheets/sheet")]
+        except zipfile.BadZipFile:
+            pass
+        entry.update(download_http=status, xlsx=data[:2] == b"PK", bytes=len(data), sheets=len(sheets),
+                     sha_ok=(sha is None or hashlib.sha256(data).hexdigest() == sha),
+                     other_owner_http=got["someone-else"][0])
+    log("table_export", **entry)
+
+
 def dump(tag, payload):
     """One turn's full response as gzip+base64 chunks, printed as soon as the turn ends so a crash later loses
     nothing: `OTRDUMP <tag> i/n data`."""
@@ -342,6 +385,8 @@ def main():
             for future in [pool.submit(run_item, item, suite["prefix"], results) for item in suite["items"]]:
                 future.result()
         log("done", turns=len(results))
+    for spec in suite.get("table_exports") or []:
+        table_export(spec)
     if READER:
         time.sleep(60)  # the outbox consumer and the producers' spools post on their own intervals
         audit(suite)

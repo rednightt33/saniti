@@ -1,37 +1,38 @@
 {
-  "prefix": "ma-v5-20261014-on",
+  "prefix": "ma-export-20261020b",
   "workers": 1,
   "audit_wait_seconds": 0,
-  "items": [
+  "items": [],
+  "table_exports": [
     {
-      "id": "t1_foreign_buy_5d",
-      "model": "deepseek/deepseek-v4.1-flash",
-      "reasoning_level": "high",
-      "expect": "V5 A/B",
-      "turns": [
-        "Apakah hari dengan net beli asing besar di BBRI diikuti return positif dalam 5 hari bursa berikutnya?"
+      "conversation_id": "conv_7bda1ed0ef44874139b92231a3418918",
+      "output_id": "out_f12a9a724864eef9deb4f262",
+      "columns": [
+        "variant",
+        "ticker",
+        "base_date",
+        "end_date"
       ],
-      "lane": "fast"
+      "titles": [
+        "Periode",
+        "Saham",
+        "Tanggal awal",
+        "Tanggal akhir"
+      ]
     },
     {
-      "id": "j2_broker_accum",
-      "model": "deepseek/deepseek-v4.1-flash",
-      "reasoning_level": "high",
-      "expect": "V5 A/B",
-      "turns": [
-        "Cari saham yang diakumulasi broker di atas X selama Y hari lalu return-nya lebih dari 10% dalam 20 hari bursa; X dan Y ambil dari sebaran data (kuantil atas)"
+      "conversation_id": "conv_ae5c1df717771d53532ab5b8b42e1063",
+      "output_id": "out_b7e14a8fe94218388bcf6079",
+      "columns": [
+        "ticker",
+        "n_signals",
+        "max_fwd_ret"
       ],
-      "lane": "fast"
-    },
-    {
-      "id": "s1_span_banks",
-      "model": "deepseek/deepseek-v4.1-flash",
-      "reasoning_level": "high",
-      "expect": "V5 A/B",
-      "turns": [
-        "Bandingkan return BBRI, BBCA dan BMRI 1 minggu terakhir dan 3 bulan terakhir, lalu jelaskan apa yang mendorong perbedaannya, termasuk aliran asing."
-      ],
-      "lane": "fast"
+      "titles": [
+        "Saham",
+        "Jumlah sinyal",
+        "Return maksimum"
+      ]
     }
   ]
 }

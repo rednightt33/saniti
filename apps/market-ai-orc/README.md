@@ -2412,7 +2412,8 @@ frontend, and Telegram.
   definition and lineage sheets and the input sheets. An input the sandbox no longer keeps (`BUNDLE_EXPIRED`,
   `BUNDLE_NOT_FOUND`) is extracted again with the same approved need (`_fresh_bundle`) and the file is written again
   with the definition row "Data input: ditarik ulang …" (`inputs_data_status` REBUILT, or EXPIRED_NOT_REBUILDABLE with
-  the reason). One download per table at a time (409 `EXPORT_IN_PROGRESS`); another owner's conversation or an unknown
+  the reason). A data record kept before 2026-10-16 names no bundle for its need; its inputs are extracted again at
+  once, the same way (live check 2026-10-20). One download per table at a time (409 `EXPORT_IN_PROGRESS`); another owner's conversation or an unknown
   table is 404. The reply gives `export_id`, `file_name`, `size_bytes`, `download` and `inputs`; logs `table_exported`,
   `table_export_refused`. A need records its bundle's `bundle_expires_at` when the sandbox reports it.
 - **query_metric (D5, `AI_ENABLE_QUERY_METRIC`):** the active metrics of `AI_metric_catalog`, read at startup and
