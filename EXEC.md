@@ -6055,3 +6055,26 @@ Konfirmasi."). Status: DIKERJAKAN 2026-10-20 (user "Ok view saja ya untuk no 1. 
   ±6px, warna mengikuti tema) untuk panel Details, Response History dan Pinned.
 - Urutan bila disetujui: kode EDGE (5-8, logo), tes browser, deploy edge-bff; output MAX di orc sesuai pilihan user,
   tes, deploy orc (cek run `edge_` aktif sebelum deploy); catat EXEC/RAILWAY_CHANGELOG.
+- **Keputusan user 2026-10-20 ("A oke deh, masukan exec jangan execute dulu"):** output level MAX = opsi (a) 128K
+  token per panggilan, dengan batas waktu panggilan dinaikkan untuk MAX saja (level lain tetap 24K / 600 s). Belum
+  dieksekusi. Catatan: penggabungan dengan (c) (ulang di level high bila MAX kehabisan token) belum diputuskan user.
+
+**EXEC-OUTPUT-REUSE – hitungan atas tabel yang sudah dirilis tanpa data need baru (user 2026-10-20: "lihat
+edge_d0109b90... menjawab pertanyaan tsb tidak perlu data request sebenarnya kan.. karena tinggal olah data yang ada di
+sandbox"). Status: DICATAT, belum dieksekusi.**
+- Fakta log orc (`edge_d0109b90…`, GLM 5.3 Flash, jalur Cepat, 22:29-22:30 WIB): langkah 1 CLARIFY (alat baca-saja)
+  membaca dua output yang sudah dirilis dan menyerahkan hitungan ke langkah 2 (CONTINUE). Langkah 2: `run_python` ke
+  sesi hangat gagal (sesi sudah kedaluwarsa); `open_analysis_session` pada bundle lama gagal (bundle tidak READY);
+  model lalu mengirim ulang data need (`submit_data_need_spec` ditolak sekali karena bentuk argumen, lalu diterima),
+  bundle READY dalam ±1 detik dan sesi terbuka lagi; baru setelah itu dua `run_python` menghitung dari tabel
+  `bmri_maxret_by_date` (43 baris) yang sudah ada. Langkah 2: 8 panggilan model, 34 s, USD 0,038; jalan memutar
+  (4 panggilan pertama) ±10 s.
+- Akar masalah di kode: sesi analisis hanya bisa dibuka di atas bundle READY (`OpenAnalysisSessionArgs.input_bundle_id`
+  wajib, `apps/market-ai-orc/app/tools/session.py`). Bila sesi hangat sudah hilang, satu-satunya jalan adalah data need
+  ulang, walaupun yang dibutuhkan hanya output yang sudah dirilis (dibaca dengan `load_output`).
+- Rencana: (1) `open_analysis_session` tanpa bundle (sesi khusus output: hanya `load_output` atas output percakapan
+  ini, tanpa data baru dari Governor); (2) bila sesi hangat hilang dan pekerjaan hanya memakai output yang dirilis,
+  orc membuka sesi khusus output itu otomatis dan memberi tahu model; (3) catatan alat/prompt: hitungan atas output yang
+  sudah dirilis tidak memerlukan data need baru. Perubahan kontrak alat → Tool_Catalog round berikutnya; tes orc dan
+  sandbox; deploy orc (+ sandbox bila endpoint sesi tanpa bundle perlu). Diukur ulang dengan pertanyaan lanjutan yang
+  sama: tanpa `submit_data_need_spec`, jumlah panggilan dan waktu turun.
