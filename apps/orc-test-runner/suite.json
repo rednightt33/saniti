@@ -1,37 +1,17 @@
 {
-  "prefix": "ma-export-20261020b",
+  "prefix": "ma-outreuse-20261020a",
   "workers": 1,
   "audit_wait_seconds": 0,
-  "items": [],
-  "table_exports": [
+  "items": [
     {
-      "conversation_id": "conv_7bda1ed0ef44874139b92231a3418918",
-      "output_id": "out_f12a9a724864eef9deb4f262",
-      "columns": [
-        "variant",
-        "ticker",
-        "base_date",
-        "end_date"
-      ],
-      "titles": [
-        "Periode",
-        "Saham",
-        "Tanggal awal",
-        "Tanggal akhir"
-      ]
-    },
-    {
-      "conversation_id": "conv_ae5c1df717771d53532ab5b8b42e1063",
-      "output_id": "out_b7e14a8fe94218388bcf6079",
-      "columns": [
-        "ticker",
-        "n_signals",
-        "max_fwd_ret"
-      ],
-      "titles": [
-        "Saham",
-        "Jumlah sinyal",
-        "Return maksimum"
+      "id": "r1_follow",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "lane": "fast",
+      "expect": "EXEC-OUTPUT-REUSE live: turn 2 needs no data need",
+      "turns": [
+        "Hitung return 5 hari bursa terakhir untuk BBCA, BBRI, BMRI dan BBNI.",
+        "Dari tabel tadi, urutkan dari return tertinggi dan hitung rata-rata return keempat saham itu."
       ]
     }
   ]

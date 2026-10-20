@@ -1,0 +1,18 @@
+{
+  "prefix": "ma-outreuse-20261020a",
+  "workers": 1,
+  "audit_wait_seconds": 0,
+  "items": [
+    {
+      "id": "r1_follow",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "lane": "fast",
+      "expect": "EXEC-OUTPUT-REUSE live: turn 2 needs no data need",
+      "turns": [
+        "Hitung return 5 hari bursa terakhir untuk BBCA, BBRI, BMRI dan BBNI.",
+        "Dari tabel tadi, urutkan dari return tertinggi dan hitung rata-rata return keempat saham itu."
+      ]
+    }
+  ]
+}

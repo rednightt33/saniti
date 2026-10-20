@@ -1089,6 +1089,22 @@ change yet.
 - **Lesson:** label kejujuran ("tidak identik") perlu disertai arahan pemakaian default, atau model menganggapnya
   larangan.
 
+### M196 — Pesan lanjutan menolak sesi hangat percakapan yang sama dan model menebak "sesi kedaluwarsa" (2026-10-20)
+
+- **Symptom:** `edge_d0109b90…` langkah 2: `run_python` ke sesi pesan sebelumnya dan `open_analysis_session` pada
+  bundlenya ditolak (`SESSION_NOT_FOUND`, `BUNDLE_NOT_READY`); model menyimpulkan sendiri bahwa sesi kedaluwarsa dan
+  memutar lewat data need ulang (8 panggilan model, 34 s, USD 0,038).
+- **Verified cause:** sesi dan bundle terikat ke `request_id` pembuatnya (`market-python-sandbox/app/sessions.py`
+  `_session`, `open`), setiap pesan baru adalah request baru, dan pesan penolakan "No session with this id exists for
+  this request" tidak menyebut sebab atau langkahnya. Sesi masih hidup (idle 900 s belum lewat).
+- **Solution (EXEC-OUTPUT-REUSE, `4020030`):** sandbox `PY_SANDBOX_OUTPUT_SESSIONS` mengambil alih sesi hangat
+  percakapan yang sama (epoch `OUTPUTS`) atau membuka sesi atas tabel yang sudah dirilis tanpa bundle; orc
+  `AI_OUTPUT_REUSE` menerima `input_bundle_id` null dan membuka sesi percakapan bila sesi lama hilang; aturan prompt
+  dan pesan penolakan menyebut sebab dan satu langkah. Percakapan lain tetap ditolak.
+- **Status:** CLOSED 2026-10-20 (live `ma-outreuse-20261020a`: pesan kedua tanpa data need, `session_taken_over`,
+  4 panggilan alat, 14,1 s, USD 0,010; n=1, pertanyaan berbeda dari kejadian asal).
+- **Lesson:** pesan penolakan yang hanya menyebut "tidak ada" membuat model mengarang sebab; sebutkan sebab dan langkah.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.

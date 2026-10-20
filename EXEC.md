@@ -6300,3 +6300,47 @@ eksekusi.
 - **Go user 2026-10-20 ("Nomor 1, oke … nomor 2 dibatalkan. Nomor 2, kita pakai max 128K … Ya, nomor 3 juga pakai
   penyedia sekarang. Jalankan exec"):** R1 dijalankan, R2 dibatalkan; MAX = 128K saja (opsi (a), tanpa (c));
   penyedia tetap seperti sekarang (`AI_PROVIDER_SORT=throughput`, opsi A tidak dikerjakan); Push 1 → 2 → 3 dijalankan.
+
+**Hasil eksekusi rencana 2026-10-20 malam (go user "Jalankan exec").**
+- **Push 1 orc (`b5f3770`):** R1 – jawaban estimasi `WITHIN_LIMITS` yang dihitung (COUNTED) dari cek kelayakan dipakai
+  ulang oleh `prepare` dalam request yang sama (`AI_PLANNER_REUSE_ESTIMATES`, default true; log
+  `planner_estimate_reused`); H – teks hambatan gerbang mengikuti hasilnya (ANNOTATED: "labelled …; the answer was sent
+  with the label", tanpa "not resolved"); M – level MAX 128.000 token dan batas panggilan 900 s
+  (`AI_MAX_LEVEL_OUTPUT_TOKENS`, `AI_MAX_LEVEL_REQUEST_TIMEOUT_SECONDS`, diset di Railway; level lain tetap 24K/600 s).
+- **Push 2 edge-bff (`1bf3011`):** UI-1020C – logo GLM/MiMo di label run warna teks utama, kotak gagal tanpa border
+  merah, judul Pinned tidak lagi menutupi baris pertama (akar: `position:sticky; top:0` dalam wadah ber-padding 8 px
+  menggeser judul 8 px; terukur tumpang tindih 8 px), kartu terpilih Response History terlihat di mode gelap (akar:
+  panel gelap dan `--card` sama-sama `oklch(14.5%)`), scrollbar tipis seragam. Kartu share A–F, PNG 3× (2.280 px),
+  Word .docx (diperiksa dengan `python-docx`: tabel 3×5, logo, Asumsi tertulis; draf awal punya bug `tblGrid` 1 kolom
+  yang diperbaiki). Tes browser `test_ui_1020c.py` gagal pada CSS lama dan lulus pada yang baru; suite EDGE 146 lulus.
+- **Railway:** build dijeda untuk semua workspace sejak ±17:18 UTC; deploy GitHub Push 1/2 tidak dibuat dan dipicu
+  ulang sesudah pulih (`railway redeploy --from-source`): orc `0292ff8a`, edge-bff `1bd6510c` SUCCESS.
+- **Push 3 (`4020030`) EXEC-OUTPUT-REUSE:** sandbox (`PY_SANDBOX_OUTPUT_SESSIONS`) dan orc (`AI_OUTPUT_REUSE`) seperti
+  rencana O; aturan prompt (CONVERSATION REUSE 1–4, CITING AND CHECKS 7, catatan CONVERSATION RESOURCES) dengan satu
+  contoh benar dan satu salah; penolakan `SESSION_NOT_FOUND`/`BUNDLE_NOT_READY`/`BUNDLE_EXPIRED` menyebut sebab dan
+  satu langkah. Tool_Catalog round_aa (`open_analysis_session` v5) diterapkan dan dibaca ulang. Deploy sandbox
+  `a3e4a974`, orc `75bc1d6c`, lalu saklar menyala: sandbox `81beaa50`, orc `3cde6446` SUCCESS. Tes: orc 1.982 lulus;
+  sandbox 880 lulus, 5 gagal yang sama dengan baseline sebelum perubahan (kontrak audit, nilai kanonik Governor,
+  frekuensi turunan, label crash worker).
+- **Cek live** (runner `d6f9babf`, `ma-outreuse-20261020a`, jalur Cepat, DeepSeek V4.1 Flash high, n=1): pesan 1
+  "return 5 hari BBCA/BBRI/BMRI/BBNI" 31,8 s / USD 0,022 (8 alat); pesan 2 "dari tabel tadi urutkan dan rata-rata"
+  14,1 s / USD 0,010, alat `run_python`, `complete_analysis` ×2 saja – tanpa data need dan tanpa membuka sesi;
+  sandbox `session_taken_over` epoch 2, rilis `DATA_COVERAGE_VERIFIED`. `complete` pertama tidak merilis apa pun
+  (cakupan PASS, eksekusi SUCCESS; penyebabnya belum dibaca dari jejak run). Acuan kejadian asal `edge_d0109b90…` langkah 2:
+  8 panggilan model, 34 s, USD 0,038 (pertanyaan lain; bukan A/B).
+- **R1 belum teruji live:** pesan 1 tidak memanggil cek kelayakan (jalur Cepat langsung submit → prepare), jadi tidak
+  ada estimasi ganda untuk dipakai ulang; terlihat hanya pada run yang memakai `check_data_feasibility`.
+- **R4/R5 diukur (hanya baca):** `shared_buffers` 128 MB, `work_mem` 4 MB; Feature_02 15 GB (heap 11 GB), 65% blok
+  heap dibaca di luar shared buffers. EXPLAIN pola ekstraksi: 5 hari bursa 131.519 baris, 127.701 blok dibaca (±1 blok
+  per baris), 31,4 s; 20 hari: bitmap heap scan lossy, sort tumpah ke disk. Tabel tersimpan menurut urutan
+  `(ticker, market_board, broker, investor_type, date)`, jadi jendela tanggal membaca halaman heap yang tersebar; indeks penutup
+  tidak menolong `SELECT *` (tidak ditambahkan). Penilaian RAM: memori kontainer Postgres yang tinggi paling mungkin
+  cache halaman OS dari pembacaan tersebar ini (shared_buffers kecil); menurunkan batas memori layanan akan menambah
+  bacaan disk pada query yang sudah 31 s. Opsi untuk keputusan user (belum dikerjakan): (i) susun ulang fisik
+  Feature_02 menurut tanggal (CLUSTER pada indeks `(date, market_board, ticker)` atau partisi per bulan; operasi berat
+  dan mengunci, perlu jendela pemeliharaan), (ii) Governor hanya mengambil kolom yang diminta (sudah) – ukur ulang
+  dengan kolom j2 yang sebenarnya, (iii) biarkan.
+- **Temuan lain:** layanan Railway `onboard-read` (variabel `DATABASE_URL`) ada di live tetapi tidak di repo; kemungkinan
+  sisa job baca EXEC-ONBOARD-1. Tidak dihapus tanpa izin. `railway config plan` gagal: SDK `railway/iac` di `node_modules` meminta CLI ≥ 5.42.1
+  padahal CLI terpasang 5.62.1 (penyebab belum diketahui); `config pull --force` dipakai sebagai acuan (nama variabel
+  sama dengan perubahan ini).

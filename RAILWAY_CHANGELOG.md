@@ -4152,3 +4152,19 @@ was waited out at 14:05 UTC before the database migration).
 - OpenRouter credit after the checks: about USD 0.25 remaining (key read in memory only).
 - Rollback: orc `687ac7cc` (before this change), sandbox `a6ddafb9`; catalog exposure off by a forward migration
   (`is_active = false` on the three AI_table_catalog rows).
+
+## 2026-10-20 — Push 1-3 of the approved plan (R1, H, M; UI-1020C and share card; EXEC-OUTPUT-REUSE)
+
+- Railway builds were paused for all workspaces from about 17:18 UTC (status.railway.com "New builds are temporarily
+  paused"); the GitHub deploys of `b5f3770` and `1bf3011` were not created and were triggered again after the
+  outage with `railway redeploy --from-source`: market-ai-orc `0292ff8a` and edge-bff `1bd6510c` SUCCESS on
+  `1bf3011` (orc: R1 estimate reuse, H gate hurdle texts, M max level; EDGE: UI-1020C and the share card with Word).
+- Variables set on market-ai-orc / dev (names and non-secret values): `AI_MAX_LEVEL_OUTPUT_TOKENS=128000`,
+  `AI_MAX_LEVEL_REQUEST_TIMEOUT_SECONDS=900` (set with --skip-deploys before the code; read back).
+- `4020030` (EXEC-OUTPUT-REUSE, switches off): market-python-sandbox `a3e4a974` and market-ai-orc `75bc1d6c` SUCCESS.
+  Then `PY_SANDBOX_OUTPUT_SESSIONS=true` on market-python-sandbox (redeploy `81beaa50` SUCCESS) and `AI_OUTPUT_REUSE=true`
+  on market-ai-orc (redeploy `3cde6446` SUCCESS; no `output_reuse_inactive` at startup). `.railway/railway.ts`
+  `preserve()` lists the four new names. Before each deploy no `edge_` run was active (last 15:31 UTC).
+- Live check: runner `d6f9babf` (`ma-outreuse-20261020a`, fast lane, DeepSeek V4.1 Flash high).
+- Rollback: `AI_OUTPUT_REUSE=false` and `PY_SANDBOX_OUTPUT_SESSIONS=false`; `AI_PLANNER_REUSE_ESTIMATES=false`;
+  delete the two `AI_MAX_LEVEL_*` variables; edge-bff: redeploy its previous deployment.
