@@ -110,3 +110,7 @@ configuration rollout and must not be represented as already running.
 ## Git-based job (approved replacement for sandbox execution)
 
 `apps/fixed-income-repair-job/Dockerfile` runs `scripts/run_fixed_income_repair_job.py`. No SSH, listening endpoint or arbitrary SQL execution API. Scope is supplied as explicit runtime variables. Prepare uses the pgweb read-only reference and stores the plan on a dedicated persistent volume. Apply is a separate deployment requiring exact plan and migration SHA256, a write-capable operator reference and the existing prepared plan. Stage-started markers and restart NEVER prevent accidental re-execution. Two additional real-Postgres job tests passed: prepare has no DB writes, apply/readback persist, restart does not repeat, and a missing volume fails before database access.
+
+## Remaining code release
+
+Live data repair is complete. The main-branch push was blocked by automatic approval review because authorization was interpreted as repair-only. All final code/evidence is pushed to the repair branch for review. No cron code deployment occurred in this task. The applied source mapping is already read by the old schedule-driven ingestion code; its new strict provider metadata checks await main release. Do not replay the migration or repair when releasing.

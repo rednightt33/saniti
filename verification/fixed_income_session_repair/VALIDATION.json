@@ -32,7 +32,8 @@
       "abs": 1e-10,
       "rel": 1e-12
     },
-    "additional_job_checks": "Separate prepare/apply deployments; persistent stage marker; no replay on restart; mounted storage required"
+    "additional_job_checks": "Separate prepare/apply deployments; persistent stage marker; no replay on restart; mounted storage required",
+    "frozen_migration_checks": "2 passed by direct invocation of tracked functions (pytest Orc conftest needs unrelated missing pydantic dependency)"
   },
   "live": {
     "provider_preflight": "SUCCESS: 48 verified provider series, 288 selected candles",
@@ -65,7 +66,7 @@
     "temporary_service": "DELETED from dev",
     "backup_volume": "7f146278-0e8c-40d0-b2cc-7f244252170d; retained unattached,100MB",
     "backup_paths": "/repair/fi-selected-20261020-a/{plan.json,pre-migration-backup.json,before.json,prepare-result.json,apply-result.json}",
-    "main_rollout": "PENDING"
+    "main_rollout": "BLOCKED_BY_AUTOMATIC_APPROVAL_REVIEW: main release requires owner approval; no main push/deployment"
   },
   "sha256": {
     "scripts/repair_fixed_income_dates.py": "eacfb4628b4bf85bc8b28b8cb9070f89389bafd117e52553dad2ffe7840e628c",

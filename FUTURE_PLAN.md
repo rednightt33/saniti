@@ -613,3 +613,7 @@ disetujui atau jaminan bahwa byte keepalive menunjukkan kemajuan reasoning.
 - Endpoint penyedia tercatat di setiap panggilan (memperbaiki `lookup: NOT_FOUND`).
 - Mengulang di endpoint lain dari model yang sama termasuk perubahan penyedia, jadi perlu persetujuan user.
 - Uji: penyedia tiruan yang diam 30 detik dipotong di N; penyedia yang lambat tapi terus mengalir tidak dipotong.
+
+## Fixed-income provider-session code release — pending owner approval (2026-10-20)
+
+The authorized six-date ID+US repair and migration011 completed successfully. Release branch codex/fixed-income-session-repair holds the compatible source-session reader, local tests and live evidence. Automatic review rejected a direct main push because approval was read as covering the data repair only. Owner decision needed: merge/release this branch to main, then verify the four bonds cron deployments. Cron clocks/start commands stay unchanged. Do not repeat the already applied migration or repair.
