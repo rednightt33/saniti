@@ -378,10 +378,14 @@ STORED_IN_SQL = '''
  WHERE k.status = 'ACTIVE' AND ('AI_formula_reference:' || f.calculation_id) = ANY(k.implementation_ref)
    AND (k.output_definition ->> 'ai_allowed') IS DISTINCT FROM 'false') AS stored_in
 '''
-STORED_IN_NOTE = ("stored_in names a Feature column that already holds this formula (relation STORED_VARIANT: the "
-                  "same indicator with the stored parameters; RELATED_NOT_IDENTICAL: a related signal, read its note). "
-                  "Read that column instead of computing the formula again, unless the question needs other "
-                  "parameters or the reference definition exactly.")
+# L3 2026-10-20: "Saham apa yang membentuk pola hammer di sesi terakhir?" was answered by computing the reference
+# geometry (23 stocks) instead of reading cdl_hammer (6), because the note allowed "the reference definition exactly"
+STORED_IN_NOTE = ("stored_in names a Feature column that already holds this indicator or pattern (relation "
+                  "STORED_VARIANT: the same indicator with the stored parameters; RELATED_NOT_IDENTICAL: the same "
+                  "named pattern or signal by another standard definition, see its note). A question that names the "
+                  "indicator or pattern without giving its own definition reads that column and says which definition "
+                  "it uses; compute this formula only when the user asks for this formula, other parameters or other "
+                  "thresholds.")
 
 FORMULAS_SQL = '''
 SELECT f.calculation_id, f.calculation_name, f.description, f.required_inputs, f.formula_method,

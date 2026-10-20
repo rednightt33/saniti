@@ -445,13 +445,13 @@ def test_a_formula_names_the_stored_feature_column_that_holds_it(migrated_db: st
         stored = [{"table": "Feature_02_Broker_Rolling", "column": "rsi_14", "version": "v4",
                    "relation": "STORED_VARIANT", "note": "14 changes"}]
         found = details(registry, [], ["FORMULAS"], formula_query="relative strength")["sections"]["FORMULAS"]
-        assert found["entries"][0]["stored_in"] == stored and "instead of computing" in found["note"]
+        assert found["entries"][0]["stored_in"] == stored and "reads that column" in found["note"]
         full = details(registry, [], ["FORMULAS"], formula_ids=["zz_rsi_wilder"])["sections"]["FORMULAS"]
-        assert full["entries"][0]["stored_in"] == stored and "instead of computing" in full["note"]
+        assert full["entries"][0]["stored_in"] == stored and "reads that column" in full["note"]
         page = call(registry, "discover_catalog", {"query": "RSI relative strength index"})
         assert page["formula_catalog"]["matches"][0]["stored_in"] == stored
         other = details(registry, [], ["FORMULAS"], formula_query="synthetic metric")["sections"]["FORMULAS"]
-        assert all("stored_in" not in e for e in other["entries"]) and "instead of computing" not in other["note"]
+        assert all("stored_in" not in e for e in other["entries"]) and "reads that column" not in other["note"]
     finally:
         with psycopg.connect(migrated_db, autocommit=True) as c:
             c.execute('''DELETE FROM public."AI_calculation_catalog" WHERE calculation_name IN ('rsi_14', 'rsi_state')''')
