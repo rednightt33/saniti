@@ -5647,3 +5647,24 @@ penolakan.**
   `INVALID_ARGUMENTS` pada field id menyebut nilai sah dan tempatnya (`orchestrator.py:5053`); `BUNDLE_EXPIRED` dari
   sandbox ditambah alasan dan langkah di orc saat meneruskan error (sandbox tidak perlu deploy); UNRECORDED_TEST
   dilonggarkan sesuai keputusan statistik; DEFINITION mengutip kalimat pemicu (M192).
+
+**Permintaan user 2026-10-20 ("tolong masukan exec"): ikon unduh Excel per tabel jawaban** (belum dijalankan).
+- Perilaku: setiap tabel di jawaban punya ikon unduh (di samping tombol perbesar). Yang diunduh adalah **seluruh baris**
+  tabel hasil (bukan hanya 10 yang tampil atau 50 yang dilipat; contoh 400 baris → 400 baris), sebagai XLSX dengan judul
+  kolom seperti yang tampil.
+- Arsitektur (kode 2026-10-20): `answer_tables` di respons sudah memuat `output_id`, `columns` dan `titles` per tabel;
+  tabel rilis tersimpan di penyimpanan percakapan orc (`AI_conversation_output`) selama percakapan aktif; ekspor XLSX
+  sudah ada sebagai alat AI `export_result` (`tools/export.py`, file ditulis sandbox dari salinan tersimpan, maks. 20 MB,
+  sheet definisi dan asal data) dan unduhan EDGE sudah ada (`GET /api/v1/exports/{export_id}` → orc
+  `GET /v1/exports/{export_id}/download`). Yang belum ada: endpoint tanpa AI untuk membuat ekspor dari sebuah output.
+- Rencana: orc `POST /v1/conversations/{conversation_id}/outputs/{output_id}/export` (pemilik dicek, memakai handler
+  `export_result` yang sama dengan `column_labels`/`source_columns` dari `answer_tables`, tanpa panggilan model dan tanpa
+  biaya model); EDGE `POST /api/v1/conversations/{id}/outputs/{output_id}/export` lalu unduhan lewat route ekspor yang
+  ada; ikon di bingkai tabel (`edge-md-table-frame`); tes orc, EDGE dan browser. Batas: ekspor gagal bila sandbox mati
+  (file ditulis sandbox) atau > 20 MB; pesan jelas ke user.
+
+**Temuan data olahan (kode 2026-10-20):** variabel di memori sesi tidak bisa disimpan (objek Python bebas); tabel kerja
+`saniti.save_table` **sudah** disimpan 30 hari sebagai supporting table (`result_store.py:36`, E9) tetapi hanya untuk
+ekspor: pemulihan ke sesi baru mengecualikannya (`result_store.py:166`, `output_type <> 'SUPPORT'`) dan prompt jalur
+Cepat tidak menyebut `save_table`. Usulan (menunggu persetujuan): supporting table ikut dipulihkan ke sesi baru
+(`load_table`/`load_output`) dan disebut di CITING AND CHECKS bagian C.
