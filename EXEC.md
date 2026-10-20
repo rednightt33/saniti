@@ -6024,3 +6024,34 @@ Konfirmasi."). Status: DIKERJAKAN 2026-10-20 (user "Ok view saja ya untuk no 1. 
   13 Oktober (sumber web menyebut 7,387% pada 19 Oktober) — perlu dicek di pipeline fixed income; (4) kolom kategori
   view (`metric_type`) tidak punya CHECK, jadi nilai sahnya hanya ada di deskripsi; (5) `Universe_Fixed_income` di
   preview memuat juga kolom yang `ai_allowed = false`.
+
+**EXEC-UI-1020C – logo GLM, output level MAX, kotak gagal, Pinned, Response History, scrollbar (user 2026-10-20:
+"Okay, itu masukan exec dulu ya"). Status: DICATAT, belum dieksekusi; menunggu konfirmasi user.**
+- **Logo GLM pudar** (label run "GLM 5.3 Flash · High"): logo `z-ai` (dan `xiaomi`) bertanda `mono` di
+  `MODEL_LOGOS` (`apps/edge-bff/static/index.html`), digambar sebagai `mask` dengan `background: currentColor`
+  (`.edge-model-logo.mono`); di label run warnanya ikut teks sekitarnya (abu-abu), sedangkan di pemilih model ikut warna
+  baris. Rencana: logo mono di label run memakai warna teks utama (`var(--foreground)`), sama seperti di pemilih model,
+  di mode terang dan gelap; tes browser membandingkan warna logo di label run dan di pemilih.
+- **Level MAX dengan output 1M token** — fakta 2026-10-20 dari OpenRouter `/models` dan `/endpoints`
+  `deepseek/deepseek-v4.1-flash`: konteks 1.048.576 token berbagi dengan input (pesan lanjutan tadi ±47K input); batas
+  output per provider 943.718 (Together, Fireworks, CoreWeave dan lain-lain), 393.216 (Baidu, AtlasCloud, Novita,
+  Alibaba), 262.144 (BaseTen, Decart), 131.072 (DeepInfra, PrimeIntellect, Venice). Jadi 1M persis tidak mungkin;
+  paling besar ±940K, dan hanya provider tertentu yang melayani. Biaya kecil (output USD 0,12 per 1M token: ±USD 0,11
+  per panggilan penuh), tetapi waktu tidak: log tadi 24K token butuh 56-97 detik, jadi 940K ±40-60 menit per panggilan,
+  jauh di atas batas satu panggilan `AI_REQUEST_TIMEOUT_SECONDS` (600 s) dan run EDGE. Usulan untuk dipilih user:
+  (a) MAX = 128K (semua provider ≥131K melayani; satu panggilan bisa ±5-9 menit, batas waktu panggilan dinaikkan untuk
+  level MAX saja); (b) MAX = ±940K dengan provider dibatasi ke yang mendukung dan batas waktu panjang (tidak disarankan:
+  run bisa berjalan puluhan menit); (c) tetap 24K + run yang kehabisan token di MAX diulang di level high (usulan 1
+  jawaban sebelumnya). Bisa digabung (a)+(c).
+- **5. Kotak "Research failed" tanpa border merah:** `.run-inline-state` untuk status gagal memakai border merah;
+  dihapus (border netral seperti kartu lain), isi dan tombol Retry tetap.
+- **6. Pinned responses bertumpuk:** teks "No pinned responses" tertutup/menumpuk di bawah judul panel; rencana: judul
+  dan isi panel Pinned disusun berurutan (judul tidak menutupi isi saat panel di-scroll), tes posisi elemen.
+- **7. Selected state Response History mode gelap ≠ terang:** di terang item terpilih berupa kartu putih berbayang; di
+  gelap tidak ada kartu. Rencana: token warna kartu terpilih untuk mode gelap (permukaan satu tingkat lebih terang dari
+  panel, border/bayangan setara), tes membandingkan keberadaan latar kartu di kedua mode.
+- **8. Scrollbar terlalu lebar:** panel Details memakai `scrollbar-width: thin` di beberapa wadah tetapi tidak semua
+  (scrollbar gelap tampak lebar); rencana: scrollbar tipis seragam (`scrollbar-width: thin` + `::-webkit-scrollbar`
+  ±6px, warna mengikuti tema) untuk panel Details, Response History dan Pinned.
+- Urutan bila disetujui: kode EDGE (5-8, logo), tes browser, deploy edge-bff; output MAX di orc sesuai pilihan user,
+  tes, deploy orc (cek run `edge_` aktif sebelum deploy); catat EXEC/RAILWAY_CHANGELOG.
