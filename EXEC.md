@@ -5868,3 +5868,10 @@ jadi `ANNOTATED` selalu jatuh ke `HURDLE_OPEN` (", not resolved.").
   ({why}); the answer was sent with the label." tanpa akhiran "not resolved"; `REJECTED_FOR_REPAIR` tetap "sent the
   draft back … then fixed / not resolved"; FORCED (bila ada) disebut apa adanya. Tes `tests/test_hurdles.py` per hasil;
   pesan EDGE tidak berubah (teks datang dari orc). Berlaku semua jalur (perbaikan teks), tanpa saklar.
+
+**Usulan dicatat (user 2026-10-20: "ok masukan exec, jangan eksekusi dulu ya") – celah ikon tabel.** Tangkapan layar
+user: ikon unduh dan fullscreen menempel di tepi atas tabel. Penyebab di kode (`apps/edge-bff/static/index.html`):
+`.edge-md-table-frame` memberi `padding-top:30px`, sedangkan `.edge-table-tools` (tombol 28 px) ditempel di `top:0`,
+jadi celahnya hanya 2 px.
+- Rencana (belum dijalankan): `padding-top:38px` (celah 8 px); tes browser yang mengukur jarak tepi bawah tombol ke
+  tepi atas tabel (8 px ± 1) di lebar desktop dan HP; deploy edge-bff saja.
