@@ -110,6 +110,17 @@ Mode" menu (Standard / Deep Research, display only) was removed the same day.
   and the favicon and app icons use the new round EDGE mark.
 - Tests: `tests/test_ui_1019b.py`.
 
+### Answer head and composer polish (EXEC 2026-10-20, user screenshots)
+
+- The table icons stand 8 px above the table; a title made from the question (or the router's) is cut at a word with
+  an ellipsis (`Edge.shortTitle`); the evidence line sits 10 px under the metadata row (as the row under the title)
+  in the row's type, with a green check for a positive evidence label.
+- A conversation's bookmark and delete buttons show their hover on every row; "Data Scope" uses the model picker's
+  type; the message box in use gets a soft shadow instead of a darker border; a running answer's progress sits close
+  under the question, the page follows new progress steps while it follows the latest message, and the composer no
+  longer shows a "Standard" lane label (every EDGE message runs the fast lane).
+- Tests: `tests/test_ui_1020.py`.
+
 ## Persistence and ownership
 
 Orc owns history, answers, methodology, evidence, usage and exports. BFF accesses them only through authenticated

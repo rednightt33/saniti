@@ -240,7 +240,9 @@
       version:VERSION,
       status:status(envelope, domainStatus),
       meta:{requestId:envelope?.request_id ?? null, model:execution.model ?? null, reasoningLevel:execution.reasoning_level ?? null, lane:execution.lane ?? null, tokens:execution.total_tokens, cost:execution.cost ?? null, duration:durationText(execution.duration_ms)},
-      evidence:envelope?.evidence_label ? {code:envelope.evidence_label, label:ui.evidencePrefix + (L().evidence[envelope.evidence_label] ?? envelope.evidence_label)} : null,
+      evidence:envelope?.evidence_label ? {code:envelope.evidence_label, label:ui.evidencePrefix + (L().evidence[envelope.evidence_label] ?? envelope.evidence_label),
+        // EXEC 2026-10-20 (screenshot T): a positive evidence label carries a green check
+        positive:!['UNVERIFIED_EXPLORATORY', 'NOT_VALIDATED'].includes(envelope.evidence_label)} : null,
       claims:(envelope?.annotations || []).filter(item => item?.quote).map(item => [String(item.quote).trim(), item.note || item.kind]),
       // EXEC-UI-1013B: a question that is the whole answer is shown once, in the choices part
       answer:(answer && answer !== final.clarification_question ? answer : null),

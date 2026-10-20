@@ -64,7 +64,10 @@
     return result.map(ui => ({id:ui.conversation_id,title:ui.title,bookmarked:ui.bookmarked,createdAt:ui.created_at,updatedAt:ui.updated_at,lastMessage:ui.last_message||null,messages:[],runs:[]}));
   }
   // EXEC-UI-1012 C: the first question's answer is headed by the short title Orc's first-message router wrote
-  const routerTitle = response => String(response?.mode4?.router?.title || '').split(/\s+/).join(' ').trim().slice(0, 80) || null;
+  // EXEC 2026-10-20 (user screenshot: "…buying p"): a title made from the question is cut at a word, with an ellipsis
+  const shortTitle = (text, limit = 80) => { const t = String(text || '').split(/\s+/).join(' ').trim(); if (t.length <= limit) return t;
+    const cut = t.slice(0, limit - 1), space = cut.lastIndexOf(' '); return (space > limit / 2 ? cut.slice(0, space) : cut).replace(/[\s,;:.\-–—]+$/, '') + '…'; };
+  const routerTitle = response => shortTitle(response?.mode4?.router?.title) || null;
   function adaptRun(turn, ui = {}) {
     const raw = turn.response;
     const final = raw?.response;
@@ -72,7 +75,7 @@
     return {id:turn.request_id,question:turn.user_message || ui.title || 'Research response',createdAt:turn.created_at,completedAt:turn.completed_at,
       status:turn.status === 'RUNNING' ? 'running' : failed ? 'failed' : 'completed',domainStatus:raw?.status || turn.run_status,paused:Boolean(raw?.execution?.pause),stopped:Boolean(raw?.execution?.stopped),
       mode:'Standard',attachments:[],pinned:(ui.pinned_request_ids || []).includes(turn.request_id),
-      error:raw?.error?.code || turn.error_code,errorText:raw?.error?.user_message,raw,result:final ? {title:routerTitle(raw) || turn.user_message?.slice(0,80) || ui.title || 'Research response',condition:final.answer || final.clarification_question || '',final} : null,
+      error:raw?.error?.code || turn.error_code,errorText:raw?.error?.user_message,raw,result:final ? {title:routerTitle(raw) || shortTitle(turn.user_message) || ui.title || 'Research response',condition:final.answer || final.clarification_question || '',final} : null,
       sources:[...(raw?.evidence || []), ...(raw?.annotations || []), ...(raw?.data_record ? [{name:'Data record',record:raw.data_record}] : [])],
       steps:[{id:'saved-state',label:turn.status === 'RUNNING' ? 'AI request running' : 'Saved response: ' + statusLabel('completed', raw?.status || turn.run_status, raw?.execution?.pause),status:turn.status === 'RUNNING' ? 'running' : failed ? 'failed' : 'completed',detail:'Persisted lifecycle state'}]};
   }
@@ -88,7 +91,7 @@
     domainStatus:snapshot.run_status,paused:Boolean((snapshot.response || previous.raw)?.execution?.pause),stopped:Boolean((snapshot.response || previous.raw)?.execution?.stopped),error:snapshot.expired ? 'Conversation expired; the saved response is no longer available.' : snapshot.error_code || snapshot.response?.error?.code,
     errorText:snapshot.expired ? undefined : (snapshot.response || previous.raw)?.error?.user_message,
     completedAt:snapshot.completed_at,raw:snapshot.response || previous.raw,
-    result:snapshot.response?.response ? {title:routerTitle(snapshot.response) || previous.question.slice(0,80),condition:snapshot.response.response.answer || snapshot.response.response.clarification_question || '',final:snapshot.response.response} : previous.result,
+    result:snapshot.response?.response ? {title:routerTitle(snapshot.response) || shortTitle(previous.question),condition:snapshot.response.response.answer || snapshot.response.response.clarification_question || '',final:snapshot.response.response} : previous.result,
     sources:snapshot.response ? [...(snapshot.response.evidence || []),...(snapshot.response.annotations || []),...(snapshot.response.data_record ? [{name:'Data record',record:snapshot.response.data_record}] : [])] : previous.sources,
     steps:[{id:'state',label:{QUEUED:'Queued',RUNNING:'AI request running',RECOVERING:snapshot.error_code === 'SERVICES_INITIALIZING' ? EdgeLabels.servicesWaiting : 'Recovering delivery',FINISHED:'Saved response: '+statusLabel('completed',snapshot.run_status,snapshot.response?.execution?.pause),FAILED:'Request failed',INTERRUPTED:'Delivery interrupted'}[snapshot.state],status:terminal(snapshot) ? snapshot.state === 'FINISHED' && snapshot.run_status !== 'FAILED' && !snapshot.expired ? 'completed' : 'failed' : 'running',detail:snapshot.updated_at}]
   });
@@ -97,7 +100,7 @@
     .catch(() => { models.failed = true; }));
   const settle = promise => Promise.race([promise, new Promise(resolve => setTimeout(resolve, 3000))]);
   window.Edge = {
-    api,follow,terminal,conversations,messages,adaptRun,stateRun,statusLabel,
+    api,follow,terminal,conversations,messages,adaptRun,stateRun,statusLabel,shortTitle,
     get auth() { return auth; },
     async session() { try { auth = await api('/auth/session'); } catch { auth = null; } if (auth) await settle(loadModels()); return auth; },
     async signin(login,password) { auth = await api('/auth/sign-in',{login,password}); await settle(loadModels()); dispatchEvent(new Event('edge-auth')); return auth; },
