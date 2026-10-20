@@ -5681,3 +5681,16 @@ Cepat tidak menyebut `save_table`. Usulan (menunggu persetujuan): supporting tab
   maupun penulis XLSX (`requirements.txt`: fastapi, httpx, pydantic, uvicorn, psycopg, boto3); tabel disimpan sebagai
   Parquet; `export_result` mengirim byte tabel ke sandbox (`stored_op(client, "export", …)`, `tools/export.py`) yang
   menulis XLSX beserta sheet definisi, asal data dan kelengkapan. Opsi menunggu keputusan user.
+- **Keputusan pembuat Excel unduhan per tabel: opsi A (user 2026-10-20 "Ok opsi A, masukan exec jangan execute dulu")**.
+  Ikon unduh EDGE → endpoint orc baru `POST /v1/conversations/{id}/outputs/{output_id}/export` → orc membaca tabel
+  lengkap dari penyimpanannya sendiri (`result_store.content()`, `AI_conversation_output` Postgres atau bucket, umur
+  percakapan 30 hari) → mengirim byte itu ke `POST /v1/stored-tables/export` di sandbox (pembuat XLSX yang sama dengan
+  `export_result`) → simpan di `AI_conversation_export` → unduh lewat rute yang ada. Tanpa pustaka baru di orc.
+  - **Koreksi jawaban sebelumnya** (kode 2026-10-20): rute sandbox ini **tidak memakai sesi maupun bundle 24 jam**
+    (`market-python-sandbox/app/main.py:571` "without a session"; orc mengirim isi tabel di body, `tools/artifacts.py:59`).
+    Unduhan tetap bisa 2 hari (sampai 30 hari) kemudian; hanya butuh layanan sandbox menyala.
+  - Isi bila bundle sudah kedaluwarsa: semua baris, sheet definisi/asal data, dan kelengkapan (dihitung dari file yang
+    dikirim + governor, `tools/export.py:440-460`) tetap ada; sheet data input (E1) ditandai `NOT_INCLUDED` dengan alasan
+    (`export_inputs`). Unduhan per tabel memang tanpa sheet data input (kolom tampil + sheet definisi).
+  - Opsi B (orc menulis XLSX) ditolak: `pyarrow` 156 MB terpasang (+40 MB RAM saat import, openpyxl +7 MB, diukur),
+    image orc membesar, dua pembuat Excel; selisih biaya < USD 1/bulan, satu-satunya kelebihan hanya saat sandbox down.
