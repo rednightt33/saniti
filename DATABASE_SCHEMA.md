@@ -2195,7 +2195,9 @@ Current Feature 01 calculation freshness and outstanding-work summary per ticker
 
 ## Fixed_Income_Market_Schedule
 
-Fixed-income market timezone, closing clock, final-candle delay and source-label date mapping.
+Fixed-income market close/finality policy and verified provider timezone, session and observation-date mapping.
+
+This table section was independently refreshed from live PostgreSQL on2026-10-20 after migration011; other sections retain their recorded snapshot dates.
 
 ### Columns
 
@@ -2208,8 +2210,10 @@ Fixed-income market timezone, closing clock, final-candle delay and source-label
 | `finality_delay_minutes` | `integer` | No | — | Fixed-income market schedule configuration. |
 | `enabled` | `boolean` | No | `true` | Fixed-income market schedule configuration. |
 | `updated_at` | `timestamp with time zone` | No | `statement_timestamp()` | Fixed-income market schedule configuration. |
-| `source_date_mapping` | `text` | No | — | Rule that maps the raw TradingView UTC daily-bar label to this market session date. |
+| `source_date_mapping` | `text` | No | — | Rule mapping the provider daily-session anchor to its observation date; both verified ID and US anchors currently map to the next business day. |
 | `correction_lookback_sessions` | `integer` | No | `5` | Number of recent completed market sessions reverified and eligible for normal suffix repair. |
+| `provider_session` | `text` | No | — | Verified TradingView session string; not the local economic-market closing clock. |
+| `provider_timezone_name` | `text` | No | — | Verified TradingView symbol timezone; reject a source metadata mismatch. |
 
 ### Constraints
 
@@ -2222,6 +2226,8 @@ Fixed-income market timezone, closing clock, final-candle delay and source-label
 | `Fixed_Income_Market_Schedule_timezone_check` | Check | `CHECK (timezone_name = btrim(timezone_name) AND timezone_name <> ''::text)` |
 | `Fixed_Income_Market_Schedule_pkey` | Primary key | `PRIMARY KEY (market_code)` |
 | `Fixed_Income_Market_Schedule_country_key` | Unique | `UNIQUE (country)` |
+| `Fixed_Income_Market_Schedule_provider_session_check` | Check | `CHECK ((provider_session ~ '^[0-9]{4}-[0-9]{4}$'::text))` |
+| `Fixed_Income_Market_Schedule_provider_timezone_check` | Check | `CHECK (((provider_timezone_name = btrim(provider_timezone_name)) AND (provider_timezone_name <> ''::text)))` |
 
 ### Indexes
 
@@ -4181,6 +4187,6 @@ Per-trading-date Stockbit broker-summary load progress, retries, and review stat
 |---|---|
 | `stockbit_broker_summary_load_log_pkey` | `CREATE UNIQUE INDEX stockbit_broker_summary_load_log_pkey ON public.stockbit_broker_summary_load_log USING btree (target_table, trade_date)` |
 
-## Pending fixed-income provider-session migration (2026-10-20)
+## Applied fixed-income provider-session migration (2026-10-20)
 
-Not part of the live schema snapshot above. Migration `20261013_011_verify_fixed_income_sessions.sql` adds required text columns `provider_timezone_name` (verified TradingView timezone) and `provider_session` (daily session anchor) to `Fixed_Income_Market_Schedule`. Both ID and US use NEXT_BUSINESS_DAY source mapping under the reviewed policy. Refresh the physical inventory only after live application/readback.
+Applied and read back at18:43 WIB. Migration `20261013_011_verify_fixed_income_sessions.sql` adds required text columns `provider_timezone_name` (verified TradingView timezone) and `provider_session` (daily session anchor) to `Fixed_Income_Market_Schedule`. Both ID and US use NEXT_BUSINESS_DAY source mapping under the reviewed policy. The changed physical table section above has been refreshed from live readback.

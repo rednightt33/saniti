@@ -93,6 +93,8 @@ def fixture_schema(connection):
             if not match:
                 continue
             name, kind, nullable, default = match.groups()
+            if table == "Fixed_Income_Market_Schedule" and name in {"provider_timezone_name", "provider_session"}:
+                continue  # Fixture adds pending metadata explicitly for migration rehearsal.
             if kind == "ARRAY":
                 kind = "text[]"
             if name == "id" and table == "Feature04_Calculation_Log":

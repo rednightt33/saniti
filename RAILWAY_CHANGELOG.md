@@ -4088,3 +4088,7 @@ Created ephemeral read-only sandbox f2caa869-a2f8-490c-8ab9-0fa538822a0a for pro
 ### 2026-10-20 — Git-based fixed-income repair job provisioned
 
 User “Ok, jalankan” after approving the one-off Git-based method. Created empty service `fixed-income-selected-date-repair` ec0d3881-c14a-4ba4-98d4-4a763db3802e in lucid-patience/dev, restart NEVER, no cron, root /, Dockerfile apps/fixed-income-repair-job/Dockerfile. Dedicated100MB volume `fixed-income-repair-evidence` 7f146278-0e8c-40d0-b2cc-7f244252170d mounted at /repair. Runtime variables pin the six authorized dates, ID+US, prepare stage and read-only database reference; no secret values recorded. Source attachment/deployment and results pending. Existing apps unchanged.
+
+### 2026-10-20 — Fixed-income repair live result and cleanup
+
+Dev-only staged source attachment deployed commit d9038b3. Prepare e9ffd3bf-461e-43ea-b672-b97111ff7bb4 SUCCESS verified288 candles; apply3e23614a-d23e-488d-a3e7-b8bdd2c1c8d8 SUCCESS committed migration011 and atomic repair at18:43 WIB. No live execution via SSH. Automatic review rejected an all-environment source attachment; only the bounded dev patch was then committed after verifying it contained the four owned source fields. Temporary service ec0d3881-c14a-4ba4-98d4-4a763db3802e deleted from dev; evidence volume7f146278-0e8c-40d0-b2cc-7f244252170d retained unattached100MB. `railway config pull --force` and `railway config plan` run after configuration changes; final inventory/readback pending. No cron clocks or IDX services changed.

@@ -1,0 +1,2491 @@
+{
+  "prepare": {
+    "scope": "deployment",
+    "deploymentId": "e9ffd3bf-461e-43ea-b672-b97111ff7bb4",
+    "serviceId": "ec0d3881-c14a-4ba4-98d4-4a763db3802e",
+    "environmentId": "4d3e5af2-302b-4a2e-84e2-7d7476d6ff49",
+    "status": "SUCCESS",
+    "deploy": [
+      {
+        "timestamp": "2026-10-20T11:42:02.748546982Z",
+        "severity": "info",
+        "message": "Mounting volume on: /var/lib/containers/railwayapp/bind-mounts/22e81285-12f2-4f27-814a-2fb147e2df26/vol_mam7ca28ruu2unit",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:02.748646060Z",
+        "severity": "info",
+        "message": "Starting Container",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:03.251589717Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"repair_job_start\""
+          },
+          {
+            "key": "stage",
+            "value": "\"prepare\""
+          },
+          {
+            "key": "run",
+            "value": "\"fi-selected-20261020-a\""
+          },
+          {
+            "key": "libraries",
+            "value": "{\"python\":\"0.6.8\",\"c\":\"0.6.4 (Oct 20 2025 20:23:51)\",\"numpy\":\"2.3.5\",\"compatibility\":0,\"unstable_period\":0,\"patterns\":{\"CDLPIERCING\":{\"lookback\":11,\"parameters\":{}},\"CDLMORNINGSTAR\":{\"lookback\":12,\"parameters\":{\"penetration\":0.3}},\"CDLMORNINGDOJISTAR\":{\"lookback\":12,\"parameters\":{\"penetration\":0.3}},\"CDLENGULFING\":{\"lookback\":2,\"parameters\":{}},\"CDL3WHITESOLDIERS\":{\"lookback\":12,\"parameters\":{}},\"CDLHAMMER\":{\"lookback\":11,\"parameters\":{}},\"CDLINVERTEDHAMMER\":{\"lookback\":11,\"parameters\":{}},\"CDL3INSIDE\":{\"lookback\":12,\"parameters\":{}},\"CDL3OUTSIDE\":{\"lookback\":3,\"parameters\":{}},\"CDLHARAMI\":{\"lookback\":11,\"parameters\":{}},\"CDLHARAMICROSS\":{\"lookback\":11,\"parameters\":{}},\"CDLDARKCLOUDCOVER\":{\"lookback\":11,\"parameters\":{\"penetration\":0.5}},\"CDLEVENINGSTAR\":{\"lookback\":12,\"parameters\":{\"penetration\":0.3}},\"CDLEVENINGDOJISTAR\":{\"lookback\":12,\"parameters\":{\"penetration\":0.3}},\"CDL3BLACKCROWS\":{\"lookback\":13,\"parameters\":{}},\"CDLSHOOTINGSTAR\":{\"lookback\":11,\"parameters\":{}},\"CDLHANGINGMAN\":{\"lookback\":11,\"parameters\":{}},\"CDLDOJI\":{\"lookback\":10,\"parameters\":{}},\"CDLDRAGONFLYDOJI\":{\"lookback\":10,\"parameters\":{}},\"CDLGRAVESTONEDOJI\":{\"lookback\":10,\"parameters\":{}},\"CDLMARUBOZU\":{\"lookback\":10,\"parameters\":{}},\"CDLKICKING\":{\"lookback\":11,\"parameters\":{}},\"CDLRISEFALL3METHODS\":{\"lookback\":14,\"parameters\":{}},\"CDLMATHOLD\":{\"lookback\":14,\"parameters\":{\"penetration\":0.5}},\"CDLHIKKAKE\":{\"lookback\":5,\"parameters\":{}}}}"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:03.869865894Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:ID01M\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1700-1700\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T21:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:04.019949537Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:ID01MY\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1700-1700\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T21:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:04.392587495Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:ID01\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1700-1700\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T21:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:04.529212124Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:ID01Y\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1700-1700\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T21:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:05.402964484Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:ID03M\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1700-1700\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T21:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:05.561540096Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:ID03MY\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1700-1700\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T21:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:05.731965551Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:ID03\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1700-1700\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T21:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:05.864695445Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:ID03Y\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1700-1700\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T21:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:06.007757326Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:ID05\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1700-1700\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T21:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:06.186229096Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:ID05Y\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1700-1700\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T21:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:06.327695904Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:ID06M\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1700-1700\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T21:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:06.495205627Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:ID06MY\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1700-1700\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T21:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:08.252427947Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:ID10\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1700-1700\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T21:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:08.319135653Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:ID10Y\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1700-1700\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T21:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:08.658356310Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:ID15\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1700-1700\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T21:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:08.788930139Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:ID15Y\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1700-1700\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T21:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:09.223885447Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:ID20\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1700-1700\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T21:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:09.272230330Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:ID20Y\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1700-1700\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T21:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:09.658206496Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:ID25\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1700-1700\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T21:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:09.794344952Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:ID25Y\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1700-1700\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T21:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:10.576916497Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:ID30\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1700-1700\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T21:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:10.704545476Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:ID30Y\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1700-1700\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T21:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:10.824800208Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US01M\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:10.894116761Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US01MY\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:11.036780919Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US01\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:11.184030801Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US01Y\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:11.184033561Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US02M\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:11.238723478Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US02MY\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:11.310317782Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US02\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:11.384116939Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US02Y\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:11.449256223Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US03M\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:11.512722833Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US03MY\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:11.649863614Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US03\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:11.717026811Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US03Y\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:11.858292623Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US04M\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:11.922645429Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US04MY\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:11.989167228Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US05\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:12.197221595Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US05Y\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:12.197225195Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US06M\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:12.197228834Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US06MY\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:12.356737391Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US07\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:12.407529684Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US07Y\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:12.473694438Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US10\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:12.542622428Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US10Y\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:12.625464325Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US20\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:12.701230620Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US20Y\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:12.762324410Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US30\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:12.819753601Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"source_session_verified\""
+          },
+          {
+            "key": "symbol",
+            "value": "\"TVC:US30Y\""
+          },
+          {
+            "key": "provider_timezone",
+            "value": "\"America/New_York\""
+          },
+          {
+            "key": "provider_session",
+            "value": "\"1900-1730\""
+          },
+          {
+            "key": "source_date_mapping",
+            "value": "\"NEXT_BUSINESS_DAY\""
+          },
+          {
+            "key": "target_date",
+            "value": "\"2026-10-19\""
+          },
+          {
+            "key": "latest_source_bar_time",
+            "value": "\"2026-10-19T23:00:00+00:00\""
+          },
+          {
+            "key": "latest_observation_date",
+            "value": "\"2026-10-20\""
+          },
+          {
+            "key": "date_mapping_version",
+            "value": "\"verified-provider-session-label-v4\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:42:32.816259681Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "status",
+            "value": "\"PREPARED_READ_ONLY\""
+          },
+          {
+            "key": "operator_run",
+            "value": "\"fi-selected-20261020-a\""
+          },
+          {
+            "key": "run_id",
+            "value": "\"8bff9518-6410-4738-a25f-699bc69da6d3\""
+          },
+          {
+            "key": "plan_sha256",
+            "value": "\"28872258ef4b41a354dabcde5cf7d04e1620f862105a7466a880bb8ce3366fa8\""
+          },
+          {
+            "key": "markets",
+            "value": "[\"ID\",\"US\"]"
+          },
+          {
+            "key": "dates",
+            "value": "[\"2026-09-30\",\"2026-10-13\",\"2026-10-14\",\"2026-10-15\",\"2026-10-16\",\"2026-10-19\"]"
+          },
+          {
+            "key": "replacement_price_yield_rows",
+            "value": "288"
+          },
+          {
+            "key": "tickers",
+            "value": "24"
+          },
+          {
+            "key": "existing_selected_price_rows",
+            "value": "178"
+          },
+          {
+            "key": "affected_feature_rows",
+            "value": "312"
+          }
+        ]
+      }
+    ]
+  },
+  "apply": {
+    "scope": "deployment",
+    "deploymentId": "3e23614a-d23e-488d-a3e7-b8bdd2c1c8d8",
+    "serviceId": "ec0d3881-c14a-4ba4-98d4-4a763db3802e",
+    "environmentId": "4d3e5af2-302b-4a2e-84e2-7d7476d6ff49",
+    "status": "SUCCESS",
+    "deploy": [
+      {
+        "timestamp": "2026-10-20T11:43:50.282232347Z",
+        "severity": "info",
+        "message": "Mounting volume on: /var/lib/containers/railwayapp/bind-mounts/78838c80-6771-4a9c-85f4-35fbf22438fa/vol_mam7ca28ruu2unit",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:43:50.282272607Z",
+        "severity": "info",
+        "message": "Starting Container",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:43:50.789933230Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"repair_job_start\""
+          },
+          {
+            "key": "stage",
+            "value": "\"apply\""
+          },
+          {
+            "key": "run",
+            "value": "\"fi-selected-20261020-a\""
+          },
+          {
+            "key": "libraries",
+            "value": "{\"python\":\"0.6.8\",\"c\":\"0.6.4 (Oct 20 2025 20:23:51)\",\"numpy\":\"2.3.5\",\"compatibility\":0,\"unstable_period\":0,\"patterns\":{\"CDLPIERCING\":{\"lookback\":11,\"parameters\":{}},\"CDLMORNINGSTAR\":{\"lookback\":12,\"parameters\":{\"penetration\":0.3}},\"CDLMORNINGDOJISTAR\":{\"lookback\":12,\"parameters\":{\"penetration\":0.3}},\"CDLENGULFING\":{\"lookback\":2,\"parameters\":{}},\"CDL3WHITESOLDIERS\":{\"lookback\":12,\"parameters\":{}},\"CDLHAMMER\":{\"lookback\":11,\"parameters\":{}},\"CDLINVERTEDHAMMER\":{\"lookback\":11,\"parameters\":{}},\"CDL3INSIDE\":{\"lookback\":12,\"parameters\":{}},\"CDL3OUTSIDE\":{\"lookback\":3,\"parameters\":{}},\"CDLHARAMI\":{\"lookback\":11,\"parameters\":{}},\"CDLHARAMICROSS\":{\"lookback\":11,\"parameters\":{}},\"CDLDARKCLOUDCOVER\":{\"lookback\":11,\"parameters\":{\"penetration\":0.5}},\"CDLEVENINGSTAR\":{\"lookback\":12,\"parameters\":{\"penetration\":0.3}},\"CDLEVENINGDOJISTAR\":{\"lookback\":12,\"parameters\":{\"penetration\":0.3}},\"CDL3BLACKCROWS\":{\"lookback\":13,\"parameters\":{}},\"CDLSHOOTINGSTAR\":{\"lookback\":11,\"parameters\":{}},\"CDLHANGINGMAN\":{\"lookback\":11,\"parameters\":{}},\"CDLDOJI\":{\"lookback\":10,\"parameters\":{}},\"CDLDRAGONFLYDOJI\":{\"lookback\":10,\"parameters\":{}},\"CDLGRAVESTONEDOJI\":{\"lookback\":10,\"parameters\":{}},\"CDLMARUBOZU\":{\"lookback\":10,\"parameters\":{}},\"CDLKICKING\":{\"lookback\":11,\"parameters\":{}},\"CDLRISEFALL3METHODS\":{\"lookback\":14,\"parameters\":{}},\"CDLMATHOLD\":{\"lookback\":14,\"parameters\":{\"penetration\":0.5}},\"CDLHIKKAKE\":{\"lookback\":5,\"parameters\":{}}}}"
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:43:50.789936609Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "event",
+            "value": "\"migration_applied\""
+          },
+          {
+            "key": "sha256",
+            "value": "\"44e49cc1df0f3c1734c6031275e7af0d7720e45b6e10684bf2aea14844344076\""
+          }
+        ]
+      },
+      {
+        "timestamp": "2026-10-20T11:43:52.989412127Z",
+        "severity": "info",
+        "message": "",
+        "attributes": [
+          {
+            "key": "level",
+            "value": "\"info\""
+          },
+          {
+            "key": "status",
+            "value": "\"APPLIED\""
+          },
+          {
+            "key": "run_id",
+            "value": "\"8bff9518-6410-4738-a25f-699bc69da6d3\""
+          },
+          {
+            "key": "removed_price_rows",
+            "value": "178"
+          },
+          {
+            "key": "removed_feature_rows",
+            "value": "89"
+          },
+          {
+            "key": "inserted_price_rows",
+            "value": "288"
+          },
+          {
+            "key": "feature_rows_inserted_or_updated",
+            "value": "174"
+          },
+          {
+            "key": "tickers",
+            "value": "24"
+          },
+          {
+            "key": "backup_sha256",
+            "value": "\"2c0bfd3af2a4ee0c1a9d503cea19c520eb8b875454f574602929fbf27b44cf55\""
+          },
+          {
+            "key": "post_commit_verified",
+            "value": "true"
+          }
+        ]
+      }
+    ]
+  }
+}

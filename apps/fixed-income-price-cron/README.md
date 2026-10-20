@@ -91,6 +91,6 @@ python -m pip install -r requirements-dev.txt
 pytest -q test_fixed_income_update.py
 ```
 
-## Pending selected-date/session repair (2026-10-20)
+## Selected-date/session repair (2026-10-20)
 
-The provider-session verification reader requires migration `20261013_011_verify_fixed_income_sessions.sql` before rollout. `provider_timezone_name` and `provider_session` verify TradingView metadata; they do not redefine market closing clocks. The one-off ID+US selected-date repair, validation evidence and live blocker are documented in `verification/fixed_income_session_repair/README.md` at repository root. No live rollout or cleansing is claimed.
+The provider-session verification reader requires migration `20261013_011_verify_fixed_income_sessions.sql` before rollout. `provider_timezone_name` and `provider_session` verify TradingView metadata; they do not redefine market closing clocks. The one-off ID+US selected-date repair, validation evidence and live blocker are documented in `verification/fixed_income_session_repair/README.md` at repository root. Migration and six-date cleansing completed and independently verified on2026-10-20. Compatible code rollout is recorded separately in RAILWAY_CHANGELOG.md.

@@ -1,10 +1,20 @@
 # Fixed-income selected-date repair
 
-Status 2026-10-20: user resumed execution via an isolated Git-based Railway job. Live prepare is pending. No live migration,
-cleansing, re-ingestion, Feature writes, cron configuration changes or deployments.
-Execution is blocked by workspace network access to `ssh.railway.com:2226`
-(Railway sandbox WSS execution endpoint). Do not work around this with a relay.
-The temporary read-only Railway sandbox was destroyed.
+Status 2026-10-20: **live repair completed and independently verified at18:43–18:46 WIB**.
+The Git-based job was used after the user resumed execution. No SSH was required.
+Prepared288 selected replacement candles; replaced178 existing source rows;
+144 selected-date Feature rows now exist. All312 affected Feature rows matched
+all51 output columns;174 rows were inserted/updated. All24 queues DONE and
+all1,224 per-column statuses SUCCESS. Independent readback found zero invalid
+selected candles and zero source/Feature close mismatches.
+
+Prepare deployment e9ffd3bf-461e-43ea-b672-b97111ff7bb4 and apply deployment
+3e23614a-d23e-488d-a3e7-b8bdd2c1c8d8 reached SUCCESS. Run ID
+8bff9518-6410-4738-a25f-699bc69da6d3 identifies the24 calculation audit records.
+The temporary service was deleted. The100MB evidence volume
+7f146278-0e8c-40d0-b2cc-7f244252170d remains unattached, preserving the plan,
+pre-migration backup, before-image and results at `/repair/fi-selected-20261020-a/`.
+See LIVE_LOGS.json, LIVE_READBACK.json and VALIDATION.json. Do not replay the plan.
 
 ## Approved scope
 
@@ -30,7 +40,7 @@ October20 at06:02 WIB. Cron clocks alone do not explain missing ID candles:
 the source-session anchor was mapped using the wrong observation-date policy.
 The pending migration verifies provider metadata separately from economic close.
 
-## Execution sequence after network access is restored
+## Historical sandbox runbook (superseded by the Git-based job below)
 
 1. Use a fresh ephemeral Railway sandbox with runtime database references;
    never put credentials in Git, command output or an image. Start with a read-only
@@ -44,8 +54,7 @@ python scripts/repair_fixed_income_dates.py prepare --markets ID US   --dates 20
 
 3. Review the printed plan SHA256 and counts. Preparation aborts if *any* selected
    series/date is absent, non-final, invalid or has unexpected provider metadata.
-   No older candle substitutes for a missing date. Provider availability has **not**
-   yet been freshly established for this repair. The plan expires after24hours.
+   No older candle substitutes for a missing date. Provider availability was established successfully for all288 replacements in this execution. The plan expires after24hours.
 4. With no active writers, apply the tracked forward migration
    `database/migrations/20261013_011_verify_fixed_income_sessions.sql`, verify its
    two metadata columns and unchanged close clocks, then roll out the compatible
@@ -92,7 +101,7 @@ tests: these establish transaction/formula behavior, not live provider coverage.
 Checks cover recursive downstream changes, untouched equity/unselected source
 rows, full rollback after deletion, stale source/queue/state/schedule refusal,
 missing candles, expired/wrong-hash/replayed plans and migration prerequisites.
-Final suite: **107 passed in12.06s**, including the actual forward migration and repeat-run guard against local PostgreSQL with minimal catalog tables. See VALIDATION.json. No Telegram messages are sent by the operator.
+Final suite before live execution: **109 passed in14.63s**, including the actual forward migration and repeat-run guard against local PostgreSQL with minimal catalog tables. See VALIDATION.json. No Telegram messages are sent by the operator.
 
 The recovery-wrapper fixes remain code-only. Existing live recovery services call
 `fixed_income_update.py --mode recovery` directly; activating wrappers is a separate

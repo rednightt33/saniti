@@ -5820,13 +5820,3 @@ perbaikan bug/pesan):**
   alat ditawarkan. Dengan M 30 s saja, panggilan sah DeepSeek di atas akan terpotong palsu. Total 600 s tetap.
 - Temuan teknis: `response.close()` dari utas lain tidak memutus pembacaan socket yang menunggu (diuji dengan server
   lokal yang diam); pengawas mematikan socket (`shutdown`) dulu, lalu menutup respons.
-
-## EXEC-FI-SELECTED-DATES — 2026-10-20 (approved, live blocked)
-
-User: “lakukan cleansing … 19-Oct, 16-Oct, 15-Oct, 14-Oct, 13-Oct, 30-Sep … re-ingest and recalculate feature 04”. Scope answers: “Indonesia dan US”; “Ya, hitung ulang tanggal terdampak agar konsisten”. Dates are in2026.
-
-Implementation and operator sequence: `verification/fixed_income_session_repair/README.md`. Replacement availability is verified before cleansing; backup, stale-state guards and atomic apply are required. Pending migration adds provider timezone/session verification; economic closing clocks remain unchanged. Local tests passed; live execution awaits access to Railway sandbox WSS `ssh.railway.com:2226`. No live data/config/schema change has occurred. Save on `codex/fixed-income-session-repair`; main rollout remains pending safe execution sequencing.
-
-### 2026-10-20 — resumed execution via Git-based Railway job
-
-User: “Okay, kalau gitu. Jalankan yang tadi kamu sebutkan. Siapkan dulu implementation methodnya ya. Goalnya seperti apa nanti?” followed by “Ok, jalankan.” This supersedes the earlier hold for this repair. Scope/dates unchanged. Temporary service ec0d3881-c14a-4ba4-98d4-4a763db3802e has no cron and restart NEVER. First deployment is prepare-only with the existing pgweb read-only reference; apply requires a separately selected stage and reviewed plan/migration hashes. Evidence volume 7f146278-0e8c-40d0-b2cc-7f244252170d persists plan/backup/results; preserve backups before removing compute.

@@ -219,6 +219,6 @@ FROM public.check_analysis_data_readiness(
 
 These rules are also mandatory in `AGENTS.md`, `README.md`, and `database/migrations/README.md`. Do not edit an applied migration or commit credentials.
 
-## Pending fixed-income session metadata — 2026-10-20
+## Applied fixed-income session metadata — 2026-10-20
 
-Migration `20261013_011_verify_fixed_income_sessions.sql` updates the schedule Table_Catalog definition and registers provider_timezone_name/provider_session plus the corrected source_date_mapping definition in Column_Catalog. These describe provider anchors, separately from the economic-market timezone/close. No Feature formula or relationship changes. Not applied live. Operator evidence: `verification/fixed_income_session_repair/README.md`.
+Migration `20261013_011_verify_fixed_income_sessions.sql` updates the schedule Table_Catalog definition and registers provider_timezone_name/provider_session plus the corrected source_date_mapping definition in Column_Catalog. These describe provider anchors, separately from the economic-market timezone/close. No Feature formula or relationship changes. Applied live and independently read back at18:43 WIB. Operator evidence: `verification/fixed_income_session_repair/README.md`.
