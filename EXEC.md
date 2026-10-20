@@ -5587,3 +5587,7 @@ sekitar instruksi tabel; (c) CITING AND CHECKS: bentuk argumen (id disalin persi
 dan pemulihan kedaluwarsa (kirim ulang `submit_arguments` yang sama); (d) log nilai argumen yang ditolak (tanpa data
 sensitif) untuk diagnosis; (e) M185: tabel tanpa `top` mengirim sampai 50 baris, EDGE menampilkan 10 dan tombol buka;
 (f) langkah progres seluruhnya bahasa Inggris (termasuk "ditolak, dicoba lagi").
+- **Usulan (a)+(b) tabel di dalam tabel Markdown: disetujui masuk EXEC (user 2026-10-20: "A ok masukan exec jangan
+  execute dulu").** Butir (c) bentuk argumen dijelaskan ulang ke user sesuai prinsip gerbang (aturan sebelum menulis +
+  apa yang dilakukan saat ditolak); pesan penolakan argumen sekarang (`tools/registry.py:593-608`) menyebut field dan pola
+  regex, tetapi tidak menyebut dari mana nilai yang benar disalin.
