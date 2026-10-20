@@ -5930,3 +5930,48 @@ Research ($0,101/$0,15). Penyedia baru diketahui sesudah panggilan pertama (lalu
   `AI_PROVIDER_SORT=throughput` selama A/B lalu dikembalikan (izin user). Syarat: kredit OpenRouter diisi ulang
   (sisa USD 0,081; perkiraan biaya ±USD 0,25, sampai ±0,4 dengan penyedia mahal); sebelum tiap ganti saklar cek tidak
   ada run `edge_` aktif; saklar dikembalikan ke ON sesudahnya. **Dijalankan hanya sesudah user mengonfirmasi eksekusi.**
+
+**Hasil A/B fastlane 2026-10-20 (6 run, dijalankan atas go user "Jalankan frontend dulu saja, baru A/B").** Runner
+`da17bd6f` (ON t1), `9accc88f` (OFF t1, j2), `c9abbc24` (ON j2, s1), `3c0b4cf6` (OFF s1); DeepSeek V4.1 Flash high,
+jalur Cepat, `AI_PROVIDER_SORT=throughput` di kedua kondisi; ON = `AI_PROVIDER_STREAMING` + `AI_FASTLANE_KEEP_REASONING`
+menyala, OFF = keduanya mati. n=1 per pertanyaan per kondisi.
+
+| | ON | OFF |
+|---|---|---|
+| t1 | 56 s / USD 0,046 | 46 s / USD 0,037 |
+| j2 | 212 s / USD 0,143 | 784 s / USD 0,082 (5 panggilan alat ditolak, 2 eksekusi gagal, 1 data need diulang) |
+| s1 | 93 s / USD 0,059 (2 panggilan ditolak) | 131 s / USD 0,068 (2 ditolak, 1 perbaikan gerbang) |
+| Total | 361 s / USD 0,248 | 961 s / USD 0,187 |
+
+6/6 COMPLETED ANSWER. Dengan penyedia diurutkan menurut throughput, waktu ON jauh di bawah run 20 Okt pagi (1.254 s,
+load balancing) dan di bawah OFF; biaya ON ±33% di atas OFF. Selisih j2 terutama dari gesekan run OFF; n=1, jadi bukan
+bukti statistik. Kondisi live sesudah A/B: OFF + `AI_PROVIDER_SORT=throughput` (pemulihan ditahan user).
+
+**Disetujui dicatat (user 2026-10-20: "(b) ON, tetapi AI_PROVIDER_SORT=throughput tetap dipakai – masukan ke EXEC";
+belum dieksekusi).** Saklar orc dev: `AI_PROVIDER_STREAMING=true`, `AI_FASTLANE_KEEP_REASONING=true`,
+`AI_PROVIDER_SORT=throughput` tetap. Langkah: cek tidak ada run `edge_` aktif; set dua saklar (satu redeploy orc); baca
+ulang; `railway config pull --force` + `railway config plan` (`AI_PROVIDER_SORT` sudah `preserve()` di
+`.railway/railway.ts`); catat di RAILWAY_CHANGELOG. Catatan: dengan `sort`, OpenRouter tidak lagi load balancing
+(endpoint dicoba urut kecepatan langsung), jadi harga per run mengikuti penyedia tercepat; opsi A (urutan penyedia per
+model) tetap rencana terpisah. Fallback: `AI_PROVIDER_SORT` dihapus.
+
+**Disetujui dicatat (user 2026-10-20: "Ya lanjutkan untuk pengerjaan kartu share, sampai tes dan deploy – masukan ke
+EXEC"; jawaban pilihan: .docx asli, sisakan disclaimer saja, PNG lebih tajam dengan tata letak sama, PDF ikut; belum
+dieksekusi).** Kartu share EDGE (PDF, PNG dan pilihan baru Word):
+- A. Logo E di pojok kiri atas: ditanam langsung sebagai SVG inline di kartu (bukan `<img src="/edge-logo.svg">`);
+  tangkapan layar user menunjukkan logo kosong di PNG, sedangkan PNG lokal Chromium menampilkannya, jadi penyebab yang
+  paling mungkin adalah browser user gagal menyematkan gambar luar saat menggambar.
+- B. Kotak pertanyaan: latar hitam, tulisan putih.
+- C. Judul jawaban (`h1`) dihapus dari kartu.
+- D. Baris Evidence: tulisan hitam, lencana centang hijau di sebelah kanan tulisan.
+- E. Assumptions dan Limitations tertutup (hanya judul dan jumlahnya) di kartu.
+- F. Footer: "Made by EDGE AI" dihapus; tinggal Data as of, Request dan "Not investment advice".
+- PNG: tata letak 760 px tetap, skala 3× (2.280 px; dari 1.520 px); batas 16 juta piksel tetap, jadi kartu lebih tinggi
+  dari ±2.340 px CSS memakai skala lebih kecil (minimal 1×).
+- Word (.docx asli): pilihan ketiga di menu Share, dibuat di browser tanpa pustaka luar (`static/edge-docx.js`,
+  dimuat saat dipakai): logo PNG, tanggal, baris metadata, kotak pertanyaan hitam, Evidence, isi jawaban (judul,
+  paragraf tebal/miring, daftar, tabel Word dengan kepala tabel), Assumptions/Limitations sebagai bagian biasa (Word
+  tidak punya bagian terlipat), metodologi, footer; satu file ZIP (OOXML) tanpa kompresi.
+- Tes: `tests/test_share_card.py` diperbarui (logo inline, kotak hitam, tanpa h1, Evidence kanan, catatan tertutup,
+  footer, lebar PNG 2.280) + tes Word (file dibuka sebagai ZIP, XML valid, teks pertanyaan/jawaban/tabel ada); suite
+  EDGE penuh; deploy edge-bff saja, cek SUCCESS; lalu cek visual (PNG, PDF, Word) sesudah A/B selesai (sudah).
