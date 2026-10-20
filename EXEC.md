@@ -5619,3 +5619,15 @@ sensitif) untuk diagnosis; (e) M185: tabel tanpa `top` mengirim sampai 50 baris,
   sesi menganggur (`PY_SANDBOX_SESSION_IDLE_SECONDS`, bawaan 900 s). Usulan poin CITING AND CHECKS: data yang disiapkan
   untuk sebuah jawaban disimpan terbatas (lihat `expires_at`); bila kedaluwarsa, kirim ulang `submit_arguments` yang sama
   dari CONVERSATION RESOURCES; pesan `BUNDLE_EXPIRED` menyebut langkah yang sama.
+
+**Keputusan user 2026-10-20 (statistik; "Masukan EXEC"):** prioritas pertama/default adalah **kode AI sendiri**; fungsi
+statistik backend (`hypothesis_test`, `explore_test`, `event_study`, `backtest`) hanya pendukung ketika user meminta
+verifikasi tambahan. Konsekuensi di kode (belum dikerjakan): catatan mode Insight `EXPLORE_INSIGHT_V2_NOTE` (statistik
+"only from the system", angka lain "is refused") dan gerbang UNRECORDED_TEST (`_unrecorded_statistics`, hanya mode
+Insight) diubah agar statistik kode sendiri diterima; poin 7 CITING AND CHECKS ditulis ulang; baris bukti statistik dan
+koreksi Benjamini-Hochberg sistem hanya mencakup uji yang dicatat alat sistem, jadi jawaban menyebut uji mana yang
+diverifikasi sistem.
+
+**Koreksi prinsip (user 2026-10-20):** CITING AND CHECKS bukan satu-satunya sumber; dua tempat wajib: (1) CITING AND
+CHECKS = aturan terpusat sebelum menulis; (2) pesan penolakan saat alat dijalankan = jelas apa yang salah, kenapa, dan
+apa yang harus dilakukan.
