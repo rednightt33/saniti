@@ -6297,3 +6297,6 @@ orc = O (saklar mati) → nyalakan → ukur; R4/R5 saat Railway menerima deploy.
 README, DATABASE_CHANGELOG (Tool_Catalog). Status: **menunggu konfirmasi user** (pembatalan R2, (c) untuk MAX,
 penyedia opsi A, go eksekusi). Railway terakhir menjawab "Deploys have been paused temporarily"; dicek ulang saat
 eksekusi.
+- **Go user 2026-10-20 ("Nomor 1, oke … nomor 2 dibatalkan. Nomor 2, kita pakai max 128K … Ya, nomor 3 juga pakai
+  penyedia sekarang. Jalankan exec"):** R1 dijalankan, R2 dibatalkan; MAX = 128K saja (opsi (a), tanpa (c));
+  penyedia tetap seperti sekarang (`AI_PROVIDER_SORT=throughput`, opsi A tidak dikerjakan); Push 1 → 2 → 3 dijalankan.
