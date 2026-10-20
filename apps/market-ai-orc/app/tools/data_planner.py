@@ -110,6 +110,68 @@ def split_entities(partition: dict[str, int] | None, parts: int) -> list[dict[st
     return [{"modulus": refined, "remainder": remainder + modulus * j} for j in range(parts)]
 
 
+class EstimateCache:
+    """R1 (user 2026-10-20, go "opsi 1"; AI_PLANNER_REUSE_ESTIMATES): the feasibility check and prepare_data_bundle of
+    one request estimate the same extraction SQL (Governor log 2026-10-20: 136 of 139 repeated estimates were draft_
+    then need_ of one request). A WITHIN_LIMITS answer whose rows the Governor counted is kept per (request_id,
+    extraction_sha256) and answers a later estimate of the same SQL whose count cap it is below: the Governor would
+    answer the same (WITHIN_LIMITS does not depend on planned_parts, a count below the cap is exact). Every other
+    answer goes to the Governor as before; extraction still checks every part."""
+
+    def __init__(self, ttl_seconds: float = 600.0, max_entries: int = 4096) -> None:
+        self.enabled = True
+        self.ttl_seconds = ttl_seconds
+        self.max_entries = max_entries
+        self._lock = threading.Lock()
+        self._entries: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
+
+    def get(self, request_id: str, extraction: str, count_cap: int | None) -> dict[str, Any] | None:
+        if not self.enabled or not request_id:
+            return None
+        with self._lock:
+            entry = self._entries.get((request_id, extraction))
+            if entry is None or time.monotonic() - entry[0] > self.ttl_seconds:
+                return None
+            response = entry[1]
+        rows = int((response.get("estimates") or {}).get("result_rows") or 0)
+        if count_cap is not None and rows >= count_cap:
+            return None
+        return {**response, "estimates": dict(response.get("estimates") or {}),
+                "warnings": list(response.get("warnings") or [])}  # a copy: callers never change the kept answer
+
+    def put(self, request_id: str, extraction: str, response: dict[str, Any]) -> None:
+        estimates = response.get("estimates") or {}
+        if not self.enabled or not request_id or response.get("status") != "WITHIN_LIMITS" \
+                or estimates.get("row_basis") != "COUNTED":
+            return
+        now = time.monotonic()
+        with self._lock:
+            if len(self._entries) >= self.max_entries:
+                for key in [k for k, (t, _) in self._entries.items() if now - t > self.ttl_seconds] \
+                        or sorted(self._entries, key=lambda k: self._entries[k][0])[:self.max_entries // 4]:
+                    self._entries.pop(key, None)
+            self._entries[(request_id, extraction)] = (now, response)
+
+
+ESTIMATES = EstimateCache()
+# R1: the estimates one prepare took from ESTIMATES, for its log line
+reused_estimates: contextvars.ContextVar[list[int] | None] = contextvars.ContextVar("reused_estimates", default=None)
+
+
+def governor_estimate(governor: Any, spec: dict[str, Any], lineage: dict[str, Any], **options: Any) -> dict[str, Any]:
+    """One estimate_only extraction, answered from ESTIMATES when it holds the same SQL of this request."""
+    request_id = current_request_id.get() or ""
+    cached = ESTIMATES.get(request_id, lineage["extraction_sha256"], options.get("count_cap"))
+    if cached is not None:
+        counter = reused_estimates.get()
+        if counter is not None:
+            counter[0] += 1
+        return cached
+    response = governor.extract(spec, lineage, estimate_only=True, **options)
+    ESTIMATES.put(request_id, lineage["extraction_sha256"], response)
+    return response
+
+
 @dataclass
 class Part:
     window: dict[str, str] | None
@@ -260,8 +322,17 @@ class ExecutionPlanner:
                 # A2: every part of every request fits by estimate before any row is read; G14: and all of them
                 # together fit one bundle
                 budget = PlanBudget(self.max_bundle_rows)
-                for rid in sorted(need["requests"]):
-                    chosen[rid] = self._preflight(need, plan_id, need["requests"][rid], budget)[0]
+                counter = [0]
+                token = reused_estimates.set(counter)
+                try:
+                    for rid in sorted(need["requests"]):
+                        chosen[rid] = self._preflight(need, plan_id, need["requests"][rid], budget)[0]
+                finally:
+                    reused_estimates.reset(token)
+                if counter[0]:
+                    from ..orchestrator import log_event
+
+                    log_event("planner_estimate_reused", request_id=request_id, need_id=need_id, estimates=counter[0])
                 if reuse:
                     # V-f: a part another prepare of this conversation is extracting now is waited for, then reused
                     keys = {(str(current_conversation_key.get()), p.data_sha256, part_key(p.window, p.entity_partition))
@@ -368,7 +439,7 @@ class ExecutionPlanner:
                            "plan_id": plan_id, "part_key": part_key(part.window, part.entity_partition),
                            "envelope": part.envelope, "catalog_sha256": draft.get("catalog_sha256"),
                            "extraction_sha256": sha256_json(spec)}
-                response = self.governor.extract(spec, lineage, planned_parts=1, estimate_only=True)
+                response = governor_estimate(self.governor, spec, lineage, planned_parts=1)
                 self._note_basis(response)
                 status = response.get("status")
                 rows = (response.get("estimates") or {}).get("result_rows") or 0
@@ -440,9 +511,8 @@ class ExecutionPlanner:
         budget.estimates -= 1
         spec = extraction_spec(entry, part)
         cap = budget.count_cap()
-        response = self.governor.extract(spec, self._lineage(source, plan_id, entry, part, spec),
-                                         planned_parts=planned, estimate_only=True,
-                                         **({"count_cap": cap} if cap is not None else {}))
+        response = governor_estimate(self.governor, spec, self._lineage(source, plan_id, entry, part, spec),
+                                     planned_parts=planned, **({"count_cap": cap} if cap is not None else {}))
         self._note_basis(response)
         basis = (response.get("estimates") or {}).get("row_basis")
         if basis and response.get("status") == "WITHIN_LIMITS":

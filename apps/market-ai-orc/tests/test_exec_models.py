@@ -311,3 +311,43 @@ def test_without_a_choice_a_runaway_lowers_the_server_default_to_low() -> None:
     AgentOrchestrator(settings, scripted, build_default_registry()).run(request())
     assert scripted.payloads[1]["reasoning"] == settings.reasoning("low")
     assert scripted.payloads[0]["reasoning"] == settings.reasoning(settings.ai_reasoning_effort)
+
+
+MAX_ENV = {"AI_MAX_LEVEL_OUTPUT_TOKENS": "128000", "AI_MAX_LEVEL_REQUEST_TIMEOUT_SECONDS": "900",
+           "AI_MAX_CONTEXT_TOKENS": "500000", "AI_MAX_OUTPUT_TOKENS": "24000", "AI_REQUEST_TIMEOUT_SECONDS": "600",
+           "AI_MAX_ANALYSIS_SECONDS": "1800"}
+
+
+class OptionsClient(ScriptedClient):
+    def __init__(self, script: list) -> None:
+        super().__init__(script)
+        self.options: list[dict[str, Any]] = []
+
+    def create(self, payload, **options):
+        self.options.append(options)
+        return super().create(payload, **options)
+
+
+@pytest.mark.parametrize("level,cap,timeout", [("max", 128000, 900.0), ("high", 24000, None), ("low", 24000, None)])
+def test_the_max_level_has_its_own_output_cap_and_call_limit(level, cap, timeout) -> None:
+    """M (user 2026-10-20: "max 128K", option a): only the level max takes 128K tokens and a 900 s call limit."""
+    settings = make_settings(**MAX_ENV)
+    scripted = OptionsClient([final_response(ANSWER)])
+    orc = AgentOrchestrator(settings, scripted, build_default_registry())
+    token = current_model_choice.set(resolve("deepseek/deepseek-v4.1-flash", level, settings))
+    try:
+        from test_orchestrator import request
+        assert orc.run(request()).status == "COMPLETED"
+    finally:
+        current_model_choice.reset(token)
+    assert scripted.payloads[0]["max_output_tokens"] == cap
+    assert scripted.options[0].get("timeout") == timeout
+
+
+def test_the_max_level_settings_are_checked() -> None:
+    from app.config import ConfigError
+    with pytest.raises(ConfigError, match="AI_MAX_LEVEL_OUTPUT_TOKENS"):
+        make_settings(**{**MAX_ENV, "AI_MAX_CONTEXT_TOKENS": "128000"})
+    with pytest.raises(ConfigError, match="AI_MAX_LEVEL_REQUEST_TIMEOUT_SECONDS"):
+        make_settings(**{**MAX_ENV, "AI_MAX_LEVEL_REQUEST_TIMEOUT_SECONDS": "2400"})
+    assert make_settings().ai_max_level_output_tokens == 0  # unset: max runs like the other levels

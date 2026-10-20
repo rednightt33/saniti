@@ -80,3 +80,14 @@ class ScriptedClient:
 @pytest.fixture
 def settings() -> Settings:
     return make_settings()
+
+
+@pytest.fixture(autouse=True)
+def _fresh_estimate_cache():
+    """R1: the planner's estimate cache is per process; no test sees another test's estimates."""
+    from app.tools.data_planner import ESTIMATES
+
+    ESTIMATES._entries.clear()
+    ESTIMATES.enabled = True
+    yield
+    ESTIMATES._entries.clear()

@@ -84,6 +84,13 @@ PROGRESS_EFFECTS = {"READS": "Reading the catalog and results", "OWN_ARTIFACT": 
 HURDLE_REFUSED = "{step} refused{why}"
 HURDLE_FAILED = "{step} failed{why}"
 HURDLE_GATE = "The answer check sent the draft back{why}"
+# H (user 2026-10-20, go): a gate that did not send the draft back says what it did instead, without "not resolved"
+# (advice mode labels and sends; orchestrator GATE_OUTCOMES)
+HURDLE_GATE_DONE = {
+    "ANNOTATED": "The answer check labelled a part of the answer{why}; the answer was sent with the label.",
+    "FORCED_LIMITATION": "The answer check could not pass the draft{why}; it was sent marked as not validated.",
+    "CONFIRMED": "The answer check listed values{why} for you to confirm before anything runs.",
+}
 HURDLE_FORMAT = "The answer's format was asked for again{why}"
 # why a step or a draft was refused, in the interface's words (EDGE shows the hurdles outside the answer)
 HURDLE_WORDS = {
@@ -106,7 +113,7 @@ HURDLE_WORDS = {
 INTERFACE_TEXTS = frozenset({
     "PROGRESS_ROUTING", "PROGRESS_THINKING", "PROGRESS_SERVICES_WAIT", "PROGRESS_SANDBOX_SESSION", "PROGRESS_EFFECTS",
     "PROGRESS_PROVIDER_RETRY", "PROGRESS_RUNAWAY_RETRY", "REASONING_RUNAWAY_MESSAGE", "HURDLE_STEPS",
-    "HURDLE_TOOL_STEP", "HURDLE_REFUSED", "HURDLE_FAILED", "HURDLE_GATE", "HURDLE_FORMAT", "HURDLE_WORDS",
+    "HURDLE_TOOL_STEP", "HURDLE_REFUSED", "HURDLE_FAILED", "HURDLE_GATE", "HURDLE_GATE_DONE", "HURDLE_FORMAT", "HURDLE_WORDS",
     "HURDLE_OVERCOME", "HURDLE_OPEN"})
 # a bare status says nothing the sentence does not already say: no reason is shown (Run A 2026-10-12: "(rejected)")
 HURDLE_BARE_STATUSES = frozenset({"REJECTED", "ERROR", "FAILED", "INCOMPLETE"})
@@ -122,6 +129,8 @@ def hurdle_text(stage: str, name: str | None, code: str | None, outcome: str | N
     parts = [part.strip() for part in str(code or name or "").split(",") if part.strip()]
     why = reason(", ".join(hurdle_words(part) for part in parts if part.upper() not in HURDLE_BARE_STATUSES)
                  or ("" if parts else hurdle_words(outcome)))
+    if stage == "GATE" and outcome in HURDLE_GATE_DONE:
+        return HURDLE_GATE_DONE[outcome].format(why=reason(hurdle_words(name)) if not code else why)
     if stage == "GATE":
         line = HURDLE_GATE.format(why=reason(hurdle_words(name)) if not code else why)
     elif stage == "FORMAT":

@@ -4575,8 +4575,11 @@ class AgentOrchestrator:
             call_started = time.monotonic()
             # EXEC-FASTLANE R4: on the fast lane one call waits at most lanes.FAST_CALL_SECONDS (once per run), unless
             # AI_FASTLANE_KEEP_REASONING lets every call work at the chosen level
-            capped: dict[str, Any] = {"timeout": lanes.FAST_CALL_SECONDS, "attempts": 1} \
-                if state.lane == lanes.FAST and state.lane_timeouts == 0 and not self._keeps_reasoning(state) else {}
+            lane_cut = state.lane == lanes.FAST and state.lane_timeouts == 0 and not self._keeps_reasoning(state)
+            capped: dict[str, Any] = {"timeout": lanes.FAST_CALL_SECONDS, "attempts": 1} if lane_cut else {}
+            max_seconds = int(getattr(self.settings, "ai_max_level_request_timeout_seconds", 0) or 0)
+            if not lane_cut and max_seconds and self._max_level(state):
+                capped["timeout"] = float(max_seconds)  # M: a 128K call needs longer than the other levels
             if self.settings.ai_provider_streaming:
                 capped["retry_stalls"] = False  # EXEC-M181: a stalled call is asked again here, where the user sees it
             try:
@@ -4588,7 +4591,7 @@ class AgentOrchestrator:
                 if exc.code == RUN_DEADLINE:
                     return self._exhausted(state, "ANALYSIS_TIMEOUT")
                 if exc.code == "PROVIDER_STALLED" or (self.settings.ai_provider_streaming
-                                                       and exc.code == "PROVIDER_TIMEOUT" and "timeout" not in capped):
+                                                       and exc.code == "PROVIDER_TIMEOUT" and not lane_cut):
                     if state.provider_retries >= MAX_PROVIDER_STALL_RETRIES:
                         raise
                     # EXEC-M181 (user 2026-10-20): asked once more at the same level, and the user sees it
@@ -4598,7 +4601,7 @@ class AgentOrchestrator:
                     with progress.step(texts.PROGRESS_PROVIDER_RETRY):
                         pass
                     continue
-                if "timeout" in capped and exc.code == "PROVIDER_TIMEOUT":
+                if lane_cut and exc.code == "PROVIDER_TIMEOUT":
                     state.lane_timeouts += 1
                     state.reasoning_lowered = True  # asked again once with lower reasoning
                     log_event("ai_lane_call_timeout", request_id=state.request_id, iteration=state.iterations + 1,
@@ -4856,10 +4859,20 @@ class AgentOrchestrator:
         return state.model_choice.model if state.model_choice is not None else self.settings.ai_model
 
     def _output_cap(self, state: RunState) -> int:
-        """EXEC-LOGOS: the output cap of one loop call, reasoning included (lower for MiMo Flash on)."""
+        """EXEC-LOGOS: the output cap of one loop call, reasoning included (lower for MiMo Flash on). M (user
+        2026-10-20): the level "max" takes AI_MAX_LEVEL_OUTPUT_TOKENS when set."""
         choice = state.model_choice
         cap = choice.output_cap if choice is not None else None
-        return min(cap, self.settings.ai_max_output_tokens) if cap else self.settings.ai_max_output_tokens
+        limit = self.settings.ai_max_output_tokens
+        if self._max_level(state):
+            limit = int(self.settings.ai_max_level_output_tokens)
+        return min(cap, limit) if cap else limit
+
+    def _max_level(self, state: RunState) -> bool:
+        """M (user 2026-10-20, option a): a call at the reasoning level "max" with its own output cap set."""
+        choice = state.model_choice
+        return choice is not None and choice.level == "max" \
+            and int(getattr(self.settings, "ai_max_level_output_tokens", 0) or 0) > 0
 
     def _keeps_reasoning(self, state: RunState) -> bool:
         """AI_FASTLANE_KEEP_REASONING (user 2026-10-19): the fast lane keeps the chosen reasoning on every call."""

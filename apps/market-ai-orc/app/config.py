@@ -211,6 +211,10 @@ class Settings:
     # EXEC-UI-1019B branch behaviours (user 2026-10-19): the fast lane keeps the chosen reasoning on every call (no low
     # after the first call, no 90 s cut) and a runaway is asked again at the same level with a shorter-answer note
     ai_fastlane_keep_reasoning: bool = False
+    # M (user 2026-10-20: "max 128K", option a): the reasoning level "max" gets its own output cap and call limit per
+    # model call; 0 keeps max at AI_MAX_OUTPUT_TOKENS and AI_REQUEST_TIMEOUT_SECONDS like the other levels
+    ai_max_level_output_tokens: int = 0
+    ai_max_level_request_timeout_seconds: int = 0
     # reasoning.max_tokens of a model whose thinking is on/off with a budget (Qwen); 8000 was the fixed value
     ai_max_reasoning_tokens: int = 8000
     # OpenRouter provider routing for the agent's model calls: provider.sort "price", "throughput" or "latency". Unset
@@ -304,6 +308,9 @@ class Settings:
     # G15 (plan step 2.4): parts the Execution Planner extracts at the same time once the preflight chose them, 1-4;
     # 1 is the sequential order as before. Each part is still one Governor request with its own checks.
     ai_planner_parallel_parts: int = 1
+    # R1 (user 2026-10-20): prepare_data_bundle takes the Governor's counted WITHIN_LIMITS estimate of the same SQL
+    # from the feasibility check of the same request instead of estimating it again. Off: every estimate goes out.
+    ai_planner_reuse_estimates: bool = True
     # M45 (plan step 6): a refused final draft that is a JSON object may be repaired with an edit object
     # ({"edits": [{"find", "replace"}], "fields": {...}}) instead of a full rewrite; every check runs again on the
     # edited answer and an edit that does not apply exactly falls back to the full rewrite. Off: as before.
@@ -483,6 +490,8 @@ class Settings:
             ai_stream_idle_seconds=_integer(env, "AI_STREAM_IDLE_SECONDS", 30, minimum=5),
             ai_stream_tool_idle_seconds=_integer(env, "AI_STREAM_TOOL_IDLE_SECONDS", 120, minimum=5),
             ai_fastlane_keep_reasoning=_boolean(env, "AI_FASTLANE_KEEP_REASONING", False),
+            ai_max_level_output_tokens=_integer(env, "AI_MAX_LEVEL_OUTPUT_TOKENS", 0, minimum=0),
+            ai_max_level_request_timeout_seconds=_integer(env, "AI_MAX_LEVEL_REQUEST_TIMEOUT_SECONDS", 0, minimum=0),
             ai_max_reasoning_tokens=_integer(env, "AI_MAX_REASONING_TOKENS", 8000, minimum=1024),
             ai_provider_sort=(env.get("AI_PROVIDER_SORT") or "").strip().lower() or None,
             ai_log_provider=_boolean(env, "AI_LOG_PROVIDER", False),
@@ -520,6 +529,7 @@ class Settings:
             ai_enable_analysis_path=_boolean(env, "AI_ENABLE_ANALYSIS_PATH", False),
             ai_enable_preflight_parts=_boolean(env, "AI_ENABLE_PREFLIGHT_PARTS", False),
             ai_planner_parallel_parts=_integer(env, "AI_PLANNER_PARALLEL_PARTS", 1),
+            ai_planner_reuse_estimates=_boolean(env, "AI_PLANNER_REUSE_ESTIMATES", True),
             ai_enable_edit_repair=_boolean(env, "AI_ENABLE_EDIT_REPAIR", False),
             ai_capture_reasoning=_boolean(env, "AI_CAPTURE_REASONING", False),
             ai_replay_reasoning=_boolean(env, "AI_REPLAY_REASONING", False),
@@ -616,6 +626,15 @@ class Settings:
         if settings.py_sandbox_poll_wait_seconds > min(60, settings.py_sandbox_request_timeout_seconds - 10):
             raise ConfigError("PY_SANDBOX_POLL_WAIT_SECONDS must be <= 60 and at least 10 s below "
                               "PY_SANDBOX_REQUEST_TIMEOUT_SECONDS")
+        if settings.ai_max_level_output_tokens and settings.ai_max_level_output_tokens >= \
+                settings.ai_max_context_tokens * settings.ai_context_soft_limit_ratio:
+            raise ConfigError("AI_MAX_LEVEL_OUTPUT_TOKENS must be below AI_MAX_CONTEXT_TOKENS x "
+                              "AI_CONTEXT_SOFT_LIMIT_RATIO")
+        if settings.ai_max_level_request_timeout_seconds and not (
+                settings.ai_request_timeout_seconds <= settings.ai_max_level_request_timeout_seconds
+                <= settings.ai_max_analysis_seconds):
+            raise ConfigError("AI_MAX_LEVEL_REQUEST_TIMEOUT_SECONDS must be from AI_REQUEST_TIMEOUT_SECONDS to "
+                              "AI_MAX_ANALYSIS_SECONDS")
         if settings.ai_request_timeout_seconds > settings.ai_max_analysis_seconds:
             raise ConfigError("AI_REQUEST_TIMEOUT_SECONDS must not exceed AI_MAX_ANALYSIS_SECONDS")
         if settings.ai_provider_streaming and max(settings.ai_stream_first_content_seconds,

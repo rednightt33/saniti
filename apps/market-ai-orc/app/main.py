@@ -27,6 +27,7 @@ from .audit_outbox import AuditOutbox
 from .mode4 import Mode4Orchestrator
 from .modes import MODES, current_caller_path, effective_default, path_for, resolve_mode
 from . import follow_ups, progress, stop, user_texts
+from .tools import data_planner
 from .runtime_recovery import RuntimeRecovery
 from .orchestrator import AgentOrchestrator, log_event
 from .provider_log import ProviderLogger
@@ -351,6 +352,7 @@ def create_app(
             else:
                 log_event("run_memory_inactive", reason="needs the conversation store and a readable "
                                                         "AI_conversation_run_memory (migration 20261006_003)")
+        data_planner.ESTIMATES.enabled = settings.ai_planner_reuse_estimates  # R1
         registry = build_default_registry(
             catalog,
             catalog_timeout_seconds=(

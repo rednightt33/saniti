@@ -86,3 +86,17 @@ def test_a_bare_status_is_not_shown_as_the_reason() -> None:
         "A work step refused, not resolved."
     assert hurdle_text("TOOL", "submit_data_need_spec", "RELATIONSHIP_KEY_MISMATCH", "REFUSED", True) == \
         "Data request refused (the keys joining the tables do not match), then fixed."
+
+
+def test_a_gate_hurdle_says_what_the_check_did() -> None:
+    """H (user 2026-10-20; live j2 2026-10-20): advice mode labels a part and sends the answer without asking the model
+    again, so its hurdle is not "sent the draft back … not resolved"; a draft sent back keeps the old wording."""
+    from app.user_texts import hurdle_text
+    assert hurdle_text("GATE", "REFERENCE", None, "ANNOTATED", False) == \
+        "The answer check labelled a part of the answer (a figure's reference was not recognised); the answer was sent with the label."
+    assert hurdle_text("GATE", "UNITS", None, "FORCED_LIMITATION", False) == \
+        "The answer check could not pass the draft (a figure's unit was missing); it was sent marked as not validated."
+    assert hurdle_text("GATE", "REFERENCE", None, "REJECTED_FOR_REPAIR", True) == \
+        "The answer check sent the draft back (a figure's reference was not recognised), then fixed."
+    assert hurdle_text("GATE", "REFERENCE", None, "REJECTED_FOR_REPAIR", False) == \
+        "The answer check sent the draft back (a figure's reference was not recognised), not resolved."

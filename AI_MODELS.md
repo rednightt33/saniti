@@ -79,6 +79,8 @@ Nilai seperti `self.settings.ai_model` atau `slot.model` dibaca dari setelan di 
 | `AI_MAX_ANALYSIS_SECONDS` | `600` |
 | `AI_MAX_CONTEXT_TOKENS` | `64000` |
 | `AI_MAX_HISTORY_TOKENS` | `4000` |
+| `AI_MAX_LEVEL_OUTPUT_TOKENS` | `0` |
+| `AI_MAX_LEVEL_REQUEST_TIMEOUT_SECONDS` | `0` |
 | `AI_MAX_OUTPUT_TOKENS` | `8000` |
 | `AI_MAX_REASONING_TOKENS` | `8000` |
 | `AI_MODE4_AUTO_RESEARCH` | `False` |
