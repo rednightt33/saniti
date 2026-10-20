@@ -5915,3 +5915,18 @@ Research ($0,101/$0,15). Penyedia baru diketahui sesudah panggilan pertama (lalu
    di kode lama, padahal semua pesan EDGE berjalan di jalur Cepat. Usulan: hapus label itu.
 - Catatan: "Bagikan"/"Bukti: …" di tangkapan layar berasal dari tab yang dimuat sebelum deploy edge-bff `ffc4d6a3`;
   EDGE live kini menyajikan label Inggris (dicek: `Share`, `Evidence: `; `Cache-Control: no-store`).
+
+**Disetujui dicatat (user 2026-10-20, tangkapan layar "T"; belum dieksekusi, menunggu konfirmasi eksekusi user):**
+- **Baris Evidence:** selain jarak yang disamakan (butir 2 di atas: metadata → Evidence 10 px), baris "Evidence: …"
+  memakai ukuran dan jenis huruf yang sama dengan "Request edge_…" di baris metadata (terukur 9,52 px di layout
+  monitor; tag sekarang 14 px), ditambah ikon centang putih di dalam lingkaran hijau di sebelah kirinya (seperti
+  tangkapan layar user), untuk label bukti yang positif. Label bukti lain (mis. "Exploratory, not verified") tanpa
+  ikon hijau; tesnya memeriksa ukuran huruf, ikon dan jaraknya.
+- **Label "Standard":** dihapus dari status kotak pesan saat run berjalan (butir 8 di atas), disetujui.
+- **A/B fastlane sekarang vs kondisi V5 ON 14 Okt:** 6 run (t1, j2, s1 × 1 ulangan × 2 kondisi), urutan diselang-seling.
+  ON = `AI_PROVIDER_STREAMING` dan `AI_FASTLANE_KEEP_REASONING` menyala (kondisi sekarang); OFF = keduanya mati (tanpa
+  streaming, potongan 90 s dan level low sesudah panggilan pertama, setara V5). Penyedia dikunci untuk kedua kondisi:
+  bila opsi A (urutan penyedia per model) sudah dikerjakan, lewat pengaturan itu; bila belum,
+  `AI_PROVIDER_SORT=throughput` selama A/B lalu dikembalikan (izin user). Syarat: kredit OpenRouter diisi ulang
+  (sisa USD 0,081; perkiraan biaya ±USD 0,25, sampai ±0,4 dengan penyedia mahal); sebelum tiap ganti saklar cek tidak
+  ada run `edge_` aktif; saklar dikembalikan ke ON sesudahnya. **Dijalankan hanya sesudah user mengonfirmasi eksekusi.**
