@@ -6460,7 +6460,17 @@ Keputusan user 2026-10-21 ("Yg OK masukan exec jangan execute dulu"):
 
 Pertanyaan terbuka:
 - a. Dijawab di butir 10.
-- b. Nomor 3 kebijakan anomali (saham-hari total beli ≠ total jual, 2016–2020, M157): user menanyakan besarnya gap.
+- b. Dijawab di e.
 - c. Nomor 10 branch: jawaban "Ok" untuk pertanyaan dua pilihan (main atau branch sesi) perlu dipastikan.
-- d. Definisi sesi untuk window (Phase 0 rekomendasi: tanggal ticker punya baris di papan mana pun, seperti Feature 02)
-  belum dijawab.
+- d. Dijawab 2026-10-21 (user: "bisa saya konfirmasi bahwa fitur 5 dan 6 juga akan menggunakan definisi yang sama.
+  Jadi kolom digunakan permutasi, sedangkan yang di show di table adalah hanya mereka yang memiliki transaksi"):
+  definisi sama dengan Feature 02 (`scripts/backfill_feature_02_v2.py:69-89`). Sesi = tanggal ticker punya baris di
+  papan mana pun (bukan hari broker aktif, bukan hari kalender); untuk menghitung, setiap papan yang pernah dipakai
+  ticker diberi baris di setiap sesi dengan nol bila kosong; tabel hanya menyimpan baris yang bertransaksi. F05 tanpa
+  window. Window belum penuh = NULL; rasio penyebut nol = NULL; sembilan tanggal yang hilang bukan sesi. Z-score dan
+  persentil memakai baseline N sesi sebelumnya dan rumus ≤ sesuai prompt (bukan 252 / midrank Feature 02).
+  Dicek ke data: tabel harga dan Feature 04 juga hanya punya baris di hari saham bertransaksi (2025: 297 dari 835
+  ticker punya hari bursa tanpa harga; Desember 2025 61 ticker < 20 baris BBCA, 0 hari dengan transaksi Regular
+  tanpa harga), jadi 5D Feature 02/04/06 berarti 5 sesi saham yang sama.
+- e. Nomor 3 (anomali) dijawab: "Ok B.. source balance gap hanya untuk informasi internal saja nantinya" — kolom
+  `source_balance_gap` di F05/F06 dengan `ai_allowed = false`.
