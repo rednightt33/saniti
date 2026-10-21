@@ -6401,3 +6401,39 @@ sehingga perubahan teksnya butuh migrasi round_ab; teks prompt berubah → snaps
    crash worker). Tool_Catalog round_ab diterapkan (job `5e1c7820`, run_python v10 terbaca kembali). `main` `27ede80`;
    orc `fad7e368` dan sandbox `c1e5db31` SUCCESS. Efek pada run nyata belum diukur (perlu run yang memakai
    `in_period` / `emit_json`).
+
+### EXEC-F05-F06: Feature 05 (broker detail) dan Feature 06 (foreign/domestic stock-level, 73 field) (dicatat 2026-10-21; belum dieksekusi)
+
+Sumber: prompt user 2026-10-21 "Implementation Prompt — Feature 05 & Feature 06 Foreign/Domestic Flow Analytics"
+(arsitektur LOCKED: `IDX_Broker_Summary` → `feature_05_foreign_domestic_broker_detail` → `feature_06_foreign_domestic`;
+F06 hanya dari F05; 73 nama field dipertahankan). Phase 0 (inspeksi read-only lewat pgweb) selesai 2026-10-21;
+laporan di sesi (`F05_F06_PHASE0_INSPECTION.md`, scratchpad sesi `19951df2`). Fakta utama: join
+`IDX_Broker_Summary` ⟷ `IDX_Broker_Summary_Freq` 1:1 pada kunci 5 kolom (130 bulan, tanpa fan-out); Σ freq = NF 100%;
+unit Value rupiah, Lots lot (×100 = volume harga), Freq jumlah transaksi per sisi; BS berhenti 2026-08-31, Freq/NF
+2026-10-09; volume Postgres 50 GB terpakai 41 GB.
+
+Keputusan user 2026-10-21 ("Yg OK masukan exec jangan execute dulu"):
+1. Disk: "A - resize to 100 GB" — volume Postgres dinaikkan ke 100 GB sebelum DDL/backfill, lalu desain prompt apa
+   adanya (Phase 1 kolom `buy_freq`/`sell_freq` di `IDX_Broker_Summary`, F05 dan F06 sebagai tabel; lihat pertanyaan
+   terbuka a).
+2. Sembilan tanggal yang tidak ada di BS (2016-05-11, 2016-11-02, 2016-11-28, 2016-11-30, 2016-12-27, 2016-12-29,
+   2016-12-30, 2017-02-07, 2017-03-16; semua ticker): "B - biarkan sebagai gap", "remark di errors ya". Window yang
+   menyentuhnya NULL; entri ERRORS ditulis saat eksekusi, setelah cek `Price_Stock_Indonesia_IDX` dan
+   `stockbit_broker_summary_load_log` (tertunda: akses variabel Railway di sesi ini ditolak).
+4. Simbol non-saham (waran, right, waran terstruktur): "Ok - B" — ikut di F05/F06 dengan frekuensi NULL (Freq hanya
+   memuat simbol 4 huruf).
+6. ALL board: "Tidak usah ada dulu ALL karena table broker summary juga dipisah" — F06 per papan saja.
+7. Rumus: "Ok" — std sampel (n−1), z-score NULL bila std = 0, persentil memakai ≤ seperti prompt, uang/lot/freq
+   `numeric`, rasio dan statistik `double precision`.
+8. Refresh: "Ok" — fungsi SQL dengan rentang tanggal + ticker dan warm-up 60 sesi, dipanggil manual setelah muatan
+   BS (pola Feature 02/03); tanpa worker baru.
+9. Sumber ingestion: "Ok - untuk source leave as is. Proses ini hanyalah pembentukan feature 5 dan 6." — pemuat
+   Freq/NF tidak diubah.
+
+Pertanyaan terbuka:
+- a. F05/F06 tabel atau view, dan strategi hitung ulang (seluruh riwayat per ticker seperti Feature 02, per tanggal
+  seperti Feature 03, atau suffix dari tanggal terkoreksi seperti Feature 04); user bertanya 2026-10-21.
+- b. Nomor 3 kebijakan anomali (saham-hari total beli ≠ total jual, 2016–2020, M157): user menanyakan besarnya gap.
+- c. Nomor 10 branch: jawaban "Ok" untuk pertanyaan dua pilihan (main atau branch sesi) perlu dipastikan.
+- d. Definisi sesi untuk window (Phase 0 rekomendasi: tanggal ticker punya baris di papan mana pun, seperti Feature 02)
+  belum dijawab.
