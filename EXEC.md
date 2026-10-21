@@ -6430,9 +6430,21 @@ Keputusan user 2026-10-21 ("Yg OK masukan exec jangan execute dulu"):
 9. Sumber ingestion: "Ok - untuk source leave as is. Proses ini hanyalah pembentukan feature 5 dan 6." — pemuat
    Freq/NF tidak diubah.
 
+10. Tabel dan hitung ulang incremental (user 2026-10-21: "Ok untuk feature 05 dan 06, yang perlu di catat adalah
+    setiap perhitungan ketika ada ingestion data baru JANGAN sampai menghitung data since 2016 hanya untuk mengupdate
+    data kemarin/ hari ini. Masukan EXEC jangan execute dulu."):
+    - F05 dan F06 tabel fisik.
+    - F05 (base harian, tanpa window): refresh hanya tanggal × ticker yang berubah (pola Feature 03).
+    - F06: refresh suffix per ticker × papan dari tanggal terkoreksi sampai terbaru; warm-up dibaca dari 60 sesi F05
+      sebelum tanggal itu; kumulatif melanjutkan nilai baris F06 tersimpan sehari sebelumnya (pola Feature 04, tanpa
+      tabel checkpoint terpisah).
+    - Larangan: muatan harian atau koreksi baru tidak boleh menghitung ulang sejak 2016 (atau sejak awal riwayat).
+      Hitung ulang penuh hanya untuk backfill pertama atau perbaikan eksplisit atas perintah user. Uji wajib: refresh
+      satu tanggal terakhir hanya membaca ≤ 60 sesi + tanggal itu per ticker × papan, dibuktikan dengan EXPLAIN
+      (ANALYZE, BUFFERS) dan jumlah baris yang ditulis, serta hasilnya sama dengan hitung ulang penuh.
+
 Pertanyaan terbuka:
-- a. F05/F06 tabel atau view, dan strategi hitung ulang (seluruh riwayat per ticker seperti Feature 02, per tanggal
-  seperti Feature 03, atau suffix dari tanggal terkoreksi seperti Feature 04); user bertanya 2026-10-21.
+- a. Dijawab di butir 10.
 - b. Nomor 3 kebijakan anomali (saham-hari total beli ≠ total jual, 2016–2020, M157): user menanyakan besarnya gap.
 - c. Nomor 10 branch: jawaban "Ok" untuk pertanyaan dua pilihan (main atau branch sesi) perlu dipastikan.
 - d. Definisi sesi untuk window (Phase 0 rekomendasi: tanggal ticker punya baris di papan mana pun, seperti Feature 02)
