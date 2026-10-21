@@ -6344,3 +6344,10 @@ eksekusi.
   sisa job baca EXEC-ONBOARD-1. Tidak dihapus tanpa izin. `railway config plan` gagal: SDK `railway/iac` di `node_modules` meminta CLI ≥ 5.42.1
   padahal CLI terpasang 5.62.1 (penyebab belum diketahui); `config pull --force` dipakai sebagai acuan (nama variabel
   sama dengan perubahan ini).
+- **Keputusan user 2026-10-21 ("2 a, 3 a dan update dengan kondisi live"):** (1) tidak diputuskan. (2a) hapus
+  `onboard-read`: dicek dulu – tidak pernah ada deployment, tidak dirujuk skrip mana pun; penghapusan belum terjadi:
+  Railway MCP menolak (tanpa peran admin) dan perintah CLI hapus layanan serta hapus variabel `DATABASE_URL` diblokir
+  pengaman sesi; menunggu user (hapus dari dashboard, atau beri izin). (3a) `railway config plan` jalan: SDK memeriksa
+  versi CLI lewat variabel shell `_`; perintah yang dibungkus `timeout` membuat SDK membaca `timeout --version` ("9.4",
+  bukan x.y.z) dan menolak. Dijalankan dengan `_` = path CLI: "Your Railway configuration is already up to date"
+  (file `.railway/railway.ts` di `d586538` = live). Catatan sebelumnya ("penyebab belum diketahui") dikoreksi.
