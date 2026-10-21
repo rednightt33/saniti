@@ -78,7 +78,7 @@ def test_markdown_answer_renders_headings_bold_and_tables_as_elements(fixture_se
     table = answer.locator('table.data-table')
     assert table.count() == 1 and table.locator('tbody tr').count() == 2
     assert 'Setelah sinyal' in table.locator('thead').inner_text()
-    assert article(page).locator('.result-kicker').text_content() == 'EDGE · Completed'
+    assert article(page).locator('.result-kicker').text_content() == 'EDGE'
     assert page.locator('.workspace-tools .pill').inner_text().endswith('Completed')  # the frame stays English
     page.get_by_role('tab', name='Sources', exact=True).click()
     assert page.locator('.sources').get_by_text('Conversation data record').is_visible()

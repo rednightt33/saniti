@@ -6351,3 +6351,9 @@ eksekusi.
   versi CLI lewat variabel shell `_`; perintah yang dibungkus `timeout` membuat SDK membaca `timeout --version` ("9.4",
   bukan x.y.z) dan menolak. Dijalankan dengan `_` = path CLI: "Your Railway configuration is already up to date"
   (file `.railway/railway.ts` di `d586538` = live). Catatan sebelumnya ("penyebab belum diketahui") dikoreksi.
+- **UI 2026-10-21 (tangkapan layar iPhone; user: "tulisan completed bisa dihapus, jadi hanya edge … model selection …
+  tinggal tambah model name dan reasoning type"; go "usulan limitation saya terima … silakan dieksekusi"):** kepala
+  jawaban yang selesai normal hanya "EDGE" (tanpa "Completed" dan titik hijau); status lain tetap tertulis ("EDGE ·
+  Limited", "Paused", "Failed" …). Pemilih model di HP menampilkan logo, nama model dan level berpikir (nama terpotong
+  "…" bila sempit, level selalu tampil). Tes `tests/test_ui_1021.py` di 4 ukuran (1920, 1280, 390, 360 px); tes lama
+  "HP hanya logo" dan dua tes teks "EDGE · Completed" disesuaikan; suite EDGE 154 lulus.

@@ -10162,8 +10162,12 @@ html.dark .monitor-layout .details-panel>.tabs button:focus-visible{outline-colo
  .composer>div:last-child {gap:8px;margin-top:2px;}
  .composer>div:last-child>div {gap:4px;min-width:0;flex-wrap:nowrap;}
  .composer [title="Data Scope is not available yet"] {display:none;}
- .composer .edge-model-name,.composer .edge-model-level,.composer .edge-model-trigger>.icon {display:none;}
- .composer .edge-model-trigger {padding:7px;}
+ /* user 2026-10-21 (screenshot): the phone shows the model's name and reasoning level beside its logo, as the desktop
+    does; a long name is cut with an ellipsis, the level always stays */
+ .composer .edge-model-trigger>.icon {display:none;}
+ .composer .edge-model-trigger {padding:7px 9px;min-width:0;max-width:100%;overflow:hidden;}
+ .composer .edge-model-name {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+ .composer .edge-model-level {flex:none;white-space:nowrap;}
  /* V5 (user 2026-10-14, iPhone: the menu ran off the top and under the left rail) and EXEC-UI-1015 U5 (user 2026-10-15,
     area "1"): a panel in the empty conversation space right above the composer, as wide as the composer, scrolling inside
     itself, never over the header or under the left rail */
@@ -12158,7 +12162,8 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex,conve
  const notes=v.plan&&[v.plan.notes.assumptions,v.plan.notes.limitations].some(part=>part.items.length)?element("div",{className:"edge-plan-notes"},
    [v.plan.notes.assumptions,v.plan.notes.limitations].map(part=>part.items.length>0&&element("div",null,element("span",{className:"edge-eyebrow"},part.label),items(part.items)))):null;
  return element("article",{className:"result",id:run.id+"-response",tabIndex:-1},
-  element("div",{className:"result-kicker"},element(Icon,{name:"spark"}),edgeUi().answerKicker+" · "+v.status.label,element("i",{className:`edge-dot ${v.status.tone}`,"aria-hidden":"true"})),
+  // user 2026-10-21 (screenshot): a completed answer says "EDGE" only; any other status (Limited, Paused, Failed, ...) stays named
+  element("div",{className:"result-kicker"},element(Icon,{name:"spark"}),v.status.code==="COMPLETED"?edgeUi().answerKicker:edgeUi().answerKicker+" · "+v.status.label,v.status.code!=="COMPLETED"&&element("i",{className:`edge-dot ${v.status.tone}`,"aria-hidden":"true"})),
   element("h1",null,run.result.title),
   element("div",{className:"result-metadata"},element("span",null,"Request "+run.id),v.meta.model&&element("span",{className:"edge-run-model"},element(EdgeModelLogo,{option:edgeModelOption(v.meta.model)}),element("span",null,element("span",{className:"edge-run-model-name",title:v.meta.model},edgeModelOption(v.meta.model).label),v.meta.reasoningLevel?" \u00B7 "+(edgeUi().modelLevels?.[v.meta.reasoningLevel]??v.meta.reasoningLevel):null)),v.meta.tokens!==undefined&&element("span",null,v.meta.tokens+" tokens"),v.meta.duration&&element("span",{className:"edge-duration",title:"Processing time"},"\u23F1 "+v.meta.duration),v.meta.cost!=null&&element("span",{className:"edge-cost"},element("span",{className:"edge-cost-label"},"Reported cost"),element("span",{className:"edge-cost-badge"},"$"+v.meta.cost))),
   v.evidence&&element("div",{className:"edge-tags edge-evidence-line"},v.evidence.positive&&element("svg",{className:"edge-evidence-check",width:12,height:12,viewBox:"0 0 16 16","aria-hidden":"true"},element("circle",{cx:"8",cy:"8",r:"8",fill:"#16a34a"}),element("path",{d:"M4.6 8.3l2.2 2.2 4.6-4.8",fill:"none",stroke:"#ffffff",strokeWidth:"1.9",strokeLinecap:"round",strokeLinejoin:"round"})),element("span",{className:"edge-badge neutral",title:v.evidence.code},v.evidence.label)),

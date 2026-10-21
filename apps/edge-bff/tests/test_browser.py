@@ -209,9 +209,10 @@ def test_the_model_choice_lists_prices_changes_levels_and_is_remembered(server):
         browser.close()
 
 
-def test_on_a_phone_the_model_choice_shows_the_logo_only(server):
-    """EXEC-LOGOS (user 2026-10-13, "kasih logo untuk setiap model ya di HP"): on a phone the trigger is the model's
-    logo; the one-colour logos (Z.ai, MiMo) take the text colour; every option in the menu has its logo."""
+def test_on_a_phone_the_model_choice_shows_the_logo_name_and_level(server):
+    """EXEC-LOGOS (user 2026-10-13, "kasih logo untuk setiap model ya di HP"): on a phone the trigger shows the model's
+    logo, and since 2026-10-21 (user: "tinggal tambah model name dan reasoning type") its name and level too; the
+    one-colour logos (Z.ai, MiMo) take the text colour; every option in the menu has its logo."""
     playwright=pytest.importorskip('playwright.sync_api')
     origin,orc=server
     with playwright.sync_playwright() as pw:
@@ -226,7 +227,7 @@ def test_on_a_phone_the_model_choice_shows_the_logo_only(server):
         logo=trigger.locator('.edge-model-logo')
         page.wait_for_function("() => document.querySelector('.edge-model-trigger img.edge-model-logo')?.complete && document.querySelector('.edge-model-trigger img.edge-model-logo').naturalWidth>0")
         box=logo.bounding_box();assert box and box['width']>=16 and box['height']>=16
-        assert not trigger.locator('.edge-model-name').is_visible() and not trigger.locator('.edge-model-level').is_visible()
+        assert trigger.locator('.edge-model-name').is_visible() and trigger.locator('.edge-model-level').is_visible()
         trigger.click()
         options=page.locator('.edge-model-option');assert options.count()==4
         assert all(options.nth(i).locator('.edge-model-logo').is_visible() for i in range(4))

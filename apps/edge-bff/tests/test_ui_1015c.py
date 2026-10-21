@@ -199,7 +199,7 @@ def test_answer_tables_are_compact_and_never_break_a_word(fixture_server, browse
             assert cells.nth(0).evaluate("td => getComputedStyle(td).position") == 'sticky'
         kicker = page.locator('article.result').nth(1).locator('.result-kicker')
         # EXEC-UI-1015E (user 2026-10-15): the earlier muted, letter-spaced style, "Completed" as written
-        assert kicker.text_content() == 'EDGE · Completed'
+        assert kicker.text_content() == 'EDGE'  # user 2026-10-21: Completed is not written
         weight, transform, spacing = kicker.evaluate(
             "k => { const s = getComputedStyle(k); return [s.fontWeight, s.textTransform, "
             "parseFloat(s.letterSpacing) / parseFloat(s.fontSize)]; }")
