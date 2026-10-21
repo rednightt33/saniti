@@ -6361,7 +6361,7 @@ eksekusi.
   data Feature_02 yang berhenti di 2026-08-31 juga tidak dikerjakan sekarang. Dibuka lagi bila lonjakan RAM berulang
   atau user meminta.
 
-### EXEC-RULES-1021: `in_period` adalah masker baris; satuan juga untuk `emit_json` (2026-10-21, dikerjakan)
+### EXEC-RULES-1021: `in_period` adalah masker baris; satuan juga untuk `emit_json` (2026-10-21, deployed)
 
 User 2026-10-21 (sesudah membaca log reasoning `edge_b524513e…`: "semua kesalahan model AI adalah karena AI tidak tahu
 rule itu ada in advance, atau apakah karena masalah penolakan ya kurang jelas? … apakah scattered?"; lalu "#6 dan #7
@@ -6395,3 +6395,9 @@ sehingga perubahan teksnya butuh migrasi round_ab; teks prompt berubah → snaps
    benar `emit_json('ringkasan', {'median_gap_pct': 2.6}, units={'median_gap_pct': 'PERCENT'})` dan salah (tanpa
    `units` lalu dikutip dengan |pct); docstring `emit_json` disamakan dengan `emit_table`. Peringatan (d) tidak diubah.
 4. Catatan: Tool_Catalog round_ab (run_python v10), snapshot prompt, `AI_TOOLS.md`, ERRORS M197, RAILWAY_CHANGELOG.
+5. **Hasil:** tes orc 1987 lulus (termasuk `tests/test_rules_1021.py`; tes penjaga prompt `test_prompt_pass2.py`
+   mencatat dua kalimat pengganti dan batas ukuran naik 1,141→1,144, `test_prompt_audit.py` A7 mengikuti kalimat baru);
+   sandbox 883 lulus, 5 gagal sama dengan baseline (kontrak audit, nilai kanonik Governor ×2, frekuensi turunan, label
+   crash worker). Tool_Catalog round_ab diterapkan (job `5e1c7820`, run_python v10 terbaca kembali). `main` `27ede80`;
+   orc `fad7e368` dan sandbox `c1e5db31` SUCCESS. Efek pada run nyata belum diukur (perlu run yang memakai
+   `in_period` / `emit_json`).

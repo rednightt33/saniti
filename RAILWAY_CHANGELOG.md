@@ -4189,3 +4189,13 @@ was waited out at 14:05 UTC before the database migration).
 
 - `ea0d5ba` deployed by GitHub: edge-bff `b1498b65` SUCCESS; the live page serves the new answer head code (checked
   with an HTTP read). No variable changed. Rollback: redeploy edge-bff `1bd6510c`.
+
+## 2026-10-21 — market-ai-orc and market-python-sandbox: in_period mask, emit_json units (EXEC-RULES-1021)
+
+- Commit `27ede80` on `main`: market-ai-orc deployment `fad7e368` SUCCESS, market-python-sandbox deployment
+  `c1e5db31` SUCCESS (both "Application startup complete"). Checked before the push: no `edge_` run in flight.
+- Text only, no switch and no variable: run_python description, prompt snapshot v018, sandbox helper list and
+  `helper_hint` on a script error from the in_period mask, emit_json docstring. Sandbox restart ends warm sessions
+  (one replica). Fallback: redeploy the previous deployments (orc `3cde6446`, sandbox `81beaa50`, commit `4020030`).
+- One-off job `5e1c7820` on `orc-test-runner` applied Tool_Catalog round_ab; the temporary `DATABASE_URL` variable was
+  removed and verified absent.
