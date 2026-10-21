@@ -6443,6 +6443,14 @@ Keputusan user 2026-10-21 ("Yg OK masukan exec jangan execute dulu"):
       satu tanggal terakhir hanya membaca ≤ 60 sesi + tanggal itu per ticker × papan, dibuktikan dengan EXPLAIN
       (ANALYZE, BUFFERS) dan jumlah baris yang ditulis, serta hasilnya sama dengan hitung ulang penuh.
 
+11. Urutan bila data sumber lama dikoreksi (user 2026-10-21: "Okay, catat dulu proses exec"): BS dan Freq tidak
+    punya trigger; Feature 02/03/05/06 tidak berubah sendiri. Koreksi nilai di tanggal X → rebuild Feature 02 untuk
+    ticker itu (`backfill_feature_02_v2.py --ticker X --rebuild-ticker`) → `refresh_feature_03_stock_broker_daily`
+    untuk tanggal-tanggal itu → refresh F05 tanggal X → refresh F06 dari tanggal X ke depan (window menyentuh ±60 sesi
+    sesudahnya, kumulatif sampai baris terakhir). Penambahan kolom `buy_freq`/`sell_freq` (Phase 1) tidak mengubah
+    nilai BS sehingga tidak memerlukan rebuild Feature 02/03. Perlakuan hari tidak seimbang (nomor 3) hanya
+    menyentuh F05/F06.
+
 Pertanyaan terbuka:
 - a. Dijawab di butir 10.
 - b. Nomor 3 kebijakan anomali (saham-hari total beli ≠ total jual, 2016–2020, M157): user menanyakan besarnya gap.
