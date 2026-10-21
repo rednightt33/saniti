@@ -4184,3 +4184,8 @@ was waited out at 14:05 UTC before the database migration).
   deployment and no script referenced it; its `DATABASE_URL` reference went with it. Verified: the environment lists 23
   services without it. `railway config pull --force` removed it from `.railway/railway.ts`; `railway config plan`: "Your
   Railway configuration is already up to date".
+
+## 2026-10-21 — edge-bff: answer head "EDGE", model name and level on phones
+
+- `ea0d5ba` deployed by GitHub: edge-bff `b1498b65` SUCCESS; the live page serves the new answer head code (checked
+  with an HTTP read). No variable changed. Rollback: redeploy edge-bff `1bd6510c`.
