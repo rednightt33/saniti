@@ -6451,6 +6451,13 @@ Keputusan user 2026-10-21 ("Yg OK masukan exec jangan execute dulu"):
     nilai BS sehingga tidak memerlukan rebuild Feature 02/03. Perlakuan hari tidak seimbang (nomor 3) hanya
     menyentuh F05/F06.
 
+12. Audit 2026-10-21 (read-only): total beli ≠ total jual pada 47.558 saham-hari (662 ticker, hampir semua 2016 s.d.
+    Agustus 2020); akar terverifikasi = broker yang sudah tidak ada di daftar broker Stockbit saat ini (FM, LK; user
+    menyebut juga TA) tidak pernah dimuat (ERRORS M157). Sembilan tanggal kosong di BS: masing-masing satu nilai
+    negatif papan Nego dari API membuat runner menolak seluruh tanggal (`stockbit_broker_summary_load_log`
+    NEEDS_REVIEW). Keputusan user: tidak diperbaiki ("ini sudah tidak relevant lagi kalau mau analisa. Its okay lah.
+    Kita lanjut langsung saja ke fitur 5 dan 6").
+
 Pertanyaan terbuka:
 - a. Dijawab di butir 10.
 - b. Nomor 3 kebijakan anomali (saham-hari total beli ≠ total jual, 2016–2020, M157): user menanyakan besarnya gap.
