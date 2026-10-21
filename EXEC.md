@@ -6357,3 +6357,6 @@ eksekusi.
   Limited", "Paused", "Failed" …). Pemilih model di HP menampilkan logo, nama model dan level berpikir (nama terpotong
   "…" bila sempit, level selalu tampil). Tes `tests/test_ui_1021.py` di 4 ukuran (1920, 1280, 390, 360 px); tes lama
   "HP hanya logo" dan dua tes teks "EDGE · Completed" disesuaikan; suite EDGE 154 lulus.
+- **Keputusan user 2026-10-21 ("Biarkan saja dulu"):** Feature_02 tidak disusun ulang (R4/R5 opsi biarkan); pengecekan
+  data Feature_02 yang berhenti di 2026-08-31 juga tidak dikerjakan sekarang. Dibuka lagi bila lonjakan RAM berulang
+  atau user meminta.
