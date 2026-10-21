@@ -4177,3 +4177,10 @@ was waited out at 14:05 UTC before the database migration).
 - Service `onboard-read` (`98a5888f`, no deployment ever, variable `DATABASE_URL` as a reference): user approved deletion
   2026-10-21; not deleted yet (Railway MCP lacks the admin role; the CLI delete was blocked in this session). Still in
   `.railway/railway.ts` because it still exists live.
+
+## 2026-10-21 — onboard-read deleted
+
+- Service `onboard-read` (`98a5888f`) deleted with the user's permission ("Saya berikan izin"): it never had a
+  deployment and no script referenced it; its `DATABASE_URL` reference went with it. Verified: the environment lists 23
+  services without it. `railway config pull --force` removed it from `.railway/railway.ts`; `railway config plan`: "Your
+  Railway configuration is already up to date".

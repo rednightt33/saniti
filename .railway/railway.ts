@@ -119,10 +119,6 @@ export default defineRailway(() => {
     deploy: { restartPolicyType: "ALWAYS" },
     env: { AUDIT_BUCKET_ACCESS_KEY_ID: preserve(), AUDIT_BUCKET_ENDPOINT: preserve(), AUDIT_BUCKET_NAME: preserve(), AUDIT_BUCKET_REGION: preserve(), AUDIT_BUCKET_SECRET_ACCESS_KEY: preserve(), AUDIT_DATABASE_URL: preserve(), AUDIT_STORE_GOVERNOR_KEY: preserve(), AUDIT_STORE_READER_KEY: preserve(), AUDIT_STORE_SANDBOX_KEY: preserve(), MARKET_AI_AUDIT_DB_PASSWORD: preserve(), PORT: preserve() },
   });
-  const onboardRead = service("onboard-read", {
-    replicas: { "sfo": 1 },
-    env: { DATABASE_URL: preserve() },
-  });
   const fixedIncomePriceRecoveryCron = service("fixed-income-price-recovery-cron", {
     source: saniti,
     build: { buildEnvironment: "V3", builder: "DOCKERFILE", dockerfilePath: "Dockerfile", watchPatterns: ["/apps/fixed-income-price-cron/**"] },
@@ -200,6 +196,6 @@ export default defineRailway(() => {
   });
 
   return project("lucid-patience", {
-    resources: [orcTestRunner, marketSqlGovernor, marketWebGovernor, fixedIncomePriceUsRecoveryCron, marketPythonSandbox, fixedIncomePriceUsCron, marketAiOrc, idxPriceCron, pgweb, PostgresE8GM, telegramTrigger, webGovernorTestRunner, marketAuditStore, onboardRead, fixedIncomePriceRecoveryCron, telegramMonitor, idxPriceRecoveryCron, feature04Worker, Postgres, edgeBff, aiDataCoverage, feature01Worker, fixedIncomePriceCron, dbOpsRunner, postgresVolumeThQL, postgresVolume, fixedIncomeRepairEvidence, marketPythonSandboxData, postgresVolumeOz3T, marketWebGovernorData, marketSqlDatasets, marketAiConversationOutputs, marketAiAuditArtifacts],
+    resources: [orcTestRunner, marketSqlGovernor, marketWebGovernor, fixedIncomePriceUsRecoveryCron, marketPythonSandbox, fixedIncomePriceUsCron, marketAiOrc, idxPriceCron, pgweb, PostgresE8GM, telegramTrigger, webGovernorTestRunner, marketAuditStore, fixedIncomePriceRecoveryCron, telegramMonitor, idxPriceRecoveryCron, feature04Worker, Postgres, edgeBff, aiDataCoverage, feature01Worker, fixedIncomePriceCron, dbOpsRunner, postgresVolumeThQL, postgresVolume, fixedIncomeRepairEvidence, marketPythonSandboxData, postgresVolumeOz3T, marketWebGovernorData, marketSqlDatasets, marketAiConversationOutputs, marketAiAuditArtifacts],
   });
 });
