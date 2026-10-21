@@ -141,6 +141,13 @@ DATA_TYPES = ("Frames from load, range, sql and join: the time column holds date
 MISSING_COLUMN_HINT = ("No data request of this session holds the column(s) {columns}; the data to compute them is not "
                        "loaded. Derive them from the loaded columns, or request the data that holds them (a new data "
                        "need, attached to this session where the tools offer it, so the variables stay).")
+# EXEC-RULES-1021 (#6, edge_b524513e: y = in_period(load('yields'), 'yields') then y.pivot_table failed with a bare
+# AttributeError): a script error on a Series or bool from code that calls in_period names the mask and the fix
+IN_PERIOD_HINT = ("in_period(frame, request) returns a mask (True/False per row), not a table, so the variable that "
+                  "holds it has no table methods. Keep the rows with the mask: right y = load('yields'); "
+                  "y = y[in_period(y, 'yields')]; wrong y = in_period(load('yields'), 'yields').")
+IN_PERIOD_CALL = re.compile(r"\bin_period\s*\(")
+MASK_ERROR = re.compile(r"'(Series|bool|numpy\.bool_?)' object has no attribute")
 # M139: what happens to the tables and JSON a failed execution emitted (they stay loadable by name, unreleased)
 DISCARDED_NOTE = ("This execution failed, so the outputs it emitted are never released by complete_analysis. "
                   "Emit them again in the corrected run (load_output(name) still reads a discarded table).")
@@ -240,8 +247,9 @@ def research_view(research: dict[str, Any]) -> dict[str, Any]:
 
 HELPERS = ["requests()", "manifest()", "quality(request)", "load(request, columns=None)",
            "load_range(request, range_id, columns=None, include_buffers=False) (also saniti.range; plain range is "
-           "Python's built-in)", "in_period(frame, request, range_id=None, date_column=None) (mask of the rows inside "
-           "the approved ranges, without buffer rows: count and summarise only these)", "sql(query, params=None)",
+           "Python's built-in)", "in_period(frame, request, range_id=None, date_column=None) (a mask, True/False per row, "
+           "not a table, of the rows inside the approved ranges, without buffer rows: count and summarise only these; "
+           "keep them with frame[in_period(frame, request)])", "sql(query, params=None)",
            "relation(request)", "load_output(output_id, columns=None) (a released table of this conversation, or a "
            "table this session emitted in an earlier run_python, by output_id or name; see carried())", "carried()",
            "save_table(name, frame) (a working table of this session by name within working_table_bytes; never "
@@ -1229,6 +1237,8 @@ class SessionManager:
         if status == "SCRIPT_ERROR":
             view.update({k: v for k, v in (answer.get("error") or {}).items()})
             view["next_action"] = "REVISE_PYTHON_CODE"
+            if IN_PERIOD_CALL.search(code) and MASK_ERROR.search(str(view.get("message") or "")):
+                view["helper_hint"] = IN_PERIOD_HINT
             missing = self._missing_columns(record, view)
             if missing:
                 # PLAN 14: a column no data request of the session holds is missing data, not a code error

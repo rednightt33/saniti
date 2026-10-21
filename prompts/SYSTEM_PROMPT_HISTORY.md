@@ -38,6 +38,7 @@ whenever the rendered prompt or schema changes (AGENTS.md, Mandatory workflow).
 | v015 | 2026-10-19 | [exec-fastlane-len-goal-answers](history/v015-2026-10-19-exec-fastlane-len-goal-answers/system_prompt.md) | 41,594 | `235a54f89172` | `ef9b0ecbca7d` | User 2026-10-19: 'Selain yang tidak saya sebutkan harus dirubah dengan goal based instead of hardcode'; 'Teks final CITING AND CHECKS ... OK'; 'Ok, execute' (AI_FASTLANE_GOAL_ANSWERS on dev) |
 | v016 | 2026-10-20 | [exec-1020-citing-groups](history/v016-2026-10-20-exec-1020-citing-groups/system_prompt.md) | 41,594 | `235a54f89172` | `ef9b0ecbca7d` | Ok sesuai, masukan exec (2026-10-20); Ya oke, jalankan semua end to end |
 | v017 | 2026-10-20 | [onboard-fixed-income-feature04](history/v017-2026-10-20-onboard-fixed-income-feature04/system_prompt.md) | 41,727 | `e47165812f9f` | `ef9b0ecbca7d` | Ok view saja ya untuk no 1. Jalankan. (EXEC-ONBOARD-1, 2026-10-20: expose Price_Fixed_Income and Feature 04; AI refers to stored indicator columns instead of computing them) |
+| v018 | 2026-10-21 | [rules-1021-in-period-emit-json-units](history/v018-2026-10-21-rules-1021-in-period-emit-json-units/system_prompt.md) | 41,837 | `5a5788480a39` | `ef9b0ecbca7d` | user 2026-10-21: "Masukan exec dan eksekusi. #7 — satuan pada emit_json, #6 — in_period (masker baris)" |
 
 ## Changes
 
@@ -108,3 +109,7 @@ Fast prefix (AI_FASTLANE_GOAL_ANSWERS): CITING AND CHECKS in five groups (answer
 ### v017 onboard-fixed-income-feature04 (2026-10-20)
 
 Outside-data rules no longer give yields as an example of data outside the catalog; every outside-data rule adds: an indicator or candle pattern a Feature column already stores (a formula's stored_in) is read from that column, not computed again. Fast lane prefix: [29,124 chars](history/v017-2026-10-20-onboard-fixed-income-feature04/fast_prompt.md), sha256 `e81903b9d9a6`.
+
+### v018 rules-1021-in-period-emit-json-units (2026-10-21)
+
+data-need step 3: in_period is a row mask (frame[in_period(frame, request)]), not listed as a data reader; value-reference units name emit_table or emit_json; CITING AND CHECKS A3: emit_json fields declare units, with a right and a wrong example (EXEC-RULES-1021) Fast lane prefix: [29,480 chars](history/v018-2026-10-21-rules-1021-in-period-emit-json-units/fast_prompt.md), sha256 `97f8f9ee1abc`.

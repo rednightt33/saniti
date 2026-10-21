@@ -234,11 +234,27 @@ ADDED |= {"An offered next step also goes in offered_action;", "a short yes runs
 # EXEC-ONBOARD-1 (user 2026-10-20 "agar mungkin AI bisa refer ke kolom ini sebagai optionality instead of hitung manual")
 ADDED |= {"An indicator or candle pattern a Feature column already stores (a formula's stored_in) is read from that "
           "column, not computed again."}
+# EXEC-RULES-1021 (user 2026-10-21 "Masukan exec dan eksekusi"; edge_b524513e): in_period is a row mask, not a data
+# reader, and emit_json declares units like emit_table
+REMOVED |= {"open_analysis_session(input_bundle_id), then run_python as often as needed: read data only through the "
+            "saniti helpers (load, load_range, in_period, sql, join, quality), inspect it, write the analysis yourself "
+            "(TA-Lib first for standard indicators), fix errors and rerun, and emit results with emit_table, emit_json "
+            "or emit_text.",
+            "A value whose unit the backend knows (a finding's estimates, an event study's columns, a column released "
+            "with units= in emit_table) is shown by that unit whichever of pct, pctv and pp you write;"}
+ADDED |= {"open_analysis_session(input_bundle_id), then run_python as often as needed: read data only through the "
+          "saniti helpers (load, load_range, sql, join, quality; in_period(frame, request) is a row mask, so keep the "
+          "period with frame[in_period(frame, request)]), inspect it, write the analysis yourself (TA-Lib first for "
+          "standard indicators), fix errors and rerun, and emit results with emit_table, emit_json or emit_text.",
+          "A value whose unit the backend knows (a finding's estimates, an event study's columns, a column or field "
+          "released with units= in emit_table or emit_json) is shown by that unit whichever of pct, pctv and pp you "
+          "write;"}
 # the reader section added about six percent (the budget was two percent over the pass-2 fixture); EXEC-Y Fase 3's
 # four sentences about half a percent more; EXEC-STYLE about half a percent more; EXEC-M143 about one percent more;
 # EXEC-DAYS about a third of a percent more; O1 early (EXEC-IMPL-1016) about one percent more; EXEC-1018B E9(c) about
-# a fifth of a percent more; EXEC-ONBOARD-1's stored-column sentence about a third of a percent more
-SIZE_BUDGET = 1.141
+# a fifth of a percent more; EXEC-ONBOARD-1's stored-column sentence about a third of a percent more; EXEC-RULES-1021's
+# in_period mask and emit_json units about a third of a percent more
+SIZE_BUDGET = 1.144
 
 SECTIONS = ["GENERAL RULES", "TOOL USE", "TOOL RESULTS", "FINAL RESPONSE", "WRITING FOR THE READER", "DATA DISCOVERY", "DATA SOURCES",
             "DATA NEED", "MODES", "TIME BASIS", "NAMED-PERIOD RETURNS", "WEEKLY AND MONTHLY", "CONVERSATION REUSE",

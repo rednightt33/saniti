@@ -6360,3 +6360,38 @@ eksekusi.
 - **Keputusan user 2026-10-21 ("Biarkan saja dulu"):** Feature_02 tidak disusun ulang (R4/R5 opsi biarkan); pengecekan
   data Feature_02 yang berhenti di 2026-08-31 juga tidak dikerjakan sekarang. Dibuka lagi bila lonjakan RAM berulang
   atau user meminta.
+
+### EXEC-RULES-1021: `in_period` adalah masker baris; satuan juga untuk `emit_json` (2026-10-21, dikerjakan)
+
+User 2026-10-21 (sesudah membaca log reasoning `edge_b524513e…`: "semua kesalahan model AI adalah karena AI tidak tahu
+rule itu ada in advance, atau apakah karena masalah penolakan ya kurang jelas? … apakah scattered?"; lalu "#6 dan #7
+mau di benerin dimana? Systemp prompt?"; go: "Ok, perhatikan infrastruktur terlebih dahulu sebelum buat dan
+implementasi script. Masukan exec dan eksekusi. #7 — satuan pada emit_json, #6 — in_period (masker baris)").
+Tanpa saklar: hanya teks aturan dan petunjuk error, bukan perilaku baru.
+
+**Bukti (run `edge_b524513e4873eff77e2d80ffce29405a`, MiMo v2.6 Flash, jalur Cepat, 195 s, USD 0,0717):**
+- #6 skrip error (iterasi 5→6, 15 s, USD 0,019): model memakai `y = in_period(load('yields'), 'yields')` sebagai tabel;
+  sandbox `exe_02be71b6…` mengembalikan `AttributeError: 'Series' object has no attribute 'pivot_table'` tanpa petunjuk.
+  Aturan ada tetapi samar dan tersebar: deskripsi `run_python` (`tools/session.py:245`, frasa "the mask of the rows"
+  tanpa contoh), langkah 3 prompt (`orchestrator.py:335-337`) menyebut `in_period` sejajar dengan pembaca data, contoh
+  benar hanya di method guide (`method_guides.py:484`) yang tidak dibuka (`method_guides_offered manuals: 0`).
+- #7 tabel tambahan (iterasi 7, 12 s, USD 0,007): model sengaja tidak memberi satuan pada `emit_json` (dianggap
+  opsional); peringatan `UNIT_UNDECLARED` sesudahnya jelas. Aturan satuan di prompt hanya menyebut `emit_table`
+  (`orchestrator.py:860`, CITING AND CHECKS A3 `:1393`); docstring `emit_json` (`saniti_session.py:2466`) tanpa kata wajib.
+
+**Infrastruktur dicek sebelum kode (2026-10-21):** orc `3cde6446` dan sandbox `81beaa50` SUCCESS dari `4020030`; sandbox
+satu replika dengan volume (deploy memutus sesi hangat); petunjuk error sandbox (`missing_data_hint`,
+`sessions.py:1233`) diteruskan orc apa adanya ke model; deskripsi `run_python` tercatat di Tool_Catalog (v9, round_x)
+sehingga perubahan teksnya butuh migrasi round_ab; teks prompt berubah → snapshot prompt; deskripsi tool berubah →
+`AI_TOOLS.md`. Tidak ada perubahan skema atau variabel Railway.
+
+**Perubahan (AGENTS.md Gates and evidence a–d):**
+1. #6 (a)(c): deskripsi `run_python` (orc) dan daftar helper sandbox: `in_period` mengembalikan masker True/False per
+   baris, bukan tabel; benar `y = load('yields'); y = y[in_period(y, 'yields')]`, salah
+   `y = in_period(load('yields'), 'yields')`. Langkah 3 prompt: `in_period` tidak lagi disebut sebagai pembaca data.
+2. #6 (d): sandbox SCRIPT_ERROR menambah `helper_hint` bila error menyebut objek `Series`/`bool` tanpa atribut dan
+   kodenya memanggil `in_period(`: menyebut masalah (hasil `in_period` dipakai sebagai tabel) dan perbaikannya.
+3. #7 (a)(c): CITING AND CHECKS A3 dan kalimat format satuan menyebut `emit_table` **dan** `emit_json`, dengan contoh
+   benar `emit_json('ringkasan', {'median_gap_pct': 2.6}, units={'median_gap_pct': 'PERCENT'})` dan salah (tanpa
+   `units` lalu dikutip dengan |pct); docstring `emit_json` disamakan dengan `emit_table`. Peringatan (d) tidak diubah.
+4. Catatan: Tool_Catalog round_ab (run_python v10), snapshot prompt, `AI_TOOLS.md`, ERRORS M197, RAILWAY_CHANGELOG.

@@ -53,6 +53,8 @@ registering the new versions of the tools whose contract changed in that round.
   EXEC-ONBOARD-1.
 - round_aa (20261020_003): open_analysis_session v5 (input_bundle_id null: a session on the conversation's released
   tables or its warm session, without a data need; EXEC-OUTPUT-REUSE).
+- round_ab (20261021_001): run_python v10 (in_period is a row mask with a right and a wrong example; emit_json declares
+  units like emit_table; EXEC-RULES-1021).
 - round_w (20261015_015): the first row of search_values and get_dimension_values v3 (the user's words matched to
   stored codes and values: names, initials, part of a name; EXEC-IMPL-1016 Fase 3, O1).
 
@@ -601,8 +603,21 @@ ROUNDS = {
                     "conversation's session, bundle or tables stay refused (the sandbox keys them by the conversation)."],
         "limits": {"open_analysis_session": "same conversation only; a research session is never taken over"},
     },
+    "round_ab": {
+        "target": ROOT / "database/migrations/20261021_001_round_ab_tool_catalog.sql",
+        "versions": {"run_python": ("v9", "v10")},
+        "contracts": {"run_python": ("purpose", "not a table")},
+        "title": "in_period is a row mask, emit_json declares units",
+        "header": "EXEC.md EXEC-RULES-1021 (user \"Masukan exec dan eksekusi\", 2026-10-21)",
+        "design": "EXEC.md EXEC-RULES-1021; ERRORS_AND_SOLUTIONS.md M197",
+        "limits_design": "EXEC.md EXEC-RULES-1021",
+        "summary": ["run_python says in_period returns a mask (True/False per row), not a table, with one right and one",
+                    "wrong example, and that emit_json declares units= for every share or percent field like",
+                    "emit_table (edge_b524513e). No behaviour change."],
+        "limits": {},
+    },
 }
-NEWEST = "round_aa"
+NEWEST = "round_ab"
 
 
 def _tools_doc():

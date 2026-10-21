@@ -1105,6 +1105,26 @@ change yet.
   4 panggilan alat, 14,1 s, USD 0,010; n=1, pertanyaan berbeda dari kejadian asal).
 - **Lesson:** pesan penolakan yang hanya menyebut "tidak ada" membuat model mengarang sebab; sebutkan sebab dan langkah.
 
+### M197 — Masker `in_period` dipakai sebagai tabel; satuan `emit_json` dianggap opsional (2026-10-21)
+
+- **Symptom:** `edge_b524513e…` (MiMo v2.6 Flash, jalur Cepat): `y = in_period(load('yields'), 'yields')` lalu
+  `y.pivot_table` gagal (`AttributeError: 'Series' object has no attribute 'pivot_table'`, sandbox `exe_02be71b6…`;
+  15 s, USD 0,019); field persen di `emit_json` dirilis tanpa `units`, peringatan `UNIT_UNDECLARED`, satu
+  `run_python` tambahan untuk merilis ulang (12 s, USD 0,007).
+- **Verified cause:** aturan ada tetapi samar dan tersebar. `in_period` disebut "the mask of the rows" tanpa contoh
+  (`tools/session.py`), langkah 3 prompt mendaftarnya sebagai pembaca data, contoh benar hanya di method guide yang
+  tidak dibuka; pesan error Python mentah tanpa petunjuk. Aturan satuan di prompt hanya menyebut `emit_table`, docstring
+  `emit_json` tanpa kata wajib.
+- **Solution (EXEC-RULES-1021):** deskripsi `run_python` dan daftar helper sandbox: masker, bukan tabel, dengan contoh
+  benar dan salah; langkah 3 prompt tidak lagi mendaftar `in_period` sebagai pembaca; sandbox menambah `helper_hint`
+  pada SCRIPT_ERROR objek `Series`/`bool` dari kode yang memanggil `in_period(`; CITING AND CHECKS A3, kalimat format
+  satuan dan docstring `emit_json` menyebut `emit_json` dengan contoh benar dan salah. Tool_Catalog round_ab
+  (run_python v10), snapshot prompt v018.
+- **Status:** FIXED di kode (tes `apps/market-ai-orc/tests/test_rules_1021.py`,
+  `apps/market-python-sandbox/tests/test_rules_1021.py`); efek pada run live belum diukur.
+- **Lesson:** aturan helper yang hasilnya bukan tabel butuh contoh benar/salah di deskripsi tool yang dibaca saat
+  menulis kode, dan pesan error harus menyebut helper itu.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.

@@ -2464,7 +2464,10 @@ def _warn_units(subject: str, named: list[str], decimals: dict[str, list[float]]
 def emit_json(name: str, value, description: str = "", units: dict[str, str] | None = None,
               definition: dict[str, Any] | None = None) -> dict[str, Any]:
     """A JSON output (numbers, strings, lists and objects). units: {field: FRACTION | PERCENT | P_VALUE}, a field
-    named by its key (or a dotted path of keys). definition: as for emit_table; required for a released JSON."""
+    named by its key (or a dotted path of keys): declare every share, rate, return or percent field, as for emit_table
+    (FRACTION: 0.12 is 12%; PERCENT: 12 is 12%), or a |pct reference to it is refused (EXEC-RULES-1021). Right:
+    emit_json('ringkasan', {'median_gap_pct': median_gap}, units={'median_gap_pct': 'PERCENT'}). definition: as for
+    emit_table; required for a released JSON."""
     declared = _units(units, None)
     defined = _definition(definition)
     plain = _jsonable(value)

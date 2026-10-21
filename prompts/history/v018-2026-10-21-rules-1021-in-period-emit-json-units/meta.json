@@ -1,0 +1,12 @@
+{
+ "version": 18,
+ "date": "2026-10-21",
+ "name": "rules-1021-in-period-emit-json-units",
+ "decision": "user 2026-10-21: \"Masukan exec dan eksekusi. #7 — satuan pada emit_json, #6 — in_period (masker baris)\"",
+ "change": "data-need step 3: in_period is a row mask (frame[in_period(frame, request)]), not listed as a data reader; value-reference units name emit_table or emit_json; CITING AND CHECKS A3: emit_json fields declare units, with a right and a wrong example (EXEC-RULES-1021)",
+ "prompt_chars": 41837,
+ "prompt_sha256": "5a5788480a39c002c8490a34d138f83dd7d77a8a855c2c2990ac846574cc973a",
+ "schema_sha256": "ef9b0ecbca7d7a3b0c5e08e3062a04dddce274ebff1b74d121fbe791a3787883",
+ "fast_prompt_chars": 29480,
+ "fast_prompt_sha256": "97f8f9ee1abcb4e838d5a7f662236aafa1d07a4371dbaa81a76f12df85c09bc9"
+}

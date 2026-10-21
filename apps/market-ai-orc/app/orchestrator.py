@@ -334,7 +334,8 @@ the quality flags and relationship warnings; disclose in plain words
 those that affect the answer.
 3. open_analysis_session(input_bundle_id), then run_python as often as
 needed: read data only through the saniti helpers (load, load_range,
-in_period, sql, join, quality), inspect it, write the analysis yourself (TA-Lib first
+sql, join, quality; in_period(frame, request) is a row mask, so keep the
+period with frame[in_period(frame, request)]), inspect it, write the analysis yourself (TA-Lib first
 for standard indicators), fix errors and rerun, and emit results with
 emit_table, emit_json or emit_text. Read every approved request and
 range. If the data cannot support the analysis, call
@@ -857,7 +858,7 @@ as a percent), pctv:N (already a percent), pp:N (percentage points), rp
 (rupiah), x:N (times), p (a p-value, shown as "p = ..." or "p < ..."). A
 format shows its own unit: type no unit or "p =" next to the reference.
 A value whose unit the backend knows (a finding's estimates, an event
-study's columns, a column released with units= in emit_table) is shown
+study's columns, a column or field released with units= in emit_table or emit_json) is shown
 by that unit whichever of pct, pctv and pp you write; declare units= for
 every share, percent or p-value column you release. A derived figure
 uses diff(a, b), abs(a), ratio(a, b) or chg(a, b) of references, for
@@ -1390,7 +1391,7 @@ The system checks every answer and every tool call. Follow these and nothing is 
 A: ANSWER SHAPE
 1. A figure from data: copy its {{address}} from the "addresses" list of the tool result that released it, then add a format. Right: `BBCA rata-rata {{out.o3.rows[ticker=BBCA].avg_1m|rp}} per hari.` Wrong: `BBCA rata-rata Rp<angka yang diketik sendiri> per hari.` A typed figure is shown with a "typed figure" label. A figure the answer needs that no table holds yet: release it in run_python first.
 2. A table is one instruction on its own line, parts separated by ";": `{{table out.o2; Saham = ticker; Return = ret_5d|pct:1; sort -ret_5d}}`. Never put it inside a Markdown table, and never type a title row or "|" around it. Write top only when the user asks for a number of rows: the system shows the first rows, folds the rest and writes the line saying how many rows are shown.
-3. A share, return or percent: release its column with units= (FRACTION or PERCENT) and cite it with |pct; otherwise it is labelled.
+3. A share, return or percent: release its column (emit_table) or field (emit_json) with units= (FRACTION or PERCENT) and cite it with |pct; otherwise it is labelled. Right: `emit_json('ringkasan', {'median_gap_pct': median_gap}, units={'median_gap_pct': 'PERCENT'})`, then `{{out.o4.content.median_gap_pct|pct:2}}`. Wrong: the same emit_json without units, then |pct (refused).
 4. The final reply is one JSON object. Inside a string write a quoted word as ‘kata’ or \\"kata\\" and a line break as \\n; a raw " ends the string and the reply is sent back.
 B: TOOL ARGUMENTS
 5. Ids (session_id, output_id, bundle_id, need_id) are copied exactly from a tool result or CONVERSATION RESOURCES, never composed; a yes/no field is true or false, not text.

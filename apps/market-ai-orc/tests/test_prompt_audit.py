@@ -53,7 +53,9 @@ def test_the_number_sources_name_only_offered_tools() -> None:
 
 def test_retired_names_are_replaced() -> None:
     text = flat(prompt())
-    assert "(load, load_range, in_period, sql, join, quality)" in text and "(load, range," not in text  # A7
+    # A7; EXEC-RULES-1021: in_period is named as the row mask, not among the readers
+    assert "(load, load_range, sql, join, quality; in_period(frame, request) is a row mask" in text \
+        and "(load, range," not in text
     assert "get_session_output by its ref (out.oN" in text and "get_session_output(session_id" not in text  # A8
     assert "put back from the conversation's store automatically" in text
     assert "unless complete_analysis lists it as recomputed by the backend (an event study, a backtest" in text  # A4
