@@ -6474,3 +6474,17 @@ Pertanyaan terbuka:
   tanpa harga), jadi 5D Feature 02/04/06 berarti 5 sesi saham yang sama.
 - e. Nomor 3 (anomali) dijawab: "Ok B.. source balance gap hanya untuk informasi internal saja nantinya" — kolom
   `source_balance_gap` di F05/F06 dengan `ai_allowed = false`.
+- f. Perbaikan sumber (broker FM/LK/TA, sembilan tanggal, nilai negatif): tidak dijalankan; ditandai saja (user
+  2026-10-22: "Satu tidak usah dijalankan untuk perbaikan, tapi kita tandai seperti yang sudah saya setujui").
+- g. Z-score dan persentil F06 (user 2026-10-21/22: "tambahkan persentil 20D dan Z-score 60 D. Semua pakai window 252D
+  seperti feature 2 ya", "foreign net zscore dan foreign net percentile 5D 10D 20D tambah baseline 60D", lalu
+  "1. ya_base60D 2. ya _base252D 3. ya 4. perlu"):
+  - Nilai yang diuji = net asing rolling N sesi (`foreign_net_Nd`); baseline = nilai `foreign_net_Nd` sebelumnya,
+    hari ini tidak ikut; std sampel; z-score NULL bila std = 0; persentil midrank seperti Feature 02; NULL sampai
+    baseline lengkap.
+  - Baseline 252 diberi akhiran `_base252d` (mengganti nama prompt): `foreign_net_zscore_{5,10,20,40,60}d_base252d`,
+    `foreign_net_percentile_{5,10,20,40,60}d_base252d`.
+  - Baseline 60: `foreign_net_zscore_{5,10,20}d_base60d`, `foreign_net_percentile_{5,10,20}d_base60d`.
+  - Kolom baru `foreign_net_40d` (SUM 40 sesi).
+  - Akhiran huruf kecil (`_base60d`, `_base252d`) sesuai standar snake_case (ERRORS Part A 20).
+  - Jumlah field F06: 73 − 8 (nama lama z-score/persentil) + 16 + 1 = 82, ditambah `source_balance_gap` internal.
