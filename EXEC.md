@@ -6488,3 +6488,55 @@ Pertanyaan terbuka:
   - Kolom baru `foreign_net_40d` (SUM 40 sesi).
   - Akhiran huruf kecil (`_base60d`, `_base252d`) sesuai standar snake_case (ERRORS Part A 20).
   - Jumlah field F06: 73 − 8 (nama lama z-score/persentil) + 16 + 1 = 82, ditambah `source_balance_gap` internal.
+
+#### Rencana implementasi EXEC-F05-F06 (disusun 2026-10-22; belum dieksekusi, menunggu "go")
+
+Dasar: inspeksi read-only pgweb 2026-10-22 (volume `postgres-volume` 75.000 MB, terpakai 41.003 MB; database 37 GB;
+Postgres batas memori 4 GB; `shared_buffers` 128 MB, `work_mem` 4 MB, `maintenance_work_mem` 64 MB; BS hanya punya PK
+`("Date","Symbol","Broker","Investor Type","Market Board")`; BS s.d. 2026-08-31, Freq s.d. 2026-10-09; nama
+`feature_05*`/`feature_06*` belum dipakai) dan kode Feature 02/03 (`scripts/backfill_feature_02_v2.py`,
+`refresh_feature_03_stock_broker_daily`, `feature_02_empirical_midrank_percentile`).
+
+Jalur tulis: pgweb hanya baca dan sesi ini tidak bisa TCP ke Postgres, jadi setiap DDL/backfill dijalankan oleh job
+Railway sementara (tanpa domain, restart NEVER, referensi `DATABASE_URL`, kode di `apps/feature-05-06-job`), dihapus
+sesudah selesai; setiap langkah dibaca ulang lewat pgweb.
+
+Fase 1 — `buy_freq`/`sell_freq` di `IDX_Broker_Summary`
+- Migrasi: `ADD COLUMN buy_freq bigint NULL, sell_freq bigint NULL` (tanpa default, perubahan metadata saja).
+- Backfill per bulan (130 transaksi): `UPDATE … FROM "IDX_Broker_Summary_Freq"` pada kunci 5 kolom, hanya bila
+  `IS DISTINCT FROM` (idempoten); `VACUUM (ANALYZE)` per tahun. Baris tanpa pasangan Freq (simbol non-saham) tetap NULL.
+- Ke depan: fungsi `sync_broker_summary_freq(p_from date, p_to date)` dipanggil manual sesudah muatan BS/Freq (pemuat
+  sumber tidak diubah, butir 9).
+- Uji: per bulan jumlah baris dan Σ Buy/Sell Value/Lots sebelum = sesudah; freq = Freq pada kunci cocok; jumlah NULL =
+  baris tanpa pasangan (Phase 0: 2,17 juta, semua non-4-huruf).
+
+Fase 2 — `feature_05_foreign_domestic_broker_detail`
+- Kolom: `trade_date, ticker, broker, market_board, investor_type, buy_value, sell_value, net_value, buy_lots,
+  sell_lots, net_lots, buy_freq, sell_freq, source_balance_gap, calculated_at`; PK `(ticker, trade_date, broker,
+  investor_type, market_board)` (ticker di depan untuk baca per ticker); CHECK papan/tipe seperti BS.
+- `source_balance_gap` diturunkan dari BS per tanggal × ticker × papan (Σ Buy Value ≠ Σ Sell Value), berlaku juga
+  untuk waran; bukan dari daftar ticker.
+- Fungsi `refresh_feature_05(p_from date, p_to date, p_tickers text[])`: hapus + isi ulang lingkup itu dalam satu
+  transaksi, advisory lock. Backfill per bulan.
+- Uji: grain unik; Σ per bulan = BS; net = buy − sell; freq = BS.
+
+Fase 3 — `feature_06_foreign_domestic` (82 field + `source_balance_gap`)
+- PK `(ticker, market_board, trade_date)`, seperti Feature 03; baris hanya bila papan bertransaksi.
+- Fungsi `refresh_feature_06(p_ticker text, p_from date)`: sesi = tanggal ticker punya baris F05 di papan mana pun;
+  permutasi papan × sesi dengan nol; warm-up 312 sesi F05 sebelum `p_from` (252 + 60); kumulatif melanjutkan baris F06
+  tersimpan sehari sebelum `p_from`; hapus F06 ≥ `p_from` lalu isi ulang. `p_from` NULL = seluruh riwayat (hanya
+  backfill pertama/perbaikan eksplisit). Persentil midrank memakai `feature_02_empirical_midrank_percentile`.
+- Backfill per ticker (pola Feature 02, resumable).
+- Uji: harian = Σ F05; 82 field ada; hitung ulang independen (Python) untuk BBCA, saham sepi, saham dengan papan Nego,
+  saham dengan hari bertanda, saham yang mulai di tengah riwayat; refresh satu tanggal terakhir = hitung penuh dan
+  hanya membaca ≤ 312 sesi per ticker (EXPLAIN ANALYZE, BUFFERS); rasio penyebut nol = NULL.
+
+Fase 4 — katalog dan dokumen
+- `Table_Catalog`/`Column_Catalog` (BS kolom baru, Freq dan NF yang belum terdaftar, F05, F06), `Feature_Catalog`
+  (F05 13 dan F06 82 definisi lengkap), `Feature_Relationship_Catalog` (F05 → F06), `related_functions`;
+  `audit_feature_catalog_semantics.py`, `sync_database_catalog.py`, `sync_database_schema.py`.
+- `FEATURE_05_06_FOREIGN_DOMESTIC.md` (kamus 82 field), DATABASE_CHANGELOG, ERRORS (sembilan tanggal, M157 sudah),
+  README/PROJECT_CONTEXT. Tidak dibuka ke AI (AI_* katalog tidak diubah).
+
+Perkiraan ruang (diukur ulang saat eksekusi): versi baris lama dari UPDATE Fase 1 ±7–8 GB (dipakai ulang sesudah
+VACUUM, tidak kembali ke OS), F05 ±9–10 GB termasuk index, F06 ±1,5–2,5 GB; total ±20 GB → ±61 dari 75 GB (±81%).
