@@ -613,3 +613,46 @@ disetujui atau jaminan bahwa byte keepalive menunjukkan kemajuan reasoning.
 - Endpoint penyedia tercatat di setiap panggilan (memperbaiki `lookup: NOT_FOUND`).
 - Mengulang di endpoint lain dari model yang sama termasuk perubahan penyedia, jadi perlu persetujuan user.
 - Uji: penyedia tiruan yang diam 30 detik dipotong di N; penyedia yang lambat tapi terus mengalir tidak dipotong.
+
+## Onboarding Feature 05/06 ke AI dan indeks Governor (usulan 2026-10-22, menunggu keputusan)
+
+Permintaan user 2026-10-22: "cek feature 1, 2, 3, 4 dan onboarding table terkait dengan bagaimana membuat feature 5 dan 6
+visible ke AI … Setiap query yang dilakukan harus menggunakan indeks apabila melewati SQL Governor … cek apakah saat ini
+query di SQL Governor juga melewati indeks". Semua butir di bawah dibaca dari kode `main` (`33cf07b`) dan database live
+(pgweb, read-only) 2026-10-22.
+
+**Keadaan F05/F06:** Table_Catalog, Column_Catalog (15 dan 87 kolom), Feature_Catalog (CALCULATION_VERIFIED) dan CHECK
+papan/tipe investor sudah ada. Lapisan AI belum ada: tidak ada baris `AI_table_catalog`, `AI_column_catalog`,
+`AI_calculation_catalog`, `AI_catalog_relationships`, `AI_data_coverage`, dan `market_ai_sql_reader` belum punya SELECT
+(EXEC-F05-F06: "Tidak dibuka ke AI").
+
+**Pola F01–F04 (NEW_TABLE_ONBOARDING_PLAN.md bagian 0 dan 7, migrasi `20261020_001`):** GRANT ke
+`market_ai_sql_reader`; `AI_table_catalog` BOUNDED_READ; `AI_column_catalog` dari Feature_Catalog (kolom internal
+`ai_allowed = false`, mis. `source_balance_gap`); satu `AI_calculation_catalog` per kolom; relasi; coverage turunan
+dari `IDX_Broker_Summary`; daftar tulis-tangan `APPROVED`, `RAW_SOURCES`/`FORBIDDEN_FEATURE_TABLES`, preview,
+`WAREHOUSE_SCOPE` (sudah menyebut "broker and foreign flows").
+
+**Indeks yang dipakai Governor (diukur, ms):**
+
+| Tabel | Saham + 90 hari | Satu tanggal semua saham | Kalender 20 tanggal |
+|---|---|---|---|
+| F01 | 54 (PK) | 9 (indeks tanggal) | 25 |
+| F02 | 455 (indeks tanggal) | 10.014 (indeks tanggal, baca heap dingin) | 46 |
+| F03 | 94 (PK) | 12 (indeks tanggal) | 17 |
+| F04 (live) | 27 (PK) | 2.506 (PK, skip scan) | **10.893** (tanpa indeks tanggal) |
+| F05 | 368 (PK) | 7.408 (PK, skip scan) | **Seq Scan 45 juta baris** (tidak dijalankan) |
+| F06 | 75 (PK) | 585 (indeks tanggal) | 20 |
+
+**Usulan (urutan):**
+1. Indeks F05 `(trade_date, market_board, ticker)` (padanan F02: 378 MB), diukur EXPLAIN sebelum/sesudah; F06 sudah
+   punya indeks tanggal. Opsional: indeks tanggal F04 (sudah live, M204).
+2. Governor: kalender ringkasan hanya lewat indeks yang diawali kolom waktu, atau di-EXPLAIN dulu (M204), sehingga
+   jaminan "lewat indeks" berlaku di semua jalur.
+3. Migrasi onboarding F05/F06 dengan template `20261020_001`: GRANT, `AI_table_catalog`, `AI_column_catalog` dari
+   Feature_Catalog, `AI_calculation_catalog`, relasi (F05 ↔ F06, Price, Universe, Broker Profile), preview bila
+   dipilih; `APPROVED`, `coverage_job.RAW_SOURCES["IDX_Broker_Summary"]["reference_for"]` dan
+   `FORBIDDEN_FEATURE_TABLES` ditambah; Tool_Catalog/router bila teksnya berubah.
+4. Validasi L0–L3 (bagian 7.5), termasuk satu pertanyaan per tabel lewat model.
+
+**Keputusan user yang dibutuhkan:** indeks F05 (±0,4 GB, disk 49 GB dari 75 GB); indeks F04; perbaikan Governor (2);
+F05 dibuka seluruhnya atau hanya F06; preview; refresh harian F05/F06 masih manual (freshness akan BASI tanpa job).

@@ -1203,6 +1203,30 @@ change yet.
 - **Lesson:** saat build dari sumber tidak bisa, job sekali jalan bisa dikirim sebagai image publik + kode di variabel;
   variabel itu tidak boleh memuat rahasia dan service dihapus sesudahnya.
 
+### M204 — Query kalender `query_metric` tidak lewat gerbang EXPLAIN; F04 10,9 detik, F05 akan memindai seluruh tabel (2026-10-22)
+
+- **Symptom:** diukur live 2026-10-22 lewat pgweb (read-only, `EXPLAIN (ANALYZE, BUFFERS)`): query kalender Governor
+  (`summary.calendar_sql`, 20 tanggal terakhir) pada `Feature_04_Technical_Indicator` butuh 10.893 ms dengan
+  15,9 juta buffer hit; pada `Feature_05_Foreign_Domestic_Broker_Detail` rencananya `Parallel Seq Scan` 45 juta baris
+  per tanggal (biaya 27,8 juta, tidak dijalankan). Tabel dengan indeks diawali tanggal: F01 25 ms, F02 46 ms, F03 17 ms,
+  F06 20 ms.
+- **Verified cause (kode):** `governor.py` (jalur `/v1/summary`) menjalankan `calendar_sql` langsung sebelum
+  `_explain`; gerbang scan (`SQL_MAX_ESTIMATED_SCAN_ROWS` 2.000.000) dan biaya (`SQL_MAX_PLAN_COST` 600.000) hanya
+  menilai query ringkasan sesudahnya. Kalender adalah "loose index scan" yang cepat hanya bila ada indeks yang diawali
+  kolom waktu; F04 (PK `ticker, trade_date, …`) dan F05 (PK `ticker, trade_date, broker, …`) tidak punya. Satu-satunya
+  pengaman adalah `statement_timeout` 20 detik. Tabel yang sama juga tidak bisa dipecah per tanggal oleh
+  `extract.partitioning` (`time_index_available` false).
+- **Class:** setiap query Governor yang tidak lewat `_explain` (kalender ringkasan) dan setiap tabel bertanggal tanpa
+  indeks yang diawali kolom waktu, termasuk tabel makro dan lintas aset yang akan datang.
+- **Solution (usulan, belum dijalankan; FUTURE_PLAN "Onboarding Feature 05/06 ke AI"):** (a) Governor menolak atau
+  mengganti kalender bila tabel tidak punya indeks yang diawali kolom waktu (diturunkan dari `INDEX_LEADING_SQL` yang
+  sudah ada), atau meng-EXPLAIN kalender lebih dulu; (b) indeks `(trade_date, market_board, ticker)` untuk F05 dan
+  `(trade_date)` untuk F04, diukur dengan EXPLAIN sebelum dan sesudah; (c) onboarding mensyaratkan indeks tanggal
+  untuk tabel bertanggal di atas batas scan.
+- **Status:** OPEN.
+- **Lesson:** "setiap query lewat indeks" harus dijamin oleh gerbang di kode untuk semua jalur query, bukan hanya
+  jalur ekstraksi; tabel bertanggal yang dibuka ke AI butuh indeks yang diawali kolom waktu.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.
