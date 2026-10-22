@@ -4235,3 +4235,13 @@ was waited out at 14:05 UTC before the database migration).
   as Railway accepts it; the outcome is recorded below when known.
 - Lesson: during a Railway deploy pause, a config change that redeploys a database stops it; check that deploys are
   accepted before applying service settings.
+- Outcome (2026-10-22): Postgres logs show a clean shutdown at 04:15:30 UTC (before the limit was applied at 04:52;
+  the RAM reading fell to 0 at about 04:16). The retried `railway redeploy -s Postgres --from-source` was accepted at
+  05:09:18; deployment `8d547ce4` SUCCESS, "database system is ready to accept connections" 05:09:21, with the
+  4 GB limit and the 75 GB volume. edge-bff `/ready` 200 from 05:09:52; market-ai-orc has no database error since;
+  market-audit-store reached Postgres again (last DNS error 05:09:25). `railway config plan`: up to date. Postgres RAM
+  averaged 0.08 GB over the next 20 minutes.
+- Still open: market-sql-governor `sql_governor_audit_drain_failed` (ClientError) every 30 s toward market-audit-store
+  (none in the hours before the outage). `railway restart -s market-audit-store` ran (05:13-05:33) but the deployment
+  stayed `776f4e5a` with no new log line, so the restart did not take effect. The audit store runs in shadow mode
+  (`AI_AUDIT_STORE_REQUIRED=false`); the Governor keeps the events in its outbox and drains them when the store answers.

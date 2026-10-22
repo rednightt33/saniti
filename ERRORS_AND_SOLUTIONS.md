@@ -1135,7 +1135,9 @@ change yet.
 - **Solution so far:** volume 50 → 75 GB (online, read back); Postgres memory limit 4 GB in `.railway/railway.ts`.
   Applying the limit while Railway paused deploys removed the running deployment without a new one (NO DEPLOYMENT);
   data intact on the volume. Deploy retried until Railway accepts it.
-- **Status:** OPEN until Postgres runs again and EDGE `/ready` is 200.
+- **Status:** Postgres FIXED 2026-10-22 05:09 UTC (deployment `8d547ce4`, 4 GB limit, 75 GB volume; EDGE `/ready`
+  200; orc and audit-store reach Postgres). OPEN: market-sql-governor still fails to drain its audit outbox to
+  market-audit-store (ClientError); a CLI restart of the store did not take effect during the outage.
 - **Lesson:** check that Railway accepts deploys before changing a database's deploy settings; a memory limit is the
   supported way to bound page cache billed as memory.
 
