@@ -6540,3 +6540,10 @@ Fase 4 — katalog dan dokumen
 
 Perkiraan ruang (diukur ulang saat eksekusi): versi baris lama dari UPDATE Fase 1 ±7–8 GB (dipakai ulang sesudah
 VACUUM, tidak kembali ke OS), F05 ±9–10 GB termasuk index, F06 ±1,5–2,5 GB; total ±20 GB → ±61 dari 75 GB (±81%).
+
+**Go 2026-10-22** (user: "Tidak. Volume tetap as is 75gb. One thing to note agar setiap eksekusi bukan berdasarkan
+memory, plan tetap menjadi acuan, execute apabila berbeda tetap inspect database secara teliti untuk navigate.
+Konfirmasi. Execute." lalu "Pakai branch dulu."): volume tetap 75 GB; rencana di atas acuan, setiap langkah didahului
+inspeksi live dan perbedaan dilaporkan; commit ke branch `claude/confident-brahmagupta-1v9c8q` (belum `main`); job
+Railway sementara disetujui lewat "Execute" atas rencana yang menyebutnya. Penanda F06: `source_balance_gap` per hari
+saja (pertanyaan penghitung window tidak dijawab; kolom tambahan bisa dibuat kemudian).
