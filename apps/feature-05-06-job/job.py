@@ -120,7 +120,10 @@ def years(start: dt.date, end_exclusive: dt.date):
         y += 1
 
 
-SEQ_SCAN = ("SET LOCAL enable_indexscan = off", "SET LOCAL enable_bitmapscan = off")
+# Sequential scans; no parallel workers: a parallel hash needs dynamic shared memory, and the Postgres container's
+# /dev/shm is too small for it ("could not resize shared memory segment", 2026-10-22 Fase 2 first run).
+SEQ_SCAN = ("SET LOCAL enable_indexscan = off", "SET LOCAL enable_bitmapscan = off",
+            "SET LOCAL max_parallel_workers_per_gather = 0")
 
 
 def phase2_backfill() -> None:
