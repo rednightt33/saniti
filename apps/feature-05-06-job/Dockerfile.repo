@@ -1,0 +1,7 @@
+# Git-source build of the EXEC-F05-F06 job (repository root as build context).
+FROM python:3.12-slim
+WORKDIR /job
+RUN pip install --no-cache-dir "psycopg[binary]==3.2.3" "pandas==2.2.3" "numpy==2.1.3"
+COPY apps/feature-05-06-job/job.py scripts/check_feature_06_sample.py ./
+COPY database/migrations/20261022_001_add_broker_summary_freq.sql database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql database/migrations/20261022_003_create_feature_06_foreign_domestic.sql database/migrations/20261022_004_catalog_feature_05_06.sql ./sql/
+CMD ["python", "-u", "job.py"]
