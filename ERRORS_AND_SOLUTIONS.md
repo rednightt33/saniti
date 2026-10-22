@@ -1220,8 +1220,10 @@ change yet.
   indeks yang diawali kolom waktu, termasuk tabel makro dan lintas aset yang akan datang.
 - **Solution (usulan, belum dijalankan; FUTURE_PLAN "Onboarding Feature 05/06 ke AI"):** (a) Governor menolak atau
   mengganti kalender bila tabel tidak punya indeks yang diawali kolom waktu (diturunkan dari `INDEX_LEADING_SQL` yang
-  sudah ada), atau meng-EXPLAIN kalender lebih dulu; (b) indeks `(trade_date, market_board, ticker)` untuk F05 dan
-  `(trade_date)` untuk F04, diukur dengan EXPLAIN sebelum dan sesudah; (c) onboarding mensyaratkan indeks tanggal
+  sudah ada), atau meng-EXPLAIN kalender lebih dulu; (b) indeks `(trade_date)` sempit untuk F05/F04, hanya sesudah diukur dalam transaksi DRYRUN (buat,
+  EXPLAIN ANALYZE, ROLLBACK): pada bentuk data yang sama F02 dengan indeks `(date, market_board, ticker)` lebih lambat
+  dari F05 tanpa indeks itu untuk setiap cross-section (DATABASE_INDEX_ACCEPTANCE.md 2026-10-22), jadi indeks tanggal
+  bisa memperburuk ekstraksi; (c) onboarding mensyaratkan indeks tanggal
   untuk tabel bertanggal di atas batas scan.
 - **Status:** OPEN.
 - **Lesson:** "setiap query lewat indeks" harus dijamin oleh gerbang di kode untuk semua jalur query, bukan hanya
