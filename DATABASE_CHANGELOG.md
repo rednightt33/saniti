@@ -2108,3 +2108,41 @@ bonds 60,540 rows / 24 tickers, no ticker in both; the 15 referenced `AI_formula
   EXEC-RULES-1021, ERRORS M197). Applied by a one-off job on `orc-test-runner` (`5e1c7820`); read back: v1-v10
   present, v10 inactive like every market-ai-orc row, its purpose carries both new sentences. The temporary
   `DATABASE_URL` variable was removed and verified absent. No table or column changed.
+
+## 2026-10-22 — Feature 05 and Feature 06 (foreign/domestic flow) built; `IDX_Broker_Summary` buy/sell frequency (EXEC-F05-F06)
+
+- Migrations, applied in this order by the temporary job service `feature-05-06-job` and listed in `APPLIED.sha256`:
+  `20261022_001_add_broker_summary_freq.sql` (`IDX_Broker_Summary.buy_freq`/`sell_freq` bigint NULL, CHECK
+  `IDX_Broker_Summary_freq_nonnegative_check` added NOT VALID and validated after the backfill,
+  `sync_broker_summary_freq(p_from, p_to)`), `_002` (F05 table and `refresh_feature_05`), `_003` (F06 table,
+  `refresh_feature_06`, `feature_06_midrank_percentile`), `_005` (rename to the governed names
+  `Feature_05_Foreign_Domestic_Broker_Detail` / `Feature_06_Foreign_Domestic`, refresh functions replaced on the new
+  names, index `Feature_06_Foreign_Domestic_date_board_idx (trade_date, market_board)`), then `_004` (catalog, generated
+  by `scripts/generate_feature_05_06_catalog.py`). `_004` was regenerated after the rename because the catalog validator
+  accepts only `Feature_NN_` names (ERRORS M202).
+- Source: `IDX_Broker_Summary` (to 2026-08-31) and `IDX_Broker_Summary_Freq` on the 5-column key; source loaders not
+  changed (user decision). Not repaired by user decision: brokers missing from the source 2016–2020 (M157, flagged as
+  `source_balance_gap`, internal, `ai_allowed` false) and nine missing dates (M199).
+- Phase 1 (freq backfill, per month, VACUUM per year): 4 h 36 min (M200); freq equals Freq on every matching key; NULL
+  only where Freq has no row (non-4-letter symbols). Check since 2026-08-01: 495,775 rows, 460,664 with freq, 0
+  four-letter symbols with NULL freq.
+- Phase 2 (F05, one transaction per year, ticker-ordered heap): 45,229,673 rows, equal to BS per year (rows and sums);
+  first attempt rolled back on a parallel-hash `/dev/shm` error (M201), parallel workers disabled for the job.
+- Phase 3 (F06, per ticker, resumable; 2026-10-22 15:09–16:57 UTC): 4,125 tickers, 2,268,015 rows (= Feature_03 row
+  count), last date 2026-08-31; `source_balance_gap` on 47,768 rows (= the M157 count in Feature_03). Reconcile per
+  year 2016–2026 (daily foreign/domestic flows vs Σ F05): 0 differences. Independent pandas recompute
+  (`scripts/check_feature_06_sample.py`, tolerance 1e-6) PASS for BBCA, BBRI, MIKA, XSPI, ISAP-W, CDIA. Incremental
+  refresh of the last 1 / 21 / 400 sessions equals the full computation (0.27–2.7 s per ticker).
+- `EXPLAIN (ANALYZE, BUFFERS)`: incremental F05 read for one ticker 53–61 ms; F06 read by ticker 0.16 ms; F06
+  cross-section of one date and board 2.7 s (seq scan) → 5.3 ms with the new date index (user 2026-10-22: "pola ketiga
+  lambat. Jadi tolong dibuat indeks").
+- Sizes after the load (pgweb 17:32 UTC): database 49 GB of the 75 GB volume; `IDX_Broker_Summary` 10,020 MB, F05
+  9,310 MB, F06 1,312 MB (date index 16 MB).
+- Catalog: Table_Catalog 2 rows (VERIFIED), Column_Catalog 102 + BS `buy_freq`/`sell_freq`, Feature_Catalog 102 v1
+  CALCULATION_VERIFIED, `IDX_Broker_Summary.related_functions` + `sync_broker_summary_freq`, Feature_Relationship_Catalog
+  F05 → F06. Audit (pgweb): 250 active definitions = 250 verified, 0 incomplete, 6 Feature tables fully covered. AI_*
+  catalogs not changed (not opened to the AI). `IDX_Broker_Summary_Freq` and `IDX_Net_Foreign_Summary` are still not
+  in Table_Catalog (open).
+- Refresh after a new load (manual): `sync_broker_summary_freq(from, to)` → `refresh_feature_05(from, to, tickers)` →
+  `refresh_feature_06(ticker, from)` per changed ticker; never from 2016 for a daily update. Data dictionary:
+  `FEATURE_05_06_FOREIGN_DOMESTIC.md`.

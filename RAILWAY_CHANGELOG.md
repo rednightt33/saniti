@@ -4245,3 +4245,19 @@ was waited out at 14:05 UTC before the database migration).
   (none in the hours before the outage). `railway restart -s market-audit-store` ran (05:13-05:33) but the deployment
   stayed `776f4e5a` with no new log line, so the restart did not take effect. The audit store runs in shadow mode
   (`AI_AUDIT_STORE_REQUIRED=false`); the Governor keeps the events in its outbox and drains them when the store answers.
+
+## 2026-10-22 — Temporary job service `feature-05-06-job` (EXEC-F05-F06)
+
+- Created in project lucid-patience, environment dev: service `feature-05-06-job`
+  (`eb1e1852-629a-4433-b3f1-3ce348c01961`), no domain, restart policy NEVER, variables `DATABASE_URL`
+  (reference `${{Postgres.DATABASE_URL}}`), `JOB_TASKS`, `JOB_B64_1`/`JOB_B64_2` (job code tarball, no secrets).
+- `railway up` failed "Failed to snapshot repository" during the Railway outage (ERRORS M203), so the service ran the
+  public image `python:3.12-slim` with the code unpacked from the variables, deployed with GraphQL
+  `serviceInstanceDeployV2`. Code: `apps/feature-05-06-job/job.py` on branch `claude/confident-brahmagupta-1v9c8q`.
+- Ran migrations `20261022_001`–`005`, the Phase 1–3 backfills, reconcile, sample validation and measurements
+  (DATABASE_CHANGELOG 2026-10-22). Volume stayed 75 GB (user decision).
+- Deleted after the work was verified; deletion and the absence of its variables are recorded below.
+- Deleted 2026-10-22 after its last deployment (`0d38fd83`, task `measure`) reached SUCCESS: GraphQL `serviceDelete`
+  returned true; read back, the project lists 24 services without `feature-05-06-job` and the service has no
+  variables left. The service was never in `.railway/railway.ts`, so the file needs no change (`railway config plan`
+  could not run here: the `railway` npm SDK is not installed in this session).

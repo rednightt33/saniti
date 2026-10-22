@@ -6402,7 +6402,7 @@ sehingga perubahan teksnya butuh migrasi round_ab; teks prompt berubah → snaps
    orc `fad7e368` dan sandbox `c1e5db31` SUCCESS. Efek pada run nyata belum diukur (perlu run yang memakai
    `in_period` / `emit_json`).
 
-### EXEC-F05-F06: Feature 05 (broker detail) dan Feature 06 (foreign/domestic stock-level, 73 field) (dicatat 2026-10-21; belum dieksekusi)
+### EXEC-F05-F06: Feature 05 (broker detail) dan Feature 06 (foreign/domestic stock-level, 73 field) (dicatat 2026-10-21; dieksekusi 2026-10-22 di branch `claude/confident-brahmagupta-1v9c8q`, menunggu merge ke `main`)
 
 Sumber: prompt user 2026-10-21 "Implementation Prompt — Feature 05 & Feature 06 Foreign/Domestic Flow Analytics"
 (arsitektur LOCKED: `IDX_Broker_Summary` → `feature_05_foreign_domestic_broker_detail` → `feature_06_foreign_domestic`;
@@ -6489,7 +6489,7 @@ Pertanyaan terbuka:
   - Akhiran huruf kecil (`_base60d`, `_base252d`) sesuai standar snake_case (ERRORS Part A 20).
   - Jumlah field F06: 73 − 8 (nama lama z-score/persentil) + 16 + 1 = 82, ditambah `source_balance_gap` internal.
 
-#### Rencana implementasi EXEC-F05-F06 (disusun 2026-10-22; belum dieksekusi, menunggu "go")
+#### Rencana implementasi EXEC-F05-F06 (disusun 2026-10-22; Go 2026-10-22, selesai 2026-10-22)
 
 Dasar: inspeksi read-only pgweb 2026-10-22 (volume `postgres-volume` 75.000 MB, terpakai 41.003 MB; database 37 GB;
 Postgres batas memori 4 GB; `shared_buffers` 128 MB, `work_mem` 4 MB, `maintenance_work_mem` 64 MB; BS hanya punya PK
@@ -6547,3 +6547,20 @@ Konfirmasi. Execute." lalu "Pakai branch dulu."): volume tetap 75 GB; rencana di
 inspeksi live dan perbedaan dilaporkan; commit ke branch `claude/confident-brahmagupta-1v9c8q` (belum `main`); job
 Railway sementara disetujui lewat "Execute" atas rencana yang menyebutnya. Penanda F06: `source_balance_gap` per hari
 saja (pertanyaan penghitung window tidak dijawab; kolom tambahan bisa dibuat kemudian).
+
+**Perbedaan dari rencana, dengan keputusan user:**
+- Nama tabel: validator katalog hanya menerima `Feature_NN_…` (ERRORS M202). User 2026-10-22: "Oke, pola ketiga
+  lambat. Jadi tolong dibuat indeks. Yang kemudian minta tolong rename table mengikuti pola." → migrasi `20261022_005`:
+  `Feature_05_Foreign_Domestic_Broker_Detail`, `Feature_06_Foreign_Domestic`, index
+  `Feature_06_Foreign_Domestic_date_board_idx (trade_date, market_board)` (cross-section 2,7 s → 5,3 ms).
+- Persentil memakai fungsi baru `feature_06_midrank_percentile` (rumus midrank yang sama dengan Feature 02).
+- Fase 2 per tahun (bukan per bulan) dengan seq scan, karena Fase 1 melambat (M200); parallel query dimatikan (M201).
+- Deploy job lewat image + kode di variabel karena `railway up` gagal selama gangguan (M203).
+- `sync_database_schema.py` / `sync_database_catalog.py` tidak dijalankan (menulis `Database_Table_Status` dan trigger
+  di luar lingkup); `DATABASE_SCHEMA.md` diperbarui untuk tiga tabel dari baca live read-only.
+
+**Status 2026-10-22 (bukti di DATABASE_CHANGELOG 2026-10-22):** Fase 1–4 selesai dan dibaca ulang; F05 45.229.673 baris,
+F06 2.268.015 baris / 4.125 ticker, rekonsiliasi 0 selisih, validasi pandas PASS, incremental = full; katalog 250/250
+verified; job `feature-05-06-job` dihapus. Masih terbuka: merge branch ke `main`; `IDX_Broker_Summary_Freq` dan
+`IDX_Net_Foreign_Summary` belum di Table_Catalog; refresh harian F05/F06 masih manual (tanpa worker, butir 8); M157 dan
+M199 tidak diperbaiki (keputusan user). Bagian ini dipindah ke ERRORS/changelog dan dihapus dari EXEC.md setelah merge.

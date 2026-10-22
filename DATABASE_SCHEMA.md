@@ -1,6 +1,6 @@
 # Database schema
 
-Refreshed from the applied public-schema migration and live readback at `2026-10-12T09:29:57+00:00`.
+Refreshed from the applied public-schema migration and live readback at `2026-10-12T09:29:57+00:00`; `IDX_Broker_Summary`, `Feature_05_Foreign_Domestic_Broker_Detail` and `Feature_06_Foreign_Domestic` re-read live (read-only) on `2026-10-22` after migrations `20261022_001`-`005`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -46,6 +46,8 @@ Refreshed from the applied public-schema migration and live readback at `2026-10
 | `Feature_02_Broker_Rolling` | Feature | After validated broker-summary changes; manual v2 ticker rebuild | `2026-08-31` | `2026-09-14 14:26:33.580099+00:00` | Derived from IDX_Broker_Summary; Investor-Type Feature 02 v2 refresh is manual | Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata. |
 | `Feature_03_Stock_Broker_Daily` | Feature | After Feature 02 refresh; manual Investor-Type v2 refresh | `2026-08-31` | `2026-09-14 15:17:23.131992+00:00` | Derived from Investor-Type Feature_02_Broker_Rolling; Feature 03 v2 refresh is manual | Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate. |
 | `Feature_04_Technical_Indicator` | Feature | Event-driven after committed final price changes; exact affected suffix per asset/ticker | `2026-10-09` | `2026-10-12 05:43:20+00:00` | Derived from final price rows; changes queued and tracked per ticker | Cross-asset Daily closing price and causal technical indicators from universe-classified equity or bonds OHLC. |
+| `Feature_05_Foreign_Domestic_Broker_Detail` | Feature | Manual: sync_broker_summary_freq then refresh_feature_05 for the new dates | `2026-08-31` | `2026-10-22` | Derived from IDX_Broker_Summary (EXEC-F05-F06) | EXEC-F05-F06 Feature 05: one row per IDX_Broker_Summary row (date, ticker, broker, investor type, board) with buy/sell value, lots and frequency; the only source of Feature 06. Refreshed manually by refresh_feature_05(p_from, p_to, p_tickers) after sync_broker_summary_freq. |
+| `Feature_06_Foreign_Domestic` | Feature | Manual: refresh_feature_06 per changed ticker from the first new date | `2026-08-31` | `2026-10-22` | Derived from Feature_05_Foreign_Domestic_Broker_Detail (EXEC-F05-F06) | EXEC-F05-F06 Feature 06: stock-level daily foreign/domestic flow by ticker, market board and ticker session (Feature 02 session definition), with rolling 1/5/10/20/40/60-session flows, cumulative flow, participation, frequency, z-scores and midrank percentiles against the previous 252 (and 60) sessions. Refreshed manually per ticker by refresh_feature_06(p_ticker, p_from). |
 | `Feature_Calculation_Log` | System | After completed worker attempts | `2026-10-09` | `2026-10-09 10:06:33.159836+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
 | `Feature_Calculation_Queue` | System | After committed price inserts/updates and worker transitions | `2026-10-09` | `2026-10-09 10:06:33.099491+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
 | `Feature_Catalog` | Reference | After each validated Feature schema change | — | `2026-10-12 02:04:32.840328+00:00` | Tracked automatically | Versioned, machine-readable formula, interpretation, recommended-use, misuse, availability, point-in-time safety and validation-evidence contract for every validated Feature column. |
@@ -57,7 +59,7 @@ Refreshed from the applied public-schema migration and live readback at `2026-10
 | `Golden_Analysis_Test_Run` | System | Before major releases and material model, prompt, Feature, or tool changes | — | `2026-09-13 15:08:56+00:00` | Baseline only | Historical execution record for one complete golden analytical regression suite. |
 | `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-10 07:23:34.854803+00:00` | Tracked automatically | Broker code and name, domestic/foreign type, and usage profile such as Institutional-heavy, Retail-heavy, Mixed, or Niche. |
 | `IDX_Broker_Profile_History` | Reference | Captured after every write to IDX_Broker_Profile; never deleted | — | `2026-10-09 05:36:34+00:00` | Baseline; exact changes tracked from this time forward | Point-in-time (bitemporal) history of the tracked IDX_Broker_Profile attributes (broker_name, broker_type, broker_classification), captured by Saniti from the first capture onward. Current knowledge is recorded_to IS NULL; superseded knowledge is kept. |
-| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day | `2026-08-31` | `2026-09-09 14:41:15.160142+00:00` | Derived from table data and load log | Daily broker buy/sell values and lots by symbol, broker, investor type, and market board. |
+| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day; buy_freq/sell_freq filled by sync_broker_summary_freq | `2026-08-31` | `2026-10-22` | Derived from table data and load log | Daily broker buy/sell values, lots and (since 2026-10-22) buy/sell transaction frequency by symbol, broker, investor type, and market board. |
 | `IDX_Broker_Summary_Freq` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
 | `IDX_Net_Foreign_Summary` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-10-02 18:07:58.944512+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
@@ -117,6 +119,7 @@ These relationships are documented for analysis but are not enforced as PostgreS
 | `Price_Stock_Indonesia_IDX.ticker` | `IDX_Stock_Universe."Ticker"` | Logical many-to-one by ticker | Daily price rows map to the stock universe when a matching ticker exists. No database foreign key is enforced. |
 | `Feature_01_Stock_Daily.(ticker, date)` | `Price_Stock_Indonesia_IDX.(ticker, date)` | Logical one-to-one by ticker and trading date | Each feature row is derived from exactly one available price candle. No database foreign key is enforced. |
 | `Feature_01_Stock_Daily.ticker` | `IDX_Stock_Universe."Ticker"` | Logical many-to-one by ticker | Feature classifications use the current Sector and Industry values from the stock universe. No database foreign key is enforced. |
+| `Feature_06_Foreign_Domestic.(ticker, market_board, trade_date)` | `Feature_05_Foreign_Domestic_Broker_Detail.(ticker, market_board, trade_date)` | Logical one-to-many aggregate | Feature 06 sums Feature 05 over brokers and investor types per ticker, board and session; registered in Feature_Relationship_Catalog. No database foreign key is enforced. |
 | `Feature_Catalog.(feature_table, feature_column)` | `Locked Feature table physical columns` | Governed semantic reference | Active catalog rows are validated by trigger against exact physical columns in the public schema. |
 | `Monitoring_Price_ALL.asset_type` | `IDX_Stock_Universe."Security Type"` | Logical grouped snapshot | Monitoring rows group expected and missing ticker counts by the universe Security Type value. |
 | `Monitoring_Price_ALL.update_for_date` | `Price_Stock_Indonesia_IDX.date` | Logical | A monitoring date describes the daily-price date targeted by an automation run. |
@@ -1966,6 +1969,162 @@ Cross-asset Daily closing price and causal technical indicators from universe-cl
 |---|---|
 | `Feature_04_Technical_Indicator_pkey` | `CREATE UNIQUE INDEX "Feature_04_Technical_Indicator_pkey" ON public."Feature_04_Technical_Indicator" USING btree (ticker, trade_date, timeframe, asset_type)` |
 
+## Feature_05_Foreign_Domestic_Broker_Detail
+
+EXEC-F05-F06 Feature 05: one row per IDX_Broker_Summary row (date, ticker, broker, investor type, board) with buy/sell value, lots and frequency; the only source of Feature 06. Refreshed manually by refresh_feature_05(p_from, p_to, p_tickers) after sync_broker_summary_freq.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | Exchange trading date of the source row. |
+| `ticker` | `text` | No | — | Source Symbol, including warrants and rights. |
+| `broker` | `text` | No | — | Two-character broker code. |
+| `market_board` | `text` | No | — | Source board: Regular, Nego or Tunai. |
+| `investor_type` | `text` | No | — | Source investor identity: Foreign or Domestic, not broker domicile. |
+| `buy_value` | `numeric` | No | — | Gross buy value. |
+| `sell_value` | `numeric` | No | — | Gross sell value. |
+| `net_value` | `numeric` | No | — | Net buy value; positive is net buying, negative net selling. |
+| `buy_lots` | `numeric` | No | — | Lots bought (1 lot = 100 shares; odd lots as fractions). |
+| `sell_lots` | `numeric` | No | — | Lots sold (1 lot = 100 shares; odd lots as fractions). |
+| `net_lots` | `numeric` | No | — | Net lots; positive is net buying. |
+| `buy_freq` | `bigint` | Yes | — | Number of buy transactions. |
+| `sell_freq` | `bigint` | Yes | — | Number of sell transactions. |
+| `source_balance_gap` | `boolean` | No | — | Internal: total buy value over all brokers differs from total sell value for this date, ticker and board in the source (ERRORS M157). |
+| `calculated_at` | `timestamp with time zone` | No | `statement_timestamp()` | Statement timestamp when the row was written. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `feature_05_foreign_domestic_broker_detail_buy_freq_check` | Check | `CHECK (buy_freq IS NULL OR buy_freq >= 0)` |
+| `feature_05_foreign_domestic_broker_detail_buy_lots_check` | Check | `CHECK (buy_lots >= 0::numeric)` |
+| `feature_05_foreign_domestic_broker_detail_buy_value_check` | Check | `CHECK (buy_value >= 0::numeric)` |
+| `feature_05_foreign_domestic_broker_detail_investor_type_check` | Check | `CHECK (investor_type = ANY (ARRAY['Foreign'::text, 'Domestic'::text]))` |
+| `feature_05_foreign_domestic_broker_detail_market_board_check` | Check | `CHECK (market_board = ANY (ARRAY['Regular'::text, 'Nego'::text, 'Tunai'::text]))` |
+| `feature_05_foreign_domestic_broker_detail_sell_freq_check` | Check | `CHECK (sell_freq IS NULL OR sell_freq >= 0)` |
+| `feature_05_foreign_domestic_broker_detail_sell_lots_check` | Check | `CHECK (sell_lots >= 0::numeric)` |
+| `feature_05_foreign_domestic_broker_detail_sell_value_check` | Check | `CHECK (sell_value >= 0::numeric)` |
+| `feature_05_net_lots_check` | Check | `CHECK (net_lots = (buy_lots - sell_lots))` |
+| `feature_05_net_value_check` | Check | `CHECK (net_value = (buy_value - sell_value))` |
+| `feature_05_foreign_domestic_broker_detail_pkey` | Primary key | `PRIMARY KEY (ticker, trade_date, broker, investor_type, market_board)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `feature_05_foreign_domestic_broker_detail_pkey` | `CREATE UNIQUE INDEX feature_05_foreign_domestic_broker_detail_pkey ON public."Feature_05_Foreign_Domestic_Broker_Detail" USING btree (ticker, trade_date, broker, investor_type, market_board)` |
+
+## Feature_06_Foreign_Domestic
+
+EXEC-F05-F06 Feature 06: stock-level daily foreign/domestic flow by ticker, market board and ticker session (Feature 02 session definition), with rolling 1/5/10/20/40/60-session flows, cumulative flow, participation, frequency, z-scores and midrank percentiles against the previous 252 (and 60) sessions. Refreshed manually per ticker by refresh_feature_06(p_ticker, p_from).
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | Trading date on which this board of the ticker traded. |
+| `ticker` | `text` | No | — | Source symbol (Feature 05 ticker). |
+| `market_board` | `text` | No | — | Source board: Regular, Nego or Tunai; no ALL board (user decision). |
+| `foreign_buy_1d` | `numeric` | No | — | Foreign buy value for the ticker, date and board. |
+| `foreign_sell_1d` | `numeric` | No | — | Foreign sell value for the ticker, date and board. |
+| `foreign_net_1d` | `numeric` | No | — | Foreign net value; positive is net buying for the ticker, date and board. |
+| `domestic_buy_1d` | `numeric` | No | — | Domestic buy value for the ticker, date and board. |
+| `domestic_sell_1d` | `numeric` | No | — | Domestic sell value for the ticker, date and board. |
+| `domestic_net_1d` | `numeric` | No | — | Domestic net value; positive is net buying for the ticker, date and board. |
+| `foreign_cumulative_net` | `numeric` | No | — | Running total of foreign net value since the ticker's first session on this board's history. |
+| `domestic_cumulative_net` | `numeric` | No | — | Running total of domestic net value since the ticker's first session on this board's history. |
+| `foreign_net_5d` | `numeric` | Yes | — | Foreign net value over the last 5 sessions. |
+| `foreign_net_10d` | `numeric` | Yes | — | Foreign net value over the last 10 sessions. |
+| `foreign_net_20d` | `numeric` | Yes | — | Foreign net value over the last 20 sessions. |
+| `foreign_net_40d` | `numeric` | Yes | — | Foreign net value over the last 40 sessions. |
+| `foreign_net_60d` | `numeric` | Yes | — | Foreign net value over the last 60 sessions. |
+| `domestic_net_5d` | `numeric` | Yes | — | Domestic net value over the last 5 sessions. |
+| `domestic_net_10d` | `numeric` | Yes | — | Domestic net value over the last 10 sessions. |
+| `domestic_net_20d` | `numeric` | Yes | — | Domestic net value over the last 20 sessions. |
+| `domestic_net_60d` | `numeric` | Yes | — | Domestic net value over the last 60 sessions. |
+| `foreign_net_turnover_ratio_1d` | `double precision` | Yes | — | Foreign net value as a share of total traded value (buy side). |
+| `foreign_net_turnover_ratio_5d` | `double precision` | Yes | — | Foreign net value over 5 sessions as a share of 5-session traded value. |
+| `foreign_net_turnover_ratio_20d` | `double precision` | Yes | — | Foreign net value over 20 sessions as a share of 20-session traded value. |
+| `foreign_buy_share_1d` | `double precision` | Yes | — | Foreign buying as a share of traded value. |
+| `foreign_sell_share_1d` | `double precision` | Yes | — | Foreign selling as a share of traded value. |
+| `foreign_buy_days_5d` | `smallint` | Yes | — | Sessions with foreign net buying in the last 5 sessions. |
+| `foreign_buy_days_10d` | `smallint` | Yes | — | Sessions with foreign net buying in the last 10 sessions. |
+| `foreign_buy_days_20d` | `smallint` | Yes | — | Sessions with foreign net buying in the last 20 sessions. |
+| `foreign_buy_days_40d` | `smallint` | Yes | — | Sessions with foreign net buying in the last 40 sessions. |
+| `foreign_sell_days_5d` | `smallint` | Yes | — | Sessions with foreign net selling in the last 5 sessions. |
+| `foreign_sell_days_10d` | `smallint` | Yes | — | Sessions with foreign net selling in the last 10 sessions. |
+| `foreign_sell_days_20d` | `smallint` | Yes | — | Sessions with foreign net selling in the last 20 sessions. |
+| `foreign_sell_days_40d` | `smallint` | Yes | — | Sessions with foreign net selling in the last 40 sessions. |
+| `foreign_net_zscore_5d_base252d` | `double precision` | Yes | — | Z-score of today's 5-session foreign net against its previous 252 values. |
+| `foreign_net_zscore_10d_base252d` | `double precision` | Yes | — | Z-score of today's 10-session foreign net against its previous 252 values. |
+| `foreign_net_zscore_20d_base252d` | `double precision` | Yes | — | Z-score of today's 20-session foreign net against its previous 252 values. |
+| `foreign_net_zscore_40d_base252d` | `double precision` | Yes | — | Z-score of today's 40-session foreign net against its previous 252 values. |
+| `foreign_net_zscore_60d_base252d` | `double precision` | Yes | — | Z-score of today's 60-session foreign net against its previous 252 values. |
+| `foreign_net_percentile_5d_base252d` | `double precision` | Yes | — | Midrank percentile of today's 5-session foreign net among its previous 252 values. |
+| `foreign_net_percentile_10d_base252d` | `double precision` | Yes | — | Midrank percentile of today's 10-session foreign net among its previous 252 values. |
+| `foreign_net_percentile_20d_base252d` | `double precision` | Yes | — | Midrank percentile of today's 20-session foreign net among its previous 252 values. |
+| `foreign_net_percentile_40d_base252d` | `double precision` | Yes | — | Midrank percentile of today's 40-session foreign net among its previous 252 values. |
+| `foreign_net_percentile_60d_base252d` | `double precision` | Yes | — | Midrank percentile of today's 60-session foreign net among its previous 252 values. |
+| `foreign_net_zscore_5d_base60d` | `double precision` | Yes | — | Z-score of today's 5-session foreign net against its previous 60 values. |
+| `foreign_net_zscore_10d_base60d` | `double precision` | Yes | — | Z-score of today's 10-session foreign net against its previous 60 values. |
+| `foreign_net_zscore_20d_base60d` | `double precision` | Yes | — | Z-score of today's 20-session foreign net against its previous 60 values. |
+| `foreign_net_percentile_5d_base60d` | `double precision` | Yes | — | Midrank percentile of today's 5-session foreign net among its previous 60 values. |
+| `foreign_net_percentile_10d_base60d` | `double precision` | Yes | — | Midrank percentile of today's 10-session foreign net among its previous 60 values. |
+| `foreign_net_percentile_20d_base60d` | `double precision` | Yes | — | Midrank percentile of today's 20-session foreign net among its previous 60 values. |
+| `foreign_flow_vs_prev_20d` | `numeric` | Yes | — | Foreign net of the last 20 sessions minus the 20 sessions before them. |
+| `foreign_flow_vs_prev_40d` | `numeric` | Yes | — | Foreign net of the last 40 sessions minus the 40 sessions before them. |
+| `foreign_strength_20d` | `double precision` | Yes | — | Direction consistency of daily foreign net ratios over 20 sessions. |
+| `foreign_strength_50d` | `double precision` | Yes | — | Direction consistency of daily foreign net ratios over 50 sessions. |
+| `foreign_strength_momentum_5d` | `double precision` | Yes | — | Change of foreign_strength_20d over 5 sessions. |
+| `foreign_buy_freq_1d` | `bigint` | Yes | — | Foreign buy transactions. |
+| `foreign_sell_freq_1d` | `bigint` | Yes | — | Foreign sell transactions. |
+| `domestic_buy_freq_1d` | `bigint` | Yes | — | Domestic buy transactions. |
+| `domestic_sell_freq_1d` | `bigint` | Yes | — | Domestic sell transactions. |
+| `foreign_freq_imbalance_1d` | `double precision` | Yes | — | Foreign buy versus sell transaction imbalance. |
+| `foreign_freq_imbalance_20d` | `double precision` | Yes | — | Foreign transaction imbalance over 20 sessions. |
+| `foreign_buy_freq_share_1d` | `double precision` | Yes | — | Foreign share of buy transactions. |
+| `foreign_sell_freq_share_1d` | `double precision` | Yes | — | Foreign share of sell transactions. |
+| `foreign_avg_buy_value_per_freq_1d` | `double precision` | Yes | — | Average foreign buy value per transaction (ticket size). |
+| `foreign_avg_sell_value_per_freq_1d` | `double precision` | Yes | — | Average foreign sell value per transaction. |
+| `foreign_buy_sell_ticket_ratio_1d` | `double precision` | Yes | — | Foreign average buy ticket divided by average sell ticket. |
+| `foreign_avg_buy_lots_per_freq_1d` | `double precision` | Yes | — | Average foreign lots per buy transaction. |
+| `foreign_avg_sell_lots_per_freq_1d` | `double precision` | Yes | — | Average foreign lots per sell transaction. |
+| `domestic_freq_imbalance_1d` | `double precision` | Yes | — | Domestic buy versus sell transaction imbalance. |
+| `domestic_freq_imbalance_20d` | `double precision` | Yes | — | Domestic transaction imbalance over 20 sessions. |
+| `domestic_buy_freq_share_1d` | `double precision` | Yes | — | Domestic share of buy transactions. |
+| `domestic_sell_freq_share_1d` | `double precision` | Yes | — | Domestic share of sell transactions. |
+| `domestic_avg_buy_value_per_freq_1d` | `double precision` | Yes | — | Average domestic buy value per transaction (ticket size). |
+| `domestic_avg_sell_value_per_freq_1d` | `double precision` | Yes | — | Average domestic sell value per transaction. |
+| `domestic_buy_sell_ticket_ratio_1d` | `double precision` | Yes | — | Domestic average buy ticket divided by average sell ticket. |
+| `domestic_avg_buy_lots_per_freq_1d` | `double precision` | Yes | — | Average domestic lots per buy transaction. |
+| `domestic_avg_sell_lots_per_freq_1d` | `double precision` | Yes | — | Average domestic lots per sell transaction. |
+| `domestic_buy_freq_share_change_5d_vs_prev20d` | `double precision` | Yes | — | Change of the domestic share of buy transactions: last 5 sessions versus the 20 before. |
+| `foreign_buy_freq_share_change_5d_vs_prev20d` | `double precision` | Yes | — | Change of the foreign share of buy transactions: last 5 sessions versus the 20 before. |
+| `domestic_buy_value_per_freq_change_5d_vs_prev20d` | `double precision` | Yes | — | Percent change of the domestic average buy value per transaction: last 5 sessions versus the 20 before. |
+| `foreign_buy_value_per_freq_change_5d_vs_prev20d` | `double precision` | Yes | — | Percent change of the foreign average buy value per transaction: last 5 sessions versus the 20 before. |
+| `domestic_sell_freq_share_change_5d_vs_prev20d` | `double precision` | Yes | — | Change of the domestic share of sell transactions: last 5 sessions versus the 20 before. |
+| `foreign_sell_freq_share_change_5d_vs_prev20d` | `double precision` | Yes | — | Change of the foreign share of sell transactions: last 5 sessions versus the 20 before. |
+| `domestic_sell_value_per_freq_change_5d_vs_prev20d` | `double precision` | Yes | — | Percent change of the domestic average sell value per transaction: last 5 sessions versus the 20 before. |
+| `foreign_sell_value_per_freq_change_5d_vs_prev20d` | `double precision` | Yes | — | Percent change of the foreign average sell value per transaction: last 5 sessions versus the 20 before. |
+| `foreign_value_freq_sign_mismatch_1d` | `boolean` | Yes | — | Foreign net value and foreign net transaction count point in different directions. |
+| `source_balance_gap` | `boolean` | No | — | Internal: Feature 05 marks this date, ticker and board as a source gap (ERRORS M157). |
+| `calculated_at` | `timestamp with time zone` | No | `statement_timestamp()` | Statement timestamp when the row was written. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `feature_06_foreign_domestic_market_board_check` | Check | `CHECK (market_board = ANY (ARRAY['Regular'::text, 'Nego'::text, 'Tunai'::text]))` |
+| `feature_06_foreign_domestic_pkey` | Primary key | `PRIMARY KEY (ticker, market_board, trade_date)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_06_Foreign_Domestic_date_board_idx` | `CREATE INDEX "Feature_06_Foreign_Domestic_date_board_idx" ON public."Feature_06_Foreign_Domestic" USING btree (trade_date, market_board)` |
+| `feature_06_foreign_domestic_pkey` | `CREATE UNIQUE INDEX feature_06_foreign_domestic_pkey ON public."Feature_06_Foreign_Domestic" USING btree (ticker, market_board, trade_date)` |
+
 ## Feature_Calculation_Log
 
 Completed attempt and retry history for Feature 01 calculation work.
@@ -2465,6 +2624,8 @@ Daily broker buy/sell values and lots by symbol, broker, investor type, and mark
 | `Net Lots` | `numeric` | No | — | Buy Lots minus Sell Lots. |
 | `Avg Buy` | `numeric` | Yes | — | Average purchase price when supplied by Stockbit. |
 | `Avg Sell` | `numeric` | Yes | — | Average sale price when supplied by Stockbit. |
+| `buy_freq` | `bigint` | Yes | — | Number of buy transactions for the key, copied from IDX_Broker_Summary_Freq.buy_freq on the same Date, Symbol, Broker, Investor Type and Market Board. |
+| `sell_freq` | `bigint` | Yes | — | Number of sell transactions for the key, copied from IDX_Broker_Summary_Freq.sell_freq on the same key. |
 
 ### Constraints
 
@@ -2475,6 +2636,7 @@ Daily broker buy/sell values and lots by symbol, broker, investor type, and mark
 | `IDX_Broker_Summary_broker_check` | Check | `CHECK ("Broker"::text ~ '^[A-Z0-9]{2}$'::text)` |
 | `IDX_Broker_Summary_buy_lots_check` | Check | `CHECK ("Buy Lots" >= 0::numeric)` |
 | `IDX_Broker_Summary_buy_value_check` | Check | `CHECK ("Buy Value" >= 0::numeric)` |
+| `IDX_Broker_Summary_freq_nonnegative_check` | Check | `CHECK ((buy_freq IS NULL OR buy_freq >= 0) AND (sell_freq IS NULL OR sell_freq >= 0))` |
 | `IDX_Broker_Summary_investor_type_check` | Check | `CHECK ("Investor Type"::text = ANY (ARRAY['Foreign'::character varying, 'Domestic'::character varying]::text[]))` |
 | `IDX_Broker_Summary_market_board_check` | Check | `CHECK ("Market Board"::text = ANY (ARRAY['Regular'::character varying, 'Nego'::character varying, 'Tunai'::character varying]::text[]))` |
 | `IDX_Broker_Summary_net_lots_check` | Check | `CHECK ("Net Lots" = ("Buy Lots" - "Sell Lots"))` |
