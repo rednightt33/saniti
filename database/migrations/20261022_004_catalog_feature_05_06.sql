@@ -6,7 +6,7 @@ INSERT INTO public."Table_Catalog" (table_schema, table_name, category, definiti
     primary_key_columns, source_system, source_tables, source_code_paths, update_rule, related_functions,
     documentation_status, readiness_mode, readiness_date_column, observation_date_column, availability_rule,
     point_in_time_status, historical_metadata_method)
-VALUES ('public', 'feature_05_foreign_domestic_broker_detail', 'Feature', 'Broker-level daily buy/sell value, lots and frequency by investor type and board; the only source of Feature 06.', 'One row per date, ticker, broker, investor type and board that traded', ARRAY['ticker','trade_date','broker','investor_type','market_board']::text[], 'Stockbit broker summary (IDX_Broker_Summary with buy_freq/sell_freq)', ARRAY['IDX_Broker_Summary']::text[], ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','apps/feature-05-06-job/job.py']::text[], 'refresh_feature_05(date range, tickers) after sync_broker_summary_freq for the same dates',
+VALUES ('public', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature', 'Broker-level daily buy/sell value, lots and frequency by investor type and board; the only source of Feature 06.', 'One row per date, ticker, broker, investor type and board that traded', ARRAY['ticker','trade_date','broker','investor_type','market_board']::text[], 'Stockbit broker summary (IDX_Broker_Summary with buy_freq/sell_freq)', ARRAY['IDX_Broker_Summary']::text[], ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','apps/feature-05-06-job/job.py']::text[], 'refresh_feature_05(date range, tickers) after sync_broker_summary_freq for the same dates',
     ARRAY['refresh_feature_05(date,date,text[])']::text[], 'VERIFIED', 'DATA_DATE', 'trade_date', 'trade_date',
     'Only through the last refreshed Broker Summary date; 2016 to August 2020 rows with source_balance_gap = true come from a source that lacks some brokers (ERRORS M157); their foreign and domestic nets do not sum to zero.', 'AVAILABLE',
     'Investor Type is source point-in-time data; no current-state profile metadata is used.');
@@ -15,7 +15,7 @@ INSERT INTO public."Table_Catalog" (table_schema, table_name, category, definiti
     primary_key_columns, source_system, source_tables, source_code_paths, update_rule, related_functions,
     documentation_status, readiness_mode, readiness_date_column, observation_date_column, availability_rule,
     point_in_time_status, historical_metadata_method)
-VALUES ('public', 'feature_06_foreign_domestic', 'Feature', 'Stock-level foreign/domestic flow, persistence, z-scores and percentiles, strength and frequency analytics per ticker, board and date.', 'One row per date, ticker and board that traded', ARRAY['ticker','market_board','trade_date']::text[], 'Feature 05 only', ARRAY['feature_05_foreign_domestic_broker_detail']::text[], ARRAY['database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','apps/feature-05-06-job/job.py','scripts/check_feature_06_sample.py']::text[], 'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions',
+VALUES ('public', 'Feature_06_Foreign_Domestic', 'Feature', 'Stock-level foreign/domestic flow, persistence, z-scores and percentiles, strength and frequency analytics per ticker, board and date.', 'One row per date, ticker and board that traded', ARRAY['ticker','market_board','trade_date']::text[], 'Feature 05 only', ARRAY['Feature_05_Foreign_Domestic_Broker_Detail']::text[], ARRAY['database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','apps/feature-05-06-job/job.py','scripts/check_feature_06_sample.py']::text[], 'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions',
     ARRAY['refresh_feature_06(text,date)','feature_06_midrank_percentile(numeric,numeric[],integer)']::text[], 'VERIFIED', 'DATA_DATE', 'trade_date', 'trade_date',
     'Only through the last refreshed Broker Summary date; 2016 to August 2020 rows with source_balance_gap = true come from a source that lacks some brokers (ERRORS M157); their foreign and domestic nets do not sum to zero.', 'AVAILABLE',
     'Investor Type is source point-in-time data; no current-state profile metadata is used.');
@@ -23,18 +23,18 @@ VALUES ('public', 'feature_06_foreign_domestic', 'Feature', 'Stock-level foreign
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_05_foreign_domestic_broker_detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_05_Foreign_Domestic_Broker_Detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     true,
     'Exchange trading date of the source row.', 'Feature_Catalog active semantic version', 'date', 'Never NULL.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_05_foreign_domestic_broker_detail' AND c.column_name = 'trade_date';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_05_Foreign_Domestic_Broker_Detail' AND c.column_name = 'trade_date';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_05_foreign_domestic_broker_detail', 'trade_date', 'Date x ticker x broker x investor type x board',
+VALUES ('Feature_05_Foreign_Domestic_Broker_Detail', 'trade_date', 'Date x ticker x broker x investor type x board',
     'Identity', 'Exchange trading date of the source row.', 'IDX_Broker_Summary."Date"', 'IDX_Broker_Summary', 'IDX_Broker_Summary columns per calculation',
     '1 session', '1 source row', 'date', 'Never NULL.',
     'refresh_feature_05(date range, tickers) after sync_broker_summary_freq for the same dates', 'Requires IDX_Broker_Summary with synced frequency',
@@ -46,18 +46,18 @@ VALUES ('feature_05_foreign_domestic_broker_detail', 'trade_date', 'Date x ticke
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_05_foreign_domestic_broker_detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_05_Foreign_Domestic_Broker_Detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     true,
     'Source Symbol, including warrants and rights.', 'Feature_Catalog active semantic version', 'code', 'Never NULL; exact source symbol.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_05_foreign_domestic_broker_detail' AND c.column_name = 'ticker';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_05_Foreign_Domestic_Broker_Detail' AND c.column_name = 'ticker';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_05_foreign_domestic_broker_detail', 'ticker', 'Date x ticker x broker x investor type x board',
+VALUES ('Feature_05_Foreign_Domestic_Broker_Detail', 'ticker', 'Date x ticker x broker x investor type x board',
     'Identity', 'Source Symbol, including warrants and rights.', 'IDX_Broker_Summary."Symbol"', 'IDX_Broker_Summary', 'IDX_Broker_Summary columns per calculation',
     '1 session', '1 source row', 'code', 'Never NULL; exact source symbol.',
     'refresh_feature_05(date range, tickers) after sync_broker_summary_freq for the same dates', 'Requires IDX_Broker_Summary with synced frequency',
@@ -69,18 +69,18 @@ VALUES ('feature_05_foreign_domestic_broker_detail', 'ticker', 'Date x ticker x 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_05_foreign_domestic_broker_detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_05_Foreign_Domestic_Broker_Detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     true,
     'Two-character broker code.', 'Feature_Catalog active semantic version', 'code', 'Never NULL.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_05_foreign_domestic_broker_detail' AND c.column_name = 'broker';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_05_Foreign_Domestic_Broker_Detail' AND c.column_name = 'broker';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_05_foreign_domestic_broker_detail', 'broker', 'Date x ticker x broker x investor type x board',
+VALUES ('Feature_05_Foreign_Domestic_Broker_Detail', 'broker', 'Date x ticker x broker x investor type x board',
     'Identity', 'Two-character broker code.', 'IDX_Broker_Summary."Broker"', 'IDX_Broker_Summary', 'IDX_Broker_Summary columns per calculation',
     '1 session', '1 source row', 'code', 'Never NULL.',
     'refresh_feature_05(date range, tickers) after sync_broker_summary_freq for the same dates', 'Requires IDX_Broker_Summary with synced frequency',
@@ -92,18 +92,18 @@ VALUES ('feature_05_foreign_domestic_broker_detail', 'broker', 'Date x ticker x 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_05_foreign_domestic_broker_detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_05_Foreign_Domestic_Broker_Detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     true,
     'Source board: Regular, Nego or Tunai.', 'Feature_Catalog active semantic version', 'category', 'Never NULL; boards are never implicitly combined.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_05_foreign_domestic_broker_detail' AND c.column_name = 'market_board';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_05_Foreign_Domestic_Broker_Detail' AND c.column_name = 'market_board';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_05_foreign_domestic_broker_detail', 'market_board', 'Date x ticker x broker x investor type x board',
+VALUES ('Feature_05_Foreign_Domestic_Broker_Detail', 'market_board', 'Date x ticker x broker x investor type x board',
     'Identity', 'Source board: Regular, Nego or Tunai.', 'IDX_Broker_Summary."Market Board"', 'IDX_Broker_Summary', 'IDX_Broker_Summary columns per calculation',
     '1 session', '1 source row', 'category', 'Never NULL; boards are never implicitly combined.',
     'refresh_feature_05(date range, tickers) after sync_broker_summary_freq for the same dates', 'Requires IDX_Broker_Summary with synced frequency',
@@ -115,18 +115,18 @@ VALUES ('feature_05_foreign_domestic_broker_detail', 'market_board', 'Date x tic
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_05_foreign_domestic_broker_detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_05_Foreign_Domestic_Broker_Detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     true,
     'Source investor identity: Foreign or Domestic, not broker domicile.', 'Feature_Catalog active semantic version', 'category', 'Never NULL.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_05_foreign_domestic_broker_detail' AND c.column_name = 'investor_type';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_05_Foreign_Domestic_Broker_Detail' AND c.column_name = 'investor_type';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_05_foreign_domestic_broker_detail', 'investor_type', 'Date x ticker x broker x investor type x board',
+VALUES ('Feature_05_Foreign_Domestic_Broker_Detail', 'investor_type', 'Date x ticker x broker x investor type x board',
     'Identity', 'Source investor identity: Foreign or Domestic, not broker domicile.', 'IDX_Broker_Summary."Investor Type"', 'IDX_Broker_Summary', 'IDX_Broker_Summary columns per calculation',
     '1 session', '1 source row', 'category', 'Never NULL.',
     'refresh_feature_05(date range, tickers) after sync_broker_summary_freq for the same dates', 'Requires IDX_Broker_Summary with synced frequency',
@@ -138,18 +138,18 @@ VALUES ('feature_05_foreign_domestic_broker_detail', 'investor_type', 'Date x ti
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_05_foreign_domestic_broker_detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_05_Foreign_Domestic_Broker_Detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Gross buy value.', 'Feature_Catalog active semantic version', 'IDR', 'Never NULL.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_05_foreign_domestic_broker_detail' AND c.column_name = 'buy_value';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_05_Foreign_Domestic_Broker_Detail' AND c.column_name = 'buy_value';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_05_foreign_domestic_broker_detail', 'buy_value', 'Date x ticker x broker x investor type x board',
+VALUES ('Feature_05_Foreign_Domestic_Broker_Detail', 'buy_value', 'Date x ticker x broker x investor type x board',
     'Broker Flow', 'Gross buy value.', 'IDX_Broker_Summary."Buy Value"', 'IDX_Broker_Summary', 'IDX_Broker_Summary columns per calculation',
     '1 session', '1 source row', 'IDR', 'Never NULL.',
     'refresh_feature_05(date range, tickers) after sync_broker_summary_freq for the same dates', 'Requires IDX_Broker_Summary with synced frequency',
@@ -161,18 +161,18 @@ VALUES ('feature_05_foreign_domestic_broker_detail', 'buy_value', 'Date x ticker
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_05_foreign_domestic_broker_detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_05_Foreign_Domestic_Broker_Detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Gross sell value.', 'Feature_Catalog active semantic version', 'IDR', 'Never NULL.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_05_foreign_domestic_broker_detail' AND c.column_name = 'sell_value';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_05_Foreign_Domestic_Broker_Detail' AND c.column_name = 'sell_value';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_05_foreign_domestic_broker_detail', 'sell_value', 'Date x ticker x broker x investor type x board',
+VALUES ('Feature_05_Foreign_Domestic_Broker_Detail', 'sell_value', 'Date x ticker x broker x investor type x board',
     'Broker Flow', 'Gross sell value.', 'IDX_Broker_Summary."Sell Value"', 'IDX_Broker_Summary', 'IDX_Broker_Summary columns per calculation',
     '1 session', '1 source row', 'IDR', 'Never NULL.',
     'refresh_feature_05(date range, tickers) after sync_broker_summary_freq for the same dates', 'Requires IDX_Broker_Summary with synced frequency',
@@ -184,18 +184,18 @@ VALUES ('feature_05_foreign_domestic_broker_detail', 'sell_value', 'Date x ticke
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_05_foreign_domestic_broker_detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_05_Foreign_Domestic_Broker_Detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Net buy value; positive is net buying, negative net selling.', 'Feature_Catalog active semantic version', 'IDR', 'Never NULL.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_05_foreign_domestic_broker_detail' AND c.column_name = 'net_value';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_05_Foreign_Domestic_Broker_Detail' AND c.column_name = 'net_value';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_05_foreign_domestic_broker_detail', 'net_value', 'Date x ticker x broker x investor type x board',
+VALUES ('Feature_05_Foreign_Domestic_Broker_Detail', 'net_value', 'Date x ticker x broker x investor type x board',
     'Broker Flow', 'Net buy value; positive is net buying, negative net selling.', 'buy_value - sell_value', 'IDX_Broker_Summary', 'IDX_Broker_Summary columns per calculation',
     '1 session', '1 source row', 'IDR', 'Never NULL.',
     'refresh_feature_05(date range, tickers) after sync_broker_summary_freq for the same dates', 'Requires IDX_Broker_Summary with synced frequency',
@@ -207,18 +207,18 @@ VALUES ('feature_05_foreign_domestic_broker_detail', 'net_value', 'Date x ticker
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_05_foreign_domestic_broker_detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_05_Foreign_Domestic_Broker_Detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Lots bought (1 lot = 100 shares; odd lots as fractions).', 'Feature_Catalog active semantic version', 'lots', 'Never NULL.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_05_foreign_domestic_broker_detail' AND c.column_name = 'buy_lots';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_05_Foreign_Domestic_Broker_Detail' AND c.column_name = 'buy_lots';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_05_foreign_domestic_broker_detail', 'buy_lots', 'Date x ticker x broker x investor type x board',
+VALUES ('Feature_05_Foreign_Domestic_Broker_Detail', 'buy_lots', 'Date x ticker x broker x investor type x board',
     'Volume', 'Lots bought (1 lot = 100 shares; odd lots as fractions).', 'IDX_Broker_Summary."Buy Lots"', 'IDX_Broker_Summary', 'IDX_Broker_Summary columns per calculation',
     '1 session', '1 source row', 'lots', 'Never NULL.',
     'refresh_feature_05(date range, tickers) after sync_broker_summary_freq for the same dates', 'Requires IDX_Broker_Summary with synced frequency',
@@ -230,18 +230,18 @@ VALUES ('feature_05_foreign_domestic_broker_detail', 'buy_lots', 'Date x ticker 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_05_foreign_domestic_broker_detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_05_Foreign_Domestic_Broker_Detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Lots sold (1 lot = 100 shares; odd lots as fractions).', 'Feature_Catalog active semantic version', 'lots', 'Never NULL.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_05_foreign_domestic_broker_detail' AND c.column_name = 'sell_lots';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_05_Foreign_Domestic_Broker_Detail' AND c.column_name = 'sell_lots';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_05_foreign_domestic_broker_detail', 'sell_lots', 'Date x ticker x broker x investor type x board',
+VALUES ('Feature_05_Foreign_Domestic_Broker_Detail', 'sell_lots', 'Date x ticker x broker x investor type x board',
     'Volume', 'Lots sold (1 lot = 100 shares; odd lots as fractions).', 'IDX_Broker_Summary."Sell Lots"', 'IDX_Broker_Summary', 'IDX_Broker_Summary columns per calculation',
     '1 session', '1 source row', 'lots', 'Never NULL.',
     'refresh_feature_05(date range, tickers) after sync_broker_summary_freq for the same dates', 'Requires IDX_Broker_Summary with synced frequency',
@@ -253,18 +253,18 @@ VALUES ('feature_05_foreign_domestic_broker_detail', 'sell_lots', 'Date x ticker
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_05_foreign_domestic_broker_detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_05_Foreign_Domestic_Broker_Detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Net lots; positive is net buying.', 'Feature_Catalog active semantic version', 'lots', 'Never NULL.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_05_foreign_domestic_broker_detail' AND c.column_name = 'net_lots';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_05_Foreign_Domestic_Broker_Detail' AND c.column_name = 'net_lots';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_05_foreign_domestic_broker_detail', 'net_lots', 'Date x ticker x broker x investor type x board',
+VALUES ('Feature_05_Foreign_Domestic_Broker_Detail', 'net_lots', 'Date x ticker x broker x investor type x board',
     'Volume', 'Net lots; positive is net buying.', 'buy_lots - sell_lots', 'IDX_Broker_Summary', 'IDX_Broker_Summary columns per calculation',
     '1 session', '1 source row', 'lots', 'Never NULL.',
     'refresh_feature_05(date range, tickers) after sync_broker_summary_freq for the same dates', 'Requires IDX_Broker_Summary with synced frequency',
@@ -276,18 +276,18 @@ VALUES ('feature_05_foreign_domestic_broker_detail', 'net_lots', 'Date x ticker 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_05_foreign_domestic_broker_detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_05_Foreign_Domestic_Broker_Detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Number of buy transactions.', 'Feature_Catalog active semantic version', 'transactions', 'NULL when the source has no frequency (non-4-letter symbols); never replaced by zero.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_05_foreign_domestic_broker_detail' AND c.column_name = 'buy_freq';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_05_Foreign_Domestic_Broker_Detail' AND c.column_name = 'buy_freq';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_05_foreign_domestic_broker_detail', 'buy_freq', 'Date x ticker x broker x investor type x board',
+VALUES ('Feature_05_Foreign_Domestic_Broker_Detail', 'buy_freq', 'Date x ticker x broker x investor type x board',
     'Volume', 'Number of buy transactions.', 'IDX_Broker_Summary.buy_freq (from IDX_Broker_Summary_Freq.buy_freq)', 'IDX_Broker_Summary', 'IDX_Broker_Summary columns per calculation',
     '1 session', '1 source row', 'transactions', 'NULL when the source has no frequency (non-4-letter symbols); never replaced by zero.',
     'refresh_feature_05(date range, tickers) after sync_broker_summary_freq for the same dates', 'Requires IDX_Broker_Summary with synced frequency',
@@ -299,18 +299,18 @@ VALUES ('feature_05_foreign_domestic_broker_detail', 'buy_freq', 'Date x ticker 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_05_foreign_domestic_broker_detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_05_Foreign_Domestic_Broker_Detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Number of sell transactions.', 'Feature_Catalog active semantic version', 'transactions', 'NULL when the source has no frequency (non-4-letter symbols); never replaced by zero.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_05_foreign_domestic_broker_detail' AND c.column_name = 'sell_freq';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_05_Foreign_Domestic_Broker_Detail' AND c.column_name = 'sell_freq';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_05_foreign_domestic_broker_detail', 'sell_freq', 'Date x ticker x broker x investor type x board',
+VALUES ('Feature_05_Foreign_Domestic_Broker_Detail', 'sell_freq', 'Date x ticker x broker x investor type x board',
     'Volume', 'Number of sell transactions.', 'IDX_Broker_Summary.sell_freq (from IDX_Broker_Summary_Freq.sell_freq)', 'IDX_Broker_Summary', 'IDX_Broker_Summary columns per calculation',
     '1 session', '1 source row', 'transactions', 'NULL when the source has no frequency (non-4-letter symbols); never replaced by zero.',
     'refresh_feature_05(date range, tickers) after sync_broker_summary_freq for the same dates', 'Requires IDX_Broker_Summary with synced frequency',
@@ -322,18 +322,18 @@ VALUES ('feature_05_foreign_domestic_broker_detail', 'sell_freq', 'Date x ticker
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_05_foreign_domestic_broker_detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_05_Foreign_Domestic_Broker_Detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Internal: total buy value over all brokers differs from total sell value for this date, ticker and board in the source (ERRORS M157).', 'Feature_Catalog active semantic version', 'flag', 'Never NULL.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_05_foreign_domestic_broker_detail' AND c.column_name = 'source_balance_gap';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_05_Foreign_Domestic_Broker_Detail' AND c.column_name = 'source_balance_gap';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_05_foreign_domestic_broker_detail', 'source_balance_gap', 'Date x ticker x broker x investor type x board',
+VALUES ('Feature_05_Foreign_Domestic_Broker_Detail', 'source_balance_gap', 'Date x ticker x broker x investor type x board',
     'Data Quality', 'Internal: total buy value over all brokers differs from total sell value for this date, ticker and board in the source (ERRORS M157).', 'SUM(Buy Value) <> SUM(Sell Value) over IDX_Broker_Summary rows of the date, ticker and board', 'IDX_Broker_Summary', 'IDX_Broker_Summary columns per calculation',
     '1 session', '1 source row', 'flag', 'Never NULL.',
     'refresh_feature_05(date range, tickers) after sync_broker_summary_freq for the same dates', 'Requires IDX_Broker_Summary with synced frequency',
@@ -345,18 +345,18 @@ VALUES ('feature_05_foreign_domestic_broker_detail', 'source_balance_gap', 'Date
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_05_foreign_domestic_broker_detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_05_Foreign_Domestic_Broker_Detail', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Statement timestamp when the row was written.', 'Feature_Catalog active semantic version', 'timestamp', 'Never NULL.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_05_foreign_domestic_broker_detail' AND c.column_name = 'calculated_at';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_05_Foreign_Domestic_Broker_Detail' AND c.column_name = 'calculated_at';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_05_foreign_domestic_broker_detail', 'calculated_at', 'Date x ticker x broker x investor type x board',
+VALUES ('Feature_05_Foreign_Domestic_Broker_Detail', 'calculated_at', 'Date x ticker x broker x investor type x board',
     'Metadata', 'Statement timestamp when the row was written.', 'statement_timestamp()', 'IDX_Broker_Summary', 'IDX_Broker_Summary columns per calculation',
     '1 session', '1 source row', 'timestamp', 'Never NULL.',
     'refresh_feature_05(date range, tickers) after sync_broker_summary_freq for the same dates', 'Requires IDX_Broker_Summary with synced frequency',
@@ -368,19 +368,19 @@ VALUES ('feature_05_foreign_domestic_broker_detail', 'calculated_at', 'Date x ti
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     true,
     'Trading date on which this board of the ticker traded.', 'Feature_Catalog active semantic version', 'date', 'Never NULL.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'trade_date';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'trade_date';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'trade_date', 'Date x ticker x board',
-    'Identity', 'Trading date on which this board of the ticker traded.', 'Feature 05 trade_date', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'trade_date', 'Date x ticker x board',
+    'Identity', 'Trading date on which this board of the ticker traded.', 'Feature 05 trade_date', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'date', 'Never NULL.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'IDENTITY', ARRAY['COUNT','COUNT_DISTINCT']::text[], 'NOT_APPLICABLE', true,
@@ -391,19 +391,19 @@ VALUES ('feature_06_foreign_domestic', 'trade_date', 'Date x ticker x board',
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     true,
     'Source symbol (Feature 05 ticker).', 'Feature_Catalog active semantic version', 'code', 'Never NULL.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'ticker';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'ticker';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'ticker', 'Date x ticker x board',
-    'Identity', 'Source symbol (Feature 05 ticker).', 'Feature 05 ticker', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'ticker', 'Date x ticker x board',
+    'Identity', 'Source symbol (Feature 05 ticker).', 'Feature 05 ticker', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'code', 'Never NULL.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'IDENTITY', ARRAY['COUNT','COUNT_DISTINCT']::text[], 'NOT_APPLICABLE', true,
@@ -414,19 +414,19 @@ VALUES ('feature_06_foreign_domestic', 'ticker', 'Date x ticker x board',
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     true,
     'Source board: Regular, Nego or Tunai; no ALL board (user decision).', 'Feature_Catalog active semantic version', 'code', 'Never NULL; boards are never implicitly combined.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'market_board';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'market_board';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'market_board', 'Date x ticker x board',
-    'Identity', 'Source board: Regular, Nego or Tunai; no ALL board (user decision).', 'Feature 05 market_board', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'market_board', 'Date x ticker x board',
+    'Identity', 'Source board: Regular, Nego or Tunai; no ALL board (user decision).', 'Feature 05 market_board', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'code', 'Never NULL; boards are never implicitly combined.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'IDENTITY', ARRAY['COUNT','COUNT_DISTINCT']::text[], 'NOT_APPLICABLE', true,
@@ -437,19 +437,19 @@ VALUES ('feature_06_foreign_domestic', 'market_board', 'Date x ticker x board',
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign buy value for the ticker, date and board.', 'Feature_Catalog active semantic version', 'IDR', 'Never NULL; zero when that investor type did not trade.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_buy_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_buy_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_buy_1d', 'Date x ticker x board',
-    'Broker Flow', 'Foreign buy value for the ticker, date and board.', 'FB = SUM(buy_value) WHERE investor_type = Foreign over Feature 05', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_buy_1d', 'Date x ticker x board',
+    'Broker Flow', 'Foreign buy value for the ticker, date and board.', 'FB = SUM(buy_value) WHERE investor_type = Foreign over Feature 05', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'IDR', 'Never NULL; zero when that investor type did not trade.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['SUM','AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -460,19 +460,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_buy_1d', 'Date x ticker x board'
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign sell value for the ticker, date and board.', 'Feature_Catalog active semantic version', 'IDR', 'Never NULL; zero when that investor type did not trade.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_sell_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_sell_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_sell_1d', 'Date x ticker x board',
-    'Broker Flow', 'Foreign sell value for the ticker, date and board.', 'FS = SUM(sell_value) WHERE investor_type = Foreign over Feature 05', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_sell_1d', 'Date x ticker x board',
+    'Broker Flow', 'Foreign sell value for the ticker, date and board.', 'FS = SUM(sell_value) WHERE investor_type = Foreign over Feature 05', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'IDR', 'Never NULL; zero when that investor type did not trade.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['SUM','AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -483,19 +483,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_sell_1d', 'Date x ticker x board
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign net value; positive is net buying for the ticker, date and board.', 'Feature_Catalog active semantic version', 'IDR', 'Never NULL; zero when that investor type did not trade.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_1d', 'Date x ticker x board',
-    'Broker Flow', 'Foreign net value; positive is net buying for the ticker, date and board.', 'F = FB - FS over Feature 05', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_1d', 'Date x ticker x board',
+    'Broker Flow', 'Foreign net value; positive is net buying for the ticker, date and board.', 'F = FB - FS over Feature 05', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'IDR', 'Never NULL; zero when that investor type did not trade.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['SUM','AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -506,19 +506,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_1d', 'Date x ticker x board'
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Domestic buy value for the ticker, date and board.', 'Feature_Catalog active semantic version', 'IDR', 'Never NULL; zero when that investor type did not trade.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_buy_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_buy_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_buy_1d', 'Date x ticker x board',
-    'Broker Flow', 'Domestic buy value for the ticker, date and board.', 'DB = SUM(buy_value) WHERE investor_type = Domestic over Feature 05', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_buy_1d', 'Date x ticker x board',
+    'Broker Flow', 'Domestic buy value for the ticker, date and board.', 'DB = SUM(buy_value) WHERE investor_type = Domestic over Feature 05', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'IDR', 'Never NULL; zero when that investor type did not trade.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['SUM','AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -529,19 +529,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_buy_1d', 'Date x ticker x board
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Domestic sell value for the ticker, date and board.', 'Feature_Catalog active semantic version', 'IDR', 'Never NULL; zero when that investor type did not trade.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_sell_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_sell_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_sell_1d', 'Date x ticker x board',
-    'Broker Flow', 'Domestic sell value for the ticker, date and board.', 'DS = SUM(sell_value) WHERE investor_type = Domestic over Feature 05', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_sell_1d', 'Date x ticker x board',
+    'Broker Flow', 'Domestic sell value for the ticker, date and board.', 'DS = SUM(sell_value) WHERE investor_type = Domestic over Feature 05', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'IDR', 'Never NULL; zero when that investor type did not trade.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['SUM','AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -552,19 +552,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_sell_1d', 'Date x ticker x boar
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Domestic net value; positive is net buying for the ticker, date and board.', 'Feature_Catalog active semantic version', 'IDR', 'Never NULL; zero when that investor type did not trade.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_net_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_net_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_net_1d', 'Date x ticker x board',
-    'Broker Flow', 'Domestic net value; positive is net buying for the ticker, date and board.', 'D = DB - DS over Feature 05', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_net_1d', 'Date x ticker x board',
+    'Broker Flow', 'Domestic net value; positive is net buying for the ticker, date and board.', 'D = DB - DS over Feature 05', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'IDR', 'Never NULL; zero when that investor type did not trade.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['SUM','AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -575,19 +575,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_net_1d', 'Date x ticker x board
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Running total of foreign net value since the ticker''s first session on this board''s history.', 'Feature_Catalog active semantic version', 'IDR', 'Never NULL.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_cumulative_net';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_cumulative_net';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_cumulative_net', 'Date x ticker x board',
-    'Broker Flow', 'Running total of foreign net value since the ticker''s first session on this board''s history.', 'SUM(F) over all sessions up to and including the date (a refresh continues the stored value of the row before its range)', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_cumulative_net', 'Date x ticker x board',
+    'Broker Flow', 'Running total of foreign net value since the ticker''s first session on this board''s history.', 'SUM(F) over all sessions up to and including the date (a refresh continues the stored value of the row before its range)', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     'all sessions', '1 session', 'IDR', 'Never NULL.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -598,19 +598,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_cumulative_net', 'Date x ticker 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Running total of domestic net value since the ticker''s first session on this board''s history.', 'Feature_Catalog active semantic version', 'IDR', 'Never NULL.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_cumulative_net';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_cumulative_net';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_cumulative_net', 'Date x ticker x board',
-    'Broker Flow', 'Running total of domestic net value since the ticker''s first session on this board''s history.', 'SUM(D) over all sessions up to and including the date (a refresh continues the stored value of the row before its range)', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_cumulative_net', 'Date x ticker x board',
+    'Broker Flow', 'Running total of domestic net value since the ticker''s first session on this board''s history.', 'SUM(D) over all sessions up to and including the date (a refresh continues the stored value of the row before its range)', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     'all sessions', '1 session', 'IDR', 'Never NULL.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -621,19 +621,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_cumulative_net', 'Date x ticker
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign net value over the last 5 sessions.', 'Feature_Catalog active semantic version', 'IDR', 'NULL until the ticker has 5 sessions',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_5d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_5d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_5d', 'Date x ticker x board',
-    'Broker Flow', 'Foreign net value over the last 5 sessions.', 'SUM_5(F); ticker sessions: the dates on which the ticker has any Feature 05 row on any board (as Feature 02); a board that did not trade in a session counts zero', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_5d', 'Date x ticker x board',
+    'Broker Flow', 'Foreign net value over the last 5 sessions.', 'SUM_5(F); ticker sessions: the dates on which the ticker has any Feature 05 row on any board (as Feature 02); a board that did not trade in a session counts zero', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '5 sessions', '5 sessions', 'IDR', 'NULL until the ticker has 5 sessions',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -644,19 +644,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_5d', 'Date x ticker x board'
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign net value over the last 10 sessions.', 'Feature_Catalog active semantic version', 'IDR', 'NULL until the ticker has 10 sessions',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_10d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_10d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_10d', 'Date x ticker x board',
-    'Broker Flow', 'Foreign net value over the last 10 sessions.', 'SUM_10(F); ticker sessions: the dates on which the ticker has any Feature 05 row on any board (as Feature 02); a board that did not trade in a session counts zero', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_10d', 'Date x ticker x board',
+    'Broker Flow', 'Foreign net value over the last 10 sessions.', 'SUM_10(F); ticker sessions: the dates on which the ticker has any Feature 05 row on any board (as Feature 02); a board that did not trade in a session counts zero', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '10 sessions', '10 sessions', 'IDR', 'NULL until the ticker has 10 sessions',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -667,19 +667,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_10d', 'Date x ticker x board
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign net value over the last 20 sessions.', 'Feature_Catalog active semantic version', 'IDR', 'NULL until the ticker has 20 sessions',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_20d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_20d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_20d', 'Date x ticker x board',
-    'Broker Flow', 'Foreign net value over the last 20 sessions.', 'SUM_20(F); ticker sessions: the dates on which the ticker has any Feature 05 row on any board (as Feature 02); a board that did not trade in a session counts zero', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_20d', 'Date x ticker x board',
+    'Broker Flow', 'Foreign net value over the last 20 sessions.', 'SUM_20(F); ticker sessions: the dates on which the ticker has any Feature 05 row on any board (as Feature 02); a board that did not trade in a session counts zero', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '20 sessions', '20 sessions', 'IDR', 'NULL until the ticker has 20 sessions',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -690,19 +690,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_20d', 'Date x ticker x board
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign net value over the last 40 sessions.', 'Feature_Catalog active semantic version', 'IDR', 'NULL until the ticker has 40 sessions',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_40d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_40d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_40d', 'Date x ticker x board',
-    'Broker Flow', 'Foreign net value over the last 40 sessions.', 'SUM_40(F); ticker sessions: the dates on which the ticker has any Feature 05 row on any board (as Feature 02); a board that did not trade in a session counts zero', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_40d', 'Date x ticker x board',
+    'Broker Flow', 'Foreign net value over the last 40 sessions.', 'SUM_40(F); ticker sessions: the dates on which the ticker has any Feature 05 row on any board (as Feature 02); a board that did not trade in a session counts zero', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '40 sessions', '40 sessions', 'IDR', 'NULL until the ticker has 40 sessions',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -713,19 +713,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_40d', 'Date x ticker x board
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign net value over the last 60 sessions.', 'Feature_Catalog active semantic version', 'IDR', 'NULL until the ticker has 60 sessions',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_60d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_60d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_60d', 'Date x ticker x board',
-    'Broker Flow', 'Foreign net value over the last 60 sessions.', 'SUM_60(F); ticker sessions: the dates on which the ticker has any Feature 05 row on any board (as Feature 02); a board that did not trade in a session counts zero', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_60d', 'Date x ticker x board',
+    'Broker Flow', 'Foreign net value over the last 60 sessions.', 'SUM_60(F); ticker sessions: the dates on which the ticker has any Feature 05 row on any board (as Feature 02); a board that did not trade in a session counts zero', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '60 sessions', '60 sessions', 'IDR', 'NULL until the ticker has 60 sessions',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -736,19 +736,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_60d', 'Date x ticker x board
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Domestic net value over the last 5 sessions.', 'Feature_Catalog active semantic version', 'IDR', 'NULL until the ticker has 5 sessions',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_net_5d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_net_5d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_net_5d', 'Date x ticker x board',
-    'Broker Flow', 'Domestic net value over the last 5 sessions.', 'SUM_5(D); ticker sessions: the dates on which the ticker has any Feature 05 row on any board (as Feature 02); a board that did not trade in a session counts zero', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_net_5d', 'Date x ticker x board',
+    'Broker Flow', 'Domestic net value over the last 5 sessions.', 'SUM_5(D); ticker sessions: the dates on which the ticker has any Feature 05 row on any board (as Feature 02); a board that did not trade in a session counts zero', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '5 sessions', '5 sessions', 'IDR', 'NULL until the ticker has 5 sessions',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -759,19 +759,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_net_5d', 'Date x ticker x board
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Domestic net value over the last 10 sessions.', 'Feature_Catalog active semantic version', 'IDR', 'NULL until the ticker has 10 sessions',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_net_10d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_net_10d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_net_10d', 'Date x ticker x board',
-    'Broker Flow', 'Domestic net value over the last 10 sessions.', 'SUM_10(D); ticker sessions: the dates on which the ticker has any Feature 05 row on any board (as Feature 02); a board that did not trade in a session counts zero', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_net_10d', 'Date x ticker x board',
+    'Broker Flow', 'Domestic net value over the last 10 sessions.', 'SUM_10(D); ticker sessions: the dates on which the ticker has any Feature 05 row on any board (as Feature 02); a board that did not trade in a session counts zero', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '10 sessions', '10 sessions', 'IDR', 'NULL until the ticker has 10 sessions',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -782,19 +782,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_net_10d', 'Date x ticker x boar
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Domestic net value over the last 20 sessions.', 'Feature_Catalog active semantic version', 'IDR', 'NULL until the ticker has 20 sessions',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_net_20d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_net_20d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_net_20d', 'Date x ticker x board',
-    'Broker Flow', 'Domestic net value over the last 20 sessions.', 'SUM_20(D); ticker sessions: the dates on which the ticker has any Feature 05 row on any board (as Feature 02); a board that did not trade in a session counts zero', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_net_20d', 'Date x ticker x board',
+    'Broker Flow', 'Domestic net value over the last 20 sessions.', 'SUM_20(D); ticker sessions: the dates on which the ticker has any Feature 05 row on any board (as Feature 02); a board that did not trade in a session counts zero', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '20 sessions', '20 sessions', 'IDR', 'NULL until the ticker has 20 sessions',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -805,19 +805,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_net_20d', 'Date x ticker x boar
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Domestic net value over the last 60 sessions.', 'Feature_Catalog active semantic version', 'IDR', 'NULL until the ticker has 60 sessions',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_net_60d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_net_60d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_net_60d', 'Date x ticker x board',
-    'Broker Flow', 'Domestic net value over the last 60 sessions.', 'SUM_60(D); ticker sessions: the dates on which the ticker has any Feature 05 row on any board (as Feature 02); a board that did not trade in a session counts zero', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_net_60d', 'Date x ticker x board',
+    'Broker Flow', 'Domestic net value over the last 60 sessions.', 'SUM_60(D); ticker sessions: the dates on which the ticker has any Feature 05 row on any board (as Feature 02); a board that did not trade in a session counts zero', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '60 sessions', '60 sessions', 'IDR', 'NULL until the ticker has 60 sessions',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -828,19 +828,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_net_60d', 'Date x ticker x boar
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign net value as a share of total traded value (buy side).', 'Feature_Catalog active semantic version', 'percent', 'NULL when T = 0.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_turnover_ratio_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_turnover_ratio_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_turnover_ratio_1d', 'Date x ticker x board',
-    'Broker Flow', 'Foreign net value as a share of total traded value (buy side).', '100 * F / T, T = FB + DB', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_turnover_ratio_1d', 'Date x ticker x board',
+    'Broker Flow', 'Foreign net value as a share of total traded value (buy side).', '100 * F / T, T = FB + DB', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'percent', 'NULL when T = 0.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -851,19 +851,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_turnover_ratio_1d', 'Date x 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign net value over 5 sessions as a share of 5-session traded value.', 'Feature_Catalog active semantic version', 'percent', 'NULL when the denominator is 0 or before 5 sessions.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_turnover_ratio_5d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_turnover_ratio_5d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_turnover_ratio_5d', 'Date x ticker x board',
-    'Broker Flow', 'Foreign net value over 5 sessions as a share of 5-session traded value.', '100 * SUM_5(F) / SUM_5(T)', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_turnover_ratio_5d', 'Date x ticker x board',
+    'Broker Flow', 'Foreign net value over 5 sessions as a share of 5-session traded value.', '100 * SUM_5(F) / SUM_5(T)', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '5 sessions', '5 sessions', 'percent', 'NULL when the denominator is 0 or before 5 sessions.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -874,19 +874,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_turnover_ratio_5d', 'Date x 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign net value over 20 sessions as a share of 20-session traded value.', 'Feature_Catalog active semantic version', 'percent', 'NULL when the denominator is 0 or before 20 sessions.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_turnover_ratio_20d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_turnover_ratio_20d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_turnover_ratio_20d', 'Date x ticker x board',
-    'Broker Flow', 'Foreign net value over 20 sessions as a share of 20-session traded value.', '100 * SUM_20(F) / SUM_20(T)', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_turnover_ratio_20d', 'Date x ticker x board',
+    'Broker Flow', 'Foreign net value over 20 sessions as a share of 20-session traded value.', '100 * SUM_20(F) / SUM_20(T)', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '20 sessions', '20 sessions', 'percent', 'NULL when the denominator is 0 or before 20 sessions.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -897,19 +897,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_turnover_ratio_20d', 'Date x
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign buying as a share of traded value.', 'Feature_Catalog active semantic version', 'percent', 'NULL when T = 0.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_buy_share_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_buy_share_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_buy_share_1d', 'Date x ticker x board',
-    'Broker Flow', 'Foreign buying as a share of traded value.', '100 * FB / T', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_buy_share_1d', 'Date x ticker x board',
+    'Broker Flow', 'Foreign buying as a share of traded value.', '100 * FB / T', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'percent', 'NULL when T = 0.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -920,19 +920,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_buy_share_1d', 'Date x ticker x 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign selling as a share of traded value.', 'Feature_Catalog active semantic version', 'percent', 'NULL when T = 0.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_sell_share_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_sell_share_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_sell_share_1d', 'Date x ticker x board',
-    'Broker Flow', 'Foreign selling as a share of traded value.', '100 * FS / T', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_sell_share_1d', 'Date x ticker x board',
+    'Broker Flow', 'Foreign selling as a share of traded value.', '100 * FS / T', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'percent', 'NULL when T = 0.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -943,19 +943,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_sell_share_1d', 'Date x ticker x
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Sessions with foreign net buying in the last 5 sessions.', 'Feature_Catalog active semantic version', 'sessions', 'NULL until the ticker has 5 sessions',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_buy_days_5d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_buy_days_5d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_buy_days_5d', 'Date x ticker x board',
-    'Broker Persistence', 'Sessions with foreign net buying in the last 5 sessions.', 'COUNT(F > 0) over 5 sessions; F = 0 counts neither', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_buy_days_5d', 'Date x ticker x board',
+    'Broker Persistence', 'Sessions with foreign net buying in the last 5 sessions.', 'COUNT(F > 0) over 5 sessions; F = 0 counts neither', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '5 sessions', '5 sessions', 'sessions', 'NULL until the ticker has 5 sessions',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -966,19 +966,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_buy_days_5d', 'Date x ticker x b
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Sessions with foreign net buying in the last 10 sessions.', 'Feature_Catalog active semantic version', 'sessions', 'NULL until the ticker has 10 sessions',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_buy_days_10d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_buy_days_10d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_buy_days_10d', 'Date x ticker x board',
-    'Broker Persistence', 'Sessions with foreign net buying in the last 10 sessions.', 'COUNT(F > 0) over 10 sessions; F = 0 counts neither', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_buy_days_10d', 'Date x ticker x board',
+    'Broker Persistence', 'Sessions with foreign net buying in the last 10 sessions.', 'COUNT(F > 0) over 10 sessions; F = 0 counts neither', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '10 sessions', '10 sessions', 'sessions', 'NULL until the ticker has 10 sessions',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -989,19 +989,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_buy_days_10d', 'Date x ticker x 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Sessions with foreign net buying in the last 20 sessions.', 'Feature_Catalog active semantic version', 'sessions', 'NULL until the ticker has 20 sessions',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_buy_days_20d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_buy_days_20d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_buy_days_20d', 'Date x ticker x board',
-    'Broker Persistence', 'Sessions with foreign net buying in the last 20 sessions.', 'COUNT(F > 0) over 20 sessions; F = 0 counts neither', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_buy_days_20d', 'Date x ticker x board',
+    'Broker Persistence', 'Sessions with foreign net buying in the last 20 sessions.', 'COUNT(F > 0) over 20 sessions; F = 0 counts neither', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '20 sessions', '20 sessions', 'sessions', 'NULL until the ticker has 20 sessions',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1012,19 +1012,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_buy_days_20d', 'Date x ticker x 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Sessions with foreign net buying in the last 40 sessions.', 'Feature_Catalog active semantic version', 'sessions', 'NULL until the ticker has 40 sessions',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_buy_days_40d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_buy_days_40d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_buy_days_40d', 'Date x ticker x board',
-    'Broker Persistence', 'Sessions with foreign net buying in the last 40 sessions.', 'COUNT(F > 0) over 40 sessions; F = 0 counts neither', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_buy_days_40d', 'Date x ticker x board',
+    'Broker Persistence', 'Sessions with foreign net buying in the last 40 sessions.', 'COUNT(F > 0) over 40 sessions; F = 0 counts neither', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '40 sessions', '40 sessions', 'sessions', 'NULL until the ticker has 40 sessions',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1035,19 +1035,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_buy_days_40d', 'Date x ticker x 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Sessions with foreign net selling in the last 5 sessions.', 'Feature_Catalog active semantic version', 'sessions', 'NULL until the ticker has 5 sessions',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_sell_days_5d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_sell_days_5d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_sell_days_5d', 'Date x ticker x board',
-    'Broker Persistence', 'Sessions with foreign net selling in the last 5 sessions.', 'COUNT(F < 0) over 5 sessions; F = 0 counts neither', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_sell_days_5d', 'Date x ticker x board',
+    'Broker Persistence', 'Sessions with foreign net selling in the last 5 sessions.', 'COUNT(F < 0) over 5 sessions; F = 0 counts neither', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '5 sessions', '5 sessions', 'sessions', 'NULL until the ticker has 5 sessions',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1058,19 +1058,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_sell_days_5d', 'Date x ticker x 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Sessions with foreign net selling in the last 10 sessions.', 'Feature_Catalog active semantic version', 'sessions', 'NULL until the ticker has 10 sessions',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_sell_days_10d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_sell_days_10d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_sell_days_10d', 'Date x ticker x board',
-    'Broker Persistence', 'Sessions with foreign net selling in the last 10 sessions.', 'COUNT(F < 0) over 10 sessions; F = 0 counts neither', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_sell_days_10d', 'Date x ticker x board',
+    'Broker Persistence', 'Sessions with foreign net selling in the last 10 sessions.', 'COUNT(F < 0) over 10 sessions; F = 0 counts neither', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '10 sessions', '10 sessions', 'sessions', 'NULL until the ticker has 10 sessions',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1081,19 +1081,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_sell_days_10d', 'Date x ticker x
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Sessions with foreign net selling in the last 20 sessions.', 'Feature_Catalog active semantic version', 'sessions', 'NULL until the ticker has 20 sessions',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_sell_days_20d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_sell_days_20d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_sell_days_20d', 'Date x ticker x board',
-    'Broker Persistence', 'Sessions with foreign net selling in the last 20 sessions.', 'COUNT(F < 0) over 20 sessions; F = 0 counts neither', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_sell_days_20d', 'Date x ticker x board',
+    'Broker Persistence', 'Sessions with foreign net selling in the last 20 sessions.', 'COUNT(F < 0) over 20 sessions; F = 0 counts neither', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '20 sessions', '20 sessions', 'sessions', 'NULL until the ticker has 20 sessions',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1104,19 +1104,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_sell_days_20d', 'Date x ticker x
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Sessions with foreign net selling in the last 40 sessions.', 'Feature_Catalog active semantic version', 'sessions', 'NULL until the ticker has 40 sessions',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_sell_days_40d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_sell_days_40d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_sell_days_40d', 'Date x ticker x board',
-    'Broker Persistence', 'Sessions with foreign net selling in the last 40 sessions.', 'COUNT(F < 0) over 40 sessions; F = 0 counts neither', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_sell_days_40d', 'Date x ticker x board',
+    'Broker Persistence', 'Sessions with foreign net selling in the last 40 sessions.', 'COUNT(F < 0) over 40 sessions; F = 0 counts neither', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '40 sessions', '40 sessions', 'sessions', 'NULL until the ticker has 40 sessions',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1127,19 +1127,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_sell_days_40d', 'Date x ticker x
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Z-score of today''s 5-session foreign net against its previous 252 values.', 'Feature_Catalog active semantic version', 'standard deviations', 'NULL until 252 complete prior values exist (session 257) or when the standard deviation is 0.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_zscore_5d_base252d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_zscore_5d_base252d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_zscore_5d_base252d', 'Date x ticker x board',
-    'Broker Abnormality', 'Z-score of today''s 5-session foreign net against its previous 252 values.', '(foreign_net_5d - AVG(prev 252 foreign_net_5d)) / STDDEV_SAMP(prev 252); today excluded', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_zscore_5d_base252d', 'Date x ticker x board',
+    'Broker Abnormality', 'Z-score of today''s 5-session foreign net against its previous 252 values.', '(foreign_net_5d - AVG(prev 252 foreign_net_5d)) / STDDEV_SAMP(prev 252); today excluded', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '257 sessions', '257 sessions', 'standard deviations', 'NULL until 252 complete prior values exist (session 257) or when the standard deviation is 0.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1150,19 +1150,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_zscore_5d_base252d', 'Date x
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Z-score of today''s 10-session foreign net against its previous 252 values.', 'Feature_Catalog active semantic version', 'standard deviations', 'NULL until 252 complete prior values exist (session 262) or when the standard deviation is 0.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_zscore_10d_base252d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_zscore_10d_base252d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_zscore_10d_base252d', 'Date x ticker x board',
-    'Broker Abnormality', 'Z-score of today''s 10-session foreign net against its previous 252 values.', '(foreign_net_10d - AVG(prev 252 foreign_net_10d)) / STDDEV_SAMP(prev 252); today excluded', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_zscore_10d_base252d', 'Date x ticker x board',
+    'Broker Abnormality', 'Z-score of today''s 10-session foreign net against its previous 252 values.', '(foreign_net_10d - AVG(prev 252 foreign_net_10d)) / STDDEV_SAMP(prev 252); today excluded', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '262 sessions', '262 sessions', 'standard deviations', 'NULL until 252 complete prior values exist (session 262) or when the standard deviation is 0.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1173,19 +1173,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_zscore_10d_base252d', 'Date 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Z-score of today''s 20-session foreign net against its previous 252 values.', 'Feature_Catalog active semantic version', 'standard deviations', 'NULL until 252 complete prior values exist (session 272) or when the standard deviation is 0.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_zscore_20d_base252d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_zscore_20d_base252d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_zscore_20d_base252d', 'Date x ticker x board',
-    'Broker Abnormality', 'Z-score of today''s 20-session foreign net against its previous 252 values.', '(foreign_net_20d - AVG(prev 252 foreign_net_20d)) / STDDEV_SAMP(prev 252); today excluded', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_zscore_20d_base252d', 'Date x ticker x board',
+    'Broker Abnormality', 'Z-score of today''s 20-session foreign net against its previous 252 values.', '(foreign_net_20d - AVG(prev 252 foreign_net_20d)) / STDDEV_SAMP(prev 252); today excluded', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '272 sessions', '272 sessions', 'standard deviations', 'NULL until 252 complete prior values exist (session 272) or when the standard deviation is 0.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1196,19 +1196,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_zscore_20d_base252d', 'Date 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Z-score of today''s 40-session foreign net against its previous 252 values.', 'Feature_Catalog active semantic version', 'standard deviations', 'NULL until 252 complete prior values exist (session 292) or when the standard deviation is 0.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_zscore_40d_base252d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_zscore_40d_base252d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_zscore_40d_base252d', 'Date x ticker x board',
-    'Broker Abnormality', 'Z-score of today''s 40-session foreign net against its previous 252 values.', '(foreign_net_40d - AVG(prev 252 foreign_net_40d)) / STDDEV_SAMP(prev 252); today excluded', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_zscore_40d_base252d', 'Date x ticker x board',
+    'Broker Abnormality', 'Z-score of today''s 40-session foreign net against its previous 252 values.', '(foreign_net_40d - AVG(prev 252 foreign_net_40d)) / STDDEV_SAMP(prev 252); today excluded', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '292 sessions', '292 sessions', 'standard deviations', 'NULL until 252 complete prior values exist (session 292) or when the standard deviation is 0.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1219,19 +1219,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_zscore_40d_base252d', 'Date 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Z-score of today''s 60-session foreign net against its previous 252 values.', 'Feature_Catalog active semantic version', 'standard deviations', 'NULL until 252 complete prior values exist (session 312) or when the standard deviation is 0.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_zscore_60d_base252d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_zscore_60d_base252d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_zscore_60d_base252d', 'Date x ticker x board',
-    'Broker Abnormality', 'Z-score of today''s 60-session foreign net against its previous 252 values.', '(foreign_net_60d - AVG(prev 252 foreign_net_60d)) / STDDEV_SAMP(prev 252); today excluded', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_zscore_60d_base252d', 'Date x ticker x board',
+    'Broker Abnormality', 'Z-score of today''s 60-session foreign net against its previous 252 values.', '(foreign_net_60d - AVG(prev 252 foreign_net_60d)) / STDDEV_SAMP(prev 252); today excluded', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '312 sessions', '312 sessions', 'standard deviations', 'NULL until 252 complete prior values exist (session 312) or when the standard deviation is 0.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1242,19 +1242,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_zscore_60d_base252d', 'Date 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Midrank percentile of today''s 5-session foreign net among its previous 252 values.', 'Feature_Catalog active semantic version', 'percent', 'NULL until 252 complete prior values exist (session 257).',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_percentile_5d_base252d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_percentile_5d_base252d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_percentile_5d_base252d', 'Date x ticker x board',
-    'Broker Abnormality', 'Midrank percentile of today''s 5-session foreign net among its previous 252 values.', '100 * (COUNT(prev < current) + 0.5 * COUNT(prev = current)) / 252; today excluded', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_percentile_5d_base252d', 'Date x ticker x board',
+    'Broker Abnormality', 'Midrank percentile of today''s 5-session foreign net among its previous 252 values.', '100 * (COUNT(prev < current) + 0.5 * COUNT(prev = current)) / 252; today excluded', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '257 sessions', '257 sessions', 'percent', 'NULL until 252 complete prior values exist (session 257).',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1265,19 +1265,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_percentile_5d_base252d', 'Da
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Midrank percentile of today''s 10-session foreign net among its previous 252 values.', 'Feature_Catalog active semantic version', 'percent', 'NULL until 252 complete prior values exist (session 262).',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_percentile_10d_base252d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_percentile_10d_base252d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_percentile_10d_base252d', 'Date x ticker x board',
-    'Broker Abnormality', 'Midrank percentile of today''s 10-session foreign net among its previous 252 values.', '100 * (COUNT(prev < current) + 0.5 * COUNT(prev = current)) / 252; today excluded', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_percentile_10d_base252d', 'Date x ticker x board',
+    'Broker Abnormality', 'Midrank percentile of today''s 10-session foreign net among its previous 252 values.', '100 * (COUNT(prev < current) + 0.5 * COUNT(prev = current)) / 252; today excluded', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '262 sessions', '262 sessions', 'percent', 'NULL until 252 complete prior values exist (session 262).',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1288,19 +1288,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_percentile_10d_base252d', 'D
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Midrank percentile of today''s 20-session foreign net among its previous 252 values.', 'Feature_Catalog active semantic version', 'percent', 'NULL until 252 complete prior values exist (session 272).',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_percentile_20d_base252d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_percentile_20d_base252d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_percentile_20d_base252d', 'Date x ticker x board',
-    'Broker Abnormality', 'Midrank percentile of today''s 20-session foreign net among its previous 252 values.', '100 * (COUNT(prev < current) + 0.5 * COUNT(prev = current)) / 252; today excluded', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_percentile_20d_base252d', 'Date x ticker x board',
+    'Broker Abnormality', 'Midrank percentile of today''s 20-session foreign net among its previous 252 values.', '100 * (COUNT(prev < current) + 0.5 * COUNT(prev = current)) / 252; today excluded', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '272 sessions', '272 sessions', 'percent', 'NULL until 252 complete prior values exist (session 272).',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1311,19 +1311,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_percentile_20d_base252d', 'D
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Midrank percentile of today''s 40-session foreign net among its previous 252 values.', 'Feature_Catalog active semantic version', 'percent', 'NULL until 252 complete prior values exist (session 292).',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_percentile_40d_base252d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_percentile_40d_base252d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_percentile_40d_base252d', 'Date x ticker x board',
-    'Broker Abnormality', 'Midrank percentile of today''s 40-session foreign net among its previous 252 values.', '100 * (COUNT(prev < current) + 0.5 * COUNT(prev = current)) / 252; today excluded', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_percentile_40d_base252d', 'Date x ticker x board',
+    'Broker Abnormality', 'Midrank percentile of today''s 40-session foreign net among its previous 252 values.', '100 * (COUNT(prev < current) + 0.5 * COUNT(prev = current)) / 252; today excluded', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '292 sessions', '292 sessions', 'percent', 'NULL until 252 complete prior values exist (session 292).',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1334,19 +1334,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_percentile_40d_base252d', 'D
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Midrank percentile of today''s 60-session foreign net among its previous 252 values.', 'Feature_Catalog active semantic version', 'percent', 'NULL until 252 complete prior values exist (session 312).',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_percentile_60d_base252d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_percentile_60d_base252d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_percentile_60d_base252d', 'Date x ticker x board',
-    'Broker Abnormality', 'Midrank percentile of today''s 60-session foreign net among its previous 252 values.', '100 * (COUNT(prev < current) + 0.5 * COUNT(prev = current)) / 252; today excluded', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_percentile_60d_base252d', 'Date x ticker x board',
+    'Broker Abnormality', 'Midrank percentile of today''s 60-session foreign net among its previous 252 values.', '100 * (COUNT(prev < current) + 0.5 * COUNT(prev = current)) / 252; today excluded', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '312 sessions', '312 sessions', 'percent', 'NULL until 252 complete prior values exist (session 312).',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1357,19 +1357,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_percentile_60d_base252d', 'D
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Z-score of today''s 5-session foreign net against its previous 60 values.', 'Feature_Catalog active semantic version', 'standard deviations', 'NULL until 60 complete prior values exist (session 65) or when the standard deviation is 0.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_zscore_5d_base60d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_zscore_5d_base60d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_zscore_5d_base60d', 'Date x ticker x board',
-    'Broker Abnormality', 'Z-score of today''s 5-session foreign net against its previous 60 values.', '(foreign_net_5d - AVG(prev 60 foreign_net_5d)) / STDDEV_SAMP(prev 60); today excluded', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_zscore_5d_base60d', 'Date x ticker x board',
+    'Broker Abnormality', 'Z-score of today''s 5-session foreign net against its previous 60 values.', '(foreign_net_5d - AVG(prev 60 foreign_net_5d)) / STDDEV_SAMP(prev 60); today excluded', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '65 sessions', '65 sessions', 'standard deviations', 'NULL until 60 complete prior values exist (session 65) or when the standard deviation is 0.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1380,19 +1380,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_zscore_5d_base60d', 'Date x 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Z-score of today''s 10-session foreign net against its previous 60 values.', 'Feature_Catalog active semantic version', 'standard deviations', 'NULL until 60 complete prior values exist (session 70) or when the standard deviation is 0.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_zscore_10d_base60d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_zscore_10d_base60d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_zscore_10d_base60d', 'Date x ticker x board',
-    'Broker Abnormality', 'Z-score of today''s 10-session foreign net against its previous 60 values.', '(foreign_net_10d - AVG(prev 60 foreign_net_10d)) / STDDEV_SAMP(prev 60); today excluded', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_zscore_10d_base60d', 'Date x ticker x board',
+    'Broker Abnormality', 'Z-score of today''s 10-session foreign net against its previous 60 values.', '(foreign_net_10d - AVG(prev 60 foreign_net_10d)) / STDDEV_SAMP(prev 60); today excluded', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '70 sessions', '70 sessions', 'standard deviations', 'NULL until 60 complete prior values exist (session 70) or when the standard deviation is 0.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1403,19 +1403,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_zscore_10d_base60d', 'Date x
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Z-score of today''s 20-session foreign net against its previous 60 values.', 'Feature_Catalog active semantic version', 'standard deviations', 'NULL until 60 complete prior values exist (session 80) or when the standard deviation is 0.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_zscore_20d_base60d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_zscore_20d_base60d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_zscore_20d_base60d', 'Date x ticker x board',
-    'Broker Abnormality', 'Z-score of today''s 20-session foreign net against its previous 60 values.', '(foreign_net_20d - AVG(prev 60 foreign_net_20d)) / STDDEV_SAMP(prev 60); today excluded', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_zscore_20d_base60d', 'Date x ticker x board',
+    'Broker Abnormality', 'Z-score of today''s 20-session foreign net against its previous 60 values.', '(foreign_net_20d - AVG(prev 60 foreign_net_20d)) / STDDEV_SAMP(prev 60); today excluded', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '80 sessions', '80 sessions', 'standard deviations', 'NULL until 60 complete prior values exist (session 80) or when the standard deviation is 0.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1426,19 +1426,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_zscore_20d_base60d', 'Date x
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Midrank percentile of today''s 5-session foreign net among its previous 60 values.', 'Feature_Catalog active semantic version', 'percent', 'NULL until 60 complete prior values exist (session 65).',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_percentile_5d_base60d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_percentile_5d_base60d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_percentile_5d_base60d', 'Date x ticker x board',
-    'Broker Abnormality', 'Midrank percentile of today''s 5-session foreign net among its previous 60 values.', '100 * (COUNT(prev < current) + 0.5 * COUNT(prev = current)) / 60; today excluded', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_percentile_5d_base60d', 'Date x ticker x board',
+    'Broker Abnormality', 'Midrank percentile of today''s 5-session foreign net among its previous 60 values.', '100 * (COUNT(prev < current) + 0.5 * COUNT(prev = current)) / 60; today excluded', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '65 sessions', '65 sessions', 'percent', 'NULL until 60 complete prior values exist (session 65).',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1449,19 +1449,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_percentile_5d_base60d', 'Dat
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Midrank percentile of today''s 10-session foreign net among its previous 60 values.', 'Feature_Catalog active semantic version', 'percent', 'NULL until 60 complete prior values exist (session 70).',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_percentile_10d_base60d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_percentile_10d_base60d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_percentile_10d_base60d', 'Date x ticker x board',
-    'Broker Abnormality', 'Midrank percentile of today''s 10-session foreign net among its previous 60 values.', '100 * (COUNT(prev < current) + 0.5 * COUNT(prev = current)) / 60; today excluded', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_percentile_10d_base60d', 'Date x ticker x board',
+    'Broker Abnormality', 'Midrank percentile of today''s 10-session foreign net among its previous 60 values.', '100 * (COUNT(prev < current) + 0.5 * COUNT(prev = current)) / 60; today excluded', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '70 sessions', '70 sessions', 'percent', 'NULL until 60 complete prior values exist (session 70).',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1472,19 +1472,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_percentile_10d_base60d', 'Da
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Midrank percentile of today''s 20-session foreign net among its previous 60 values.', 'Feature_Catalog active semantic version', 'percent', 'NULL until 60 complete prior values exist (session 80).',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_net_percentile_20d_base60d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_net_percentile_20d_base60d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_net_percentile_20d_base60d', 'Date x ticker x board',
-    'Broker Abnormality', 'Midrank percentile of today''s 20-session foreign net among its previous 60 values.', '100 * (COUNT(prev < current) + 0.5 * COUNT(prev = current)) / 60; today excluded', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_net_percentile_20d_base60d', 'Date x ticker x board',
+    'Broker Abnormality', 'Midrank percentile of today''s 20-session foreign net among its previous 60 values.', '100 * (COUNT(prev < current) + 0.5 * COUNT(prev = current)) / 60; today excluded', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '80 sessions', '80 sessions', 'percent', 'NULL until 60 complete prior values exist (session 80).',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1495,19 +1495,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_net_percentile_20d_base60d', 'Da
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign net of the last 20 sessions minus the 20 sessions before them.', 'Feature_Catalog active semantic version', 'IDR', 'NULL until the ticker has 40 sessions',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_flow_vs_prev_20d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_flow_vs_prev_20d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_flow_vs_prev_20d', 'Date x ticker x board',
-    'Broker Flow', 'Foreign net of the last 20 sessions minus the 20 sessions before them.', 'SUM(F, sessions t-19..t) - SUM(F, sessions t-39..t-20); windows do not overlap', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_flow_vs_prev_20d', 'Date x ticker x board',
+    'Broker Flow', 'Foreign net of the last 20 sessions minus the 20 sessions before them.', 'SUM(F, sessions t-19..t) - SUM(F, sessions t-39..t-20); windows do not overlap', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '40 sessions', '40 sessions', 'IDR', 'NULL until the ticker has 40 sessions',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1518,19 +1518,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_flow_vs_prev_20d', 'Date x ticke
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign net of the last 40 sessions minus the 40 sessions before them.', 'Feature_Catalog active semantic version', 'IDR', 'NULL until the ticker has 80 sessions',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_flow_vs_prev_40d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_flow_vs_prev_40d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_flow_vs_prev_40d', 'Date x ticker x board',
-    'Broker Flow', 'Foreign net of the last 40 sessions minus the 40 sessions before them.', 'SUM(F, sessions t-39..t) - SUM(F, sessions t-79..t-40); windows do not overlap', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_flow_vs_prev_40d', 'Date x ticker x board',
+    'Broker Flow', 'Foreign net of the last 40 sessions minus the 40 sessions before them.', 'SUM(F, sessions t-39..t) - SUM(F, sessions t-79..t-40); windows do not overlap', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '80 sessions', '80 sessions', 'IDR', 'NULL until the ticker has 80 sessions',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1541,19 +1541,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_flow_vs_prev_40d', 'Date x ticke
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Direction consistency of daily foreign net ratios over 20 sessions.', 'Feature_Catalog active semantic version', 'index -100..100', 'NULL before 20 sessions or when SUM_20(ABS(R)) = 0.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_strength_20d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_strength_20d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_strength_20d', 'Date x ticker x board',
-    'Broker Flow', 'Direction consistency of daily foreign net ratios over 20 sessions.', '100 * SUM_20(R) / SUM_20(ABS(R)), R = F / T; sessions with T = 0 have no R', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_strength_20d', 'Date x ticker x board',
+    'Broker Flow', 'Direction consistency of daily foreign net ratios over 20 sessions.', '100 * SUM_20(R) / SUM_20(ABS(R)), R = F / T; sessions with T = 0 have no R', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '20 sessions', '20 sessions', 'index -100..100', 'NULL before 20 sessions or when SUM_20(ABS(R)) = 0.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1564,19 +1564,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_strength_20d', 'Date x ticker x 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Direction consistency of daily foreign net ratios over 50 sessions.', 'Feature_Catalog active semantic version', 'index -100..100', 'NULL before 50 sessions or when SUM_50(ABS(R)) = 0.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_strength_50d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_strength_50d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_strength_50d', 'Date x ticker x board',
-    'Broker Flow', 'Direction consistency of daily foreign net ratios over 50 sessions.', '100 * SUM_50(R) / SUM_50(ABS(R)), R = F / T', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_strength_50d', 'Date x ticker x board',
+    'Broker Flow', 'Direction consistency of daily foreign net ratios over 50 sessions.', '100 * SUM_50(R) / SUM_50(ABS(R)), R = F / T', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '50 sessions', '50 sessions', 'index -100..100', 'NULL before 50 sessions or when SUM_50(ABS(R)) = 0.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1587,19 +1587,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_strength_50d', 'Date x ticker x 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Change of foreign_strength_20d over 5 sessions.', 'Feature_Catalog active semantic version', 'index points', 'NULL when either value is NULL.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_strength_momentum_5d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_strength_momentum_5d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_strength_momentum_5d', 'Date x ticker x board',
-    'Broker Flow', 'Change of foreign_strength_20d over 5 sessions.', 'foreign_strength_20d - foreign_strength_20d five sessions ago', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_strength_momentum_5d', 'Date x ticker x board',
+    'Broker Flow', 'Change of foreign_strength_20d over 5 sessions.', 'foreign_strength_20d - foreign_strength_20d five sessions ago', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '25 sessions', '25 sessions', 'index points', 'NULL when either value is NULL.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1610,19 +1610,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_strength_momentum_5d', 'Date x t
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign buy transactions.', 'Feature_Catalog active semantic version', 'transactions', 'NULL for symbols without frequency; zero when that investor type did not trade.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_buy_freq_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_buy_freq_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_buy_freq_1d', 'Date x ticker x board',
-    'Volume', 'Foreign buy transactions.', 'BF = SUM(buy_freq) WHERE Foreign', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_buy_freq_1d', 'Date x ticker x board',
+    'Volume', 'Foreign buy transactions.', 'BF = SUM(buy_freq) WHERE Foreign', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'transactions', 'NULL for symbols without frequency; zero when that investor type did not trade.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['SUM','AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1633,19 +1633,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_buy_freq_1d', 'Date x ticker x b
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign sell transactions.', 'Feature_Catalog active semantic version', 'transactions', 'NULL for symbols without frequency; zero when that investor type did not trade.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_sell_freq_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_sell_freq_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_sell_freq_1d', 'Date x ticker x board',
-    'Volume', 'Foreign sell transactions.', 'SF = SUM(sell_freq) WHERE Foreign', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_sell_freq_1d', 'Date x ticker x board',
+    'Volume', 'Foreign sell transactions.', 'SF = SUM(sell_freq) WHERE Foreign', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'transactions', 'NULL for symbols without frequency; zero when that investor type did not trade.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['SUM','AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1656,19 +1656,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_sell_freq_1d', 'Date x ticker x 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Domestic buy transactions.', 'Feature_Catalog active semantic version', 'transactions', 'NULL for symbols without frequency; zero when that investor type did not trade.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_buy_freq_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_buy_freq_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_buy_freq_1d', 'Date x ticker x board',
-    'Volume', 'Domestic buy transactions.', 'DBF = SUM(buy_freq) WHERE Domestic', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_buy_freq_1d', 'Date x ticker x board',
+    'Volume', 'Domestic buy transactions.', 'DBF = SUM(buy_freq) WHERE Domestic', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'transactions', 'NULL for symbols without frequency; zero when that investor type did not trade.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['SUM','AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1679,19 +1679,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_buy_freq_1d', 'Date x ticker x 
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Domestic sell transactions.', 'Feature_Catalog active semantic version', 'transactions', 'NULL for symbols without frequency; zero when that investor type did not trade.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_sell_freq_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_sell_freq_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_sell_freq_1d', 'Date x ticker x board',
-    'Volume', 'Domestic sell transactions.', 'DSF = SUM(sell_freq) WHERE Domestic', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_sell_freq_1d', 'Date x ticker x board',
+    'Volume', 'Domestic sell transactions.', 'DSF = SUM(sell_freq) WHERE Domestic', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'transactions', 'NULL for symbols without frequency; zero when that investor type did not trade.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['SUM','AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1702,19 +1702,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_sell_freq_1d', 'Date x ticker x
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign buy versus sell transaction imbalance.', 'Feature_Catalog active semantic version', 'percent', 'NULL when the denominator is 0 or frequency is missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_freq_imbalance_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_freq_imbalance_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_freq_imbalance_1d', 'Date x ticker x board',
-    'Volume', 'Foreign buy versus sell transaction imbalance.', '100 * (BF - SF) / (BF + SF)', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_freq_imbalance_1d', 'Date x ticker x board',
+    'Volume', 'Foreign buy versus sell transaction imbalance.', '100 * (BF - SF) / (BF + SF)', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'percent', 'NULL when the denominator is 0 or frequency is missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1725,19 +1725,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_freq_imbalance_1d', 'Date x tick
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign transaction imbalance over 20 sessions.', 'Feature_Catalog active semantic version', 'percent', 'NULL before 20 sessions, when the denominator is 0 or frequency is missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_freq_imbalance_20d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_freq_imbalance_20d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_freq_imbalance_20d', 'Date x ticker x board',
-    'Volume', 'Foreign transaction imbalance over 20 sessions.', '100 * (SUM_20(BF) - SUM_20(SF)) / (SUM_20(BF) + SUM_20(SF))', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_freq_imbalance_20d', 'Date x ticker x board',
+    'Volume', 'Foreign transaction imbalance over 20 sessions.', '100 * (SUM_20(BF) - SUM_20(SF)) / (SUM_20(BF) + SUM_20(SF))', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '20 sessions', '20 sessions', 'percent', 'NULL before 20 sessions, when the denominator is 0 or frequency is missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1748,19 +1748,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_freq_imbalance_20d', 'Date x tic
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign share of buy transactions.', 'Feature_Catalog active semantic version', 'percent', 'NULL when the denominator is 0 or frequency is missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_buy_freq_share_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_buy_freq_share_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_buy_freq_share_1d', 'Date x ticker x board',
-    'Volume', 'Foreign share of buy transactions.', '100 * BF / (BF + DBF)', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_buy_freq_share_1d', 'Date x ticker x board',
+    'Volume', 'Foreign share of buy transactions.', '100 * BF / (BF + DBF)', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'percent', 'NULL when the denominator is 0 or frequency is missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1771,19 +1771,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_buy_freq_share_1d', 'Date x tick
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign share of sell transactions.', 'Feature_Catalog active semantic version', 'percent', 'NULL when the denominator is 0 or frequency is missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_sell_freq_share_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_sell_freq_share_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_sell_freq_share_1d', 'Date x ticker x board',
-    'Volume', 'Foreign share of sell transactions.', '100 * SF / (SF + DSF)', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_sell_freq_share_1d', 'Date x ticker x board',
+    'Volume', 'Foreign share of sell transactions.', '100 * SF / (SF + DSF)', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'percent', 'NULL when the denominator is 0 or frequency is missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1794,19 +1794,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_sell_freq_share_1d', 'Date x tic
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Average foreign buy value per transaction (ticket size).', 'Feature_Catalog active semantic version', 'IDR per transaction', 'NULL when the frequency is 0 or missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_avg_buy_value_per_freq_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_avg_buy_value_per_freq_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_avg_buy_value_per_freq_1d', 'Date x ticker x board',
-    'Volume', 'Average foreign buy value per transaction (ticket size).', 'FB / BF', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_avg_buy_value_per_freq_1d', 'Date x ticker x board',
+    'Volume', 'Average foreign buy value per transaction (ticket size).', 'FB / BF', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'IDR per transaction', 'NULL when the frequency is 0 or missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1817,19 +1817,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_avg_buy_value_per_freq_1d', 'Dat
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Average foreign sell value per transaction.', 'Feature_Catalog active semantic version', 'IDR per transaction', 'NULL when the frequency is 0 or missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_avg_sell_value_per_freq_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_avg_sell_value_per_freq_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_avg_sell_value_per_freq_1d', 'Date x ticker x board',
-    'Volume', 'Average foreign sell value per transaction.', 'FS / SF', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_avg_sell_value_per_freq_1d', 'Date x ticker x board',
+    'Volume', 'Average foreign sell value per transaction.', 'FS / SF', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'IDR per transaction', 'NULL when the frequency is 0 or missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1840,19 +1840,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_avg_sell_value_per_freq_1d', 'Da
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign average buy ticket divided by average sell ticket.', 'Feature_Catalog active semantic version', 'ratio', 'NULL when a frequency or the sell value is 0 or missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_buy_sell_ticket_ratio_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_buy_sell_ticket_ratio_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_buy_sell_ticket_ratio_1d', 'Date x ticker x board',
-    'Volume', 'Foreign average buy ticket divided by average sell ticket.', '(FB / BF) / (FS / SF)', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_buy_sell_ticket_ratio_1d', 'Date x ticker x board',
+    'Volume', 'Foreign average buy ticket divided by average sell ticket.', '(FB / BF) / (FS / SF)', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'ratio', 'NULL when a frequency or the sell value is 0 or missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1863,19 +1863,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_buy_sell_ticket_ratio_1d', 'Date
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Average foreign lots per buy transaction.', 'Feature_Catalog active semantic version', 'lots per transaction', 'NULL when the frequency is 0 or missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_avg_buy_lots_per_freq_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_avg_buy_lots_per_freq_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_avg_buy_lots_per_freq_1d', 'Date x ticker x board',
-    'Volume', 'Average foreign lots per buy transaction.', 'FBL / BF', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_avg_buy_lots_per_freq_1d', 'Date x ticker x board',
+    'Volume', 'Average foreign lots per buy transaction.', 'FBL / BF', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'lots per transaction', 'NULL when the frequency is 0 or missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1886,19 +1886,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_avg_buy_lots_per_freq_1d', 'Date
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Average foreign lots per sell transaction.', 'Feature_Catalog active semantic version', 'lots per transaction', 'NULL when the frequency is 0 or missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_avg_sell_lots_per_freq_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_avg_sell_lots_per_freq_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_avg_sell_lots_per_freq_1d', 'Date x ticker x board',
-    'Volume', 'Average foreign lots per sell transaction.', 'FSL / SF', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_avg_sell_lots_per_freq_1d', 'Date x ticker x board',
+    'Volume', 'Average foreign lots per sell transaction.', 'FSL / SF', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'lots per transaction', 'NULL when the frequency is 0 or missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1909,19 +1909,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_avg_sell_lots_per_freq_1d', 'Dat
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Domestic buy versus sell transaction imbalance.', 'Feature_Catalog active semantic version', 'percent', 'NULL when the denominator is 0 or frequency is missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_freq_imbalance_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_freq_imbalance_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_freq_imbalance_1d', 'Date x ticker x board',
-    'Volume', 'Domestic buy versus sell transaction imbalance.', '100 * (DBF - DSF) / (DBF + DSF)', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_freq_imbalance_1d', 'Date x ticker x board',
+    'Volume', 'Domestic buy versus sell transaction imbalance.', '100 * (DBF - DSF) / (DBF + DSF)', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'percent', 'NULL when the denominator is 0 or frequency is missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1932,19 +1932,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_freq_imbalance_1d', 'Date x tic
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Domestic transaction imbalance over 20 sessions.', 'Feature_Catalog active semantic version', 'percent', 'NULL before 20 sessions, when the denominator is 0 or frequency is missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_freq_imbalance_20d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_freq_imbalance_20d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_freq_imbalance_20d', 'Date x ticker x board',
-    'Volume', 'Domestic transaction imbalance over 20 sessions.', '100 * (SUM_20(DBF) - SUM_20(DSF)) / (SUM_20(DBF) + SUM_20(DSF))', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_freq_imbalance_20d', 'Date x ticker x board',
+    'Volume', 'Domestic transaction imbalance over 20 sessions.', '100 * (SUM_20(DBF) - SUM_20(DSF)) / (SUM_20(DBF) + SUM_20(DSF))', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '20 sessions', '20 sessions', 'percent', 'NULL before 20 sessions, when the denominator is 0 or frequency is missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1955,19 +1955,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_freq_imbalance_20d', 'Date x ti
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Domestic share of buy transactions.', 'Feature_Catalog active semantic version', 'percent', 'NULL when the denominator is 0 or frequency is missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_buy_freq_share_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_buy_freq_share_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_buy_freq_share_1d', 'Date x ticker x board',
-    'Volume', 'Domestic share of buy transactions.', '100 * DBF / (BF + DBF)', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_buy_freq_share_1d', 'Date x ticker x board',
+    'Volume', 'Domestic share of buy transactions.', '100 * DBF / (BF + DBF)', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'percent', 'NULL when the denominator is 0 or frequency is missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -1978,19 +1978,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_buy_freq_share_1d', 'Date x tic
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Domestic share of sell transactions.', 'Feature_Catalog active semantic version', 'percent', 'NULL when the denominator is 0 or frequency is missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_sell_freq_share_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_sell_freq_share_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_sell_freq_share_1d', 'Date x ticker x board',
-    'Volume', 'Domestic share of sell transactions.', '100 * DSF / (SF + DSF)', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_sell_freq_share_1d', 'Date x ticker x board',
+    'Volume', 'Domestic share of sell transactions.', '100 * DSF / (SF + DSF)', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'percent', 'NULL when the denominator is 0 or frequency is missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -2001,19 +2001,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_sell_freq_share_1d', 'Date x ti
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Average domestic buy value per transaction (ticket size).', 'Feature_Catalog active semantic version', 'IDR per transaction', 'NULL when the frequency is 0 or missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_avg_buy_value_per_freq_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_avg_buy_value_per_freq_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_avg_buy_value_per_freq_1d', 'Date x ticker x board',
-    'Volume', 'Average domestic buy value per transaction (ticket size).', 'DB / DBF', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_avg_buy_value_per_freq_1d', 'Date x ticker x board',
+    'Volume', 'Average domestic buy value per transaction (ticket size).', 'DB / DBF', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'IDR per transaction', 'NULL when the frequency is 0 or missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -2024,19 +2024,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_avg_buy_value_per_freq_1d', 'Da
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Average domestic sell value per transaction.', 'Feature_Catalog active semantic version', 'IDR per transaction', 'NULL when the frequency is 0 or missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_avg_sell_value_per_freq_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_avg_sell_value_per_freq_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_avg_sell_value_per_freq_1d', 'Date x ticker x board',
-    'Volume', 'Average domestic sell value per transaction.', 'DS / DSF', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_avg_sell_value_per_freq_1d', 'Date x ticker x board',
+    'Volume', 'Average domestic sell value per transaction.', 'DS / DSF', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'IDR per transaction', 'NULL when the frequency is 0 or missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -2047,19 +2047,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_avg_sell_value_per_freq_1d', 'D
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Domestic average buy ticket divided by average sell ticket.', 'Feature_Catalog active semantic version', 'ratio', 'NULL when a frequency or the sell value is 0 or missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_buy_sell_ticket_ratio_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_buy_sell_ticket_ratio_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_buy_sell_ticket_ratio_1d', 'Date x ticker x board',
-    'Volume', 'Domestic average buy ticket divided by average sell ticket.', '(DB / DBF) / (DS / DSF)', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_buy_sell_ticket_ratio_1d', 'Date x ticker x board',
+    'Volume', 'Domestic average buy ticket divided by average sell ticket.', '(DB / DBF) / (DS / DSF)', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'ratio', 'NULL when a frequency or the sell value is 0 or missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -2070,19 +2070,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_buy_sell_ticket_ratio_1d', 'Dat
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Average domestic lots per buy transaction.', 'Feature_Catalog active semantic version', 'lots per transaction', 'NULL when the frequency is 0 or missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_avg_buy_lots_per_freq_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_avg_buy_lots_per_freq_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_avg_buy_lots_per_freq_1d', 'Date x ticker x board',
-    'Volume', 'Average domestic lots per buy transaction.', 'DBL / DBF', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_avg_buy_lots_per_freq_1d', 'Date x ticker x board',
+    'Volume', 'Average domestic lots per buy transaction.', 'DBL / DBF', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'lots per transaction', 'NULL when the frequency is 0 or missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -2093,19 +2093,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_avg_buy_lots_per_freq_1d', 'Dat
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Average domestic lots per sell transaction.', 'Feature_Catalog active semantic version', 'lots per transaction', 'NULL when the frequency is 0 or missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_avg_sell_lots_per_freq_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_avg_sell_lots_per_freq_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_avg_sell_lots_per_freq_1d', 'Date x ticker x board',
-    'Volume', 'Average domestic lots per sell transaction.', 'DSL / DSF', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_avg_sell_lots_per_freq_1d', 'Date x ticker x board',
+    'Volume', 'Average domestic lots per sell transaction.', 'DSL / DSF', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'lots per transaction', 'NULL when the frequency is 0 or missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -2116,19 +2116,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_avg_sell_lots_per_freq_1d', 'Da
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Change of the domestic share of buy transactions: last 5 sessions versus the 20 before.', 'Feature_Catalog active semantic version', 'percentage points', 'NULL before 25 sessions, when a denominator is 0 or frequency is missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_buy_freq_share_change_5d_vs_prev20d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_buy_freq_share_change_5d_vs_prev20d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_buy_freq_share_change_5d_vs_prev20d', 'Date x ticker x board',
-    'Volume', 'Change of the domestic share of buy transactions: last 5 sessions versus the 20 before.', '100 * SUM_5(DBF) / (SUM_5(BF) + SUM_5(DBF)) - same over sessions t-24..t-5 (window totals, not averages of daily ratios)', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_buy_freq_share_change_5d_vs_prev20d', 'Date x ticker x board',
+    'Volume', 'Change of the domestic share of buy transactions: last 5 sessions versus the 20 before.', '100 * SUM_5(DBF) / (SUM_5(BF) + SUM_5(DBF)) - same over sessions t-24..t-5 (window totals, not averages of daily ratios)', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '25 sessions', '25 sessions', 'percentage points', 'NULL before 25 sessions, when a denominator is 0 or frequency is missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -2139,19 +2139,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_buy_freq_share_change_5d_vs_pre
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Change of the foreign share of buy transactions: last 5 sessions versus the 20 before.', 'Feature_Catalog active semantic version', 'percentage points', 'NULL before 25 sessions, when a denominator is 0 or frequency is missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_buy_freq_share_change_5d_vs_prev20d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_buy_freq_share_change_5d_vs_prev20d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_buy_freq_share_change_5d_vs_prev20d', 'Date x ticker x board',
-    'Volume', 'Change of the foreign share of buy transactions: last 5 sessions versus the 20 before.', '100 * SUM_5(BF) / (SUM_5(BF) + SUM_5(DBF)) - same over sessions t-24..t-5 (window totals, not averages of daily ratios)', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_buy_freq_share_change_5d_vs_prev20d', 'Date x ticker x board',
+    'Volume', 'Change of the foreign share of buy transactions: last 5 sessions versus the 20 before.', '100 * SUM_5(BF) / (SUM_5(BF) + SUM_5(DBF)) - same over sessions t-24..t-5 (window totals, not averages of daily ratios)', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '25 sessions', '25 sessions', 'percentage points', 'NULL before 25 sessions, when a denominator is 0 or frequency is missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -2162,19 +2162,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_buy_freq_share_change_5d_vs_prev
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Percent change of the domestic average buy value per transaction: last 5 sessions versus the 20 before.', 'Feature_Catalog active semantic version', 'percent', 'NULL before 25 sessions, when a denominator is 0 or frequency is missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_buy_value_per_freq_change_5d_vs_prev20d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_buy_value_per_freq_change_5d_vs_prev20d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_buy_value_per_freq_change_5d_vs_prev20d', 'Date x ticker x board',
-    'Volume', 'Percent change of the domestic average buy value per transaction: last 5 sessions versus the 20 before.', '100 * ((SUM_5(DB) / SUM_5(DBF)) / (SUM_t-24..t-5(DB) / SUM_t-24..t-5(DBF)) - 1)', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_buy_value_per_freq_change_5d_vs_prev20d', 'Date x ticker x board',
+    'Volume', 'Percent change of the domestic average buy value per transaction: last 5 sessions versus the 20 before.', '100 * ((SUM_5(DB) / SUM_5(DBF)) / (SUM_t-24..t-5(DB) / SUM_t-24..t-5(DBF)) - 1)', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '25 sessions', '25 sessions', 'percent', 'NULL before 25 sessions, when a denominator is 0 or frequency is missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -2185,19 +2185,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_buy_value_per_freq_change_5d_vs
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Percent change of the foreign average buy value per transaction: last 5 sessions versus the 20 before.', 'Feature_Catalog active semantic version', 'percent', 'NULL before 25 sessions, when a denominator is 0 or frequency is missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_buy_value_per_freq_change_5d_vs_prev20d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_buy_value_per_freq_change_5d_vs_prev20d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_buy_value_per_freq_change_5d_vs_prev20d', 'Date x ticker x board',
-    'Volume', 'Percent change of the foreign average buy value per transaction: last 5 sessions versus the 20 before.', '100 * ((SUM_5(FB) / SUM_5(BF)) / (SUM_t-24..t-5(FB) / SUM_t-24..t-5(BF)) - 1)', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_buy_value_per_freq_change_5d_vs_prev20d', 'Date x ticker x board',
+    'Volume', 'Percent change of the foreign average buy value per transaction: last 5 sessions versus the 20 before.', '100 * ((SUM_5(FB) / SUM_5(BF)) / (SUM_t-24..t-5(FB) / SUM_t-24..t-5(BF)) - 1)', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '25 sessions', '25 sessions', 'percent', 'NULL before 25 sessions, when a denominator is 0 or frequency is missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -2208,19 +2208,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_buy_value_per_freq_change_5d_vs_
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Change of the domestic share of sell transactions: last 5 sessions versus the 20 before.', 'Feature_Catalog active semantic version', 'percentage points', 'NULL before 25 sessions, when a denominator is 0 or frequency is missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_sell_freq_share_change_5d_vs_prev20d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_sell_freq_share_change_5d_vs_prev20d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_sell_freq_share_change_5d_vs_prev20d', 'Date x ticker x board',
-    'Volume', 'Change of the domestic share of sell transactions: last 5 sessions versus the 20 before.', '100 * SUM_5(DSF) / (SUM_5(SF) + SUM_5(DSF)) - same over sessions t-24..t-5 (window totals, not averages of daily ratios)', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_sell_freq_share_change_5d_vs_prev20d', 'Date x ticker x board',
+    'Volume', 'Change of the domestic share of sell transactions: last 5 sessions versus the 20 before.', '100 * SUM_5(DSF) / (SUM_5(SF) + SUM_5(DSF)) - same over sessions t-24..t-5 (window totals, not averages of daily ratios)', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '25 sessions', '25 sessions', 'percentage points', 'NULL before 25 sessions, when a denominator is 0 or frequency is missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -2231,19 +2231,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_sell_freq_share_change_5d_vs_pr
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Change of the foreign share of sell transactions: last 5 sessions versus the 20 before.', 'Feature_Catalog active semantic version', 'percentage points', 'NULL before 25 sessions, when a denominator is 0 or frequency is missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_sell_freq_share_change_5d_vs_prev20d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_sell_freq_share_change_5d_vs_prev20d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_sell_freq_share_change_5d_vs_prev20d', 'Date x ticker x board',
-    'Volume', 'Change of the foreign share of sell transactions: last 5 sessions versus the 20 before.', '100 * SUM_5(SF) / (SUM_5(SF) + SUM_5(DSF)) - same over sessions t-24..t-5 (window totals, not averages of daily ratios)', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_sell_freq_share_change_5d_vs_prev20d', 'Date x ticker x board',
+    'Volume', 'Change of the foreign share of sell transactions: last 5 sessions versus the 20 before.', '100 * SUM_5(SF) / (SUM_5(SF) + SUM_5(DSF)) - same over sessions t-24..t-5 (window totals, not averages of daily ratios)', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '25 sessions', '25 sessions', 'percentage points', 'NULL before 25 sessions, when a denominator is 0 or frequency is missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -2254,19 +2254,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_sell_freq_share_change_5d_vs_pre
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Percent change of the domestic average sell value per transaction: last 5 sessions versus the 20 before.', 'Feature_Catalog active semantic version', 'percent', 'NULL before 25 sessions, when a denominator is 0 or frequency is missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'domestic_sell_value_per_freq_change_5d_vs_prev20d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'domestic_sell_value_per_freq_change_5d_vs_prev20d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'domestic_sell_value_per_freq_change_5d_vs_prev20d', 'Date x ticker x board',
-    'Volume', 'Percent change of the domestic average sell value per transaction: last 5 sessions versus the 20 before.', '100 * ((SUM_5(DS) / SUM_5(DSF)) / (SUM_t-24..t-5(DS) / SUM_t-24..t-5(DSF)) - 1)', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'domestic_sell_value_per_freq_change_5d_vs_prev20d', 'Date x ticker x board',
+    'Volume', 'Percent change of the domestic average sell value per transaction: last 5 sessions versus the 20 before.', '100 * ((SUM_5(DS) / SUM_5(DSF)) / (SUM_t-24..t-5(DS) / SUM_t-24..t-5(DSF)) - 1)', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '25 sessions', '25 sessions', 'percent', 'NULL before 25 sessions, when a denominator is 0 or frequency is missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -2277,19 +2277,19 @@ VALUES ('feature_06_foreign_domestic', 'domestic_sell_value_per_freq_change_5d_v
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Percent change of the foreign average sell value per transaction: last 5 sessions versus the 20 before.', 'Feature_Catalog active semantic version', 'percent', 'NULL before 25 sessions, when a denominator is 0 or frequency is missing.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_sell_value_per_freq_change_5d_vs_prev20d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_sell_value_per_freq_change_5d_vs_prev20d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_sell_value_per_freq_change_5d_vs_prev20d', 'Date x ticker x board',
-    'Volume', 'Percent change of the foreign average sell value per transaction: last 5 sessions versus the 20 before.', '100 * ((SUM_5(FS) / SUM_5(SF)) / (SUM_t-24..t-5(FS) / SUM_t-24..t-5(SF)) - 1)', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_sell_value_per_freq_change_5d_vs_prev20d', 'Date x ticker x board',
+    'Volume', 'Percent change of the foreign average sell value per transaction: last 5 sessions versus the 20 before.', '100 * ((SUM_5(FS) / SUM_5(SF)) / (SUM_t-24..t-5(FS) / SUM_t-24..t-5(SF)) - 1)', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '25 sessions', '25 sessions', 'percent', 'NULL before 25 sessions, when a denominator is 0 or frequency is missing.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['AVG','MEDIAN','MIN','MAX','COUNT','PERCENTILE']::text[], 'CONTEXTUAL', true,
@@ -2300,19 +2300,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_sell_value_per_freq_change_5d_vs
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Foreign net value and foreign net transaction count point in different directions.', 'Feature_Catalog active semantic version', 'flag', 'NULL when F = 0, BF = SF or frequency is missing; FALSE when both have the same nonzero sign.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'foreign_value_freq_sign_mismatch_1d';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'foreign_value_freq_sign_mismatch_1d';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'foreign_value_freq_sign_mismatch_1d', 'Date x ticker x board',
-    'Volume', 'Foreign net value and foreign net transaction count point in different directions.', 'SIGN(F) <> SIGN(BF - SF)', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'foreign_value_freq_sign_mismatch_1d', 'Date x ticker x board',
+    'Volume', 'Foreign net value and foreign net transaction count point in different directions.', 'SIGN(F) <> SIGN(BF - SF)', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'flag', 'NULL when F = 0, BF = SF or frequency is missing; FALSE when both have the same nonzero sign.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['COUNT']::text[], 'NOT_APPLICABLE', true,
@@ -2323,19 +2323,19 @@ VALUES ('feature_06_foreign_domestic', 'foreign_value_freq_sign_mismatch_1d', 'D
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Internal: Feature 05 marks this date, ticker and board as a source gap (ERRORS M157).', 'Feature_Catalog active semantic version', 'flag', 'Never NULL.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'source_balance_gap';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'source_balance_gap';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'source_balance_gap', 'Date x ticker x board',
-    'Data Quality', 'Internal: Feature 05 marks this date, ticker and board as a source gap (ERRORS M157).', 'BOOL_OR(Feature 05 source_balance_gap) for the date, ticker and board', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'source_balance_gap', 'Date x ticker x board',
+    'Data Quality', 'Internal: Feature 05 marks this date, ticker and board as a source gap (ERRORS M157).', 'BOOL_OR(Feature 05 source_balance_gap) for the date, ticker and board', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'flag', 'Never NULL.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'MEASURE', ARRAY['COUNT']::text[], 'NOT_APPLICABLE', true,
@@ -2346,19 +2346,19 @@ VALUES ('feature_06_foreign_domestic', 'source_balance_gap', 'Date x ticker x bo
 INSERT INTO public."Column_Catalog" (table_schema, table_name, column_name, ordinal_position,
     data_type, is_nullable, is_primary_key, definition, source_column_or_expression, unit, null_rule,
     source_code_paths, documentation_status)
-SELECT 'public', 'feature_06_foreign_domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
+SELECT 'public', 'Feature_06_Foreign_Domestic', c.column_name, c.ordinal_position, c.data_type, c.is_nullable = 'YES',
     false,
     'Statement timestamp when the row was written.', 'Feature_Catalog active semantic version', 'timestamp', 'Never NULL.',
     ARRAY['database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql','database/migrations/20261022_003_create_feature_06_foreign_domestic.sql','scripts/check_feature_06_sample.py']::text[], 'VERIFIED'
-FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'feature_06_foreign_domestic' AND c.column_name = 'calculated_at';
+FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'Feature_06_Foreign_Domestic' AND c.column_name = 'calculated_at';
 
 INSERT INTO public."Feature_Catalog" (feature_table, feature_column, grain, feature_category,
     definition, calculation, source_tables, source_columns, lookback_window, minimum_history, unit, null_rule,
     refresh_trigger, dependency_rule, version, is_active, semantic_role, allowed_aggregations, ranking_interpretation,
     is_filterable, is_groupable, availability_rule, point_in_time_safe, historical_metadata_warning,
     analytical_interpretation, recommended_use, misuse_warning, semantic_review_status, validation_evidence)
-VALUES ('feature_06_foreign_domestic', 'calculated_at', 'Date x ticker x board',
-    'Metadata', 'Statement timestamp when the row was written.', 'statement_timestamp()', 'feature_05_foreign_domestic_broker_detail', 'feature_05_foreign_domestic_broker_detail columns per calculation',
+VALUES ('Feature_06_Foreign_Domestic', 'calculated_at', 'Date x ticker x board',
+    'Metadata', 'Statement timestamp when the row was written.', 'statement_timestamp()', 'Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_05_Foreign_Domestic_Broker_Detail columns per calculation',
     '1 session', '1 session', 'timestamp', 'Never NULL.',
     'refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions', 'Requires Feature 05 refreshed for the same dates',
     'v1', true, 'DIMENSION', ARRAY['MIN','MAX','COUNT']::text[], 'NOT_APPLICABLE', true,
@@ -2394,7 +2394,7 @@ WHERE table_schema = 'public' AND table_name = 'IDX_Broker_Summary'
 INSERT INTO public."Feature_Relationship_Catalog" (left_feature_table, right_feature_table,
     left_join_columns, right_join_columns, relationship_type, safe_output_grain, requires_preaggregation, definition,
     version, is_active)
-VALUES ('feature_05_foreign_domestic_broker_detail', 'feature_06_foreign_domestic', ARRAY['ticker','market_board','trade_date'], ARRAY['ticker','market_board','trade_date'],
+VALUES ('Feature_05_Foreign_Domestic_Broker_Detail', 'Feature_06_Foreign_Domestic', ARRAY['ticker','market_board','trade_date'], ARRAY['ticker','market_board','trade_date'],
     'MANY_TO_ONE', 'Date x ticker x board after Feature 05 is aggregated by investor type', true,
     'Feature 06 is Feature 05 summed by investor type per ticker, board and date; join only after aggregating Feature 05.',
     'v1', true);

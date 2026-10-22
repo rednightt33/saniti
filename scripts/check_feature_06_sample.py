@@ -196,8 +196,8 @@ def main() -> None:
     with psycopg.connect(os.environ["DATABASE_URL"]) as c:
         f05 = pd.read_sql("SELECT trade_date, market_board, investor_type, buy_value, sell_value, buy_lots, "
                           "sell_lots, buy_freq, sell_freq, source_balance_gap FROM "
-                          "feature_05_foreign_domestic_broker_detail WHERE ticker = %s", c, params=(a.ticker,))
-        got = pd.read_sql("SELECT * FROM feature_06_foreign_domestic WHERE ticker = %s", c, params=(a.ticker,))
+                          '"Feature_05_Foreign_Domestic_Broker_Detail" WHERE ticker = %s', c, params=(a.ticker,))
+        got = pd.read_sql('SELECT * FROM "Feature_06_Foreign_Domestic" WHERE ticker = %s', c, params=(a.ticker,))
     got = got.drop(columns=["ticker", "calculated_at"])
     sys.exit(0 if compare(compute(f05), got, a.since) else 1)
 

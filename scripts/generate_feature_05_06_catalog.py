@@ -14,10 +14,10 @@ from __future__ import annotations
 
 import sys
 
-F05 = "feature_05_foreign_domestic_broker_detail"
-F06 = "feature_06_foreign_domestic"
-PK = {"feature_05_foreign_domestic_broker_detail": {"ticker", "trade_date", "broker", "investor_type", "market_board"},
-      "feature_06_foreign_domestic": {"ticker", "market_board", "trade_date"}}
+F05 = "Feature_05_Foreign_Domestic_Broker_Detail"
+F06 = "Feature_06_Foreign_Domestic"
+PK = {"Feature_05_Foreign_Domestic_Broker_Detail": {"ticker", "trade_date", "broker", "investor_type", "market_board"},
+      "Feature_06_Foreign_Domestic": {"ticker", "market_board", "trade_date"}}
 EVIDENCE = ["database/migrations/20261022_002_create_feature_05_foreign_domestic_broker_detail.sql",
             "database/migrations/20261022_003_create_feature_06_foreign_domestic.sql",
             "scripts/check_feature_06_sample.py", "FEATURE_05_06_FOREIGN_DOMESTIC.md", "DATABASE_CHANGELOG.md"]
@@ -275,7 +275,7 @@ def f06_columns():
                   misuse="Not source time and not data availability time."))
     for x in c:
         x["source"] = F05
-    order = table_order(F06, "20261022_003_create_feature_06_foreign_domestic.sql")
+    order = table_order("feature_06_foreign_domestic", "20261022_003_create_feature_06_foreign_domestic.sql")  # created lower-case, renamed by 005
     return sorted(c, key=lambda x: order.index(x["name"]))
 
 

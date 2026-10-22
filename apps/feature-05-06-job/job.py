@@ -102,9 +102,9 @@ def phase1_backfill() -> None:
 
 F05_CHECK = """
 SELECT (SELECT count(*) FROM public."IDX_Broker_Summary" WHERE "Date" >= %(a)s AND "Date" < %(b)s),
-       (SELECT count(*) FROM public.feature_05_foreign_domestic_broker_detail WHERE trade_date >= %(a)s AND trade_date < %(b)s),
+       (SELECT count(*) FROM public."Feature_05_Foreign_Domestic_Broker_Detail" WHERE trade_date >= %(a)s AND trade_date < %(b)s),
        (SELECT count(*) FROM public."IDX_Broker_Summary" b
-        LEFT JOIN public.feature_05_foreign_domestic_broker_detail f
+        LEFT JOIN public."Feature_05_Foreign_Domestic_Broker_Detail" f
           ON f.ticker = b."Symbol" AND f.trade_date = b."Date" AND f.broker = b."Broker"
          AND f.investor_type = b."Investor Type" AND f.market_board = b."Market Board"
         WHERE b."Date" >= %(a)s AND b."Date" < %(b)s
@@ -151,7 +151,7 @@ def phase2_backfill() -> None:
             conn.commit()
         log("phase2_year", year=a.year, rows=f05_rows, seconds=round(time.monotonic() - started, 1))
     with connect(autocommit=True) as conn:
-        conn.execute("VACUUM (ANALYZE) public.feature_05_foreign_domestic_broker_detail")
+        conn.execute("VACUUM (ANALYZE) public.\"Feature_05_Foreign_Domestic_Broker_Detail\"")
     log("phase2_done", seconds=round(time.monotonic() - total_started, 1))
 
 
@@ -161,8 +161,8 @@ def phase3_backfill() -> None:
     total_started = time.monotonic()
     with connect() as conn:
         tickers = [r[0] for r in conn.execute(
-            "SELECT DISTINCT ticker FROM public.feature_05_foreign_domestic_broker_detail ORDER BY 1")]
-        done = {r[0] for r in conn.execute("SELECT DISTINCT ticker FROM public.feature_06_foreign_domestic")}
+            "SELECT DISTINCT ticker FROM public.\"Feature_05_Foreign_Domestic_Broker_Detail\" ORDER BY 1")]
+        done = {r[0] for r in conn.execute("SELECT DISTINCT ticker FROM public.\"Feature_06_Foreign_Domestic\"")}
     todo = [t for t in tickers if t not in done]
     log("phase3_start", tickers=len(tickers), already_done=len(done), todo=len(todo))
     rows_total = 0
@@ -178,7 +178,7 @@ def phase3_backfill() -> None:
             log("phase3_progress", done=i, of=len(todo), ticker=t, rows=rows, seconds=round(seconds, 1),
                 rows_total=rows_total, elapsed=round(time.monotonic() - total_started, 1))
     with connect(autocommit=True) as conn:
-        conn.execute("VACUUM (ANALYZE) public.feature_06_foreign_domestic")
+        conn.execute("VACUUM (ANALYZE) public.\"Feature_06_Foreign_Domestic\"")
     phase3_reconcile()
     log("phase3_done", seconds=round(time.monotonic() - total_started, 1))
 
@@ -192,7 +192,7 @@ WITH s AS (
            coalesce(sum(sell_value) FILTER (WHERE investor_type = 'Domestic'), 0) AS ds,
            sum(buy_freq) FILTER (WHERE investor_type = 'Foreign') AS bf,
            sum(sell_freq) FILTER (WHERE investor_type = 'Domestic') AS dsf
-    FROM public.feature_05_foreign_domestic_broker_detail
+    FROM public."Feature_05_Foreign_Domestic_Broker_Detail"
     WHERE trade_date >= %(a)s AND trade_date < %(b)s
     GROUP BY 1, 2, 3)
 SELECT count(*), count(*) FILTER (WHERE f.ticker IS NULL OR f.foreign_buy_1d <> s.fb OR f.foreign_sell_1d <> s.fs
@@ -200,14 +200,14 @@ SELECT count(*), count(*) FILTER (WHERE f.ticker IS NULL OR f.foreign_buy_1d <> 
            OR f.foreign_net_1d <> s.fb - s.fs OR f.domestic_net_1d <> s.db - s.ds
            OR (s.bf IS NOT NULL AND f.foreign_buy_freq_1d IS DISTINCT FROM s.bf)
            OR (s.dsf IS NOT NULL AND f.domestic_sell_freq_1d IS DISTINCT FROM s.dsf)),
-       (SELECT count(*) FROM public.feature_06_foreign_domestic WHERE trade_date >= %(a)s AND trade_date < %(b)s)
-FROM s LEFT JOIN public.feature_06_foreign_domestic f USING (trade_date, ticker, market_board)
+       (SELECT count(*) FROM public."Feature_06_Foreign_Domestic" WHERE trade_date >= %(a)s AND trade_date < %(b)s)
+FROM s LEFT JOIN public."Feature_06_Foreign_Domestic" f USING (trade_date, ticker, market_board)
 """
 
 
 def phase3_reconcile() -> None:
     with connect() as conn:
-        last = conn.execute("SELECT max(trade_date) FROM public.feature_05_foreign_domestic_broker_detail").fetchone()[0]
+        last = conn.execute("SELECT max(trade_date) FROM public.\"Feature_05_Foreign_Domestic_Broker_Detail\"").fetchone()[0]
     end = (last.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
     bad = 0
     for a, b in years(FIRST_MONTH, end):
@@ -231,24 +231,24 @@ def validate_samples() -> None:
     import check_feature_06_sample as chk
     import pandas as pd
     with connect() as conn:
-        nego = conn.execute("""SELECT ticker FROM public.feature_06_foreign_domestic WHERE market_board = 'Nego'
+        nego = conn.execute("""SELECT ticker FROM public."Feature_06_Foreign_Domestic" WHERE market_board = 'Nego'
                                GROUP BY 1 ORDER BY count(*) DESC LIMIT 1""").fetchone()[0]
-        newest = (conn.execute("""SELECT ticker FROM public.feature_06_foreign_domestic GROUP BY 1
+        newest = (conn.execute("""SELECT ticker FROM public."Feature_06_Foreign_Domestic" GROUP BY 1
                                   HAVING min(trade_date) > '2025-06-01' ORDER BY count(*) DESC LIMIT 1""").fetchone()
                   or [None])[0]
     with connect() as conn:
-        present = {r[0] for r in conn.execute("SELECT DISTINCT ticker FROM public.feature_06_foreign_domestic")}
+        present = {r[0] for r in conn.execute("SELECT DISTINCT ticker FROM public.\"Feature_06_Foreign_Domestic\"")}
     samples = [t for t in dict.fromkeys(["BBCA", "BBRI", "MIKA", "XSPI", "ISAP-W", nego, newest]) if t in present]
     failed = []
     for t in samples:
         with connect() as conn:
             f05 = pd.DataFrame(conn.execute(
                 "SELECT trade_date, market_board, investor_type, buy_value, sell_value, buy_lots, sell_lots, "
-                "buy_freq, sell_freq, source_balance_gap FROM public.feature_05_foreign_domestic_broker_detail "
+                "buy_freq, sell_freq, source_balance_gap FROM public.\"Feature_05_Foreign_Domestic_Broker_Detail\" "
                 "WHERE ticker = %s", (t,)).fetchall(),
                 columns=["trade_date", "market_board", "investor_type", "buy_value", "sell_value", "buy_lots",
                          "sell_lots", "buy_freq", "sell_freq", "source_balance_gap"])
-            cur = conn.execute("SELECT * FROM public.feature_06_foreign_domestic WHERE ticker = %s", (t,))
+            cur = conn.execute("SELECT * FROM public.\"Feature_06_Foreign_Domestic\" WHERE ticker = %s", (t,))
             got = pd.DataFrame(cur.fetchall(), columns=[d.name for d in cur.description])
         got = got.drop(columns=["ticker", "calculated_at"])
         ok = chk.compare(chk.compute(f05), got)
@@ -256,23 +256,23 @@ def validate_samples() -> None:
         if not ok:
             failed.append(t)
     cols_sql = """SELECT string_agg(format('%I', column_name), ',') FROM information_schema.columns
-                  WHERE table_name = 'feature_06_foreign_domestic' AND column_name <> 'calculated_at'"""
+                  WHERE table_name = 'Feature_06_Foreign_Domestic' AND column_name <> 'calculated_at'"""
     for t in [x for x in dict.fromkeys(["BBCA", "MIKA", nego]) if x in present]:
         for back in (1, 21, 400):
             with connect() as conn:
                 conn.execute("SET LOCAL statement_timeout = '30min'")
                 cols = conn.execute(cols_sql).fetchone()[0]
                 start = conn.execute("""SELECT min(d) FROM (SELECT DISTINCT trade_date d
-                    FROM public.feature_06_foreign_domestic WHERE ticker = %s ORDER BY d DESC LIMIT %s) x""",
+                    FROM public."Feature_06_Foreign_Domestic" WHERE ticker = %s ORDER BY d DESC LIMIT %s) x""",
                                      (t, back)).fetchone()[0]
                 conn.execute(f"CREATE TEMP TABLE before ON COMMIT DROP AS SELECT {cols} FROM "
-                             "public.feature_06_foreign_domestic WHERE ticker = %s", (t,))
+                             "public.\"Feature_06_Foreign_Domestic\" WHERE ticker = %s", (t,))
                 began = time.monotonic()
                 rows = conn.execute("SELECT public.refresh_feature_06(%s, %s)", (t, start)).fetchone()[0]
                 seconds = time.monotonic() - began
                 diff = conn.execute(f"""SELECT count(*) FROM (
-                    (SELECT {cols} FROM public.feature_06_foreign_domestic WHERE ticker = %s EXCEPT SELECT * FROM before)
-                    UNION ALL (SELECT * FROM before EXCEPT SELECT {cols} FROM public.feature_06_foreign_domestic
+                    (SELECT {cols} FROM public."Feature_06_Foreign_Domestic" WHERE ticker = %s EXCEPT SELECT * FROM before)
+                    UNION ALL (SELECT * FROM before EXCEPT SELECT {cols} FROM public."Feature_06_Foreign_Domestic"
                                WHERE ticker = %s)) x""", (t, t)).fetchone()[0]
                 conn.rollback()
             log("validate_incremental", ticker=t, sessions_back=back, start=start, rewrote=rows,
@@ -289,23 +289,23 @@ def measure() -> None:
     with connect() as conn:
         for label, sql in (
             ("f05_incremental_read", """EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
-                SELECT trade_date, market_board, sum(buy_value) FROM public.feature_05_foreign_domestic_broker_detail
+                SELECT trade_date, market_board, sum(buy_value) FROM public."Feature_05_Foreign_Domestic_Broker_Detail"
                 WHERE ticker = 'BBCA' AND trade_date >= (SELECT min(d) FROM (SELECT DISTINCT trade_date d
-                  FROM public.feature_05_foreign_domestic_broker_detail WHERE ticker = 'BBCA' ORDER BY d DESC LIMIT 313) x)
+                  FROM public."Feature_05_Foreign_Domestic_Broker_Detail" WHERE ticker = 'BBCA' ORDER BY d DESC LIMIT 313) x)
                 GROUP BY 1, 2"""),
             ("f06_ticker_read", """EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
-                SELECT * FROM public.feature_06_foreign_domestic WHERE ticker = 'BBCA' AND market_board = 'Regular'
+                SELECT * FROM public."Feature_06_Foreign_Domestic" WHERE ticker = 'BBCA' AND market_board = 'Regular'
                 AND trade_date >= '2026-01-01'"""),
             ("f06_date_cross_section", """EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
-                SELECT ticker, foreign_net_20d FROM public.feature_06_foreign_domestic
-                WHERE trade_date = (SELECT max(trade_date) FROM public.feature_06_foreign_domestic)
+                SELECT ticker, foreign_net_20d FROM public."Feature_06_Foreign_Domestic"
+                WHERE trade_date = (SELECT max(trade_date) FROM public."Feature_06_Foreign_Domestic")
                 AND market_board = 'Regular'"""),
         ):
             plan = [r[0] for r in conn.execute(sql)]
             log("measure_plan", label=label, plan=plan)
         sizes = conn.execute("""SELECT relname, pg_total_relation_size(oid), pg_relation_size(oid)
-            FROM pg_class WHERE relname IN ('IDX_Broker_Summary', 'feature_05_foreign_domestic_broker_detail',
-                                            'feature_06_foreign_domestic')""").fetchall()
+            FROM pg_class WHERE relname IN ('IDX_Broker_Summary', 'Feature_05_Foreign_Domestic_Broker_Detail',
+                                            'Feature_06_Foreign_Domestic')""").fetchall()
         log("measure_sizes", sizes=sizes, database=conn.execute("SELECT pg_database_size(current_database())").fetchone()[0])
 
 
