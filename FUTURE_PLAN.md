@@ -644,8 +644,11 @@ dari `IDX_Broker_Summary`; daftar tulis-tangan `APPROVED`, `RAW_SOURCES`/`FORBID
 | F06 | 75 (PK) | 585 (indeks tanggal) | 20 |
 
 **Usulan (urutan):**
-1. Indeks F05 `(trade_date, market_board, ticker)` (padanan F02: 378 MB), diukur EXPLAIN sebelum/sesudah; F06 sudah
-   punya indeks tanggal. Opsional: indeks tanggal F04 (sudah live, M204).
+1. **Direvisi 2026-10-22 (DATABASE_INDEX_ACCEPTANCE.md, uji F04/F05 di bawah gerbang Governor):** jalur ekstraksi F04
+   dan F05 lolos dengan PK (tanpa Seq Scan); F02 dengan indeks `(date, market_board, ticker)` justru lebih lambat untuk
+   cross-section, jadi tidak ada indeks tanggal umum. Yang perlu diperbaiki hanya query kalender (M204): indeks
+   `(trade_date)` sempit yang diukur dulu dalam transaksi DRYRUN (buat, EXPLAIN ANALYZE, ROLLBACK), atau gerbang
+   EXPLAIN untuk kalender di Governor.
 2. Governor: kalender ringkasan hanya lewat indeks yang diawali kolom waktu, atau di-EXPLAIN dulu (M204), sehingga
    jaminan "lewat indeks" berlaku di semua jalur.
 3. Migrasi onboarding F05/F06 dengan template `20261020_001`: GRANT, `AI_table_catalog`, `AI_column_catalog` dari
