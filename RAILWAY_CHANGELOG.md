@@ -4199,3 +4199,18 @@ was waited out at 14:05 UTC before the database migration).
   (one replica). Fallback: redeploy the previous deployments (orc `3cde6446`, sandbox `81beaa50`, commit `4020030`).
 - One-off job `5e1c7820` on `orc-test-runner` applied Tool_Catalog round_ab; the temporary `DATABASE_URL` variable was
   removed and verified absent.
+
+## 2026-10-22 — Postgres volume 50 → 75 GB; private DNS for Postgres lost after the Railway outage
+
+- User 2026-10-21 ("75 GB aja kita naikkan untuk Postgres utama … kamu bisa menjalankan 3A dan 1A menjadi 75 GB").
+- Railway platform outage from 2026-10-21 07:24 UTC (status.railway.com: API, dashboard, CLI, builds). The CLI worked
+  again on 2026-10-22 about 04:12 UTC.
+- Volume `postgres-volume` (`3cd12381-0434-4cb1-8981-24975f94add8`, service `Postgres`, mount
+  `/var/lib/postgresql/data`): `sizeMB` 50000 → 75000 through `.railway/railway.ts` and `railway config apply`. The plan
+  showed this one change only; apply reported "failed" during the outage, but `railway volume list` read back
+  `sizeMB` 75000 (41,003 MB used) and a second plan shows no changes. Online resize, no restart. Storage is billed by
+  the space used, not the size.
+- Found while checking: the Postgres instance (deployment `ebdeb88b`) is RUNNING, but `postgres.railway.internal` does
+  not resolve from the other services (`psycopg.OperationalError: [Errno -2] Name or service not known` in
+  market-ai-orc and market-audit-store; edge-bff `/ready` 503, login SERVICE_UNAVAILABLE). Postgres logs stop at
+  2026-10-21 16:52 UTC. A Postgres restart to register its private endpoint again is waiting for the owner's permission.
