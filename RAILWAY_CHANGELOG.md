@@ -4214,3 +4214,24 @@ was waited out at 14:05 UTC before the database migration).
   not resolve from the other services (`psycopg.OperationalError: [Errno -2] Name or service not known` in
   market-ai-orc and market-audit-store; edge-bff `/ready` 503, login SERVICE_UNAVAILABLE). Postgres logs stop at
   2026-10-21 16:52 UTC. A Postgres restart to register its private endpoint again is waiting for the owner's permission.
+
+## 2026-10-22 — Postgres memory limit 4 GB; Postgres left without a deployment while Railway deploys are paused
+
+- User 2026-10-22: "lakukan restart Postgres dulu … set RAM sesuai dengan rekomendasi" and "Jumlah RAM maksimal adalah
+  4 GB. Set itu untuk sekarang."
+- Why: Postgres RAM (Railway usage API, hourly averages) was 0.2-0.6 GB until 2026-10-21 04:00 UTC, then 9.0 GB at
+  05:00, 13.6 GB at 16:00 and a flat 6.14 GB from 19:00 with CPU 0.000 (no client could connect). This is Linux page
+  cache kept without memory pressure and counted as memory (about USD 60/month at 6 GB). A limit makes the kernel
+  reclaim it; `shared_buffers` is 128 MB, so 4 GB leaves room for queries.
+- Restart attempts first: `railway restart -s Postgres` → "No deployment found for service" (twice, outage); a
+  restart through the Railway API was refused by the session's guard, not sent.
+- Change: `.railway/railway.ts` `Postgres.deploy = { limitOverride: { containers: { memoryBytes: 4000000000 } } }`;
+  `railway config plan` showed this one change (`null → 4000000000`); `railway config apply` reported it applied
+  (04:52 UTC).
+- Effect: the apply replaced the deployment. `ebdeb88b` became REMOVED and no new deployment was created; `railway
+  service status` reads "NO DEPLOYMENT". `railway redeploy -s Postgres --from-source` → "Deploys have been paused
+  temporarily" (status.railway.com 04:52 UTC: deploys enabled for Enterprise only so far). Volume `postgres-volume`
+  read back intact: 75000 MB, 41,003 MB used, attached to Postgres, status Ready. A retry submits the deploy as soon
+  as Railway accepts it; the outcome is recorded below when known.
+- Lesson: during a Railway deploy pause, a config change that redeploys a database stops it; check that deploys are
+  accepted before applying service settings.
