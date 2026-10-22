@@ -8,8 +8,11 @@ export default defineRailway(() => {
   PostgresE8GM.networking = { privateNetworkEndpoint: "postgres-e8gm" };
   const Postgres = postgres("Postgres", { region: "sfo" });
   Postgres.networking = { privateNetworkEndpoint: "postgres", tcpProxies: { "5432": {} } };
+  // 2026-10-22 (user: "Jumlah RAM maksimal adalah 4 GB"): a memory limit makes the kernel reclaim page cache, which
+  // otherwise stayed at 6-13 GB while Postgres was idle and is billed as memory (RAILWAY_CHANGELOG.md 2026-10-22)
+  Postgres.deploy = { limitOverride: { containers: { memoryBytes: 4000000000 } } };
   const postgresVolumeThQL = volume("postgres-volume-thQL", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
-  const postgresVolume = volume("postgres-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
+  const postgresVolume = volume("postgres-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 75000 });
   const fixedIncomeRepairEvidence = volume("fixed-income-repair-evidence", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 100 });
   const marketPythonSandboxData = volume("market-python-sandbox-data", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });
   const postgresVolumeOz3T = volume("postgres-volume-Oz3T", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 50000 });

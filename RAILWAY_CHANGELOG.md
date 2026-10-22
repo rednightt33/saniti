@@ -4199,3 +4199,49 @@ was waited out at 14:05 UTC before the database migration).
   (one replica). Fallback: redeploy the previous deployments (orc `3cde6446`, sandbox `81beaa50`, commit `4020030`).
 - One-off job `5e1c7820` on `orc-test-runner` applied Tool_Catalog round_ab; the temporary `DATABASE_URL` variable was
   removed and verified absent.
+
+## 2026-10-22 — Postgres volume 50 → 75 GB; private DNS for Postgres lost after the Railway outage
+
+- User 2026-10-21 ("75 GB aja kita naikkan untuk Postgres utama … kamu bisa menjalankan 3A dan 1A menjadi 75 GB").
+- Railway platform outage from 2026-10-21 07:24 UTC (status.railway.com: API, dashboard, CLI, builds). The CLI worked
+  again on 2026-10-22 about 04:12 UTC.
+- Volume `postgres-volume` (`3cd12381-0434-4cb1-8981-24975f94add8`, service `Postgres`, mount
+  `/var/lib/postgresql/data`): `sizeMB` 50000 → 75000 through `.railway/railway.ts` and `railway config apply`. The plan
+  showed this one change only; apply reported "failed" during the outage, but `railway volume list` read back
+  `sizeMB` 75000 (41,003 MB used) and a second plan shows no changes. Online resize, no restart. Storage is billed by
+  the space used, not the size.
+- Found while checking: the Postgres instance (deployment `ebdeb88b`) is RUNNING, but `postgres.railway.internal` does
+  not resolve from the other services (`psycopg.OperationalError: [Errno -2] Name or service not known` in
+  market-ai-orc and market-audit-store; edge-bff `/ready` 503, login SERVICE_UNAVAILABLE). Postgres logs stop at
+  2026-10-21 16:52 UTC. A Postgres restart to register its private endpoint again is waiting for the owner's permission.
+
+## 2026-10-22 — Postgres memory limit 4 GB; Postgres left without a deployment while Railway deploys are paused
+
+- User 2026-10-22: "lakukan restart Postgres dulu … set RAM sesuai dengan rekomendasi" and "Jumlah RAM maksimal adalah
+  4 GB. Set itu untuk sekarang."
+- Why: Postgres RAM (Railway usage API, hourly averages) was 0.2-0.6 GB until 2026-10-21 04:00 UTC, then 9.0 GB at
+  05:00, 13.6 GB at 16:00 and a flat 6.14 GB from 19:00 with CPU 0.000 (no client could connect). This is Linux page
+  cache kept without memory pressure and counted as memory (about USD 60/month at 6 GB). A limit makes the kernel
+  reclaim it; `shared_buffers` is 128 MB, so 4 GB leaves room for queries.
+- Restart attempts first: `railway restart -s Postgres` → "No deployment found for service" (twice, outage); a
+  restart through the Railway API was refused by the session's guard, not sent.
+- Change: `.railway/railway.ts` `Postgres.deploy = { limitOverride: { containers: { memoryBytes: 4000000000 } } }`;
+  `railway config plan` showed this one change (`null → 4000000000`); `railway config apply` reported it applied
+  (04:52 UTC).
+- Effect: the apply replaced the deployment. `ebdeb88b` became REMOVED and no new deployment was created; `railway
+  service status` reads "NO DEPLOYMENT". `railway redeploy -s Postgres --from-source` → "Deploys have been paused
+  temporarily" (status.railway.com 04:52 UTC: deploys enabled for Enterprise only so far). Volume `postgres-volume`
+  read back intact: 75000 MB, 41,003 MB used, attached to Postgres, status Ready. A retry submits the deploy as soon
+  as Railway accepts it; the outcome is recorded below when known.
+- Lesson: during a Railway deploy pause, a config change that redeploys a database stops it; check that deploys are
+  accepted before applying service settings.
+- Outcome (2026-10-22): Postgres logs show a clean shutdown at 04:15:30 UTC (before the limit was applied at 04:52;
+  the RAM reading fell to 0 at about 04:16). The retried `railway redeploy -s Postgres --from-source` was accepted at
+  05:09:18; deployment `8d547ce4` SUCCESS, "database system is ready to accept connections" 05:09:21, with the
+  4 GB limit and the 75 GB volume. edge-bff `/ready` 200 from 05:09:52; market-ai-orc has no database error since;
+  market-audit-store reached Postgres again (last DNS error 05:09:25). `railway config plan`: up to date. Postgres RAM
+  averaged 0.08 GB over the next 20 minutes.
+- Still open: market-sql-governor `sql_governor_audit_drain_failed` (ClientError) every 30 s toward market-audit-store
+  (none in the hours before the outage). `railway restart -s market-audit-store` ran (05:13-05:33) but the deployment
+  stayed `776f4e5a` with no new log line, so the restart did not take effect. The audit store runs in shadow mode
+  (`AI_AUDIT_STORE_REQUIRED=false`); the Governor keeps the events in its outbox and drains them when the store answers.

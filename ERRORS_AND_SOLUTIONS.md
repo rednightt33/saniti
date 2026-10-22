@@ -1125,6 +1125,22 @@ change yet.
 - **Lesson:** aturan helper yang hasilnya bukan tabel butuh contoh benar/salah di deskripsi tool yang dibaca saat
   menulis kode, dan pesan error harus menyebut helper itu.
 
+### M198 — Railway outage: Postgres unreachable by name, then left without a deployment (2026-10-21/22)
+
+- **Symptom:** from 2026-10-21 EDGE login SERVICE_UNAVAILABLE (`/ready` 503), orc and market-audit-store
+  `psycopg.OperationalError: [Errno -2] Name or service not known` for `postgres.railway.internal`; Postgres RUNNING,
+  its logs silent after 2026-10-21 16:52 UTC; idle Postgres RAM 6-13 GB.
+- **Verified cause:** Railway platform outage from 2026-10-21 07:24 UTC (API, CLI, builds, deploys; status.railway.com).
+  The private DNS name of Postgres stopped resolving. The idle RAM is page cache kept without a memory limit.
+- **Solution so far:** volume 50 → 75 GB (online, read back); Postgres memory limit 4 GB in `.railway/railway.ts`.
+  Applying the limit while Railway paused deploys removed the running deployment without a new one (NO DEPLOYMENT);
+  data intact on the volume. Deploy retried until Railway accepts it.
+- **Status:** Postgres FIXED 2026-10-22 05:09 UTC (deployment `8d547ce4`, 4 GB limit, 75 GB volume; EDGE `/ready`
+  200; orc and audit-store reach Postgres). OPEN: market-sql-governor still fails to drain its audit outbox to
+  market-audit-store (ClientError); a CLI restart of the store did not take effect during the outage.
+- **Lesson:** check that Railway accepts deploys before changing a database's deploy settings; a memory limit is the
+  supported way to bound page cache billed as memory.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.
