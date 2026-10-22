@@ -92,7 +92,8 @@ BEGIN
     FROM public."IDX_Broker_Summary" AS b
     WHERE b."Date" >= p_from AND b."Date" < p_to
       AND (p_tickers IS NULL OR b."Symbol" = ANY (p_tickers))
-    WINDOW w AS (PARTITION BY b."Date", b."Symbol", b."Market Board");
+    WINDOW w AS (PARTITION BY b."Date", b."Symbol", b."Market Board")
+    ORDER BY b."Symbol", b."Date", b."Broker", b."Investor Type", b."Market Board";  -- ticker-ordered heap for Feature 06 reads
     GET DIAGNOSTICS v_rows = ROW_COUNT;
     RETURN v_rows;
 END

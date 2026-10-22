@@ -113,24 +113,39 @@ SELECT (SELECT count(*) FROM public."IDX_Broker_Summary" WHERE "Date" >= %(a)s A
 """
 
 
+def years(start: dt.date, end_exclusive: dt.date):
+    y = start.year
+    while dt.date(y, 1, 1) < end_exclusive:
+        yield dt.date(y, 1, 1), dt.date(y + 1, 1, 1)
+        y += 1
+
+
+SEQ_SCAN = ("SET LOCAL enable_indexscan = off", "SET LOCAL enable_bitmapscan = off")
+
+
 def phase2_backfill() -> None:
-    """Feature 05 per month; every month must equal IDX_Broker_Summary row for row before it commits."""
+    """Feature 05 per year with sequential scans (Fase 1 showed month-by-index reads of IDX_Broker_Summary are
+    random I/O, ~190 s a month); every year must equal IDX_Broker_Summary row for row before it commits. Rows are
+    written ticker-ordered so Feature 06 reads a ticker from few heap ranges. Re-running a year replaces it (idempotent)."""
     with connect() as conn:
         last = conn.execute('SELECT max("Date") FROM public."IDX_Broker_Summary"').fetchone()[0]
     end = (last.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
     total_started = time.monotonic()
-    for a, b in months(FIRST_MONTH, end):
+    for a, b in years(FIRST_MONTH, end):
         started = time.monotonic()
         with connect() as conn:
-            conn.execute("SET LOCAL statement_timeout = '30min'")
+            conn.execute("SET LOCAL statement_timeout = '120min'")
+            conn.execute("SET LOCAL work_mem = '64MB'")
+            for stmt in SEQ_SCAN:
+                conn.execute(stmt)
             written = conn.execute("SELECT public.refresh_feature_05(%s, %s)", (a, b)).fetchone()[0]
             bs_rows, f05_rows, differing = conn.execute(F05_CHECK, {"a": a, "b": b}).fetchone()
             if bs_rows != f05_rows or differing != 0 or written != bs_rows:
                 conn.rollback()
-                log("phase2_month_failed", month=a, bs_rows=bs_rows, f05_rows=f05_rows, differing=differing)
+                log("phase2_year_failed", year=a.year, bs_rows=bs_rows, f05_rows=f05_rows, differing=differing)
                 sys.exit(1)
             conn.commit()
-        log("phase2_month", month=a, rows=f05_rows, seconds=round(time.monotonic() - started, 1))
+        log("phase2_year", year=a.year, rows=f05_rows, seconds=round(time.monotonic() - started, 1))
     with connect(autocommit=True) as conn:
         conn.execute("VACUUM (ANALYZE) public.feature_05_foreign_domestic_broker_detail")
     log("phase2_done", seconds=round(time.monotonic() - total_started, 1))
@@ -191,13 +206,16 @@ def phase3_reconcile() -> None:
         last = conn.execute("SELECT max(trade_date) FROM public.feature_05_foreign_domestic_broker_detail").fetchone()[0]
     end = (last.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
     bad = 0
-    for a, b in months(FIRST_MONTH, end):
+    for a, b in years(FIRST_MONTH, end):
         with connect() as conn:
-            conn.execute("SET LOCAL statement_timeout = '30min'")
+            conn.execute("SET LOCAL statement_timeout = '120min'")
+            conn.execute("SET LOCAL work_mem = '64MB'")
+            for stmt in SEQ_SCAN:
+                conn.execute(stmt)
             groups, differing, f06_rows = conn.execute(F06_RECONCILE, {"a": a, "b": b}).fetchone()
         ok = differing == 0 and groups == f06_rows
         bad += 0 if ok else 1
-        log("phase3_reconcile_month", month=a, f05_groups=groups, f06_rows=f06_rows, differing=differing, ok=ok)
+        log("phase3_reconcile_year", year=a.year, f05_groups=groups, f06_rows=f06_rows, differing=differing, ok=ok)
     if bad:
         log("phase3_reconcile_failed", months=bad)
         sys.exit(1)
