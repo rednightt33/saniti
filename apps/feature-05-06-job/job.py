@@ -25,8 +25,9 @@ def log(event: str, **fields) -> None:
 
 
 def connect(autocommit: bool = False) -> psycopg.Connection:
+    # no parallel workers in any job session: the Postgres container's /dev/shm cannot hold a parallel hash
     return psycopg.connect(os.environ["DATABASE_URL"], autocommit=autocommit,
-                           application_name="feature-05-06-job")
+                           application_name="feature-05-06-job", options="-c max_parallel_workers_per_gather=0")
 
 
 def months(start: dt.date, end_exclusive: dt.date):
