@@ -4,7 +4,7 @@
 
 Before touching Railway or PostgreSQL, read `README.md`, `PROJECT_CONTEXT.md`, `DATABASE_SCHEMA.md`, `DATABASE_CATALOG.md`, `DATABASE_CHANGELOG.md`, `RAILWAY_CHANGELOG.md`, and `ERRORS_AND_SOLUTIONS.md` completely. Read the relevant files under `database/migrations/` before changing an existing table.
 
-`ERRORS_AND_SOLUTIONS.md` lists every error found so far, with its root cause, solution and status. Check it before diagnosing a failure: the error may already be known. Its Part A is the data-format standard. Before adding a new data source or table (for example cross-asset or macro data), confirm that it meets every item of Part A, and settle any gap with the user before loading.
+`ERRORS_AND_SOLUTIONS.md` lists every error found so far, with its root cause, solution and status. Check it before diagnosing a failure: the error may already be known. Its Part A is the data-format standard. Before adding a new data source or table (for example cross-asset or macro data), confirm that it meets every item of Part A, and settle any gap with the user before loading. To expose a table or Feature to the AI (onboarding), follow `NEW_TABLE_ONBOARDING_PLAN.md` end to end, Feature 04 being the benchmark; its index acceptance (section 3) is part of every onboarding.
 
 ## Plans
 
@@ -55,7 +55,7 @@ User decisions 2026-10-19 (verbatim in `EXEC.md`, EXEC-FASTLANE-LEN):
 5. Record the change in GitHub during the same task:
    - Schema: add a forward SQL migration, refresh `DATABASE_SCHEMA.md`, and append `DATABASE_CHANGELOG.md`.
    - Metadata: update `Table_Catalog` for every new/changed public data table, `Column_Catalog` for every new/changed column in those tables, and `Feature_Catalog` for new/changed Feature definitions. Every active Feature definition must include a formula, plain-language analytical interpretation, recommended use, misuse warning, semantic review status, and validation-evidence paths; run `scripts/audit_feature_catalog_semantics.py` after a Feature change. Register safe Feature joins in `Feature_Relationship_Catalog` and generic AI tools/limits in `Tool_Catalog`. The only initial exclusions are `Database_Table_Status`, `Table_Catalog`, and `Column_Catalog` themselves. Register new/changed PostgreSQL routines in related `Table_Catalog.related_functions`; see `DATABASE_CATALOG.md`. Do not mark inferred meanings VERIFIED.
-   - Performance: define high-frequency query patterns for each major Feature table and run bounded `EXPLAIN (ANALYZE, BUFFERS)` before adding a large index. A result limit does not prove scan efficiency. Record measured plan evidence and do not add speculative indexes.
+   - Performance: define high-frequency query patterns for each major Feature table and run bounded `EXPLAIN (ANALYZE, BUFFERS)` before adding a large index. A result limit does not prove scan efficiency. Record measured plan evidence and do not add speculative indexes. A table exposed to the AI passes `scripts/onboarding/measure_indexes.py` (the SQL Governor's scan, count and date-split rules; `NEW_TABLE_ONBOARDING_PLAN.md` section 3).
    - Data: append source metadata and verification results to `DATABASE_CHANGELOG.md`.
    - Railway infrastructure/config/deployment: update `.railway/railway.ts` if applicable and append `RAILWAY_CHANGELOG.md`.
    - Documentation/process: update the relevant Markdown file.

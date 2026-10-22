@@ -626,7 +626,7 @@ papan/tipe investor sudah ada. Lapisan AI belum ada: tidak ada baris `AI_table_c
 `AI_calculation_catalog`, `AI_catalog_relationships`, `AI_data_coverage`, dan `market_ai_sql_reader` belum punya SELECT
 (EXEC-F05-F06: "Tidak dibuka ke AI").
 
-**Pola F01–F04 (NEW_TABLE_ONBOARDING_PLAN.md bagian 0 dan 7, migrasi `20261020_001`):** GRANT ke
+**Pola F01–F04 (NEW_TABLE_ONBOARDING_PLAN.md bagian 0, 1 dan 4, migrasi `20261020_001`):** GRANT ke
 `market_ai_sql_reader`; `AI_table_catalog` BOUNDED_READ; `AI_column_catalog` dari Feature_Catalog (kolom internal
 `ai_allowed = false`, mis. `source_balance_gap`); satu `AI_calculation_catalog` per kolom; relasi; coverage turunan
 dari `IDX_Broker_Summary`; daftar tulis-tangan `APPROVED`, `RAW_SOURCES`/`FORBIDDEN_FEATURE_TABLES`, preview,
@@ -655,7 +655,7 @@ dari `IDX_Broker_Summary`; daftar tulis-tangan `APPROVED`, `RAW_SOURCES`/`FORBID
    Feature_Catalog, `AI_calculation_catalog`, relasi (F05 ↔ F06, Price, Universe, Broker Profile), preview bila
    dipilih; `APPROVED`, `coverage_job.RAW_SOURCES["IDX_Broker_Summary"]["reference_for"]` dan
    `FORBIDDEN_FEATURE_TABLES` ditambah; Tool_Catalog/router bila teksnya berubah.
-4. Validasi L0–L3 (bagian 7.5), termasuk satu pertanyaan per tabel lewat model.
+4. Validasi L0–L3 (NEW_TABLE_ONBOARDING_PLAN.md bagian 5) dan penerimaan indeks (bagian 3, `scripts/onboarding/measure_indexes.py`), termasuk satu pertanyaan per tabel lewat model.
 
 **Keputusan user yang dibutuhkan:** indeks F05 (±0,4 GB, disk 49 GB dari 75 GB); indeks F04; perbaikan Governor (2);
 F05 dibuka seluruhnya atau hanya F06; preview; refresh harian F05/F06 masih manual (freshness akan BASI tanpa job).

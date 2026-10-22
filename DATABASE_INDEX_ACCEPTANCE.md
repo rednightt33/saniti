@@ -203,3 +203,24 @@ F02 46, F03 17, F06 20 ms (date-leading indexes).
 - The cost limit stays as it is (EXEC 2026-10-20 option 6: tightening adds refusals); the gap between cost and time
   is handled by the existing date split and runtime split, and is recorded here for the decision on a time-based
   gate.
+
+---
+
+# Onboarding acceptance (since 2026-10-22)
+
+Every table or Feature exposed to the AI is measured with `scripts/onboarding/measure_indexes.py` before exposure
+(`NEW_TABLE_ONBOARDING_PLAN.md` section 3). The script recomputes the Governor's gate on the extraction shapes
+(P1 one entity over 365 days, P2 every entity on the newest date, P3 every entity over 7 days, P4 every entity over
+365 days) and runs the `query_metric` calendar (P5, `summary.calendar_sql`, outside the EXPLAIN gate: M204). A pattern
+passes when the Governor would approve it or split it by date, it runs within 10 s (half of the 20 s
+`statement_timeout`), its count finishes within 7 s, and the calendar runs within 1 s without a sequential scan.
+The measurements of the section above (Feature 02, 04, 05) are the evidence for these rules:
+- a primary key led by the entity serves the extraction shapes through PostgreSQL 18's skip scan (F04, F05: no Seq
+  Scan), so a date-leading index is not added for extractions alone;
+- a date-leading index can make cross-sections slower when the heap is stored in entity order (F02 vs F05), so an
+  added index is measured on every pattern before and after, in a DRYRUN transaction, and kept only without
+  regression;
+- the calendar and the date split need an index whose first column is the time column; for a table that holds or
+  will hold more than 2,000,000 rows, or whose calendar fails P5, that index is the narrow `(time_column)` one,
+  measured as above (M204).
+The verdict lines are copied here per table when it is onboarded.
