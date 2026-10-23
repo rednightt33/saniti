@@ -1405,6 +1405,47 @@ change yet.
 - **Lesson:** hitungan berbatas hanya berarti "paling sedikit"; potongan yang diukur dari perkiraan planner harus diuji
   dengan kepadatan baris nyata, terutama lewat view atau semi-join.
 
+### M209 — AI menghitung ulang jumlah bergulir yang sudah tersimpan (`foreign_net_20d`); aturan prompt hanya menyebut indikator dan pola candle (2026-10-23)
+
+- **Symptom:** L3 F05/F06 (`ma-onboard-l3-20261023a`, pertanyaan "Saham apa yang net beli asingnya paling besar dalam
+  20 hari terakhir?"). Data need meminta `foreign_buy_1d`, `foreign_sell_1d` dan `foreign_net_1d`. Kode sandbox
+  (`AI_conversation_execution`, job `77f3afc8`) menjumlah `foreign_net_1d` atas 20 tanggal pasar terakhir. Kolom
+  tersimpan `foreign_net_20d` (rujukan `CALC_138`, `STORED_VARIANT`) tidak dipakai. Angka 10 teratas tetap sama
+  dengan SQL (BBRI Rp 1.742.267.709.000, job `81f5f10e`).
+- **Verified cause (teks prompt):** `STORED_FEATURE_SENTENCE` (`orchestrator.py`) berbunyi "An indicator or candle
+  pattern a Feature column already stores (a formula's stored_in) is read from that column". Jumlah aliran bergulir
+  bukan indikator atau pola candle, jadi aturannya tidak jelas berlaku.
+- **Suspected, not verified:** model tidak membuka FORMULAS, jadi tidak melihat `stored_in` (respons tidak memuat
+  urutan alat; audit runner mati). Cek: jalankan ulang dengan audit, atau baca jejak alat run itu dari audit store.
+- **Risiko angka:** kolom tersimpan memakai 20 sesi milik saham itu sendiri ("a session without a row is not counted
+  as zero"), sedangkan AI memakai 20 tanggal pasar. Untuk saham yang tidak diperdagangkan setiap hari hasilnya bisa
+  berbeda; 10 teratas kebetulan sama.
+- **Class:** setiap kolom tersimpan berjendela tetap atau turunan (net 5/10/20/40/60 hari, z-score, persentil, rasio
+  bergulir di F06; jenis serupa di data baru) yang tidak termasuk kata "indicator or candle pattern".
+- **Solution proposals (belum dibangun, perlu keputusan user):**
+  - (1) Lapisan katalog: COLUMNS menampilkan untuk setiap kolom dengan rujukan `STORED_VARIANT` dari mana kolom itu
+    dihitung dan jendelanya. Ini diturunkan dari `AI_calculation_catalog`, jadi model melihatnya tanpa membuka
+    FORMULAS.
+  - (2) Lapisan prompt: kalimat tersimpan diubah menjadi umum. Setiap nilai yang sudah disimpan kolom Feature (yang
+    punya `stored_in`) dibaca dari kolom itu, termasuk jumlah atau hitungan berjendela tetap bila jendelanya sama dengan
+    yang user sebut; plus contoh benar/salah (aturan AGENTS gerbang).
+  - Snapshot prompt dan benchmark sesudahnya.
+- **Status:** OPEN (dilaporkan ke user 2026-10-23).
+- **Lesson:** aturan "baca, jangan hitung ulang" harus diturunkan dari katalog (`stored_in`), bukan dari daftar jenis
+  kolom.
+
+### M210 — Job onboarding di `orc-test-runner` menghentikan suite L3 yang sedang berjalan (2026-10-23)
+
+- **Symptom:** suite `ma-onboard-l3-20261023a` berhenti sesudah 2 dari 4 pertanyaan ("Stopping Container", tanpa
+  error). Pertanyaan c sempat berjalan di orc dan ikut ditagih.
+- **Verified cause:** `scripts/onboarding/run_job.sh` men-deploy job SQL acuan (job `81f5f10e`) ke service yang sama,
+  `orc-test-runner`, saat suite berjalan. Deploy baru menggantikan kontainer suite.
+- **Class:** setiap dua pemakaian satu service one-off yang tumpang tindih: suite, job onboarding, migrasi.
+- **Solution:** c dan d dijalankan ulang (`ma-onboard-l3-20261023b`). Usulan (belum dibangun): `run_job.sh` menolak
+  berjalan selama deploy `orc-test-runner` terakhir masih aktif, atau job onboarding dipindah ke service sendiri.
+- **Status:** OPEN (proses); biaya tambahan masuk total USD 0,178.
+- **Lesson:** satu service one-off, satu pekerjaan pada satu waktu.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.

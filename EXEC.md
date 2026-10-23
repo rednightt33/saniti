@@ -6871,3 +6871,23 @@ batas dan cara memperbaiki), tetapi baru sesudah 27 estimasi (23,6 s).
 
 Gerbang langkah 0: hasilnya dilaporkan ke user sebelum A dibangun. L3 (langkah 3) tidak bergantung pada A dan dijalankan
 dengan keadaan sekarang (suite `onboard_l3_20261023a`).
+
+**Hasil langkah 3 EXEC-M208-L3 (L3 F05/F06, 2026-10-23):**
+- Suite `ma-onboard-l3-20261023a` (a, b) dan `ma-onboard-l3-20261023b` (c, d; run pertama terhenti, ERRORS M210).
+- Jalur cepat, DeepSeek V4.1 Flash high. Biaya kunci orc total USD 0,178 (`/api/v1/key`, sebelumnya 0).
+- SQL acuan: job `81f5f10e` dan `77f3afc8`. Kode sandbox dibaca dari `AI_conversation_execution`.
+
+| Pertanyaan | Angka vs SQL | Cara | Hasil |
+|---|---|---|---|
+| a broker asing BBCA Agustus 2026 | sama (ZP Rp 1.700.418.515.000; papan Regular, disebut) | `net_value` view F05 | lulus |
+| b net asing 20 hari | sama untuk 10 teratas | menjumlah ulang `foreign_net_1d`, bukan `foreign_net_20d` | gagal syarat "tanpa hitung ulang" (M209) |
+| c BBRI per bulan 2025 | sama (Regular) | `resample` aturan SUM | lulus |
+| d semua saham setahun | sama untuk jendela AI (BRMS Rp 5.695.563.196.800) | jumlah harian per saham | lulus; 248 sesi, bukan default 252 (jendela disebut) |
+
+- Tidak ada `research_web`. Semua jawaban membaca view saham lewat data need.
+
+**Gerbang langkah 0 (keputusan user):** A **belum dibangun**.
+- Di jalur dev, A hanya menghemat percobaan 11 dan 12 bagian. Perkiraan bersih ±2–3 s dari ±17 s; belum diukur.
+- Sisa pemborosan berasal dari baris per hari yang tidak rata, karena potongan dibuat dengan jumlah hari yang sama.
+  A tidak menutup itu.
+- Menunggu keputusan user: tetap bangun A, atau ganti dengan pemotongan menurut jumlah baris.
