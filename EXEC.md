@@ -6617,3 +6617,19 @@ verdict (approve / split / refuse), index size, build time.
 **Hasil step 4 Feature 05 (2026-10-23, user: "Oke, kita gue uji F5 dulu"):** dijalankan dan di-ROLLBACK (dibaca ulang:
 tanpa indeks). Angka di `DATABASE_INDEX_ACCEPTANCE.md` "Feature 05: A/B of a `(trade_date)` index". Keputusan indeks
 menunggu user.
+
+**Syarat user 2026-10-23 (EXEC-M204):** "Semua saham berbulan-bulan sampai bertahun-tahun harus bisa dijawab dari
+feature 1 sampai feature 6." Dicek terhadap kode dan data live hari ini (belum dijalankan apa pun):
+- Baris per tahun, semua saham (pgweb, sejak 2025-09-01): F01 225.029, F03 333.527, F06 333.527, F02 6.542.249; F05
+  ±6,5 juta (EXPLAIN A/B Q6). F04 diukur di step 1.
+- Batas yang berlaku: Governor per bagian 500.000 baris / 128 MB, paling banyak 64 bagian (`config.py` 131-132, 147);
+  sandbox satu bundle 10.000.000 baris (`PY_SANDBOX_BUNDLE_MAX_ROWS` dev) dan 268 MB (default `config.py` 280),
+  4 GB per proses; ringkasan `/v1/summary` 200 baris; agregasi ekstraksi (G18) wajib menyimpan kolom tanggal harian
+  (`extract.py` 483), tanpa pengelompokan per bulan/tahun.
+- Akibat: F01/F03/F06 (indeks tanggal ada) muat beberapa tahun sebagai baris (byte belum diukur). F02/F05 ±6,5 juta
+  baris per tahun: bulanan bisa (F05 hanya dengan indeks tanggal atau split lain), tahunan mentah melewati batas bundle
+  apa pun indeksnya; butuh agregasi di database. Agregasi harian G18 menolong bila satu dimensi dibuang (per broker per
+  hari ±25.000/tahun; per saham per hari = F06), tetapi broker × saham × tahun butuh agregasi per periode (bulan/tahun)
+  yang belum ada di Governor.
+- Usulan (belum disetujui): Governor agregasi per periode waktu (bucket bulan/kuartal/tahun), aturannya diturunkan dari
+  `resample_aggregation` katalog, bersama keputusan indeks per tabel dari step 1/4.
