@@ -1,0 +1,50 @@
+{
+  "provider_bars": 5000,
+  "first": "2018-01-02",
+  "provider": "IDX:COMPOSITE",
+  "extra_vs_bbca": [
+    "2026-09-17",
+    "2026-09-18"
+  ],
+  "last_candle": {
+    "close": "5439.258",
+    "company_name": "IDX Composite Index",
+    "date": "2026-10-23",
+    "high": "5455.211",
+    "low": "5366.294",
+    "open": "5397.337",
+    "query_date": "2026-10-23",
+    "source": "TradingView",
+    "source_bar_time": "2026-10-23 02:00:00+00:00",
+    "ticker": "IHSG",
+    "timeframe": "Daily",
+    "tradingview_symbol": "IDX:COMPOSITE",
+    "volume": null
+  },
+  "first_candle": {
+    "close": "6339.2378",
+    "company_name": "IDX Composite Index",
+    "date": "2018-01-02",
+    "high": "6445.9102",
+    "low": "6326.0928",
+    "open": "6366.083",
+    "query_date": "2026-10-23",
+    "source": "TradingView",
+    "source_bar_time": "2018-01-02 02:00:00+00:00",
+    "ticker": "IHSG",
+    "timeframe": "Daily",
+    "tradingview_symbol": "IDX:COMPOSITE",
+    "volume": null
+  },
+  "selected_rows": 2125,
+  "missing_vs_bbca": [],
+  "requested_to": "2026-10-23",
+  "zero_volume_rows": 0,
+  "missing_volume_rows": 2125,
+  "event": "history_preflight",
+  "fingerprint": "1ee8023032bbea8a361b6017412f993f5694de19ebe619a3957e4bb3a63e4afd",
+  "last": "2026-10-23",
+  "requested_from": "2018-01-02",
+  "ticker": "IHSG",
+  "bbca_dates": 2123
+}

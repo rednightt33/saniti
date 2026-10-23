@@ -659,3 +659,33 @@ dari `IDX_Broker_Summary`; daftar tulis-tangan `APPROVED`, `RAW_SOURCES`/`FORBID
 
 **Keputusan user yang dibutuhkan:** indeks F05 (±0,4 GB, disk 49 GB dari 75 GB); indeks F04; perbaikan Governor (2);
 F05 dibuka seluruhnya atau hanya F06; preview; refresh harian F05/F06 masih manual (freshness akan BASI tanpa job).
+
+
+## IHSG price history — missing volume and source calendar review (2026-10-23 proposal)
+
+User: "cek table price stock IDX, dari berapa sampai berapa saat ini? kita mau tarik untuk IHSG dan masukan kesana."
+
+Preflight only; no price rows written. Current price range is 2018-01-02 to 2026-10-23,
+1,326,939 rows / 2,123 dates. BBCA has the same 2,123 dates. TradingView returned
+5,000 IDX:COMPOSITE bars; 2,125 are in range, including every stored BBCA date,
+plus 2026-09-17 and 2026-09-18. All 2,125 have valid OHLC but no source volume.
+Evidence: verification/ihsg_price_history/.
+
+Before APPLY, obtain the user's agreement on this wider compatibility change:
+1. Preserve unavailable index volume as NULL rather than measured zero. Review
+   Price_Stock_Indonesia_IDX and Feature_01_Stock_Daily volume nullability and
+   column/catalog definitions; retain stock-volume validation. No synthetic prices.
+2. Teach the daily ingest parser to accept OHLC-only points when the live universe
+   classifies the symbol as index. Current len(values)<6 guard drops every such bar.
+   Read source capability from symbol/universe metadata, without an IHSG-only rule.
+3. Adjust Feature 01 volume-dependent eligibility and Feature 04's equity volume
+   validation for an OHLC-only index; price-derived fields remain eligible, volume
+   fields remain unavailable. Test actual downstream formulas and warmup handling
+   before changing nullability; don't let a valid index price fail the entire ticker.
+4. Verify the two additional provider dates independently (exchange calendar/source
+   samples). The BBCA table is a comparison, not authoritative proof that a source
+   candle is invalid. Then apply accepted final OHLC history, verify all stored source
+   values, and check the normal Feature queues. Keep the price range unchanged.
+
+The proposed schema/parser/Feature changes are NOT approved or applied yet.
+The temporary preflight job was deleted and no permanent service/config changed.

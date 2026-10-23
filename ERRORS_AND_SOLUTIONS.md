@@ -1516,3 +1516,25 @@ Operational lesson verified during this run: redeploying a selected older deploy
   temporary service was removed.
 - Lesson: validate symbol mapping, identifier width, non-stock classification and
   source null semantics before enrolling an instrument in a shared universe.
+
+
+## 2026-10-23 — OHLC-only index rejected by stock price assumptions (OPEN)
+
+- TradingView IDX:COMPOSITE resolves as type=index, visible_plots_set=ohlc,
+  allowed_adjustment=none. Each history point has five values: timestamp + OHLC;
+  no volume observation is supplied. Scanner currency/volume metadata is absent.
+- Existing price_update.request_symbol rejects len(values)<6, so it returns zero
+  bars even though timescale_update contains 5,000 provider points. The price
+  schema also requires volume NOT NULL; Feature04 engine._valid permits absent
+  volume only for bonds. Changing only the fetch parser would not make ingestion safe.
+- Isolated read-only OHLC preflight validated 2,125 rows, 2018-01-02..2026-10-23,
+  all with unavailable volume. Compared with BBCA, zero source dates missing, two
+  additional dates (2026-09-17/18). Current stored price data contains neither date.
+  Do not automatically call those source candles invalid or fabricate zero volume.
+- Status: price APPLY blocked; no source price, Feature, schema or existing app was
+  changed. Follow FUTURE_PLAN.md's proposal and obtain agreement on representation.
+- Operational lesson: Railway serviceCreate may leave an empty service after a
+  variable-length error (32,768 characters). Inspect/reuse its ID instead of retrying
+  creation. Compress the exact helper source for a one-off job; remove the job later.
+- Evidence: verification/ihsg_price_history/; scripts/backfill_idx_price_ticker.py
+  defaults to preflight and explicitly blocks APPLY when source volume is absent.

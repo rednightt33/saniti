@@ -4338,3 +4338,15 @@ was waited out at 14:05 UTC before the database migration).
   the provider returns null currency for this index; null is now recorded explicitly
   as Not applicable. Both failures occurred before any database write. No schema,
   permanent cron, application source or existing service variable was changed.
+
+
+## 2026-10-23 — IHSG OHLC history preflight only
+
+Temporary service ihsg-price-history-once-20261023 (2268374e-426b-46f6-9b9d-263bcada651d),
+python:3.12-slim, restart NEVER, no domain/cron/volume, used the tracked
+scripts/backfill_idx_price_ticker.py with the exact compressed price_update.py
+helper. Preflights discovered unsupported absent index volume and a two-date
+calendar difference; no APPLY ran and zero price rows were written. The temporary
+service was deleted after verification. Existing app configs, triggers and schedules
+were not changed. Evidence and open follow-up in verification/ihsg_price_history/
+and FUTURE_PLAN.md.
