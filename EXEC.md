@@ -6733,3 +6733,114 @@ tabel. Menyamakan F02/F03 tidak dikerjakan.
   satu sub-jendela), B (orc menghitung tiap bagian sebelum ekstraksi), C (kolom saringan di tabel dasar).
 - Belum: L3 berbayar (4 pertanyaan butir 13), menunggu konfirmasi biaya; uji ringkasan G18 dan join (bagian 5
   panduan) belum dijalankan.
+
+### EXEC-M208-L3: opsi A untuk M208 dan L3 Feature 05/06 (disetujui 2026-10-23, belum dijalankan)
+
+**User 2026-10-23:** "Ok A dan L3 / cek kode infra dan buat Implementation plan ensure bahwa ini dieksekusi semua
+berasal dari code instead of memory." Eksekusi menunggu "go" user. Empat pertanyaan L3 di langkah 3 juga perlu
+persetujuan user.
+
+**Fakta dari kode dan live (dibaca 2026-10-23, HEAD `34e7b72`):**
+- F1. Governor menghitung baris hanya pada estimasi (`estimate_only`), dengan batas `SQL_MAX_DATASET_ROWS + 1` =
+  500.001 (`config.py` 131, tidak di-set di dev; `governor.py` `_counted`). Di atas batas hasilnya `AT_LEAST`, dan
+  jumlah potongan diukur dari tebakan planner (`_for_partitioning`).
+- F2. Ekstraksi tidak menghitung. `_extract` berhenti bila baris melewati batas, lalu `_runtime_stop` meminta potong
+  lagi.
+- F3. orc dev `AI_ENABLE_PREFLIGHT_PARTS=true`, `AI_PLANNER_PARALLEL_PARTS=2`. Planner memakai `_preflight` →
+  `_fewest_date_parts` (`data_planner.py`):
+  - setiap bagian diestimasi dan dihitung sebelum ekstraksi;
+  - bila satu bagian tidak muat, dicoba jumlah berikutnya dari `PREFLIGHT_COUNTS` (2, 3, 4, 6, 8, 12, 16, 24, 32, 48,
+    64);
+  - batas 256 estimasi per rencana dan 64 bagian.
+- F4. `governor_check.py` (job `68a0778e`) meniru jalur tanpa preflight (`_request_parts`). Dampak M208 di jalur dev
+  belum diukur (ERRORS M208 dikoreksi).
+- F5. Respons `/v1/extract` tidak bertipe (`main.py` 133), dan orc membaca `estimates` sebagai dict (`data_planner.py`
+  145, 517). Field baru tidak memutus kontrak. Sandbox tidak membacanya.
+- F6. Governor dan orc memakai impor relatif, jadi planner orc bisa dijalankan bersama kode Governor dalam satu job
+  (Governor sebagai paket `gov`).
+- F7. Pola L3: `apps/orc-test-runner/suites/onboard_l3_20261020.json` (jalur cepat, `deepseek/deepseek-v4.1-flash`
+  high), dijalankan dengan `railway up apps/orc-test-runner`. Jawaban dicek terhadap SQL dari `AI_conversation_turn`.
+  Biaya L3 sebelumnya USD 0,033 untuk 2 pertanyaan (RAILWAY_CHANGELOG 2026-10-20).
+- F8. Pertanyaan L3 F05/F06 belum pernah ditulis. Yang disetujui hanya "3–5 pertanyaan, misalnya 'broker asing net beli
+  terbesar BBCA bulan Agustus 2026'".
+- F9. Jalur cepat dev `AI_FASTLANE_DECISION_RULES=true`; `largest_buying_measure` dan `foreign_party` ada di
+  `fastlane_defaults.py`.
+
+**Langkah 0 — ukur jalur dev yang sebenarnya (tanpa model, tanpa biaya):**
+- Skrip baru `scripts/onboarding/planner_check.py` menjalankan `ExecutionPlanner._preflight` orc yang asli dengan
+  adaptor Governor in-process (kode Governor asli, hak `market_ai_sql_reader`) dan sandbox palsu (preflight tidak
+  memakainya).
+- Dicatat: jumlah estimasi, estimasi yang gagal, jumlah bagian akhir, dan detik.
+- Kasus:
+  - V5 semua saham 400 hari;
+  - V5 1.500 hari (dugaan M208: batas 64 bagian atau bundle 10 juta baris);
+  - F02 + `EXISTS` universe 400 hari;
+  - F01 400 hari (kontrol: tebakan tepat).
+- **Gerbang keputusan:** hasilnya dilaporkan ke user sebelum A dibangun.
+  - Bila pemborosan di jalur dev kecil (misalnya di bawah 10% waktu rencana), user memutuskan apakah A tetap dibangun.
+  - Bila besar, lanjut ke langkah 1.
+
+**Langkah 1 — opsi A di Governor (`governor.py`, jalur `estimate_only`):**
+- Tempat: sesudah `_counted` menjawab `AT_LEAST`, sebelum `ex.partitioning`.
+- Cara, diturunkan dari data tanpa daftar tabel:
+  - ambil sub-jendela terbaru yang menurut planner berisi ±½ batas hitungan (hari = jendela × (cap/2) / planner_rows,
+    minimal 1);
+  - jalankan EXPLAIN pada sub-jendela itu (tebakan) dan hitung persis dengan batas dan anggaran waktu yang sama
+    (`SQL_ESTIMATE_COUNT_TIMEOUT_MS`);
+  - rasio = asli / tebakan;
+  - baris terkoreksi = planner_rows seluruh jendela × rasio.
+- Kenapa rasio, bukan kepadatan per hari: tebakan tanggal terbukti tepat (0,99–1,04, job `7bf1c758`). Yang meleset
+  adalah faktor saringan, yang kira-kira tetap sepanjang waktu, sedangkan baris per hari berubah antar tahun.
+- `_for_partitioning` memakai max(cap, planner_rows, terkoreksi).
+- `result_rows` tetap batas bawah (`AT_LEAST`), jadi kontrak G15 tidak berubah. Ditambah field `sample`
+  ({days, counted, planner, ratio}) dan `corrected_rows` di `estimates` dan di log `sql_governor_count`.
+- Bila sub-hitungan habis waktu atau sub-jendela kosong: perilaku sekarang, ditambah log.
+- Pemicu hanya permintaan di atas 500.001 baris. Biaya: satu EXPLAIN + satu hitungan berbatas, ±1–2 s di V5
+  (hitungan 500.001 baris = 2.076 ms, job `0215e99e`).
+- Saklar `SQL_ESTIMATE_SAMPLE_ENABLED` (bawaan mati di kode, dinyalakan di dev; jalan kembali tanpa deploy). Perubahan
+  variabel dicatat di RAILWAY_CHANGELOG, lalu `railway config pull --force` dan `railway config plan`.
+- Tidak ada gerbang penolakan baru (aturan gerbang a–d tidak berlaku). Pesan `APPROVED_WITH_PARTITIONING` tetap.
+- Tes (Postgres nyata):
+  - fixture yang meniru ketimpangan F05: banyak kode kecil di luar daftar. Setup tes memastikan tebakan planner memang
+    meleset (rasio > 1,3), kalau tidak tesnya tidak berarti;
+  - dengan sampel, semua bagian diekstrak tanpa `_runtime_stop`;
+  - tabel tanpa saringan: jumlah bagian sama seperti sekarang;
+  - hitungan di bawah batas (`COUNTED`) tidak memicu sampel;
+  - sub-hitungan habis waktu: perilaku lama.
+
+**Langkah 2 — validasi A:**
+- Suite Governor dan orc lengkap.
+- Sebelum push: cek `edge_bff.jobs` aktif.
+- Deploy Governor sampai SUCCESS, lalu nyalakan saklar.
+- Ulang `planner_check.py` dan `governor_check.py` (V5, V6, F02 + universe), sebelum dan sesudah. Ukuran: estimasi
+  gagal, potong ulang, detik, dan data tetap = `count(*)`.
+
+**Langkah 3 — L3 (berbayar, perkiraan ±USD 0,07–0,10):**
+- Sebelum jalan: cek sisa batas kunci OpenRouter orc (`/api/v1/key`).
+- Suite `apps/orc-test-runner/suites/onboard_l3_20261023.json`, jalur cepat, DeepSeek V4.1 Flash high.
+- Usulan pertanyaan (perlu persetujuan user):
+  - a. "Broker asing mana yang net beli terbesar di BBCA selama Agustus 2026?" (F05; net dan tipe investor asing
+    menurut default jalur cepat)
+  - b. "Saham apa yang net beli asingnya paling besar dalam 20 hari terakhir?" (F06 `foreign_net_20d` tersimpan, tanpa
+    hitung ulang)
+  - c. "Bagaimana net beli asing BBRI per bulan sepanjang 2025?" (F06 harian dijumlah per bulan, aturan SUM)
+  - d. "Dalam setahun terakhir, saham mana yang paling banyak dibeli bersih oleh asing?" (semua saham, berbulan-bulan;
+    syarat user; menguji potongan M208)
+- Lulus (panduan bagian 5):
+  - jalur data, membaca view lewat data need;
+  - angka sama dengan SQL independen read-only;
+  - tidak memakai `research_web` untuk nilai tersimpan;
+  - tidak menghitung ulang kolom tersimpan;
+  - rujukan nilai lewat kunci.
+- L3 tidak bergantung pada A. Usulan urutan: sesudah langkah 2, supaya pertanyaan d mengukur keadaan akhir. Bila A
+  dibatalkan di gerbang langkah 0, L3 jalan sesudah langkah 0.
+
+**Langkah 4 — catatan:**
+- ERRORS M208 (status) dan temuan baru;
+- DATABASE_INDEX_ACCEPTANCE (sebelum/sesudah);
+- RAILWAY_CHANGELOG (deploy, variabel, job);
+- EXEC hasil;
+- panduan onboarding bagian 5 (`planner_check.py`).
+
+Tidak menyentuh prompt, alat model, router atau model, jadi `AI_TOOLS.md`, `AI_MODELS.md`, `AI_ROUTER.md` dan snapshot
+prompt tidak berubah. Ini dicek lagi saat diff ditinjau.

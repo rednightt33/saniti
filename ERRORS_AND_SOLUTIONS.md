@@ -1384,7 +1384,12 @@ change yet.
   - tidak terkena: tebakan tanggal, saringan pada kolom tabel itu sendiri, dan tabel yang semua entitasnya ada di
     daftar.
   - Hanya permintaan di atas batas hitungan (500.001 baris) yang terdampak. Di bawahnya, G13 menghitung baris persis.
-- **Impact now:** data benar; permintaan panjang lebih lambat (±46% waktu pada contoh ini).
+- **Impact now:** data benar. Angka ±46% (39,4 s dari 85,6 s) berlaku untuk jalur planner **tanpa** preflight
+  (`data_planner.py` `_request_parts`), yang ditiru `governor_check.py`. Dev menjalankan preflight
+  (`AI_ENABLE_PREFLIGHT_PARTS=true`, dibaca 2026-10-23): `_fewest_date_parts` mengestimasi setiap bagian sebelum
+  ekstraksi dan mencoba jumlah berikutnya dari `PREFLIGHT_COUNTS`, jadi bagian yang kebesaran ditolak saat estimasi,
+  bukan saat membaca. Di jalur dev, dampaknya diduga beberapa hitungan yang gagal; belum diukur (EXEC-M208-L3
+  langkah 0).
 - **Suspected, not verified:** jendela yang lebih panjang (perkiraan 2.000 hari = 43 bagian) bisa melewati batas 64
   bagian atau bundle 10 juta baris baru di tengah ekstraksi, sesudah banyak bagian dibaca. Cek:
   `governor_check.py` dengan `all_days` 1.500 dan catat bagian, potongan ulang dan penolakan.
@@ -1396,7 +1401,7 @@ change yet.
     V5), supaya bagian yang terlalu besar dipotong sebelum barisnya dibaca.
   - C (model data, khusus view ini): simpan saringan sebagai kolom tabel dasar agar statistik planner melihatnya. Tidak
     umum.
-- **Status:** OPEN (dilaporkan ke user 2026-10-23).
+- **Status:** OPEN; user memilih A 2026-10-23 ("Ok A dan L3"); rencana di EXEC.md EXEC-M208-L3, belum dijalankan.
 - **Lesson:** hitungan berbatas hanya berarti "paling sedikit"; potongan yang diukur dari perkiraan planner harus diuji
   dengan kepadatan baris nyata, terutama lewat view atau semi-join.
 
