@@ -6651,3 +6651,7 @@ tapi adalah optional advice yang tadi kamu suggest ... Metode partitioning tetap
 rubah-rubah." Yang dibatalkan hanya usulan membagi F02/F05 per tahun. Partisi yang ada tetap (dibaca live:
 `IDX_Net_Foreign_Summary` dan `IDX_Broker_Summary_Freq`, `RANGE (trade_date)`, 12 partisi masing-masing; keduanya belum
 ada di `AI_table_catalog`), begitu juga pemotongan query oleh Governor (`extract.py` partitioning).
+
+**User 2026-10-23: "#2 masukan exec"** (temuan view obligasi): ERRORS M205. Masuk EXEC-M204 sebagai butir 9 (belum
+dijalankan): deteksi indeks tanggal Governor diturunkan dari tabel dasar view; cek dugaan `ticker::text` pada query satu
+obligasi. Gerbang (a)-(d) berlaku bila pesan tolak potongan tanggal berubah.

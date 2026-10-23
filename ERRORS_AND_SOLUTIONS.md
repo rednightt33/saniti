@@ -1255,6 +1255,26 @@ change yet.
 - **Lesson:** "setiap query lewat indeks" harus dijamin oleh gerbang di kode untuk semua jalur query, bukan hanya
   jalur ekstraksi; tabel bertanggal yang dibuka ke AI butuh indeks yang diawali kolom waktu.
 
+### M205 — Governor tidak mengenali indeks tanggal di balik view; query satu obligasi memakai indeks tanggal (2026-10-23)
+
+- **Symptom:** `Price_Fixed_Income_Final` (view atas `Price_Fixed_Income`, 122.007 baris, 48 MB) dianggap tidak punya
+  indeks yang diawali kolom tanggal, walau tabel dasarnya punya `Price_Fixed_Income_date_idx (date)`. Diukur pgweb
+  read-only 2026-10-23: semua obligasi semua tahun 610 ms (Seq Scan 48 MB, sort spill 14,6 MB); satu tanggal 0,17 ms;
+  satu obligasi (US10Y) 5 tahun 388 ms lewat indeks tanggal dengan 57.267 buffer hit (447 MB disentuh untuk tabel 48 MB).
+- **Verified cause (kode):** `INDEX_LEADING_SQL` (`governor.py` 691-698) mencari indeks dengan `c.relname = <nama tabel
+  katalog>`; view tidak punya indeks sendiri, jadi `time_index_available` false dan `extract.partitioning` tidak
+  mengizinkan potongan per tanggal (`extract.py` 802, 822). Gerbang scan sudah benar untuk view: Seq Scan dihitung dari
+  `Relation Name` node, yaitu tabel dasar (`governor.py` 446-449).
+- **Suspected (belum dicek):** satu obligasi memakai indeks tanggal karena view menulis `ticker::text`, sehingga indeks
+  `(ticker, metric_type)` tidak dipakai. Cek: EXPLAIN query yang sama langsung ke tabel dasar.
+- **Class:** setiap view yang dibuka ke AI di atas tabel yang punya indeks (data makro atau lintas aset nanti); setiap
+  kolom view yang di-cast dari kolom berindeks.
+- **Impact now:** tidak ada; seluruh tabel obligasi di bawah batas scan 2.000,000, tidak perlu dipotong.
+- **Solution (usulan, EXEC-M204):** deteksi indeks diturunkan dari tabel dasar view (dependensi view di
+  `pg_depend`/`pg_rewrite`, atau kolom asal di katalog), bukan dari nama objek; cek suspected cause di atas.
+- **Status:** OPEN.
+- **Lesson:** gerbang yang membaca metadata fisik (indeks, ukuran) harus mengikuti objek fisik di balik view.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.
