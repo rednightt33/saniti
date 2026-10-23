@@ -6694,3 +6694,13 @@ langkah 2 `NEW_TABLE_ONBOARDING_PLAN.md` ditanyakan ke user), 9 (M205), gerbang 
   langkah 2 dan 4, file tetap menulis "tidak dicek".
 - Ditemukan: M206 (statistik F04 basi), fixture tes orc tidak mengenal `bigint` sejak `33cf07b` (diperbaiki).
 - Langkah 5 (onboarding F05/F06): keputusan langkah 2 panduan ditanyakan ke user sebelum migrasi.
+
+**Keputusan user 2026-10-23, langkah 5 onboarding F05/F06 (NEW_TABLE_ONBOARDING_PLAN.md bagian 4 langkah 2):**
+"1. tidak usah, khusus saham saja for now. Jadi dibuat view; 2-10 ok; 11 nanti saja". Daftar saham (pilihan user):
+"Daftar saham sekarang (Recommended)" = `IDX_Stock_Universe` (844 saham, sama dengan harga/F01/F04); keterbatasan
+dicatat: saham yang sudah delisting/suspensi (±161 kode 4 huruf) dan 62 ETF tidak terlihat (bias survivorship untuk
+analisis multi-tahun). Keputusan lain: `source_balance_gap` tampil sebagai kolom penanda; `calculated_at`
+disembunyikan; metadata subjek equity/harian/tanggal bursa; aturan ringkas: aliran harian SUM (waktu dan lintas
+entitas), kumulatif LAST tanpa SUM lintas entitas, rolling/z-score/persentil/rasio NULL; relasi EXACT_DATE ke F05/F06,
+harga, F01, CURRENT_STATE ke profil broker; cakupan dari `IDX_Broker_Summary`, preview ya, kesegaran seperti F02/F03;
+refresh manual (keterbatasan); tanpa metrik resmi baru; 4 pertanyaan L3; arti kolom bahasa Indonesia ditunda (butir 11).
