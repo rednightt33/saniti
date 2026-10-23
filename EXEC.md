@@ -6633,3 +6633,12 @@ feature 1 sampai feature 6." Dicek terhadap kode dan data live hari ini (belum d
   yang belum ada di Governor.
 - Usulan (belum disetujui): Governor agregasi per periode waktu (bucket bulan/kuartal/tahun), aturannya diturunkan dari
   `resample_aggregation` katalog, bersama keputusan indeks per tabel dari step 1/4.
+
+**Keputusan user 2026-10-23 (EXEC-M204, lanjutan):** "Kenapa kita tidak tambahkan indexing saja untuk feature yang
+belum ada ... ideal condition adalah apabila user minta semua data, query bisa dilakukan dengan cepat dan dengan
+murah"; "Membuat tabel ringkasan bukan opsi, which is usul nomor 6 kita drop." Step 4 menjadi: indeks yang diawali
+tanggal untuk F04 dan F05 (bukan "hanya bila perlu"); korban terukur di F05 (satu broker lintas saham) diuji terpisah.
+Usulan 6 (tabel ringkasan) dibatalkan. Usulan 7 (ringkasan per periode di Governor), 8 (ukur permintaan penuh) dan
+partitioning menunggu keputusan user setelah cek "AI memotong data periode panjang" (jawaban 2026-10-23: pemotongan
+ada di backend, `data_planner.py` / `extract.py` partitioning, tetapi semua potongan digabung ke satu bundle dengan
+batas 10.000.000 baris / 256 MiB per bundle dan per sesi, `sessions.py` 916).
