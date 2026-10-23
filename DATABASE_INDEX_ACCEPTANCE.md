@@ -224,3 +224,43 @@ The measurements of the section above (Feature 02, 04, 05) are the evidence for 
   will hold more than 2,000,000 rows, or whose calendar fails P5, that index is the narrow `(time_column)` one,
   measured as above (M204).
 The verdict lines are copied here per table when it is onboarded.
+
+## Feature 05: A/B of a `(trade_date)` index (2026-10-23, EXEC-M204 step 4)
+
+User 2026-10-23: "uji ... feature 5 dengan indexing dan tanpa indexing", "measure cost-wise ... disk dan RAM ... untuk
+setiap masing-masing query". Job `scripts/onboarding/ab_index.py` on `orc-test-runner` (deployment `f2d33648`), one
+transaction: patterns without the index, `CREATE INDEX (trade_date)`, patterns again, ROLLBACK (read back:
+`time_index_after` false). Parallel workers off (as the Governor), `track_io_timing` on. Each pattern twice: run 1 =
+first read (data from outside Postgres' 128 MB cache: OS cache or volume), run 2 = repeat. "Touched" = pages from
+Postgres' cache + pages read from outside, in MB (8 KB pages). Governor verdict computed from EXPLAIN as `_explain` and
+`extract.partitioning` do (dev limits: scan 2,000,000, cost 600,000, rows 500,000).
+
+Index: 300 MB, built in 132 s, 266 MB WAL. Table 5,534 MB heap, 45.2 M rows, newest date 2026-08-31.
+
+| Pattern | Governor without | Governor with | ms run 1 / run 2 without | ms run 1 / run 2 with | MB touched without | MB touched with |
+|---|---|---|---|---|---|---|
+| Q1 one ticker, 365 days | approved | approved | 352 / 10 | 275 / 9 | 5 | 5 |
+| Q2 every ticker, one date | approved | approved | 642 / 33 | 1,459 / 17 | 121 | 13 |
+| Q3 every ticker, 7 days | approved (cost 533,711) | approved (cost 35,439) | 2,144 / 47 | 833 / 102 | 139 | 53 |
+| Q4a every ticker, 1 month, foreign Regular rows | approved | approved | 4,271 / 177 | 7,687 / 176 | 207 | 255 |
+| Q4b top foreign brokers, 1 month (aggregate) | approved | approved | 710 / 2,957 | 165 / 174 | 207 | 255 |
+| Q5 one broker, every ticker, 6 months | split by date (cost 847,702) | approved (cost 216,573) | 7,282 / 2,952 | **24,506** / 1,579 | 640 | **1,580** |
+| Q6 every ticker, 365 days (EXPLAIN only) | **refused** (Seq Scan 45.2 M) | **split by date** | — | — | — | — |
+| Q7a current calendar, 20 dates | **refused** (Seq Scan, cost 28.3 M; M204) | runs, 0.2 ms | — | 0.2 / 0.1 | — | 0.5 |
+| Q7b option (d) calendar, 2 months | approved | approved | 37 / 3 | 43 / 9 | 4 | 2 |
+
+Findings:
+1. The index changes what the Governor can serve: every ticker over a long period (Q6) is refused without it and split
+   by date with it. Nothing else in the table needs it to be approved.
+2. The calendar does not need it: option (d) is as fast without the index (3–37 ms) as with it.
+3. It is not faster everywhere. Q5 (one broker across every ticker) switches to the date index and touches 2.5× the
+   data (1.58 GB vs 0.64 GB); its first read took 24.5 s, above the 20 s `statement_timeout`, where the Governor's
+   runtime split would take over. Q2 and Q4a first reads were slower with it; their repeats were equal or faster.
+4. Repeats vary with what is in Postgres' 128 MB cache (Q4b without the index: 710 ms, then 2,957 ms), so run 1 and
+   run 2 are both reported; single timings are not a verdict.
+5. For option A (EXPLAIN gate on the calendar): with the index the calendar runs in 0.2 ms, yet its largest plan node
+   estimates 45.2 M rows (the inner `ORDER BY ... LIMIT 1` probe), so a gate on the largest node's rows would refuse a
+   fast query. The calendar gate must judge the plan's cost (18) or a Seq Scan, not that node's row estimate.
+
+Not measured: the index's upkeep on a Feature 05 refresh (writes), and other index shapes (for example one that also
+serves Q5).

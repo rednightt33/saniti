@@ -1244,6 +1244,11 @@ change yet.
   Kelemahan terukur: tanggal kandidat yang tidak ada di sasaran mahal (F05 sesudah tanggal terakhirnya 2026-08-31:
   36 probe tanpa hasil 6.410 ms, ±178 ms per probe), jadi kandidat harus dibatasi ke rentang tanggal sasaran; dan
   sumber kandidat harus memuat semua tanggal sasaran (kalender aset lain, makro, obligasi bisa berbeda).
+- **A/B F05 `(trade_date)` 2026-10-23 (`DATABASE_INDEX_ACCEPTANCE.md`):** kalender opsi (d) sama cepat tanpa indeks;
+  indeks dibutuhkan hanya agar "semua saham, periode panjang" dipecah per tanggal (tanpa indeks ditolak), dan membuat
+  "satu broker, semua saham, 6 bulan" memakan 2,5× data (baca pertama 24,5 s). Untuk opsi (a): gerbang kalender tidak
+  boleh menilai estimasi baris node terbesar (45,2 juta pada probe `LIMIT 1` yang berjalan 0,2 ms), melainkan biaya
+  rencana atau Seq Scan.
 - **Status:** OPEN untuk (a), (b) dan (d). (c) masuk panduan 2026-10-22: `NEW_TABLE_ONBOARDING_PLAN.md` bagian 3 dan
   `scripts/onboarding/measure_indexes.py` (pola P5 kalender; tabel > 2.000.000 baris atau P5 gagal butuh indeks yang
   diawali kolom waktu, diterima hanya tanpa regresi).

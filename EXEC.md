@@ -6613,3 +6613,7 @@ the planner's own choice is measured (what the Governor gets). Patterns: one tic
 every ticker 7 days; every ticker 1 month, foreign investors (the question type F05 is for); one broker every ticker
 6 months; every ticker 365 days (EXPLAIN only: refused or split by date); the calendar. Recorded: time, Governor
 verdict (approve / split / refuse), index size, build time.
+
+**Hasil step 4 Feature 05 (2026-10-23, user: "Oke, kita gue uji F5 dulu"):** dijalankan dan di-ROLLBACK (dibaca ulang:
+tanpa indeks). Angka di `DATABASE_INDEX_ACCEPTANCE.md` "Feature 05: A/B of a `(trade_date)` index". Keputusan indeks
+menunggu user.
