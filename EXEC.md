@@ -6943,12 +6943,28 @@ Eksekusi menunggu "go".
   when the user names that same window") agar mencakup aliran, tidak hanya return.
 - Snapshot prompt (`scripts/snapshot_system_prompt.py record`) dan `test_prompt_history.py`.
 
-**Langkah 3 — pengungkapan ke user (jaminan backend):**
-- Bila analisis yang selesai memakai kolom ber-`window_basis` `ENTITY_SESSIONS` (dari data record "used" ∩ katalog),
-  backend menambahkan satu baris catatan dari `user_texts.py`. Contoh: "Jendela N hari dihitung dari hari saham itu
-  diperdagangkan, bukan hari bursa; untuk saham yang jarang diperdagangkan rentangnya bisa lebih dari sebulan."
-- Diturunkan dari katalog, tanpa daftar kolom. Teks Indonesia polos (`tests/test_user_texts.py`).
-- Rentang tanggal per saham ditulis AI di jawaban (bagian asumsi) bila lebih panjang dari yang user sebut.
+**Langkah 3 — pengungkapan ke user (backend, tanpa AI, tanpa gerbang; diperbarui atas arahan user 2026-10-23):**
+- User 2026-10-23: "untuk nomor 3 perhatikan ya, karena setahu saya akan ada gate di jawaban. Ensure bahwa ini tidak
+  menahan, jangan sampai ada rejection. Kalau bisa langsung di-embed aja. Kalau menggunakan feature set table feature,
+  maka langsung aja dikeluarkan itu assumption tanpa perlu otomasi dari AI."
+- Tempat (dibaca dari kode):
+  - baris asumsi ditambahkan sistem di titik yang sama dengan `_with_ai_choices` (`orchestrator.py` 3255), yaitu
+    sesudah `self._loop(state)` mengembalikan jawaban final;
+  - semua gerbang (`_dataneed_gate`, `check_answer`, `_resolve_references`) berjalan di dalam loop, jadi baris ini
+    tidak pernah diperiksa gerbang dan tidak bisa memicu penolakan;
+  - preseden: `_with_ai_choices` ("written by the system as the first assumption (never by the model)").
+- Pemicu, diturunkan dari katalog: data need yang disetujui di run ini meminta kolom dengan `window_basis`
+  `ENTITY_SESSIONS` (langkah 1). Tidak perlu kolom itu dikutip di jawaban, dan model tidak terlibat.
+- Isi: satu baris dari `user_texts.py` per jenis jendela yang dipakai. Contoh: "Angka N hari (misalnya net asing 20
+  hari) dihitung dari N hari saham itu diperdagangkan, bukan N hari bursa; untuk saham yang jarang diperdagangkan
+  rentangnya bisa lebih dari sebulan."
+- Tidak dipasang untuk jawaban CLARIFICATION (sama seperti `_with_ai_choices`). Tidak dobel bila baris yang sama sudah
+  ada.
+- AI tidak wajib menulis rentang tanggal per saham. Prompt boleh menyarankannya, tetapi tanpa gerbang.
+- Tes:
+  - baris muncul bila kolom berjendela diminta;
+  - tidak muncul untuk kolom harian (F03/F05) atau tanpa data need;
+  - tidak ada gerbang yang terpicu (jawaban tetap ANSWER).
 
 **Langkah 4 — tes, dokumen, deploy:**
 - Tes: `test_catalog_v2` (field `window` muncul dari katalog; kolom tanpa jendela tidak), tes baris catatan, tes
