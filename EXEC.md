@@ -7007,3 +7007,12 @@ disetujui. Eksekusi langkah 1–4 dan biaya uji live langkah 5 masih menunggu "g
 
 **Prompt sesi Claude manual (permintaan user 2026-10-23):** `prompts/MANUAL_AGENT_SESSION.md`, disusun dari
 `app/manual_agent.py` dan `scripts/manual_agent.py`.
+
+### IDX_Broker_Summary buy_freq / sell_freq untuk AI (disetujui untuk disiapkan 2026-10-23)
+
+User 2026-10-23: "apakah data buy freq dan sell freq di table idx broker summary apakah sudah visible ke AI?" → belum
+(job `812c0e18`) → "Boleh".
+- Migrasi `20261023_006_ai_catalog_broker_summary_freq.sql`: 2 baris `AI_column_catalog`. Bentuk diambil dari baris
+  "Buy Lots" tabel yang sama; satuan dari view F05; arti dari `Column_Catalog`.
+- DRYRUN job `8f81df92` lulus (sha256 `186708e3…`): kedua baris terbentuk, dan role pembaca membaca 25.342 baris per
+  2026-08-31. APPLY menunggu "go".
