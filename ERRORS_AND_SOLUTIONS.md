@@ -1358,11 +1358,32 @@ change yet.
   - V6: perkiraan 113.405 lawan 214.471 baris (1,9× rendah; job `1ba3c204`; di bawah batas, jadi tanpa akibat).
   - Setiap bagian lalu melewati 500.000 baris saat dibaca. `_runtime_stop` meminta potongan lagi, dan planner orc
     mengantrekannya ulang (`data_planner.py` `_split`).
-- **Class:**
-  - setiap saringan yang selektivitasnya tidak terlihat oleh statistik planner: view per keanggotaan universe atau
-    kelas aset (lintas aset, makro per negara nanti);
-  - relasi INNER yang didorong planner orc sebagai semi-join pada permintaan AI ke tabel dasar (mekanisme sama,
-    belum diukur).
+- **Measured 2026-10-23 (job `7bf1c758`, 365 hari terakhir, tanggal sebagai nilai tetap seperti Governor):**
+
+  | Tabel | Tebakan tanggal saja (asli/tebakan) | Tanggal + saringan universe (asli/tebakan) |
+  |---|---|---|
+  | V5 (saringan di dalam view) | — | 1,57 |
+  | V6 | — | 1,86 |
+  | F05 tanpa saringan | 0,99 | — |
+  | F02 + `EXISTS` universe (bentuk restriction Governor, `extract.py`) | 0,99 | 1,48 |
+  | F03 + `EXISTS` universe | 1,04 | 2,20 |
+  | F01 + `EXISTS` universe | 1,04 | 1,04 |
+  | Harga IDX + `EXISTS` universe | 1,03 | 1,03 |
+  | View obligasi (saringan di kolomnya sendiri) | 1,04 | — |
+
+  Statistik `ticker` (`pg_stats`, job `e0b1997d`):
+  - daftar nilai tersering hanya 100 kode, yang mencakup 18–33% baris F02/F03/F05/F06;
+  - saham universe memegang 76–87% baris (sampel 1%);
+  - di luar 100 kode itu, planner menganggap setiap kode sama besar, padahal ±3.281 kode non-universe (waran, right,
+    ETF, delisting) kecil.
+  - F01 dan harga hanya berisi 844 kode universe, jadi saringan itu tidak memotong apa-apa dan tebakannya benar.
+- **Class (diperbarui):**
+  - saringan berupa semi-join ke daftar keanggotaan pada tabel yang berisi banyak entitas kecil di luar daftar. Ini
+    mencakup view F05/F06 dan permintaan AI ke F02/F03 dengan relasi INNER ke universe (bentuk `EXISTS` yang sama);
+  - nanti: data lintas aset atau makro yang disaring lewat daftar keanggotaan;
+  - tidak terkena: tebakan tanggal, saringan pada kolom tabel itu sendiri, dan tabel yang semua entitasnya ada di
+    daftar.
+  - Hanya permintaan di atas batas hitungan (500.001 baris) yang terdampak. Di bawahnya, G13 menghitung baris persis.
 - **Impact now:** data benar; permintaan panjang lebih lambat (±46% waktu pada contoh ini).
 - **Suspected, not verified:** jendela yang lebih panjang (perkiraan 2.000 hari = 43 bagian) bisa melewati batas 64
   bagian atau bundle 10 juta baris baru di tengah ekstraksi, sesudah banyak bagian dibaca. Cek:
