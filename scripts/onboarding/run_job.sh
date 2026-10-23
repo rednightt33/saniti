@@ -7,6 +7,8 @@
 # temporary directory and uploaded with `railway up`. DATABASE_URL is set on orc-test-runner only for the run, as the
 # Railway reference ${{Postgres.DATABASE_URL}} (no value is written or printed), and removed afterwards; the script
 # prints VAR_REMOVED or VAR_STILL_PRESENT. Run from the repository root with a Railway token for the project.
+# Manual rule (ERRORS M210, user 2026-10-23): a new deployment replaces the one running, so never start a job here
+# while an orc-test-runner suite runs (until its log prints OTR {"event": "done"}).
 # Railway IDs: PROJECT_CONTEXT.md. A job prints OUT/ERR/VERDICT lines and ends with JOB_DONE.
 set -u
 [ $# -ge 3 ] || { echo "usage: $0 <job.py> <params.json> <log> [extras...]"; exit 2; }

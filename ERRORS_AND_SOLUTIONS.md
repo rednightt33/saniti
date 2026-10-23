@@ -1477,7 +1477,10 @@ change yet.
 - **Class:** setiap dua pemakaian satu service one-off yang tumpang tindih: suite, job onboarding, migrasi.
 - **Solution:** c dan d dijalankan ulang (`ma-onboard-l3-20261023b`). Usulan (belum dibangun): `run_job.sh` menolak
   berjalan selama deploy `orc-test-runner` terakhir masih aktif, atau job onboarding dipindah ke service sendiri.
-- **Status:** OPEN (proses); biaya tambahan masuk total USD 0,178.
+- **Status:** CLOSED dengan aturan manual (user 2026-10-23: "feel free untuk tambahkan aturan manual saja"): selama
+  suite `orc-test-runner` berjalan (sampai log `OTR {"event": "done"}`), tidak ada `run_job.sh` atau `railway up` lain
+  ke service itu. Aturan ditulis di `scripts/onboarding/run_job.sh` dan NEW_TABLE_ONBOARDING_PLAN bagian 5. Tidak ada
+  pengecekan otomatis.
 - **Lesson:** satu service one-off, satu pekerjaan pada satu waktu.
 
 ## Fixed-income selected-date repair — 2026-10-20 status

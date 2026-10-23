@@ -6981,3 +6981,6 @@ Eksekusi menunggu "go".
 - Jangan menjalankan job lain di `orc-test-runner` selama suite berjalan (M210).
 
 **Tidak termasuk:** mengubah definisi Feature (tetap hari transaksi saham); mengubah F03/F05 (tidak berjendela).
+
+**Keputusan user 2026-10-23 (EXEC-M209):** "Oke, untuk nomor 3." Desain langkah 3 (baris asumsi sistem sesudah gerbang)
+disetujui. Eksekusi langkah 1–4 dan biaya uji live langkah 5 masih menunggu "go".

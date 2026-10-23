@@ -287,6 +287,8 @@ a deployment).
 | L4 regression | full orc, Governor, sandbox, coverage suites; the A/B questions when credit allows | no new failure |
 
 Only L3 finds what the model does with the catalog: both faults of the first integration were found there (M194, M195).
+Every job of this section and the L3 suite share the one-off service `orc-test-runner`: a new deployment stops the one
+running, so a job waits until a suite's log prints `OTR {"event": "done"}` (M210, manual rule).
 
 ## 6. Known gaps (proposals, not built)
 
