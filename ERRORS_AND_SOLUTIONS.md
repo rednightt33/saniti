@@ -1237,7 +1237,14 @@ change yet.
   dari F05 tanpa indeks itu untuk setiap cross-section (DATABASE_INDEX_ACCEPTANCE.md 2026-10-22), jadi indeks tanggal
   bisa memperburuk ekstraksi; (c) onboarding mensyaratkan indeks tanggal
   untuk tabel bertanggal di atas batas scan.
-- **Status:** OPEN untuk (a) dan (b). (c) masuk panduan 2026-10-22: `NEW_TABLE_ONBOARDING_PLAN.md` bagian 3 dan
+- **Opsi (d), diukur 2026-10-23 (pgweb read-only, `EXPLAIN (ANALYZE, BUFFERS)`, belum dibangun):** kalender tanpa indeks
+  baru: tanggal kandidat dari tabel yang punya indeks diawali tanggal (`Price_Stock_Indonesia_IDX_date_idx`), lalu
+  `EXISTS (... WHERE trade_date = d)` di tabel sasaran lewat skip scan PK. F04 2026-09-01..10-22 36 tanggal 46 ms;
+  F04 setahun 274 tanggal 233 ms (kalender sekarang: 20 tanggal 10.893 ms); F05 2026-07-01..08-31 42 tanggal 48 ms.
+  Kelemahan terukur: tanggal kandidat yang tidak ada di sasaran mahal (F05 sesudah tanggal terakhirnya 2026-08-31:
+  36 probe tanpa hasil 6.410 ms, ±178 ms per probe), jadi kandidat harus dibatasi ke rentang tanggal sasaran; dan
+  sumber kandidat harus memuat semua tanggal sasaran (kalender aset lain, makro, obligasi bisa berbeda).
+- **Status:** OPEN untuk (a), (b) dan (d). (c) masuk panduan 2026-10-22: `NEW_TABLE_ONBOARDING_PLAN.md` bagian 3 dan
   `scripts/onboarding/measure_indexes.py` (pola P5 kalender; tabel > 2.000.000 baris atau P5 gagal butuh indeks yang
   diawali kolom waktu, diterima hanya tanpa regresi).
 - **Lesson:** "setiap query lewat indeks" harus dijamin oleh gerbang di kode untuk semua jalur query, bukan hanya
