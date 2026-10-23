@@ -7015,4 +7015,6 @@ User 2026-10-23: "apakah data buy freq dan sell freq di table idx broker summary
 - Migrasi `20261023_006_ai_catalog_broker_summary_freq.sql`: 2 baris `AI_column_catalog`. Bentuk diambil dari baris
   "Buy Lots" tabel yang sama; satuan dari view F05; arti dari `Column_Catalog`.
 - DRYRUN job `8f81df92` lulus (sha256 `186708e3…`): kedua baris terbentuk, dan role pembaca membaca 25.342 baris per
-  2026-08-31. APPLY menunggu "go".
+  2026-08-31.
+- GO user 2026-10-23 ("Go"): APPLY job `ee21588a`. Dibaca ulang di job yang sama: 2 baris terlihat AI (`bigint`,
+  "transactions", SUM, HISTORICAL), dan role pembaca membaca 25.342 baris per 2026-08-31. Hash di `APPLIED.sha256`.

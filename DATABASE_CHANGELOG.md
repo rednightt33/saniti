@@ -2208,3 +2208,15 @@ bonds 60,540 rows / 24 tickers, no ticker in both; the 15 referenced `AI_formula
   - the current universe only, so delisted or suspended codes and ETFs are not visible (survivorship over many years);
   - the view follows `IDX_Stock_Universe` as it changes.
 - Data source unchanged: the views read the existing F05/F06 tables (DATABASE_CHANGELOG 2026-10-22); no row was written.
+
+## 2026-10-23 — IDX_Broker_Summary buy_freq / sell_freq visible to the AI
+
+- User 2026-10-23: "apakah data buy freq dan sell freq di table idx broker summary apakah sudah visible ke AI?" (not yet,
+  job `812c0e18`: no AI_column_catalog rows, reader SELECT present) → "Boleh" → "Go".
+- Migration `20261023_006_ai_catalog_broker_summary_freq.sql` (sha256 `186708e3…`; DRYRUN job `8f81df92`, APPLY job
+  `ee21588a`; hash in `APPLIED.sha256`): two `AI_column_catalog` rows.
+  - Shape from the table's "Buy Lots" row: MEASURE, SUM/AVG/MIN/MAX, resample and cross-entity SUM, HISTORICAL.
+  - Unit "transactions" from the Feature 05 stock view's same column.
+  - Meaning from `Column_Catalog`, plus "NULL for symbols without frequency".
+- Read back (job `ee21588a`): both rows `ai_allowed`, not sensitive; `market_ai_sql_reader` reads 25,342 non-NULL
+  values of each on 2026-08-31. No data row changed.
