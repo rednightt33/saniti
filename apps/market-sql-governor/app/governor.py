@@ -689,13 +689,27 @@ class Governor:
 
 
 INDEX_LEADING_SQL = '''
+WITH obj AS (
+    SELECT c.oid FROM pg_catalog.pg_class AS c JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relname = %s
+), base AS (
+    SELECT obj.oid AS relid, NULL::smallint AS attnum FROM obj
+    UNION
+    SELECT d.refobjid, d.refobjsubid
+    FROM pg_catalog.pg_rewrite AS r JOIN obj ON r.ev_class = obj.oid
+    JOIN pg_catalog.pg_depend AS d ON d.classid = 'pg_catalog.pg_rewrite'::regclass AND d.objid = r.oid
+        AND d.refclassid = 'pg_catalog.pg_class'::regclass AND d.refobjid <> obj.oid AND d.refobjsubid > 0
+)
 SELECT DISTINCT a.attname AS column_name
-FROM pg_catalog.pg_index AS i
-JOIN pg_catalog.pg_class AS c ON c.oid = i.indrelid
-JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
-JOIN pg_catalog.pg_attribute AS a ON a.attrelid = c.oid AND a.attnum = i.indkey[0]
-WHERE n.nspname = 'public' AND c.relname = %s AND i.indisvalid
+FROM base
+JOIN pg_catalog.pg_index AS i ON i.indrelid = base.relid AND i.indisvalid
+JOIN pg_catalog.pg_attribute AS a ON a.attrelid = i.indrelid AND a.attnum = i.indkey[0]
+WHERE base.attnum IS NULL OR base.attnum = i.indkey[0]
 '''
+# M205 (2026-10-23): the columns that lead a valid index of the object, or, for a view, of the base tables it reads
+# (pg_rewrite -> pg_depend; only base columns the view uses). A view column counts under its base column's name, so a
+# renamed time column is not found and no date split is offered (safe). Before, the lookup matched the object's own
+# name, so Price_Fixed_Income_Final never saw its base table's (date) index.
 
 
 class Extractor:
@@ -1036,7 +1050,8 @@ class Summarizer:
             outcome = self._run(request_id, query_id, spec, state)
         except ex.ExtractStop as stop:
             outcome = {"status": stop.status, "code": stop.code, "message": stop.message,
-                       "next_action": "REVISE_SUMMARY" if stop.status == "REJECTED_POLICY" else "NARROW_SUMMARY",
+                       "next_action": stop.details.get("next_action")
+                       or ("REVISE_SUMMARY" if stop.status == "REJECTED_POLICY" else "NARROW_SUMMARY"),
                        "request_id": request_id, "query_id": query_id, "query_hash": state.get("query_hash"),
                        "details": _details(stop.details), "estimates": state.get("estimates")}
         except psycopg.errors.QueryCanceled:
@@ -1059,6 +1074,45 @@ class Summarizer:
              source_tables=state.get("source_tables"), query_hash=outcome.get("query_hash"),
              rows=outcome.get("row_count"), estimates=state.get("estimates"), runtime_ms=outcome["runtime_ms"])
         return outcome
+
+    def _gate_calendar(self, connection, run, calendar: sql.Composable, arguments: tuple[Any, ...], table: str,
+                       time_column: str) -> None:
+        """M204 (2026-10-22/23): the calendar (summary.calendar_sql) passes the same EXPLAIN gate as every other query
+        before it runs. It is judged by the plan's total cost and by a Seq Scan (counted as the whole relation), never
+        by the largest node's row estimate: its inner ORDER BY ... LIMIT 1 probe estimates the whole table even when it
+        runs in 0.2 ms through an index (DATABASE_INDEX_ACCEPTANCE.md 2026-10-23, Q7a). Without an index led by the
+        time column the walk reads the table date by date (Feature 04: 7.0 s; Feature 05: a Seq Scan per date)."""
+        s = self.settings
+        with connection.cursor() as cursor:
+            cursor.execute(sql.SQL("EXPLAIN (FORMAT JSON) {}").format(calendar), arguments)
+            plan = cursor.fetchone()[0][0]["Plan"]
+        cost, scanned, stack = float(plan.get("Total Cost") or 0.0), 0, [plan]
+        while stack:
+            node = stack.pop()
+            if node.get("Node Type") in SEQ_SCAN_NODES and node.get("Relation Name"):
+                found = run(RELTUPLES_SQL, (node["Relation Name"],))
+                scanned = max(scanned, int(found[0]["reltuples"]) if found else 0)
+            stack.extend(node.get("Plans") or [])
+        if cost <= s.max_plan_cost and scanned <= s.max_estimated_scan_rows:
+            return
+        raise ex.ExtractStop(
+            "REJECTED_SCAN_SIZE" if scanned > s.max_estimated_scan_rows else "REJECTED_COMPUTE_COST",
+            "CALENDAR_NOT_INDEXED",
+            f"{table} has no index led by {time_column}, so finding its trading days would read the table date by "
+            f"date (plan cost {cost:.0f}, limit {s.max_plan_cost}). A summary or query_metric cannot serve {table}; "
+            "ask for its rows with a data need (submit_data_need_spec) instead.",
+            table=table, time_column=time_column, plan_cost=round(cost), scan_rows=scanned,
+            next_action="USE_DATA_NEED")
+
+    @staticmethod
+    def _newest(connection, run, table: str, time_column: str) -> str:
+        """The table's newest date for a refusal message, read only when an index leads with the time column (an
+        index lookup); otherwise empty, never a scan."""
+        if time_column not in {row["column_name"] for row in run(INDEX_LEADING_SQL, (table,))}:
+            return ""
+        found = run(sql.SQL("SELECT max({}) AS d FROM {}").format(sql.Identifier(time_column),
+                                                                  sql.Identifier("public", table)), ())
+        return f" (its newest date is {found[0]['d']})" if found and found[0]["d"] else ""
 
     def _run(self, request_id: str, query_id: str, spec: Any, state: dict[str, Any]) -> dict[str, Any]:
         from . import summary as sm
@@ -1091,9 +1145,13 @@ class Summarizer:
             if period.trading_days is not None:
                 as_of = date.fromisoformat(period.as_of)
                 earliest = date.fromordinal(as_of.toordinal() - (period.trading_days * 3 + 31))
-                dates = [r["d"] for r in run(calendar, (as_of, earliest, earliest, period.trading_days))]
+                arguments = (as_of, earliest, earliest, period.trading_days)
+                self._gate_calendar(connection, run, calendar, arguments, spec.source_table, bound.time_column)
+                dates = [r["d"] for r in run(calendar, arguments)]
                 if not dates:
-                    raise ex.policy("NO_DATES_IN_PERIOD", f"{spec.source_table} has no date at or before {as_of}.")
+                    raise ex.policy("NO_DATES_IN_PERIOD", f"{spec.source_table} has no date at or before {as_of}"
+                                    f"{self._newest(connection, run, spec.source_table, bound.time_column)}; give an "
+                                    "as_of within the table's dates.")
                 start, end = min(dates), max(dates)
                 window = {"from": start.isoformat(), "to": end.isoformat(), "trading_days": period.trading_days,
                           "as_of": as_of.isoformat(), "calendar_dates": len(dates)}
@@ -1102,7 +1160,9 @@ class Summarizer:
                 if start > end or (end - start).days > sm.MAX_RANGE_DAYS:
                     raise ex.policy("INVALID_TIME_WINDOW", f"The period must run forward and span at most "
                                                            f"{sm.MAX_RANGE_DAYS} days.")
-                dates = [r["d"] for r in run(calendar, (end, start, start, sm.MAX_RANGE_DAYS))]
+                arguments = (end, start, start, sm.MAX_RANGE_DAYS)
+                self._gate_calendar(connection, run, calendar, arguments, spec.source_table, bound.time_column)
+                dates = [r["d"] for r in run(calendar, arguments)]
                 window = {"from": start.isoformat(), "to": end.isoformat(), "calendar_dates": len(dates)}
             explain = sm.compile_summary(bound, start, end, None)
             state["query_hash"] = explain.query_hash

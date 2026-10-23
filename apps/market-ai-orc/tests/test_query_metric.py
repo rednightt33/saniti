@@ -190,3 +190,65 @@ def test_a_run_offers_the_metrics_and_its_numbers_are_database_aggregates() -> N
     assert result.status == "COMPLETED"
     provenance = result.execution.number_provenance
     assert provenance is None or not provenance.unsupported, provenance
+
+
+class CoverageReader:
+    """The catalog reader of the METRICS menu: dataset-level AI_data_coverage rows, or a failure."""
+
+    def __init__(self, rows=None, fail: bool = False) -> None:
+        self.rows, self.fail, self.calls = rows or [], fail, 0
+
+    def read_only(self):
+        from contextlib import contextmanager
+
+        @contextmanager
+        def session():
+            self.calls += 1
+            if self.fail:
+                raise RuntimeError("catalog down")
+            yield lambda statement, params: [r for r in self.rows if r["dataset_name"] in params[0]]
+        return session()
+
+
+def test_the_menu_shows_each_metrics_dates_and_refreshes_them() -> None:
+    """M204 gate (a): the METRICS note names each metric's date range from AI_data_coverage before the model writes a
+    call (two tables, two ranges), reads it again after the refresh interval, and keeps the last menu on a failed
+    read."""
+    from app.tools.metric import MENU_REFRESH_SECONDS, MetricMenu
+
+    now = [0.0]
+    reader = CoverageReader([
+        {"dataset_name": "Feature_03_Stock_Broker_Daily", "first_date": "2016-01-04", "last_date": "2026-08-31"},
+        {"dataset_name": "Price_Stock_Indonesia_IDX", "first_date": "2018-01-02", "last_date": "2026-10-22"}])
+    fresh = MetricMenu(METRICS, reader, clock=lambda: now[0])
+    text = fresh()
+    assert "dates 2016-01-04 to 2026-08-31" in text and "dates 2018-01-02 to 2026-10-22" in text
+    assert fresh() == text and reader.calls == 1
+    reader.rows[1]["last_date"] = "2026-10-23"
+    now[0] = MENU_REFRESH_SECONDS
+    assert "dates 2018-01-02 to 2026-10-23" in fresh() and reader.calls == 2
+    reader.fail, now[0] = True, 2 * MENU_REFRESH_SECONDS
+    assert "2026-10-23" in fresh()
+    assert "dates 20" not in MetricMenu(METRICS, CoverageReader(fail=True))()
+
+
+def test_the_menu_states_the_date_gates_with_a_right_and_a_wrong_call() -> None:
+    from app.tools.metric import limits_text
+
+    text = limits_text()
+    for words in ("NO_DATES_IN_PERIOD", "CALENDAR_NOT_INDEXED", "submit_data_need_spec", "Right:", "Wrong:"):
+        assert words in text
+
+
+def test_a_table_the_summary_cannot_serve_goes_to_a_data_need() -> None:
+    """M204 gate (d): a Governor refusal whose cause is the table (CALENDAR_NOT_INDEXED, next_action USE_DATA_NEED)
+    sends the model to a data need; a size refusal still asks to narrow."""
+    calendar = FakeGovernor({"status": "REJECTED_COMPUTE_COST", "code": "CALENDAR_NOT_INDEXED",
+                             "next_action": "USE_DATA_NEED", "message": "T has no index led by d ..."})
+    refused = call(registry(calendar), {"metric": "last_close", "entities": ["BBCA"],
+                                        "periods": [{"trading_days": 5}]}, DataDate("2026-09-30")).output["result"]
+    assert (refused["code"], refused["next_action"]) == ("CALENDAR_NOT_INDEXED", "CALL:submit_data_need_spec")
+    size = FakeGovernor({"status": "REJECTED_ROW_LIMIT", "code": "SUMMARY_TOO_MANY_ROWS", "message": "x"})
+    narrowed = call(registry(size), {"metric": "last_close", "entities": ["BBCA"],
+                                     "periods": [{"trading_days": 5}]}, DataDate("2026-09-30")).output["result"]
+    assert narrowed["next_action"] == "NARROW_ENTITIES_OR_PERIOD"

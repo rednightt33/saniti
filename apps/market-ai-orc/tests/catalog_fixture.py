@@ -236,6 +236,8 @@ def _value_expression(name: str, data_type: str, nullable: bool, key: list[str])
         return "NULL" if nullable else f"('{name}-' || (g % 3))"
     if data_type == "smallint":
         return "(g % 20)::smallint"
+    if data_type in ("integer", "bigint"):  # IDX_Broker_Summary buy_freq / sell_freq since 33cf07b
+        return "NULL" if nullable else f"(g % 1000)::{data_type}"
     if data_type == "numeric":
         return "NULL" if nullable and name.endswith("_60d") else "(g * 1000.25)::numeric"
     if data_type == "double precision":

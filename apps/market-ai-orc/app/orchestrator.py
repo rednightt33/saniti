@@ -3763,7 +3763,8 @@ class AgentOrchestrator:
     def _offer_metrics(self, state: RunState) -> None:
         """D5: the official metrics query_metric answers (from AI_metric_catalog at startup), as an application note,
         so the tool's own definition stays the same when a metric is added."""
-        menu = getattr(self.registry, "metric_menu", None)
+        fresh = getattr(self.registry, "metric_menu_fresh", None)
+        menu = fresh() if callable(fresh) else getattr(self.registry, "metric_menu", None)
         if menu and "query_metric" in self.registry.names():
             state.input_items.insert(len(state.input_items) - 1, {"role": "user", "content": menu})
             state.metric_note = menu

@@ -194,6 +194,9 @@ def build_default_registry(
                                  max_result_bytes=python_analysis_max_bytes):
             registry.register(spec)
         registry.metric_menu = menu(metrics)
+        from .metric import MetricMenu
+
+        registry.metric_menu_fresh = MetricMenu(metrics, catalog_reader)  # M204: with each metric's date range
     if web_fact_client is not None and web_research_client is None:
         # S4b (AI_ENABLE_WEB_FACT): one fact that is not in the data, from market-web-governor /v1/fact
         from .web_fact import web_fact_spec

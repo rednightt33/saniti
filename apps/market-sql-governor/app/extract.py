@@ -825,8 +825,13 @@ def partitioning(bound: BoundExtraction, estimates: Estimates | None, limits: Li
         kinds.append("ENTITY")
     for violation in ("WINDOW", "SCAN", "ROWS", "COST", "TIME"):
         if violation in need and not kinds:
-            reason = {"SCAN": "the planner estimates a scan above the limit and no index leads with the time "
-                              "column, so no partition reduces it",
+            # AGENTS "Gates and evidence" (d): the refusal says what the caller can change
+            reason = {"SCAN": "would read more rows than the limit, and no index leads with the time column "
+                              f"{bound.time_column}, so splitting the window does not reduce it; name fewer entities "
+                              f"({bound.entity_column}) so the rows are read through the table's key, or ask for a "
+                              "summary (aggregate) instead of raw rows" if bound.time_column and bound.entity_column
+                              else "would read more rows than the limit and no index lets a split reduce it; narrow "
+                              "the scope",
                       "WINDOW": "the window is longer than the limit and cannot be split"}.get(
                 violation, "no date or entity split applies")
             return ExtractStop(_stop_for(violation, restricted), f"{violation}_LIMIT", f"The extraction {reason}.",

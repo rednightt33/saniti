@@ -105,8 +105,9 @@ def rules(governed_db):
     yield
 
 
-def summarizer(db: dict, tmp_path) -> Summarizer:
-    settings = Settings.from_env(base_env(GOVERNOR_DATABASE_URL=db["login"], SQL_DATASET_LOCAL_DIR=str(tmp_path)))
+def summarizer(db: dict, tmp_path, **limits: str) -> Summarizer:
+    settings = Settings.from_env(base_env(GOVERNOR_DATABASE_URL=db["login"], SQL_DATASET_LOCAL_DIR=str(tmp_path),
+                                          **limits))
     return Summarizer(Governor(settings, Database(settings), None))
 
 
@@ -182,3 +183,47 @@ def test_a_text_value_of_the_scope_is_a_stored_value(governed_db, tmp_path, rule
     assert ask(service, spec(scope=pred("ticker", "IN", "BBCA", "BMRI")))["status"] == "OK"
     monkeypatch.setattr(Governor, "values", lambda self: None)
     assert ask(service, spec(scope=pred("ticker", "IN", "BCA")))["code"] != "VALUE_NOT_FOUND"
+
+
+def test_the_calendar_passes_the_explain_gate_before_it_runs(governed_db, tmp_path, rules) -> None:
+    """M204: the calendar is EXPLAINed before it runs and judged by its plan cost and Seq Scans. With a limit below
+    its cost the summary is refused as CALENDAR_NOT_INDEXED with the way out (a data need), on both period forms and
+    on two tables; with the default limit the same summaries run."""
+    tight = summarizer(governed_db, tmp_path, SQL_MAX_PLAN_COST="1")
+    other = {**spec(), "source_table": FEATURE_03, "scope": pred("ticker", "EQ", "BBCA"), "group_by": ["ticker"],
+             "measures": [{"column": "foreign_net_value", "function": "SUM", "as": "net_foreign"}],
+             "period": {"from": "2026-08-01", "to": "2026-08-31"}}
+    for raw in (spec(), other):
+        refused = ask(tight, raw)
+        assert (refused["code"], refused["next_action"]) == ("CALENDAR_NOT_INDEXED", "USE_DATA_NEED"), refused
+        assert raw["source_table"] in refused["message"] and "submit_data_need_spec" in refused["message"]
+        assert refused["details"]["plan_cost"] > 1
+        assert ask(summarizer(governed_db, tmp_path), raw)["status"] == "OK"
+
+
+def test_a_period_before_the_data_names_the_newest_date(governed_db, tmp_path, rules) -> None:
+    """Gate message (d): an as_of before the table's first date is refused with the table's newest date, read through
+    its time index."""
+    answer = ask(summarizer(governed_db, tmp_path), spec(period={"trading_days": 5, "as_of": "1990-01-02"}))
+    newest = admin(governed_db, f'SELECT max(date) FROM public."{PRICE}"')[0][0]
+    assert answer["code"] == "NO_DATES_IN_PERIOD" and f"newest date is {newest}" in answer["message"], answer
+
+
+def test_a_view_sees_the_date_index_of_its_base_table(governed_db) -> None:
+    """M205: the leading-index lookup follows a view to the base columns it reads; a renamed time column is not
+    claimed (no date split offered for it), and a plain table keeps its own answer."""
+    from app.governor import INDEX_LEADING_SQL
+
+    admin(governed_db, f'CREATE OR REPLACE VIEW public."m205_price_view" AS SELECT ticker, date, close '
+                       f'FROM public."{PRICE}"')
+    admin(governed_db, f'CREATE OR REPLACE VIEW public."m205_renamed_view" AS SELECT ticker, date AS day, close '
+                       f'FROM public."{PRICE}"')
+    try:
+        def leading(name: str) -> set[str]:
+            return {r[0] for r in admin(governed_db, INDEX_LEADING_SQL, (name,))}
+        table = leading(PRICE)
+        assert "date" in table
+        assert "date" in leading("m205_price_view") and leading("m205_price_view") <= table
+        assert "day" not in leading("m205_renamed_view")
+    finally:
+        admin(governed_db, 'DROP VIEW IF EXISTS public."m205_price_view", public."m205_renamed_view"')

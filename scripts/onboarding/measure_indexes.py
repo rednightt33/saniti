@@ -11,7 +11,8 @@ params.json:
 Patterns:
   P1 one entity, the last 365 days     P2 every entity on the newest date (cross-section)
   P3 every entity, the last 7 days     P4 every entity, the last 365 days (the date split's case; not executed)
-  P5 the query_metric calendar: summary.calendar_sql, the 20 newest dates, which runs OUTSIDE the EXPLAIN gate (M204)
+  P5 the query_metric calendar: summary.calendar_sql, the 20 newest dates; since 2026-10-23 the Governor EXPLAINs it
+     first and refuses it above the cost or scan limit (CALENDAR_NOT_INDEXED, M204)
 For P1-P4: the Governor's gate from EXPLAIN (largest node rows, a Seq Scan counted as the whole relation, plan cost;
 governor.py _explain), EXPLAIN (ANALYZE, BUFFERS) time and access path (P1-P3), and an unordered count(*) within the
 Governor's count limit (_counted).
@@ -44,6 +45,25 @@ EXEC_LIMIT_MS = 10_000
 CALENDAR_LIMIT_MS = 1_000
 SEQ_SCAN_WARN_ROWS = 1_000_000
 SEQ_SCAN_NODES = {"Seq Scan", "Parallel Seq Scan", "Sample Scan"}
+
+LEADING_SQL = """
+WITH obj AS (
+    SELECT c.oid FROM pg_catalog.pg_class AS c JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relname = %s
+), base AS (
+    SELECT obj.oid AS relid, NULL::smallint AS attnum FROM obj
+    UNION
+    SELECT d.refobjid, d.refobjsubid
+    FROM pg_catalog.pg_rewrite AS r JOIN obj ON r.ev_class = obj.oid
+    JOIN pg_catalog.pg_depend AS d ON d.classid = 'pg_catalog.pg_rewrite'::regclass AND d.objid = r.oid
+        AND d.refclassid = 'pg_catalog.pg_class'::regclass AND d.refobjid <> obj.oid AND d.refobjsubid > 0
+)
+SELECT DISTINCT a.attname AS column_name
+FROM base
+JOIN pg_catalog.pg_index AS i ON i.indrelid = base.relid AND i.indisvalid
+JOIN pg_catalog.pg_attribute AS a ON a.attrelid = i.indrelid AND a.attnum = i.indkey[0]
+WHERE base.attnum IS NULL OR base.attnum = i.indkey[0]
+"""
 
 p = json.load(open("params.json"))
 table, entity_col, time_col = p["table"], p["entity_column"], p["time_column"]
@@ -79,10 +99,9 @@ with psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row, autocommi
     entity = p.get("entity") or first(conn.execute(sql.SQL(
         "SELECT {e} FROM public.{t} WHERE {w} GROUP BY 1 ORDER BY count(*) DESC LIMIT 1").format(
         e=E, t=T, w=where(sql.SQL("{} = {}").format(D, sql.Literal(newest))))).fetchone())
-    leading = {r["c"] for r in conn.execute(
-        """SELECT DISTINCT a.attname AS c FROM pg_index i JOIN pg_class c ON c.oid = i.indrelid
-           JOIN pg_namespace n ON n.oid = c.relnamespace JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = i.indkey[0]
-           WHERE n.nspname = 'public' AND c.relname = %s AND i.indisvalid""", (table,)).fetchall()}
+    # the SQL Governor's own lookup (market-sql-governor governor.py INDEX_LEADING_SQL): a view counts the indexes of
+    # the base columns it reads (M205)
+    leading = {r["column_name"] for r in conn.execute(LEADING_SQL, (table,)).fetchall()}
     time_indexed = time_col in leading
     print("OUT " + json.dumps({"table": table, "rows": rows_now, "reltuples": reltuples, "newest": newest,
                                "entity": entity, "index_leading_columns": sorted(leading),
@@ -162,6 +181,10 @@ with psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row, autocommi
             plan = first(conn.execute(sql.SQL("EXPLAIN (FORMAT JSON) {}").format(calendar), args).fetchone())[0]["Plan"]
         seq = any(n["Node Type"] in SEQ_SCAN_NODES and n.get("Relation Name") == table for n in nodes(plan))
         result.update(seq_scan=seq, plan_cost=round(float(plan.get("Total Cost") or 0)))
+        if result["plan_cost"] > COST_LIMIT:
+            # the Governor's calendar gate (governor.py Summarizer._gate_calendar, M204) refuses it before it runs
+            fail.append(f"calendar plan cost {result['plan_cost']} above {COST_LIMIT}: the Governor refuses "
+                        "query_metric on this table (CALENDAR_NOT_INDEXED)")
         if seq and reltuples > SCAN_LIMIT:
             fail.append("Seq Scan per probed date on a table above the scan limit (not run, M204)")
         else:

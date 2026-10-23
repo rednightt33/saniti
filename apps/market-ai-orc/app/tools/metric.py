@@ -44,6 +44,15 @@ DESCRIPTION = (
 )
 
 
+COVERAGE_SQL = '''
+SELECT dataset_name, coalesce(actual_min_date, expected_min_date) AS first_date,
+       coalesce(actual_max_date, expected_max_date) AS last_date
+FROM public."AI_data_coverage"
+WHERE coverage_scope = 'DATASET' AND entity_id IS NULL AND dataset_name = ANY(%s)
+'''
+MENU_REFRESH_SECONDS = 900.0  # the coverage job runs daily; a menu older than this is read again
+
+
 def read_metrics(reader: Any) -> list[dict[str, Any]]:
     """The active metrics with their measure column's unit (one short read-only transaction of the catalog login)."""
     with reader.read_only() as run:
@@ -58,17 +67,51 @@ def limits_text() -> str:
             f"its rows are the entities times the combinations of the dimensions kept, so many entities fit only with "
             f"few dimensions. A dimension left out of dimensions is summed over (each metric's default keeps its "
             f"dimensions separate); the Governor refuses a sum its catalog does not allow. Above these limits, or for "
-            f"statistics, rankings across many entities or formulas, use submit_data_need_spec.")
+            f"statistics, rankings across many entities or formulas, use submit_data_need_spec.\n"
+            # M204 (AGENTS "Gates and evidence" a-c): the two date gates, how to pass them, one right and one wrong call
+            "Dates: a period must lie within the dates shown on its metric's line; as_of null uses the conversation's "
+            "data date. A period past the newest date is refused NO_DATES_IN_PERIOD (the refusal names the newest "
+            "date). A table whose trading days cannot be found through an index is refused CALENDAR_NOT_INDEXED: "
+            "then ask for the rows with submit_data_need_spec, never the same call again. Right: net_foreign_value, "
+            "entities [BBCA], periods [{trading_days: 20}], as_of null. Wrong: as_of after the newest date shown, or "
+            "repeating a call refused CALENDAR_NOT_INDEXED.")
 
 
-def menu(metrics: list[dict[str, Any]]) -> str:
+def menu(metrics: list[dict[str, Any]], dates: dict[str, tuple[Any, Any]] | None = None) -> str:
     lines = [METRICS_HEADER, limits_text()]
     for m in metrics:
+        first, last = (dates or {}).get(m.get("source_table"), (None, None))
+        span = f"dates {str(first)[:10]} to {str(last)[:10]}; " if first and last else ""
         lines.append(f"- {m['metric_id']}: {m['label']}. {m['description']} Dimensions: "
                      f"{', '.join(m['allowed_dimensions'])} (default {', '.join(m['default_dimensions']) or 'none'}); "
-                     f"entities are {m['entity_column']} values; unit {m.get('unit') or 'as the column'}; "
+                     f"entities are {m['entity_column']} values; unit {m.get('unit') or 'as the column'}; {span}"
                      f"status {m['review_status']}. Caution: {m['misuse_warning']}")
     return "\n".join(lines)
+
+
+class MetricMenu:
+    """M204 gate (a): the METRICS note with each metric's date range from AI_data_coverage (the coverage job's
+    dataset-level row), read again after MENU_REFRESH_SECONDS so the newest date follows the daily load. A failed read
+    keeps the last menu (or the menu without dates); the note never blocks a run."""
+
+    def __init__(self, metrics: list[dict[str, Any]], reader: Any, *, clock: Any = None) -> None:
+        import time
+
+        self.metrics, self.reader, self.clock = metrics, reader, clock or time.monotonic
+        self.text, self.read_at = menu(metrics), None
+
+    def __call__(self) -> str:
+        now = self.clock()
+        if self.reader is not None and (self.read_at is None or now - self.read_at >= MENU_REFRESH_SECONDS):
+            self.read_at = now
+            try:
+                tables = sorted({m.get("source_table") for m in self.metrics} - {None})
+                with self.reader.read_only() as run:
+                    rows = run(COVERAGE_SQL, (tables,))
+                self.text = menu(self.metrics, {r["dataset_name"]: (r["first_date"], r["last_date"]) for r in rows})
+            except Exception:  # noqa: BLE001 - the last menu stays
+                pass
+        return self.text
 
 
 class Filter(BaseModel):
@@ -166,9 +209,12 @@ def metric_specs(governor: GovernorClient, metrics: list[dict[str, Any]], *, tim
                                              "metric_id": metric["metric_id"]}, timeout=timeout_seconds)
             if answer.get("status") != "OK":
                 code = answer.get("code") or answer.get("status")
+                # M204 (gate d): the next action follows the cause the Governor names (a table its summary cannot
+                # serve goes to a data need; narrowing would not help)
+                action = "CALL:submit_data_need_spec" if answer.get("next_action") == "USE_DATA_NEED" \
+                    else "FIX_ARGUMENTS" if answer.get("status") == "REJECTED_POLICY" else "NARROW_ENTITIES_OR_PERIOD"
                 return {"status": "REJECTED", "code": code, "message": str(answer.get("message") or "")[:600],
-                        "next_action": "FIX_ARGUMENTS" if answer.get("status") == "REJECTED_POLICY"
-                        else "NARROW_ENTITIES_OR_PERIOD", "governor_status": answer.get("status"),
+                        "next_action": action, "governor_status": answer.get("status"),
                         "query_id": answer.get("query_id")}
             periods.append({"period": answer.get("period"), "rows": answer.get("rows") or [],
                             "row_count": answer.get("row_count"), "query_id": answer.get("query_id"),
