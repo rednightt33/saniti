@@ -55,6 +55,7 @@ registering the new versions of the tools whose contract changed in that round.
   tables or its warm session, without a data need; EXEC-OUTPUT-REUSE).
 - round_ab (20261021_001): run_python v10 (in_period is a row mask with a right and a wrong example; emit_json declares
   units like emit_table; EXEC-RULES-1021).
+- round_ac (20261023_005): preview_table_rows v3 (twelve objects: the Feature 05/06 stock views added; EXEC-M204).
 - round_w (20261015_015): the first row of search_values and get_dimension_values v3 (the user's words matched to
   stored codes and values: names, initials, part of a name; EXEC-IMPL-1016 Fase 3, O1).
 
@@ -616,8 +617,22 @@ ROUNDS = {
                     "emit_table (edge_b524513e). No behaviour change."],
         "limits": {},
     },
+    "round_ac": {
+        "target": ROOT / "database/migrations/20261023_005_round_ac_tool_catalog.sql",
+        "versions": {"preview_table_rows": ("v2", "v3")},
+        "contracts": {"preview_table_rows": ("input_schema", "Feature_06_Foreign_Domestic_Stock")},
+        "title": "Feature 05/06 stock views onboarded",
+        "header": "EXEC.md EXEC-M204 step 5 (user \"1 aja\", 2026-10-23)",
+        "design": "NEW_TABLE_ONBOARDING_PLAN.md section 4; EXEC.md EXEC-M204",
+        "limits_design": "EXEC.md EXEC-M204",
+        "summary": ["preview_table_rows previews twelve objects: the ten of round_z and the stock views",
+                    "Feature_05_Foreign_Domestic_Broker_Detail_Stock and Feature_06_Foreign_Domestic_Stock (database",
+                    "function in 20261023_004); the count in its description is derived from ORDERING."],
+        "limits": {"preview_objects": "twelve approved objects; the ORDER BY of each is app/tools/preview.py ORDERING and "
+                                      "public.ai_preview_table_rows (20261023_004)"},
+    },
 }
-NEWEST = "round_ab"
+NEWEST = "round_ac"
 
 
 def _tools_doc():

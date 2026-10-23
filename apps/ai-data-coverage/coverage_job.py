@@ -32,8 +32,24 @@ FORBIDDEN_FEATURE_TABLES = frozenset(
         "Feature_02_Broker_Rolling",
         "Feature_03_Stock_Broker_Daily",
         "Feature_04_Technical_Indicator",
+        "Feature_05_Foreign_Domestic_Broker_Detail",
+        "Feature_06_Foreign_Domestic",
+        "Feature_05_Foreign_Domestic_Broker_Detail_Stock",
+        "Feature_06_Foreign_Domestic_Stock",
     }
 )
+# EXEC-M204 (2026-10-23): manual-refresh Features derived from IDX_Broker_Summary, with the entity filter of the object
+# the AI reads. The Feature 05/06 views hold the current IDX stock universe only, so their expected coverage is the
+# Broker Summary coverage of those stocks (the filter is the views' own, read from IDX_Stock_Universe, not a list).
+STOCK_UNIVERSE_FILTER = (
+    'AND source.entity_id IN (SELECT u."Ticker" FROM public."IDX_Stock_Universe" AS u WHERE u."Security Type" = \'stock\')'
+)
+BROKER_SUMMARY_FEATURES = {
+    "Feature_02_Broker_Rolling": "",
+    "Feature_03_Stock_Broker_Daily": "",
+    "Feature_05_Foreign_Domestic_Broker_Detail_Stock": STOCK_UNIVERSE_FILTER,
+    "Feature_06_Foreign_Domestic_Stock": STOCK_UNIVERSE_FILTER,
+}
 
 RAW_SOURCES = {
     "Price_Stock_Indonesia_IDX": {
@@ -44,10 +60,7 @@ RAW_SOURCES = {
     "IDX_Broker_Summary": {
         "entity_column": "Symbol",
         "date_column": "Date",
-        "reference_for": (
-            "Feature_02_Broker_Rolling",
-            "Feature_03_Stock_Broker_Daily",
-        ),
+        "reference_for": tuple(BROKER_SUMMARY_FEATURES),
     },
     # EXEC-ONBOARD-1: the final daily bond bars (both metric types per ticker); Feature 04's bond rows come from the
     # price series of this view
@@ -388,6 +401,7 @@ def upsert_manual_feature_expectations(
     feature_table: str,
     checked_at: datetime,
 ) -> None:
+    entity_filter = BROKER_SUMMARY_FEATURES.get(feature_table, "")
     connection.execute(
         """
         INSERT INTO public."AI_data_coverage" (
@@ -409,6 +423,7 @@ def upsert_manual_feature_expectations(
         FROM public."AI_data_coverage" AS source
         WHERE source.dataset_name = 'IDX_Broker_Summary'
           AND source.coverage_scope = 'ENTITY'
+        """ + entity_filter + """
         ON CONFLICT (dataset_name, coverage_scope, (COALESCE(entity_id, ''))) DO UPDATE SET
             reference_dataset_name = EXCLUDED.reference_dataset_name,
             coverage_mode = EXCLUDED.coverage_mode,
@@ -629,10 +644,7 @@ def run(mode: str, recent_days: int) -> dict[str, Any]:
                 checked_at,
             )
 
-        for feature_table in (
-            "Feature_02_Broker_Rolling",
-            "Feature_03_Stock_Broker_Daily",
-        ):
+        for feature_table in BROKER_SUMMARY_FEATURES:
             if feature_table not in enabled:
                 continue
             upsert_manual_feature_expectations(connection, feature_table, checked_at)

@@ -159,11 +159,11 @@ def test_preview_can_be_disabled_without_affecting_catalog_tools() -> None:
     assert "preview_table_rows" not in registry.names() and "read_catalog_rows" in registry.names()
 
 
-def test_preview_schema_lists_exactly_ten_tables() -> None:
+def test_preview_schema_lists_exactly_twelve_tables() -> None:
     registry = build_default_registry(preview_reader("{}"))
     [definition] = [d for d in registry.definitions() if d["name"] == "preview_table_rows"]
     assert definition["parameters"]["properties"]["table_name"]["enum"] == sorted(ORDERING, key=list(ORDERING).index)
-    assert len(ORDERING) == 10 and definition["parameters"]["required"] == ["table_name"]
+    assert len(ORDERING) == 12 and definition["parameters"]["required"] == ["table_name"]
 
 
 def test_preview_orderings_equal_the_newest_database_function() -> None:
@@ -176,5 +176,5 @@ def test_preview_orderings_equal_the_newest_database_function() -> None:
     text = newest.read_text()
     case = text[text.index("order_clause := CASE p_table_name"):text.index("ELSE NULL", text.index("order_clause"))]
     found = dict(re.findall(r"WHEN '([^']+)' THEN\s+'([^']+)'", case))
-    assert newest.name == "20261020_001_onboard_fixed_income_and_feature04.sql"
+    assert newest.name == "20261023_004_onboard_feature05_06_stock_views.sql"
     assert found == {table: order for table, (order, _) in ORDERING.items()}

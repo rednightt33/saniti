@@ -40,7 +40,22 @@ def test_raw_source_mapping_is_explicit():
     assert coverage_job.RAW_SOURCES["IDX_Broker_Summary"]["reference_for"] == (
         "Feature_02_Broker_Rolling",
         "Feature_03_Stock_Broker_Daily",
+        "Feature_05_Foreign_Domestic_Broker_Detail_Stock",
+        "Feature_06_Foreign_Domestic_Stock",
     )
+
+
+def test_the_feature_05_06_stock_views_take_the_stock_universe_coverage():
+    """EXEC-M204: the stock views' expected coverage is Broker Summary coverage of the current stock universe (the
+    views' own filter, read from IDX_Stock_Universe); Feature 02/03 keep every code; base tables and views are never
+    read by the job."""
+    for view in ("Feature_05_Foreign_Domestic_Broker_Detail_Stock", "Feature_06_Foreign_Domestic_Stock"):
+        assert '"Security Type" = \'stock\'' in coverage_job.BROKER_SUMMARY_FEATURES[view]
+        assert view in coverage_job.FORBIDDEN_FEATURE_TABLES
+    assert coverage_job.BROKER_SUMMARY_FEATURES["Feature_02_Broker_Rolling"] == ""
+    assert {"Feature_05_Foreign_Domestic_Broker_Detail", "Feature_06_Foreign_Domestic"} <= \
+        coverage_job.FORBIDDEN_FEATURE_TABLES
+    assert "IDX_Stock_Universe" in coverage_job.READ_TABLES
 
 
 def test_every_upsert_names_the_functional_identity_index_columns():

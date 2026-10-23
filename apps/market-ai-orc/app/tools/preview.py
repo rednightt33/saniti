@@ -17,10 +17,11 @@ PreviewTable = Literal[
     "Feature_01_Stock_Daily", "Feature_02_Broker_Rolling", "Feature_03_Stock_Broker_Daily",
     "IDX_Broker_Profile", "IDX_Broker_Summary", "IDX_Stock_Universe", "Price_Stock_Indonesia_IDX",
     "Price_Fixed_Income_Final", "Universe_Fixed_income", "Feature_04_Technical_Indicator",
+    "Feature_05_Foreign_Domestic_Broker_Detail_Stock", "Feature_06_Foreign_Domestic_Stock",
 ]
 
 # Must equal the ORDER BY clauses of public.ai_preview_table_rows in its newest migration,
-# database/migrations/20261020_001_onboard_fixed_income_and_feature04.sql (first: 20260923_002); the database function
+# database/migrations/20261023_004_onboard_feature05_06_stock_views.sql (first: 20260923_002); the database function
 # is the enforcement point; tests compare both.
 RECENT = "Rows with the most recent {date} first; ties broken by the remaining key columns, all descending."
 ORDERING: dict[str, tuple[str, str]] = {
@@ -45,6 +46,14 @@ ORDERING: dict[str, tuple[str, str]] = {
         "trade_date DESC, asset_type DESC, ticker DESC",
         RECENT.format(date="trade_date") + " The calculation state columns are left out.",
     ),
+    "Feature_05_Foreign_Domestic_Broker_Detail_Stock": (
+        "trade_date DESC, ticker DESC, broker DESC, investor_type DESC, market_board DESC",
+        RECENT.format(date="trade_date") + " IDX stocks of the current universe only.",
+    ),
+    "Feature_06_Foreign_Domestic_Stock": (
+        "trade_date DESC, market_board DESC, ticker DESC",
+        RECENT.format(date="trade_date") + " IDX stocks of the current universe only.",
+    ),
 }
 NOTICE = (
     "Example rows only: at most 20 per table in a fixed deterministic order. They are not a "
@@ -55,7 +64,7 @@ NOTICE = (
 class PreviewArguments(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    table_name: PreviewTable = Field(description="One of the ten approved market-data tables.")
+    table_name: PreviewTable = Field(description=f"One of the {len(ORDERING)} approved market-data tables.")
 
 
 class PreviewTool:
@@ -104,7 +113,7 @@ def preview_spec(reader: CatalogReader, *, timeout_seconds: float) -> ToolSpec:
     return ToolSpec(
         name="preview_table_rows", effect="FETCHES_DATA",
         description=(
-            "Return up to 20 example rows (all columns) from one of ten approved market-data "
+            f"Return up to 20 example rows (all columns) from one of {len(ORDERING)} approved market-data "
             "tables, in a fixed deterministic order stated in the result. No filters, offsets, "
             "custom limits, or pagination. Example records only, not a complete or representative "
             "dataset and not an analysis."

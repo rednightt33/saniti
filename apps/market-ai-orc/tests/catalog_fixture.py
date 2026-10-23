@@ -174,9 +174,10 @@ import re as _re
 
 SCHEMA_DOC = REPO_ROOT / "DATABASE_SCHEMA.md"
 PREVIEW_MIGRATION = REPO_ROOT / "database/migrations/20260923_002_create_market_ai_preview_interface.sql"
-# the newest definition of the preview function (EXEC-ONBOARD-1, 2026-10-20): applied after the first migration so
-# the seven fixture tables are previewed by the function that runs in production
-ONBOARD_MIGRATION = REPO_ROOT / "database/migrations/20261020_001_onboard_fixed_income_and_feature04.sql"
+# the newest definition of the preview function (EXEC-ONBOARD-1, 2026-10-20; Feature 05/06 views, EXEC-M204
+# 2026-10-23): applied after the first migration so the seven fixture tables are previewed by the function that runs in
+# production
+ONBOARD_MIGRATION = REPO_ROOT / "database/migrations/20261023_004_onboard_feature05_06_stock_views.sql"
 
 
 def preview_function_sql() -> str:

@@ -18,13 +18,15 @@ LOGIN = "market_sql_governor"
 GROUP = "market_ai_sql_reader"
 # The objects market_ai_sql_reader may read, as granted by the migrations: the six AI catalogs (AI_entity_alias:
 # 20261015_014), the seven first market-data tables, the two reference histories (20260927_006) and the fixed-income
-# view, its universe and Feature 04 (20261020_001, EXEC-ONBOARD-1). Table_Catalog's column grants are not table reads.
+# view, its universe and Feature 04 (20261020_001, EXEC-ONBOARD-1), the stock views of Feature 05/06 (20261023_004,
+# EXEC-M204). Table_Catalog's column grants are not table reads.
 APPROVED = {
     "AI_table_catalog", "AI_column_catalog", "AI_catalog_relationships", "AI_calculation_catalog",
     "AI_data_coverage", "AI_entity_alias", "Feature_01_Stock_Daily", "Feature_02_Broker_Rolling",
     "Feature_03_Stock_Broker_Daily", "IDX_Broker_Profile", "IDX_Broker_Summary",
     "IDX_Stock_Universe", "Price_Stock_Indonesia_IDX", "IDX_Stock_Universe_History", "IDX_Broker_Profile_History",
     "Price_Fixed_Income_Final", "Universe_Fixed_income", "Feature_04_Technical_Indicator",
+    "Feature_05_Foreign_Domestic_Broker_Detail_Stock", "Feature_06_Foreign_Domestic_Stock",
 }
 CATALOGS = sum(name.startswith("AI_") for name in APPROVED)
 
