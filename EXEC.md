@@ -6740,6 +6740,9 @@ tabel. Menyamakan F02/F03 tidak dikerjakan.
 berasal dari code instead of memory." Eksekusi menunggu "go" user. Empat pertanyaan L3 di langkah 3 juga perlu
 persetujuan user.
 
+**GO user 2026-10-23:** "Go" (sesudah rencana ini dan usulan 4 pertanyaan L3 dilaporkan). Dibaca sebagai persetujuan
+seluruh rencana, termasuk keempat pertanyaan langkah 3. Gerbang keputusan langkah 0 tetap berlaku.
+
 **Fakta dari kode dan live (dibaca 2026-10-23, HEAD `34e7b72`):**
 - F1. Governor menghitung baris hanya pada estimasi (`estimate_only`), dengan batas `SQL_MAX_DATASET_ROWS + 1` =
   500.001 (`config.py` 131, tidak di-set di dev; `governor.py` `_counted`). Di atas batas hasilnya `AT_LEAST`, dan
@@ -6844,3 +6847,27 @@ persetujuan user.
 
 Tidak menyentuh prompt, alat model, router atau model, jadi `AI_TOOLS.md`, `AI_MODELS.md`, `AI_ROUTER.md` dan snapshot
 prompt tidak berubah. Ini dicek lagi saat diff ditinjau.
+
+**Hasil langkah 0 EXEC-M208-L3 (2026-10-23, job `83854869`, `scripts/onboarding/planner_check.py`; preflight orc yang
+asli dengan kode Governor yang asli, hak `market_ai_sql_reader`, hanya estimasi):**
+
+| Kasus | Hasil | Estimasi | Terlalu besar | Detik | Detik di estimasi terlalu besar |
+|---|---|---|---|---|---|
+| V5 semua saham 400 hari | 24 bagian | 31 | 4 | 17,4 | 7,4 |
+| V5 1.500 hari | `BUNDLE_TOO_LARGE` (10.097.432 > 10.000.000) | 27 | 2 | 23,6 | 6,1 |
+| F02 + `EXISTS` universe 400 hari | 24 bagian | 31 | 4 | 16,6 | 4,5 |
+| F01 400 hari (kontrol) | 1 bagian | 1 | 0 | 0,8 | 0 |
+
+Rincian estimasi yang terlalu besar pada V5 400 hari:
+- seluruh jendela (2,9 s): tetap ada dengan A, karena sampel berjalan di dalamnya;
+- percobaan 11 bagian (3,9 s) dan 12 bagian (0,4 s): bisa dihemat A;
+- percobaan 16 bagian gagal pada 2025-10-13 s.d. 2025-11-07: penyebabnya baris per hari yang tidak rata, karena
+  `_fewest_date_parts` membagi dengan jumlah hari yang sama. A tidak menutup ini.
+
+Perkiraan hemat bersih A: ±2–3 s dari ±17 s, sesudah dikurangi biaya sampel ±1–2 s. Belum diukur.
+
+Dugaan M208 untuk 1.500 hari terbukti sebagian: rencana berhenti dengan `BUNDLE_TOO_LARGE` (benar, pesannya menyebut
+batas dan cara memperbaiki), tetapi baru sesudah 27 estimasi (23,6 s).
+
+Gerbang langkah 0: hasilnya dilaporkan ke user sebelum A dibangun. L3 (langkah 3) tidak bergantung pada A dan dijalankan
+dengan keadaan sekarang (suite `onboard_l3_20261023a`).

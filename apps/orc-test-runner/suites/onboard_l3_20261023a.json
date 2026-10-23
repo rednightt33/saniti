@@ -1,0 +1,47 @@
+{
+  "prefix": "ma-onboard-l3-20261023a",
+  "workers": 1,
+  "audit_wait_seconds": 0,
+  "items": [
+    {
+      "id": "a_f05_broker_bbca_aug",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "lane": "fast",
+      "expect": "EXEC-M208-L3 L3: Feature_05_Foreign_Domestic_Broker_Detail_Stock, BBCA, August 2026, investor_type Foreign, largest net_value per broker; no research_web",
+      "turns": [
+        "Broker asing mana yang net beli terbesar di BBCA selama Agustus 2026?"
+      ]
+    },
+    {
+      "id": "b_f06_net20d",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "lane": "fast",
+      "expect": "EXEC-M208-L3 L3: Feature_06_Foreign_Domestic_Stock stored foreign_net_20d on the newest date, no recomputation of the rolling sum",
+      "turns": [
+        "Saham apa yang net beli asingnya paling besar dalam 20 hari terakhir?"
+      ]
+    },
+    {
+      "id": "c_f06_bbri_monthly_2025",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "lane": "fast",
+      "expect": "EXEC-M208-L3 L3: Feature_06 foreign_net_1d of BBRI summed per month over 2025 (SUM rule)",
+      "turns": [
+        "Bagaimana net beli asing BBRI per bulan sepanjang 2025?"
+      ]
+    },
+    {
+      "id": "d_f06_all_stocks_1y",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "lane": "fast",
+      "expect": "EXEC-M208-L3 L3: every stock over the last year (Feature_06, net foreign), the user's many-months requirement; records the planner's parts (M208)",
+      "turns": [
+        "Dalam setahun terakhir, saham mana yang paling banyak dibeli bersih oleh asing?"
+      ]
+    }
+  ]
+}
