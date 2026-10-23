@@ -1,0 +1,1 @@
+{"columns": ["check_name", "failures"], "rows": [["missing_definitions", 0], ["incomplete_active_semantics", 0], ["nullable_volume_catalog_drift", 0]], "stats": {"columns_count": 2, "rows_count": 3, "rows_affected": 0, "query_start_time": "2026-10-23T16:24:53.130102958Z", "query_finish_time": "2026-10-23T16:24:53.15573913Z", "query_duration_ms": 25}}

@@ -7031,3 +7031,10 @@ update daily parsing and Feature04 mapping/eligibility without ticker-specific
 rules; keep stock volume required. Validate rollback/apply, ingest and read back
 IHSG only, initialize the new ticker's Feature04 state, verify last-five-session
 processing, and remove the temporary job. No existing ticker source rows replaced.
+
+
+EXEC-IHSG-PRICE status: data and schema steps completed and verified (2,125 IHSG
+rows, source equality, stock-volume guard, initial Feature04/checkpoint parity).
+Remaining: explicit approval to push codex/ihsg-price-ingest to main, verify the
+three relevant deployments, and run IHSG's normal five-session worker retry.
+No source history for existing tickers needs to be replayed.

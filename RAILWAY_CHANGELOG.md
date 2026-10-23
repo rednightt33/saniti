@@ -4350,3 +4350,19 @@ calendar difference; no APPLY ran and zero price rows were written. The temporar
 service was deleted after verification. Existing app configs, triggers and schedules
 were not changed. Evidence and open follow-up in verification/ihsg_price_history/
 and FUTURE_PLAN.md.
+
+
+## 2026-10-23 — IHSG historical price apply and isolated compatibility validation
+
+User: "Ok, masukan saja ke price ya." Temporary runner
+ihsg-price-apply-once-20261023 (382ad4cc-7275-4dee-9a4c-fa18cfe73771), python:3.12-slim,
+restart NEVER, no domain/cron/volume: exact tracked source bundle, migration rollback
+then apply, 2,125 price inserts, explicit new-index Feature04 initialization and
+checkpoint parity verification. It was deleted after readback. No permanent service
+config/deployment changed and no temporary volume remains.
+
+The main push of the new compatibility commit was rejected by automatic review
+for lack of explicit shared-branch approval; source is saved on codex/ihsg-price-ingest.
+Runtime deployment and a normal latest-five IHSG queue retry remain pending;
+old application behavior is not represented as already updated. Details and logs:
+verification/ihsg_price_history/APPLY.md.

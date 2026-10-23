@@ -1518,7 +1518,7 @@ Operational lesson verified during this run: redeploying a selected older deploy
   source null semantics before enrolling an instrument in a shared universe.
 
 
-## 2026-10-23 — OHLC-only index rejected by stock price assumptions (OPEN)
+## 2026-10-23 — OHLC-only index rejected by stock price assumptions (MITIGATED; release pending)
 
 - TradingView IDX:COMPOSITE resolves as type=index, visible_plots_set=ohlc,
   allowed_adjustment=none. Each history point has five values: timestamp + OHLC;
@@ -1531,10 +1531,25 @@ Operational lesson verified during this run: redeploying a selected older deploy
   all with unavailable volume. Compared with BBCA, zero source dates missing, two
   additional dates (2026-09-17/18). Current stored price data contains neither date.
   Do not automatically call those source candles invalid or fabricate zero volume.
-- Status: price APPLY blocked; no source price, Feature, schema or existing app was
-  changed. Follow FUTURE_PLAN.md's proposal and obtain agreement on representation.
+- Status after user approval: forward migration 20261023_007 applied; 2,125 IHSG
+  OHLC rows inserted with NULL volume and exact source equality. Feature04 initial
+  history/checkpoints were verified, while normal queue statuses remain with the
+  real worker. Generic daily parser/worker compatibility code is on
+  codex/ihsg-price-ingest; main release awaits explicit approval after automatic
+  review rejected the new direct-main push. The unchanged daily parser cannot yet
+  ingest subsequent OHLC-only index candles. See verification/ihsg_price_history/APPLY.md.
 - Operational lesson: Railway serviceCreate may leave an empty service after a
   variable-length error (32,768 characters). Inspect/reuse its ID instead of retrying
   creation. Compress the exact helper source for a one-off job; remove the job later.
 - Evidence: verification/ihsg_price_history/; scripts/backfill_idx_price_ticker.py
   defaults to preflight and explicitly blocks APPLY when source volume is absent.
+
+
+## 2026-10-23 — Global catalog audit and pre-existing stock views (OPEN)
+
+The required semantic audit after the IHSG volume migration reports missing active
+Feature_Catalog definitions for existing Feature05/06 stock views. Those views and
+Table_Catalog entries came from the earlier 20261023_004 onboarding; this migration
+does not touch them. Scoped Feature01/04 semantic and volume-nullability checks
+have zero failures. Preserve this distinction: passing target checks is not a
+claim that the global audit passed. Evidence: verification/ihsg_price_history/apply/.

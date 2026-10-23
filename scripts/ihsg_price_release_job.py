@@ -45,13 +45,7 @@ elif mode=='initialize_feature04':
  import bootstrap_states
  sys.argv=['bootstrap_states.py','--ticker',ticker,'--require-stored-match']
  bootstrap_states.main()
- with psycopg.connect(os.environ['DATABASE_URL'],autocommit=True) as db:
-  with db.transaction():
-   dates=[r[0] for r in db.execute('SELECT date FROM public."Price_Stock_Indonesia_IDX" WHERE ticker=%s ORDER BY date DESC LIMIT 5',(ticker,))]
-   changed=db.execute('''UPDATE public."Feature04_Calculation_Queue" SET status='PENDING',dirty_from_date=%s,work_revision=work_revision+1,requested_columns=NULL,source_attempt_count=0,next_attempt_at=CURRENT_TIMESTAMP,claimed_at=NULL,claim_token=NULL,claim_expires_at=NULL,last_error=NULL,last_error_code=NULL,updated_at=CURRENT_TIMESTAMP WHERE asset_type='equity' AND ticker=%s AND timeframe='Daily' AND status<>'PROCESSING' ''',(min(dates),ticker)).rowcount
-   if changed!=1:raise RuntimeError('Could not scope normal worker verification to the latest five index sessions')
-   db.execute('''UPDATE public."Feature04_Column_Status" SET status='PENDING',dirty_from_date=%s,last_error=NULL,last_error_code=NULL,updated_at=CURRENT_TIMESTAMP WHERE asset_type='equity' AND ticker=%s AND timeframe='Daily' ''',(min(dates),ticker))
-  emit('feature04_latest_five_queued',ticker=ticker,dirty_from_date=min(dates))
+ emit('feature04_initialization_verified',ticker=ticker,verification='full stored output equality and latest-five full/incremental parity; queue statuses left for the normal released worker')
 elif mode=='audit_catalog':
  runpy.run_path(str(base/'scripts/audit_feature_catalog_semantics.py'),run_name='__main__')
 else:raise RuntimeError('Unknown operation')

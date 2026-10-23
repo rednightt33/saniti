@@ -2262,3 +2262,13 @@ stock IDR levels. Script: scripts/backfill_idx_price_ticker.py; explicit two-dat
 provider-calendar acceptance is a job parameter, not a global calendar change.
 
 Execution/verification evidence is recorded in verification/ihsg_price_history/APPLY.md.
+
+
+IHSG APPLY result (2026-10-23): 2,125 final price rows inserted, 2018-01-02 through
+2026-10-23, 0 stored/source mismatches, NULL source volume preserved. Other ticker
+price rows remain 1,326,939; stock NULL-volume violations 0. Explicit initial
+Feature04 backfill verified 2,125 rows and latest-five checkpoint parity (0 drift),
+with 7 recent checkpoints. Routine Feature04 queue retry awaits the patched worker
+release; its statuses were not manually set to SUCCESS. Feature01's existing worker
+processes the normal queue. Global metadata audit found unrelated pre-existing
+Feature05/06 definition gaps; scoped Feature01/04 audit has zero failures.
