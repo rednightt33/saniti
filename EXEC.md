@@ -6642,3 +6642,6 @@ Usulan 6 (tabel ringkasan) dibatalkan. Usulan 7 (ringkasan per periode di Govern
 partitioning menunggu keputusan user setelah cek "AI memotong data periode panjang" (jawaban 2026-10-23: pemotongan
 ada di backend, `data_planner.py` / `extract.py` partitioning, tetapi semua potongan digabung ke satu bundle dengan
 batas 10.000.000 baris / 256 MiB per bundle dan per sesi, `sessions.py` 916).
+
+**Keputusan user 2026-10-23:** "Oke, parsioning kita drop." Usulan 7 dan 8 dijelaskan implementasinya (tanpa tabel
+baru), menunggu keputusan.
