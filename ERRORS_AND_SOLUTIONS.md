@@ -1249,7 +1249,14 @@ change yet.
   "satu broker, semua saham, 6 bulan" memakan 2,5× data (baca pertama 24,5 s). Untuk opsi (a): gerbang kalender tidak
   boleh menilai estimasi baris node terbesar (45,2 juta pada probe `LIMIT 1` yang berjalan 0,2 ms), melainkan biaya
   rencana atau Seq Scan.
-- **Status:** OPEN untuk (a), (b) dan (d). (c) masuk panduan 2026-10-22: `NEW_TABLE_ONBOARDING_PLAN.md` bagian 3 dan
+- **Status 2026-10-23 (EXEC-M204, user go):** (a) FIXED — Governor `Summarizer._gate_calendar` (commit `32b7755`,
+  deploy `d0870fb0` SUCCESS) EXPLAINs the calendar first on every caller (`query_metric`, export check) and refuses it
+  above the cost or scan limit as `CALENDAR_NOT_INDEXED` with `next_action` `USE_DATA_NEED`; orc sends that to a data
+  need (`metric.py`, deploy `0a984381`). (b) FIXED for F04 and F05 — `(trade_date)` indexes, migrations `20261023_001`-
+  `003`; calendar F04 7,004.8 ms → 0.2 ms, F05 Seq Scan → 1.2 ms. (d) not built: after (b) and M205 every dated
+  AI-readable table has an index led by its time column (read live 2026-10-23), so (d) has no table to serve, and a
+  candidate source whose dates differ from the target's would silently drop dates; the gate refuses safely instead
+  (reported to the user, EXEC-M204). Earlier status: OPEN untuk (a), (b) dan (d). (c) masuk panduan 2026-10-22: `NEW_TABLE_ONBOARDING_PLAN.md` bagian 3 dan
   `scripts/onboarding/measure_indexes.py` (pola P5 kalender; tabel > 2.000.000 baris atau P5 gagal butuh indeks yang
   diawali kolom waktu, diterima hanya tanpa regresi).
 - **Lesson:** "setiap query lewat indeks" harus dijamin oleh gerbang di kode untuk semua jalur query, bukan hanya
@@ -1265,15 +1272,32 @@ change yet.
   katalog>`; view tidak punya indeks sendiri, jadi `time_index_available` false dan `extract.partitioning` tidak
   mengizinkan potongan per tanggal (`extract.py` 802, 822). Gerbang scan sudah benar untuk view: Seq Scan dihitung dari
   `Relation Name` node, yaitu tabel dasar (`governor.py` 446-449).
-- **Suspected (belum dicek):** satu obligasi memakai indeks tanggal karena view menulis `ticker::text`, sehingga indeks
-  `(ticker, metric_type)` tidak dipakai. Cek: EXPLAIN query yang sama langsung ke tabel dasar.
+- **Suspected, refuted 2026-10-23:** the same query straight on the base table chooses the same date index (313 ms
+  cold, 38 ms warm through the view, 57,191 buffer hits either way), so `ticker::text` in the view is not the cause; it is
+  the planner's own choice on the base table (`ticker` is `varchar(64)`). Not changed (sub-second).
 - **Class:** setiap view yang dibuka ke AI di atas tabel yang punya indeks (data makro atau lintas aset nanti); setiap
   kolom view yang di-cast dari kolom berindeks.
 - **Impact now:** tidak ada; seluruh tabel obligasi di bawah batas scan 2.000,000, tidak perlu dipotong.
 - **Solution (usulan, EXEC-M204):** deteksi indeks diturunkan dari tabel dasar view (dependensi view di
   `pg_depend`/`pg_rewrite`, atau kolom asal di katalog), bukan dari nama objek; cek suspected cause di atas.
-- **Status:** OPEN.
+- **Status:** FIXED 2026-10-23 — `INDEX_LEADING_SQL` follows a view to the base columns it reads (`pg_rewrite` →
+  `pg_depend`), commit `32b7755`, deploy `d0870fb0`; test `test_a_view_sees_the_date_index_of_its_base_table` (renamed
+  column not claimed); `measure_indexes.py` uses the same lookup.
 - **Lesson:** gerbang yang membaca metadata fisik (indeks, ukuran) harus mengikuti objek fisik di balik view.
+
+### M206 — Statistik Feature 04 basi menggandakan perkiraan scan Governor (2026-10-23)
+
+- **Symptom:** `measure_indexes.py` 2026-10-23 (job `bcfce0bd`): Feature 04 "semua saham 365 hari" FAIL karena Seq Scan
+  dihitung 3,008,498 baris; `count(*)` live 1,386,698 (pgweb).
+- **Verified cause:** `pg_class.reltuples` 3,008,498 dan `n_live_tup` 3,016,154 sejak ANALYZE terakhir 2026-10-11
+  (`pg_stat_user_tables`); Governor `_explain` menghitung Seq Scan sebagai `reltuples` (`governor.py`
+  `RELTUPLES_SQL`), jadi angka basi ikut menentukan penolakan.
+- **Class:** setiap tabel yang ditulis ulang (backfill, rebuild) tanpa ANALYZE sesudahnya; gerbang Governor membaca
+  statistik planner untuk Seq Scan.
+- **Solution:** `ANALYZE` (migration `20261023_003`): reltuples 1,383,577. Panduan onboarding bagian 3 sudah meminta
+  ANALYZE sesudah indeks; tambahan: ANALYZE juga sesudah setiap backfill atau rebuild.
+- **Status:** FIXED for Feature 04 (2026-10-23). Open as a class: no check that a table's statistics are fresh.
+- **Lesson:** a load or rebuild ends with `ANALYZE`; acceptance reads `count(*)` beside `reltuples`.
 
 ## Fixed-income selected-date repair — 2026-10-20 status
 

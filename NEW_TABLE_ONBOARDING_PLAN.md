@@ -47,7 +47,7 @@ user decided in step 2 to leave one out (recorded in the migration header).
 | Artifact | Feature 01 | Feature 02 | Feature 03 | Feature 04 (benchmark) | Bonds (`Price_Fixed_Income_Final`) |
 |---|---|---|---|---|---|
 | Key, entity-first | `(ticker, date)` | `(ticker, market_board, broker, investor_type, date)` | `(ticker, market_board, date)` | `(ticker, trade_date, timeframe, asset_type)` | base `(tradingview_symbol, date, metric_type, "Timeframe")`; view key `(ticker, metric_type, date)` |
-| Index leading with the time column (section 3) | `(date)` | `(date, market_board, ticker)` | `(date, market_board, ticker)` | none: the extraction patterns pass through the key's skip scan (`DATABASE_INDEX_ACCEPTANCE.md` 2026-10-22); the `query_metric` calendar takes 10.9 s without it (M204, open) | `(date)` and partial `("Country", date DESC, …) WHERE is_final` on the base table |
+| Index leading with the time column (section 3) | `(date)` | `(date, market_board, ticker)` | `(date, market_board, ticker)` | `(trade_date)` since 2026-10-23 (`20261023_001`; before it every ticker over 365 days was refused and the calendar took 7.0 s, M204) | `(date)` and partial `("Country", date DESC, …) WHERE is_final` on the base table, seen through the view since M205 |
 | `Feature_Catalog` (formula, interpretation, use, misuse warning, review, evidence) | yes | yes (v2) | yes | 57 active v4 | — (raw) |
 | `AI_table_catalog` (subject metadata, `row_presence`, `freshness_sla`, `coverage_enabled`) | yes | yes | yes | yes (`asset_type` NULL: cross-asset) | yes |
 | `AI_column_catalog` (unit, semantic type, aggregation and resample rules, `value_time_basis`, DRAFT `description_id`) | yes | yes | yes | yes; Pine state and bookkeeping columns `ai_allowed = false` | yes |
@@ -64,9 +64,9 @@ user decided in step 2 to leave one out (recorded in the migration header).
 Feature 05 (`Feature_05_Foreign_Domestic_Broker_Detail`, 45.2 M rows) and Feature 06 (`Feature_06_Foreign_Domestic`,
 2.27 M rows; EXEC-F05-F06, 2026-10-22) have `Feature_Catalog`, `Table_Catalog` and `Column_Catalog` rows and are not
 exposed: no `AI_*` row, grant, code list or coverage. Feature 06 has `(trade_date, market_board)` (cross-section
-2.7 s → 5.3 ms). Feature 05 has only its ticker-first key: its extraction patterns pass through the skip scan, its
-`query_metric` calendar would scan the whole table (M204); the plan to expose both is in `FUTURE_PLAN.md`
-("Onboarding Feature 05/06 ke AI").
+2.7 s → 5.3 ms). Feature 05 has `(trade_date)` since 2026-10-23 (`20261023_002`): every pattern of section 3 PASS,
+every ticker over 365 days split by date (`DATABASE_INDEX_ACCEPTANCE.md` 2026-10-23); their exposure is EXEC-M204
+step 5.
 
 ## 2. What the user defines (per new table)
 
@@ -155,12 +155,15 @@ assumed (AGENTS.md: no speculative index).
 | Time limits | `config.py`, `governor.py` | `statement_timeout` 20 s per statement, 60 s per extraction (`SQL_MAX_EXECUTION_SECONDS`), read-only REPEATABLE READ |
 | Heavy-query queue (G22-4) | `governor.py` `_heavy_slot` | at most 2 extractions and counts at once (`SQL_HEAVY_QUERY_CONCURRENCY=2`), others wait up to 120 s then 503 |
 
-One query does not pass the gate: the `query_metric` calendar (`summary.calendar_sql`, a loose index scan for the
-newest dates) runs before `_explain`, with only the 20 s `statement_timeout` (M204, open): without an index led by the
-time column it takes seconds or scans the whole table.
+The `query_metric` calendar (`summary.calendar_sql`, a loose index scan for the newest dates) passes the gate too since
+2026-10-23 (`Summarizer._gate_calendar`, M204): it is judged by its plan cost and Seq Scans, not by the largest node's
+row estimate (its `LIMIT 1` probe estimates the whole table even when it runs in 0.2 ms), and refused as
+`CALENDAR_NOT_INDEXED` (next step: a data need) without an index led by the time column. The index lookup follows a view
+to the base columns it reads (M205).
 
 So an index matters four ways: the count finishes within 7 s only through an index (otherwise the estimate falls back
-to the planner, the old failure); a date split needs an index led by the time column; the calendar needs the same; a
+to the planner, the old failure); a date split needs an index led by the time column; the calendar needs the same (or
+`query_metric` is refused for the table); a
 Seq Scan of a large table is refused before it runs. And one way against: a date-leading index can make cross-sections
 slower on a table stored in entity order, because the rows of one date are scattered in the heap (Feature 02 with
 `(date, market_board, ticker)` 9.0 s against Feature 05 without it 5.1 s for every ticker on one date;
@@ -174,7 +177,7 @@ slower on a table stored in entity order, because the rows of one date are scatt
 | P2 | every entity on the newest date (cross-section) | as P1 |
 | P3 | every entity, the last 7 days | as P1 |
 | P4 | every entity, the last 365 days | gate and count only (the case the date split serves) |
-| P5 | the `query_metric` calendar, 20 newest dates | within 1 s, no Seq Scan (M204) |
+| P5 | the `query_metric` calendar, 20 newest dates | within 1 s, no Seq Scan, plan cost within 600,000 (the Governor's calendar gate, M204) |
 | Table | — | when the table holds, or will hold within a year, more than 2,000,000 rows, or P5 fails: an index whose first column is the time column |
 
 A Seq Scan of a table above 1,000,000 rows is reported as WARN (it nears the scan limit as the table grows). The
@@ -187,7 +190,11 @@ typical questions need (item 22). Copy the verdict lines into the migration head
 ROLLBACK, and compare with the measurement without it; keep the index only if no pattern gets slower (the planner may
 move a cross-section onto it). Apply it in its own forward migration without a transaction:
 `CREATE INDEX CONCURRENTLY IF NOT EXISTS …` (no write lock on the source; a failed build leaves an invalid index to
-drop and retry), then `ANALYZE` and `measure_indexes.py` again. Check the disk first (`railway volume list`:
+drop and retry), then `ANALYZE` and `measure_indexes.py` again. `ANALYZE` also ends every load, backfill or rebuild:
+the Governor counts a Seq Scan as `reltuples`, and stale statistics doubled Feature 04's estimate (M206). A second
+index for one pattern is measured with `scripts/onboarding/ab_index.py` (time, MB from cache and disk, temp spill,
+Governor verdict per pattern, in a rolled-back transaction) and kept only when it pays for its size (Feature 05
+`(broker, trade_date)` was not, 2026-10-23). Check the disk first (`railway volume list`:
 `postgres-volume`, 75 GB since 2026-10-22). Example: Feature 06 `(trade_date, market_board)`, cross-section 2.7 s →
 5.3 ms (`20261022_005`).
 
@@ -301,3 +308,10 @@ section 3, with the Governor's counting and date-split rules). Feature 05/06 are
 The acceptance thresholds of section 3 follow the Governor's limits and the measurements of the same day (`DATABASE_INDEX_ACCEPTANCE.md` "Feature 04 and Feature 05 under the SQL Governor gate", M204): the calendar pattern P5 was added and a date index is accepted only without regression.
 "Section 6" in migration `20261020_001`, Tool_Catalog round Z and `DATABASE_CHANGELOG.md` 2026-10-20 means the plan of
 that date (now this section and section 1); applied migrations are not edited.
+
+**2026-10-23, EXEC-M204.** User: "Semua saham berbulan-bulan sampai bertahun-tahun harus bisa dijawab dari feature 1
+sampai feature 6"; "Kenapa kita tidak tambahkan indexing saja untuk feature yang belum ada"; go. Feature 04 and 05 got
+`(trade_date)` (`20261023_001`-`003`); the Governor gates the calendar and sees indexes behind a view (M204, M205);
+stale statistics found and fixed (M206). Feature 04, the benchmark, now passes section 3. Not built and listed as
+pending in EXEC-M204: stored summaries (P6), summaries per month/quarter/year in the Governor (P7), measuring a full
+"all data" request (P8).

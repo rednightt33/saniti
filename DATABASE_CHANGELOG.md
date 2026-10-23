@@ -2146,3 +2146,22 @@ bonds 60,540 rows / 24 tickers, no ticker in both; the 15 referenced `AI_formula
 - Refresh after a new load (manual): `sync_broker_summary_freq(from, to)` → `refresh_feature_05(from, to, tickers)` →
   `refresh_feature_06(ticker, from)` per changed ticker; never from 2016 for a daily update. Data dictionary:
   `FEATURE_05_06_FOREIGN_DOMESTIC.md`.
+
+## 2026-10-23 — Feature 04 and Feature 05 `(trade_date)` indexes (EXEC-M204 step 4)
+
+- User 2026-10-23: "Kenapa kita tidak tambahkan indexing saja untuk feature yang belum ada"; "Semua saham berbulan-bulan
+  sampai bertahun-tahun harus bisa dijawab dari feature 1 sampai feature 6"; go "Semua approve exec bisa dieksekusi".
+- Migrations (applied with `scripts/onboarding/migration_job.py` APPLY, job `48aca624`; hashes in `APPLIED.sha256`):
+  `20261023_001` `CREATE INDEX CONCURRENTLY "Feature_04_Technical_Indicator_trade_date_idx" (trade_date)`;
+  `20261023_002` `CREATE INDEX CONCURRENTLY "Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx" (trade_date)`;
+  `20261023_003` `ANALYZE` of both tables.
+- Read back (same job): both indexes `indisvalid` and `indisready`; Feature 04 index 9,832 kB, Feature 05 index 300 MB;
+  reltuples Feature 04 1,383,577 (was 3,008,498: stale since 2026-10-11, ERRORS M206), Feature 05 45,234,964; database
+  50 GB of the 75 GB volume.
+- Index acceptance after the change (`scripts/onboarding/measure_indexes.py`, jobs `9a9873cc`, `1c6f2e85`, `a4f80205`):
+  Feature 04, 05 and 06 every pattern PASS; Feature 04 calendar 7,004.8 ms → 0.2 ms, every ticker over 365 days from
+  refused to approved; Feature 05 calendar 1.2 ms, every ticker over 365 days split by date. Details:
+  `DATABASE_INDEX_ACCEPTANCE.md` 2026-10-23.
+- A second candidate `(broker, trade_date)` on Feature 05 was measured and not created (rolled back, job `ab_index`
+  2026-10-23; `DATABASE_INDEX_ACCEPTANCE.md`).
+- No catalog row changed (indexes are physical; `Table_Catalog` and `Column_Catalog` unaffected).

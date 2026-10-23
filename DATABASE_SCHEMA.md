@@ -1,6 +1,6 @@
 # Database schema
 
-Refreshed from the applied public-schema migration and live readback at `2026-10-12T09:29:57+00:00`; `IDX_Broker_Summary`, `Feature_05_Foreign_Domestic_Broker_Detail` and `Feature_06_Foreign_Domestic` re-read live (read-only) on `2026-10-22` after migrations `20261022_001`-`005`.
+Refreshed from the applied public-schema migration and live readback at `2026-10-12T09:29:57+00:00`; `IDX_Broker_Summary`, `Feature_05_Foreign_Domestic_Broker_Detail` and `Feature_06_Foreign_Domestic` re-read live (read-only) on `2026-10-22` after migrations `20261022_001`-`005`. The indexes of `Feature_04_Technical_Indicator` and `Feature_05_Foreign_Domestic_Broker_Detail` re-read live on `2026-10-23` after migrations `20261023_001`-`003`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -1968,6 +1968,7 @@ Cross-asset Daily closing price and causal technical indicators from universe-cl
 | Name | Definition |
 |---|---|
 | `Feature_04_Technical_Indicator_pkey` | `CREATE UNIQUE INDEX "Feature_04_Technical_Indicator_pkey" ON public."Feature_04_Technical_Indicator" USING btree (ticker, trade_date, timeframe, asset_type)` |
+| `Feature_04_Technical_Indicator_trade_date_idx` | `CREATE INDEX "Feature_04_Technical_Indicator_trade_date_idx" ON public."Feature_04_Technical_Indicator" USING btree (trade_date)` |
 
 ## Feature_05_Foreign_Domestic_Broker_Detail
 
@@ -2013,6 +2014,7 @@ EXEC-F05-F06 Feature 05: one row per IDX_Broker_Summary row (date, ticker, broke
 
 | Name | Definition |
 |---|---|
+| `Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx` | `CREATE INDEX "Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx" ON public."Feature_05_Foreign_Domestic_Broker_Detail" USING btree (trade_date)` |
 | `feature_05_foreign_domestic_broker_detail_pkey` | `CREATE UNIQUE INDEX feature_05_foreign_domestic_broker_detail_pkey ON public."Feature_05_Foreign_Domestic_Broker_Detail" USING btree (ticker, trade_date, broker, investor_type, market_board)` |
 
 ## Feature_06_Foreign_Domestic

@@ -6674,3 +6674,23 @@ langkah 2 `NEW_TABLE_ONBOARDING_PLAN.md` ditanyakan ke user), 9 (M205), gerbang 
 | P6 | Tabel ringkasan tersimpan (bulan/kuartal/tahun) | pending, jangan dijalankan |
 | P7 | Ringkasan per periode di Governor (`time_bucket`), dengan tinjauan aturan `resample_aggregation` per kolom | pending, jangan dijalankan |
 | P8 | Ukur permintaan "semua data" ukuran penuh | pending, jangan dijalankan |
+
+**Hasil EXEC-M204 (2026-10-23, dijalankan sesudah go):**
+- Langkah 1 (ukur F04): FAIL sebelum indeks (P4 Seq Scan dihitung 3,008,498 dari statistik basi; P5 kalender 7,0 s).
+- Langkah 4: indeks `(trade_date)` F04 dan F05 (`20261023_001`-`003`, valid, dibaca ulang); sesudahnya F04, F05, F06
+  semua pola PASS (`DATABASE_INDEX_ACCEPTANCE.md` 2026-10-23). Korban broker di F05: indeks kedua `(broker, trade_date)`
+  diuji A/B dan tidak dibuat (hanya 1 dari 3 pola memakai, 310 MB).
+- Langkah 2 + 9 (Governor, `32b7755`, deploy `d0870fb0`): gerbang EXPLAIN untuk kalender (`CALENDAR_NOT_INDEXED`,
+  next_action data need); lookup indeks mengikuti view (M205); pesan tolak scan ekstraksi menyebut apa yang bisa
+  diubah; `NO_DATES_IN_PERIOD` menyebut tanggal terbaru.
+- Gerbang (a)-(d) Jalur Cepat (orc `0a984381`): menu METRICS menampilkan rentang tanggal tiap metrik (dari
+  `AI_data_coverage`, dibaca ulang tiap 15 menit), aturan dua gerbang tanggal dengan contoh benar dan salah; penolakan
+  karena tabel diarahkan ke data need.
+- Langkah 3 (opsi d) **tidak dibangun**, dengan alasan terukur: sesudah langkah 4 dan M205 setiap tabel bertanggal yang
+  bisa dibaca AI punya indeks yang diawali kolom waktunya (dibaca live), jadi opsi d tidak punya tabel untuk dilayani,
+  dan sumber kalender lain yang tanggalnya berbeda bisa menghilangkan tanggal diam-diam; gerbang langkah 2 menolak
+  dengan aman. Menunggu keputusan user bila tetap ingin dibangun.
+- Baris "export completeness check, alasan untuk user" tidak dikerjakan: penyebabnya (kalender 20 s) hilang oleh
+  langkah 2 dan 4, file tetap menulis "tidak dicek".
+- Ditemukan: M206 (statistik F04 basi), fixture tes orc tidak mengenal `bigint` sejak `33cf07b` (diperbaiki).
+- Langkah 5 (onboarding F05/F06): keputusan langkah 2 panduan ditanyakan ke user sebelum migrasi.

@@ -264,3 +264,39 @@ Findings:
 
 Not measured: the index's upkeep on a Feature 05 refresh (writes), and other index shapes (for example one that also
 serves Q5).
+
+## Feature 04, 05, 06 after the `(trade_date)` indexes (2026-10-23, EXEC-M204)
+
+`scripts/onboarding/measure_indexes.py` (the SQL Governor's limits, its leading-index lookup and, since 2026-10-23, its
+calendar gate). Feature 04 with `asset_type = equity`, Feature 05 unfiltered (entity BBCA), Feature 06 with
+`market_board = Regular` (entity BBCA).
+
+| Table | Pattern | Before (job `bcfce0bd`) | After (jobs `9a9873cc`, `1c6f2e85`, `a4f80205`) |
+|---|---|---|---|
+| F04 | P1 one ticker 365 d | PASS 13.8 ms | PASS 23.6 ms |
+| F04 | P2 every ticker, newest date | PASS 7.1 ms | PASS 1.9 ms (date index) |
+| F04 | P3 every ticker 7 d | PASS 12.6 ms | PASS 9.0 ms (date index) |
+| F04 | P4 every ticker 365 d | **FAIL** (Seq Scan counted 3,008,498 reltuples; no date split) | PASS (195,634 scanned, approved) |
+| F04 | P5 calendar 20 dates | **FAIL** 7,004.8 ms (cost 1,411,602) | PASS 0.2 ms (cost 18) |
+| F05 | P1 / P2 / P3 | (A/B 2026-10-23) | PASS 366 / 1,598 / 1,209 ms (first reads) |
+| F05 | P4 every ticker 365 d | refused (A/B Q6) | PASS, split by date (6,586,814 scanned, cost 1,815,398) |
+| F05 | P5 calendar | refused (Seq Scan, cost 28.3 M) | PASS 1.2 ms (cost 18) |
+| F06 | P1-P5 | — | PASS (P2 481 ms, P3 639 ms first reads; P5 0.2 ms) |
+
+Feature 04's P4 failure before the change was partly stale statistics: its reltuples read 3,008,498 while `count(*)`
+was 1,386,698 (last analyzed 2026-10-11); the Governor counts a Seq Scan as reltuples (ERRORS M206).
+
+**Second candidate for the measured cost of the date index (Feature 05, one broker across every ticker).** A/B of
+`(broker, trade_date)` with the date index in place (`scripts/onboarding/ab_index.py`, rolled back; index 310 MB, built
+in 158 s, 270 MB WAL). The planner used it for one of three broker patterns only:
+
+| Pattern | Without (ms run 1 / run 2, MB touched) | With |
+|---|---|---|
+| one broker, every ticker, 6 months | 10,198 / 755, 1,581 MB | 4,215 / 1,258, 1,581 MB (date index still chosen) |
+| one broker, foreign, every ticker, 1 year | 26,198 / 864, 1,229 MB (key) | 7,064 / 1,317, 922 MB (broker index) |
+| one broker, daily total, 1 year | 2,010 / 1,684, 3,184 MB | 4,731 / 2,618, 3,184 MB (date index still chosen) |
+| one ticker 365 d, every ticker one date, top foreign brokers 1 month | 23 / 11, 12 / 10, 121 / 129 | 41 / 9, 11 / 13, 134 / 118 |
+
+Decision: not created. It changes one pattern's first read (26 s → 7 s) and slows its repeat, for 310 MB of disk and
+memory; the first-read timings above 20 s are already handled by the Governor's runtime split (`_runtime_stop`). A
+first read above the `statement_timeout` is the cost the date index leaves for broker-across-tickers questions.

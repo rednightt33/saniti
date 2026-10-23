@@ -4261,3 +4261,15 @@ was waited out at 14:05 UTC before the database migration).
   returned true; read back, the project lists 24 services without `feature-05-06-job` and the service has no
   variables left. The service was never in `.railway/railway.ts`, so the file needs no change (`railway config plan`
   could not run here: the `railway` npm SDK is not installed in this session).
+
+## 2026-10-23 — market-sql-governor and market-ai-orc: calendar gate, view-aware time index, query_metric date gates (EXEC-M204)
+
+- Commit `32b7755` on `main`; deployments `d0870fb0` (market-sql-governor) and `0a984381` (market-ai-orc), both
+  SUCCESS for that commit. No variable changed. orc startup events equal the previous deployment's
+  (`query_metric_active`, `manual_agent_active`, `result_store_active`, `run_memory_active`; no new `*_inactive`).
+- Before the push: no `edge_` run in the orc log since 03:46 UTC (checked 06:05 UTC).
+- Jobs on `orc-test-runner` (DATABASE_URL set only for each run, `VAR_REMOVED` printed): `bcfce0bd` measure F04,
+  `48aca624` apply `20261023_001`-`003`, `9a9873cc` / `1c6f2e85` / `a4f80205` measure F04/F05/F06, `ab_index` A/B of a
+  second F05 index (rolled back).
+- Tests before the push: Governor 296 passed (real Postgres 16); orc 1,994 passed + 35 (`test_request_data.py` with
+  pyarrow), 1 skipped.
