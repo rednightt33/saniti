@@ -6704,3 +6704,8 @@ disembunyikan; metadata subjek equity/harian/tanggal bursa; aturan ringkas: alir
 entitas), kumulatif LAST tanpa SUM lintas entitas, rolling/z-score/persentil/rasio NULL; relasi EXACT_DATE ke F05/F06,
 harga, F01, CURRENT_STATE ke profil broker; cakupan dari `IDX_Broker_Summary`, preview ya, kesegaran seperti F02/F03;
 refresh manual (keterbatasan); tanpa metrik resmi baru; 4 pertanyaan L3; arti kolom bahasa Indonesia ditunda (butir 11).
+
+**Keputusan user 2026-10-23 (onboarding F05/F06):** jumlah kode per tabel dibaca live (F01, F04 equity, harga: 844;
+F02, F03, F05, F06: 4.125, di dalamnya 844 saham universe). Pilihan user "1 aja": hanya F05/F06 dibuka lewat view khusus
+saham (`IDX_Stock_Universe`, `Security Type = 'stock'`); F02/F03 tetap semua kode, perbedaannya ditulis di deskripsi
+tabel. Menyamakan F02/F03 tidak dikerjakan.
