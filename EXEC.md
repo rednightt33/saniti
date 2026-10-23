@@ -6564,3 +6564,21 @@ F06 2.268.015 baris / 4.125 ticker, rekonsiliasi 0 selisih, validasi pandas PASS
 verified; job `feature-05-06-job` dihapus. Masih terbuka: merge branch ke `main`; `IDX_Broker_Summary_Freq` dan
 `IDX_Net_Foreign_Summary` belum di Table_Catalog; refresh harian F05/F06 masih manual (tanpa worker, butir 8); M157 dan
 M199 tidak diperbaiki (keputusan user). Bagian ini dipindah ke ERRORS/changelog dan dihapus dari EXEC.md setelah merge.
+
+### EXEC-M204: kalender Governor dan indeks tanggal sebelum onboarding F05/F06 (disetujui 2026-10-23, belum dijalankan)
+
+**User 2026-10-23:** "Saya setuju untuk opsi 1-5, masukkan jangan eksekusi dulu." Approval to plan; execution starts
+only after the user's go. Evidence: ERRORS M204 (both paths, option (d) measured), `DATABASE_INDEX_ACCEPTANCE.md`
+2026-10-22, `NEW_TABLE_ONBOARDING_PLAN.md` section 3.
+
+| # | Step | Layer | Done when |
+|---|---|---|---|
+| 1 | `scripts/onboarding/measure_indexes.py` on Feature 04 (benchmark, read-only) | measurement | verdict per pattern P1-P5 recorded in `DATABASE_INDEX_ACCEPTANCE.md` |
+| 2 | Option A: the summary calendar (`summary.calendar_sql`, `governor.py` `/v1/summary`) is EXPLAINed under the scan/cost gates before it runs, on every caller (`query_metric`, the export completeness check `export.py`); refusal message names the table and the way out (AGENTS "Gates and evidence" a-d) | Governor | Governor tests; a table without a time-leading index is refused before any scan |
+| 3 | Option (d): calendar for a table without a time-leading index = candidate dates from a time-indexed calendar source derived from the catalog, clamped to the target's own date range, then `EXISTS` per date; `measure_indexes.py` P5 measures the calendar the Governor actually runs | Governor + onboarding script | F04 and F05 P5 PASS; tests on two tables other than F04/F05; a target whose dates no candidate source covers falls back to step 2's refusal |
+| 4 | Option B: narrow `(trade_date)` index on F04/F05 only if steps 1-3 leave a pattern failing; measured in a DRYRUN transaction, kept only without regression | database | before/after measurements recorded; no speculative index |
+| 5 | Onboarding F05/F06 per `NEW_TABLE_ONBOARDING_PLAN.md` (AI_* rows, grant, code lists, coverage, preview, index acceptance) | catalog, Governor, orc | plan section 5 validation table all PASS |
+
+**Open question for the user (before step 3/5):** the section 3 rule "a table above 2,000,000 rows without a
+time-leading index FAILS" also fails Feature 04 although its extraction patterns pass through the key's skip scan
+(2026-10-22). Keep the rule (F04 needs a date index for the date split) or relax it to the measured patterns.
