@@ -4297,3 +4297,16 @@ was waited out at 14:05 UTC before the database migration).
 - Commit `9893989` on `main`; deployment `fe87551b` (market-sql-governor) SUCCESS for that commit. No variable changed.
 - Before the push: no QUEUED/RUNNING/RECOVERING row in `edge_bff.jobs` (job `221ddf26`, 08:56 UTC; last job change
   2026-10-21). Governor tests 297 passed (Postgres 16). Only the Governor's watch path changed.
+
+## 2026-10-23 — EXEC-M208-L3: planner check and L3 of the Feature 05/06 views (orc-test-runner)
+
+- No service code or variable changed.
+- Jobs on `orc-test-runner` (DATABASE_URL set only for each run, `VAR_REMOVED` printed each time):
+  - `83854869`: `planner_check.py`, orc preflight against the Governor's code;
+  - `e0b1997d` / `7bf1c758`: planner estimate against actual rows;
+  - `81f5f10e` / `77f3afc8`: L3 ground truth and sandbox code read-back.
+- L3 suites, deployed with `railway up apps/orc-test-runner`:
+  - `d86b8cda` (`ma-onboard-l3-20261023a`): stopped after two items by job `81f5f10e` deployed to the same service
+    (ERRORS M210);
+  - `468112fa` (`ma-onboard-l3-20261023b`): items c and d.
+- OpenRouter usage of the orc key: USD 0.178 (`/api/v1/key`, limit USD 10).
