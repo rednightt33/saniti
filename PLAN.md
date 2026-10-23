@@ -806,7 +806,7 @@ insight-v2, judul, facts/memori, pending plan, fingerprints, quick choices dan a
 User belum memerintahkan eksekusi kode atau deployment untuk item ini. Implementation agent brief siap
 pada dokumen tersebut; uji A/B berbayar, default baru atau perubahan live menunggu perintah eksekusi.
 
-## M209 — kolom tersimpan berjendela tetap dibaca, tidak dihitung ulang (disetujui 2026-10-23, belum ada execution plan)
+## M209 — kolom tersimpan berjendela tetap dibaca, tidak dihitung ulang (disetujui 2026-10-23; execution plan di EXEC.md EXEC-M209)
 
 User 2026-10-23: "Oke untuk opsi 1 dan 2." Disetujui:
 - (1) katalog COLUMNS menampilkan sumber dan jendela setiap kolom `STORED_VARIANT`, diturunkan dari

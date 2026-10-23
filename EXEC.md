@@ -6894,3 +6894,74 @@ dengan keadaan sekarang (suite `onboard_l3_20261023a`).
 
 **Keputusan user 2026-10-23 (opsi A):** "Oke, untuk opsi A bisa kita drop." Opsi A tidak dibangun; langkah 1–2
 EXEC-M208-L3 tidak dijalankan. `planner_check.py` dan `governor_check.py` tetap dipakai untuk onboarding.
+
+### EXEC-M209: Feature 1–6 sebagai sumber utama hitungan berjendela, dengan pengungkapan hari transaksi (disetujui untuk direncanakan 2026-10-23, belum dijalankan)
+
+**User 2026-10-23:**
+- "Oke untuk opsi 1 dan 2."
+- "Saya pilih opsi A" (pilihan (a): AI memakai kolom tersimpan dan menyebut rentang tanggalnya).
+- "...feature yang sudah kita siapkan 1-6 bisa sebisa mungkin digunakan, tapi tidak wajib, hanya sifatnya adalah
+  supplementary. Dan juga untuk datanya harus di-disclose kepada user bahwa ini adalah hari di mana saham tersebut
+  bertransaksi instead of hari kerja, pukul rata 20 hari sebulan."
+
+Eksekusi menunggu "go".
+
+**Akar masalah (ERRORS M209, dibaca dari kode dan data 2026-10-23):**
+- R1. Dasar jendela sudah ada di katalog: `AI_calculation_catalog.parameters.lookback_window` dan `definition`.
+  - F06: "20 sessions"; "ticker sessions: the dates on which the ticker has any Feature 05 row".
+  - F02: "20 ticker transaction dates".
+  - F01: "latest twenty valid trading observations for the ticker".
+
+  Tetapi COLUMNS (`catalog.py` `COLUMNS_V2_SQL`) hanya menampilkan `AI_column_catalog.description` ("over the last
+  20 sessions"). Dasar jendela hanya muncul di CALCULATIONS, yang harus dibuka terpisah. Job `5857041a`.
+- R2. Aturan prompt `STORED_FEATURE_SENTENCE` (`orchestrator.py`) hanya menyebut "an indicator or candle pattern".
+- R3. Tidak ada catatan backend ke user tentang dasar jendela. Baris catatan jawaban berasal dari kode peringatan
+  analisis (`orchestrator.py` ±5874, `user_texts.WARNING_LINES`).
+
+**Kelas:** setiap kolom tersimpan berjendela di F01, F02, F04, F06 (F03 dan F05 harian) dan Feature baru nanti.
+
+**Langkah 1 — katalog (opsi 1, lapisan data/katalog):**
+- Field baru di `AI_calculation_catalog.parameters`: `window_basis` (`ENTITY_SESSIONS`, `EXCHANGE_DAYS` atau
+  `CALENDAR_DAYS`) dan `window_length` (angka).
+- Diisi lewat migrasi untuk setiap baris yang punya `lookback_window`, dari definisi dan kode Feature masing-masing:
+  - F02 (`backfill_feature_02_v2.py` `calendar`) dan F06 (`refresh_feature_06` `sessions`): diverifikasi;
+  - F01 dan F04: dibaca dari kodenya saat migrasi ditulis; tidak ada yang ditandai VERIFIED tanpa kode.
+- Read-back sesudah migrasi. Panduan onboarding: field ini wajib untuk kolom berjendela baru.
+- COLUMNS menampilkan per kolom `window` = {length, basis, catatan baris} dari baris katalog itu (join di
+  `COLUMNS_V2_SQL`), jadi AI melihatnya tanpa membuka CALCULATIONS.
+- Untuk tabel `ACTIVITY_ONLY` (F02, F06: baris hanya pada hari pasangan bertransaksi) ditambah catatan bahwa baris
+  terakhir bisa lebih tua dari tanggal yang ditanya.
+
+**Langkah 2 — prompt (opsi 2, sifat "utama tapi tidak wajib"):**
+- `STORED_FEATURE_SENTENCE` menjadi umum: nilai yang sudah disimpan kolom Feature (indikator, pola, jumlah/hitungan
+  berjendela, z-score, persentil) dibaca dari kolom itu bila jendelanya cocok dengan yang user minta.
+- Bila user meminta definisi lain (hari bursa, kalender, jendela lain), hitung dari data harian dan sebutkan bedanya.
+- AI tetap boleh bertanya balik bila maksudnya tidak jelas.
+- Satu contoh benar ("20 hari terakhir" → `foreign_net_20d`, dengan rentang tanggalnya) dan satu contoh salah
+  (menjumlah `foreign_net_1d` atas 20 tanggal bursa).
+- Selaraskan aturan (8) `FASTLANE_DECISIONS_NOTE` ("a precomputed column with a fixed window ... answers a span only
+  when the user names that same window") agar mencakup aliran, tidak hanya return.
+- Snapshot prompt (`scripts/snapshot_system_prompt.py record`) dan `test_prompt_history.py`.
+
+**Langkah 3 — pengungkapan ke user (jaminan backend):**
+- Bila analisis yang selesai memakai kolom ber-`window_basis` `ENTITY_SESSIONS` (dari data record "used" ∩ katalog),
+  backend menambahkan satu baris catatan dari `user_texts.py`. Contoh: "Jendela N hari dihitung dari hari saham itu
+  diperdagangkan, bukan hari bursa; untuk saham yang jarang diperdagangkan rentangnya bisa lebih dari sebulan."
+- Diturunkan dari katalog, tanpa daftar kolom. Teks Indonesia polos (`tests/test_user_texts.py`).
+- Rentang tanggal per saham ditulis AI di jawaban (bagian asumsi) bila lebih panjang dari yang user sebut.
+
+**Langkah 4 — tes, dokumen, deploy:**
+- Tes: `test_catalog_v2` (field `window` muncul dari katalog; kolom tanpa jendela tidak), tes baris catatan, tes
+  prompt.
+- Bila deskripsi `get_catalog_details` berubah: `AI_TOOLS.md` (`generate_ai_tools_doc.py`) dan ronde Tool_Catalog
+  baru (`generate_tool_catalog_migration.py`).
+- Migrasi katalog (DRYRUN lalu APPLY), DATABASE_CHANGELOG, DATABASE_CATALOG.
+- Sebelum push orc: cek `edge_bff.jobs` aktif. Deploy sampai SUCCESS.
+
+**Langkah 5 — uji live (berbayar ±USD 0,10, perlu persetujuan biaya):**
+- Ulang pertanyaan b L3, ditambah satu pertanyaan saham jarang diperdagangkan (mis. "net beli asing TGUK 20 hari
+  terakhir"), dengan audit aktif.
+- Lulus bila: membaca `foreign_net_20d`, menyebut rentang tanggal, baris catatan muncul, dan angka = SQL.
+- Jangan menjalankan job lain di `orc-test-runner` selama suite berjalan (M210).
+
+**Tidak termasuk:** mengubah definisi Feature (tetap hari transaksi saham); mengubah F03/F05 (tidak berjendela).
