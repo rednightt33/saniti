@@ -6992,3 +6992,18 @@ disetujui. Eksekusi langkah 1–4 dan biaya uji live langkah 5 masih menunggu "g
   adalah hitungan observasi per saham: sessions, ticker transaction dates, trading observations, valid bars.
 - Membaca teks ini **TEMPORARY**, sampai `window_basis` terstruktur (langkah 1). Tidak tertutup: jendela tanpa angka
   di teksnya, mis. kumulatif "all sessions" dan "Full available ordered ticker history".
+
+**Hasil EXEC-M209 langkah 3 (2026-10-23):**
+- Commit `d0a100b`, deploy market-ai-orc `8cae283e` SUCCESS. Event startup sama dengan `846e68b9`; tidak ada
+  `*_inactive` baru. Tidak ada run EDGE aktif sebelum push (job `fffd1dce`, 12:36 UTC).
+- Kode:
+  - `catalog.WINDOWED_COLUMNS_SQL` dan `is_windowed`;
+  - `tools._windowed_columns` (`registry.windowed_columns`; baca katalog gagal = tanpa baris);
+  - `AgentOrchestrator._with_window_basis`, dipanggil sesudah `_with_ai_choices`, sesudah `self._loop`;
+  - `user_texts.WINDOW_BASIS_LINE`.
+- Tes `tests/test_window_basis.py`: 5 baru, termasuk urutan sesudah loop. Suite orc 2005 lulus. Prompt dan deskripsi
+  alat tidak berubah (`test_prompt_history`, `test_ai_tools_doc` lulus).
+- Belum: langkah 1, 2, 5. Bukti live baris itu menunggu run berikutnya yang memakai kolom berjendela.
+
+**Prompt sesi Claude manual (permintaan user 2026-10-23):** `prompts/MANUAL_AGENT_SESSION.md`, disusun dari
+`app/manual_agent.py` dan `scripts/manual_agent.py`.

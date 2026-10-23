@@ -1464,7 +1464,13 @@ change yet.
     punya `stored_in`) dibaca dari kolom itu, termasuk jumlah atau hitungan berjendela tetap bila jendelanya sama dengan
     yang user sebut; plus contoh benar/salah (aturan AGENTS gerbang).
   - Snapshot prompt dan benchmark sesudahnya.
-- **Status:** OPEN (dilaporkan ke user 2026-10-23).
+- **Status:** OPEN, sebagian dibangun.
+  - Pengungkapan ke user (EXEC-M209 langkah 3) sudah aktif: commit `d0a100b`, deploy orc `8cae283e` SUCCESS. Baris
+    asumsi sistem `WINDOW_BASIS_LINE` dipasang sesudah loop gerbang bila data need run itu meminta kolom dengan
+    `lookback_window` berangka ≥ 2.
+  - TEMPORARY: membaca teks `lookback_window`, sampai langkah 1 (`window_basis` terstruktur). Tidak tertutup: kolom
+    yang teksnya tanpa angka.
+  - Langkah 1, 2 dan 5 belum dijalankan.
 - **Lesson:** aturan "baca, jangan hitung ulang" harus diturunkan dari katalog (`stored_in`), bukan dari daftar jenis
   kolom.
 

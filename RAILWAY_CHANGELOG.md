@@ -4310,3 +4310,13 @@ was waited out at 14:05 UTC before the database migration).
     (ERRORS M210);
   - `468112fa` (`ma-onboard-l3-20261023b`): items c and d.
 - OpenRouter usage of the orc key: USD 0.178 (`/api/v1/key`, limit USD 10).
+
+## 2026-10-23 — market-ai-orc: window-basis assumption line (EXEC-M209 step 3)
+
+- Commit `d0a100b` on `main`; deployment `8cae283e` (market-ai-orc) SUCCESS for that commit. No variable changed.
+- Startup events equal the previous deployment's (`846e68b9`): `manual_agent_active`, `query_metric_active`,
+  `result_store_active`, `run_memory_active`; no new `*_inactive`.
+- Before the push: no QUEUED/RUNNING/RECOVERING row in `edge_bff.jobs` (job `fffd1dce`, 12:36 UTC).
+- Read-only jobs on `orc-test-runner` (DATABASE_URL set only for each run, `VAR_REMOVED` printed): `5836e9d2` (pgweb
+  privileges and data freshness), `2105d567` (lookback_window values), `5857041a`, `b6a79f0d`, `b6c5565c`,
+  `cabb5215` (M209 evidence).
