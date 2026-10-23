@@ -1419,9 +1419,15 @@ change yet.
   bukan indikator atau pola candle, jadi aturannya tidak jelas berlaku.
 - **Suspected, not verified:** model tidak membuka FORMULAS, jadi tidak melihat `stored_in` (respons tidak memuat
   urutan alat; audit runner mati). Cek: jalankan ulang dengan audit, atau baca jejak alat run itu dari audit store.
-- **Risiko angka:** kolom tersimpan memakai 20 sesi milik saham itu sendiri ("a session without a row is not counted
-  as zero"), sedangkan AI memakai 20 tanggal pasar. Untuk saham yang tidak diperdagangkan setiap hari hasilnya bisa
-  berbeda; 10 teratas kebetulan sama.
+- **Selisih angka (verified, job `cabb5215`, papan Regular per 2026-08-31; cara AI = jumlah `foreign_net_1d` atas
+  20 tanggal pasar 2026-07-31 s.d. 2026-08-31):**
+  - 816 saham sama;
+  - 19 saham berbeda: kolom tersimpan memakai 20 sesi milik saham itu sendiri ("a session without a row is not
+    counted as zero"). Contoh: MDIA tersimpan Rp 45,57 miliar, cara AI Rp 24,67 miliar (13 sesi); BAIK −Rp 4,26
+    miliar lawan −Rp 0,37 miliar;
+  - 9 saham tanpa baris pada 31 Agustus muncul di hasil AI, padahal kolom tersimpan tidak punya nilai untuk hari itu
+    (contoh DOOH Rp 5,41 miliar);
+  - 10 teratas sama, jadi jawaban L3 kebetulan benar.
 - **Class:** setiap kolom tersimpan berjendela tetap atau turunan (net 5/10/20/40/60 hari, z-score, persentil, rasio
   bergulir di F06; jenis serupa di data baru) yang tidak termasuk kata "indicator or candle pattern".
 - **Solution proposals (belum dibangun, perlu keputusan user):**
