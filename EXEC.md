@@ -6658,3 +6658,19 @@ obligasi. Gerbang (a)-(d) berlaku bila pesan tolak potongan tanggal berubah.
 
 **Keputusan user 2026-10-23:** "Oke, drop aja usulan 8." Usulan 8 (ukur permintaan penuh) dibatalkan; usulan 7
 menunggu keputusan.
+
+**GO user 2026-10-23 (EXEC-M204):** "Tabel ringkasan usulan 7 dan usulan 8 dimasukkan kepada pending item, but harus
+dikasih tahu agar tidak terlewat. Untuk saat ini itu jangan dijalankan dulu. Semua approve exec bisa dieksekusi. Feel
+free untuk lakukan implementasi code terlebih dahulu. Perbaiki dokumen table onboarding dan indexing jika diperlukan.
+Pastikan bahwa agents MD dipatuhi. ... Navigasi harus dilakukan dengan membaca code live di kondisi backend. Go."
+
+Dieksekusi: langkah 1, 2, 3, 4 (indeks tanggal F04 dan F05, uji korban broker), 5 (onboarding F05/F06; keputusan
+langkah 2 `NEW_TABLE_ONBOARDING_PLAN.md` ditanyakan ke user), 9 (M205), gerbang (a)-(d) Jalur Cepat.
+
+**PENDING-M204 (tidak dijalankan; disebut di setiap balasan sampai user memutuskan):**
+
+| # | Item | Status |
+|---|---|---|
+| P6 | Tabel ringkasan tersimpan (bulan/kuartal/tahun) | pending, jangan dijalankan |
+| P7 | Ringkasan per periode di Governor (`time_bucket`), dengan tinjauan aturan `resample_aggregation` per kolom | pending, jangan dijalankan |
+| P8 | Ukur permintaan "semua data" ukuran penuh | pending, jangan dijalankan |
