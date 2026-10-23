@@ -1216,6 +1216,18 @@ change yet.
   kolom waktu; F04 (PK `ticker, trade_date, …`) dan F05 (PK `ticker, trade_date, broker, …`) tidak punya. Satu-satunya
   pengaman adalah `statement_timeout` 20 detik. Tabel yang sama juga tidak bisa dipecah per tanggal oleh
   `extract.partitioning` (`time_index_available` false).
+- **Jalur kedua (ditemukan 2026-10-23, dari kode):** kalender yang sama juga dijalankan oleh cek kelengkapan ekspor
+  (`apps/market-ai-orc/app/tools/export.py`, `governor.summary` dengan `purpose` EVIDENCE, bentuk rentang tanggal sampai
+  3.660 hari) untuk tabel sumber mana pun dari data need, termasuk Feature 04 yang sudah terbuka ke AI
+  (`AI_ENABLE_EXPORT=true` di dev). Jadi M204 bisa terjadi hari ini, bukan baru setelah F05 dibuka. `AI_metric_catalog`
+  live tidak punya metrik di F04/F05 (6 metrik: `IDX_Broker_Summary`, `Feature_03_Stock_Broker_Daily`,
+  `Price_Stock_Indonesia_IDX`), jadi `query_metric` sendiri belum menyentuhnya. Dampak bila terjadi: kalender kena
+  `statement_timeout` 20 detik, pengecualian ditangkap, file ekspor bertanda UNCHECKED (tidak ada angka salah, tetapi
+  beban dan waktu tunggu). Log Governor yang tersedia (sejak 2026-10-20) hanya memuat 2 panggilan `/v1/summary`
+  (F03 METRIC, harga EVIDENCE); belum teramati pada F04.
+- **Benchmark onboarding:** dengan aturan `measure_indexes.py` (tabel > 2.000.000 baris tanpa indeks yang diawali
+  kolom waktu, atau P5 > 1.000 ms, gagal) Feature 04 (3,0 juta baris, P5 10,9 detik), benchmark onboarding menurut
+  AGENTS.md, sendiri belum lolos; F04 diukur dan dibereskan lebih dulu sebelum F05/F06 dinilai terhadapnya.
 - **Class:** setiap query Governor yang tidak lewat `_explain` (kalender ringkasan) dan setiap tabel bertanggal tanpa
   indeks yang diawali kolom waktu, termasuk tabel makro dan lintas aset yang akan datang.
 - **Solution (usulan, belum dijalankan; FUTURE_PLAN "Onboarding Feature 05/06 ke AI"):** (a) Governor menolak atau
