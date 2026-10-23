@@ -4291,3 +4291,9 @@ was waited out at 14:05 UTC before the database migration).
   Governor for `governor_check.py`).
 - market-sql-governor `newest_sql` (M207) deploys with the commit that records this entry; its deployment ID and
   status are in the next entry.
+
+## 2026-10-23 — market-sql-governor `newest_sql` deployed (M207)
+
+- Commit `9893989` on `main`; deployment `fe87551b` (market-sql-governor) SUCCESS for that commit. No variable changed.
+- Before the push: no QUEUED/RUNNING/RECOVERING row in `edge_bff.jobs` (job `221ddf26`, 08:56 UTC; last job change
+  2026-10-21). Governor tests 297 passed (Postgres 16). Only the Governor's watch path changed.
