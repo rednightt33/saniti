@@ -6655,3 +6655,6 @@ ada di `AI_table_catalog`), begitu juga pemotongan query oleh Governor (`extract
 **User 2026-10-23: "#2 masukan exec"** (temuan view obligasi): ERRORS M205. Masuk EXEC-M204 sebagai butir 9 (belum
 dijalankan): deteksi indeks tanggal Governor diturunkan dari tabel dasar view; cek dugaan `ticker::text` pada query satu
 obligasi. Gerbang (a)-(d) berlaku bila pesan tolak potongan tanggal berubah.
+
+**Keputusan user 2026-10-23:** "Oke, drop aja usulan 8." Usulan 8 (ukur permintaan penuh) dibatalkan; usulan 7
+menunggu keputusan.
