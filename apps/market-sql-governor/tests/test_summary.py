@@ -6,7 +6,9 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
+import psycopg
 import pytest
+from psycopg import sql
 
 from app import extract as ex
 from app import summary as sm
@@ -227,3 +229,28 @@ def test_a_view_sees_the_date_index_of_its_base_table(governed_db) -> None:
         assert "day" not in leading("m205_renamed_view")
     finally:
         admin(governed_db, 'DROP VIEW IF EXISTS public."m205_price_view", public."m205_renamed_view"')
+
+
+def test_the_newest_date_of_a_joining_view_keeps_the_date_index(governed_db) -> None:
+    """M207: max() over a view that joins reads every row of the base table; newest_sql walks the date index the
+    same way on a table and on a view filtered through another table, and returns max()'s answer."""
+    from app.governor import newest_sql
+
+    admin(governed_db, f'CREATE OR REPLACE VIEW public."m207_joined_view" AS SELECT p.ticker, p.date, p.close '
+                       f'FROM public."{PRICE}" p WHERE p.ticker IN (SELECT DISTINCT q.ticker FROM public."{PRICE}" q)')
+    try:
+        for name in (PRICE, "m207_joined_view"):
+            statement = newest_sql(name, "date")
+            with psycopg.connect(governed_db["admin"]) as connection:
+                connection.execute("SET enable_seqscan = off")
+                plan = connection.execute(sql.SQL("EXPLAIN (FORMAT JSON) {}").format(statement)).fetchone()[0][0]["Plan"]
+                got = connection.execute(statement).fetchone()[0]
+                expected = connection.execute(f'SELECT max(date) FROM public."{name}"').fetchone()[0]
+                aggregate = connection.execute(f'EXPLAIN (FORMAT JSON) SELECT max(date) FROM public."{name}"') \
+                    .fetchone()[0][0]["Plan"]
+            assert plan["Node Type"] == "Limit", (name, plan)
+            if name != PRICE:  # the mechanism: through a join, max() is an Aggregate over every row
+                assert aggregate["Node Type"] == "Aggregate", aggregate
+            assert got == expected, name
+    finally:
+        admin(governed_db, 'DROP VIEW IF EXISTS public."m207_joined_view"')

@@ -2165,3 +2165,46 @@ bonds 60,540 rows / 24 tickers, no ticker in both; the 15 referenced `AI_formula
 - A second candidate `(broker, trade_date)` on Feature 05 was measured and not created (rolled back, job `ab_index`
   2026-10-23; `DATABASE_INDEX_ACCEPTANCE.md`).
 - No catalog row changed (indexes are physical; `Table_Catalog` and `Column_Catalog` unaffected).
+
+## 2026-10-23 — Feature 05 and Feature 06 opened to the AI through IDX stock views (EXEC-M204 step 5)
+
+- User 2026-10-23 (onboarding decisions, verbatim in EXEC.md EXEC-M204): "1. tidak usah, khusus saham saja for now. Jadi
+  dibuat view; 2-10 ok; 11 nanti saja"; stock list "Daftar saham sekarang (Recommended)"; "1 aja" (only F05/F06 through
+  stock views; F02/F03 keep every code).
+- Migration `20261023_004_onboard_feature05_06_stock_views.sql` (sha256 `ca8a8f0f…`; DRYRUN job `7c5ff214`, APPLY job
+  `f2d3bb28`, `scripts/onboarding/migration_job.py`; hash in `APPLIED.sha256`):
+  - views `Feature_05_Foreign_Domestic_Broker_Detail_Stock` (14 columns) and `Feature_06_Foreign_Domestic_Stock`
+    (86 columns), both `WHERE ticker IN (SELECT "Ticker" FROM "IDX_Stock_Universe" WHERE "Security Type" = 'stock')`,
+    without `calculated_at`;
+  - SELECT for `market_ai_sql_reader` on the views only;
+  - AI_table_catalog, AI_column_catalog (summary rules derived from Feature_Catalog `allowed_aggregations`),
+    AI_calculation_catalog (one per column, formula references), 11 relationships;
+  - `ai_preview_table_rows` with the two views;
+  - Table_Catalog and Column_Catalog rows for the views.
+- Migration `20261023_005_round_ac_tool_catalog.sql` (sha256 `c86e6dba…`, APPLY, hash in `APPLIED.sha256`):
+  `preview_table_rows` v3 in Tool_Catalog (12 approved tables).
+- Read back live 2026-10-23 (job `1bf14f5c`, read-only):
+  - both objects are views;
+  - the reader role can read them; the base tables stay refused;
+  - AI_table_catalog active, BOUNDED_READ, entity `ticker`, time `trade_date`;
+  - AI_column_catalog 14 and 86 rows, all visible, all with a unit;
+  - AI_calculation_catalog 14 and 86 rows;
+  - 11 relationships;
+  - Table_Catalog 2 rows, Column_Catalog 14 and 86 rows;
+  - preview 20 rows each;
+  - V6 1,723,354 rows, 844 tickers.
+- Coverage (`ai-data-coverage`, job `d6dcb95f` read-back): 845 rows per view (dataset + 844 stocks), `EXPECTED_DERIVED`
+  from `IDX_Broker_Summary`, 2016-01-04 to 2026-08-31, `MANUAL_REFRESH_REQUIRED` (refresh is manual, as for the base
+  tables).
+- Validation:
+  - L2 tools (job `51ee9500`): found by "net beli asing" and "broker asing", units shown, coverage, preview.
+  - Index acceptance (`measure_indexes.py`, V5 job `0215e99e`, V6 job `e71ce532`): every pattern PASS
+    (`DATABASE_INDEX_ACCEPTANCE.md`).
+  - Governor level (`scripts/onboarding/governor_check.py`, new):
+    - V6 job `1ba3c204`: one stock 365 days 238 = 238 rows; every stock 400 days 214,471 = 214,471 rows;
+    - V5 job `68a0778e`: 25,030 = 25,030 rows; every stock 400 days 6,493,667 = 6,493,667 rows in 20 parts (9 parts
+      split again while extracting, ERRORS M208).
+- Limitations (recorded with the user's choice):
+  - the current universe only, so delisted or suspended codes and ETFs are not visible (survivorship over many years);
+  - the view follows `IDX_Stock_Universe` as it changes.
+- Data source unchanged: the views read the existing F05/F06 tables (DATABASE_CHANGELOG 2026-10-22); no row was written.

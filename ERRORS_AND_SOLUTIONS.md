@@ -1299,6 +1299,86 @@ change yet.
 - **Status:** FIXED for Feature 04 (2026-10-23). Open as a class: no check that a table's statistics are fresh.
 - **Lesson:** a load or rebuild ends with `ANALYZE`; acceptance reads `count(*)` beside `reltuples`.
 
+### M207 — `max()` tanggal lewat view yang menyaring membaca seluruh tabel; alat ukur onboarding tidak menilai view seperti Governor (2026-10-23)
+
+- **Symptom:** `measure_indexes.py` pada view `Feature_05_Foreign_Domestic_Broker_Detail_Stock` berhenti tanpa
+  VERDICT, dua kali: `count(*)` seluruh view habis waktu 60 s (log `v5m.log`), lalu `SELECT max(trade_date)` habis
+  waktu 60 s (job `e4b874a0`). Probe read-only 2026-10-23 (`EXPLAIN`, lalu `ANALYZE` dengan batas 5 s):
+  `max(trade_date)` lewat view = Aggregate di atas Hash Join + Seq Scan 45 juta baris tabel dasar, cost 974,480, lebih
+  dari 5 s; `ORDER BY trade_date DESC LIMIT 1` lewat view yang sama = Limit di atas Index Scan tanggal, 0,06 ms; `max()`
+  di tabel dasar 924 ms; view F06 (lebih kecil) 359 ms.
+- **Verified cause:**
+  - PostgreSQL mengubah `min()`/`max()` menjadi satu langkah indeks hanya untuk query satu tabel tanpa join. View
+    F05/F06 saham menyaring lewat `IDX_Stock_Universe` (join), jadi `max()` membaca setiap baris.
+  - Governor `_newest` (pesan `NO_DATES_IN_PERIOD`, M204 gerbang d) memakai `max()`.
+  - `measure_indexes.py` mengandaikan objeknya tabel:
+    - menghitung `count(*)` penuh tanpa batas waktu;
+    - membaca `reltuples` objek itu sendiri (0 untuk view);
+    - menghitung Seq Scan hanya bila `Relation Name` sama dengan nama objek, sedangkan untuk view nama itu adalah tabel
+      dasarnya;
+    - menghitung baris pola tanpa batas, padahal Governor membatasinya di `SQL_MAX_DATASET_ROWS + 1` (G15).
+- **Class:**
+  - setiap pencarian tanggal terbaru/terlama dengan `max()`/`min()` di view yang join (view per kelas aset, makro
+    per negara nanti);
+  - setiap alat ukur yang tidak menilai persis seperti gerbang yang diukurnya.
+- **Solution (built):**
+  - Governor: `newest_sql()` (`governor.py`) = `WHERE t IS NOT NULL ORDER BY t DESC LIMIT 1`, dipakai `_newest`. Tes
+    `test_the_newest_date_of_a_joining_view_keeps_the_date_index` mengecek dua hal: rencana `Limit` di tabel dan di view
+    yang join, dan `max()` di view itu tetap Aggregate (mekanismenya).
+  - `measure_indexes.py`:
+    - tanggal terbaru dibaca dengan bentuk yang sama;
+    - baris tabel dihitung persis dalam 30 s, selain itu memakai perkiraan planner (`rows_source`);
+    - Seq Scan dihitung per relasi dengan `reltuples` relasi itu, seperti `_explain`;
+    - hitungan pola dibatasi `SQL_MAX_DATASET_ROWS + 1`, seperti G15;
+    - Seq Scan tabel kecil (universe, 844 baris) bukan temuan kalender.
+  - Hasil ukur ulang: V5 PASS semua pola (job `0215e99e`), V6 PASS (job `e71ce532`).
+- **Not covered (by design):**
+  - `read_table.py` (profil penuh: `count(*)`, `count(DISTINCT)`);
+  - coverage job (batch per ticker atas seluruh tabel);
+  - `catalog_contract.HISTORY_FROM_SQL` (tabel riwayat relasi, bukan view data).
+- **Status:** FIXED 2026-10-23 (commit and Governor deploy in RAILWAY_CHANGELOG 2026-10-23, EXEC-M204 step 5).
+- **Lesson:** tanggal terbaru di view selalu `ORDER BY … DESC LIMIT 1`; alat ukur memakai bentuk query, batas dan
+  hitungan yang sama dengan gerbang yang diukurnya, bukan versi sendiri.
+
+### M208 — Perkiraan baris planner lewat view penyaring universe terlalu rendah; potongan tanggal dipotong ulang saat ekstraksi (2026-10-23)
+
+- **Symptom:** `scripts/onboarding/governor_check.py` (kode Governor sendiri, hak `market_ai_sql_reader`), job
+  `68a0778e`, V5 semua saham 400 hari:
+  - perkiraan memotong menjadi 11 bagian tanggal;
+  - saat diekstrak, 9 bagian ditolak dengan `APPROVED_WITH_PARTITIONING` dan dipotong lagi, sehingga totalnya 20
+    bagian;
+  - 39,4 s dari 85,6 s habis untuk percobaan yang dipotong ulang;
+  - hasilnya benar: 6.493.667 baris = `count(*)`.
+- **Verified cause:**
+  - Hitungan G15 berhenti di 500.001 (`AT_LEAST`), lalu `_for_partitioning` (`governor.py`) mengukur potongan dari
+    perkiraan planner.
+  - Planner salah menilai saringan `ticker IN (SELECT … IDX_Stock_Universe …)`. Perkiraannya 4.181.017 baris, padahal
+    aslinya 6.493.667 (1,55× terlalu rendah). Hampir semua baris F05 milik saham universe, tetapi planner menganggap
+    saringan itu membuang sebagian besar.
+  - V6: perkiraan 113.405 lawan 214.471 baris (1,9× rendah; job `1ba3c204`; di bawah batas, jadi tanpa akibat).
+  - Setiap bagian lalu melewati 500.000 baris saat dibaca. `_runtime_stop` meminta potongan lagi, dan planner orc
+    mengantrekannya ulang (`data_planner.py` `_split`).
+- **Class:**
+  - setiap saringan yang selektivitasnya tidak terlihat oleh statistik planner: view per keanggotaan universe atau
+    kelas aset (lintas aset, makro per negara nanti);
+  - relasi INNER yang didorong planner orc sebagai semi-join pada permintaan AI ke tabel dasar (mekanisme sama,
+    belum diukur).
+- **Impact now:** data benar; permintaan panjang lebih lambat (±46% waktu pada contoh ini).
+- **Suspected, not verified:** jendela yang lebih panjang (perkiraan 2.000 hari = 43 bagian) bisa melewati batas 64
+  bagian atau bundle 10 juta baris baru di tengah ekstraksi, sesudah banyak bagian dibaca. Cek:
+  `governor_check.py` dengan `all_days` 1.500 dan catat bagian, potongan ulang dan penolakan.
+- **Solution proposals (belum dibangun, perlu keputusan user):**
+  - A (Governor, diturunkan dari data): bila hitungan berhenti di batas, hitung persis satu sub-jendela (misalnya
+    1/N jendela, dalam anggaran waktu hitungan), lalu ukur potongan dari kepadatan nyata. Ini menutup setiap view dan
+    semi-join tanpa daftar.
+  - B (orc planner): perkirakan dan hitung setiap bagian sebelum diekstrak (satu hitungan berbatas per bagian, ±2 s di
+    V5), supaya bagian yang terlalu besar dipotong sebelum barisnya dibaca.
+  - C (model data, khusus view ini): simpan saringan sebagai kolom tabel dasar agar statistik planner melihatnya. Tidak
+    umum.
+- **Status:** OPEN (dilaporkan ke user 2026-10-23).
+- **Lesson:** hitungan berbatas hanya berarti "paling sedikit"; potongan yang diukur dari perkiraan planner harus diuji
+  dengan kepadatan baris nyata, terutama lewat view atau semi-join.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.

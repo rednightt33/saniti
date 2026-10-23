@@ -688,6 +688,15 @@ class Governor:
             facts=facts, missing=missing, warnings=query.warnings)
 
 
+def newest_sql(table: str, time_column: str) -> sql.Composed:
+    """The newest date as one step down a date-led index. PostgreSQL turns max() into that step only for a single
+    table; on a view that joins (the Feature 05/06 stock views filter on IDX_Stock_Universe) max() reads every row
+    (45 million on Feature 05, over 5 s live, M207), while ORDER BY ... DESC LIMIT 1 keeps the index (0.06 ms)."""
+    column = sql.Identifier(time_column)
+    return sql.SQL("SELECT {c} AS d FROM {t} WHERE {c} IS NOT NULL ORDER BY {c} DESC LIMIT 1").format(
+        c=column, t=sql.Identifier("public", table))
+
+
 INDEX_LEADING_SQL = '''
 WITH obj AS (
     SELECT c.oid FROM pg_catalog.pg_class AS c JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
@@ -1110,8 +1119,7 @@ class Summarizer:
         index lookup); otherwise empty, never a scan."""
         if time_column not in {row["column_name"] for row in run(INDEX_LEADING_SQL, (table,))}:
             return ""
-        found = run(sql.SQL("SELECT max({}) AS d FROM {}").format(sql.Identifier(time_column),
-                                                                  sql.Identifier("public", table)), ())
+        found = run(newest_sql(table, time_column), ())
         return f" (its newest date is {found[0]['d']})" if found and found[0]["d"] else ""
 
     def _run(self, request_id: str, query_id: str, spec: Any, state: dict[str, Any]) -> dict[str, Any]:

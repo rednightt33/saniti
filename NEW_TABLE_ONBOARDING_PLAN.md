@@ -37,7 +37,7 @@ The AI never reads a table directly. It sees what the catalog shows and reads ro
 | V13 | Indexes for the query patterns (section 3) | Governor gates: EXPLAIN scan estimate, row count, date split | extractions are refused (`ESTIMATED_SCAN_TOO_LARGE`, `REJECTED_SCAN_SIZE`) or slow, and fill the Postgres page cache (billed as memory, M198) |
 
 Loading without exposing: data can be loaded and checked with no `AI_table_catalog` row or `is_active = false`
-(V2); the Governor and the AI do not see it (the state of Feature 05/06 on 2026-10-22).
+(V2); the Governor and the AI do not see it (the state of Feature 05/06 on 2026-10-22, before EXEC-M204 step 5).
 
 ## 1. The standard: what every exposed table has (benchmark Feature 01–04)
 
@@ -61,12 +61,19 @@ user decided in step 2 to leave one out (recorded in the migration header).
 | Refresh path | Feature 01 worker | manual backfill | manual backfill | `feature-04-worker` | fixed-income crons |
 | AI validation | — (seed) | — (seed) | — (seed) | L0, L2, L3 (section 5) | L0, L2, L3 |
 
-Feature 05 (`Feature_05_Foreign_Domestic_Broker_Detail`, 45.2 M rows) and Feature 06 (`Feature_06_Foreign_Domestic`,
-2.27 M rows; EXEC-F05-F06, 2026-10-22) have `Feature_Catalog`, `Table_Catalog` and `Column_Catalog` rows and are not
-exposed: no `AI_*` row, grant, code list or coverage. Feature 06 has `(trade_date, market_board)` (cross-section
-2.7 s → 5.3 ms). Feature 05 has `(trade_date)` since 2026-10-23 (`20261023_002`): every pattern of section 3 PASS,
-every ticker over 365 days split by date (`DATABASE_INDEX_ACCEPTANCE.md` 2026-10-23); their exposure is EXEC-M204
-step 5.
+Feature 05 and 06 are exposed since 2026-10-23 (EXEC-M204 step 5, migration `20261023_004`) through stock views,
+the bond pattern:
+- `Feature_05_Foreign_Domestic_Broker_Detail_Stock` and `Feature_06_Foreign_Domestic_Stock` show the current IDX stock
+  universe only (`IDX_Stock_Universe`, 844 of 4,125 codes; user: "khusus saham saja for now. Jadi dibuat view");
+- the base tables stay hidden;
+- every row of the table above, except the following decisions:
+  - Indonesian meanings later (step 2 item 11);
+  - refresh is manual;
+  - delisted codes and ETFs are not visible.
+
+They pass section 3 through the base tables' `(trade_date)` indexes (Feature 05 `20261023_002`, Feature 06
+`(trade_date, market_board)`), the Governor level of section 5 (rows equal `count(*)`) and L2. L3 is pending
+(paid). F02/F03 keep every code (user "1 aja").
 
 ## 2. What the user defines (per new table)
 
@@ -184,6 +191,15 @@ A Seq Scan of a table above 1,000,000 rows is reported as WARN (it nears the sca
 patterns carry the equality filters the AI sends (a board, an asset type, a metric); add the patterns the table's
 typical questions need (item 22). Copy the verdict lines into the migration header and `DATABASE_INDEX_ACCEPTANCE.md`.
 
+**A view** (an exposed filter over a base table, M205, M207) is measured the same way. There are two differences:
+- its rows, scans and index come from the base table;
+- every lookup of its newest or oldest date is written `ORDER BY t DESC LIMIT 1`. `max()` through a view that joins
+  reads every row: 45 million on Feature 05, against 0.06 ms.
+
+A filter through another table (a universe or membership list) hides its selectivity from the planner. Run section 5's
+Governor level on any view with such a filter: it shows whether long requests are split again while extracting
+(M208).
+
 **Adding an index.** Prefer the narrow `(time_column)` index when only the calendar or the date split needs it; a wider
 `(time, filter dimensions)` index only when P2/P3 measure faster with it. Measure first in a DRYRUN transaction:
 `CREATE INDEX` inside `migration_job.py` DRYRUN, then `EXPLAIN (ANALYZE, BUFFERS)` of every pattern as probes, then
@@ -263,7 +279,7 @@ a deployment).
 | L0 database | read-back probes of the APPLY job | counts equal the base filter; grants; the AI reader cannot read a hidden base table; relationship keys exist; `sync_database_catalog.py` strict |
 | Index | `measure_indexes.py` after APPLY | every pattern PASS (section 3) |
 | L1/L2 tools (no model) | `scripts/onboarding/l2_tools.py`: the coverage job once, then orc's own tools as role `market_ai_orc` | found by the user's words (`discover_catalog`); COLUMNS show units and summaries, no hidden column; COVERAGE shows the range and freshness; FORMULAS show `stored_in` for a Feature; preview rows; `lookup_reference` lists a table without a time column |
-| Governor (no model) | a bounded extraction of one entity and of all entities over 400 days | row count equals `SELECT count(*)` (G13); a refusal names a valid narrowing |
+| Governor (no model) | `scripts/onboarding/governor_check.py` (the Governor's own extraction code with the privileges of `market_ai_sql_reader`, extras `apps/market-sql-governor/app` and its `requirements.txt`): one entity over 365 days, every entity over 400 days (split parts extracted and split again as the orc planner does), every entity over 2,000 days estimated | row count equals `SELECT count(*)` (G13); a refusal names a valid narrowing; parts split again while extracting are reported (M208) |
 | Summary (G18) | per SUM-rule measure a summary equals an independent `GROUP BY`; a NULL-rule measure is refused `AGGREGATION_NOT_ADDITIVE`; `summaries.example` approved | right totals, wrong ones refused |
 | Join | the new table with stock prices through its relationship; row counts before and after | no look-ahead, no dropped or duplicated rows |
 | L3 model (paid, a few cents each) | `orc-test-runner` suite like `apps/orc-test-runner/suites/onboard_l3_20261020.json` (fast lane) with the item 13 questions, then the answers from `AI_conversation_turn` against SQL ground truth | a data route; the table is read through a data need; stored values equal SQL; no `research_web` for stored values; no recomputation of a stored indicator; value references by key |
@@ -315,3 +331,15 @@ sampai feature 6"; "Kenapa kita tidak tambahkan indexing saja untuk feature yang
 stale statistics found and fixed (M206). Feature 04, the benchmark, now passes section 3. Not built and listed as
 pending in EXEC-M204: stored summaries (P6), summaries per month/quarter/year in the Governor (P7), measuring a full
 "all data" request (P8).
+
+**2026-10-23, EXEC-M204 step 5 (Feature 05/06 exposed).** User: "1. tidak usah, khusus saham saja for now. Jadi dibuat
+view; 2-10 ok; 11 nanti saja", "Daftar saham sekarang (Recommended)", "1 aja".
+- Migrations `20261023_004` (views, catalogs, preview) and `20261023_005` (Tool_Catalog round AC).
+- Code `d485afd`: preview list, coverage from `IDX_Broker_Summary` with the stock filter, Governor login list.
+- Validating a view showed that the tools of this guide assumed a table (M207):
+  - `measure_indexes.py` now judges a view as the Governor does: rows within 30 s or the planner estimate; a Seq
+    Scan at the reltuples of the relation it names; counts capped at `SQL_MAX_DATASET_ROWS + 1`; the newest date by
+    `ORDER BY … DESC LIMIT 1`;
+  - the Governor's newest-date lookup changed the same way.
+- The Governor level got its own script, `governor_check.py`. Its first run found that the planner underestimates
+  rows through the universe filter, so long requests are split again while extracting (M208, open).

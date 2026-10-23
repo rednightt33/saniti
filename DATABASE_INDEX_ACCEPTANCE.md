@@ -300,3 +300,40 @@ in 158 s, 270 MB WAL). The planner used it for one of three broker patterns only
 Decision: not created. It changes one pattern's first read (26 s → 7 s) and slows its repeat, for 310 MB of disk and
 memory; the first-read timings above 20 s are already handled by the Governor's runtime split (`_runtime_stop`). A
 first read above the `statement_timeout` is the cost the date index leaves for broker-across-tickers questions.
+
+## Feature 05/06 stock views under the SQL Governor (2026-10-23, EXEC-M204 step 5)
+
+The AI reads Feature 05 and 06 through `Feature_05_Foreign_Domestic_Broker_Detail_Stock` and
+`Feature_06_Foreign_Domestic_Stock` (migration `20261023_004`; current IDX stock universe). The views have no index
+of their own; the Governor sees the base tables' indexes through the view (M205). Measured with
+`scripts/onboarding/measure_indexes.py` after it was made to judge a view as the Governor does (ERRORS M207):
+- tables' rows exact within 30 s, else the planner estimate;
+- a Seq Scan counted at the reltuples of the relation it names;
+- pattern counts capped at `SQL_MAX_DATASET_ROWS + 1` (G15);
+- the newest date read with `ORDER BY … DESC LIMIT 1`.
+
+| View | Pattern | Result (V5 job `0215e99e`, V6 job `e71ce532`) |
+|---|---|---|
+| V5 (no filter, entity BBCA) | P1 one ticker 365 d | PASS 366 ms (key, 25,030 rows) |
+| V5 | P2 every ticker, newest date | PASS 1,355 ms first read (date index) |
+| V5 | P3 every ticker 7 d | PASS 931 ms (date index) |
+| V5 | P4 every ticker 365 d | PASS, split by date (scan 6,586,043, cost 1,195,431; count reaches the cap in 2,076 ms) |
+| V5 | P5 calendar 20 dates | PASS 0.4 ms (cost 30) |
+| V6 (`market_board = Regular`, BBCA) | P1 / P2 / P3 | PASS 0.4 / 4.3 / 12.3 ms |
+| V6 | P4 every ticker 365 d | PASS, approved (scan 104,137, 195,157 rows) |
+| V6 | P5 calendar 20 dates | PASS 0.3 ms |
+
+Governor level (`scripts/onboarding/governor_check.py`): the Governor's own extraction code, with the privileges of
+`market_ai_sql_reader`, against SQL `count(*)`:
+
+| View | Case | Result |
+|---|---|---|
+| V6 (job `1ba3c204`) | one ticker 365 d | 238 = 238 rows, approved as one part |
+| V6 | every ticker 400 d | 214,471 = 214,471 rows, one part, 19.9 s |
+| V6 | every ticker 2,000 d (estimate) | split into 2 date parts |
+| V5 (job `68a0778e`) | one ticker 365 d | 25,030 = 25,030 rows |
+| V5 | every ticker 400 d | 6,493,667 = 6,493,667 rows in 20 parts, 85.6 s (9 of 11 planned parts split again while extracting: 39.4 s, ERRORS M208) |
+| V5 | every ticker 2,000 d (estimate) | split into 43 date parts (planner estimate; M208 suspects more are needed) |
+
+No index was added: every pattern passes through the base tables' `(trade_date)` indexes. The planner underestimates
+rows through the universe filter (V5 1.55×, V6 1.9×), which costs re-splits on long requests (M208, open).

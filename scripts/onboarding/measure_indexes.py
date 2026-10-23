@@ -15,7 +15,7 @@ Patterns:
      first and refuses it above the cost or scan limit (CALENDAR_NOT_INDEXED, M204)
 For P1-P4: the Governor's gate from EXPLAIN (largest node rows, a Seq Scan counted as the whole relation, plan cost;
 governor.py _explain), EXPLAIN (ANALYZE, BUFFERS) time and access path (P1-P3), and an unordered count(*) within the
-Governor's count limit (_counted).
+Governor's count limit and cap (_counted, G15: at most SQL_MAX_DATASET_ROWS + 1 rows).
 
 Verdict (Governor defaults, market-sql-governor config.py, live on dev 2026-10-22; evidence in
 DATABASE_INDEX_ACCEPTANCE.md 2026-10-22):
@@ -27,6 +27,8 @@ DATABASE_INDEX_ACCEPTANCE.md 2026-10-22):
   Table FAIL when it holds or will hold more than 2,000,000 rows, or P5 fails, and no index leads with the time
   column: add the narrow (time_column) index and measure every pattern again before and after, because a date index
   can make cross-sections slower on a table stored in entity order (F02 against F05).
+A view is judged like the Governor judges it: a Seq Scan counts the base relation the plan names, at its own
+reltuples; the table's rows are an exact count within 30 s, else the planner estimate (OUT rows_source).
 Prints `OUT`, `VERDICT {json}` per pattern and one `VERDICT_TABLE` line, then JOB_DONE.
 """
 import datetime as dt
@@ -41,6 +43,8 @@ from psycopg.rows import dict_row
 SCAN_LIMIT = 2_000_000
 COST_LIMIT = 600_000
 COUNT_LIMIT_MS = 7_000
+ROWS_COUNT_LIMIT_MS = 30_000
+COUNT_CAP = 500_001  # SQL_MAX_DATASET_ROWS (default 500,000; unset on dev 2026-10-23) + 1
 EXEC_LIMIT_MS = 10_000
 CALENDAR_LIMIT_MS = 1_000
 SEQ_SCAN_WARN_ROWS = 1_000_000
@@ -92,10 +96,37 @@ def first(row):
 with psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row, autocommit=True,
                      options="-c default_transaction_read_only=on -c statement_timeout=60000"
                              " -c max_parallel_workers_per_gather=0") as conn:
-    reltuples = int(first(conn.execute("SELECT reltuples::bigint FROM pg_class WHERE oid = to_regclass(%s)",
-                                       (f'public."{table}"',)).fetchone()))
-    rows_now = first(conn.execute(sql.SQL("SELECT count(*) FROM public.{}").format(T)).fetchone())
-    newest = first(conn.execute(sql.SQL("SELECT max({}) FROM public.{} WHERE {}").format(D, T, where())).fetchone())
+    relation_rows: dict[str, int] = {}
+
+    def reltuples_of(name):
+        # the Governor's RELTUPLES_SQL (governor.py _explain): a Seq Scan reads the whole relation it names, which for
+        # a view is a base table, not the view itself
+        if name not in relation_rows:
+            found = conn.execute("SELECT reltuples::bigint FROM pg_class WHERE oid = to_regclass(%s)",
+                                 (f'public."{name}"',)).fetchone()
+            relation_rows[name] = max(int(first(found) or 0), 0) if found else 0
+        return relation_rows[name]
+
+    def seq_scans(plan_nodes):
+        return [n for n in plan_nodes if n["Node Type"] in SEQ_SCAN_NODES and n.get("Relation Name")]
+
+    reltuples = reltuples_of(table)
+    # exact count within ROWS_COUNT_LIMIT_MS; a view over a large table (Feature 05 stock view, 45 million base rows)
+    # cannot be counted in time, so the planner's estimate stands in and rows_source says which one was used
+    try:
+        with conn.transaction():
+            conn.execute(sql.SQL("SET LOCAL statement_timeout = {}").format(sql.Literal(ROWS_COUNT_LIMIT_MS)))
+            rows_now = first(conn.execute(sql.SQL("SELECT count(*) FROM public.{}").format(T)).fetchone())
+        rows_source = "count"
+    except psycopg.errors.QueryCanceled:
+        with conn.transaction():
+            estimate = first(conn.execute(sql.SQL("EXPLAIN (FORMAT JSON) SELECT * FROM public.{}").format(T))
+                             .fetchone())[0]["Plan"]
+        rows_now, rows_source = int(estimate.get("Plan Rows") or 0), "planner_estimate"
+    # one step down the date index, as the Governor reads it (governor.py newest_sql, M207): max() through a view
+    # that joins reads every row
+    newest = first(conn.execute(sql.SQL("SELECT {d} FROM public.{t} WHERE {w} AND {d} IS NOT NULL ORDER BY {d} DESC "
+                                        "LIMIT 1").format(d=D, t=T, w=where())).fetchone())
     entity = p.get("entity") or first(conn.execute(sql.SQL(
         "SELECT {e} FROM public.{t} WHERE {w} GROUP BY 1 ORDER BY count(*) DESC LIMIT 1").format(
         e=E, t=T, w=where(sql.SQL("{} = {}").format(D, sql.Literal(newest))))).fetchone())
@@ -103,7 +134,8 @@ with psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row, autocommi
     # the base columns it reads (M205)
     leading = {r["column_name"] for r in conn.execute(LEADING_SQL, (table,)).fetchall()}
     time_indexed = time_col in leading
-    print("OUT " + json.dumps({"table": table, "rows": rows_now, "reltuples": reltuples, "newest": newest,
+    print("OUT " + json.dumps({"table": table, "rows": rows_now, "rows_source": rows_source, "reltuples": reltuples,
+                               "newest": newest,
                                "entity": entity, "index_leading_columns": sorted(leading),
                                "time_index_available": time_indexed, "filters": filters}, default=str), flush=True)
     day = sql.Literal(newest)
@@ -124,8 +156,8 @@ with psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row, autocommi
             scan = 0
             for node in nodes(plan):
                 rows = int(node.get("Plan Rows") or 0)
-                if node.get("Node Type") in SEQ_SCAN_NODES and node.get("Relation Name") == table:
-                    rows = max(rows, reltuples)
+                if node.get("Node Type") in SEQ_SCAN_NODES and node.get("Relation Name"):
+                    rows = max(rows, reltuples_of(node["Relation Name"]))
                 scan = max(scan, rows)
             result.update(governor_scan_estimate=scan, planner_result_rows=int(plan.get("Plan Rows") or 0),
                           plan_cost=round(float(plan.get("Total Cost") or 0)))
@@ -139,14 +171,17 @@ with psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row, autocommi
                     access=sorted({n["Node Type"] + (f" ({n['Index Name']})" if n.get("Index Name") else "")
                                    for n in plan_nodes if n.get("Relation Name") or n.get("Index Name")}),
                     shared_hit=top["Plan"].get("Shared Hit Blocks"), shared_read=top["Plan"].get("Shared Read Blocks"),
-                    seq_scan=any(n["Node Type"] in SEQ_SCAN_NODES and n.get("Relation Name") == table
-                                 for n in plan_nodes))
+                    seq_scan=[n["Relation Name"] for n in seq_scans(plan_nodes)
+                              if reltuples_of(n["Relation Name"]) > SEQ_SCAN_WARN_ROWS])
             started = time.monotonic()
             try:
                 with conn.transaction():
                     conn.execute(sql.SQL("SET LOCAL statement_timeout = {}").format(sql.Literal(COUNT_LIMIT_MS)))
-                    counted = first(conn.execute(sql.SQL("SELECT count(*) FROM (SELECT 1 FROM public.{} WHERE {}) c")
-                                                 .format(T, condition)).fetchone())
+                    # G15 (governor.py _counted): unordered and capped at SQL_MAX_DATASET_ROWS + 1, so a count stops
+                    # once the request must be split; the parts are then counted one by one
+                    counted = first(conn.execute(sql.SQL("SELECT count(*) FROM (SELECT 1 FROM public.{} WHERE {} "
+                                                         "LIMIT {}) c").format(T, condition, sql.Literal(COUNT_CAP)))
+                                    .fetchone())
                 result.update(counted_rows=counted, count_ms=round((time.monotonic() - started) * 1000))
             except psycopg.errors.QueryCanceled:
                 result.update(counted_rows=None, count_timed_out=True)
@@ -163,8 +198,8 @@ with psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row, autocommi
             fail.append(f"count above {COUNT_LIMIT_MS} ms (falls back to the planner estimate)")
         if (result.get("execution_ms") or 0) > EXEC_LIMIT_MS:
             fail.append(f"execution {result['execution_ms']} ms above {EXEC_LIMIT_MS} ms")
-        if result.get("seq_scan") and rows_now > SEQ_SCAN_WARN_ROWS:
-            warn.append(f"Seq Scan of a table above {SEQ_SCAN_WARN_ROWS} rows")
+        if result.get("seq_scan"):
+            warn.append(f"Seq Scan of a table above {SEQ_SCAN_WARN_ROWS} rows: {', '.join(result['seq_scan'])}")
         result.update(verdict="FAIL" if fail else "PASS", fail=fail, warn=warn)
         verdicts.append(result)
         print("VERDICT " + json.dumps(result, default=str), flush=True)
@@ -179,13 +214,14 @@ with psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row, autocommi
     try:
         with conn.transaction():
             plan = first(conn.execute(sql.SQL("EXPLAIN (FORMAT JSON) {}").format(calendar), args).fetchone())[0]["Plan"]
-        seq = any(n["Node Type"] in SEQ_SCAN_NODES and n.get("Relation Name") == table for n in nodes(plan))
+        largest = max([reltuples_of(n["Relation Name"]) for n in seq_scans(nodes(plan))] or [0])
+        seq = largest > SEQ_SCAN_WARN_ROWS  # a small lookup (the stock universe a view filters on) is no finding
         result.update(seq_scan=seq, plan_cost=round(float(plan.get("Total Cost") or 0)))
         if result["plan_cost"] > COST_LIMIT:
             # the Governor's calendar gate (governor.py Summarizer._gate_calendar, M204) refuses it before it runs
             fail.append(f"calendar plan cost {result['plan_cost']} above {COST_LIMIT}: the Governor refuses "
                         "query_metric on this table (CALENDAR_NOT_INDEXED)")
-        if seq and reltuples > SCAN_LIMIT:
+        if seq and largest > SCAN_LIMIT:
             fail.append("Seq Scan per probed date on a table above the scan limit (not run, M204)")
         else:
             with conn.transaction():

@@ -3,7 +3,7 @@
 #
 #   scripts/onboarding/run_job.sh <job.py> <params.json> <log file> [extra file or directory ...]
 #
-# The job, its params.json, the extras and Dockerfile (or Dockerfile.l2 when an extra is the orc app) are staged in a
+# The job, its params.json, the extras and Dockerfile (or Dockerfile.l2 when a requirements.txt is an extra) are staged in a
 # temporary directory and uploaded with `railway up`. DATABASE_URL is set on orc-test-runner only for the run, as the
 # Railway reference ${{Postgres.DATABASE_URL}} (no value is written or printed), and removed afterwards; the script
 # prints VAR_REMOVED or VAR_STILL_PRESENT. Run from the repository root with a Railway token for the project.
@@ -18,7 +18,8 @@ cp "$JOB" "$STAGE/job.py"; cp "$PARAMS" "$STAGE/params.json"
 DOCKERFILE="$HERE/Dockerfile"
 for extra in "$@"; do
   cp -r "$extra" "$STAGE/"
-  [ -d "$extra/tools" ] && DOCKERFILE="$HERE/Dockerfile.l2"  # the orc app: its requirements
+  # a service's requirements.txt among the extras (orc for l2_tools, the Governor for governor_check) is installed
+  [ "$(basename "$extra")" = requirements.txt ] && DOCKERFILE="$HERE/Dockerfile.l2"
 done
 cp "$DOCKERFILE" "$STAGE/Dockerfile"
 cleanup() {

@@ -4273,3 +4273,21 @@ was waited out at 14:05 UTC before the database migration).
   second F05 index (rolled back).
 - Tests before the push: Governor 296 passed (real Postgres 16); orc 1,994 passed + 35 (`test_request_data.py` with
   pyarrow), 1 skipped.
+
+## 2026-10-23 — Feature 05/06 stock views onboarded; Governor newest date through a view (EXEC-M204 step 5)
+
+- Commit `d485afd` on `main` (preview list, coverage of the views, Governor login list):
+  - deployments `846e68b9` (market-ai-orc) and `1c25866c` (ai-data-coverage), both SUCCESS;
+  - no variable changed.
+- Jobs on `orc-test-runner` (DATABASE_URL set only for each run, `VAR_REMOVED` printed each time):
+  - migrations: `7c5ff214` DRYRUN and `f2d3bb28` APPLY `20261023_004`; APPLY `20261023_005`;
+  - L2: `51ee9500`;
+  - index measurement: `e4b874a0` and `34e4b79c` (V5, failed on the measuring tool, M207), `0215e99e` (V5 PASS),
+    `e71ce532` (V6 PASS);
+  - Governor level: `b415cd91` (script error), `1ba3c204` (V6 PASS), `be46430e` (V5, before the planner's re-split
+    loop was copied), `68a0778e` (V5 PASS);
+  - read-backs: `1bf14f5c`, `d6dcb95f`, `ddea1f04` / `f59f3cc5` (view sections of DATABASE_SCHEMA).
+- `scripts/onboarding/run_job.sh` now uses `Dockerfile.l2` whenever a `requirements.txt` is staged (orc for L2, the
+  Governor for `governor_check.py`).
+- market-sql-governor `newest_sql` (M207) deploys with the commit that records this entry; its deployment ID and
+  status are in the next entry.

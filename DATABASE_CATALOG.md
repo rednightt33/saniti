@@ -235,3 +235,30 @@ column that holds a formula of `AI_formula_reference` names it in `implementatio
 and in `parameters.formula_reference` with its relation, and market-ai-orc shows it as `stored_in` of that formula. Every
 Indonesian meaning written by this change is `DRAFT`. Earlier statements in this file that Feature 04 has no AI
 allowlist or permission change describe the state before 2026-10-20.
+
+## AI exposure of Feature 05 and Feature 06 through stock views — 2026-10-23 (EXEC-M204 step 5)
+
+Migration `20261023_004` exposes `Feature_05_Foreign_Domestic_Broker_Detail_Stock` and
+`Feature_06_Foreign_Domestic_Stock`. Each view shows its base Feature table for the current IDX stock universe only
+(`IDX_Stock_Universe`, `"Security Type" = 'stock'`, 844 of the 4,125 codes in the base tables). The base tables stay
+hidden from the AI, as the bond base table is.
+
+The views have their own `Table_Catalog` and `Column_Catalog` rows (14 and 86 columns). `calculated_at` is left out.
+
+`AI_column_catalog` summary rules are derived from the base definitions' `Feature_Catalog.allowed_aggregations`:
+- daily flows: SUM over time and across entities;
+- cumulative series: LAST, without a sum across entities;
+- rolling windows, z-scores, percentiles and ratios: no summary rule.
+
+`AI_calculation_catalog` has one row per column. A column that holds a formula of `AI_formula_reference` names it as
+`AI_formula_reference:CALC_nnn` (29 Feature 06 columns).
+
+There are 11 relationships:
+- EXACT_DATE: Feature 05 to Feature 06 (ticker, board, date); each view to stock prices and to Feature 01;
+- CURRENT_STATE: the stock universe to each view; the broker profile to Feature 05;
+- EFFECTIVE_DATED: each view to the universe history; Feature 05 to the broker profile history.
+
+Every Indonesian meaning is left empty (`description_id` NULL; user decision, step 2 item 11 later).
+
+Feature 02 and Feature 03 keep every code; the views' table descriptions say so. Read-back: DATABASE_CHANGELOG.md
+2026-10-23.

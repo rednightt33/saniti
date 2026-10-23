@@ -6709,3 +6709,27 @@ refresh manual (keterbatasan); tanpa metrik resmi baru; 4 pertanyaan L3; arti ko
 F02, F03, F05, F06: 4.125, di dalamnya 844 saham universe). Pilihan user "1 aja": hanya F05/F06 dibuka lewat view khusus
 saham (`IDX_Stock_Universe`, `Security Type = 'stock'`); F02/F03 tetap semua kode, perbedaannya ditulis di deskripsi
 tabel. Menyamakan F02/F03 tidak dikerjakan.
+
+**Hasil langkah 5 (2026-10-23):**
+- Migrasi `20261023_004` (view, katalog AI, preview, Table/Column_Catalog; DRYRUN `7c5ff214`, APPLY `f2d3bb28`) dan
+  `20261023_005` (Tool_Catalog `preview_table_rows` v3).
+- Kode `d485afd`; deploy orc `846e68b9` dan ai-data-coverage `1c25866c` SUCCESS.
+- Dibaca ulang live (job `1bf14f5c`):
+  - kedua objek view; role pembaca bisa membaca view dan ditolak di tabel dasar;
+  - katalog 14 dan 86 kolom, semuanya terlihat dan bersatuan;
+  - 11 relasi;
+  - preview 20 baris.
+- Validasi:
+  - L2 (job `51ee9500`) lulus.
+  - Indeks (`measure_indexes.py`): V5 `0215e99e` dan V6 `e71ce532`, semua pola PASS.
+  - Level Governor (skrip baru `governor_check.py`): baris Governor sama dengan `count(*)`. V6 `1ba3c204`: 238 dan
+    214.471. V5 `68a0778e`: 25.030, dan semua saham 400 hari 6.493.667 baris dalam 20 bagian.
+- Ditemukan dan diperbaiki: M207.
+  - `max()` tanggal lewat view yang join membaca 45 juta baris. Governor `newest_sql`, tes baru.
+  - Alat ukur onboarding tidak menilai view seperti Governor.
+  - Panduan onboarding bagian 3 dan 5 diperbarui.
+- Ditemukan, OPEN, perlu keputusan user: M208. Planner meremehkan baris lewat saringan universe (V5 1,55×), sehingga
+  9 dari 11 bagian dipotong ulang saat ekstraksi (39,4 s dari 85,6 s). Usulan A (Governor mengukur kepadatan nyata
+  satu sub-jendela), B (orc menghitung tiap bagian sebelum ekstraksi), C (kolom saringan di tabel dasar).
+- Belum: L3 berbayar (4 pertanyaan butir 13), menunggu konfirmasi biaya; uji ringkasan G18 dan join (bagian 5
+  panduan) belum dijalankan.
