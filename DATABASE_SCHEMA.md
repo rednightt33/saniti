@@ -2728,6 +2728,11 @@ No description has been recorded.
 
 Current Indonesian listed-security universe, ticker identity, and classifications.
 
+Since 2026-10-23 this universe also contains benchmark index `IHSG` mapped to
+`IDX:COMPOSITE`, classified as `index` and not common stock. Currency and ISIN are
+Not applicable; Sector/Industry and Type Specs are Undefined. The price reader
+uses this mapping directly; the internal ticker fits the existing varchar(4) price key.
+
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |

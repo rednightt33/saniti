@@ -4320,3 +4320,21 @@ was waited out at 14:05 UTC before the database migration).
 - Read-only jobs on `orc-test-runner` (DATABASE_URL set only for each run, `VAR_REMOVED` printed): `5836e9d2` (pgweb
   privileges and data freshness), `2105d567` (lookback_window values), `5857041a`, `b6a79f0d`, `b6c5565c`,
   `cabb5215` (M209 evidence).
+
+
+## 2026-10-23 — One-off IHSG universe enrollment
+
+- Temporary service `ihsg-universe-once-20261023` (`b1d0b8f1-6cce-40a8-b42c-e8b043409bea`)
+  used `oven/bun:1.3.0-alpine`, restart policy NEVER, no cron/domain/volume. It ran
+  the tracked `scripts/enroll_ihsg_universe.ts`; DATABASE_URL was a Postgres reference.
+- Source metadata preflight succeeded; APPLY `91aa4773-37b6-47dc-bc26-ff4230e8ef82`
+  reached SUCCESS/EXITED, inserted one universe row, and was independently read back.
+  The temporary service was deleted after verification; permanent services/config unchanged.
+- Local CLI project-token reads work with the newly supplied token; MCP returned a
+  repeated authentication prompt. Local direct PostgreSQL TCP and TradingView HTTPS
+  were unavailable, so execution used the Railway private database network.
+- The first preflight start passed literal `$JOB_CODE` to Bun; wrapping the start in
+  `sh -c` fixed expansion. A strict IDR preflight check also failed safely because
+  the provider returns null currency for this index; null is now recorded explicitly
+  as Not applicable. Both failures occurred before any database write. No schema,
+  permanent cron, application source or existing service variable was changed.

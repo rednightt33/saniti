@@ -1,0 +1,13 @@
+{
+  "service_id": "b1d0b8f1-6cce-40a8-b42c-e8b043409bea",
+  "deployment_id": "91aa4773-37b6-47dc-bc26-ff4230e8ef82",
+  "status": "SUCCESS",
+  "stopped": true,
+  "instances": [
+    {
+      "id": "06b887ea-b731-4da5-aed2-7bce5beec26d",
+      "status": "EXITED"
+    }
+  ],
+  "volume_mounts": []
+}
