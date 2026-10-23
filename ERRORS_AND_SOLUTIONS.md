@@ -1435,6 +1435,14 @@ change yet.
   - F02 (`scripts/backfill_feature_02_v2.py`): `calendar` = tanggal saham itu punya baris `IDX_Broker_Summary`, broker
     mana pun. Setiap pasangan broker × tipe investor × papan diisi nol, lalu jendela 5/20/60 baris. Kolom
     `stock_trading_days_20d` = 20, sedangkan `active_days_20d` = hari broker itu aktif (MDIA, broker KI: 14 dari 20).
+  - F02 per broker (diverifikasi live, job `b6c5565c`): TOWR, BK, Domestic, Regular, per 2026-08-31.
+    - 5 sesi TOWR = 24, 26, 27, 28, 31 Agustus (25 Agustus libur bursa: 0 kode di `IDX_Broker_Summary`, job
+      `gt6`).
+    - BK aktif hanya 27, 28, 31. `net_value_5d` = −599.823.800 − 1.509.712.600 − 7.514.961.600 = −9.624.498.000.
+      Hari tanpa transaksi BK dihitung nol; tidak ada pencarian mundur ke hari transaksi BK.
+    - Baris F02 hanya ditulis pada hari pasangan broker × tipe investor × papan itu bertransaksi (`JOIN daily` di akhir
+      query). BK Domestic Regular tidak punya baris 2026-08-31 untuk BMRI, AMMN dan EMAS; baris terakhirnya 28
+      Agustus, dengan jendela yang berakhir 28 Agustus.
   - F03 dan F05: tidak ada jendela bergulir (kolom harian).
   - Jadi "20d" = 20 hari saham itu diperdagangkan oleh siapa pun. Bukan 20 hari bursa, dan bukan 20 hari asing
     membeli. Hari tanpa transaksi asing di dalam sesi dihitung nol. Hari yang hanya ada transaksi Nego tetap menjadi
