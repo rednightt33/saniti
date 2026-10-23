@@ -6582,3 +6582,24 @@ only after the user's go. Evidence: ERRORS M204 (both paths, option (d) measured
 **Open question for the user (before step 3/5):** the section 3 rule "a table above 2,000,000 rows without a
 time-leading index FAILS" also fails Feature 04 although its extraction patterns pass through the key's skip scan
 (2026-10-22). Keep the rule (F04 needs a date index for the date split) or relax it to the measured patterns.
+
+**Lanjutan user 2026-10-23 (EXEC-M204):** "Kita akan mengaplikasikan ini di jalur fastlane terkait dengan approve exec
+sebelumnya. ... setiap keputusan yang AI ambil atau penolakan yang terjadi itu adalah karena kegagalan kita untuk
+pertama memberitahu kepada AI melalui sistem prompt bahwa gate atau kondisi tersebut eksis. Kedua adalah kegagalan
+kita untuk memberikan informasi pada gate penolakan." Still not executed.
+
+Scope: the fast lane (desk `FASTLANE`, `tool_desks.py`, offers `query_metric` and the data flow). Every gate steps 1-5
+add or touch ships with AGENTS "Gates and evidence" (a)-(d); found in the code at `85398f6`:
+
+| Gate | Today (code) | Missing | Planned (a) rule before / (b) how to pass / (c) right+wrong example / (d) refusal |
+|---|---|---|---|
+| G-CAL calendar of a table without a fast calendar (new, step 2) | none: runs unchecked (`governor.py` `/v1/summary` calendar before `_explain`) | all four | (a) METRICS note per metric shows the table's date range and whether `query_metric` can serve it, derived from the Governor contract (time-leading index or option (d) source), not a list; (b) ask within the range, or use `submit_data_need_spec`; (c) in `limits_text`; (d) code names the table and cause, `next_action` `CALL:submit_data_need_spec` (narrowing does not help a table-level cause) |
+| Summary scan/cost/row refusals | message "narrow the scope or period"; orc maps every non-policy refusal to `NARROW_ENTITIES_OR_PERIOD` (`metric.py` handler) | (a) not in METRICS note; (c) none; `next_action` wrong when the cause is the table | (a)+(c) in `limits_text`; (d) `next_action` derived from the cause (size: narrow, with the measured numbers; table: data need) |
+| `NO_DATES_IN_PERIOD` | message names table and as_of | (a) date range not shown before; (c) none | covered by G-CAL (a) |
+| Extraction `REJECTED_SCAN_SIZE`, no time-leading index (F05 onboarding) | message names the cause, no fix (`extract.py` partitioning) | (b), (c), (d) fix | (d) say what the model can change (fewer entities per part, a shorter window) or that the table cannot serve it; (a) in the fast-lane data-need rule and `check_data_feasibility` result |
+| Export completeness check (no model reply) | UNCHECKED, file says not checked | user-facing reason | plain line in `user_texts.py` naming the reason |
+
+A test derives the refusal codes the summary and extraction paths can return from the code and fails when one lacks
+its guide entry and `next_action` (the class, not this instance). Prompt or schema text changes: snapshot
+(`scripts/snapshot_system_prompt.py`), `AI_TOOLS.md` regenerated; fast-lane live check of one metric question on a
+table with and without a fast calendar.
