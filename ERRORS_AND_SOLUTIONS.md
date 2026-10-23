@@ -1428,6 +1428,24 @@ change yet.
   - 9 saham tanpa baris pada 31 Agustus muncul di hasil AI, padahal kolom tersimpan tidak punya nilai untuk hari itu
     (contoh DOOH Rp 5,41 miliar);
   - 10 teratas sama, jadi jawaban L3 kebetulan benar.
+- **Definisi jendela (dibaca dari kode 2026-10-23, atas permintaan user):**
+  - F06 (`refresh_feature_06`, migrasi `20261022_003`/`005`): `sessions` = tanggal saham itu punya baris F05 di papan
+    mana pun, asing atau domestik. Setiap papan diisi nol pada sesi tanpa transaksi, lalu
+    `ROWS BETWEEN 19 PRECEDING AND CURRENT ROW` atas nomor sesi.
+  - F02 (`scripts/backfill_feature_02_v2.py`): `calendar` = tanggal saham itu punya baris `IDX_Broker_Summary`, broker
+    mana pun. Setiap pasangan broker × tipe investor × papan diisi nol, lalu jendela 5/20/60 baris. Kolom
+    `stock_trading_days_20d` = 20, sedangkan `active_days_20d` = hari broker itu aktif (MDIA, broker KI: 14 dari 20).
+  - F03 dan F05: tidak ada jendela bergulir (kolom harian).
+  - Jadi "20d" = 20 hari saham itu diperdagangkan oleh siapa pun. Bukan 20 hari bursa, dan bukan 20 hari asing
+    membeli. Hari tanpa transaksi asing di dalam sesi dihitung nol. Hari yang hanya ada transaksi Nego tetap menjadi
+    sesi untuk papan Regular (bernilai nol).
+- **Rentang kalender jendela 20 sesi (job `b6a79f0d`, 844 saham universe per baris terakhir s.d. 2026-08-31):**
+  - 812 saham dalam ≤ 31 hari kalender;
+  - 28 saham dalam 32–90 hari;
+  - 4 saham lebih dari 90 hari: TGUK 2025-11-24 s.d. 2026-08-31 (280 hari), BIKE 144, BLTZ 118, BSWD 101;
+  - 6 saham baris terakhirnya sebelum 2026-08-31.
+  - MDIA: 20 sesi 2026-07-30 s.d. 2026-08-31; hitung ulang dari F05 = Rp 45.572.651.600 = kolom tersimpan. Cara AI
+    (20 tanggal pasar 07-31 s.d. 08-31) melewatkan sesi 30 Juli, jadi hasilnya Rp 24,67 miliar.
 - **Class:** setiap kolom tersimpan berjendela tetap atau turunan (net 5/10/20/40/60 hari, z-score, persentil, rasio
   bergulir di F06; jenis serupa di data baru) yang tidak termasuk kata "indicator or candle pattern".
 - **Solution proposals (belum dibangun, perlu keputusan user):**

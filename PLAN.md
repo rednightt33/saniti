@@ -805,3 +805,18 @@ insight-v2, judul, facts/memori, pending plan, fingerprints, quick choices dan a
 
 User belum memerintahkan eksekusi kode atau deployment untuk item ini. Implementation agent brief siap
 pada dokumen tersebut; uji A/B berbayar, default baru atau perubahan live menunggu perintah eksekusi.
+
+## M209 — kolom tersimpan berjendela tetap dibaca, tidak dihitung ulang (disetujui 2026-10-23, belum ada execution plan)
+
+User 2026-10-23: "Oke untuk opsi 1 dan 2." Disetujui:
+- (1) katalog COLUMNS menampilkan sumber dan jendela setiap kolom `STORED_VARIANT`, diturunkan dari
+  `AI_calculation_catalog`;
+- (2) kalimat prompt tersimpan dibuat umum, dengan contoh benar dan salah.
+
+Opsi 3 (uji ulang berbayar) belum diputuskan. Eksekusi menunggu execution plan dan "go". User juga meminta penelusuran
+cara jendela F02, F03, F05 dan F06 dihitung (ERRORS M209). Hasilnya menentukan isi keterangan opsi 1.
+
+Hasil penelusuran (ERRORS M209, job `b6a79f0d`): jendela F02/F06 = N sesi milik saham itu (hari saham diperdagangkan
+siapa pun). Untuk 32 dari 844 saham, 20 sesi lebih panjang dari sebulan kalender (TGUK 280 hari). Keterangan opsi 1
+harus menyebut definisi sesi ini, dan jawaban harus menyebut rentang tanggal jendela bila lebih panjang dari yang user
+sebut.
