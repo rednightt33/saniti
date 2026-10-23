@@ -6603,3 +6603,13 @@ A test derives the refusal codes the summary and extraction paths can return fro
 its guide entry and `next_action` (the class, not this instance). Prompt or schema text changes: snapshot
 (`scripts/snapshot_system_prompt.py`), `AI_TOOLS.md` regenerated; fast-lane live check of one metric question on a
 table with and without a fast calendar.
+
+**Lanjutan user 2026-10-23 (EXEC-M204 step 4, Feature 05):** "Kenapa tidak kita lakukan uji terlebih dahulu untuk
+feature 5 dengan indexing dan tanpa indexing, and we'll see which one is faster." Planned as an A/B measurement before
+the open question is decided; runs only after the user's go. Method: `scripts/onboarding/run_job.sh` with
+`migration_job.py` DRYRUN (one transaction: measure without, `CREATE INDEX (trade_date)`, measure with, ROLLBACK;
+nothing kept; F05 has no automatic writer, so the lock blocks nothing). Each pattern runs twice, the warm run counts;
+the planner's own choice is measured (what the Governor gets). Patterns: one ticker 365 days; every ticker on one date;
+every ticker 7 days; every ticker 1 month, foreign investors (the question type F05 is for); one broker every ticker
+6 months; every ticker 365 days (EXPLAIN only: refused or split by date); the calendar. Recorded: time, Governor
+verdict (approve / split / refuse), index size, build time.
