@@ -368,3 +368,13 @@ Prediction timestamp and target horizon are undefined; historic source availabil
 corporate-action vintages, and survivor coverage are incomplete. No labels or model
 training are produced. Peer scaling, collinearity (SMA20/BB middle), missing-value treatment,
 walk-forward splits and target design remain future training decisions.
+
+
+### OHLC-only universe indices (2026-10-23)
+
+An IDX universe entry with Security Type index may have no source volume. Its
+OHLC remains eligible for these price-only indicators; the live universe provides
+the TradingView mapping (for example IHSG to IDX:COMPOSITE), and missing volume
+stays NULL. Ordinary stocks still require nonnegative volume. Index price levels
+are points; absolute-price indicators use the source price unit. This eligibility
+change does not alter any formula, seed or existing stock/bond checkpoint version.

@@ -89,3 +89,30 @@ def test_candlestick_flags_do_not_depend_on_an_unrelated_old_prefix():
     for left, right in zip(actual, expected):
         for column in (value for value in FEATURE_COLUMNS if value.startswith("cdl_")):
             assert left[column] == right[column]
+
+
+def test_index_without_volume_matches_observed_zero_price_only_reference():
+    source = bars(260, ticker="IHSG")
+    for row in source:
+        row.update(security_type="index", universe_tradingview_symbol="IDX:COMPOSITE",
+                   tradingview_symbol="IDX:COMPOSITE", volume=None)
+    reference = [dict(row, volume=0) for row in source]
+    expected = calculate(reference, calculated_at=STAMP)
+    actual = calculate(source, calculated_at=STAMP)
+    assert_feature_rows_equal(actual, expected)
+    checkpoint = checkpoint_before(source, 255)
+    suffix, outcomes, _, _ = calculate_incremental(source[255:], checkpoint=checkpoint, calculated_at=STAMP)
+    assert all(value["status"] == "SUCCESS" for value in outcomes.values())
+    assert_feature_rows_equal(suffix, expected[255:])
+    assert all(row["volume"] is None for row in source)
+
+
+def test_equity_missing_volume_still_invalid_and_index_mapping_required():
+    source = bars(40)
+    for row in source:
+        row["volume"] = None
+    assert all(row["sma_20"] is None for row in calculate(source))
+    for row in source:
+        row.update(security_type="index", tradingview_symbol="IDX:COMPOSITE")
+    with pytest.raises(ValueError, match="universe mapping"):
+        calculate(source)

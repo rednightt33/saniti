@@ -1,0 +1,14 @@
+{
+  "database/migrations/20261023_007_idx_index_optional_volume.sql": "0360513b65a3a0846247bd9e233d00876a99856cb934f1255965c1253de455b9",
+  "scripts/backfill_idx_price_ticker.py": "a3a78e1c4a1afa80b8c78350ed7afeb4d665e237a19e90c33adb8f36efc1326b",
+  "scripts/audit_feature_catalog_semantics.py": "9f5b56e77bd63d21209fa73608f25d926197c77f6163ba337abd4710eea51fb9",
+  "apps/idx-price-cron/price_update.py": "7d453dde7c4d8b508be5504f0838fb8ada2cca35d2bb62e4b8b7af90424729b4",
+  "apps/feature-04-worker/worker.py": "dd80c7ce0d1906e981029d66ff85ef5132c95fbee5809993f00f1e50c741a189",
+  "apps/feature-04-worker/bootstrap_states.py": "9f7f34f7f81ed0264c35b5a9d0b5a4ad4497f666071fe40db7685ede53ecde05",
+  "features/feature04/backfill.py": "ae5f51038161cf546b749656168f8cf8baa852fb5a7ec95a7cfbdc4825d5a1d4",
+  "features/feature04/pipeline.py": "f1e37871c629e3743c83e403045473358f4ecfd615014446387ea0dade38c8cd",
+  "features/feature04/engine.py": "a16a8934e79889ac660a1204cf59bca9e2dcb635dd6758f32399babc9093f50e",
+  "features/feature04/swing.py": "b7d2b9fb3cb4c562fef5d764113dc62a97c4476beccf03dec728f0e124250b7d",
+  "features/feature04/incremental.py": "622b45c5fe4098b5642bf2878022150b5fb225e13c98c7245fc56ab4bc2e2481",
+  "features/feature04/specs.py": "1564adc11b80336a6a1ab647d523a83eb70e772e4a0801a758154078b791597c"
+}

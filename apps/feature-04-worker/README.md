@@ -74,3 +74,11 @@ Required Railway variables:
 - `DATABASE_URL=${{Postgres.DATABASE_URL}}`
 - `TELEGRAM_NOTIFY_URL=http://${{telegram-monitor.RAILWAY_PRIVATE_DOMAIN}}:8080/notify`
 - `TELEGRAM_NOTIFY_SECRET=${{telegram-monitor.TELEGRAM_NOTIFY_SECRET}}`
+
+
+Universe indices without source volume retain NULL volume. Source readers carry
+Security Type and TradingView Symbol from IDX_Stock_Universe into the engine so
+index OHLC and an aliased provider symbol remain valid. Index identity still
+belongs to the universe-derived equity source group. Bootstrap a new instrument's
+history/checkpoints before normal five-session suffix refresh; no existing ticker
+history is replayed by this compatibility change.

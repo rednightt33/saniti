@@ -1696,7 +1696,7 @@ Daily per-ticker price, return, volatility, volume, and drawdown features.
 | `date` | `date` | No | — | Trading date of the source candle represented by the feature row. |
 | `ticker` | `text` | No | — | Exact IDX ticker identifying the security represented by the feature row. |
 | `close` | `numeric` | No | — | Closing price for the ticker on the trading date. |
-| `volume` | `numeric` | No | — | Trading volume reported for the ticker on the trading date. |
+| `volume` | `numeric` | Yes | — | Source volume; NULL only for a universe-classified index without volume. Stocks require nonnegative volume. |
 | `sector` | `text` | No | — | Current Sector classification for the ticker; it is not point-in-time historical classification. |
 | `industry` | `text` | No | — | Current Industry classification for the ticker; it is not point-in-time historical classification. |
 | `close_1d_ago` | `numeric` | Yes | — | Closing price one prior valid trading observation earlier for the same ticker. |
@@ -3069,7 +3069,7 @@ Final daily Indonesian stock OHLCV candles sourced from TradingView.
 | `high` | `numeric` | No | — | Highest price. |
 | `low` | `numeric` | No | — | Lowest price. |
 | `close` | `numeric` | No | — | Closing price. |
-| `volume` | `numeric` | No | — | Trading volume reported by the source. |
+| `volume` | `numeric` | Yes | — | Source volume; NULL only for a universe-classified index without volume. Stocks require nonnegative volume. |
 | `source` | `character varying` | No | — | Price data source. |
 | `query_date` | `date` | No | — | Date the source data was queried. |
 | `timeframe` | `character varying` | No | — | Price-series interval. |

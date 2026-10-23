@@ -131,7 +131,7 @@ def _valid(row) -> bool:
         if not (all(isfinite(x) and x >= 0 for x in (o, h, l, c))
                 and l <= o <= h and l <= c <= h):
             return False
-        if row['asset_type'] == 'bonds':
+        if row['asset_type'] == 'bonds' or row.get('security_type') == 'index':
             return row.get('volume') is None or (
                 isfinite(float(row['volume'])) and float(row['volume']) >= 0
             )
@@ -189,8 +189,9 @@ def calculate_with_diagnostics(
         if day.isoweekday() > 5:
             raise ValueError('Weekend source bar is unsupported')
         symbol = r.get('tradingview_symbol')
-        if asset_type == 'equity' and symbol != 'IDX:' + ticker:
-            raise ValueError('Equity source ticker/exchange mapping differs from IDX:ticker')
+        expected_symbol = r.get('universe_tradingview_symbol') if r.get('security_type') == 'index' else 'IDX:' + ticker
+        if asset_type == 'equity' and (not expected_symbol or symbol != expected_symbol):
+            raise ValueError('Equity source symbol differs from its approved universe mapping')
         if asset_type == 'bonds' and (not isinstance(symbol, str) or not symbol.strip()):
             raise ValueError('Bond source requires a nonempty TradingView symbol')
         key = (asset_type, ticker, day, r['timeframe'])

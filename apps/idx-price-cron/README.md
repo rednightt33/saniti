@@ -21,6 +21,11 @@ Railway evaluates cron schedules in UTC.
 
 ## Candle-date and duplicate safety
 
+Universe entries classified as `index` may publish OHLC without volume. Those
+bars retain SQL NULL volume; stocks still require a nonnegative source volume.
+Index requests use no split adjustment, and the TradingView symbol is taken
+from the universe mapping (for example IHSG → IDX:COMPOSITE).
+
 - The target date is the latest session whose configured IDX close plus finality delay has
   passed. A TradingView row is accepted only when its candle timestamp resolves to that exact
   target date in Asia/Jakarta.

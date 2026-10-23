@@ -277,6 +277,8 @@ def as_decimal(value: object, field: str) -> Decimal:
 
 def validate_price_row(row: dict) -> dict:
     for field in ("open", "high", "low", "close", "volume"):
+        if field == "volume" and row.get("security_type") == "index" and row[field] is None:
+            continue
         row[field] = as_decimal(row[field], field)
     if not row["low"] <= row["open"] <= row["high"]:
         raise ValueError("OHLC validation failed for open")
@@ -306,7 +308,7 @@ def request_symbol(
     definition = "=" + json.dumps(
         {
             "symbol": symbol.tradingview_symbol,
-            "adjustment": "splits",
+            "adjustment": "none" if symbol.asset_type == "index" else "splits",
             "session": "regular",
         },
         separators=(",", ":"),
@@ -338,7 +340,7 @@ def request_symbol(
                 series = params[1].get(series_id, {})
                 for point in series.get("s", []):
                     values = point.get("v", [])
-                    if len(values) < 6 or not isinstance(values[0], (int, float)):
+                    if len(values) < (5 if symbol.asset_type == "index" else 6) or not isinstance(values[0], (int, float)):
                         continue
                     timestamp = int(values[0])
                     local_date = datetime.fromtimestamp(
@@ -353,7 +355,8 @@ def request_symbol(
                         "high": values[2],
                         "low": values[3],
                         "close": values[4],
-                        "volume": values[5],
+                        "volume": values[5] if len(values) > 5 else None,
+                        "security_type": symbol.asset_type,
                         "source": "TradingView",
                         "query_date": query_date,
                         "timeframe": PRICE_TIMEFRAME,

@@ -7,6 +7,9 @@ from zoneinfo import ZoneInfo
 
 from price_update import (
     FetchOutcome,
+    validate_price_row,
+    request_symbol,
+    frame,
     MarketSchedule,
     Symbol,
     bulk_upsert_prices,
@@ -219,6 +222,31 @@ class PriceUpdateTests(unittest.TestCase):
             resolve_mode("auto", datetime(2026, 9, 7, 17, tzinfo=JAKARTA)),
             "daily",
         )
+
+    def test_index_ohlc_without_volume_and_stock_volume_requirement(self):
+        row = dict(open=100, high=110, low=90, close=105, volume=None, security_type="index")
+        self.assertIsNone(validate_price_row(row)["volume"])
+        with self.assertRaises(ValueError):
+            validate_price_row(dict(row, security_type="stock"))
+        with self.assertRaises(ValueError):
+            validate_price_row(dict(row, volume=-1))
+
+    def test_index_wire_ohlc_is_kept_and_uses_no_split_adjustment(self):
+        class Socket:
+            sent = []
+            def send(self, message): self.sent.append(message)
+            def settimeout(self, value): pass
+            def recv(self):
+                return frame("timescale_update", ["cs_test", {"s1": {"s": [{"v": [1792720800, 100, 110, 90, 105]}]}}]) + frame("series_completed", ["cs_test", "s1"])
+        ws = Socket()
+        index = Symbol(1, "Index", "IHSG", "IDX:COMPOSITE", "IDX", "index")
+        rows = request_symbol(ws, "cs_test", index, 7, 5, date(2026, 10, 23))
+        self.assertEqual(len(rows), 1)
+        self.assertIsNone(rows[0]["volume"])
+        self.assertEqual(rows[0]["security_type"], "index")
+        self.assertIn('none', ws.sent[0])
+        stock_rows = request_symbol(Socket(), "cs_test", symbol(1, "TEST"), 7, 5, date(2026, 10, 23))
+        self.assertEqual(stock_rows, [])
 
     def test_target_candle_never_falls_back_to_prior_date(self):
         rows = [

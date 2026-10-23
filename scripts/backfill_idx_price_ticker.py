@@ -89,10 +89,11 @@ def main():
         missing=sorted(baseline-dates);extra=sorted(dates-baseline)
         fingerprint=hashlib.sha256(json.dumps([[str(r[k]) for k in ['date','open','high','low','close','volume','source_bar_time']] for r in selected],separators=(',',':')).encode()).hexdigest()
         emit('history_preflight',ticker=ticker,provider=symbol.tradingview_symbol,requested_from=start,requested_to=end,provider_bars=len(fetched),selected_rows=len(selected),first=min(dates) if dates else None,last=max(dates) if dates else None,bbca_dates=len(baseline),missing_vs_bbca=missing,extra_vs_bbca=extra,zero_volume_rows=sum(r['volume']==0 for r in selected),missing_volume_rows=sum(r['volume'] is None for r in selected),fingerprint=fingerprint,first_candle=selected[0] if selected else None,last_candle=selected[-1] if selected else None)
-        if missing or extra:raise ValueError('Provider and BBCA date sets differ; no write performed')
+        allowed_extra={date.fromisoformat(d) for d in json.loads(os.environ.get('ACCEPTED_EXTRA_DATES','[]'))}
+        if missing or set(extra)!=allowed_extra:raise ValueError('Provider date sets differ from the accepted comparison; no write performed')
         if os.environ.get('ACTION','preflight')!='apply':
             emit('preflight_only',database_changes=0);return
-        if any(r['volume'] is None for r in selected):raise ValueError('Source volume absent; current table requires volume. Apply blocked pending an approved missing-volume policy')
+        if any(r['volume'] is None for r in selected) and symbol.asset_type!='index':raise ValueError('Missing source volume is permitted only for a universe-classified index')
         if os.environ.get('EXPECTED_FINGERPRINT')!=fingerprint:raise ValueError('Source fingerprint differs from approved preflight; no write performed')
         finalized=datetime.now(timezone.utc)
         for row in selected:

@@ -48,14 +48,17 @@ def refresh(connection, tickers: list[str], start: date, end: date, *, write=Fal
     history = connection.execute('''
              SELECT p.ticker,p.date,p.open,p.high,p.low,p.close,p.volume,p.timeframe,
                     p.tradingview_symbol,p.source,p.query_date,p.ingestion_time,
-                    'equity'::text AS asset_type
+                    'equity'::text AS asset_type,
+               u."Security Type" AS security_type,u."TradingView Symbol" AS universe_tradingview_symbol
              FROM public."Price_Stock_Indonesia_IDX" p
+        JOIN public."IDX_Stock_Universe" u ON u."Ticker"=p.ticker
              WHERE p.ticker=ANY(%s) AND p.date<=%s
                AND EXISTS(SELECT 1 FROM public."IDX_Stock_Universe" u WHERE u."Ticker"=p.ticker)
              UNION ALL
              SELECT p.ticker,p.date,p.open,p.high,p.low,p.close,p.volume,'Daily'::text,
                     p.tradingview_symbol,p.source,p.query_date,p.ingestion_time,
-                    'bonds'::text AS asset_type
+                    'bonds'::text AS asset_type,
+               NULL::text AS security_type,NULL::text AS universe_tradingview_symbol
              FROM public."Price_Fixed_Income" p
              WHERE p.ticker=ANY(%s) AND p.date<=%s AND p.metric_type='price' AND p."Timeframe"='1D'
                AND p.is_final

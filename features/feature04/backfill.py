@@ -18,8 +18,10 @@ from psycopg.rows import dict_row
 from engine import COLUMNS, TABLE, VERSION, calculate
 
 SOURCE_QUERY='''SELECT p.ticker,p.date,p.open,p.high,p.low,p.close,p.volume,p.timeframe,
- p.tradingview_symbol,p.source,p.query_date,p.ingestion_time,'equity'::text AS asset_type
+ p.tradingview_symbol,p.source,p.query_date,p.ingestion_time,'equity'::text AS asset_type,
+ u."Security Type" AS security_type,u."TradingView Symbol" AS universe_tradingview_symbol
  FROM public."Price_Stock_Indonesia_IDX" p
+ JOIN public."IDX_Stock_Universe" u ON u."Ticker"=p.ticker
  WHERE p.ticker=%s AND EXISTS(
    SELECT 1 FROM public."IDX_Stock_Universe" u WHERE u."Ticker"=p.ticker
  ) ORDER BY p.date'''

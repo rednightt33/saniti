@@ -2242,3 +2242,23 @@ User: "yang mau saya ingest adalah IHSG/ COMPOSITE Bisa mulai dulu dari table ID
   insert committed at 2026-10-23 21:44:34 WIB; independent readback confirmed one
   universe row, one current history version and zero IHSG price rows. Evidence:
   `verification/ihsg_universe/`. Existing universe-driven price runs will include IHSG.
+
+
+## 2026-10-23 — IHSG OHLC history and optional index source volume
+
+User: "Ok, masukan saja ke price ya." following the NULL-volume compatibility
+proposal. Forward migration 20261023_007_idx_index_optional_volume.sql permits
+absent volume in the IDX price table and Feature 01 only for universe-classified
+indices, with a database trigger retaining the stock-volume requirement.
+Feature 01's existing count(volume) window formulas naturally keep volume
+features NULL while price/return fields remain available. Feature04 accepts
+OHLC-only indices using universe metadata and the approved provider mapping;
+formulas/seeds and existing checkpoint versions are unchanged.
+
+The daily parser accepts five-value index points (timestamp plus OHLC), requests
+no split adjustment for indices, and continues requiring stock volume. No ticker
+list is hardcoded. Source price-unit catalog entries cover index points as well as
+stock IDR levels. Script: scripts/backfill_idx_price_ticker.py; explicit two-date
+provider-calendar acceptance is a job parameter, not a global calendar change.
+
+Execution/verification evidence is recorded in verification/ihsg_price_history/APPLY.md.
