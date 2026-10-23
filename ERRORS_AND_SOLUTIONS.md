@@ -1401,7 +1401,9 @@ change yet.
     V5), supaya bagian yang terlalu besar dipotong sebelum barisnya dibaca.
   - C (model data, khusus view ini): simpan saringan sebagai kolom tabel dasar agar statistik planner melihatnya. Tidak
     umum.
-- **Status:** OPEN; user memilih A 2026-10-23 ("Ok A dan L3"); rencana di EXEC.md EXEC-M208-L3, belum dijalankan.
+- **Status:** OPEN, diterima. User memilih A 2026-10-23, lalu men-drop-nya sesudah langkah 0 mengukur jalur dev
+  ("Oke, untuk opsi A bisa kita drop"): data benar, rencana selesai dalam ±17 s untuk 400 hari semua saham
+  (job `83854869`). Sisa pemborosan dari baris per hari yang tidak rata tidak ditangani.
 - **Lesson:** hitungan berbatas hanya berarti "paling sedikit"; potongan yang diukur dari perkiraan planner harus diuji
   dengan kepadatan baris nyata, terutama lewat view atau semi-join.
 

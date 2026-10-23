@@ -6891,3 +6891,6 @@ dengan keadaan sekarang (suite `onboard_l3_20261023a`).
 - Sisa pemborosan berasal dari baris per hari yang tidak rata, karena potongan dibuat dengan jumlah hari yang sama.
   A tidak menutup itu.
 - Menunggu keputusan user: tetap bangun A, atau ganti dengan pemotongan menurut jumlah baris.
+
+**Keputusan user 2026-10-23 (opsi A):** "Oke, untuk opsi A bisa kita drop." Opsi A tidak dibangun; langkah 1–2
+EXEC-M208-L3 tidak dijalankan. `planner_check.py` dan `governor_check.py` tetap dipakai untuk onboarding.
