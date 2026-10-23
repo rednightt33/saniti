@@ -6645,3 +6645,9 @@ batas 10.000.000 baris / 256 MiB per bundle dan per sesi, `sessions.py` 916).
 
 **Keputusan user 2026-10-23:** "Oke, parsioning kita drop." Usulan 7 dan 8 dijelaskan implementasinya (tanpa tabel
 baru), menunggu keputusan.
+
+**Koreksi user 2026-10-23:** "membuang partitioning adalah bukan partitioning yang existing sekarang di database ya,
+tapi adalah optional advice yang tadi kamu suggest ... Metode partitioning tetap existing di database, tidak kita
+rubah-rubah." Yang dibatalkan hanya usulan membagi F02/F05 per tahun. Partisi yang ada tetap (dibaca live:
+`IDX_Net_Foreign_Summary` dan `IDX_Broker_Summary_Freq`, `RANGE (trade_date)`, 12 partisi masing-masing; keduanya belum
+ada di `AI_table_catalog`), begitu juga pemotongan query oleh Governor (`extract.py` partitioning).
