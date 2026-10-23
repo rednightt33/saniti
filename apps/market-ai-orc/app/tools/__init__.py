@@ -87,6 +87,7 @@ def build_default_registry(
         ))
         if preview_enabled:
             registry.register(preview_spec(catalog_reader, timeout_seconds=catalog_timeout_seconds))
+        registry.windowed_columns = _windowed_columns(catalog_reader)  # EXEC-M209 step 3
     if governor_client is not None:
         # Model-written data requests are a rollback path only: the approved spec is compiled by the backend.
         if request_data_enabled:
@@ -302,6 +303,26 @@ def _column_meanings(catalog_reader: CatalogReader | None):
             found.setdefault(row["column_name"], {"meaning": meaning, "unit": row.get("unit")})
         return found
     return meanings
+
+
+def _windowed_columns(catalog_reader: CatalogReader):
+    """EXEC-M209 step 3: whether any of the (table, column) pairs a run's data need asked for is a stored Feature
+    column with a window of several observations (catalog.is_windowed). A failed read answers False: the note it
+    feeds never blocks or changes a run."""
+    from .catalog import WINDOWED_COLUMNS_SQL, is_windowed
+
+    def windowed(pairs: list[tuple[str, str]]) -> bool:
+        if not pairs:
+            return False
+        try:
+            with catalog_reader.read_only() as run:
+                rows = run(WINDOWED_COLUMNS_SQL, (sorted({t for t, _ in pairs}), sorted({c for _, c in pairs})))
+        except Exception:  # noqa: BLE001 - the note is optional
+            return False
+        wanted = set(pairs)
+        return any((r["target_table"], r["column_name"]) in wanted and is_windowed(r.get("lookback_window"))
+                   for r in rows)
+    return windowed
 
 
 def _export_tables(catalog_reader: CatalogReader | None):

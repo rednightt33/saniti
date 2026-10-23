@@ -3253,6 +3253,7 @@ class AgentOrchestrator:
             if state.sandbox_busy and state.pause is None and final.response_type == "LIMITATION":
                 final = self._paused(state, final, "SANDBOX_BUSY")  # EXEC-W A5: continue later, data kept
             final = self._with_ai_choices(state, final)
+            final = self._with_window_basis(state, final)
             final = self._conversation_correction(state, final)
             state.plan_meta["memory_decisions"] = self._memory_decisions(state, final)
             state.experiments = self._research_summary(state, final.answer)
@@ -4833,6 +4834,24 @@ class AgentOrchestrator:
                 else:
                     self._reject_final(state, raw, issue)
         return self._exhausted(state, "MAX_ITERATIONS")
+
+    def _with_window_basis(self, state: RunState, final: FinalResponse) -> FinalResponse:
+        """EXEC-M209 step 3 (user 2026-10-23: "langsung aja dikeluarkan itu assumption tanpa perlu otomasi dari AI"):
+        when a data need of this run asked for a stored Feature column with a window of several observations, the
+        system adds that such windows count the stock's own trading days. Added after the run's loop, so no answer
+        gate reads it and it can never cause a rejection; the model does not write it."""
+        if final.response_type == "CLARIFICATION":
+            return final
+        check = getattr(self.registry, "windowed_columns", None)
+        if not callable(check) or texts.WINDOW_BASIS_LINE in final.assumptions:
+            return final
+        pairs = [(str(r.get("source_table")), str(c)) for need in state.data_record.get("needs") or []
+                 if need.get("request_id") == state.request_id
+                 for r in need.get("requests") or [] if r.get("source_table") for c in r.get("columns") or []]
+        if not check(pairs):
+            return final
+        log_event("window_basis_note", request_id=state.request_id, columns=len(pairs))
+        return final.model_copy(update={"assumptions": [*final.assumptions, texts.WINDOW_BASIS_LINE]})
 
     @staticmethod
     def _with_ai_choices(state: RunState, final: FinalResponse) -> FinalResponse:

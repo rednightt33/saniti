@@ -6984,3 +6984,11 @@ Eksekusi menunggu "go".
 
 **Keputusan user 2026-10-23 (EXEC-M209):** "Oke, untuk nomor 3." Desain langkah 3 (baris asumsi sistem sesudah gerbang)
 disetujui. Eksekusi langkah 1–4 dan biaya uji live langkah 5 masih menunggu "go".
+
+**GO user 2026-10-23 (EXEC-M209 nomor 3, M210):** "Oke, jalankan exec M209 nomor 3 dan M210."
+- M210 sudah selesai sebelumnya (aturan manual, commit `588c660`).
+- Nomor 3 dijalankan tanpa langkah 1. Pemicu diturunkan dari katalog yang sudah ada: kolom aktif di
+  `AI_calculation_catalog` yang `parameters.lookback_window`-nya memuat angka ≥ 2. Semua nilai live (job `2105d567`)
+  adalah hitungan observasi per saham: sessions, ticker transaction dates, trading observations, valid bars.
+- Membaca teks ini **TEMPORARY**, sampai `window_basis` terstruktur (langkah 1). Tidak tertutup: jendela tanpa angka
+  di teksnya, mis. kumulatif "all sessions" dan "Full available ordered ticker history".

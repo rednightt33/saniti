@@ -190,6 +190,24 @@ FROM public."AI_table_catalog" t
 WHERE t.table_name = ANY(%s)
 '''
 
+# EXEC-M209 step 3 (user 2026-10-23): the lookback of the stored Feature columns a run's data need asked for. TEMPORARY:
+# the window is read from the free-text parameters.lookback_window until a structured window_basis exists (EXEC-M209
+# step 1); every live value counts the stock's own observations (sessions, ticker transaction dates, trading
+# observations, valid bars; job 2105d567), none counts exchange or calendar days.
+WINDOWED_COLUMNS_SQL = '''
+SELECT k.target_table, col AS column_name, k.parameters ->> 'lookback_window' AS lookback_window
+FROM public."AI_calculation_catalog" AS k, unnest(k.target_columns) AS col
+WHERE k.status = 'ACTIVE' AND k.target_table = ANY(%s) AND col = ANY(%s)
+  AND k.parameters ->> 'lookback_window' IS NOT NULL
+'''
+
+
+def is_windowed(lookback: str | None) -> bool:
+    """A lookback naming more than one observation ("20 sessions", "5 ticker transaction dates", "14 valid OHLCV bars;
+    lookback=13"); "1 source date", "Current trading observation" and text without a number are not."""
+    return any(int(n) >= 2 for n in re.findall(r"\d+", lookback or ""))
+
+
 EXPORT_COLUMNS_SQL = '''
 SELECT c.table_name, c.column_name, c.description, to_jsonb(c) ->> 'description_id' AS description_id, c.unit,
        c.group_by_allowed

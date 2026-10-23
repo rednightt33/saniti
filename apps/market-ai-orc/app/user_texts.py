@@ -275,6 +275,10 @@ EARLIER_FIGURES_LINE = "Angka dari {name} dihitung di pesan sebelumnya dan tidak
 EARLIER_COVERAGE_LINE = ("Kelengkapan datanya dicek saat angka itu dihitung; perhitungannya tidak dihitung ulang "
                          "secara terpisah oleh sistem.")
 EARLIER_RESULT = "hasil sebelumnya"
+# EXEC-M209 step 3 (user 2026-10-23): a stored Feature column with a window counts the stock's own trading days
+WINDOW_BASIS_LINE = ("Angka yang dihitung atas beberapa hari (misalnya 5, 20 atau 60 hari) memakai hari saham itu "
+                     "diperdagangkan, bukan hari bursa; untuk saham yang jarang diperdagangkan, rentangnya bisa lebih "
+                     "dari sebulan.")
 IN_SAMPLE_LINE = ("Sebagian temuan diuji pada data yang sudah dibaca di langkah sebelumnya dalam percakapan ini "
                   "({detail}). Pola yang ditemukan dan diuji di periode yang sama cenderung terlihat lebih kuat dari "
                   "sebenarnya; anggap temuan ini awal dan cek ulang di periode atau saham lain.")
