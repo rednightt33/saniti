@@ -7183,3 +7183,13 @@ Release the already-tested price parser and runtime compatibility patch to main,
 volume and normal stocks/bonds. Feature3 aggregate HHI NULL; Feature4 sample asset_type=index.
 Any new automatic index Feature4 calculation must remain gated until sample approval so release cannot
 silently expand the one-date output scope. Record normal worker/cron deployments and live readback.
+
+### IHSG one-date Feature03/05/06 upsert — approved 2026-10-24
+
+User: "Tidak bulk dulu. Please insert 1 tanggal IHSG ke table feature 3,5, 6 berdasarkan formula
+yang akan digunakan untuk bulk upsert nanti." Only IHSG 2026-08-31, preserving Regular/Nego/Tunai.
+Use raw daily aggregation and canonical historical context; stage calculations and validate independently
+before atomic upsert. Do not write Feature02/04, alter schemas, deploy worker/Telegram changes or bulk-load.
+`upsert_index_broker_feature_sample.py` exposes the shared prepare/upsert formulas for a future approved
+bulk driver. HHI NULL by policy; incomplete frequency-dependent windows remain NULL. Existing broader
+unreleased files are unrelated to this narrowed execution and must not be included in its release.
