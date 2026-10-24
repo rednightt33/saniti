@@ -1,0 +1,16 @@
+{
+  "inspection_date_wib": "2026-10-24",
+  "git_commit_inspected": "5a6272ffd9ce910835052ea701c0b768dc0213b3",
+  "columns": {
+    "2": 38,
+    "3": 24,
+    "4": 57,
+    "5": 15,
+    "6": 87
+  },
+  "total": 221,
+  "method": "Source inspection only; schema declarations + per-column SQL/Python formulas; no application calculations executed, no fresh live DB query (temporary read-only helper absent).",
+  "database_mutated": false,
+  "runtime_code_changed": false,
+  "new_tests_run": false
+}

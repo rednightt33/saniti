@@ -820,3 +820,25 @@ Hasil penelusuran (ERRORS M209, job `b6a79f0d`): jendela F02/F06 = N sesi milik 
 siapa pun). Untuk 32 dari 844 saham, 20 sesi lebih panjang dari sebulan kalender (TGUK 280 hari). Keterangan opsi 1
 harus menyebut definisi sesi ini, dan jawaban harus menyebut rentang tanggal jendela bila lebih panjang dari yang user
 sebut.
+
+## IHSG — Feature 2/3/5/6 market aggregation and Feature 4 index classification (inspection recorded 2026-10-24)
+
+User decisions: aggregate all tickers by date; “leave as null ... feature 3: broker_concentration_hhi”;
+“untuk feature 4 kolom asset type buat jadi 'index'”. Latest instruction is to inspect every column's
+creation script and record it before implementation. **Inspection complete; implementation not started.**
+
+Source-based report: [verification/ihsg_feature_aggregation/README.md](verification/ihsg_feature_aggregation/README.md).
+Full formula/NULL/history/change matrix: [COLUMN_INSPECTION.md](verification/ihsg_feature_aggregation/COLUMN_INSPECTION.md),
+plus CSV and revision/count manifest in the same directory. Covers all **221 columns** of Features 2–6.
+
+Implementation must aggregate raw daily inputs before computing nonlinear/rolling outputs, preserve board,
+broker and investor-type grain, leave aggregate HHI NULL by policy, guard partial frequency across daily
+and rolling inputs, and preserve constituent source-gap flags. Index classification is universe-driven
+and requires SQL constraints/resolver/queue/state, loaders/engine, worker, Telegram retry/monitor and
+catalog/join/view changes. Existing checkpoints include asset_type in fingerprints: no blind key rename.
+F05/F06 stock-only AI views currently exclude index; existing F02/F03 scripts and staged F05/F06 job do
+not provide automatic aggregate refresh. Detailed impact, source-scope caveats and acceptance are in the report.
+
+No runtime code, migration, database, configuration or deployment change was made by this inspection.
+Recheck live schema/source coverage and deployment baseline at implementation preflight; this inspection
+uses the identified local Git snapshot and explicitly does not claim a new live database audit.
