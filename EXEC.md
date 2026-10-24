@@ -7260,6 +7260,40 @@ Hasil (2026-10-24):
 - Batasan yang tetap: satu pertanyaan berjalan per pemilik (aturan DB), jadi pertanyaan side chat menunggu bila
   percakapan utama berjalan; cache sandbox dan prompt tidak diwarisi (`conversation_resources outputs=0`).
 
+### EXEC-CHAT-URL: setiap chat punya URL sendiri, `/c/<id>` (disetujui 2026-10-24, dijalankan)
+
+User 2026-10-24: "kalau saya lihat semua chat saat ini under same URL ya ... chat gpt dan claude punya URL masing2
+untung setiap chat. kenapa bisa begini ya" → usulan A (hash) / B (`/c/<id>`) → "B saja ya. Cek dulu infra kita sebelum
+eksekusi. Masukan exec dan jalankan."
+
+Inspeksi (kode live, commit `83a50ea`, edge-bff `4b2d8be7`):
+- BFF melayani halaman di `/`, `/index.html`, `/monitor`, `/login` (`apps/edge-bff/app/main.py`).
+- EDGE membuat alamat lewat `staticUrl` dan membacanya lewat `routeLocation` (`static/index.html` ±10292-10300),
+  keduanya hash (`<halaman>#/<route>`); memilih chat tidak mengubah alamat (`selectConversation`).
+- Preview adalah satu file HTML tanpa server (`preview/edge_preview.py`, `window.__EDGE_FIXTURES__`): di sana hash tetap
+  dibutuhkan.
+- Sesudah login `AuthPage` memanggil `go("/monitor")`, yang akan menimpa alamat chat.
+- Deploy aktif untuk rollback: edge-bff `4b2d8be7`. orc tidak berubah.
+
+Rencana (EDGE + BFF saja; tanpa migrasi, tanpa variabel):
+1. BFF: halaman juga dilayani di `/c/{conversation_id}` (hanya `conv_` + 32 hex; selain itu 404).
+2. EDGE: satu tanda `pathRoutes` (dilayani BFF: bukan `file:` dan bukan preview). Dengan tanda itu `staticUrl` dan
+   `routeLocation` memakai path biasa; preview tetap hash. Link lama `#/monitor?c=…` tetap terbuka lalu ditulis ulang
+   menjadi `/c/<id>`.
+3. Alamat chat: `/c/<id>`; side chat `/c/<id>?view=side`. Memilih chat → `/c/<id>` (riwayat browser); chat baru →
+   `/monitor`; pertanyaan pertama chat baru → `/c/<id>`; Back/Forward berpindah antar chat. Panel side chat tidak
+   menulis alamat.
+4. Login dari `/c/<id>` tetap membuka chat itu (go tidak menimpa alamat chat).
+5. Tes: reload di `/c/<id>`, Back/Forward, login dari `/c/<id>`, Branch dan side chat memakai `/c/<id>`, preview
+   tetap hash, suite EDGE penuh. Verifikasi live tanpa pertanyaan berbayar.
+
+Hasil lokal (2026-10-24): suite EDGE 165 lulus, termasuk `tests/test_chat_url.py` (alamat per chat, Back, reload,
+tab baru, login di alamat chat, link lama `#/monitor?c=` ditulis ulang, id salah 404) dan preview round-trip (tetap
+hash). Dua temuan saat membangun: (1) di `/c/<id>` rumus lama menganggap `conv_…` nama file halaman sehingga alamat
+dibaca sebagai `/`; mode path kini hanya menganggap `/` dan `/index.html` halaman awal; (2) alat preview menolak penanda
+preview di sumber halaman, jadi mode path diturunkan dari script yang dimuat dari server. Tes
+`test_responsive_history_details_preferences_and_keyboard` diubah: sesudah reload di `/c/<id>` chat terbuka sendiri.
+
 ## EXEC-IHSG-SINGLE-DATE — approved 2026-10-24
 
 User: "Lakukan update dulu untuk masing2 fitur 2-6 1 tanggal terlebih dahulu untuk validasi.

@@ -25,8 +25,8 @@ def test_branch_opens_a_new_tab_that_continues_the_answer(fixture_server, browse
     tab.locator('.edge-branch-divider').wait_for(timeout=10000)
     assert 'Branched from' in tab.locator('.edge-branch-divider').inner_text()
     assert tab.locator('.research-exchange.inherited').count() == 1
-    assert '?c=conv_' in tab.url and len(orc.branched) == 1 and orc.branched[0][1] == 0
-    branch_id = tab.url.split('?c=')[1][:37]
+    assert '/c/conv_' in tab.url and '#' not in tab.url and len(orc.branched) == 1 and orc.branched[0][1] == 0
+    branch_id = tab.url.split('/c/')[1][:37]  # EXEC-CHAT-URL: the conversation's own address
     assert branch_id != parent[2].get('conversation_id')
     tab.get_by_placeholder('Ask a research question…').fill('lanjut dari sini')
     tab.get_by_role('button', name='Submit', exact=True).click()

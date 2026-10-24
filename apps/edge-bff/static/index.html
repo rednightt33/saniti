@@ -10289,12 +10289,21 @@ const unitless = new Set(['opacity','zIndex','fontWeight','lineHeight','flex','f
 const entryUrl = new URL(document.currentScript.src || location.href);
 const baseUrl = new URL('./', entryUrl);
 const entryDocument = document.currentScript.src ? 'index.html' : entryUrl.pathname.split('/').pop() || 'index.html';
+// EXEC-CHAT-URL (user 2026-10-24: "B saja ya"): served by the BFF the page uses plain paths (/monitor, /c/<id>), so
+// every conversation has its own address; the preview (one file whose scripts are inlined, no server) keeps hash
+// routes. Served means its scripts come from the server. A hash route opened on the server (an older link) is still read.
+const pathRoutes = location.protocol !== 'file:' && Boolean(document.querySelector('script[src="/edge-client.js"]'));
 function routeLocation() {
-  const raw = location.hash.startsWith('#/') ? location.hash.slice(1) : (location.pathname === baseUrl.pathname || location.pathname === baseUrl.pathname+entryDocument ? '/' : location.pathname);
-  const url = new URL(raw, 'https://edge.local');
-  return {pathname:url.pathname, search:location.hash.startsWith('#/') ? url.search : location.search};
+  if (location.hash.startsWith('#/')) { const url = new URL(location.hash.slice(1), 'https://edge.local'); return {pathname:url.pathname, search:url.search}; }
+  // served by the BFF the page path is "/" or "/index.html"; without it (a static copy) the page is the entry file
+  const root = pathRoutes ? ['/', '/index.html'].includes(location.pathname)
+    : location.pathname === baseUrl.pathname || location.pathname === baseUrl.pathname+entryDocument;
+  return {pathname:root ? '/' : location.pathname, search:location.search};
 }
-function staticUrl(route) { const url = new URL(entryDocument,baseUrl); url.hash = route; return url.href; }
+function staticUrl(route) {
+  if (pathRoutes) return new URL(route, location.origin).href;
+  const url = new URL(entryDocument,baseUrl); url.hash = route; return url.href;
+}
 const routeHistory = {
   pushState(state,title,path) { history.pushState(state,title,staticUrl(path)); },
   replaceState(state,title,path) { history.replaceState(state,title,staticUrl(path)); }
@@ -10747,8 +10756,12 @@ function AuthFooter() {
 function loadConversations(){return [];}
 // EXEC-ASK-BRANCH (user 2026-10-24): #/monitor?c=<conversation> opens that conversation (a Branch opens in a new tab);
 // &view=side shows only the conversation and its message box (the side chat's frame)
-function edgeLink(){const q=new URLSearchParams(routeLocation().search),c=q.get("c");return {conversationId:/^conv_[0-9a-f]{32}$/.test(c||"")?c:null,side:q.get("view")==="side"};}
-function conversationUrl(id,side=false){return staticUrl("/monitor?c="+encodeURIComponent(id)+(side?"&view=side":""));}
+// EXEC-CHAT-URL: a conversation's address is /c/<id> (the side chat's frame adds ?view=side); ?c=<id> of the first
+// links still opens
+function edgeLink(){const r=routeLocation(),q=new URLSearchParams(r.search),c=(r.pathname.match(/^\/c\/([^/]+)$/)||[])[1]||q.get("c");
+  return {conversationId:/^conv_[0-9a-f]{32}$/.test(c||"")?c:null,side:q.get("view")==="side"};}
+function conversationRoute(id,side=false){return "/c/"+encodeURIComponent(id)+(side?"?view=side":"");}
+function conversationUrl(id,side=false){return staticUrl(conversationRoute(id,side));}
 const latestRun = (conversation) => conversation?.runs.at(-1);
 const formatDuration = (milliseconds) => milliseconds === undefined ? "—" : milliseconds < 1000 ? `${milliseconds}ms` : `${(milliseconds / 1000).toFixed(2)}s`;
 const relativeTime = (iso) => { if (!iso)
@@ -10923,6 +10936,18 @@ function Monitor({ go }) {
     const hideConversation=async item=>{try{await Edge.hideConversation(item.id);setHideTarget(null);setItems(current=>current.filter(x=>x.id!==item.id));if(selectedId===item.id)newConversation();}catch(e){setHideTarget(null);setApiError(e.message);}};
     const toggleBookmark=async (id=selectedId)=>{const item=items.find(x=>x.id===id);if(!item || id.startsWith("draft:"))return;try{const ui=await Edge.bookmark(id,!item.bookmarked);updateConversation(id,x=>({...x,bookmarked:ui.bookmarked}));}catch(e){setApiError(e.message);}};
     const newConversation=()=>{setHistoryOpen(false);setSelectedId(null);setSelectedRunId(null);setPrompt("");setPendingReply(null);setApiError("");requestAnimationFrame(()=>composerRef.current?.focus());};
+    // EXEC-CHAT-URL (user 2026-10-24: "B saja ya"): the address follows the conversation shown: /c/<id> for a
+    // conversation (switching adds a history entry, so Back and Forward move between conversations), /monitor for a new
+    // one; an older #/monitor?c=<id> link is rewritten. The side chat's frame never writes the address.
+    onLifecycle(viewRecord,"chatUrl",()=>{const left=viewRecord.refs.urlShown;viewRecord.refs.urlShown=selectedId;
+      if(link.side||selectedId?.startsWith("draft:"))return;
+      const shown=edgeLink().conversationId,legacy=pathRoutes&&location.hash.startsWith("#/");
+      if(selectedId){if(shown!==selectedId||legacy)routeHistory[shown&&!legacy?"pushState":"replaceState"]({},"",conversationRoute(selectedId));}
+      else if(shown&&left?.startsWith("conv_"))routeHistory.pushState({},"","/monitor");},[selectedId]);
+    viewRecord.refs.popHandler=()=>{if(link.side)return;const shown=edgeLink().conversationId;
+      if(shown&&shown!==selectedId)selectConversation(shown);else if(!shown&&selectedId?.startsWith("conv_"))newConversation();};
+    if(!viewRecord.refs.popInstalled){viewRecord.refs.popInstalled=true;
+      window.addEventListener("popstate",()=>viewRecord.refs.popHandler?.());}
     const updateRun=(conversationId,runId,update)=>updateConversation(conversationId,x=>({...x,runs:x.runs.map(r=>r.id===runId?update(r):r)}));
     const togglePin=async (target,pinned=!target.pinned)=>{try{await Edge.pin(target.id,pinned);setItems(current=>current.map(c=>({...c,runs:c.runs.map(r=>r.id===target.id?{...r,pinned}:r)})));}catch(e){setApiError(e.message);}};
     const followRun=(initialId,requestId)=>{
@@ -12359,7 +12384,7 @@ function Flow({ run }) {
 
 function App() {
     const viewRecord = currentView;
-    const currentPath = () => ["/monitor","/markets"].includes(routeLocation().pathname) ? "/monitor" : "/login";
+    const currentPath = () => ["/monitor","/markets"].includes(routeLocation().pathname) || routeLocation().pathname.startsWith("/c/") ? "/monitor" : "/login";
     const authenticated=initialValue(viewRecord,"authenticated",()=>false),checked=initialValue(viewRecord,"checked",()=>false);
     onLifecycle(viewRecord,"auth",()=>{const sync=()=>updateValue(viewRecord,"authenticated",Boolean(Edge.auth));addEventListener("edge-auth",sync);Edge.session().then(()=>{sync();updateValue(viewRecord,"checked",true);});return()=>removeEventListener("edge-auth",sync);},[]);
     const path = initialValue(viewRecord, "path", currentPath), setPath = next => updateValue(viewRecord, "path", next);
@@ -12376,7 +12401,8 @@ function App() {
     const go = route => {
         if (!["monitor", "markets", "/monitor", "/markets", "/login", "/"].includes(route)) return;
         const nextPath = ["markets","/markets","monitor","/monitor"].includes(route) ? "/monitor" : "/login";
-        routeHistory.pushState({}, "", nextPath);
+        // EXEC-CHAT-URL: signing in at /c/<id> stays on that conversation
+        if (!(nextPath === "/monitor" && routeLocation().pathname.startsWith("/c/"))) routeHistory.pushState({}, "", nextPath);
         setPath(nextPath);
         window.scrollTo(0, 0);
     };

@@ -249,6 +249,14 @@ def create_app(settings=None, store=None, orc=None):
     async def index():
         return FileResponse(STATIC / 'index.html', media_type='text/html')
 
+    # EXEC-CHAT-URL (user 2026-10-24: "B saja ya"): every conversation has its own address, /c/<conversation_id>, like
+    # ChatGPT and Claude; the page reads the id from it. Any other id is not a page.
+    @app.get('/c/{conversation_id}')
+    async def conversation_page(conversation_id: str):
+        if not re.fullmatch(CONV, conversation_id):
+            return error('NOT_FOUND', 404)
+        return FileResponse(STATIC / 'index.html', media_type='text/html')
+
     # EXEC-X: every page script in static/ (edge-client.js, edge-view.js, edge-labels.js, ...) by its name; a new
     # front-end file needs no route. The name pattern keeps the request inside static/.
     @app.get('/{name}.js')

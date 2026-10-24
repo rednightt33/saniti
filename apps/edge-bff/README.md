@@ -278,7 +278,16 @@ this answer** opens the answer's side chat in a panel (full screen on a phone); 
 with "Ask in side chat". `POST /api/v1/runs/{request_id}/branch {kind: BRANCH|SIDE, title}` asks Orc for the new
 conversation (`POST /v1/conversations/{id}/branch`) and writes its list row (`edge_bff.conversation_ui.kind`, parent
 conversation and answer; migration `20261024_002`). One side chat per answer; side chats are left out of the
-conversation list and linked under their answer ("Side chat (n)"). `#/monitor?c=<conversation>` opens a conversation;
-`&view=side` is the compact view the side panel frames, so the CSP allows framing by EDGE itself only
+conversation list and linked under their answer ("Side chat (n)"). Every conversation has its own address,
+`/c/<conversation_id>` (EXEC-CHAT-URL; served by the BFF, older `#/monitor?c=` links still open); `?view=side` is the
+compact view the side panel frames, so the CSP allows framing by EDGE itself only
 (`frame-ancestors 'self'`, M213). One running question per owner stays the database rule, so a side-chat question waits
 while the main conversation runs.
+
+## Conversation addresses (EXEC-CHAT-URL, 2026-10-24)
+
+Served by the BFF, EDGE uses plain paths: `/monitor` for a new conversation and `/c/<conversation_id>` for each
+conversation (the BFF serves the page there; any other id is 404). Choosing a conversation writes its address, so a
+reload, a bookmark or a new tab opens it and Back/Forward move between conversations; signing in at an address opens
+that conversation. The one-file preview (`preview/edge_preview.py`, scripts inlined, no server) keeps hash routes; the
+page tells the two apart by whether its scripts came from the server.

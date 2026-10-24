@@ -299,9 +299,9 @@ def test_responsive_history_details_preferences_and_keyboard(dummy_orc, browser_
     page.get_by_role('button', name='Pinned', exact=True).wait_for()
     page.reload()
     page.get_by_placeholder('Ask a research question…').wait_for()
-    if width <= 1050:
-        page.get_by_role('button', name='Open history', exact=True).click()
-    page.locator('.conversation-list .conversation').first.click()
+    # EXEC-CHAT-URL (user 2026-10-24: "B saja ya"): the reload is at the conversation's own address (/c/<id>), so the
+    # conversation opens by itself, with its pin and bookmark
+    assert '/c/conv_' in page.url
     page.get_by_role('button', name='Pinned', exact=True).wait_for()
     assert page.get_by_role('button', name='Bookmark', exact=True).get_attribute('aria-pressed') == 'true'
     page.get_by_role('button', name='New conversation', exact=True).click()
