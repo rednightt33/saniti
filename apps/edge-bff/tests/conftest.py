@@ -18,6 +18,7 @@ def database():
         with psycopg.connect(url,autocommit=True) as c:
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261008_002_create_edge_bff.sql').read_text())
             c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261012_008_edge_bff_conversation_hidden.sql').read_text())
+            c.execute((Path(__file__).resolve().parents[3]/'database/migrations/20261024_002_edge_bff_conversation_branch.sql').read_text())
             c.execute('CREATE TABLE public.market_private(secret text)')
         yield url
     finally:
@@ -40,12 +41,23 @@ class FakeOrc:
         result={'request_id':id,'status':self.status,'response':{'response_type':'ANSWER','answer':'Saved answer <script>window.pwned=true</script>','assumptions':[],'limitations':[],'clarification_question':None,'research_plan':None},'execution':{'model':payload.get('model') or 'fixture-model','cost':0.001,'total_tokens':42,**({'reasoning_level':payload['reasoning_level']} if payload.get('reasoning_level') else {}),**({'lane':payload['lane']} if payload.get('lane') else {})},'conversation':{'conversation_id':conv,'persistence':'SAVED'},'options':[{'label':'Quick summary','route':'QUICK_SUMMARY'}]}
         self.saved[id]={'request_id':id,'conversation_id':conv,'turn_status':'COMPLETED','run_status':self.status,'response':result,'user_message':payload['message']};return result
     def stop(self,owner,id):self.stopped=getattr(self,'stopped',[])+[id];return 'NOT_RUNNING' if id in self.saved else 'STOPPING'
-    def request(self,owner,id):return self.saved.get(id)
+    def request(self,owner,id):
+        t=self.saved.get(id)
+        if t is None:return None
+        same=[k for k,v in self.saved.items() if v['conversation_id']==t['conversation_id']]
+        return dict(t,turn_index=same.index(id))
+    # EXEC-ASK-BRANCH: Orc's branch (a new conversation continuing conv up to through_turn) and its lineage
+    lineages={}
+    def branch(self,owner,conv,through_turn):
+        new='conv_'+uuid.uuid4().hex;self.lineages=dict(self.lineages)
+        self.lineages[new]=[*self.lineages.get(conv,[]),{'conversation_id':conv,'through_turn':through_turn}]
+        self.branched=getattr(self,'branched',[])+[(conv,through_turn)]
+        return {'conversation_id':new,'lineage':self.lineages[new]}
     def execution_ready(self,owner):return True
-    def messages(self,owner,conv,after=-1,limit=20):
-        turns=[dict(t,turn_index=i,status=t['turn_status'],created_at='2026-10-08T00:00:00+00:00',completed_at='2026-10-08T00:00:01+00:00') for i,t in enumerate(self.saved.values()) if t['conversation_id']==conv];turns=[t for t in turns if t['turn_index']>after]
-        if not turns and not any(t['conversation_id']==conv for t in self.saved.values()):return None
-        return {'conversation_id':conv,'messages':turns[:limit],'has_more':len(turns)>limit,'next_after':turns[limit-1]['turn_index'] if len(turns)>limit else None,'research_plan':None}
+    def messages(self,owner,conv,after=-1,limit=20,through=None):
+        turns=[dict(t,turn_index=i,status=t['turn_status'],created_at='2026-10-08T00:00:00+00:00',completed_at='2026-10-08T00:00:01+00:00') for i,t in enumerate(t for t in self.saved.values() if t['conversation_id']==conv)];turns=[t for t in turns if t['turn_index']>after and (through is None or t['turn_index']<=through)]
+        if not turns and conv not in self.lineages and not any(t['conversation_id']==conv for t in self.saved.values()):return None
+        return {'conversation_id':conv,'messages':turns[:limit],'has_more':len(turns)>limit,'next_after':turns[limit-1]['turn_index'] if len(turns)>limit else None,'research_plan':None,'lineage':self.lineages.get(conv,[])}
     # EXEC-MODELS: Orc's GET /v1/models (prices per one million tokens; Orc strips nothing, the BFF drops 'reasoning')
     MODELS={'models':[{'model':'deepseek/deepseek-v4.1-flash','label':'DeepSeek V4.1 Flash','reasoning_levels':['low','high','max'],'input_per_million':0.0441,'output_per_million':0.63,'cache_read_per_million':0.0054},
                       {'model':'z-ai/glm-5.3-flash','label':'GLM 5.3 Flash','reasoning_levels':['low','high','max'],'input_per_million':0.0261,'output_per_million':0.9,'cache_read_per_million':0.0108},

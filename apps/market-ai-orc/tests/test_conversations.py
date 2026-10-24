@@ -30,7 +30,8 @@ REPO = Path(__file__).resolve().parents[3]
 MIGRATIONS = [REPO / "database/migrations/20260927_002_create_ai_conversation_store.sql",
               REPO / "database/migrations/20261003_006_conversation_results.sql",
               REPO / "database/migrations/20261003_009_conversation_evidence.sql",
-              REPO / "database/migrations/20261006_003_conversation_run_memory.sql"]
+              REPO / "database/migrations/20261006_003_conversation_run_memory.sql",
+              REPO / "database/migrations/20261024_001_conversation_lineage.sql"]
 AUTH = {"Authorization": f"Bearer {BASE_ENV['MARKET_AI_ORC_API_KEY']}"}
 
 # The columns of the legacy documentation tables the migration writes to (DATABASE_SCHEMA.md).
@@ -105,7 +106,7 @@ class Api:
         self.agent = AgentOrchestrator(settings, self.scripted, build_default_registry())
         self.seen: list[AgentRunRequest] = []
         run = self.agent.run
-        self.agent.run = lambda request: (self.seen.append(request), run(request))[1]
+        self.agent.run = lambda request, **extra: (self.seen.append(request), run(request, **extra))[1]
         self.client = TestClient(create_app(settings, orchestrator=self.agent, conversations=store))
 
     def post(self, body: dict, owner: str | None = None):

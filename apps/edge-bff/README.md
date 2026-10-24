@@ -270,3 +270,15 @@ lease/heartbeat, ownership, Stop and ambiguous-delivery reconciliation remain in
 readiness. Older Orc without this additive endpoint remains supported during rolling deployment.
 The existing progress endpoint shows `Initiating sandbox session.` during an actual session open, then the ordinary
 calculation steps. No new queue, progress transport, browser credential or service is required. See M187.
+
+## Branch and side chat (EXEC-ASK-BRANCH, 2026-10-24)
+
+Under each finished answer, **Branch** opens a new tab with a conversation that continues that answer, and **Ask about
+this answer** opens the answer's side chat in a panel (full screen on a phone); a selected passage can be sent there
+with "Ask in side chat". `POST /api/v1/runs/{request_id}/branch {kind: BRANCH|SIDE, title}` asks Orc for the new
+conversation (`POST /v1/conversations/{id}/branch`) and writes its list row (`edge_bff.conversation_ui.kind`, parent
+conversation and answer; migration `20261024_002`). One side chat per answer; side chats are left out of the
+conversation list and linked under their answer ("Side chat (n)"). `#/monitor?c=<conversation>` opens a conversation;
+`&view=side` is the compact view the side panel frames, so the CSP allows framing by EDGE itself only
+(`frame-ancestors 'self'`, M213). One running question per owner stays the database rule, so a side-chat question waits
+while the main conversation runs.

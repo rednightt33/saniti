@@ -326,6 +326,7 @@ market-ai-orc conversations kept by the server (history_mode SERVER): one row pe
 | `lease_generation` | `bigint` | No | `0` | Incremented by every turn start; a turn may finish only with the generation it started with (fencing). |
 | `lease_expires_at` | `timestamp with time zone` | Yes | — | When a running turn's lease lapses and another message may take over; NULL when no turn runs. |
 | `state` | `jsonb` | No | `'{}'::jsonb` | Structured conversation state kept by the orchestrator (for example the latest Research Plan reference); never model-written text. |
+| `lineage` | `jsonb` | No | `'[]'::jsonb` | The conversations this one continues (EDGE Branch or side chat), oldest first: each entry names the conversation, the last turn of it this one continues (through_turn) and that turn's completed_at (cut_at). Their turns up to through_turn are this conversation's history, and their stored results created up to cut_at are readable from it. Empty for a conversation started on its own; never changed after it is written. |
 
 ### Constraints
 
@@ -334,6 +335,7 @@ market-ai-orc conversations kept by the server (history_mode SERVER): one row pe
 | `ai_conversation_expiry_check` | Check | `CHECK (expires_at > created_at)` |
 | `ai_conversation_id_check` | Check | `CHECK (conversation_id ~ '^conv_[0-9a-f]{32}$'::text)` |
 | `ai_conversation_lease_check` | Check | `CHECK ((active_request_id IS NULL) = (lease_expires_at IS NULL))` |
+| `ai_conversation_lineage_check` | Check | `CHECK (jsonb_typeof(lineage) = 'array'::text AND jsonb_array_length(lineage) <= 20)` |
 | `ai_conversation_owner_check` | Check | `CHECK (owner_key ~ '^[A-Za-z0-9._:@-]{1,128}$'::text)` |
 | `ai_conversation_state_check` | Check | `CHECK (jsonb_typeof(state) = 'object'::text)` |
 | `ai_conversation_turn_index_check` | Check | `CHECK (next_turn_index >= 0 AND lease_generation >= 0)` |

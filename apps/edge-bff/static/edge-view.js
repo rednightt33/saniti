@@ -211,6 +211,14 @@
       section:ATTACH_SECTIONS.includes(section) ? section : 'OTHER',
       quote:String(quote || '').replace(/\s+\n/g, '\n').trim().slice(0, 1000), figures:kept};
   }
+  // EXEC-UI-1024 2c: the attachments as sent: a comment only when the user wrote one (at most 500 characters)
+  function attachmentsPayload(items) {
+    return (items || []).map(item => {
+      const {comment, ...rest} = item || {};
+      const text = String(comment || '').trim().slice(0, 500);
+      return text ? {...rest, comment:text} : rest;
+    });
+  }
   // the reference of an answer table's cell: its released table, the source row and the output column
   function cellRef(source, rowIndex, column) {
     const row = source && Array.isArray(source.rows) ? source.rows[rowIndex] : undefined;
@@ -308,5 +316,5 @@
     const dates = (own.length ? own : outputs).map(o => o.data_as_of.slice(0, 10)).sort();
     return {requestId:envelope?.request_id ?? null, dataAsOf:dates.length ? dates[dates.length - 1] : null};
   }
-  window.EdgeView = {VERSION, toView, sources, planIndex, durationText, progressView, tableSource, selection, selectionLabel, textSelection, cellRef, shareInfo, format:{empty, label, number, valueText, verdict}};
+  window.EdgeView = {VERSION, toView, sources, planIndex, durationText, progressView, tableSource, selection, selectionLabel, textSelection, attachmentsPayload, cellRef, shareInfo, format:{empty, label, number, valueText, verdict}};
 })();

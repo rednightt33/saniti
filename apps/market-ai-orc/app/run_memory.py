@@ -33,6 +33,8 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field
 
+from .conversation_lineage import scope
+
 logger = logging.getLogger("market_ai_orc")
 
 VERSION = 1
@@ -239,34 +241,36 @@ class MemoryStore:
     def load(self, conversation_id: str) -> list[dict[str, Any]]:
         """Every run of the conversation, oldest first: run_id, memo and sources (not the full texts)."""
         with self._connect() as connection:
+            where, params = scope(connection, conversation_id)  # EXEC-ASK-BRANCH: and the conversations it continues
             return connection.execute(
-                '''SELECT run_id, turn_request_id, status, memo, sources FROM public."AI_conversation_run_memory"
-                   WHERE conversation_id = %s ORDER BY seq''', (conversation_id,)).fetchall()
+                f'''SELECT run_id, turn_request_id, status, memo, sources FROM public."AI_conversation_run_memory"
+                   WHERE {where} ORDER BY seq''', params).fetchall()
 
     def runs(self, conversation_id: str) -> list[dict[str, Any]]:
         with self._connect() as connection:
+            where, params = scope(connection, conversation_id)
             return connection.execute(
-                '''SELECT run_id, turn_request_id, status, response_type, error_code, created_at::text AS created_at,
+                f'''SELECT run_id, turn_request_id, status, response_type, error_code, created_at::text AS created_at,
                           length(reasoning) AS reasoning_chars
-                   FROM public."AI_conversation_run_memory" WHERE conversation_id = %s ORDER BY seq''',
-                (conversation_id,)).fetchall()
+                   FROM public."AI_conversation_run_memory" WHERE {where} ORDER BY seq''', params).fetchall()
 
     def read(self, conversation_id: str, run_id: str) -> dict[str, Any] | None:
         """One run's memory; for a turn's own request id (a mode 4 turn's runs are its steps) the turn as the
         conversation store keeps it: its message and its whole answer (the history may show it shortened)."""
         with self._connect() as connection:
+            where, params = scope(connection, conversation_id)
             row = connection.execute(
-                '''SELECT run_id, turn_request_id, status, response_type, error_code, memo, content, sources, note,
+                f'''SELECT run_id, turn_request_id, status, response_type, error_code, memo, content, sources, note,
                           reasoning, created_at::text AS created_at
-                   FROM public."AI_conversation_run_memory" WHERE conversation_id = %s AND run_id = %s''',
-                (conversation_id, run_id)).fetchone()
+                   FROM public."AI_conversation_run_memory" WHERE {where} AND run_id = %s''',
+                (*params, run_id)).fetchone()
             if row is not None:
                 return row
             turn = connection.execute(
-                '''SELECT request_id, status, run_status, response_type, error_code, user_message, response,
+                f'''SELECT request_id, status, run_status, response_type, error_code, user_message, response,
                           completed_at::text AS created_at
-                   FROM public."AI_conversation_turn" WHERE conversation_id = %s AND request_id = %s''',
-                (conversation_id, run_id)).fetchone()
+                   FROM public."AI_conversation_turn" WHERE {where} AND request_id = %s''',
+                (*params, run_id)).fetchone()
         if turn is None:
             return None
         response = (turn.get("response") or {}).get("response") if isinstance(turn.get("response"), dict) else None

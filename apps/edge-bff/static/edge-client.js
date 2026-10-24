@@ -79,12 +79,30 @@
       sources:[...(raw?.evidence || []), ...(raw?.annotations || []), ...(raw?.data_record ? [{name:'Data record',record:raw.data_record}] : [])],
       steps:[{id:'saved-state',label:turn.status === 'RUNNING' ? 'AI request running' : 'Saved response: ' + statusLabel('completed', raw?.status || turn.run_status, raw?.execution?.pause),status:turn.status === 'RUNNING' ? 'running' : failed ? 'failed' : 'completed',detail:'Persisted lifecycle state'}]};
   }
+  // every page of one conversation's turns (through: up to that turn), its list row, lineage and side chats
+  async function turnsOf(id, through) {
+    let after = -1, turns = [], sides = {}, page;
+    do { page = await api('/conversations/' + encodeURIComponent(id) + '/messages?limit=50&after=' + after + (through === undefined ? '' : '&through=' + through));
+      turns.push(...page.messages); Object.assign(sides, page.side_chats || {}); after = page.next_after; } while (page.has_more);
+    return {turns, sides, ui:page.conversation, plan:page.research_plan, lineage:page.lineage || []};
+  }
+  // EXEC-ASK-BRANCH (user 2026-10-24): a conversation that continues others (Branch, side chat) shows their turns up to
+  // each branch point first, marked as inherited (the divider names where they come from); its own turns follow
   async function messages(id) {
-    let after = -1, turns = [], page;
-    do { page = await api('/conversations/' + encodeURIComponent(id) + '/messages?limit=50&after=' + after); turns.push(...page.messages); after = page.next_after; } while (page.has_more);
-    const ui = page.conversation;
-    return {id, title:ui.title,bookmarked:ui.bookmarked,createdAt:ui.created_at,updatedAt:ui.updated_at,plan:page.research_plan,
-      messages:turns.map(t=>({id:t.request_id+'-user',role:'user',content:t.user_message,createdAt:t.created_at,runId:t.request_id})),runs:turns.map(t=>adaptRun(t,ui))};
+    const own = await turnsOf(id);
+    const ui = own.ui, inherited = [], sides = {...own.sides};
+    for (const step of own.lineage) {
+      try { const part = await turnsOf(step.conversation_id, step.through_turn);
+        inherited.push(...part.turns.map(t => ({...t, inherited:{conversationId:step.conversation_id, title:part.ui.title}})));
+        Object.assign(sides, part.sides); }
+      catch { /* a conversation it continues may be gone: its own turns still show */ }
+    }
+    const turns = [...inherited, ...own.turns];
+    return {id, title:ui.title,bookmarked:ui.bookmarked,createdAt:ui.created_at,updatedAt:ui.updated_at,plan:own.plan,
+      kind:ui.kind || 'MAIN', parent:ui.parent_conversation_id ? {conversationId:ui.parent_conversation_id, requestId:ui.parent_request_id} : null,
+      sideChats:sides,
+      messages:turns.map(t=>({id:t.request_id+'-user',role:'user',content:t.user_message,createdAt:t.created_at,runId:t.request_id,inherited:t.inherited || null})),
+      runs:turns.map(t=>({...adaptRun(t,ui),inherited:Boolean(t.inherited)}))};
   }
   const stateRun = (snapshot, previous) => ({...previous,
     status:snapshot.error_code === 'STOPPED_BY_USER' ? 'cancelled' : terminal(snapshot) ? snapshot.state === 'FINISHED' && snapshot.run_status !== 'FAILED' && !snapshot.expired ? 'completed' : 'failed' : snapshot.state === 'QUEUED' ? 'submitted' : 'running',
@@ -111,6 +129,8 @@
     stopRun: id => api('/runs/'+encodeURIComponent(id)+'/stop',{}),
     bookmark: (id,bookmarked) => api('/conversations/'+encodeURIComponent(id)+'/preferences',{bookmarked},'PATCH'),
     hideConversation: id => api('/conversations/'+encodeURIComponent(id),undefined,'DELETE'),
+    // EXEC-ASK-BRANCH: continue an answer in a new conversation (BRANCH) or in its side chat (SIDE)
+    branch: (runId, kind, title) => api('/runs/'+encodeURIComponent(runId)+'/branch',{kind,title}),
     pin: (id,pinned) => api('/runs/'+encodeURIComponent(id)+'/preferences',{pinned},'PATCH'),
     exportTable: (conversationId, outputId, columns, titles) => api('/conversations/'+encodeURIComponent(conversationId)+'/outputs/'+encodeURIComponent(outputId)+'/export',{columns,titles}),
     exportUrl: id => /^exp_[0-9a-f]{24}$/.test(id) ? '/api/v1/exports/'+id : null,

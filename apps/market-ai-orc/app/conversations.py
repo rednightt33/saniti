@@ -39,6 +39,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from . import conversation_plans as plans
+from .conversation_lineage import LINEAGE_MAX, Ancestor, parse as parse_lineage
 from .research_plan import ContinuationIn
 from .research_plan_v2 import ContinuationInV2
 from .schemas import MAX_HISTORY_ITEMS, MAX_MESSAGE_CHARACTERS, AgentRunRequest, AgentRunResponse, HistoryMessage
@@ -296,7 +297,7 @@ class ConversationStore:
             if not CONVERSATION_ID_RE.fullmatch(conversation_id or ""):
                 raise ConversationError("CONVERSATION_NOT_FOUND", "No such conversation for this owner.", 404)
         row = connection.execute(
-            '''SELECT next_turn_index, active_request_id, lease_generation, state,
+            '''SELECT next_turn_index, active_request_id, lease_generation, state, lineage,
                       lease_expires_at IS NOT NULL AND lease_expires_at > CURRENT_TIMESTAMP AS leased
                FROM public."AI_conversation" WHERE conversation_id = %s AND owner_key = %s FOR UPDATE''',
             (conversation_id, owner)).fetchone()
@@ -329,25 +330,29 @@ class ConversationStore:
                    expires_at = CURRENT_TIMESTAMP + make_interval(days => %s)
                WHERE conversation_id = %s''',
             (request.request_id, generation, self.lease_seconds, self.retention_days, conversation_id))
+        lineage = parse_lineage(row["lineage"])
+        self._keep_ancestors(connection, lineage)
         connection.execute(
             '''INSERT INTO public."AI_conversation_turn" (request_id, conversation_id, turn_index,
                    request_fingerprint, user_message, status, lease_generation)
                VALUES (%s, %s, %s, %s, %s, 'RUNNING', %s)''',
             (request.request_id, conversation_id, turn_index, request_fingerprint, request.message, generation))
+        # EXEC-ASK-BRANCH: a conversation that continues others reads their turns up to its branch points first
+        turns, params = self._turns(conversation_id, lineage)
         if self.memory_tool:
             # EXEC-C item 12: a failed or interrupted turn is history too (the message, how it ended, a pointer to
             # what it did); item 6: an answer is shortened in its body, never in its tail
             rows = connection.execute(
-                '''SELECT request_id, user_message, assistant_text, status, run_status, error_code, response
+                f'''SELECT request_id, user_message, assistant_text, status, run_status, error_code, response
                    FROM public."AI_conversation_turn"
-                   WHERE conversation_id = %s AND request_id <> %s AND status <> 'RUNNING'
-                   ORDER BY turn_index DESC LIMIT %s''',
-                (conversation_id, request.request_id, self.max_history_turns)).fetchall()
+                   WHERE {turns} AND request_id <> %s AND status <> 'RUNNING'
+                   ORDER BY created_at DESC, turn_index DESC LIMIT %s''',
+                (*params, request.request_id, self.max_history_turns)).fetchall()
         else:
             rows = connection.execute(
-                '''SELECT user_message, assistant_text FROM public."AI_conversation_turn"
-                   WHERE conversation_id = %s AND status = 'COMPLETED' AND assistant_text IS NOT NULL
-                   ORDER BY turn_index DESC LIMIT %s''', (conversation_id, self.max_history_turns)).fetchall()
+                f'''SELECT user_message, assistant_text FROM public."AI_conversation_turn"
+                   WHERE {turns} AND status = 'COMPLETED' AND assistant_text IS NOT NULL
+                   ORDER BY created_at DESC, turn_index DESC LIMIT %s''', (*params, self.max_history_turns)).fetchall()
         history: list[HistoryMessage] = []
         for item in reversed(rows):
             history.append(HistoryMessage(role="user", content=with_attached(item)[:MAX_MESSAGE_CHARACTERS]))
@@ -355,6 +360,78 @@ class ConversationStore:
                                           else item["assistant_text"][:MAX_MESSAGE_CHARACTERS]))
         return TurnStart(conversation_id, turn_index, generation, created, history=history, state=state,
                          continuation=continuation)
+
+    @staticmethod
+    def _turns(conversation_id: str, lineage: tuple[Ancestor, ...]) -> tuple[str, list[Any]]:
+        """The conversation's own turns and those of the conversations it continues up to each branch point."""
+        clauses, params = ["conversation_id = %s"], [conversation_id]
+        for ancestor in lineage:
+            clauses.append("(conversation_id = %s AND turn_index <= %s)")
+            params += [ancestor.conversation_id, ancestor.through_turn]
+        return "(" + " OR ".join(clauses) + ")", params
+
+    def _keep_ancestors(self, connection: psycopg.Connection, lineage: tuple[Ancestor, ...]) -> None:
+        """EXEC-ASK-BRANCH: the conversations this one continues are kept at least as long as it is."""
+        if lineage:
+            connection.execute(
+                '''UPDATE public."AI_conversation"
+                   SET expires_at = GREATEST(expires_at, CURRENT_TIMESTAMP + make_interval(days => %s))
+                   WHERE conversation_id = ANY(%s)''',
+                (self.retention_days, [a.conversation_id for a in lineage]))
+
+    def branch(self, owner: str, conversation_id: str, through_turn: int) -> dict[str, Any]:
+        """EXEC-ASK-BRANCH (user 2026-10-24): a new conversation that continues this one from its turn through_turn
+        (EDGE Branch, or the side chat of that answer). Its history is this conversation's turns up to that one, its
+        data record the one that answer had, and it reads the results made up to that answer; nothing is copied. The
+        turn must be COMPLETED; a pending Research Plan is not carried (the user may ask for it again)."""
+        if not CONVERSATION_ID_RE.fullmatch(conversation_id or "") or through_turn < 0:
+            raise ConversationError("CONVERSATION_NOT_FOUND", "No such conversation for this owner.", 404)
+        try:
+            with self._connect() as connection, connection.transaction():
+                source = connection.execute(
+                    'SELECT lineage FROM public."AI_conversation" WHERE conversation_id = %s AND owner_key = %s',
+                    (conversation_id, owner)).fetchone()
+                if source is None:
+                    raise ConversationError("CONVERSATION_NOT_FOUND", "No such conversation for this owner.", 404)
+                turn = connection.execute(
+                    '''SELECT status, completed_at FROM public."AI_conversation_turn"
+                       WHERE conversation_id = %s AND turn_index = %s''', (conversation_id, through_turn)).fetchone()
+                if turn is None or turn["status"] != "COMPLETED":
+                    raise ConversationError("TURN_NOT_BRANCHABLE", "Only an answer that finished can be continued in "
+                                            "a new conversation; wait for it, or choose another answer.", 409)
+                lineage = (*parse_lineage(source["lineage"]),
+                           Ancestor(conversation_id, through_turn, turn["completed_at"]))
+                if len(lineage) > LINEAGE_MAX:
+                    raise ConversationError("BRANCH_TOO_DEEP", f"A conversation can continue at most {LINEAGE_MAX} "
+                                            "others; continue from an earlier one.", 409)
+                record = self._record_at(connection, lineage)
+                new_id = f"conv_{secrets.token_hex(16)}"
+                connection.execute(
+                    '''INSERT INTO public."AI_conversation" (conversation_id, owner_key, expires_at, lineage, state)
+                       VALUES (%s, %s, CURRENT_TIMESTAMP + make_interval(days => %s), %s, %s)''',
+                    (new_id, owner, self.retention_days, Jsonb([a.to_json() for a in lineage]),
+                     Jsonb({plans.DATA_RECORD_KEY: record} if record else {})))
+                self._keep_ancestors(connection, lineage)
+        except psycopg.Error as exc:
+            raise ConversationError("CONVERSATION_STORE_UNAVAILABLE", "The conversation store failed.", 503) from exc
+        logger.info(json.dumps({"event": "conversation_branched", "conversation_id": new_id,
+                                "from_conversation_id": conversation_id, "through_turn": through_turn,
+                                "depth": len(lineage), "data_record": bool(record)}))
+        return {"conversation_id": new_id, "lineage": [{"conversation_id": a.conversation_id,
+                                                        "through_turn": a.through_turn} for a in lineage]}
+
+    @staticmethod
+    def _record_at(connection: psycopg.Connection, lineage: tuple[Ancestor, ...]) -> dict[str, Any] | None:
+        """The data record of the newest answer at or before the branch point, looking back along the lineage."""
+        for ancestor in reversed(lineage):
+            row = connection.execute(
+                '''SELECT response -> 'data_record' AS record FROM public."AI_conversation_turn"
+                   WHERE conversation_id = %s AND turn_index <= %s AND status = 'COMPLETED'
+                     AND jsonb_typeof(response -> 'data_record') = 'object'
+                   ORDER BY turn_index DESC LIMIT 1''', (ancestor.conversation_id, ancestor.through_turn)).fetchone()
+            if row is not None:
+                return row["record"]
+        return None
 
     @staticmethod
     def _interrupt(connection: psycopg.Connection, conversation_id: str, request_id: str, generation: int) -> None:
@@ -481,14 +558,17 @@ class ConversationStore:
         record = (row["state"] or {}).get(plans.DATA_RECORD_KEY) if isinstance(row["state"], dict) else None
         return record if isinstance(record, dict) else None
 
-    def messages(self, owner: str, conversation_id: str, after: int | None, limit: int | None) -> dict[str, Any]:
+    def messages(self, owner: str, conversation_id: str, after: int | None, limit: int | None,
+                 through: int | None = None) -> dict[str, Any]:
+        """A page of the conversation's turns; through (EXEC-ASK-BRANCH) stops at that turn, so a conversation that
+        continues this one can show the turns it continues. lineage names those conversations."""
         limit = min(max(limit or MESSAGES_PAGE_DEFAULT, 1), MESSAGES_PAGE_MAX)
         if not CONVERSATION_ID_RE.fullmatch(conversation_id):
             raise ConversationError("CONVERSATION_NOT_FOUND", "No such conversation for this owner.", 404)
         try:
             with self._connect() as connection:
                 conversation = connection.execute(
-                    '''SELECT conversation_id, created_at, updated_at, expires_at, next_turn_index, state,
+                    '''SELECT conversation_id, created_at, updated_at, expires_at, next_turn_index, state, lineage,
                               active_request_id IS NOT NULL AS running
                        FROM public."AI_conversation" WHERE conversation_id = %s AND owner_key = %s''',
                     (conversation_id, owner)).fetchone()
@@ -498,8 +578,10 @@ class ConversationStore:
                     '''SELECT turn_index, request_id, status, run_status, response_type, user_message, response,
                               error_code, created_at, completed_at
                        FROM public."AI_conversation_turn"
-                       WHERE conversation_id = %s AND turn_index > %s ORDER BY turn_index LIMIT %s''',
-                    (conversation_id, -1 if after is None else after, limit + 1)).fetchall()
+                       WHERE conversation_id = %s AND turn_index > %s AND turn_index <= %s
+                       ORDER BY turn_index LIMIT %s''',
+                    (conversation_id, -1 if after is None else after, 2**31 - 1 if through is None else through,
+                     limit + 1)).fetchall()
         except ConversationError:
             raise
         except psycopg.Error as exc:
@@ -515,6 +597,8 @@ class ConversationStore:
             "turn_count": int(conversation["next_turn_index"]),
             "running": bool(conversation["running"]),
             "research_plan": plans.summary(conversation["state"]),
+            "lineage": [{"conversation_id": a.conversation_id, "through_turn": a.through_turn}
+                        for a in parse_lineage(conversation["lineage"])],
             "messages": items,
             "has_more": has_more,
             "next_after": items[-1]["turn_index"] if has_more and items else None,

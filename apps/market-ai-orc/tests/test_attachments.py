@@ -137,3 +137,23 @@ def test_a_read_only_turn_shows_the_stored_inputs_and_declares_no_reproduction()
     note = attachments_note(request.attachments, read_only=True)
     assert note.endswith(REPRODUCE_READ_ONLY_NOTE) and "declare no reproductions" in note and REPRODUCE_NOTE not in note
     assert "CLARIFY" in EXPLAIN_ONLY_KINDS
+
+
+def test_each_attachment_carries_its_own_comment_to_the_model_the_routers_and_later_turns() -> None:
+    """EXEC-UI-1024 2c (user 2026-10-24: "setiap lampiran punya komentar sendiri, dan teks pesan tetap untuk pertanyaan
+    umum"): the comment stays with its attachment in the run's note, the router's line and the history; an attachment
+    without one reads as before, and a comment is bounded like the passage."""
+    from app.mode4 import routed_message
+    from app.orchestrator import attached_summary
+
+    request = AgentRunRequest.model_validate({"request_id": "r", "message": "jelaskan", "attachments": [
+        {**TEXT, "comment": "kenapa 2019?"}, {**TABLE, "comment": 'broker "AK" itu siapa?'}, TEXT]})
+    note = attachments_note(request.attachments)
+    assert note.count("The user's comment on this attachment") == 2
+    assert "\"kenapa 2019?\"" in note and "broker 'AK' itu siapa?" in note
+    summary = attached_summary(request.attachments)
+    assert [s.get("comment") for s in summary] == ["kenapa 2019?", 'broker "AK" itu siapa?', None]
+    assert routed_message(request).endswith('komentar: "kenapa 2019?"; tabel out.o3 (2 baris) — komentar: '
+                                            '"broker "AK" itu siapa?"; "Return BBRI 2019 sebesar 20,2%."]')
+    with pytest.raises(ValidationError):
+        AgentRunRequest.model_validate({"request_id": "r", "message": "x", "attachments": [{**TEXT, "comment": "x" * 501}]})

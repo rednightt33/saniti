@@ -2537,3 +2537,14 @@ and client are retained across connection failures. A sandbox restart can still 
 mechanism does not replay ambiguous POSTs or restore those variables. Incompatible capability upgrades require a
 normal Orc rollout. New session opens, including grouped research, report `Initiating sandbox session.` via the
 existing owner-scoped progress endpoint. Platform credit remains a Railway responsibility. See M187.
+
+## Conversation branches (EXEC-ASK-BRANCH, 2026-10-24)
+
+`POST /v1/conversations/{id}/branch {through_turn}` makes a conversation that continues another from one of its
+finished answers (EDGE Branch and side chat). `AI_conversation.lineage` (migration `20261024_001`) lists the
+conversations it continues with the turn and the time of the branch point; nothing is copied. Its history is their
+turns up to each branch point, its data record the one that answer had, and the result store and run memory read their
+rows created up to that point (`app/conversation_lineage.py`); writes stay its own. Each branch turn extends the
+retention of the conversations it continues. A pending Research Plan is not carried. `GET
+/v1/conversations/{id}/messages` takes `through` and returns `lineage`. The sandbox reuse key and OpenRouter's
+`session_id` are the new conversation's own, so its first turn reads data and prompt cache afresh.

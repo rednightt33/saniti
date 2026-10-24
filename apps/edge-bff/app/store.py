@@ -227,11 +227,42 @@ class Store:
             return c.execute('''SELECT u.*, (SELECT j.input->>'message' FROM edge_bff.jobs j
                     WHERE j.owner_key=u.owner_key AND j.conversation_id=u.conversation_id
                     ORDER BY j.created_at DESC LIMIT 1) AS last_message
-                FROM edge_bff.conversation_ui u WHERE u.owner_key=%s AND u.hidden_at IS NULL
+                FROM edge_bff.conversation_ui u WHERE u.owner_key=%s AND u.hidden_at IS NULL AND u.kind<>'SIDE'
                 AND (u.title ILIKE %s OR EXISTS (SELECT 1 FROM edge_bff.jobs q WHERE q.owner_key=u.owner_key
                      AND q.conversation_id=u.conversation_id AND q.input->>'message' ILIKE %s))
                 AND (NOT %s OR u.bookmarked) ORDER BY u.updated_at DESC,u.conversation_id
                 LIMIT %s OFFSET %s''', (owner, '%'+query+'%', '%'+query+'%', bookmarked, limit, offset)).fetchall()
+
+    def add_branch(self, owner, conversation_id, title, kind, parent_conversation_id, parent_request_id):
+        """EXEC-ASK-BRANCH (user 2026-10-24): the list row of a conversation Orc made to continue an answer. A second
+        side chat for the same answer is never made: the one already there is returned (unique per answer)."""
+        with self.connect() as c:
+            row = c.execute('''INSERT INTO edge_bff.conversation_ui(owner_key,conversation_id,title,kind,
+                    parent_conversation_id,parent_request_id) VALUES (%s,%s,%s,%s,%s,%s)
+                ON CONFLICT DO NOTHING RETURNING *''', (owner, conversation_id, title[:200] or 'Branch', kind,
+                                                     parent_conversation_id, parent_request_id)).fetchone()
+            return row or self.side_chat(owner, parent_request_id)
+
+    def side_chat(self, owner, request_id):
+        """The side chat of one answer, or None."""
+        with self.connect() as c:
+            return c.execute('''SELECT * FROM edge_bff.conversation_ui
+                WHERE owner_key=%s AND kind='SIDE' AND parent_request_id=%s''', (owner, request_id)).fetchone()
+
+    def side_chats(self, owner, request_ids):
+        """EXEC-ASK-BRANCH Q2 (user 2026-10-24): the side chats of these answers with how many questions each holds,
+        for the link under each answer (side chats are not in the conversation list)."""
+        if not request_ids:
+            return {}
+        with self.connect() as c:
+            rows = c.execute('''SELECT u.parent_request_id, u.conversation_id,
+                    (SELECT count(*) FROM edge_bff.jobs j WHERE j.owner_key=u.owner_key
+                     AND j.conversation_id=u.conversation_id) AS questions
+                FROM edge_bff.conversation_ui u
+                WHERE u.owner_key=%s AND u.kind='SIDE' AND u.parent_request_id=ANY(%s)''',
+                (owner, list(request_ids))).fetchall()
+        return {r['parent_request_id']: {'conversation_id': r['conversation_id'], 'questions': r['questions']}
+                for r in rows}
 
     def hide(self, owner, conversation_id):
         """EXEC-DELETE (user 2026-10-12: "hanya sembunyikan di front end tapi backend bisa akses if needed"): the

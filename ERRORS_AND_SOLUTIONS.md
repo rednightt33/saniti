@@ -1489,6 +1489,42 @@ change yet.
   pengecekan otomatis.
 - **Lesson:** satu service one-off, satu pekerjaan pada satu waktu.
 
+### M211 — Baris "AI request running" di kotak pesan tidak rata tengah vertikal (2026-10-24)
+
+- **Symptom:** user 2026-10-24 (screenshot, EXEC-UI-1024 1B): teks status di atas kotak pesan terlalu ke bawah.
+- **Verified cause:** tangkapan layar lokal dan pengukuran Chromium: kotak pesan `padding-top:20px`
+  (`.monitor-layout .composer`, `index.html`), baris status `margin:-10px` (`.composer-status`). Ruang di atas teks
+  18px, di bawahnya 7px. Dua aturan CSS menebak padding yang sama secara terpisah.
+- **Class:** setiap elemen yang "menempel" ke tepi wadah dengan margin negatif yang disalin dari padding wadah; berubah
+  diam-diam saat padding wadah berubah (desktop, ponsel).
+- **Solution:** satu variabel `--composer-pad-top` di aturan yang memberi padding; baris status berjalan
+  (`.composer-running`) memakai `margin-top: calc(-1 * var(--composer-pad-top))`. Tes geometri
+  `tests/test_ui_1024.py` (jarak atas = bawah ±1,5px).
+- **Status:** FIXED (deploy edge-bff EXEC-ASK-BRANCH-IMPL).
+- **Lesson:** ukuran yang dipakai dua aturan diturunkan dari satu variabel, bukan disalin.
+
+### M212 — Tes EDGE `test_typing_while_an_answer_arrives_keeps_focus` kadang gagal di suite penuh (2026-10-24)
+
+- **Symptom:** baseline 2026-10-24 sebelum perubahan apa pun: suite EDGE 153 lulus, 1 gagal (tes ini); dijalankan
+  sendiri lulus; suite penuh sesudah perubahan lulus 161/161.
+- **Suspected cause (belum diverifikasi):** soal waktu antara jawaban yang datang dan fokus kotak pesan di Chromium
+  headless saat mesin sibuk. Cek yang memastikan: jalankan tes itu 20 kali di suite penuh dan catat urutan event fokus.
+- **Class:** tes browser yang bergantung pada urutan waktu.
+- **Solution:** belum ada; tidak dilewati atau dinonaktifkan.
+- **Status:** OPEN (rendah).
+- **Lesson:** catat kegagalan baseline sebelum mengubah kode, supaya tidak disangka akibat perubahan.
+
+### M213 — Side chat EDGE ditolak browser: CSP `frame-ancestors 'none'` (2026-10-24)
+
+- **Symptom:** tes lokal EXEC-ASK-BRANCH: panel side chat kosong; konsol "Refused to frame ... frame-ancestors 'none'".
+- **Verified cause:** BFF mengirim `Content-Security-Policy ... frame-ancestors 'none'` (`apps/edge-bff/app/main.py`),
+  sedangkan side chat memuat EDGE di dalam EDGE (iframe, asal yang sama).
+- **Class:** fitur yang menyematkan halaman sendiri berbenturan dengan pengaman clickjacking.
+- **Solution:** `frame-ancestors 'self'`: hanya halaman EDGE sendiri yang boleh menyematkan EDGE; situs lain tetap
+  ditolak. Tes `tests/test_ask_branch.py::test_only_edge_itself_may_frame_edge`.
+- **Status:** FIXED (deploy edge-bff EXEC-ASK-BRANCH-IMPL).
+- **Lesson:** perubahan header keamanan dikunci dengan tes yang menyebut nilainya.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.

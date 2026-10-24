@@ -9769,6 +9769,7 @@ html.dark .edge-flow-done{background:#1e9a59;}
 .result h1,.result-metadata,.edge-pin-body,.content-block {overflow-wrap:anywhere;}
 .result-actions,.inline-actions {flex-wrap:wrap;}
 .details-panel .sources {padding:14px;}
+.sources-empty {margin:0;padding:14px;color:var(--muted-foreground);font-size:.8125rem;line-height:1.5;}
 .monitor-layout .jump-latest {bottom:calc(var(--edge-composer-height,128px) + 28px);}
 @media(max-width:1050px) {
  .monitor-layout {height:calc(100dvh - var(--topbar));position:relative;}
@@ -9995,6 +9996,24 @@ th.edge-sortable:hover .edge-sort-icon,.edge-sort:focus-visible .edge-sort-icon,
 .edge-table-attach-button {padding:4px 9px;border:1px solid var(--border);border-radius:7px;background:var(--secondary);color:var(--foreground);font:500 .76rem Inter,"Segoe UI",sans-serif;cursor:pointer;}
 .edge-table-attach small {font-size:.72rem;color:var(--muted-foreground);}
 .edge-attached-chip {gap:6px;}
+.edge-attached-chip {flex-wrap:wrap;}
+.edge-attached-comment {flex:1 1 180px;min-width:120px;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--foreground);font:inherit;padding:2px 0;outline:none;}
+.edge-attached-comment:focus {border-bottom-color:var(--muted-foreground);}
+/* EXEC-UI-1024 2a: the passages attached to the question, marked in their answer (CSS Custom Highlight; no DOM change) */
+::highlight(edge-attached) {background-color:rgb(250 204 21 / .45);color:inherit;}
+/* EXEC-ASK-BRANCH: the divider before a branch's own questions, the side chat panel and its frame's compact view */
+.edge-branch-divider {display:flex;align-items:center;gap:10px;margin:18px 0;color:var(--muted-foreground);font-size:.75rem;}
+.edge-branch-divider:before,.edge-branch-divider:after {content:"";flex:1;border-top:1px dashed var(--border);}
+.edge-branch-divider button {display:inline-flex;align-items:center;gap:6px;border:0;background:none;color:inherit;font:inherit;cursor:pointer;padding:2px 4px;}
+.edge-branch-divider button:hover {color:var(--foreground);text-decoration:underline;}
+.research-exchange.inherited {opacity:.92;}
+.edge-side-chat {position:fixed;top:56px;right:0;bottom:0;width:min(460px,42vw);z-index:40;display:flex;flex-direction:column;background:var(--background);border-left:1px solid var(--border);box-shadow:-12px 0 28px -18px rgb(0 0 0 / .45);}
+.edge-side-head {display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--border);font-size:.85rem;}
+.edge-side-frame {flex:1;width:100%;border:0;background:var(--background);}
+@media (max-width:720px) {.edge-side-chat {top:0;width:100%;border-left:0;}}
+.edge-side-view .topbar,.edge-side-view .conversation-panel,.edge-side-view .details-panel,.edge-side-view .workspace-tools,.edge-side-view .edge-panel-backdrop {display:none !important;}
+.edge-side-view .monitor-layout {grid-template-columns:minmax(0,1fr) !important;}
+.edge-side-view .monitor-layout .composer {margin-left:10px;margin-right:10px;}
 .edge-attached-chip button {margin-left:auto;border:0;background:none;color:var(--muted-foreground);font-size:1rem;cursor:pointer;}
 /* EXEC-IMPL-1016 Fase 4.3 (UI-1015B): the steps of a running answer */
 .edge-run-progress {margin:6px 0 0 30px;display:flex;flex-direction:column;gap:4px;font:.8rem Inter,"Segoe UI",sans-serif;color:var(--muted-foreground);}
@@ -10183,7 +10202,10 @@ html.dark .monitor-layout .details-panel>.tabs button:focus-visible{outline-colo
  .composer .mode-menu {position:fixed;left:12px;right:12px;bottom:calc(var(--edge-composer-height,98px) + 16px + env(safe-area-inset-bottom));width:auto;max-width:none;}
 }
 /* EXEC-UI-1019: border resizing works with mouse, touch and keyboard; keep room for the conversation. */
-.monitor-layout .composer {position:relative;left:auto;right:auto;padding-top:20px;}
+.monitor-layout .composer {position:relative;left:auto;right:auto;--composer-pad-top:20px;padding-top:var(--composer-pad-top);}
+/* EXEC-UI-1024 1B ("middle align"): the running status row starts at the box's top border, whatever the box's top
+   padding, so its text has the same room above and below */
+.composer > .composer-running {margin-top:calc(-1 * var(--composer-pad-top, 10px));}
 .monitor-layout .composer textarea {max-height:min(50dvh,var(--edge-composer-text-max,50dvh));}
 .edge-composer-resizer {position:absolute;left:calc(50% - 44px);top:-12px;width:88px;height:32px;z-index:6;cursor:row-resize;touch-action:none;border-radius:8px;outline:none;}
 .edge-composer-resizer:after {content:"";position:absolute;left:26px;right:26px;top:11px;height:4px;border-radius:2px;background:var(--border);}
@@ -10521,6 +10543,11 @@ const paths = {
     info: element(fragment, null,
         element("circle", { cx: "12", cy: "12", r: "9" }),
         element("path", { d: "M12 11v5M12 8h.01" })),
+    // EXEC-ASK-BRANCH: Branch (a fork) and the side chat (a speech bubble)
+    branch: element(fragment, null,
+        element("circle", { cx: "6", cy: "5", r: "2" }), element("circle", { cx: "6", cy: "19", r: "2" }),
+        element("circle", { cx: "18", cy: "7", r: "2" }), element("path", { d: "M6 7v10M18 9c0 4-6 3-12 8" })),
+    chat: element("path", { d: "M5 5h14a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-8l-4 3v-3H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" }),
     support: element(fragment, null,
         element("path", { d: "M4 13v-1a8 8 0 0 1 16 0v1" }),
         element("path", { d: "M4 13h3v5H5a1 1 0 0 1-1-1Zm16 0h-3v5h2a1 1 0 0 0 1-1Z" }),
@@ -10717,6 +10744,10 @@ function AuthFooter() {
             element("a", { href: "#terms" }, "Terms")));
 }
 function loadConversations(){return [];}
+// EXEC-ASK-BRANCH (user 2026-10-24): #/monitor?c=<conversation> opens that conversation (a Branch opens in a new tab);
+// &view=side shows only the conversation and its message box (the side chat's frame)
+function edgeLink(){const q=new URLSearchParams(routeLocation().search),c=q.get("c");return {conversationId:/^conv_[0-9a-f]{32}$/.test(c||"")?c:null,side:q.get("view")==="side"};}
+function conversationUrl(id,side=false){return staticUrl("/monitor?c="+encodeURIComponent(id)+(side?"&view=side":""));}
 const latestRun = (conversation) => conversation?.runs.at(-1);
 const formatDuration = (milliseconds) => milliseconds === undefined ? "—" : milliseconds < 1000 ? `${milliseconds}ms` : `${(milliseconds / 1000).toFixed(2)}s`;
 const relativeTime = (iso) => { if (!iso)
@@ -10846,13 +10877,46 @@ function Monitor({ go }) {
     // selection anywhere in an answer (at most 5; each chip can be removed)
     const attachedValue=initialValue(viewRecord,"attached",()=>[]),attached=Array.isArray(attachedValue)?attachedValue:[];
     const setAttached=next=>updateValue(viewRecord,"attached",next);
+    // EXEC-UI-1024 2a: mark the attached passages after each change of the attachments or of the shown answers
+    onLifecycle(viewRecord,"highlightAttached",()=>{const frame=requestAnimationFrame(()=>EdgeHighlight.show(attached));return()=>cancelAnimationFrame(frame);},[attached,selectedId,items]);
     const addAttached=item=>{if(!item)return;if(attached.length>=5){setInputHint(edgeUi().attachLimit);return;}
       setAttached([...attached,item]);focusComposer();};
     viewRecord.refs.attachHandler=addAttached;
     if(!viewRecord.refs.attachInstalled){viewRecord.refs.attachInstalled=true;
       window.addEventListener("edge-attach",event=>viewRecord.refs.attachHandler?.(event.detail));}
     const inputHint=initialValue(viewRecord,"inputHint",()=>null),setInputHint=next=>updateValue(viewRecord,"inputHint",next);
-    const selectConversation = async id => {setHistoryOpen(false);setLoadingConversation(true);setApiError("");setSelectedId(id);setSelectedRunId(null);setPendingReply(null);try{const loaded=await Edge.messages(id);setItems(current=>current.map(x=>x.id===id?loaded:x));}catch(e){setApiError(e.message);}finally{setLoadingConversation(false);}};
+    // EXEC-ASK-BRANCH: a conversation not in the list (opened by link, a side chat) joins it when selected
+    const selectConversation = async id => {setHistoryOpen(false);setLoadingConversation(true);setApiError("");setSelectedId(id);setSelectedRunId(null);setPendingReply(null);try{const loaded=await Edge.messages(id);setItems(current=>current.some(x=>x.id===id)?current.map(x=>x.id===id?loaded:x):[loaded,...current]);}catch(e){setApiError(e.message);}finally{setLoadingConversation(false);}};
+    // EXEC-ASK-BRANCH (user 2026-10-24: Branch "satu tab baru terpisah sama seperti feature chat GPT"; a side chat "untuk
+    // nanya jawaban yang dikasih oleh AI"). The tab is opened before the request so no pop-up blocker stops it.
+    const link=cachedValue(viewRecord,"edgeLink",()=>edgeLink(),[]);
+    const sidePanel=initialValue(viewRecord,"sidePanel",()=>null),setSidePanel=next=>updateValue(viewRecord,"sidePanel",next);
+    const carryTitle=(template,run)=>template.replace("{title}",Edge.shortTitle(run.result?.title||run.question,60));
+    const branchRun=async run=>{const tab=window.open("","_blank");
+      try{const made=await Edge.branch(run.id,"BRANCH",carryTitle(edgeUi().branchTitle,run));const url=conversationUrl(made.conversation_id);
+        setItems(current=>[{id:made.conversation_id,title:made.title,bookmarked:false,createdAt:made.created_at,updatedAt:made.updated_at,messages:[],runs:[]},...current.filter(x=>x.id!==made.conversation_id)]);
+        if(tab){tab.opener=null;tab.location.href=url;}else selectConversation(made.conversation_id);}
+      catch(e){tab?.close();setApiError(e.message);}};
+    const askRun=async (run,attach=null)=>{try{const made=await Edge.branch(run.id,"SIDE",carryTitle(edgeUi().askTitle,run));
+        if(attach){try{sessionStorage.setItem("edge-side-attach:"+made.conversation_id,JSON.stringify([attach]));}catch{/* the passage is then not attached */}}
+        setSidePanel({conversationId:made.conversation_id,runId:run.id,key:Date.now()});}catch(e){setApiError(e.message);}};
+    // closing the side chat refreshes the answers' side-chat links (how many questions each holds)
+    const closeSide=async()=>{setSidePanel(null);const id=selectedId;if(!id?.startsWith("conv_"))return;try{const loaded=await Edge.messages(id);setItems(current=>current.map(x=>x.id===id?{...x,sideChats:loaded.sideChats}:x));}catch{/* the links refresh on the next load */}};
+    // a branch shows the turns it continues; a side chat (its frame) only the answer it asks about. The divider names
+    // where the continued turns come from and sits before the conversation's own first question
+    const shownMessages=conversation=>{const asked=conversation.messages.filter(m=>m.role==="user"),inherited=asked.filter(m=>m.inherited);
+      return link.side&&inherited.length?asked.filter(m=>!m.inherited||m===inherited.at(-1)):asked;};
+    const branchDivider=conversation=>{const from=conversation.messages.find(m=>m.inherited)?.inherited;if(!from)return null;
+      const ui=edgeUi(),text=(conversation.kind==="SIDE"?ui.sideFrom:ui.branchedFrom).replace("{title}",from.title||"");
+      return element("div",{key:"edge-branch-divider",className:"edge-branch-divider",role:"separator"},
+        link.side?element("span",null,text):element("button",{type:"button",onClick:()=>selectConversation(from.conversationId)},element(Icon,{name:"branch",size:13}),text));};
+    const withDivider=(conversation,nodes)=>{const divider=branchDivider(conversation);if(!divider)return nodes;
+      const at=shownMessages(conversation).findIndex(m=>!m.inherited);return [...nodes.slice(0,at<0?nodes.length:at),divider,...nodes.slice(at<0?nodes.length:at)];};
+    viewRecord.refs.askHandler=detail=>{const run=items.find(x=>x.id===selectedId)?.runs.find(r=>r.id===detail?.request_id);if(run)askRun(run,detail);};
+    if(!viewRecord.refs.askInstalled){viewRecord.refs.askInstalled=true;
+      window.addEventListener("edge-ask",event=>viewRecord.refs.askHandler?.(event.detail));}
+    onLifecycle(viewRecord,"sideView",()=>{document.documentElement.classList.toggle("edge-side-view",link.side);
+      if(link.side&&link.conversationId){try{const key="edge-side-attach:"+link.conversationId,held=JSON.parse(sessionStorage.getItem(key)||"[]");sessionStorage.removeItem(key);if(Array.isArray(held)&&held.length)setAttached(held.slice(0,5));}catch{/* nothing attached */}}},[]);
     // EXEC-DELETE (user 2026-10-12): the trash button asks first, then hides the conversation from this list only
     const hideTarget = initialValue(viewRecord, "hideTarget", () => null), setHideTarget = next => updateValue(viewRecord, "hideTarget", next);
     const hideConversation=async item=>{try{await Edge.hideConversation(item.id);setHideTarget(null);setItems(current=>current.filter(x=>x.id!==item.id));if(selectedId===item.id)newConversation();}catch(e){setHideTarget(null);setApiError(e.message);}};
@@ -10876,7 +10940,10 @@ function Monitor({ go }) {
     };
     onLifecycle(viewRecord,"backend-init",()=>{
       let disposed=false;
-      (async()=>{try{const loaded=await Edge.conversations();if(disposed)return;setItems(loaded);const {active:running}=await Edge.api("/runs");if(disposed || !running)return;
+      (async()=>{try{const loaded=await Edge.conversations();if(disposed)return;setItems(loaded);const {active:running}=await Edge.api("/runs");if(disposed)return;
+        // EXEC-ASK-BRANCH: a linked conversation opens first; a run elsewhere is followed only in its own conversation
+        if(link.conversationId){await selectConversation(link.conversationId);if(!running || running.conversation_id!==link.conversationId)return;}
+        if(!running)return;
         let id=running.conversation_id || "draft:"+running.request_id;
         let conversation=running.conversation_id ? await Edge.messages(id) : {id,title:"Request in progress",bookmarked:false,createdAt:running.created_at,updatedAt:running.updated_at,messages:[],runs:[]};
         if(!conversation.runs.some(r=>r.id===running.request_id)){const r={id:running.request_id,question:running.message || "Request in progress",status:"running",mode:"Standard",createdAt:running.created_at,attachments:[],sources:[],steps:[]};conversation.runs.push(r);conversation.messages.push({id:r.id+"-user",role:"user",content:r.question,createdAt:r.createdAt,runId:r.id});}
@@ -10892,7 +10959,7 @@ function Monitor({ go }) {
       const holder=afterStop && executionRun ? items.find(c=>c.runs.some(r=>r.id===executionRun.id)) : null;
       const target=holder ? holder.id : selectedId;
       const existing=target?.startsWith("conv_")?target:null;
-      const payload={message:question,...edgeModelChoice(),...(existing?{conversation_id:existing}:{}),...(afterStop?{after_stop:true}:{}),...(attached.length&&!plain?{attachments:attached}:{}),...extra,...(pendingReply&&!plain?{plan_reply:{...pendingReply,revision_instruction:question.slice(0,2000)}}:{})};
+      const payload={message:question,...edgeModelChoice(),...(existing?{conversation_id:existing}:{}),...(afterStop?{after_stop:true}:{}),...(attached.length&&!plain?{attachments:EdgeView.attachmentsPayload(attached)}:{}),...extra,...(pendingReply&&!plain?{plan_reply:{...pendingReply,revision_instruction:question.slice(0,2000)}}:{})};
       const fingerprint=JSON.stringify(payload);
       const pending=submissionRef.current?.fingerprint===fingerprint?submissionRef.current:{fingerprint,key:crypto.randomUUID()};submissionRef.current=pending;
       try{const accepted=await Edge.createRun({...payload,submission_key:pending.key});const now=new Date().toISOString(),id=accepted.conversation_id || existing || holder?.id || "draft:"+accepted.request_id;
@@ -11010,7 +11077,7 @@ function Monitor({ go }) {
                         element(Icon, { name: "spark" })),
                     element("strong", null, "Start a research session"),
                     element("p", null, "Ask a research question to create a conversation. No thread is created until you submit."),
-                    element(Pill, null, "Draft")) : selected.messages.filter(message => message.role === "user").map(message => { const messageRun = selected.runs.find(item => item.id === message.runId); return element("div", { className: `research-exchange ${messageRun?.id === run?.id ? "selected-run" : ""}`, key: message.id, id: messageRun ? `edge-exchange-${messageRun.id}` : undefined },
+                    element(Pill, null, "Draft")) : withDivider(selected, shownMessages(selected).map(message => { const messageRun = selected.runs.find(item => item.id === message.runId); return element("div", { className: `research-exchange ${messageRun?.id === run?.id ? "selected-run" : ""}${message.inherited ? " inherited" : ""}`, key: message.id, id: messageRun ? `edge-exchange-${messageRun.id}` : undefined },
                     element("div", { className: "user-message" },
                         element("span", { className: "message-label" },
                             "You"),
@@ -11021,7 +11088,7 @@ function Monitor({ go }) {
                     element("div", {className:"user-message-footer"},element("div", { className:"user-sent-at" }, formatMessageJakarta(message.createdAt)),element(MessageClipboardActions,{getText:()=>message.content,kind:"user"})),
                     messageRun && element(fragment, null,
                         element(RunStatus, { run: messageRun, stopping: stoppingId === messageRun.id, expanded: expandedRuns.includes(messageRun.id), toggle: () => { setSelectedRunId(messageRun.id); setSourceDetail(null); setActiveSection("conditions"); setExpandedRuns(current => current.includes(messageRun.id) ? current.filter(id => id !== messageRun.id) : [...current, messageRun.id]); }, retry: () => retry(messageRun), retryNow: () => retryNow(messageRun), changeModel: () => changeModel(messageRun), enabled: !active && !submitting }),
-                        messageRun.result && element(ResearchDocument, { run: messageRun, conversationId: selected.id, togglePin: () => togglePin(messageRun), act, planIndex, enabled: !active && !submitting && messageRun.id === latestRun(selected)?.id, planEnabled: !active && !submitting && (!selected.plan || selected.plan.status === "PENDING") && messageRun.id === latestRun(selected)?.id, tableMenu: tableMenu, setTableMenu: setTableMenu, expand: () => setExpandedTable(messageRun) }))); })),
+                        messageRun.result && element(ResearchDocument, { run: messageRun, conversationId: selected.id, togglePin: () => togglePin(messageRun), act, planIndex, carry: link.side || messageRun.status !== "completed" ? null : {branch: () => branchRun(messageRun), ask: () => askRun(messageRun), side: selected.sideChats?.[messageRun.id]}, enabled: !active && !submitting && messageRun.id === latestRun(selected)?.id, planEnabled: !active && !submitting && (!selected.plan || selected.plan.status === "PENDING") && messageRun.id === latestRun(selected)?.id, tableMenu: tableMenu, setTableMenu: setTableMenu, expand: () => setExpandedTable(messageRun) }))); }))),
                 !autoFollow && element("button", { className: "jump-latest", onClick: () => { setAutoFollow(true); scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); } },
                     element(Icon, { name: "arrow-down" }),
                     "Jump to latest"),
@@ -11030,12 +11097,15 @@ function Monitor({ go }) {
                 inputHint && element("div",{className:"composer-status"},inputHint,element("button",{onClick:()=>setInputHint(null)},"Dismiss")),
                 element("div", { key: "research-composer", ref:composerPanelRef, className: `composer ${active ? "running" : ""} ${prompt.trim() ? "has-text" : ""}` },
                     element(ComposerResizeHandle,{fieldRef:composerRef,height:composerHeight,setHeight:setComposerHeight}),
-                    active && element("div", { className: "composer-status" },
+                    active && element("div", { className: "composer-status composer-running" },
                         element("span", { className: "pulse" }),
                         element("span", null, executionRun?.status === "streaming" ? "Streaming research result…" : executionRun?.steps.find(step => step.status === "running")?.label ?? "Research running…"),
                         null),
+                    // EXEC-UI-1024 2c: each attachment carries its own comment; the message stays the general question. The
+                    // comment is kept on the item as typed (no redraw per keystroke) and sent with it
                     attached.map((item,index)=>element("div",{key:`attached-${index}`,className:"composer-status edge-attached-chip"},element(Icon,{name:"attach",size:13}),
                     element("span",null,EdgeView.selectionLabel(item)),
+                    element("input",{className:"edge-attached-comment",type:"text",maxLength:500,value:item.comment||"",placeholder:edgeUi().attachComment,"aria-label":edgeUi().attachComment,onInput:event=>{item.comment=event.target.value.slice(0,500);}}),
                     element("button",{type:"button","aria-label":edgeUi().attachRemove,title:edgeUi().attachRemove,onClick:()=>setAttached(attached.filter((_,i)=>i!==index))},"×"))),
                     context && element("div", { className: "research-context" },
                         element("span", null, "Context"),
@@ -11075,6 +11145,12 @@ function Monitor({ go }) {
                 element(PinnedResponses, { open:pinsOpen, toggle:togglePins, height:pinsHeight, runs:selected?.runs ?? [], unpin:id=>togglePin(selected.runs.find(r=>r.id===id),false), jump:jumpToRun }),
                 pinsOpen && (flowOpen || detailsTab !== "Flow") && element(PinsResizeHandle, { height:pinsHeight, setHeight:value => { setPinsHeight(value); keep("edge-pins-height", value); } }),
                 element("div", {className:"edge-details-upper",ref:historyScrollRef}, run ? detailsTab === "Sources" ? element(Sources,{run,act}) : element(ResponseFlows, { runs:selected?.runs ?? [], autoOpenRunId, open:flowOpen, toggle:toggleFlow, jump:jumpToRun }) : element("div", { className: "details-empty" }, "No research run selected."))),
+            // EXEC-ASK-BRANCH: the side chat of one answer: the same EDGE, showing only that conversation (Q2: it is not
+            // in the conversation list; the answer links to it)
+            sidePanel && element("aside",{className:"edge-side-chat","aria-label":edgeUi().askAbout},
+                element("div",{className:"edge-side-head"},element("strong",null,edgeUi().askAbout),
+                    element(IconButton,{icon:"close",title:edgeUi().sideClose,onClick:closeSide})),
+                element("iframe",{key:sidePanel.key,className:"edge-side-frame",src:conversationUrl(sidePanel.conversationId,true),title:edgeUi().askAbout})),
             (historyOpen || mobileDetailsOpen) && element("button",{className:"edge-panel-backdrop",tabIndex:-1,"aria-label":"Close panel",onClick:()=>{setHistoryOpen(false);setMobileDetailsOpen(false);}}),
             expandedTable && element(ResearchTableDialog, { run: expandedTable, close: () => setExpandedTable(null) })));
 }
@@ -11264,8 +11340,9 @@ function RunProgress({ run }) {
     return element("div", { className: "edge-run-progress" },
         element("div", { className: "edge-run-progress-now" },
             view.elapsed && element(RunClock, { elapsedMs: data.elapsed_ms, at: data.receivedAt }),
-            view.current && element("span", { className: "edge-run-progress-step" }, element("span", null, view.current),
-                view.currentStep && element(RunClock, { key: `step-${view.currentStep.started}`, elapsedMs: view.currentStep.ms, at: data.receivedAt, className: "edge-run-step-clock", prefix: " \u00B7 " }))),
+            // EXEC-UI-1024 1A (user 2026-10-24: "1A yg dihapus hanya yang 7S"): the running step shows its label only;
+            // the total in front and the durations under "Steps done" stay
+            view.current && element("span", { className: "edge-run-progress-step" }, element("span", null, view.current))),
         view.done.length > 0 && element("details", { className: "edge-run-progress-done" },
             element("summary", null, view.doneTitle),
             view.earlier && element("small", null, view.earlier),
@@ -11638,8 +11715,13 @@ function ShareAction({run}) {
    element("button",{type:"button",role:"menuitem",onClick:()=>pick("docx")},ui.shareWord)),
   status&&element("span",{className:"clipboard-status",role:"status"},status));
 }
-function ResponseActions({run,togglePin,artifacts=[]}) {
- return element("div",{className:"result-actions"},element("button",{className:"result-action",onClick:togglePin,"aria-pressed":Boolean(run.pinned)},element(Icon,{name:"pin"}),run.pinned?"Pinned":"Pin"),element(MessageClipboardActions,{getText:responseCopyText,kind:"ai"}),element(ShareAction,{run}),artifacts.map(file=>{const href=Edge.exportUrl(file.id);return href&&element("a",{className:"result-action",href},element(FileTypeIcon,{label:file.label}),"Download "+file.label);}));
+function ResponseActions({run,togglePin,artifacts=[],carry=null}) {
+ const ui=edgeUi();
+ return element("div",{className:"result-actions"},element("button",{className:"result-action",onClick:togglePin,"aria-pressed":Boolean(run.pinned)},element(Icon,{name:"pin"}),run.pinned?"Pinned":"Pin"),element(MessageClipboardActions,{getText:responseCopyText,kind:"ai"}),element(ShareAction,{run}),
+  // EXEC-ASK-BRANCH (user 2026-10-24): continue this answer in a new tab, or ask about it in a side chat
+  carry&&element("button",{className:"result-action edge-branch-action",title:ui.branchHint,onClick:carry.branch},element(Icon,{name:"branch"}),ui.branch),
+  carry&&element("button",{className:"result-action edge-ask-action",title:ui.askHint,onClick:()=>carry.ask()},element(Icon,{name:"chat"}),carry.side?ui.sideChat.replace("{n}",String(carry.side.questions)):ui.askAbout),
+  artifacts.map(file=>{const href=Edge.exportUrl(file.id);return href&&element("a",{className:"result-action",href},element(FileTypeIcon,{label:file.label}),"Download "+file.label);}));
 }
 // EXEC-X (M124): the answer view renders the view model of static/edge-view.js (EdgeView.toView), the only code that
 // reads Orc's response; words come from static/edge-labels.js. Text from the AI becomes DOM nodes through element()
@@ -11692,6 +11774,11 @@ const EdgeSelection = (() => {
       window.dispatchEvent(new CustomEvent("edge-attach", {detail:build(info)}));
       window.getSelection()?.removeAllRanges();
     });
+    // EXEC-ASK-BRANCH: the passage opens the answer's side chat, attached there (not inside the side chat itself)
+    if (!document.documentElement.classList.contains("edge-side-view")) item(ui.selectionAsk, () => {
+      window.dispatchEvent(new CustomEvent("edge-ask", {detail:build(info)}));
+      window.getSelection()?.removeAllRanges();
+    });
     document.body.appendChild(menu);
     menu.style.left = Math.max(8, Math.min(x, innerWidth - menu.offsetWidth - 8)) + "px";
     menu.style.top = Math.max(8, Math.min(y, innerHeight - menu.offsetHeight - 8)) + "px";
@@ -11719,6 +11806,38 @@ const EdgeSelection = (() => {
     document.addEventListener("keydown", event => { if (event.key === "Escape") close(); });
   }
   return {close};
+})();
+
+// EXEC-UI-1024 2a (user 2026-10-24: attached text "disorot kuning"): each attached passage is marked in its own answer
+// with the CSS Custom Highlight API, so the answer's DOM is never changed. The passage is found again from its text
+// (spaces ignored, as the selection's text and the page's text break lines differently); a browser without the API
+// shows no mark and the attachment works as before.
+const EdgeHighlight = (() => {
+  const NAME = "edge-attached";
+  const rangeOf = (root, quote) => {
+    const wanted = String(quote || "").replace(/\s+/g, "");
+    if (!root || !wanted) return null;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const map = []; let text = "";
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const value = node.nodeValue;
+      for (let i = 0; i < value.length; i++) if (!/\s/.test(value[i])) { text += value[i]; map.push([node, i]); }
+    }
+    const at = text.indexOf(wanted);
+    if (at < 0) return null;
+    const [startNode, startOffset] = map[at], [endNode, endOffset] = map[at + wanted.length - 1];
+    const range = document.createRange();
+    range.setStart(startNode, startOffset); range.setEnd(endNode, endOffset + 1);
+    return range;
+  };
+  const show = items => {
+    if (typeof CSS === "undefined" || !CSS.highlights || typeof Highlight !== "function") return 0;
+    const ranges = (items || []).filter(item => item && item.kind === "TEXT" && item.request_id)
+      .map(item => rangeOf(document.getElementById(item.request_id + "-response"), item.quote)).filter(Boolean);
+    if (ranges.length) CSS.highlights.set(NAME, new Highlight(...ranges)); else CSS.highlights.delete(NAME);
+    return ranges.length;
+  };
+  return {show, rangeOf, NAME};
 })();
 
 // ---- Markdown: blocks, then inline spans; anything else stays plain text ----
@@ -12154,7 +12273,7 @@ function PauseCard({pause, enabled, act, scope}) {
     choices:(()=>{const first=pause.choices.findIndex(choice=>!edgeChoiceDraft(choice.action));
       return pause.choices.map((choice,index)=>({...choice,primary:index===first}));})()});  // the first choice sent at once leads
 }
-function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex,conversationId}) {
+function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex,conversationId,carry=null}) {
  const v=EdgeView.toView(run.raw,{domainStatus:run.domainStatus,planIndex}), claims=new Map(v.claims), fast=v.meta.lane==="fast";
  const items=values=>element("ul",{className:"edge-list"},values.map(x=>element("li",null,typeof x==="string"?mdInline(fast?fastDates(x):x,{claims}):DataValue({value:x}))));
  // EXEC-STYLE S3: assumptions and limitations sit folded under the answer, with their count
@@ -12188,7 +12307,7 @@ function ResearchDocument({run,togglePin,act,enabled,planEnabled,planIndex,conve
   v.next&&element("div",{className:"content-block edge-next"},v.next.map(group=>element("details",{key:group.key,className:"edge-more edge-notes edge-next-group"},
     element("summary",null,`${group.label} (${group.choices.length})`),
     group.choices.length>0&&element(ChoiceBar,{choices:group.choices,enabled,act,scope:run.id+":next:"+group.key})))),
-  element(ResponseActions,{run,togglePin,artifacts:v.artifacts}));
+  element(ResponseActions,{run,togglePin,artifacts:v.artifacts,carry}));
 }
 function ShareResearchPopover({run,close}) {return element("div",{className:"share-popover"},element("p",null,"Public sharing unavailable"),element(Button,{onClick:close},"Close"));}
 function SourceItem({item, act}) {
@@ -12200,7 +12319,8 @@ function SourceItem({item, act}) {
 }
 function Sources({run, act}) {
  const v=EdgeView.sources(run.raw);
- if(v.empty)return element("p",{className:"details-empty"},v.emptyText);
+ // EXEC-UI-1024 1C: the empty state sits where the panel's content starts (left, the sources' own padding)
+ if(v.empty)return element("p",{className:"sources-empty"},v.emptyText);
  const items=section=>section.items.map((item,index)=>element(SourceItem,{key:index,item,act}));
  return element("div",{className:"sources"},
   v.sections.map(section=>section.folded

@@ -24,6 +24,8 @@ from typing import Any
 import psycopg
 from psycopg.rows import dict_row
 
+from .conversation_lineage import scope
+
 logger = logging.getLogger("market_ai_orc")
 
 POSTGRES_MAX_BYTES = 20 * 1024 * 1024  # user decision 3 (2026-10-03): a table up to 20 MB and 50,000 rows in Postgres
@@ -164,21 +166,23 @@ class ResultStore:
         supporting tables after the released ones."""
         support = "" if include_support else "AND output_type <> 'SUPPORT' "
         with self._connect() as connection:
+            where, params = scope(connection, conversation_id)  # EXEC-ASK-BRANCH: and the conversations it continues
             rows = connection.execute(
                 "SELECT output_id, name, format, byte_count, checksum_sha256, storage, object_key, label, definition, "
                 "units, lineage, data_as_of::text AS data_as_of, request_id, execution_id, output_type "
-                'FROM public."AI_conversation_output" WHERE conversation_id = %s AND format = \'PARQUET\' '
+                f'FROM public."AI_conversation_output" WHERE {where} AND format = \'PARQUET\' '
                 f"{support}ORDER BY (output_type = 'SUPPORT'), created_at DESC LIMIT %s",
-                (conversation_id, limit)).fetchall()
+                (*params, limit)).fetchall()
         return [StoredOutput(**row) for row in rows]
 
     def supporting_tables(self, conversation_id: str, limit: int = 20) -> list[dict[str, Any]]:
         """The conversation's kept working tables (saniti.save_table), newest first, for CONVERSATION RESOURCES."""
         with self._connect() as connection:
+            where, params = scope(connection, conversation_id)
             rows = connection.execute(
                 "SELECT output_id, name, row_count AS rows, columns, created_at::text AS saved_at "
-                'FROM public."AI_conversation_output" WHERE conversation_id = %s AND output_type = \'SUPPORT\' '
-                "AND format = 'PARQUET' ORDER BY created_at DESC LIMIT %s", (conversation_id, limit)).fetchall()
+                f'FROM public."AI_conversation_output" WHERE {where} AND output_type = \'SUPPORT\' '
+                "AND format = 'PARQUET' ORDER BY created_at DESC LIMIT %s", (*params, limit)).fetchall()
         return [dict(row) for row in rows]
 
     def content(self, conversation_id: str, stored: StoredOutput) -> bytes:
@@ -187,21 +191,23 @@ class ResultStore:
                 raise RuntimeError("the table is in the bucket and no bucket is configured")
             return self.bucket.get(stored.object_key)
         with self._connect() as connection:
+            where, params = scope(connection, conversation_id)
             row = connection.execute('SELECT content FROM public."AI_conversation_output" '
-                                     "WHERE conversation_id = %s AND output_id = %s",
-                                     (conversation_id, stored.output_id)).fetchone()
+                                     f"WHERE {where} AND output_id = %s", (*params, stored.output_id)).fetchone()
         if row is None:
             raise RuntimeError("the stored table disappeared")
         return bytes(row["content"])
 
     def output(self, conversation_id: str, output_id: str) -> StoredOutput | None:
-        """One stored output of this conversation (any format), or None; another conversation's never."""
+        """One stored output of this conversation (any format), or None; another conversation's never, except one
+        the conversation continues, up to its branch point (EXEC-ASK-BRANCH)."""
         with self._connect() as connection:
+            where, params = scope(connection, conversation_id)
             row = connection.execute(
                 "SELECT output_id, name, format, byte_count, checksum_sha256, storage, object_key, label, definition, "
                 "units, lineage, data_as_of::text AS data_as_of, request_id, execution_id "
-                'FROM public."AI_conversation_output" WHERE conversation_id = %s AND output_id = %s',
-                (conversation_id, output_id)).fetchone()
+                f'FROM public."AI_conversation_output" WHERE {where} AND output_id = %s',
+                (*params, output_id)).fetchone()
         return StoredOutput(**row) if row else None
 
     def purge_support(self, conversation_id: str, days: int = SUPPORT_RETENTION_DAYS) -> int:
@@ -225,27 +231,29 @@ class ResultStore:
     def executions_of_session(self, conversation_id: str, session_id: str) -> list[dict[str, Any]]:
         """E9(f): the stored code of every execution of one session, in the order it ran."""
         with self._connect() as connection:
+            where, params = scope(connection, conversation_id)
             return connection.execute(
                 "SELECT execution_id, request_id, code, code_truncated, code_sha256, status "
-                'FROM public."AI_conversation_execution" WHERE conversation_id = %s AND session_id = %s '
-                "ORDER BY created_at, execution_id", (conversation_id, session_id)).fetchall()
+                f'FROM public."AI_conversation_execution" WHERE {where} AND session_id = %s '
+                "ORDER BY created_at, execution_id", (*params, session_id)).fetchall()
 
     def outputs_of_execution(self, conversation_id: str, execution_id: str) -> list[dict[str, Any]]:
         """The outputs one execution released (a chart's tables), without content."""
         with self._connect() as connection:
+            where, params = scope(connection, conversation_id)
             return connection.execute(
                 "SELECT output_id, name, output_type, format, row_count FROM public.\"AI_conversation_output\" "
-                "WHERE conversation_id = %s AND execution_id = %s ORDER BY created_at", (conversation_id,
-                                                                                       execution_id)).fetchall()
+                f"WHERE {where} AND execution_id = %s ORDER BY created_at", (*params, execution_id)).fetchall()
 
     def execution(self, conversation_id: str, execution_id: str) -> dict[str, Any] | None:
         """One stored execution of this conversation: code (as stored, at most 65,536 characters), its sha256 of the
         whole code, modules, access (what it read) and status."""
         with self._connect() as connection:
+            where, params = scope(connection, conversation_id)
             return connection.execute(
                 "SELECT execution_id, request_id, session_id, code, code_truncated, code_sha256, modules, access, "
                 'status, created_at::text AS created_at FROM public."AI_conversation_execution" '
-                "WHERE conversation_id = %s AND execution_id = %s", (conversation_id, execution_id)).fetchone()
+                f"WHERE {where} AND execution_id = %s", (*params, execution_id)).fetchone()
 
     # ----------------------------------------------------------------------------------------------- evidence
 
@@ -264,10 +272,11 @@ class ResultStore:
 
     def evidence(self, conversation_id: str, evidence_id: str) -> dict[str, Any] | None:
         with self._connect() as connection:
+            where, params = scope(connection, conversation_id)
             return connection.execute(
                 "SELECT evidence_id, request_id, claim, value_text, kind, recipe, status, backend_value, difference, "
-                'source, rows, rows_matched FROM public."AI_conversation_evidence" WHERE conversation_id = %s '
-                "AND evidence_id = %s", (conversation_id, evidence_id)).fetchone()
+                f'source, rows, rows_matched FROM public."AI_conversation_evidence" WHERE {where} '
+                "AND evidence_id = %s", (*params, evidence_id)).fetchone()
 
     # ------------------------------------------------------------------------------------------------ exports
 
@@ -291,10 +300,11 @@ class ResultStore:
     def export(self, conversation_id: str, export_id: str) -> dict[str, Any] | None:
         """An export's metadata (no content), within its conversation."""
         with self._connect() as connection:
+            where, params = scope(connection, conversation_id)
             return connection.execute(
                 "SELECT export_id, request_id, source_ref, format, file_name, mime_type, size_bytes, sha256, includes, "
                 'created_at::text AS created_at FROM public."AI_conversation_export" '
-                "WHERE conversation_id = %s AND export_id = %s", (conversation_id, export_id)).fetchone()
+                f"WHERE {where} AND export_id = %s", (*params, export_id)).fetchone()
 
     def owned_export(self, owner: str, export_id: str) -> dict[str, Any] | None:
         """An export's metadata when its conversation belongs to this owner (the download's access rule)."""
@@ -309,11 +319,11 @@ class ResultStore:
         """The file in chunks read with substring, so a 20 MB file is never held whole in memory."""
         position = 1
         with self._connect() as connection:
+            where, params = scope(connection, conversation_id)
             while True:
                 row = connection.execute(
                     'SELECT substring(content FROM %s FOR %s) AS part FROM public."AI_conversation_export" '
-                    "WHERE conversation_id = %s AND export_id = %s", (position, chunk, conversation_id,
-                                                                      export_id)).fetchone()
+                    f"WHERE {where} AND export_id = %s", (position, chunk, *params, export_id)).fetchone()
                 part = bytes(row["part"]) if row and row["part"] is not None else b""
                 if not part:
                     return

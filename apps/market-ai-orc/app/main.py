@@ -41,7 +41,7 @@ from .provider_policy import CachePricePolicy
 from .tools.web_fact import WebFactClient
 from .tools.web_research import WebResearchClient
 from .research_plan_v2 import library_problem, negotiate
-from .schemas import AgentRunRequest, AgentRunResponse, ModeExecution
+from .schemas import AgentRunRequest, AgentRunResponse, BranchRequest, ModeExecution
 from .tools import build_default_registry
 from .tools.analysis import SandboxClient
 from .tools.catalog import CatalogTools
@@ -820,12 +820,26 @@ def create_app(
 
     @app.get("/v1/conversations/{conversation_id}/messages", dependencies=[Depends(authorize)])
     def conversation_messages(conversation_id: str, after: int | None = None, limit: int | None = None,
+                              through: int | None = None,
                               x_saniti_owner: str | None = Header(default=None)) -> JSONResponse:
         try:
             if conversations is None:
                 raise ConversationError("HISTORY_MODE_UNAVAILABLE", "The conversation store is not enabled.", 404)
             return JSONResponse(content=conversations.messages(owner_from_header(x_saniti_owner), conversation_id,
-                                                               after, limit))
+                                                               after, limit, through))
+        except ConversationError as error:
+            return refuse(error)
+
+    @app.post("/v1/conversations/{conversation_id}/branch", dependencies=[Depends(authorize)])
+    def branch_conversation(conversation_id: str, payload: BranchRequest,
+                            x_saniti_owner: str | None = Header(default=None)) -> JSONResponse:
+        """EXEC-ASK-BRANCH (user 2026-10-24): a new conversation that continues this one from one of its answers
+        (EDGE Branch and the side chat "Ask about this answer"); no model call."""
+        try:
+            if conversations is None:
+                raise ConversationError("HISTORY_MODE_UNAVAILABLE", "The conversation store is not enabled.", 404)
+            return JSONResponse(content=conversations.branch(owner_from_header(x_saniti_owner), conversation_id,
+                                                             payload.through_turn))
         except ConversationError as error:
             return refuse(error)
 

@@ -65,6 +65,9 @@ class AttachedSelection(BaseModel):
     columns: list[Annotated[str, Field(min_length=1, max_length=100)]] = Field(default_factory=list, max_length=12)
     rows: list[Annotated[int, Field(ge=0)]] = Field(default_factory=list, max_length=50)
     shown_values: list[list[Annotated[str, Field(max_length=80)]]] = Field(default_factory=list, max_length=50)
+    # EXEC-UI-1024 2c (user 2026-10-24: "setiap lampiran punya komentar sendiri"): what the user asks about this part;
+    # the message stays the general question. The user's words, not instructions to the system
+    comment: str | None = Field(default=None, max_length=500)
 
     @field_validator("shown_values")
     @classmethod
@@ -95,6 +98,17 @@ class AttachedText(BaseModel):
     section: Literal["ANSWER", "ASSUMPTIONS", "LIMITATIONS", "FINDINGS", "PLAN", "OTHER"] = "ANSWER"
     quote: str = Field(min_length=1, max_length=1000)
     figures: list[AttachedFigure] = Field(default_factory=list, max_length=20)
+    # EXEC-UI-1024 2c (user 2026-10-24: "setiap lampiran punya komentar sendiri"): what the user asks about this part;
+    # the message stays the general question. The user's words, not instructions to the system
+    comment: str | None = Field(default=None, max_length=500)
+
+
+class BranchRequest(BaseModel):
+    """EXEC-ASK-BRANCH (user 2026-10-24): continue a conversation in a new one from its turn through_turn."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    through_turn: int = Field(ge=0)
 
 
 class AgentRunRequest(BaseModel):

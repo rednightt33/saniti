@@ -161,7 +161,7 @@ def test_change_model_puts_the_question_back_and_opens_the_model_menu(fixture_se
         orc.run = original
 
 
-def test_the_running_step_shows_how_long_it_has_taken(fixture_server, browser_page):
+def test_the_running_step_shows_its_label_and_the_total_keeps_counting(fixture_server, browser_page):
     origin, orc = fixture_server
     page = browser_page
     sign_in(page, origin)
@@ -179,10 +179,11 @@ def test_the_running_step_shows_how_long_it_has_taken(fixture_server, browser_pa
         submit(page, 'net beli asing BBRI')
         step = page.locator('.edge-run-progress-step')
         step.wait_for(timeout=10000)
-        clock = step.locator('.edge-run-step-clock')
-        page.wait_for_function("() => Number(document.querySelector('.edge-run-step-clock')?.dataset.seconds) >= 126")
-        assert ' '.join(step.inner_text().split()).startswith('Thinking · 2m'), step.inner_text()
-        assert clock.inner_text().strip().startswith('· 2m')
+        # EXEC-UI-1024 1A (user 2026-10-24: "1A yg dihapus hanya yang 7S"): the running step shows its label only;
+        # the run's total keeps counting
+        page.wait_for_function("() => Number(document.querySelector('.edge-run-progress-now .edge-run-clock')?.dataset.seconds) >= 130")
+        assert step.inner_text().strip() == 'Thinking', step.inner_text()
+        assert step.locator('.edge-run-clock').count() == 0
     finally:
         release.set()
         orc.run = original

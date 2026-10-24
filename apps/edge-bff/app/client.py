@@ -148,8 +148,28 @@ class OrcClient:
             raise OrcError() from e
         return response.status_code, public_data(data)
 
-    def messages(self, owner, conversation_id, after=-1, limit=20):
-        return self._call('GET', f'/v1/conversations/{conversation_id}/messages?after={after}&limit={limit}', owner)
+    def messages(self, owner, conversation_id, after=-1, limit=20, through=None):
+        # EXEC-ASK-BRANCH: through stops at a turn (the turns a branch continues)
+        stop = '' if through is None else f'&through={int(through)}'
+        return self._call('GET', f'/v1/conversations/{conversation_id}/messages?after={after}&limit={limit}{stop}',
+                          owner)
+
+    def branch(self, owner, conversation_id, through_turn):
+        """EXEC-ASK-BRANCH (user 2026-10-24): Orc makes a new conversation that continues this one from its turn
+        through_turn; returns its id and lineage. Orc's refusal code is kept (TURN_NOT_BRANCHABLE, ...), never its
+        text."""
+        try:
+            response = self.client.post(f'/v1/conversations/{conversation_id}/branch', json={'through_turn': through_turn},
+                headers={'Authorization': f'Bearer {self.settings.orc_key}', 'X-Saniti-Owner': owner})
+            data = response.json()
+        except (httpx.HTTPError, ValueError) as e:
+            raise OrcError('BRANCH_FAILED') from e
+        if response.status_code != 200:
+            detail = data.get('detail') if isinstance(data, dict) else None
+            code = detail.get('code') if isinstance(detail, dict) else None
+            code = code if isinstance(code, str) and re.fullmatch(r'[A-Z_]{3,60}', code) else 'BRANCH_FAILED'
+            raise OrcError(code, response.status_code if response.status_code in (404, 409, 410, 422) else 503)
+        return public_data(data)
 
     def close(self):
         self.client.close()

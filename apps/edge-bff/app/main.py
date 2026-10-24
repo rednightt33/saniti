@@ -65,6 +65,8 @@ class AttachedSelection(Strict):
     columns: list[str] = Field(default_factory=list, max_length=12)
     rows: list[int] = Field(default_factory=list, max_length=50)
     shown_values: list[list[str]] = Field(default_factory=list, max_length=50)
+    # EXEC-UI-1024 2c: the user's comment on this attachment (Orc checks the same bound)
+    comment: str | None = Field(default=None, max_length=500)
 
     @model_validator(mode='after')
     def check_bounds(self):
@@ -88,6 +90,7 @@ class AttachedText(Strict):
     section: Literal['ANSWER', 'ASSUMPTIONS', 'LIMITATIONS', 'FINDINGS', 'PLAN', 'OTHER'] = 'ANSWER'
     quote: str = Field(min_length=1, max_length=1000)
     figures: list[AttachedFigure] = Field(default_factory=list, max_length=20)
+    comment: str | None = Field(default=None, max_length=500)  # EXEC-UI-1024 2c
 
 
 class RunInput(Strict):
@@ -125,6 +128,13 @@ class TableExport(Strict):
 
 class Pin(Strict):
     pinned: bool
+
+
+class BranchInput(Strict):
+    """EXEC-ASK-BRANCH (user 2026-10-24): continue an answer in a new conversation: BRANCH (a new tab, listed) or SIDE
+    (the answer's side chat, one per answer, not listed). The title is EDGE's wording (edge-labels.js)."""
+    kind: Literal['BRANCH', 'SIDE']
+    title: str = Field(min_length=1, max_length=200)
 
 
 def create_app(settings=None, store=None, orc=None):
@@ -191,7 +201,9 @@ def create_app(settings=None, store=None, orc=None):
         response.headers.setdefault('Cache-Control', 'no-store')
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'same-origin'
-        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+        # EXEC-ASK-BRANCH: the side chat frames EDGE inside EDGE, so only EDGE's own pages may frame it (another site
+        # still cannot; frame-ancestors 'self' keeps the clickjacking guard)
+        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
         return response
 
     async def session(request: Request):
@@ -448,12 +460,30 @@ def create_app(settings=None, store=None, orc=None):
 
     @app.get('/api/v1/conversations/{conversation_id}/messages')
     async def messages(conversation_id: str, after: int = Query(default=-1, ge=-1),
-                       limit: int = Query(default=20, ge=1, le=50), _=Depends(session)):
+                       limit: int = Query(default=20, ge=1, le=50), through: int | None = Query(default=None, ge=0),
+                       _=Depends(session)):
         ui = await asyncio.to_thread(store.conversation, settings.owner, conversation_id)
-        data = await asyncio.to_thread(orc.messages, settings.owner, conversation_id, after, limit)
+        data = await asyncio.to_thread(orc.messages, settings.owner, conversation_id, after, limit, through)
         if data is None:
             raise StoreError('CONVERSATION_EXPIRED', 410)
-        return jsonable_encoder({'conversation':ui, **data})
+        # EXEC-ASK-BRANCH Q2: each answer's side chat (not in the list), for the link under the answer
+        sides = await asyncio.to_thread(store.side_chats, settings.owner,
+                                        [m.get('request_id') for m in data.get('messages') or [] if m.get('request_id')])
+        return jsonable_encoder({'conversation':ui, **data, 'side_chats':sides})
+
+    @app.post('/api/v1/runs/{request_id}/branch')
+    async def branch(request_id: str, body: BranchInput, _=Depends(write)):
+        """EXEC-ASK-BRANCH (user 2026-10-24): a new conversation continuing this answer (Orc keeps the history it
+        continues; nothing is copied). A side chat is made once per answer and then opened again."""
+        if body.kind == 'SIDE' and (existing := await asyncio.to_thread(store.side_chat, settings.owner, request_id)):
+            return jsonable_encoder(existing)
+        found = await asyncio.to_thread(orc.request, settings.owner, request_id)
+        if not found or found.get('turn_status') != 'COMPLETED':
+            raise StoreError('RESPONSE_NOT_AVAILABLE', 409)
+        await asyncio.to_thread(store.conversation, settings.owner, found['conversation_id'])
+        made = await asyncio.to_thread(orc.branch, settings.owner, found['conversation_id'], found['turn_index'])
+        return jsonable_encoder(await asyncio.to_thread(store.add_branch, settings.owner, made['conversation_id'],
+                                                        body.title, body.kind, found['conversation_id'], request_id))
 
     @app.delete('/api/v1/conversations/{conversation_id}')
     async def hide_conversation(conversation_id: str, _=Depends(write)):

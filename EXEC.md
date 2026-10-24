@@ -7166,11 +7166,79 @@ Permanen.
 Urutan bila disetujui: migrasi orc → orc → migrasi edge_bff → edge-bff (setelah EXEC-UI-1024, karena side chat
 memakai komentar lampiran 2c).
 
-Pertanyaan terbuka untuk user:
+Pertanyaan terbuka untuk user (dijawab 2026-10-24, lihat di bawah):
 - Q1: side chat bebas memakai data baru, atau hanya membaca jawaban itu (alat baca saja)? Usulan: bebas (prinsip
   penilaian: router yang menentukan).
 - Q2: side chat terlihat di daftar percakapan utama? Usulan: tidak; terlihat sebagai tautan "N pertanyaan" di bawah
   jawabannya.
+
+### EXEC-ASK-BRANCH-IMPL: rencana implementasi UI-1024 + ASK-BRANCH (disetujui 2026-10-24, dijalankan)
+
+User 2026-10-24: "Ok untuk Q1 dan Q2 / Inspect sekali lagi infra kita, dan buat imlpementation plan. Semua harus di
+execute berdasarkan kode existing di database rather than memory. Perhatiakn agents MD. Verify visually and
+interactionally once done. Lakukan maks 3 testing."
+Keputusan: Q1 = side chat bebas (router dan alat sama seperti percakapan biasa); Q2 = side chat tidak tampil di daftar
+utama, tampil sebagai tautan di bawah jawabannya. "Maks 3 testing" dibaca sebagai paling banyak tiga uji live di dev
+(tes otomatis lokal tidak dihitung).
+
+Inspeksi ulang 2026-10-24 (live, bukan ingatan):
+- Deploy aktif untuk rollback: market-ai-orc `8cae283e` (d0a100b), edge-bff `b1498b65` (ea0d5ba); deploy sesudahnya
+  SKIPPED (watch path). orc-test-runner tidak menjalankan suite (deploy terakhir job migrasi `ee21588a`).
+- Job baca-saja `16e89d7f`: `AI_conversation` 10 kolom tanpa kolom keturunan; `edge_bff.conversation_ui` 8 kolom;
+  hak `market_ai_conversation_store` dan `edge_bff_runtime` setingkat tabel (kolom baru ikut); `Table_Catalog` mencatat
+  tujuh tabel `AI_conversation*` (System), `Column_Catalog` 10 baris `AI_conversation`; 0 job EDGE aktif;
+  572 percakapan orc, 72 baris UI; 775 dari 1.131 giliran COMPLETED menyimpan `data_record` di `response`.
+- Baseline tes lokal: orc 2007 lulus; EDGE 153 lulus + 1 gagal (`test_typing_while_an_answer_arrives_keeps_focus`,
+  lulus bila dijalankan sendiri: rapuh soal waktu, bukan dari perubahan ini).
+- 1A dan 1B dilihat di tangkapan layar lokal (fixture server, Chromium): "Planning the next step · 8s" (jam langkah
+  `index.html:11268`); baris "AI request running" di kotak pesan: kotak `padding-top:20px` (`index.html:10186`) tetapi
+  baris status `margin-top:-10px` (`:1172`), jadi ruang di atas teks 18px dan di bawahnya 7px.
+
+Fase 1 — UI-1024:
+- 1A hapus `RunClock` langkah berjalan; tes `test_ui_1019b.py::test_the_running_step_shows_how_long_it_has_taken`
+  diubah menjadi: label langkah tanpa jam, total tetap.
+- 1B satu variabel `--composer-pad-top` di aturan yang memberi padding (`:10186`), baris status pertama memakai
+  `margin-top: calc(-1 * var(--composer-pad-top, 10px))`; tes geometri: jarak atas = jarak bawah (±1px).
+- 1C `Sources` kosong memakai `.sources-empty` (rata kiri, padding isi panel); tes.
+- 2a CSS Custom Highlight (`CSS.highlights`, nama `edge-attached`) dari daftar lampiran TEXT; tes: highlight
+  terdaftar dengan teks kutipan.
+- 2b tes dua lampiran TEXT + satu TABLE dalam satu pesan.
+- 2c `comment` (≤ 500) di `AttachedSelection`/`AttachedText` orc dan BFF; kotak komentar di chip; orc menulis komentar di
+  `attachments_note`, `attached_summary`, `attached_line`. Tes orc dan EDGE.
+
+Fase 2 — orc (migrasi `20261024_001_conversation_lineage.sql`):
+- `AI_conversation.lineage jsonb NOT NULL DEFAULT '[]'` (array leluhur, tertua dulu: `conversation_id`,
+  `through_turn`, `cut_at`) + baris `Column_Catalog`. Tanpa FK: retensi diperpanjang ke leluhur (lihat bawah), dan
+  pembersihan per percakapan tetap seperti sekarang.
+- `app/conversation_lineage.py`: `lineage_of(connection, conversation_id)` (tidak berubah sesudah dibuat, disimpan di
+  cache proses) dan `visible(lineage, conversation_id)` → potongan SQL `(conversation_id = %s OR (conversation_id = %s
+  AND created_at <= %s) …)`. Dipakai `result_store` (baca: stored_tables, supporting_tables, content, output,
+  executions_of_session, outputs_of_execution, execution, evidence, export, export_chunks) dan `run_memory` (load,
+  runs, read). Tulis, kuota, purge dan kunci bucket tetap milik percakapan sendiri.
+- `ConversationStore.branch(owner, conversation_id, through_turn)`: giliran COMPLETED milik owner; percakapan baru
+  dengan lineage, `state.data_record` = respons giliran ≤ T terakhir yang punya; `_begin` membaca riwayat leluhur
+  (`turn_index <= through_turn`) lalu giliran sendiri; setiap giliran branch memperpanjang `expires_at` leluhur;
+  `messages(..., through=None)` dan `lineage` di jawabannya. Route `POST /v1/conversations/{id}/branch`.
+- Tes: riwayat = giliran ≤ T; output/memori sesudah T tidak terlihat; branch dari branch; retensi leluhur; owner lain
+  404; giliran belum selesai ditolak.
+
+Fase 3 — BFF + EDGE (migrasi `20261024_002_edge_bff_conversation_branch.sql`):
+- `conversation_ui`: `kind` (`MAIN|BRANCH|SIDE`, default `MAIN`), `parent_conversation_id`, `parent_request_id`.
+- `POST /api/v1/runs/{request_id}/branch {kind}`: cari giliran di orc (`orc.request`), branch di percakapan dan turn
+  milik giliran itu; SIDE dipakai ulang bila jawaban itu sudah punya. Daftar utama tanpa SIDE; pesan percakapan
+  membawa `side_chats` per jawaban dan `lineage`.
+- EDGE: deep link `#/monitor?c=<id>`, mode `view=side`; tombol Branch (tab baru) dan Ask about this answer (panel
+  kanan / layar penuh di ponsel, iframe EDGE yang sama); garis "Dicabangkan dari …"; menu pilihan teks "Ask in side
+  chat" mengirim pilihan sebagai lampiran (2c). Teks di `edge-labels.js`.
+
+Fase 4 — deploy dan verifikasi:
+- Urutan: migrasi orc (DRYRUN lalu APPLY, `scripts/onboarding/migration_job.py`) → push orc → SUCCESS → migrasi
+  edge_bff → push edge-bff → SUCCESS. Sebelum push: 0 job EDGE aktif.
+- Verifikasi visual dan interaksi: Playwright ke EDGE dev (desktop dan ponsel), tangkapan layar.
+- Uji live (maks 3): (1) Branch dari jawaban yang punya tabel lalu satu pertanyaan lanjutan yang memakai tabel itu;
+  (2) side chat dari pilihan teks dengan komentar; (3) cadangan untuk perbaikan.
+- Dokumen: DATABASE_SCHEMA, DATABASE_CHANGELOG, APPLIED.sha256, RAILWAY_CHANGELOG, ERRORS (entri baru dan status),
+  README EDGE/orc, AI_TOOLS bila berubah, snapshot prompt bila teks prompt berubah.
 
 ## EXEC-IHSG-SINGLE-DATE — approved 2026-10-24
 

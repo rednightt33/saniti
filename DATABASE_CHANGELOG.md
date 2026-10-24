@@ -2272,3 +2272,24 @@ with 7 recent checkpoints. Routine Feature04 queue retry awaits the patched work
 release; its statuses were not manually set to SUCCESS. Feature01's existing worker
 processes the normal queue. Global metadata audit found unrelated pre-existing
 Feature05/06 definition gaps; scoped Feature01/04 audit has zero failures.
+
+
+## 2026-10-24 — Conversation lineage (orc) and branch rows (EDGE) — EXEC-ASK-BRANCH
+
+User 2026-10-24: "Ok untuk Q1 dan Q2 / Inspect sekali lagi infra kita, dan buat imlpementation plan." (EXEC.md
+EXEC-ASK-BRANCH-IMPL). Two forward, additive migrations, rehearsed then applied with
+`scripts/onboarding/migration_job.py` on orc-test-runner (DRYRUN job `3fac210e`, APPLY job `eecacb74`; hashes in
+`APPLIED.sha256`):
+
+- `20261024_001_conversation_lineage.sql`: `public."AI_conversation".lineage jsonb NOT NULL DEFAULT '[]'` (array of
+  `{conversation_id, through_turn, cut_at}`, at most 20, check `ai_conversation_lineage_check`) and its
+  `Column_Catalog` row (VERIFIED). No foreign key; the orchestrator extends the retention of the conversations a branch
+  continues. Nothing is copied: reads of outputs, executions, evidence, exports, run memories and turns take the
+  lineage rows created up to each `cut_at` (`apps/market-ai-orc/app/conversation_lineage.py`).
+- `20261024_002_edge_bff_conversation_branch.sql`: `edge_bff.conversation_ui.kind` (MAIN, BRANCH, SIDE; default MAIN),
+  `parent_conversation_id`, `parent_request_id`, a check that only MAIN has no parent, and the unique index
+  `conversation_ui_side_chat_key` (one side chat per answer).
+
+Read-back (APPLY job probes, after commit): `market_ai_conversation_store` reads `lineage` on all 572 conversations, all
+`[]`; `edge_bff_runtime` reads `kind`, 72 rows all MAIN; `Column_Catalog` row `lineage` VERIFIED; 0 EDGE jobs active.
+Rollback (forward migration): drop the added columns, the index and the `Column_Catalog` row.
