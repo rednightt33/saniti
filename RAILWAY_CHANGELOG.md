@@ -4396,3 +4396,8 @@ Live checks: EXEC.md EXEC-CHAT-URL.
 ## 2026-10-24 — EDGE attachment quotes and empty side chat (EXEC-UI-1025)
 
 edge-bff only (static EDGE files); no variable or other service change. Rollback reference: edge-bff `c87b8532`.
+
+
+## 2026-10-24 — EDGE quote without accent bar (EXEC-UI-1025b)
+
+edge-bff only (static CSS); preview tool changes are not deployed. Rollback reference: edge-bff `6e002b98`.

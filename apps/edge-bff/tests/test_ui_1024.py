@@ -78,8 +78,8 @@ def test_attached_passages_are_marked_and_each_carries_its_own_comment(fixture_s
 
 def test_an_attachment_is_a_quote_with_a_plain_note_under_it(fixture_server, browser_page):
     """EXEC-UI-1025 (user 2026-10-24, screenshot: the boxed comment field, "dibuat lebih nice"; benchmark ChatGPT and
-    Claude): the passage shows as a quote (accent bar, at most two lines), the note is written under it without a box,
-    and a long note grows the field instead of scrolling one line."""
+    Claude; "Buat tanpa side bar accent"): the passage shows as a quote (no accent bar, at most two lines), the note is
+    written under it without a box, and a long note grows the field instead of scrolling one line."""
     origin, orc = fixture_server
     page = browser_page
     sign_in(page, origin)
@@ -93,7 +93,7 @@ def test_an_attachment_is_a_quote_with_a_plain_note_under_it(fixture_server, bro
     note = chip.locator('.edge-attached-comment')
     style = note.evaluate("n => { const c = getComputedStyle(n); return [c.borderTopWidth, c.borderBottomWidth, c.borderLeftWidth, c.backgroundColor]; }")
     assert style[:3] == ['0px', '0px', '0px'] and style[3] in ('rgba(0, 0, 0, 0)', 'transparent'), style
-    assert chip.evaluate("n => getComputedStyle(n).borderLeftWidth") == '3px'
+    assert chip.evaluate("n => getComputedStyle(n).borderLeftWidth") == '0px'  # no side accent bar (user 2026-10-24)
     assert chip.locator('.edge-attached-text').evaluate("n => getComputedStyle(n).webkitLineClamp") == '2'
     short = note.bounding_box()['height']
     note.fill('baris satu ' * 30)

@@ -19,14 +19,27 @@
     {id:'conv_preview_f1', title:'Temuan satu eksperimen', turns:[turn('edge_f1', 'Apakah hipotesis BBCA ini didukung data?', 'findings_v1', 90)]},
     {id:'conv_preview_ann', title:'Klaim yang ditandai (catatan saat disentuh)', turns:[turn('edge_a1', 'Broker mana yang paling konsisten beli saat crash?', 'annotated', 120)]}
   ];
-  const ui = Object.fromEntries(conversations.map(c => [c.id, {bookmarked:false, pinned:[]}]));
+  const ui = {};
   const jobs = {};
   let counter = 0;
   const json = (body, status = 200) => Promise.resolve(new Response(JSON.stringify(body), {status, headers:{'Content-Type':'application/json'}}));
   const meta = c => ({conversation_id:c.id, title:c.title, bookmarked:ui[c.id].bookmarked, created_at:c.turns[0].created_at,
-    updated_at:c.turns.at(-1).completed_at, pinned_request_ids:ui[c.id].pinned});
+    updated_at:c.turns.at(-1).completed_at, pinned_request_ids:ui[c.id].pinned, kind:c.kind || 'MAIN',
+    parent_conversation_id:c.parent || null, parent_request_id:c.parentRequest || null});
   const canned = (text, request_id) => ({request_id, status:'COMPLETED', execution:{model:'pratinjau-statis'},
     response:{response_type:'ANSWER', answer:text, clarification_question:null, assumptions:[], limitations:[], research_plan:null}});
+  // EXEC-ASK-BRANCH / EXEC-CHAT-URL: a Branch and a side chat of the answer edge_v1b, held in every window of the preview
+  // (the Branch opens a new tab and the side chat a frame, each with its own copy of this mock), so their ids are fixed
+  const BRANCH = 'conv_' + 'b'.repeat(32), SIDE = 'conv_' + '5'.repeat(32);
+  const continued = [{conversation_id:'conv_preview_v1', through_turn:1}];
+  const answer = (id, message, text, minutes) => ({request_id:id, user_message:message, created_at:iso(minutes), completed_at:iso(minutes - 1),
+    status:'COMPLETED', run_status:'COMPLETED', response:canned(text, id)});
+  conversations.push(
+    {id:BRANCH, title:'Branch · Volume BBRI ≥ 2× → naik 5 hari?', kind:'BRANCH', parent:'conv_preview_v1', parentRequest:'edge_v1b', lineage:continued,
+     turns:[answer('edge_b1', 'Dari tabel tadi, ulangi untuk BBCA saja.', '**Contoh jawaban di Branch.** Percakapan ini melanjutkan jawaban "Setujui rencana riset" dan membaca tabelnya tanpa menghitung ulang.', 20)]},
+    {id:SIDE, title:'Ask · Volume BBRI ≥ 2× → naik 5 hari?', kind:'SIDE', parent:'conv_preview_v1', parentRequest:'edge_v1b', lineage:continued, hidden:true,
+     turns:[answer('edge_s1', 'Kenapa ambangnya 2× rata-rata 20 hari?', '**Contoh jawaban side chat.** Jawaban yang ditanyakan tidak diulang di sini; AI membacanya sebagai konteks.', 18)]});
+  conversations.forEach(c => { ui[c.id] = {bookmarked:false, pinned:[]}; });
   function reply(body, request_id) {
     const action = body.plan_reply?.action;
     if (action === 'APPROVE') return {...JSON.parse(JSON.stringify(FX.answer_table)), request_id};
@@ -49,11 +62,17 @@
       {model:'xiaomi/mimo-v2.6-flash', label:'MiMo V2.6 Flash', reasoning_levels:['off','on'], input_per_million:0.14, output_per_million:0.28},
       {model:'qwen/qwen3.8-flash', label:'Qwen3.8 Flash', reasoning_levels:['off','on'], input_per_million:0.15, output_per_million:0.47}],
       prices_fetched_at:'2026-10-13T10:25:31+00:00', edge_default:{model:'deepseek/deepseek-v4.1-flash', reasoning_level:'high'}});
-    if (path === '/conversations') return json({items:conversations.map(meta), next_offset:null});
+    if (path === '/conversations') return json({items:conversations.filter(c => !c.hidden).map(meta), next_offset:null});
     if ((m = path.match(/^\/conversations\/([^/]+)\/messages$/))) {
       const c = conversations.find(x => x.id === decodeURIComponent(m[1]));
-      return c ? json({conversation:meta(c), messages:c.turns, has_more:false, next_after:null, research_plan:null}) : json({error:{code:'NOT_FOUND'}}, 404);
+      if (!c) return json({error:{code:'NOT_FOUND'}}, 404);
+      const through = url.searchParams.has('through') ? Number(url.searchParams.get('through')) : Infinity;
+      const sides = Object.fromEntries(conversations.filter(x => x.kind === 'SIDE' && c.turns.some(t => t.request_id === x.parentRequest))
+        .map(x => [x.parentRequest, {conversation_id:x.id, questions:x.turns.length}]));
+      return json({conversation:meta(c), messages:c.turns.filter((t, i) => i <= through), has_more:false, next_after:null,
+        research_plan:null, lineage:c.lineage || [], side_chats:sides});
     }
+    if ((m = path.match(/^\/runs\/([^/]+)\/branch$/))) return json(meta(conversations.find(x => x.id === (body.kind === 'SIDE' ? SIDE : BRANCH))));
     if ((m = path.match(/^\/conversations\/([^/]+)\/preferences$/))) {
       const id = decodeURIComponent(m[1]); if ('bookmarked' in body) ui[id].bookmarked = body.bookmarked;
       return json({...meta(conversations.find(x => x.id === id))});
@@ -88,12 +107,23 @@
     addEventListener(name, fn) { (this.listeners[name] ||= []).push(fn); }
     close() { this.listeners = {}; }
   };
+  // the model logos the server would serve (/model-logos/<name>.svg) come from the file itself
+  const LOGOS = window.__EDGE_LOGOS__ || {};
+  const logo = value => value.replace(/\/model-logos\/([A-Za-z0-9_-]+\.svg)/g, (whole, name) => LOGOS[name] || whole);
+  const relink = root => root.querySelectorAll?.('img[src*="/model-logos/"], [style*="/model-logos/"]').forEach(node => {
+    if (node.getAttribute('src')?.includes('/model-logos/')) node.setAttribute('src', logo(node.getAttribute('src')));
+    if (node.getAttribute('style')?.includes('/model-logos/')) node.setAttribute('style', logo(node.getAttribute('style')));
+  });
+  new MutationObserver(changes => changes.forEach(change => relink(change.target.parentNode || change.target)))
+    .observe(document.documentElement, {subtree:true, childList:true, attributes:true, attributeFilter:['src', 'style']});
   addEventListener('DOMContentLoaded', () => {
     const note = document.createElement('div');
     note.textContent = 'Pratinjau statis M124: data contoh dari dev, tanpa server dan tanpa AI. Pilih percakapan di kiri.';
     note.style.cssText = 'position:fixed;left:50%;top:66px;transform:translateX(-50%);z-index:9999;background:#111;color:#fff;font:12px system-ui,sans-serif;padding:6px 12px;border-radius:999px;opacity:.85;pointer-events:none;max-width:calc(100vw - 32px);text-align:center';
     document.body.appendChild(note);
-    // open the first conversation so the page starts on an answer
+    // open the first conversation so the page starts on an answer, unless the address names one (a Branch tab, the side
+    // chat's frame); the note stays out of the side chat
+    if (/\/c\/conv_/.test(location.hash)) { if (/view=side/.test(location.hash)) note.remove(); return; }
     const open = () => { const first = document.querySelector('.conversation-list .conversation'); if (first) first.click(); else setTimeout(open, 150); };
     setTimeout(open, 300);
   });

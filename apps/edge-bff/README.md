@@ -291,3 +291,10 @@ conversation (the BFF serves the page there; any other id is 404). Choosing a co
 reload, a bookmark or a new tab opens it and Back/Forward move between conversations; signing in at an address opens
 that conversation. The one-file preview (`preview/edge_preview.py`, scripts inlined, no server) keeps hash routes; the
 page tells the two apart by whether its scripts came from the server.
+
+## Standalone page for design work (EXEC-UI-1025b, 2026-10-24)
+
+`python preview/edge_preview.py build edge-standalone.html` writes the whole EDGE page as one HTML file with dummy data
+(no server, no AI; model logos included). It shows the same views as the live page, Branch and side chat included. A
+redesigned copy returns to the sources with `python preview/edge_preview.py import edge-standalone.html`; change only
+the look (markup and CSS), not the behaviour, and the tests run as usual.

@@ -12,6 +12,7 @@ import : an edited preview goes back to the sources. Each inlined script returns
 """
 from __future__ import annotations
 
+import base64
 import json
 import re
 import sys
@@ -21,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "static"
 FIXTURES = ROOT / "tests" / "fixtures" / "orc_responses.json"
 MOCK = ROOT / "preview" / "preview_mock.js"
+LOGOS = STATIC / "model-logos"
 TITLE_PREFIX = "Pratinjau · "
 EXTERNAL = re.compile(r'<script src="/([A-Za-z0-9_-]+\.js)"></script>')
 INLINED = re.compile(r'<script data-edge-file="([A-Za-z0-9_-]+\.js)">(.*?)</script>', re.S)
@@ -39,6 +41,9 @@ def build(out: Path) -> None:
     if not names:
         raise SystemExit("static/index.html loads no /<name>.js script")
     fixtures = json.dumps(json.loads(FIXTURES.read_text(encoding="utf-8")), ensure_ascii=False)
+    # the model logos the server serves (/model-logos/<name>.svg) travel inside the file; the mock points the page at them
+    logos = json.dumps({f.name: "data:image/svg+xml;base64," + base64.b64encode(f.read_bytes()).decode()
+                        for f in sorted(LOGOS.glob("*.svg"))})
     first = True
     def inline(match: re.Match[str]) -> str:
         nonlocal first
@@ -47,7 +52,7 @@ def build(out: Path) -> None:
         if first:  # the preview's data and mock run before the page's own scripts
             first = False
             script = (f'<script data-edge-preview="fixtures">window.__EDGE_FIXTURES__={escape(fixtures, "fixtures")};'
-                      f'</script>\n<script data-edge-preview="mock">{escape(MOCK.read_text(encoding="utf-8"), "mock")}'
+                      f'window.__EDGE_LOGOS__={logos};</script>\n<script data-edge-preview="mock">{escape(MOCK.read_text(encoding="utf-8"), "mock")}'
                       f'</script>\n' + script)
         return script
     built = EXTERNAL.sub(inline, page).replace("<title>", "<title>" + TITLE_PREFIX, 1)

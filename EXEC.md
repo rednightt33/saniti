@@ -7323,6 +7323,24 @@ Perubahan (EDGE saja):
   terang): catatan lampiran tanpa garis (border 0px), garis aksen 3px; lampiran dihapus lagi tanpa dikirim; side chat
   `conv_d556…` menampilkan "Asking about the answer to …" dan hanya pertanyaannya sendiri (1), bukan jawaban induk.
 
+### EXEC-UI-1025b: kutipan tanpa garis aksen; HTML standalone untuk revamp (2026-10-24, dijalankan)
+
+User 2026-10-24: "Buat tanpa side bar accent. Boleh saya minta HTML-nya 1:1 dengan data dummy. Goalnya adalah HTML ini
+akan saya revamp dan untuk dikembalikan kepada kamu untuk diintegrasikan ke backend. Ini hanya visual depannya saja,
+function dan lain-lain tetap sama. Saya minta tolong untuk diekstrakkan standalone HTML"
+
+- Kutipan lampiran tanpa garis aksen kiri (`static/index.html`); tes `test_ui_1024.py` mengunci `border-left: 0`.
+- HTML standalone memakai alat yang sudah ada, `preview/edge_preview.py build` (halaman dan semua script di-inline,
+  BFF diganti data dummy dari `tests/fixtures/orc_responses.json`). Hasil revamp kembali ke sumber dengan
+  `preview/edge_preview.py import <file>` (AGENTS.md, EDGE front-end).
+- Mock preview dilengkapi agar 1:1 dengan fitur live: percakapan Branch dan side chat contoh (id tetap, ada di setiap
+  jendela karena tab Branch dan frame side chat memuat salinan mock sendiri), `through`/`lineage`/`side_chats`, route
+  branch; tab atau frame yang dibuka dari alamat chat tidak menimpa pilihan; logo model ikut di dalam file (build
+  menyisipkan `static/model-logos/*.svg` sebagai data, mock mengganti alamatnya; halaman tidak berubah).
+- Cek `file://` (Chromium): percakapan pertama terbuka, kutipan + catatan, tab Branch `#/c/conv_bbbb…` dengan garis
+  "Branched from …", side chat hanya pertanyaannya sendiri, logo tampil, 0 error halaman. `edge_preview.py import`
+  atas file hasil build: "no change". Suite EDGE 165/166 (1 gagal = M212, lulus sendiri).
+
 ## EXEC-IHSG-SINGLE-DATE — approved 2026-10-24
 
 User: "Lakukan update dulu untuk masing2 fitur 2-6 1 tanggal terlebih dahulu untuk validasi.

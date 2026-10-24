@@ -1511,7 +1511,10 @@ change yet.
   headless saat mesin sibuk. Cek yang memastikan: jalankan tes itu 20 kali di suite penuh dan catat urutan event fokus.
 - **Class:** tes browser yang bergantung pada urutan waktu.
 - **Solution:** belum ada; tidak dilewati atau dinonaktifkan.
-- **Status:** OPEN (rendah).
+- **Status:** OPEN (rendah). Pengamatan 2026-10-24 (EXEC-UI-1025): dua putaran suite penuh pada kode yang sama, yang satu
+  gagal di `test_composer_layout.py::test_submit_history_and_fixed_headers[mobile, mobile-small]`, yang lain di
+  `test_typing_while_an_answer_arrives_keeps_focus`; semuanya lulus bila dijalankan sendiri. Kelasnya sama: tes
+  browser yang bergantung waktu saat mesin sibuk.
 - **Lesson:** catat kegagalan baseline sebelum mengubah kode, supaya tidak disangka akibat perubahan.
 
 ### M213 — Side chat EDGE ditolak browser: CSP `frame-ancestors 'none'` (2026-10-24)
