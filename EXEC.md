@@ -7319,3 +7319,10 @@ Completion: INDEX sample committed at 2026-10-24 23:11 WIB. Counts F01=1/F02=214
 all dated 2026-08-31. Shared tables IHSG=0; 4,470 complete rows retained in private archive snapshot
 293f4c52-0fd2-4d43-b02e-e0c6dba94f30. Independent public readback and private archive/hash readback pass.
 260 INDEX catalog columns complete and synchronized. Bulk/daily remain disabled/unapproved.
+
+### INDEX validation follow-up — 2026-10-25, no data/schema execution
+
+User requests recording removal of the five Feature05 INDEX frequency coverage columns and checking
+seven Feature03 INDEX columns. Recorded the deferred removal in PLAN.md; no column was dropped.
+Read-only raw-source audit of IHSG 2026-08-31 across Regular/Nego/Tunai passed all 21 requested
+comparisons, including HHI intentionally NULL. Existing helper/bulk/daily logic and stored values unchanged.

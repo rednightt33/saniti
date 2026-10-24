@@ -932,3 +932,23 @@ and F06 daily frequency totals reconcile with raw known counts and coverage is e
 IHSG feature rows are archived then deleted, not bulk-copied into INDEX outputs. Scoped metadata
 coverage: 260 columns, zero missing definitions/drift/incomplete guidance. See index_tables/README.md.
 Await user review. Next gates: approval for bulk, then proposal/approval before any daily update logic.
+
+### Feature05 INDEX coverage-column removal — record only, 2026-10-25
+
+User: "Feature 05 index hapus kolom ini tidak perlu, catat." The five columns are:
+frequency_source_rows, buy_freq_known_rows, sell_freq_known_rows, buy_freq_missing_rows,
+sell_freq_missing_rows. Record for the next approved schema change; **no DROP/ALTER now**.
+Target only Feature_05_Foreign_Domestic_Broker_Detail_INDEX. Do not remove the corresponding
+Feature06 columns without a separate decision. Refined buy_freq/sell_freq SUM-known semantics remain.
+
+Future implementation must add a forward migration, update the INDEX initializer/bulk writer's
+physical column mapping and coverage UPDATE paths, deactivate/remove the matching current catalog
+entries, and revalidate remaining analytical values. Missing-input/completeness checks may remain
+in raw/temp/operational context so Feature06 derived ratios never silently mix full cash values with
+partial frequency. Removing visible columns does not authorize zero-imputation or removing those checks.
+Expected current physical metadata count stays 260 until migration; Feature05 would go 20 -> 15
+columns and the six-table total 260 -> 255 after the future change. Daily routing and bulk stay gated.
+
+Read-only Feature03 INDEX re-audit (IHSG 2026-08-31): all seven requested fields across three boards
+match raw-source recalculation / explicit HHI NULL policy (21 comparisons, 0 mismatches). Evidence:
+verification/ihsg_feature_aggregation/index_tables/audit_20261025/.
