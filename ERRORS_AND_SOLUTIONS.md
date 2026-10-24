@@ -1545,6 +1545,30 @@ change yet.
 - **Status:** FIXED (deploy edge-bff, lihat RAILWAY_CHANGELOG 2026-10-24).
 - **Lesson:** tes antarmuka masuk dari setiap path yang dilayani, bukan hanya satu.
 
+### M215 — Network egress/ingress market-sql-governor naik terus walau tidak ada pemakaian (2026-10-24)
+
+- **Symptom:** user 2026-10-24: "Network egress terus naik". `railway metrics --network --raw` (dev, 30 hari):
+  market-sql-governor TX 6,5 GB / RX 15,8 GB; per jam stabil ±4,9 MB TX dan ±41 MB RX, juga di jam tanpa run EDGE
+  (2026-10-23 18:00 s.d. 2026-10-24 21:00 UTC).
+- **Verified cause:** semua koneksi database dan antar-layanan memakai `*.railway.internal` (nama variabel dibaca,
+  nilai tidak dicetak); yang lewat jaringan publik hanya bucket `t3.storageapi.dev`, OpenRouter dan browser. Janitor
+  Governor (`apps/market-sql-governor/app/janitor.py` `cleanup_expired`, tiap `SQL_DATASET_CLEANUP_INTERVAL_SECONDS`
+  = 3600, default `app/config.py:134`) me-list seluruh `datasets/` lalu mengunduh **setiap** `manifest.json` untuk
+  membaca `expires_at`. Manifest tetap sebagai tombstone 720 jam sesudah data dihapus
+  (`SQL_DATASET_TOMBSTONE_RETENTION_HOURS`, `app/config.py:145`), jadi jumlahnya hanya bertambah. Bucket dibaca
+  read-only 2026-10-24: 3.692 manifest (34,4 MB, rata-rata 9,3 KB; 3.115 tombstone) dan 577 parquet (194,8 MB).
+  34,4 MB + overhead TLS ≈ 41 MB RX per putaran; 3.692 GET × ±1,3 KB ≈ 4,9 MB TX. Log
+  `sql_governor_dataset_cleanup datasets_seen=3692` tiap ±67 menit.
+- **Class:** loop pemeliharaan yang biayanya sebanding dengan semua objek yang pernah disimpan (termasuk tombstone),
+  bukan dengan pekerjaan yang ada, dan membaca isi objek lewat endpoint publik. Lalu lintas lain di 30 hari bersifat
+  sesaat: Postgres TX 8,3 GB pada 2026-10-11 (backfill Feature04), unggah dataset dan arsip audit saat golden test
+  (Governor 1,76 GB pada 2026-10-01), orc ke OpenRouter (±100 MB/hari sebelum 2026-10-10).
+- **Solution:** belum (usulan menunggu keputusan user): manifest bersifat immutable (`put_immutable`), jadi janitor
+  cukup menyimpan `expires_at` per dataset di memori dan hanya mengunduh manifest baru; satu putaran penuh sesudah
+  restart.
+- **Status:** OPEN (diagnosis saja; tidak ada perubahan kode atau konfigurasi).
+- **Lesson:** setiap loop latar ditinjau dari biaya per putaran terhadap jumlah objek yang terus tumbuh.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.
