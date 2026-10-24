@@ -828,7 +828,9 @@ tambahkan ekor INDEX, rubah plan existing ... jangan execute dulu ... auditing n
 This supersedes the earlier shared-feature-table destination design. The earlier audit-only hold was
 subsequently replaced by explicit approval to create the six tables and load one IHSG date, with
 archival cleanup of shared-table IHSG rows. That scoped execution is now complete and verified.
-**No further bulk, daily routing/worker/schedule or source correction is authorized until user validation.**
+**Sample validation accepted 2026-10-25; bulk, daily routing/worker/schedule and source correction
+still require an execution instruction.** The current request is to review the implementation plan
+and design a vocabulary table before bulk/new-table execution, not to execute either.
 
 | Existing feature identity | Planned dedicated index table |
 |---|---|
@@ -860,11 +862,12 @@ behavior. Price source remains the existing price table unless separately change
 price table merely because analytical outputs are separated. F01/F04 use actual index price OHLC;
 F02/F03/F05/F06 use a declared transaction universe aggregated before rolling/nonlinear metrics.
 
-Then validate one date in each of the six new destinations, reconcile source and stored values and
-verify full/incremental parity, units, NULL rules, keys, references and idempotence. Historical migration,
-cleanup of existing shared-table index rows and any bulk upsert require subsequent explicit approval.
-Feature04 state fingerprints contain asset_type: no blind state-key rename. The sample helper currently
-targets shared tables; it must not be rerun unchanged under the new destination plan.
+The one-date destination/source checks and archival legacy cleanup below are complete. Bulk requires
+separate approval and must additionally verify units, NULL rules, keys, references and idempotence.
+Feature04 state fingerprints contain asset_type: no blind state-key rename. The older
+upsert_index_broker_feature_sample.py apply path targets shared tables; never rerun it for INDEX loads.
+initialize_index_feature_sample.py is a one-date initializer with archive/cleanup and DDL side effects,
+not a bulk driver; its prepare logic needs separation before reuse.
 
 Current verified state: INDEX outputs for IHSG 2026-08-31 contain F01=1/F02=214/F03=3/F04=1/F05=214/F06=3.
 All shared Feature01–06 tables have zero IHSG rows. Original 4,470 rows were archived losslessly under
@@ -931,7 +934,8 @@ All six dedicated tables now contain IHSG 2026-08-31 only (436 rows total); refi
 and F06 daily frequency totals reconcile with raw known counts and coverage is explicit. Shared
 IHSG feature rows are archived then deleted, not bulk-copied into INDEX outputs. Scoped metadata
 coverage: 260 columns, zero missing definitions/drift/incomplete guidance. See index_tables/README.md.
-Await user review. Next gates: approval for bulk, then proposal/approval before any daily update logic.
+User accepted the remaining sample features on 2026-10-25. Next gates: review the revised plan below,
+explicit execution approval for bulk/vocabulary, then separate proposal/approval for daily updates.
 
 ### Feature05 INDEX coverage-column removal — record only, 2026-10-25
 
@@ -952,3 +956,156 @@ columns and the six-table total 260 -> 255 after the future change. Daily routin
 Read-only Feature03 INDEX re-audit (IHSG 2026-08-31): all seven requested fields across three boards
 match raw-source recalculation / explicit HHI NULL policy (21 comparisons, 0 mismatches). Evidence:
 verification/ihsg_feature_aggregation/index_tables/audit_20261025/.
+
+### INDEX bulk and shared Feature vocabulary — implementation-plan review, 2026-10-25
+
+User: "Ok, rest feature sudah OK"; "satu table ... vocabulary ... display di front end";
+"1, 2, 3, 5, dan 6"; "review kembali implementation plan sebelum ... bulk INDEX dan pembuatan
+table baru tersebut." Scope clarification: **"Saham dan INDEX sekaligus"**.
+This accepts the existing one-date numbers and requests a plan; **no bulk, DROP COLUMN, vocabulary
+DDL/load, frontend/API implementation, source repair or permanent service change in this task**.
+
+#### Read-only baseline
+
+Live read at 2026-10-25 00:57 WIB (2026-10-24 17:57 UTC), role read-only setting on:
+
+| Feature | Stock columns | INDEX columns now | INDEX after requested F05 removal |
+|---|---:|---:|---:|
+| 01 | 29 | 29 | 29 |
+| 02 | 38 | 38 | 38 |
+| 03 | 24 | 24 | 24 |
+| 05 | 15 | 20 | 15 |
+| 06 | 87 | 92 | 92 |
+| Total | 193 | 203 | 198 |
+
+396 physical vocabulary candidates now; **391 after the five F05 INDEX columns are removed**.
+Count includes identity, date and operational columns, not just analytical measures. No Feature04
+entry, including its INDEX variant. Cover the exact ten physical tables; stock-only AI views are not
+additional duplicate entries. All 396 candidates have an active Feature_Catalog definition and
+interpretation; presence is not proof the text is suitable for frontend publication.
+No existing public table with vocabulary/glossary/dictionary in its name was found by the read.
+INDEX samples remain F01=1/F02=214/F03=3/F04=1/F05=214/F06=3, all on 2026-08-31.
+Legacy IHSG F01/F04 counts remain zero at the second read.
+
+Source availability is independent: IHSG price 2,125 rows, 2018-01-02..2026-10-23; raw broker
+history 2016-01-04..2026-08-31. These are available source endpoints, not proof every intervening
+session/instrument is complete. Resolve live endpoints again in execution preflight. Bulk F01/F04
+uses available valid final prices; F02/F03/F05/F06 uses available broker sessions, retaining board.
+Do not manufacture September/October broker output, 2016/2017 index prices, missing frequency or volume.
+
+Evidence: verification/ihsg_feature_aggregation/vocabulary_review/ (inventory, SQL, summary).
+
+#### Proposed one physical table: public."Feature_Vocabulary"
+
+One row per **source_schema/source_table/column_name/language_code**. A stock and INDEX column
+with the same name has separate rows so scope/formula differences cannot overwrite each other.
+Initial language id-ID; proper labels remain readable English, definitions/interpretations Indonesian.
+The database table is a reviewed presentation dictionary; Feature_Catalog remains the calculation
+authority. Vocabulary strings never become executable SQL or change numerical computation.
+
+| Frontend heading requested | Proposed column | Meaning |
+|---|---|---|
+| Feature | feature_number | 1, 2, 3, 5 or 6; CHECK excludes 4 |
+| Column Name | column_name | Exact physical column spelling |
+| Column Name Proper | column_name_proper | Reviewed readable label, e.g. Foreign Strength 20D |
+| Formula | formula | Human-readable exact formula with symbols defined |
+| Unit | unit | IDR, index points, shares, lots, fraction, %, score, code, date etc. |
+| Definisi | definition | What the field measures, including its scope |
+| What does it tell us | what_it_tells_us | Concrete interpretation, without invented thresholds/predictions |
+
+Additional fields in the **same table**: source_schema, source_table, scope (stock/index),
+language_code, grain, null_rule, lookback_window, minimum_history, caveat, column_kind
+(dimension/metric/quality/metadata), display_order, source_feature_version, source_semantic_hash,
+review_status (DRAFT/VERIFIED), validation_evidence, created_at, updated_at.
+Physical key on the four identity columns above; source_feature_version records the corresponding
+active catalog version. source_semantic_hash covers formula/unit/null/history/interpretation inputs,
+so a version label that stays unchanged cannot hide semantic drift. No foreign key from vocabulary
+to daily feature rows: there is no ticker/date in the dictionary. Existence/uniqueness is checked
+against physical columns and active catalog definitions during generation/verification.
+
+Include all remaining physical columns; dimensions/quality/metadata are explicitly labeled rather
+than given fabricated trading formulas. Their formula may be direct-copy, identity, flag logic or
+calculation timestamp. HHI INDEX gets "NULL by user policy" and a plain-language explanation.
+The five F05 INDEX columns to be dropped get no final vocabulary entries. F06 coverage remains.
+No generic title-casing as the final label review: HHI, IDR, Z-Score and lookback suffixes need care.
+
+User's example is supported by current F06 SQL:
+F_d=foreign buy value minus foreign sell value; T_d=foreign buy value plus domestic buy value;
+R_d=F_d/T_d only when T_d>0. Foreign Strength 20D=100×SUM_20(R_d)/SUM_20(abs(R_d)).
+The denominator must be positive and at least 20 observed sessions must exist; zero-turnover sessions
+have no R and SQL sums omit those NULLs. Range -100..100, not a price return or TradingView's indicator.
+Stock windows follow the ticker's observed sessions; INDEX windows follow aggregate market sessions.
+No invented strong/weak cutoff. Source: F06 canonical SQL daily/w1/w2 CTEs and pandas reference.
+
+#### Execution sequence to approve later
+
+1. **Freeze and snapshot.** Resolve eligible index from universe metadata (initial approved target IHSG),
+   date endpoints, exact source/schema/routine fingerprints and all three boards. Preserve the audited
+   all-raw-symbol transaction scope, including non-stock instruments; label it as market-flow proxy,
+   not official historical IHSG constituents. Cumulative baseline stays broker source start 2016-01-04.
+   Do not silently restrict to current IDX_Stock_Universe stocks or start cumulative at price inception.
+   Snapshot the existing INDEX sample and relevant metadata; retain the prior 4,470-row legacy archive.
+2. **Forward-only F05 schema cleanup.** New migration drops exactly the five F05 INDEX coverage columns,
+   updates writer mappings/verification SQL and their catalog definitions. Keep coverage in temporary
+   calculation/validation context and persist the existing F06 coverage. Preserve SUM-known frequency,
+   all-unknown=NULL, known zero=0, and completeness masking of derived frequency metrics.
+   Do not edit applied migrations 010/011 or rerun the initializer's DDL/archive/cleanup for every date.
+3. **Build an INDEX-only historical writer.** Separate preparation from one-date migration/archival
+   side effects. Aggregate raw daily broker detail once over the approved range, per broker/investor/
+   board, then compute F02/F03/F06 from that staged history with the audited formulas. Cross-check
+   canonical historical F05 context against raw inputs before reuse; do not blindly trust stale rows.
+   The old helper scans/recomputes full historical F06 for one date: looping it over every date would
+   repeat that cost and is explicitly rejected. Stage history once, calculate windows once, write
+   bounded chunks with progress/resume fingerprints. Inspect date-bounded source plans and measure
+   staging/runtime before the full apply; throttle chunk size to the existing database capacity.
+   A temporary one-off Railway job may execute an approved load; it needs no permanent worker/cron.
+   Cumulative anchors and rolling context must
+   cross chunk boundaries; warmup counts actual source sessions, not calendar days. F02 maximum
+   60-session window plus 252 preceding valid rolling observations needs up to 312 sessions.
+   F04 initial historical bootstrap calculates the engine once over available final index OHLC;
+   this is not permission to replay full history on each future daily update. F03 HHI always NULL;
+   F04 asset_type=index; actual source OHLC, source volume NULL retained.
+4. **Dry-run validation then bulk upsert.** Before writes compare staged 2026-08-31 values against the
+   accepted sample (all analytical columns, excluding run timestamps); independently check first
+   available dates, warmup boundaries, year boundaries, sparse boards, unknown frequencies and source
+   gap dates. Reconcile additive raw values, broker ranks after netting, ratio-of-sums, cumulative
+   as-of balances and common-session rolling. Verify full-run versus chunk/resume parity and rerun
+   idempotence. Snapshot differences; only a successful dry run permits the approved apply mode.
+   Apply per-index/date chunks transactionally, key-scoped to INDEX targets, then read back every
+   output date/key and source manifest. Do not upsert stocks/bonds or repair upstream gaps implicitly.
+5. **Create and seed vocabulary after INDEX schema/bulk acceptance.** Use a new forward migration
+   and a reproducible checked-in seed/generator. Inventory physical columns and join active catalog
+   definitions, then review display text against exact source code and INDEX overrides. Correct
+   stale catalog semantics before marking dictionary text VERIFIED. Seed the one table atomically;
+   validate no duplicates, blank required fields, missing/extra columns, Feature04 or removed F05
+   columns. Expected 391 initial rows at one language if the current schemas remain unchanged.
+   No write to feature numeric values; rerun vocabulary generation without changing unchanged rows.
+   Persist/synchronize vocabulary on schema/semantic releases, not every daily price refresh.
+6. **Document and verify.** Update DATABASE_SCHEMA/CHANGELOG/CATALOG, Table_Catalog and Column_Catalog
+   for new/changed public tables, Feature_Catalog for affected existing definitions; do not treat
+   vocabulary records as new market indicators. Run scoped semantic/coverage/drift checks and report
+   the known unrelated global *_Stock-view catalog failure separately. Define dictionary read pattern
+   (source/feature + stock/index + language, ordinal order) and measure before extra indexes. Existing
+   composite key is the initial lookup index; no speculative index/service/cron. Frontend API/UI and
+   AI-tool onboarding are separate work: no browser DB credentials or unapproved AI exposure.
+
+#### Dependencies and release boundary
+
+Legacy F01/F04 workers still refer to shared feature targets (apps/feature-01-worker/worker.py:18,
+218,250; apps/feature-04-worker/worker.py:207+); they can recreate legacy IHSG rows after a future
+price change. Bulk or vocabulary alone will not solve daily routing. Keep the existing sample and
+source prices safe; no silent worker pause, queue deletion, checkpoint rekey or Telegram change.
+Before the approved bulk actually runs, recheck for concurrent legacy/index writes and lock the
+new INDEX writer with its own advisory lock. Any recreated legacy rows are reported for explicitly
+scoped archival cleanup, not blindly deleted. Propose/approve daily routing separately after bulk,
+as already requested. A dictionary is static metadata and requires no always-on Railway service.
+
+Some catalog text needs targeted correction before vocabulary publication: F01 volume null_rule
+allows index NULL volume but misuse_warning still says volume can never be NULL; cloned INDEX F06
+cumulative wording still describes ticker inception rather than the aggregate broker-history baseline;
+per-column source references still name legacy Feature tables in some cloned definitions. Numeric
+sample verification does not establish these descriptions as publication-ready. Evidence is retained;
+this review changes no metadata in the live database.
+
+This revision is saved on the existing feature branch. Main publication/deployment is not implied by
+the user's approval to audit/design. Bulk/vocabulary execution remains pending a subsequent go.

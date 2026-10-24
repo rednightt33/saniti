@@ -7326,3 +7326,16 @@ User requests recording removal of the five Feature05 INDEX frequency coverage c
 seven Feature03 INDEX columns. Recorded the deferred removal in PLAN.md; no column was dropped.
 Read-only raw-source audit of IHSG 2026-08-31 across Regular/Nego/Tunai passed all 21 requested
 comparisons, including HHI intentionally NULL. Existing helper/bulk/daily logic and stored values unchanged.
+
+### INDEX sample accepted; vocabulary and bulk plan review — 2026-10-25
+
+User: "Ok, rest feature sudah OK"; requests one frontend vocabulary for Feature01/02/03/05/06,
+excluding Feature04, and review of the implementation plan before bulk INDEX/new-table execution.
+Clarification: "Saham dan INDEX sekaligus". Recorded sample acceptance and shared stock/index
+vocabulary design in PLAN.md; no live DDL/data/catalog/runtime changes authorized or performed here.
+Read-only physical inventory: 396 current columns across ten source tables, expected 391 after the
+deferred five-column F05 INDEX removal; every current column has an active semantic definition.
+One-date INDEX samples unchanged. Price source ends 2026-10-23; broker source ends 2026-08-31.
+Reviewed one-date helper limitations, staged-history bulk approach, semantic-text corrections,
+source scope, missing-frequency rules, chunk/resume validation and separate daily-routing boundary.
+Evidence: verification/ihsg_feature_aggregation/vocabulary_review/.

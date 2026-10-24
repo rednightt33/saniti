@@ -1653,3 +1653,20 @@ this is a pre-existing unrelated issue, not an INDEX failure, and was left uncha
 verifies 4,470 rows and zero hash mismatches. Permanent daily routing remains an explicit open design
 item: legacy price-driven workers can recreate shared-table index rows after a new price arrives unless
 index exclusion/routing is approved and implemented; no unapproved runtime workaround was deployed.
+
+### Frontend vocabulary preflight: catalog prose still needs scope/NULL alignment (OPEN, 2026-10-25)
+
+Read-only inventory of Feature01/02/03/05/06 stock and INDEX definitions found all 396 current
+physical columns documented, but copied prose is not uniformly aligned with current semantics.
+F01 volume null_rule correctly allows source-less index volume=NULL while misuse_warning still
+says volume must never be NULL. INDEX F06 cumulative definition/warning retains ticker-inception
+language instead of the aggregate broker-history baseline, and some per-column source references
+still name legacy tables after cloned INDEX definitions and table-level dependencies were updated.
+Verified cause: schema/catalog cloning and selective field updates preserved these other texts;
+see migrations 20261023_007, 20261024_010 and 20261024_011. Existing numeric sample checks do not
+validate display prose for every column. Scope: metadata guidance, not evidence of new numeric errors.
+Proposed solution: targeted forward metadata correction plus code-backed Indonesian vocabulary
+review and per-column source-semantic hashes before publication. Status OPEN; this task changes only
+planning/evidence, no live catalog/data. Lesson: complete/VERIFIED catalog coverage does not by itself
+prove all copied guidance matches the new asset/scope/NULL contract. Evidence:
+verification/ihsg_feature_aggregation/vocabulary_review/.
