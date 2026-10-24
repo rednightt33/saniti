@@ -103,3 +103,36 @@ a nonzero net. Do not add both sides to report single-counted trading turnover.
 On this date raw imbalance checks found zero unbalanced source symbols on Regular (1,313), Nego
 (128), and Tunai (5). This is not a claim that every historical source date is complete; known historical
 source gaps can create unequal totals and must remain flagged. No formula/data/schema changes made.
+
+## Feature05 buy/sell frequency follow-up — 2026-08-31
+
+Read-only source, non-index detail and IHSG reconciliation: 428 frequency cell comparisons (214 groups
+x buy/sell), zero mismatches against the current completeness policy. This verifies implementation of
+the policy, not availability of a complete market-frequency total.
+
+| Regular board measure | Buy frequency | Sell frequency |
+|---|---:|---:|
+| SUM of available raw/non-index source frequencies | 2,372,642 | 2,372,642 |
+| SUM of available IHSG group frequencies | 357,804 | 467,928 |
+| Source rows lacking frequency | 1,715 | 1,715 |
+| IHSG groups with available frequency | 77 of 139 | 77 of 139 |
+
+Any missing ticker input makes the entire broker/investor/board aggregate frequency NULL. Thus 62
+Regular groups disappear from SQL SUM; discarding entire groups suppresses different known buy/sell
+counts and the remaining sums need not balance. The sums 357,804 and 467,928 are partial, not market
+totals or evidence of buy/sell trading-count imbalance. The known source sum also excludes missing
+instruments and must not be labelled complete market coverage. Nego: source known 859/859, index
+known 676/684 (one NULL group of 71). Tunai: source/index known 4/4 (one NULL group of 4).
+
+Concrete PD/Regular example:
+- EMAS Domestic buy/sell frequency=3,318/483; Foreign=1,489/110.
+- All-symbol PD Domestic has 821 source rows: 817 known with sum 104,405/95,705 and four unknown,
+  so its aggregate stored frequency is NULL/NULL. Unknown symbols: CYBR-W, INET-W2, PJHB-W, R-LQ45X.
+- All-symbol PD Foreign has all 27 rows known: 2,228/246, equal to stored IHSG values.
+
+This exposes two independent differences: source universe expands beyond EMAS, and the strict NULL
+policy hides otherwise known counts when a group also contains instruments without frequency.
+Before the separate INDEX-table implementation, settle instrument universe and whether a partial-known
+frequency metric should be exposed with explicit coverage, or the complete metric should stay NULL.
+Never replace unknown frequency with zero or mix full-market values with partial-scope frequencies for
+average ticket sizes. No source/feature data or formulas were changed by this audit.

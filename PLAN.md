@@ -868,6 +868,13 @@ tables remain audit evidence; F02 IHSG remains empty; existing F01/F04 index his
 The already-released OHLC-only price-cron compatibility change is not rolled back. Do not silently
 pause existing price/Feature01/stock/bond jobs during auditing.
 
+Frequency audit 2026-08-31: all 428 Feature05 frequency cells match the current strict completeness
+policy, but 62 of 139 Regular broker/investor groups are NULL. SUM over available index groups is
+357,804 buy / 467,928 sell, while raw known-frequency sums are 2,372,642 / 2,372,642. Neither should
+be presented as a complete all-instrument market total without coverage validation. Resolve source
+universe and missingness/coverage contract before INDEX table implementation. Preserve unknown as
+unknown; do not silently switch to partial sums or zero-fill. See number_audit/feature5_frequency*.
+
 Open audit distinction: previous sample transaction scope is all raw source symbols, including
 warrants/rights. A market-wide flow proxy is not an official historical IHSG constituent basket.
 Before bulk, explicitly settle instrument scope, board selection, daily net-vs-gross definitions and
