@@ -9995,10 +9995,15 @@ th.edge-sortable:hover .edge-sort-icon,.edge-sort:focus-visible .edge-sort-icon,
 .edge-table-attach {display:flex;align-items:center;gap:8px;margin:0 0 6px;}
 .edge-table-attach-button {padding:4px 9px;border:1px solid var(--border);border-radius:7px;background:var(--secondary);color:var(--foreground);font:500 .76rem Inter,"Segoe UI",sans-serif;cursor:pointer;}
 .edge-table-attach small {font-size:.72rem;color:var(--muted-foreground);}
-.edge-attached-chip {gap:6px;}
-.edge-attached-chip {flex-wrap:wrap;}
-.edge-attached-comment {flex:1 1 180px;min-width:120px;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--foreground);font:inherit;padding:2px 0;outline:none;}
-.edge-attached-comment:focus {border-bottom-color:var(--muted-foreground);}
+/* EXEC-UI-1025: an attachment as a quote with its note (benchmark: ChatGPT/Claude quote in the message box) */
+.composer .edge-attached-chip {display:flex;flex-direction:column;gap:2px;margin:0 0 8px;padding:7px 8px 6px 11px;border-left:3px solid var(--muted-foreground);border-radius:8px;background:var(--muted);}
+.edge-attached-quote {display:flex;align-items:flex-start;gap:8px;}
+.edge-attached-text {flex:1;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--muted-foreground);font-size:.8rem;line-height:1.45;font-style:italic;}
+.edge-attached-meta {flex:none;color:var(--muted-foreground);font-size:.7rem;line-height:1.7;white-space:nowrap;}
+.composer .edge-attached-remove {flex:none;display:grid;place-items:center;width:20px;height:20px;margin:-1px -2px 0 0;border:0;border-radius:6px;background:none;color:var(--muted-foreground);cursor:pointer;}
+.composer .edge-attached-remove:hover {background:var(--accent);color:var(--foreground);}
+.composer textarea.edge-attached-comment {display:block;width:100%;min-height:0;max-height:96px;margin:0;padding:2px 0;border:0;outline:none;box-shadow:none;background:transparent;color:var(--foreground);font:inherit;font-size:.85rem;line-height:1.45;resize:none;overflow-y:auto;}
+.composer textarea.edge-attached-comment::placeholder {color:var(--muted-foreground);opacity:.8;}
 /* EXEC-UI-1024 2a: the passages attached to the question, marked in their answer (CSS Custom Highlight; no DOM change) */
 ::highlight(edge-attached) {background-color:rgb(250 204 21 / .45);color:inherit;}
 /* EXEC-ASK-BRANCH: the divider before a branch's own questions, the side chat panel (above the top bar 120 and the
@@ -10008,6 +10013,7 @@ th.edge-sortable:hover .edge-sort-icon,.edge-sort:focus-visible .edge-sort-icon,
 .edge-branch-divider button {display:inline-flex;align-items:center;gap:6px;border:0;background:none;color:inherit;font:inherit;cursor:pointer;padding:2px 4px;}
 .edge-branch-divider button:hover {color:var(--foreground);text-decoration:underline;}
 .research-exchange.inherited {opacity:.92;}
+.edge-side-empty {margin:6px 0 0;text-align:center;color:var(--muted-foreground);font-size:.8rem;}
 .edge-side-chat {position:fixed;top:56px;right:0;bottom:0;width:min(460px,42vw);z-index:130;display:flex;flex-direction:column;background:var(--background);border-left:1px solid var(--border);box-shadow:-12px 0 28px -18px rgb(0 0 0 / .45);}
 .edge-side-head {display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--border);font-size:.85rem;}
 .edge-side-frame {flex:1;width:100%;border:0;background:var(--background);}
@@ -10015,7 +10021,7 @@ th.edge-sortable:hover .edge-sort-icon,.edge-sort:focus-visible .edge-sort-icon,
 .edge-side-view .topbar,.edge-side-view .conversation-panel,.edge-side-view .details-panel,.edge-side-view .workspace-tools,.edge-side-view .edge-panel-backdrop {display:none !important;}
 .edge-side-view .monitor-layout {grid-template-columns:minmax(0,1fr) !important;}
 .edge-side-view .monitor-layout .composer {margin-left:10px;margin-right:10px;}
-.edge-attached-chip button {margin-left:auto;border:0;background:none;color:var(--muted-foreground);font-size:1rem;cursor:pointer;}
+
 /* EXEC-IMPL-1016 Fase 4.3 (UI-1015B): the steps of a running answer */
 .edge-run-progress {margin:6px 0 0 30px;display:flex;flex-direction:column;gap:4px;font:.8rem Inter,"Segoe UI",sans-serif;color:var(--muted-foreground);}
 .edge-run-progress-now {display:flex;gap:8px;align-items:baseline;}
@@ -10918,13 +10924,17 @@ function Monitor({ go }) {
     const closeSide=async()=>{setSidePanel(null);const id=selectedId;if(!id?.startsWith("conv_"))return;try{const loaded=await Edge.messages(id);setItems(current=>current.map(x=>x.id===id?{...x,sideChats:loaded.sideChats}:x));}catch{/* the links refresh on the next load */}};
     // a branch shows the turns it continues; a side chat (its frame) only the answer it asks about. The divider names
     // where the continued turns come from and sits before the conversation's own first question
-    const shownMessages=conversation=>{const asked=conversation.messages.filter(m=>m.role==="user"),inherited=asked.filter(m=>m.inherited);
-      return link.side&&inherited.length?asked.filter(m=>!m.inherited||m===inherited.at(-1)):asked;};
+    // EXEC-UI-1025 (user 2026-10-24: a side chat opens empty, "seperti how Claude works"): the side chat shows only its
+    // own questions; the answer it is about stays its context (Orc reads it) and is named above them
+    const shownMessages=conversation=>{const asked=conversation.messages.filter(m=>m.role==="user");
+      return link.side?asked.filter(m=>!m.inherited):asked;};
     const branchDivider=conversation=>{const from=conversation.messages.find(m=>m.inherited)?.inherited;if(!from)return null;
-      const ui=edgeUi(),text=(conversation.kind==="SIDE"?ui.sideFrom:ui.branchedFrom).replace("{title}",from.title||"");
+      const ui=edgeUi(),asked=conversation.messages.filter(m=>m.inherited).at(-1);
+      const text=conversation.kind==="SIDE"?ui.sideFrom.replace("{title}",Edge.shortTitle(asked?.content||from.title||"",90)):ui.branchedFrom.replace("{title}",from.title||"");
       return element("div",{key:"edge-branch-divider",className:"edge-branch-divider",role:"separator"},
         link.side?element("span",null,text):element("button",{type:"button",onClick:()=>selectConversation(from.conversationId)},element(Icon,{name:"branch",size:13}),text));};
     const withDivider=(conversation,nodes)=>{const divider=branchDivider(conversation);if(!divider)return nodes;
+      if(link.side&&!nodes.length)return [divider,element("p",{key:"edge-side-empty",className:"edge-side-empty"},edgeUi().sideEmpty)];
       const at=shownMessages(conversation).findIndex(m=>!m.inherited);return [...nodes.slice(0,at<0?nodes.length:at),divider,...nodes.slice(at<0?nodes.length:at)];};
     viewRecord.refs.askHandler=detail=>{const run=items.find(x=>x.id===selectedId)?.runs.find(r=>r.id===detail?.request_id);if(run)askRun(run,detail);};
     if(!viewRecord.refs.askInstalled){viewRecord.refs.askInstalled=true;
@@ -11129,10 +11139,15 @@ function Monitor({ go }) {
                         null),
                     // EXEC-UI-1024 2c: each attachment carries its own comment; the message stays the general question. The
                     // comment is kept on the item as typed (no redraw per keystroke) and sent with it
-                    attached.map((item,index)=>element("div",{key:`attached-${index}`,className:"composer-status edge-attached-chip"},element(Icon,{name:"attach",size:13}),
-                    element("span",null,EdgeView.selectionLabel(item)),
-                    element("input",{className:"edge-attached-comment",type:"text",maxLength:500,value:item.comment||"",placeholder:edgeUi().attachComment,"aria-label":edgeUi().attachComment,onInput:event=>{item.comment=event.target.value.slice(0,500);}}),
-                    element("button",{type:"button","aria-label":edgeUi().attachRemove,title:edgeUi().attachRemove,onClick:()=>setAttached(attached.filter((_,i)=>i!==index))},"×"))),
+                    // EXEC-UI-1025 (user 2026-10-24: "dibuat lebih nice"; ChatGPT/Claude benchmark): each attachment is a
+                    // quote (accent bar, the passage in two lines) with its note written under it, without a boxed field
+                    attached.map((item,index)=>element("div",{key:`attached-${index}`,className:"edge-attached-chip"},
+                    element("div",{className:"edge-attached-quote"},
+                        element("span",{className:"edge-attached-text",title:item.kind==="TEXT"?item.quote:undefined},item.kind==="TEXT"?item.quote:EdgeView.selectionLabel(item)),
+                        item.kind==="TEXT"&&(item.figures||[]).length>0&&element("span",{className:"edge-attached-meta"},edgeUi().attachFigures.replace("{n}",String(item.figures.length))),
+                        element("button",{type:"button",className:"edge-attached-remove","aria-label":edgeUi().attachRemove,title:edgeUi().attachRemove,onClick:()=>setAttached(attached.filter((_,i)=>i!==index))},element(Icon,{name:"close",size:12}))),
+                    element("textarea",{className:"edge-attached-comment",rows:1,maxLength:500,value:item.comment||"",placeholder:edgeUi().attachComment,"aria-label":edgeUi().attachComment,
+                        onInput:event=>{item.comment=event.target.value.slice(0,500);event.target.style.height="auto";event.target.style.height=event.target.scrollHeight+"px";}}))),
                     context && element("div", { className: "research-context" },
                         element("span", null, "Context"),
                         element("strong", null,

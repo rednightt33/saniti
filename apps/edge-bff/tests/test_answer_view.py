@@ -556,7 +556,8 @@ def test_a_failed_answer_gives_its_question_and_attachments_back(fixture_server,
                 break
             page.wait_for_timeout(50)
         assert len(orc.calls) == 2
-        page.wait_for_function("() => document.querySelector('textarea').value === 'baris ini dari mana?'", timeout=15000)
+        # the message box by its placeholder: an attachment's note is a textarea too (EXEC-UI-1025)
+        page.wait_for_function("() => document.querySelector('textarea[placeholder^=\"Ask a research\"]').value === 'baris ini dari mana?'", timeout=15000)
         assert page.locator('.edge-attached-chip').count() == 1
         assert len(orc.calls[-1][2]['attachments']) == 1  # the same chip was sent, and came back
     finally:

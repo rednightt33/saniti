@@ -74,3 +74,29 @@ def test_attached_passages_are_marked_and_each_carries_its_own_comment(fixture_s
     assert sent['message'] == 'tolong jelaskan'
     assert [a.get('comment') for a in sent['attachments']] == ['kenapa periodenya mulai 2023?', None]
     assert page.evaluate("() => !CSS.highlights.has('edge-attached')")  # sent: nothing is attached any more
+
+
+def test_an_attachment_is_a_quote_with_a_plain_note_under_it(fixture_server, browser_page):
+    """EXEC-UI-1025 (user 2026-10-24, screenshot: the boxed comment field, "dibuat lebih nice"; benchmark ChatGPT and
+    Claude): the passage shows as a quote (accent bar, at most two lines), the note is written under it without a box,
+    and a long note grows the field instead of scrolling one line."""
+    origin, orc = fixture_server
+    page = browser_page
+    sign_in(page, origin)
+    original, built = built_answer(orc)
+    orc.run = built
+    submit(page, 'uji sinyal volume')
+    saved(page)
+    orc.run = original
+    attach_by_right_click(page, '.edge-answer p|Periode studi')
+    chip = page.locator('.composer .edge-attached-chip')
+    note = chip.locator('.edge-attached-comment')
+    style = note.evaluate("n => { const c = getComputedStyle(n); return [c.borderTopWidth, c.borderBottomWidth, c.borderLeftWidth, c.backgroundColor]; }")
+    assert style[:3] == ['0px', '0px', '0px'] and style[3] in ('rgba(0, 0, 0, 0)', 'transparent'), style
+    assert chip.evaluate("n => getComputedStyle(n).borderLeftWidth") == '3px'
+    assert chip.locator('.edge-attached-text').evaluate("n => getComputedStyle(n).webkitLineClamp") == '2'
+    short = note.bounding_box()['height']
+    note.fill('baris satu ' * 30)
+    note.dispatch_event('input')
+    assert note.bounding_box()['height'] > short
+    capture(page, 'ui1025-quote')

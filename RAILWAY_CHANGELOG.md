@@ -4391,3 +4391,8 @@ User 2026-10-24: "B saja ya. Cek dulu infra kita sebelum eksekusi. Masukan exec 
 page at `/c/{conversation_id}`; EDGE uses plain paths when served by the BFF. Rollback reference: edge-bff `4b2d8be7`.
 Commit `f90ecdc`, edge-bff `c87b8532` SUCCESS; market-ai-orc unchanged. No variable, migration or other service change.
 Live checks: EXEC.md EXEC-CHAT-URL.
+
+
+## 2026-10-24 — EDGE attachment quotes and empty side chat (EXEC-UI-1025)
+
+edge-bff only (static EDGE files); no variable or other service change. Rollback reference: edge-bff `c87b8532`.

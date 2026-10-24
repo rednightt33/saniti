@@ -49,12 +49,13 @@ def test_the_side_chat_asks_about_one_answer_and_is_not_in_the_list(fixture_serv
     page.locator('.edge-side-chat iframe').wait_for()
     frame = page.frame_locator('.edge-side-frame')
     frame.locator('.edge-branch-divider').wait_for(timeout=10000)
-    assert 'Side chat about an answer' in frame.locator('.edge-branch-divider').inner_text()
-    assert frame.locator('.research-exchange.inherited').count() == 1
+    # EXEC-UI-1025 (user 2026-10-24): the side chat opens empty; the answer is named, not repeated
+    assert 'Asking about the answer to “harga BBRI minggu ini”' in frame.locator('.edge-branch-divider').inner_text()
+    assert frame.locator('.research-exchange').count() == 0 and frame.locator('.edge-side-empty').is_visible()
     assert frame.locator('.conversation-panel').is_hidden() and frame.locator('.edge-branch-action').count() == 0
     frame.get_by_placeholder('Ask a research question…').fill('kenapa naik?')
     frame.get_by_role('button', name='Submit', exact=True).click()
-    frame.locator('article.result').nth(1).wait_for(timeout=10000)
+    frame.locator('article.result').first.wait_for(timeout=10000)
     side_id = orc.calls[-1][2]['conversation_id']
     assert side_id and side_id != orc.saved[answered_id]['conversation_id']
     capture(page, 'side-chat-open')
@@ -63,7 +64,7 @@ def test_the_side_chat_asks_about_one_answer_and_is_not_in_the_list(fixture_serv
     article(page).locator('.edge-ask-action', has_text='Side chat (1)').wait_for(timeout=10000)
     assert page.locator('.conversation-list .conversation-item, .conversation-list [data-conversation-id]').count() <= 1
     article(page).locator('.edge-ask-action').click()  # the same side chat opens again
-    page.frame_locator('.edge-side-frame').locator('article.result').nth(1).wait_for(timeout=10000)
+    page.frame_locator('.edge-side-frame').locator('article.result').first.wait_for(timeout=10000)
     assert len(orc.branched) == 1
 
 
@@ -103,7 +104,7 @@ def test_on_a_phone_the_side_chat_covers_the_page_and_its_header_is_clear(fixtur
     page.set_viewport_size({'width': 390, 'height': 844})
     answered(page, origin)
     article(page).locator('.edge-ask-action').click()
-    page.frame_locator('.edge-side-frame').locator('article.result').first.wait_for(timeout=10000)
+    page.frame_locator('.edge-side-frame').locator('.edge-branch-divider').wait_for(timeout=10000)
     head = page.locator('.edge-side-head').bounding_box()
     covered = page.evaluate("""([y, w]) => [...Array(13).keys()].map(i => 10 + i * (w - 20) / 12)
         .filter(x => !document.elementFromPoint(x, y)?.closest('.edge-side-chat'))""", [head['y'] + head['height'] / 2, head['width']])

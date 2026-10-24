@@ -78,7 +78,7 @@ window.EdgeLabels = {
     sourcesEmpty:"No source or evidence metadata returned for this response.",
     // EXEC-ASK-BRANCH (user 2026-10-24): continue an answer in a new tab, or ask about it in a side chat
     branch:"Branch", branchTitle:"Branch · {title}", branchHint:"Continue from this answer in a new conversation (new tab)",
-    branchedFrom:"Branched from “{title}”", sideFrom:"Side chat about an answer in “{title}”",
+    branchedFrom:"Branched from “{title}”", sideFrom:"Asking about the answer to “{title}”", sideEmpty:"Ask anything about this answer. It is not repeated here; the AI reads it.",
     askAbout:"Ask about this answer", askTitle:"Ask · {title}", askHint:"Ask about this answer in a side chat",
     sideChat:"Side chat ({n})", sideClose:"Close side chat", selectionAsk:"Ask in side chat",
     // EXEC-IMPL-1016 Fase 4.1 (EDGE-CTX B): the tables this answer released, as the data behind it; the old evidence list
@@ -92,7 +92,7 @@ window.EdgeLabels = {
     attachRemove:"Remove attachment", attachHint:"Click rows to select them",
     // EXEC-IMPL-1017 Fase 3: the menu on selected text (right click; on a phone a floating bar) and its chip
     selectionCopy:"Copy", selectionAttach:"Attach selection as context", attachedText:"“{quote}” · {n} figures",
-    attachLimit:"At most 5 attachments per question", attachComment:"Comment on this part (optional)", attachedPrefix:"Attachment",
+    attachLimit:"At most 5 attachments per question", attachComment:"Add a note about this part (optional)", attachFigures:"{n} figures", attachedPrefix:"Attachment",
     reproduced:"Recomputed from raw data: exactly equal to {figure}",
     sourceAsOf:"Data as of", askExport:"Ask AI to export data", exportMessage:"Ekspor data tabel {ref} ({name}) ke Excel",
     approveMessage:"Setujui rencana riset", cancelMessage:"Batalkan rencana riset",

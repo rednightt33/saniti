@@ -7300,6 +7300,26 @@ membuka chat yang sama; "New conversation" → `/monitor`; tab baru di alamat ch
 `/index.html#/monitor?c=…` ditulis ulang menjadi `/c/…`; panel side chat memakai `/c/<id>?view=side` dan tidak mengubah
 alamat tab.
 
+### EXEC-UI-1025: lampiran sebagai kutipan dan side chat yang kosong (2026-10-24, dijalankan)
+
+User 2026-10-24 (screenshot kolom komentar bergaris): "boleh tolong untuk yang saya kotakin, bisa dibuat lebih nice
+untuk teks ketika kita type suatu konteks. Feel free to benchmark saja, kemudian untuk ask this in the next, in the new
+chat, seharusnya ketika kita buka window baru, chatnya kosong. Seperti how Claude works right now. Benar nggak ya?"
+
+Benchmark: ChatGPT ("Ask ChatGPT" pada teks terpilih) dan Claude.ai ("Reply") memasukkan teks terpilih sebagai kutipan
+di kotak pesan, lalu pesan ditulis di bawahnya; tidak ada kolom isian bergaris (sumber: forum OpenAI, issue
+anthropics/claude-code 58691, panduan quoting assistant-ui). Tidak ada dokumentasi resmi.
+
+Perubahan (EDGE saja):
+- Lampiran tampil sebagai kutipan: garis aksen kiri, teks kutipan miring redup maksimal dua baris (teks lengkap di
+  tooltip), jumlah angka hanya bila ada, tombol hapus ikon; catatan ditulis di bawahnya tanpa kotak dan tumbuh mengikuti
+  isinya (maks 96px). Label "Add a note about this part (optional)".
+- Side chat dibuka kosong: hanya pertanyaannya sendiri; jawaban yang ditanyakan disebut di baris atas ("Asking about the
+  answer to …") dan tetap menjadi konteks AI (riwayat orc tidak berubah); bila belum ada pertanyaan, satu baris petunjuk.
+- Tes: `test_ui_1024.py::test_an_attachment_is_a_quote_with_a_plain_note_under_it`, `test_ask_branch.py` (side chat
+  kosong), `test_answer_view.py` memilih kotak pesan lewat placeholder (catatan lampiran juga textarea). Suite EDGE 166
+  lulus; tangkapan layar tema gelap dan terang.
+
 ## EXEC-IHSG-SINGLE-DATE — approved 2026-10-24
 
 User: "Lakukan update dulu untuk masing2 fitur 2-6 1 tanggal terlebih dahulu untuk validasi.
