@@ -7365,11 +7365,13 @@ Scope approved for execution: Phase 1 (HTML) and Phase 2 (read-only database and
 described by the user but need a go after the inspection report; Phase 6 needs explicit approval before any
 persistent database or production backend change. No DDL, DML, migration or service change in this execution.
 
-Status 2026-10-24: Phase 1 done; Phase 2 done from the repository only; the live part is BLOCKED by the session's
-network policy (ERRORS R40). Report: `verification/terminal_api/PHASE1_PHASE2.md`.
+Status 2026-10-24: Phase 1 done. Phase 2 first blocked by the session's network policy (ERRORS R40); after the user
+opened access ("Sudah saya kasih, coba cek lagi") it ran live and read-only through pgweb: inventory, coverage, grain,
+reconciliation of the HTML's BBCA 2023-12-18 rows, and EXPLAIN (ANALYZE, BUFFERS) of 14 representative queries.
+Report: `verification/terminal_api/PHASE1_PHASE2.md`. Phase 3 waits for the user's go.
 
 Open questions for the user (after the live inspection):
-- Q1: allow Railway hosts in the session environment (R40) so the live part of Phase 2 can run.
+- Q1: done (network access opened 2026-10-24).
 - Q2: decisions S1–S11 in the report (volatility basis, drawdown window, partial month, meaning of "Foreign" in the
   Bandar detector, gauge and verdict formulas, "inventory" wording, cumulative start, Cash/Tunai, net-to-zero note,
-  timeframes, date alignment).
+  timeframes, date alignment, odd lots, foreign broker list: S1–S13).

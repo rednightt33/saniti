@@ -8,14 +8,13 @@ library (`lightweight-charts-drawing 0.6.2`, bundel Lightweight Charts); logika 
 
 ## 0. Status bukti
 
-| Bagian | Status | Alasan |
+| Bagian | Status | Bukti |
 |---|---|---|
-| Phase 1 — HTML | **SELESAI** | Seluruh logika aplikasi dibaca; formula di bawah dikutip dengan nomor baris HTML. |
-| Phase 2 — database live | **BLOCKED / UNKNOWN — NOT VERIFIED** | Kebijakan jaringan sesi ini menolak `backboard.railway.com` (Railway API/CLI) dan `*.up.railway.app` (pgweb, EDGE): proxy menjawab 403 pada CONNECT (`/__agentproxy/status`, 2026-10-24 20:22 UTC). Token Railway yang dilampirkan tidak bisa dipakai. Tidak ada `DATABASE_URL` di sesi. ERRORS R40. |
-| Phase 2 — dari repo | **SELESAI (dokumen + kode migrasi)** | Bagian 2 di bawah berasal dari `DATABASE_SCHEMA.md` (refresh live 2026-10-12, sebagian 2026-10-22/23), `DATABASE_CHANGELOG.md` dan file migrasi. Ini **bukan** bukti live; setiap angka harus dibaca ulang dari database. |
-| Phase 2 — backend existing | **SELESAI (kode di repo)** | `apps/edge-bff`, `apps/market-sql-governor`. Deployment live belum dicek (butuh Railway API). |
+| Phase 1 — HTML | **SELESAI** | Seluruh logika aplikasi dibaca; formula dikutip dengan nomor baris HTML. |
+| Phase 2 — database live | **SELESAI (read-only)** | Setelah user membuka akses jaringan (2026-10-24), semua query lewat service `pgweb` (`pgweb-dev-a888.up.railway.app`, `/api/query`). Dicek dulu: `current_user = pgweb`, `default_transaction_read_only = on`, `statement_timeout = 30s`, 0 hak INSERT/UPDATE/DELETE/TRUNCATE. PostgreSQL 18.6. Tidak ada DDL, DML atau perubahan service. |
+| Phase 2 — backend existing | **SELESAI** | Kode repo + deployment live (`railway deployment list`): `edge-bff` SUCCESS `d564aba8` (2026-10-24 16:09 UTC), `/ready` = ready; `market-sql-governor` deployment terbaru SKIPPED (watch path), tidak berubah. |
 
-Pemeriksaan yang masih diperlukan ada di bagian 5.
+Percobaan pertama (sebelum akses dibuka) gagal karena proxy menolak host Railway: ERRORS R40.
 
 ## 1. Phase 1 — inspeksi HTML
 
@@ -105,26 +104,80 @@ harian yang nyata di HTML. Kebijakan penyesuaian harga (split/dividen) tidak dis
 | Flow timeline | | ✓ | | ✓ | | |
 | Kategori broker F/B/L (warna tag) | `broker_type` ✓ | | | hardcode | BUMN: ✓ tidak ada di DB (perlu cek) | |
 
-## 2. Phase 2 — kondisi database menurut dokumen repo (BELUM DIVERIFIKASI LIVE)
+## 2. Phase 2 — kondisi database (LIVE, 2026-10-24)
 
-| Objek | Grain / kunci | Kolom relevan | Cakupan menurut dokumen | Indeks | Relevansi |
+### 2.1 Inventaris
+
+Schema: `public` (102 tabel, 2 tabel partisi, 3 view; semua bisa dibaca role `pgweb`), `ai_audit` (9), `edge_bff` (3),
+`migration_archive` (1) — tiga yang terakhir tidak bisa dibaca role ini (tidak relevan untuk terminal). Tidak ada
+materialized view.
+
+Objek live yang **belum tercatat** di `DATABASE_SCHEMA.md` (dokumen tertinggal, ERRORS R33):
+`Feature_01_Stock_Daily_INDEX`, `Feature_02_Broker_Rolling_INDEX`, `Feature_03_Stock_Broker_Daily_INDEX`,
+`Feature_04_Technical_Indicator_INDEX`, `Feature_05_Foreign_Domestic_Broker_Detail_INDEX`,
+`Feature_06_Foreign_Domestic_INDEX` (keluaran khusus index; komentar tabel: "Automatic daily updates are not enabled";
+`Feature_05_…_INDEX` hanya berisi ticker `IHSG`), `Feature_Vocabulary` (kamus frontend Bahasa Indonesia),
+`idx_stockbit_value_corrections` (10 koreksi 2016-11-02 – 2017-02-07, tanpa komentar), dan indeks
+`Feature_06_Foreign_Domestic_date_board_idx (trade_date, market_board)`.
+
+### 2.2 Objek yang relevan untuk terminal
+
+| Objek | Grain / kunci | Ukuran | Cakupan live | Indeks | Relevansi |
 |---|---|---|---|---|---|
-| `Price_Stock_Indonesia_IDX` | PK `(ticker, date)` | open, high, low, close, volume (NULL hanya untuk index), timeframe, is_final | Saham 2018-01-02 – 2026-10-09 (`DATABASE_SCHEMA.md`, refresh 2026-10-12); 1.326.939 baris non-IHSG (`DATABASE_CHANGELOG.md` 2026-10-23) | PK; `final_idx (ticker, date DESC) WHERE is_final AND timeframe='Daily'`; `date_idx` | Main chart, Statistics. Harga **tidak disesuaikan dividen** (ERRORS D10); penyesuaian split belum jelas — perlu cek. |
-| IHSG di tabel yang sama | ticker `IHSG` (provider `IDX:COMPOSITE`) | OHLC, volume NULL | 2.125 baris, 2018-01-02 – 2026-10-23 (`DATABASE_CHANGELOG.md` 2026-10-23) | sama | Benchmark Relative Performance. |
-| `Feature_01_Stock_Daily` | PK `(ticker, date)` | return_1d_pct, volatility_20d_ann_pct (return sederhana), volume_avg_20d, volume_ratio_20d, drawdown_20d/60d | sampai 2026-10-09 | PK, `date_idx` | Opsional: volume ratio sama dengan HTML; volatilitas beda basis (log vs sederhana); drawdown beda definisi. |
-| `IDX_Broker_Summary` | PK `(Date, Symbol, Broker, Investor Type, Market Board)` | Buy/Sell/Net Value, Buy/Sell/Net Lots, Avg Buy/Sell, buy_freq/sell_freq | sampai 2026-08-31; data 2016–2017 kurang 9 tanggal (Feature 05/06 doc) | **hanya PK (diawali Date)** | Sumber mentah broker. Akses per ticker lintas banyak tanggal tidak punya indeks berawalan Symbol — perlu `EXPLAIN` live. |
-| `Feature_05_Foreign_Domestic_Broker_Detail` | PK `(ticker, trade_date, broker, investor_type, market_board)` | buy/sell/net value, buy/sell/net lots, freq, `source_balance_gap` | 1 baris per baris `IDX_Broker_Summary`, sampai 2026-08-31; refresh **manual** | PK (diawali ticker), `trade_date_idx` | Kandidat terkuat untuk Broker summary, Accumulators, Inventory, Bandar, Flow Timeline (grain dan kunci cocok dengan HTML). |
-| `Feature_05_…_Stock` (view) | sama | sama, hanya saham IDX | sejak EXEC-M204 (2026-10-23) | — | View existing yang sudah dibuka ke SQL Governor. |
-| `Feature_06_Foreign_Domestic` | `(ticker, market_board, trade_date)` | foreign/domestic buy/sell/net 1d, cumulative, rolling | sampai 2026-08-31; manual | — (cek live) | Hanya berguna untuk Flow Timeline **tanpa filter broker**; kumulatifnya dihitung sejak sesi pertama ticker (beda dengan kumulatif dari range). |
-| `IDX_Broker_Summary_Freq`, `IDX_Net_Foreign_Summary` (+ partisi 2016–2027) | lihat schema | freq; net foreign per ticker | belum ada deskripsi di katalog | lihat schema | Bukan kebutuhan HTML saat ini (HTML tidak menampilkan frekuensi). |
-| `IDX_Broker_Profile` | PK `broker_code` | broker_name, broker_type (Domestic/Foreign), broker_classification | — | PK | Nama broker dan kategori F/L untuk tag; tidak ada kategori BUMN. |
-| `IDX_Stock_Universe` | PK `Ticker` | Company Name, Security Type, Sector | termasuk IHSG sejak 2026-10-23 | PK | Daftar ticker / pencarian. |
+| `Price_Stock_Indonesia_IDX` | PK `(ticker, date)` | ~1,33 jt baris, 533 MB | 1.329.064 baris, 845 ticker (844 `stock` + 1 `index`), **2018-01-02 – 2026-10-23**; semua `timeframe = 'Daily'`, semua `is_final = true`, 0 baris akhir pekan; `source = TradingView`, `market_code = IDX` | PK; `final_idx (ticker, date DESC) WHERE is_final AND timeframe='Daily'`; `date_idx` | Main chart + Statistics. Hanya harian. |
+| IHSG (tabel yang sama) | ticker `IHSG` | 2.125 baris | 2018-01-02 – 2026-10-23, volume NULL semua | sama | Benchmark. Punya **2 tanggal tanpa saham**: 2026-09-17 dan 2026-09-18 (sudah diketahui, ERRORS IHSG 2026-10-23). |
+| `Feature_01_Stock_Daily` | PK `(ticker, date)` | ~1,33 jt | — | PK, `date_idx` | Opsional (volume ratio sama dengan HTML; volatilitas beda basis). |
+| `IDX_Broker_Summary` | PK `(Date, Symbol, Broker, Investor Type, Market Board)` | ~45,1 jt baris, 10 GB | **2.560 tanggal**, 2016-01-04 – 2026-08-31 | **hanya PK (diawali Date)** | Sumber mentah. |
+| `Feature_05_Foreign_Domestic_Broker_Detail` | PK `(ticker, trade_date, broker, investor_type, market_board)` | ~45,2 jt, 9,6 GB | 2.560 tanggal, 2016-01-04 – 2026-08-31 (sama dengan mentah) | PK (diawali ticker), `trade_date_idx` | **Sumber utama panel kanan dan bawah.** |
+| `Feature_05_…_Stock` (view) | sama | — | filter `IDX_Stock_Universe."Security Type" = 'stock'` | — | Versi saham saja. |
+| `Feature_06_Foreign_Domestic` | PK `(ticker, market_board, trade_date)` | 2,27 jt, 1,3 GB | 2016 – 2026-08-31 | PK, `date_board_idx` | Jalur cepat Flow Timeline **tanpa filter broker**. |
+| `IDX_Broker_Profile` | PK `broker_code` | 112 broker | 32 Foreign, 80 Domestic; 4 klasifikasi | PK | Nama broker, kategori Foreign/Domestic. Tidak ada kategori BUMN. |
+| `IDX_Stock_Universe` | PK `Ticker` | 844 + IHSG | — | PK | Daftar ticker. |
 
-Board di DB bernama `Tunai`; HTML memakai `Cash`. Investor Type di DB adalah identitas investor dari sumber, bukan
-domisili broker.
+### 2.3 Kualitas data dan grain (live)
 
-Hubungan tanggal: harga sampai 2026-10-09 (IHSG 2026-10-23), broker sampai 2026-08-31. Chart yang menggabungkan
-keduanya akan punya ekor tanpa data broker; API harus mengembalikan tanggal terakhir masing-masing sumber.
+| Cek | Hasil |
+|---|---|
+| Duplikat per grain | Tidak mungkin: semua grain di atas adalah PK. |
+| Kalender harga vs broker | Untuk 2018-01-02 – 2026-08-31, tanggal broker = tanggal harga BBCA **persis** (0 selisih dua arah). Data broker berhenti 2026-08-31; harga sampai 2026-10-23 → 37 sesi terakhir chart tanpa data broker. |
+| Feature 05 vs mentah | Jumlah baris dan Σ net value sama persis pada 2016-03-01 (9.057 baris), 2023-12-18 (21.583) dan 2026-08-31 (27.059). 2019-06-03 kosong di keduanya (libur). Rekonsiliasi penuh semua tanggal belum dijalankan (butuh scan 45 jt baris; batas 30 detik pgweb). |
+| HTML `BK_BASE` vs DB (BBCA 2023-12-18) | 88 dari 88 baris ada di mentah dan Feature 05; **semua buy/sell value sama persis**. 6 baris beda lot karena HTML membulatkan odd lot (mis. DB 38.141,18 lot vs HTML 38.141). |
+| Lot pecahan | BBCA: 13.310 dari 219.762 baris Feature 05 punya lot pecahan (odd lot). API harus mengirim lot sebagai desimal. |
+| Ketidakseimbangan buy ≠ sell (M157) | `source_balance_gap` di Feature 06: Regular 2016 14.270, 2017 7.849, 2018 9.084, 2019 10.647, 2020 5.446 baris; Nego/Tunai puluhan–ratusan baris 2016–2020; 2021–2024 nol; 2025 dan 2026 masing-masing 2 baris Regular. Catatan "net to zero" di HTML salah untuk baris ini. |
+| Board | `Regular`, `Nego`, `Tunai` ada di semua tahun 2016–2026 (Tunai: 228–1.867 baris ticker-hari per tahun). |
+| Kode broker | 91 broker aktif sejak 2026-01-01, semuanya ada di `IDX_Broker_Profile`. |
+| Daftar broker asing HTML | 23 kode `BK_FOREIGN` semuanya Foreign di DB, tapi DB punya 9 broker Foreign lain yang tidak ada di HTML: BW, CP, DU, FG, GI, LH, LS, MS, RB. |
+| Frekuensi | BBCA: `buy_freq` tidak pernah NULL. HTML tidak menampilkan frekuensi. |
+
+### 2.4 Performa — `EXPLAIN (ANALYZE, BUFFERS)` (pgweb, 2026-10-24)
+
+Waktu eksekusi di server (cold = jalan pertama, warm = diulang). Query: `verification/terminal_api/explain.py`
+(jalankan `RAILWAY_TOKEN=… python3 explain.py [prefix…]` dari folder itu).
+
+| # | Query | Plan | Baris keluar | Cold | Warm |
+|---|---|---|---|---|---|
+| P1 | OHLCV BBCA 1 tahun | Index Scan `final_idx` | 238 | 3,5 ms | — |
+| P2 | OHLCV BBCA semua (2018–) | Bitmap `final_idx` | 2.123 | 7,4 ms | — |
+| P3 | Close BBCA + IHSG semua | Bitmap `final_idx` | 4.248 | 18 ms | — |
+| R1 | Mentah: per broker BBCA 1 hari | Index Scan PK | 64 | 17 ms | — |
+| R2 | Mentah: per broker BBCA 20 hari | Index Scan PK (filter Symbol di dalam rentang Date) | 85 | 223 ms (1.812 buffer) | — |
+| R3 | Mentah: per broker BBCA 1 tahun | sama | 92 | **3.071 ms** (25.512 buffer) | 47 ms |
+| F1 | Feature 05: per broker BBCA 1 hari | Index Scan PK | 64 | 13 ms | — |
+| F2 | Feature 05: per broker BBCA 20 hari | Bitmap PK | 85 | 9 ms (52 buffer) | — |
+| F3 | Feature 05: per broker BBCA 1 tahun | Bitmap PK | 92 | 359 ms (675 buffer) | 10 ms |
+| F4 | Feature 05: flow harian BBCA semua tahun, Foreign | Bitmap PK, 58.040 baris dibaca | 2.560 | **3.783 ms** | 107 ms |
+| F5 | Feature 05: flow harian BBCA 3 tahun, 3 broker | Bitmap PK | 710 | 12 ms | — |
+| F6 | Feature 05: inventory 5 broker × 30 hari | Index Scan PK | 145 | 0,6 ms | — |
+| F7 | Feature 05: flow harian GOTO semua, semua investor | Bitmap PK, 96.219 baris dibaca | 1.045 | 2.221 ms | 26 ms |
+| S1 | Feature 06: flow harian BBCA semua, Foreign | Index Scan PK | 2.560 | 421 ms | 6 ms |
+
+Kesimpulan terukur:
+- Per ticker, Feature 05 jauh lebih murah daripada tabel mentah (1 tahun: 675 vs 25.512 buffer), karena PK-nya diawali
+  ticker. Tabel mentah tidak dipakai untuk query per ticker.
+- Satu-satunya query yang lambat saat cold adalah flow seluruh riwayat (F4, F7: 2–4 detik, dominan baca disk); warm
+  di bawah 110 ms. Belum ada bukti yang membenarkan indeks baru atau tabel agregat; keputusan ini dibahas di
+  Phase 4 dengan target latensi dari user.
+- Harga (P1–P3) di bawah 20 ms.
 
 ## 3. Phase 2 — backend existing (dari kode repo)
 
@@ -134,7 +187,8 @@ keduanya akan punya ekor tanpa data broker; API harus mengembalikan tanggal tera
 | `market-sql-governor` (FastAPI) | Satu-satunya jalur SQL untuk AI: `/v1/query`, `/v1/extract` (Parquet), `/v1/summary`, `/v1/lookup`, katalog (`app/main.py` 98–293) | `market_sql_governor` → `market_ai_sql_reader` (SELECT objek yang disetujui) | API key | Dirancang untuk AI (spec, EXPLAIN gate, dataset Parquet), bukan untuk chart interaktif. |
 | Lainnya (cron, worker, orc, sandbox) | — | — | — | Tidak relevan. |
 
-Tidak ada endpoint existing untuk OHLCV, statistik atau broker activity yang bisa dipakai langsung oleh terminal.
+Deployment live: `edge-bff` SUCCESS `d564aba8-7414-4da8-bd6a-12f1a05936bb` (2026-10-24 16:09 UTC), `/ready` menjawab
+`ready`. Tidak ada endpoint existing untuk OHLCV, statistik atau broker activity yang bisa dipakai langsung oleh terminal.
 Pilihan service untuk API baru adalah keputusan user di Phase 5/6 (belum diusulkan di sini).
 
 ## 4. Selisih HTML vs database yang harus diputuskan (tidak dipilih diam-diam)
@@ -151,27 +205,28 @@ Pilihan service untuk API baru adalah keputusan user di Phase 5/6 (belum diusulk
 | S8 | Board | `Cash` | `Tunai` |
 | S9 | Net-to-zero | dianggap selalu nol | tidak benar pada sebagian data 2016–2020 (M157) |
 | S10 | Timeframe | 5M–M | hanya harian tersimpan |
-| S11 | Kelengkapan tanggal | broker dan harga dianggap tanggal sama | broker berhenti 2026-08-31, harga 2026-10-09 |
+| S11 | Kelengkapan tanggal | broker dan harga dianggap tanggal sama | sama persis sampai 2026-08-31; broker berhenti di situ, harga sampai 2026-10-23; IHSG punya 2026-09-17/18 tanpa saham |
+| S12 | Lot | dibulatkan | odd lot pecahan (desimal) |
+| S13 | Daftar broker asing | 23 kode hardcode | 32 broker Foreign di `IDX_Broker_Profile` |
 
-## 5. Pemeriksaan live yang masih diperlukan (Phase 2 lanjutan)
+## 5. Pemeriksaan yang masih terbuka
 
-Setelah akses Railway tersedia, jalankan read-only (role pembaca, `default_transaction_read_only=on`,
-`statement_timeout`):
+1. Rekonsiliasi penuh Feature 05 vs `IDX_Broker_Summary` untuk **semua** tanggal (baris dan Σ value per tanggal).
+   Butuh job read-only di luar batas 30 detik pgweb (mis. runner privat), atau dijalankan per tahun.
+2. Kebijakan stock split: harga disimpan sebagaimana dari TradingView (`IDX:…`); apakah TradingView mengirim harga
+   saham yang disesuaikan split belum dicek di kode `apps/idx-price-cron` dan data (cari lonjakan close/close ≈ 1/n
+   pada tanggal corporate action).
+3. Target latensi API dari user (menentukan perlu tidaknya agregat atau cache untuk riwayat panjang).
 
-1. Inventaris live: schema, tabel, view, materialized view, PK/unique/FK, indeks, tipe kolom, `pg_class.reltuples`,
-   fungsi terkait (`information_schema`, `pg_catalog`).
-2. Cakupan dan grain: min/max tanggal, jumlah sesi per ticker, duplikat per grain, NULL, nilai `timeframe`,
-   `is_final`, board dan investor type per tahun — untuk `Price_Stock_Indonesia_IDX`, `IDX_Broker_Summary`,
-   `Feature_05_…`, `Feature_06_…`.
-3. Rekonsiliasi: `Feature_05` vs `IDX_Broker_Summary` (jumlah baris dan Σ value per tanggal/ticker); data hari
-   BBCA 2023-12-18 di DB vs `BK_BASE` HTML (88 baris, Σ buy = Σ sell = Rp 1.067.042.438.606).
-4. Tanggal broker yang tidak punya baris harga dan sebaliknya (efek ke sinkronisasi chart).
-5. Kebijakan split: cek lonjakan harga yang cocok dengan corporate action, dan parameter adjustment di
-   `apps/idx-price-cron`.
-6. `EXPLAIN (ANALYZE, BUFFERS)` untuk pola query representatif: OHLCV 1 ticker × 1/3/8 tahun; broker per ticker ×
-   1/5/20/250 hari di `IDX_Broker_Summary` vs `Feature_05`; flow harian dengan filter broker multi.
-7. Deployment live `edge-bff` dan `market-sql-governor` (versi, variabel nama saja).
+## 6. Query yang dipakai
 
-Cara akses yang sudah dipakai proyek: Railway CLI (`backboard.railway.com`) untuk menjalankan job read-only di
-runner privat (`scripts/onboarding/migration_job.py`), atau pgweb read-only. Keduanya butuh host Railway diizinkan
-di Network access environment sesi ini.
+Helper read-only: `verification/terminal_api/pgq.py` (POST ke `/api/query` pgweb; kredensial dibaca dari variabel Railway ke memori, tidak
+dicetak). Query performa (teks persis):
+
+- P1 `select date,open,high,low,close,volume from "Price_Stock_Indonesia_IDX" where ticker='BBCA' and timeframe='Daily' and is_final and date between '2025-10-23' and '2026-10-23' order by date`
+- R3 `select "Broker",sum("Buy Value"),sum("Sell Value") from "IDX_Broker_Summary" where "Symbol"='BBCA' and "Date" between '2025-09-01' and '2026-08-31' group by 1`
+- F3 sama dengan R3 di `Feature_05_Foreign_Domestic_Broker_Detail` (`ticker`, `trade_date`)
+- F4 `select trade_date,sum(net_value) from "Feature_05_Foreign_Domestic_Broker_Detail" where ticker='BBCA' and investor_type='Foreign' group by 1 order by 1`
+- F5 sama dengan F4 untuk `trade_date >= '2023-09-01' and broker = any('{YP,AK,ZP}')` (semua investor)
+- F6 `select trade_date,broker,sum(net_lots),sum(net_value) … where ticker='BBCA' and trade_date between '2026-07-20' and '2026-08-31' and broker = any('{YP,AK,ZP,CC,BK}') group by 1,2`
+- F7 flow harian GOTO semua tanggal, semua investor; S1 `select trade_date,sum(foreign_net_1d) from "Feature_06_Foreign_Domestic" where ticker='BBCA' group by 1 order by 1`
