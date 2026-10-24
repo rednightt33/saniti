@@ -230,3 +230,34 @@ dicetak). Query performa (teks persis):
 - F5 sama dengan F4 untuk `trade_date >= '2023-09-01' and broker = any('{YP,AK,ZP}')` (semua investor)
 - F6 `select trade_date,broker,sum(net_lots),sum(net_value) … where ticker='BBCA' and trade_date between '2026-07-20' and '2026-08-31' and broker = any('{YP,AK,ZP,CC,BK}') group by 1,2`
 - F7 flow harian GOTO semua tanggal, semua investor; S1 `select trade_date,sum(foreign_net_1d) from "Feature_06_Foreign_Domestic" where ticker='BBCA' group by 1 order by 1`
+
+## 7. Keputusan user 2026-10-24 dan usulan lanjutan (PROPOSED)
+
+### 7.1 Volatilitas (S1) — benchmark
+
+Konvensi umum penyedia chart: simpangan baku sampel dari **log return** `ln(Pt/Pt-1)`, dikali akar jumlah sesi
+setahun, × 100 (Barchart: log return, faktor 260; Macroption: log return, 252 umum, pembagi n−1 paling lazim;
+skrip komunitas TradingView: `log(close/close[1])`, 252 untuk saham). Hasil di data live (20 sesi, × √252,
+2021-01-01 – 2026-10-23):
+
+| Ticker | Rata-rata log | Rata-rata sederhana | Selisih rata-rata | Selisih maks |
+|---|---|---|---|---|
+| IHSG | 14,82% | 14,78% | 0,08 pp | 2,35 pp |
+| BBCA | 23,87% | 23,88% | 0,14 pp | 4,00 pp |
+| ANTM | 42,99% | 43,19% | 0,51 pp | 6,04 pp |
+| GOTO | 53,21% | 53,77% | 1,20 pp | 15,83 pp |
+| BREN | 71,48% | 71,83% | 2,08 pp | 16,00 pp |
+
+Pilihan untuk display: **log return, 20 sesi, n−1, × √252** (sama dengan HTML). Selisih dengan return sederhana
+kecil untuk saham besar, tapi sampai 16 pp pada hari ekstrem saham volatil (ARB/ARA), di mana log return lebih
+simetris. `Feature_01.volatility_20d_ann_pct` (return sederhana, dipakai AI) tidak diubah; API display menamai
+fieldnya beda (`realized_vol_20d_log_ann_pct`) supaya dua definisi tidak tertukar.
+
+### 7.2 Ukuran data untuk pre-publish 5 tahun (live)
+
+| Ukuran | Nilai |
+|---|---|
+| Ticker dengan data broker sejak 2021-09-01 | 3.248 (termasuk waran/right) |
+| Baris Feature 05 per ticker 5 tahun | BBCA 114.918; GOTO 96.219; MAPI 61.756; BREN 47.525 |
+| Ukuran baris BBCA 5 tahun (8 kolom yang dipakai UI) | ~8 MB di PostgreSQL, sebelum kompresi |
+| Baris Feature 06 semua ticker 5 tahun | 1.345.577 |

@@ -7370,6 +7370,18 @@ opened access ("Sudah saya kasih, coba cek lagi") it ran live and read-only thro
 reconciliation of the HTML's BBCA 2023-12-18 rows, and EXPLAIN (ANALYZE, BUFFERS) of 14 representative queries.
 Report: `verification/terminal_api/PHASE1_PHASE2.md`. Phase 3 waits for the user's go.
 
+User decisions 2026-10-24 (after the live report):
+- Latency: "Target kecepatan API tidak perlu secepat itulah, di bawah 5 detik masih acceptable."
+- Serving direction (to be designed, not yet executed): "kita perlu pisahkan database yang sehubungan dengan org yang
+  digunakan untuk AI dan database yang memang hanya untuk display ... membuat pre-published data di storage object.
+  Kemudian nanti API akan berhubungan dengan storage object ini instead of melakukan query ... storage object mungkin
+  bisa dibuat seperti 5 tahun, tapi ketika data sudah tidak ada storage object, baru mengambil query dari main
+  Postgres."
+- Volatility (S1): "bebas kamu atur aja yang ideal dan representatif, either log return atau return biasa. Benchmark
+  dulu aja kalau untuk visualisasi data, preferably yang mana yang dipakai." Benchmark in the report, section 7.
+- S4 ("Foreign" in the Bandar detector): answer "arti foreign adalah domisili broker atau tipe investor" is still open
+  (which one, or both shown separately) — asked back 2026-10-24.
+
 Open questions for the user (after the live inspection):
 - Q1: done (network access opened 2026-10-24).
 - Q2: decisions S1–S11 in the report (volatility basis, drawdown window, partial month, meaning of "Foreign" in the
