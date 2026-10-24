@@ -130,3 +130,17 @@ The first approved date is 2026-08-31. Index flow is a market-wide proxy includi
 not an official historical constituent basket. The standard ticker refresh functions and stock-only AI
 views are unchanged; they do not implement this explicit aggregate path. Histories remain temporary
 calculation context during the one-date write; no index bulk load is authorized by this sample.
+
+## Dedicated INDEX history and vocabulary — completed 2026-10-25
+
+The later approved bulk supersedes the single-date-only availability described above. Dedicated
+Feature05 INDEX now has 576,648 rows and Feature06 INDEX 7,128 rows, 2016-01-04..2026-08-31.
+Feature05 INDEX sums **available known** raw frequencies across symbols; all-unknown stays NULL.
+Its five coverage columns were removed; completeness is computed internally and retained in
+Feature06 INDEX. Frequency-dependent ratios/tickets/windows remain NULL when input is incomplete.
+Stock table calculations/source values are unchanged. No new automatic updater is enabled.
+
+Use scripts/backfill_index_features.py for an explicitly approved historical INDEX load, not the old
+shared-table sample helper. Full counts, source reconciliation, snapshots and idempotence evidence
+are in verification/ihsg_feature_aggregation/bulk/. FEATURE_VOCABULARY.md documents the shared
+391-entry stock/non-INDEX and INDEX presentation dictionary; no frontend API/UI is implemented.

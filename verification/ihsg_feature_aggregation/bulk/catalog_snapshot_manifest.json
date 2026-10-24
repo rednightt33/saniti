@@ -1,0 +1,11 @@
+{
+  "checked_at": "2026-10-24T18:49:36.340418+00:00",
+  "sha256": "7feea993d3de5af0f3ce0c63a46d211bf54b413217f7d20cc4bee0c03ccc74c7",
+  "counts": {
+    "Table_Catalog": 7,
+    "Column_Catalog": 289,
+    "Feature_Catalog": 289
+  },
+  "archive_snapshot_id": "dc859a6a-04f3-4af4-8876-4e61e5212a6e",
+  "full_payload": "retained in private migration_archive.index_feature_rows after metadata phase"
+}

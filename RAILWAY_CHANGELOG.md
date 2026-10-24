@@ -4403,3 +4403,35 @@ six INDEX samples, zero shared legacy IHSG rows, and retained source prices. The
 was deleted after verification; no permanent schedules, variables, worker/routing/Telegram deployments,
 or AI access settings changed. Private DB archive remains. Evidence: index_tables/ under
 verification/ihsg_feature_aggregation. Daily update design is still a separate approval gate.
+
+
+## 2026-10-25 — temporary INDEX bootstrap/vocabulary job, removed after verification
+
+Project lucid-patience / dev; temporary service index-feature-approved-bulk
+`5e377107-8e63-440a-9e44-188772a1729e`, image python:3.12-slim, no volume, no schedule,
+restartPolicyType=NEVER. DATABASE_URL uses the Postgres variable reference; no secret values recorded.
+Sources are repository scripts/migrations/seed bundled for a one-off private-network execution,
+not a permanent replacement Railway upload for any existing cron/worker.
+
+- First preparation d1006b00 failed before public writes (duplicate temporary calc2); rollback-only
+  smoke 0c4eaee7 exercised 330 sessions and passed after the fix.
+- Bootstrap f2323d2e completed at 02:13:43 WIB, 1,171,802 INDEX rows, all 62 chunks verified and
+  idempotent. Independent public readback matches. No daily routing enabled.
+- Metadata job b68db68a archived 585 original catalog rows and applied forward semantic refinement;
+  private archive hashes=0 mismatches.
+- Vocabulary attempt a1812e5a stopped on sibling import before DDL; fixed standalone runpy path.
+  Retry e2397fbc observed terminal SUCCESS, vocabulary_complete committed=true at 02:29:04 WIB:
+  391 entries, exact payload match and rerun_modified=0. Global audit only reports the known two
+  *_Stock views; scoped new metadata passes.
+- CLI variable upload is bounded into <60 KB mutation batches (24 KB chunks), avoiding the OS argv
+  limit. A managed executor restart did not stop the independent Railway job; persistent workspace
+  recovery records restored local tooling without restarting the calculation.
+- After logs/schema/data/catalog checks, service deleted with explicit environmentId. A global delete
+  was unauthorized for the environment-scoped project token; scoped deletion succeeded and the
+  service is absent from the project list. No idle service, new cron or volume remains.
+
+All permanent services, sources and schedules are unchanged; .railway/railway.ts has no persistent
+infrastructure delta for this temporary job. Detailed deployment statuses/events and cleanup readback:
+verification/ihsg_feature_aggregation/bulk/. Older deployment statuses became REMOVED as later
+one-off modes replaced them; current state is deleted, not running. Source changes are on the feature
+branch; this task does not release daily worker/frontend changes to main.

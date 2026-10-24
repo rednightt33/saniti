@@ -43,6 +43,8 @@ def ref2(db,day):
  return checks
 
 def prepare_all(db,ticker,day):
+ if not db.execute("SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='Feature_05_Foreign_Domestic_Broker_Detail_INDEX' AND column_name='frequency_source_rows'").fetchone():
+  raise RuntimeError('The original one-date initializer is retired after the approved F05 INDEX cleanup. Use backfill_index_features.py; do not recreate removed coverage columns.')
  # Established F03/F06 reference validation, including full-history cumulative and strict derived-frequency coverage.
  prior.prepare(db,ticker,day)
  db.execute((ROOT/MIGRATION).read_text(),prepare=False)

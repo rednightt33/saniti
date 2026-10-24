@@ -1,5 +1,11 @@
 # Dedicated INDEX features — single-date initialization
 
+**Historical cutover evidence, superseded 2026-10-25:** the user subsequently approved and completed
+the historical INDEX bootstrap and vocabulary. Current counts/schema/validation are in
+../bulk/README.md and DATABASE_CHANGELOG.md. F05 INDEX coverage columns were removed by the new
+forward migration; F06 coverage remains. The one-date counts below describe the original cutover,
+not current availability. Automatic daily routing remains a separate design.
+
 User approved creation of six _INDEX tables, IHSG 2026-08-31 only, followed by deletion of IHSG from
 shared non-index feature tables. Bulk and automatic update logic remain unapproved. Prices and universe
 are retained. All new outputs, lossless archive and legacy deletion commit in one transaction; dry run

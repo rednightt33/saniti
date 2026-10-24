@@ -7339,3 +7339,33 @@ One-date INDEX samples unchanged. Price source ends 2026-10-23; broker source en
 Reviewed one-date helper limitations, staged-history bulk approach, semantic-text corrections,
 source scope, missing-frequency rules, chunk/resume validation and separate daily-routing boundary.
 Evidence: verification/ihsg_feature_aggregation/vocabulary_review/.
+
+### INDEX bulk and shared vocabulary — execution approved 2026-10-25
+
+User: "Ok, jalankan" following the reviewed PLAN.md INDEX bulk/shared vocabulary design.
+Execute the five-column F05 INDEX cleanup, INDEX-only IHSG historical load with accepted formulas,
+sample/source/chunk checks, then one stock+INDEX Feature_Vocabulary table for F01/02/03/05/06.
+Preserve stock/bond data, source inputs, archived legacy rows, F06 coverage and missingness rules.
+Daily routing/worker/Telegram/frontend rollout remains separate. Use a temporary one-off job if
+needed; no permanent service or automatic schedule. Record live migration/load/readback evidence.
+
+Completion — 2026-10-25: bulk committed at 02:13:43 WIB; all 62 year chunks reconcile completely,
+each immediate rerun changes zero rows. F01=2,125/F02=576,648/F03=7,128/F04=2,125/F05=576,648/
+F06=7,128 (1,171,802 total). Prices 2018-01-02..2026-10-23, broker outputs 2016-01-04..2026-08-31.
+45,229,673 raw rows read across 128 monthly slices; F02/F03/F06 independent checks and accepted
+sample checks total 823,210 comparisons. Forward migrations 20261025_001/002 remove exactly five
+F05 INDEX columns and correct cloned semantic guidance; F06 coverage remains. Snapshot dc859a6a-
+04f3-4af4-8876-4e61e5212a6e preserves 436 pre-bulk INDEX rows plus 585 original catalog rows;
+private readback hashes match. Older 4,470-row legacy archive retained.
+
+Vocabulary migration 20261025_003 and reviewed seed committed at 02:29:04 WIB: 391 VERIFIED entries,
+stock/non-INDEX 193 + INDEX 198, Feature04 excluded. Stored payload matches seed; rerun updates=0.
+Scoped schema readback covers 279 columns (255 INDEX +24 vocabulary), all documented. Public readback
+confirms no old F05 coverage columns, all F06 coverage columns present, all INDEX HHI NULL,
+F04 asset_type=index and actual price-close parity, shared IHSG rows=0. Existing global semantic
+failure is only the two pre-existing *_Stock view definitions (100 columns); not expanded by this task.
+No frontend/API/daily routing, permanent service config or stock/bond numerical data changed.
+Source/evidence saved on codex/ihsg-f356-one-date; source publication to main is separate.
+
+Temporary job cleanup completed: exact environment-scoped service deletion succeeded and independent
+project service-list readback confirms absence. No new always-on service/cron/volume remains.
