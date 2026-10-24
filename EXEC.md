@@ -7385,7 +7385,12 @@ User decisions 2026-10-24 (after the live report):
 - Serving design (object storage 5 years + Postgres fallback vs direct query vs hybrid): asked back 2026-10-24 — user 2026-10-24: "Coba lakukan
   research apakah screenshot terlampir benar ... jika tidak, saya cenderung untuk memilih opsi A." Research done
   (report section 8): presigned direct download works, CORS rule still needed. Revised option A (presigned direct
-  download) proposed; waiting for the user's confirmation.
+  download) proposed; User 2026-10-24: "Oke, saya setuju, tapi untuk
+  alternatif tidak usah dulu. yang akan ada login adalah mereka, para subscriber. kita langsung buat B aja." Decided:
+  presigned direct download with safeguards (short lifetime, quotas per subscriber, audit, CORS to the terminal
+  origin); no API-proxy alternative for now; users are subscribers. Phase 3–5 design written:
+  `verification/terminal_api/DESIGN.md` (PROPOSED). Open before building: subscriber accounts do not exist yet
+  (DESIGN section 4); approval of the implementation steps (DESIGN section 5).
 
 Open questions for the user (after the live inspection):
 - Q1: done (network access opened 2026-10-24).
