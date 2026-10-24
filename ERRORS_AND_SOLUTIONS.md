@@ -1500,3 +1500,19 @@ Execution blocker: Railway sandbox exec reported tunnel failure; HTTPS probe to 
 Symptom: price/Feature latest date remained October19 after the new code release, because the20October17:00/18:00 WIB ingest attempts preceded release. Manual native ingest at19:34 WIB fetched22/22 final rows; live worker processed11 tickers with one new session each from October19 checkpoint, all561 column validations SUCCESS. No historical replay, equity work or non-final US candle. Evidence: verification/fixed_income_session_repair/OCT20_MANUAL.json.
 
 Operational lesson verified during this run: redeploying a selected older deployment preserved its old dry-run start-command snapshot. It completed another dry-run and wrote nothing. Resolved by committing a fresh dev-scoped start-command patch; that deployment used the reviewed manual command. Treat an accepted config change and a selected-deployment redeploy as separate; inspect run events, command snapshot and database readback before claiming writes. Temporary service deleted after success.
+
+
+## 2026-10-23 — IHSG index enrollment compatibility (RESOLVED)
+
+- Symptom: provider code COMPOSITE has nine characters, but live IDX price ticker
+  is varchar(4). Writing COMPOSITE into the universe would make later price ingest
+  fail. Resolution: register internal IHSG with TradingView Symbol IDX:COMPOSITE;
+  preserve Security Type index and Is Common Stock No. No schema change needed.
+- Provider currency/ISIN/classifications for the index are absent. Do not invent
+  stock attributes or an IDR denomination: use explicit Not applicable/Undefined.
+- A Railway start command does not implicitly expand shell variables: the initial
+  preflight passed literal $JOB_CODE and failed before DB access. Use an explicit
+  shell for this one-off runner. Corrected preflight and APPLY were verified; the
+  temporary service was removed.
+- Lesson: validate symbol mapping, identifier width, non-stock classification and
+  source null semantics before enrolling an instrument in a shared universe.

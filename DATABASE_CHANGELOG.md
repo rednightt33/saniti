@@ -2220,3 +2220,25 @@ bonds 60,540 rows / 24 tickers, no ticker in both; the 15 referenced `AI_formula
   - Meaning from `Column_Catalog`, plus "NULL for symbols without frequency".
 - Read back (job `ee21588a`): both rows `ai_allowed`, not sensitive; `market_ai_sql_reader` reads 25,342 non-NULL
   values of each on 2026-08-31. No data row changed.
+
+
+## 2026-10-23 — IHSG/COMPOSITE enrolled in IDX_Stock_Universe
+
+User: "yang mau saya ingest adalah IHSG/ COMPOSITE Bisa mulai dulu dari table IDX_Stock_Universe".
+
+- Inserted exactly one reference row: internal ticker `IHSG`, provider `IDX:COMPOSITE`,
+  name `IDX Composite Index`, `Security Type=index`, `Is Common Stock=No`. The
+  TradingView scanner confirmed the symbol, description and type before the write.
+- The internal code uses four characters because the existing price table's ticker
+  is varchar(4). No schema widening, price backfill or Feature calculation ran.
+- Scanner currency, ISIN, country, sector and industry were null, and typespecs had
+  only an empty string. Geographic fields use the known IDX/Indonesia market;
+  currency/fundamental currency/ISIN are `Not applicable`, classification/specs
+  are `Undefined`. Index levels are points, not IDR prices. `price_feed_daily` stays null.
+- `scripts/enroll_ihsg_universe.ts` is the exact one-off source. It validates provider
+  identity, defaults to preflight, inserts in a transaction with an advisory lock,
+  and refuses to overwrite a conflicting identity. An exact existing identity is a no-op.
+- APPLY deployment `91aa4773-37b6-47dc-bc26-ff4230e8ef82` succeeded and exited. The
+  insert committed at 2026-10-23 21:44:34 WIB; independent readback confirmed one
+  universe row, one current history version and zero IHSG price rows. Evidence:
+  `verification/ihsg_universe/`. Existing universe-driven price runs will include IHSG.
