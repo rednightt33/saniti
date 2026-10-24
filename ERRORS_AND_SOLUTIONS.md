@@ -1568,6 +1568,16 @@ change yet.
   restart.
 - **Status:** OPEN (diagnosis saja; tidak ada perubahan kode atau konfigurasi).
 - **Lesson:** setiap loop latar ditinjau dari biaya per putaran terhadap jumlah objek yang terus tumbuh.
+- **Biaya (user 2026-10-24: "yang jadi masalah adalah biaya railway yang terus membengkak"):** tagihan tidak bisa
+  dibaca (token proyek; `railway usage` Unauthorized). Perkiraan dari `railway metrics --raw` 30 hari × harga
+  docs.railway.com (RAM $10/GB-bulan, CPU $20/vCPU-bulan, volume $0,15/GB-bulan, egress $0,05/GB): ±USD 34,7, yaitu
+  RAM ±USD 27 (Postgres 11,8; sandbox 6,3; Governor 1,7; orc 1,4; web-governor 1,1; lainnya <1), volume Postgres 5,1,
+  CPU ±0,9, egress ±1. Pendorong yang tumbuh: (1) volume Postgres 27,8 → 56,5 GB (job `618899ca`, read-only: database
+  53,8 GB; data broker ±47 GB dalam empat bentuk: `Feature_02_Broker_Rolling` 15,7, `IDX_Broker_Summary` 10,5,
+  `idx_broker_summary_freq_*` ±11, `Feature_05_Foreign_Domestic_Broker_Detail` 10,1); (2) memori Postgres 0,3 GB saat
+  diam, naik ke 2–4 GB rata-rata harian pada hari job data (2026-10-01/02, 10-20/21/22), dengan `shared_buffers`
+  128 MB (diduga cache halaman OS dihitung sebagai memori kontainer; belum diverifikasi); (3) sandbox ±0,7 GB saat
+  diam tanpa sesi (penyebab belum diverifikasi).
 
 ## Fixed-income selected-date repair — 2026-10-20 status
 
