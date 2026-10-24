@@ -7285,3 +7285,12 @@ unreleased files are unrelated to this narrowed execution and must not be includ
 Completion: IHSG 2026-08-31 committed and independently read back: Feature03=3, Feature05=214,
 Feature06=3, all HHI NULL. Feature02/04 unchanged. Evidence: verification/ihsg_feature_aggregation/single_date.
 Bulk remains pending user validation; no automatic index worker/Telegram rollout is included.
+
+### IHSG plan revision — audit only, 2026-10-24
+
+User now requires separate Feature 1–6 tables ending _INDEX and explicitly says not to execute,
+with number audit first. This supersedes shared analytical destinations for future index loads.
+The previous one-date Feature03/05/06 write remains completed history, not permission for another
+write, moving/deleting samples, creating tables, worker rollout or bulk. PLAN.md now records the
+six exact names and gated steps. Read-only 2026-08-31 F03 audit: 24 questioned-field comparisons,
+zero differences vs raw broker aggregates; per-ticker sums are semantically different.

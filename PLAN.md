@@ -821,24 +821,57 @@ siapa pun). Untuk 32 dari 844 saham, 20 sesi lebih panjang dari sebulan kalender
 harus menyebut definisi sesi ini, dan jawaban harus menyebut rentang tanggal jendela bila lebih panjang dari yang user
 sebut.
 
-## IHSG — Feature 2/3/5/6 market aggregation and Feature 4 index classification (inspection recorded 2026-10-24)
+## IHSG — dedicated Feature 1–6 INDEX tables; number audit first (revised 2026-10-24)
 
-User decisions: aggregate all tickers by date; “leave as null ... feature 3: broker_concentration_hhi”;
-“untuk feature 4 kolom asset type buat jadi 'index'”. Latest instruction is to inspect every column's
-creation script and record it before implementation. **Inspection complete; implementation not started.**
+User: "create a table ... feature 1-6 khusus untuk INDEX ... nama tablenya sama feature 1-6 tapi
+tambahkan ekor INDEX, rubah plan existing ... jangan execute dulu ... auditing number first."
+This supersedes the earlier shared-feature-table destination design. **Planning and read-only number
+audit only; no CREATE/ALTER, migration, deletion, load, cron or service changes are authorized now.**
 
-Source-based report: [verification/ihsg_feature_aggregation/README.md](verification/ihsg_feature_aggregation/README.md).
-Full formula/NULL/history/change matrix: [COLUMN_INSPECTION.md](verification/ihsg_feature_aggregation/COLUMN_INSPECTION.md),
-plus CSV and revision/count manifest in the same directory. Covers all **221 columns** of Features 2–6.
+| Existing feature identity | Planned dedicated index table |
+|---|---|
+| Feature_01_Stock_Daily | Feature_01_Stock_Daily_INDEX |
+| Feature_02_Broker_Rolling | Feature_02_Broker_Rolling_INDEX |
+| Feature_03_Stock_Broker_Daily | Feature_03_Stock_Broker_Daily_INDEX |
+| Feature_04_Technical_Indicator | Feature_04_Technical_Indicator_INDEX |
+| Feature_05_Foreign_Domestic_Broker_Detail | Feature_05_Foreign_Domestic_Broker_Detail_INDEX |
+| Feature_06_Foreign_Domestic | Feature_06_Foreign_Domestic_INDEX |
 
-Implementation must aggregate raw daily inputs before computing nonlinear/rolling outputs, preserve board,
-broker and investor-type grain, leave aggregate HHI NULL by policy, guard partial frequency across daily
-and rolling inputs, and preserve constituent source-gap flags. Index classification is universe-driven
-and requires SQL constraints/resolver/queue/state, loaders/engine, worker, Telegram retry/monitor and
-catalog/join/view changes. Existing checkpoints include asset_type in fingerprints: no blind key rename.
-F05/F06 stock-only AI views currently exclude index; existing F02/F03 scripts and staged F05/F06 job do
-not provide automatic aggregate refresh. Detailed impact, source-scope caveats and acceptance are in the report.
+The base analytical column names/formulas/grains remain the audit baseline, not blanket permission to
+SUM all existing feature columns. Every INDEX table retains ticker so future indices do not collide.
+F04 asset_type remains index; HHI in the index F03 table remains NULL per prior user decision.
+Resolve index eligibility from universe metadata, not a hardcoded IHSG list.
 
-No runtime code, migration, database, configuration or deployment change was made by this inspection.
-Recheck live schema/source coverage and deployment baseline at implementation preflight; this inspection
-uses the identified local Git snapshot and explicitly does not claim a new live database audit.
+**Phase 0 — now:** freeze analytical schema/data changes, audit the 2026-08-31 sample against raw
+IDX_Broker_Summary and settle metric meanings/scope. Evidence and explanation:
+[verification/ihsg_feature_aggregation/number_audit/README.md](verification/ihsg_feature_aggregation/number_audit/README.md).
+All eight questioned F03 fields match raw recalculation on all three boards (24 comparisons,
+0 differences). Summing per-ticker counts/ranks/positive-net totals measures different things.
+The earlier column-by-column source inspection remains historical formula evidence; its shared-table
+write destinations are superseded by these planned INDEX tables.
+
+**After a separate user go:** prepare forward schemas/catalogs/index plans and a metadata-derived
+source/target router; reroute index Feature01 and Feature04 workers, queue/status/checkpoint/Telegram
+references, retry and AI access explicitly. Ordinary stock and bond routing must preserve their current
+behavior. Price source remains the existing price table unless separately changed; do not invent a new
+price table merely because analytical outputs are separated. F01/F04 use actual index price OHLC;
+F02/F03/F05/F06 use a declared transaction universe aggregated before rolling/nonlinear metrics.
+
+Then validate one date in each of the six new destinations, reconcile source and stored values and
+verify full/incremental parity, units, NULL rules, keys, references and idempotence. Historical migration,
+cleanup of existing shared-table index rows and any bulk upsert require subsequent explicit approval.
+Feature04 state fingerprints contain asset_type: no blind state-key rename. The sample helper currently
+targets shared tables; it must not be rerun unchanged under the new destination plan.
+
+Existing data are **not removed or moved now**: F03=3/F05=214/F06=3 IHSG rows for 2026-08-31 in shared
+tables remain audit evidence; F02 IHSG remains empty; existing F01/F04 index histories remain as stored.
+The already-released OHLC-only price-cron compatibility change is not rolled back. Do not silently
+pause existing price/Feature01/stock/bond jobs during auditing.
+
+Open audit distinction: previous sample transaction scope is all raw source symbols, including
+warrants/rights. A market-wide flow proxy is not an official historical IHSG constituent basket.
+Before bulk, explicitly settle instrument scope, board selection, daily net-vs-gross definitions and
+historical membership rules; do not change those inputs merely to make figures match another display.
+
+[Source-column inspection](verification/ihsg_feature_aggregation/COLUMN_INSPECTION.md) and
+[prior one-date execution evidence](verification/ihsg_feature_aggregation/single_date/README.md).
