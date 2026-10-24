@@ -2319,3 +2319,11 @@ scripts/initialize_index_feature_sample.py keep schema, sample, backup and clean
 price/universe removal, bulk or automatic update logic is authorized. Evidence and final status:
 verification/ihsg_feature_aggregation/index_tables/README.md. A private JSONB archive preserves every
 original legacy row before deletion; no current-history data is discarded without recoverable backup.
+
+Applied and read back 2026-10-24 23:11–23:17 WIB: six _INDEX tables have IHSG 2026-08-31 only,
+counts 1/214/3/1/214/3. Shared Feature01–06 IHSG counts are all zero; archive snapshot
+293f4c52-0fd2-4d43-b02e-e0c6dba94f30 preserves all 4,470 original rows with zero hash mismatches.
+Source IHSG price history remains 2,125 rows, 2018-01-02..2026-10-23. Refined frequency/coverage
+reconciliation passes. Forward metadata migration 20261024_011 synced all 260 INDEX column/feature
+semantics and source dependencies; scoped check found zero missing definitions/drift/incomplete guidance.
+No bulk or permanent daily logic/configuration changes. Evidence: verification/ihsg_feature_aggregation/index_tables/.

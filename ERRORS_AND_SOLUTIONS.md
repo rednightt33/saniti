@@ -1645,3 +1645,11 @@ A subsequent DDL rollback test caught version text `index-sample-v1`, which viol
 No existing catalog guard was relaxed. DDL-only rollback verification succeeded; full dry/apply checks
 continue. No live source or analytical data was changed by the failed dry runs. Lesson: inspect live
 catalog constraints/activation triggers before cloning metadata; keep availability scoped to the sample.
+
+INDEX initialization final status (2026-10-24): full dry run and APPLY passed, metadata activates only
+after validations. Scoped INDEX semantic audit passes for all 260 columns after forward migration 011.
+Global audit still reports the existing missing Feature05/06 *_Stock view Feature_Catalog definitions;
+this is a pre-existing unrelated issue, not an INDEX failure, and was left unchanged. Archive readback
+verifies 4,470 rows and zero hash mismatches. Permanent daily routing remains an explicit open design
+item: legacy price-driven workers can recreate shared-table index rows after a new price arrives unless
+index exclusion/routing is approved and implemented; no unapproved runtime workaround was deployed.

@@ -4392,3 +4392,14 @@ aa12e983-b960-4d60-b2e5-a16481ce49ce (SUCCESS, committed=true). Stored counts/re
 verification/ihsg_feature_aggregation/single_date. After readback, removed that service and the prior
 metadata diagnostic service be4de698-83a8-4461-b3be-cd183732095b. Source cron schedules and ordinary
 workers unchanged; no broader index worker/Telegram rollout or bulk feature load was released.
+
+### 2026-10-24 — dedicated INDEX six-table validation job
+
+Temporary service 106547df-4649-4896-984f-5fedad63571a executed rollback checks, sample APPLY,
+archive verification and metadata sync. APPLY deployment 71ee86d3-177f-4953-8772-8b22d536ea14
+committed at 16:11 UTC (23:11 WIB), then was retired when postchecks ran. Metadata sync deployment
+2d6b05db-60be-40b6-a2ac-467bda2a91c7 was observed SUCCESS. DB/pgweb independent readback confirms
+six INDEX samples, zero shared legacy IHSG rows, and retained source prices. The temporary service
+was deleted after verification; no permanent schedules, variables, worker/routing/Telegram deployments,
+or AI access settings changed. Private DB archive remains. Evidence: index_tables/ under
+verification/ihsg_feature_aggregation. Daily update design is still a separate approval gate.

@@ -825,8 +825,10 @@ sebut.
 
 User: "create a table ... feature 1-6 khusus untuk INDEX ... nama tablenya sama feature 1-6 tapi
 tambahkan ekor INDEX, rubah plan existing ... jangan execute dulu ... auditing number first."
-This supersedes the earlier shared-feature-table destination design. **Planning and read-only number
-audit only; no CREATE/ALTER, migration, deletion, load, cron or service changes are authorized now.**
+This supersedes the earlier shared-feature-table destination design. The earlier audit-only hold was
+subsequently replaced by explicit approval to create the six tables and load one IHSG date, with
+archival cleanup of shared-table IHSG rows. That scoped execution is now complete and verified.
+**No further bulk, daily routing/worker/schedule or source correction is authorized until user validation.**
 
 | Existing feature identity | Planned dedicated index table |
 |---|---|
@@ -842,7 +844,7 @@ SUM all existing feature columns. Every INDEX table retains ticker so future ind
 F04 asset_type remains index; HHI in the index F03 table remains NULL per prior user decision.
 Resolve index eligibility from universe metadata, not a hardcoded IHSG list.
 
-**Phase 0 — now:** freeze analytical schema/data changes, audit the 2026-08-31 sample against raw
+**Phase 0 — audited:** the 2026-08-31 sample was compared against raw
 IDX_Broker_Summary and settle metric meanings/scope. Evidence and explanation:
 [verification/ihsg_feature_aggregation/number_audit/README.md](verification/ihsg_feature_aggregation/number_audit/README.md).
 All eight questioned F03 fields match raw recalculation on all three boards (24 comparisons,
@@ -850,8 +852,9 @@ All eight questioned F03 fields match raw recalculation on all three boards (24 
 The earlier column-by-column source inspection remains historical formula evidence; its shared-table
 write destinations are superseded by these planned INDEX tables.
 
-**After a separate user go:** prepare forward schemas/catalogs/index plans and a metadata-derived
-source/target router; reroute index Feature01 and Feature04 workers, queue/status/checkpoint/Telegram
+Six schemas/catalogs and one-date samples are now applied. After user validation and a separately
+approved bulk, propose a metadata-derived source/target router. Only after separate daily-design
+approval, reroute index Feature01 and Feature04 workers, queue/status/checkpoint/Telegram
 references, retry and AI access explicitly. Ordinary stock and bond routing must preserve their current
 behavior. Price source remains the existing price table unless separately changed; do not invent a new
 price table merely because analytical outputs are separated. F01/F04 use actual index price OHLC;
@@ -863,10 +866,12 @@ cleanup of existing shared-table index rows and any bulk upsert require subseque
 Feature04 state fingerprints contain asset_type: no blind state-key rename. The sample helper currently
 targets shared tables; it must not be rerun unchanged under the new destination plan.
 
-Existing data are **not removed or moved now**: F03=3/F05=214/F06=3 IHSG rows for 2026-08-31 in shared
-tables remain audit evidence; F02 IHSG remains empty; existing F01/F04 index histories remain as stored.
-The already-released OHLC-only price-cron compatibility change is not rolled back. Do not silently
-pause existing price/Feature01/stock/bond jobs during auditing.
+Current verified state: INDEX outputs for IHSG 2026-08-31 contain F01=1/F02=214/F03=3/F04=1/F05=214/F06=3.
+All shared Feature01–06 tables have zero IHSG rows. Original 4,470 rows were archived losslessly under
+snapshot 293f4c52-0fd2-4d43-b02e-e0c6dba94f30 in migration_archive.index_feature_rows before cleanup.
+Prices/universe and permanent runtime configuration remain unchanged. The already-released OHLC-only
+price-cron compatibility change is not rolled back. Do not silently pause existing jobs or activate
+new index routing during validation; the legacy writer recreation risk must be addressed in the daily proposal.
 
 Frequency audit 2026-08-31: all 428 Feature05 frequency cells match the earlier strict completeness
 policy, but 62 of 139 Regular broker/investor groups become NULL. SUM over available index groups is
@@ -887,7 +892,7 @@ This supersedes the proposed whole-group-NULL policy for future Feature05 INDEX 
   its downstream frequency shares/imbalance/rolling/ticket-size semantics are reviewed; do not silently
   divide full-scope value by partial-scope frequency. This note does not approve new Feature06 formulas.
 
-No current shared-table sample values, helper behavior, schemas, services or bulk jobs change now.
+The approved frequency correction is now applied only in the new INDEX sample; shared legacy IHSG rows were archived/deleted. Existing legacy helper behavior, services and bulk jobs remain unchanged.
 See number_audit/feature5_frequency* for the earlier rule's observed results and the approved revision.
 
 Feature06 net audit 2026-08-31 (read-only): 36/36 requested-field comparisons reconcile when scope
@@ -919,3 +924,11 @@ phase: user checks sample -> separately approved bulk -> proposal/approval for d
 The existing legacy Feature01 worker can recreate index rows on a future price update; excluding/routing
 index work must be addressed in that explicit future proposal, not silently enabled by this migration.
 Execution implementation/evidence: verification/ihsg_feature_aggregation/index_tables/README.md.
+
+### INDEX sample completion — 2026-10-24
+
+All six dedicated tables now contain IHSG 2026-08-31 only (436 rows total); refined F05 frequency
+and F06 daily frequency totals reconcile with raw known counts and coverage is explicit. Shared
+IHSG feature rows are archived then deleted, not bulk-copied into INDEX outputs. Scoped metadata
+coverage: 260 columns, zero missing definitions/drift/incomplete guidance. See index_tables/README.md.
+Await user review. Next gates: approval for bulk, then proposal/approval before any daily update logic.

@@ -7303,7 +7303,7 @@ known zero stays zero, and coverage is tracked separately. Supersedes whole-grou
 aggregation only. This is approval to record the future correction, not execute it. Existing shared-table
 sample/helper, schemas, services and jobs remain unchanged. Feature06 is still in the user's number audit.
 
-### INDEX six-table sample and legacy cleanup — approved 2026-10-24
+### INDEX six-table sample and legacy cleanup — completed 2026-10-24
 
 User: "silakan dibuat tabel baru ... formula ... refine. Mulai dari 31 Agustus ... tabel non-index
 untuk IHSG ... di-delete ... propose ... sebelum ... execute logic update ... cek hasil 31 Agustus ...
@@ -7314,3 +7314,8 @@ full historical cumulative and common-market rolling rules, F03 HHI NULL, F04 as
 Archive all legacy IHSG feature rows losslessly, verify the new sample, then delete legacy feature rows
 in the same transaction. Prices/universe retained. No bulk, queue/worker/scheduler/routing/Telegram or
 other automatic update logic is enabled. Future daily design must be proposed and approved separately.
+
+Completion: INDEX sample committed at 2026-10-24 23:11 WIB. Counts F01=1/F02=214/F03=3/F04=1/F05=214/F06=3,
+all dated 2026-08-31. Shared tables IHSG=0; 4,470 complete rows retained in private archive snapshot
+293f4c52-0fd2-4d43-b02e-e0c6dba94f30. Independent public readback and private archive/hash readback pass.
+260 INDEX catalog columns complete and synchronized. Bulk/daily remain disabled/unapproved.

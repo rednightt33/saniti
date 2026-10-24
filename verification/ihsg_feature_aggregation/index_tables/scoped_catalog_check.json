@@ -1,0 +1,1 @@
+{"columns":["physical_columns","missing_feature_definitions","missing_column_definitions","metadata_drift","incomplete_guidance"],"rows":[[260,0,0,0,0]],"stats":{"columns_count":5,"rows_count":1,"rows_affected":0,"query_start_time":"2026-10-24T16:16:55.564407104Z","query_finish_time":"2026-10-24T16:16:55.649354226Z","query_duration_ms":84}}

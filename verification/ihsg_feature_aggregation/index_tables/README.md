@@ -88,3 +88,31 @@ for user inspection. Table/column/feature metadata and index-only safe joins are
   outputs unchanged; all six staged-vs-stored payload comparisons had zero mismatches.
 - Archive/delete dry run verified 4,470 complete legacy payloads and rolled the whole transaction back.
 - Local regression checks: 71 passed, 11 DB-dependent tests skipped. No daily-update application code changed.
+
+## Applied and independently verified
+
+Committed at 2026-10-24 23:11 WIB (16:11 UTC). New INDEX counts: F01=1, F02=214, F03=3, F04=1,
+F05=214, F06=3, all IHSG 2026-08-31. Separate pgweb readback confirms all six legacy IHSG counts=0
+and all 2,125 original source price rows remain. Archive snapshot
+293f4c52-0fd2-4d43-b02e-e0c6dba94f30 holds 4,470 original rows; independent admin readback found
+zero archive hash mismatches. No bulk/date-range, daily worker, queue, scheduler, Telegram or AI
+onboarding logic was enabled.
+
+Regular known buy/sell frequencies now reconcile to raw source 2,372,642/2,372,642; Nego 859/859;
+Tunai 4/4. Missing input rows remain flagged (Regular 1,715 per side, Nego/Tunai 1 per side).
+F03 HHI is NULL; F04 asset_type=index; cumulative/rolling cash values retain the prior audited
+semantics. Refined F05 frequency/coverage mismatches=0; F06 daily frequency comparisons=12, all pass.
+
+A forward metadata-only migration 20261024_011 synchronizes Column_Catalog with the final refined
+Feature_Catalog definitions and actual source dependencies. Scoped validation passes: 260 physical
+INDEX columns, 0 missing Feature/Column definitions, 0 metadata drift, 0 incomplete semantic guidance.
+The global catalog audit still fails on the pre-existing Feature05/06 *_Stock view definitions; no
+INDEX column appears in that failure. This unrelated baseline issue is not silently fixed here.
+
+CSV export bundle: /workspace/artifacts/index-six-tables/IHSG_2026-08-31_INDEX_features.zip.
+Full local readback: /workspace/artifacts/index-six-tables/readback.json. Git keeps small summaries.
+
+Temporary validation service 106547df-4649-4896-984f-5fedad63571a was deleted after verification;
+permanent database/archive retained. APPLY deployment 71ee86d3-177f-4953-8772-8b22d536ea14 was
+retired by subsequent postchecks; metadata sync deployment 2d6b05db-60be-40b6-a2ac-467bda2a91c7 was
+observed SUCCESS. Commit/readback evidence, not a running temporary container, establishes data persistence.
