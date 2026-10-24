@@ -7293,6 +7293,12 @@ hash). Dua temuan saat membangun: (1) di `/c/<id>` rumus lama menganggap `conv_�
 dibaca sebagai `/`; mode path kini hanya menganggap `/` dan `/index.html` halaman awal; (2) alat preview menolak penanda
 preview di sumber halaman, jadi mode path diturunkan dari script yang dimuat dari server. Tes
 `test_responsive_history_details_preferences_and_keyboard` diubah: sesudah reload di `/c/<id>` chat terbuka sendiri.
+Deploy: commit `f90ecdc`, edge-bff `c87b8532` SUCCESS (orc tidak berubah; 0 run aktif sebelum push). Cek route live:
+`/c/conv_…` 200, `/c/not-a-conversation` 404. Verifikasi live di browser (tanpa pertanyaan): login di
+`/c/conv_d556…` membuka chat itu; memilih chat lain → `/c/conv_4570…`; Back/Forward berpindah antar keduanya; reload
+membuka chat yang sama; "New conversation" → `/monitor`; tab baru di alamat chat membuka chat itu; link lama
+`/index.html#/monitor?c=…` ditulis ulang menjadi `/c/…`; panel side chat memakai `/c/<id>?view=side` dan tidak mengubah
+alamat tab.
 
 ## EXEC-IHSG-SINGLE-DATE — approved 2026-10-24
 

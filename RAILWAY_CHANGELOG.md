@@ -4383,3 +4383,11 @@ EDGE itself only (`frame-ancestors 'self'`, ERRORS M213). Follow-up commit `c85e
 
 User screenshot: Branch tab and side chat showed `{"detail":"Not Found"}` when EDGE was opened at `/`. edge-bff now
 serves the page at `/index.html` too. No variable or other service change.
+
+
+## 2026-10-24 — EDGE conversation addresses /c/<id> (EXEC-CHAT-URL)
+
+User 2026-10-24: "B saja ya. Cek dulu infra kita sebelum eksekusi. Masukan exec dan jalankan." edge-bff serves the
+page at `/c/{conversation_id}`; EDGE uses plain paths when served by the BFF. Rollback reference: edge-bff `4b2d8be7`.
+Commit `f90ecdc`, edge-bff `c87b8532` SUCCESS; market-ai-orc unchanged. No variable, migration or other service change.
+Live checks: EXEC.md EXEC-CHAT-URL.
