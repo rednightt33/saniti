@@ -7018,3 +7018,22 @@ User 2026-10-23: "apakah data buy freq dan sell freq di table idx broker summary
   2026-08-31.
 - GO user 2026-10-23 ("Go"): APPLY job `ee21588a`. Dibaca ulang di job yang sama: 2 baris terlihat AI (`bigint`,
   "transactions", SUM, HISTORICAL), dan role pembaca membaca 25.342 baris per 2026-08-31. Hash di `APPLIED.sha256`.
+
+### EXEC-UI-1024: rapikan EDGE dan lampiran berkomentar (disetujui 2026-10-24, belum dijalankan)
+
+User 2026-10-24 (dengan screenshot):
+- "1A yg dihapus hanya yang 7S" — hanya angka waktu langkah yang sedang berjalan di samping labelnya ("Planning the
+  next step 7s"). Total di depan dan angka per langkah di "Steps done" tetap.
+- "1B ditengah dalam artian middle align, bukan center" — baris status "● AI request running" di atas kotak pesan
+  rata tengah secara vertikal.
+- "1 C ya" — teks kosong Sources ("No source or evidence metadata returned for this response.") sejajar dengan isi
+  panel lain.
+- "2A-C yes benar":
+  - (a) teks yang dilampirkan sebagai konteks disorot kuning di jawaban;
+  - (b) lebih dari satu lampiran;
+  - (c) setiap lampiran punya komentar sendiri, dan teks pesan tetap untuk pertanyaan umum. AI menerima pasangan
+    lampiran–komentar secara terstruktur. Saat ini `AttachedText` tidak punya kolom komentar (`schemas.py`).
+- "masukan exec jangan execute dulu."
+
+Fakta kode: `AgentRunRequest.attachments` (maksimal 5, `AttachedSelection | AttachedText`), BFF `RunInput`.
+Rencana teknis disusun bersama riset nomor 3 (EXEC-ASK-BRANCH).
