@@ -1,0 +1,1 @@
+{"columns":["trade_date","market_board","source_net_imbalance","source_gap_symbols"],"rows":[["2026-07-27T00:00:00Z","Regular","853200",1]],"stats":{"columns_count":4,"rows_count":1,"rows_affected":0,"query_start_time":"2026-10-24T15:02:14.838096881Z","query_finish_time":"2026-10-24T15:02:32.170974621Z","query_duration_ms":17332}}

@@ -890,6 +890,17 @@ This supersedes the proposed whole-group-NULL policy for future Feature05 INDEX 
 No current shared-table sample values, helper behavior, schemas, services or bulk jobs change now.
 See number_audit/feature5_frequency* for the earlier rule's observed results and the approved revision.
 
+Feature06 net audit 2026-08-31 (read-only): 36/36 requested-field comparisons reconcile when scope
+and periods are aligned. Cumulative must use latest-as-of balances from all historical symbols,
+including those without a row on the target date; rolling must sum daily flows over common exact
+market dates; turnover ratio must use SUM(net)/SUM(turnover), never SUM(per-ticker ratios). Existing
+non-index rolling counts ticker-observed sessions, so do not force direct equality across different
+windows. Broker cumulative currently starts 2016-01-04 vs index price history 2018-01-02: declare the
+intended baseline before implementation. No baseline/calendar/formula change is approved by this audit.
+Actual raw input gap found: MAPADRCU6A, Regular, 2026-07-27, Buy-Sell=+853,200; carried through the
+index 60D totals and source-gap flags. Upstream cause/repair and instrument scope remain open; no
+correction executed. Full evidence: number_audit/FEATURE06_NET_AUDIT.md and accompanying SQL/JSON/CSV.
+
 Open audit distinction: previous sample transaction scope is all raw source symbols, including
 warrants/rights. A market-wide flow proxy is not an official historical IHSG constituent basket.
 Before bulk, explicitly settle instrument scope, board selection, daily net-vs-gross definitions and

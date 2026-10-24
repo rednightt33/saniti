@@ -1617,3 +1617,20 @@ NULL. Values/lots and source-gap flags remain independent. Independent Feature06
 Status: resolved for the approved IHSG 2026-08-31 sample and shared sample/bulk calculation helper;
 standard stock refresh functions and bulk/automatic aggregate rollout remain unchanged. Evidence:
 verification/ihsg_feature_aggregation/single_date. HHI NULL is intentional user policy, not a failure.
+
+### Feature06 audit: 2026-07-27 Regular MAPADRCU6A source imbalance (OPEN, 2026-10-24)
+
+Read-only audit found raw IDX_Broker_Summary Buy Value 1,408,200 vs Sell Value 555,000 for MAPADRCU6A,
+2026-07-27 Regular: +853,200 mismatch. Non-index Feature06 flags the source gap and carries the same
+Foreign+Domestic daily net mismatch. The index 60-session window ending 2026-08-31 therefore has
+foreign_net_60d + domestic_net_60d = +853,200. Verified input inconsistency, not an index arithmetic
+mismatch; upstream reason not established. No refetch or data change approved/executed. Keep the gap
+visible; settle instrument scope and audit the source before any repair. Evidence:
+verification/ihsg_feature_aggregation/number_audit/feature6_recent_{source_balance,raw_gap}.json.
+
+### Feature06 rolling-decomposition audit query timeout (bounded retry resolved, 2026-10-24)
+
+Initial read-only decomposition hit statement_timeout; the query joined multiple rolling bounds to the
+feature history without a single constant lower-date restriction on the materialized context. Rewritten
+to materialize only the verified latest 60 source sessions and reuse those rows; retry succeeded. No
+limits or indexes were changed. The failure and successful query/results remain in number_audit/.

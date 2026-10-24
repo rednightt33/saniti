@@ -1,0 +1,40 @@
+{
+  "date": "2026-08-31",
+  "read_only": true,
+  "metric_comparisons": 36,
+  "mismatches": 0,
+  "cumulative_sum_latest_all_symbols_matches_all_boards": true,
+  "calendar": [
+    {
+      "n": 5,
+      "start_date": "2026-08-24",
+      "end_date": "2026-08-31",
+      "sessions": 5
+    },
+    {
+      "n": 10,
+      "start_date": "2026-08-14",
+      "end_date": "2026-08-31",
+      "sessions": 10
+    },
+    {
+      "n": 20,
+      "start_date": "2026-07-31",
+      "end_date": "2026-08-31",
+      "sessions": 20
+    },
+    {
+      "n": 40,
+      "start_date": "2026-07-03",
+      "end_date": "2026-08-31",
+      "sessions": 40
+    },
+    {
+      "n": 60,
+      "start_date": "2026-06-04",
+      "end_date": "2026-08-31",
+      "sessions": 60
+    }
+  ],
+  "source_basis": "Non-index Feature06 additive daily flow history; exact cumulative as-of and aligned observed market sessions. Earlier writer was independently reconciled to canonical Feature05 history."
+}
