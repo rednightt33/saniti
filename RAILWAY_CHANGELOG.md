@@ -4377,3 +4377,9 @@ set only for each run and removed, VAR_REMOVED). Commit `4150f49`: market-ai-orc
 SUCCESS; 0 EDGE runs active before the push. No variable, model or provider change. The BFF's CSP now allows framing by
 EDGE itself only (`frame-ancestors 'self'`, ERRORS M213). Follow-up commit `c85e3e8`: side chat panel z-index on phones, edge-bff
 `05812b61` SUCCESS (market-ai-orc SKIPPED). Live checks: EXEC.md EXEC-ASK-BRANCH-IMPL results.
+
+
+## 2026-10-24 — edge-bff serves /index.html (ERRORS M214)
+
+User screenshot: Branch tab and side chat showed `{"detail":"Not Found"}` when EDGE was opened at `/`. edge-bff now
+serves the page at `/index.html` too. No variable or other service change.

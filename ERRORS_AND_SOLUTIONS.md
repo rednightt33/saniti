@@ -1525,6 +1525,23 @@ change yet.
 - **Status:** FIXED (deploy edge-bff EXEC-ASK-BRANCH-IMPL).
 - **Lesson:** perubahan header keamanan dikunci dengan tes yang menyebut nilainya.
 
+### M214 — Tab Branch dan side chat menampilkan `{"detail":"Not Found"}` (2026-10-24)
+
+- **Symptom:** user 2026-10-24 (screenshot): EDGE dibuka di `https://edge-bff-dev.up.railway.app/`; Branch membuka
+  `/index.html#/monitor?c=conv_…` dan panel side chat berisi `{"detail":"Not Found"}`.
+- **Verified cause:** EDGE membuat setiap link sebagai `<halaman>#/<route>` (`staticUrl`, `static/index.html`); bila
+  halaman dibuka di `/`, nama halamannya `index.html`. BFF hanya melayani `/`, `/monitor`, `/login`
+  (`app/main.py`), jadi `/index.html` 404. Uji live sebelumnya mulai dari `/monitor` (link `/monitor#/…`), dan tes EDGE
+  juga selalu masuk lewat `/monitor`, sehingga jalur ini tidak teruji. Tes baru mereproduksi kegagalan sebelum perbaikan.
+- **Class:** setiap URL yang dibuat EDGE (Branch, side chat, alamat sesudah login dan pindah halaman) bergantung pada
+  path tempat halaman pertama dibuka; server harus melayani semua bentuk itu. Sebelum fitur ini, reload sesudah login
+  dari `/` juga membuka `/index.html` (sama akar).
+- **Solution:** BFF melayani halaman yang sama di `/index.html`. Tes
+  `tests/test_ask_branch.py::test_links_edge_builds_open_when_the_page_was_opened_at_the_root` (masuk dari `/`:
+  Branch, side chat, reload).
+- **Status:** FIXED (deploy edge-bff, lihat RAILWAY_CHANGELOG 2026-10-24).
+- **Lesson:** tes antarmuka masuk dari setiap path yang dilayani, bukan hanya satu.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.

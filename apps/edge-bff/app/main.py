@@ -240,7 +240,10 @@ def create_app(settings=None, store=None, orc=None):
             return error('NOT_READY', 503)
         return {'status': 'ready'}
 
+    # The page builds its links as <page>#/<route> (index.html staticUrl); opened at "/" that page is index.html, so
+    # /index.html is served too (user 2026-10-24: a Branch tab and the side chat showed {"detail":"Not Found"})
     @app.get('/')
+    @app.get('/index.html')
     @app.get('/monitor')
     @app.get('/login')
     async def index():

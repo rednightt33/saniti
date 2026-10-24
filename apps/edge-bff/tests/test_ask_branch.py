@@ -109,3 +109,28 @@ def test_on_a_phone_the_side_chat_covers_the_page_and_its_header_is_clear(fixtur
         .filter(x => !document.elementFromPoint(x, y)?.closest('.edge-side-chat'))""", [head['y'] + head['height'] / 2, head['width']])
     assert covered == [] and head['width'] >= 389, covered
     capture(page, 'side-chat-phone')
+
+
+def test_links_edge_builds_open_when_the_page_was_opened_at_the_root(fixture_server, browser_page):
+    """User 2026-10-24 (screenshots): EDGE opened at "/" built its links as /index.html#/monitor?c=..., which the BFF did
+    not serve ({"detail":"Not Found"} in the Branch tab and the side chat). Every link EDGE builds must open, whichever
+    page path ("/", "/monitor", "/login") the user started from."""
+    origin, orc = fixture_server
+    page = browser_page
+    page.goto(origin + '/')
+    page.get_by_label('Login', exact=True).fill('owner')
+    page.get_by_label('Password', exact=True).fill('local-test-password')
+    page.get_by_role('button', name='Sign In', exact=True).click()
+    page.get_by_placeholder('Ask a research question…').wait_for()
+    submit(page, 'harga BBRI minggu ini')
+    saved(page)
+    with page.context.expect_page() as opened:
+        article(page).locator('.edge-branch-action').click()
+    tab = opened.value
+    tab.wait_for_load_state()
+    tab.locator('.edge-branch-divider').wait_for(timeout=10000)
+    article(page).locator('.edge-ask-action').click()
+    page.frame_locator('.edge-side-frame').locator('.edge-branch-divider').wait_for(timeout=10000)
+    page.reload()  # the address bar EDGE wrote after signing in opens again
+    page.get_by_placeholder('Ask a research question…').wait_for(timeout=10000)
+    tab.close()
