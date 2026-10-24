@@ -76,3 +76,30 @@ schema creation, row migration, deletion or bulk calculation was executed by thi
 
 Sources inspected: `20260914_047_define_feature_03_investor_type_v2.sql`, especially lines 55–123,
 and `scripts/upsert_index_broker_feature_sample.py` daily aggregation and reference checks.
+
+## EMAS vs index and gross buy/sell balance — follow-up read-only audit
+
+Fresh source and stored comparison (`emas_vs_index.sql` / `.json`), 2026-08-31 Regular:
+
+| Metric | EMAS only | Market-wide IHSG aggregate |
+|---|---:|---:|
+| top_buyer_net_value | PD 466,745,795,000 | PD 628,869,060,400 |
+| top_seller_net_value | AK -144,751,107,500 | ZP -595,514,539,800 |
+| top3_buyer_net_value | PD/LG/XL 583,278,315,000 | PD/CC/CP 1,177,743,686,500 |
+| positive_net_value_total | 587,209,590,000 | 1,952,122,575,100 |
+
+PD/EMAS buy=537,107,162,500 and sell=70,361,367,500, giving net 466,745,795,000 as the user
+observed. PD's net in all other symbols is 162,123,265,400; adding it gives market net 628,869,060,400.
+The formula is identical; the security scope changes. Different securities' top sellers and top-three
+buyer identities cannot be assumed to remain the market-wide winners.
+
+EMAS total buy=total sell=786,528,127,500. Market-wide Regular total buy=total sell=20,968,636,367,500.
+Both are verified directly from raw source; the code sums Buy Value and Sell Value independently.
+For complete matched executions at the same date/security/board, each transaction has an equal-value
+buy side and sell side. Positive broker nets are offset by negative broker nets. The gross market-wide
+buy/sell totals are therefore normally equal, while an individual broker or investor class can have
+a nonzero net. Do not add both sides to report single-counted trading turnover.
+
+On this date raw imbalance checks found zero unbalanced source symbols on Regular (1,313), Nego
+(128), and Tunai (5). This is not a claim that every historical source date is complete; known historical
+source gaps can create unequal totals and must remain flagged. No formula/data/schema changes made.
