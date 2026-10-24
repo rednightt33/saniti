@@ -1634,3 +1634,14 @@ Initial read-only decomposition hit statement_timeout; the query joined multiple
 feature history without a single constant lower-date restriction on the materialized context. Rewritten
 to materialize only the verified latest 60 source sessions and reuse those rows; retry succeeded. No
 limits or indexes were changed. The failure and successful query/results remain in number_audit/.
+
+### INDEX table initialization catalog guards (dry-run resolved, 2026-10-24)
+
+First rollback-only initialization hit validate_feature_catalog_target because active definitions
+require a VERIFIED Table_Catalog target. Corrected the sequence: new definitions stay inactive while
+schema/sample/reference checks run; metadata activates only after sample payload and archive checks.
+A subsequent DDL rollback test caught version text `index-sample-v1`, which violates the catalog's
+^v[1-9][0-9]*$ constraint. The new table definitions now use v1, separate from base-table versions.
+No existing catalog guard was relaxed. DDL-only rollback verification succeeded; full dry/apply checks
+continue. No live source or analytical data was changed by the failed dry runs. Lesson: inspect live
+catalog constraints/activation triggers before cloning metadata; keep availability scoped to the sample.

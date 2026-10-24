@@ -7302,3 +7302,15 @@ Record in PLAN.md: future Feature05 INDEX frequency uses SUM of available inputs
 known zero stays zero, and coverage is tracked separately. Supersedes whole-group-NULL for future index
 aggregation only. This is approval to record the future correction, not execute it. Existing shared-table
 sample/helper, schemas, services and jobs remain unchanged. Feature06 is still in the user's number audit.
+
+### INDEX six-table sample and legacy cleanup — approved 2026-10-24
+
+User: "silakan dibuat tabel baru ... formula ... refine. Mulai dari 31 Agustus ... tabel non-index
+untuk IHSG ... di-delete ... propose ... sebelum ... execute logic update ... cek hasil 31 Agustus ...
+baru ... bulk insert ... baru ... desain ... update setiap harinya."
+Scope: create Feature01–06 dedicated _INDEX tables, IHSG 2026-08-31 output only. Apply refined SUM-known
+frequency and separate coverage; keep derived frequency ratios NULL when scope incomplete. Preserve
+full historical cumulative and common-market rolling rules, F03 HHI NULL, F04 asset_type=index.
+Archive all legacy IHSG feature rows losslessly, verify the new sample, then delete legacy feature rows
+in the same transaction. Prices/universe retained. No bulk, queue/worker/scheduler/routing/Telegram or
+other automatic update logic is enabled. Future daily design must be proposed and approved separately.

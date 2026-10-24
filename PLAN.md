@@ -908,3 +908,14 @@ historical membership rules; do not change those inputs merely to make figures m
 
 [Source-column inspection](verification/ihsg_feature_aggregation/COLUMN_INSPECTION.md) and
 [prior one-date execution evidence](verification/ihsg_feature_aggregation/single_date/README.md).
+
+### INDEX table single-date execution authorized 2026-10-24
+
+User approved creating the six dedicated _INDEX tables with refined frequency coverage, IHSG
+2026-08-31 sample only, then deleting legacy shared-table IHSG rows. Full old feature rows must first
+be archived losslessly in migration_archive.index_feature_rows and checked before the atomic cleanup.
+No source prices/universe, bulk or automatic-update routing is changed. Daily design is a later gated
+phase: user checks sample -> separately approved bulk -> proposal/approval for daily update logic.
+The existing legacy Feature01 worker can recreate index rows on a future price update; excluding/routing
+index work must be addressed in that explicit future proposal, not silently enabled by this migration.
+Execution implementation/evidence: verification/ihsg_feature_aggregation/index_tables/README.md.

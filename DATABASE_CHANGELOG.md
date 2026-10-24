@@ -2310,3 +2310,12 @@ Feature06 3; all Feature03 HHI NULL. SQL payload comparison found zero mismatche
 empty for IHSG and Feature04's 2,125 IHSG rows retain the exact before/after fingerprint. Evidence:
 verification/ihsg_feature_aggregation/single_date/{feature356_apply.jsonl,feature356_readback_summary.json}.
 Two temporary job services removed; no schema or permanent infrastructure changes. Bulk awaits user validation.
+
+### 2026-10-24 — dedicated INDEX sample initialization (preparing)
+
+User approved six _INDEX tables, IHSG 2026-08-31 output only, refined known-frequency SUM with coverage,
+and deletion of legacy shared feature rows after archival/verification. Migration 20261024_010 and
+scripts/initialize_index_feature_sample.py keep schema, sample, backup and cleanup atomic. No source
+price/universe removal, bulk or automatic update logic is authorized. Evidence and final status:
+verification/ihsg_feature_aggregation/index_tables/README.md. A private JSONB archive preserves every
+original legacy row before deletion; no current-history data is discarded without recoverable backup.

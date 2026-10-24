@@ -4643,3 +4643,10 @@ View of Feature_06_Foreign_Domestic limited to the current IDX stock universe (I
 ## Applied fixed-income provider-session migration (2026-10-20)
 
 Applied and read back at18:43 WIB. Migration `20261013_011_verify_fixed_income_sessions.sql` adds required text columns `provider_timezone_name` (verified TradingView timezone) and `provider_session` (daily session anchor) to `Fixed_Income_Market_Schedule`. Both ID and US use NEXT_BUSINESS_DAY source mapping under the reviewed policy. The changed physical table section above has been refreshed from live readback.
+
+Dedicated index schema preparation (2026-10-24): forward migration
+20261024_010_create_index_feature_tables.sql defines six Feature01–06 _INDEX outputs with existing
+grains/analytical columns; Feature04 asset_type is constrained to index. Feature05/06 each add five
+nonnegative frequency coverage counts (source, known buy/sell, missing buy/sell). An index-universe
+identity trigger guards every target. Private migration_archive.index_feature_rows retains lossless
+legacy row snapshots for cleanup recovery. Apply status is recorded in DATABASE_CHANGELOG.md.
