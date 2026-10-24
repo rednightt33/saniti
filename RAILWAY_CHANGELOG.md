@@ -4366,3 +4366,14 @@ for lack of explicit shared-branch approval; source is saved on codex/ihsg-price
 Runtime deployment and a normal latest-five IHSG queue retry remain pending;
 old application behavior is not represented as already updated. Details and logs:
 verification/ihsg_price_history/APPLY.md.
+
+
+## 2026-10-24 — EXEC-ASK-BRANCH: Branch, side chat, UI-1024 (market-ai-orc, edge-bff)
+
+User 2026-10-24: "Ok untuk Q1 dan Q2 / Inspect sekali lagi infra kita, dan buat imlpementation plan." Rollback
+references (active before): market-ai-orc `8cae283e` (d0a100b), edge-bff `b1498b65` (ea0d5ba). Migrations
+`20261024_001` and `20261024_002` applied first (jobs `3fac210e` DRYRUN, `eecacb74` APPLY on orc-test-runner; DATABASE_URL
+set only for each run and removed, VAR_REMOVED). Commit `4150f49`: market-ai-orc `be7c6693` SUCCESS, edge-bff `afb83ef2`
+SUCCESS; 0 EDGE runs active before the push. No variable, model or provider change. The BFF's CSP now allows framing by
+EDGE itself only (`frame-ancestors 'self'`, ERRORS M213). Follow-up commit: side chat panel z-index on phones (edge-bff
+only). Live checks: EXEC.md EXEC-ASK-BRANCH-IMPL results.

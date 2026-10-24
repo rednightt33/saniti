@@ -7038,7 +7038,7 @@ rows, source equality, stock-volume guard, initial Feature04/checkpoint parity).
 Remaining: explicit approval to push codex/ihsg-price-ingest to main, verify the
 three relevant deployments, and run IHSG's normal five-session worker retry.
 No source history for existing tickers needs to be replayed.
-### EXEC-UI-1024: rapikan EDGE dan lampiran berkomentar (disetujui 2026-10-24, belum dijalankan)
+### EXEC-UI-1024: rapikan EDGE dan lampiran berkomentar (disetujui 2026-10-24, dijalankan 2026-10-24 lewat EXEC-ASK-BRANCH-IMPL)
 
 User 2026-10-24 (dengan screenshot):
 - "1A yg dihapus hanya yang 7S" — hanya angka waktu langkah yang sedang berjalan di samping labelnya ("Planning the
@@ -7078,7 +7078,7 @@ sama seperti sekarang), kontrak BFF↔orc.
 Deploy: orc lebih dulu, lalu edge-bff. BFF meneruskan `comment` ke orc, dan orc (`extra="forbid"`) menolak ruas
 yang belum ia kenal.
 
-### EXEC-ASK-BRANCH: "Ask about this answer" dan Branch (diusulkan 2026-10-24, belum disetujui, belum dijalankan)
+### EXEC-ASK-BRANCH: "Ask about this answer" dan Branch (diusulkan 2026-10-24; disetujui dan dijalankan 2026-10-24, EXEC-ASK-BRANCH-IMPL)
 
 User 2026-10-24: "benchmark secara Google atau research … sama seperti feature cloud, which is bisa tanya … buat chat
 terpisah … untuk nanya jawaban yang dikasih oleh AI"; "feature untuk bisa branch … satu tab baru terpisah sama seperti
@@ -7239,6 +7239,25 @@ Fase 4 — deploy dan verifikasi:
   (2) side chat dari pilihan teks dengan komentar; (3) cadangan untuk perbaikan.
 - Dokumen: DATABASE_SCHEMA, DATABASE_CHANGELOG, APPLIED.sha256, RAILWAY_CHANGELOG, ERRORS (entri baru dan status),
   README EDGE/orc, AI_TOOLS bila berubah, snapshot prompt bila teks prompt berubah.
+
+Hasil (2026-10-24):
+- Tes lokal: orc 2013 lulus; EDGE 161 lulus (termasuk `test_ui_1024.py`, `test_ask_branch.py`); snapshot prompt dan
+  AI_TOOLS tidak berubah (`test_prompt_history`, `test_ai_tools_doc` lulus).
+- Migrasi: DRYRUN job `3fac210e`, APPLY job `eecacb74`, baca ulang lulus (DATABASE_CHANGELOG 2026-10-24).
+- Deploy commit `4150f49`: market-ai-orc `be7c6693` SUCCESS (event startup tanpa `*_inactive` baru dibanding
+  `8cae283e`), edge-bff `afb83ef2` SUCCESS. Sebelum push: 0 run EDGE aktif.
+- Uji live 1 (Branch) di `conv_d556…`: tab baru `conv_6c89…` dengan riwayat asal dan garis "Branched from …";
+  pertanyaan lanjutan `edge_e88fc701…` selesai 13 detik, USD 0,012: log orc `run_memory_offered runs=1`,
+  `data_record_offered outputs=4`, satu alat `get_session_output`, tabel asal `out.o3` dikutip
+  (`ai_table_directive`), tanpa hitung ulang. Saat berjalan: label langkah tanpa jam (1A), ruang atas/bawah baris status
+  7/8 px (1B).
+- Uji live 2 (side chat): pilihan teks → "Ask in side chat" → lampiran + komentar di panel; jawaban selesai; tautan
+  "Side chat (1)" di bawah jawaban; side chat tidak ada di daftar (Q2).
+- QA ponsel: tombol menu dan "+" halaman menimpa kepala panel side chat (z-index 125 > 40). Perbaikan z-index 130 dan
+  tes `test_on_a_phone_the_side_chat_covers_the_page_and_its_header_is_clear` (gagal sebelum perbaikan, lulus
+  sesudahnya); dicek ulang live tanpa pertanyaan baru.
+- Batasan yang tetap: satu pertanyaan berjalan per pemilik (aturan DB), jadi pertanyaan side chat menunggu bila
+  percakapan utama berjalan; cache sandbox dan prompt tidak diwarisi (`conversation_resources outputs=0`).
 
 ## EXEC-IHSG-SINGLE-DATE — approved 2026-10-24
 

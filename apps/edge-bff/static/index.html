@@ -10001,13 +10001,14 @@ th.edge-sortable:hover .edge-sort-icon,.edge-sort:focus-visible .edge-sort-icon,
 .edge-attached-comment:focus {border-bottom-color:var(--muted-foreground);}
 /* EXEC-UI-1024 2a: the passages attached to the question, marked in their answer (CSS Custom Highlight; no DOM change) */
 ::highlight(edge-attached) {background-color:rgb(250 204 21 / .45);color:inherit;}
-/* EXEC-ASK-BRANCH: the divider before a branch's own questions, the side chat panel and its frame's compact view */
+/* EXEC-ASK-BRANCH: the divider before a branch's own questions, the side chat panel (above the top bar 120 and the
+   phone's menu buttons 125, below dialogs 200) and its frame's compact view */
 .edge-branch-divider {display:flex;align-items:center;gap:10px;margin:18px 0;color:var(--muted-foreground);font-size:.75rem;}
 .edge-branch-divider:before,.edge-branch-divider:after {content:"";flex:1;border-top:1px dashed var(--border);}
 .edge-branch-divider button {display:inline-flex;align-items:center;gap:6px;border:0;background:none;color:inherit;font:inherit;cursor:pointer;padding:2px 4px;}
 .edge-branch-divider button:hover {color:var(--foreground);text-decoration:underline;}
 .research-exchange.inherited {opacity:.92;}
-.edge-side-chat {position:fixed;top:56px;right:0;bottom:0;width:min(460px,42vw);z-index:40;display:flex;flex-direction:column;background:var(--background);border-left:1px solid var(--border);box-shadow:-12px 0 28px -18px rgb(0 0 0 / .45);}
+.edge-side-chat {position:fixed;top:56px;right:0;bottom:0;width:min(460px,42vw);z-index:130;display:flex;flex-direction:column;background:var(--background);border-left:1px solid var(--border);box-shadow:-12px 0 28px -18px rgb(0 0 0 / .45);}
 .edge-side-head {display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--border);font-size:.85rem;}
 .edge-side-frame {flex:1;width:100%;border:0;background:var(--background);}
 @media (max-width:720px) {.edge-side-chat {top:0;width:100%;border-left:0;}}

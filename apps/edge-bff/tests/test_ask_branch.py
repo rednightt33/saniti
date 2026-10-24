@@ -94,3 +94,18 @@ def test_only_edge_itself_may_frame_edge(settings, store):
     with TestClient(create_app(settings, store, FakeOrc())) as client:
         policy = client.get('/monitor').headers['Content-Security-Policy']
     assert "frame-ancestors 'self'" in policy and "frame-ancestors 'none'" not in policy
+
+
+def test_on_a_phone_the_side_chat_covers_the_page_and_its_header_is_clear(fixture_server, browser_page):
+    """Live QA 2026-10-24 (phone): the page's menu buttons (z-index 125) showed over the side chat's header."""
+    origin, orc = fixture_server
+    page = browser_page
+    page.set_viewport_size({'width': 390, 'height': 844})
+    answered(page, origin)
+    article(page).locator('.edge-ask-action').click()
+    page.frame_locator('.edge-side-frame').locator('article.result').first.wait_for(timeout=10000)
+    head = page.locator('.edge-side-head').bounding_box()
+    covered = page.evaluate("""([y, w]) => [...Array(13).keys()].map(i => 10 + i * (w - 20) / 12)
+        .filter(x => !document.elementFromPoint(x, y)?.closest('.edge-side-chat'))""", [head['y'] + head['height'] / 2, head['width']])
+    assert covered == [] and head['width'] >= 389, covered
+    capture(page, 'side-chat-phone')
