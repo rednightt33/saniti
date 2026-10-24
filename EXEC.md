@@ -7171,3 +7171,15 @@ Pertanyaan terbuka untuk user:
   penilaian: router yang menentukan).
 - Q2: side chat terlihat di daftar percakapan utama? Usulan: tidak; terlihat sebagai tautan "N pertanyaan" di bawah
   jawabannya.
+
+## EXEC-IHSG-SINGLE-DATE — approved 2026-10-24
+
+User: "Lakukan update dulu untuk masing2 fitur 2-6 1 tanggal terlebih dahulu untuk validasi.
+Setelah saya validasi maka bisa proceed in bulk" and explicitly requested release of the OHLC-only
+index price-cron compatibility fix. Scope: IHSG one output date, latest joint available broker/price
+date 2026-08-31 (live preflight 2026-10-24); earlier raw sessions may be read for exact rolling context.
+No bulk Feature2/3/5/6 writes or historical Feature4 reclassification before user validation.
+Release the already-tested price parser and runtime compatibility patch to main, preserve source NULL
+volume and normal stocks/bonds. Feature3 aggregate HHI NULL; Feature4 sample asset_type=index.
+Any new automatic index Feature4 calculation must remain gated until sample approval so release cannot
+silently expand the one-date output scope. Record normal worker/cron deployments and live readback.
