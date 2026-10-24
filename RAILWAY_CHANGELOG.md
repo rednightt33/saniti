@@ -4375,5 +4375,5 @@ references (active before): market-ai-orc `8cae283e` (d0a100b), edge-bff `b1498b
 `20261024_001` and `20261024_002` applied first (jobs `3fac210e` DRYRUN, `eecacb74` APPLY on orc-test-runner; DATABASE_URL
 set only for each run and removed, VAR_REMOVED). Commit `4150f49`: market-ai-orc `be7c6693` SUCCESS, edge-bff `afb83ef2`
 SUCCESS; 0 EDGE runs active before the push. No variable, model or provider change. The BFF's CSP now allows framing by
-EDGE itself only (`frame-ancestors 'self'`, ERRORS M213). Follow-up commit: side chat panel z-index on phones (edge-bff
-only). Live checks: EXEC.md EXEC-ASK-BRANCH-IMPL results.
+EDGE itself only (`frame-ancestors 'self'`, ERRORS M213). Follow-up commit `c85e3e8`: side chat panel z-index on phones, edge-bff
+`05812b61` SUCCESS (market-ai-orc SKIPPED). Live checks: EXEC.md EXEC-ASK-BRANCH-IMPL results.

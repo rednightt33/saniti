@@ -7255,7 +7255,8 @@ Hasil (2026-10-24):
   "Side chat (1)" di bawah jawaban; side chat tidak ada di daftar (Q2).
 - QA ponsel: tombol menu dan "+" halaman menimpa kepala panel side chat (z-index 125 > 40). Perbaikan z-index 130 dan
   tes `test_on_a_phone_the_side_chat_covers_the_page_and_its_header_is_clear` (gagal sebelum perbaikan, lulus
-  sesudahnya); dicek ulang live tanpa pertanyaan baru.
+  sesudahnya); commit `c85e3e8`, edge-bff `05812b61` SUCCESS (orc SKIPPED); dicek ulang live di ponsel tanpa pertanyaan
+  baru: kepala panel tidak tertutup di 13 titik.
 - Batasan yang tetap: satu pertanyaan berjalan per pemilik (aturan DB), jadi pertanyaan side chat menunggu bila
   percakapan utama berjalan; cache sandbox dan prompt tidak diwarisi (`conversation_resources outputs=0`).
 
