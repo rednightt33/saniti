@@ -7272,7 +7272,7 @@ volume and normal stocks/bonds. Feature3 aggregate HHI NULL; Feature4 sample ass
 Any new automatic index Feature4 calculation must remain gated until sample approval so release cannot
 silently expand the one-date output scope. Record normal worker/cron deployments and live readback.
 
-### IHSG one-date Feature03/05/06 upsert — approved 2026-10-24
+### IHSG one-date Feature03/05/06 upsert — completed 2026-10-24
 
 User: "Tidak bulk dulu. Please insert 1 tanggal IHSG ke table feature 3,5, 6 berdasarkan formula
 yang akan digunakan untuk bulk upsert nanti." Only IHSG 2026-08-31, preserving Regular/Nego/Tunai.
@@ -7281,3 +7281,7 @@ before atomic upsert. Do not write Feature02/04, alter schemas, deploy worker/Te
 `upsert_index_broker_feature_sample.py` exposes the shared prepare/upsert formulas for a future approved
 bulk driver. HHI NULL by policy; incomplete frequency-dependent windows remain NULL. Existing broader
 unreleased files are unrelated to this narrowed execution and must not be included in its release.
+
+Completion: IHSG 2026-08-31 committed and independently read back: Feature03=3, Feature05=214,
+Feature06=3, all HHI NULL. Feature02/04 unchanged. Evidence: verification/ihsg_feature_aggregation/single_date.
+Bulk remains pending user validation; no automatic index worker/Telegram rollout is included.

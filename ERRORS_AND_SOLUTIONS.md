@@ -1606,3 +1606,14 @@ Table_Catalog entries came from the earlier 20261023_004 onboarding; this migrat
 does not touch them. Scoped Feature01/04 semantic and volume-nullability checks
 have zero failures. Preserve this distinction: passing target checks is not a
 claim that the global audit passed. Evidence: verification/ihsg_price_history/apply/.
+
+### IHSG aggregate frequency completeness — one-date sample resolved (2026-10-24)
+
+Risk observed in existing Feature06 SQL: SUM ignores NULL frequency, allowing partial aggregate
+frequency to be interpreted as a total. The explicit sample helper requires all contributing raw
+frequency rows and all sessions of each dependent window; otherwise its frequency-derived output is
+NULL. Values/lots and source-gap flags remain independent. Independent Feature06 comparison passed
+249 fields; Feature03 comparison passed 60; SQL stored payload comparison had zero mismatches.
+Status: resolved for the approved IHSG 2026-08-31 sample and shared sample/bulk calculation helper;
+standard stock refresh functions and bulk/automatic aggregate rollout remain unchanged. Evidence:
+verification/ihsg_feature_aggregation/single_date. HHI NULL is intentional user policy, not a failure.

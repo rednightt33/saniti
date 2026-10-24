@@ -33,3 +33,12 @@ python scripts/backfill_feature_03.py --host <proxy-host> --port <proxy-port>
 Feature 03 does not yet have an automatic worker. After a valid Broker Summary update, Feature 02 must be refreshed first, followed by Feature 03 for the same changed date/tickers. The existing Feature 01 worker does not calculate Feature 02 or Feature 03.
 
 Use `scripts/validate_feature_03.py` for complete SQL reconciliation and `scripts/check_feature_03_sample.py` for independent raw-source samples. Safe joins are registered in `Feature_Relationship_Catalog`: Feature 02 joins many-to-one on `(ticker, market_board, date)`, while Feature 01 joins require a board filter or explicit Feature 03 preaggregation.
+
+## IHSG one-date aggregate validation (2026-10-24)
+
+The explicit index sample writer stages daily market-wide broker/investor/board flows before applying
+this v2 formula; Feature02 rolling fields are not dependencies. For the IHSG sample,
+`broker_concentration_hhi` is NULL by user policy. Other counts, rankings and flows are recomputed after
+netting across source symbols. Stock HHI behavior and the standard refresh function are unchanged.
+Use `scripts/upsert_index_broker_feature_sample.py` for the approved one-date aggregate path; the
+ordinary ticker backfill is not a synthetic-index loader. Market boards remain separate.

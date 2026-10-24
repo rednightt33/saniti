@@ -4383,3 +4383,12 @@ EDGE itself only (`frame-ancestors 'self'`, ERRORS M213). Follow-up commit `c85e
 
 User screenshot: Branch tab and side chat showed `{"detail":"Not Found"}` when EDGE was opened at `/`. edge-bff now
 serves the page at `/index.html` too. No variable or other service change.
+
+### 2026-10-24 — IHSG one-date Feature03/05/06 job
+
+Explicit one-date data upsert only; no permanent deployment/configuration change. Temporary job
+service 965fbe5b-2ab8-4c52-84b5-e33f03d5e142 applied deployment
+aa12e983-b960-4d60-b2e5-a16481ce49ce (SUCCESS, committed=true). Stored counts/readback are in
+verification/ihsg_feature_aggregation/single_date. After readback, removed that service and the prior
+metadata diagnostic service be4de698-83a8-4461-b3be-cd183732095b. Source cron schedules and ordinary
+workers unchanged; no broader index worker/Telegram rollout or bulk feature load was released.

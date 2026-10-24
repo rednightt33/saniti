@@ -2293,3 +2293,20 @@ EXEC-ASK-BRANCH-IMPL). Two forward, additive migrations, rehearsed then applied 
 Read-back (APPLY job probes, after commit): `market_ai_conversation_store` reads `lineage` on all 572 conversations, all
 `[]`; `edge_bff_runtime` reads `kind`, 72 rows all MAIN; `Column_Catalog` row `lineage` VERIFIED; 0 EDGE jobs active.
 Rollback (forward migration): drop the added columns, the index and the `Column_Catalog` row.
+
+### 2026-10-24 — IHSG Feature 3/5/6 one-date sample
+
+Explicit user scope: IHSG, 2026-08-31, Feature03/05/06 only; no bulk, schema or source changes.
+Shared sample/bulk calculation helper: scripts/upsert_index_broker_feature_sample.py. Daily raw broker
+aggregation feeds the existing Feature03 formula. Canonical historical Feature05 detail feeds Feature06
+rolling/cumulative calculations in temporary tables. Independent preflight: 60 Feature03 metric checks
+and 249 Feature06 metric checks passed. HHI NULL by user policy; incomplete frequency windows NULL.
+Upsert executes in one REPEATABLE READ transaction and verifies all stored columns against staging.
+Final live readback is recorded in verification/ihsg_feature_aggregation/single_date after execution.
+
+Live result: APPLY deployment aa12e983-b960-4d60-b2e5-a16481ce49ce SUCCESS, committed 2026-10-24
+20:40 WIB. Independent readback verified IHSG 2026-08-31 only: Feature03 3 rows, Feature05 214,
+Feature06 3; all Feature03 HHI NULL. SQL payload comparison found zero mismatches. Feature02 remains
+empty for IHSG and Feature04's 2,125 IHSG rows retain the exact before/after fingerprint. Evidence:
+verification/ihsg_feature_aggregation/single_date/{feature356_apply.jsonl,feature356_readback_summary.json}.
+Two temporary job services removed; no schema or permanent infrastructure changes. Bulk awaits user validation.

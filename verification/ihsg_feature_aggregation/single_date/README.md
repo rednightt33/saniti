@@ -36,3 +36,23 @@ Run with DATABASE_URL configured inside Railway private network:
 
 The first command rolls back after validation. The second validates again and then atomically upserts.
 Live result and independent readback will be recorded here after completion.
+
+## Applied and independently read back
+
+- Applied deployment `aa12e983-b960-4d60-b2e5-a16481ce49ce`: SUCCESS; log complete committed=true
+  at 2026-10-24 20:40 WIB. Three tables upserted atomically; zero stored/staged mismatches.
+- Feature03: 3 rows (one per board). Feature05: 214 rows (Regular 139, Nego 71, Tunai 4).
+  Feature06: 3 rows (one per board). Each table contains exactly one IHSG output date, 2026-08-31.
+- Independent references passed again on APPLY: 60 Feature03 and 249 Feature06 metric comparisons.
+  Full SQL payload readback after upsert matched staging for every column.
+- Separate read-only pgweb connection confirmed stored data and HHI NULL on all 3 Feature03 rows.
+  Feature02 IHSG remains 0 rows. Feature04 remains 2,125 rows with identical full-row fingerprint
+  `00d6df43116c0df5b9114b4a791b9907` before/after.
+- Shared helper still defaults to rollback and has no bulk option. Formula routine hashes are in
+  `feature356_apply.jsonl`. The broader index classification/worker/Telegram rollout was not published.
+- Full readback and CSV exports for user validation are local artifacts at
+  `/workspace/artifacts/ihsg-feature356-one-date/`; Git retains small validation summaries, not a database mirror.
+- Temporary sample and metadata diagnostic services were removed after verification; no permanent
+  service configuration or schema change was needed for this narrowed write.
+
+User validation is still required before bulk. Do not interpret this successful sample as bulk approval.

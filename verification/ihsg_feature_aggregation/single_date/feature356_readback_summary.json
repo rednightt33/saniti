@@ -1,0 +1,36 @@
+{
+  "ticker": "IHSG",
+  "date": "2026-08-31",
+  "features": {
+    "feature3": {
+      "rows": 3,
+      "boards": {
+        "Nego": 1,
+        "Regular": 1,
+        "Tunai": 1
+      }
+    },
+    "feature5": {
+      "rows": 214,
+      "boards": {
+        "Nego": 71,
+        "Regular": 139,
+        "Tunai": 4
+      }
+    },
+    "feature6": {
+      "rows": 3,
+      "boards": {
+        "Nego": 1,
+        "Regular": 1,
+        "Tunai": 1
+      }
+    }
+  },
+  "feature2_unchanged": true,
+  "feature4_unchanged": true,
+  "feature4_count": 2125,
+  "feature4_fingerprint": "00d6df43116c0df5b9114b4a791b9907",
+  "hhi_null": true,
+  "readback_utc": "2026-10-24T13:40:37.130290595Z"
+}
