@@ -7353,3 +7353,23 @@ Release the already-tested price parser and runtime compatibility patch to main,
 volume and normal stocks/bonds. Feature3 aggregate HHI NULL; Feature4 sample asset_type=index.
 Any new automatic index Feature4 calculation must remain gated until sample approval so release cannot
 silently expand the one-date output scope. Record normal worker/cron deployments and live readback.
+
+## EXEC-TERMINAL-API — approved 2026-10-24 (Phase 1 and Phase 2 only)
+
+User 2026-10-24: "Cek variable. Or notepad token railway terlampir." with the task "Database Inspection, Data
+Architecture & Backend API Implementation — Financial Terminal", reference UI `03-terminal-right-panel.html`, ending
+"Mulai sekarang dari PHASE 1 dan PHASE 2: HTML inspection + read-only PostgreSQL/Railway inspection. Jangan
+menyimpulkan kebutuhan tabel atau view baru sebelum kedua fase tersebut selesai."
+
+Scope approved for execution: Phase 1 (HTML) and Phase 2 (read-only database and backend inspection). Phases 3–7 are
+described by the user but need a go after the inspection report; Phase 6 needs explicit approval before any
+persistent database or production backend change. No DDL, DML, migration or service change in this execution.
+
+Status 2026-10-24: Phase 1 done; Phase 2 done from the repository only; the live part is BLOCKED by the session's
+network policy (ERRORS R40). Report: `verification/terminal_api/PHASE1_PHASE2.md`.
+
+Open questions for the user (after the live inspection):
+- Q1: allow Railway hosts in the session environment (R40) so the live part of Phase 2 can run.
+- Q2: decisions S1–S11 in the report (volatility basis, drawdown window, partial month, meaning of "Foreign" in the
+  Bandar detector, gauge and verdict formulas, "inventory" wording, cumulative start, Cash/Tunai, net-to-zero note,
+  timeframes, date alignment).
