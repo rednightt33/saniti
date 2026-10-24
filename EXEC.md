@@ -7036,4 +7036,119 @@ User 2026-10-24 (dengan screenshot):
 - "masukan exec jangan execute dulu."
 
 Fakta kode: `AgentRunRequest.attachments` (maksimal 5, `AttachedSelection | AttachedText`), BFF `RunInput`.
-Rencana teknis disusun bersama riset nomor 3 (EXEC-ASK-BRANCH).
+
+Rencana teknis (diinspeksi dari kode 2026-10-24; hanya EDGE kecuali 2c):
+
+| Butir | Akar (dibaca dari kode) | Perubahan |
+|---|---|---|
+| 1A | `static/index.html:11268` menampilkan `RunClock` kedua (`edge-run-step-clock`) di samping label langkah berjalan | hapus elemen itu dan CSS-nya; total (`:11266`) dan durasi "Steps done" (`:12236`) tetap |
+| 1B | `.edge-run-progress-now` memakai `align-items:baseline` (`index.html:10001`); DIDUGA ini baris "● AI request running" — dipastikan dengan tangkapan layar sebelum diubah | `align-items:center` (vertikal), tanpa `text-align:center` |
+| 1C | `Sources` kosong memakai `.details-empty` (`index.html:12203`) yang `display:grid; place-items:center; min-height:180px` (`:8584`) | kelas sendiri `.sources-empty` dengan padding dan perataan kiri yang sama dengan `.sources`; panel kosong lain (`research-loading`) tidak berubah |
+| 2a | lampiran disimpan sebagai data (`addAttached`, `index.html:10849`); DOM jawaban dibangun ulang tiap render, jadi `<mark>` yang disisipkan akan hilang | CSS Custom Highlight API: untuk tiap lampiran TEXT cari `quote` di `article.result` miliknya (`request_id`), daftarkan `Range` ke `CSS.highlights.set("edge-attached", …)`, hitung ulang sesudah render; `::highlight(edge-attached)` kuning (terang dan gelap). Tanpa mutasi DOM. Browser tanpa API: tanpa sorotan, lampiran tetap jalan |
+| 2b | sudah ada: `addAttached` menambah sampai 5 (`index.html:10849-10850`), skema `max_length=5` (orc `schemas.py:140`, BFF `main.py:107`) | hanya tes yang mengunci dua lampiran TEXT + satu TABLE dalam satu pesan |
+| 2c | `AttachedText` / `AttachedSelection` tanpa komentar (orc `schemas.py:54-97`, BFF `main.py:84-90`); `attachments_note` (orc `orchestrator.py:1868`) dan `attached_summary`/`attached_line` (`:1891-1910`) | ruas opsional `comment: str ≤ 500` di kedua model (orc dan BFF, `extra="forbid"` menuntut keduanya); EDGE: kotak komentar kecil di tiap chip; orc: `attachments_note` menulis "Lampiran k: … — komentar user: …", `attached_summary` dan `attached_line` membawa komentar ke riwayat dan router. Pesan utama tetap pertanyaan umum. Tidak ada gerbang baru |
+
+Generalisasi: 2c memakai satu ruas di kontrak lampiran, jadi berlaku untuk lampiran TEXT dan TABLE dan untuk jenis
+lampiran berikutnya; 2a memakai satu fungsi sorot untuk semua jawaban (utama, branch, side chat). Kasus yang tidak
+tercakup: lampiran berkas (upload) tidak punya teks di jawaban, jadi tidak disorot.
+
+Dokumen: snapshot prompt (`scripts/snapshot_system_prompt.py record`) karena teks catatan lampiran berubah;
+`user_texts`/`edge-labels.js` untuk label baru. Tes: EDGE `tests/test_ui_*` (1A tanpa jam langkah, 1C kelas baru,
+2a sorot terdaftar), orc `tests/test_attachments*` (komentar sampai ke catatan, riwayat dan router; tanpa komentar
+sama seperti sekarang), kontrak BFF↔orc.
+Deploy: orc lebih dulu, lalu edge-bff. BFF meneruskan `comment` ke orc, dan orc (`extra="forbid"`) menolak ruas
+yang belum ia kenal.
+
+### EXEC-ASK-BRANCH: "Ask about this answer" dan Branch (diusulkan 2026-10-24, belum disetujui, belum dijalankan)
+
+User 2026-10-24: "benchmark secara Google atau research … sama seperti feature cloud, which is bisa tanya … buat chat
+terpisah … untuk nanya jawaban yang dikasih oleh AI"; "feature untuk bisa branch … satu tab baru terpisah sama seperti
+feature chat GPT"; "Lakukan research untuk nomor 3. Setelah research selesai, inspeksi arsitektur dan propose plan ke
+saya. Prioritaskan clean dan straighforwrd code ya".
+
+Riset (2026-10-24):
+- ChatGPT "Branch in new chat" (rilis 2025-09-04, web): di bawah jawaban, More actions → Branch; percakapan baru
+  berisi riwayat sampai jawaban itu, yang asli utuh; terbuka di tab baru dengan garis pemisah di titik cabang.
+  Sumber: bgr.com/1959993, techradar.com (ChatGPT branch), blog.tmcnet.com/blog/rich-tehrani/?p=25101.
+- Side chat untuk bertanya tentang satu jawaban: tidak ditemukan fitur resmi di Claude.ai maupun ChatGPT; ada
+  permintaan fitur di komunitas OpenAI (pop-up/side panel untuk teks yang dikutip) dan ekstensi pihak ketiga (Tangent:
+  cabang sub-thread di split view; HighlightGPT). Sumber: community.openai.com/t/…/1388090 dan /1374353,
+  chromewebstore (Tangent), producthunt (HighlightGPT).
+
+Fakta arsitektur (dibaca dari kode):
+- Riwayat model dibaca dari `AI_conversation_turn` satu `conversation_id` (`conversations.py:340-355`); `request_id`
+  adalah kunci unik lintas percakapan (DATABASE_SCHEMA `AI_conversation_turn`).
+- Data record kumulatif ada di `AI_conversation.state` (`conversation_plans.advance`, `conversation_plans.py:126-131`),
+  tetapi setiap giliran menyimpan respons lengkapnya, termasuk `data_record` saat itu, di `AI_conversation_turn.response`
+  (`conversations.py:390-405`). Jadi data record "per titik T" sudah tersimpan, tidak perlu dipotong.
+- Output, eksekusi, bukti, ekspor dan run memory dikunci `conversation_id` (`result_store.py` 12 query,
+  `run_memory.py` 4 query); id-nya (`out_…`, `exe_…`, `run_id`) kunci utama dan dirujuk di data record dan run memory.
+- Kunci reuse sandbox `reuse_key(owner, conversation_id)` (`conversations.py:105`); OpenRouter `session_id` = id
+  percakapan (EXEC-S).
+- BFF: `conversation_ui` per percakapan, hapus = sembunyikan (`store.py:236-245`); EDGE memilih percakapan di state,
+  tanpa id di URL (`index.html:10855`), rute hash `#/monitor` (`index.html:12241`).
+
+Akar kebutuhan dan kelas umum: kedua fitur adalah satu operasi, "percakapan baru yang mewarisi percakapan lain sampai
+giliran T". Kelasnya: setiap sumber daya yang dikunci satu `conversation_id` (riwayat, data record, output, eksekusi,
+bukti, ekspor, run memory, tabel tersimpan untuk restore) harus bisa dibaca lewat garis keturunan, bukan hanya id
+sendiri.
+
+Pilihan yang ditolak: menyalin baris ke percakapan baru. `request_id`, `output_id`, `execution_id`, `run_id` adalah
+kunci utama dan dirujuk di dalam jsonb data record dan run memory; menyalin berarti menulis ulang id di jsonb — rapuh
+dan mahal (file output bisa 20 MB atau di bucket).
+
+Usulan (satu primitif, dua tampilan):
+
+1. orc, migrasi `AI_conversation`: `parent_conversation_id text NULL REFERENCES "AI_conversation" ON DELETE CASCADE`
+   (indeks), `lineage jsonb NOT NULL DEFAULT '[]'` = leluhur tertua dulu `[{conversation_id, through_turn, cut_at}]`
+   (`cut_at` = `completed_at` giliran T). Baris Column_Catalog untuk dua kolom; DATABASE_SCHEMA/CHANGELOG.
+2. orc `ConversationStore.branch(owner, conversation_id, through_turn)`: giliran T harus COMPLETED milik owner yang
+   sama; buat percakapan baru dengan `lineage = parent.lineage + [parent, T, cut_at]`, `state = {data_record: data
+   record dari giliran ≤ T terakhir yang punya}`. Rencana riset yang menunggu tidak ikut (user bisa meminta lagi; dicatat
+   di jawaban API). Endpoint `POST /v1/conversations/{id}/branch {through_turn}`.
+3. orc, satu helper `visible(lineage, own_id)` yang menghasilkan potongan SQL `(conversation_id = %s OR
+   (conversation_id = %s AND created_at <= %s) …)`, dipakai oleh: riwayat `_begin`, `messages` (opsional `through`),
+   `result_store` (daftar dan pencarian per id), `run_memory`. Satu tempat, jadi sumber daya baru yang dikunci
+   percakapan tinggal memakai helper yang sama.
+4. Retensi: setiap giliran branch memperpanjang `expires_at` leluhurnya (satu UPDATE `conversation_id = ANY`), jadi
+   leluhur tidak kedaluwarsa lebih dulu; `ON DELETE CASCADE` mencegah rujukan yatim.
+5. BFF: migrasi `edge_bff.conversation_ui` + `parent_conversation_id`, `parent_request_id`, `kind`
+   (`MAIN|BRANCH|SIDE`); `POST /api/v1/conversations/{id}/branch {request_id, kind}` (orc branch lalu baris UI, judul
+   "Branch · …"/"Tanya · …" dari `edge-labels.js`); daftar utama menyembunyikan `SIDE`;
+   `GET /api/v1/runs/{request_id}/side` = side chat milik jawaban itu (dipakai ulang bila sudah ada).
+6. EDGE:
+   - deep link `#/monitor?c=<id>` membuka percakapan (sekarang tidak ada);
+   - **Branch** di `ResponseActions` (`index.html:11641`): buka tab kosong secara sinkron (aman dari pemblokir pop-up),
+     panggil route, lalu arahkan tab ke deep link; percakapan branch menampilkan riwayat leluhur sampai T, garis
+     pemisah "Dicabangkan dari …" bertaut ke asal;
+   - **Ask about this answer** di `ResponseActions` dan di menu pilihan teks: membuka/menggunakan ulang side chat
+     jawaban itu di panel kanan (desktop) atau lembar layar penuh (ponsel). Panel memuat EDGE yang sama dalam iframe
+     `#/monitor?c=<id>&view=side` (tanpa sidebar dan header), sehingga tidak ada komponen chat kedua; teks terpilih
+     dikirim sebagai lampiran (memakai 2c).
+7. Model dan router tidak berubah: branch/side chat adalah percakapan biasa (router, alat, gerbang, persetujuan data
+   sama). Tidak ada prompt atau skema baru, jadi tidak ada snapshot prompt, AI_TOOLS, AI_ROUTER.
+
+Yang tercakup: Branch, side chat, branch dari branch (lineage berantai), ekspor tabel dan `load_output` dari jawaban
+leluhur, restore tabel tersimpan, run memory. Yang tidak tercakup: cache sandbox (`reuse_key`) dan cache prompt
+OpenRouter tidak diwarisi — giliran pertama branch membayar prompt penuh dan bisa mengekstrak ulang data (biaya, bukan
+kebenaran); rencana riset yang sedang menunggu tidak ikut.
+
+Kasus lain yang memakai helper yang sama: (a) "edit pesan lalu kirim ulang" = branch di T-1 lalu kirim pesan baru;
+(b) berbagi percakapan sampai titik tertentu (EXEC-SHARE) bisa membaca lineage yang sama. Kasus yang tidak cocok:
+menggabungkan dua branch kembali — data record dan riwayat tidak punya aturan gabung; tidak direncanakan.
+
+Risiko dan biaya: dua migrasi kecil (orc, edge_bff) tanpa backfill (kolom baru boleh NULL/default); 16 query diubah
+lewat satu helper — risiko utama kebocoran baris giliran sesudah T, dikunci tes; iframe sama asal (cookie sesi sama).
+Verifikasi: tes orc (branch di T: riwayat = giliran ≤ T; output sesudah T tidak terlihat; branch dari branch; retensi
+leluhur; owner lain 404), tes BFF (route, daftar tanpa SIDE), tes EDGE (deep link, tab baru, pemisah, panel side),
+lalu satu pertanyaan live di branch dan satu di side chat yang memakai tabel jawaban asal (berbayar, ±USD 0,05–0,10).
+Permanen.
+
+Urutan bila disetujui: migrasi orc → orc → migrasi edge_bff → edge-bff (setelah EXEC-UI-1024, karena side chat
+memakai komentar lampiran 2c).
+
+Pertanyaan terbuka untuk user:
+- Q1: side chat bebas memakai data baru, atau hanya membaca jawaban itu (alat baca saja)? Usulan: bebas (prinsip
+  penilaian: router yang menentukan).
+- Q2: side chat terlihat di daftar percakapan utama? Usulan: tidak; terlihat sebagai tautan "N pertanyaan" di bawah
+  jawabannya.
