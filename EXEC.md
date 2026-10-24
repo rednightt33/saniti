@@ -7379,8 +7379,10 @@ User decisions 2026-10-24 (after the live report):
   Postgres."
 - Volatility (S1): "bebas kamu atur aja yang ideal dan representatif, either log return atau return biasa. Benchmark
   dulu aja kalau untuk visualisasi data, preferably yang mana yang dipakai." Benchmark in the report, section 7.
-- S4 ("Foreign" in the Bandar detector): answer "arti foreign adalah domisili broker atau tipe investor" is still open
-  (which one, or both shown separately) — asked back 2026-10-24.
+- S4 ("Foreign" in the Bandar detector): user 2026-10-24 "tipe investor". "Foreign" everywhere in the terminal means
+  the source Investor Type (`investor_type`), not broker domicile; the hardcoded `BK_FOREIGN` list is not used for
+  any figure.
+- Serving design (object storage 5 years + Postgres fallback vs direct query vs hybrid): asked back 2026-10-24, open.
 
 Open questions for the user (after the live inspection):
 - Q1: done (network access opened 2026-10-24).
