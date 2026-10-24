@@ -7340,6 +7340,7 @@ function dan lain-lain tetap sama. Saya minta tolong untuk diekstrakkan standalo
 - Cek `file://` (Chromium): percakapan pertama terbuka, kutipan + catatan, tab Branch `#/c/conv_bbbb…` dengan garis
   "Branched from …", side chat hanya pertanyaannya sendiri, logo tampil, 0 error halaman. `edge_preview.py import`
   atas file hasil build: "no change". Suite EDGE 165/166 (1 gagal = M212, lulus sendiri).
+- Deploy: commit `f4e2b8f`, edge-bff `d564aba8` SUCCESS; CSS live `.composer .edge-attached-chip` tanpa `border-left`.
 
 ## EXEC-IHSG-SINGLE-DATE — approved 2026-10-24
 
