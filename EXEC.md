@@ -7319,6 +7319,9 @@ Perubahan (EDGE saja):
 - Tes: `test_ui_1024.py::test_an_attachment_is_a_quote_with_a_plain_note_under_it`, `test_ask_branch.py` (side chat
   kosong), `test_answer_view.py` memilih kotak pesan lewat placeholder (catatan lampiran juga textarea). Suite EDGE 166
   lulus; tangkapan layar tema gelap dan terang.
+- Deploy: commit `eb65115`, edge-bff `6e002b98` SUCCESS (0 run aktif sebelum push). Live (tanpa pertanyaan, tema
+  terang): catatan lampiran tanpa garis (border 0px), garis aksen 3px; lampiran dihapus lagi tanpa dikirim; side chat
+  `conv_d556…` menampilkan "Asking about the answer to …" dan hanya pertanyaannya sendiri (1), bukan jawaban induk.
 
 ## EXEC-IHSG-SINGLE-DATE — approved 2026-10-24
 
