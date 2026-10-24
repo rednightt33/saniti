@@ -136,3 +136,18 @@ Before the separate INDEX-table implementation, settle instrument universe and w
 frequency metric should be exposed with explicit coverage, or the complete metric should stay NULL.
 Never replace unknown frequency with zero or mix full-market values with partial-scope frequencies for
 average ticket sizes. No source/feature data or formulas were changed by this audit.
+
+## Approved future correction — recorded only, 2026-10-24
+
+User agreed to record this correction for creation of the dedicated _INDEX tables and is now auditing
+Feature06. Future Feature05 INDEX buy_freq/sell_freq must SUM available source frequency on identical
+date/broker/investor/board/symbol scope; a missing contribution must not erase known contributions.
+If every input is NULL, keep NULL; a known zero remains zero. Record completeness/missing counts
+separately, with metadata names to be designed. On 2026-08-31 Regular the known-source sums are
+2,372,642 / 2,372,642. These are the reconciliation target for available frequencies, not proof of
+complete coverage of instruments whose source frequency remains unknown.
+
+This decision supersedes whole-group-NULL for the future INDEX frequency aggregation; the above
+audit remains a factual record of the current shared-table sample. No current data or runtime code
+was modified. Feature06 derived frequency/value ratios and windows remain under audit; changing
+Feature05 aggregation does not automatically approve using mismatched value/frequency scopes.

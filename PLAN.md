@@ -868,12 +868,27 @@ tables remain audit evidence; F02 IHSG remains empty; existing F01/F04 index his
 The already-released OHLC-only price-cron compatibility change is not rolled back. Do not silently
 pause existing price/Feature01/stock/bond jobs during auditing.
 
-Frequency audit 2026-08-31: all 428 Feature05 frequency cells match the current strict completeness
-policy, but 62 of 139 Regular broker/investor groups are NULL. SUM over available index groups is
-357,804 buy / 467,928 sell, while raw known-frequency sums are 2,372,642 / 2,372,642. Neither should
-be presented as a complete all-instrument market total without coverage validation. Resolve source
-universe and missingness/coverage contract before INDEX table implementation. Preserve unknown as
-unknown; do not silently switch to partial sums or zero-fill. See number_audit/feature5_frequency*.
+Frequency audit 2026-08-31: all 428 Feature05 frequency cells match the earlier strict completeness
+policy, but 62 of 139 Regular broker/investor groups become NULL. SUM over available index groups is
+357,804 buy / 467,928 sell versus raw known-frequency sums 2,372,642 / 2,372,642.
+
+**User decision, 2026-10-24 — record now, implement only with the _INDEX tables:**
+"Ok, masukan perbaikan nanti pada saat kita buat feature _index catat dulu. I'll audit feature 6 now."
+This supersedes the proposed whole-group-NULL policy for future Feature05 INDEX buy_freq/sell_freq:
+- SUM available frequencies separately per date/index/broker/investor type/market board. One missing
+  ticker must not erase other known contributions. All inputs unknown -> NULL; known zero remains zero.
+- Track missing/known input coverage separately (exact column names/shape to be designed with the INDEX
+  schema); never label an incomplete sum as complete whole-market coverage or replace missing inputs by zero.
+- Reconcile INDEX SUM to non-index source SUM on identical source scope and keys. On this audited date,
+  Regular known-frequency totals should reconcile to 2,372,642 on each side, rather than 357,804/467,928.
+- Do not force buy and sell to match for individual brokers/investor types. Complete-market balancing
+  is a separate quality check, not an imputation rule.
+- Feature06 remains under the user's number audit. Propagate the changed Feature05 contract only after
+  its downstream frequency shares/imbalance/rolling/ticket-size semantics are reviewed; do not silently
+  divide full-scope value by partial-scope frequency. This note does not approve new Feature06 formulas.
+
+No current shared-table sample values, helper behavior, schemas, services or bulk jobs change now.
+See number_audit/feature5_frequency* for the earlier rule's observed results and the approved revision.
 
 Open audit distinction: previous sample transaction scope is all raw source symbols, including
 warrants/rights. A market-wide flow proxy is not an official historical IHSG constituent basket.

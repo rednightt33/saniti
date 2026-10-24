@@ -7294,3 +7294,11 @@ The previous one-date Feature03/05/06 write remains completed history, not permi
 write, moving/deleting samples, creating tables, worker rollout or bulk. PLAN.md now records the
 six exact names and gated steps. Read-only 2026-08-31 F03 audit: 24 questioned-field comparisons,
 zero differences vs raw broker aggregates; per-ticker sums are semantically different.
+
+### INDEX frequency correction deferred — recorded 2026-10-24
+
+User: "Ok, masukan perbaikan nanti pada saat kita buat feature _index catat dulu. I'll audit feature 6 now."
+Record in PLAN.md: future Feature05 INDEX frequency uses SUM of available inputs, all-NULL stays NULL,
+known zero stays zero, and coverage is tracked separately. Supersedes whole-group-NULL for future index
+aggregation only. This is approval to record the future correction, not execute it. Existing shared-table
+sample/helper, schemas, services and jobs remain unchanged. Feature06 is still in the user's number audit.
