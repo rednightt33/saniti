@@ -261,3 +261,14 @@ fieldnya beda (`realized_vol_20d_log_ann_pct`) supaya dua definisi tidak tertuka
 | Baris Feature 05 per ticker 5 tahun | BBCA 114.918; GOTO 96.219; MAPI 61.756; BREN 47.525 |
 | Ukuran baris BBCA 5 tahun (8 kolom yang dipakai UI) | ~8 MB di PostgreSQL, sebelum kompresi |
 | Baris Feature 06 semua ticker 5 tahun | 1.345.577 |
+
+## 8. Verifikasi: download langsung dari bucket lewat presigned URL (2026-10-24)
+
+Klaim (screenshot user) dan bukti:
+
+| Klaim | Status | Bukti |
+|---|---|---|
+| Egress dari bucket gratis | BENAR (dokumen) | Railway, Storage Buckets Billing: egress "unlimited and free, whether that's using presigned URLs or via the S3 API"; storage $0,015/GB-bulan; operasi S3 gratis. |
+| Data keluar dari service (API) ke pengguna $0,05/GB | BENAR (dokumen) | Railway pricing: Network Egress $0,05/GB; upload service ke bucket juga dihitung egress service. |
+| Railway mendukung presigned URL | BENAR (diuji) | Bucket existing `market-sql-datasets` (backend Tigris, host `t3.storageapi.dev`): presigned GET → HTTP 206 `application/json`. Probe read-only: list 5 objek, satu GET 16 byte; tidak ada penulisan. |
+| Browser bisa mengambil file langsung | **BERSYARAT** | Respons GET dan preflight OPTIONS **tanpa** header `Access-Control-Allow-Origin`; `GetBucketCors` menjawab tanpa aturan. Browser yang memakai `fetch()` dari domain frontend akan diblokir sampai bucket diberi aturan CORS (`PutBucketCors`; API-nya dikenali oleh bucket). Menulis aturan CORS = perubahan konfigurasi, butuh persetujuan; dibuktikan pada bucket baru saat implementasi. |

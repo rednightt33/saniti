@@ -7382,7 +7382,10 @@ User decisions 2026-10-24 (after the live report):
 - S4 ("Foreign" in the Bandar detector): user 2026-10-24 "tipe investor". "Foreign" everywhere in the terminal means
   the source Investor Type (`investor_type`), not broker domicile; the hardcoded `BK_FOREIGN` list is not used for
   any figure.
-- Serving design (object storage 5 years + Postgres fallback vs direct query vs hybrid): asked back 2026-10-24, open.
+- Serving design (object storage 5 years + Postgres fallback vs direct query vs hybrid): asked back 2026-10-24 — user 2026-10-24: "Coba lakukan
+  research apakah screenshot terlampir benar ... jika tidak, saya cenderung untuk memilih opsi A." Research done
+  (report section 8): presigned direct download works, CORS rule still needed. Revised option A (presigned direct
+  download) proposed; waiting for the user's confirmation.
 
 Open questions for the user (after the live inspection):
 - Q1: done (network access opened 2026-10-24).
