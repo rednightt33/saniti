@@ -16,7 +16,7 @@ An AI working on this project must read these files in order before changing Rai
 8. [`apps/idx-price-cron/README.md`](apps/idx-price-cron/README.md) — TradingView daily/recovery schedule, data rules, and runtime contract.
 9. [`apps/telegram-monitor/README.md`](apps/telegram-monitor/README.md) — event-driven Telegram delivery, anti-duplicate rules, and secret-variable contract.
 10. [`apps/telegram-trigger/README.md`](apps/telegram-trigger/README.md) — authorized Telegram controls for Railway Run Now actions and command deduplication.
-11. [`apps/stockbit-broker-backfill/README.md`](apps/stockbit-broker-backfill/README.md) — local Stockbit backfill, parallel date ranges, retry behavior, and invalid-token stop rule.
+11. [`apps/stockbit-broker-backfill/README.md`](apps/stockbit-broker-backfill/README.md) — local Stockbit backfill, parallel date ranges, retry behavior, and invalid-token stop rule. [`UPDATE_TABLE.md`](UPDATE_TABLE.md) is the update guide for every broker table (Broker Summary, Feature 02, 03, 05, 06 and the INDEX tables).
 12. [`apps/feature-01-worker/README.md`](apps/feature-01-worker/README.md) — Feature 01 price queue, worker retries, and status/log operating contract.
 13. [`FEATURE_02_BROKER_ROLLING.md`](FEATURE_02_BROKER_ROLLING.md) — board-separated broker features, ticker transaction-date windows, full backfill, and refresh limitations.
 14. [`FEATURE_02_BROKER_ROLLING_V2.md`](FEATURE_02_BROKER_ROLLING_V2.md) — canonical Investor-Type v2 definitions, validation evidence, and cutover record.

@@ -1002,7 +1002,12 @@ def _relationships_v2(rows: list[dict[str, Any]], budget: int) -> dict[str, Any]
             "A data need may use only a relationship's supported_join_semantics (empty: not joinable). EXACT_DATE and "
             "AS_OF use left_time_column/right_time_column; EFFECTIVE_DATED uses effective_from_column/"
             "effective_to_column. A null field is not recorded in the catalog, not a default. A data need's key "
-            "columns are request_key_columns (the entity keys); the time columns are never listed as keys.")
+            "columns are request_key_columns (the entity keys); the time columns are never listed as keys. "
+            "When a relationship does not pair the entity of its \"one\" side (request_key_columns empty, a date-only "
+            "join such as a stock and the IHSG index; or other keys only, such as the market board), that side's "
+            "request must give one row per date: its scope fixes each primary key column the relationship leaves "
+            "open with EQ (or IN with one value). Right: an index table's request with scope ticker EQ one index "
+            "code. Wrong: no ticker condition, or ticker IN several codes (refused as ONE_SIDE_NOT_UNIQUE).")
     elif rows:
         result["join_semantics_recorded"] = False
     if len(kept) < total:

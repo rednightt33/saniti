@@ -30,7 +30,7 @@ The full historical command is:
 python scripts/backfill_feature_03.py --host <proxy-host> --port <proxy-port>
 ```
 
-Feature 03 does not yet have an automatic worker. After a valid Broker Summary update, Feature 02 must be refreshed first, followed by Feature 03 for the same changed date/tickers. The existing Feature 01 worker does not calculate Feature 02 or Feature 03.
+Feature 03 does not yet have an automatic worker. After a valid Broker Summary update, Feature 05 and then Feature 02 must be refreshed first (`refresh_feature_02(ticker, p_from)`, migration `20261025_008`, reads Feature 05), followed by Feature 03 for the same changed date/tickers. The existing Feature 01 worker does not calculate Feature 02 or Feature 03.
 
 Use `scripts/validate_feature_03.py` for complete SQL reconciliation and `scripts/check_feature_03_sample.py` for independent raw-source samples. Safe joins are registered in `Feature_Relationship_Catalog`: Feature 02 joins many-to-one on `(ticker, market_board, date)`, while Feature 01 joins require a board filter or explicit Feature 03 preaggregation.
 

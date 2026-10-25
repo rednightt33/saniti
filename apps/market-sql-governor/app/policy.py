@@ -277,6 +277,15 @@ class Validator:
                     "would duplicate rows. Request each table separately at the safe output grain.",
                     relationship=_relationship_info(rel),
                 )
+            left_meta, right_meta = policy.tables.get(rel["left_table"]) or {}, policy.tables.get(rel["right_table"]) or {}
+            if all(lc == left_meta.get("time_column") and rc == right_meta.get("time_column")
+                   for lc, rc in zip(rel["left_columns"], rel["right_columns"])):
+                # EXEC-M216: a relationship that meets on the date only is a semi-join or a session join on a data
+                # need; a direct row join here would repeat each row once per series of the other table
+                raise rejected("DATE_ONLY_JOIN_NOT_SUPPORTED",
+                               f"Relationship {rel['relationship_id']} joins {table.name} on the date only; request "
+                               "each table in a data need (submit_data_need_spec) and join them in the session.",
+                               relationship=_relationship_info(rel))
             if rel["right_table"] == table.name:
                 other = present[rel["left_table"]]
                 pairs = [(other.alias, lc, table.alias, rc) for lc, rc in zip(rel["left_columns"], rel["right_columns"])]

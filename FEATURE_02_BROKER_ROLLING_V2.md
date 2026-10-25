@@ -59,6 +59,14 @@ from a 2,136.7 ms parallel heap scan to a 67.0 ms index-only scan; its index is 
 resumable per-ticker backfill. For an existing ticker corrected upstream, use
 `--ticker SYMBOL --rebuild-ticker`; a plain rerun skips already-loaded tickers. This
 is not an automatic refresh worker. Do not run retired `scripts/backfill_feature_02.py`.
+
+Incremental refresh (EXEC-INCR-1025, migration `20261025_008`): `public.refresh_feature_02(ticker, p_from)` runs the
+same SQL for one ticker over its Feature 05 rows from the 311th session before `p_from` (the 60-session window plus the
+252 sessions of the z-score and percentile) and replaces only rows dated on or after `p_from`; `p_from` NULL rewrites
+the whole history. It reads Feature 05, so Feature 05 is refreshed first. On 2026-10-25 ten cases in a rolled-back
+transaction equalled the stored full calculation with 0 differences (DATABASE_CHANGELOG). Order after a Broker Summary
+update: `refresh_feature_05` → `refresh_feature_02` per ticker → `refresh_feature_03_stock_broker_daily` per date →
+`refresh_feature_06` per ticker. There is still no automatic worker.
 It does not load the raw history into Python RAM. A controlled test is:
 
 ```powershell

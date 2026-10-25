@@ -7508,3 +7508,184 @@ saja. Feature 2, 3, 5, dan 6. Dan fitur apa lagi yang perlu kita update agar dat
   - F05 → F06;
   - F02/F03/F05/F06 INDEX.
   Diusulkan, belum dijalankan; menunggu go.
+
+### EXEC-REFRESH-1025: refresh Feature dari data broker baru, dan verifikasi Feature (disetujui 2026-10-25)
+
+**Kata-kata user (2026-10-25):** "1. Tabel di screenshot --> OK hapus IDX_Broker_Summary_Freq + 12 partisi dan
+IDX_Net_Foreign_Summary + 12 partisi" (sudah dijalankan: `20261025_007`); "3. OK"; "jalankan satu sub-agent yang goalnya
+adalah untuk memverifikasi apakah setiap feature datanya sudah sama dengan data ID Explorer Summary atau belum ... Cek di
+Git apakah sudah didokumentasi mengenai bagaimana setiap kolom di feature dihitung ... Feature_Vocabulary ... di-align
+dulu ... Apabila sudah, maka ini akan dijadikan acuan source of truth, kerap di-update di agents MD dan di Git juga."
+
+**Inspeksi (kode dan live, 2026-10-25):**
+- `IDX_Broker_Summary` berisi 2026-09-01…2026-10-23 (39 tanggal, frekuensi 100 %). Loader tanpa log di
+  `stockbit_broker_summary_load_log` (log berhenti di 2026-08-31); tidak ada sesi loader aktif.
+- F05 Agustus = Broker Summary (0 selisih), jadi rentang refresh mulai 2026-09-01.
+- Jalur refresh di kode:
+  - F05 `refresh_feature_05(from, to)` dan F06 `refresh_feature_06(ticker, from)`: inkremental.
+  - F03 `refresh_feature_03_stock_broker_daily(date, tickers)`: membaca F02.
+  - F02 `scripts/backfill_feature_02_v2.py`: hanya pembangunan ulang seluruh riwayat per ticker, tanpa mode
+    inkremental.
+  - INDEX `scripts/backfill_index_features.py`: bootstrap sekali jalan (mengarsip ulang dan menjalankan
+    `20261025_001`), tidak aman untuk diulang; pembaruan harian INDEX masih desain terpisah (PLAN.md INDEX).
+
+**Langkah:**
+- R1. F05 refresh 2026-09-01…2026-10-24, lalu F06 per ticker yang punya baris F05 baru (`p_from` 2026-09-01), lalu
+  ANALYZE. Validasi:
+  - baris F05 sama dengan Broker Summary (0 selisih);
+  - rekonsiliasi F06 terhadap Σ F05;
+  - sampel F06 inkremental sama dengan hitung penuh.
+- R2. F02 → F03 dan F02/F03/F05/F06 INDEX: butuh jalur refresh inkremental baru (kode belum ada); diusulkan ke user
+  sebelum dibangun.
+- V. Satu sub-agent:
+  - verifikasi angka setiap Feature terhadap `IDX_Broker_Summary` (dan harga untuk F01/F04);
+  - cek dokumentasi rumus per kolom di Git;
+  - selaraskan Feature_Vocabulary dengan kode.
+  Job database antre lewat satu kunci (`flock`) di runner yang sama (M210).
+
+### EXEC-INCR-1025: refresh inkremental F02/F03 dan INDEX broker (disetujui 2026-10-25)
+
+**Kata-kata user (2026-10-25):** "Masukan EXEC. Jalankan sub agent to test it ya, apakah hasilnya konsisten atau tidak
+dengan data raw utamanya, terutama dengan data historicalnya juga di table yang sama, apakah konsisten. Jangan sampai
+data yang baru dihitung dengan formula yang berbeda dengan data sebelumnya. Go."
+
+**Dasar dari kode:**
+- `scripts/backfill_feature_02_v2.py` hanya mengisi ticker yang belum ada (baris 275–279) atau membangun ulang
+  seluruh riwayat satu ticker (`--rebuild-ticker`, baris 280–281); tidak ada mode "dari tanggal".
+- `refresh_feature_03_stock_broker_daily(p_changed_date, p_tickers)` sudah bisa per tanggal, tetapi membaca F02.
+- `scripts/backfill_index_features.py` adalah bootstrap sekali jalan (arsip, migrasi `20261025_001`, sampel
+  2026-08-31).
+
+**Langkah:**
+- I1. `refresh_feature_02(p_from, p_tickers)`: rumus disalin dari SQL `backfill_feature_02_v2.py`. Membaca riwayat
+  secukupnya untuk jendela terpanjang dan hanya menulis baris ≥ `p_from`.
+  - Dibuktikan sama dengan hitung penuh pada sampel di transaksi yang di-rollback, sebelum dipakai.
+  - Lalu F02 1 Sep–23 Okt, lalu F03 per tanggal.
+- I2. Refresh INDEX F02/F03/F05/F06 untuk tanggal baru dengan rumus yang sama seperti bootstrap codex. Kode bootstrap
+  dibaca dulu; kalau rumusnya tidak bisa dipakai ulang tanpa menjalankan ulang arsip atau migrasi, desainnya
+  dilaporkan dulu.
+- T. Sub-agent menguji hasilnya:
+  - konsisten dengan raw `IDX_Broker_Summary`;
+  - konsisten dengan riwayat di tabel yang sama, artinya baris baru dihitung dengan rumus yang sama dengan baris
+    lama (hitung penuh = inkremental; batas 2026-08-31/09-01 mulus).
+
+**Hasil (2026-10-25, dibaca dari log job; rincian di DATABASE_CHANGELOG):**
+- R1 F05/F06: F05 968.042 baris = sumber (0 selisih); F06 912 ticker, 38.163 baris, rekonsiliasi 0 selisih;
+  inkremental = hitung penuh untuk 7 ticker.
+- I1: `refresh_feature_02` (migrasi `20261025_008`) dibuktikan sama dengan hitung penuh pada 10 kasus (rollback),
+  lalu dijalankan: F02 968.042 baris = sumber F05; F03 39 tanggal, 38.163 baris = grup F02; baris baru = tulis ulang
+  dari 2026-06-01 untuk BBCA, BBRI, GOTO, PSAT, TLKM (0 selisih). F02/F03 sampai 2026-10-23.
+- I2 INDEX: `prepare` + `apply_chunks` tanpa arsip/migrasi ulang; validasi lolos; 2016-2025 menulis 0 baris
+  (riwayat tidak berubah), 2026 hanya baris baru (F02/F05 7.802, F03/F06 117). INDEX broker sampai 2026-10-23.
+- T: laporan sub-agent menyusul.
+
+### EXEC-LOADER-M217: loader Stockbit berfrekuensi di Git dan penjaga di database (diusulkan 2026-10-25, BELUM dijalankan)
+
+**Kata-kata user (2026-10-25):** "Oke, untuk proposal solusi M217, masukkan kan, ke exec jangan eksekusi dulu."
+Status: tercatat sebagai rencana. Eksekusi baru dimulai setelah user memberi go dan menjawab pertanyaan terbuka di bawah.
+
+**Akar masalah (terverifikasi, ERRORS M217):**
+- `apps/stockbit-broker-backfill/stockbit_marketwide_broker_activity.py` `CANONICAL_KEYS` (baris 42-46) tidak memuat
+  `buy_freq`/`sell_freq`. `replace_date` (526) menghapus seluruh tanggal lalu menulis hanya kolom itu.
+- Data 2026-09-01…10-23 memuat frekuensi di 100 % baris tanpa baris `stockbit_broker_summary_load_log`, jadi
+  dimuat program di luar Git.
+- Staging `IDX_Broker_Summary_Freq` sudah dihapus (`20261025_007`), jadi tidak ada cadangan frekuensi.
+
+**Kelas:** sumber data yang dimuat kode di luar repo dan tanpa log muat per tanggal. Tidak bisa diperiksa, diulang,
+atau dilindungi. Berlaku untuk setiap loader lokal (Stockbit sekarang; cross-asset dan makro nanti).
+
+**Usulan (lapisan yang memiliki mekanismenya):**
+- L1. **Loader di Git.** Program yang dipakai user untuk 2026-09-01…10-23 masuk ke `apps/stockbit-broker-backfill/`.
+  - Menulis semua kolom tabel, termasuk `buy_freq`/`sell_freq`.
+  - Token tetap dari `STOCKBIT_TOKEN`, `--token-stdin` atau prompt, tidak pernah ke Git.
+  - Satu loader saja; jalur tulis loader lama yang tanpa frekuensi dihapus atau dialihkan ke loader ini.
+- L2. **Penjaga di database** (lapisan backend, bukan aturan di loader saja).
+  - Loader menulis satu tanggal ke staging. Fungsi `apply_broker_summary_date(date)` menukar isinya ke
+    `IDX_Broker_Summary` dalam satu transaksi, hanya bila:
+    - semua kolom wajib terisi;
+    - cakupan frekuensi tidak lebih rendah dari isi lama tanggal itu, dihitung per kelompok simbol, karena
+      warrant/right lama memang ada yang tanpa frekuensi (cek sub-agent C1);
+    - jumlah broker dan baris tidak turun tajam dari isi lama.
+  - Bila gagal, fungsi menolak dengan pesan yang menyebut tanggal, kolom dan cara memperbaikinya (AGENTS Gates and
+    evidence: aturan terlihat, cara lolos, contoh benar/salah, pesan tolak).
+  - Batas "turun tajam" diturunkan dari data tanggal-tanggal sebelumnya, bukan angka tetap.
+- L3. **Log muat wajib.** Fungsi L2 menulis baris `stockbit_broker_summary_load_log`: jumlah baris, cakupan
+  frekuensi, sha256 respons, versi loader.
+  - Log 2026-09-01…10-23 diisi dari data yang ada, ditandai `source = unlogged loader`, tanpa mengubah data.
+- L4. **`UPDATE_TABLE.md` bagian 2** diperbarui ke loader baru; larangan sementara dicabut setelah L1-L2 berjalan.
+
+**Cakupan:**
+- Tercakup: tanggal baru, koreksi tanggal lama, pemuatan ulang tidak sengaja dengan loader tanpa frekuensi (ditolak
+  oleh L2), dan audit per tanggal (L3).
+- Tidak tercakup:
+  - kebenaran angka Stockbit sendiri (tetap dicek dengan rekonsiliasi Feature);
+  - penulisan langsung ke `IDX_Broker_Summary` yang melewati fungsi L2. Ditutup dengan mencabut hak INSERT/DELETE
+    langsung dari login loader, setelah login itu dicek.
+
+**Risiko dan biaya:**
+- Staging menambah satu tanggal (±27 rb baris, beberapa MB) sementara.
+- Loader user perlu diubah sedikit agar menulis ke staging.
+- Migrasi baru: tabel staging, fungsi, hak akses; Table_Catalog, Column_Catalog, DATABASE_SCHEMA, DATABASE_CHANGELOG.
+
+**Verifikasi:**
+- Tes loader: tanpa token berhenti; 401/403 berhenti; frekuensi ikut ditulis.
+- Tes fungsi L2 di transaksi rollback, untuk tiga kasus:
+  - (a) satu tanggal lama dimuat ulang dengan isi sama: diterima, data tidak berubah;
+  - (b) tanggal yang sama tanpa frekuensi: ditolak dengan pesan yang benar;
+  - (c) tanggal dengan broker hilang: ditolak.
+- Live: satu tanggal baru dimuat lewat jalur baru, lalu `UPDATE_TABLE.md` dijalankan untuk tanggal itu dan semua cek
+  0 selisih.
+- Kasus lain yang memakai pola sama: loader harga lokal, dan sumber makro/cross-asset nanti.
+- Kasus yang tidak cocok: data yang datang dari service Railway terjadwal dengan log sendiri (`idx-price-cron`).
+  Pola log sudah ada di sana; yang dipakai cukup penjaga L2-nya.
+- Sifat: permanen.
+
+**Pertanyaan terbuka untuk user:**
+1. Loader yang dipakai untuk 2026-09-01…10-23: skrip apa dan di mana? Boleh dimasukkan ke Git (tanpa token)?
+2. Apakah loader itu juga menulis ke CSV harian lokal seperti loader lama?
+3. Login database apa yang dipakai loader (untuk L2, mencabut tulis langsung)?
+
+### EXEC-M216: sambungan "per tanggal saja" (Langkah B, dengan katalog Langkah A di dalamnya) (disetujui 2026-10-25)
+
+**Kata-kata user (2026-10-25):** "dari langkah A dan langkah B, mana yang bisa solve the problem entirely dengan risiko
+yang paling sedikit." → rekomendasi B (katalog A ikut di dalamnya) → "Oke, kita go dengan eksekusi B. Baca agent MD,
+cek ini di infrastruktur untuk setiap approve next step. Ensure bahwa setiap langkah yang diambil, apabila berdasarkan
+memori kamu, harap telah pengecekan terhadap kode terlebih dahulu. Ensure bahwa step yang diambil harus benar-benar
+berdasarkan kondisi kondisi instead of rely solely on memory".
+
+Status: go diterima; rencana teknis di bawah disusun dari inspeksi kode dan katalog live (bagian "Inspeksi").
+
+**Inspeksi (kode dan live, 2026-10-25):**
+- Kontrak sambungan wajib punya satu pasangan kunci entitas di tiga tempat:
+  - Governor `extract.py` `Restriction` (bentuk komposit minimal 2 pasangan; `_restriction_sql` menyusun `WHERE  AND`
+    bila kosong);
+  - sandbox `data_need.py` `_key_schema` (daftar 1-8);
+  - `saniti_session.join` (`merge_asof` dengan `left_by`).
+- orc tidak memvalidasi kunci sendiri; ia meneruskan ke sandbox (`tools/data_need.py` `RelationshipV2`).
+- Alur lama `request_data`/`/v1/query` (`policy.py`) mati di dev (`AI_TOOLS.md`: X di semua langkah; saklar tidak
+  diset).
+- Katalog live (job read-only di orc-test-runner, log `m216/inspect.log` di scratchpad sesi):
+  - 59 sambungan aktif; tidak satu pun tanpa pasangan entitas, dan tidak satu pun membiarkan entitas sisi "satu"
+    terbuka, jadi aturan baru tidak mengubah sambungan lama;
+  - kunci utama INDEX sama dengan pasangannya;
+  - `asset_type` F04 berisi `equity`/`bonds` di tabel saham dan `index` di tabel INDEX, sehingga tidak bisa jadi kunci;
+  - `AI_catalog_relationships` unik pada (left_table, right_table, version).
+
+**Langkah:**
+- B1 Governor: bentuk kunci kosong (EXACT_DATE/AS_OF saja); AS_OF tanpa kunci memilih seri lewat nilai tetap di scope
+  (`ONE_SIDE_NOT_UNIQUE` bila tidak); `/v1/query` menolak sambungan per tanggal (`DATE_ONLY_JOIN_NOT_SUPPORTED`).
+- B2 Sandbox: daftar kunci boleh kosong; sisi "satu" yang entitasnya tidak dipasangkan wajib menetapkan setiap kolom
+  kunci utama yang terbuka lewat EQ / IN satu nilai (`ONE_SIDE_NOT_UNIQUE`, catatan berisi aturan, contoh benar dan
+  salah); `saniti.join` menggabung lewat tanggal saja.
+- B3 orc: deskripsi `left_columns`/`right_columns` dan catatan katalog relasi (aturan, contoh benar/salah); kata untuk
+  pengguna di `user_texts.py`; Tool_Catalog ronde ae (`20261025_009`).
+- B4 Migrasi `20261025_010`: enam sambungan saham → INDEX, kuncinya diturunkan dari katalog dan nilai tersimpan; CHECK
+  baru untuk sambungan tanpa pasangan entitas.
+- B5 Deploy Governor → sandbox → orc (SUCCESS), lalu APPLY 009 dan 010, lalu cek end-to-end tanpa model.
+
+**Hasil (2026-10-25):**
+- B1-B3 di `cbdeb0c`; tes lokal Governor 302, sandbox 901, orc 2025 lolos (termasuk 16 tes baru).
+- B4 DRYRUN `c99b3ff3`, APPLY `58657e12`; dibaca ulang: sambungan 250-255, CHECK valid.
+- B5 deploy SUCCESS: Governor `c9ca1da1`, sandbox `8f1d3d53`, orc `c70666b7`. Cek end-to-end `e7f24086`: tanpa
+  ticker ditolak; tanggal saja 96 = 96; lewat papan 149 = 149.
+- Belum dicoba lewat model (pertanyaan EDGE berbayar); bisa dijalankan bila user minta.

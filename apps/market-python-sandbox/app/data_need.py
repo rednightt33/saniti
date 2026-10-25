@@ -505,8 +505,9 @@ def _aggregate_schema(value: Any, path: str, rid: str | None, issues: Issues) ->
 
 
 def _key_schema(rel: dict[str, Any], v2: bool, path: str, rid: str | None, issues: Issues) -> None:
-    """v1: one left_column / right_column pair. v2: left_columns / right_columns of equal length (1-8); the v1 fields
-    may be repeated only when they agree with a single pair (RELATIONSHIP_KEY_FORMAT_CONFLICT otherwise)."""
+    """v1: one left_column / right_column pair. v2: left_columns / right_columns of equal length (0-8; both empty for a
+    relationship that meets on the date only, EXEC-M216); the v1 fields may be repeated only when they agree with a
+    single pair (RELATIONSHIP_KEY_FORMAT_CONFLICT otherwise)."""
     if not v2:
         for key in ("left_column", "right_column"):
             if not isinstance(rel.get(key), str) or not COLUMN.fullmatch(rel[key]):
@@ -515,7 +516,7 @@ def _key_schema(rel: dict[str, Any], v2: bool, path: str, rid: str | None, issue
     lists = {}
     for key in ("left_columns", "right_columns"):
         value = rel.get(key)
-        if not isinstance(value, list) or not 1 <= len(value) <= MAX_KEY_COLUMNS \
+        if not isinstance(value, list) or not 0 <= len(value) <= MAX_KEY_COLUMNS \
                 or not all(isinstance(c, str) and COLUMN.fullmatch(c) for c in value) or len(set(value)) != len(value):
             issues.add(rid, "RELATIONSHIP_KEY_MISMATCH", f"{path}.{key}", value)
             return
@@ -553,6 +554,7 @@ def key_fields(pairs: list[tuple[str, str]]) -> dict[str, Any]:
     two or more as left_columns / right_columns."""
     if len(pairs) == 1:
         return {"left_column": pairs[0][0], "right_column": pairs[0][1]}
+    # two or more pairs, or none (a relationship on the date only: both lists empty, EXEC-M216)
     return {"left_columns": [p[0] for p in pairs], "right_columns": [p[1] for p in pairs]}
 
 
@@ -949,6 +951,39 @@ class BoundRelationship:
         return self.pairs[0][1]
 
 
+# EXEC-M216: the side a relationship declares "one" (saniti.join checks it is unique on its key and date)
+ONE_SIDES = {"MANY_TO_ONE": ("right",), "ONE_TO_MANY": ("left",), "ONE_TO_ONE": ("left", "right")}
+ONE_SIDE_NOTE = ("Relationship {relationship_id} does not pair the entity of {table} (it meets on the date, or on "
+                 "other keys only), so that request must give one row per date: fix {columns} in its scope with EQ, "
+                 "or IN with one value. Right: {{\"type\": \"PREDICATE\", \"column\": \"{first}\", \"operator\": \"EQ\", "
+                 "\"value\": \"<one stored value>\"}} (with AND for the other conditions). Wrong: no {first} condition, "
+                 "or {first} IN with several values (each date would match every listed series).")
+
+
+def fixed_columns(scope: dict[str, Any]) -> set[str]:
+    """Columns a scope fixes to one value: EQ, or IN with one value, alone or directly under the top-level AND."""
+    nodes = (scope.get("children") or []) if scope.get("type") == "AND" else [scope]
+    fixed = set()
+    for node in nodes:
+        if node.get("type") == "PREDICATE" and (node.get("operator") == "EQ" or (
+                node.get("operator") == "IN" and isinstance(node.get("value"), list) and len(node["value"]) == 1)):
+            fixed.add(node.get("column"))
+    return fixed
+
+
+def unfixed_one_side(request: dict[str, Any], meta: dict[str, Any], keys: list[str]) -> list[str]:
+    """The key columns of a "one" side a relationship leaves open: only when the relationship does not pair the
+    side's entity column (a date-only relationship, or one on other keys such as the market board), every primary
+    key column that is not paired and not the time column must be fixed by the scope, so the side has one row per
+    date (EXEC-M216). Derived from the catalog's primary_key_columns, so a new series table needs no code."""
+    entity = meta.get("entity_column")
+    if entity is None or entity in keys:
+        return []
+    time = meta.get("time_column")
+    fixed = fixed_columns(request.get("scope") or {})
+    return [c for c in meta.get("primary_key_columns") or [] if c not in keys and c != time and c not in fixed]
+
+
 def cross_request(spec: dict[str, Any], contract: dict[str, Any], issues: Issues,
                   warnings: list[dict[str, Any]]) -> list[BoundRelationship]:
     requests = {r["data_request_id"]: r for r in spec["data_requests"]}
@@ -1015,6 +1050,24 @@ def cross_request(spec: dict[str, Any], contract: dict[str, Any], issues: Issues
                            expected=", ".join(f"{a} = {b}" for a, b in pairs), note=KEY_NOTE)
                 continue
         semantics = rel["join_semantics"]
+        if not pairs and semantics not in ("EXACT_DATE", "AS_OF"):
+            # no entity key: only the date can pair the rows (CURRENT_STATE or EFFECTIVE_DATED would pair all of them)
+            issues.add(rid, "JOIN_SEMANTICS_UNAVAILABLE", f"{path}.join_semantics", semantics,
+                       note="A relationship without entity key pairs meets on the date: EXACT_DATE or AS_OF.")
+            continue
+        oriented = _oriented_type(entry.get("relationship_type"), forward)
+        for side, request_id, keys in (("left", rel["left_request_id"], [p[0] for p in pairs]),
+                                       ("right", rel["right_request_id"], [p[1] for p in pairs])):
+            if side not in ONE_SIDES.get(oriented, ()):
+                continue
+            missing = unfixed_one_side(requests[request_id], tables.get(requests[request_id]["source_table"]) or {},
+                                       keys)
+            if missing:
+                index_of = next(i for i, r in enumerate(spec["data_requests"]) if r["data_request_id"] == request_id)
+                issues.add(request_id, "ONE_SIDE_NOT_UNIQUE", f"data_requests[{index_of}].scope", missing,
+                           note=ONE_SIDE_NOTE.format(relationship_id=rel["relationship_id"],
+                                                     table=requests[request_id]["source_table"],
+                                                     columns=", ".join(missing), first=missing[0]))
         left_timed = tables.get(left["source_table"], {}).get("time_column")
         if semantics in ("AS_OF", "EFFECTIVE_DATED") and not forward:
             # point-in-time reference data is the catalog relationship's right table (migration 20260925_003)

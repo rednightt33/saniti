@@ -1608,9 +1608,75 @@ change yet.
   menyejajarkannya per tanggal di analisis. Usulan permanen: semantik join baru tanpa kunci entitas
   (`EXACT_DATE` atau `AS_OF` pada kolom waktu saja, satu baris kanan per tanggal yang dijamin oleh grain katalog)
   di Governor, orc dan sandbox; menunggu keputusan user.
-- **Status:** OPEN.
+- **Status:** FIXED 2026-10-25 (EXEC-M216, user "Oke, kita go dengan eksekusi B."):
+  - kode `cbdeb0c`, deploy SUCCESS: Governor `c9ca1da1`, sandbox `8f1d3d53`, orc `c70666b7`;
+  - kontrak sambungan sekarang menerima daftar kunci kosong (EXACT_DATE/AS_OF). Sisi "satu" yang entitasnya tidak
+    dipasangkan wajib menyebut satu seri (`ONE_SIDE_NOT_UNIQUE`, aturan diturunkan dari `primary_key_columns`
+    katalog);
+  - migrasi `20261025_009` (Tool_Catalog ronde ae) dan `20261025_010` (enam sambungan saham → INDEX, CHECK baru)
+    di-APPLY (job `58657e12`) dan dibaca ulang;
+  - cek end-to-end tanpa model (job `e7f24086`, `verification/m216_date_only_join/`): data need tanpa ticker IHSG
+    ditolak; BBCA/BBRI pada hari IHSG turun > 1 % 96 baris = SQL independen; sambungan lewat papan F06 149 = 149;
+  - tes: Governor 302, sandbox 901, orc 2025 lolos;
+  - 59 sambungan lama tidak terkena aturan baru (dicek live).
 - **Lesson:** periksa kontrak join sebelum menjanjikan relasi untuk sumber data dengan sistem kode entitas berbeda
-  (Part A A1.2, A4.17).
+  (Part A A1.2, A4.17). Tabel seri baru (indeks, makro, komoditas) wajib punya kolom seri di kunci utama
+  `AI_table_catalog`; sambungannya ke saham dicatat tanpa pasangan entitas, dan aturan sisi "satu" berlaku otomatis.
+
+### M217 — Loader Stockbit di Git tidak menulis frekuensi; loader yang memuat 2026-09-01…10-23 tidak ada di Git (2026-10-25)
+
+- **Symptom:** saat menyusun `UPDATE_TABLE.md` (permintaan user 2026-10-25), sumber `IDX_Broker_Summary`
+  2026-09-01…10-23 punya `buy_freq`/`sell_freq` di 100 % baris tetapi tanpa baris `stockbit_broker_summary_load_log`.
+- **Verified cause (code):** `apps/stockbit-broker-backfill/stockbit_marketwide_broker_activity.py`
+  `CANONICAL_KEYS` (baris 42-46) tidak memuat frekuensi, dan `replace_date` (526) menghapus seluruh tanggal lalu menulis
+  hanya kolom itu, plus baris log `COMPLETED`. Tidak ada branch remote yang memuat loader berfrekuensi (`git grep`).
+  Jadi tanggal baru dimuat oleh program di luar Git.
+- **Class:** sumber data yang dimuat oleh kode di luar repo. Isi dan bentuknya tidak bisa diperiksa, diulang, atau
+  dilindungi. Ini berlaku untuk setiap loader lokal (Stockbit, dan sumber cross-asset/makro yang direncanakan).
+- **Risiko:** menjalankan loader Git pada tanggal yang sudah ada akan menghapus frekuensinya. Staging
+  `IDX_Broker_Summary_Freq` sudah dihapus (`20261025_007`), jadi frekuensi F05/F06 tanggal itu menjadi kosong tanpa
+  cadangan.
+- **Solution (usulan, perlu go):** loader yang dipakai user masuk ke `apps/stockbit-broker-backfill/`, menulis
+  frekuensi dan baris log. Rencana lengkap (loader di Git, penjaga di database, log wajib): EXEC.md EXEC-LOADER-M217,
+  dicatat 2026-10-25 tanpa eksekusi. Sampai itu terjadi, `UPDATE_TABLE.md` bagian 2 melarang memakai loader Git untuk tanggal
+  yang sudah berfrekuensi.
+- **Status:** OPEN.
+- **Lesson:** loader setiap sumber baru harus ada di Git dan menulis log muat per tanggal sebelum datanya dipakai
+  Feature (Part A).
+
+### M218 — Sejak 2026-09-01 `IDX_Broker_Summary` hanya memuat simbol 4 huruf (2026-10-25)
+
+- **Symptom:** sub-agent verifikasi Feature (job C2 `b5f8bdb7`, D3 `a5ed8546`, read-only) menemukan:
+  - 2026-08-31: 1.320 simbol, 1.717 baris non-4-huruf (waran, right, R-LQ45X);
+  - 2026-09-01: 867 simbol; 0 baris non-4-huruf di 8 tanggal uji 2026-09-01…10-23.
+- **Verified effects:**
+  - F05/F06 untuk waran, right dan R-LQ45X berhenti di 2026-08-31;
+  - agregat INDEX broker ("semua simbol sumber") berganti komposisi sejak 2026-09-01, jadi deret alirannya tidak
+    sebanding sebelum dan sesudah tanggal itu;
+  - kolom frekuensi turunan F06_INDEX Regular, yang NULL di semua baris sampai 08-31 (simbol tanpa frekuensi),
+    mulai terisi sejak 09-01.
+- **Suspected cause (not verified):** loader yang memuat 2026-09-01…10-23 (M217, di luar Git) membatasi daftar
+  simbol ke saham. Cek yang mengonfirmasi: konfigurasi atau daftar simbol loader itu.
+- **Class:** perubahan cakupan sumber di tengah deret, tanpa catatan; mengenai setiap Feature dan agregat pasar yang
+  dibangun dari sumber yang sama.
+- **Solution:** belum ada; perlu keputusan user (muat ulang simbol non-saham untuk 09-01…, atau catat batas cakupan
+  di katalog dan Feature_Vocabulary INDEX).
+- **Status:** OPEN.
+- **Lesson:** loader harus mencatat cakupan simbol per tanggal di log muatnya (M217 L3), supaya perubahan cakupan
+  terlihat sebelum Feature dihitung.
+
+### M219 — Baris IHSG tertulis lagi di tabel saham `Feature_01_Stock_Daily` (2026-10-25)
+
+- **Symptom:** satu baris IHSG 2026-10-23 (volume NULL) di `Feature_01_Stock_Daily`, ditulis feature-01-worker
+  (`Feature_Calculation_Log` id 43574, 2026-10-25 10:05 UTC) setelah re-ingest harga 10:02 (sub-agent job B
+  `9bcab66c` / A `41e5bc3a`). `Feature_04_Technical_Indicator` tidak punya baris IHSG.
+- **Verified cause:** catatan terbuka "INDEX initialization final status (2026-10-24)": worker harga lama membuat
+  ulang baris indeks di tabel bersama setelah harga baru masuk, karena routing INDEX harian belum dibangun.
+- **Class:** worker turunan yang tidak membedakan jenis efek; berlaku untuk setiap indeks atau seri yang masuk ke tabel
+  harga saham.
+- **Solution:** routing INDEX harian (item terbuka; perlu go). Sementara baris itu dibiarkan; sambungan saham ke IHSG
+  (M216) membaca `Feature_01_Stock_Daily_INDEX`, bukan baris ini.
+- **Status:** OPEN.
 
 ## Fixed-income selected-date repair — 2026-10-20 status
 

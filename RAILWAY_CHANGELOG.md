@@ -4469,3 +4469,12 @@ branch; this task does not release daily worker/frontend changes to main.
   - onboarding `db778889` and `7f348403` (DRYRUN), `8af07acc` (APPLY);
   - L2 and the Governor checks.
 - Rollback: orc `be7c6693`, coverage previous deployment; catalog rollback per the migration header.
+
+## 2026-10-25 — EXEC-M216 date-only relationships
+
+- Push `cbdeb0c` to `main`: market-sql-governor `c9ca1da1`, market-python-sandbox `8f1d3d53`, market-ai-orc
+  `c70666b7`, each SUCCESS; orc startup without new inactive features.
+- orc-test-runner jobs (temporary `DATABASE_URL` reference, removed after each; VAR_REMOVED): catalog inspection
+  (read-only), migration DRYRUN `c99b3ff3`, migration APPLY `58657e12` (20261025_009, 20261025_010), end-to-end check
+  `e7f24086` (read-only).
+- No variable changed.

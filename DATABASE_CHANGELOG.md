@@ -2458,3 +2458,57 @@ or raw source data changed. Daily INDEX updates remain a separately approved des
   - the enum types of the dropped columns;
   - the lineage text of `Feature_Catalog` F05 `buy_freq`/`sell_freq` (historical source).
 - `apps/feature-05-06-job/job.py`: the retired task `phase1_backfill` was removed.
+
+## 2026-10-25 — Feature refresh from the re-downloaded Broker Summary (EXEC-REFRESH-1025, EXEC-INCR-1025)
+
+- Source: `IDX_Broker_Summary` 2026-09-01 to 2026-10-23 (39 dates, `buy_freq`/`sell_freq` on every row), re-downloaded
+  by the user's loader. That loader writes no `stockbit_broker_summary_load_log` row (the log stops at 2026-08-31).
+- R1, Feature 05 and 06 (job `70c406e6-79e2-4fdd-9fae-f075ff07528f`, log kept in the session scratchpad):
+  - `refresh_feature_05('2026-09-01', '2026-10-24')`: 968,042 rows, equal to the source rows (0 differing), 73.8 s;
+    a second pass found 0 differing and skipped.
+  - `refresh_feature_06(ticker, '2026-09-01')` for the 912 tickers with new F05 rows: 38,163 rows; reconcile against
+    the Σ F05 groups 38,163 = 38,163, 0 differing.
+  - Incremental equals full (rolled back): BBCA, BBRI, MIKA, GOTO, TLKM, ANTM, BUMI, 0 differences each.
+- INDEX (IHSG) Feature 01-06 (`scripts/backfill_index_features.py` `prepare` + `apply_chunks`, without
+  `archive_and_migrate`, driver job in the scratchpad):
+  - validations passed: F02 77,425 rows, F03 144,900, F06 601,335, sample 11,326;
+  - every year 2016-2025 wrote 0 rows (the rewrite equals the stored history); the rerun modified 0 and every
+    payload hash matched;
+  - 2026 wrote exactly the new rows: F02 and F05 7,802, F03 and F06 117, F01 and F04 0 (no price row changed);
+  - the broker-based INDEX tables (F02, F03, F05, F06) now reach 2026-10-23.
+- Migration `20261025_008_refresh_feature_02_incremental.sql` (sha256 `832c9661…`, in `APPLIED.sha256`): new
+  `public.refresh_feature_02(p_ticker text, p_from date DEFAULT NULL) RETURNS bigint`.
+  - The SQL is the one of `scripts/backfill_feature_02_v2.py` `INSERT_TICKER`; the daily rows are read from
+    Feature 05 (`buy_value - sell_value` as net value) with the 311 earlier sessions the longest window needs
+    (60-session window plus 252 sessions for the z-score and percentile), and only rows on or after `p_from` are
+    deleted and written. An advisory lock per ticker guards concurrent runs.
+  - Before APPLY, 10 cases in a rolled-back transaction equalled the stored full calculation with 0 differences
+    (BBCA from 2026-08-03 and from 2024-01-02, BBRI, GOTO twice, TLKM from 2020, a thin ticker, a warrant, PSAT
+    incremental and full).
+  - Table_Catalog `related_functions` of `Feature_02_Broker_Rolling` names it.
+- I1, Feature 02 and 03 from 2026-09-01 (orc-test-runner job, scratchpad log `f02/run.log`, 2,906 s):
+  - `refresh_feature_02(ticker, '2026-09-01')` for the 912 tickers with new F05 rows: 968,042 rows, equal to the
+    F05 source rows for the range; no ticker took over 60 s.
+  - `refresh_feature_03_stock_broker_daily(date, NULL)` for the 39 new dates: 38,163 rows, equal to the F02
+    `(date, ticker, market_board)` groups.
+  - The new rows equal a longer rewrite from 2026-06-01 (rolled back) for BBCA 3,864, BBRI 3,620, GOTO 2,883,
+    PSAT 470 and TLKM 3,395 new rows: 0 differences each.
+  - Read back: F02 and F03 newest date 2026-10-23; database 44.07 GB.
+
+## 2026-10-25 — Relationships on the date only; stock-to-INDEX relationships (EXEC-M216)
+
+- User 2026-10-25: "Oke, kita go dengan eksekusi B." (ERRORS M216).
+- Migration `20261025_009_round_ae_tool_catalog.sql` (sha256 `64468b75…`): Tool_Catalog submit_data_need_spec v16,
+  check_data_feasibility v8, check_research_feasibility v8 (inactive like every orc row; key lists may be empty).
+- Migration `20261025_010_date_only_relationships.sql` (sha256 `28f1e936…`):
+  - six relationships from each exposed stock Feature object to its `_INDEX` counterpart, in AI_catalog_relationships
+    (ids 250-255) and Feature_Relationship_Catalog;
+  - keys derived from the shared primary key columns that hold a common stored value (DATABASE_CATALOG.md);
+  - new CHECK `AI_catalog_relationships_date_only_check`.
+- DRYRUN job `c99b3ff3` (rolled back), APPLY job `58657e12`; read back: six rows each, keys as derived, CHECK
+  validated, Tool_Catalog versions present.
+- End-to-end check job `e7f24086` (sandbox validator + Governor extractor in process as `market_ai_sql_reader`,
+  `verification/m216_date_only_join/`):
+  - IHSG request without a ticker condition refused (`ONE_SIDE_NOT_UNIQUE`);
+  - BBCA and BBRI on the 48 days IHSG fell more than 1 % in 2026: 96 rows, equal to an independent SQL query;
+  - BBCA Regular on days the market's Regular foreign net was negative: 149 rows = 149.

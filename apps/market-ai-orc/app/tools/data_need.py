@@ -183,7 +183,9 @@ class Relationship(Strict):
 KEY_COLUMNS_DESCRIPTION = ("Every entity key column of the catalog relationship on this side (the catalog's "
                            "request_key_columns), in the order of its left_columns / right_columns without the time "
                            "column (a composite key such as ticker, "
-                           "broker, investor_type and market_board names all of them).")
+                           "broker, investor_type and market_board names all of them). Empty request_key_columns: the "
+                           "relationship meets on the date only (a stock and the IHSG index, a macro series), so this "
+                           "list is [] and only the time columns pair the rows (EXACT_DATE or AS_OF).")
 
 
 class RelationshipV2(Strict):

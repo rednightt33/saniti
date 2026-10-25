@@ -48,6 +48,7 @@ WORDS = {
     "BUDGET_EXHAUSTED": "batas biaya habis", "CONFIRMED": "terkonfirmasi", "CONFLICTING": "sumbernya berbeda",
     # EXEC-FRICTION (M142): why a step or a draft was refused (execution.hurdles)
     "RELATIONSHIP_KEY_MISMATCH": "kunci penggabungan tabel tidak sesuai",
+    "ONE_SIDE_NOT_UNIQUE": "data yang digabung per tanggal belum menyebut satu seri",
     "INVALID_REQUEST_ID": "nama permintaan data tidak sesuai aturan",
     "AGGREGATE_COLUMNS_MISMATCH": "kolom ringkasan tidak sesuai aturan", "AGGREGATE_INVALID": "ringkasan tidak sesuai aturan",
     "REVISION_REQUIRED": "permintaan perlu diperbaiki", "INVALID_ARGUMENTS": "isian langkah tidak sesuai format",
@@ -95,6 +96,7 @@ HURDLE_FORMAT = "The answer's format was asked for again{why}"
 # why a step or a draft was refused, in the interface's words (EDGE shows the hurdles outside the answer)
 HURDLE_WORDS = {
     "RELATIONSHIP_KEY_MISMATCH": "the keys joining the tables do not match",
+    "ONE_SIDE_NOT_UNIQUE": "the data joined by date did not name one series",
     "INVALID_REQUEST_ID": "the data request's name breaks the naming rule",
     "AGGREGATE_COLUMNS_MISMATCH": "the summary columns break the rules", "AGGREGATE_INVALID": "the summary breaks the rules",
     "REVISION_REQUIRED": "the request needs a fix", "INVALID_ARGUMENTS": "the step's inputs had the wrong format",
