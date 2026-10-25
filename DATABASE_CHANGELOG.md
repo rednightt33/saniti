@@ -2581,3 +2581,20 @@ legacy row snapshots for cleanup recovery. Apply status is recorded in DATABASE_
   2,599 dates (2016-01-04…2026-10-23): IDX_Broker_Summary = F05, F05 = F02, F02 = F03, F05 = F06, 0 dates differing.
 - `AI_data_coverage` holds a newest date for `IDX_Broker_Summary` and prices (2026-10-23) but none for the Feature tables
   (its update rule: Feature tables are not scanned).
+
+## 2026-10-25 — Stockbit corporate action, insider and idx_event_annotation created and loaded (EXEC-EVENT-ANNOTATION)
+
+- User 2026-10-25: "Naikan 3 table corp, insider dan kombinasinya ke postgres. Prioritaskan ini".
+- Migration `20261025_013_create_stockbit_event_annotation.sql` (written as `20261025_011` on branch
+  `claude/keen-keller-cq1d96`, renumbered because `20261025_011` was already applied; sha256 `b5b39fd0…`): DRYRUN
+  (rolled back), APPLY `10fbc797`, read back: three tables, `refresh_idx_event_annotation()`, Table_Catalog 3 rows,
+  Column_Catalog 22 + 28 + 26 rows. Read grant to pgweb only; not exposed to the AI.
+- Load `apps/stockbit-event-annotation/job.py` with the user's Stockbit token on orc-test-runner: DRYRUN `12ff43fd`
+  (run `sbev-20261025T163633Z-9246d5`, rolled back), APPLY `88886559` (run `sbev-20261025T165136Z-347ecb`, 786 s,
+  committed): corporate actions 19,259 (from 20,629 raw rows, 9 types, 2003-01-10…2026-12-18, 1,004 tickers); insider
+  103,788 distinct movements (104,738 listed; IDX 22,349, KSEI 81,439; 964 tickers, 2017-10-12…2026-10-23); percent flag
+  OK 86,119, ROUNDING 13,735, NOT_CHECKABLE 3,207, INCONSISTENT 707, INVALID_SENTINEL 20; idx_event_annotation 123,047.
+- Independent read-back `5e566a73` (`verification/event_annotation_20261025/readback_job.py`): counts as above, all rows
+  active, one load run, annotation rows = active source rows; sizes 18 MB, 141 MB, 158 MB.
+- Part A: new source (Stockbit corporate action and insider endpoints), keys, units and null rules documented in
+  Column_Catalog by the migration (PLAN.md EVENT-ANNOTATION decisions).

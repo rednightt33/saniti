@@ -7760,3 +7760,7 @@ Langkah:
   job, tidak di Git atau log.
 - Prioritas (kata user, 2026-10-25): "Naikan 3 table corp, insider dan kombinasinya ke postgres. Prioritaskan ini baru
   pesan saya sebelumnya." Urutan: (1) migrasi `20261025_013` dan muat awal tiga tabel (EXEC-EVENT-ANNOTATION), (2) service.
+
+**Hasil langkah (1), 2026-10-25:** migrasi `20261025_013` APPLY `10fbc797`; muat awal APPLY `88886559`: corporate
+action 19.259, insider 103.788, `idx_event_annotation` 123.047; baca ulang `5e566a73` cocok (DATABASE_CHANGELOG). Tiga
+tabel belum dibuka ke AI (perlu onboarding dan go). Langkah (2) service: belum dimulai.

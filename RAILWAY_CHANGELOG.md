@@ -4502,3 +4502,9 @@ branch; this task does not release daily worker/frontend changes to main.
 
 - orc-test-runner (temporary `DATABASE_URL`, VAR_REMOVED after each): `0d76ad3c` (stopped at a query error in the job,
   read-only) and `eb43c1ec` (read-only freshness, visibility and consistency). No service or variable changed.
+
+## 2026-10-25 — Stockbit event annotation jobs
+
+- orc-test-runner: migration DRYRUN and APPLY `10fbc797` (20261025_013), load DRYRUN `12ff43fd` and APPLY `88886559`
+  (`STOCKBIT_TOKEN` set by stdin for the run, TOKEN_REMOVED; `DATABASE_URL` VAR_REMOVED), read-back `5e566a73`. Stockbit
+  is reachable from Railway. No service or variable kept.
