@@ -129,24 +129,31 @@ it resets), `503` publisher has not produced the manifest.
 Limits: a subscriber who stays within the quota can still copy what they are allowed to see; the safeguards bound
 speed and volume and leave an audit trail. Presigned URLs can be forwarded during their 120 s lifetime.
 
-## 4. Gaps before implementation
+## 4. Subscriber accounts — option A (user 2026-10-25: "A dulu.")
 
-1. **Subscriber accounts do not exist.** EDGE has one owner (`EDGE_OWNER`); there is no subscriber table, sign-up,
-   payment or entitlement. The API cannot enforce "subscribers only" until this exists. Decision needed.
-2. Where the API runs (new service vs `edge-bff`) and where its state (subscribers, quotas, audit) lives (a new
-   schema vs a separate database) follow from point 1.
-3. Approval of a definition for the Broker action gauge and the Bandar detector, or they stay hidden.
-4. Full reconciliation F05 vs `IDX_Broker_Summary` over all dates (open item from Phase 2).
+Accounts are created and disabled by the admin; no self sign-up and no payment yet.
+
+| Item | Proposal (follows the existing `edge_bff` pattern, migration `20261008_002`) |
+|---|---|
+| Storage | new schema `terminal` in the main PostgreSQL, owned by a NOLOGIN role `terminal_runtime`, reached only by a new login `terminal_api_login`; no grant on market tables. Market data reads use a separate read-only login `terminal_reader` (SELECT on P, F05, BP, U). |
+| Tables | `terminal.subscriber` (id, email unique, display name, password hash `scrypt` like `edge-bff/app/security.py`, `active`, `expires_at`, created/updated), `terminal.session` (token hash, subscriber, expires, revoked; max 2 active), `terminal.url_issue_log` (subscriber, ticker, dataset, year, bytes, ip, issued_at), `terminal.quota_override` (optional per-subscriber limits). |
+| Admin | a CLI script `scripts/terminal_subscriber.py add/disable/extend/reset-password/list`, run by the admin with the `terminal_api_login` URL; no admin web page yet. |
+| Login | `POST /api/terminal/v1/auth/sign-in` (email + password) → HttpOnly Secure cookie; `sign-out`; `change-password`. A subscriber is allowed only while `active AND expires_at > now()`. |
+| Service | new Railway service `terminal-api` (FastAPI, `apps/terminal-api`), separate from `edge-bff` (single owner, different users) and from the AI services. |
+
+Other gaps:
+1. Approval of a definition for the Broker action gauge and the Bandar detector, or they stay hidden.
+2. Full reconciliation F05 vs `IDX_Broker_Summary` over all dates (open item from Phase 2).
 
 ## 5. Implementation plan (after approval only)
 
 | Step | Change | Rollback | Compatibility |
 |---|---|---|---|
-| 1 | New private bucket `terminal-display` + CORS rule | delete bucket | none; existing buckets untouched |
-| 2 | New read-only login `terminal_reader` (SELECT on P, F05, BP, U), forward migration | `DROP ROLE` migration | none |
-| 3 | Publisher job + initial 5-year backfill; verify each file against SQL (row counts, Σ value per ticker-year) | delete objects | reads only |
-| 4 | Subscriber auth (per decision in section 4) | per design | — |
-| 5 | Terminal API endpoints with quotas and audit | remove routes / service | existing EDGE routes unchanged |
-| 6 | Phase 7 validation (reconciliation, filters, quotas, CORS, errors, timings) | — | — |
+| 1 | New private bucket `terminal-display` + CORS rule (GET, terminal origin only) | delete the bucket | existing buckets untouched |
+| 2 | Forward migration: schema `terminal`, its tables, roles `terminal_runtime`, `terminal_api_login`, `terminal_reader` | forward migration dropping them | no existing object changed |
+| 3 | Publisher job (`apps/terminal-publisher`) + initial 5-year backfill; each file checked against SQL (row count, Σ value per ticker-year) | delete objects / service | reads only from PostgreSQL |
+| 4 | `apps/terminal-api` service: auth, manifest, presigned URLs, fallback history, quotas, audit | remove the service | EDGE and AI unchanged |
+| 5 | Admin CLI, first test subscriber | disable the account | — |
+| 6 | Phase 7 validation (reconciliation, filters, quotas, CORS from a browser, errors, timings) | — | — |
 
 Every step records its migration, `DATABASE_CHANGELOG.md`, `RAILWAY_CHANGELOG.md` and live read-back per `AGENTS.md`.
