@@ -4483,3 +4483,11 @@ branch; this task does not release daily worker/frontend changes to main.
 
 - orc-test-runner (temporary `DATABASE_URL`, VAR_REMOVED after each): read-only inspections, DRYRUN `a1eea00c` (refused by
   a foreign key, nothing kept), `831eb843`, `c6800486`, APPLY `6c467349` (20261025_011). No service or variable changed.
+
+## 2026-10-25 — Feature_Vocabulary correction jobs
+
+- orc-test-runner (temporary `DATABASE_URL`, VAR_REMOVED after each): read-only export and scans `5c3b27ff`, `55d76e73`,
+  DRYRUN `f5eb55f2`, APPLY `c1f2bde9` (20261025_012 + vocabulary sync), audit `93b6feee` (FAILED in the build: Railway
+  builder `buildkitd.sock` unavailable, before the job ran; variable read back absent) and its re-run `7e26af13` (same
+  build failure; variable read back absent). No service or
+  variable changed.

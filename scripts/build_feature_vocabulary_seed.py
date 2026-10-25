@@ -174,13 +174,16 @@ def build(row):
     if scope=='index' and f in (2,3,5,6) and kind=='metric':definition+=' Lingkup INDEX menggabungkan seluruh simbol transaksi sumber, bukan hanya saham atau konstituen resmi IHSG.'
     if scope=='index' and c=='broker_concentration_hhi':definition='Sengaja NULL pada agregat INDEX sesuai keputusan pengguna; formula HHI saham tidak diterapkan.'
     if scope=='index' and c=='ticker':definition='Kode indeks yang tervalidasi pada IDX_Stock_Universe dengan Security Type=index.'
+    # stock Feature 06 sums known frequencies (SQL SUM skips NULL); only INDEX nulls a window with unknown frequency
+    if scope=='stock' and f==6 and meaning.endswith('NULL jika input frekuensi tidak lengkap.'):
+        meaning=meaning[:-len('NULL jika input frekuensi tidak lengkap.')]+'sesi tanpa data frekuensi dilewati; NULL hanya bila tidak ada sesi berfrekuensi dalam jendelanya atau penyebutnya nol.'
     if scope=='stock' and f==6 and c.endswith('cumulative_net'):meaning='Menunjukkan saldo arus sejak observasi pertama instrumen dan papan terkait; panjang histori antar instrumen dapat berbeda.'
     unit=row['unit']
     unit={'percent':'Persen (%)','percentage points':'Poin persentase','fraction':'Fraksi (0–1)',
      'shares':'Lembar saham','lots':'Lot','transactions':'Transaksi','source rows':'Baris sumber',
      'date':'Tanggal','days':'Sesi','sessions':'Sesi','flag':'Boolean','timestamp':'Timestamp',
      'standard deviations':'Simpangan baku','idr per transaction':'IDR per transaksi',
-     'lots per transaction':'Lot per transaksi'}.get(unit.lower(),unit)
+     'lots per transaction':'Lot per transaksi','percentile 0-100':'Persentil 0–100'}.get(unit.lower(),unit)
     if f==1 and (c=='close' or c.startswith('close_') or c in ('high_20d','high_60d')):unit='Poin indeks' if scope=='index' else 'IDR per saham'
     if f==1 and scope=='index' and c in ('volume','volume_avg_20d','volume_std_20d'):unit='Volume sumber; IHSG NULL'
     if c.startswith('foreign_strength_') and c!='foreign_strength_momentum_5d':unit='Skor −100 sampai +100'

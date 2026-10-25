@@ -61,3 +61,20 @@ def test_remote_runpy_entrypoint_imports_its_sibling_without_caller_path_setup()
     path=Path(__file__).resolve().parents[1]/'sync_feature_vocabulary.py'
     r=subprocess.run([sys.executable,'-I','-c',"import runpy,sys; runpy.run_path(sys.argv[1],run_name='entrypoint_import')",str(path)],capture_output=True,text=True)
     assert r.returncode==0,r.stderr
+
+def frequency_row(table):
+    return dict(sample(),feature_table=table,feature_column='foreign_freq_imbalance_20d',unit='percent',
+                calculation='100 * (SUM_20(BF) - SUM_20(SF)) / (SUM_20(BF) + SUM_20(SF))')
+
+def test_stock_frequency_window_skips_sessions_without_frequency_while_index_requires_complete_input():
+    # refresh_feature_06 sums known frequencies (SUM skips NULL); the INDEX bootstrap nulls an incomplete window
+    stock=build(frequency_row('Feature_06_Foreign_Domestic'))['what_it_tells_us']
+    index=build(frequency_row('Feature_06_Foreign_Domestic_INDEX'))['what_it_tells_us']
+    assert 'sesi tanpa data frekuensi dilewati' in stock and 'NULL jika input frekuensi tidak lengkap' not in stock
+    assert index.endswith('NULL jika input frekuensi tidak lengkap.')
+
+@pytest.mark.parametrize('table,column',[('Feature_02_Broker_Rolling','net_value_percentile_20d'),
+    ('Feature_06_Foreign_Domestic_INDEX','foreign_net_percentile_5d_base60d')])
+def test_percentile_unit_is_labelled_as_a_percentile_not_a_percent(table,column):
+    row=dict(sample(),feature_table=table,feature_column=column,unit='Percentile 0-100')
+    assert build(row)['unit']=='Persentil 0–100'

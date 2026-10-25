@@ -41,6 +41,14 @@ def main() -> None:
                  SELECT 1 FROM public."Feature_Catalog" f
                  WHERE f.feature_table=c.table_name AND f.feature_column=c.column_name
                    AND f.is_active)
+               -- a view exposing a Feature table (the *_Stock views) is covered by the definition of the base
+               -- column of the same name that it reads
+               AND NOT EXISTS (
+                 SELECT 1 FROM information_schema.view_column_usage u
+                 JOIN public."Feature_Catalog" f
+                   ON f.feature_table=u.table_name AND f.feature_column=u.column_name AND f.is_active
+                 WHERE u.view_schema=c.table_schema AND u.view_name=c.table_name
+                   AND u.table_schema='public' AND u.column_name=c.column_name)
                ORDER BY c.table_name,c.ordinal_position"""
         ).fetchall()
         ambiguity = connection.execute(

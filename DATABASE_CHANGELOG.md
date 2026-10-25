@@ -2525,3 +2525,27 @@ or raw source data changed. Daily INDEX updates remain a separately approved des
     Feature 04 queue row and its 51 column-status rows. The 2,125 DONE Feature 01 queue rows stay (referenced by
     `Feature_Calculation_Log`).
 - DRYRUN `831eb843`, `c6800486`; APPLY `6c467349`; read back as in ERRORS M219.
+
+## 2026-10-25 — Feature_Vocabulary corrections at their owner, Feature_Catalog (EXEC.md "Feature_Vocabulary: koreksi laporan verifikasi")
+
+- User 2026-10-25: "Cari solusi juga untuk ini. Kalau straightforward, langsung edit. Inspect code base dulu dan
+  dependensi. Seharusnya fitur 5 referke table IDX broker summary."
+- Migration `20261025_012_feature_vocabulary_corrections.sql` (sha256 `fdceeeaa…`), 63 Feature_Catalog corrections
+  (old text checked first) and their catalog copies, found by key and old text:
+  - `null_rule` 43 (F02/F05/F06 stock and INDEX): Column_Catalog.null_rule 59 rows (table and `_Stock` view),
+    AI_calculation_catalog.missing_data_policy 43;
+  - `unit` 16 (F06 percentile columns, `percent` → `Percentile 0-100`): AI_column_catalog.unit 16, Column_Catalog.unit 24,
+    AI_calculation_catalog.output_definition.unit 16;
+  - `minimum_history` 2 (F02 / F02_INDEX `investor_type` → `1 source row`): AI_calculation_catalog.parameters 2;
+  - `calculation` 2 (F05 `buy_freq`/`sell_freq` → `IDX_Broker_Summary.<col> (stored with each Broker Summary row)`):
+    AI_calculation_catalog.definition 2, AI_column_catalog and Column_Catalog source_column_or_expression 2 each;
+  - Feature 05 `refresh_trigger` (15 rows) and Table_Catalog.update_rule (F05 and its `_Stock` view) no longer name
+    the dropped `sync_broker_summary_freq`.
+- Preflight on the live code: `refresh_feature_06` sums known frequencies as the new texts say; `IDX_Broker_Summary_Freq`
+  is absent.
+- Feature_Vocabulary re-synced in the same transaction from the rebuilt `database/feature_vocabulary_seed.json`
+  (`scripts/build_feature_vocabulary_seed.py`: unit label `Persentil 0–100`; stock F06 frequency reading): 67 of 391
+  entries changed, rerun 0, payload equal to the seed, no entry with the old Freq formula left.
+- Jobs: export (read-only), copy scans `5c3b27ff`, `55d76e73` (read-only), DRYRUN `f5eb55f2` (rolled back), APPLY
+  `c1f2bde9` (committed). Evidence: `verification/feature_vocabulary_20261025/`.
+- Part A: metadata only, no market data; no gap.

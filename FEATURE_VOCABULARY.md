@@ -31,6 +31,13 @@ documented and are labeled by `column_kind`; they are not presented as invented 
 - Feature05 INDEX frequency SUM retains known contributions. Completeness is computed internally
   and remains visible in Feature06 coverage columns. Derived INDEX frequency ratios/ticket sizes
   remain NULL when the relevant source window is incomplete.
+- Stock Feature06 frequency sums only the known frequencies (SQL SUM skips NULL): a day is NULL only when
+  no source row of the ticker, board and date carries frequency, and a window skips such days. Up to
+  2026-08-31 the source rows without frequency are the symbols that are not four letters (warrants,
+  rights and similar); since 2026-09-01 every Broker Summary row carries frequency (`refresh_feature_06`,
+  `20261022_005`).
+- A percentile column (`*_percentile_*`) is a midrank percentile on 0–100, labelled "Persentil 0–100",
+  not a percent of a quantity.
 - `high_20d`/`high_60d` in Feature01 mean the highest **close**, not candle high. Fraction, percent,
   percentage-point change, IDR and index points are different units. HHI INDEX is deliberately NULL.
 - Foreign Strength is the EDGE formula 100×SUM(R)/SUM(ABS(R)), R=foreign net/turnover. Its range
@@ -51,6 +58,12 @@ review/update the templates, regenerate the seed, and run `scripts/sync_feature_
 (rollback by default; `--apply` only within an approved release). It checks exact physical coverage,
 payload equality and idempotence. An unchanged entry preserves created_at/updated_at. New/changed
 vocabulary fields require catalog/schema documentation; vocabulary rows are not new indicators.
+
+A correction of a copied text (formula, unit, NULL or history rule) is made at its owner,
+Feature_Catalog, by a migration that also updates every catalog copy still holding the old text
+(Column_Catalog, AI_column_catalog, AI_calculation_catalog), then the seed is rebuilt and synced in the
+same transaction. Example: `20261025_012_feature_vocabulary_corrections.sql` (63 corrections, EXEC.md
+"Feature_Vocabulary: koreksi laporan verifikasi").
 
 No new service or cron is required. This task does not implement a frontend API/UI, grant browser
 database credentials, expose new AI tools, or enable automatic INDEX updates. The frontend can later

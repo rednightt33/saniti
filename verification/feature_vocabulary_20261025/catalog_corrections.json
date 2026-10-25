@@ -1,0 +1,443 @@
+[
+ {
+  "table": "Feature_02_Broker_Rolling",
+  "column": "investor_type",
+  "field": "minimum_history",
+  "old": "Matching current profile",
+  "new": "1 source row"
+ },
+ {
+  "table": "Feature_02_Broker_Rolling_INDEX",
+  "column": "investor_type",
+  "field": "minimum_history",
+  "old": "Matching current profile",
+  "new": "1 source row"
+ },
+ {
+  "table": "Feature_05_Foreign_Domestic_Broker_Detail",
+  "column": "buy_freq",
+  "field": "calculation",
+  "old": "IDX_Broker_Summary.buy_freq (from IDX_Broker_Summary_Freq.buy_freq)",
+  "new": "IDX_Broker_Summary.buy_freq (stored with each Broker Summary row)"
+ },
+ {
+  "table": "Feature_05_Foreign_Domestic_Broker_Detail",
+  "column": "buy_freq",
+  "field": "null_rule",
+  "old": "NULL when the source has no frequency (non-4-letter symbols); never replaced by zero.",
+  "new": "NULL when the source row carries no frequency (up to 2026-08-31: the symbols that are not four letters, such as warrants and rights); never replaced by zero."
+ },
+ {
+  "table": "Feature_05_Foreign_Domestic_Broker_Detail",
+  "column": "sell_freq",
+  "field": "calculation",
+  "old": "IDX_Broker_Summary.sell_freq (from IDX_Broker_Summary_Freq.sell_freq)",
+  "new": "IDX_Broker_Summary.sell_freq (stored with each Broker Summary row)"
+ },
+ {
+  "table": "Feature_05_Foreign_Domestic_Broker_Detail",
+  "column": "sell_freq",
+  "field": "null_rule",
+  "old": "NULL when the source has no frequency (non-4-letter symbols); never replaced by zero.",
+  "new": "NULL when the source row carries no frequency (up to 2026-08-31: the symbols that are not four letters, such as warrants and rights); never replaced by zero."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic",
+  "column": "foreign_buy_freq_1d",
+  "field": "null_rule",
+  "old": "NULL for symbols without frequency; zero when that investor type did not trade.",
+  "new": "NULL when no source row of the ticker, board and date carries frequency; otherwise the sum of the known frequencies of that investor type, 0 when it has no row. A row without frequency adds nothing to the sum."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic",
+  "column": "foreign_sell_freq_1d",
+  "field": "null_rule",
+  "old": "NULL for symbols without frequency; zero when that investor type did not trade.",
+  "new": "NULL when no source row of the ticker, board and date carries frequency; otherwise the sum of the known frequencies of that investor type, 0 when it has no row. A row without frequency adds nothing to the sum."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic",
+  "column": "domestic_buy_freq_1d",
+  "field": "null_rule",
+  "old": "NULL for symbols without frequency; zero when that investor type did not trade.",
+  "new": "NULL when no source row of the ticker, board and date carries frequency; otherwise the sum of the known frequencies of that investor type, 0 when it has no row. A row without frequency adds nothing to the sum."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic",
+  "column": "domestic_sell_freq_1d",
+  "field": "null_rule",
+  "old": "NULL for symbols without frequency; zero when that investor type did not trade.",
+  "new": "NULL when no source row of the ticker, board and date carries frequency; otherwise the sum of the known frequencies of that investor type, 0 when it has no row. A row without frequency adds nothing to the sum."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic",
+  "column": "foreign_freq_imbalance_20d",
+  "field": "null_rule",
+  "old": "NULL before 20 sessions, when the denominator is 0 or frequency is missing.",
+  "new": "NULL before 20 sessions or when a denominator is 0. Sessions whose frequency is NULL are skipped inside the window (SQL SUM ignores NULL): the value is computed from the sessions that carry frequency and is NULL only when none of them does."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic",
+  "column": "domestic_freq_imbalance_20d",
+  "field": "null_rule",
+  "old": "NULL before 20 sessions, when the denominator is 0 or frequency is missing.",
+  "new": "NULL before 20 sessions or when a denominator is 0. Sessions whose frequency is NULL are skipped inside the window (SQL SUM ignores NULL): the value is computed from the sessions that carry frequency and is NULL only when none of them does."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic",
+  "column": "domestic_buy_freq_share_change_5d_vs_prev20d",
+  "field": "null_rule",
+  "old": "NULL before 25 sessions, when a denominator is 0 or frequency is missing.",
+  "new": "NULL before 25 sessions or when a denominator is 0. Sessions whose frequency is NULL are skipped inside the window (SQL SUM ignores NULL): the value is computed from the sessions that carry frequency and is NULL only when none of them does."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic",
+  "column": "foreign_buy_freq_share_change_5d_vs_prev20d",
+  "field": "null_rule",
+  "old": "NULL before 25 sessions, when a denominator is 0 or frequency is missing.",
+  "new": "NULL before 25 sessions or when a denominator is 0. Sessions whose frequency is NULL are skipped inside the window (SQL SUM ignores NULL): the value is computed from the sessions that carry frequency and is NULL only when none of them does."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic",
+  "column": "domestic_buy_value_per_freq_change_5d_vs_prev20d",
+  "field": "null_rule",
+  "old": "NULL before 25 sessions, when a denominator is 0 or frequency is missing.",
+  "new": "NULL before 25 sessions or when a denominator is 0. Sessions whose frequency is NULL are skipped inside the window (SQL SUM ignores NULL): the value is computed from the sessions that carry frequency and is NULL only when none of them does."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic",
+  "column": "foreign_buy_value_per_freq_change_5d_vs_prev20d",
+  "field": "null_rule",
+  "old": "NULL before 25 sessions, when a denominator is 0 or frequency is missing.",
+  "new": "NULL before 25 sessions or when a denominator is 0. Sessions whose frequency is NULL are skipped inside the window (SQL SUM ignores NULL): the value is computed from the sessions that carry frequency and is NULL only when none of them does."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic",
+  "column": "domestic_sell_freq_share_change_5d_vs_prev20d",
+  "field": "null_rule",
+  "old": "NULL before 25 sessions, when a denominator is 0 or frequency is missing.",
+  "new": "NULL before 25 sessions or when a denominator is 0. Sessions whose frequency is NULL are skipped inside the window (SQL SUM ignores NULL): the value is computed from the sessions that carry frequency and is NULL only when none of them does."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic",
+  "column": "foreign_sell_freq_share_change_5d_vs_prev20d",
+  "field": "null_rule",
+  "old": "NULL before 25 sessions, when a denominator is 0 or frequency is missing.",
+  "new": "NULL before 25 sessions or when a denominator is 0. Sessions whose frequency is NULL are skipped inside the window (SQL SUM ignores NULL): the value is computed from the sessions that carry frequency and is NULL only when none of them does."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic",
+  "column": "domestic_sell_value_per_freq_change_5d_vs_prev20d",
+  "field": "null_rule",
+  "old": "NULL before 25 sessions, when a denominator is 0 or frequency is missing.",
+  "new": "NULL before 25 sessions or when a denominator is 0. Sessions whose frequency is NULL are skipped inside the window (SQL SUM ignores NULL): the value is computed from the sessions that carry frequency and is NULL only when none of them does."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic",
+  "column": "foreign_sell_value_per_freq_change_5d_vs_prev20d",
+  "field": "null_rule",
+  "old": "NULL before 25 sessions, when a denominator is 0 or frequency is missing.",
+  "new": "NULL before 25 sessions or when a denominator is 0. Sessions whose frequency is NULL are skipped inside the window (SQL SUM ignores NULL): the value is computed from the sessions that carry frequency and is NULL only when none of them does."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "foreign_freq_imbalance_1d",
+  "field": "null_rule",
+  "old": "NULL when the denominator is 0 or frequency is missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL when the denominator is 0 or frequency is missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "foreign_freq_imbalance_20d",
+  "field": "null_rule",
+  "old": "NULL before 20 sessions, when the denominator is 0 or frequency is missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL before 20 sessions, when the denominator is 0 or frequency is missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "foreign_buy_freq_share_1d",
+  "field": "null_rule",
+  "old": "NULL when the denominator is 0 or frequency is missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL when the denominator is 0 or frequency is missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "foreign_sell_freq_share_1d",
+  "field": "null_rule",
+  "old": "NULL when the denominator is 0 or frequency is missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL when the denominator is 0 or frequency is missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "foreign_avg_buy_value_per_freq_1d",
+  "field": "null_rule",
+  "old": "NULL when the frequency is 0 or missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL when the frequency is 0 or missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "foreign_avg_sell_value_per_freq_1d",
+  "field": "null_rule",
+  "old": "NULL when the frequency is 0 or missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL when the frequency is 0 or missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "foreign_buy_sell_ticket_ratio_1d",
+  "field": "null_rule",
+  "old": "NULL when a frequency or the sell value is 0 or missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL when a frequency or the sell value is 0 or missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "foreign_avg_buy_lots_per_freq_1d",
+  "field": "null_rule",
+  "old": "NULL when the frequency is 0 or missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL when the frequency is 0 or missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "foreign_avg_sell_lots_per_freq_1d",
+  "field": "null_rule",
+  "old": "NULL when the frequency is 0 or missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL when the frequency is 0 or missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "domestic_freq_imbalance_1d",
+  "field": "null_rule",
+  "old": "NULL when the denominator is 0 or frequency is missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL when the denominator is 0 or frequency is missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "domestic_freq_imbalance_20d",
+  "field": "null_rule",
+  "old": "NULL before 20 sessions, when the denominator is 0 or frequency is missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL before 20 sessions, when the denominator is 0 or frequency is missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "domestic_buy_freq_share_1d",
+  "field": "null_rule",
+  "old": "NULL when the denominator is 0 or frequency is missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL when the denominator is 0 or frequency is missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "domestic_sell_freq_share_1d",
+  "field": "null_rule",
+  "old": "NULL when the denominator is 0 or frequency is missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL when the denominator is 0 or frequency is missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "domestic_avg_buy_value_per_freq_1d",
+  "field": "null_rule",
+  "old": "NULL when the frequency is 0 or missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL when the frequency is 0 or missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "domestic_avg_sell_value_per_freq_1d",
+  "field": "null_rule",
+  "old": "NULL when the frequency is 0 or missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL when the frequency is 0 or missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "domestic_buy_sell_ticket_ratio_1d",
+  "field": "null_rule",
+  "old": "NULL when a frequency or the sell value is 0 or missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL when a frequency or the sell value is 0 or missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "domestic_avg_buy_lots_per_freq_1d",
+  "field": "null_rule",
+  "old": "NULL when the frequency is 0 or missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL when the frequency is 0 or missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "domestic_avg_sell_lots_per_freq_1d",
+  "field": "null_rule",
+  "old": "NULL when the frequency is 0 or missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL when the frequency is 0 or missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "domestic_buy_freq_share_change_5d_vs_prev20d",
+  "field": "null_rule",
+  "old": "NULL before 25 sessions, when a denominator is 0 or frequency is missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL before 25 sessions, when a denominator is 0 or frequency is missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "foreign_buy_freq_share_change_5d_vs_prev20d",
+  "field": "null_rule",
+  "old": "NULL before 25 sessions, when a denominator is 0 or frequency is missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL before 25 sessions, when a denominator is 0 or frequency is missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "domestic_buy_value_per_freq_change_5d_vs_prev20d",
+  "field": "null_rule",
+  "old": "NULL before 25 sessions, when a denominator is 0 or frequency is missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL before 25 sessions, when a denominator is 0 or frequency is missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "foreign_buy_value_per_freq_change_5d_vs_prev20d",
+  "field": "null_rule",
+  "old": "NULL before 25 sessions, when a denominator is 0 or frequency is missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL before 25 sessions, when a denominator is 0 or frequency is missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "domestic_sell_freq_share_change_5d_vs_prev20d",
+  "field": "null_rule",
+  "old": "NULL before 25 sessions, when a denominator is 0 or frequency is missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL before 25 sessions, when a denominator is 0 or frequency is missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "foreign_sell_freq_share_change_5d_vs_prev20d",
+  "field": "null_rule",
+  "old": "NULL before 25 sessions, when a denominator is 0 or frequency is missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL before 25 sessions, when a denominator is 0 or frequency is missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "domestic_sell_value_per_freq_change_5d_vs_prev20d",
+  "field": "null_rule",
+  "old": "NULL before 25 sessions, when a denominator is 0 or frequency is missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL before 25 sessions, when a denominator is 0 or frequency is missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "foreign_sell_value_per_freq_change_5d_vs_prev20d",
+  "field": "null_rule",
+  "old": "NULL before 25 sessions, when a denominator is 0 or frequency is missing. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL before 25 sessions, when a denominator is 0 or frequency is missing. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "foreign_value_freq_sign_mismatch_1d",
+  "field": "null_rule",
+  "old": "NULL when F = 0, BF = SF or frequency is missing; FALSE when both have the same nonzero sign. INDEX sample: unavailable when contributing frequency input/window is incomplete; never divide full-scope value by partial-scope frequency.",
+  "new": "NULL when F = 0, BF = SF or frequency is missing; FALSE when both have the same nonzero sign. INDEX: NULL when the board-day (1d), any of the last 20 board-days (_20d) or any of the last 25 board-days (_vs_prev20d) has a source row with unknown frequency. Up to 2026-08-31 every Regular board-day had such a row, so these columns are NULL on Regular rows up to that date."
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic",
+  "column": "foreign_net_percentile_5d_base252d",
+  "field": "unit",
+  "old": "percent",
+  "new": "Percentile 0-100"
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic",
+  "column": "foreign_net_percentile_10d_base252d",
+  "field": "unit",
+  "old": "percent",
+  "new": "Percentile 0-100"
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic",
+  "column": "foreign_net_percentile_20d_base252d",
+  "field": "unit",
+  "old": "percent",
+  "new": "Percentile 0-100"
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic",
+  "column": "foreign_net_percentile_40d_base252d",
+  "field": "unit",
+  "old": "percent",
+  "new": "Percentile 0-100"
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic",
+  "column": "foreign_net_percentile_60d_base252d",
+  "field": "unit",
+  "old": "percent",
+  "new": "Percentile 0-100"
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic",
+  "column": "foreign_net_percentile_5d_base60d",
+  "field": "unit",
+  "old": "percent",
+  "new": "Percentile 0-100"
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic",
+  "column": "foreign_net_percentile_10d_base60d",
+  "field": "unit",
+  "old": "percent",
+  "new": "Percentile 0-100"
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic",
+  "column": "foreign_net_percentile_20d_base60d",
+  "field": "unit",
+  "old": "percent",
+  "new": "Percentile 0-100"
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "foreign_net_percentile_5d_base252d",
+  "field": "unit",
+  "old": "percent",
+  "new": "Percentile 0-100"
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "foreign_net_percentile_10d_base252d",
+  "field": "unit",
+  "old": "percent",
+  "new": "Percentile 0-100"
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "foreign_net_percentile_20d_base252d",
+  "field": "unit",
+  "old": "percent",
+  "new": "Percentile 0-100"
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "foreign_net_percentile_40d_base252d",
+  "field": "unit",
+  "old": "percent",
+  "new": "Percentile 0-100"
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "foreign_net_percentile_60d_base252d",
+  "field": "unit",
+  "old": "percent",
+  "new": "Percentile 0-100"
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "foreign_net_percentile_5d_base60d",
+  "field": "unit",
+  "old": "percent",
+  "new": "Percentile 0-100"
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "foreign_net_percentile_10d_base60d",
+  "field": "unit",
+  "old": "percent",
+  "new": "Percentile 0-100"
+ },
+ {
+  "table": "Feature_06_Foreign_Domestic_INDEX",
+  "column": "foreign_net_percentile_20d_base60d",
+  "field": "unit",
+  "old": "percent",
+  "new": "Percentile 0-100"
+ }
+]

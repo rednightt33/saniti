@@ -1690,6 +1690,43 @@ change yet.
     (2.125/2.125).
 - **Status:** FIXED. Pembaruan harian tabel `_INDEX` tetap item terbuka (routing INDEX harian).
 
+### M220 — Feature_Vocabulary dan katalog menyalin teks Feature yang salah atau basi (2026-10-25)
+
+- **Symptom:** laporan verifikasi Feature_Vocabulary: 65 koreksi teks (6 sedang, 59 ringan). Feature 05 masih menyebut
+  tabel staging `IDX_Broker_Summary_Freq` dan sync-nya yang sudah dihapus (`20261025_007`). Kolom persentil F06
+  bersatuan "percent", dan aturan NULL frekuensi F06 saham tidak sesuai dengan kodenya.
+- **Verified cause:** teksnya salah di pemiliknya, `Feature_Catalog`. Builder seed dan migrasi onboarding menyalinnya
+  ke Column_Catalog, AI_column_catalog, AI_calculation_catalog dan Feature_Vocabulary. Bukti kode: `refresh_feature_05`
+  membaca `buy_freq`/`sell_freq` dari `IDX_Broker_Summary`; `refresh_feature_06` memakai SUM yang melewati NULL
+  (`20261022_005`).
+- **Class:** teks turunan yang disalin dari satu pemilik ke beberapa katalog. Koreksi di salah satu salinan saja tidak
+  menyebar, dan perubahan tabel sumber (staging dihapus) tidak memperbarui teksnya.
+- **Solution:** migrasi `20261025_012`:
+  - 63 koreksi di Feature_Catalog (teks lama dicek dulu);
+  - setiap salinan yang masih memuat teks lama ikut diperbarui, dicari menurut kunci, bukan daftar;
+  - `refresh_trigger` F05 dan `Table_Catalog.update_rule` menyebut load Broker Summary;
+  - builder seed: label "Persentil 0–100" dan arti frekuensi F06 saham;
+  - seed dibangun ulang dan disinkronkan dalam transaksi yang sama.
+- **Verifikasi:** DRYRUN `f5eb55f2`, APPLY `c1f2bde9`: 67 dari 391 entri vocabulary berubah, rerun 0, tidak ada teks
+  lama tersisa. Tes `scripts/tests/test_feature_vocabulary.py` 18 lulus.
+- **Status:** FIXED. Sisa: `Database_Table_Status` (dibaca DATABASE_SCHEMA.md) masih menyebut sync lama, ikut refresh
+  26 baris basi yang perlu go.
+- **Lesson:** teks diperbaiki di pemiliknya, lalu salinannya diturunkan dari kunci dan teks lama.
+
+### M221 — Audit Feature catalog gagal untuk view `_Stock` (sejak 2026-10-23)
+
+- **Symptom:** `scripts/audit_feature_catalog_semantics.py` keluar rc=1 (job APPLY `c1f2bde9`): kolom
+  `Feature_05_…_Stock` dan `Feature_06_…_Stock` "without active definitions".
+- **Verified cause:** `20261023_004` mendaftarkan kedua view dengan kategori `Feature` di Table_Catalog. Definisinya
+  ada di tabel dasar, sedangkan audit hanya mencari baris Feature_Catalog dengan nama view itu sendiri. Bukan akibat
+  `20261025_012`.
+- **Class:** setiap view yang membuka tabel Feature.
+- **Solution:** audit menganggap kolom view tercakup bila kolom tabel dasar bernama sama yang dibaca view itu
+  (`information_schema.view_column_usage`) punya definisi aktif.
+- **Status:** OPEN — kode diperbaiki, belum terbukti live. Dua job audit (`93b6feee`, `7e26af13`) gagal di build Railway
+  (`buildkitd.sock` tidak tersedia) sebelum job berjalan; variabel dibaca ulang sudah dihapus. Jalankan ulang
+  `verification/feature_vocabulary_20261025/audit_job.py` setelah builder pulih.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.

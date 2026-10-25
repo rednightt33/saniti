@@ -7720,3 +7720,7 @@ table sendiri, which is feature 1 stock daily, underscore index."
 
 **Kata-kata user (2026-10-25):** "Cari solusi juga untuk ini. Kalau straightforward, langsung edit. Inspect code base
 dulu dan dependensi. Seharusnya fitur 5 referke table IDX broker summary."
+
+**Hasil (2026-10-25):** migrasi `20261025_012` + sinkron vocabulary, DRYRUN `f5eb55f2`, APPLY `c1f2bde9` (ERRORS M220,
+DATABASE_CHANGELOG). Audit Feature catalog: cacat lama di view `_Stock` ditemukan dan diperbaiki di skrip (M221); cek
+live tertunda karena builder Railway gagal dua kali.
