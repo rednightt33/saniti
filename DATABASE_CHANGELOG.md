@@ -2379,3 +2379,21 @@ PostgreSQL integration fixture and full live/source/readback checks. Deployment/
 including pre-write tooling failures, are retained under `verification/ihsg_feature_aggregation/bulk/`.
 No daily routing, worker queues/checkpoints, permanent Railway config, frontend, stock/bond numbers,
 or raw source data changed. Daily INDEX updates remain a separately approved design phase.
+
+## 2026-10-25 — `IDX_Broker_Summary_Freq` emptied; `sync_broker_summary_freq` guarded (EXEC-INDEX-1 B)
+
+- User 2026-10-25: "Hapus saja. IDX_Broker_Summary Agustus keatas memang lagi di download ulang termasuk untuk data
+  freq"; the target table of the new frequency load "Belum tahu", so the structure stays.
+- Read-only check (ERRORS M215): last read 2026-10-22 by `sync_broker_summary_freq` only; no view, FK, AI catalog row
+  or AI grant; 9.93 GB in 12 yearly partitions (2016-01-04 to 2026-10-09).
+- Migration `20261025_004_truncate_broker_summary_freq.sql` (sha256 `366661d0…`, in `APPLIED.sha256`): DRYRUN job
+  `3b6f4916`, APPLY job `aaec0df4`.
+  - `sync_broker_summary_freq` refuses a range in which a Broker Summary date has no Freq row. Before, it set
+    `buy_freq`/`sell_freq` to NULL for every key without a Freq row, so a call after the truncate would have erased
+    the copied frequency. DRYRUN: refused 2026-08-31 and 2026-09-01; 2026-09-01 already exists in
+    `IDX_Broker_Summary` (re-download in progress).
+  - `TRUNCATE` of the parent; table comment updated.
+- Read back (APPLY job): Freq 0 rows, 12 partitions, 0.4 MB; `IDX_Broker_Summary` 2026-08-31 keeps 25,342 of 27,059
+  rows with frequency (unchanged); database 53.82 GB → 43.93 GB.
+- Refresh path from now on: load Freq for the new dates, then `sync_broker_summary_freq(from, to)` →
+  `refresh_feature_05` → `refresh_feature_06`.

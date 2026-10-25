@@ -1585,7 +1585,9 @@ change yet.
   atau grant untuk Governor/orc (hanya `postgres` dan `pgweb_reader`). Satu-satunya pemakai: fungsi
   `sync_broker_summary_freq` (migrasi `20261022_001`), yang **mengosongkan** `buy_freq`/`sell_freq` untuk kunci
   tanpa baris Freq; tanggal 2026-09-01 s.d. 10-09 di Freq belum tersalin karena `IDX_Broker_Summary` baru sampai
-  2026-08-31. Keputusan simpan/hapus menunggu user.
+  2026-08-31. User 2026-10-25: "Hapus saja" → dikosongkan (TRUNCATE, struktur tetap) dan sync dijaga, migrasi
+  `20261025_004` (APPLY job `aaec0df4`, database 53,82 → 43,93 GB). Janitor Governor (usulan A) dan U1–U5 masih
+  menunggu keputusan.
 
 ## Fixed-income selected-date repair — 2026-10-20 status
 

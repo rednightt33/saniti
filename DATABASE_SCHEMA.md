@@ -60,7 +60,7 @@ Refreshed from the applied public-schema migration and live readback at `2026-10
 | `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-10 07:23:34.854803+00:00` | Tracked automatically | Broker code and name, domestic/foreign type, and usage profile such as Institutional-heavy, Retail-heavy, Mixed, or Niche. |
 | `IDX_Broker_Profile_History` | Reference | Captured after every write to IDX_Broker_Profile; never deleted | — | `2026-10-09 05:36:34+00:00` | Baseline; exact changes tracked from this time forward | Point-in-time (bitemporal) history of the tracked IDX_Broker_Profile attributes (broker_name, broker_type, broker_classification), captured by Saniti from the first capture onward. Current knowledge is recorded_to IS NULL; superseded knowledge is kept. |
 | `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day; buy_freq/sell_freq filled by sync_broker_summary_freq | `2026-08-31` | `2026-10-22` | Derived from table data and load log | Daily broker buy/sell values, lots and (since 2026-10-22) buy/sell transaction frequency by symbol, broker, investor type, and market board. |
-| `IDX_Broker_Summary_Freq` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
+| `IDX_Broker_Summary_Freq` | Staging | Stockbit frequency loader (outside the repository) | — | `2026-10-12 02:33:20+00:00` | Baseline only; emptied 2026-10-25 (`20261025_004`) | Staging of buy/sell transaction counts, copied into `IDX_Broker_Summary.buy_freq`/`sell_freq` by `sync_broker_summary_freq` (refuses a date without Freq rows since `20261025_004`). |
 | `IDX_Net_Foreign_Summary` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
 | `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-10-02 18:07:58.944512+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
 | `IDX_Stock_Universe_History` | Reference | Captured after every write to IDX_Stock_Universe; never deleted | — | `2026-10-09 05:36:34+00:00` | Baseline; exact changes tracked from this time forward | Point-in-time (bitemporal) history of the tracked IDX_Stock_Universe attributes (Company Name, Exchange, Security Type, Type Specs, Is Common Stock, ISIN, Sector, Industry), captured by Saniti from the first capture onward. Current knowledge is recorded_to IS NULL; superseded knowledge is kept. |
@@ -2657,6 +2657,8 @@ Daily broker buy/sell values and lots by symbol, broker, investor type, and mark
 | `IDX_Broker_Summary_pkey` | `CREATE UNIQUE INDEX "IDX_Broker_Summary_pkey" ON public."IDX_Broker_Summary" USING btree ("Date", "Symbol", "Broker", "Investor Type", "Market Board")` |
 
 ## IDX_Broker_Summary_Freq
+
+Emptied 2026-10-25 by `20261025_004_truncate_broker_summary_freq.sql` (EXEC-INDEX-1); the parent and its 12 yearly partitions remain. `sync_broker_summary_freq(p_from, p_to)` now raises when a Broker Summary date in the range has no Freq row instead of clearing the copied frequency.
 
 No description has been recorded.
 
