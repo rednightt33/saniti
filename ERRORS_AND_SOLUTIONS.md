@@ -1578,6 +1578,14 @@ change yet.
   diam, naik ke 2–4 GB rata-rata harian pada hari job data (2026-10-01/02, 10-20/21/22), dengan `shared_buffers`
   128 MB (diduga cache halaman OS dihitung sebagai memori kontainer; belum diverifikasi); (3) sandbox ±0,7 GB saat
   diam tanpa sesi (penyebab belum diverifikasi).
+- **`IDX_Broker_Summary_Freq` (user 2026-10-25: "cek ini dipakai gak ya?"), job read-only `run_job.sh` 2026-10-25:**
+  tabel partisi (RANGE `trade_date`, 12 partisi tahunan, 9,93 GB), data 2016-01-04 s.d. 2026-10-09. Ditulis
+  2026-10-12 s.d. 10-15 (role `postgres`), terakhir dibaca 2026-10-22 (backfill `sync_broker_summary_freq`,
+  `apps/feature-05-06-job/job.py`); sesudah itu tidak ada scan. Tidak ada view, FK, baris Table_Catalog/Column_Catalog,
+  atau grant untuk Governor/orc (hanya `postgres` dan `pgweb_reader`). Satu-satunya pemakai: fungsi
+  `sync_broker_summary_freq` (migrasi `20261022_001`), yang **mengosongkan** `buy_freq`/`sell_freq` untuk kunci
+  tanpa baris Freq; tanggal 2026-09-01 s.d. 10-09 di Freq belum tersalin karena `IDX_Broker_Summary` baru sampai
+  2026-08-31. Keputusan simpan/hapus menunggu user.
 
 ## Fixed-income selected-date repair — 2026-10-20 status
 
