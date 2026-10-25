@@ -2397,3 +2397,37 @@ or raw source data changed. Daily INDEX updates remain a separately approved des
   rows with frequency (unchanged); database 53.82 GB → 43.93 GB.
 - Refresh path from now on: load Freq for the new dates, then `sync_broker_summary_freq(from, to)` →
   `refresh_feature_05` → `refresh_feature_06`.
+
+## 2026-10-25 — Feature 01-06 INDEX tables exposed to the AI (EXEC-INDEX-1 C)
+
+- User 2026-10-25: "saya ada tambahkan feature 1-6 _INDEX... buat visible ke AI juga ya"; joins "Sesama INDEX + ke
+  saham per tanggal (Recommended)"; description_id "Dari Feature_Vocabulary (Recommended)". The INDEX tables come from
+  branch `codex/ihsg-f356-one-date` (migrations `20261024_010`…`20261025_003`), merged into `main` first (`f67769a`).
+- Migration `20261025_005_onboard_index_features.sql` (sha256 `1dd6c4aa…`) and Tool_Catalog round AD
+  `20261025_006_round_ad_tool_catalog.sql` (sha256 `f12e1d2e…`), in `APPLIED.sha256`. DRYRUN jobs `db778889`,
+  `7f348403`; APPLY job `8af07acc`.
+  - Grants to `market_ai_sql_reader` and `market_ai_preview_owner`; the Governor login reads all six (probe).
+  - `AI_table_catalog`: 6 rows, subject MARKET / INDEX / IDX_INDEX, freshness one day, coverage on.
+  - `AI_column_catalog`: 255 rows, 245 visible.
+    - Hidden: F04 `calculation_version`, `calculated_at` and the six Pine state columns; F05/F06 `calculated_at`.
+    - Rules: structure from the stock counterpart's reviewed rows; description and unit (`index points` for close)
+      from the INDEX Feature_Catalog.
+    - `description_id`: 198 from Feature_Vocabulary as REVIEWED; F04 NULL (not in the vocabulary).
+  - `AI_catalog_relationships`: 20 in all.
+    - 5 INDEX↔INDEX from Feature_Relationship_Catalog (EXACT_DATE).
+    - 15 reference joins copied from the stock counterparts (IDX_Stock_Universe, IDX_Broker_Profile CURRENT_STATE and
+      their histories EFFECTIVE_DATED).
+    - The stock↔IHSG join on the date alone is not registered: the join contract needs an entity key (ERRORS M216).
+  - `AI_calculation_catalog`: 255, with the counterparts' formula references (F04 19, F06 29).
+  - Preview: `ai_preview_table_rows` serves eighteen objects.
+  - `preview_table_rows` v4 in Tool_Catalog (inactive like every orc row).
+- Read back (APPLY job): reader counts F01 2,125 / F06 7,128, newest F01 date 2026-10-23; preview of F04 INDEX 49
+  columns without state columns.
+- Coverage (`coverage_job.py`, deployed `b12ccdef`, run once by job L2): INDEX tables expect IHSG from their raw
+  sources (MANUAL_REFRESH_REQUIRED). Stock Feature 01/04 expectations leave the universe index codes out (before,
+  Feature 01 expected IHSG although the stock table holds no IHSG row).
+- Index acceptance and Governor level: `DATABASE_INDEX_ACCEPTANCE.md` 2026-10-25, all PASS; no index added.
+- L2 (job, orc tools as `market_ai_orc`): "return IHSG", "net beli asing IHSG" and "RSI IHSG" find the INDEX tables;
+  COLUMNS show units and summaries; COVERAGE shows the range; preview hides the hidden columns.
+- Open: the broker INDEX tables end 2026-08-31 while `IDX_Broker_Summary` already holds dates to 2026-10-21 (re-download
+  in progress); their refresh is manual (PLAN.md INDEX daily routing). L3 (paid) not run yet.

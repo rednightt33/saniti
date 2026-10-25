@@ -4452,3 +4452,20 @@ infrastructure delta for this temporary job. Detailed deployment statuses/events
 verification/ihsg_feature_aggregation/bulk/. Older deployment statuses became REMOVED as later
 one-off modes replaced them; current state is deleted, not running. Source changes are on the feature
 branch; this task does not release daily worker/frontend changes to main.
+
+## 2026-10-25 — INDEX tables exposed to the AI (EXEC-INDEX-1)
+
+- Commit `4557dd4` on `main` (with `371f5a2`, `6133be9`): market-ai-orc deployment `763e0476` SUCCESS (preview of the
+  six INDEX tables, router scope names IHSG); ai-data-coverage deployment `b12ccdef` SUCCESS (INDEX coverage, stock
+  coverage without index codes).
+- Before the push: no active EDGE run; first-message router benchmark with ask-back PASS (cost USD 0.079); orc suite
+  2,022 passed.
+- One-off jobs on orc-test-runner (each removed its temporary `DATABASE_URL`, VAR_REMOVED):
+  - read and size checks `618899ca`;
+  - Freq `3b6f4916` (DRYRUN) and `aaec0df4` (APPLY); an earlier job `c4e5e308` was started without its script, ran
+    nothing and was stopped;
+  - discovery and read jobs;
+  - index acceptance ×6;
+  - onboarding `db778889` and `7f348403` (DRYRUN), `8af07acc` (APPLY);
+  - L2 and the Governor checks.
+- Rollback: orc `be7c6693`, coverage previous deployment; catalog rollback per the migration header.

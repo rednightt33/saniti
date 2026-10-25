@@ -337,3 +337,23 @@ Governor level (`scripts/onboarding/governor_check.py`): the Governor's own extr
 
 No index was added: every pattern passes through the base tables' `(trade_date)` indexes. The planner underestimates
 rows through the universe filter (V5 1.55×, V6 1.9×), which costs re-splits on long requests (M208, open).
+
+## Feature 01-06 INDEX tables (2026-10-25, EXEC-INDEX-1)
+
+`scripts/onboarding/measure_indexes.py`, entity IHSG, `market_board = Regular` on the broker tables, expected size a
+year from now 2,400 (F01/F04), 8,000 (F03/F06), 640,000 (F02/F05) rows. Every table already has an index led by its
+time column (codex migrations `20261024_010`): F01 `(date)`, F02 `(date, market_board, ticker)`, F03
+`(date, market_board, ticker)`, F04 `(trade_date)`, F05 `(trade_date)`, F06 `(trade_date, market_board)`.
+
+| Table | P1 one entity 365 d | P2 newest date | P3 7 days | P4 365 days (gate) | P5 calendar | Table |
+|---|---|---|---|---|---|---|
+| F01 INDEX | PASS, 240 rows, 5.6 ms, date index | PASS | PASS | PASS | PASS 0.4 ms | PASS |
+| F02 INDEX | PASS, 32,631 estimate, 269.5 ms bitmap on the date index | PASS 0.2 ms | PASS | PASS 33,667 counted | PASS 0.1 ms | PASS |
+| F03 INDEX | PASS 3.3 ms | PASS | PASS | PASS | PASS | PASS |
+| F04 INDEX | PASS 10.8 ms | PASS | PASS | PASS | PASS | PASS |
+| F05 INDEX | PASS | PASS | PASS | PASS | PASS | PASS |
+| F06 INDEX | PASS | PASS | PASS | PASS | PASS | PASS |
+
+Governor level (`scripts/onboarding/governor_check.py`, the Governor's code as `market_ai_sql_reader`): F02 and F06
+INDEX one entity 365 days, every entity 400 days and 2,000 days: PASS (rows equal `count(*)`; 2,000 days within the
+limits). No index added.

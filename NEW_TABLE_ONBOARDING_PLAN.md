@@ -345,3 +345,9 @@ view; 2-10 ok; 11 nanti saja", "Daftar saham sekarang (Recommended)", "1 aja".
   - the Governor's newest-date lookup changed the same way.
 - The Governor level got its own script, `governor_check.py`. Its first run found that the planner underestimates
   rows through the universe filter, so long requests are split again while extracting (M208, open).
+
+**2026-10-25, EXEC-INDEX-1 (Feature 01-06 INDEX tables).** User: "buat visible ke AI juga ya"; "Sesama INDEX + ke saham
+per tanggal"; "Dari Feature_Vocabulary". Migrations `20261025_005` and `20261025_006` (round AD). The AI_column_catalog
+rules were derived, not typed: the structure from the stock counterpart's reviewed rows, the description and unit from
+the INDEX Feature_Catalog, the Indonesian meaning from Feature_Vocabulary. Found: the join contract needs an entity
+key, so a join on the date alone (a stock against IHSG) cannot be registered (M216).

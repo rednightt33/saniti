@@ -7482,3 +7482,18 @@ Belum ada di `AI_*` dan belum ada grant ke `market_ai_sql_reader`. Pembaruan har
   - daftar di kode (login Governor, coverage, preview, router);
   - tes, deploy, validasi L0/L2/Governor.
 - L3 berbayar hanya sesudah dilaporkan.
+
+**Hasil EXEC-INDEX-1 (2026-10-25):**
+- A. Merge `f67769a`; konflik hanya entri `RAILWAY_CHANGELOG.md`, keduanya dipertahankan. Tidak ada redeploy.
+- B. `20261025_004` (APPLY job `aaec0df4`): Freq kosong, 12 partisi tetap, sync menolak tanggal tanpa Freq; database
+  53,82 → 43,93 GB.
+- C. Onboarding.
+  - `20261025_005` dan `20261025_006` (APPLY job `8af07acc`).
+  - Index acceptance enam tabel PASS; Governor level F02/F06 PASS; L2 PASS.
+  - Benchmark router pesan pertama: semua kriteria wajib PASS (USD 0,079).
+  - Deploy orc `763e0476` dan coverage `b12ccdef` (commit `4557dd4`), keduanya SUCCESS.
+  - Rinciannya di `DATABASE_CHANGELOG.md` dan `DATABASE_INDEX_ACCEPTANCE.md` 2026-10-25.
+- Belum dibuat:
+  - join saham↔IHSG per tanggal (M216, perlu perubahan kontrak di Governor, orc dan sandbox; menunggu keputusan);
+  - L3 berbayar (menunggu go);
+  - pembaruan harian tabel INDEX (PLAN.md INDEX).
