@@ -92,7 +92,8 @@ cumulative toggle, the Lines menu, drawing a trend line (Alt+T and drag), the cu
 and the symbol search.
 
 Two consecutive runs: 75 screenshots, **0 differing pixels** (12 pixels of canvas anti-aliasing noise, channel
-difference ≤ 4 of 255, are counted separately); the markup of every panel and overlay, the panel texts and the
+difference ≤ 2 of 255, are counted separately); a third run after the live-loader change: 0 at 1600 and 1280, one
+pixel at 3/255 (246 vs 243, the canvas edge at 390×844) in three phone steps; the markup of every panel and overlay, the panel texts and the
 `localStorage` contents are equal (drawings compared without their clock-made ids). The reference against itself
 gives 0 as well. Earlier runs found and fixed: template-literal whitespace (markup), the module-script timing and the
 per-context font downloads.

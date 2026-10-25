@@ -4441,7 +4441,11 @@ User 2026-10-25: "Ok" on `verification/terminal_api/DESIGN.md` section 5.
 User 2026-10-25: "untuk semua exec, silahkan dieksekusi. It's a go." Branch `claude/laughing-goodall-x2dkmt` (not
 merged to `main`: "nanti dulu jangan gabungkan kode ke main").
 
-- terminal-publisher: `restartPolicyType NEVER` (read back; ERRORS M218). Runs (CLI uploads of `apps/terminal-publisher`,
+- terminal-publisher: `restartPolicyType NEVER` and `cronSchedule "45 10,23 * * *"` (10:45 and 23:45 UTC = 17:45 and
+  06:45 WIB, mode `daily`: only changed price years, new broker dates and changed event files are rewritten; user
+  "Kalau datanya update, maka bisa di-update raknya. Tapi jika tidak, ya maka as is"), set through `railway api`
+  `serviceInstanceUpdate` and read back. The last manual run `dbb64ce7` wrote 0 data files (nothing changed) and the
+  ticker reference with the sector (845 of 845). Runs (CLI uploads of `apps/terminal-publisher`,
   mode `daily`): `169eb62f` (843 broker 2026 files, broker through 2026-10-23), `7e93892d` (price files from the first
   stored year 2018: 1,630 files, 3.89 MB), `a82de1e2` (events dataset: 842 files, 2.28 MB, 1,401 s), `dbb64ce7`
   (ticker reference with the sector).
