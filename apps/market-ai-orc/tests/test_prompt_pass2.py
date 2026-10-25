@@ -256,12 +256,25 @@ ADDED -= {"Information the catalog does not contain (for example macro data, eve
           "fact;"}
 ADDED |= {"Information the catalog does not contain (for example macro data, news or group membership) is looked up "
           "with research_web, for context or when the database lacks it, and is shown as a web fact;"}
+# EXEC-M209 step 2 (user 2026-10-23 "bisa sebisa mungkin digunakan, tapi tidak wajib, hanya sifatnya adalah
+# supplementary"; go 2026-10-25 EXEC-GO-1025 item 6): every stored windowed value is read when its window is the user's
+ADDED -= {"An indicator or candle pattern a Feature column already stores (a formula's stored_in) is read from that "
+          "column, not computed again."}
+ADDED |= {"A value a Feature column already stores (an indicator, a candle pattern, a windowed sum or count, a z-score "
+          "or percentile; a formula's stored_in, the window in COLUMNS) is read from that column when its window is "
+          "the one the user asks for, not computed again;",
+          "for another definition (exchange or calendar days, another length) compute it from the daily data and say "
+          "how it differs, or ask when the window meant is unclear.",
+          'Right: "net asing dua puluh hari terakhir" reads the stored twenty-session foreign net column and gives its '
+          "first and last date.",
+          "Wrong: adding the one-day foreign net over twenty exchange dates for that question."}
 # the reader section added about six percent (the budget was two percent over the pass-2 fixture); EXEC-Y Fase 3's
 # four sentences about half a percent more; EXEC-STYLE about half a percent more; EXEC-M143 about one percent more;
 # EXEC-DAYS about a third of a percent more; O1 early (EXEC-IMPL-1016) about one percent more; EXEC-1018B E9(c) about
 # a fifth of a percent more; EXEC-ONBOARD-1's stored-column sentence about a third of a percent more; EXEC-RULES-1021's
-# in_period mask and emit_json units about a third of a percent more
-SIZE_BUDGET = 1.144
+# in_period mask and emit_json units about a third of a percent more; EXEC-M209 step 2's stored-value rule with its
+# right and wrong example about one and a third percent more
+SIZE_BUDGET = 1.158
 
 SECTIONS = ["GENERAL RULES", "TOOL USE", "TOOL RESULTS", "FINAL RESPONSE", "WRITING FOR THE READER", "DATA DISCOVERY", "DATA SOURCES",
             "DATA NEED", "MODES", "TIME BASIS", "NAMED-PERIOD RETURNS", "WEEKLY AND MONTHLY", "CONVERSATION REUSE",

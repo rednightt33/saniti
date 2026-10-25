@@ -1264,9 +1264,18 @@ def build_system_prompt(lookup_fact: bool, dataneed: bool = False, plan_confirma
 READER_EXAMPLE = ('\nFor example, an answer in Indonesian for an inconclusive test:\n"**Belum bisa disimpulkan.** Lonjakan volume BBRI hanya terjadi {{finding.vol_spike.sample.effective|int}} kali dalam periode ini, terlalu sedikit untuk tahu apakah harganya cenderung naik sesudahnya. Lima hari setelah lonjakan, return rata-rata berbeda {{finding.vol_spike.angle_a.difference|pp}} dari hari biasa, selisih yang masih bisa muncul karena kebetulan. Periode yang lebih panjang atau beberapa saham bank sekaligus akan memberi jawaban yang lebih pasti".')
 # Prompt audit 2026-10-05 (PROMPT_AUDIT_2026-10-05.md, approved by the user): sentences derived from the offered tools
 # EXEC-ONBOARD-1 (2026-10-20): government bond yields are in the catalog now (Price_Fixed_Income_Final), so "yields" is
-# no longer an example of outside data; an indicator a Feature column stores is read, not computed again
-STORED_FEATURE_SENTENCE = ("\nAn indicator or candle pattern a Feature column already stores (a formula's\nstored_in) "
-                           "is read from that column, not computed again.")
+# no longer an example of outside data; an indicator a Feature column stores is read, not computed again. EXEC-M209
+# step 2 (user 2026-10-23: Feature 1-6 "bisa sebisa mungkin digunakan, tapi tidak wajib, hanya sifatnya adalah
+# supplementary"; go 2026-10-25): every stored windowed value, read when its window (COLUMNS window) is the user's,
+# with one right and one wrong example in words (the prompt is a number source and gains no digit)
+STORED_FEATURE_SENTENCE = ("\nA value a Feature column already stores (an indicator, a candle pattern, a\nwindowed sum "
+                           "or count, a z-score or percentile; a formula's stored_in,\nthe window in COLUMNS) is read "
+                           "from that column when its window is the one the\nuser asks for, not computed again; for "
+                           "another definition (exchange or\ncalendar days, another length) compute it from the daily "
+                           "data and say how\nit differs, or ask when the window meant is unclear. Right: \"net asing "
+                           "dua\npuluh hari terakhir\" reads the stored twenty-session foreign net column\nand gives "
+                           "its first and last date. Wrong: adding the one-day foreign net\nover twenty exchange dates "
+                           "for that question.")
 OUTSIDE_DATA_RULE = ("Data the catalog does not contain (for example macro data, fundamentals,\nor news) is "
                      "unavailable: say so and never substitute\nanother dataset." + STORED_FEATURE_SENTENCE)
 OUTSIDE_DATA_WEB_RULE = (
@@ -2045,8 +2054,8 @@ FASTLANE_DECISIONS_NOTE = (
     "{{{{table ...}}}}; write the answer after complete_analysis, when the out.oN addresses exist. (8) Returns over a "
     "span: a named calendar period (YTD, a named month, quarter or year) uses "
     "saniti.period_return; a relative span ('N minggu/bulan/tahun terakhir') is counted in trading days back from the "
-    "last available date, N times the unit: {spans}; a precomputed column with a fixed window (a 20- or 60-day return) "
-    "answers a span only when the user names that same window; its base is the close the given number of trading days "
+    "last available date, N times the unit: {spans}; a precomputed column with a fixed window (a 20- or 60-day return, flow or "
+    "count) answers a span only when the user names that same window; its base is the close the given number of trading days "
     "before the last date (the last close before the span, as for a named period), so request enough history; state "
     "the first and last date in assumptions. Event forward returns, rolling returns and a date-to-date formula of the "
     "user keep their own definitions. (9) Category values: get_catalog_details COLUMNS lists a column's allowed values "

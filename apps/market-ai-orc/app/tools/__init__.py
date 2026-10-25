@@ -306,9 +306,9 @@ def _column_meanings(catalog_reader: CatalogReader | None):
 
 
 def _windowed_columns(catalog_reader: CatalogReader):
-    """EXEC-M209 step 3: whether any of the (table, column) pairs a run's data need asked for is a stored Feature
-    column with a window of several observations (catalog.is_windowed). A failed read answers False: the note it
-    feeds never blocks or changes a run."""
+    """EXEC-M209 steps 1 and 3: whether any of the (table, column) pairs a run's data need asked for is a stored
+    Feature column whose catalog window reads several of the entity's own sessions (catalog.is_windowed). A failed read
+    answers False: the note it feeds never blocks or changes a run."""
     from .catalog import WINDOWED_COLUMNS_SQL, is_windowed
 
     def windowed(pairs: list[tuple[str, str]]) -> bool:
@@ -320,8 +320,7 @@ def _windowed_columns(catalog_reader: CatalogReader):
         except Exception:  # noqa: BLE001 - the note is optional
             return False
         wanted = set(pairs)
-        return any((r["target_table"], r["column_name"]) in wanted and is_windowed(r.get("lookback_window"))
-                   for r in rows)
+        return any((r["target_table"], r["column_name"]) in wanted and is_windowed(r) for r in rows)
     return windowed
 
 

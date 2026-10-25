@@ -422,7 +422,7 @@ def blob_registry() -> ToolRegistry:
 # the same room for the two pages the tests read; EXEC-Y Fase 3 (2026-10-09) about a hundred more (row_presence, day
 # counts); EXEC-STYLE (2026-10-12) about a hundred more (rule 13 tables, rule 14 and the contract); EXEC-ONBOARD-1
 # (2026-10-20) about fifty more (the stored Feature column sentence)
-BUDGET = {"AI_MAX_CONTEXT_TOKENS": "20750", "AI_MAX_OUTPUT_TOKENS": "1000"}
+BUDGET = {"AI_MAX_CONTEXT_TOKENS": "21000", "AI_MAX_OUTPUT_TOKENS": "1000"}
 LIMITATION = {
     "response_type": "LIMITATION",
     "answer": "Only part of the requested records could be read.",
