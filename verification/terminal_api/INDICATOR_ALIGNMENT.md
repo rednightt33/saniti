@@ -59,3 +59,19 @@ Independent of A/B:
 - One TypeScript calculation module for the 53, with a parity test suite whose expected values come from Feature 04
   for the 15 shared outputs (and from TA-Lib run offline for the other 38).
 - Decide whether the AI should also know the other 38 (catalog entries only, or computed columns).
+
+## 5. HTML engine vs TA-Lib 0.6.8 for indicators outside Feature 04 (BBCA, full history, Excel defaults)
+
+Why it matters: the AI sandbox follows "TA-Lib first, then AI_formula_reference" for registered methods
+(`apps/market-python-sandbox/app/spec.py`, CONVENTIONS), and model-written code may call TA-Lib directly.
+
+| Result | Indicators |
+|---|---|
+| identical (≤ 1e-10) | WMA, KAMA, Aroon up/down, Williams %R, ROC, Momentum, TRIX, Ultimate Oscillator, PPO (EMA), BOP, StdDev (population), A/D line, MFI, Donchian upper, Stochastic %D |
+| identical after warm-up (ATR seed only) | NATR, +DI, Chaikin oscillator |
+| tiny | Stochastic %K: first value 2 bars earlier in the HTML (TA-Lib waits for %D), max rel 6e-5; CCI max rel 1.8e-3 |
+| convention differs | Parabolic SAR (initial trend/extreme point; up to 19%), Stochastic RSI (TA-Lib STOCHRSI's fast %K is not smoothed; the HTML smooths K like TradingView), CMO (TA-Lib smooths gains/losses like RSI; the HTML uses plain sums as in Chande), OBV (TA-Lib starts at the first bar's volume, the HTML at 0: a constant offset) |
+
+The `AI_formula_reference` entries for the 38 should therefore state the HTML convention and, where it differs,
+the TA-Lib function it must not be replaced with (as CONVENTION_NOTES does for CALC_028/CALC_044).
+Script: `parity/dump_html.js` + the TA-Lib comparison in this session's scratchpad.
