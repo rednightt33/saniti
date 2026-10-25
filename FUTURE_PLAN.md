@@ -719,10 +719,36 @@ kecuali U2:
 
 | # | Usulan | Lapisan | Status |
 |---|---|---|---|
-| U1 | Cek penyebab sandbox ±0,7 GB saat diam (daftar proses di kontainer), lalu perbaiki di sumbernya | kode sandbox | menunggu go (cek read-only dulu) |
+| U1 | Cek penyebab sandbox ±0,7 GB saat diam (daftar proses di kontainer), lalu perbaiki di sumbernya | kode sandbox | DICEK 2026-10-25 (go EXEC-GO-1025), perbaikan menunggu keputusan; lihat di bawah |
 | U2 | Staging `IDX_Broker_Summary_Freq` (±10 GB) | data | SELESAI: dihapus `20261025_004`/`007` (user "Hapus saja") |
-| U3 | Aturan Part A: sebelum tabel turunan baru dibuat, hitung biaya disknya; bila bisa diturunkan saat dibaca (view), jangan disimpan penuh | standar data | menunggu go |
-| U4 | Fitur sleep Railway untuk layanan yang jarang dipakai (sandbox, web-governor, audit-store, pgweb); janitor M215 (usulan A) harus dibereskan dulu supaya layanan bisa tidur | konfigurasi Railway | menunggu go |
-| U5 | Ukur lonjakan memori Postgres per job; bila terbukti cache halaman, jadwalkan job berat berdekatan | operasional | menunggu go |
+| U3 | Aturan Part A: sebelum tabel turunan baru dibuat, hitung biaya disknya; bila bisa diturunkan saat dibaca (view), jangan disimpan penuh | standar data | SELESAI 2026-10-25: ERRORS Part A butir 25 |
+| U4 | Fitur sleep Railway untuk layanan yang jarang dipakai (sandbox, web-governor, audit-store, pgweb); janitor M215 (usulan A) harus dibereskan dulu supaya layanan bisa tidur | konfigurasi Railway | DICEK 2026-10-25, TIDAK dinyalakan; lihat di bawah |
+| U5 | Ukur lonjakan memori Postgres per job; bila terbukti cache halaman, jadwalkan job berat berdekatan | operasional | DIUKUR 2026-10-25; penjadwalan tidak perlu; lihat di bawah |
 
 Urutan yang disarankan: U1 → M215 usulan A → U4.
+
+**Hasil 2026-10-25 (go EXEC-GO-1025 butir 4), dibaca dari metrik dan kode:**
+- **U1.** `railway metrics --memory --raw` 7 hari: sesudah restart sandbox ±0,19-0,21 GB (2026-10-18; 2026-10-25 13:00),
+  naik pada hari ada analisis (2026-10-25 18:00 0,21 → 19:00 0,75 GB) dan tidak turun saat diam (2026-10-22…24 tetap
+  0,57-0,70 GB), walau session ditutup sesudah 15 menit diam (`PY_SANDBOX_SESSION_IDLE_SECONDS` 900,
+  `app/sessions.py`:513). Proses utama meng-import `duckdb`/`pyarrow` saat dipakai pertama kali (`app/carried.py`:81,
+  `app/dataneed_service.py`:1470, 1506) dan memorinya tinggal sampai restart. **Dugaan, belum terverifikasi:** sisa
+  memori itu ada di proses utama, bukan di worker. Cek yang memastikan: RSS per proses di kontainer. `railway ssh`
+  butuh kunci SSH yang didaftarkan ke akun Railway (tidak dilakukan tanpa izin user), atau satu baris log RSS per proses
+  di janitor sandbox (perubahan kode kecil). Usulan sesudah terverifikasi: kerja Parquet/DuckDB proses utama dijalankan
+  di subproses berumur pendek, supaya memorinya kembali ke OS. Penghematan ±0,5 GB ≈ USD 5/bulan.
+- **U3.** Selesai: Part A butir 25 (biaya disk dihitung di header migrasi; view bila bisa diturunkan saat dibaca).
+- **U4.** Tidak dinyalakan. docs.railway.com/reference/app-sleeping: layanan tidur sesudah 5-10 menit tanpa lalu lintas
+  keluar, dan permintaan pertama yang membangunkannya bisa mendapat 502. Temuan per layanan:
+  - `market-audit-store` membaca Postgres tiap `outbox_poll_seconds` (`app/ingest.py`:60-66) dan pgweb memegang koneksi
+    database, jadi keduanya tidak akan tidur;
+  - sandbox dan web-governor bisa tidur, tetapi klien orc tidak mencoba ulang 502 atau gagal koneksi
+    (`app/tools/analysis.py`:612-621, `app/tools/web_research.py`:78-83). Pertanyaan pertama sesudah layanan tidur bisa
+    gagal.
+  - Usulan (perlu go): orc memanggil `/ready` sandbox dengan retry terbatas sebelum langkah pertama yang memakainya
+    (GET aman diulang), lalu sleep dinyalakan untuk sandbox saja. Penghematan maksimal RAM diam sandbox ±0,7 GB ≈ USD 7/bulan,
+    dibayar dengan jeda bangun di pertanyaan pertama.
+- **U5.** `railway metrics -s Postgres --memory --raw` 7 hari: sebelum batas 4 GB (2026-10-22) puncak 14,71 GB
+  (2026-10-20) dan 13,56 GB (2026-10-21); sesudahnya puncak harian 0,85-1,86 GB, saat diam 0,24-0,28 GB. Puncak
+  2026-10-25 sejalan dengan job (10:00 1,86 GB; 18:00 1,48 GB saat putaran stockbit-updater) dan turun kembali dalam
+  satu jam. Batas memori sudah memotong biaya cache halaman; menjadwalkan job berdekatan tidak diperlukan sekarang.

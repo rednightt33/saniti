@@ -143,6 +143,18 @@ A new table (any asset class, any frequency) is ready for the AI only when every
     - The sandbox bundle holds at most 2,000,000 rows / 256 MB by default (`PY_SANDBOX_BUNDLE_MAX_ROWS`; 5,000,000 on dev since 2026-10-01, 10,000,000 since the same evening). The planner checks the total before extracting (G14), and a session refuses a pandas frame larger than its frame budget, so a large source must be reduced in DuckDB first (filter, aggregate by its entity and time columns).
 
     Size new sources so ordinary questions fit. (G01)
+25. **Disk cost before a derived table is stored** (user go 2026-10-25, EXEC-GO-1025 item 4, FUTURE_PLAN U3; ERRORS M215
+    "Biaya"). Before creating a derived table, estimate its rows × row width and its index size from the source
+    (`pg_relation_size` of the source and a sample), and record the estimate in the migration header. When the values
+    can be computed when read (a view over the source, as `Feature_05_…_Stock` and `Feature_06_…_Stock`), use a view; store
+    the table only when a measured query pattern (item 24) needs it, and say which. The Postgres volume grew 27.8 → 56.5
+    GB in a month mostly from four copies of broker data, and the volume is billed by size.
+26. **No meaning only in a hidden payload.** A table exposed to the AI carries, as typed and catalogued columns, every
+    attribute that answers a user question about a row (an amount, a ratio, each dated role such as cum, ex, record and
+    pay date). A raw payload may stay as a hidden column for audit, never as the only home of such an attribute. (M223)
+27. **Scheduled rows are declared.** A table whose time column holds future dates (announced corporate actions,
+    maturities, release calendars) says so in `AI_table_catalog` and its catalog row, and freshness is measured from the
+    last date at or before today, or from the load time, not from the largest date. (M224)
 
 ---
 

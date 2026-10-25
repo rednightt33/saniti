@@ -7803,3 +7803,14 @@ keputusan sendiri. Urutan: 1 lebih dulu (token Stockbit berlaku sampai 2026-10-2
 7. **Katalog dua tabel Stockbit — selesai.** Migrasi `20261025_017`; `stockbit_full_broker_import_status` lewat `014`.
    `DATABASE_SCHEMA.md` dibuat ulang dari live (job `1f9a1c7f`, 83 tabel).
 4. **Biaya U1/U3/U4/U5** dan 5. **L3 INDEX:** dilaporkan terpisah di bawah.
+
+**Hasil EXEC-GO-1025 butir 4 dan 5 (2026-10-25):**
+4. **Biaya:** U3 selesai (ERRORS Part A butir 25). U1, U4 dan U5 diukur dan dicek; rinciannya di FUTURE_PLAN "Biaya
+   Railway U1–U5". U1: memori sandbox naik per run dan tinggal di proses (dugaan: `duckdb`/`pyarrow` di proses utama;
+   verifikasi butuh RSS per proses). U4 tidak dinyalakan: audit-store dan pgweb tidak bisa tidur, dan sandbox/web-governor
+   memberi 502 saat bangun tanpa retry di orc. U5: sejak batas 4 GB puncak Postgres ≤ 1,86 GB.
+5. **L3 INDEX — selesai (±USD 0,09):** `edge_da886dca` (return dan volatilitas 20 hari IHSG dari
+   `Feature_01_Stock_Daily_INDEX`), `edge_*` net asing 5 sesi dari `Feature_06_Foreign_Domestic_INDEX`, RSI 14 dari
+   `Feature_04_Technical_Indicator_INDEX`. Semua angka = SQL (job `afdd0a90`): −12,86 %, 50,92 %, Regular −Rp 8,03 T,
+   semua papan −Rp 6,67 T, RSI 35,60. Temuan kecil: baris hari transaksi menyebut "saham" untuk IHSG; kalimatnya kini
+   netral (saham, indeks atau obligasi).
