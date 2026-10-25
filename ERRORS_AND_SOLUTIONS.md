@@ -1625,7 +1625,8 @@ change yet.
   `IDX_Broker_Summary_Freq` sudah dihapus (`20261025_007`), jadi frekuensi F05/F06 tanggal itu menjadi kosong tanpa
   cadangan.
 - **Solution (usulan, perlu go):** loader yang dipakai user masuk ke `apps/stockbit-broker-backfill/`, menulis
-  frekuensi dan baris log. Sampai itu terjadi, `UPDATE_TABLE.md` bagian 2 melarang memakai loader Git untuk tanggal
+  frekuensi dan baris log. Rencana lengkap (loader di Git, penjaga di database, log wajib): EXEC.md EXEC-LOADER-M217,
+  dicatat 2026-10-25 tanpa eksekusi. Sampai itu terjadi, `UPDATE_TABLE.md` bagian 2 melarang memakai loader Git untuk tanggal
   yang sudah berfrekuensi.
 - **Status:** OPEN.
 - **Lesson:** loader setiap sumber baru harus ada di Git dan menulis log muat per tanggal sebelum datanya dipakai

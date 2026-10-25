@@ -7578,3 +7578,69 @@ data yang baru dihitung dengan formula yang berbeda dengan data sebelumnya. Go."
 - I2 INDEX: `prepare` + `apply_chunks` tanpa arsip/migrasi ulang; validasi lolos; 2016-2025 menulis 0 baris
   (riwayat tidak berubah), 2026 hanya baris baru (F02/F05 7.802, F03/F06 117). INDEX broker sampai 2026-10-23.
 - T: laporan sub-agent menyusul.
+
+### EXEC-LOADER-M217: loader Stockbit berfrekuensi di Git dan penjaga di database (diusulkan 2026-10-25, BELUM dijalankan)
+
+**Kata-kata user (2026-10-25):** "Oke, untuk proposal solusi M217, masukkan kan, ke exec jangan eksekusi dulu."
+Status: tercatat sebagai rencana. Eksekusi baru dimulai setelah user memberi go dan menjawab pertanyaan terbuka di bawah.
+
+**Akar masalah (terverifikasi, ERRORS M217):**
+- `apps/stockbit-broker-backfill/stockbit_marketwide_broker_activity.py` `CANONICAL_KEYS` (baris 42-46) tidak memuat
+  `buy_freq`/`sell_freq`. `replace_date` (526) menghapus seluruh tanggal lalu menulis hanya kolom itu.
+- Data 2026-09-01…10-23 memuat frekuensi di 100 % baris tanpa baris `stockbit_broker_summary_load_log`, jadi
+  dimuat program di luar Git.
+- Staging `IDX_Broker_Summary_Freq` sudah dihapus (`20261025_007`), jadi tidak ada cadangan frekuensi.
+
+**Kelas:** sumber data yang dimuat kode di luar repo dan tanpa log muat per tanggal. Tidak bisa diperiksa, diulang,
+atau dilindungi. Berlaku untuk setiap loader lokal (Stockbit sekarang; cross-asset dan makro nanti).
+
+**Usulan (lapisan yang memiliki mekanismenya):**
+- L1. **Loader di Git.** Program yang dipakai user untuk 2026-09-01…10-23 masuk ke `apps/stockbit-broker-backfill/`.
+  - Menulis semua kolom tabel, termasuk `buy_freq`/`sell_freq`.
+  - Token tetap dari `STOCKBIT_TOKEN`, `--token-stdin` atau prompt, tidak pernah ke Git.
+  - Satu loader saja; jalur tulis loader lama yang tanpa frekuensi dihapus atau dialihkan ke loader ini.
+- L2. **Penjaga di database** (lapisan backend, bukan aturan di loader saja).
+  - Loader menulis satu tanggal ke staging. Fungsi `apply_broker_summary_date(date)` menukar isinya ke
+    `IDX_Broker_Summary` dalam satu transaksi, hanya bila:
+    - semua kolom wajib terisi;
+    - cakupan frekuensi tidak lebih rendah dari isi lama tanggal itu, dihitung per kelompok simbol, karena
+      warrant/right lama memang ada yang tanpa frekuensi (cek sub-agent C1);
+    - jumlah broker dan baris tidak turun tajam dari isi lama.
+  - Bila gagal, fungsi menolak dengan pesan yang menyebut tanggal, kolom dan cara memperbaikinya (AGENTS Gates and
+    evidence: aturan terlihat, cara lolos, contoh benar/salah, pesan tolak).
+  - Batas "turun tajam" diturunkan dari data tanggal-tanggal sebelumnya, bukan angka tetap.
+- L3. **Log muat wajib.** Fungsi L2 menulis baris `stockbit_broker_summary_load_log`: jumlah baris, cakupan
+  frekuensi, sha256 respons, versi loader.
+  - Log 2026-09-01…10-23 diisi dari data yang ada, ditandai `source = unlogged loader`, tanpa mengubah data.
+- L4. **`UPDATE_TABLE.md` bagian 2** diperbarui ke loader baru; larangan sementara dicabut setelah L1-L2 berjalan.
+
+**Cakupan:**
+- Tercakup: tanggal baru, koreksi tanggal lama, pemuatan ulang tidak sengaja dengan loader tanpa frekuensi (ditolak
+  oleh L2), dan audit per tanggal (L3).
+- Tidak tercakup:
+  - kebenaran angka Stockbit sendiri (tetap dicek dengan rekonsiliasi Feature);
+  - penulisan langsung ke `IDX_Broker_Summary` yang melewati fungsi L2. Ditutup dengan mencabut hak INSERT/DELETE
+    langsung dari login loader, setelah login itu dicek.
+
+**Risiko dan biaya:**
+- Staging menambah satu tanggal (±27 rb baris, beberapa MB) sementara.
+- Loader user perlu diubah sedikit agar menulis ke staging.
+- Migrasi baru: tabel staging, fungsi, hak akses; Table_Catalog, Column_Catalog, DATABASE_SCHEMA, DATABASE_CHANGELOG.
+
+**Verifikasi:**
+- Tes loader: tanpa token berhenti; 401/403 berhenti; frekuensi ikut ditulis.
+- Tes fungsi L2 di transaksi rollback, untuk tiga kasus:
+  - (a) satu tanggal lama dimuat ulang dengan isi sama: diterima, data tidak berubah;
+  - (b) tanggal yang sama tanpa frekuensi: ditolak dengan pesan yang benar;
+  - (c) tanggal dengan broker hilang: ditolak.
+- Live: satu tanggal baru dimuat lewat jalur baru, lalu `UPDATE_TABLE.md` dijalankan untuk tanggal itu dan semua cek
+  0 selisih.
+- Kasus lain yang memakai pola sama: loader harga lokal, dan sumber makro/cross-asset nanti.
+- Kasus yang tidak cocok: data yang datang dari service Railway terjadwal dengan log sendiri (`idx-price-cron`).
+  Pola log sudah ada di sana; yang dipakai cukup penjaga L2-nya.
+- Sifat: permanen.
+
+**Pertanyaan terbuka untuk user:**
+1. Loader yang dipakai untuk 2026-09-01…10-23: skrip apa dan di mana? Boleh dimasukkan ke Git (tanpa token)?
+2. Apakah loader itu juga menulis ke CSV harian lokal seperti loader lama?
+3. Login database apa yang dipakai loader (untuk L2, mencabut tulis langsung)?
