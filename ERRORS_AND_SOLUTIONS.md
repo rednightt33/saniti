@@ -1607,9 +1607,20 @@ change yet.
   menyejajarkannya per tanggal di analisis. Usulan permanen: semantik join baru tanpa kunci entitas
   (`EXACT_DATE` atau `AS_OF` pada kolom waktu saja, satu baris kanan per tanggal yang dijamin oleh grain katalog)
   di Governor, orc dan sandbox; menunggu keputusan user.
-- **Status:** OPEN.
+- **Status:** FIXED 2026-10-25 (EXEC-M216, user "Oke, kita go dengan eksekusi B."):
+  - kode `cbdeb0c`, deploy SUCCESS: Governor `c9ca1da1`, sandbox `8f1d3d53`, orc `c70666b7`;
+  - kontrak sambungan sekarang menerima daftar kunci kosong (EXACT_DATE/AS_OF). Sisi "satu" yang entitasnya tidak
+    dipasangkan wajib menyebut satu seri (`ONE_SIDE_NOT_UNIQUE`, aturan diturunkan dari `primary_key_columns`
+    katalog);
+  - migrasi `20261025_009` (Tool_Catalog ronde ae) dan `20261025_010` (enam sambungan saham → INDEX, CHECK baru)
+    di-APPLY (job `58657e12`) dan dibaca ulang;
+  - cek end-to-end tanpa model (job `e7f24086`, `verification/m216_date_only_join/`): data need tanpa ticker IHSG
+    ditolak; BBCA/BBRI pada hari IHSG turun > 1 % 96 baris = SQL independen; sambungan lewat papan F06 149 = 149;
+  - tes: Governor 302, sandbox 901, orc 2025 lolos;
+  - 59 sambungan lama tidak terkena aturan baru (dicek live).
 - **Lesson:** periksa kontrak join sebelum menjanjikan relasi untuk sumber data dengan sistem kode entitas berbeda
-  (Part A A1.2, A4.17).
+  (Part A A1.2, A4.17). Tabel seri baru (indeks, makro, komoditas) wajib punya kolom seri di kunci utama
+  `AI_table_catalog`; sambungannya ke saham dicatat tanpa pasangan entitas, dan aturan sisi "satu" berlaku otomatis.
 
 ### M217 — Loader Stockbit di Git tidak menulis frekuensi; loader yang memuat 2026-09-01…10-23 tidak ada di Git (2026-10-25)
 

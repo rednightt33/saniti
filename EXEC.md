@@ -7682,3 +7682,10 @@ Status: go diterima; rencana teknis di bawah disusun dari inspeksi kode dan kata
 - B4 Migrasi `20261025_010`: enam sambungan saham → INDEX, kuncinya diturunkan dari katalog dan nilai tersimpan; CHECK
   baru untuk sambungan tanpa pasangan entitas.
 - B5 Deploy Governor → sandbox → orc (SUCCESS), lalu APPLY 009 dan 010, lalu cek end-to-end tanpa model.
+
+**Hasil (2026-10-25):**
+- B1-B3 di `cbdeb0c`; tes lokal Governor 302, sandbox 901, orc 2025 lolos (termasuk 16 tes baru).
+- B4 DRYRUN `c99b3ff3`, APPLY `58657e12`; dibaca ulang: sambungan 250-255, CHECK valid.
+- B5 deploy SUCCESS: Governor `c9ca1da1`, sandbox `8f1d3d53`, orc `c70666b7`. Cek end-to-end `e7f24086`: tanpa
+  ticker ditolak; tanggal saja 96 = 96; lewat papan 149 = 149.
+- Belum dicoba lewat model (pertanyaan EDGE berbayar); bisa dijalankan bila user minta.

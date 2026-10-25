@@ -174,6 +174,7 @@ AI-facing safe join, temporal alignment, preaggregation, and output-grain contra
 | Name | Type | Definition |
 |---|---|---|
 | `AI_catalog_relationships_columns_check` | Check | `CHECK (cardinality(left_columns) > 0 AND cardinality(left_columns) = cardinality(right_columns))` |
+| `AI_catalog_relationships_date_only_check` | Check | `CHECK (NOT (cardinality(left_columns) = 1 AND left_columns[1] = left_time_column AND right_columns[1] = right_time_column) OR supported_join_semantics <@ ARRAY['EXACT_DATE'::text, 'AS_OF'::text])` (20261025_010: a relationship whose only pair is the time pair is EXACT_DATE / AS_OF) |
 | `AI_catalog_relationships_effective_columns_check` | Check | `CHECK (NOT ('EFFECTIVE_DATED'::text = ANY (supported_join_semantics)) OR effective_from_column IS NOT NULL AND effective_to_column IS NOT NULL)` |
 | `AI_catalog_relationships_join_semantics_check` | Check | `CHECK (supported_join_semantics <@ ARRAY['CURRENT_STATE'::text, 'EXACT_DATE'::text, 'AS_OF'::text, 'EFFECTIVE_DATED'::text])` |
 | `AI_catalog_relationships_temporal_columns_check` | Check | `CHECK (NOT supported_join_semantics && ARRAY['EXACT_DATE'::text, 'AS_OF'::text] OR left_time_column IS NOT NULL AND right_time_column IS NOT NULL)` |

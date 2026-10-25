@@ -2494,3 +2494,21 @@ or raw source data changed. Daily INDEX updates remain a separately approved des
   - The new rows equal a longer rewrite from 2026-06-01 (rolled back) for BBCA 3,864, BBRI 3,620, GOTO 2,883,
     PSAT 470 and TLKM 3,395 new rows: 0 differences each.
   - Read back: F02 and F03 newest date 2026-10-23; database 44.07 GB.
+
+## 2026-10-25 — Relationships on the date only; stock-to-INDEX relationships (EXEC-M216)
+
+- User 2026-10-25: "Oke, kita go dengan eksekusi B." (ERRORS M216).
+- Migration `20261025_009_round_ae_tool_catalog.sql` (sha256 `64468b75…`): Tool_Catalog submit_data_need_spec v16,
+  check_data_feasibility v8, check_research_feasibility v8 (inactive like every orc row; key lists may be empty).
+- Migration `20261025_010_date_only_relationships.sql` (sha256 `28f1e936…`):
+  - six relationships from each exposed stock Feature object to its `_INDEX` counterpart, in AI_catalog_relationships
+    (ids 250-255) and Feature_Relationship_Catalog;
+  - keys derived from the shared primary key columns that hold a common stored value (DATABASE_CATALOG.md);
+  - new CHECK `AI_catalog_relationships_date_only_check`.
+- DRYRUN job `c99b3ff3` (rolled back), APPLY job `58657e12`; read back: six rows each, keys as derived, CHECK
+  validated, Tool_Catalog versions present.
+- End-to-end check job `e7f24086` (sandbox validator + Governor extractor in process as `market_ai_sql_reader`,
+  `verification/m216_date_only_join/`):
+  - IHSG request without a ticker condition refused (`ONE_SIDE_NOT_UNIQUE`);
+  - BBCA and BBRI on the 48 days IHSG fell more than 1 % in 2026: 96 rows, equal to an independent SQL query;
+  - BBCA Regular on days the market's Regular foreign net was negative: 149 rows = 149.

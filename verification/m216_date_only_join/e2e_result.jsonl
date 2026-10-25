@@ -1,0 +1,7 @@
+{"q": "relationship", "id": 250, "left": ["date"], "right": ["date"]}
+{"q": "no_ticker_refused", "codes": ["ONE_SIDE_NOT_UNIQUE"], "note": "Relationship 250 does not pair the entity of Feature_01_Stock_Daily_INDEX (it meets on the date, or on other keys only), so that request must give one row per date: fix ticker in its scope with EQ, or IN with one value. Right: {\"type\": \"PREDICATE\", \"column\": \"ticker\", \"operator\": \"EQ\", \"value\": \"<one stored value>\"} (with AND for the other conditions). Wrong: no ticker condition, or ticker IN with several values (each date would match every listed series)."}
+{"q": "approved", "ok": true, "issues": [], "warnings": []}
+{"q": "date_only_rows", "status": "APPROVED", "code": "OK", "rows": 96, "expected": 96, "equal": true, "dates": ["2026-01-21", "2026-01-28", "2026-01-29", "2026-02-02", "2026-02-06", "2026-02-24", "2026-02-26", "2026-03-02"]}
+{"q": "reverse_side", "status": "APPROVED", "rows": 48, "tickers": ["IHSG"]}
+{"q": "board_approved", "ok": true, "pairs": ["market_board"], "issues": []}
+{"q": "board_rows", "status": "APPROVED", "code": "OK", "rows": 149, "expected": 149, "equal": true}
