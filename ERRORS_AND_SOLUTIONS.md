@@ -1709,8 +1709,7 @@ change yet.
   - seed dibangun ulang dan disinkronkan dalam transaksi yang sama.
 - **Verifikasi:** DRYRUN `f5eb55f2`, APPLY `c1f2bde9`: 67 dari 391 entri vocabulary berubah, rerun 0, tidak ada teks
   lama tersisa. Tes `scripts/tests/test_feature_vocabulary.py` 18 lulus.
-- **Status:** FIXED. Sisa: `Database_Table_Status` (dibaca DATABASE_SCHEMA.md) masih menyebut sync lama, ikut refresh
-  26 baris basi yang perlu go.
+- **Status:** FIXED. `Database_Table_Status` dan DATABASE_SCHEMA.md disegarkan 2026-10-25 (M222).
 - **Lesson:** teks diperbaiki di pemiliknya, lalu salinannya diturunkan dari kunci dan teks lama.
 
 ### M221 — Audit Feature catalog gagal untuk view `_Stock` (sejak 2026-10-23)
@@ -1723,9 +1722,37 @@ change yet.
 - **Class:** setiap view yang membuka tabel Feature.
 - **Solution:** audit menganggap kolom view tercakup bila kolom tabel dasar bernama sama yang dibaca view itu
   (`information_schema.view_column_usage`) punya definisi aktif.
-- **Status:** OPEN — kode diperbaiki, belum terbukti live. Dua job audit (`93b6feee`, `7e26af13`) gagal di build Railway
-  (`buildkitd.sock` tidak tersedia) sebelum job berjalan; variabel dibaca ulang sudah dihapus. Jalankan ulang
-  `verification/feature_vocabulary_20261025/audit_job.py` setelah builder pulih.
+- **Status:** FIXED (2026-10-25). Dua job audit pertama (`93b6feee`, `7e26af13`) gagal di build Railway
+  (`buildkitd.sock` tidak tersedia) sebelum job berjalan. Job ulang `2c0132bb`: audit PASS (505 aktif, 505
+  CALCULATION_VERIFIED, 0 tidak lengkap, 12 tabel Feature dengan cakupan fisik tepat). Query lama masih melewatkan 14
+  kolom F05 `_Stock` dan 86 kolom F06 `_Stock`; semuanya tercakup lewat kolom tabel dasarnya.
+
+### M222 — `Database_Table_Status` basi: 26 baris tabel terhapus, 10 tabel tanpa baris, 19 "Unclassified" (2026-10-25)
+
+- **Symptom:** dibaca live (job `inspect`, read-only):
+  - 95 baris untuk 79 tabel;
+  - baris untuk `IDX_Broker_Summary_Freq`, `IDX_Net_Foreign_Summary` dan 24 partisinya (sudah dihapus);
+  - tanpa baris: F05, F06, enam tabel `_INDEX`, Feature_Vocabulary;
+  - 19 tabel `Unclassified / Unknown`;
+  - tanggal terbaru F02/F03/`IDX_Broker_Summary` 2026-08-31, padahal datanya sampai 2026-10-23.
+- **Verified cause (kode):** `scripts/sync_database_schema.py` mengambil kategori dan pola update dari daftar di skrip
+  (`TABLE_STATUS_RULES`), dan tanggal terbaru hanya untuk tabel yang namanya ada di kode. Tabel baru jatuh ke
+  "Unclassified / Unknown". Skrip juga tidak lagi dijalankan otomatis (R33).
+- **Class:** metadata yang diketik ulang di skrip, bukan dibaca dari pemiliknya (Table_Catalog). Setiap tabel atau sumber
+  baru, termasuk data cross-asset dan makro nanti, akan kena.
+- **Solution:**
+  - kategori, aturan update dan `observation_date_column` diambil dari Table_Catalog; daftar di skrip hanya cadangan
+    untuk tabel yang tidak terdaftar (katalog itu sendiri);
+  - tanggal terbaru dibaca hanya lewat indeks yang diawali kolom tanggalnya (satu probe indeks), selain itu dibiarkan
+    kosong, tidak memindai tabel.
+  - Tes `scripts/tests/test_sync_database_schema_status.py`.
+- **Verifikasi:** DRYRUN `9c0a7d8b` (rollback, 38,7 detik, tanpa trigger baru), APPLY `88a5a7a2`, baca ulang `1eb87b20`:
+  79 baris untuk 79 tabel, 0 basi, 0 hilang; tanggal terbaru 2026-10-23 untuk sumber broker, harga dan F01–F06.
+  `DATABASE_SCHEMA.md` dibuat ulang dari live.
+- **Status:** FIXED. Sisa: `idx_stockbit_backfill_status`, `idx_stockbit_value_corrections` dan
+  `stockbit_full_broker_import_status` tidak punya baris Table_Catalog, jadi masih "Unclassified" (pendaftaran perlu go).
+  Refresh otomatis tetap menunggu R33.
+- **Lesson:** dokumen status dibaca dari katalog pemilik; tabel baru wajib punya baris Table_Catalog.
 
 ## Fixed-income selected-date repair — 2026-10-20 status
 

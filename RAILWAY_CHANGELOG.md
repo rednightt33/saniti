@@ -4491,3 +4491,9 @@ branch; this task does not release daily worker/frontend changes to main.
   builder `buildkitd.sock` unavailable, before the job ran; variable read back absent) and its re-run `7e26af13` (same
   build failure; variable read back absent). No service or
   variable changed.
+
+## 2026-10-25 — Audit re-run and Database_Table_Status refresh jobs
+
+- orc-test-runner (temporary `DATABASE_URL`, VAR_REMOVED after each): audit `2c0132bb` (PASS, read-only), status
+  inspection (read-only), DRYRUN `9c0a7d8b`, APPLY `88a5a7a2` (Database_Table_Status), read-back `1eb87b20`. The Railway
+  builder built these jobs normally again. No service or variable changed.

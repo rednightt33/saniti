@@ -2549,3 +2549,24 @@ or raw source data changed. Daily INDEX updates remain a separately approved des
 - Jobs: export (read-only), copy scans `5c3b27ff`, `55d76e73` (read-only), DRYRUN `f5eb55f2` (rolled back), APPLY
   `c1f2bde9` (committed). Evidence: `verification/feature_vocabulary_20261025/`.
 - Part A: metadata only, no market data; no gap.
+
+## 2026-10-25 — Database_Table_Status refresh and DATABASE_SCHEMA.md regenerated
+
+- User 2026-10-25: "Coba jalankan ulang audit M221 sekarang dan database table status."
+- `scripts/sync_database_schema.py` now takes each table's category, update rule and latest data date from
+  Table_Catalog (owner; latest date read only through an index that starts with its `observation_date_column`); the
+  rule list in the script is the fallback for tables the catalog does not register (ERRORS M222).
+- DRYRUN `9c0a7d8b` (rolled back), APPLY `88a5a7a2` (committed): 95 → 79 rows; 26 rows of dropped tables
+  removed (`IDX_Broker_Summary_Freq`, `IDX_Net_Foreign_Summary` and their 24 partitions); 10 tables added (six `_INDEX`,
+  F05, F06, Feature_Vocabulary, `stockbit_full_broker_import_status`); 74 rows changed. Latest data date now 2026-10-23
+  for IDX_Broker_Summary, F01-F06 and the `_INDEX` tables (was 2026-08-31 / 2026-10-20). No trigger created.
+- `DATABASE_SCHEMA.md` regenerated from live by the same job. Two hand-written notes it held are kept here:
+
+Applied and read back at18:43 WIB. Migration `20261013_011_verify_fixed_income_sessions.sql` adds required text columns `provider_timezone_name` (verified TradingView timezone) and `provider_session` (daily session anchor) to `Fixed_Income_Market_Schedule`. Both ID and US use NEXT_BUSINESS_DAY source mapping under the reviewed policy. The changed physical table section above has been refreshed from live readback.
+
+Dedicated index schema preparation (2026-10-24): forward migration
+20261024_010_create_index_feature_tables.sql defines six Feature01–06 _INDEX outputs with existing
+grains/analytical columns; Feature04 asset_type is constrained to index. Feature05/06 each add five
+nonnegative frequency coverage counts (source, known buy/sell, missing buy/sell). An index-universe
+identity trigger guards every target. Private migration_archive.index_feature_rows retains lossless
+legacy row snapshots for cleanup recovery. Apply status is recorded in DATABASE_CHANGELOG.md.
