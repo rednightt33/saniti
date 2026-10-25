@@ -4401,3 +4401,21 @@ edge-bff only (static EDGE files); no variable or other service change. Rollback
 ## 2026-10-24 — EDGE quote without accent bar (EXEC-UI-1025b)
 
 edge-bff only (static CSS); preview tool changes are not deployed. Rollback reference: edge-bff `6e002b98`.
+
+
+## 2026-10-25 — terminal-api and terminal-publisher services (EXEC-TERMINAL-API)
+
+User 2026-10-25: "Ok" on `verification/terminal_api/DESIGN.md` section 5.
+
+- New empty services `terminal-api` (`ba235c68-d3f5-400c-9bb3-a774b9c47a32`) and `terminal-publisher`
+  (`523a3135-16dc-458d-b8c7-f4f666736880`); the CLI reported "Project not found" after creating each (the same
+  partial-success behaviour as noted for serviceCreate in ERRORS), so each was verified with `railway service list`.
+- Domain `https://terminal-api-dev.up.railway.app`.
+- Variables (names only): terminal-api `TERMINAL_DB_PASSWORD`, `TERMINAL_ADMIN_KEY` (generated, never printed),
+  `TERMINAL_DATABASE_URL` (reference composed from `TERMINAL_DB_PASSWORD` and `Postgres.PGHOST/PGPORT/PGDATABASE`),
+  `TERMINAL_ALLOWED_ORIGINS`; terminal-publisher `TERMINAL_PUBLISHER_DB_PASSWORD`, `TERMINAL_PUBLISHER_DATABASE_URL`
+  (reference), `TERMINAL_YEARS=5`. orc-test-runner held `DATABASE_URL` and the two password references only for the
+  provisioning job; all removed (checked).
+- Bucket `terminal-display`: `railway bucket create terminal-display --region sin` refused with "Bad Access" (the
+  project token cannot create buckets). Not created; waiting for the user.
+- Not deployed yet (needs the bucket).

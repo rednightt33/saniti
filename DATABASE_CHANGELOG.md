@@ -2293,3 +2293,24 @@ EXEC-ASK-BRANCH-IMPL). Two forward, additive migrations, rehearsed then applied 
 Read-back (APPLY job probes, after commit): `market_ai_conversation_store` reads `lineage` on all 572 conversations, all
 `[]`; `edge_bff_runtime` reads `kind`, 72 rows all MAIN; `Column_Catalog` row `lineage` VERIFIED; 0 EDGE jobs active.
 Rollback (forward migration): drop the added columns, the index and the `Column_Catalog` row.
+
+
+## 2026-10-25 — Terminal schema and logins (EXEC-TERMINAL-API)
+
+User 2026-10-25: "Ok" on `verification/terminal_api/DESIGN.md` section 5 (steps 1-6). Operational schema like
+`edge_bff`, not a public data table, so no Table/Column_Catalog row (same as `edge_bff`).
+
+- **`20261025_001_create_terminal_schema.sql`** (sha256 `1843a24fcb0fb05e1ecfca0c1ca865ab7e99440d64a8d17187b8368bafbf32cc`):
+  schema `terminal` with `subscriber`, `session`, `access_log`, `sign_in_attempt`, `quota` (10 named limits),
+  `quota_override`, `admin_log`; NOLOGIN groups `terminal_runtime` (read/write on `terminal`) and
+  `terminal_market_reader` (SELECT on `Price_Stock_Indonesia_IDX`, `Feature_05_Foreign_Domestic_Broker_Detail`,
+  `IDX_Broker_Profile`, `IDX_Stock_Universe`). No market table or existing grant changed.
+  Applied by the DRYRUN job `345802f7` itself, without a rehearsal: the job found the commented rollback example's
+  `-- COMMIT;` (ERRORS M215; job fixed). Read-back (job `migration_readback`, admin, read-only): 7 tables, `quota` 10
+  rows, all other tables 0 rows, 2 roles NOLOGIN non-superuser, grants exactly as written. Logs:
+  `verification/terminal_api/jobs/`.
+- **Logins** (`scripts/provision_terminal_logins.py`, job on orc-test-runner; passwords only as Railway variables of
+  terminal-api / terminal-publisher, passed to the job as references and removed afterwards):
+  `terminal_api_login` (member of both groups; statement_timeout 10s; reaches exactly 11 relations) and
+  `terminal_publisher_login` (market reader only; read-only transactions; statement_timeout 120s; reaches exactly 4).
+- Rollback: a forward migration with the commented block at the end of `20261025_001`.
