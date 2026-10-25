@@ -25,14 +25,28 @@ apps/edge-bff/terminal/              Vite + TypeScript project (inside the edge-
   src/worker/calc.worker.ts          runs calc off the main thread
   src/chart/ src/panels/ src/ui/     the reference's chart, Statistics, Broker, Flow Timeline, dialogs, drawing, layout
   tests/                             unit parity (vitest) + Playwright 1:1 suite
-apps/edge-bff/static/terminal/       Vite build output (hashed assets), served by edge-bff
+apps/edge-bff/static/terminal-app/   Vite build output (hashed assets), served by edge-bff; built by the Dockerfile's
+                                     Node stage, not kept in git
 ```
 
-- edge-bff serves `/terminal` (the built page) and `/terminal/assets/*` (immutable cache). The EDGE nav gets
-  `["Terminal","terminal"]`; the route shows the page in a same-origin iframe under the EDGE top bar, so the
-  reference CSS and EDGE's 470 KB CSS never mix and the terminal stays 1:1 with the reference.
-- The terminal page gets its own stricter CSP: `script-src 'self'` (no inline script), `worker-src 'self'`,
-  `connect-src 'self' https://*.t3.storageapi.dev` (presigned downloads); EDGE's own CSP is unchanged.
+As built (2026-10-25): `src/app/` holds one module per section of the reference (chart, stats, volume, axis, picker,
+flow, events, drawings, indicators, search, broker), `src/ui/select.ts` the dropdown, `src/data/` the fixture
+(`fixture.ts`, `fixtureConstants.ts` copied by script) and the live loader (`live.ts`), `src/calc/indicators.ts` the
+T1 module. The sections start in the reference's order (`src/main.ts`). Calculations run on the main thread: all 53
+indicators on 2,123 bars take 20–50 ms, so no Web Worker was added (T5 named one; reconsider if a heavier
+calculation arrives).
+
+- edge-bff serves the EDGE route `/terminal` (EDGE's page with the Terminal tab next to Monitor) and the built page
+  at `/terminal-app/` with `/terminal-app/assets/*` (immutable cache); the tab shows `/terminal-app/` in a same-origin
+  iframe under the EDGE top bar, so the reference CSS and EDGE's 470 KB CSS never mix.
+- The build is one IIFE script loaded as a classic script at the end of `<body>` and one stylesheet in `<head>`, the
+  way the reference runs: a deferred module script started later and met the web font at another moment, which moved
+  the opening view by one bar in the 1:1 check.
+- `lightweight-charts-drawing` is patched at build time exactly as the reference inlines it (accent `#1e53e5` →
+  `#171717`, one constant; the build fails if the constant is not found once). `lightweight-charts` 5.2.1 is identical.
+- The terminal page gets its own stricter CSP: `script-src 'self'` (no inline script, no eval), `worker-src 'self'`,
+  `connect-src 'self' https://*.t3.storageapi.dev` (presigned downloads); inline style attributes stay allowed (the
+  reference builds them); EDGE's own CSP is unchanged.
 - Dockerfile: a Node stage runs `npm ci && npm run build`, the Python stage copies `static/terminal`.
 
 ## 3. Data and login (T3/T4)
@@ -59,9 +73,35 @@ apps/edge-bff/static/terminal/       Vite build output (hashed assets), served b
    Feature 04 / TA-Lib values instead (T1).
 5. **Live:** with real data, panel figures are checked against SQL (as `validate.py` does).
 
-## 5. Open point — deployment
+## 5. Open point — deployment (still open, FUTURE_PLAN.md)
 
 edge-bff deploys from `main`; the user said not to merge to `main` yet (2026-10-25). Building and verifying can be done
 entirely locally (local edge-bff + disposable Postgres + the deployed terminal-api over HTTPS). Putting the Terminal tab
 on `edge-bff-dev` needs either the merge to `main` or a CLI upload of this branch's edge-bff, which the next push to
 `main` by another session would overwrite. Decision needed before the dev deployment.
+
+## 6. 1:1 result (fixture mode, 2026-10-25)
+
+`apps/edge-bff/terminal/tests/visual/` (`compare.mjs`, `scenarios.mjs`, `diff.py`; the reference file is passed with
+`TERMINAL_REFERENCE_HTML`, never committed). Each page runs in a fresh browser context at 1600×1000, 1280×800 and
+390×844; the web fonts are fetched once and served from memory to both pages. 28 cumulative steps: line/candle style,
+price/return, compare series, indicator picker search and adding RSI, MACD and Bollinger Bands, the settings dialog
+(Style tab, Cancel), the events popover, crosshair hover and leave, statistics accordion, collapse and expand,
+seasonality weekday, broker filters (investor, gross, 5D, sell side) and a broker pick, flow investor filter and the
+cumulative toggle, the Lines menu, drawing a trend line (Alt+T and drag), the cursor menu (Dot), the right-click menu
+and the symbol search.
+
+Two consecutive runs: 75 screenshots, **0 differing pixels** (12 pixels of canvas anti-aliasing noise, channel
+difference ≤ 4 of 255, are counted separately); the markup of every panel and overlay, the panel texts and the
+`localStorage` contents are equal (drawings compared without their clock-made ids). The reference against itself
+gives 0 as well. Earlier runs found and fixed: template-literal whitespace (markup), the module-script timing and the
+per-context font downloads.
+
+## 7. Live check (real data, 2026-10-25)
+
+`verification/terminal_api/terminal_live_check.py`: a local edge-bff with the built page forwards `/api/terminal` to
+the deployed terminal-api with the gateway key; the browser opens `/terminal-app/` signed in as the EDGE owner.
+BBCA, GOTO and IHSG load without page errors; BBCA's close 5,025 and volume 495.6M (2026-10-23), broker net and lots
+(YU +709.0 B / 1.38M lots, SQ, AK) and the foreign net of the day (−767 B) equal SQL; an index (no broker data) shows
+"no broker data". The broker-action gauge and the Bandar detector are hidden on live data (formulas not approved).
+Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.

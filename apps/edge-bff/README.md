@@ -11,6 +11,24 @@ market values, result tables, prices, sources, upload simulation and timed execu
 accepts canonical response types rather than a fixed research template. AI text uses text nodes, never raw HTML.
 `static/edge-client.js` holds the session/API/SSE/adapters separately from view handlers (see Front-end structure).
 
+## Terminal tab (EXEC-TERMINAL-API T3-T5, 2026-10-25)
+
+The financial terminal is a separate page, `terminal/` (TypeScript + Vite), built into `static/terminal-app/` by the
+Dockerfile's Node stage (not kept in git) and shown under the EDGE top bar in a frame at `/terminal` (Terminal tab).
+It is a module-by-module port of the reference page `03-terminal-right-panel.html`; keep it 1:1 with it.
+
+| Need | Where |
+| --- | --- |
+| a section of the page (chart, statistics, flow, events, drawings, indicators, broker panel, search) | `terminal/src/app/<section>.ts` |
+| data shapes; live data from the rack; the reference's synthetic data | `terminal/src/data/types.ts`, `live.ts`, `fixture.ts` |
+| an indicator formula (spec `verification/terminal_api/INDICATOR_SPEC.md`) | `terminal/src/calc/indicators.ts`, tests `terminal/tests/calc` |
+| the gateway to terminal-api (data routes only, EDGE session + CSRF) | `app/main.py` (`forward_terminal`), `tests/test_terminal.py` |
+
+Build and checks, from `terminal/`: `npm ci`, `npm run build` (typecheck + build), `npx vitest run tests/calc`
+(parity), and the 1:1 check `TERMINAL_REFERENCE_HTML=<reference file> node tests/visual/compare.mjs <out>` then
+`python3 tests/visual/diff.py <out>` (must report 0 differing pixels). `/terminal-app/?fixture=reference` runs the
+page on the reference's synthetic data.
+
 ## Front-end structure: editing the page without touching the API (EXEC-X, 2026-10-08)
 
 The page is edited as one HTML file and its API wiring is not locked to the view. Four layers, each with one job:

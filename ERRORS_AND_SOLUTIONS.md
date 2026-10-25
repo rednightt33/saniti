@@ -1583,6 +1583,48 @@ change yet.
 - **Lesson:** service job harus restart NEVER sejak dibuat; `verify` yang gagal adalah laporan, bukan alasan mengulang.
 - **Lesson:** tes antarmuka masuk dari setiap path yang dilayani, bukan hanya satu.
 
+### M219 — Job orc-test-runner menggantikan job sesi lain yang belum selesai (2026-10-25)
+
+- **Symptom:** EXEC-TERMINAL-API, 19:04 UTC: job APPLY `quota_override_edge_owner.sql` (deployment `d7df1139`)
+  dimulai 14 detik setelah deployment `b9950dba` milik sesi lain (job READ). `b9950dba` menjadi REMOVED tanpa
+  `JOB_DONE`; hasil bacanya hilang dan harus dijalankan ulang oleh sesi itu. Sesi itu tidak lagi aktif saat diperiksa
+  (ListAgents), jadi tidak bisa diberi tahu langsung.
+- **Verified cause:** aturan M210 ("jangan mulai job selama job lain berjalan") hanya aturan manual; `run_job.sh`
+  tidak memeriksa runner. Sebelum job ini, keadaan runner tidak dicek ulang (pengecekan terakhir 17:50 UTC).
+- **Class:** setiap service bersama yang menjalankan satu job per deployment (orc-test-runner, terminal-publisher)
+  menggantikan job yang sedang berjalan bila deployment baru dimulai, dari sesi mana pun.
+- **Solution:** `scripts/onboarding/run_job.sh` sekarang menolak memulai (`RUNNER_BUSY`, exit 5) bila deployment
+  terakhir masih dibangun/berjalan atau log-nya belum berisi `JOB_DONE`, `OTR {"event": "done"}` atau `Traceback`.
+  Diuji pada deployment nyata: `d7df1139` (selesai) lolos, `b9950dba` (belum selesai) akan ditolak.
+- **Status:** RESOLVED (guard di kode); job READ sesi lain perlu dijalankan ulang oleh sesi itu.
+- **Lesson:** aturan yang melindungi pekerjaan orang lain harus dijaga oleh kode, bukan ingatan.
+
+### M220 — Tampilan TS awal bergeser satu bar dari referensi pada 1600 px (2026-10-25)
+
+- **Symptom:** uji 1:1 (`apps/edge-bff/terminal/tests/visual`) pada 1600×1000: halaman TypeScript menampilkan 133 sesi,
+  referensi 132 (atau sebaliknya), berganti-ganti antar putaran; 1280 dan 390 piksel identik.
+- **Verified cause:** dua hal. (1) Halaman TS dimulai sebagai module script (ditunda) dan, di mode fixture, setelah
+  satu `await`; referensi berjalan sebagai script klasik di akhir `<body>`. Chart lalu bertemu font Inter pada saat lain,
+  lebar sumbu harga berubah dan rentang awal bergeser satu bar. (2) Alat uji: tiap context browser punya cache HTTP
+  sendiri, jadi font Google diunduh dingin di setiap halaman (pemanasan di context lain tidak berguna).
+- **Class:** setiap halaman yang mengukur tata letak saat start (chart, kanvas) bergantung pada urutan pemuatan font dan
+  script; uji piksel lintas context bergantung pada unduhan jaringan masing-masing.
+- **Solution:** build menjadi satu script IIFE klasik di akhir `<body>` (plugin `classicScriptAtEnd`, `vite.config.ts`),
+  CSS tetap di `<head>`, mode fixture sinkron; alat uji menyajikan font dari memori ke semua halaman. Dua putaran:
+  0 piksel berbeda pada 75 tangkapan layar; referensi lawan dirinya juga 0.
+- **Status:** RESOLVED.
+- **Lesson:** port 1:1 harus meniru juga cara dan saat script dijalankan, bukan hanya kodenya; uji piksel membutuhkan
+  kondisi jaringan yang sama untuk kedua sisi.
+
+### EXEC-TERMINAL-API T1, T2, T6 — selesai (2026-10-25)
+
+- **T1:** spesifikasi tunggal 53 indikator (`scripts/terminal_indicator_spec.py` → `INDICATOR_SPEC.md`), modul
+  `apps/edge-bff/terminal/src/calc/indicators.ts`, 659 tes paritas lulus (Feature 04, TA-Lib 0.6.8, engine referensi;
+  `tests/calc/PARITY.md`). Konvensi yang perlu keputusan: FUTURE_PLAN.md.
+- **T2:** 46 baris `AI_formula_reference` CALC_201–246 (migrasi 102), dibaca ulang (246 baris).
+- **T6:** dataset `events` (842 file) sama dengan SQL untuk BBCA, GOTO, TLKM.
+- **Status:** RESOLVED. **Lesson:** satu sumber spesifikasi (generator) menjaga dokumen, katalog AI dan kode tetap sama.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.

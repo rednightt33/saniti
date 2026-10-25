@@ -33,6 +33,21 @@ cleanup() {
   done
   echo VAR_STILL_PRESENT; rm -rf "$STAGE"
 }
+# ERRORS M219 (2026-10-25): M210 was a manual rule and a job still replaced another session's job 14 s after it started.
+# The runner is checked here: the latest deployment must be finished (its log ends with JOB_DONE, OTR "done" or a
+# Traceback) before a new one is started.
+latest=$(timeout 60 railway deployment list -p $P -e $E -s $S --json 2>/dev/null | python3 -c "import sys,json;d=json.load(sys.stdin);print(d[0]['id'],d[0]['status']) if d else print('none none')")
+set -- $latest "$@"; LAST_ID=$1; LAST_STATUS=$2; shift 2
+if [ "$LAST_ID" != none ]; then
+  case "$LAST_STATUS" in
+    SUCCESS|FAILED|CRASHED|REMOVED|SKIPPED)
+      if [ "$LAST_STATUS" = SUCCESS ] && ! timeout 60 railway logs "$LAST_ID" -p $P -s $S -e $E --deployment --lines 5000 2>&1 \
+           | grep -q 'JOB_DONE\|OTR {"event": "done"\|Traceback'; then
+        echo "RUNNER_BUSY $LAST_ID: its job has not finished; wait for JOB_DONE (ERRORS M210/M219)"; rm -rf "$STAGE"; exit 5
+      fi ;;
+    *) echo "RUNNER_BUSY $LAST_ID ($LAST_STATUS): wait until it finishes (ERRORS M210/M219)"; rm -rf "$STAGE"; exit 5 ;;
+  esac
+fi
 trap cleanup EXIT
 timeout 60 railway variable set 'DATABASE_URL=${{Postgres.DATABASE_URL}}' -p $P -e $E -s $S --skip-deploys >/dev/null 2>&1 \
   || { echo SET_FAILED; exit 3; }

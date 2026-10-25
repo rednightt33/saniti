@@ -4434,3 +4434,29 @@ User 2026-10-25: "Ok" on `verification/terminal_api/DESIGN.md` section 5.
   (ERRORS M218). Variable `TERMINAL_PUBLISH_MODE` currently `verify`; no deployment active.
 - `railway config pull --force --variables=unmanaged` was tried and reverted: it rewrites the whole file without the
   `preserve()` entries, so `.railway/railway.ts` is unchanged and the two terminal services are not in it yet.
+
+
+## 2026-10-25 — terminal: events, gateway to EDGE, restart policy, refreshes (EXEC-TERMINAL-API T3, T4, T6)
+
+User 2026-10-25: "untuk semua exec, silahkan dieksekusi. It's a go." Branch `claude/laughing-goodall-x2dkmt` (not
+merged to `main`: "nanti dulu jangan gabungkan kode ke main").
+
+- terminal-publisher: `restartPolicyType NEVER` (read back; ERRORS M218). Runs (CLI uploads of `apps/terminal-publisher`,
+  mode `daily`): `169eb62f` (843 broker 2026 files, broker through 2026-10-23), `7e93892d` (price files from the first
+  stored year 2018: 1,630 files, 3.89 MB), `a82de1e2` (events dataset: 842 files, 2.28 MB, 1,401 s), `dbb64ce7`
+  (ticker reference with the sector).
+- terminal-api: `24fafe64` (events dataset, per-dataset history window) and `1bae4292` (gateway key) SUCCESS.
+  Variables (names only): `TERMINAL_PROXY_KEY` (generated, never printed), `TERMINAL_PROXY_SUBSCRIBER`
+  (`edge-owner@terminal.local`, the gateway account, subscriber 2).
+- edge-bff variables (names only, set with `--skip-deploys`; the running `main` code ignores them):
+  `TERMINAL_PROXY_KEY` = reference `${{terminal-api.TERMINAL_PROXY_KEY}}` (equality checked by hash),
+  `EDGE_TERMINAL_URL` = `http://terminal-api.railway.internal:8080`. edge-bff itself is not redeployed: it deploys
+  from `main` (open decision for the user).
+- Bucket CORS: GET/HEAD from `https://terminal-api-dev.up.railway.app` and `https://edge-bff-dev.up.railway.app`
+  (read back).
+- orc-test-runner: migration jobs 101/102 (DRYRUN/APPLY) and the quota override; one job replaced another session's
+  unfinished READ job (`b9950dba`, ERRORS M219); `scripts/onboarding/run_job.sh` now refuses while a job runs.
+- Live checks: gateway key accepted, wrong key 401; events files equal SQL for BBCA, GOTO, TLKM (rows, first/last date,
+  corporate actions); the Terminal page on real data through a local edge-bff (`verification/terminal_api/
+  terminal_live_check.py`): BBCA, GOTO, IHSG load without page errors, figures equal SQL (close, volume, broker net
+  and lots, foreign net). Parallel downloads for one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.

@@ -1,0 +1,4 @@
+Starting Container
+MIG APPLY quota_override_edge_owner.sql sha256=4ee7713d0681056afde8ee7a52f1c64986fa3933e197673ab59ac353a622e0ac
+OUT {"q": "override", "ms": 2, "part": 0, "rows": [[2, "edge-owner@terminal.local", "files_per_hour", 600]]}
+JOB_DONE MIGRATION APPLY

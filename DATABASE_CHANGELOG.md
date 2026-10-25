@@ -2337,3 +2337,18 @@ then applied with `scripts/onboarding/migration_job.py` on orc-test-runner; hash
   Known differences recorded in the rows: RVOL includes the current bar (user 2026-10-25) while `CALC_062` excludes it;
   Historical Volatility uses the population stdev (terminal engine) while `CALC_044` uses the sample form.
   Rollback: `DELETE FROM public."AI_formula_reference" WHERE calculation_id BETWEEN 'CALC_201' AND 'CALC_246'`.
+
+
+## 2026-10-25 — Terminal gateway account and its file quota (EXEC-TERMINAL-API T3)
+
+User 2026-10-25: "Login ... Saya dulu untuk testing" and "It's a go". Operational rows in schema `terminal` (no
+public table or catalog change):
+
+- `terminal.subscriber` 2 `edge-owner@terminal.local` ("EDGE owner (gateway)"), through 2027-10-25, created through
+  the admin API (logged in `terminal.admin_log`); its password is random and was never stored outside the hash: the
+  account is reached only through the edge-bff gateway key.
+- `terminal.quota_override` (2, `files_per_hour`, 600): TEMPORARY. Opening one ticker now takes about 27 files (price
+  2018-2026, IHSG, broker 2021-2026, events, references), so the default 60 per hour allows about two tickers. Script
+  and removal statement: `verification/terminal_api/jobs/quota_override_edge_owner.sql` (sha256 `4ee7713d…`); APPLY
+  log `jobs/quota_override_apply.log`, read back (one row). The default stays 60 until the user decides
+  (FUTURE_PLAN.md).

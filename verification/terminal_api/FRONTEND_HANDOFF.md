@@ -26,7 +26,7 @@ updated, `scripts/terminal_bucket_cors.py`). Every POST must carry the page's `O
 | `POST /auth/change-password` | `{current_password, new_password ≥ 12}` | other sessions are signed out |
 | `GET /reference/tickers`, `GET /reference/brokers` | — | `{url, expires_in_seconds}` of a gzip JSON list |
 | `GET /manifest/{ticker}` | — | window (first/last year), per dataset `data_through` and per year `bytes, rows, first, last, sha256` |
-| `POST /files` | `{ticker, dataset: "price"|"broker", years: [≤ 6]}` | `files: [{year, url, sha256, bytes, rows}]`, `expires_in_seconds: 120` |
+| `POST /files` | `{ticker, dataset: "price"|"broker", years: [≤ 6]}` or `{ticker, dataset: "events"}` (one file, no years) | `files: [{year, url, sha256, bytes, rows}]`, `expires_in_seconds: 120` |
 | `GET /history/price` | `ticker, from, to` (≤ 3,660 days, only before the window) | columnar `d,o,h,l,c,v` |
 | `GET /history/broker` | `ticker, from, to` (≤ 366 days, only before the window), optional `brokers` (≤ 20), `investor_type`, `market_board` | columnar `d,b,i,m,bv,sv,bl,sl,gap` |
 
@@ -40,7 +40,9 @@ quota and its window. Download URLs expire after 120 s: fetch right after `POST 
 | price | `d` date `YYYY-MM-DD`, `o h l c`, `v` | IDR per share (index points for IHSG); `v` shares | `v` is `null` for IHSG; prices as stored, not dividend-adjusted |
 | broker | `d`, `b` broker code, `i` investor type `Foreign`/`Domestic`, `m` board `Regular`/`Nego`/`Tunai`, `bv sv` IDR, `bl sl` lots | 1 lot = 100 shares; **lots are decimals** (odd lots) | `gap`: `[[date, board], …]` where the source's total buy ≠ total sell (show it; do not claim net-to-zero there) |
 
-One file per ticker and calendar year; rows ascending by date (broker: date, broker, investor type, board). Dates
+| events | `d` date, `role` date role (`EX_DATE`, `MEETING_DATE`, `TRADING_START`, …), `family` (`CORPORATE_ACTION`, `INSIDER`), `type` (`DIVIDEND`, `RUPS`, `WARRANT`, …), `action`, `holder`, `holder_role`, `broker`, `instrument`, `shares_change`, `pct_after`, `pct_change`, `pct_flag`, `price`, `price_estimated`, `value`, `origin` | as stored in `idx_event_annotation` | one file per ticker (`all`), every date; no `source_payload` (corporate-action amounts and ratios are not in the columns) |
+
+One file per ticker and calendar year (events: one per ticker); rows ascending by date (broker: date, broker, investor type, board). Dates
 are IDX trading days (Asia/Jakarta); there are no rows for holidays and no row for a broker that did not trade.
 
 ## 4. What the frontend computes (formulas fixed in `DESIGN.md` section 1)
@@ -63,3 +65,12 @@ Recommended: one TypeScript calculation module with tests whose expected values 
 
 URL lifetime 120 s; 60 files/hour; 30 distinct tickers/hour, 150/day; 300 MB/day; 20 history queries/hour;
 2 sessions; session 24 h; 10 failed sign-ins per email (30 per IP) in 15 min.
+
+## 7. Through EDGE (T4, 2026-10-25)
+
+The Terminal tab (`/terminal` in EDGE, page `/terminal-app/`) does not sign in to terminal-api itself: the page calls
+`/api/terminal/v1/{manifest/T, reference/tickers|brokers, files, history/price|broker}` on edge-bff with the EDGE
+session (POST also with EDGE's CSRF token), and edge-bff forwards them over the private network with
+`X-Terminal-Proxy-Key`; terminal-api treats them as the one account `TERMINAL_PROXY_SUBSCRIBER` (quotas, audit).
+Auth and admin routes are not forwarded. The presigned downloads go straight from the page to the bucket (CORS lists
+`https://edge-bff-dev.up.railway.app`). Price files start in 2018 (first stored year); broker files in 2021.

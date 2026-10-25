@@ -7415,23 +7415,26 @@ User decisions 2026-10-25 (frontend wiring):
   Stochastic RSI (%K and %D smoothed 3) follow the HTML; OBV (first bar's volume) and Parabolic SAR follow TA-Lib.
 
 Approved work items 2026-10-25 (user's words in each line), EXEC-TERMINAL-API:
-- T1 Calculation-module specification: "A. Spesifikasi modul hitung --> Ini OK masukan exec". One spec for the 53
-  indicators (formula, seed, null/zero rules, reference: Feature 04/TA-Lib or HTML), the changes against the uploaded
-  HTML (ATR, ADX, RSI on a flat window, OBV first-bar volume, Parabolic SAR TA-Lib; RVOL includes the current bar) and a
-  parity test plan against Feature 04 and TA-Lib. Status: to be written.
-- T2 `AI_formula_reference` for the 38 indicators without a Feature 04 column: "B. AI_formula_reference --> ini OK
-  masukan exec". New entries plus alignment of the existing ones (CALC_021/022/023, 035/036, 049-052, 071-073 …),
-  HTML convention, explicit note "not talib.CMO". Forward migration, DRYRUN shown to the user, APPLY after review.
+- T1 and T2 done 2026-10-25 (user "It's a go"): spec `verification/terminal_api/INDICATOR_SPEC.md` (generator
+  `scripts/terminal_indicator_spec.py`), module `apps/edge-bff/terminal/src/calc/indicators.ts` (659 parity tests,
+  `tests/calc/PARITY.md`); 46 `AI_formula_reference` rows CALC_201–246 (migration 102, DATABASE_CHANGELOG). Its open
+  conventions: FUTURE_PLAN.md "Terminal: keputusan terbuka".
 - T3 Terminal tab login: "Saya dulu untuk testing, masukan EXEC" — the EDGE owner session first; subscribers later.
+  Built 2026-10-25: gateway account `edge-owner@terminal.local` (subscriber 2) behind the EDGE owner session.
 - T4 edge-bff forwards `/api/terminal/...` to terminal-api (one site for page, API and cookies): "OK, masukan EXEC".
   EDGE CSP `connect-src` must also allow the bucket host for the presigned downloads.
+  Built 2026-10-25 (branch): `/api/terminal/v1` gateway with `X-Terminal-Proxy-Key`, variables set, bucket CORS for
+  the EDGE origin; the terminal page has its own CSP. Waiting: edge-bff deployment (deploys from `main`, see below).
 - T5 Frontend build: "A — TypeScript + Vite (rekomendasi) --> masukan EXEC". Modular TypeScript built by Vite into
   static, cache-friendly files served by edge-bff; calculations in a pure module run in a Web Worker; the uploaded HTML
   stays the design reference.
-- T6 `idx_event_annotation` to the rack: "boleh, masukan EXEC". One file per ticker with display columns (event family
-  and type, date and its role, action, holder name and role, broker, shares change, % after, % change, price, value;
-  no `source_payload`); a grant for `terminal_market_reader` (forward migration); publisher and API dataset `events`;
-  refreshed when the source changes. Go given.
+  Built 2026-10-25 (branch): `apps/edge-bff/terminal`, 1:1 with the reference (0 differing pixels over 75 screenshots,
+  `FRONTEND_ARCHITECTURE.md` section 6), live check on real data (section 7). No Web Worker: the 53 indicators take
+  20–50 ms on 2,123 bars. Waiting: edge-bff deployment.
+- T6 done 2026-10-25: grant migration 101, publisher run `a82de1e2` (842 event files), API dataset `events`; files
+  equal SQL for BBCA, GOTO, TLKM (RAILWAY_CHANGELOG).
+- Deployment of the Terminal tab on `edge-bff-dev`: needs the user's decision (edge-bff deploys from `main`; "nanti
+  dulu jangan gabungkan kode ke main"), FUTURE_PLAN.md item 1.
 - Deferred by the user ("let me decide later"): AI rule "use the stored Feature 04 value first" (FUTURE_PLAN.md).
 
 Open questions for the user (after the live inspection):

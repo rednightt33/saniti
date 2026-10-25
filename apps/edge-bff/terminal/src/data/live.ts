@@ -74,14 +74,15 @@ async function session(): Promise<string> {
   return data.csrf_token || '';
 }
 
+/* every chunk of years is asked for and downloaded at once (the URLs live 120 s, so each chunk downloads right away) */
 async function datasetFiles(ticker: string, dataset: 'price' | 'broker', years: number[], csrf: string) {
-  const docs: Columnar[] = [];
-  for (let k = 0; k < years.length; k += MAX_YEARS_PER_CALL) {
-    const chunk = years.slice(k, k + MAX_YEARS_PER_CALL);
+  const chunks: number[][] = [];
+  for (let k = 0; k < years.length; k += MAX_YEARS_PER_CALL) chunks.push(years.slice(k, k + MAX_YEARS_PER_CALL));
+  const parts = await Promise.all(chunks.map(async chunk => {
     const answer = await api('/files', csrf, { ticker, dataset, years:chunk });
-    docs.push(...await Promise.all(answer.files.map((f: any) => download(f.url))));
-  }
-  return docs;
+    return Promise.all(answer.files.map((f: any) => download(f.url)));
+  }));
+  return parts.flat() as Columnar[];
 }
 
 const yearsOf = (manifest: any, dataset: string) => Object.keys(manifest.datasets?.[dataset]?.years || {}).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
@@ -108,13 +109,18 @@ function alignTo(dates: string[], rows: { d: string; c: number }[]): Point[] {
 
 export async function liveData(stored: string | null): Promise<MarketData> {
   const csrf = await session();
-  const ref = await api('/reference/tickers', csrf);
-  const tickers = rowsOf(await download(ref.url)) as { ticker: string; name: string; type: string; sector: string | null }[];
+  const reference = async (name: string) => rowsOf(await download((await api(`/reference/${name}`, csrf)).url));
+  /* the independent downloads start together: references, the ticker's price, IHSG and the broker files */
+  const brokerRefP = reference('brokers');
+  const tickers = await reference('tickers') as { ticker: string; name: string; type: string; sector: string | null }[];
   const known = new Set(tickers.map(t => t.ticker));
   const instruments: Instrument[] = tickers.map(t => [t.ticker, t.name || t.ticker, t.sector || (t.type === 'index' ? 'Index' : 'Other'), 0]);
   const SYMBOL = stored && known.has(stored) ? stored : known.has('MAPI') ? 'MAPI' : tickers[0].ticker;
 
-  const main = await prices(SYMBOL, csrf);
+  const mainP = prices(SYMBOL, csrf);
+  const ihsgP = SYMBOL === 'IHSG' ? mainP : prices('IHSG', csrf);
+  const brokerP = mainP.then(m => { const y = yearsOf(m.manifest, 'broker'); return y.length ? datasetFiles(SYMBOL, 'broker', y, csrf) : [] });
+  const main = await mainP;
   if (!main.rows.length) throw new TerminalError(`No price data is published for ${SYMBOL}.`);
   const ohlc: Bar[] = main.rows.map(r => ({ time:r.d, open:r.o, high:r.h, low:r.l, close:r.c }));
   const volume: VolumePoint[] = main.rows.map(r => ({ time:r.d, value:r.v ?? 0, color:r.c >= r.o ? 'rgba(0,150,109,.48)' : 'rgba(235,57,69,.48)' }));
@@ -122,16 +128,14 @@ export async function liveData(stored: string | null): Promise<MarketData> {
   const dates = ohlc.map(b => b.time), N = dates.length, idx = new Map(dates.map((t, i) => [t, i]));
 
   /* IHSG for Statistics → Relative performance; sessions before its first close take its first close */
-  const ihsgRows = SYMBOL === 'IHSG' ? main.rows : (await prices('IHSG', csrf)).rows;
+  const ihsgRows = (await ihsgP).rows;
   const ihsgAligned = alignTo(dates, ihsgRows);
   const first = ihsgAligned.length ? ihsgAligned[0].value : NaN;
   const ihsg: Point[] = dates.map((t, i) => ihsgAligned[i - (N - ihsgAligned.length)] ?? { time:t, value:first });
 
   /* broker files: Flow Timeline (net per broker × investor type × board) and Broker activity (last 30 sessions) */
-  const brokerYears = yearsOf(main.manifest, 'broker');
-  const brokerDocs = brokerYears.length ? await datasetFiles(SYMBOL, 'broker', brokerYears, csrf) : [];
-  const brokerRef = await api('/reference/brokers', csrf);
-  const brokerTypes = new Map(rowsOf(await download(brokerRef.url)).map((r: any) => [r.code, r.type]));
+  const brokerDocs = await brokerP;
+  const brokerTypes = new Map((await brokerRefP).map((r: any) => [r.code, r.type]));
   const board = (m: string) => /nego/i.test(m) ? 'Nego' : /cash|tunai/i.test(m) ? 'Cash' : 'Regular';
   const combos = new Map<string, Combo>(), byDate = new Map<string, BrokerRow[]>();
   let flowFrom = N;

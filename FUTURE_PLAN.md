@@ -670,3 +670,32 @@ lebih dulu. Indikator rekursif (EMA, RSI, MACD, ATR, ADX) yang dihitung ulang da
 selama ratusan sesi (EMA 200 ±310–430). Usulan: untuk kolom yang tersimpan di Feature 04, pakai nilai tersimpan; jangan
 menghitung ulang dari riwayat yang lebih pendek. Ini perubahan system prompt (snapshot `prompts/SYSTEM_PROMPT_HISTORY.md`).
 User 2026-10-25: "let me decide later."
+
+
+## Terminal: keputusan terbuka setelah eksekusi T1–T6 (2026-10-25, menunggu keputusan)
+
+Bukti: `verification/terminal_api/FRONTEND_ARCHITECTURE.md` bagian 6–7, `apps/edge-bff/terminal/tests/calc/PARITY.md`,
+`verification/terminal_api/terminal_live_check.py`.
+
+1. **Deploy tab Terminal ke `edge-bff-dev`.** edge-bff dideploy dari `main`; user: "nanti dulu jangan gabungkan kode ke
+   main". Pilihan: gabung ke `main` (deploy otomatis), atau unggah CLI dari branch (ditimpa push `main` berikutnya dari
+   sesi lain).
+2. **Kuota file per jam.** Membuka satu ticker sekarang ±27 file (harga 2018–2026, IHSG, broker 2021–2026, peristiwa,
+   referensi); bawaan 60 file/jam = ±2 ticker/jam. Akun gateway pemilik diberi 600 (SEMENTARA). Pilihan: naikkan
+   bawaan, atau gabungkan file per ticker (lebih sedikit URL).
+3. **Rentang broker vs harga.** Harga dari 2018, broker di rak dari 2021 (5 tahun); Flow Timeline bernilai nol sebelum
+   2021 dan "Period net total" berarti sejak 2021 (BBCA asing −51,34 T sejak 2021; −47,32 T sejak 2016 di database).
+   Pilihan: terbitkan broker sejak data pertama (2016), atau tandai awal data broker di chart.
+4. **Detail aksi korporasi.** Nilai dividen, rasio split, harga tender dsb. hanya ada di `source_payload`, yang tidak
+   diterbitkan (T6). Marker sekarang menampilkan jenis dan tanggal (peran tanggal) saja. Pilihan: terbitkan beberapa
+   kolom terpilih dari payload per jenis.
+5. **Gauge "Broker action" dan "Bandar detector":** disembunyikan di data asli (rumus belum disetujui, DESIGN.md S5/S6).
+6. **Konvensi indikator yang ditemukan T1** (PARITY.md, "Findings"): ambang nol TA-Lib 1e-14; I39 Volume ROC null vs
+   TA-Lib 0; WILLR/CCI/ROC/PVO/MFI 0 pada penyebut nol (mengikuti TA-Lib); StochRSI dan %B/Bandwidth tidak stabil pada
+   jendela datar (saham tidak likuid); parameter RVOL `include_current_bar` di registry tidak dipakai (selalu termasuk
+   bar hari ini).
+7. **HV populasi vs sampel:** indikator Historical Volatility (HTML) memakai stdev populasi, panel Statistics memakai
+   sampel (n−1); CALC_062 (RVOL) tanpa bar hari ini, keputusan user dengan bar hari ini.
+8. **Kategori broker:** warna tag broker di data asli dari `IDX_Broker_Profile.broker_type` (Foreign/Domestic); kategori
+   BUMN referensi (CC NI OD DX) tidak ada di database.
+9. **Kecepatan:** ±5 detik untuk satu ticker dari sandbox (26 file paralel); tepat di batas target user (< 5 detik).

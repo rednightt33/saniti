@@ -66,6 +66,12 @@ export function initBroker(ctx: Ctx) {
   const BK_DAYS = bkDates.length;
   const bkCat = M.broker.category;
   const bkRows = M.broker.rows;
+  if(!BK_DAYS){                                                   // live: a ticker with no broker summary (an index)
+    $('rpSub').textContent = `${M.broker.label} · no broker data`;
+    ['bsBody','accBody','invBody','bdBody'].forEach(id => { $(id).innerHTML = `<div class="rp-empty">Tidak ada data</div>` });
+    ['bsRange','accRange','invRange','bdRange'].forEach(id => { $(id).innerHTML = '' });
+    return;
+  }
   const bkAgg = (d, inv='All', board='All') => {
     const m = new Map();
     for(const r of bkRows(d)){
