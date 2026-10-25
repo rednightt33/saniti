@@ -1643,6 +1643,40 @@ change yet.
 - **Lesson:** loader setiap sumber baru harus ada di Git dan menulis log muat per tanggal sebelum datanya dipakai
   Feature (Part A).
 
+### M218 — Sejak 2026-09-01 `IDX_Broker_Summary` hanya memuat simbol 4 huruf (2026-10-25)
+
+- **Symptom:** sub-agent verifikasi Feature (job C2 `b5f8bdb7`, D3 `a5ed8546`, read-only) menemukan:
+  - 2026-08-31: 1.320 simbol, 1.717 baris non-4-huruf (waran, right, R-LQ45X);
+  - 2026-09-01: 867 simbol; 0 baris non-4-huruf di 8 tanggal uji 2026-09-01…10-23.
+- **Verified effects:**
+  - F05/F06 untuk waran, right dan R-LQ45X berhenti di 2026-08-31;
+  - agregat INDEX broker ("semua simbol sumber") berganti komposisi sejak 2026-09-01, jadi deret alirannya tidak
+    sebanding sebelum dan sesudah tanggal itu;
+  - kolom frekuensi turunan F06_INDEX Regular, yang NULL di semua baris sampai 08-31 (simbol tanpa frekuensi),
+    mulai terisi sejak 09-01.
+- **Suspected cause (not verified):** loader yang memuat 2026-09-01…10-23 (M217, di luar Git) membatasi daftar
+  simbol ke saham. Cek yang mengonfirmasi: konfigurasi atau daftar simbol loader itu.
+- **Class:** perubahan cakupan sumber di tengah deret, tanpa catatan; mengenai setiap Feature dan agregat pasar yang
+  dibangun dari sumber yang sama.
+- **Solution:** belum ada; perlu keputusan user (muat ulang simbol non-saham untuk 09-01…, atau catat batas cakupan
+  di katalog dan Feature_Vocabulary INDEX).
+- **Status:** OPEN.
+- **Lesson:** loader harus mencatat cakupan simbol per tanggal di log muatnya (M217 L3), supaya perubahan cakupan
+  terlihat sebelum Feature dihitung.
+
+### M219 — Baris IHSG tertulis lagi di tabel saham `Feature_01_Stock_Daily` (2026-10-25)
+
+- **Symptom:** satu baris IHSG 2026-10-23 (volume NULL) di `Feature_01_Stock_Daily`, ditulis feature-01-worker
+  (`Feature_Calculation_Log` id 43574, 2026-10-25 10:05 UTC) setelah re-ingest harga 10:02 (sub-agent job B
+  `9bcab66c` / A `41e5bc3a`). `Feature_04_Technical_Indicator` tidak punya baris IHSG.
+- **Verified cause:** catatan terbuka "INDEX initialization final status (2026-10-24)": worker harga lama membuat
+  ulang baris indeks di tabel bersama setelah harga baru masuk, karena routing INDEX harian belum dibangun.
+- **Class:** worker turunan yang tidak membedakan jenis efek; berlaku untuk setiap indeks atau seri yang masuk ke tabel
+  harga saham.
+- **Solution:** routing INDEX harian (item terbuka; perlu go). Sementara baris itu dibiarkan; sambungan saham ke IHSG
+  (M216) membaca `Feature_01_Stock_Daily_INDEX`, bukan baris ini.
+- **Status:** OPEN.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.
