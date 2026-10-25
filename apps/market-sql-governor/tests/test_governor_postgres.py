@@ -547,3 +547,26 @@ def test_lookup_through_the_api_and_its_log_hold_ids_not_values(governed_db, cap
     for fact in body["facts"]:
         assert str(fact["value"]) not in records[-1]
     assert API_KEY not in records[-1] and "postgresql://" not in records[-1]
+
+
+def test_a_date_only_relationship_is_never_a_direct_row_join(governed_db) -> None:
+    """EXEC-M216: a relationship that meets on the date only would repeat each row once per series of the other
+    table in a row join; /v1/query refuses it and names the data need path."""
+    import psycopg
+    f01 = "Feature_01_Stock_Daily"
+    with psycopg.connect(governed_db["admin"], autocommit=True) as admin:
+        rid = admin.execute('''
+INSERT INTO public."AI_catalog_relationships" (left_table, left_columns, right_table, right_columns,
+    relationship_type, temporal_rule, safe_output_grain, requires_preaggregation, description, version, is_allowed,
+    supported_join_semantics, left_time_column, right_time_column)
+VALUES ('Price_Stock_Indonesia_IDX', ARRAY['date'], 'Feature_01_Stock_Daily', ARRAY['date'], 'MANY_TO_ONE',
+        'Same trading date', 'date x ticker', false, 'Synthetic date-only.', 'v2', true, ARRAY['EXACT_DATE'], 'date',
+        'date') RETURNING relationship_id''').fetchone()[0]
+        try:
+            result = run(governor(governed_db), spec(
+                columns=cols(PRICE, "ticker", "date", "close") + cols(f01, "return_1d_pct"),
+                joins=[{"table": f01, "relationship_id": rid}]))
+        finally:
+            admin.execute('DELETE FROM public."AI_catalog_relationships" WHERE relationship_id = %s', (rid,))
+    assert (result.decision, result.reason_code) == ("REJECTED", "DATE_ONLY_JOIN_NOT_SUPPORTED")
+    assert "submit_data_need_spec" in result.message and result.query_hash is None

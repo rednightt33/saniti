@@ -7644,3 +7644,41 @@ atau dilindungi. Berlaku untuk setiap loader lokal (Stockbit sekarang; cross-ass
 1. Loader yang dipakai untuk 2026-09-01…10-23: skrip apa dan di mana? Boleh dimasukkan ke Git (tanpa token)?
 2. Apakah loader itu juga menulis ke CSV harian lokal seperti loader lama?
 3. Login database apa yang dipakai loader (untuk L2, mencabut tulis langsung)?
+
+### EXEC-M216: sambungan "per tanggal saja" (Langkah B, dengan katalog Langkah A di dalamnya) (disetujui 2026-10-25)
+
+**Kata-kata user (2026-10-25):** "dari langkah A dan langkah B, mana yang bisa solve the problem entirely dengan risiko
+yang paling sedikit." → rekomendasi B (katalog A ikut di dalamnya) → "Oke, kita go dengan eksekusi B. Baca agent MD,
+cek ini di infrastruktur untuk setiap approve next step. Ensure bahwa setiap langkah yang diambil, apabila berdasarkan
+memori kamu, harap telah pengecekan terhadap kode terlebih dahulu. Ensure bahwa step yang diambil harus benar-benar
+berdasarkan kondisi kondisi instead of rely solely on memory".
+
+Status: go diterima; rencana teknis di bawah disusun dari inspeksi kode dan katalog live (bagian "Inspeksi").
+
+**Inspeksi (kode dan live, 2026-10-25):**
+- Kontrak sambungan wajib punya satu pasangan kunci entitas di tiga tempat:
+  - Governor `extract.py` `Restriction` (bentuk komposit minimal 2 pasangan; `_restriction_sql` menyusun `WHERE  AND`
+    bila kosong);
+  - sandbox `data_need.py` `_key_schema` (daftar 1-8);
+  - `saniti_session.join` (`merge_asof` dengan `left_by`).
+- orc tidak memvalidasi kunci sendiri; ia meneruskan ke sandbox (`tools/data_need.py` `RelationshipV2`).
+- Alur lama `request_data`/`/v1/query` (`policy.py`) mati di dev (`AI_TOOLS.md`: X di semua langkah; saklar tidak
+  diset).
+- Katalog live (job read-only di orc-test-runner, log `m216/inspect.log` di scratchpad sesi):
+  - 59 sambungan aktif; tidak satu pun tanpa pasangan entitas, dan tidak satu pun membiarkan entitas sisi "satu"
+    terbuka, jadi aturan baru tidak mengubah sambungan lama;
+  - kunci utama INDEX sama dengan pasangannya;
+  - `asset_type` F04 berisi `equity`/`bonds` di tabel saham dan `index` di tabel INDEX, sehingga tidak bisa jadi kunci;
+  - `AI_catalog_relationships` unik pada (left_table, right_table, version).
+
+**Langkah:**
+- B1 Governor: bentuk kunci kosong (EXACT_DATE/AS_OF saja); AS_OF tanpa kunci memilih seri lewat nilai tetap di scope
+  (`ONE_SIDE_NOT_UNIQUE` bila tidak); `/v1/query` menolak sambungan per tanggal (`DATE_ONLY_JOIN_NOT_SUPPORTED`).
+- B2 Sandbox: daftar kunci boleh kosong; sisi "satu" yang entitasnya tidak dipasangkan wajib menetapkan setiap kolom
+  kunci utama yang terbuka lewat EQ / IN satu nilai (`ONE_SIDE_NOT_UNIQUE`, catatan berisi aturan, contoh benar dan
+  salah); `saniti.join` menggabung lewat tanggal saja.
+- B3 orc: deskripsi `left_columns`/`right_columns` dan catatan katalog relasi (aturan, contoh benar/salah); kata untuk
+  pengguna di `user_texts.py`; Tool_Catalog ronde ae (`20261025_009`).
+- B4 Migrasi `20261025_010`: enam sambungan saham → INDEX, kuncinya diturunkan dari katalog dan nilai tersimpan; CHECK
+  baru untuk sambungan tanpa pasangan entitas.
+- B5 Deploy Governor → sandbox → orc (SUCCESS), lalu APPLY 009 dan 010, lalu cek end-to-end tanpa model.
