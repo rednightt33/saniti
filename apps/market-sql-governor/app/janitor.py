@@ -9,6 +9,11 @@ At expiry only data.parquet is deleted. A readable manifest.json stays as a tomb
 SQL_DATASET_TOMBSTONE_RETENTION_HOURS more, so a later lookup can answer DATASET_EXPIRED rather
 than DATASET_NOT_FOUND; then it is deleted too. An unreadable manifest cannot serve as a
 tombstone and is deleted with the data.
+
+A manifest is written once (put_immutable) and never changed, so the janitor keeps each readable manifest's
+expires_at in memory and downloads only the manifests it has not read yet (ERRORS M215: every pass downloaded every
+manifest and tombstone). The first pass after a restart reads them all once; an entry leaves the cache when its
+manifest is deleted or no longer listed.
 """
 from __future__ import annotations
 
@@ -26,7 +31,7 @@ KEY = re.compile(r"^datasets/(ds_[0-9a-f]{24})/(data\.parquet|manifest\.json)$")
 
 
 def cleanup_expired(store: ObjectStore, *, now: datetime, retention_hours: int,
-                    tombstone_hours: int = 0) -> dict[str, Any]:
+                    tombstone_hours: int = 0, expires_cache: dict[str, datetime] | None = None) -> dict[str, Any]:
     groups: dict[str, dict[str, datetime]] = {}
     unknown = 0
     for key, modified in store.list_keys("datasets/"):
@@ -38,14 +43,22 @@ def cleanup_expired(store: ObjectStore, *, now: datetime, retention_hours: int,
     deleted: list[str] = []
     tombstones_deleted = 0
     errors = 0
+    fetched = 0
+    cache: dict[str, datetime] = {} if expires_cache is None else expires_cache
+    for dataset_id in [known for known in cache if "manifest.json" not in groups.get(known, {})]:
+        del cache[dataset_id]
     for dataset_id, files in sorted(groups.items()):
         expires: datetime | None = None
         if "manifest.json" in files:
-            try:
-                raw = json.loads(store.get(f"datasets/{dataset_id}/manifest.json"))
-                expires = datetime.fromisoformat(raw["expires_at"])
-            except (ValueError, KeyError, TypeError):
-                expires = None
+            expires = cache.get(dataset_id)
+            if expires is None:
+                fetched += 1
+                try:
+                    raw = json.loads(store.get(f"datasets/{dataset_id}/manifest.json"))
+                    expires = datetime.fromisoformat(raw["expires_at"])
+                    cache[dataset_id] = expires
+                except (ValueError, KeyError, TypeError):
+                    expires = None
         readable_manifest = expires is not None
         if expires is None:
             expires = min(files.values()) + timedelta(hours=retention_hours)
@@ -61,11 +74,13 @@ def cleanup_expired(store: ObjectStore, *, now: datetime, retention_hours: int,
                 deleted.append(dataset_id)
             if drop_manifest:
                 store.delete(f"datasets/{dataset_id}/manifest.json")
+                cache.pop(dataset_id, None)
                 tombstones_deleted += 1
         except Exception:  # keep going; the next pass retries
             errors += 1
     return {"datasets_seen": len(groups), "datasets_deleted": len(deleted), "deleted_ids": deleted[:50],
-            "tombstones_deleted": tombstones_deleted, "unknown_keys": unknown, "errors": errors}
+            "tombstones_deleted": tombstones_deleted, "unknown_keys": unknown, "errors": errors,
+            "manifests_fetched": fetched}
 
 
 class DatasetJanitor(threading.Thread):
@@ -76,12 +91,14 @@ class DatasetJanitor(threading.Thread):
         self.interval_seconds = interval_seconds
         self.retention_hours = retention_hours
         self.tombstone_hours = tombstone_hours
+        self.expires_cache: dict[str, datetime] = {}
         self.stopped = threading.Event()
 
     def run_once(self) -> dict[str, Any]:
         try:
             summary = cleanup_expired(self.store, now=datetime.now(timezone.utc),
-                                      retention_hours=self.retention_hours, tombstone_hours=self.tombstone_hours)
+                                      retention_hours=self.retention_hours, tombstone_hours=self.tombstone_hours,
+                                      expires_cache=self.expires_cache)
         except Exception as exc:  # storage unreachable: log and retry next interval
             summary = {"error": type(exc).__name__}
         logger.info(json.dumps({"event": "sql_governor_dataset_cleanup", **summary}, separators=(",", ":")))
