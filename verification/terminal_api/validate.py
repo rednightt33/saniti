@@ -175,10 +175,10 @@ def main():
     for r in rows:
         if r[1] in sel and r[2] == 'Foreign':
             daily[r[0]] = daily.get(r[0], 0.0) + r[4] - r[5]
-    ref = sql_one("SELECT trade_date::text, sum(net_value)::float8, sum(sum(net_value)) OVER (ORDER BY trade_date)::float8 "
-                  "FROM \"Feature_05_Foreign_Domestic_Broker_Detail\" WHERE ticker='BBCA' AND trade_date BETWEEN "
-                  "'2023-01-01' AND '2023-12-31' AND broker = ANY('{AK,YP,ZP}') AND investor_type='Foreign' "
-                  'GROUP BY 1 ORDER BY 1')
+    ref = sql_one("SELECT d::text, net::float8, (sum(net) OVER (ORDER BY d))::float8 FROM (SELECT trade_date AS d, "
+                  "sum(net_value) AS net FROM \"Feature_05_Foreign_Domestic_Broker_Detail\" WHERE ticker='BBCA' AND "
+                  "trade_date BETWEEN '2023-01-01' AND '2023-12-31' AND broker = ANY('{AK,YP,ZP}') AND "
+                  "investor_type='Foreign' GROUP BY trade_date) x ORDER BY d")
     run, ok = 0.0, len(ref) == len(daily)
     for d_, net, cum in ref:
         run += daily.get(d_, 0.0)

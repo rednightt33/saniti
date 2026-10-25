@@ -1,0 +1,32 @@
+PASS admin route refuses a wrong key: 401
+PASS data refused without a session: (401, {'error': 'not_signed_in', 'message': 'Sign in first.'})
+PASS wrong password refused with a generic message: (401, {'error': 'sign_in_failed', 'message': 'Email or password is not correct.'})
+PASS sign-in from another origin refused: (403, {'error': 'origin_not_allowed', 'message': 'This request must come from the terminal page.'})
+PASS sign-in sets an HttpOnly Secure cookie: (200, ' HttpOnly; Max-Age=86400; Path=/; SameSite=lax; Secure')
+PASS manifest BBCA: {'window': {'first_year': 2021, 'last_year': 2026}, 'through': {'price': '2026-10-23', 'broker': '2026-08-31'}, 'ms': 258}
+PASS data_through equals the database: ('2026-10-23', '2026-10-23', '2026-08-31', '2026-08-31')
+PASS IHSG has price only: ['price']
+PASS presigned broker file issued: (200, 763)
+PASS file sha256 equals the manifest: 233656
+PASS bucket answers CORS for the terminal origin: https://terminal-api-dev.up.railway.app
+PASS bucket gives no CORS grant to another origin: None
+PASS broker file = SQL (rows, Σbuy, Σsell, Σlots) BBCA 2023: {'file': (21586, 187562284373750.0, 187562284373750.0, 210580367.52, 210580367.52), 'sql': [21586, 187562284373750, 187562284373750, 210580367.52, 210580367.52]}
+PASS ticker isolation (one ticker in the file): BBCA
+PASS dates ascending: ('2023-01-02', '2023-12-29')
+PASS odd lots kept as decimals: fractional sell lots present
+PASS broker summary 2023-12-18 investor=All board=All: 60 brokers
+PASS broker summary 2023-12-18 investor=Foreign board=All: 20 brokers
+PASS broker summary 2023-12-18 investor=Domestic board=Regular: 57 brokers
+PASS broker summary 2023-12-18 investor=All board=Nego: 8 brokers
+PASS flow timeline daily and cumulative (AK,YP,ZP Foreign) = SQL: 239 sessions, end 522,761,785,800
+PASS price file = SQL BBCA 2026: {'file': (191, '2026-01-02', '2026-10-23', 1243420.0, 40004300800.0), 'sql': [191, '2026-01-02', '2026-10-23', 1243420, 40004300800]}
+PASS unpublished year answers 404 with the published years: 404
+PASS unknown ticker 404: {'error': 'unknown_ticker', 'message': 'No published data for NOPE.'}
+PASS unknown field refused 400: [{'field': 'x', 'problem': 'Extra inputs are not permitted'}]
+PASS history price 2018-2020 = SQL: {'rows': 727, 'sql': [727, 4022775], 'ms': 275}
+PASS history broker 2019 YP+AK Foreign Regular = SQL: {'rows': 430, 'sql': [430, -237216185000], 'ms': 284}
+PASS history refuses dates inside the published window: 400
+PASS access is audited (bytes_day > 0, last_access set): {'subscriber_id': 1, 'email': 'validator@terminal.test', 'display_name': 'Phase 7 validator', 'active': True, 'expires_at': '2026-10-26T08:44:12.466719+00:00', 'disabled_reason': None, 'created_at': '2026-10-25T08:43:50.629951+00:00', 'last_access': '2026-10-25T08:44:22.966262+00:00', 'bytes_day': 542621}
+PASS sign-out ends the session: (200, 401)
+PASS disabling the account ends its sessions: 401
+SUMMARY 31/31 PASS; failed: []
