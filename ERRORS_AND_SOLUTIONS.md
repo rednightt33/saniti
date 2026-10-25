@@ -1604,8 +1604,9 @@ change yet.
   `expires_at` manifest yang terbaca di `DatasetJanitor.expires_cache`; hanya manifest baru yang diunduh; entri hilang
   saat manifest dihapus atau tidak terdaftar lagi; log menambah `manifests_fetched`. Tes `tests/test_janitor.py` (3 baru,
   termasuk dataset baru sesudah pass pertama dan restart). Commit `ba811e3`, Governor `14c44e51` SUCCESS. Pass pertama
-  sesudah restart: `datasets_seen=3695 manifests_fetched=3695` (18:44 UTC, sesuai rancangan); pass kedua dicek di
-  laporan berikutnya.
+  sesudah restart: `datasets_seen=3695 manifests_fetched=3695` (18:44 UTC, sesuai rancangan); pass kedua 19:44 UTC:
+  `datasets_seen=3699 manifests_fetched=4` (hanya empat dataset baru dari uji live). Unduhan per putaran turun dari
+  ±34 MB ke beberapa KB; lalu lintas LIST tetap ada.
 - **Lesson:** setiap loop latar ditinjau dari biaya per putaran terhadap jumlah objek yang terus tumbuh.
 - **Biaya (user 2026-10-24: "yang jadi masalah adalah biaya railway yang terus membengkak"):** tagihan tidak bisa
   dibaca (token proyek; `railway usage` Unauthorized). Perkiraan dari `railway metrics --raw` 30 hari × harga

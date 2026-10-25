@@ -4528,7 +4528,8 @@ onboarding hanya table idx_event_annotation." Before each push that redeployed o
 - market-ai-orc `725539eb` SUCCESS (`b41a2af`, idx_event_annotation in the router scope, prompt v019) and `ee15977b`
   SUCCESS (`77cfc49`, window basis in COLUMNS, prompt v020); no new `*_inactive` at startup. ai-data-coverage
   `12dcb889` SUCCESS (`b41a2af`). market-sql-governor `14c44e51` SUCCESS (`ba811e3`, janitor manifest cache, M215):
-  first pass after the restart `datasets_seen=3695 manifests_fetched=3695`.
+  first pass after the restart `datasets_seen=3695 manifests_fetched=3695`, second pass (19:44 UTC)
+  `datasets_seen=3699 manifests_fetched=4`.
 - First-message router benchmark with ask-back, before and after the scope change: new "events" set 2/12 (8 data
   questions sent to FACT) → 12/12; hard criteria PASS (about USD 0.19 for both runs). Live checks: L3 `edge_04f42c64`,
   `edge_9380a451`; EXEC-M209 step 5 `edge_5a2c8e54`, `edge_143ce386`, plus `edge_*` ADHI z-score (about USD 0.08 in all).

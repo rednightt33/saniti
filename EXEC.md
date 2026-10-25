@@ -7796,7 +7796,7 @@ keputusan sendiri. Urutan: 1 lebih dulu (token Stockbit berlaku sampai 2026-10-2
    menemukan M223 (syarat aksi korporasi tidak terbawa) dan M224 (kesegaran dari tanggal terjadwal). Keduanya usulan,
    perlu keputusan.
 3. **M215 usulan A — selesai.** Commit `ba811e3`, Governor `14c44e51` SUCCESS; pass pertama sesudah restart mengunduh
-   3.695 manifest (sesuai rancangan); pass kedua dicek di laporan.
+   3.695 manifest (sesuai rancangan); pass kedua 19:44 UTC hanya 4 (dataset baru).
 6. **EXEC-M209 langkah 1, 2, 5 — selesai.** Migrasi `20261025_016` (272 kalkulasi), kode `77cfc49` (orc `ee15977b`),
    prompt v020. Langkah 5: BBCA/TGUK lewat `query_metric` (hari bursa, rentang disebut), ADHI z-score lewat kolom
    Feature dengan baris asumsi; semua angka = SQL. Rincian: ERRORS M209.
