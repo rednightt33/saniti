@@ -106,10 +106,16 @@ def do_files(work):
 
     def one(j):
         t, ds, y, f = j
-        try:
-            body = get(f['key'][len(PREFIX) + 1:])
-        except Exception as e:  # noqa
-            return j, None, ['object_missing', t, ds, y, repr(e)[:100]]
+        body = None
+        for _ in range(3):
+            try:
+                body = get(f['key'][len(PREFIX) + 1:])
+                break
+            except Exception as e:  # noqa
+                err = e
+        if body is None:
+            e = err
+            return j, None, [['object_missing', t, ds, y, repr(e)[:100]]]
         errs = []
         sha = hashlib.sha256(body).hexdigest()
         if sha != f['sha256']:
@@ -246,6 +252,8 @@ def do_compare(work):
                 ok = close(x, y_)
             else:
                 ok = x == y_
+            if not ok and f == 'v' and ds == 'price' and y_ is None and a['vnull'] == a['n'] and x == 0:
+                ok = True  # all-NULL volume: SQL sum is NULL, file-side sum of nothing is 0
             if not ok:
                 mism.append([ds, t, y, f, x, y_])
         if ds == 'broker':
