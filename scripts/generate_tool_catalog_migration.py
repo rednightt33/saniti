@@ -56,6 +56,7 @@ registering the new versions of the tools whose contract changed in that round.
 - round_ab (20261021_001): run_python v10 (in_period is a row mask with a right and a wrong example; emit_json declares
   units like emit_table; EXEC-RULES-1021).
 - round_ac (20261023_005): preview_table_rows v3 (twelve objects: the Feature 05/06 stock views added; EXEC-M204).
+- round_ad (20261025_006): preview_table_rows v4 (eighteen objects: the six INDEX Feature tables added; EXEC-INDEX-1).
 - round_w (20261015_015): the first row of search_values and get_dimension_values v3 (the user's words matched to
   stored codes and values: names, initials, part of a name; EXEC-IMPL-1016 Fase 3, O1).
 
@@ -631,8 +632,22 @@ ROUNDS = {
         "limits": {"preview_objects": "twelve approved objects; the ORDER BY of each is app/tools/preview.py ORDERING and "
                                       "public.ai_preview_table_rows (20261023_004)"},
     },
+    "round_ad": {
+        "target": ROOT / "database/migrations/20261025_006_round_ad_tool_catalog.sql",
+        "versions": {"preview_table_rows": ("v3", "v4")},
+        "contracts": {"preview_table_rows": ("input_schema", "Feature_06_Foreign_Domestic_INDEX")},
+        "title": "Feature 01-06 INDEX tables onboarded",
+        "header": "EXEC.md EXEC-INDEX-1 (user \"buat visible ke AI juga ya\", 2026-10-25)",
+        "design": "NEW_TABLE_ONBOARDING_PLAN.md section 4; EXEC.md EXEC-INDEX-1",
+        "limits_design": "EXEC.md EXEC-INDEX-1",
+        "summary": ["preview_table_rows previews eighteen objects: the twelve of round_ac and the six IDX Composite",
+                    "Index (IHSG) Feature tables Feature_01_Stock_Daily_INDEX to Feature_06_Foreign_Domestic_INDEX",
+                    "(database function in 20261025_005); the count in its description is derived from ORDERING."],
+        "limits": {"preview_objects": "eighteen approved objects; the ORDER BY of each is app/tools/preview.py ORDERING and "
+                                      "public.ai_preview_table_rows (20261025_005)"},
+    },
 }
-NEWEST = "round_ac"
+NEWEST = "round_ad"
 
 
 def _tools_doc():

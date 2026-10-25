@@ -199,7 +199,90 @@ JOIN public."AI_column_catalog" AS col ON col.table_name = o.index_table AND col
 LEFT JOIN public."AI_calculation_catalog" AS s
        ON s.target_table = o.counterpart AND s.calculation_name = f.feature_column AND s.status = 'ACTIVE';
 
--- 6. preview (PREVIEW_PLACEHOLDER: written after the first DRYRUN lists the hidden columns)
+-- 6. preview: the six INDEX tables added
+CREATE OR REPLACE FUNCTION public.ai_preview_table_rows(p_table_name text)
+ RETURNS json
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'pg_temp'
+AS $function$
+DECLARE
+    order_clause text;
+    hidden text[];
+    result json;
+BEGIN
+    -- Each ORDER BY follows an existing index or the primary key where one exists, so LIMIT 20 needs no full sort
+    -- on the large tables; Feature 04's order, the Feature 05/06 views' orders and the INDEX tables' orders (their keys and time indexes) were measured (DATABASE_CHANGELOG.md).
+    order_clause := CASE p_table_name
+        WHEN 'Feature_01_Stock_Daily' THEN 'date DESC, ticker DESC'
+        WHEN 'Feature_02_Broker_Rolling' THEN
+            'date DESC, market_board DESC, ticker DESC, broker DESC, investor_type DESC'
+        WHEN 'Feature_03_Stock_Broker_Daily' THEN 'date DESC, market_board DESC, ticker DESC'
+        WHEN 'IDX_Broker_Profile' THEN 'broker_code ASC'
+        WHEN 'IDX_Broker_Summary' THEN
+            '"Date" DESC, "Symbol" DESC, "Broker" DESC, "Investor Type" DESC, "Market Board" DESC'
+        WHEN 'IDX_Stock_Universe' THEN '"Ticker" ASC'
+        WHEN 'Price_Stock_Indonesia_IDX' THEN 'date DESC, ticker DESC'
+        WHEN 'Price_Fixed_Income_Final' THEN 'date DESC, ticker DESC, metric_type DESC'
+        WHEN 'Universe_Fixed_income' THEN 'ticker ASC, metric_type ASC'
+        WHEN 'Feature_04_Technical_Indicator' THEN 'trade_date DESC, asset_type DESC, ticker DESC'
+        WHEN 'Feature_05_Foreign_Domestic_Broker_Detail_Stock' THEN
+            'trade_date DESC, ticker DESC, broker DESC, investor_type DESC, market_board DESC'
+        WHEN 'Feature_06_Foreign_Domestic_Stock' THEN 'trade_date DESC, market_board DESC, ticker DESC'
+        WHEN 'Feature_01_Stock_Daily_INDEX' THEN 'date DESC, ticker DESC'
+        WHEN 'Feature_02_Broker_Rolling_INDEX' THEN
+            'date DESC, market_board DESC, ticker DESC, broker DESC, investor_type DESC'
+        WHEN 'Feature_03_Stock_Broker_Daily_INDEX' THEN 'date DESC, market_board DESC, ticker DESC'
+        WHEN 'Feature_04_Technical_Indicator_INDEX' THEN 'trade_date DESC, asset_type DESC, ticker DESC'
+        WHEN 'Feature_05_Foreign_Domestic_Broker_Detail_INDEX' THEN
+            'trade_date DESC, ticker DESC, broker DESC, investor_type DESC, market_board DESC'
+        WHEN 'Feature_06_Foreign_Domestic_INDEX' THEN 'trade_date DESC, market_board DESC, ticker DESC'
+        ELSE NULL
+    END;
+    IF order_clause IS NULL THEN
+        RAISE EXCEPTION 'Table is not approved for preview' USING ERRCODE = 'insufficient_privilege';
+    END IF;
+    -- the columns AI_column_catalog hides (20261025_005 DRYRUN job db778889 listed them)
+    hidden := CASE p_table_name
+        WHEN 'Feature_04_Technical_Indicator' THEN ARRAY['tracking_high', 'tracking_low', 'temp_high',
+            'temp_high_bar', 'temp_low', 'temp_low_bar', 'calculation_version', 'calculated_at']
+        WHEN 'Feature_04_Technical_Indicator_INDEX' THEN ARRAY['tracking_high', 'tracking_low', 'temp_high',
+            'temp_high_bar', 'temp_low', 'temp_low_bar', 'calculation_version', 'calculated_at']
+        WHEN 'Feature_05_Foreign_Domestic_Broker_Detail_INDEX' THEN ARRAY['calculated_at']
+        WHEN 'Feature_06_Foreign_Domestic_INDEX' THEN ARRAY['calculated_at']
+        ELSE ARRAY[]::text[]
+    END;
+
+    EXECUTE format(
+        $query$
+        SELECT json_build_object(
+            'table_name', %1$L,
+            'order_by', %2$L,
+            'row_limit', 20,
+            'columns', (
+                SELECT json_agg(json_build_object(
+                           'name', a.attname,
+                           'type', format_type(a.atttypid, a.atttypmod),
+                           'nullable', NOT a.attnotnull) ORDER BY a.attnum)
+                FROM pg_catalog.pg_attribute AS a
+                WHERE a.attrelid = %3$L::regclass AND a.attnum > 0 AND NOT a.attisdropped
+                  AND NOT (a.attname::text = ANY (%4$L::text[]))
+            ),
+            'rows', COALESCE((
+                SELECT json_agg(CASE WHEN cardinality(%4$L::text[]) = 0 THEN to_json(sample)
+                                     ELSE (to_jsonb(sample) - %4$L::text[])::json END ORDER BY %2$s)
+                FROM (SELECT * FROM public.%1$I ORDER BY %2$s LIMIT 20) AS sample
+            ), '[]'::json)
+        )
+        $query$,
+        p_table_name, order_clause, format('public.%I', p_table_name), hidden
+    ) INTO result;
+    RETURN result;
+END
+$function$;
+
+COMMENT ON FUNCTION public.ai_preview_table_rows(text) IS
+    'market-ai-orc preview: at most 20 rows in a fixed order from eighteen approved market-data objects (Feature 04 and the INDEX tables without their hidden columns); EXECUTE only via market_ai_preview_reader.';
 
 -- 7. Table_Catalog: the migration path on the touched rows
 UPDATE public."Table_Catalog"
@@ -248,6 +331,11 @@ BEGIN
                WHERE r.left_table IN (SELECT index_table FROM index_onboard) AND r.right_table IN (SELECT index_table FROM index_onboard)
                  AND NOT (r.left_time_column = ANY (r.left_columns) AND r.right_time_column = ANY (r.right_columns))) THEN
         RAISE EXCEPTION 'An INDEX-to-INDEX relationship does not pair the time columns';
+    END IF;
+    IF EXISTS (SELECT 1 FROM index_onboard AS o, public."AI_column_catalog" AS c
+               WHERE c.table_name = o.index_table AND NOT c.ai_allowed
+                 AND public.ai_preview_table_rows(o.index_table)::jsonb -> 'rows' -> 0 ? c.column_name) THEN
+        RAISE EXCEPTION 'The preview shows a column AI_column_catalog hides';
     END IF;
     IF EXISTS (SELECT 1 FROM index_onboard AS o
                WHERE NOT has_table_privilege('market_ai_sql_reader', format('public.%I', o.index_table), 'SELECT')
