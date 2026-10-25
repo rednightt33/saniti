@@ -1589,6 +1589,27 @@ change yet.
   `20261025_004` (APPLY job `aaec0df4`, database 53,82 → 43,93 GB). Janitor Governor (usulan A) dan U1–U5 masih
   menunggu keputusan.
 
+### M216 — Join "per tanggal saja" (saham ↔ IHSG) tidak bisa didaftarkan: kontrak join wajib punya kunci entitas (2026-10-25)
+
+- **Symptom:** user 2026-10-25 memilih join "Sesama INDEX + ke saham per tanggal" untuk tabel `_INDEX` (EXEC-INDEX-1).
+  Join saham ke IHSG tidak punya kolom entitas yang sama (BBCA lawan IHSG); yang sama hanya tanggalnya.
+- **Verified cause (code):**
+  - Governor `apps/market-sql-governor/app/extract.py`: `Restriction.pairs` selalu memberi minimal satu pasangan.
+    `_restriction_sql` menyusun `key` dari pasangan itu; tanpa pasangan SQL-nya menjadi `WHERE  AND ...`.
+  - orc `apps/market-ai-orc/app/tools/data_need.py`: `Relationship.left_column` dan `right_column` wajib.
+  - Sandbox `apps/market-python-sandbox/app/data_need.py` `entity_key_pairs` dan `runtime/saniti_session.py`
+    `_keys` menganggap ada kunci entitas.
+- **Class:** setiap join antar-entitas yang hanya bertemu di waktu tidak bisa dinyatakan di katalog: benchmark atau
+  indeks lawan saham, makro (BI-Rate, kurs) lawan saham, komoditas lawan emiten. Ini juga berlaku untuk data
+  cross-asset dan makro yang direncanakan.
+- **Solution (sementara):** tidak didaftarkan. AI meminta dua kebutuhan data terpisah (saham dan IHSG) lalu
+  menyejajarkannya per tanggal di analisis. Usulan permanen: semantik join baru tanpa kunci entitas
+  (`EXACT_DATE` atau `AS_OF` pada kolom waktu saja, satu baris kanan per tanggal yang dijamin oleh grain katalog)
+  di Governor, orc dan sandbox; menunggu keputusan user.
+- **Status:** OPEN.
+- **Lesson:** periksa kontrak join sebelum menjanjikan relasi untuk sumber data dengan sistem kode entitas berbeda
+  (Part A A1.2, A4.17).
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.
