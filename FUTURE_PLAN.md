@@ -659,3 +659,14 @@ dari `IDX_Broker_Summary`; daftar tulis-tangan `APPROVED`, `RAW_SOURCES`/`FORBID
 
 **Keputusan user yang dibutuhkan:** indeks F05 (±0,4 GB, disk 49 GB dari 75 GB); indeks F04; perbaikan Governor (2);
 F05 dibuka seluruhnya atau hanya F06; preview; refresh harian F05/F06 masih manual (freshness akan BASI tanpa job).
+
+
+## AI: pakai nilai tersimpan Feature 04 sebelum menghitung ulang (usulan 2026-10-25, menunggu keputusan)
+
+Temuan (EXEC-TERMINAL-API, `verification/terminal_api/INDICATOR_ALIGNMENT.md`): system prompt orc menulis "TA-Lib first
+for standard indicators" (`apps/market-ai-orc/app/orchestrator.py`) dan alat analisis "TA-Lib first, then
+AI_formula_reference, then CUSTOM" (`app/tools/analysis.py`); tidak ada aturan memakai nilai Feature 04 yang tersimpan
+lebih dulu. Indikator rekursif (EMA, RSI, MACD, ATR, ADX) yang dihitung ulang dari riwayat pendek berbeda dari Feature 04
+selama ratusan sesi (EMA 200 ±310–430). Usulan: untuk kolom yang tersimpan di Feature 04, pakai nilai tersimpan; jangan
+menghitung ulang dari riwayat yang lebih pendek. Ini perubahan system prompt (snapshot `prompts/SYSTEM_PROMPT_HISTORY.md`).
+User 2026-10-25: "let me decide later."
