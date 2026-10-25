@@ -2431,3 +2431,30 @@ or raw source data changed. Daily INDEX updates remain a separately approved des
   COLUMNS show units and summaries; COVERAGE shows the range; preview hides the hidden columns.
 - Open: the broker INDEX tables end 2026-08-31 while `IDX_Broker_Summary` already holds dates to 2026-10-21 (re-download
   in progress); their refresh is manual (PLAN.md INDEX daily routing). L3 (paid) not run yet.
+
+## 2026-10-25 — `IDX_Broker_Summary_Freq` and `IDX_Net_Foreign_Summary` dropped (EXEC-INDEX-1 D)
+
+- User 2026-10-25 (screenshot of both partition families and `IDX_Broker_Profile_History`): "apakah tesis saya
+  screenshot ini dipakai atau tidak. Jika tidak dipakai, dihapus saja."
+- Read-only check (job, `run_job.sh`; repository and every remote branch searched):
+  - `IDX_Broker_Profile_History` is used and is kept: AI_table_catalog, the Governor login, 5 relationships, the
+    point-in-time functions and a status trigger.
+  - `IDX_Broker_Summary_Freq`: empty since `20261025_004`; only `sync_broker_summary_freq` and the one-off F05/F06 job
+    read it. The re-downloaded `IDX_Broker_Summary` dates 2026-09-01 to 2026-10-23 carry `buy_freq`/`sell_freq` on
+    100 % of rows, so the loader writes the frequency itself.
+  - `IDX_Net_Foreign_Summary`: 2,713,314 rows (2016-01-04 to 2026-10-09). No view, FK, function, AI catalog row, AI
+    grant (only `postgres` and `pgweb_reader`) or code reads it.
+- Migration `20261025_007_drop_broker_summary_freq_and_net_foreign.sql` (sha256 `d582177b…`, in `APPLIED.sha256`):
+  DRYRUN twice (the first found `related_functions` written `sync_broker_summary_freq(date,date)` without a space;
+  cleanup by pattern), then APPLY.
+  - Drops both partitioned tables with their 24 partitions and the function `sync_broker_summary_freq`.
+  - Table_Catalog `related_functions` cleaned.
+  - Column_Catalog and AI_column_catalog meanings of `IDX_Broker_Summary.buy_freq`/`sell_freq` and the column
+    comments now say the frequency comes with the load.
+- Read back: no object left, no function, `IDX_Broker_Summary` frequency kept (49,053 rows on 2026-08-31 and
+  2026-10-23); database 43.94 → 43.40 GB.
+- Left as they are:
+  - 26 `Database_Table_Status` rows that name the dropped tables (that table's refresh waits for approval);
+  - the enum types of the dropped columns;
+  - the lineage text of `Feature_Catalog` F05 `buy_freq`/`sell_freq` (historical source).
+- `apps/feature-05-06-job/job.py`: the retired task `phase1_backfill` was removed.

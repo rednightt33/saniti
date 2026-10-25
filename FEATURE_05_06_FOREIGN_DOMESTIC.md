@@ -144,3 +144,8 @@ Use scripts/backfill_index_features.py for an explicitly approved historical IND
 shared-table sample helper. Full counts, source reconciliation, snapshots and idempotence evidence
 are in verification/ihsg_feature_aggregation/bulk/. FEATURE_VOCABULARY.md documents the shared
 391-entry stock/non-INDEX and INDEX presentation dictionary; no frontend API/UI is implemented.
+
+**2026-10-25 (EXEC-INDEX-1, `20261025_007`):** `IDX_Broker_Summary_Freq`, its 12 partitions and `sync_broker_summary_freq`
+were dropped. `buy_freq`/`sell_freq` up to 2026-08-31 were copied from that staging table. From 2026-09-01 the Broker
+Summary load writes them with the row (every re-downloaded row carries them). Refresh after a new load:
+`refresh_feature_05(from, to, tickers)` → `refresh_feature_06(ticker, from)`.

@@ -7497,3 +7497,14 @@ Belum ada di `AI_*` dan belum ada grant ke `market_ai_sql_reader`. Pembaruan har
   - join saham↔IHSG per tanggal (M216, perlu perubahan kontrak di Governor, orc dan sandbox; menunggu keputusan);
   - L3 berbayar (menunggu go);
   - pembaruan harian tabel INDEX (PLAN.md INDEX).
+
+**EXEC-INDEX-1 D (2026-10-25):** user: "apakah tesis saya screenshot ini dipakai atau tidak. Jika tidak dipakai, dihapus
+saja. Feature 2, 3, 5, dan 6. Dan fitur apa lagi yang perlu kita update agar datanya update?"
+- Dihapus: `IDX_Broker_Summary_Freq`, `IDX_Net_Foreign_Summary` (24 partisi) dan `sync_broker_summary_freq`
+  (`20261025_007`).
+- Dipertahankan: `IDX_Broker_Profile_History` (dipakai AI dan Governor).
+- Refresh Feature yang tertinggal (sumber `IDX_Broker_Summary` sampai 2026-10-23, Feature sampai 2026-08-31):
+  - F02 → F03;
+  - F05 → F06;
+  - F02/F03/F05/F06 INDEX.
+  Diusulkan, belum dijalankan; menunggu go.

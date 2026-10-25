@@ -1586,8 +1586,9 @@ change yet.
   `sync_broker_summary_freq` (migrasi `20261022_001`), yang **mengosongkan** `buy_freq`/`sell_freq` untuk kunci
   tanpa baris Freq; tanggal 2026-09-01 s.d. 10-09 di Freq belum tersalin karena `IDX_Broker_Summary` baru sampai
   2026-08-31. User 2026-10-25: "Hapus saja" → dikosongkan (TRUNCATE, struktur tetap) dan sync dijaga, migrasi
-  `20261025_004` (APPLY job `aaec0df4`, database 53,82 → 43,93 GB). Janitor Governor (usulan A) dan U1–U5 masih
-  menunggu keputusan.
+  `20261025_004` (APPLY job `aaec0df4`, database 53,82 → 43,93 GB). Lalu user 2026-10-25 "Jika tidak dipakai, dihapus
+  saja": Freq dan `IDX_Net_Foreign_Summary` (tidak dipakai objek atau kode mana pun) di-DROP beserta fungsi sync,
+  migrasi `20261025_007` (database 43,94 → 43,40 GB). Janitor Governor (usulan A) dan U1–U5 masih menunggu keputusan.
 
 ### M216 — Join "per tanggal saja" (saham ↔ IHSG) tidak bisa didaftarkan: kontrak join wajib punya kunci entitas (2026-10-25)
 
