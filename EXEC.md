@@ -7542,3 +7542,29 @@ dulu ... Apabila sudah, maka ini akan dijadikan acuan source of truth, kerap di-
   - cek dokumentasi rumus per kolom di Git;
   - selaraskan Feature_Vocabulary dengan kode.
   Job database antre lewat satu kunci (`flock`) di runner yang sama (M210).
+
+### EXEC-INCR-1025: refresh inkremental F02/F03 dan INDEX broker (disetujui 2026-10-25)
+
+**Kata-kata user (2026-10-25):** "Masukan EXEC. Jalankan sub agent to test it ya, apakah hasilnya konsisten atau tidak
+dengan data raw utamanya, terutama dengan data historicalnya juga di table yang sama, apakah konsisten. Jangan sampai
+data yang baru dihitung dengan formula yang berbeda dengan data sebelumnya. Go."
+
+**Dasar dari kode:**
+- `scripts/backfill_feature_02_v2.py` hanya mengisi ticker yang belum ada (baris 275–279) atau membangun ulang
+  seluruh riwayat satu ticker (`--rebuild-ticker`, baris 280–281); tidak ada mode "dari tanggal".
+- `refresh_feature_03_stock_broker_daily(p_changed_date, p_tickers)` sudah bisa per tanggal, tetapi membaca F02.
+- `scripts/backfill_index_features.py` adalah bootstrap sekali jalan (arsip, migrasi `20261025_001`, sampel
+  2026-08-31).
+
+**Langkah:**
+- I1. `refresh_feature_02(p_from, p_tickers)`: rumus disalin dari SQL `backfill_feature_02_v2.py`. Membaca riwayat
+  secukupnya untuk jendela terpanjang dan hanya menulis baris ≥ `p_from`.
+  - Dibuktikan sama dengan hitung penuh pada sampel di transaksi yang di-rollback, sebelum dipakai.
+  - Lalu F02 1 Sep–23 Okt, lalu F03 per tanggal.
+- I2. Refresh INDEX F02/F03/F05/F06 untuk tanggal baru dengan rumus yang sama seperti bootstrap codex. Kode bootstrap
+  dibaca dulu; kalau rumusnya tidak bisa dipakai ulang tanpa menjalankan ulang arsip atau migrasi, desainnya
+  dilaporkan dulu.
+- T. Sub-agent menguji hasilnya:
+  - konsisten dengan raw `IDX_Broker_Summary`;
+  - konsisten dengan riwayat di tabel yang sama, artinya baris baru dihitung dengan rumus yang sama dengan baris
+    lama (hitung penuh = inkremental; batas 2026-08-31/09-01 mulus).
