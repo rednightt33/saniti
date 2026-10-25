@@ -7408,6 +7408,12 @@ User decisions 2026-10-25 (indicators and rack):
 - RVOL includes the current bar ("RVOLtermasuk volume hari ini").
 - Price files from the first stored year (2018) instead of 5 years ("3. ok"); broker files keep 5 years.
 
+User decisions 2026-10-25 (frontend wiring):
+- Login for the terminal tab in EDGE: "Saya dulu untuk testing" (the EDGE owner session first; subscriber accounts later).
+- edge-bff forwards `/api/terminal/...` to terminal-api so the page, its API and cookies are one site: "OK".
+- 4 indicators that differ from TA-Lib: user "Ok" after the industry-practice comparison; CMO (plain sums, Chande) and
+  Stochastic RSI (%K and %D smoothed 3) follow the HTML; OBV (first bar's volume) and Parabolic SAR follow TA-Lib.
+
 Open questions for the user (after the live inspection):
 - Q1: done (network access opened 2026-10-24).
 - Q2: decisions S1–S11 in the report (volatility basis, drawdown window, partial month, meaning of "Foreign" in the
