@@ -861,10 +861,10 @@ dikeluarkan), 103.788 baris insider unik, 964 ticker, 2017-10-12 s.d. 2026-10-23
 
 **Arahan user, 2026-10-25 (kata user):** "Kalau insider, kita harus menunjukkan atau show current percentage compared to previous percentage. Siapa yang beli, apa broker dan sebagainya. Tapi kalau corporate action seperti dividend, stock split, dan lain-lain, hanya cukup tunjukkan tanggalnya saja dan jenis corporate action. Detailnya nggak gitu penting." Usulan diringkas: corporate action hanya `event_type` + `annotation_date` (+ peran tanggal), detail tetap di `source_payload`; insider membawa `action`, `holder_*`, `broker_code`, saham dan persen sebelum/sesudah/perubahan, `pct_quality_flag`, harga, nilai, `data_origin`. Contoh 10 + 10 baris dikirim ke user dalam Excel (belum disetujui).
 
+**Keputusan user, 2026-10-25 (kata user):** "Kolom Excel sudah sesuai. Warna terstruktur ikut. Dilakukan di railway." (kolom usulan disetujui; waran terstruktur ikut; penarikan terjadwal berjalan di Railway).
+
 Pertanyaan terbuka:
-- Usulan kolom dan contoh Excel 2026-10-25: disetujui atau diubah?
+- Token di Railway: belum ada mekanisme pembaruan Stockbit JWT otomatis di repo (runner broker summary memakai token yang diganti manual, `apps/stockbit-broker-backfill/README.md`); JWT uji 2026-10-25 berlaku sekitar 1 hari.
 - `pct_quality_flag` memakai pembanding saham beredar paling jauh 30 hari (nilai desain, perlu konfirmasi).
 - Persentase insider (D21): simpan nilai API apa adanya + flag kualitas, atau juga kolom hasil hitung ulang?
-- Waran terstruktur (simbol seperti `AADIBQCQ6A`): ikut atau tidak?
-- Pembaruan terjadwal: Stockbit JWT berlaku sekitar 1 hari; cara memperbarui token dan jadwalnya belum diputuskan.
 - Kunci insider tanpa ID transaksi: aturan upsert saat refresh (D21).
