@@ -863,8 +863,9 @@ dikeluarkan), 103.788 baris insider unik, 964 ticker, 2017-10-12 s.d. 2026-10-23
 
 **Keputusan user, 2026-10-25 (kata user):** "Kolom Excel sudah sesuai. Warna terstruktur ikut. Dilakukan di railway." (kolom usulan disetujui; waran terstruktur ikut; penarikan terjadwal berjalan di Railway).
 
+**Keputusan user, 2026-10-25 (kata user):** "Current % Change % Ini saja yang perlu ada" (`pct_before` dikeluarkan; persen insider = `pct_after` dan `pct_change` dari Stockbit). Cek 2026-10-25: keduanya tidak bisa dihitung dari kolom saham saja (saham beredar tidak ada di sumber), tetapi saling mengecek dalam satu baris: `pct_change` ≈ `pct_after` × `shares_change` ÷ `shares_after` cocok di 100.788 dari 101.495 baris yang bisa dicek (99,3%); `pct_quality_flag` diganti ke cek dalam baris ini (OK, ROUNDING, INCONSISTENT, NOT_CHECKABLE, INVALID_SENTINEL), sehingga batas 30 hari tidak diperlukan.
+
 Pertanyaan terbuka:
 - Token di Railway: belum ada mekanisme pembaruan Stockbit JWT otomatis di repo (runner broker summary memakai token yang diganti manual, `apps/stockbit-broker-backfill/README.md`); JWT uji 2026-10-25 berlaku sekitar 1 hari.
-- `pct_quality_flag` memakai pembanding saham beredar paling jauh 30 hari (nilai desain, perlu konfirmasi).
-- Persentase insider (D21): simpan nilai API apa adanya + flag kualitas, atau juga kolom hasil hitung ulang?
+- 20 baris dengan angka rusak (D21): `pct_after`/`pct_change` dikosongkan; tidak bisa dihitung dari baris itu sendiri.
 - Kunci insider tanpa ID transaksi: aturan upsert saat refresh (D21).
