@@ -4508,3 +4508,34 @@ branch; this task does not release daily worker/frontend changes to main.
 - orc-test-runner: migration DRYRUN and APPLY `10fbc797` (20261025_013), load DRYRUN `12ff43fd` and APPLY `88886559`
   (`STOCKBIT_TOKEN` set by stdin for the run, TOKEN_REMOVED; `DATABASE_URL` VAR_REMOVED), read-back `5e566a73`. Stockbit
   is reachable from Railway. No service or variable kept.
+
+## 2026-10-25 — EXEC-GO-1025: service stockbit-updater, idx_event_annotation onboarding, janitor cache, window basis
+
+User 2026-10-25: "Okay, yang menunggu GO silahkan di jalankan. Plus, go for this as well Service stockbit-updater dan
+onboarding hanya table idx_event_annotation." Before each push that redeployed orc or edge-bff: no active EDGE run.
+
+- **New service `stockbit-updater`** (`c197c9c5-99e7-492c-9c10-be0c165acf31`, region sfo): volume
+  `stockbit-updater-volume` at `/data`; restart `NEVER`; no GitHub source (code uploaded with
+  `apps/stockbit-updater/deploy.sh`, so a push never starts a round). Variables, names only: `DATABASE_URL`
+  (`${{Postgres.DATABASE_URL}}`), `TELEGRAM_NOTIFY_URL` (telegram-monitor private address), `TELEGRAM_NOTIFY_SECRET`
+  (reference to telegram-monitor), `STATE_DIR`, `RAW_RETENTION_DAYS=3`, `UPDATER_WORKERS=6`, `UPDATER_MODE=APPLY`,
+  `UPDATER_VERIFY_DATE` (still set from the VERIFY round; read only in VERIFY, `updater.py`:120-142), and
+  `STOCKBIT_TOKEN` (set by stdin; value never printed or stored in Git). Deployments: VERIFY round `bb00eae3`
+  (execution `70aa6c1b`), APPLY round `b90418c7` (execution `a02b83df`, started by the `UPDATER_MODE` variable change:
+  decision K2 A works) SUCCESS, Telegram summary accepted (status 200). The token expires 2026-10-26 05:42 UTC.
+- telegram-monitor `1414dda2` SUCCESS (commit `22e86c5`): source `Monitoring_Stockbit_Update`, one summary per round
+  (K5).
+- market-ai-orc `725539eb` SUCCESS (`b41a2af`, idx_event_annotation in the router scope, prompt v019) and `ee15977b`
+  SUCCESS (`77cfc49`, window basis in COLUMNS, prompt v020); no new `*_inactive` at startup. ai-data-coverage
+  `12dcb889` SUCCESS (`b41a2af`). market-sql-governor `14c44e51` SUCCESS (`ba811e3`, janitor manifest cache, M215):
+  first pass after the restart `datasets_seen=3695 manifests_fetched=3695`.
+- First-message router benchmark with ask-back, before and after the scope change: new "events" set 2/12 (8 data
+  questions sent to FACT) → 12/12; hard criteria PASS (about USD 0.19 for both runs). Live checks: L3 `edge_04f42c64`,
+  `edge_9380a451`; EXEC-M209 step 5 `edge_5a2c8e54`, `edge_143ce386`, plus `edge_*` ADHI z-score (about USD 0.08 in all).
+- orc-test-runner one-off jobs (each VAR_REMOVED): migrations `addf6968`/`226fc268` (015), `fe48c32d`/`7f50a7aa` (016),
+  `5e67671c`/`5db91e4b` (017); coverage `344bc29f`; L2 `36fd8b6c`; Governor check `d10ba8ea`; index acceptance
+  `f89c9b11`; reads `e74f4670`, `187fa567`, `7fc383ea`, `d0eab471`, `39363dfd`, `4b0b2ff4`, `8b13c7c2`; schema document
+  regeneration (below).
+- `railway config pull --force` added `stockbit-updater`, its volume and the `terminal-*` resources created outside this
+  work; the Postgres memory comment that the pull drops was restored by hand. `railway config plan` (with `_` set to the
+  CLI path): up to date.

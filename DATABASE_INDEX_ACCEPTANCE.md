@@ -357,3 +357,19 @@ time column (codex migrations `20261024_010`): F01 `(date)`, F02 `(date, market_
 Governor level (`scripts/onboarding/governor_check.py`, the Governor's code as `market_ai_sql_reader`): F02 and F06
 INDEX one entity 365 days, every entity 400 days and 2,000 days: PASS (rows equal `count(*)`; 2,000 days within the
 limits). No index added.
+
+## `idx_event_annotation` (2026-10-25, EXEC-GO-1025 item 2)
+
+`scripts/onboarding/measure_indexes.py`, job `f89c9b11` (table, entity `ticker`, time `annotation_date`, entity BBCA;
+123,047 rows by count). Every pattern PASS, no Seq Scan, no index added:
+
+| Pattern | Access | Rows (estimate / counted) | Time |
+|---|---|---|---|
+| P1 one entity, 365 days | Index Scan `idx_event_annotation_ticker_date_idx` | 12 / 32 | 23.9 ms |
+| P2 cross-section, newest date | Index Scan `idx_event_annotation_family_date_idx` | 42 / 1 | 0.7 ms |
+| P3 all entities, 7 days | Index Scan `idx_event_annotation_family_date_idx` | 96 / 1 | 0.1 ms |
+| P4 all entities, 365 days (count) | count | 19,759 / 19,888 | 9 ms |
+| P5 calendar, 20 dates | no Seq Scan | — | 351.9 ms |
+
+Governor check `d10ba8ea` (`scripts/onboarding/governor_check.py`): one entity, every entity and the long window all
+PASS (the long window `APPROVED_WITH_PARTITIONING`).

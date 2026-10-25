@@ -2598,3 +2598,43 @@ legacy row snapshots for cleanup recovery. Apply status is recorded in DATABASE_
   active, one load run, annotation rows = active source rows; sizes 18 MB, 141 MB, 158 MB.
 - Part A: new source (Stockbit corporate action and insider endpoints), keys, units and null rules documented in
   Column_Catalog by the migration (PLAN.md EVENT-ANNOTATION decisions).
+
+## 2026-10-25 — EXEC-GO-1025: stockbit-updater tables, idx_event_annotation onboarded, window basis, Stockbit catalog rows
+
+User 2026-10-25: "Okay, yang menunggu GO silahkan di jalankan. Plus, go for this as well Service stockbit-updater dan
+onboarding hanya table idx_event_annotation." Every migration below ran DRYRUN (rolled back) then APPLY by one-off jobs
+on `orc-test-runner` (`scripts/onboarding/migration_job.py`, `DATABASE_URL` set for the run and removed, VAR_REMOVED);
+sha256 in `database/migrations/APPLIED.sha256`.
+
+- `20261025_014_monitoring_stockbit_update.sql` (APPLY `00ca2472`, sha `efdc4f54…`): table
+  `Monitoring_Stockbit_Update` (one row per stockbit-updater round: mode, status, token expiry, broker dates and rows,
+  Feature/INDEX/event results, error); Table_Catalog and Column_Catalog rows for it (15 columns) and for
+  `stockbit_full_broker_import_status` (10 columns).
+- `20261025_015_onboard_idx_event_annotation.sql` (DRYRUN `addf6968`, APPLY `226fc268`, sha `2e8bd2e1…`): SELECT for
+  `market_ai_sql_reader` (and `pgweb_reader`) on `idx_event_annotation` only; `AI_table_catalog` row (TRANSACTIONAL,
+  `annotation_date`, `ticker`, freshness 7 days, ACTIVITY_ONLY); 26 `AI_column_catalog` rows, 22 visible (payload,
+  endpoint, fetch time and ingestion time hidden), Indonesian meanings DRAFT; Table_Catalog update rule. Read back in the
+  same job: the reader reads 123,047 rows, is denied on `stockbit_insider_transaction`, and sees BBCA insider rows.
+- `20261025_016_calculation_window_basis.sql` (DRYRUN `fe48c32d`, APPLY `7f50a7aa`, sha `93a380f5…`):
+  `AI_calculation_catalog.parameters.window_basis = ENTITY_SESSIONS` and `window_length` on 272 active calculations
+  (F01 20, F02 25, F04 41, F06 50, each with its INDEX twin), derived from the first number of `lookback_window` (≥ 2).
+  Read back: one-observation lookbacks (`1 session`, `1 source date`, …) carry no window; COLUMNS join returns
+  `foreign_net_20d` 20 / ENTITY_SESSIONS and nothing for `foreign_net_1d` and `foreign_cumulative_net`.
+- `20261025_017_catalog_stockbit_backfill_tables.sql` (DRYRUN `5e67671c`, APPLY `5db91e4b`, sha `d5bf5543…`):
+  Table_Catalog (System, PARTIAL) and Column_Catalog for `idx_stockbit_backfill_status` (15 columns, 5 NEEDS_REVIEW
+  with NULL meaning: the writer is outside Git) and `idx_stockbit_value_corrections` (9 columns). Read back: only
+  `Column_Catalog`, `Database_Table_Status` and `Table_Catalog` remain without a Table_Catalog row (ERRORS M222).
+- Data, stockbit-updater rounds: VERIFY `70aa6c1b` (deployment `bb00eae3`): 2026-10-23 fetched 23,711 rows = stored
+  23,711, 0 different, 0 missing, 0 new. APPLY `a02b83df` (deployment `b90418c7`, 17:56–18:14 UTC): no Broker Summary
+  date to load (910 symbols), no changed Feature date (253 s), INDEX skipped, event reload run
+  `sbev-20261025T180019Z-05e702` committed (corporate actions 19,259, insider 103,788, annotation 123,047; 0 removed),
+  Database_Table_Status refreshed; SUCCESS.
+- Coverage: one `coverage_job.py --mode full` run (job `344bc29f`): `idx_event_annotation` 1,020 entities, range
+  2003-01-10…2026-12-18, VERIFIED/HEALTHY (the future end date is ERRORS M224).
+- Read-only checks: `187fa567` (the two backfill tables), `7fc383ea` (lookback windows), `e74f4670` (onboarding read),
+  `f89c9b11` (index acceptance, `DATABASE_INDEX_ACCEPTANCE.md`), `36fd8b6c` (L2), `d10ba8ea` (Governor), `d0eab471`,
+  `39363dfd`, `4b0b2ff4`, `8b13c7c2` (live answers against SQL).
+- Not changed: the two Stockbit source tables stay hidden from the AI; no Feature definition changed, so
+  `scripts/audit_feature_catalog_semantics.py` was not required.
+- Rollback (forward migrations): `is_active = false` on the `idx_event_annotation` AI_table_catalog row and REVOKE;
+  remove the two `parameters` keys; the catalog rows are documentation only.

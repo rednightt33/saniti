@@ -1472,6 +1472,21 @@ change yet.
   - TEMPORARY: membaca teks `lookback_window`, sampai langkah 1 (`window_basis` terstruktur). Tidak tertutup: kolom
     yang teksnya tanpa angka.
   - Langkah 1, 2 dan 5 belum dijalankan.
+- **Status 2026-10-25: FIXED** (EXEC-GO-1025 butir 6, langkah 1, 2, 5).
+  - Langkah 1: migrasi `20261025_016` (DRYRUN `fe48c32d`, APPLY `7f50a7aa`): `parameters.window_basis`
+    `ENTITY_SESSIONS` dan `window_length` pada 272 kalkulasi aktif F01/F02/F04/F06 dan tabel INDEX-nya, diturunkan dari
+    `lookback_window`. Dasarnya dibaca dari kode: F01 `ROWS BETWEEN … PARTITION BY ticker` (`20260912_001`:217-223), F04
+    bar valid ticker (`features/feature04/engine.py` `_segments`), INDEX meng-clone writer yang sama
+    (`scripts/backfill_index_features.py`:112-155). COLUMNS menampilkan `window {length, basis}` dan `window_note`
+    (`app/tools/catalog.py` `COLUMNS_V2_SQL`, `_window`); baris `WINDOW_BASIS_LINE` membaca field terstruktur, jadi
+    TEMPORARY di atas hilang.
+  - Langkah 2: `STORED_FEATURE_SENTENCE` umum (jumlah/hitungan berjendela, z-score, persentil) dengan contoh benar dan
+    salah; aturan cepat (8) menyebut aliran dan hitungan; snapshot `v020`. Commit `77cfc49`, orc `ee15977b` SUCCESS.
+  - Langkah 5 (live, ±USD 0,05): BBCA dan TGUK "20 hari terakhir" dijawab `query_metric` (20 tanggal bursa,
+    `governor.py`:1151-1165, rentang tanggal disebut); angka = SQL (job `4b0b2ff4`). ADHI z-score 20 sesi dijawab dari
+    `foreign_net_20d` dan `foreign_net_zscore_20d_base252d`, baris asumsi muncul, angka = SQL (job `8b13c7c2`).
+  - Tidak tertutup: jendela kumulatif tanpa angka ("all sessions") tidak mendapat `window_length`; data baru wajib
+    mengisi kedua field (NEW_TABLE_ONBOARDING_PLAN.md).
 - **Lesson:** aturan "baca, jangan hitung ulang" harus diturunkan dari katalog (`stored_in`), bukan dari daftar jenis
   kolom.
 
@@ -1489,6 +1504,11 @@ change yet.
   ke service itu. Aturan ditulis di `scripts/onboarding/run_job.sh` dan NEW_TABLE_ONBOARDING_PLAN bagian 5. Tidak ada
   pengecekan otomatis.
 - **Lesson:** satu service one-off, satu pekerjaan pada satu waktu.
+- **Terulang 2026-10-25 (antar sesi):** job regenerasi skema `b9950dba` (19:04:00 UTC) digantikan 14 detik kemudian
+  oleh `d7df1139`, job migrasi `quota_override_edge_owner.sql` dari sesi lain. Kunci `flock` sesi ini hanya melindungi
+  job dari sesi yang sama. Tidak ada data yang rusak: job saya belum menulis apa pun, job sesi lain selesai
+  (`JOB_DONE MIGRATION APPLY`), dan `DATABASE_URL` sudah terhapus. Job diulang sesudah runner kosong. Usulan otomatis di
+  atas (menolak bila deploy terakhir masih aktif) kini juga melindungi antar sesi; masih perlu keputusan user.
 
 ### M211 — Baris "AI request running" di kotak pesan tidak rata tengah vertikal (2026-10-24)
 
@@ -1568,6 +1588,12 @@ change yet.
   cukup menyimpan `expires_at` per dataset di memori dan hanya mengunduh manifest baru; satu putaran penuh sesudah
   restart.
 - **Status:** OPEN (diagnosis saja; tidak ada perubahan kode atau konfigurasi).
+- **Status 2026-10-25: FIXED** (usulan A, EXEC-GO-1025 butir 3): `apps/market-sql-governor/app/janitor.py` menyimpan
+  `expires_at` manifest yang terbaca di `DatasetJanitor.expires_cache`; hanya manifest baru yang diunduh; entri hilang
+  saat manifest dihapus atau tidak terdaftar lagi; log menambah `manifests_fetched`. Tes `tests/test_janitor.py` (3 baru,
+  termasuk dataset baru sesudah pass pertama dan restart). Commit `ba811e3`, Governor `14c44e51` SUCCESS. Pass pertama
+  sesudah restart: `datasets_seen=3695 manifests_fetched=3695` (18:44 UTC, sesuai rancangan); pass kedua dicek di
+  laporan berikutnya.
 - **Lesson:** setiap loop latar ditinjau dari biaya per putaran terhadap jumlah objek yang terus tumbuh.
 - **Biaya (user 2026-10-24: "yang jadi masalah adalah biaya railway yang terus membengkak"):** tagihan tidak bisa
   dibaca (token proyek; `railway usage` Unauthorized). Perkiraan dari `railway metrics --raw` 30 hari × harga
@@ -1641,6 +1667,12 @@ change yet.
   dicatat 2026-10-25 tanpa eksekusi. Sampai itu terjadi, `UPDATE_TABLE.md` bagian 2 melarang memakai loader Git untuk tanggal
   yang sudah berfrekuensi.
 - **Status:** OPEN.
+- **Status 2026-10-25: sebagian FIXED.** Loader importir user kini di Git sebagai service `stockbit-updater`
+  (`apps/stockbit-updater/broker_import.py`): menulis `buy_freq`/`sell_freq` (baris 41, 161-178; frekuensi pecahan
+  menghentikan run), log per tanggal di `stockbit_full_broker_import_status` dan per putaran di
+  `Monitoring_Stockbit_Update`. VERIFY `70aa6c1b` (2026-10-23: 23.711 baris diambil = tersimpan, 0 beda) dan APPLY
+  `a02b83df` SUCCESS. Sisa: loader lama `apps/stockbit-broker-backfill/` tetap tanpa frekuensi (larangan bagian 2 tetap)
+  dan penjaga di database (EXEC-LOADER-M217) belum dibangun.
 - **Lesson:** loader setiap sumber baru harus ada di Git dan menulis log muat per tanggal sebelum datanya dipakai
   Feature (Part A).
 
@@ -1750,10 +1782,53 @@ change yet.
 - **Verifikasi:** DRYRUN `9c0a7d8b` (rollback, 38,7 detik, tanpa trigger baru), APPLY `88a5a7a2`, baca ulang `1eb87b20`:
   79 baris untuk 79 tabel, 0 basi, 0 hilang; tanggal terbaru 2026-10-23 untuk sumber broker, harga dan F01–F06.
   `DATABASE_SCHEMA.md` dibuat ulang dari live.
+- **Status 2026-10-25:** sisa di bawah selesai: `stockbit_full_broker_import_status` lewat `20261025_014`, dua tabel
+  lainnya lewat `20261025_017` (DRYRUN `5e67671c`, APPLY `5db91e4b`); sesudahnya hanya tiga tabel katalog sendiri
+  tanpa baris Table_Catalog (pengecualian AGENTS). Makna kolom yang hanya terbaca dari nama dibiarkan NULL dengan
+  `NEEDS_REVIEW` (penulisnya di luar Git).
 - **Status:** FIXED. Sisa: `idx_stockbit_backfill_status`, `idx_stockbit_value_corrections` dan
   `stockbit_full_broker_import_status` tidak punya baris Table_Catalog, jadi masih "Unclassified" (pendaftaran perlu go).
   Refresh otomatis tetap menunggu R33.
 - **Lesson:** dokumen status dibaca dari katalog pemilik; tabel baru wajib punya baris Table_Catalog.
+
+### M223 — `idx_event_annotation` tidak memuat syarat aksi korporasi (nominal dividen, cum/record/pay date, rasio) (2026-10-25)
+
+- **Symptom:** L3 onboarding `edge_04f42c64` ("Kapan BBCA terakhir membagikan dividen tunai, berapa per sahamnya, dan
+  kapan cum date-nya?"): AI menyebut ex date 2026-08-31 dengan benar, menghitung cum date dari kalender harga, dan
+  menyatakan nominal per saham tidak tersimpan.
+- **Verified cause** (job `39363dfd`, `pg_get_functiondef`): `refresh_idx_event_annotation()` menyalin satu
+  `annotation_date` per aksi plus `source_payload` (kolom tersembunyi dari AI). Tabel sumber `stockbit_corporate_action`
+  punya `cum_date`, `ex_date`, `record_date`, `pay_date`, `start_date`, `end_date` dan payload berisi syaratnya: dividen
+  BBCA `dividend:118073` Rp 25 (`dividend_value`, `dividend_currency`), cum 2026-08-28, record 2026-09-01, bayar
+  2026-09-16. Split/bonus/rights/tender/warrant punya rasio dan harga di payload (`stocksplit_old/new`,
+  `rightissue_price`, `wrant_exc_price`, dst.).
+- **Class:** tabel anotasi yang dibuka ke AI adalah proyeksi yang membuang atribut khusus jenis event. Setiap pertanyaan
+  tentang syarat aksi korporasi (nominal dividen, yield dividen, rasio split, harga rights/warrant/tender, tanggal
+  bayar) terkena; sama untuk sumber event lain nanti (kalender makro: nilai aktual/konsensus; IPO: harga dan jadwal).
+- **Solution (usulan, perlu go user; lapisan data):** kolom bertipe di `idx_event_annotation`: `cum_date`, `ex_date`,
+  `record_date`, `pay_date`, `start_date`, `end_date` (disalin dari kolom sumber) dan `amount_per_share`, `currency`,
+  `ratio_old`, `ratio_new`, `terms_price`. Nilainya diambil dari payload per `action_type` lewat satu tabel pemetaan
+  kunci payload → kolom di migrasi, agar jenis baru cukup menambah satu baris pemetaan. Ditambah Column_Catalog dengan
+  unit dan baris AI_column_catalog. Tidak menyentuh dua tabel sumber.
+- **Status:** OPEN.
+- **Lesson:** saat meng-onboard tabel turunan, bandingkan kolomnya dengan kolom dan payload sumbernya. Setiap atribut yang
+  menjawab pertanyaan user harus bertipe dan terlihat (Part A: tidak ada makna yang hanya ada di payload tersembunyi).
+
+### M224 — Kesegaran cakupan dihitung dari tanggal terbesar, termasuk event terjadwal di masa depan (2026-10-25)
+
+- **Symptom:** L2 onboarding `36fd8b6c`: COVERAGE `idx_event_annotation` `actual_max_date` 2026-12-18, `freshness`
+  SEGAR, `age_days` 0, padahal tanggal hari ini 2026-10-25.
+- **Verified cause** (job `d0eab471`): baris CORPORATE_ACTION punya tanggal terjadwal sampai 2026-12-18 (RUPS, ex date
+  mendatang); `max(annotation_date)` hingga hari ini 2026-10-23 untuk kedua keluarga. Job cakupan
+  (`apps/ai-data-coverage/coverage_job.py`) dan kesegarannya membaca `max(date_column)` tanpa batas `as_of`.
+- **Class:** setiap tabel yang menyimpan baris berjadwal (kalender aksi korporasi, jatuh tempo obligasi, kalender rilis
+  makro, jadwal IPO) akan selalu tampak segar walau muatannya berhenti; peringatan basi tidak akan pernah muncul.
+- **Solution (usulan, perlu go user; lapisan job cakupan):** kesegaran dihitung dari `max(date) WHERE date <= as_of`
+  (atau dari waktu muat sumber), dan jumlah baris sesudah `as_of` dilaporkan terpisah (`scheduled_rows`). Tabel tanpa
+  baris masa depan tidak berubah.
+- **Status:** OPEN.
+- **Lesson:** "tanggal terakhir" sebagai ukuran kesegaran hanya sah untuk data observasi; data berjadwal butuh batas
+  `as_of`.
 
 ## Fixed-income selected-date repair — 2026-10-20 status
 

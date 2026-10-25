@@ -7783,3 +7783,23 @@ Lingkup (dibaca dari dokumen, bukan ingatan):
 
 Tidak termasuk: PENDING-M204 P6–P8 (user 2026-10-23: "Untuk saat ini itu jangan dijalankan dulu"); tetap menunggu
 keputusan sendiri. Urutan: 1 lebih dulu (token Stockbit berlaku sampai 2026-10-26 05:42 UTC), lalu 2, 3, 6, 7, 4, 5.
+
+**Hasil EXEC-GO-1025 (2026-10-25), dibaca dari live dan log:**
+1. **Service `stockbit-updater` — selesai.** Kode `22e86c5` (`apps/stockbit-updater/`), migrasi `20261025_014`,
+   telegram-monitor `1414dda2`. VERIFY `70aa6c1b`: 2026-10-23 diambil 23.711 = tersimpan 23.711, 0 beda. APPLY
+   `a02b83df` (deploy `b90418c7`, dipicu perubahan variabel: K2 A terbukti) SUCCESS: tidak ada tanggal broker baru, tidak
+   ada tanggal Feature berubah, INDEX dilewati, event dimuat ulang (123.047), status tabel, Telegram diterima. Cara pakai:
+   `UPDATE_TABLE.md` Bagian 0. `UPDATER_VERIFY_DATE` masih terpasang (diabaikan pada APPLY).
+2. **Onboarding `idx_event_annotation` — selesai.** Migrasi `20261025_015`, kode `b41a2af` (orc `725539eb`, coverage
+   `12dcb889`). Index acceptance `f89c9b11` PASS tanpa index baru; L2 `36fd8b6c`; Governor `d10ba8ea` PASS; benchmark
+   router set "events" 2/12 → 12/12. L3: TLKM insider (`edge_9380a451`) = SQL; BBCA dividen (`edge_04f42c64`)
+   menemukan M223 (syarat aksi korporasi tidak terbawa) dan M224 (kesegaran dari tanggal terjadwal). Keduanya usulan,
+   perlu keputusan.
+3. **M215 usulan A — selesai.** Commit `ba811e3`, Governor `14c44e51` SUCCESS; pass pertama sesudah restart mengunduh
+   3.695 manifest (sesuai rancangan); pass kedua dicek di laporan.
+6. **EXEC-M209 langkah 1, 2, 5 — selesai.** Migrasi `20261025_016` (272 kalkulasi), kode `77cfc49` (orc `ee15977b`),
+   prompt v020. Langkah 5: BBCA/TGUK lewat `query_metric` (hari bursa, rentang disebut), ADHI z-score lewat kolom
+   Feature dengan baris asumsi; semua angka = SQL. Rincian: ERRORS M209.
+7. **Katalog dua tabel Stockbit — selesai.** Migrasi `20261025_017`; `stockbit_full_broker_import_status` lewat `014`.
+   `DATABASE_SCHEMA.md` dibuat ulang dari live (job `1f9a1c7f`, 83 tabel).
+4. **Biaya U1/U3/U4/U5** dan 5. **L3 INDEX:** dilaporkan terpisah di bawah.

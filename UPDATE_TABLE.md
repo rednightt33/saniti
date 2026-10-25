@@ -4,8 +4,46 @@ Panduan memperbarui tabel yang diisi dari Stockbit. Setiap kelompok tabel punya 
 
 | Bagian | Tabel | Cara |
 |---|---|---|
+| **0. Cara biasa: service `stockbit-updater`** | semua tabel A dan B dalam satu putaran | Ganti `STOCKBIT_TOKEN` di service; Railway deploy ulang dan menjalankan satu putaran |
 | **A. Tabel broker** (nomor 1–7 di bawah) | `IDX_Broker_Summary` → Feature 05, 02, 03, 06, `_INDEX` | Loader lokal + job refresh di `orc-test-runner` |
 | **B. Corporate action, insider dan anotasi** (B1–B7) | `stockbit_corporate_action`, `stockbit_insider_transaction`, `idx_event_annotation` | Satu job di `orc-test-runner` dengan token dari user |
+
+# Bagian 0 — service `stockbit-updater` (cara biasa sejak 2026-10-25)
+
+Keputusan user 2026-10-25 (EXEC-STOCKBIT-UPDATER, EXEC-GO-1025): satu service di Railway, token Stockbit sebagai variabel,
+dan Feature 02, 03, 05, 06 serta tiga tabel event ikut terbarui. K2 A: putaran berjalan saat service di-deploy. K3: respons
+mentah disimpan 3 hari. K4: ya. K5: ringkasan dikirim ke Telegram. Kode: `apps/stockbit-updater/` (README di folder itu).
+Service `c197c9c5-99e7-492c-9c10-be0c165acf31`, restart `NEVER`, volume di `/data`.
+
+**Menjalankan satu putaran:** ganti variabel `STOCKBIT_TOKEN` di service `stockbit-updater` dengan JWT baru (dashboard
+Railway → service → Variables, atau `railway variable set STOCKBIT_TOKEN --stdin -s stockbit-updater` dengan token
+lewat stdin). Railway men-deploy ulang dan deploy itu menjalankan satu putaran. Token tidak pernah ditulis ke Git, log
+atau tabel; yang disimpan hanya waktu kedaluwarsanya (`token_expires_at`). Token kedaluwarsa menghentikan putaran
+dengan pesan yang menyebutnya.
+
+**Isi satu putaran APPLY** (`updater.py` `main`):
+1. Broker Summary (`broker_import.py`, importir user): tanggal harga harian yang lebih baru dari `max("Date")`
+   `IDX_Broker_Summary`, atau 30 hari terakhir yang belum punya baris broker. Simbol = universe 4 huruf ∪ harga ∪
+   broker terbaru (minimal 500). Menulis `buy_freq`/`sell_freq`. Per tanggal dicatat di
+   `stockbit_full_broker_import_status`.
+2. Feature (`refresh.py`): F05 per tanggal yang berubah, F02 dan F06 per ticker dari tanggal ubah terkecilnya, F03
+   untuk setiap tanggal ≥ tanggal ubah pertama, lalu cek dan rekonsiliasi F06. Tanggal tanpa perubahan dilewati.
+3. INDEX: hanya bila ada tanggal broker berubah atau harga IHSG lebih baru (`index_needed`).
+4. Event: muat ulang penuh corporate action dan insider, lalu `idx_event_annotation` (`events/job.py` APPLY; ±13 menit).
+5. `Database_Table_Status` (`scripts/sync_database_schema.py`).
+6. Satu baris `Monitoring_Stockbit_Update` (status, langkah, jumlah, galat) dan ringkasan Telegram lewat
+   `telegram-monitor`.
+
+**VERIFY tanpa menulis:** set `UPDATER_MODE=VERIFY` dan `UPDATER_VERIFY_DATE=YYYY-MM-DD`. Putaran mengambil satu tanggal
+yang sudah tersimpan dan membandingkan 15 kolom dua arah; beda apa pun membuat status FAILED. Kembalikan
+`UPDATER_MODE=APPLY` sesudahnya. `UPDATER_VERIFY_DATE` diabaikan pada mode APPLY.
+
+**Membaca hasil:** `SELECT * FROM public."Monitoring_Stockbit_Update" ORDER BY started_at DESC LIMIT 1;` dan log deploy
+(`event="round_finished"`). Putaran pertama 2026-10-25: VERIFY `70aa6c1b` (2026-10-23: 23.711 = 23.711, 0 beda), APPLY
+`a02b83df` SUCCESS (tidak ada tanggal broker baru; event 123.047 baris).
+
+**Deploy kode:** `apps/stockbit-updater/deploy.sh` (unggah folder yang disusun; tidak ada sumber GitHub, jadi push tidak
+memicu putaran). Bagian A dan B di bawah tetap berlaku untuk perbaikan manual dan riwayat.
 
 # Bagian A — tabel broker
 
@@ -74,6 +112,9 @@ Feature 01 dan 04 saham dihitung dari harga, bukan dari broker. Keduanya diurus 
   frekuensi**. Kolom frekuensi di F05/F06 untuk tanggal itu jadi kosong. Staging `IDX_Broker_Summary_Freq` sudah
   dihapus (`20261025_007`), jadi tidak ada cadangan.
 - Sampai loader yang menulis frekuensi masuk Git, **pakai loader yang sama dengan yang memuat 2026-09-01…10-23**.
+- **Sejak 2026-10-25** loader itu (importir user) ada di Git sebagai `apps/stockbit-updater/broker_import.py` dan menulis
+  frekuensi; pakai service di Bagian 0. Loader lama `apps/stockbit-broker-backfill/` tetap tidak boleh dipakai untuk
+  tanggal yang sudah berfrekuensi (ERRORS M217).
 
 ## 3. Sebelum refresh: pastikan sumber selesai dan utuh
 
@@ -157,11 +198,11 @@ punya papan Nego. Pembuktian dijalankan dalam transaksi yang di-rollback, jadi t
 
 ## 7. Yang belum ada (usulan, perlu go user)
 
-- **Loader frekuensi di Git.** Loader yang menulis `buy_freq`/`sell_freq` dan baris log masuk ke
-  `apps/stockbit-broker-backfill/`. Tanpa ini, panduan bagian 2 bergantung pada program di luar repo.
+- ~~**Loader frekuensi di Git.**~~ Selesai 2026-10-25: `apps/stockbit-updater/broker_import.py` (Bagian 0).
 - **Satu job update di repo.** Langkah 3–6 digabung menjadi satu skrip berparameter (`p_from` diturunkan dari
   data), bukan salinan per putaran.
-- **Pembaruan harian otomatis**, setelah loader dan job di atas ada.
+- ~~**Pembaruan harian otomatis**~~ Diganti 2026-10-25 oleh service `stockbit-updater` (Bagian 0). Putaran berjalan saat
+  token diganti, bukan terjadwal (K2 A).
 
 # Bagian B — corporate action, insider dan anotasi
 
