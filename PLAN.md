@@ -842,3 +842,25 @@ Existing legacy workers can recreate IHSG rows in shared tables after new prices
 queue deletion, new schedule or routing patch was authorized by the historical bootstrap. Current
 readback still has zero legacy IHSG rows. Propose the daily design and obtain the user's go before
 its implementation. The vocabulary is static release metadata and needs no daily cron or service.
+
+## EVENT-ANNOTATION — satu tabel anotasi corporate action + insider untuk EDGE (desain disetujui, belum "go")
+
+**Keputusan user, 2026-10-25 (kata user):** "bikin satu table yang isinya adalah kombinasi dari corporate action dan
+insider. Goal-nya adalah nanti di front end akan ada satu sumber source di mana setiap annotation akan refer ke satu
+table ini"; atas pertanyaan desain: "1: A" (satu baris per kejadian, tanggal lain di kolom), "2: Tidak pakai kalender
+ekonomi", "3. A" (dibaca front-end EDGE dulu, bukan AI), "4. B" (diperbarui terjadwal), dan "data origin perlu
+dilampirkan di dalam sumber".
+
+Usulan tabel `idx_event_annotation` (nama belum final): `event_key`, `event_family` (CORPORATE_ACTION, INSIDER),
+`event_type`, `event_subtype`, `ticker`, `instrument_code`, `annotation_date` + `annotation_date_role`, tanggal
+cum/ex/record/pay/start/end, angka bertipe numeric dengan satuan, kolom insider (`holder_*`, `broker_code`,
+`data_origin` IDX/KSEI, `is_estimated_price`), `source_payload` jsonb verbatim, `source_endpoint`, `source_fetched_at`,
+`ingestion_time`, `load_run_id`. Sumber: Stockbit `/corpaction/{type}?year=` (10 tipe, tanpa `economic` dan `ipo`)
+dan `/insider/company/majorholder`. Uji tarik 2026-10-25: 22.019 baris corporate action (termasuk 2.760 economic yang
+dikeluarkan), 103.788 baris insider unik, 964 ticker, 2017-10-12 s.d. 2026-10-23 (belum dimuat ke database).
+
+Pertanyaan terbuka:
+- Persentase insider (D21): simpan nilai API apa adanya + flag kualitas, atau juga kolom hasil hitung ulang?
+- Waran terstruktur (simbol seperti `AADIBQCQ6A`): ikut atau tidak?
+- Pembaruan terjadwal: Stockbit JWT berlaku sekitar 1 hari; cara memperbarui token dan jadwalnya belum diputuskan.
+- Kunci insider tanpa ID transaksi: aturan upsert saat refresh (D21).
