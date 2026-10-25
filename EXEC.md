@@ -7508,3 +7508,37 @@ saja. Feature 2, 3, 5, dan 6. Dan fitur apa lagi yang perlu kita update agar dat
   - F05 → F06;
   - F02/F03/F05/F06 INDEX.
   Diusulkan, belum dijalankan; menunggu go.
+
+### EXEC-REFRESH-1025: refresh Feature dari data broker baru, dan verifikasi Feature (disetujui 2026-10-25)
+
+**Kata-kata user (2026-10-25):** "1. Tabel di screenshot --> OK hapus IDX_Broker_Summary_Freq + 12 partisi dan
+IDX_Net_Foreign_Summary + 12 partisi" (sudah dijalankan: `20261025_007`); "3. OK"; "jalankan satu sub-agent yang goalnya
+adalah untuk memverifikasi apakah setiap feature datanya sudah sama dengan data ID Explorer Summary atau belum ... Cek di
+Git apakah sudah didokumentasi mengenai bagaimana setiap kolom di feature dihitung ... Feature_Vocabulary ... di-align
+dulu ... Apabila sudah, maka ini akan dijadikan acuan source of truth, kerap di-update di agents MD dan di Git juga."
+
+**Inspeksi (kode dan live, 2026-10-25):**
+- `IDX_Broker_Summary` berisi 2026-09-01…2026-10-23 (39 tanggal, frekuensi 100 %). Loader tanpa log di
+  `stockbit_broker_summary_load_log` (log berhenti di 2026-08-31); tidak ada sesi loader aktif.
+- F05 Agustus = Broker Summary (0 selisih), jadi rentang refresh mulai 2026-09-01.
+- Jalur refresh di kode:
+  - F05 `refresh_feature_05(from, to)` dan F06 `refresh_feature_06(ticker, from)`: inkremental.
+  - F03 `refresh_feature_03_stock_broker_daily(date, tickers)`: membaca F02.
+  - F02 `scripts/backfill_feature_02_v2.py`: hanya pembangunan ulang seluruh riwayat per ticker, tanpa mode
+    inkremental.
+  - INDEX `scripts/backfill_index_features.py`: bootstrap sekali jalan (mengarsip ulang dan menjalankan
+    `20261025_001`), tidak aman untuk diulang; pembaruan harian INDEX masih desain terpisah (PLAN.md INDEX).
+
+**Langkah:**
+- R1. F05 refresh 2026-09-01…2026-10-24, lalu F06 per ticker yang punya baris F05 baru (`p_from` 2026-09-01), lalu
+  ANALYZE. Validasi:
+  - baris F05 sama dengan Broker Summary (0 selisih);
+  - rekonsiliasi F06 terhadap Σ F05;
+  - sampel F06 inkremental sama dengan hitung penuh.
+- R2. F02 → F03 dan F02/F03/F05/F06 INDEX: butuh jalur refresh inkremental baru (kode belum ada); diusulkan ke user
+  sebelum dibangun.
+- V. Satu sub-agent:
+  - verifikasi angka setiap Feature terhadap `IDX_Broker_Summary` (dan harga untuk F01/F04);
+  - cek dokumentasi rumus per kolom di Git;
+  - selaraskan Feature_Vocabulary dengan kode.
+  Job database antre lewat satu kunci (`flock`) di runner yang sama (M210).
