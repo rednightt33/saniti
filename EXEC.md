@@ -7764,3 +7764,22 @@ Langkah:
 **Hasil langkah (1), 2026-10-25:** migrasi `20261025_013` APPLY `10fbc797`; muat awal APPLY `88886559`: corporate
 action 19.259, insider 103.788, `idx_event_annotation` 123.047; baca ulang `5e566a73` cocok (DATABASE_CHANGELOG). Tiga
 tabel belum dibuka ke AI (perlu onboarding dan go). Langkah (2) service: belum dimulai.
+
+## EXEC-GO-1025 — go user untuk semua butir yang menunggu (2026-10-25)
+
+**Kata user (2026-10-25):** "Okay, yang menunggu GO silahkan di jalankan. Plus, go for this as well Service
+stockbit-updater dan onboarding hanya table idx_event_annotation. Konfirmasi."
+
+Lingkup (dibaca dari dokumen, bukan ingatan):
+1. EXEC-STOCKBIT-UPDATER langkah (2): service `stockbit-updater` (K2 A, K3 3 hari, K4 ya, K5 Telegram).
+2. Onboarding `idx_event_annotation` saja ke AI (`NEW_TABLE_ONBOARDING_PLAN.md`); dua tabel sumbernya tetap tertutup.
+3. ERRORS M215 usulan A (janitor Governor tidak mengunduh ulang manifest yang sudah dibaca).
+4. FUTURE_PLAN biaya U1 (cek memori sandbox), U3 (aturan Part A biaya disk), U4 (sleep layanan jarang dipakai,
+   sesudah M215-A), U5 (ukur memori Postgres per job).
+5. L3 tabel `_INDEX` (berbayar; saldo dicek dulu).
+6. EXEC-M209 langkah 1, 2 dan 5.
+7. Baris Table_Catalog/Column_Catalog untuk `idx_stockbit_backfill_status`, `idx_stockbit_value_corrections`,
+   `stockbit_full_broker_import_status` (ERRORS M222).
+
+Tidak termasuk: PENDING-M204 P6–P8 (user 2026-10-23: "Untuk saat ini itu jangan dijalankan dulu"); tetap menunggu
+keputusan sendiri. Urutan: 1 lebih dulu (token Stockbit berlaku sampai 2026-10-26 05:42 UTC), lalu 2, 3, 6, 7, 4, 5.
