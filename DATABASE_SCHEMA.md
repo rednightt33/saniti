@@ -4364,3 +4364,5 @@ Reviewed Indonesian frontend dictionary for Feature01/02/03/05/06 stocks and IND
 
 | Name | Definition |
 |---|---|
+
+<!-- EXEC-M219 2026-10-25 (migration 20261025_011): `is_universe_index(text)`, `validate_stock_feature_identity()` and trigger `stock_feature_index_guard` on `Feature_01_Stock_Daily` and `Feature_04_Technical_Indicator` refuse universe-index rows; the next `scripts/sync_database_schema.py` run lists them in the generated sections. -->

@@ -4478,3 +4478,8 @@ branch; this task does not release daily worker/frontend changes to main.
   (read-only), migration DRYRUN `c99b3ff3`, migration APPLY `58657e12` (20261025_009, 20261025_010), end-to-end check
   `e7f24086` (read-only).
 - No variable changed.
+
+## 2026-10-25 — EXEC-M219 jobs
+
+- orc-test-runner (temporary `DATABASE_URL`, VAR_REMOVED after each): read-only inspections, DRYRUN `a1eea00c` (refused by
+  a foreign key, nothing kept), `831eb843`, `c6800486`, APPLY `6c467349` (20261025_011). No service or variable changed.

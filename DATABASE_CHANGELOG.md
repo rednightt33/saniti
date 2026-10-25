@@ -2512,3 +2512,16 @@ or raw source data changed. Daily INDEX updates remain a separately approved des
   - IHSG request without a ticker condition refused (`ONE_SIDE_NOT_UNIQUE`);
   - BBCA and BBRI on the 48 days IHSG fell more than 1 % in 2026: 96 rows, equal to an independent SQL query;
   - BBCA Regular on days the market's Regular foreign net was negative: 149 rows = 149.
+
+## 2026-10-25 — Universe indices kept out of the stock Feature tables (EXEC-M219)
+
+- User 2026-10-25: "Fix M219 ... seharusnya di feature 1 tidak ada IHSG karena IHSG sudah punya table sendiri".
+- Migration `20261025_011_exclude_index_from_stock_features.sql` (sha256 `1baef9b9…`):
+  - new `is_universe_index(text)` and `validate_stock_feature_identity()`;
+  - `enqueue_feature_01_price_row` and `enqueue_feature04_group` replaced by their live bodies (md5 checked) plus an
+    index skip;
+  - trigger `stock_feature_index_guard` on `Feature_01_Stock_Daily` and `Feature_04_Technical_Indicator`;
+  - deleted: 1 IHSG row of `Feature_01_Stock_Daily` (2026-10-23), the IHSG `Feature_Status` row, the FAILED IHSG
+    Feature 04 queue row and its 51 column-status rows. The 2,125 DONE Feature 01 queue rows stay (referenced by
+    `Feature_Calculation_Log`).
+- DRYRUN `831eb843`, `c6800486`; APPLY `6c467349`; read back as in ERRORS M219.

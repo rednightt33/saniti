@@ -7689,3 +7689,34 @@ Status: go diterima; rencana teknis di bawah disusun dari inspeksi kode dan kata
 - B5 deploy SUCCESS: Governor `c9ca1da1`, sandbox `8f1d3d53`, orc `c70666b7`. Cek end-to-end `e7f24086`: tanpa
   ticker ditolak; tanggal saja 96 = 96; lewat papan 149 = 149.
 - Belum dicoba lewat model (pertanyaan EDGE berbayar); bisa dijalankan bila user minta.
+
+### EXEC-M219: indeks tidak boleh masuk tabel Feature saham (disetujui 2026-10-25)
+
+**Kata-kata user (2026-10-25):** "Fix M219 ... untuk M219, seharusnya di feature 1 tidak ada IHSG karena IHSG sudah punya
+table sendiri, which is feature 1 stock daily, underscore index."
+
+**Inspeksi (kode dan live, job read-only `m219/inspect.log`, `m219/q2.log`):**
+- `enqueue_feature_01_price_row` (`20260913_006:146-174`, md5 live = repo `ab3524ea…`) memasukkan setiap baris harga ke
+  antrean F01 tanpa melihat jenis efek; IHSG (`IDX_Stock_Universe."Security Type" = 'index'`) ikut, sehingga
+  `Feature_01_Stock_Daily` memuat IHSG 2026-10-23 (log id 43574) dan antrean F01 punya 2.125 entri IHSG.
+- `feature04_asset_type()` (`20261011_006`) menggolongkan IHSG sebagai `equity`; `enqueue_feature04_group`
+  (`20261012_003:140-188`) memasukkannya ke antrean F04. Job itu FAILED (`REPAIR_REQUIRED`, 51 status kolom FAILED),
+  jadi tabel saham F04 belum punya baris IHSG; setelah repair ia akan tertulis.
+- `refresh_feature_01_stock_daily` disalin oleh bootstrap INDEX untuk menghitung IHSG (`backfill_index_features.py:151`),
+  jadi saringan tidak ditaruh di sana.
+
+**Langkah (migrasi `20261025_011`):**
+- `is_universe_index(ticker)` dari universe (bukan daftar ketik).
+- Antrean F01 dan F04 melewatkan ticker indeks (fungsi diganti dengan isi yang sama + pengecualian; md5 isi lama dicek
+  dulu).
+- Penjaga `stock_feature_index_guard` di `Feature_01_Stock_Daily` dan `Feature_04_Technical_Indicator`: menolak baris
+  indeks dengan pesan yang menyebut tabel `_INDEX`.
+- Bersihkan: baris IHSG di F01 saham, entri antrean/status F01 dan F04 milik indeks; log tetap sebagai riwayat.
+- Table_Catalog F01: kalimat "Includes universe-classified benchmark indices" diganti "indeks ada di
+  Feature_01_Stock_Daily_INDEX".
+- Belum termasuk: pembaruan harian tabel `_INDEX` (routing INDEX harian, item terbuka).
+
+### Feature_Vocabulary: koreksi laporan verifikasi (disetujui 2026-10-25)
+
+**Kata-kata user (2026-10-25):** "Cari solusi juga untuk ini. Kalau straightforward, langsung edit. Inspect code base
+dulu dan dependensi. Seharusnya fitur 5 referke table IDX broker summary."

@@ -1673,9 +1673,22 @@ change yet.
   ulang baris indeks di tabel bersama setelah harga baru masuk, karena routing INDEX harian belum dibangun.
 - **Class:** worker turunan yang tidak membedakan jenis efek; berlaku untuk setiap indeks atau seri yang masuk ke tabel
   harga saham.
-- **Solution:** routing INDEX harian (item terbuka; perlu go). Sementara baris itu dibiarkan; sambungan saham ke IHSG
-  (M216) membaca `Feature_01_Stock_Daily_INDEX`, bukan baris ini.
-- **Status:** OPEN.
+- **Cakupan lebih luas (dicek 2026-10-25):** `feature04_asset_type()` menggolongkan IHSG sebagai `equity`, sehingga
+  antrean F04 juga memuat IHSG (FAILED `REPAIR_REQUIRED`, 51 status kolom FAILED). Tabel saham F04 belum punya baris
+  IHSG hanya karena job itu gagal.
+- **Solution (EXEC-M219, user "Fix M219", 2026-10-25):** migrasi `20261025_011`:
+  - `is_universe_index()` diturunkan dari universe;
+  - `enqueue_feature_01_price_row` dan `enqueue_feature04_group` (semua jalur antrean F04) melewatkan indeks;
+  - penjaga `stock_feature_index_guard` di `Feature_01_Stock_Daily` dan `Feature_04_Technical_Indicator`;
+  - baris IHSG dan antrean/status terbuka dihapus. Entri antrean F01 yang DONE tetap ada sebagai riwayat
+    (`Feature_Calculation_Log_queue_fkey`).
+  - `refresh_feature_01_stock_daily` tidak diubah, karena bootstrap INDEX menyalinnya untuk menghitung IHSG.
+- **Verifikasi:**
+  - DRYRUN `831eb843` dan `c6800486` (rollback): harga IHSG yang dimuat ulang tidak masuk antrean, BBCA tetap masuk,
+    dan insert IHSG ke F01 saham ditolak;
+  - APPLY `6c467349`, dibaca ulang: 0 baris indeks di F01/F04 saham dan antrean terbuka; tabel `_INDEX` utuh
+    (2.125/2.125).
+- **Status:** FIXED. Pembaruan harian tabel `_INDEX` tetap item terbuka (routing INDEX harian).
 
 ## Fixed-income selected-date repair — 2026-10-20 status
 
