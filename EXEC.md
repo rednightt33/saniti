@@ -7689,3 +7689,22 @@ Status: go diterima; rencana teknis di bawah disusun dari inspeksi kode dan kata
 - B5 deploy SUCCESS: Governor `c9ca1da1`, sandbox `8f1d3d53`, orc `c70666b7`. Cek end-to-end `e7f24086`: tanpa
   ticker ditolak; tanggal saja 96 = 96; lewat papan 149 = 149.
 - Belum dicoba lewat model (pertanyaan EDGE berbayar); bisa dijalankan bila user minta.
+
+## EXEC-EVENT-ANNOTATION — approved 2026-10-25
+
+**Go (kata user, 2026-10-25):** "Tabel sudah OK proses. Saat ini tidak ada yang pakai test runner. Gas." — atas opsi A:
+nama tabel `stockbit_corporate_action`, `stockbit_insider_transaction`, `idx_event_annotation`; job di `orc-test-runner`
+(tanpa service baru, "tidak perlu bikin service baru. Tapi untuk source script dan lain-lain bisa ditaruh di Git");
+muat awal dengan token Stockbit yang diberikan user 2026-10-25. Desain dan keputusan sebelumnya: `PLAN.md`
+EVENT-ANNOTATION (1A satu baris per kejadian, tanpa kalender ekonomi, front-end dulu, tarik penuh setiap update,
+waran terstruktur ikut, insider hanya Current % dan Change %, `data_origin` wajib).
+
+Langkah:
+1. Kode di `apps/stockbit-event-annotation/`: tarik penuh corporate action (10 tipe × tahun) dan insider per ticker,
+   kunci tetap, rekonsiliasi (baris baru ditambah, berubah diperbarui, hilang dari sumber ditandai
+   `source_removed_at`), gerbang berhenti tanpa menulis bila hasil tarik < 99,5 % baris aktif atau ada request gagal,
+   satu transaksi, lalu `refresh_idx_event_annotation()`.
+2. Migrasi `20261025_011`: tiga tabel, fungsi refresh, indeks, `Table_Catalog`/`Column_Catalog`, grant pgweb.
+3. Muat awal lewat `orc-test-runner` (token dan `DATABASE_URL` dipasang sementara lalu dihapus), baca ulang.
+4. Dokumen: `UPDATE_TABLE.md` per kelompok tabel + section tiga tabel ini, `DATABASE_SCHEMA.md`, changelog,
+   `ERRORS_AND_SOLUTIONS.md` D21.

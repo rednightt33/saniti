@@ -1,4 +1,13 @@
-# Update table — tabel broker
+# Update table
+
+Panduan memperbarui tabel yang diisi dari Stockbit. Setiap kelompok tabel punya bagiannya sendiri:
+
+| Bagian | Tabel | Cara |
+|---|---|---|
+| **A. Tabel broker** (nomor 1–7 di bawah) | `IDX_Broker_Summary` → Feature 05, 02, 03, 06, `_INDEX` | Loader lokal + job refresh di `orc-test-runner` |
+| **B. Corporate action, insider dan anotasi** (B1–B7) | `stockbit_corporate_action`, `stockbit_insider_transaction`, `idx_event_annotation` | Satu job di `orc-test-runner` dengan token dari user |
+
+# Bagian A — tabel broker
 
 Panduan ini menjelaskan cara memperbarui semua tabel yang berasal dari data broker Stockbit, setelah
 `IDX_Broker_Summary` diisi tanggal baru atau tanggal lama dikoreksi. Isinya diturunkan dari kode dan dari
@@ -153,3 +162,86 @@ punya papan Nego. Pembuktian dijalankan dalam transaksi yang di-rollback, jadi t
 - **Satu job update di repo.** Langkah 3–6 digabung menjadi satu skrip berparameter (`p_from` diturunkan dari
   data), bukan salinan per putaran.
 - **Pembaruan harian otomatis**, setelah loader dan job di atas ada.
+
+# Bagian B — corporate action, insider dan anotasi
+
+Keputusan user 2026-10-25 (`EXEC.md` EXEC-EVENT-ANNOTATION): data ditarik **penuh** setiap kali user minta update (tidak
+harian), job jalan di Railway (`orc-test-runner`, tanpa service baru), dan user memberi token Stockbit untuk tiap putaran.
+Kode: `apps/stockbit-event-annotation/` (README di folder itu).
+
+## B1. Tabel
+
+| Tabel | Isi | Satu baris = |
+|---|---|---|
+| `stockbit_corporate_action` | Dividen, stock split, reverse split, saham bonus, rights issue, waran (waran terstruktur di ticker induknya), tender offer, RUPS, public expose. Tanggal-tanggal penting + baris asli Stockbit (`source_payload`) | Satu kejadian Stockbit (`<jenis>:<id Stockbit>`) |
+| `stockbit_insider_transaction` | Transaksi insider IDX dan perubahan pemegang ≥5 % KSEI: pemegang, peran, broker, saham sebelum/sesudah/perubahan, Current %, Change %, harga, nilai, `data_origin` | Satu transaksi berbeda (kunci hash; salinan persis digabung, `source_copies`) |
+| `idx_event_annotation` | Satu sumber anotasi grafik EDGE: corporate action (jenis + tanggal) dan insider (detail lengkap) | Satu kejadian; dibangun ulang oleh `refresh_idx_event_annotation()` |
+
+Kalender ekonomi dan IPO tidak ditarik (keputusan user). Dua tabel sumber tidak pernah menghapus baris: baris yang tidak
+lagi dikirim Stockbit diberi `source_removed_at` dan keluar dari `idx_event_annotation`.
+
+## B2. Sebelum menjalankan
+
+1. **Token.** Minta user memberi token Stockbit (JWT) yang masih berlaku. Token habis sekitar 1 hari setelah dibuat (lihat
+   `exp` di bagian tengah JWT). Simpan hanya di file sementara di scratchpad, jangan di repo atau log.
+2. **`orc-test-runner` sepi** (aturan M210: satu deploy baru menggantikan yang sedang jalan). Cek deploy terakhir dan
+   variabelnya; jangan mulai bila ada deploy dalam beberapa menit terakhir atau `DATABASE_URL` masih terpasang dari job
+   orang lain:
+   ```bash
+   railway deployment list -s 09358b92-09d4-4da2-b547-bf8f621e226c -e 4d3e5af2-302b-4a2e-84e2-7d7476d6ff49 -p 8aef1702-030b-49cb-9df7-5ac2e0a42691 --json
+   railway variable list -s 09358b92-09d4-4da2-b547-bf8f621e226c -e 4d3e5af2-302b-4a2e-84e2-7d7476d6ff49 -p 8aef1702-030b-49cb-9df7-5ac2e0a42691 --json  # hanya nama
+   ```
+3. **Railway CLI 5.x** di `PATH` (perintah `railway variable ...`; CLI 4.x memakai `variables` dan gagal).
+
+## B3. Menjalankan
+
+Dari root repo:
+
+```bash
+echo '{"mode": "DRYRUN"}' > /tmp/params.json       # opsional: tarik + rekonsiliasi, lalu rollback
+echo '{"mode": "APPLY"}'  > /tmp/params.json       # menulis
+apps/stockbit-event-annotation/run_on_railway.sh load /tmp/params.json /tmp/load.log < token.txt
+```
+
+Skrip memasang `STOCKBIT_TOKEN` (lewat stdin, tidak pernah di command line) dan `DATABASE_URL`, mengunggah job,
+menunggu `JOB_DONE`, lalu menghapus keduanya dan mencetak `TOKEN_REMOVED` dan `VAR_REMOVED`. Lama jalan sekitar
+15 menit: corporate action ±360 request, daftar insider seluruh pasar ±2.100 halaman (untuk daftar ticker), lalu insider
+per ticker ±1.000 ticker. Batas tunggu `run_job.sh` 30 menit.
+
+## B4. Jaminan per putaran
+
+Semua dicek di dalam satu transaksi; bila satu gagal, tidak ada yang ditulis (`ERR ...`, exit bukan 0).
+
+| Jaminan | Cara |
+|---|---|
+| Tidak ada gap | Tarik penuh setiap kali: semua jenis × tahun 1995 s.d. tahun depan, dan insider setiap ticker (daftar ticker = `IDX_Stock_Universe` ∪ ticker tersimpan ∪ seluruh daftar insider pasar ∪ ticker corporate action). Laporan terlambat bertanggal lama tetap masuk. |
+| Tidak dobel | Kunci tetap: `<jenis>:<id>` untuk corporate action; insider = hash (ticker, id pemegang, tanggal, aksi, saham sebelum/sesudah/perubahan, harga, asal) + nomor varian. Salinan persis dari Stockbit menjadi satu baris (`source_copies`). |
+| Tidak hilang diam-diam | Baris yang tidak dikirim lagi diberi `source_removed_at` (tidak dihapus). Bila hasil tarik < 99,5 % baris aktif sebuah tabel (`min_ratio`), job berhenti `pull_too_small`. |
+| Nilai wajib terisi | Constraint tabel (ticker, tanggal anotasi, jenis, kolom insider wajib); baris corporate action tanpa id atau tanggal anotasi menghentikan job; jumlah baris anotasi = baris aktif kedua sumber. |
+| Request gagal | Satu request yang tetap gagal setelah 4 percobaan menghentikan job. Tahun corporate action yang menjawab HTTP 5xx diterima sebagai kosong hanya bila tabel memang tidak punya baris untuk jenis dan tahun itu (Stockbit menjawab 500 untuk tahun tanpa data, mis. dividen sebelum 2009). |
+| Token kedaluwarsa | HTTP 401/403 menghentikan job dengan `STOPPED_INVALID_TOKEN`; minta token baru dan jalankan ulang. |
+| Dua job bersamaan | Advisory lock `stockbit_event_annotation`; job kedua berhenti `lock`. |
+
+## B5. Membaca hasil
+
+`OUT` di log: `pull_corporate_action`, `insider_ticker_list`, `pull_insider`, `reconcile_corporate_action` dan
+`reconcile_insider` (`pulled`, `new`, `changed`, `reappeared`, `unchanged`, `removed`), `refresh_annotation`, ringkasan
+per jenis/asal/flag, lalu `committed`. Putaran ulang tanpa perubahan di sumber menghasilkan `new` = `changed` =
+`removed` = 0.
+
+## B6. Excel gabungan
+
+```bash
+apps/stockbit-event-annotation/run_on_railway.sh export /tmp/export.log      # read-only, tanpa token
+python apps/stockbit-event-annotation/build_excel.py --log /tmp/export.log --output idx_event_annotation.xlsx
+```
+
+`build_excel.py` menolak log yang tidak lengkap (chunk hilang atau sha256 berbeda), jadi Excel sama persis dengan isi
+tabel. Sheet: tabel, definisi kolom (dari `Column_Catalog`), ringkasan per jenis dan flag.
+
+## B7. Sesudah menjalankan
+
+1. Catat di `DATABASE_CHANGELOG.md`: run id, mode, angka `reconcile_*`, rentang tanggal, ID deploy.
+2. Catat di `RAILWAY_CHANGELOG.md`: deploy di `orc-test-runner`, `TOKEN_REMOVED` dan `VAR_REMOVED`.
+3. Data baru atau aneh dari Stockbit (jenis aksi baru, tipe corporate action baru tanpa tanggal anotasi) → catat di
+   `ERRORS_AND_SOLUTIONS.md` dan perbarui `CORP_TYPES` di `stockbit_events.py` beserta tesnya.
