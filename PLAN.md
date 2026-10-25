@@ -869,6 +869,8 @@ dikeluarkan), 103.788 baris insider unik, 964 ticker, 2017-10-12 s.d. 2026-10-23
 
 **Arahan user, 2026-10-25 (kata user):** "Kenapa tidak scriptnya di [Railway] saja? Dan saya akan kasih bearer token yang bisa dirunning oleh agent untuk mengupdate ... datanya tidak diupdate setiap hari ... Just need to ensure ketika diupdate, maka akan continue from latest data point. Tidak duplicate, tidak missing value, atau tidak ada gap. Mungkin di updated MD bisa dipisah ya, per table. Dan dibuat section khusus untuk 3 table ini". Usulan: job ad hoc di Railway, token diberikan user per putaran dan dipasang sementara sebagai variabel lalu dihapus (pola `scripts/onboarding/run_job.sh`); setiap putaran menarik ulang seluruh sumber (±10 menit) dan merekonsiliasi dengan isi tabel; `UPDATE_TABLE.md` dipisah per kelompok tabel.
 
+**Keputusan user, 2026-10-25 (kata user):** "kalau misalkan saya tarik, maka datanya akan ditarik secara full"; "Untuk saat ini, tidak perlu bikin service baru. Tapi untuk source script dan lain-lain bisa ditaruh di Git"; "update [UPDATE_TABLE.md] juga boleh diupdate to let the AI and user know how the script works kemudian table tersebut sudah mulai diupload ke Postgres konfirmasi kalau masih ada yang ambigu". Service penarik Stockbit tersendiri dicatat di `FUTURE_PLAN.md` (STOCKBIT-PULLER).
+
 Pertanyaan terbuka:
 - Token di Railway: belum ada mekanisme pembaruan Stockbit JWT otomatis di repo (runner broker summary memakai token yang diganti manual, `apps/stockbit-broker-backfill/README.md`); JWT uji 2026-10-25 berlaku sekitar 1 hari.
 - 20 baris dengan angka rusak (D21): `pct_after`/`pct_change` dikosongkan; tidak bisa dihitung dari baris itu sendiri.

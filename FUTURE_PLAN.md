@@ -659,3 +659,7 @@ dari `IDX_Broker_Summary`; daftar tulis-tangan `APPROVED`, `RAW_SOURCES`/`FORBID
 
 **Keputusan user yang dibutuhkan:** indeks F05 (±0,4 GB, disk 49 GB dari 75 GB); indeks F04; perbaikan Governor (2);
 F05 dibuka seluruhnya atau hanya F06; preview; refresh harian F05/F06 masih manual (freshness akan BASI tanpa job).
+
+## STOCKBIT-PULLER — satu service Railway untuk semua tarikan Stockbit (usulan user, belum disetujui untuk dibuat)
+
+**Usulan user, 2026-10-25 (kata user):** "Saya berpikir untuk dibuat satu service yang goalnya adalah menarik data dari Stockbit. Dengan variabel bearer token tersebut. Jadi setiap hari atau setiap saya mau update, saya tinggal update saja. Variabel bearer token dan kemudian saya tinggal minta [AI] untuk update. Data-data yang diperlukan. Masuk broker summary." Untuk saat ini tidak dibuat ("tidak perlu bikin service baru"); skrip corporate action dan insider (PLAN.md EVENT-ANNOTATION) disusun supaya bisa dipindah ke service itu. Terbuka: loader broker summary yang menulis `buy_freq`/`sell_freq` belum ada di Git (`UPDATE_TABLE.md` bagian 2); cara token disimpan (variabel tetap vs dipasang per putaran).
