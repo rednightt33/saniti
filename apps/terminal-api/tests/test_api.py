@@ -78,6 +78,12 @@ class FakeStore:
             return None
         return {'subscriber_id': s['sid'], 'email': u['email'], 'display_name': u['name'], 'expires_at': u['expires_at']}
 
+    def proxied_subscriber(self, c, email):
+        for sid, u in self.subs.items():
+            if u['email'] == email and u['active'] and u['expires_at'] > dt.datetime.now(dt.timezone.utc):
+                return {'subscriber_id': sid, 'email': email, 'display_name': u['name'], 'expires_at': u['expires_at']}
+        return None
+
     def revoke_session(self, c, th):
         if th in self.sessions:
             self.sessions[th]['revoked'] = True
@@ -332,3 +338,50 @@ def test_events_file_needs_no_years_and_counts_as_one_file(env):
     assert r.status_code == 400
     r = client.post(f'{API}/files', json={'ticker': 'BBCA', 'dataset': 'price'})
     assert r.status_code == 400
+
+
+PROXY_KEY = 'p' * 40
+
+
+@pytest.fixture()
+def gateway():
+    store, bucket = FakeStore(), FakeBucket()
+    settings = Settings(**{**SETTINGS.__dict__, 'proxy_key': PROXY_KEY, 'proxy_subscriber': 'sub@example.com'})
+    client = TestClient(create_app(settings, store, bucket))
+    r = client.post(f'{API}/admin/subscribers', headers={**ADMIN, 'origin': ORIGIN}, json={
+        'email': 'sub@example.com', 'display_name': 'Owner', 'password': 'correct horse battery',
+        'expires_at': (NOW + dt.timedelta(days=30)).isoformat()})
+    assert r.status_code == 201, r.text
+    return client, store
+
+
+def test_gateway_key_acts_as_its_subscriber_with_quotas_and_audit(gateway):
+    client, store = gateway
+    h = {'x-terminal-proxy-key': PROXY_KEY}
+    assert client.get(f'{API}/manifest/BBCA', headers=h).status_code == 200
+    r = client.post(f'{API}/files', headers=h, json={'ticker': 'BBCA', 'dataset': 'price', 'years': [2026]})
+    assert r.status_code == 200 and store.access[-1]['sid'] == 1
+    store.limits_value['files_per_hour'] = 1
+    r = client.post(f'{API}/files', headers=h, json={'ticker': 'BBCA', 'dataset': 'price', 'years': [2025]})
+    assert r.status_code == 429
+
+
+def test_gateway_wrong_key_or_inactive_account_is_refused(gateway):
+    client, _ = gateway
+    assert client.get(f'{API}/manifest/BBCA', headers={'x-terminal-proxy-key': 'x' * 40}).json()['error'] == \
+        'proxy_key_rejected'
+    client.post(f'{API}/admin/subscribers/1', headers={**ADMIN, 'origin': ORIGIN}, json={'active': False})
+    assert client.get(f'{API}/manifest/BBCA', headers={'x-terminal-proxy-key': PROXY_KEY}).status_code == 401
+
+
+def test_gateway_key_is_refused_when_not_configured(env):
+    client, _, _ = env
+    r = client.get(f'{API}/manifest/BBCA', headers={'x-terminal-proxy-key': PROXY_KEY})
+    assert r.status_code == 401 and r.json()['error'] == 'proxy_key_rejected'
+
+
+def test_proxy_settings_come_together_and_strong():
+    with pytest.raises(ValueError):
+        Settings(**{**SETTINGS.__dict__, 'proxy_key': PROXY_KEY}).validate()
+    with pytest.raises(ValueError):
+        Settings(**{**SETTINGS.__dict__, 'proxy_key': 'short', 'proxy_subscriber': 'a@b.c'}).validate()

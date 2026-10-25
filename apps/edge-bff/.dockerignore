@@ -4,3 +4,6 @@ __pycache__
 tests
 .env*
 preview
+terminal/node_modules
+terminal/tests
+static/terminal-app

@@ -26,6 +26,18 @@ COOKIE = 'edge_session'
 STOP_RETRIES = 3  # EXEC-Y Fase 1 (I1): a run dispatched a moment ago is registered at Orc on receipt
 STATIC = Path(__file__).resolve().parents[1] / 'static'
 SCRIPT_NAME = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*')
+# EXEC-TERMINAL-API T4/T5: the built terminal page (apps/edge-bff/terminal -> static/terminal-app) and the terminal-api
+# routes the page may reach through this gateway (sign-in, password and admin routes stay on terminal-api only)
+TERMINAL_APP = STATIC / 'terminal-app'
+TERMINAL_ASSET = re.compile(r'[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*\.(?:js|css|woff2|svg|png)')
+TERMINAL_ROUTES = {'GET': re.compile(r'manifest/[A-Z0-9]{1,12}|reference/(?:tickers|brokers)|history/(?:price|broker)'),
+                   'POST': re.compile(r'files')}
+# The terminal page has no inline script; it downloads its files from the private bucket by presigned URL (virtual-host
+# addressing, https://<bucket>.t3.storageapi.dev). Inline style attributes are kept: the reference page builds them.
+TERMINAL_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; "
+                "img-src 'self' data: blob:; connect-src 'self' https://*.t3.storageapi.dev; object-src 'none'; "
+                "base-uri 'self'; frame-ancestors 'self'")
 CONV = r'^conv_[0-9a-f]{32}$'
 CHOICES = r'^(QUICK_SUMMARY|ANALYSIS|RESEARCH|EXPLORE|FACT|CLARIFY|INSIGHT|CONTINUE|APPROVE|NEW_TOPIC)$'
 # EXEC-MODELS: the shape of a model id and the reasoning levels; Orc checks the choice against its offered models
@@ -203,7 +215,7 @@ def create_app(settings=None, store=None, orc=None):
         response.headers['Referrer-Policy'] = 'same-origin'
         # EXEC-ASK-BRANCH: the side chat frames EDGE inside EDGE, so only EDGE's own pages may frame it (another site
         # still cannot; frame-ancestors 'self' keeps the clickjacking guard)
-        response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
         return response
 
     async def session(request: Request):
@@ -245,6 +257,7 @@ def create_app(settings=None, store=None, orc=None):
     @app.get('/')
     @app.get('/index.html')
     @app.get('/monitor')
+    @app.get('/terminal')
     @app.get('/login')
     async def index():
         return FileResponse(STATIC / 'index.html', media_type='text/html')
@@ -287,6 +300,52 @@ def create_app(settings=None, store=None, orc=None):
         name = request.url.path.lstrip('/')
         media = 'image/svg+xml' if name.endswith('.svg') else 'image/png'
         return FileResponse(STATIC / name, media_type=media, headers={'Cache-Control': 'public, max-age=86400'})
+
+    # EXEC-TERMINAL-API T5: the terminal page itself carries no data (the page asks /api/terminal for it), so it is
+    # served like EDGE's own page; its hashed assets never change and are cached.
+    @app.get('/terminal-app/')
+    async def terminal_page():
+        target = TERMINAL_APP / 'index.html'
+        if not target.is_file():
+            return error('NOT_FOUND', 404)
+        return FileResponse(target, media_type='text/html')
+
+    @app.get('/terminal-app/assets/{name}')
+    async def terminal_asset(name: str):
+        target = TERMINAL_APP / 'assets' / name
+        if not TERMINAL_ASSET.fullmatch(name) or not target.is_file():
+            return error('NOT_FOUND', 404)
+        return FileResponse(target, headers={'Cache-Control': 'public, max-age=31536000, immutable'})
+
+    # EXEC-TERMINAL-API T4 (user 2026-10-25: "edge-bff meneruskan /api/terminal/... ke terminal-api --> OK"): the owner's
+    # EDGE session reaches terminal-api as its one terminal account (quotas and audit there); writes keep EDGE's
+    # same-origin and CSRF checks. Only the data routes are forwarded.
+    async def forward_terminal(method: str, path: str, request: Request):
+        if not settings.terminal_url:
+            return error('TERMINAL_UNAVAILABLE', 503)
+        if not TERMINAL_ROUTES[method].fullmatch(path):
+            return error('NOT_FOUND', 404)
+        body = await request.body() if method == 'POST' else None
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                answer = await client.request(
+                    method, f'{settings.terminal_url}/api/terminal/v1/{path}', params=request.query_params,
+                    content=body, headers={'content-type': 'application/json', 'x-terminal-proxy-key': settings.terminal_proxy_key})
+        except httpx.HTTPError:
+            return error('TERMINAL_UNAVAILABLE', 503)
+        try:
+            data = answer.json()
+        except ValueError:
+            return error('TERMINAL_UNAVAILABLE', 503)
+        return JSONResponse(status_code=answer.status_code, content=data)
+
+    @app.get('/api/terminal/v1/{path:path}')
+    async def terminal_read(path: str, request: Request, _=Depends(session)):
+        return await forward_terminal('GET', path, request)
+
+    @app.post('/api/terminal/v1/{path:path}')
+    async def terminal_write(path: str, request: Request, _=Depends(write)):
+        return await forward_terminal('POST', path, request)
 
     @app.post('/api/v1/auth/sign-in')
     async def sign_in(body: Login, request: Request):

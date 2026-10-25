@@ -106,6 +106,11 @@ class Store:
                          (token_hash,)).fetchone()
 
     @staticmethod
+    def proxied_subscriber(c, email):
+        return c.execute('SELECT subscriber_id, email, display_name, expires_at FROM terminal.subscriber '
+                         'WHERE email = %s AND active AND expires_at > now()', (email,)).fetchone()
+
+    @staticmethod
     def revoke_session(c, token_hash):
         c.execute('UPDATE terminal.session SET revoked_at = now() WHERE token_hash = %s AND revoked_at IS NULL',
                   (token_hash,))

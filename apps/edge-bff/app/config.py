@@ -22,6 +22,10 @@ class Settings:
     poll_seconds: float = 2
     worker_enabled: bool = True
     environment: str = 'dev'
+    # EXEC-TERMINAL-API T4 (user 2026-10-25: "edge-bff meneruskan ... --> OK"): the private terminal-api address and the
+    # gateway key it accepts for this owner; both empty = the Terminal tab shows its data as unavailable
+    terminal_url: str = ''
+    terminal_proxy_key: str = ''
 
     @classmethod
     def from_env(cls):
@@ -41,7 +45,9 @@ class Settings:
                 lease_seconds=int(os.environ.get('EDGE_LEASE_SECONDS', '90')),
                 heartbeat_seconds=float(os.environ.get('EDGE_HEARTBEAT_SECONDS', '20')),
                 poll_seconds=float(os.environ.get('EDGE_POLL_SECONDS', '2')),
-                worker_enabled=os.environ.get('EDGE_WORKER_ENABLED', 'true').lower() == 'true')
+                worker_enabled=os.environ.get('EDGE_WORKER_ENABLED', 'true').lower() == 'true',
+                terminal_url=os.environ.get('EDGE_TERMINAL_URL', '').strip().rstrip('/'),
+                terminal_proxy_key=os.environ.get('TERMINAL_PROXY_KEY', ''))
         s.validate()
         return s
 
@@ -59,5 +65,13 @@ class Settings:
             raise ValueError('EDGE_PUBLIC_ORIGIN must be an origin')
         if self.environment != 'local' and (not self.secure_cookie or not self.origin.startswith('https://')):
             raise ValueError('Public EDGE requires HTTPS and Secure cookies')
+        if bool(self.terminal_url) != bool(self.terminal_proxy_key):
+            raise ValueError('EDGE_TERMINAL_URL and TERMINAL_PROXY_KEY are set together or not at all')
+        if self.terminal_proxy_key and len(self.terminal_proxy_key) < 32:
+            raise ValueError('TERMINAL_PROXY_KEY must be at least 32 characters')
+        if self.terminal_url and self.environment != 'local' and (
+                urlsplit(self.terminal_url).hostname != 'terminal-api.railway.internal'
+                or urlsplit(self.terminal_url).scheme != 'http'):
+            raise ValueError('EDGE_TERMINAL_URL must use the Railway private terminal-api endpoint')
         if self.orc_timeout_seconds < 3900 or self.session_seconds < 60 or self.heartbeat_seconds <= 0 or self.poll_seconds <= 0 or self.lease_seconds < self.heartbeat_seconds * 2:
             raise ValueError('Invalid EDGE timeout/lease configuration')

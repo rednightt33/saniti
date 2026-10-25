@@ -1,0 +1,22 @@
+{
+  "name": "edge-terminal",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "EDGE financial terminal (EXEC-TERMINAL-API T5): the reference 03-terminal-right-panel.html as modular TypeScript.",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "lightweight-charts": "5.2.1",
+    "lightweight-charts-drawing": "0.6.2"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "7.1.9",
+    "vitest": "3.2.4"
+  }
+}

@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Market Lab · TradingView-like</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <main class="shell">
+
+
+    <div class="ind-pop ev-pop" id="evPop" role="dialog" aria-label="Events" hidden>
+      <div class="ev-head"><div><strong>Events</strong><span>Corporate actions on the chart</span></div>
+        <label class="toggle t02" title="Show or hide all events"><input type="checkbox" id="evMaster" role="switch" checked><span class="track"></span><span class="thumb"></span></label></div>
+      <div class="ev-quick"><span id="evSummary"></span><span><button type="button" id="evAll">All</button><button type="button" id="evNone">None</button></span></div>
+      <div class="ev-list" id="evList" role="group" aria-label="Event types"></div>
+      <div class="ev-foot">Pick which kinds of events are marked on the price chart. Hover a marker for the details.</div>
+    </div>
+    <div class="ev-tip" id="evTip" hidden></div>
+
+    <div class="ind-pop" id="indPop" role="dialog" aria-label="Indicators" hidden>
+      <div class="ind-head"><strong>Indicators</strong><button class="icon-btn ind-close" id="indClose" aria-label="Close indicators">×</button></div>
+      <input class="ind-search" id="indSearch" type="search" placeholder="Search indicators" autocomplete="off">
+      <div class="ind-list" id="indList"></div>
+      <div class="ind-foot">Hover the ! icon for a short definition. Gear on a legend row opens its settings.</div>
+    </div>
+
+
+    <div class="workspace has-right" id="workspace">
+
+      <!-- LEFT: Statistics (collapsible, per-section accordion, nested scroll) -->
+      <aside class="side left" id="statsPanel" aria-label="Statistics">
+        <div class="side-inner">
+          <div class="side-head">
+            <div class="side-title"><strong>Statistics</strong><span id="statsRange">Visible range</span></div>
+            <select class="side-select" id="statsView" aria-label="Statistics view"><option>Overview</option></select>
+            <button class="icon-btn side-toggle" id="statsCollapse" title="Collapse panel" aria-label="Collapse statistics panel" aria-expanded="true">«</button>
+          </div>
+          <div class="side-scroll" id="leftScroll">
+
+            <section class="st" data-sec="dist">
+              <button class="st-head" aria-expanded="true"><span>Return distribution</span><small>Session returns</small><i class="chev"></i></button>
+              <div class="st-body">
+                <div id="distChart"></div>
+                <div class="axis" id="distAxis"></div>
+                <div id="distStats"></div>
+              </div>
+            </section>
+
+            <section class="st" data-sec="seas">
+              <button class="st-head" aria-expanded="true"><span>Seasonality</span><small>Avg return</small><i class="chev"></i></button>
+              <div class="st-body">
+                <div class="seg" id="seasToggle"><button class="active" data-mode="month">Monthly</button><button data-mode="weekday">Weekday</button></div>
+                <div id="seasBody"></div>
+              </div>
+            </section>
+
+            <section class="st" data-sec="dd">
+              <button class="st-head" aria-expanded="true"><span>Drawdown</span><small>From running peak</small><i class="chev"></i></button>
+              <div class="st-body">
+                <div id="ddChart"></div>
+                <div id="ddStats"></div>
+              </div>
+            </section>
+
+            <section class="st" data-sec="vol">
+              <button class="st-head" aria-expanded="true"><span>Realized volatility</span><small>20-session annualized</small><i class="chev"></i></button>
+              <div class="st-body">
+                <div id="volChart"></div>
+                <div id="volStats"></div>
+              </div>
+            </section>
+
+            <section class="st" data-sec="rel">
+              <button class="st-head" aria-expanded="true"><span>Relative performance</span><small>Benchmark · IHSG</small><i class="chev"></i></button>
+              <div class="st-body">
+                <div id="relChart"></div>
+                <div id="relStats"></div>
+              </div>
+            </section>
+
+            <section class="st" data-sec="vdist">
+              <button class="st-head" aria-expanded="true"><span>Volume distribution</span><small>Volume / 20D average</small><i class="chev"></i></button>
+              <div class="st-body">
+                <div id="vdChart"></div>
+                <div class="axis" id="vdAxis"></div>
+                <div id="vdStats"></div>
+              </div>
+            </section>
+
+          </div>
+          <div class="side-rail">
+            <button class="icon-btn side-toggle" id="statsExpand" title="Open Statistics" aria-label="Open statistics panel" aria-expanded="false">»</button>
+            <span class="rail-label">Statistics</span>
+          </div>
+        </div>
+        <div class="side-resize" id="statsResize" role="separator" aria-orientation="vertical" tabindex="0"
+             aria-label="Resize Statistics panel (drag, or arrow left/right; double-click to reset)"></div>
+      </aside>
+
+      <!-- CENTER: chart + Flow Timeline (same width, plot areas aligned) -->
+      <div class="main-col">
+    <header class="tvbar" aria-label="Trading toolbar">
+      <div class="symbol-pill" id="symbolPill" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Change symbol" title="Change symbol (Ctrl K)">
+        <span id="symText">MAPI</span>
+        <span class="exchange">IDX</span>
+      </div>
+      <button class="add-series-btn" id="toggleAddPanel" title="Add series" aria-label="Add series">+</button>
+      <div class="divider"></div>
+      <nav class="timeframes" id="timeframeGroup" aria-label="Timeframe">
+        <button class="active" data-timeframe="D">D</button>
+      </nav>
+      <div class="divider"></div>
+      <div class="segmented style-sw" id="styleGroup" role="group" aria-label="Chart type">
+        <button class="active" data-style="candle" title="Candlestick chart" aria-label="Candlestick chart" aria-pressed="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2.5v3M6 13.5v4M14 4.5v2.5M14 15v2.5"/><rect x="4" y="5.5" width="4" height="8" rx=".8"/><rect x="12" y="7" width="4" height="8" rx=".8"/></svg></button>
+        <button data-style="line" title="Line chart" aria-label="Line chart" aria-pressed="false"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 14.5l4.5-5 3.5 3 6.5-8"/><circle cx="16.8" cy="4.8" r=".6" fill="currentColor"/></svg></button>
+      </div>
+      <div class="divider"></div>
+      <button class="tool-btn ind-btn" id="indBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="indPop">
+        <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 14.5c2.2 0 2.6-9 5-9 2 0 2 7 4 7 1.6 0 2-4 5-4"/></svg>
+        <span>Indicators</span>
+      </button>
+      <button class="tool-btn ind-btn" id="evBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="evPop" title="Corporate actions on the chart">
+        <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 17V3.5M5 4.5h9l-2 3.2 2 3.3H5"/></svg>
+        <span>Events</span>
+      </button>
+      <div class="divider"></div>
+      <div class="segmented" id="modeGroup" aria-label="Price mode">
+        <button class="active" data-mode="price">Price</button>
+        <button data-mode="return">Return</button>
+      </div>
+      <div class="series-tabs" id="seriesTabs" aria-label="Active series"></div>
+      <button class="mk-search" id="symSearch" type="button" aria-haspopup="dialog" aria-label="Search markets">
+        <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="M13.2 13.2L17 17"/></svg>
+        <span>Search markets</span><kbd>Ctrl K</kbd>
+      </button>
+    </header>
+    <section class="panel" id="addPanel" aria-label="Add series panel">
+      <div class="panel-head">
+        <div>
+          <strong>Add Series</strong>
+          <span id="seriesCount">2 active</span>
+        </div>
+        <button id="closePanel" class="icon-btn" aria-label="Close add series">×</button>
+      </div>
+      <div class="add-row">
+        <input id="seriesSearch" type="search" placeholder="Search ticker" autocomplete="off">
+        <select id="addSeriesSelect" aria-label="Select ticker"></select>
+        <button id="addSeriesButton">Add</button>
+      </div>
+      <div class="catalog" id="catalogGrid"></div>
+    </section>
+        <section class="chart-wrap">
+        <div id="chart" aria-label="Interactive financial chart"></div>
+        <div class="chart-legend"><div class="flow-tip" id="flowTip"></div><div class="ind-row" id="indRow"><span class="ind-k">Volume</span><b id="volVal"></b><button class="ind-eye" id="volEye" type="button" aria-pressed="true" aria-label="Hide Volume" data-label="Hide"><svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="eye-on" d="M1.8 10S5 4.5 10 4.5 18.2 10 18.2 10 15 15.5 10 15.5 1.8 10 1.8 10Z"/><circle class="eye-on" cx="10" cy="10" r="2.4"/><path class="eye-off" d="M3 3l14 14M8.2 5a8 8 0 0 1 1.8-.5c5 0 8.2 5.5 8.2 5.5a14 14 0 0 1-2.6 3M5.6 6.6A14.4 14.4 0 0 0 1.8 10S5 15.5 10 15.5c1.3 0 2.5-.4 3.5-.9M8.4 8.4a2.4 2.4 0 0 0 3.2 3.2"/></svg></button><button class="ind-eye ind-x" id="volX" type="button" aria-label="Remove Volume" data-label="Remove"><svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg></button></div></div>
+      </section>
+
+        <section class="bottom" id="flowPanel" aria-label="Flow timeline">
+          <div class="flow-grip" id="flowGrip" role="separator" aria-orientation="horizontal" tabindex="0"
+               aria-label="Resize Flow Timeline panel (drag, or use arrow up/down; double-click to reset)"><i></i></div>
+          <div class="flow-head" id="flowHead">
+            <div class="flow-title">
+              <strong>Flow Timeline</strong>
+            </div>
+            <div class="flow-summary" id="flowSummary"></div>
+            <span class="flow-note" id="flowNote" hidden></span>
+            <div class="flow-filters" id="flowFilters">
+              <div class="fl" id="flBroker"></div>
+              <div class="fl" id="flBoard"></div>
+              <div class="fl" id="flInvestor"></div>
+              <button class="fl-reset" id="flReset" hidden>Reset</button>
+            </div>
+            <button class="flow-collapse" id="flowCollapse" type="button" aria-expanded="true" aria-controls="flowBody" aria-label="Collapse Flow Timeline" title="Collapse Flow Timeline">
+              <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.5l4 4 4-4"/></svg>
+            </button>
+          </div>
+          <div class="flow-wrap" id="flowBody">
+            <div id="flowChart" class="flow-chart"></div>
+            <div class="flow-legend">
+              <span><i style="background:var(--up)"></i>Net buy</span>
+              <span><i style="background:var(--down)"></i>Net sell</span>
+              <label class="pill-toggle" title="Show or hide the cumulative line">
+                <i class="ln"></i><span class="pt-label">Cumulative</span><span class="pt-sub">left axis</span>
+                <span class="toggle t02"><input type="checkbox" id="tglCum" role="switch" checked><span class="track"></span><span class="thumb"></span></span>
+              </label>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- RIGHT: Broker activity (collapsible, accordion, nested scroll) -->
+      <aside class="side right" id="brokerPanel" aria-label="Broker activity">
+        <div class="side-inner">
+          <div class="side-head">
+            <div class="side-title"><strong>Broker activity</strong><span id="rpSub">BBCA · Broker summary</span></div>
+            <button class="icon-btn side-toggle" id="rpCollapse" title="Collapse panel" aria-label="Collapse broker panel" aria-expanded="true">»</button>
+          </div>
+          <div class="side-scroll" id="rightScroll">
+
+            <section class="st" data-sec="bs">
+              <button class="st-head" aria-expanded="true"><span>Broker summary</span><small id="bsHint">Net</small><i class="chev"></i></button>
+              <div class="st-body">
+                <div class="rp-range" id="bsRange"></div>
+                <div class="rp-ctl">
+                  <select class="rp-sel" id="bsInv" aria-label="Investor type"><option value="All">All investors</option><option value="Foreign">Foreign</option><option value="Domestic">Domestic</option></select>
+                  <select class="rp-sel" id="bsBoard" aria-label="Board"><option value="All">All boards</option><option value="Regular">Regular</option><option value="Nego">Nego</option><option value="Cash">Cash</option></select>
+                  <div class="seg" id="bsMode"><button class="active" data-mode="net">Net</button><button data-mode="gross">Gross</button></div>
+                </div>
+                <div id="bsBody"></div>
+              </div>
+            </section>
+
+            <section class="st" data-sec="acc">
+              <button class="st-head" aria-expanded="true"><span id="accTitle">Top accumulators</span><small id="accHint">5D net</small><i class="chev"></i></button>
+              <div class="st-body">
+                <div class="rp-range" id="accRange"></div>
+                <div class="rp-ctl">
+                  <div class="seg" id="accSide" role="group" aria-label="Side"><button class="active" data-side="buy">Buy</button><button data-side="sell">Sell</button></div>
+                </div>
+                <div id="accBody"></div>
+              </div>
+            </section>
+
+            <section class="st" data-sec="inv">
+              <button class="st-head" aria-expanded="true"><span>Broker inventory</span><small id="invHint">—</small><i class="chev"></i></button>
+              <div class="st-body">
+                <div class="rp-range" id="invRange"></div>
+                <div class="rp-ctl">
+                  <div class="fl rp-fl" id="invFilter"></div>
+                  <div class="seg" id="invUnit" role="group" aria-label="Unit"><button class="active" data-unit="lot">Lot</button><button data-unit="value">Value</button></div>
+                </div>
+                <div class="rp-legend" id="invLegend"></div>
+                <div id="invBody"></div>
+              </div>
+            </section>
+
+            <section class="st" data-sec="bd">
+              <button class="st-head" aria-expanded="true"><span>Bandar detector</span><small id="bdHint">Top 5</small><i class="chev"></i></button>
+              <div class="st-body">
+                <div class="rp-range" id="bdRange"></div>
+                <div class="rp-ctl"><div class="seg" id="bdTop" role="group" aria-label="Top N"><button data-n="3">Top 3</button><button class="active" data-n="5">Top 5</button><button data-n="10">Top 10</button></div></div>
+                <div id="bdBody"></div>
+              </div>
+            </section>
+
+          </div>
+          <div class="side-rail">
+            <button class="icon-btn side-toggle" id="rpExpand" title="Open Broker activity" aria-label="Open broker panel" aria-expanded="false">«</button>
+            <span class="rail-label">Broker activity</span>
+          </div>
+          <div class="side-resize l" id="rpResize" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Resize broker panel"></div>
+        </div>
+      </aside>
+    </div>
+
+    <footer class="foot">
+      <span>Market Lab · TradingView-like layout</span>
+      <span>Standalone Lightweight Charts · Wheel zoom · Drag pan · Y-axis drag scale · <a href="https://www.tradingview.com/" target="_blank" rel="noopener">Charts by TradingView</a></span>
+    </footer>
+  </main>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

@@ -22,6 +22,7 @@ from .config import Settings
 from .security import client_ip, new_token, password_verifier, same_secret, token_hash, verify_password
 
 COOKIE = 'terminal_session'
+PROXY_HEADER = 'x-terminal-proxy-key'
 TICKER = re.compile(r'^[A-Z0-9]{1,12}$')
 BROKER = r'^[A-Z0-9]{2}$'
 API = '/api/terminal/v1'
@@ -129,12 +130,30 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
     def ip_of(request: Request):
         return client_ip(request.headers.get('x-forwarded-for'), request.client.host if request.client else None)
 
+    def proxied(request: Request):
+        """True for a request forwarded by edge-bff with the proxy key; a wrong key is refused, never ignored."""
+        key = request.headers.get(PROXY_HEADER)
+        if key is None:
+            return False
+        if not settings.proxy_key or not same_secret(key, settings.proxy_key):
+            error(401, 'proxy_key_rejected', 'The gateway key is not valid.')
+        return True
+
     def same_origin_post(request: Request):
-        """Cookie-authenticated writes must come from an allowed origin (no cross-site form posts)."""
+        """Cookie-authenticated writes must come from an allowed origin (no cross-site form posts). The gateway checks
+        its own page's origin and CSRF token before forwarding."""
+        if proxied(request):
+            return
         if request.headers.get('origin', '').rstrip('/') not in settings.allowed_origins:
             error(403, 'origin_not_allowed', 'This request must come from the terminal page.')
 
     def subscriber(request: Request):
+        if proxied(request):
+            with store.tx() as c:
+                row = store.proxied_subscriber(c, settings.proxy_subscriber)
+            if not row:
+                error(401, 'session_ended', 'The terminal account of this gateway is not active.')
+            return row
         token = request.cookies.get(COOKIE)
         if not token:
             error(401, 'not_signed_in', 'Sign in first.')

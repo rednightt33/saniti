@@ -125,5 +125,7 @@ window.EdgeLabels = {
     runawayStalled:"The AI kept thinking without answering",
     runawayStalledHint:"The AI used its whole output budget on thinking, even after one retry. What was done so far stays in this conversation.",
     retry:"Retry", changeModel:"Change model"
-  }
+  },
+  // EXEC-TERMINAL-API T3: the Terminal tab next to Monitor
+  terminal: { nav:"Terminal", frameTitle:"Financial terminal" }
 };

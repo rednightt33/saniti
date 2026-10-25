@@ -96,7 +96,7 @@ EVENTS = [('BBCA', '2026-03-10', 'EX_DATE', 'CORPORATE_ACTION', 'DIVIDEND', None
            'YP', None, 10000.0, 1.25, 0.01, 'OK', 9000.0, False, 90000000.0, 'KSEI'),
           ('GONE', '2026-01-02', 'EX_DATE', 'CORPORATE_ACTION', 'DIVIDEND', None, None, None, None, None, None, None,
            None, None, 10.0, None, None, None)]
-UNIVERSE = [('BBCA', 'Bank Central Asia', 'stock'), ('IHSG', 'Composite', 'index')]
+UNIVERSE = [('BBCA', 'Bank Central Asia', 'stock', 'Finance'), ('IHSG', 'Composite', 'index', None)]
 TODAY = dt.date(2026, 10, 25)
 
 
@@ -205,3 +205,9 @@ def test_daily_republishes_events_only_when_the_ticker_changed():
     p3 = pub.Publisher(conn, bucket, today=TODAY)
     p3.run('daily')
     assert p3.written == 1 and len(bucket.get_json('events/BBCA/all.json.gz')['d']) == 3
+
+
+def test_ticker_reference_carries_the_sector_for_the_symbol_search():
+    _, _, bucket = run('backfill')
+    doc = bucket.get_json('ref/tickers.json.gz')
+    assert doc['columns'] == ['ticker', 'name', 'type', 'sector'] and doc['sector'] == ['Finance', None]

@@ -1,0 +1,3370 @@
+[
+{
+"id": "I01",
+"cat": "Trend",
+"name": "Simple Moving Average",
+"key": "sma",
+"short": "SMA",
+"req": "C",
+"zone": "overlay",
+"unit": "price",
+"colorRule": "solid:auto",
+"outs": [
+{
+"k": "sma",
+"label": "SMA",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "solid:auto",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 20,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "close",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Rata-rata harga selama sejumlah periode dengan bobot yang sama untuk setiap periode.",
+"info": "SMA menghaluskan fluktuasi harga agar arah pergerakan lebih mudah dilihat. Setiap harga dalam jendela perhitungan memiliki pengaruh yang sama.",
+"display": "Garis MA di atas candlestick",
+"position": "Price chart overlay (candle pane)"
+},
+{
+"id": "I02",
+"cat": "Trend",
+"name": "Exponential Moving Average",
+"key": "ema",
+"short": "EMA",
+"req": "C",
+"zone": "overlay",
+"unit": "price",
+"colorRule": "solid:auto",
+"outs": [
+{
+"k": "ema",
+"label": "EMA",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "solid:auto",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 20,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "close",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Rata-rata harga bergerak yang memberi bobot lebih besar pada data terbaru.",
+"info": "EMA menampilkan tren harga dengan penekanan lebih tinggi pada harga terkini daripada harga lama. Hasilnya bergantung pada panjang periode dan inisialisasi perhitungan.",
+"display": "Garis MA di atas candlestick",
+"position": "Price chart overlay (candle pane)"
+},
+{
+"id": "I03",
+"cat": "Trend",
+"name": "Weighted Moving Average",
+"key": "wma",
+"short": "WMA",
+"req": "C",
+"zone": "overlay",
+"unit": "price",
+"colorRule": "solid:auto",
+"outs": [
+{
+"k": "wma",
+"label": "WMA",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "solid:auto",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 20,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "close",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Rata-rata harga bergerak dengan bobot yang meningkat secara linear menuju periode terbaru.",
+"info": "WMA memberi bobot paling besar pada harga terbaru dan menurun secara bertahap untuk harga sebelumnya. Perbedaan utamanya dari SMA adalah pembobotannya.",
+"display": "Garis MA di atas candlestick",
+"position": "Price chart overlay (candle pane)"
+},
+{
+"id": "I04",
+"cat": "Trend",
+"name": "Hull Moving Average",
+"key": "hma",
+"short": "HMA",
+"req": "C",
+"zone": "overlay",
+"unit": "price",
+"colorRule": "solid:auto",
+"outs": [
+{
+"k": "hma",
+"label": "HMA",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "solid:auto",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 9,
+"ev": "REFERENCE_PROFILE_NOT_UI_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "close",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Moving average berbobot yang dirancang untuk mengurangi keterlambatan terhadap perubahan harga.",
+"info": "HMA menggabungkan beberapa WMA dengan periode berbeda lalu menghaluskannya kembali. Tujuannya adalah garis tren yang responsif namun tetap terhaluskan.",
+"display": "Garis MA di atas candlestick",
+"position": "Price chart overlay (candle pane)"
+},
+{
+"id": "I05",
+"cat": "Trend",
+"name": "Kaufman Adaptive Moving Average",
+"key": "kama",
+"short": "KAMA",
+"req": "C",
+"zone": "overlay",
+"unit": "price",
+"colorRule": "solid:auto",
+"outs": [
+{
+"k": "kama",
+"label": "KAMA",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "solid:auto",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 10,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "fast_length",
+"label": "Fast Length",
+"type": "integer",
+"def": 2,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "slow_length",
+"label": "Slow Length",
+"type": "integer",
+"def": 30,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "close",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Moving average adaptif yang menyesuaikan sensitivitasnya menurut efisiensi pergerakan harga.",
+"info": "KAMA menggunakan rasio efisiensi untuk menyesuaikan kecepatan smoothing. Ketika perubahan harga lebih terarah, responsnya dapat meningkat; saat harga berfluktuasi bolak-balik, smoothing dapat lebih kuat.",
+"display": "Garis MA di atas candlestick",
+"position": "Price chart overlay (candle pane)"
+},
+{
+"id": "I06",
+"cat": "Trend",
+"name": "MACD",
+"key": "macd",
+"short": "MACD",
+"req": "C",
+"zone": "panel",
+"unit": "oscillator",
+"colorRule": "histogram:positive_negative",
+"outs": [
+{
+"k": "macd",
+"label": "MACD",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "histogram:positive_negative",
+"cond": ""
+},
+{
+"k": "signal",
+"label": "Signal",
+"r": "line",
+"role": "signal_line",
+"vis": true,
+"w": 2,
+"rule": "histogram:positive_negative",
+"cond": ""
+},
+{
+"k": "histogram",
+"label": "Histogram",
+"r": "histogram",
+"role": "histogram_bars",
+"vis": true,
+"w": 1,
+"rule": "histogram:positive_negative",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "fast_length",
+"label": "Fast Length",
+"type": "integer",
+"def": 12,
+"ev": "VERIFIED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "slow_length",
+"label": "Slow Length",
+"type": "integer",
+"def": 26,
+"ev": "VERIFIED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "signal_length",
+"label": "Signal Length",
+"type": "integer",
+"def": 9,
+"ev": "VERIFIED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "close",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Selisih dua EMA harga untuk membaca perubahan arah dan momentum tren.",
+"info": "MACD menghasilkan garis MACD, garis signal, dan histogram selisih keduanya. Indikator ini menunjukkan bagaimana rata-rata harga jangka pendek bergerak relatif terhadap rata-rata jangka panjang.",
+"display": "Dua garis + histogram di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I07",
+"cat": "Trend",
+"name": "Average Directional Index",
+"key": "adx",
+"short": "DMI",
+"req": "HLC",
+"zone": "panel",
+"unit": "index_0_100",
+"colorRule": "distinct_lines",
+"outs": [
+{
+"k": "adx",
+"label": "ADX",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "distinct_lines",
+"cond": "DMI composite plotting of ADX +DI -DI is proposed, not native ADX-only."
+},
+{
+"k": "plus_di",
+"label": "+DI",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "distinct_lines",
+"cond": "DMI composite plotting of ADX +DI -DI is proposed, not native ADX-only."
+},
+{
+"k": "minus_di",
+"label": "-DI",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "distinct_lines",
+"cond": "DMI composite plotting of ADX +DI -DI is proposed, not native ADX-only."
+}
+],
+"params": [
+{
+"k": "di_length",
+"label": "Di Length",
+"type": "integer",
+"def": 14,
+"ev": "REFERENCE_PROFILE_NOT_UI_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "adx_smoothing",
+"label": "Adx Smoothing",
+"type": "integer",
+"def": 14,
+"ev": "REFERENCE_PROFILE_NOT_UI_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Pengukur kekuatan tren dengan ADX serta arah pergerakan melalui +DI dan −DI.",
+"info": "ADX menunjukkan seberapa kuat tren harga tanpa menyatakan arahnya. Garis +DI dan −DI membantu melihat dominasi pergerakan naik atau turun berdasarkan directional movement.",
+"display": "Tiga garis ADX / +DI / -DI di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I08",
+"cat": "Trend",
+"name": "Aroon Indicator",
+"key": "aroon",
+"short": "Aroon",
+"req": "HL",
+"zone": "panel",
+"unit": "index_0_100",
+"colorRule": "distinct_lines",
+"outs": [
+{
+"k": "aroon_up",
+"label": "Up",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "distinct_lines",
+"cond": ""
+},
+{
+"k": "aroon_down",
+"label": "Down",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "distinct_lines",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 14,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Indikator yang menunjukkan seberapa baru harga mencetak titik tertinggi dan terendah.",
+"info": "Aroon Up mengukur kedekatan waktu terhadap high tertinggi pada suatu periode; Aroon Down terhadap low terendah. Nilainya mencerminkan kebaruan ekstrem harga, bukan besar kenaikannya.",
+"display": "Dua garis Aroon di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I09",
+"cat": "Trend",
+"name": "Supertrend",
+"key": "supertrend",
+"short": "Supertrend",
+"req": "HLC",
+"zone": "overlay",
+"unit": "price",
+"colorRule": "trend_up_down",
+"outs": [
+{
+"k": "supertrend",
+"label": "Supertrend",
+"r": "segmented_line",
+"role": "trend_state_segments",
+"vis": true,
+"w": 2,
+"rule": "trend_up_down",
+"cond": ""
+},
+{
+"k": "direction",
+"label": "Direction",
+"r": "state",
+"role": "internal_state_not_plot",
+"vis": false,
+"w": 1,
+"rule": "trend_up_down",
+"cond": "Internal trend state; drives color/segment breaks, never plotted on price axis."
+}
+],
+"params": [
+{
+"k": "atr_length",
+"label": "Atr Length",
+"type": "integer",
+"def": 10,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "factor",
+"label": "Factor",
+"type": "number",
+"def": 3,
+"ev": "PROPOSED_DEFAULT",
+"min": 0,
+"step": 0.1,
+"hint": "Band/ATR multiplier"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Garis tren berbasis ATR yang berpindah sisi ketika arah tren terindikasi berubah.",
+"info": "Supertrend membentuk level trailing di sekitar harga menggunakan volatilitas ATR dan faktor pengali. Pergantian posisi garis terhadap harga digunakan untuk menandai perubahan status tren menurut algoritmenya.",
+"display": "Garis Supertrend di atas candle",
+"position": "Price chart overlay (candle pane)"
+},
+{
+"id": "I10",
+"cat": "Trend",
+"name": "Donchian Channels",
+"key": "donchian",
+"short": "DC",
+"req": "HL",
+"zone": "overlay",
+"unit": "price",
+"colorRule": "band_boundaries",
+"outs": [
+{
+"k": "upper",
+"label": "Upper",
+"r": "line",
+"role": "boundary_line",
+"vis": true,
+"w": 2,
+"rule": "band_boundaries",
+"cond": ""
+},
+{
+"k": "basis",
+"label": "Basis",
+"r": "line",
+"role": "center_line",
+"vis": true,
+"w": 2,
+"rule": "band_boundaries",
+"cond": ""
+},
+{
+"k": "lower",
+"label": "Lower",
+"r": "line",
+"role": "boundary_line",
+"vis": true,
+"w": 2,
+"rule": "band_boundaries",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 20,
+"ev": "VERIFIED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+}
+],
+"guides": [],
+"fill": "upper ↔ lower",
+"tip": "Kanal harga dari high tertinggi dan low terendah selama periode tertentu.",
+"info": "Donchian Channels menunjukkan batas atas, batas bawah, dan biasanya garis tengah rentang harga historis. Kanal ini berguna untuk melihat posisi harga terhadap ekstrem periode pengamatan.",
+"display": "Tiga garis + area kanal di sekitar candle",
+"position": "Price chart overlay (candle pane)"
+},
+{
+"id": "I11",
+"cat": "Trend",
+"name": "Keltner Channels",
+"key": "keltner",
+"short": "KC",
+"req": "HLC",
+"zone": "overlay",
+"unit": "price",
+"colorRule": "band_boundaries",
+"outs": [
+{
+"k": "upper",
+"label": "Upper",
+"r": "line",
+"role": "boundary_line",
+"vis": true,
+"w": 2,
+"rule": "band_boundaries",
+"cond": ""
+},
+{
+"k": "basis",
+"label": "Basis",
+"r": "line",
+"role": "center_line",
+"vis": true,
+"w": 2,
+"rule": "band_boundaries",
+"cond": ""
+},
+{
+"k": "lower",
+"label": "Lower",
+"r": "line",
+"role": "boundary_line",
+"vis": true,
+"w": 2,
+"rule": "band_boundaries",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 20,
+"ev": "VERIFIED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "close",
+"ev": "VERIFIED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+},
+{
+"k": "multiplier",
+"label": "Multiplier",
+"type": "number",
+"def": 2,
+"ev": "PROPOSED_DEFAULT",
+"min": 0,
+"step": 0.1,
+"hint": "Band/ATR multiplier"
+},
+{
+"k": "use_exponential_ma",
+"label": "Use Exponential Ma",
+"type": "boolean",
+"def": true,
+"ev": "PROPOSED_DEFAULT",
+"hint": "EMA or SMA for middle line"
+},
+{
+"k": "bands_style",
+"label": "Bands Style",
+"type": "enum",
+"def": "ATR",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"ATR",
+"TR",
+"HL_RANGE"
+],
+"hint": "Underlying band range"
+},
+{
+"k": "atr_length",
+"label": "Atr Length",
+"type": "integer",
+"def": 10,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+}
+],
+"guides": [],
+"fill": "upper ↔ lower",
+"tip": "Kanal harga di sekitar moving average dengan lebar yang mengikuti volatilitas ATR.",
+"info": "Keltner Channels membentuk garis tengah dan batas atas-bawah dari moving average serta pengali ATR. Lebar kanal meningkat saat ATR naik dan menyempit saat ATR turun.",
+"display": "Tiga garis + area kanal di sekitar candle",
+"position": "Price chart overlay (candle pane)"
+},
+{
+"id": "I12",
+"cat": "Trend",
+"name": "Parabolic SAR",
+"key": "psar",
+"short": "SAR",
+"req": "HLC",
+"zone": "overlay",
+"unit": "price",
+"colorRule": "trend_up_down",
+"outs": [
+{
+"k": "sar",
+"label": "SAR",
+"r": "dots",
+"role": "marker_dots",
+"vis": true,
+"w": 2,
+"rule": "trend_up_down",
+"cond": ""
+},
+{
+"k": "direction",
+"label": "Direction",
+"r": "state",
+"role": "internal_state_not_plot",
+"vis": false,
+"w": 1,
+"rule": "trend_up_down",
+"cond": "State only; drives dot colors/position semantics, not a line."
+}
+],
+"params": [
+{
+"k": "start",
+"label": "Start",
+"type": "number",
+"def": 0.02,
+"ev": "VERIFIED_DEFAULT",
+"min": 0,
+"step": 0.01
+},
+{
+"k": "increment",
+"label": "Increment",
+"type": "number",
+"def": 0.02,
+"ev": "VERIFIED_DEFAULT",
+"min": 0,
+"step": 0.01
+},
+{
+"k": "maximum",
+"label": "Maximum",
+"type": "number",
+"def": 0.2,
+"ev": "VERIFIED_DEFAULT",
+"min": 0,
+"step": 0.01
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Titik trailing yang mengikuti pergerakan harga dan dapat berganti sisi saat tren berbalik.",
+"info": "Parabolic SAR memproyeksikan titik stop-and-reverse berdasarkan ekstrem harga dan acceleration factor. Letak titik di atas atau di bawah harga menandai arah tren menurut aturan indikator.",
+"display": "Titik-titik trailing di atas/bawah candle",
+"position": "Price chart overlay (candle pane)"
+},
+{
+"id": "I13",
+"cat": "Momentum",
+"name": "Relative Strength Index",
+"key": "rsi",
+"short": "RSI",
+"req": "C",
+"zone": "panel",
+"unit": "index_0_100",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "rsi",
+"label": "RSI",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 14,
+"ev": "VERIFIED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "close",
+"ev": "VERIFIED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+}
+],
+"guides": [
+30.0,
+70.0
+],
+"fill": null,
+"tip": "Oscillator yang membandingkan rata-rata kenaikan dengan rata-rata penurunan harga.",
+"info": "RSI mengukur kekuatan relatif perubahan harga pada skala 0–100. Angka yang lebih tinggi menunjukkan dominasi perubahan naik selama periode perhitungan, bukan jaminan pergerakan berikutnya.",
+"display": "Garis osilator di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I14",
+"cat": "Momentum",
+"name": "Stochastic RSI",
+"key": "stoch_rsi",
+"short": "Stoch RSI",
+"req": "C",
+"zone": "panel",
+"unit": "index_0_100",
+"colorRule": "distinct_lines",
+"outs": [
+{
+"k": "k",
+"label": "%K",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "distinct_lines",
+"cond": ""
+},
+{
+"k": "d",
+"label": "%D",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "distinct_lines",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "rsi_length",
+"label": "Rsi Length",
+"type": "integer",
+"def": 14,
+"ev": "REFERENCE_PROFILE_NOT_UI_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "stoch_length",
+"label": "Stoch Length",
+"type": "integer",
+"def": 14,
+"ev": "REFERENCE_PROFILE_NOT_UI_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "smooth_k",
+"label": "Smooth K",
+"type": "integer",
+"def": 3,
+"ev": "REFERENCE_PROFILE_NOT_UI_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "smooth_d",
+"label": "Smooth D",
+"type": "integer",
+"def": 3,
+"ev": "REFERENCE_PROFILE_NOT_UI_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "close",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+}
+],
+"guides": [
+20.0,
+80.0
+],
+"fill": null,
+"tip": "Stochastic Oscillator yang diterapkan pada nilai RSI, bukan langsung pada harga.",
+"info": "Stochastic RSI menempatkan RSI saat ini dalam rentang nilai RSI historis. Garis %K dan %D menunjukkan perubahan posisi relatif tersebut dan dapat bergerak lebih cepat daripada RSI biasa.",
+"display": "Dua garis %K / %D di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I15",
+"cat": "Momentum",
+"name": "Stochastic Oscillator",
+"key": "stochastic",
+"short": "Stoch",
+"req": "HLC",
+"zone": "panel",
+"unit": "index_0_100",
+"colorRule": "distinct_lines",
+"outs": [
+{
+"k": "k",
+"label": "%K",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "distinct_lines",
+"cond": ""
+},
+{
+"k": "d",
+"label": "%D",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "distinct_lines",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "k_length",
+"label": "K Length",
+"type": "integer",
+"def": 14,
+"ev": "VERIFIED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "smooth_k",
+"label": "Smooth K",
+"type": "integer",
+"def": 3,
+"ev": "VERIFIED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "d_length",
+"label": "D Length",
+"type": "integer",
+"def": 3,
+"ev": "VERIFIED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+}
+],
+"guides": [
+20.0,
+80.0
+],
+"fill": null,
+"tip": "Posisi harga penutupan di dalam rentang high–low selama sejumlah periode.",
+"info": "Stochastic Oscillator menghasilkan %K dan versi smoothing-nya, %D. Nilai tinggi berarti close berada dekat bagian atas rentang harga, sedangkan nilai rendah berarti dekat bagian bawah.",
+"display": "Dua garis %K / %D di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I16",
+"cat": "Momentum",
+"name": "Williams %R",
+"key": "williams_r",
+"short": "%R",
+"req": "HLC",
+"zone": "panel",
+"unit": "index_minus100_0",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "williams_r",
+"label": "%R",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 14,
+"ev": "VERIFIED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "close",
+"ev": "VERIFIED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+}
+],
+"guides": [
+-80.0,
+-20.0
+],
+"fill": null,
+"tip": "Posisi harga penutupan relatif terhadap high tertinggi dan low terendah periode pengamatan.",
+"info": "Williams %R mengukur jarak close dari bagian atas rentang high–low, umumnya pada skala −100 sampai 0. Nilai mendekati 0 berarti close berada dekat high rentang.",
+"display": "Garis osilator negatif di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I17",
+"cat": "Momentum",
+"name": "Rate of Change",
+"key": "roc",
+"short": "ROC",
+"req": "C",
+"zone": "panel",
+"unit": "percent_signed",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "roc",
+"label": "ROC",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 9,
+"ev": "VERIFIED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "close",
+"ev": "VERIFIED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+}
+],
+"guides": [
+0.0
+],
+"fill": null,
+"tip": "Persentase perubahan harga dibandingkan dengan harga beberapa periode sebelumnya.",
+"info": "Rate of Change menunjukkan besar dan arah perubahan harga dalam persen selama panjang periode yang dipilih. Nilai positif berarti harga naik relatif terhadap periode pembanding.",
+"display": "Garis osilator di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I18",
+"cat": "Momentum",
+"name": "Momentum",
+"key": "momentum",
+"short": "Mom",
+"req": "C",
+"zone": "panel",
+"unit": "price_difference",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "momentum",
+"label": "Mom",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 10,
+"ev": "REFERENCE_PROFILE_NOT_UI_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "close",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+}
+],
+"guides": [
+0.0
+],
+"fill": null,
+"tip": "Selisih harga sekarang dengan harga sejumlah periode sebelumnya.",
+"info": "Momentum mengukur perubahan harga secara absolut, bukan persentase. Nilainya dipengaruhi satuan harga aset, sehingga tidak langsung sebanding antar-saham berharga berbeda.",
+"display": "Garis momentum di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I19",
+"cat": "Momentum",
+"name": "Commodity Channel Index",
+"key": "cci",
+"short": "CCI",
+"req": "HLC",
+"zone": "panel",
+"unit": "oscillator",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "cci",
+"label": "CCI",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 20,
+"ev": "REFERENCE_PROFILE_NOT_UI_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "constant",
+"label": "Constant",
+"type": "number",
+"def": 0.015,
+"ev": "PROPOSED_DEFAULT",
+"min": 0,
+"step": 0.001,
+"hint": "CCI normalizing constant"
+}
+],
+"guides": [
+-100.0,
+100.0
+],
+"fill": null,
+"tip": "Deviasi typical price terhadap rata-rata historisnya dalam satuan deviasi rata-rata.",
+"info": "CCI membandingkan typical price (rata-rata high, low, close) dengan moving average dan mean deviation. Nilai positif menandakan harga relatif lebih tinggi dari rata-ratanya.",
+"display": "Garis CCI di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I20",
+"cat": "Momentum",
+"name": "Chande Momentum Oscillator",
+"key": "cmo",
+"short": "CMO",
+"req": "C",
+"zone": "panel",
+"unit": "index_minus100_100",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "cmo",
+"label": "CMO",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 14,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "close",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+}
+],
+"guides": [
+0.0
+],
+"fill": null,
+"tip": "Oscillator yang membandingkan total kenaikan dan penurunan harga pada suatu periode.",
+"info": "CMO menggunakan jumlah perubahan harga positif dan negatif untuk menghasilkan nilai sekitar −100 sampai +100. Tanda dan besarnya nilai menunjukkan ketimpangan momentum naik versus turun.",
+"display": "Garis CMO di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I21",
+"cat": "Momentum",
+"name": "True Strength Index",
+"key": "tsi",
+"short": "TSI",
+"req": "C",
+"zone": "panel",
+"unit": "oscillator",
+"colorRule": "distinct_lines",
+"outs": [
+{
+"k": "tsi",
+"label": "TSI",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "distinct_lines",
+"cond": ""
+},
+{
+"k": "signal",
+"label": "Signal",
+"r": "line",
+"role": "signal_line",
+"vis": true,
+"w": 2,
+"rule": "distinct_lines",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "long_length",
+"label": "Long Length",
+"type": "integer",
+"def": 25,
+"ev": "REFERENCE_FORMULA_NOT_UI_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "short_length",
+"label": "Short Length",
+"type": "integer",
+"def": 13,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "signal_length",
+"label": "Signal Length",
+"type": "integer",
+"def": 7,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "close",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+}
+],
+"guides": [
+0.0
+],
+"fill": null,
+"tip": "Momentum perubahan harga yang dihaluskan dua kali untuk mengurangi fluktuasi jangka pendek.",
+"info": "TSI membandingkan perubahan harga yang telah dihaluskan terhadap perubahan absolut yang juga dihaluskan. Garis signal dapat ditambahkan untuk membandingkan perubahan momentum.",
+"display": "Garis TSI + signal di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I22",
+"cat": "Momentum",
+"name": "TRIX",
+"key": "trix",
+"short": "TRIX",
+"req": "C",
+"zone": "panel",
+"unit": "percent_signed",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "trix",
+"label": "TRIX",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 15,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "close",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+}
+],
+"guides": [
+0.0
+],
+"fill": null,
+"tip": "Laju perubahan dari EMA harga yang dihaluskan tiga kali.",
+"info": "TRIX mengukur persentase perubahan triple-smoothed exponential moving average. Penghalusan bertingkat menyaring sebagian fluktuasi harga jangka pendek.",
+"display": "Garis TRIX di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I23",
+"cat": "Momentum",
+"name": "Ultimate Oscillator",
+"key": "ultimate_osc",
+"short": "UO",
+"req": "HLC",
+"zone": "panel",
+"unit": "index_0_100",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "uo",
+"label": "UO",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "fast_length",
+"label": "Fast Length",
+"type": "integer",
+"def": 7,
+"ev": "REFERENCE_PROFILE_NOT_UI_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "middle_length",
+"label": "Middle Length",
+"type": "integer",
+"def": 14,
+"ev": "REFERENCE_PROFILE_NOT_UI_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "slow_length",
+"label": "Slow Length",
+"type": "integer",
+"def": 28,
+"ev": "REFERENCE_PROFILE_NOT_UI_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "weight_fast",
+"label": "Weight Fast",
+"type": "number",
+"def": 4,
+"ev": "PROPOSED_DEFAULT",
+"min": 0,
+"step": 1,
+"hint": "Weighted time horizons in Ultimate Oscillator"
+},
+{
+"k": "weight_middle",
+"label": "Weight Middle",
+"type": "number",
+"def": 2,
+"ev": "PROPOSED_DEFAULT",
+"min": 0,
+"step": 1,
+"hint": "Weighted time horizons in Ultimate Oscillator"
+},
+{
+"k": "weight_slow",
+"label": "Weight Slow",
+"type": "number",
+"def": 1,
+"ev": "PROPOSED_DEFAULT",
+"min": 0,
+"step": 1,
+"hint": "Weighted time horizons in Ultimate Oscillator"
+}
+],
+"guides": [
+30.0,
+70.0
+],
+"fill": null,
+"tip": "Oscillator momentum yang menggabungkan tiga horizon pengamatan.",
+"info": "Ultimate Oscillator menghitung buying pressure relatif terhadap true range pada tiga periode berbeda dan memberi bobot pada masing-masing periode. Tujuannya membaca momentum lintas horizon.",
+"display": "Garis Ultimate Oscillator di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I24",
+"cat": "Momentum",
+"name": "Awesome Oscillator",
+"key": "awesome_osc",
+"short": "AO",
+"req": "HL",
+"zone": "panel",
+"unit": "price_difference",
+"colorRule": "rising_falling",
+"outs": [
+{
+"k": "ao",
+"label": "AO",
+"r": "histogram",
+"role": "histogram_bars",
+"vis": true,
+"w": 2,
+"rule": "rising_falling",
+"cond": "Optional per-bar color based on AO change vs previous AO."
+}
+],
+"params": [
+{
+"k": "fast_length",
+"label": "Fast Length",
+"type": "integer",
+"def": 5,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "slow_length",
+"label": "Slow Length",
+"type": "integer",
+"def": 34,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+}
+],
+"guides": [
+0.0
+],
+"fill": null,
+"tip": "Selisih dua SMA dari harga tengah candle (High + Low) / 2.",
+"info": "Awesome Oscillator membandingkan rata-rata harga tengah jangka pendek dan panjang. Nilai positif berarti rata-rata jangka pendek berada di atas rata-rata jangka panjang.",
+"display": "Histogram momentum di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I25",
+"cat": "Momentum",
+"name": "Percentage Price Oscillator",
+"key": "ppo",
+"short": "PPO",
+"req": "C",
+"zone": "panel",
+"unit": "percent_signed",
+"colorRule": "histogram:positive_negative",
+"outs": [
+{
+"k": "ppo",
+"label": "PPO",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "histogram:positive_negative",
+"cond": ""
+},
+{
+"k": "signal",
+"label": "Signal",
+"r": "line",
+"role": "signal_line",
+"vis": true,
+"w": 2,
+"rule": "histogram:positive_negative",
+"cond": ""
+},
+{
+"k": "histogram",
+"label": "Histogram",
+"r": "histogram",
+"role": "histogram_bars",
+"vis": true,
+"w": 1,
+"rule": "histogram:positive_negative",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "fast_length",
+"label": "Fast Length",
+"type": "integer",
+"def": 12,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "slow_length",
+"label": "Slow Length",
+"type": "integer",
+"def": 26,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "signal_length",
+"label": "Signal Length",
+"type": "integer",
+"def": 9,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "close",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+}
+],
+"guides": [
+0.0
+],
+"fill": null,
+"tip": "Persentase selisih antara EMA harga cepat dan lambat.",
+"info": "PPO menyatakan jarak dua EMA sebagai persentase dari EMA lambat. Berbeda dari MACD berbasis selisih absolut, PPO memudahkan perbandingan relatif pada level harga yang berbeda.",
+"display": "Dua garis + histogram di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I26",
+"cat": "Momentum",
+"name": "Balance of Power",
+"key": "bop",
+"short": "BOP",
+"req": "OHLC",
+"zone": "panel",
+"unit": "ratio_signed",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "bop",
+"label": "BOP",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "source",
+"label": "Source",
+"type": "fixed",
+"def": "OHLC",
+"ev": "NOT_APPLICABLE",
+"hint": "Fixed source: OHLC; not adjustable"
+}
+],
+"guides": [
+0.0
+],
+"fill": null,
+"tip": "Rasio perubahan Open–Close terhadap rentang High–Low dalam satu candle.",
+"info": "Balance of Power menghitung (Close − Open) / (High − Low). Nilai positif menunjukkan close di atas open dalam rentang candle, tetapi tidak mengidentifikasi transaksi buyer atau seller secara langsung.",
+"display": "Garis BOP di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I27",
+"cat": "Volatility",
+"name": "Bollinger Bands",
+"key": "bollinger",
+"short": "BB",
+"req": "C",
+"zone": "overlay",
+"unit": "price",
+"colorRule": "band_boundaries",
+"outs": [
+{
+"k": "upper",
+"label": "Upper",
+"r": "line",
+"role": "boundary_line",
+"vis": true,
+"w": 2,
+"rule": "band_boundaries",
+"cond": ""
+},
+{
+"k": "basis",
+"label": "Basis",
+"r": "line",
+"role": "center_line",
+"vis": true,
+"w": 2,
+"rule": "band_boundaries",
+"cond": ""
+},
+{
+"k": "lower",
+"label": "Lower",
+"r": "line",
+"role": "boundary_line",
+"vis": true,
+"w": 2,
+"rule": "band_boundaries",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 20,
+"ev": "VERIFIED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "close",
+"ev": "VERIFIED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+},
+{
+"k": "basis_ma_type",
+"label": "Basis Ma Type",
+"type": "enum",
+"def": "SMA",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"SMA",
+"EMA",
+"WMA",
+"RMA",
+"VWMA"
+]
+},
+{
+"k": "std_dev",
+"label": "Std Dev",
+"type": "number",
+"def": 2,
+"ev": "VERIFIED_DEFAULT",
+"min": 0.0001,
+"max": 50,
+"step": 0.1,
+"hint": "Band deviation multiplier"
+}
+],
+"guides": [],
+"fill": "upper ↔ lower",
+"tip": "Pita harga di atas dan di bawah moving average berdasarkan deviasi standar.",
+"info": "Bollinger Bands terdiri dari garis tengah serta upper dan lower band. Lebar pita mengikuti variasi harga historis sesuai panjang periode dan pengali deviasi standar.",
+"display": "Bollinger Bands mengelilingi candle",
+"position": "Price chart overlay (candle pane)"
+},
+{
+"id": "I28",
+"cat": "Volatility",
+"name": "Bollinger %B",
+"key": "bollinger_pctb",
+"short": "%B",
+"req": "C",
+"zone": "panel",
+"unit": "ratio",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "percent_b",
+"label": "%B",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 20,
+"ev": "VERIFIED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "close",
+"ev": "VERIFIED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+},
+{
+"k": "std_dev",
+"label": "Std Dev",
+"type": "number",
+"def": 2,
+"ev": "VERIFIED_DEFAULT",
+"min": 0.0001,
+"max": 50,
+"step": 0.1
+},
+{
+"k": "basis_ma_type",
+"label": "Basis Ma Type",
+"type": "enum",
+"def": "SMA",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"SMA",
+"EMA",
+"WMA",
+"RMA"
+]
+}
+],
+"guides": [
+0.0,
+1.0
+],
+"fill": null,
+"tip": "Posisi harga relatif terhadap batas bawah dan atas Bollinger Bands.",
+"info": "Bollinger %B membandingkan harga dengan rentang antara lower dan upper band. Nilai 0 berarti berada di lower band dan 1 di upper band; nilai di luar rentang tersebut juga dimungkinkan.",
+"display": "Garis %B di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I29",
+"cat": "Volatility",
+"name": "Bollinger Bandwidth",
+"key": "bollinger_width",
+"short": "BBW",
+"req": "C",
+"zone": "panel",
+"unit": "ratio_or_percent_defined_by_formula",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "bandwidth",
+"label": "BBW",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 20,
+"ev": "VERIFIED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "close",
+"ev": "VERIFIED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+},
+{
+"k": "std_dev",
+"label": "Std Dev",
+"type": "number",
+"def": 2,
+"ev": "VERIFIED_DEFAULT",
+"min": 0.0001,
+"max": 50,
+"step": 0.1
+},
+{
+"k": "basis_ma_type",
+"label": "Basis Ma Type",
+"type": "enum",
+"def": "SMA",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"SMA",
+"EMA",
+"WMA",
+"RMA"
+]
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Ukuran relatif lebar jarak antara upper dan lower Bollinger Bands.",
+"info": "Bollinger Bandwidth menormalkan lebar pita terhadap garis tengah. Nilai yang meningkat menunjukkan pita makin lebar relatif terhadap basisnya, bukan secara otomatis arah harga.",
+"display": "Garis Bandwidth di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I30",
+"cat": "Volatility",
+"name": "Average True Range",
+"key": "atr",
+"short": "ATR",
+"req": "HLC",
+"zone": "panel",
+"unit": "price_difference_nonnegative",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "atr",
+"label": "ATR",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 14,
+"ev": "VERIFIED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "smoothing_type",
+"label": "Smoothing Type",
+"type": "enum",
+"def": "RMA",
+"ev": "VERIFIED_DEFAULT",
+"opts": [
+"RMA",
+"SMA",
+"EMA",
+"WMA"
+],
+"hint": "Moving average for true range"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Rata-rata rentang pergerakan harga yang juga memperhitungkan gap antarsesi.",
+"info": "ATR merangkum true range dari high-low dan perubahan terhadap close sebelumnya. ATR mengukur besarnya fluktuasi harga dalam satuan harga, bukan apakah harga akan naik atau turun.",
+"display": "Garis ATR di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I31",
+"cat": "Volatility",
+"name": "Normalized ATR",
+"key": "natr",
+"short": "NATR",
+"req": "HLC",
+"zone": "panel",
+"unit": "percent_nonnegative",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "natr",
+"label": "NATR",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 14,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "smoothing_type",
+"label": "Smoothing Type",
+"type": "enum",
+"def": "RMA",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"RMA",
+"SMA",
+"EMA",
+"WMA"
+]
+}
+],
+"guides": [],
+"fill": null,
+"tip": "ATR yang dinyatakan sebagai persentase dari harga penutupan.",
+"info": "Normalized ATR membagi ATR dengan close lalu mengalikannya dengan 100. Normalisasi memudahkan perbandingan rentang fluktuasi relatif antar-aset dengan tingkat harga berbeda.",
+"display": "Garis NATR di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I32",
+"cat": "Volatility",
+"name": "Standard Deviation",
+"key": "stddev",
+"short": "StdDev",
+"req": "C",
+"zone": "panel",
+"unit": "price_difference_nonnegative",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "stddev",
+"label": "StdDev",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 20,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "close",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+},
+{
+"k": "stdev_method",
+"label": "Stdev Method",
+"type": "enum",
+"def": "population",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"population",
+"sample"
+],
+"hint": "Population divide by n; sample divide by (n-1)"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Besarnya penyebaran harga terhadap rata-ratanya selama periode pengamatan.",
+"info": "Standard Deviation menghitung seberapa jauh nilai harga menyimpang dari rata-ratanya. Semakin besar nilainya, semakin tinggi variasi harga di dalam jendela tersebut.",
+"display": "Garis standard deviation di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I33",
+"cat": "Volatility",
+"name": "Historical Volatility",
+"key": "hist_vol",
+"short": "HV",
+"req": "C",
+"zone": "panel",
+"unit": "formula_defined_percent_or_fraction",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "historical_volatility",
+"label": "HV",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 20,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "close",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+},
+{
+"k": "return_type",
+"label": "Return Type",
+"type": "enum",
+"def": "log",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"log",
+"simple"
+],
+"hint": "Log vs simple bar returns"
+},
+{
+"k": "annualization_periods",
+"label": "Annualization Periods",
+"type": "number",
+"def": 252,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Bars/year; 252 only proposed for daily equities"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Estimasi volatilitas historis dari variasi return harga yang dianualisasi.",
+"info": "Historical Volatility dihitung dari deviasi standar return logaritmik selama periode tertentu, lalu disesuaikan dengan faktor annualisasi. Nilainya menggambarkan variasi return historis, bukan volatilitas masa depan.",
+"display": "Garis historical volatility di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I34",
+"cat": "Volatility",
+"name": "Average Daily Range",
+"key": "adr",
+"short": "ADR",
+"req": "HL",
+"zone": "panel",
+"unit": "price_difference_nonnegative",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "adr",
+"label": "ADR",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 14,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "timeframe",
+"label": "Timeframe",
+"type": "enum",
+"def": "1D",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"1D"
+],
+"hint": "Daily High/Low bars required"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Rata-rata jarak High dikurangi Low pada candle harian.",
+"info": "Average Daily Range merata-ratakan rentang tertinggi-terendah pada sejumlah hari perdagangan. Berbeda dari ATR, ADR tidak memasukkan gap terhadap close hari sebelumnya ke dalam rentang harian.",
+"display": "Garis ADR di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I35",
+"cat": "Volume",
+"name": "Volume SMA",
+"key": "volume_sma",
+"short": "Vol SMA",
+"req": "V",
+"zone": "volume",
+"unit": "raw_volume",
+"colorRule": "solid:auto",
+"outs": [
+{
+"k": "volume_sma",
+"label": "Vol SMA",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 1,
+"rule": "solid:auto",
+"cond": "Same axis as volume bars; overlay MA line (not standalone columns)."
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 20,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Rata-rata volume transaksi selama sejumlah periode dengan bobot sama.",
+"info": "Volume SMA memperlihatkan tingkat aktivitas transaksi yang telah dihaluskan. Volume suatu bar dapat dibandingkan dengan rata-ratanya untuk melihat aktivitas relatif terhadap periode historis.",
+"display": "Garis MA di atas volume histogram",
+"position": "Shared volume pane (raw volume bars)"
+},
+{
+"id": "I36",
+"cat": "Volume",
+"name": "Volume EMA",
+"key": "volume_ema",
+"short": "Vol EMA",
+"req": "V",
+"zone": "volume",
+"unit": "raw_volume",
+"colorRule": "solid:auto",
+"outs": [
+{
+"k": "volume_ema",
+"label": "Vol EMA",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 1,
+"rule": "solid:auto",
+"cond": "Same axis as volume bars; overlay MA line (not standalone columns)."
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 20,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Rata-rata volume transaksi yang memberi bobot lebih besar pada volume terbaru.",
+"info": "Volume EMA menghaluskan perubahan volume dan lebih responsif terhadap data terkini daripada Volume SMA pada panjang periode yang sama.",
+"display": "Garis MA di atas volume histogram",
+"position": "Shared volume pane (raw volume bars)"
+},
+{
+"id": "I37",
+"cat": "Volume",
+"name": "Relative Volume",
+"key": "rvol",
+"short": "RVOL",
+"req": "V",
+"zone": "panel",
+"unit": "ratio",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "rvol",
+"label": "RVOL",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": "Ratio scale; MUST NOT share raw-volume axis."
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 20,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "reference_method",
+"label": "Reference Method",
+"type": "enum",
+"def": "rolling_sma",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"rolling_sma",
+"same_time_of_day"
+],
+"hint": "Rolling vs matched intraday timestamp"
+},
+{
+"k": "include_current_bar",
+"label": "Include Current Bar",
+"type": "boolean",
+"def": false,
+"ev": "PROPOSED_DEFAULT",
+"hint": "Reference mean uses only prior bars if false"
+}
+],
+"guides": [
+1.0
+],
+"fill": null,
+"tip": "Rasio volume saat ini terhadap volume acuan historis.",
+"info": "Relative Volume membandingkan volume bar dengan rata-rata pembanding yang dipilih. Interpretasinya bergantung pada baseline: rata-rata rolling bar atau volume pada waktu sebanding untuk intraday.",
+"display": "Garis RVOL pada panel rasio terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I38",
+"cat": "Volume",
+"name": "Percentage Volume Oscillator",
+"key": "pvo",
+"short": "PVO",
+"req": "V",
+"zone": "panel",
+"unit": "percent_signed",
+"colorRule": "histogram:positive_negative",
+"outs": [
+{
+"k": "pvo",
+"label": "PVO",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "histogram:positive_negative",
+"cond": ""
+},
+{
+"k": "signal",
+"label": "Signal",
+"r": "line",
+"role": "signal_line",
+"vis": true,
+"w": 2,
+"rule": "histogram:positive_negative",
+"cond": ""
+},
+{
+"k": "histogram",
+"label": "Histogram",
+"r": "histogram",
+"role": "histogram_bars",
+"vis": true,
+"w": 1,
+"rule": "histogram:positive_negative",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "fast_length",
+"label": "Fast Length",
+"type": "integer",
+"def": 12,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "slow_length",
+"label": "Slow Length",
+"type": "integer",
+"def": 26,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "signal_length",
+"label": "Signal Length",
+"type": "integer",
+"def": 9,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+}
+],
+"guides": [
+0.0
+],
+"fill": null,
+"tip": "Persentase selisih antara EMA volume cepat dan EMA volume lambat.",
+"info": "PVO mengukur apakah aktivitas volume jangka pendek relatif lebih besar atau kecil daripada kecenderungan jangka panjangnya. Garis signal dan histogram dapat memperlihatkan perubahan selisih itu.",
+"display": "Dua garis + histogram PVO di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I39",
+"cat": "Volume",
+"name": "Volume Rate of Change",
+"key": "volume_roc",
+"short": "VROC",
+"req": "V",
+"zone": "panel",
+"unit": "percent_signed",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "volume_roc",
+"label": "VROC",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 10,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+}
+],
+"guides": [
+0.0
+],
+"fill": null,
+"tip": "Persentase perubahan volume dibandingkan beberapa periode sebelumnya.",
+"info": "Volume Rate of Change mengukur kenaikan atau penurunan volume terhadap volume pada periode pembanding. Nilai positif menunjukkan volume saat ini lebih besar daripada pada titik pembanding.",
+"display": "Garis Volume ROC di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I40",
+"cat": "PriceVolume",
+"name": "On-Balance Volume",
+"key": "obv",
+"short": "OBV",
+"req": "CV",
+"zone": "panel",
+"unit": "cumulative_volume",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "obv",
+"label": "OBV",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "calculation_parameters",
+"label": "Calculation Parameters",
+"type": "fixed",
+"def": "none",
+"ev": "NOT_APPLICABLE",
+"hint": "No native length/multiplier for cumulative formula; display controlled separately"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Akumulasi volume bertanda berdasarkan apakah harga penutupan naik atau turun.",
+"info": "OBV menambahkan volume ketika close naik, menguranginya ketika close turun, dan tidak mengubahnya ketika close sama. Arah garis lebih bermakna daripada nilai absolut awalnya.",
+"display": "Garis OBV kumulatif di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I41",
+"cat": "PriceVolume",
+"name": "Price Volume Trend",
+"key": "pvt",
+"short": "PVT",
+"req": "CV",
+"zone": "panel",
+"unit": "cumulative_price_weighted_volume",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "pvt",
+"label": "PVT",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "calculation_parameters",
+"label": "Calculation Parameters",
+"type": "fixed",
+"def": "none",
+"ev": "NOT_APPLICABLE",
+"hint": "No native length/multiplier for cumulative formula; display controlled separately"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Akumulasi volume yang dibobot dengan persentase perubahan harga.",
+"info": "Price Volume Trend menambahkan kontribusi volume sesuai besarnya return harga dari periode sebelumnya. Perubahan harga yang lebih besar memberi kontribusi lebih besar pada garis kumulatif.",
+"display": "Garis PVT kumulatif di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I42",
+"cat": "PriceVolume",
+"name": "Volume Weighted Moving Average",
+"key": "vwma",
+"short": "VWMA",
+"req": "CV",
+"zone": "overlay",
+"unit": "price",
+"colorRule": "solid:auto",
+"outs": [
+{
+"k": "vwma",
+"label": "VWMA",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "solid:auto",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 20,
+"ev": "REFERENCE_PROFILE_NOT_UI_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "close",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Moving average harga yang membobot setiap harga dengan volume transaksinya.",
+"info": "VWMA memberi bobot lebih besar pada periode dengan volume tinggi. Berbeda dari SMA biasa, perubahan harga pada bar ber-volume tinggi lebih memengaruhi hasilnya.",
+"display": "Garis VWMA di atas candlestick",
+"position": "Price chart overlay (candle pane)"
+},
+{
+"id": "I43",
+"cat": "PriceVolume",
+"name": "Volume Weighted Average Price",
+"key": "vwap",
+"short": "VWAP",
+"req": "HLCV",
+"zone": "overlay",
+"unit": "price",
+"colorRule": "band_boundaries",
+"outs": [
+{
+"k": "vwap",
+"label": "VWAP",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "band_boundaries",
+"cond": ""
+},
+{
+"k": "upper1",
+"label": "Upper",
+"r": "line",
+"role": "boundary_line",
+"vis": false,
+"w": 2,
+"rule": "band_boundaries",
+"cond": "Draw only if bands_mode active AND output series is available."
+},
+{
+"k": "lower1",
+"label": "Lower",
+"r": "line",
+"role": "boundary_line",
+"vis": false,
+"w": 2,
+"rule": "band_boundaries",
+"cond": "Draw only if bands_mode active AND output series is available."
+}
+],
+"params": [
+{
+"k": "anchor",
+"label": "Anchor",
+"type": "enum",
+"def": "Session",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"Session",
+"Week",
+"Month",
+"Quarter",
+"Year",
+"Decade",
+"Century"
+],
+"hint": "Reset cumulative sums each anchor"
+},
+{
+"k": "source",
+"label": "Source",
+"type": "enum",
+"def": "hlc3",
+"ev": "VERIFIED_DEFAULT",
+"opts": [
+"open",
+"high",
+"low",
+"close",
+"hl2",
+"hlc3",
+"ohlc4"
+],
+"hint": "Bar price source"
+},
+{
+"k": "bands_mode",
+"label": "Bands Mode",
+"type": "enum",
+"def": "StdDev",
+"ev": "PROPOSED_DEFAULT",
+"opts": [
+"StdDev",
+"Percentage",
+"None"
+],
+"hint": "Band distance definition"
+},
+{
+"k": "band_1_multiplier",
+"label": "Band 1 Multiplier",
+"type": "number",
+"def": 1,
+"ev": "PROPOSED_DEFAULT",
+"min": 0,
+"step": 0.1
+}
+],
+"guides": [],
+"fill": "upper1 ↔ lower1 (when active)",
+"tip": "Harga rata-rata berbobot volume sejak titik awal (anchor) yang ditentukan.",
+"info": "VWAP menjumlahkan harga representatif kali volume lalu membaginya dengan jumlah volume dalam periode anchor. Hasilnya bergantung pada sumber harga, reset anchor, dan resolusi data yang tersedia.",
+"display": "Garis VWAP + band opsional di atas candle",
+"position": "Price chart overlay (candle pane)"
+},
+{
+"id": "I44",
+"cat": "PriceVolume",
+"name": "Accumulation/Distribution Line",
+"key": "adl",
+"short": "ADL",
+"req": "HLCV",
+"zone": "panel",
+"unit": "cumulative_volume_weighted",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "adl",
+"label": "ADL",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "calculation_parameters",
+"label": "Calculation Parameters",
+"type": "fixed",
+"def": "none",
+"ev": "NOT_APPLICABLE",
+"hint": "No native length/multiplier for cumulative formula; display controlled separately"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Garis kumulatif volume yang dibobot posisi close dalam rentang high–low.",
+"info": "Accumulation/Distribution Line menambah atau mengurangi kontribusi volume berdasarkan apakah close berada dekat high atau low candle. Ini pendekatan tekanan harga-volume, bukan data arus transaksi broker.",
+"display": "Garis A/D kumulatif di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I45",
+"cat": "PriceVolume",
+"name": "Chaikin Money Flow",
+"key": "cmf",
+"short": "CMF",
+"req": "HLCV",
+"zone": "panel",
+"unit": "ratio_signed",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "cmf",
+"label": "CMF",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 20,
+"ev": "PROPOSED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+}
+],
+"guides": [
+0.0
+],
+"fill": null,
+"tip": "Rasio volume berbobot posisi close terhadap total volume selama suatu periode.",
+"info": "Chaikin Money Flow merangkum money flow volume pada sejumlah bar dan menormalkannya dengan total volume. Nilai positif menunjukkan kontribusi lebih dominan dari close di bagian atas rentang candle.",
+"display": "Garis CMF di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I46",
+"cat": "PriceVolume",
+"name": "Chaikin Oscillator",
+"key": "chaikin_osc",
+"short": "Chaikin Osc",
+"req": "HLCV",
+"zone": "panel",
+"unit": "volume_derived",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "chaikin_osc",
+"label": "Chaikin Osc",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "fast_length",
+"label": "Fast Length",
+"type": "integer",
+"def": 3,
+"ev": "REFERENCE_FORMULA_NOT_UI_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "slow_length",
+"label": "Slow Length",
+"type": "integer",
+"def": 10,
+"ev": "REFERENCE_FORMULA_NOT_UI_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Selisih dua EMA dari garis Accumulation/Distribution.",
+"info": "Chaikin Oscillator mengukur perubahan momentum pada Accumulation/Distribution Line menggunakan EMA cepat dan lambat. Indikator ini bergantung pada perhitungan ADL sebagai input.",
+"display": "Garis Chaikin Oscillator di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I47",
+"cat": "PriceVolume",
+"name": "Money Flow Index",
+"key": "mfi",
+"short": "MFI",
+"req": "HLCV",
+"zone": "panel",
+"unit": "index_0_100",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "mfi",
+"label": "MFI",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 14,
+"ev": "VERIFIED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+}
+],
+"guides": [
+20.0,
+80.0
+],
+"fill": null,
+"tip": "Oscillator yang menggabungkan perubahan typical price dengan volume.",
+"info": "Money Flow Index membandingkan aliran uang positif dan negatif menggunakan typical price dan volume. Nilainya berada pada skala 0–100 dan mencerminkan dominasi aliran menurut aturan indikator.",
+"display": "Garis MFI di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I48",
+"cat": "PriceVolume",
+"name": "Elder's Force Index",
+"key": "force_index",
+"short": "EFI",
+"req": "CV",
+"zone": "panel",
+"unit": "price_times_volume",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "force_index",
+"label": "EFI",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 13,
+"ev": "VERIFIED_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+}
+],
+"guides": [
+0.0
+],
+"fill": null,
+"tip": "Perubahan harga yang dikalikan volume, biasanya dihaluskan dengan EMA.",
+"info": "Elder's Force Index mengalikan perubahan close antarsesi dengan volume. Tanda hasil menunjukkan arah perubahan harga, sedangkan besarnya dipengaruhi perubahan harga dan volume sekaligus.",
+"display": "Garis Force Index di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I49",
+"cat": "PriceVolume",
+"name": "Ease of Movement",
+"key": "eom",
+"short": "EOM",
+"req": "HLV",
+"zone": "panel",
+"unit": "formula_defined",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "eom",
+"label": "EOM",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "length",
+"label": "Length",
+"type": "integer",
+"def": 14,
+"ev": "REFERENCE_FORMULA_NOT_UI_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "volume_scale",
+"label": "Volume Scale",
+"type": "number",
+"def": 1000000,
+"ev": "PROPOSED_DEFAULT",
+"min": 0,
+"step": 1,
+"hint": "PROPOSED: scale raw EOM values according to source volume units"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Hubungan perpindahan harga tengah candle dengan volume serta rentang harga.",
+"info": "Ease of Movement menilai besarnya perpindahan midpoint high-low relatif terhadap volume, dengan faktor rentang candle dan skala tertentu. Nilainya dapat dihaluskan untuk melihat kemudahan pergerakan harga.",
+"display": "Garis Ease of Movement di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I50",
+"cat": "PriceVolume",
+"name": "Negative Volume Index",
+"key": "nvi",
+"short": "NVI",
+"req": "CV",
+"zone": "panel",
+"unit": "index_cumulative",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "nvi",
+"label": "NVI",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "initial_value",
+"label": "Initial Value",
+"type": "number",
+"def": 1000,
+"ev": "PROPOSED_DEFAULT",
+"min": 0,
+"step": 1,
+"hint": "Starting cumulative index level"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Indeks kumulatif perubahan harga khusus pada periode ketika volume turun.",
+"info": "Negative Volume Index memperbarui nilainya berdasarkan return harga ketika volume lebih rendah daripada periode sebelumnya. Saat volume tidak turun, nilai indeks dipertahankan.",
+"display": "Garis NVI kumulatif di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I51",
+"cat": "PriceVolume",
+"name": "Positive Volume Index",
+"key": "pvi",
+"short": "PVI",
+"req": "CV",
+"zone": "panel",
+"unit": "index_cumulative",
+"colorRule": "single_line",
+"outs": [
+{
+"k": "pvi",
+"label": "PVI",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "single_line",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "initial_value",
+"label": "Initial Value",
+"type": "number",
+"def": 1000,
+"ev": "PROPOSED_DEFAULT",
+"min": 0,
+"step": 1,
+"hint": "Starting cumulative index level"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Indeks kumulatif perubahan harga khusus pada periode ketika volume naik.",
+"info": "Positive Volume Index memperbarui nilainya berdasarkan return harga ketika volume lebih tinggi daripada periode sebelumnya. Saat volume tidak naik, nilai indeks dipertahankan.",
+"display": "Garis PVI kumulatif di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I52",
+"cat": "PriceVolume",
+"name": "Klinger Volume Oscillator",
+"key": "kvo",
+"short": "KVO",
+"req": "HLCV",
+"zone": "panel",
+"unit": "volume_derived",
+"colorRule": "distinct_lines",
+"outs": [
+{
+"k": "kvo",
+"label": "KVO",
+"r": "line",
+"role": "numeric_line",
+"vis": true,
+"w": 2,
+"rule": "distinct_lines",
+"cond": ""
+},
+{
+"k": "signal",
+"label": "Signal",
+"r": "line",
+"role": "signal_line",
+"vis": true,
+"w": 2,
+"rule": "distinct_lines",
+"cond": ""
+}
+],
+"params": [
+{
+"k": "fast_length",
+"label": "Fast Length",
+"type": "integer",
+"def": 34,
+"ev": "REFERENCE_FORMULA_NOT_UI_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "slow_length",
+"label": "Slow Length",
+"type": "integer",
+"def": 55,
+"ev": "REFERENCE_FORMULA_NOT_UI_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+},
+{
+"k": "signal_length",
+"label": "Signal Length",
+"type": "integer",
+"def": 13,
+"ev": "REFERENCE_FORMULA_NOT_UI_DEFAULT",
+"min": 1,
+"step": 1,
+"hint": "Lookback bar count"
+}
+],
+"guides": [
+0.0
+],
+"fill": null,
+"tip": "Oscillator momentum volume yang menggabungkan rentang harga, arah, dan volume.",
+"info": "Klinger Volume Oscillator membandingkan EMA cepat dan lambat dari volume force, yaitu ukuran volume yang disesuaikan dengan perubahan tren harga dan rentang candle. Garis signal dapat ditambahkan.",
+"display": "Garis KVO + signal di panel terpisah",
+"position": "Separate indicator pane"
+},
+{
+"id": "I53",
+"cat": "PriceVolume",
+"name": "Market Facilitation Index",
+"key": "market_fi",
+"short": "MFI (BW)",
+"req": "HLV",
+"zone": "panel",
+"unit": "range_per_volume",
+"colorRule": "optional_state_colors",
+"outs": [
+{
+"k": "market_fi",
+"label": "MFI (BW)",
+"r": "histogram",
+"role": "histogram_bars",
+"vis": true,
+"w": 2,
+"rule": "optional_state_colors",
+"cond": "Four-state coloring optional and requires bar-to-bar volume/MFI comparison."
+}
+],
+"params": [
+{
+"k": "volume_scale",
+"label": "Volume Scale",
+"type": "number",
+"def": 1,
+"ev": "PROPOSED_DEFAULT",
+"min": 0,
+"step": 1,
+"hint": "PROPOSED: market facilitation index display scaling"
+}
+],
+"guides": [],
+"fill": null,
+"tip": "Rasio rentang harga High–Low terhadap volume transaksi dalam satu periode.",
+"info": "Market Facilitation Index versi Bill Williams menghitung (High − Low) / Volume. Angka ini menggambarkan rentang harga per unit volume dan berbeda dari Money Flow Index (MFI).",
+"display": "Histogram Market Facilitation Index di panel terpisah",
+"position": "Separate indicator pane"
+}
+]

@@ -1,0 +1,46 @@
+/* The data the terminal draws, in the reference page's own shapes (03-terminal-right-panel.html). Two sources fill it:
+   fixture.ts (the reference's synthetic generator, for the 1:1 check) and live.ts (the published files of the rack). */
+
+export interface Bar { time: string; open: number; high: number; low: number; close: number }
+export interface Point { time: string; value: number }
+export interface VolumePoint extends Point { color: string }
+
+/** [ticker, name, sector, last price] — the reference's INSTRUMENTS row (the price only seeds the fixture) */
+export type Instrument = [string, string, string, number];
+
+/** one compare series of the Add Series panel */
+export interface CompareSpec { id: string; symbol: string; name: string; color: string }
+
+/** one broker × investor type × board with its daily net value per session of the chart */
+export interface Combo { broker: string; investor: string; board: string; gross: number; tilt: number; net: Float64Array }
+
+/** a broker summary row: [broker, investor, board, buyValue, sellValue, buyLots, sellLots] */
+export type BrokerRow = [string, string, string, number, number, number, number];
+
+/** `at`: the session the marker sits on when the event date is not a session (live data); the tooltip shows `date` */
+export interface MarketEvent { id: string; type: string; date: string; at?: string; title: string; rows: [string, string][] }
+
+export interface MarketData {
+  mode: 'fixture' | 'live';
+  symbol: string;
+  instruments: Instrument[];
+  ohlc: Bar[];
+  volume: VolumePoint[];
+  lineData: Point[];
+  /** compare series offered in the Add Series panel, and their values aligned to the chart's sessions */
+  catalog: CompareSpec[];
+  loadCompare(id: string): Promise<Point[]>;
+  /** fixture only: every compare series, built up front as the reference does */
+  rawSeries?: Record<string, Point[]>;
+  /** IHSG aligned to the chart's sessions (Statistics, Relative performance) */
+  ihsg: Point[];
+  combos: Combo[];
+  flowSource: 'synthetic' | 'real';
+  /** first session index that has broker data (0 in the fixture) */
+  flowFrom: number;
+  /** Broker activity panel: its sessions (ascending) and the summary rows of each */
+  broker: { dates: string[]; rows(d: number): BrokerRow[]; label: string; category(code: string): string };
+  loadEvents(): Promise<MarketEvent[]>;
+  /** what the live page cannot show yet (approved formulas pending); the fixture shows everything */
+  hide: { brokerGauge: boolean; bandar: boolean };
+}

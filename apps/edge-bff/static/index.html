@@ -4724,6 +4724,17 @@ h1 {
   height: 100vh;
   overflow: hidden;
 }
+.terminal-page {
+  height: calc(100vh - var(--topbar));
+  overflow: hidden;
+}
+.terminal-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
 .chart-workspace {
   height: calc(100vh - var(--topbar));
   display: flex;
@@ -10598,7 +10609,8 @@ function Pill({ children, tone = "" }) { return element("span", { className: `pi
 function SectionTitle({ children, action }) { return element("div", { className: "section-title" },
     element("span", null, children),
     action); }
-const nav = [["Monitor", "monitor"]];
+// EXEC-TERMINAL-API T3 (user 2026-10-25: "buat tab terpisah di sebelah monitor"): the financial terminal tab
+const nav = [["Monitor", "monitor"], [EdgeLabels.terminal.nav, "terminal"]];
 function Shell({ route, go, children, chart = false, mobilePanelOpen = false }) {
     const viewRecord = currentView;
     const { theme, toggle } = themeState;
@@ -10637,7 +10649,7 @@ function Shell({ route, go, children, chart = false, mobilePanelOpen = false }) 
             element("button", { className: "brand", onClick: () => go("monitor") },
                 element("span", { className: "brand-mark" }, "E"),
                 element("strong", null, "EDGE")),
-            element("nav", null, nav.map(([label, r]) => { const active = route === "monitor" ? label === "Monitor" : route === r; return element("button", { key: label, "aria-current": active ? "page" : undefined, className: `nav-${label.toLowerCase()} ${active ? "active" : ""}`, disabled: r !== "monitor", title: r !== "monitor" ? "Page not included in this extract" : undefined, onClick: () => go(r) }, label); })),
+            element("nav", null, nav.map(([label, r]) => { const active = route === "monitor" ? label === "Monitor" : route === r; return element("button", { key: label, "aria-current": active ? "page" : undefined, className: `nav-${label.toLowerCase()} ${active ? "active" : ""}`, disabled: !["monitor", "terminal"].includes(r), title: !["monitor", "terminal"].includes(r) ? "Page not included in this extract" : undefined, onClick: () => go(r) }, label); })),
             element("div", { className: "top-actions" },
                 element("span",{className:"market-search-anchor"},
                     element("button",{type:"button",ref:marketSearchRef,className:`search market-search-inactive ${marketSoon?"active":""}`,onClick:()=>marketSoon?closeMarketSoon():showMarketSoon(),"aria-label":"Search markets — coming soon","aria-describedby":marketSoon?"market-search-coming-soon":undefined},
@@ -10777,6 +10789,14 @@ const relativeTime = (iso) => { if (!iso)
     return `Updated ${Math.floor(seconds / 60)}m ago`; if (seconds < 86400)
     return `Updated ${Math.floor(seconds / 3600)}h ago`; return `Updated ${Math.floor(seconds / 86400)}d ago`; };
 const conversationGroup = (iso) => { const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000); return days < 1 ? "Today" : days < 2 ? "Yesterday" : days < 7 ? "Previous 7 Days" : "Older"; };
+// EXEC-TERMINAL-API T3/T5: the terminal is its own page (/terminal-app/, built from apps/edge-bff/terminal) shown in a
+// same-origin frame under the EDGE top bar, so its stylesheet and EDGE's never mix; its data comes through
+// /api/terminal/... with this EDGE session.
+function TerminalPage({ go }) {
+    return element(Shell, { route: "terminal", go: go, chart: true },
+        element("main", { className: "terminal-page" },
+            element("iframe", { className: "terminal-frame", src: "/terminal-app/", title: EdgeLabels.terminal.frameTitle })));
+}
 function Monitor({ go }) {
     const viewRecord = currentView;
     const initialContext = undefined;
@@ -12400,7 +12420,7 @@ function Flow({ run }) {
 
 function App() {
     const viewRecord = currentView;
-    const currentPath = () => ["/monitor","/markets"].includes(routeLocation().pathname) || routeLocation().pathname.startsWith("/c/") ? "/monitor" : "/login";
+    const currentPath = () => routeLocation().pathname === "/terminal" ? "/terminal" : ["/monitor","/markets"].includes(routeLocation().pathname) || routeLocation().pathname.startsWith("/c/") ? "/monitor" : "/login";
     const authenticated=initialValue(viewRecord,"authenticated",()=>false),checked=initialValue(viewRecord,"checked",()=>false);
     onLifecycle(viewRecord,"auth",()=>{const sync=()=>updateValue(viewRecord,"authenticated",Boolean(Edge.auth));addEventListener("edge-auth",sync);Edge.session().then(()=>{sync();updateValue(viewRecord,"checked",true);});return()=>removeEventListener("edge-auth",sync);},[]);
     const path = initialValue(viewRecord, "path", currentPath), setPath = next => updateValue(viewRecord, "path", next);
@@ -12415,8 +12435,8 @@ function App() {
         document.documentElement.style.colorScheme = theme;
     }, [theme]);
     const go = route => {
-        if (!["monitor", "markets", "/monitor", "/markets", "/login", "/"].includes(route)) return;
-        const nextPath = ["markets","/markets","monitor","/monitor"].includes(route) ? "/monitor" : "/login";
+        if (!["monitor", "markets", "terminal", "/monitor", "/markets", "/terminal", "/login", "/"].includes(route)) return;
+        const nextPath = ["terminal","/terminal"].includes(route) ? "/terminal" : ["markets","/markets","monitor","/monitor"].includes(route) ? "/monitor" : "/login";
         // EXEC-CHAT-URL: signing in at /c/<id> stays on that conversation
         if (!(nextPath === "/monitor" && routeLocation().pathname.startsWith("/c/"))) routeHistory.pushState({}, "", nextPath);
         setPath(nextPath);
@@ -12428,7 +12448,7 @@ function App() {
         return next;
     });
     themeState = { theme, toggle };
-    return !checked ? element("div",{className:"auth-page"},"Checking session…") : authenticated ? element(Monitor,{go}) : element(AuthPage,{mode:"login",go});
+    return !checked ? element("div",{className:"auth-page"},"Checking session…") : authenticated ? (path === "/terminal" ? element(TerminalPage,{go}) : element(Monitor,{go})) : element(AuthPage,{mode:"login",go});
 }
 
 refresh();

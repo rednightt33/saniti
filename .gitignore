@@ -3,3 +3,6 @@ __pycache__/
 node_modules/
 railway-plan.json
 .claude/settings.local.json
+
+# EXEC-TERMINAL-API T5: built by the edge-bff Dockerfile from apps/edge-bff/terminal
+apps/edge-bff/static/terminal-app/
