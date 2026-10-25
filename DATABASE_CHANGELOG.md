@@ -2486,3 +2486,11 @@ or raw source data changed. Daily INDEX updates remain a separately approved des
     (BBCA from 2026-08-03 and from 2024-01-02, BBRI, GOTO twice, TLKM from 2020, a thin ticker, a warrant, PSAT
     incremental and full).
   - Table_Catalog `related_functions` of `Feature_02_Broker_Rolling` names it.
+- I1, Feature 02 and 03 from 2026-09-01 (orc-test-runner job, scratchpad log `f02/run.log`, 2,906 s):
+  - `refresh_feature_02(ticker, '2026-09-01')` for the 912 tickers with new F05 rows: 968,042 rows, equal to the
+    F05 source rows for the range; no ticker took over 60 s.
+  - `refresh_feature_03_stock_broker_daily(date, NULL)` for the 39 new dates: 38,163 rows, equal to the F02
+    `(date, ticker, market_board)` groups.
+  - The new rows equal a longer rewrite from 2026-06-01 (rolled back) for BBCA 3,864, BBRI 3,620, GOTO 2,883,
+    PSAT 470 and TLKM 3,395 new rows: 0 differences each.
+  - Read back: F02 and F03 newest date 2026-10-23; database 44.07 GB.

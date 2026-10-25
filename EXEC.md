@@ -7568,3 +7568,13 @@ data yang baru dihitung dengan formula yang berbeda dengan data sebelumnya. Go."
   - konsisten dengan raw `IDX_Broker_Summary`;
   - konsisten dengan riwayat di tabel yang sama, artinya baris baru dihitung dengan rumus yang sama dengan baris
     lama (hitung penuh = inkremental; batas 2026-08-31/09-01 mulus).
+
+**Hasil (2026-10-25, dibaca dari log job; rincian di DATABASE_CHANGELOG):**
+- R1 F05/F06: F05 968.042 baris = sumber (0 selisih); F06 912 ticker, 38.163 baris, rekonsiliasi 0 selisih;
+  inkremental = hitung penuh untuk 7 ticker.
+- I1: `refresh_feature_02` (migrasi `20261025_008`) dibuktikan sama dengan hitung penuh pada 10 kasus (rollback),
+  lalu dijalankan: F02 968.042 baris = sumber F05; F03 39 tanggal, 38.163 baris = grup F02; baris baru = tulis ulang
+  dari 2026-06-01 untuk BBCA, BBRI, GOTO, PSAT, TLKM (0 selisih). F02/F03 sampai 2026-10-23.
+- I2 INDEX: `prepare` + `apply_chunks` tanpa arsip/migrasi ulang; validasi lolos; 2016-2025 menulis 0 baris
+  (riwayat tidak berubah), 2026 hanya baris baru (F02/F05 7.802, F03/F06 117). INDEX broker sampai 2026-10-23.
+- T: laporan sub-agent menyusul.
