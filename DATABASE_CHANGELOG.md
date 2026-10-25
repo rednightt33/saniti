@@ -2306,7 +2306,7 @@ User 2026-10-25: "Ok" on `verification/terminal_api/DESIGN.md` section 5 (steps 
   `terminal_market_reader` (SELECT on `Price_Stock_Indonesia_IDX`, `Feature_05_Foreign_Domestic_Broker_Detail`,
   `IDX_Broker_Profile`, `IDX_Stock_Universe`). No market table or existing grant changed.
   Applied by the DRYRUN job `345802f7` itself, without a rehearsal: the job found the commented rollback example's
-  `-- COMMIT;` (ERRORS M215; job fixed). Read-back (job `migration_readback`, admin, read-only): 7 tables, `quota` 10
+  `-- COMMIT;` (ERRORS M217; job fixed). Read-back (job `migration_readback`, admin, read-only): 7 tables, `quota` 10
   rows, all other tables 0 rows, 2 roles NOLOGIN non-superuser, grants exactly as written. Logs:
   `verification/terminal_api/jobs/`.
 - **Logins** (`scripts/provision_terminal_logins.py`, job on orc-test-runner; passwords only as Railway variables of

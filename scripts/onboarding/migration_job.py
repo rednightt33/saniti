@@ -45,7 +45,7 @@ with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True) as conn:
             continue
         # the file's own BEGIN/COMMIT are left out so every file runs in the one rehearsal transaction. They are
         # located on lines that are not comments, so a commented rollback example ("-- COMMIT;") after the real
-        # COMMIT cannot make the rehearsal commit (ERRORS M215); a second statement-level COMMIT refuses the file.
+        # COMMIT cannot make the rehearsal commit (ERRORS M217); a second statement-level COMMIT refuses the file.
         lines = body.splitlines(keepends=True)
         offsets, pos = [], 0
         for line in lines:

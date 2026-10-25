@@ -1545,7 +1545,7 @@ change yet.
   Branch, side chat, reload).
 - **Status:** FIXED (deploy edge-bff, lihat RAILWAY_CHANGELOG 2026-10-24).
 
-### M215 — Rehearsal (DRYRUN) migrasi ter-commit karena contoh rollback di komentar (2026-10-25)
+### M217 — Rehearsal (DRYRUN) migrasi ter-commit karena contoh rollback di komentar (2026-10-25)
 
 - **Symptom:** EXEC-TERMINAL-API, job DRYRUN `345802f7` untuk `20261025_001_create_terminal_schema.sql`: log
   `MIG DRYRUN_BODY_OK`, lalu `SAVEPOINT can only be used in transaction blocks`; restart berikutnya gagal di preflight
@@ -1563,6 +1563,24 @@ change yet.
   File `20261025_001` tidak diubah (sudah diterapkan; sha256 `1843a24f…`).
 - **Status:** FIXED (job), migrasi terminal diterapkan dan diverifikasi live.
 - **Lesson:** rehearsal yang bisa commit lebih berbahaya daripada tanpa rehearsal; parser harus mengabaikan komentar.
+
+### M218 — Job `verify` terminal-publisher berulang sendiri setelah selesai (2026-10-25)
+
+- **Symptom:** EXEC-TERMINAL-API, deployment `bb3a6397` (mode `verify`): `event="verify_done" files=9173 mismatches=297`
+  pukul 10:36 UTC, lalu baris `verify_mismatch` muncul lagi mulai 10:5x UTC — job berjalan ulang dan membaca database
+  lagi tanpa guna.
+- **Verified cause:** `verify` keluar dengan kode 1 bila ada ketidakcocokan; service `terminal-publisher` dibuat dengan
+  kebijakan restart bawaan Railway (ulang bila gagal), jadi container dijalankan lagi. Ke-297 ketidakcocokan semuanya
+  `broker` tahun 2026: Feature 05 diperbarui sampai 2026-10-23 pukul 09:51 UTC oleh EXEC-REFRESH-1025 (sesi lain),
+  sesudah backfill selesai 08:42 UTC. Tidak ada ketidakcocokan lain (dicek dari log). Sub-agent integritas (INTEGRITY.md)
+  mencocokkan semua file sebelum pembaruan itu: ALL MATCH.
+- **Class:** setiap job sekali jalan (publisher, verify, backfill) di service dengan kebijakan restart "ulang bila
+  gagal" akan berulang selama kegagalannya bertahan, termasuk job lain yang nanti memakai service yang sama.
+- **Solution:** deployment dihentikan (`railway down`, status REMOVED, 10:5x UTC). Publisher dijalankan dengan
+  `restartPolicyType NEVER` (bersama jadwal harian, langkah A EXEC-TERMINAL-API). File broker 2026 disegarkan oleh
+  mode `daily` (mendeteksi tanggal broker baru dari database).
+- **Status:** MITIGATED (loop dihentikan); restart NEVER dan penyegaran menunggu go user.
+- **Lesson:** service job harus restart NEVER sejak dibuat; `verify` yang gagal adalah laporan, bukan alasan mengulang.
 - **Lesson:** tes antarmuka masuk dari setiap path yang dilayani, bukan hanya satu.
 
 ## Fixed-income selected-date repair — 2026-10-20 status
