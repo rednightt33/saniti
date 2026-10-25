@@ -1611,6 +1611,26 @@ change yet.
 - **Lesson:** periksa kontrak join sebelum menjanjikan relasi untuk sumber data dengan sistem kode entitas berbeda
   (Part A A1.2, A4.17).
 
+### M217 — Loader Stockbit di Git tidak menulis frekuensi; loader yang memuat 2026-09-01…10-23 tidak ada di Git (2026-10-25)
+
+- **Symptom:** saat menyusun `UPDATE_TABLE.md` (permintaan user 2026-10-25), sumber `IDX_Broker_Summary`
+  2026-09-01…10-23 punya `buy_freq`/`sell_freq` di 100 % baris tetapi tanpa baris `stockbit_broker_summary_load_log`.
+- **Verified cause (code):** `apps/stockbit-broker-backfill/stockbit_marketwide_broker_activity.py`
+  `CANONICAL_KEYS` (baris 42-46) tidak memuat frekuensi, dan `replace_date` (526) menghapus seluruh tanggal lalu menulis
+  hanya kolom itu, plus baris log `COMPLETED`. Tidak ada branch remote yang memuat loader berfrekuensi (`git grep`).
+  Jadi tanggal baru dimuat oleh program di luar Git.
+- **Class:** sumber data yang dimuat oleh kode di luar repo. Isi dan bentuknya tidak bisa diperiksa, diulang, atau
+  dilindungi. Ini berlaku untuk setiap loader lokal (Stockbit, dan sumber cross-asset/makro yang direncanakan).
+- **Risiko:** menjalankan loader Git pada tanggal yang sudah ada akan menghapus frekuensinya. Staging
+  `IDX_Broker_Summary_Freq` sudah dihapus (`20261025_007`), jadi frekuensi F05/F06 tanggal itu menjadi kosong tanpa
+  cadangan.
+- **Solution (usulan, perlu go):** loader yang dipakai user masuk ke `apps/stockbit-broker-backfill/`, menulis
+  frekuensi dan baris log. Sampai itu terjadi, `UPDATE_TABLE.md` bagian 2 melarang memakai loader Git untuk tanggal
+  yang sudah berfrekuensi.
+- **Status:** OPEN.
+- **Lesson:** loader setiap sumber baru harus ada di Git dan menulis log muat per tanggal sebelum datanya dipakai
+  Feature (Part A).
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.
