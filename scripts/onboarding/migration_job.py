@@ -43,11 +43,21 @@ with psycopg.connect(os.environ["DATABASE_URL"], autocommit=True) as conn:
         if mode == "APPLY":
             conn.execute(body)
             continue
-        # the file's own BEGIN/COMMIT are left out so every file runs in the one rehearsal transaction
-        start = body.find("BEGIN;")
-        end = body.rstrip().rfind("COMMIT;")
-        assert start >= 0 and end > start, f"{name}: expected BEGIN; ... COMMIT;"
-        conn.execute(body[start + len("BEGIN;"):end])
+        # the file's own BEGIN/COMMIT are left out so every file runs in the one rehearsal transaction. They are
+        # located on lines that are not comments, so a commented rollback example ("-- COMMIT;") after the real
+        # COMMIT cannot make the rehearsal commit (ERRORS M215); a second statement-level COMMIT refuses the file.
+        lines = body.splitlines(keepends=True)
+        offsets, pos = [], 0
+        for line in lines:
+            offsets.append(pos)
+            pos += len(line)
+        begins = [i for i, line in enumerate(lines) if line.strip().upper() == "BEGIN;"]
+        commits = [i for i, line in enumerate(lines) if line.strip().upper() == "COMMIT;"]
+        assert len(begins) == 1 and len(commits) == 1 and begins[0] < commits[0], \
+            f"{name}: expected exactly one BEGIN; line and one COMMIT; line"
+        assert all(not line.strip() or line.lstrip().startswith("--") for line in lines[commits[0] + 1:]), \
+            f"{name}: only comments may follow COMMIT;"
+        conn.execute(body[offsets[begins[0]] + len(lines[begins[0]]):offsets[commits[0]]])
         print(f"MIG DRYRUN_BODY_OK {name}", flush=True)
     if mode == "APPLY":
         conn.execute("BEGIN READ ONLY")

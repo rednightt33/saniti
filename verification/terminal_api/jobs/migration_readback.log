@@ -1,0 +1,8 @@
+Starting Container
+OUT {"q": "row_counts", "ms": 3, "part": 0, "rows": [["subscriber", 0], ["session", 0], ["access_log", 0], ["quota", 10], ["admin_log", 0]]}
+OUT {"q": "roles", "ms": 2, "part": 0, "rows": [["terminal_market_reader", false, false], ["terminal_runtime", false, false]]}
+OUT {"q": "schema_acl", "ms": 1, "part": 0, "rows": [["{postgres=UC/postgres,terminal_runtime=U/postgres}"]]}
+OUT {"q": "reader_grants", "ms": 3, "part": 0, "rows": [["Feature_05_Foreign_Domestic_Broker_Detail", "SELECT"], ["IDX_Broker_Profile", "SELECT"], ["IDX_Stock_Universe", "SELECT"], ["Price_Stock_Indonesia_IDX", "SELECT"]]}
+OUT {"q": "runtime_grants", "ms": 3, "part": 0, "rows": [["access_log", "DELETE,INSERT,SELECT,UPDATE"], ["admin_log", "DELETE,INSERT,SELECT,UPDATE"], ["quota", "DELETE,INSERT,SELECT,UPDATE"], ["quota_override", "DELETE,INSERT,SELECT,UPDATE"], ["session", "DELETE,INSERT,SELECT,UPDATE"], ["sign_in_attempt", "DELETE,INSERT,SELECT,UPDATE"]]}
+OUT {"q": "runtime_grants", "ms": 3, "part": 1, "rows": [["subscriber", "DELETE,INSERT,SELECT,UPDATE"]]}
+JOB_DONE MIGRATION APPLY

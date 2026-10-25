@@ -1,0 +1,41 @@
+Starting Container
+MIG DRYRUN 20261025_001_create_terminal_schema.sql sha256=1843a24fcb0fb05e1ecfca0c1ca865ab7e99440d64a8d17187b8368bafbf32cc
+MIG DRYRUN_BODY_OK 20261025_001_create_terminal_schema.sql
+Traceback (most recent call last):
+  File "/job/job.py", line 55, in <module>
+    conn.execute("SAVEPOINT probe")
+  File "/usr/local/lib/python3.12/site-packages/psycopg/connection.py", line 269, in execute
+    raise ex.with_traceback(None)
+psycopg.errors.NoActiveSqlTransaction: SAVEPOINT can only be used in transaction blocks
+    raise ex.with_traceback(None)
+psycopg.errors.RaiseException: terminal schema/roles exist: reconcile before applying
+CONTEXT:  PL/pgSQL function inline_code_block line 5 at RAISE
+MIG DRYRUN 20261025_001_create_terminal_schema.sql sha256=1843a24fcb0fb05e1ecfca0c1ca865ab7e99440d64a8d17187b8368bafbf32cc
+Traceback (most recent call last):
+  File "/job/job.py", line 50, in <module>
+    conn.execute(body[start + len("BEGIN;"):end])
+  File "/usr/local/lib/python3.12/site-packages/psycopg/connection.py", line 269, in execute
+MIG DRYRUN 20261025_001_create_terminal_schema.sql sha256=1843a24fcb0fb05e1ecfca0c1ca865ab7e99440d64a8d17187b8368bafbf32cc
+Traceback (most recent call last):
+  File "/job/job.py", line 50, in <module>
+    conn.execute(body[start + len("BEGIN;"):end])
+  File "/usr/local/lib/python3.12/site-packages/psycopg/connection.py", line 269, in execute
+    raise ex.with_traceback(None)
+psycopg.errors.RaiseException: terminal schema/roles exist: reconcile before applying
+CONTEXT:  PL/pgSQL function inline_code_block line 5 at RAISE
+psycopg.errors.RaiseException: terminal schema/roles exist: reconcile before applying
+CONTEXT:  PL/pgSQL function inline_code_block line 5 at RAISE
+MIG DRYRUN 20261025_001_create_terminal_schema.sql sha256=1843a24fcb0fb05e1ecfca0c1ca865ab7e99440d64a8d17187b8368bafbf32cc
+Traceback (most recent call last):
+  File "/job/job.py", line 50, in <module>
+    conn.execute(body[start + len("BEGIN;"):end])
+  File "/usr/local/lib/python3.12/site-packages/psycopg/connection.py", line 269, in execute
+    raise ex.with_traceback(None)
+MIG DRYRUN 20261025_001_create_terminal_schema.sql sha256=1843a24fcb0fb05e1ecfca0c1ca865ab7e99440d64a8d17187b8368bafbf32cc
+Traceback (most recent call last):
+  File "/job/job.py", line 50, in <module>
+    conn.execute(body[start + len("BEGIN;"):end])
+  File "/usr/local/lib/python3.12/site-packages/psycopg/connection.py", line 269, in execute
+    raise ex.with_traceback(None)
+psycopg.errors.RaiseException: terminal schema/roles exist: reconcile before applying
+CONTEXT:  PL/pgSQL function inline_code_block line 5 at RAISE

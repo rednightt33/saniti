@@ -1544,6 +1544,25 @@ change yet.
   `tests/test_ask_branch.py::test_links_edge_builds_open_when_the_page_was_opened_at_the_root` (masuk dari `/`:
   Branch, side chat, reload).
 - **Status:** FIXED (deploy edge-bff, lihat RAILWAY_CHANGELOG 2026-10-24).
+
+### M215 — Rehearsal (DRYRUN) migrasi ter-commit karena contoh rollback di komentar (2026-10-25)
+
+- **Symptom:** EXEC-TERMINAL-API, job DRYRUN `345802f7` untuk `20261025_001_create_terminal_schema.sql`: log
+  `MIG DRYRUN_BODY_OK`, lalu `SAVEPOINT can only be used in transaction blocks`; restart berikutnya gagal di preflight
+  "terminal schema/roles exist".
+- **Verified cause:** `scripts/onboarding/migration_job.py` (DRYRUN) mencari `COMMIT;` dengan `rfind` pada teks mentah.
+  File ini diakhiri contoh rollback dalam komentar (`-- COMMIT;`), sehingga potongan yang dijalankan memuat `COMMIT;`
+  yang asli: migrasi ter-commit, transaksi rehearsal tertutup, probe gagal. Read-back live (job `migration_readback`):
+  schema `terminal`, 7 tabel, 2 role NOLOGIN, 4 grant SELECT, `quota` 10 baris, tabel lain kosong — persis isi file;
+  tidak ada baris probe yang masuk. Isi migrasi memang sudah disetujui user (langkah 2), tapi diterapkan tanpa rehearsal.
+- **Class:** setiap migrasi yang memuat kata `BEGIN;`/`COMMIT;` di komentar atau di tengah teks bisa membuat DRYRUN
+  menjalankan commit sungguhan (berlaku untuk semua tabel dan data baru, termasuk cross-asset dan makro).
+- **Solution:** job DRYRUN sekarang mencari `BEGIN;` dan `COMMIT;` hanya sebagai baris pernyataan (bukan komentar),
+  menolak file yang punya lebih dari satu, dan menolak teks selain komentar sesudah `COMMIT;`. Dicek pada 159 migrasi
+  repo: 157 lolos, 2 ditolak seperti sebelumnya (indeks `CONCURRENTLY` tanpa transaksi, `20261023_001`/`002`).
+  File `20261025_001` tidak diubah (sudah diterapkan; sha256 `1843a24f…`).
+- **Status:** FIXED (job), migrasi terminal diterapkan dan diverifikasi live.
+- **Lesson:** rehearsal yang bisa commit lebih berbahaya daripada tanpa rehearsal; parser harus mengabaikan komentar.
 - **Lesson:** tes antarmuka masuk dari setiap path yang dilayani, bukan hanya satu.
 
 ## Fixed-income selected-date repair — 2026-10-20 status
