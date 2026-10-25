@@ -865,6 +865,8 @@ dikeluarkan), 103.788 baris insider unik, 964 ticker, 2017-10-12 s.d. 2026-10-23
 
 **Keputusan user, 2026-10-25 (kata user):** "Current % Change % Ini saja yang perlu ada" (`pct_before` dikeluarkan; persen insider = `pct_after` dan `pct_change` dari Stockbit). Cek 2026-10-25: keduanya tidak bisa dihitung dari kolom saham saja (saham beredar tidak ada di sumber), tetapi saling mengecek dalam satu baris: `pct_change` ≈ `pct_after` × `shares_change` ÷ `shares_after` cocok di 100.788 dari 101.495 baris yang bisa dicek (99,3%); `pct_quality_flag` diganti ke cek dalam baris ini (OK, ROUNDING, INCONSISTENT, NOT_CHECKABLE, INVALID_SENTINEL), sehingga batas 30 hari tidak diperlukan.
 
+**Arahan user, 2026-10-25 (kata user):** "update ini akan dilakukan secara daily atau secara ad hoc. Baca update data MD sudah ada di Git. Jadi nanti kamu kirim dulu scriptnya ... Yang tujuannya adalah untuk tarik data ... akan dapat dua kan, call action dan insider. Dari dua data ini nanti akan dibuatkan satu Excel yang seperti kamu kirim barusan. Propose ke saya nama tabelnya apa? Jadi total ada tiga table, right?" Usulan nama: `stockbit_corporate_action`, `stockbit_insider_transaction`, `idx_event_annotation` (menunggu konfirmasi). Pola mengikuti `UPDATE_TABLE.md`: tarik Stockbit dengan token di PC user, simpan di PostgreSQL Railway, tabel gabungan dihitung dari dua tabel sumber.
+
 Pertanyaan terbuka:
 - Token di Railway: belum ada mekanisme pembaruan Stockbit JWT otomatis di repo (runner broker summary memakai token yang diganti manual, `apps/stockbit-broker-backfill/README.md`); JWT uji 2026-10-25 berlaku sekitar 1 hari.
 - 20 baris dengan angka rusak (D21): `pct_after`/`pct_change` dikosongkan; tidak bisa dihitung dari baris itu sendiri.
