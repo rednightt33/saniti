@@ -4497,3 +4497,8 @@ branch; this task does not release daily worker/frontend changes to main.
 - orc-test-runner (temporary `DATABASE_URL`, VAR_REMOVED after each): audit `2c0132bb` (PASS, read-only), status
   inspection (read-only), DRYRUN `9c0a7d8b`, APPLY `88a5a7a2` (Database_Table_Status), read-back `1eb87b20`. The Railway
   builder built these jobs normally again. No service or variable changed.
+
+## 2026-10-25 — Broker consistency check jobs
+
+- orc-test-runner (temporary `DATABASE_URL`, VAR_REMOVED after each): `0d76ad3c` (stopped at a query error in the job,
+  read-only) and `eb43c1ec` (read-only freshness, visibility and consistency). No service or variable changed.

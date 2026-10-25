@@ -659,3 +659,51 @@ dari `IDX_Broker_Summary`; daftar tulis-tangan `APPROVED`, `RAW_SOURCES`/`FORBID
 
 **Keputusan user yang dibutuhkan:** indeks F05 (±0,4 GB, disk 49 GB dari 75 GB); indeks F04; perbaikan Governor (2);
 F05 dibuka seluruhnya atau hanya F06; preview; refresh harian F05/F06 masih manual (freshness akan BASI tanpa job).
+
+## STOCKBIT-UPDATER — satu service Railway: token → IDX_Broker_Summary → F05/F02/F03/F06 → INDEX → tiga tabel event (usulan 2026-10-25, menunggu go)
+
+**Permintaan user, 2026-10-25 (kata user):** "Bisa nggak buat satu service di mana ketika kita running the service, maka
+data IDX Broker Summary di-ingest atau di-update dari latest updated data. Ada variable bearer token yang bisa saya update
+karena tokennya akan update setiap hari. Dan ketika saya update, maka table IDX Broker Summary akan terupdate. Kemudian
+feature 2, 3, 5, dan 6 juga otomatis terupdate. Termasuk 3 table yang baru saja ada terkait dengan [corporate] action dan
+insider ... Script ini harus digunakan agar [Railway] bisa mengquery data. Bukan melalui lokal saya." Script yang
+dilampirkan: `import_full_broker_summary.py` + `stockbit_ihsg_daily.py` (loader yang memuat 2026-09-01…10-23, M217),
+`FULL_BROKER_IMPORT.md`, `audit_full_broker_import.py`. Ini menggantikan keputusan sebelumnya "untuk saat ini tidak perlu
+bikin service baru" (branch `claude/keen-keller-cq1d96`, STOCKBIT-PULLER) begitu user memberi go.
+
+**Keadaan yang diperiksa 2026-10-25** (job read-only `eb43c1ec`, `verification/broker_consistency_20261025/`):
+- semua Feature 01–06 saham dan `_INDEX` sampai 2026-10-23, sama dengan tanggal terbaru harga dan `IDX_Broker_Summary`;
+- 12 objek aktif di `AI_table_catalog` (BOUNDED_READ) dan bisa dibaca `market_ai_sql_reader`; F05/F06 lewat view
+  `_Stock`, tabel dasarnya tertutup;
+- rantai sumber (kode live): `IDX_Broker_Summary` → F05 → F02 → F03, F05 → F06; F02/F03 juga membaca `IDX_Broker_Profile`;
+- per tanggal 2016-01-04…2026-10-23 (2.599 tanggal): sumber = F05 (baris, beli, jual, net, frekuensi, net asing), F05 = F02
+  (baris, beli, jual, net), F02 = F03 (grup saham-papan, beli, net), F05 = F06 (net asing, total beli): 0 tanggal berbeda.
+
+**Uji lokal script user** (Stockbit palsu, PostgreSQL lokal dengan skema live `IDX_Broker_Summary`,
+`loader_local_test.py`): dua tanggal × 520 simbol masuk dan cocok dua arah; jalan ulang melewati tanggal yang sudah
+selesai; nilai sumber yang dikoreksi memperbarui baris; baris warrant yang ada tidak disentuh; tanggal awal yang bukan
+hari bursa ditolak (tidak dimundurkan). Yang harus diubah untuk Railway: daftar simbol dari SQLite di PC
+(`--historical-state`) dan path Windows; simbol hanya 4 huruf (`^[A-Z]{4}$`, M218); state (raw, checkpoint) perlu disk
+tetap; baris yang tidak lagi dikirim Stockbit membuat tanggal itu berhenti (tidak dihapus diam-diam).
+
+**Usulan (lapisan: service Railway + fungsi refresh yang sudah ada, tanpa rumus baru):**
+1. Service `stockbit-updater` (`apps/stockbit-updater/`), `restartPolicyType: NEVER`, satu putaran per deploy. Variabel
+   rahasia `STOCKBIT_TOKEN` diisi user di dashboard Railway (tidak lewat chat atau Git); mengganti token lalu Deploy =
+   satu putaran update. `DATABASE_URL` referensi Postgres privat. Volume kecil untuk raw response dan checkpoint.
+2. Tanggal diturunkan dari data, bukan dari argumen: tanggal bursa di `Price_Stock_Indonesia_IDX` yang belum ada di
+   `IDX_Broker_Summary` (termasuk gap lama), sampai tanggal harga terbaru. Tanggal yang harganya belum masuk ditunda.
+3. Muat per tanggal dengan logika script user (enam filter per simbol, validasi, satu transaksi, cek dua arah 15 kolom,
+   `stockbit_full_broker_import_status`), token kedaluwarsa dicek dari `exp` JWT sebelum mulai.
+4. Refresh berantai untuk tanggal yang berubah (diturunkan dari selisih sumber vs F05, seperti `UPDATE_TABLE.md`
+   bagian 4): F05 → F02 → F03 → F06 → INDEX (`backfill_index_features.py`), cek setiap langkah, `ANALYZE`, lalu tiga tabel
+   event (loader `apps/stockbit-event-annotation/` dari branch keen-keller) dan `Database_Table_Status`.
+5. Ringkasan satu baris per putaran (log, opsional Telegram).
+
+**Yang perlu diputuskan user:** K1 warrant/rights sesudah 2026-08-31 (temukan simbol lewat endpoint aktivitas broker,
+seperti loader lama, atau tetap 4 huruf); K2 hanya saat deploy (token baru) atau juga cron harian; K3 lama simpan raw
+response; K4 tiga tabel event ikut dalam putaran yang sama (perlu merge branch keen-keller; migrasinya bernama
+`20261025_011`, bentrok dengan `20261025_011_exclude_index_from_stock_features.sql` yang sudah diterapkan, jadi harus
+diganti nomor sebelum diterapkan); K5 notifikasi Telegram.
+
+**Risiko:** Stockbit belum terbukti bisa diakses dari IP Railway (perlu satu uji dengan token); token berlaku ±1 hari;
+F02 ±3 detik per ticker (±45 menit per putaran berapa pun jumlah tanggalnya).

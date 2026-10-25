@@ -2570,3 +2570,14 @@ grains/analytical columns; Feature04 asset_type is constrained to index. Feature
 nonnegative frequency coverage counts (source, known buy/sell, missing buy/sell). An index-universe
 identity trigger guards every target. Private migration_archive.index_feature_rows retains lossless
 legacy row snapshots for cleanup recovery. Apply status is recorded in DATABASE_CHANGELOG.md.
+
+## 2026-10-25 — Broker Feature freshness, AI visibility and consistency check (read-only)
+
+- User 2026-10-25: "apakah feature 1 sampai 6 ... sudah terupdate ... AI sudah mendapatkan visibility ... konsisten dengan
+  data di [IDX Broker Summary]?"
+- Job `eb43c1ec` (read-only, `verification/broker_consistency_20261025/confirm_job.py`): newest date 2026-10-23 for
+  F01–F06, their `_INDEX` tables, `IDX_Broker_Summary` and `Price_Stock_Indonesia_IDX`; 12 objects active in
+  AI_table_catalog and readable by `market_ai_sql_reader` (F05/F06 through `_Stock` views); per-date totals over
+  2,599 dates (2016-01-04…2026-10-23): IDX_Broker_Summary = F05, F05 = F02, F02 = F03, F05 = F06, 0 dates differing.
+- `AI_data_coverage` holds a newest date for `IDX_Broker_Summary` and prices (2026-10-23) but none for the Feature tables
+  (its update rule: Feature tables are not scanned).
