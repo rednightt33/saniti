@@ -1,0 +1,6 @@
+MIG DRYRUN 20261025_101_terminal_reader_event_annotation.sql sha256=9594a01336dbfc3f21c8651e43533e7225165e07f457b0d4b60071a6d35cb034
+MIG DRYRUN_BODY_OK 20261025_101_terminal_reader_event_annotation.sql
+OUT {"q": "reader_reads_events", "ms": 3, "part": 0, "rows": [[195]]}
+ERR {"q": "reader_still_refused_f06", "error": "InsufficientPrivilege: permission denied for table Feature_06_Foreign_Domestic"}
+JOB_DONE MIGRATION DRYRUN
+Starting Container

@@ -2314,3 +2314,26 @@ User 2026-10-25: "Ok" on `verification/terminal_api/DESIGN.md` section 5 (steps 
   `terminal_api_login` (member of both groups; statement_timeout 10s; reaches exactly 11 relations) and
   `terminal_publisher_login` (market reader only; read-only transactions; statement_timeout 120s; reaches exactly 4).
 - Rollback: a forward migration with the commented block at the end of `20261025_001`.
+
+
+## 2026-10-25 — Terminal: event annotations readable by the publisher; 46 terminal indicator formulas (EXEC-TERMINAL-API T6, T2)
+
+User 2026-10-25: "Boleh saya kerjakan idx_event_annotation ke rak … boleh, masukan EXEC", "B. AI_formula_reference
+--> ini OK masukan exec", then "untuk semua exec, silahkan dieksekusi. It's a go." Both migrations rehearsed (DRYRUN)
+then applied with `scripts/onboarding/migration_job.py` on orc-test-runner; hashes in `APPLIED.sha256`; logs in
+`verification/terminal_api/jobs/migration10{1,2}_{dryrun,apply}.log`.
+
+- **`20261025_101_terminal_reader_event_annotation.sql`** (sha256 `9594a013…`): `GRANT SELECT ON
+  public.idx_event_annotation TO terminal_market_reader`, with a preflight. Read-back: the reader reads 195 tickers'
+  events, still cannot read `Feature_06_Foreign_Domestic` (expected refusal). `scripts/provision_terminal_logins.py`
+  now expects 5 market relations. No catalog change (grant only).
+- **`20261025_102_terminal_indicator_formulas.sql`** (sha256 `315ef242…`, DRYRUN job `729dbf75`, APPLY job
+  `51aa6844`): 46 new `AI_formula_reference` rows `CALC_201`–`CALC_246`, one per terminal indicator without a
+  Feature 04 column, generated from the single spec `scripts/terminal_indicator_spec.py` (also the source of
+  `verification/terminal_api/INDICATOR_SPEC.md`). Each row states the terminal convention, the TA-Lib function it
+  equals or must not be replaced with (CMO: Chande plain sums, not `talib.CMO`; Stochastic RSI: smoothed K; PPO/PVO:
+  `matype=1`), and the related existing CALC row. `CALC_001`–`CALC_200` unchanged. Read-back (APPLY probes and pgweb):
+  246 rows, 46 in `CALC_201..246`, none with an empty formula or description, `market_ai_catalog_reader` reads them.
+  Known differences recorded in the rows: RVOL includes the current bar (user 2026-10-25) while `CALC_062` excludes it;
+  Historical Volatility uses the population stdev (terminal engine) while `CALC_044` uses the sample form.
+  Rollback: `DELETE FROM public."AI_formula_reference" WHERE calculation_id BETWEEN 'CALC_201' AND 'CALC_246'`.

@@ -1,0 +1,257 @@
+#!/usr/bin/env python3
+"""EXEC-TERMINAL-API T1/T2: one source for the 53 terminal indicators.
+
+Generates
+  verification/terminal_api/INDICATOR_SPEC.md                         (T1, the calculation-module specification)
+  database/migrations/20261025_102_terminal_indicator_formulas.sql    (T2, AI_formula_reference rows CALC_201..)
+
+Conventions (user 2026-10-25, EXEC.md): an indicator stored in Feature 04 follows Feature 04 (TA-Lib 0.6.8); the others
+follow the terminal HTML engine, except where the industry comparison chose TA-Lib (OBV, Parabolic SAR) or the plain
+Chande form (CMO); RVOL includes the current bar. "source" says which: FEATURE_04, TA_LIB, HTML.
+
+  python3 scripts/terminal_indicator_spec.py            # writes both files
+  python3 scripts/terminal_indicator_spec.py --check    # fails if either file differs from this source
+"""
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+SPEC_MD = ROOT / 'verification/terminal_api/INDICATOR_SPEC.md'
+MIGRATION = ROOT / 'database/migrations/20261025_102_terminal_indicator_formulas.sql'
+FIRST_ID = 201
+
+COMMON = ('Inputs are final daily bars of one ticker in ascending date order (no gaps filled, no zero-filled '
+          'prehistory). EMA-type averages are seeded with the SMA of their first n valid values; RMA uses alpha 1/n '
+          'with the same seed. A value is null until its window is full; a zero denominator gives null unless the '
+          'convention says otherwise. Calculations use the full stored history (price files from 2018) so recursive '
+          'values match Feature 04.')
+
+# id, key, name, inputs, params, formula, outputs, source, talib, feature04, existing, notes
+I = [
+ ('I01', 'sma', 'Simple Moving Average', 'C', 'length=20; source=close', 'SMA(src,n)=SUM(src,n)/n', 'sma',
+  'FEATURE_04', 'SMA', 'sma_20, sma_50', 'CALC_021', ''),
+ ('I02', 'ema', 'Exponential Moving Average', 'C', 'length=20; source=close',
+  'EMA[t]=EMA[t-1]+2/(n+1)*(src[t]-EMA[t-1]); seed=SMA of first n', 'ema', 'FEATURE_04', 'EMA',
+  'ema_12, ema_26, ema_50, ema_200', 'CALC_022', ''),
+ ('I03', 'wma', 'Weighted Moving Average', 'C', 'length=20; source=close',
+  'WMA=SUM((n-i)*src[t-i], i=0..n-1)/(n(n+1)/2)', 'wma', 'TA_LIB', 'WMA', '', 'CALC_023', 'HTML engine equals TA-Lib.'),
+ ('I04', 'hma', 'Hull Moving Average', 'C', 'length=9; source=close',
+  'HMA=WMA(2*WMA(src,floor(n/2))-WMA(src,n), floor(sqrt(n))); each length at least 1', 'hma', 'HTML', '', '', '',
+  'No TA-Lib function; lengths are floored.'),
+ ('I05', 'kama', 'Kaufman Adaptive Moving Average', 'C', 'length=10; fast_length=2; slow_length=30; source=close',
+  'ER=ABS(src[t]-src[t-n])/SUM(ABS(src[j]-src[j-1]),n); SC=(ER*(2/(fast+1)-2/(slow+1))+2/(slow+1))^2; '
+  'KAMA[t]=KAMA[t-1]+SC*(src[t]-KAMA[t-1]); first KAMA seeded with src[n-1]', 'kama', 'TA_LIB', 'KAMA', '', '',
+  'Equals TA-Lib KAMA at fast=2, slow=30 (TA-Lib fixes them; other values follow the same formula).'),
+ ('I06', 'macd', 'MACD', 'C', 'fast_length=12; slow_length=26; signal_length=9; source=close',
+  'macd=EMA(src,fast)-EMA(src,slow); signal=EMA(macd,signal) seeded with the mean of its first valid values; '
+  'histogram=macd-signal', 'macd, signal, histogram', 'FEATURE_04', 'EMA (not TA-Lib MACD)',
+  'macd, macd_signal, macd_histogram', 'CALC_032, CALC_033, CALC_034',
+  'Built from two SMA-seeded EMAs as Feature 04 does; TA-Lib MACD seeds differently.'),
+ ('I07', 'adx', 'Average Directional Index (DMI)', 'HLC', 'di_length=14; adx_smoothing=14',
+  '+DM/-DM and TR per Wilder; +DI/-DI=100*WilderSum(DM)/WilderSum(TR); DX=100*|+DI--DI|/(+DI+-DI); ADX=Wilder '
+  'average of DX', 'adx, plus_di, minus_di', 'FEATURE_04', 'ADX, PLUS_DI, MINUS_DI', 'adx_14',
+  'CALC_039, CALC_040', 'TA-Lib Wilder-sum seeding (the HTML RMA seed differed in the first ~120 bars).'),
+ ('I08', 'aroon', 'Aroon', 'HL', 'length=14',
+  'AroonUp=100*(n-bars since highest high in the last n+1 bars)/n; AroonDown likewise with the lowest low; ties '
+  'take the most recent bar', 'aroon_up, aroon_down', 'TA_LIB', 'AROON', '', '', 'HTML engine equals TA-Lib.'),
+ ('I09', 'supertrend', 'Supertrend', 'HLC', 'atr_length=10; factor=3',
+  'basic bands=HL2±factor*ATR(atr_length) (ATR as I30); final upper band keeps the lower of basic and previous '
+  'unless the previous close was above it (lower band mirrored); direction flips when close crosses the active band',
+  'supertrend, direction', 'HTML', '', '', '', 'Uses the TA-Lib ATR of I30.'),
+ ('I10', 'donchian', 'Donchian Channels', 'HL', 'length=20', 'upper=MAX(H,n); lower=MIN(L,n); basis=(upper+lower)/2',
+  'upper, basis, lower', 'TA_LIB', 'MAX, MIN', '', 'CALC_017', 'HTML engine equals TA-Lib.'),
+ ('I11', 'keltner', 'Keltner Channels', 'HLC',
+  'length=20; source=close; multiplier=2; use_exponential_ma=true; bands_style=ATR; atr_length=10',
+  'basis=EMA (or SMA) of src; range=ATR(atr_length) (I30), or TR, or RMA(H-L,length); upper/lower=basis±mult*range',
+  'upper, basis, lower', 'HTML', '', '', '', 'ATR follows I30 (TA-Lib).'),
+ ('I12', 'psar', 'Parabolic SAR', 'HL', 'start=0.02; increment=0.02; maximum=0.2',
+  'Wilder SAR with TA-Lib initialisation (initial direction from the -DM/+DM of the first two bars) and the clamp '
+  'to the two previous bars; AF starts at start, grows by increment on a new extreme, capped at maximum',
+  'sar, direction', 'TA_LIB', 'SAREXT (SAR when start=increment)', '', '',
+  'Chosen over the HTML/TradingView initialisation (no seeding rule in Wilder); values differed up to 19%.'),
+ ('I13', 'rsi', 'Relative Strength Index', 'C', 'length=14; source=close',
+  'Wilder RSI: avg gain/loss RMA of the changes; RSI=100-100/(1+gain/loss); 0 when gain and loss are both 0',
+  'rsi', 'FEATURE_04', 'RSI', 'rsi_14', 'CALC_028', 'Flat window gives 0 (TA-Lib), not null.'),
+ ('I14', 'stoch_rsi', 'Stochastic RSI', 'C', 'rsi_length=14; stoch_length=14; smooth_k=3; smooth_d=3; source=close',
+  'fastK=100*(RSI-MIN(RSI,m))/(MAX(RSI,m)-MIN(RSI,m)) (0 on a zero range, TA-Lib); K=SMA(fastK,smooth_k); '
+  'D=SMA(K,smooth_d)', 'k, d', 'HTML', 'STOCHRSI fastk + SMA', '', '',
+  'K is smoothed as on charting platforms; TA-Lib STOCHRSI fast %K alone is unsmoothed: do not use it as K.'),
+ ('I15', 'stochastic', 'Stochastic Oscillator', 'HLC', 'k_length=14; smooth_k=3; d_length=3',
+  'rawK=100*(C-MIN(L,k))/(MAX(H,k)-MIN(L,k)) (0 on a zero range); K=SMA(rawK,smooth_k); D=SMA(K,d)', 'k, d',
+  'TA_LIB', 'STOCH (slowk, slowd, SMA)', '', 'CALC_035, CALC_036',
+  'This is the slow stochastic; CALC_035/036 describe the fast one.'),
+ ('I16', 'williams_r', 'Williams %R', 'HLC', 'length=14; source=close',
+  '%R=-100*(MAX(H,n)-src)/(MAX(H,n)-MIN(L,n))', 'williams_r', 'TA_LIB', 'WILLR', '', 'CALC_037', ''),
+ ('I17', 'roc', 'Rate of Change', 'C', 'length=9; source=close', 'ROC=100*(src[t]/src[t-n]-1)', 'roc', 'TA_LIB',
+  'ROC', '', 'CALC_030', ''),
+ ('I18', 'momentum', 'Momentum', 'C', 'length=10; source=close', 'MOM=src[t]-src[t-n]', 'momentum', 'TA_LIB', 'MOM',
+  '', 'CALC_031', ''),
+ ('I19', 'cci', 'Commodity Channel Index', 'HLC', 'length=20; constant=0.015',
+  'TP=(H+L+C)/3; CCI=(TP-SMA(TP,n))/(constant*mean absolute deviation of TP from SMA(TP,n))', 'cci', 'TA_LIB', 'CCI',
+  '', '', 'TA-Lib fixes constant 0.015.'),
+ ('I20', 'cmo', 'Chande Momentum Oscillator', 'C', 'length=14; source=close',
+  'CMO=100*(SUM(gain,n)-SUM(loss,n))/(SUM(gain,n)+SUM(loss,n)) with plain n-bar sums', 'cmo', 'HTML', 'none', '', '',
+  'Chande (1994) plain sums, as TradingView and pandas-ta. Do NOT use talib.CMO (Wilder-smoothed); TA-Lib 0.6.8 has '
+  'no CMOU.'),
+ ('I21', 'tsi', 'True Strength Index', 'C', 'long_length=25; short_length=13; signal_length=7; source=close',
+  'TSI=100*EMA(EMA(Δsrc,long),short)/EMA(EMA(|Δsrc|,long),short); signal=EMA(TSI,signal)', 'tsi, signal', 'HTML',
+  '', '', '', ''),
+ ('I22', 'trix', 'TRIX', 'C', 'length=15; source=close', 'e3=EMA(EMA(EMA(src,n),n),n); TRIX=100*(e3[t]/e3[t-1]-1)',
+  'trix', 'TA_LIB', 'TRIX', '', '', ''),
+ ('I23', 'ultimate_osc', 'Ultimate Oscillator', 'HLC',
+  'fast_length=7; middle_length=14; slow_length=28; weight_fast=4; weight_middle=2; weight_slow=1',
+  'BP=C-MIN(L,Cprev); TR=MAX(H,Cprev)-MIN(L,Cprev); avg_x=SUM(BP,x)/SUM(TR,x); UO=100*(w1*avg7+w2*avg14+w3*avg28)/'
+  '(w1+w2+w3)', 'uo', 'TA_LIB', 'ULTOSC', '', '', 'TA-Lib fixes weights 4/2/1.'),
+ ('I24', 'awesome_osc', 'Awesome Oscillator', 'HL', 'fast_length=5; slow_length=34',
+  'AO=SMA(HL2,fast)-SMA(HL2,slow)', 'ao', 'HTML', 'MEDPRICE + SMA', '', '', ''),
+ ('I25', 'ppo', 'Percentage Price Oscillator', 'C', 'fast_length=12; slow_length=26; signal_length=9; source=close',
+  'PPO=100*(EMA(src,fast)-EMA(src,slow))/EMA(src,slow); signal=EMA(PPO,signal); histogram=PPO-signal',
+  'ppo, signal, histogram', 'TA_LIB', 'PPO with matype=1 (EMA)', '', '',
+  'TA-Lib PPO defaults to SMA (matype 0): pass matype=1.'),
+ ('I26', 'bop', 'Balance of Power', 'OHLC', 'none', 'BOP=(C-O)/(H-L); 0 when H=L (TA-Lib)', 'bop', 'TA_LIB', 'BOP',
+  '', '', ''),
+ ('I27', 'bollinger', 'Bollinger Bands', 'C', 'length=20; source=close; std_dev=2; basis_ma_type=SMA',
+  'basis=SMA(src,n); upper/lower=basis±k*population stdev(src,n)', 'upper, basis, lower', 'FEATURE_04', 'BBANDS',
+  'bb_upper_20, bb_middle_20, bb_lower_20', 'CALC_049, CALC_050', ''),
+ ('I28', 'bollinger_pctb', 'Bollinger %B', 'C', 'length=20; source=close; std_dev=2',
+  '%B=(src-lower)/(upper-lower), bands as I27', 'percent_b', 'HTML', 'BBANDS', '', 'CALC_052', 'Ratio 0..1.'),
+ ('I29', 'bollinger_width', 'Bollinger Bandwidth', 'C', 'length=20; source=close; std_dev=2',
+  'BBW=100*(upper-lower)/basis, bands as I27', 'bandwidth', 'HTML', 'BBANDS', '', 'CALC_051',
+  'Percent: 100 x CALC_051.'),
+ ('I30', 'atr', 'Average True Range', 'HLC', 'length=14; smoothing_type=RMA',
+  'TR=MAX(H-L,|H-Cprev|,|L-Cprev|) from the second bar; ATR=Wilder average seeded with the mean of the first n TR',
+  'atr', 'FEATURE_04', 'ATR', 'atr_14', 'CALC_041, CALC_042',
+  'The first bar has no TR (TA-Lib); the HTML used H-L there and differed up to 8.5% in the first year.'),
+ ('I31', 'natr', 'Normalized ATR', 'HLC', 'length=14', 'NATR=100*ATR/C, ATR as I30', 'natr', 'TA_LIB', 'NATR', '',
+  'CALC_043', ''),
+ ('I32', 'stddev', 'Standard Deviation', 'C', 'length=20; source=close; stdev_method=population',
+  'SD=sqrt(SUM((src-SMA(src,n))^2,n)/n)', 'stddev', 'TA_LIB', 'STDDEV (nbdev=1)', '', '', 'Population form.'),
+ ('I33', 'hist_vol', 'Historical Volatility', 'C', 'length=20; source=close; return_type=log; annualization_periods=252',
+  'r=ln(src[t]/src[t-1]); HV=population stdev(r,n)*sqrt(252)*100', 'historical_volatility', 'HTML', '', '',
+  'CALC_044, CALC_045', 'Population stdev as the HTML engine; CALC_044 uses the sample form.'),
+ ('I34', 'adr', 'Average Daily Range', 'HL', 'length=14', 'ADR=SMA(H-L,n)', 'adr', 'HTML', 'SMA', '', '', ''),
+ ('I35', 'volume_sma', 'Volume SMA', 'V', 'length=20', 'SMA(V,n)', 'volume_sma', 'TA_LIB', 'SMA', '', 'CALC_061', ''),
+ ('I36', 'volume_ema', 'Volume EMA', 'V', 'length=20', 'EMA(V,n), SMA seed', 'volume_ema', 'TA_LIB', 'EMA', '', '',
+  ''),
+ ('I37', 'rvol', 'Relative Volume', 'V', 'length=20', 'RVOL=V[t]/SMA(V,n) with the window including t', 'rvol',
+  'HTML', '', '', 'CALC_062',
+  'User 2026-10-25: includes the current bar (as Feature_01.volume_ratio_20d); CALC_062 excludes it.'),
+ ('I38', 'pvo', 'Percentage Volume Oscillator', 'V', 'fast_length=12; slow_length=26; signal_length=9',
+  'PVO=100*(EMA(V,fast)-EMA(V,slow))/EMA(V,slow); signal=EMA(PVO,signal); histogram=PVO-signal',
+  'pvo, signal, histogram', 'TA_LIB', 'PPO on volume with matype=1', '', '', ''),
+ ('I39', 'volume_roc', 'Volume Rate of Change', 'V', 'length=10', 'VROC=100*(V[t]/V[t-n]-1); null if V[t-n]=0',
+  'volume_roc', 'TA_LIB', 'ROC on volume', '', '', ''),
+ ('I40', 'obv', 'On-Balance Volume', 'CV', 'none',
+  'OBV[0]=V[0]; OBV[t]=OBV[t-1]+SIGN(C[t]-C[t-1])*V[t]', 'obv', 'TA_LIB', 'OBV', '', 'CALC_068',
+  'Seeded with the first bar volume (TA-Lib); the HTML started at 0 (constant offset).'),
+ ('I41', 'pvt', 'Price Volume Trend', 'CV', 'none', 'PVT[t]=PVT[t-1]+V[t]*(C[t]-C[t-1])/C[t-1]; PVT[0]=0', 'pvt',
+  'HTML', '', '', '', ''),
+ ('I42', 'vwma', 'Volume Weighted Moving Average', 'CV', 'length=20; source=close', 'VWMA=SUM(src*V,n)/SUM(V,n)',
+  'vwma', 'HTML', '', '', '', ''),
+ ('I43', 'vwap', 'Anchored VWAP', 'HLCV', 'anchor=Session; source=hlc3; bands_mode=StdDev; band_1_multiplier=1',
+  'Within each anchor period (Session=one daily bar, Week, Month, Quarter, Year, Decade, Century): VWAP=SUM(src*V)/'
+  'SUM(V) from the period start; bands ± k*volume-weighted stdev or ± k percent', 'vwap, upper1, lower1', 'HTML', '',
+  '', 'CALC_073', 'On daily bars it is not an intraday session VWAP.'),
+ ('I44', 'adl', 'Accumulation/Distribution Line', 'HLCV', 'none',
+  'MFM=((C-L)-(H-C))/(H-L) (0 when H=L); ADL[t]=ADL[t-1]+MFM*V', 'adl', 'TA_LIB', 'AD', '', '', ''),
+ ('I45', 'cmf', 'Chaikin Money Flow', 'HLCV', 'length=20', 'CMF=SUM(MFM*V,n)/SUM(V,n)', 'cmf', 'HTML', '', '',
+  'CALC_071', ''),
+ ('I46', 'chaikin_osc', 'Chaikin Oscillator', 'HLCV', 'fast_length=3; slow_length=10',
+  'CHO=EMA(ADL,fast)-EMA(ADL,slow) with TA-Lib ADOSC seeding', 'chaikin_osc', 'TA_LIB', 'ADOSC', '', '',
+  'TA-Lib seeds its EMAs differently from the SMA seed; equal after warm-up.'),
+ ('I47', 'mfi', 'Money Flow Index', 'HLCV', 'length=14',
+  'TP=(H+L+C)/3; flows=TP*V split by the sign of ΔTP; MFI=100*pos/(pos+neg)', 'mfi', 'TA_LIB', 'MFI', '', 'CALC_072',
+  ''),
+ ('I48', 'force_index', "Elder's Force Index", 'CV', 'length=13', 'EFI=EMA((C[t]-C[t-1])*V[t], n)', 'force_index',
+  'HTML', '', '', '', ''),
+ ('I49', 'eom', 'Ease of Movement', 'HLV', 'length=14; volume_scale=1000000',
+  'raw=(HL2[t]-HL2[t-1])*(H-L)/V*scale (null if V=0); EOM=SMA(raw,n)', 'eom', 'HTML', '', '', '', ''),
+ ('I50', 'nvi', 'Negative Volume Index', 'CV', 'initial_value=1000',
+  'NVI[t]=NVI[t-1]*C[t]/C[t-1] if V[t]<V[t-1] else NVI[t-1]', 'nvi', 'HTML', '', '', '', ''),
+ ('I51', 'pvi', 'Positive Volume Index', 'CV', 'initial_value=1000',
+  'PVI[t]=PVI[t-1]*C[t]/C[t-1] if V[t]>V[t-1] else PVI[t-1]', 'pvi', 'HTML', '', '', '', ''),
+ ('I52', 'kvo', 'Klinger Volume Oscillator', 'HLCV', 'fast_length=34; slow_length=55; signal_length=13',
+  'trend=sign(Δ(H+L+C)) (unchanged keeps the previous); dm=H-L; cm accumulates dm while the trend holds; '
+  'VF=V*|2*(dm/cm-1)|*trend*100; KVO=EMA(VF,fast)-EMA(VF,slow); signal=EMA(KVO,signal)', 'kvo, signal', 'HTML', '',
+  '', '', ''),
+ ('I53', 'market_fi', 'Market Facilitation Index', 'HLV', 'volume_scale=1', 'MarketFI=(H-L)/V*scale (null if V=0)',
+  'market_fi', 'HTML', '', '', '', 'Williams; not the Money Flow Index.'),
+]
+
+
+def rows():
+    out = []
+    for n, (iid, key, name, inp, params, formula, outputs, source, talib, f04, existing, notes) in enumerate(I):
+        out.append(dict(iid=iid, key=key, name=name, inputs=inp, params=params, formula=formula, outputs=outputs,
+                        source=source, talib=talib, f04=f04, existing=existing, notes=notes))
+    return out
+
+
+def spec_markdown():
+    lines = ['# Terminal indicator specification (T1)', '',
+             'Generated by `scripts/terminal_indicator_spec.py`; do not edit by hand.', '', COMMON, '',
+             '| ID | Key | Indicator | Inputs | Defaults | Formula | Outputs | Source | TA-Lib | Feature 04 | '
+             'AI_formula_reference | Notes |', '|' + '---|' * 12]
+    for r in rows():
+        cells = [r['iid'], f"`{r['key']}`", r['name'], r['inputs'], r['params'], r['formula'], r['outputs'],
+                 r['source'], r['talib'] or '—', r['f04'] or '—', r['existing'] or '—', r['notes'] or '']
+        lines.append('| ' + ' | '.join(c.replace('|', '\\|') for c in cells) + ' |')
+    lines += ['', '## Parity tests the calculation module must pass', '',
+              '- `FEATURE_04` rows: equal to `Feature_04_Technical_Indicator` (and `_INDEX`) on the full history of '
+              'BBCA, GOTO, IHSG and 20 random tickers (relative difference ≤ 1e-9, same first valid bar).',
+              '- `TA_LIB` rows: equal to TA-Lib 0.6.8 with the stated function and parameters on the same tickers.',
+              '- `HTML` rows: equal to the reference HTML engine (`03-terminal-right-panel.html`, lines 1733–2005) on '
+              'the same tickers, except where this table states a different convention.',
+              '- Edge cases on synthetic bars: flat prices, zero volume, zero range (H=L), a single bar, a gap of '
+              'missing bars.']
+    return '\n'.join(lines) + '\n'
+
+
+def sql_lit(text):
+    return '$q$' + text + '$q$'
+
+
+def migration_sql():
+    values = []
+    for n, r in enumerate(rows()):
+        if r['source'] == 'FEATURE_04':
+            continue
+        cid = f'CALC_{FIRST_ID + len(values)}'
+        desc = (f"Terminal indicator {r['iid']} ({r['name']}), as the terminal charts compute it. Convention source: "
+                f"{r['source']}" + (f"; TA-Lib equivalent: {r['talib']}" if r['talib'] else '; no TA-Lib function')
+                + (f"; related: {r['existing']}" if r['existing'] else '') + '.' + (f" {r['notes']}" if r['notes']
+                                                                                    else ''))
+        inputs = 'asset_id;date;' + ';'.join({'O': 'open', 'H': 'high', 'L': 'low', 'C': 'close', 'V': 'volume'}[c]
+                                             for c in r['inputs'])
+        values.append('(' + ', '.join(sql_lit(x) for x in (
+            cid, f"Terminal {r['name']}", desc, inputs, r['formula'] + '. ' + COMMON, r['params'], r['outputs'],
+            f"Terminal TS calc module key {r['key']} ({r['iid']}); verification/terminal_api/INDICATOR_SPEC.md")) + ')')
+    header = ('-- EXEC-TERMINAL-API T2 (user 2026-10-25: "B. AI_formula_reference --> ini OK masukan exec", "It\'s a go").\n'
+              '-- Generated by scripts/terminal_indicator_spec.py: one AI_formula_reference row per terminal indicator '
+              'that has no\n-- Feature 04 column (46 of 53), with the terminal convention and its TA-Lib relation. '
+              'Existing rows CALC_001..200 are\n-- not changed. Rollback: DELETE FROM public."AI_formula_reference" '
+              f"WHERE calculation_id BETWEEN 'CALC_{FIRST_ID}' AND\n-- 'CALC_{FIRST_ID + len(values) - 1}'.\n")
+    body = ('BEGIN;\nSET LOCAL lock_timeout = \'5s\';\nSET LOCAL statement_timeout = \'1min\';\n'
+            'DO $preflight$\nBEGIN\n    IF EXISTS (SELECT 1 FROM public."AI_formula_reference" WHERE calculation_id '
+            f">= 'CALC_{FIRST_ID}' AND calculation_id ~ '^CALC_[0-9]{{3}}$') THEN\n"
+            f"        RAISE EXCEPTION 'CALC_{FIRST_ID}.. already present: reconcile before applying';\n    END IF;\n"
+            'END $preflight$;\nINSERT INTO public."AI_formula_reference" (calculation_id, calculation_name, '
+            'description, required_inputs,\n    formula_method, parameters, output, implementation) VALUES\n'
+            + ',\n'.join(values) + ';\nCOMMIT;\n')
+    return header + body
+
+
+def main(argv):
+    targets = {SPEC_MD: spec_markdown(), MIGRATION: migration_sql()}
+    if '--check' in argv:
+        stale = [str(p) for p, text in targets.items() if not p.exists() or p.read_text() != text]
+        if stale:
+            sys.exit('stale: ' + ', '.join(stale))
+        return
+    for path, text in targets.items():
+        path.write_text(text)
+        print('wrote', path.relative_to(ROOT))
+
+
+if __name__ == '__main__':
+    main(sys.argv)
