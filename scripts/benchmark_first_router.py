@@ -66,7 +66,7 @@ def main() -> None:
     cases = json.loads((ROOT / "apps/market-ai-orc/tests/fixtures/first_message_router_cases.json").read_text())
     data_routes = set(router.DATA_ROUTES)
     must = never = asked_must = asked_never = costly_total = failed_total = 0
-    for name in ("development", "heldout", *(("ask_back", "time") if ASK_BACK else ())):
+    for name in ("development", "heldout", *(("ask_back", "time", "events") if ASK_BACK else ())):
         items = cases[name]
         with cf.ThreadPoolExecutor(8) as pool:
             results = list(pool.map(lambda job: route(job[0]["message"]),

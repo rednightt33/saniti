@@ -30,7 +30,7 @@ APPROVED = {
     "Feature_05_Foreign_Domestic_Broker_Detail_Stock", "Feature_06_Foreign_Domestic_Stock",
     "Feature_01_Stock_Daily_INDEX", "Feature_02_Broker_Rolling_INDEX", "Feature_03_Stock_Broker_Daily_INDEX",
     "Feature_04_Technical_Indicator_INDEX", "Feature_05_Foreign_Domestic_Broker_Detail_INDEX",
-    "Feature_06_Foreign_Domestic_INDEX",
+    "Feature_06_Foreign_Domestic_INDEX", "idx_event_annotation",
 }
 CATALOGS = sum(name.startswith("AI_") for name in APPROVED)
 

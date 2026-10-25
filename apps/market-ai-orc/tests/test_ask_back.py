@@ -89,7 +89,7 @@ def test_the_route_guide_examples_are_not_benchmark_messages() -> None:
     first = json.loads((fixtures / "first_message_router_cases.json").read_text())
     turn = json.loads((fixtures / "turn_router_cases.json").read_text())["cases"]
     variant = json.loads((fixtures / "turn_router_cases.json").read_text())["variant_cases"]
-    messages = {i["message"].casefold() for key in ("development", "heldout", "ask_back") for i in first[key]} | \
+    messages = {i["message"].casefold() for items in first.values() if isinstance(items, list) for i in items} | \
         {c["message"].casefold() for c in turn + variant}
     assert not any(example.casefold() in messages for _, example in router.FIRST_ROUTE_GUIDE.values())
 
@@ -431,7 +431,7 @@ def test_no_benchmark_message_is_written_into_the_instructions() -> None:
     fixtures = Path(__file__).parent / "fixtures"
     first = json.loads((fixtures / "first_message_router_cases.json").read_text())
     texts = router.first_instructions(True) + router.router_instructions(True)
-    for item in first["development"] + first["heldout"] + first["ask_back"]:
+    for item in (i for items in first.values() if isinstance(items, list) for i in items):
         message = item["message"].strip()
         if len(message) > 3:
             assert f'"{message}"' not in texts, message

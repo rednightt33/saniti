@@ -1278,7 +1278,7 @@ OUTSIDE_DATA_WEB_RULE = (
 # context or when the database lacks it; the sentences "one public fact about a company ... never becomes a series"
 # and "macro data ... is not in the database" are removed together with the new tool
 OUTSIDE_DATA_RESEARCH_RULE = (
-    "Information the catalog does not contain (for example macro data, events,\nnews, ownership or group membership) "
+    "Information the catalog does not contain (for example macro data, news\nor group membership) "
     "is looked up with research_web, for\ncontext or when the database lacks it, and is shown as a web fact; for\n"
     "market data the database wins. Cite web values by their references; an\nevent date may set an analysis "
     "period, but a web number is never an input\nof a calculation." + STORED_FEATURE_SENTENCE)

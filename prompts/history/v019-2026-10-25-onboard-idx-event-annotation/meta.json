@@ -1,0 +1,12 @@
+{
+ "version": 19,
+ "date": "2026-10-25",
+ "name": "onboard-idx-event-annotation",
+ "decision": "User 2026-10-25: 'go for this as well Service stockbit-updater dan onboarding hanya table idx_event_annotation' (EXEC-GO-1025)",
+ "change": "OUTSIDE_DATA_RESEARCH_RULE no longer gives events and ownership as examples of information outside the catalog: corporate actions and insider ownership movements are in idx_event_annotation",
+ "prompt_chars": 41818,
+ "prompt_sha256": "4a8c4462abb8564aa20773d6bbe1da1c5fd1bae0c3f1a7854cce946bb0b89cc8",
+ "schema_sha256": "ef9b0ecbca7d7a3b0c5e08e3062a04dddce274ebff1b74d121fbe791a3787883",
+ "fast_prompt_chars": 29461,
+ "fast_prompt_sha256": "1aba1fee9acb52dc0193caa859440781bab1b96af0b62c5f24f7b56672392b7a"
+}

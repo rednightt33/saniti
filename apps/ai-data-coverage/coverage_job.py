@@ -23,6 +23,7 @@ READ_TABLES = frozenset(
         "Feature_Status",
         "Price_Fixed_Income_Final",
         "Universe_Fixed_income",
+        "idx_event_annotation",
     }
 )
 WRITE_TABLES = frozenset({"AI_data_coverage"})
@@ -88,6 +89,12 @@ RAW_SOURCES = {
         "entity_column": "ticker",
         "date_column": "date",
         "reference_for": ("Feature_04_Technical_Indicator",),
+    },
+    # EXEC-GO-1025: Stockbit corporate actions and insider movements, one row per event (its own coverage)
+    "idx_event_annotation": {
+        "entity_column": "ticker",
+        "date_column": "annotation_date",
+        "reference_for": (),
     },
 }
 SNAPSHOTS = ("IDX_Stock_Universe", "IDX_Broker_Profile", "Universe_Fixed_income")
@@ -173,6 +180,17 @@ def raw_coverage_rows(
             ORDER BY ticker
             """,
             parameters,
+        ).fetchall()
+    if dataset_name == "idx_event_annotation":
+        # every pull rebuilds the whole table, so the full range is always read (123,047 rows on 2026-10-25)
+        return connection.execute(
+            """
+            SELECT ticker, min(annotation_date), max(annotation_date),
+                   count(*)::bigint, count(DISTINCT annotation_date)::bigint
+            FROM public.idx_event_annotation
+            GROUP BY ticker
+            ORDER BY ticker
+            """
         ).fetchall()
     raise ValueError(f"Unsupported raw dataset: {dataset_name}")
 

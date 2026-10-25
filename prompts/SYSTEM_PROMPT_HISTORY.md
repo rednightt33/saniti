@@ -39,6 +39,7 @@ whenever the rendered prompt or schema changes (AGENTS.md, Mandatory workflow).
 | v016 | 2026-10-20 | [exec-1020-citing-groups](history/v016-2026-10-20-exec-1020-citing-groups/system_prompt.md) | 41,594 | `235a54f89172` | `ef9b0ecbca7d` | Ok sesuai, masukan exec (2026-10-20); Ya oke, jalankan semua end to end |
 | v017 | 2026-10-20 | [onboard-fixed-income-feature04](history/v017-2026-10-20-onboard-fixed-income-feature04/system_prompt.md) | 41,727 | `e47165812f9f` | `ef9b0ecbca7d` | Ok view saja ya untuk no 1. Jalankan. (EXEC-ONBOARD-1, 2026-10-20: expose Price_Fixed_Income and Feature 04; AI refers to stored indicator columns instead of computing them) |
 | v018 | 2026-10-21 | [rules-1021-in-period-emit-json-units](history/v018-2026-10-21-rules-1021-in-period-emit-json-units/system_prompt.md) | 41,837 | `5a5788480a39` | `ef9b0ecbca7d` | user 2026-10-21: "Masukan exec dan eksekusi. #7 — satuan pada emit_json, #6 — in_period (masker baris)" |
+| v019 | 2026-10-25 | [onboard-idx-event-annotation](history/v019-2026-10-25-onboard-idx-event-annotation/system_prompt.md) | 41,818 | `4a8c4462abb8` | `ef9b0ecbca7d` | User 2026-10-25: 'go for this as well Service stockbit-updater dan onboarding hanya table idx_event_annotation' (EXEC-GO-1025) |
 
 ## Changes
 
@@ -113,3 +114,7 @@ Outside-data rules no longer give yields as an example of data outside the catal
 ### v018 rules-1021-in-period-emit-json-units (2026-10-21)
 
 data-need step 3: in_period is a row mask (frame[in_period(frame, request)]), not listed as a data reader; value-reference units name emit_table or emit_json; CITING AND CHECKS A3: emit_json fields declare units, with a right and a wrong example (EXEC-RULES-1021) Fast lane prefix: [29,480 chars](history/v018-2026-10-21-rules-1021-in-period-emit-json-units/fast_prompt.md), sha256 `97f8f9ee1abc`.
+
+### v019 onboard-idx-event-annotation (2026-10-25)
+
+OUTSIDE_DATA_RESEARCH_RULE no longer gives events and ownership as examples of information outside the catalog: corporate actions and insider ownership movements are in idx_event_annotation Fast lane prefix: [29,461 chars](history/v019-2026-10-25-onboard-idx-event-annotation/fast_prompt.md), sha256 `1aba1fee9acb`.

@@ -249,6 +249,13 @@ ADDED |= {"open_analysis_session(input_bundle_id), then run_python as often as n
           "A value whose unit the backend knows (a finding's estimates, an event study's columns, a column or field "
           "released with units= in emit_table or emit_json) is shown by that unit whichever of pct, pctv and pp you "
           "write;"}
+# EXEC-GO-1025 (user 2026-10-25 "onboarding hanya table idx_event_annotation"): corporate actions and insider movements
+# are now in the catalog, so events and ownership leave the research_web examples
+ADDED -= {"Information the catalog does not contain (for example macro data, events, news, ownership or group "
+          "membership) is looked up with research_web, for context or when the database lacks it, and is shown as a web "
+          "fact;"}
+ADDED |= {"Information the catalog does not contain (for example macro data, news or group membership) is looked up "
+          "with research_web, for context or when the database lacks it, and is shown as a web fact;"}
 # the reader section added about six percent (the budget was two percent over the pass-2 fixture); EXEC-Y Fase 3's
 # four sentences about half a percent more; EXEC-STYLE about half a percent more; EXEC-M143 about one percent more;
 # EXEC-DAYS about a third of a percent more; O1 early (EXEC-IMPL-1016) about one percent more; EXEC-1018B E9(c) about

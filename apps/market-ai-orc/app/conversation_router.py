@@ -536,8 +536,9 @@ FAST_LANE_ROUTES = (
 # domain is added here when it is onboarded (NEW_TABLE_ONBOARDING_PLAN.md, the guideline's list of hand-written places)
 WAREHOUSE_SCOPE = ("Indonesian stocks, a warehouse of stock prices, broker and foreign flows, the IDX Composite Index "
                    "(IHSG) with its index features, technical indicators and market-wide broker and foreign flows, "
-                   "Indonesian and US government bond prices and yields, and stored technical indicators and "
-                   "candlestick patterns, a web fact finder")
+                   "Indonesian and US government bond prices and yields, stored technical indicators and "
+                   "candlestick patterns, corporate actions (dividends, splits, rights issues, RUPS) and insider "
+                   "and major-holder ownership movements, a web fact finder")
 FIRST_INSTRUCTIONS = (
     "You route the FIRST message of a conversation in a stock-market analysis app (" + WAREHOUSE_SCOPE + "). "
     "Choose exactly one route:\n"

@@ -26,7 +26,11 @@ def test_raw_source_mapping_is_explicit():
         "Price_Stock_Indonesia_IDX",
         "IDX_Broker_Summary",
         "Price_Fixed_Income_Final",
+        "idx_event_annotation",
     }
+    # EXEC-GO-1025: the event table is its own coverage source, read but never a dependent Feature
+    assert coverage_job.RAW_SOURCES["idx_event_annotation"]["reference_for"] == ()
+    assert "idx_event_annotation" in coverage_job.READ_TABLES
     assert coverage_job.RAW_SOURCES["Price_Stock_Indonesia_IDX"]["reference_for"] == (
         "Feature_01_Stock_Daily",
         "Feature_04_Technical_Indicator",
