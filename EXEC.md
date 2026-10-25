@@ -7724,3 +7724,39 @@ dulu dan dependensi. Seharusnya fitur 5 referke table IDX broker summary."
 **Hasil (2026-10-25):** migrasi `20261025_012` + sinkron vocabulary, DRYRUN `f5eb55f2`, APPLY `c1f2bde9` (ERRORS M220,
 DATABASE_CHANGELOG). Audit Feature catalog: cacat lama di view `_Stock` ditemukan dan diperbaiki di skrip (M221); cek
 live tertunda karena builder Railway gagal dua kali.
+
+## EXEC-EVENT-ANNOTATION — approved 2026-10-25
+
+**Go (kata user, 2026-10-25):** "Tabel sudah OK proses. Saat ini tidak ada yang pakai test runner. Gas." — atas opsi A:
+nama tabel `stockbit_corporate_action`, `stockbit_insider_transaction`, `idx_event_annotation`; job di `orc-test-runner`
+(tanpa service baru, "tidak perlu bikin service baru. Tapi untuk source script dan lain-lain bisa ditaruh di Git");
+muat awal dengan token Stockbit yang diberikan user 2026-10-25. Desain dan keputusan sebelumnya: `PLAN.md`
+EVENT-ANNOTATION (1A satu baris per kejadian, tanpa kalender ekonomi, front-end dulu, tarik penuh setiap update,
+waran terstruktur ikut, insider hanya Current % dan Change %, `data_origin` wajib).
+
+Langkah:
+1. Kode di `apps/stockbit-event-annotation/`: tarik penuh corporate action (10 tipe × tahun) dan insider per ticker,
+   kunci tetap, rekonsiliasi (baris baru ditambah, berubah diperbarui, hilang dari sumber ditandai
+   `source_removed_at`), gerbang berhenti tanpa menulis bila hasil tarik < 99,5 % baris aktif atau ada request gagal,
+   satu transaksi, lalu `refresh_idx_event_annotation()`.
+2. Migrasi `20261025_013` (dibuat sebagai `20261025_011`, diganti nomor 2026-10-25 karena `20261025_011_exclude_index_from_stock_features.sql` sudah diterapkan): tiga tabel, fungsi refresh, indeks, `Table_Catalog`/`Column_Catalog`, grant pgweb.
+3. Muat awal lewat `orc-test-runner` (token dan `DATABASE_URL` dipasang sementara lalu dihapus), baca ulang.
+4. Dokumen: `UPDATE_TABLE.md` per kelompok tabel + section tiga tabel ini, `DATABASE_SCHEMA.md`, changelog,
+   `ERRORS_AND_SOLUTIONS.md` D21.
+
+## EXEC-STOCKBIT-UPDATER — approved 2026-10-25
+
+**Keputusan user (kata user, 2026-10-25)** atas usulan `FUTURE_PLAN.md` STOCKBIT-UPDATER:
+- "K1 --> sedang ditarik secara terpisah dan upload manual. Tugasmu later adalah update feature 2,3,5 dan 6 once it
+  uploaded." Warrant/rights sesudah 2026-08-31 dimuat user sendiri; service tetap menarik simbol 4 huruf, dan refresh
+  F05/F02/F03/F06 menurunkan tanggal yang berubah dari selisih sumber vs F05, jadi unggahan manual ikut ter-refresh.
+- "K2 --> A": satu putaran per deploy (token baru lalu Deploy), tanpa cron.
+- "K3 --> 3 hari": raw response disimpan 3 hari.
+- "K4 -->Yes": tiga tabel event ikut di putaran yang sama (branch `claude/keen-keller-cq1d96` di-merge ke `main`;
+  migrasinya diganti nomor menjadi `20261025_013`).
+- "K5 --> Yes": notifikasi Telegram per putaran.
+- "Untuk sekarang, feel free untuk dibuat dulu service yang selalu sebutkan dan dilakukan testing dengan bearer token
+  terlampir." Token diberikan di chat; disimpan hanya sementara di scratchpad sesi dan sebagai variabel Railway selama
+  job, tidak di Git atau log.
+- Prioritas (kata user, 2026-10-25): "Naikan 3 table corp, insider dan kombinasinya ke postgres. Prioritaskan ini baru
+  pesan saya sebelumnya." Urutan: (1) migrasi `20261025_013` dan muat awal tiga tabel (EXEC-EVENT-ANNOTATION), (2) service.

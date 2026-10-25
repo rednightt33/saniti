@@ -707,3 +707,7 @@ diganti nomor sebelum diterapkan); K5 notifikasi Telegram.
 
 **Risiko:** Stockbit belum terbukti bisa diakses dari IP Railway (perlu satu uji dengan token); token berlaku ±1 hari;
 F02 ±3 detik per ticker (±45 menit per putaran berapa pun jumlah tanggalnya).
+
+## STOCKBIT-PULLER — satu service Railway untuk semua tarikan Stockbit (usulan user, belum disetujui untuk dibuat)
+
+**Usulan user, 2026-10-25 (kata user):** "Saya berpikir untuk dibuat satu service yang goalnya adalah menarik data dari Stockbit. Dengan variabel bearer token tersebut. Jadi setiap hari atau setiap saya mau update, saya tinggal update saja. Variabel bearer token dan kemudian saya tinggal minta [AI] untuk update. Data-data yang diperlukan. Masuk broker summary." Untuk saat ini tidak dibuat ("tidak perlu bikin service baru"); skrip corporate action dan insider (PLAN.md EVENT-ANNOTATION) disusun supaya bisa dipindah ke service itu. Terbuka: loader broker summary yang menulis `buy_freq`/`sell_freq` belum ada di Git (`UPDATE_TABLE.md` bagian 2); cara token disimpan (variabel tetap vs dipasang per putaran).

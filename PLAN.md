@@ -842,3 +842,36 @@ Existing legacy workers can recreate IHSG rows in shared tables after new prices
 queue deletion, new schedule or routing patch was authorized by the historical bootstrap. Current
 readback still has zero legacy IHSG rows. Propose the daily design and obtain the user's go before
 its implementation. The vocabulary is static release metadata and needs no daily cron or service.
+
+## EVENT-ANNOTATION — satu tabel anotasi corporate action + insider untuk EDGE (desain disetujui, belum "go")
+
+**Keputusan user, 2026-10-25 (kata user):** "bikin satu table yang isinya adalah kombinasi dari corporate action dan
+insider. Goal-nya adalah nanti di front end akan ada satu sumber source di mana setiap annotation akan refer ke satu
+table ini"; atas pertanyaan desain: "1: A" (satu baris per kejadian, tanggal lain di kolom), "2: Tidak pakai kalender
+ekonomi", "3. A" (dibaca front-end EDGE dulu, bukan AI), "4. B" (diperbarui terjadwal), dan "data origin perlu
+dilampirkan di dalam sumber".
+
+Usulan tabel `idx_event_annotation` (nama belum final): `event_key`, `event_family` (CORPORATE_ACTION, INSIDER),
+`event_type`, `event_subtype`, `ticker`, `instrument_code`, `annotation_date` + `annotation_date_role`, tanggal
+cum/ex/record/pay/start/end, angka bertipe numeric dengan satuan, kolom insider (`holder_*`, `broker_code`,
+`data_origin` IDX/KSEI, `is_estimated_price`), `source_payload` jsonb verbatim, `source_endpoint`, `source_fetched_at`,
+`ingestion_time`, `load_run_id`. Sumber: Stockbit `/corpaction/{type}?year=` (10 tipe, tanpa `economic` dan `ipo`)
+dan `/insider/company/majorholder`. Uji tarik 2026-10-25: 22.019 baris corporate action (termasuk 2.760 economic yang
+dikeluarkan), 103.788 baris insider unik, 964 ticker, 2017-10-12 s.d. 2026-10-23 (belum dimuat ke database).
+
+**Arahan user, 2026-10-25 (kata user):** "Kalau insider, kita harus menunjukkan atau show current percentage compared to previous percentage. Siapa yang beli, apa broker dan sebagainya. Tapi kalau corporate action seperti dividend, stock split, dan lain-lain, hanya cukup tunjukkan tanggalnya saja dan jenis corporate action. Detailnya nggak gitu penting." Usulan diringkas: corporate action hanya `event_type` + `annotation_date` (+ peran tanggal), detail tetap di `source_payload`; insider membawa `action`, `holder_*`, `broker_code`, saham dan persen sebelum/sesudah/perubahan, `pct_quality_flag`, harga, nilai, `data_origin`. Contoh 10 + 10 baris dikirim ke user dalam Excel (belum disetujui).
+
+**Keputusan user, 2026-10-25 (kata user):** "Kolom Excel sudah sesuai. Warna terstruktur ikut. Dilakukan di railway." (kolom usulan disetujui; waran terstruktur ikut; penarikan terjadwal berjalan di Railway).
+
+**Keputusan user, 2026-10-25 (kata user):** "Current % Change % Ini saja yang perlu ada" (`pct_before` dikeluarkan; persen insider = `pct_after` dan `pct_change` dari Stockbit). Cek 2026-10-25: keduanya tidak bisa dihitung dari kolom saham saja (saham beredar tidak ada di sumber), tetapi saling mengecek dalam satu baris: `pct_change` ≈ `pct_after` × `shares_change` ÷ `shares_after` cocok di 100.788 dari 101.495 baris yang bisa dicek (99,3%); `pct_quality_flag` diganti ke cek dalam baris ini (OK, ROUNDING, INCONSISTENT, NOT_CHECKABLE, INVALID_SENTINEL), sehingga batas 30 hari tidak diperlukan.
+
+**Arahan user, 2026-10-25 (kata user):** "update ini akan dilakukan secara daily atau secara ad hoc. Baca update data MD sudah ada di Git. Jadi nanti kamu kirim dulu scriptnya ... Yang tujuannya adalah untuk tarik data ... akan dapat dua kan, call action dan insider. Dari dua data ini nanti akan dibuatkan satu Excel yang seperti kamu kirim barusan. Propose ke saya nama tabelnya apa? Jadi total ada tiga table, right?" Usulan nama: `stockbit_corporate_action`, `stockbit_insider_transaction`, `idx_event_annotation` (menunggu konfirmasi). Pola mengikuti `UPDATE_TABLE.md`: tarik Stockbit dengan token di PC user, simpan di PostgreSQL Railway, tabel gabungan dihitung dari dua tabel sumber.
+
+**Arahan user, 2026-10-25 (kata user):** "Kenapa tidak scriptnya di [Railway] saja? Dan saya akan kasih bearer token yang bisa dirunning oleh agent untuk mengupdate ... datanya tidak diupdate setiap hari ... Just need to ensure ketika diupdate, maka akan continue from latest data point. Tidak duplicate, tidak missing value, atau tidak ada gap. Mungkin di updated MD bisa dipisah ya, per table. Dan dibuat section khusus untuk 3 table ini". Usulan: job ad hoc di Railway, token diberikan user per putaran dan dipasang sementara sebagai variabel lalu dihapus (pola `scripts/onboarding/run_job.sh`); setiap putaran menarik ulang seluruh sumber (±10 menit) dan merekonsiliasi dengan isi tabel; `UPDATE_TABLE.md` dipisah per kelompok tabel.
+
+**Keputusan user, 2026-10-25 (kata user):** "kalau misalkan saya tarik, maka datanya akan ditarik secara full"; "Untuk saat ini, tidak perlu bikin service baru. Tapi untuk source script dan lain-lain bisa ditaruh di Git"; "update [UPDATE_TABLE.md] juga boleh diupdate to let the AI and user know how the script works kemudian table tersebut sudah mulai diupload ke Postgres konfirmasi kalau masih ada yang ambigu". Service penarik Stockbit tersendiri dicatat di `FUTURE_PLAN.md` (STOCKBIT-PULLER).
+
+Pertanyaan terbuka:
+- Token di Railway: belum ada mekanisme pembaruan Stockbit JWT otomatis di repo (runner broker summary memakai token yang diganti manual, `apps/stockbit-broker-backfill/README.md`); JWT uji 2026-10-25 berlaku sekitar 1 hari.
+- 20 baris dengan angka rusak (D21): `pct_after`/`pct_change` dikosongkan; tidak bisa dihitung dari baris itu sendiri.
+- Kunci insider tanpa ID transaksi: aturan upsert saat refresh (D21).
