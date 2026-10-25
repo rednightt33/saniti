@@ -7353,3 +7353,132 @@ Release the already-tested price parser and runtime compatibility patch to main,
 volume and normal stocks/bonds. Feature3 aggregate HHI NULL; Feature4 sample asset_type=index.
 Any new automatic index Feature4 calculation must remain gated until sample approval so release cannot
 silently expand the one-date output scope. Record normal worker/cron deployments and live readback.
+
+### IHSG one-date Feature03/05/06 upsert — completed 2026-10-24
+
+User: "Tidak bulk dulu. Please insert 1 tanggal IHSG ke table feature 3,5, 6 berdasarkan formula
+yang akan digunakan untuk bulk upsert nanti." Only IHSG 2026-08-31, preserving Regular/Nego/Tunai.
+Use raw daily aggregation and canonical historical context; stage calculations and validate independently
+before atomic upsert. Do not write Feature02/04, alter schemas, deploy worker/Telegram changes or bulk-load.
+`upsert_index_broker_feature_sample.py` exposes the shared prepare/upsert formulas for a future approved
+bulk driver. HHI NULL by policy; incomplete frequency-dependent windows remain NULL. Existing broader
+unreleased files are unrelated to this narrowed execution and must not be included in its release.
+
+Completion: IHSG 2026-08-31 committed and independently read back: Feature03=3, Feature05=214,
+Feature06=3, all HHI NULL. Feature02/04 unchanged. Evidence: verification/ihsg_feature_aggregation/single_date.
+Bulk remains pending user validation; no automatic index worker/Telegram rollout is included.
+
+### IHSG plan revision — audit only, 2026-10-24
+
+User now requires separate Feature 1–6 tables ending _INDEX and explicitly says not to execute,
+with number audit first. This supersedes shared analytical destinations for future index loads.
+The previous one-date Feature03/05/06 write remains completed history, not permission for another
+write, moving/deleting samples, creating tables, worker rollout or bulk. PLAN.md now records the
+six exact names and gated steps. Read-only 2026-08-31 F03 audit: 24 questioned-field comparisons,
+zero differences vs raw broker aggregates; per-ticker sums are semantically different.
+
+### INDEX frequency correction deferred — recorded 2026-10-24
+
+User: "Ok, masukan perbaikan nanti pada saat kita buat feature _index catat dulu. I'll audit feature 6 now."
+Record in PLAN.md: future Feature05 INDEX frequency uses SUM of available inputs, all-NULL stays NULL,
+known zero stays zero, and coverage is tracked separately. Supersedes whole-group-NULL for future index
+aggregation only. This is approval to record the future correction, not execute it. Existing shared-table
+sample/helper, schemas, services and jobs remain unchanged. Feature06 is still in the user's number audit.
+
+### INDEX six-table sample and legacy cleanup — completed 2026-10-24
+
+User: "silakan dibuat tabel baru ... formula ... refine. Mulai dari 31 Agustus ... tabel non-index
+untuk IHSG ... di-delete ... propose ... sebelum ... execute logic update ... cek hasil 31 Agustus ...
+baru ... bulk insert ... baru ... desain ... update setiap harinya."
+Scope: create Feature01–06 dedicated _INDEX tables, IHSG 2026-08-31 output only. Apply refined SUM-known
+frequency and separate coverage; keep derived frequency ratios NULL when scope incomplete. Preserve
+full historical cumulative and common-market rolling rules, F03 HHI NULL, F04 asset_type=index.
+Archive all legacy IHSG feature rows losslessly, verify the new sample, then delete legacy feature rows
+in the same transaction. Prices/universe retained. No bulk, queue/worker/scheduler/routing/Telegram or
+other automatic update logic is enabled. Future daily design must be proposed and approved separately.
+
+Completion: INDEX sample committed at 2026-10-24 23:11 WIB. Counts F01=1/F02=214/F03=3/F04=1/F05=214/F06=3,
+all dated 2026-08-31. Shared tables IHSG=0; 4,470 complete rows retained in private archive snapshot
+293f4c52-0fd2-4d43-b02e-e0c6dba94f30. Independent public readback and private archive/hash readback pass.
+260 INDEX catalog columns complete and synchronized. Bulk/daily remain disabled/unapproved.
+
+### INDEX validation follow-up — 2026-10-25, no data/schema execution
+
+User requests recording removal of the five Feature05 INDEX frequency coverage columns and checking
+seven Feature03 INDEX columns. Recorded the deferred removal in PLAN.md; no column was dropped.
+Read-only raw-source audit of IHSG 2026-08-31 across Regular/Nego/Tunai passed all 21 requested
+comparisons, including HHI intentionally NULL. Existing helper/bulk/daily logic and stored values unchanged.
+
+### INDEX sample accepted; vocabulary and bulk plan review — 2026-10-25
+
+User: "Ok, rest feature sudah OK"; requests one frontend vocabulary for Feature01/02/03/05/06,
+excluding Feature04, and review of the implementation plan before bulk INDEX/new-table execution.
+Clarification: "Saham dan INDEX sekaligus". Recorded sample acceptance and shared stock/index
+vocabulary design in PLAN.md; no live DDL/data/catalog/runtime changes authorized or performed here.
+Read-only physical inventory: 396 current columns across ten source tables, expected 391 after the
+deferred five-column F05 INDEX removal; every current column has an active semantic definition.
+One-date INDEX samples unchanged. Price source ends 2026-10-23; broker source ends 2026-08-31.
+Reviewed one-date helper limitations, staged-history bulk approach, semantic-text corrections,
+source scope, missing-frequency rules, chunk/resume validation and separate daily-routing boundary.
+Evidence: verification/ihsg_feature_aggregation/vocabulary_review/.
+
+### INDEX bulk and shared vocabulary — execution approved 2026-10-25
+
+User: "Ok, jalankan" following the reviewed PLAN.md INDEX bulk/shared vocabulary design.
+Execute the five-column F05 INDEX cleanup, INDEX-only IHSG historical load with accepted formulas,
+sample/source/chunk checks, then one stock+INDEX Feature_Vocabulary table for F01/02/03/05/06.
+Preserve stock/bond data, source inputs, archived legacy rows, F06 coverage and missingness rules.
+Daily routing/worker/Telegram/frontend rollout remains separate. Use a temporary one-off job if
+needed; no permanent service or automatic schedule. Record live migration/load/readback evidence.
+
+Completion — 2026-10-25: bulk committed at 02:13:43 WIB; all 62 year chunks reconcile completely,
+each immediate rerun changes zero rows. F01=2,125/F02=576,648/F03=7,128/F04=2,125/F05=576,648/
+F06=7,128 (1,171,802 total). Prices 2018-01-02..2026-10-23, broker outputs 2016-01-04..2026-08-31.
+45,229,673 raw rows read across 128 monthly slices; F02/F03/F06 independent checks and accepted
+sample checks total 823,210 comparisons. Forward migrations 20261025_001/002 remove exactly five
+F05 INDEX columns and correct cloned semantic guidance; F06 coverage remains. Snapshot dc859a6a-
+04f3-4af4-8876-4e61e5212a6e preserves 436 pre-bulk INDEX rows plus 585 original catalog rows;
+private readback hashes match. Older 4,470-row legacy archive retained.
+
+Vocabulary migration 20261025_003 and reviewed seed committed at 02:29:04 WIB: 391 VERIFIED entries,
+stock/non-INDEX 193 + INDEX 198, Feature04 excluded. Stored payload matches seed; rerun updates=0.
+Scoped schema readback covers 279 columns (255 INDEX +24 vocabulary), all documented. Public readback
+confirms no old F05 coverage columns, all F06 coverage columns present, all INDEX HHI NULL,
+F04 asset_type=index and actual price-close parity, shared IHSG rows=0. Existing global semantic
+failure is only the two pre-existing *_Stock view definitions (100 columns); not expanded by this task.
+No frontend/API/daily routing, permanent service config or stock/bond numerical data changed.
+Source/evidence saved on codex/ihsg-f356-one-date; source publication to main is separate.
+
+Temporary job cleanup completed: exact environment-scoped service deletion succeeded and independent
+project service-list readback confirms absence. No new always-on service/cron/volume remains.
+
+### EXEC-INDEX-1: hapus `IDX_Broker_Summary_Freq`, merge pekerjaan INDEX, buka Feature 01–06 `_INDEX` ke AI (disetujui 2026-10-25)
+
+**Kata-kata user (2026-10-25):** "Hapus saja. IDX_Broker_Summary Agustus keatas memang lagi di download ulang termasuk
+untuk data freq. Also saya ada tambahkan feature 1-6 _INDEX... buat visible ke AI juga ya. Cek infra sebelum proceed.
+Jangan ada keputusan yang diambil dari memory. Harus dari code." Jawaban pertanyaan:
+- target data freq yang diunduh ulang: "Belum tahu" → isi Freq dikosongkan (TRUNCATE, struktur dan 12 partisi tetap
+  supaya loader apa pun yang menulis ke sana tidak gagal) dan `sync_broker_summary_freq` diberi penjagaan;
+- branch `codex/ihsg-f356-one-date`: "Merge ke main dulu (Recommended)";
+- join: "Sesama INDEX + ke saham per tanggal (Recommended)";
+- `description_id`: "Dari Feature_Vocabulary (Recommended)".
+
+**Inspeksi (job read-only, 2026-10-25):** `IDX_Broker_Summary_Freq` (M215): terakhir dibaca 2026-10-22, hanya oleh
+`sync_broker_summary_freq`. Enam tabel `_INDEX` (dibuat migrasi `20261024_010`…`20261025_003` di branch codex,
+belum di `main`): F01 2.125 baris dan F04 2.125 baris (2018-01-02…2026-10-23); F02 576.648, F03 7.128, F05 576.648 dan
+F06 7.128 baris (2016-01-04…2026-08-31). Satu ticker, `IHSG`. Setiap tabel punya indeks yang diawali kolom waktunya.
+Table_Catalog, Column_Catalog, Feature_Catalog (`CALCULATION_VERIFIED`) dan Feature_Relationship_Catalog sudah terisi.
+Belum ada di `AI_*` dan belum ada grant ke `market_ai_sql_reader`. Pembaruan harian belum aktif (PLAN.md INDEX).
+
+**Langkah:**
+- A. Merge branch codex ke `main` (merge commit, tanpa rewrite). Konflik hanya di `RAILWAY_CHANGELOG.md`, dua entri
+  tambahan; keduanya dipertahankan. Tidak ada path `apps/`, jadi tidak ada redeploy.
+- B. Migrasi maju: `sync_broker_summary_freq` menolak rentang tanpa baris Freq (tidak lagi mengosongkan freq);
+  TRUNCATE partisi Freq; baca ulang ukuran.
+- C. Onboarding menurut `NEW_TABLE_ONBOARDING_PLAN.md`:
+  - index acceptance (`measure_indexes.py`);
+  - satu migrasi `AI_*`: grant, tabel, kolom, `description_id` dari `Feature_Vocabulary`, relasi INDEX↔INDEX dan
+    saham↔IHSG per tanggal, kalkulasi, preview;
+  - daftar di kode (login Governor, coverage, preview, router);
+  - tes, deploy, validasi L0/L2/Governor.
+- L3 berbayar hanya sesudah dilaporkan.

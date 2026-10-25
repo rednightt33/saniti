@@ -821,24 +821,24 @@ siapa pun). Untuk 32 dari 844 saham, 20 sesi lebih panjang dari sebulan kalender
 harus menyebut definisi sesi ini, dan jawaban harus menyebut rentang tanggal jendela bila lebih panjang dari yang user
 sebut.
 
-## IHSG — Feature 2/3/5/6 market aggregation and Feature 4 index classification (inspection recorded 2026-10-24)
+## INDEX — next phase: propose daily update routing
 
-User decisions: aggregate all tickers by date; “leave as null ... feature 3: broker_concentration_hhi”;
-“untuk feature 4 kolom asset type buat jadi 'index'”. Latest instruction is to inspect every column's
-creation script and record it before implementation. **Inspection complete; implementation not started.**
+User approved and completed the separate INDEX historical bootstrap and stock+INDEX vocabulary on
+2026-10-25 ("Ok, jalankan"). Execution/results: EXEC.md, DATABASE_CHANGELOG.md,
+FEATURE_VOCABULARY.md, verification/ihsg_feature_aggregation/bulk/. The accepted 31-Aug sample,
+F05 INDEX five-column cleanup and historical load are complete; do not repeat their old initializer.
 
-Source-based report: [verification/ihsg_feature_aggregation/README.md](verification/ihsg_feature_aggregation/README.md).
-Full formula/NULL/history/change matrix: [COLUMN_INSPECTION.md](verification/ihsg_feature_aggregation/COLUMN_INSPECTION.md),
-plus CSV and revision/count manifest in the same directory. Covers all **221 columns** of Features 2–6.
+Next phase remains a **proposal**, not permission to enable daily jobs. Design the metadata-derived
+split for existing price-driven Feature01/04 workers and broker-driven Feature02/03/05/06 outputs,
+including queue/status/checkpoint/Telegram/retry and explicit AI-access dependencies. Preserve stocks
+and bonds, source NULL volume/frequency, current formulas and exact recent-correction behavior.
+Feature04 checkpoint fingerprints include asset_type; do not blindly rename equity state to index.
 
-Implementation must aggregate raw daily inputs before computing nonlinear/rolling outputs, preserve board,
-broker and investor-type grain, leave aggregate HHI NULL by policy, guard partial frequency across daily
-and rolling inputs, and preserve constituent source-gap flags. Index classification is universe-driven
-and requires SQL constraints/resolver/queue/state, loaders/engine, worker, Telegram retry/monitor and
-catalog/join/view changes. Existing checkpoints include asset_type in fingerprints: no blind key rename.
-F05/F06 stock-only AI views currently exclude index; existing F02/F03 scripts and staged F05/F06 job do
-not provide automatic aggregate refresh. Detailed impact, source-scope caveats and acceptance are in the report.
+Current INDEX histories: F01/F04 2018-01-02..2026-10-23; F02/F03/F05/F06 2016-01-04..2026-08-31.
+Broker aggregates retain all raw symbols/each board; not official historical IHSG constituents.
+Do not manufacture broker dates beyond source availability or repair old source gaps implicitly.
 
-No runtime code, migration, database, configuration or deployment change was made by this inspection.
-Recheck live schema/source coverage and deployment baseline at implementation preflight; this inspection
-uses the identified local Git snapshot and explicitly does not claim a new live database audit.
+Existing legacy workers can recreate IHSG rows in shared tables after new prices; no silent pause,
+queue deletion, new schedule or routing patch was authorized by the historical bootstrap. Current
+readback still has zero legacy IHSG rows. Propose the daily design and obtain the user's go before
+its implementation. The vocabulary is static release metadata and needs no daily cron or service.

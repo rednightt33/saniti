@@ -1,0 +1,5 @@
+{
+  "reconstructed_applied_bundle_sha256": "d917522aeeecb2fdd9b15bb11e4fa1e5409c629d59451719b32ba7c74a207daa",
+  "matches_deployment_bundle": true,
+  "post_apply_changes": "Original snapshot retention on resume; deduplicate metadata evidence arrays; no numerical changes."
+}

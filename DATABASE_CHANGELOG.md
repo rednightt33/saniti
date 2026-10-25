@@ -2293,3 +2293,89 @@ EXEC-ASK-BRANCH-IMPL). Two forward, additive migrations, rehearsed then applied 
 Read-back (APPLY job probes, after commit): `market_ai_conversation_store` reads `lineage` on all 572 conversations, all
 `[]`; `edge_bff_runtime` reads `kind`, 72 rows all MAIN; `Column_Catalog` row `lineage` VERIFIED; 0 EDGE jobs active.
 Rollback (forward migration): drop the added columns, the index and the `Column_Catalog` row.
+
+### 2026-10-24 — IHSG Feature 3/5/6 one-date sample
+
+Explicit user scope: IHSG, 2026-08-31, Feature03/05/06 only; no bulk, schema or source changes.
+Shared sample/bulk calculation helper: scripts/upsert_index_broker_feature_sample.py. Daily raw broker
+aggregation feeds the existing Feature03 formula. Canonical historical Feature05 detail feeds Feature06
+rolling/cumulative calculations in temporary tables. Independent preflight: 60 Feature03 metric checks
+and 249 Feature06 metric checks passed. HHI NULL by user policy; incomplete frequency windows NULL.
+Upsert executes in one REPEATABLE READ transaction and verifies all stored columns against staging.
+Final live readback is recorded in verification/ihsg_feature_aggregation/single_date after execution.
+
+Live result: APPLY deployment aa12e983-b960-4d60-b2e5-a16481ce49ce SUCCESS, committed 2026-10-24
+20:40 WIB. Independent readback verified IHSG 2026-08-31 only: Feature03 3 rows, Feature05 214,
+Feature06 3; all Feature03 HHI NULL. SQL payload comparison found zero mismatches. Feature02 remains
+empty for IHSG and Feature04's 2,125 IHSG rows retain the exact before/after fingerprint. Evidence:
+verification/ihsg_feature_aggregation/single_date/{feature356_apply.jsonl,feature356_readback_summary.json}.
+Two temporary job services removed; no schema or permanent infrastructure changes. Bulk awaits user validation.
+
+### 2026-10-24 — dedicated INDEX sample initialization (preparing)
+
+User approved six _INDEX tables, IHSG 2026-08-31 output only, refined known-frequency SUM with coverage,
+and deletion of legacy shared feature rows after archival/verification. Migration 20261024_010 and
+scripts/initialize_index_feature_sample.py keep schema, sample, backup and cleanup atomic. No source
+price/universe removal, bulk or automatic update logic is authorized. Evidence and final status:
+verification/ihsg_feature_aggregation/index_tables/README.md. A private JSONB archive preserves every
+original legacy row before deletion; no current-history data is discarded without recoverable backup.
+
+Applied and read back 2026-10-24 23:11–23:17 WIB: six _INDEX tables have IHSG 2026-08-31 only,
+counts 1/214/3/1/214/3. Shared Feature01–06 IHSG counts are all zero; archive snapshot
+293f4c52-0fd2-4d43-b02e-e0c6dba94f30 preserves all 4,470 original rows with zero hash mismatches.
+Source IHSG price history remains 2,125 rows, 2018-01-02..2026-10-23. Refined frequency/coverage
+reconciliation passes. Forward metadata migration 20261024_011 synced all 260 INDEX column/feature
+semantics and source dependencies; scoped check found zero missing definitions/drift/incomplete guidance.
+No bulk or permanent daily logic/configuration changes. Evidence: verification/ihsg_feature_aggregation/index_tables/.
+
+
+## 2026-10-25 — IHSG INDEX historical bootstrap and Feature vocabulary
+
+User: "Ok, jalankan" after review of the dedicated INDEX bulk and shared stock/INDEX vocabulary plan.
+
+- `20261025_001_index_feature05_remove_frequency_coverage.sql`: removed frequency_source_rows,
+  buy_freq_known_rows, sell_freq_known_rows, buy_freq_missing_rows, sell_freq_missing_rows from
+  Feature_05_Foreign_Domestic_Broker_Detail_INDEX only; retired matching active definitions and
+  physical catalog entries. F06 coverage and SUM-known/NULL rules retained.
+- `20261025_002_refine_index_vocabulary_source_semantics.sql`: clarified INDEX daily SUM grouping,
+  cumulative baseline, source references and gap propagation; corrected copied volume guidance and
+  schema comments. No numerical formula change or automated update rollout.
+- `scripts/backfill_index_features.py`: monthly raw aggregation, exact canonical monetary comparison,
+  bounded-memory broker rolling, canonical F03/F06/F01 and existing F04 engine. 45,229,673 raw rows,
+  128 months; 823,210 independent/sample comparisons pass. Public writes only after dry validation.
+  62 transactional year chunks: zero payload differences and zero changes on immediate idempotent rerun.
+
+| INDEX table | Rows | First date | Last date |
+|---|---:|---|---|
+| Feature_01_Stock_Daily_INDEX | 2,125 | 2018-01-02 | 2026-10-23 |
+| Feature_02_Broker_Rolling_INDEX | 576,648 | 2016-01-04 | 2026-08-31 |
+| Feature_03_Stock_Broker_Daily_INDEX | 7,128 | 2016-01-04 | 2026-08-31 |
+| Feature_04_Technical_Indicator_INDEX | 2,125 | 2018-01-02 | 2026-10-23 |
+| Feature_05_Foreign_Domestic_Broker_Detail_INDEX | 576,648 | 2016-01-04 | 2026-08-31 |
+| Feature_06_Foreign_Domestic_INDEX | 7,128 | 2016-01-04 | 2026-08-31 |
+
+Committed at 02:13:43 WIB, independently read back. IHSG only, each board retained; broker scope is
+all raw symbols including non-stock instruments, not official historical constituents. Source gaps
+remain flagged, not repaired. Shared legacy IHSG rows remain zero; source prices/universe unchanged.
+Before DDL/writes, 436 accepted INDEX sample rows archived losslessly under snapshot
+`dc859a6a-04f3-4af4-8876-4e61e5212a6e`; 585 original catalog rows added to the same private archive,
+all hashes verified. Earlier legacy archive `293f4c52-0fd2-4d43-b02e-e0c6dba94f30` retained.
+
+- `20261025_003_create_feature_vocabulary.sql`: one 24-column Reference table, `Feature_Vocabulary`,
+  with seven requested presentation fields plus source/scope/NULL/history/review/version evidence.
+  Reviewed JSON seed and code-backed templates generate **391 entries**: stock/non-INDEX 193,
+  INDEX 198. F01/02/03/05/06 only; no F04 or removed F05 columns. English labels, Indonesian
+  explanations, self-contained alias legends, distinct units and explicit HHI NULL policy.
+  Committed at 02:29:04 WIB; all payloads match and second sync modifies zero entries. pgweb SELECT
+  granted; frontend/API and AI-tool onboarding are separate. No extra lookup index added: measured
+  dictionary read plan is retained with completion logs.
+- Schema/catalog readback: all 279 new/changed scoped columns documented; dictionary has no missing
+  physical targets or unverified entries, F04 price-close mismatches=0, wrong asset_type=0, HHI nonnull=0.
+  Global semantic audit still fails only for the pre-existing F05/F06 *_Stock view definitions (100);
+  scoped new/changed objects pass. No guard relaxed or unrelated catalog repair attempted.
+
+Validation: 35 existing F04 regressions and 15 vocabulary tests pass, plus rollback-only 330-session
+PostgreSQL integration fixture and full live/source/readback checks. Deployment/recovery details,
+including pre-write tooling failures, are retained under `verification/ihsg_feature_aggregation/bulk/`.
+No daily routing, worker queues/checkpoints, permanent Railway config, frontend, stock/bond numbers,
+or raw source data changed. Daily INDEX updates remain a separately approved design phase.

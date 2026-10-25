@@ -115,3 +115,32 @@ Sessions: ticker sessions: the dates on which the ticker has any Feature 05 row 
 | `foreign_value_freq_sign_mismatch_1d` | boolean | Volume | Foreign net value and foreign net transaction count point in different directions. | SIGN(F) <> SIGN(BF - SF) | flag | NULL when F = 0, BF = SF or frequency is missing; FALSE when both have the same nonzero sign. | 1 session |
 | `source_balance_gap` | boolean | Data Quality | Internal: Feature 05 marks this date, ticker and board as a source gap (ERRORS M157). | BOOL_OR(Feature 05 source_balance_gap) for the date, ticker and board | flag | Never NULL. | 1 session |
 | `calculated_at` | timestamptz | Metadata | Statement timestamp when the row was written. | statement_timestamp() | timestamp | Never NULL. | 1 session |
+
+## IHSG one-date aggregate validation (2026-10-24)
+
+`scripts/upsert_index_broker_feature_sample.py` shares the daily aggregation/calculation/NULL contract
+intended for later approved bulk upsert. Feature05 index rows aggregate raw symbols by date, broker,
+investor type and board. Feature06 uses the aggregate's observed session calendar and recomputes rolling,
+cumulative and nonlinear metrics from daily totals; it does not sum ticker-level z-scores or ratios.
+Each source symbol's balance-gap flag survives through BOOL_OR. Frequency totals require complete
+contributing rows; the conservative aggregate rule leaves frequency-derived outputs NULL if any
+required side/type/session is incomplete. Missing frequency is never replaced by zero.
+
+The first approved date is 2026-08-31. Index flow is a market-wide proxy including all raw source symbols,
+not an official historical constituent basket. The standard ticker refresh functions and stock-only AI
+views are unchanged; they do not implement this explicit aggregate path. Histories remain temporary
+calculation context during the one-date write; no index bulk load is authorized by this sample.
+
+## Dedicated INDEX history and vocabulary — completed 2026-10-25
+
+The later approved bulk supersedes the single-date-only availability described above. Dedicated
+Feature05 INDEX now has 576,648 rows and Feature06 INDEX 7,128 rows, 2016-01-04..2026-08-31.
+Feature05 INDEX sums **available known** raw frequencies across symbols; all-unknown stays NULL.
+Its five coverage columns were removed; completeness is computed internally and retained in
+Feature06 INDEX. Frequency-dependent ratios/tickets/windows remain NULL when input is incomplete.
+Stock table calculations/source values are unchanged. No new automatic updater is enabled.
+
+Use scripts/backfill_index_features.py for an explicitly approved historical INDEX load, not the old
+shared-table sample helper. Full counts, source reconciliation, snapshots and idempotence evidence
+are in verification/ihsg_feature_aggregation/bulk/. FEATURE_VOCABULARY.md documents the shared
+391-entry stock/non-INDEX and INDEX presentation dictionary; no frontend API/UI is implemented.

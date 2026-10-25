@@ -1651,3 +1651,100 @@ Table_Catalog entries came from the earlier 20261023_004 onboarding; this migrat
 does not touch them. Scoped Feature01/04 semantic and volume-nullability checks
 have zero failures. Preserve this distinction: passing target checks is not a
 claim that the global audit passed. Evidence: verification/ihsg_price_history/apply/.
+
+### IHSG aggregate frequency completeness — one-date sample resolved (2026-10-24)
+
+Risk observed in existing Feature06 SQL: SUM ignores NULL frequency, allowing partial aggregate
+frequency to be interpreted as a total. The explicit sample helper requires all contributing raw
+frequency rows and all sessions of each dependent window; otherwise its frequency-derived output is
+NULL. Values/lots and source-gap flags remain independent. Independent Feature06 comparison passed
+249 fields; Feature03 comparison passed 60; SQL stored payload comparison had zero mismatches.
+Status: resolved for the approved IHSG 2026-08-31 sample and shared sample/bulk calculation helper;
+standard stock refresh functions and bulk/automatic aggregate rollout remain unchanged. Evidence:
+verification/ihsg_feature_aggregation/single_date. HHI NULL is intentional user policy, not a failure.
+
+### Feature06 audit: 2026-07-27 Regular MAPADRCU6A source imbalance (OPEN, 2026-10-24)
+
+Read-only audit found raw IDX_Broker_Summary Buy Value 1,408,200 vs Sell Value 555,000 for MAPADRCU6A,
+2026-07-27 Regular: +853,200 mismatch. Non-index Feature06 flags the source gap and carries the same
+Foreign+Domestic daily net mismatch. The index 60-session window ending 2026-08-31 therefore has
+foreign_net_60d + domestic_net_60d = +853,200. Verified input inconsistency, not an index arithmetic
+mismatch; upstream reason not established. No refetch or data change approved/executed. Keep the gap
+visible; settle instrument scope and audit the source before any repair. Evidence:
+verification/ihsg_feature_aggregation/number_audit/feature6_recent_{source_balance,raw_gap}.json.
+
+### Feature06 rolling-decomposition audit query timeout (bounded retry resolved, 2026-10-24)
+
+Initial read-only decomposition hit statement_timeout; the query joined multiple rolling bounds to the
+feature history without a single constant lower-date restriction on the materialized context. Rewritten
+to materialize only the verified latest 60 source sessions and reuse those rows; retry succeeded. No
+limits or indexes were changed. The failure and successful query/results remain in number_audit/.
+
+### INDEX table initialization catalog guards (dry-run resolved, 2026-10-24)
+
+First rollback-only initialization hit validate_feature_catalog_target because active definitions
+require a VERIFIED Table_Catalog target. Corrected the sequence: new definitions stay inactive while
+schema/sample/reference checks run; metadata activates only after sample payload and archive checks.
+A subsequent DDL rollback test caught version text `index-sample-v1`, which violates the catalog's
+^v[1-9][0-9]*$ constraint. The new table definitions now use v1, separate from base-table versions.
+No existing catalog guard was relaxed. DDL-only rollback verification succeeded; full dry/apply checks
+continue. No live source or analytical data was changed by the failed dry runs. Lesson: inspect live
+catalog constraints/activation triggers before cloning metadata; keep availability scoped to the sample.
+
+INDEX initialization final status (2026-10-24): full dry run and APPLY passed, metadata activates only
+after validations. Scoped INDEX semantic audit passes for all 260 columns after forward migration 011.
+Global audit still reports the existing missing Feature05/06 *_Stock view Feature_Catalog definitions;
+this is a pre-existing unrelated issue, not an INDEX failure, and was left unchanged. Archive readback
+verifies 4,470 rows and zero hash mismatches. Permanent daily routing remains an explicit open design
+item: legacy price-driven workers can recreate shared-table index rows after a new price arrives unless
+index exclusion/routing is approved and implemented; no unapproved runtime workaround was deployed.
+
+### Frontend vocabulary preflight: catalog prose scope/NULL alignment (RESOLVED, 2026-10-25)
+
+Read-only inventory of Feature01/02/03/05/06 stock and INDEX definitions found all 396 current
+physical columns documented, but copied prose is not uniformly aligned with current semantics.
+F01 volume null_rule correctly allows source-less index volume=NULL while misuse_warning still
+says volume must never be NULL. INDEX F06 cumulative definition/warning retains ticker-inception
+language instead of the aggregate broker-history baseline, and some per-column source references
+still name legacy tables after cloned INDEX definitions and table-level dependencies were updated.
+Verified cause: schema/catalog cloning and selective field updates preserved these other texts;
+see migrations 20261023_007, 20261024_010 and 20261024_011. Existing numeric sample checks do not
+validate display prose for every column. Scope: metadata guidance, not evidence of new numeric errors.
+Resolution: forward migrations 20261025_001/002 correct the copied metadata; migration 003 and
+reviewed seed publish 391 code-backed Indonesian vocabulary entries with per-column semantic hashes.
+Public payload/schema readback and idempotent sync pass. Status RESOLVED 2026-10-25. Lesson: complete/VERIFIED catalog coverage does not by itself
+prove all copied guidance matches the new asset/scope/NULL contract. Evidence:
+verification/ihsg_feature_aggregation/vocabulary_review/.
+
+### INDEX bulk staging duplicate temporary target (fixed before public writes, 2026-10-25)
+
+First bulk attempt d1006b00-6baf-4c1f-9dba-dabcbef866b3 reconciled every monthly raw/canonical
+monetary slice (2016-01..2026-08) but stopped on DuplicateTable calc2. Verified root cause:
+prepare() already creates all six temporary calculation targets; stage2() redundantly created calc2.
+Removed the second CREATE. The preparation transaction rolled back; no public INDEX data, catalog,
+or F05 DROP ran in that attempt. Added --smoke rollback-only integration mode: 330 session-local
+fixture observations exercise statistical warmups, F03 and F06 references before another full scan.
+Evidence: verification/ihsg_feature_aggregation/bulk/attempt1_logs.jsonl (captured operational logs).
+Lesson: exercise the entire preparation lifecycle against PostgreSQL before an expensive raw scan,
+not just Python compilation/imports; temporary table ownership belongs to one preparation layer.
+
+
+### Vocabulary one-off job upload/import issues (resolved before vocabulary writes, 2026-10-25)
+
+The larger reviewed seed made the CLI --variables JSON exceed Linux's per-argument limit
+(OSError E2BIG). No API request ran. Upload now batches variable-collection upserts below 60 KB,
+with 24 KB file chunks and skipDeploys=true; deployment starts only after all parts succeed.
+The first vocabulary container then hit ModuleNotFoundError because runpy does not automatically
+add scripts/ to sys.path. Fixed the standalone sync entry point and verified runpy import plus
+15 vocabulary regressions; that failure occurred before connecting or executing DDL. Retry committed
+391 rows; exact payload/readback and second-sync modified=0 pass. No numerical INDEX output changed.
+Lesson: test the actual remote entry point and account for OS argv limits, not only API payload limits.
+
+### Cloud executor restart during independent Railway job (recovered, 2026-10-25)
+
+The managed workspace briefly went offline/restarted during bulk calculation. Workspace files
+persisted; /tmp helpers/venv did not. Railway calculation continued independently and was not
+restarted. Restored helpers from /workspace/artifacts/index-bulk, observed uninterrupted pair
+progress and verified final committed data. Keep one-off job IDs/recovery scripts in the persistent
+workspace and save logs before replacing a temporary deployment; never assume a local executor
+restart stopped an external database job.

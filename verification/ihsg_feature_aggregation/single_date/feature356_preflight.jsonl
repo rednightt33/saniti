@@ -1,0 +1,13 @@
+{"message":"Starting Container","level":"info","timestamp":"2026-10-24T13:33:58.777721297Z"}
+{"message":"WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.","level":"error","timestamp":"2026-10-24T13:34:05.835831894Z"}
+{"level":"error","message":"","timestamp":"2026-10-24T13:34:05.835836183Z"}
+{"timestamp":"2026-10-24T13:34:05.835840504Z","level":"error","message":"[notice] A new release of pip is available: 25.0.1 -> 26.2.2"}
+{"timestamp":"2026-10-24T13:34:05.835844106Z","level":"error","message":"[notice] To update, run: pip install --upgrade pip"}
+{"level":"info","message":"","timestamp":"2026-10-24T13:34:07.853931686Z","stage":"daily_and_feature3","event":"stage_complete"}
+{"message":"","level":"info","timestamp":"2026-10-24T13:36:48.548101796Z","event":"stage_complete","stage":"historical_context","rows":12895}
+{"timestamp":"2026-10-24T13:36:53.349385663Z","level":"error","message":"/tmp/index-f356/scripts/check_feature_06_sample.py:46: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`"}
+{"message":"  d[\"gap\"] = act.gap.reindex(d.index).fillna(False).astype(bool)","level":"error","timestamp":"2026-10-24T13:36:53.349388986Z"}
+{"timestamp":"2026-10-24T13:36:54.091801970Z","message":"/tmp/index-f356/scripts/check_feature_06_sample.py:46: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`","level":"error"}
+{"message":"  d[\"gap\"] = act.gap.reindex(d.index).fillna(False).astype(bool)","timestamp":"2026-10-24T13:36:54.091806323Z","level":"error"}
+{"timestamp":"2026-10-24T13:36:55.123896198Z","source":"raw daily + canonical historical broker detail","feature6_comparisons":249,"hhi":"NULL by policy","event":"validated","feature3_comparisons":60,"message":"","level":"info"}
+{"date":"2026-08-31","message":"","timestamp":"2026-10-24T13:36:55.136211588Z","event":"complete","level":"info","features":[3,5,6],"output_dates":1,"ticker":"IHSG","committed":false}

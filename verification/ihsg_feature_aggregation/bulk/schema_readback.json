@@ -1,0 +1,3757 @@
+{
+  "tables": [
+    {
+      "name": "Feature_01_Stock_Daily_INDEX",
+      "comment": "Dedicated universe-index output with validated historical bootstrap. Price and broker source endpoints differ. Broker scope includes all raw source symbols, not official historical constituents. Automatic daily updates are not enabled."
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_INDEX",
+      "comment": "Dedicated universe-index output with validated historical bootstrap. Price and broker source endpoints differ. Broker scope includes all raw source symbols, not official historical constituents. Automatic daily updates are not enabled."
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "comment": "Dedicated universe-index output with validated historical bootstrap. Price and broker source endpoints differ. Broker scope includes all raw source symbols, not official historical constituents. Automatic daily updates are not enabled."
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_INDEX",
+      "comment": "Dedicated universe-index output with validated historical bootstrap. Price and broker source endpoints differ. Broker scope includes all raw source symbols, not official historical constituents. Automatic daily updates are not enabled."
+    },
+    {
+      "name": "Feature_06_Foreign_Domestic_INDEX",
+      "comment": "Dedicated universe-index output with validated historical bootstrap. Price and broker source endpoints differ. Broker scope includes all raw source symbols, not official historical constituents. Automatic daily updates are not enabled."
+    },
+    {
+      "name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX",
+      "comment": "Dedicated universe-index output with validated historical bootstrap. Price and broker source endpoints differ. Broker scope includes all raw source symbols, not official historical constituents. Automatic daily updates are not enabled."
+    },
+    {
+      "name": "Feature_Vocabulary",
+      "comment": "Reviewed Indonesian frontend dictionary for Feature01/02/03/05/06 stocks and INDEX; one entry per physical source table/column/language. No market data or executable formulas. Feature_Catalog remains semantic authority."
+    }
+  ],
+  "columns": [
+    {
+      "data_type": "date",
+      "definition": "Index scope. Trading date of the source candle represented by the feature row.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "date",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "text",
+      "definition": "Universe index code; eligibility from IDX_Stock_Universe Security Type=index.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "ticker",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Closing price for the ticker on the trading date.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "close",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 3
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Trading volume reported for the ticker on the trading date.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "volume",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "text",
+      "definition": "Index scope. Current Sector classification for the ticker; it is not point-in-time historical classification.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "sector",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "text",
+      "definition": "Index scope. Current Industry classification for the ticker; it is not point-in-time historical classification.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "industry",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 6
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Closing price one prior valid trading observation earlier for the same ticker.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "close_1d_ago",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 7
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Closing price five prior valid trading observations earlier for the same ticker.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "close_5d_ago",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 8
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Closing price twenty prior valid trading observations earlier for the same ticker.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "close_20d_ago",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 9
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Closing price sixty prior valid trading observations earlier for the same ticker.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "close_60d_ago",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 10
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Percentage price return between the current close and the close one valid trading observation earlier for the same ticker.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "return_1d_pct",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 11
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Percentage price return between the current close and the close five valid trading observations earlier for the same ticker.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "return_5d_pct",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 12
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Percentage price return between the current close and the close twenty valid trading observations earlier for the same ticker.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "return_20d_pct",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 13
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Percentage price return between the current close and the close sixty valid trading observations earlier for the same ticker.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "return_60d_pct",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 14
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Absolute magnitude of the one-trading-observation percentage return, without direction.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "abs_return_1d_pct",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 15
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Annualized sample standard deviation of the latest five valid daily decimal returns for the ticker, expressed as percent.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "volatility_5d_ann_pct",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 16
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Annualized sample standard deviation of the latest twenty valid daily decimal returns for the ticker, expressed as percent.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "volatility_20d_ann_pct",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 17
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Annualized sample standard deviation of the latest sixty valid daily decimal returns for the ticker, expressed as percent.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "volatility_60d_ann_pct",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 18
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Percentage change in annualized five-return volatility versus its value five valid trading observations earlier.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "volatility_5d_change_pct",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 19
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Percentage change in annualized twenty-return volatility versus its value twenty valid trading observations earlier.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "volatility_20d_change_pct",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 20
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Percentage change in annualized sixty-return volatility versus its value sixty valid trading observations earlier.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "volatility_60d_change_pct",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 21
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Average source trading volume over the latest twenty valid trading observations for the ticker.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "volume_avg_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 22
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Sample standard deviation of source trading volume over the latest twenty valid trading observations for the ticker.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "volume_std_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 23
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Current trading volume divided by the average volume of the latest twenty valid trading observations.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "volume_ratio_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 24
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Current trading-volume deviation from its latest twenty-observation average, measured in sample standard deviations.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "volume_zscore_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 25
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Highest closing price among the latest twenty valid trading observations for the ticker.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "high_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 26
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Highest closing price among the latest sixty valid trading observations for the ticker.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "high_60d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 27
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Percentage position of the current close below the highest close in the latest twenty valid trading observations.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "drawdown_20d_pct",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 28
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Percentage position of the current close below the highest close in the latest sixty valid trading observations.",
+      "table_name": "Feature_01_Stock_Daily_INDEX",
+      "column_name": "drawdown_60d_pct",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 29
+    },
+    {
+      "data_type": "date",
+      "definition": "Index scope. Ticker transaction date from IDX_Broker_Summary; the rolling calendar uses all observed dates for the ticker across investor types and boards.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "date",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "text",
+      "definition": "Universe-classified index identifier; aggregate source symbols are not copied into the index ticker.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "ticker",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "text",
+      "definition": "Index scope. Exact source Broker code identifying the executing broker.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "broker",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 3
+    },
+    {
+      "data_type": "text",
+      "definition": "Index scope. Exact source Investor Type: Domestic or Foreign. This describes the investor represented by the source row, not the broker domicile.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "investor_type",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "text",
+      "definition": "Index scope. Exact source Market Board: Regular, Nego or Tunai; boards never mix in rolling calculations.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "market_board",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "text",
+      "definition": "Index scope. Current broker usage classification from IDX_Broker_Profile; metadata only and not point-in-time history.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "broker_classification",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 6
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Source Buy Value for this date, ticker, broker, investor type and board.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "buy_value_1d",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 7
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Source Sell Value for this date, ticker, broker, investor type and board.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "sell_value_1d",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 8
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Buy value minus sell value for this date, ticker, broker, source Investor Type and board. Positive means net buying; negative means net selling.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "net_value_1d",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 9
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Source Buy Lots for this date, ticker, broker, investor type and board.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "buy_lots_1d",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 10
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Source Sell Lots for this date, ticker, broker, investor type and board.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "sell_lots_1d",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 11
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Buy lots minus sell lots for this date, ticker, broker, source Investor Type and board. Positive means net buying; negative means net selling.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "net_lots_1d",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 12
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Sum of net_value_1d over 5 ticker transaction dates within broker, investor type and board; missing activity contributes zero.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "net_value_5d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 13
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Sum of net_value_1d over 20 ticker transaction dates within broker, investor type and board; missing activity contributes zero.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "net_value_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 14
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Sum of net_value_1d over 60 ticker transaction dates within broker, investor type and board; missing activity contributes zero.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "net_value_60d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 15
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Sum of net_lots_1d over 5 ticker transaction dates within broker, investor type and board.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "net_lots_5d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 16
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Sum of net_lots_1d over 20 ticker transaction dates within broker, investor type and board.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "net_lots_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 17
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Sum of net_lots_1d over 60 ticker transaction dates within broker, investor type and board.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "net_lots_60d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 18
+    },
+    {
+      "data_type": "smallint",
+      "definition": "Index scope. Number of positive net-value dates in the complete 20-date window for this broker, investor type and board.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "buy_days_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 19
+    },
+    {
+      "data_type": "smallint",
+      "definition": "Index scope. Number of negative net-value dates in the complete 20-date window for this broker, investor type and board.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "sell_days_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 20
+    },
+    {
+      "data_type": "smallint",
+      "definition": "Index scope. Number of dates with nonzero gross activity in the complete 20-date window for this broker, investor type and board.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "active_days_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 21
+    },
+    {
+      "data_type": "smallint",
+      "definition": "Index scope. 20 after the ticker has 20 observed transaction dates across any investor type or board; otherwise NULL.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "stock_trading_days_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 22
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. buy_days_20d divided by 20; for example 12 positive dates produces 0.60.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "buy_day_ratio_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 23
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. buy_days_20d divided by active_days_20d; NULL when there are no active dates.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "buy_share_active_days_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 24
+    },
+    {
+      "data_type": "smallint",
+      "definition": "Index scope. Number of positive net-value dates in the complete 60-date window for this broker, investor type and board.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "buy_days_60d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 25
+    },
+    {
+      "data_type": "smallint",
+      "definition": "Index scope. Number of negative net-value dates in the complete 60-date window for this broker, investor type and board.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "sell_days_60d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 26
+    },
+    {
+      "data_type": "smallint",
+      "definition": "Index scope. Number of dates with nonzero gross activity in the complete 60-date window for this broker, investor type and board.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "active_days_60d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 27
+    },
+    {
+      "data_type": "smallint",
+      "definition": "Index scope. 60 after the ticker has 60 observed transaction dates across any investor type or board; otherwise NULL.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "stock_trading_days_60d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 28
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. buy_days_60d divided by 60.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "buy_day_ratio_60d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 29
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. buy_days_60d divided by active_days_60d; NULL when there are no active dates.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "buy_share_active_days_60d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 30
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Current 20-date net value minus the mean of the preceding 252 complete 20-date values, divided by their sample standard deviation; current date excluded.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "net_value_zscore_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 31
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Current 60-date net value minus the mean of the preceding 252 complete 60-date values, divided by their sample standard deviation; current date excluded.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "net_value_zscore_60d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 32
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Empirical midrank percentile of current 20-date net value against the preceding 252 complete values in the same broker, investor type and board partition.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "net_value_percentile_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 33
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Empirical midrank percentile of current 60-date net value against the preceding 252 complete values in the same broker, investor type and board partition.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "net_value_percentile_60d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 34
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Sum of positive daily net values in the complete 20-date window; zero when the complete window has no positive date.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "positive_net_value_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 35
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Largest positive daily net value in the complete 20-date window; NULL when no positive date exists.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "largest_buy_day_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 36
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. largest_buy_day_20d divided by positive_net_value_20d; for example 40 of 100 total positive flow produces 0.40.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "largest_buy_day_share_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 37
+    },
+    {
+      "data_type": "timestamp with time zone",
+      "definition": "Index scope. Database statement timestamp when this canonical v2 row was materialized; not source event time or data availability time.",
+      "table_name": "Feature_02_Broker_Rolling_INDEX",
+      "column_name": "calculated_at",
+      "is_nullable": "NO",
+      "column_default": "CURRENT_TIMESTAMP",
+      "ordinal_position": 38
+    },
+    {
+      "data_type": "date",
+      "definition": "Index scope. Source transaction date for this ticker and market board.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "date",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "text",
+      "definition": "Universe-classified index identifier; aggregate source symbols are not copied into the index ticker.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "ticker",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "text",
+      "definition": "Index scope. Exact source board: Regular, Nego or Tunai; aggregates never mix boards.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "market_board",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 3
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Sum of all broker buy_value_1d for the ticker, date and board.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "total_buy_value",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Sum of all broker sell_value_1d for the ticker, date and board.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "total_sell_value",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "smallint",
+      "definition": "Index scope. Brokers with nonzero gross buy/sell value or lots on the ticker, date and board.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "active_broker_count",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 6
+    },
+    {
+      "data_type": "smallint",
+      "definition": "Index scope. Brokers whose aggregated daily net value is positive.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "net_buy_broker_count",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 7
+    },
+    {
+      "data_type": "smallint",
+      "definition": "Index scope. Brokers whose aggregated daily net value is negative.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "net_sell_broker_count",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 8
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. net_buy_broker_count divided by active_broker_count; null when no broker is active.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "net_buy_broker_ratio",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 9
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Sum of daily net value for source Foreign Investor Type across all brokers. Investor Type identifies the source investor, not broker domicile.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "foreign_net_value",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 10
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Sum of daily net value for source Domestic Investor Type across all brokers. Investor Type identifies the source investor, not broker domicile.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "domestic_net_value",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 11
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Sum of daily broker net value where current broker_classification is Institutional-heavy.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "institutional_net_value",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 12
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Sum of daily broker net value where current broker_classification is Retail-heavy.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "retail_net_value",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 13
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Sum of daily broker net value where current broker_classification is Mixed.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "mixed_net_value",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 14
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Sum of daily broker net value where current broker_classification is Niche.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "niche_net_value",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 15
+    },
+    {
+      "data_type": "text",
+      "definition": "Index scope. Positive-net broker with the greatest daily net value; ties use broker code ascending.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "top_buyer",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 16
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Positive daily net value of top_buyer.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "top_buyer_net_value",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 17
+    },
+    {
+      "data_type": "text",
+      "definition": "Index scope. Negative-net broker with the lowest daily net value; ties use broker code ascending.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "top_seller",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 18
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Negative daily net value of top_seller.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "top_seller_net_value",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 19
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Sum of the three greatest positive broker net values, with fewer used when fewer exist.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "top3_buyer_net_value",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 20
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Sum of every positive broker daily net value.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "positive_net_value_total",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 21
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. top3_buyer_net_value divided by positive_net_value_total; null when the denominator is zero.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "top3_buyer_share",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 22
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Sum of squared absolute-net-flow weights across brokers; null when total absolute net value is zero.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "broker_concentration_hhi",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 23
+    },
+    {
+      "data_type": "timestamp with time zone",
+      "definition": "Index scope. Database statement timestamp when the row was calculated.",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX",
+      "column_name": "calculated_at",
+      "is_nullable": "NO",
+      "column_default": "CURRENT_TIMESTAMP",
+      "ordinal_position": 24
+    },
+    {
+      "data_type": "text",
+      "definition": "Universe index code; eligibility from IDX_Stock_Universe Security Type=index.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "ticker",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "date",
+      "definition": "Index scope. Trading observation date copied from source date.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "trade_date",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "text",
+      "definition": "Index scope. Verified daily timeframe copied exactly from source.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "timeframe",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 3
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Unweighted mean of 20 observed closes.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "sma_20",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Unweighted mean of 50 observed closes.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "sma_50",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Fast exponentially weighted close; alpha=2/13.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "ema_12",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 6
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Slow exponentially weighted close; alpha=2/27.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "ema_26",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 7
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Wilder gain/loss oscillator on 14 consecutive close changes, scaled 0\u2013100.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "rsi_14",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 8
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Difference of the stored fast and slow EMA price baselines.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "macd",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 9
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Nine-period EMA of valid MACD line observations.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "macd_signal",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 10
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Difference between MACD line and its nine-period signal.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "macd_histogram",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 11
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Wilder average of 14 true ranges using prior observed close.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "atr_14",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 12
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Upper 20-period Bollinger band, population standard deviation multiplier 2.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "bb_upper_20",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 13
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Middle 20-period Bollinger band, identical to SMA20.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "bb_middle_20",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 14
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Lower 20-period Bollinger band, population standard deviation multiplier 2.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "bb_lower_20",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 15
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib piercing pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_piercing",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 16
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib morning star pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_morning_star",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 17
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib morning doji star pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_morning_doji_star",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 18
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib engulfing pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_engulfing",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 19
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib 3 white soldiers pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_3_white_soldiers",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 20
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib hammer pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_hammer",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 21
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib inverted hammer pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_inverted_hammer",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 22
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib 3 inside pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_3_inside",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 23
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib 3 outside pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_3_outside",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 24
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib harami pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_harami",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 25
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib harami cross pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_harami_cross",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 26
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib dark cloud cover pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_dark_cloud_cover",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 27
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib evening star pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_evening_star",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 28
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib evening doji star pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_evening_doji_star",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 29
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib 3 black crows pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_3_black_crows",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 30
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib shooting star pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_shooting_star",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 31
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib hanging man pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_hanging_man",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 32
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib doji pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_doji",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 33
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib dragonfly doji pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_dragonfly_doji",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 34
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib gravestone doji pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_gravestone_doji",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 35
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib marubozu pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_marubozu",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 36
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib kicking pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_kicking",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 37
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib rise fall 3 methods pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_rise_fall_3_methods",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 38
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib mat hold pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_mat_hold",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 39
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Native TA-Lib hikkake pattern recognition code from historical OHLC.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "cdl_hikkake",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 40
+    },
+    {
+      "data_type": "text",
+      "definition": "Index scope. Version binds formulas, seeds and pinned TA-Lib versions.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "calculation_version",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 41
+    },
+    {
+      "data_type": "timestamp with time zone",
+      "definition": "Index scope. Timezone-aware execution time of the last changed output row.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "calculated_at",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 42
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Wilder average directional index measuring trend strength on a 0\u2013100 scale.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "adx_14",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 43
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Fifty-observation exponentially weighted close; alpha=2/51.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "ema_50",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 44
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Two-hundred-observation exponentially weighted close; alpha=2/201.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "ema_200",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 45
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Strict current-candle range containment within the previous valid observed candle.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "inside_bar",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 46
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Stochastic Momentum Index: double-smoothed close displacement from the midpoint of a rolling 14-bar high/low range.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "smi",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 47
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. High-search state after all current-bar Pine blocks execute.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "tracking_high",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 48
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Low-search state after all current-bar Pine blocks execute.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "tracking_low",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 49
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Provisional highest high in the current active SMI-above-40 tracking interval.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "temp_high",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 50
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Zero-based source observation index of the currently tracked temporary high.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "temp_high_bar",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 51
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Provisional lowest low in the current active SMI-below-minus-40 tracking interval.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "temp_low",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 52
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Zero-based source observation index of the currently tracked temporary low.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "temp_low_bar",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 53
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Latest swing-high price available after its SMI-downcross confirmation, carried forward.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "last_swing_high",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 54
+    },
+    {
+      "data_type": "integer",
+      "definition": "Index scope. Integer event flag for the supplied Pine close/last-swing-high crossover.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "break_swing_high",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 55
+    },
+    {
+      "data_type": "text",
+      "definition": "Index asset class, resolved from approved universe metadata.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "asset_type",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 56
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Daily closing price copied from the matching universe-classified price source row.",
+      "table_name": "Feature_04_Technical_Indicator_INDEX",
+      "column_name": "close",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 57
+    },
+    {
+      "data_type": "date",
+      "definition": "Index scope. Exchange trading date of the source row.",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX",
+      "column_name": "trade_date",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "text",
+      "definition": "Universe-classified index identifier; aggregate source symbols are not copied into the index ticker.",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX",
+      "column_name": "ticker",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "text",
+      "definition": "Index scope. Two-character broker code.",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX",
+      "column_name": "broker",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 3
+    },
+    {
+      "data_type": "text",
+      "definition": "Index scope. Source board: Regular, Nego or Tunai.",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX",
+      "column_name": "market_board",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "text",
+      "definition": "Index scope. Source investor identity: Foreign or Domestic, not broker domicile.",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX",
+      "column_name": "investor_type",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Gross buy value.",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX",
+      "column_name": "buy_value",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 6
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Gross sell value.",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX",
+      "column_name": "sell_value",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 7
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Net buy value; positive is net buying, negative net selling.",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX",
+      "column_name": "net_value",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 8
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Lots bought (1 lot = 100 shares; odd lots as fractions).",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX",
+      "column_name": "buy_lots",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 9
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Lots sold (1 lot = 100 shares; odd lots as fractions).",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX",
+      "column_name": "sell_lots",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 10
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Net lots; positive is net buying.",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX",
+      "column_name": "net_lots",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 11
+    },
+    {
+      "data_type": "bigint",
+      "definition": "Index scope. Number of buy transactions.",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX",
+      "column_name": "buy_freq",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 12
+    },
+    {
+      "data_type": "bigint",
+      "definition": "Index scope. Number of sell transactions.",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX",
+      "column_name": "sell_freq",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 13
+    },
+    {
+      "data_type": "boolean",
+      "definition": "True when any contributing source symbol has a buy/sell value imbalance; opposite symbol gaps cannot cancel this flag.",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX",
+      "column_name": "source_balance_gap",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 14
+    },
+    {
+      "data_type": "timestamp with time zone",
+      "definition": "Index scope. Statement timestamp when the row was written.",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX",
+      "column_name": "calculated_at",
+      "is_nullable": "NO",
+      "column_default": "statement_timestamp()",
+      "ordinal_position": 15
+    },
+    {
+      "data_type": "date",
+      "definition": "Index scope. Trading date on which this board of the ticker traded.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "trade_date",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "text",
+      "definition": "Universe-classified index identifier; aggregate source symbols are not copied into the index ticker.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "ticker",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "text",
+      "definition": "Index scope. Source board: Regular, Nego or Tunai; no ALL board (user decision).",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "market_board",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 3
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Foreign buy value for the ticker, date and board.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_buy_1d",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Foreign sell value for the ticker, date and board.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_sell_1d",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Foreign net value; positive is net buying for the ticker, date and board.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_1d",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 6
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Domestic buy value for the ticker, date and board.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_buy_1d",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 7
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Domestic sell value for the ticker, date and board.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_sell_1d",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 8
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Domestic net value; positive is net buying for the ticker, date and board.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_net_1d",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 9
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Running total of aggregate foreign net value from the first available broker-source session, including historical symbols absent on the output date.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_cumulative_net",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 10
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Running total of aggregate domestic net value from the first available broker-source session, including historical symbols absent on the output date.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_cumulative_net",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 11
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Foreign net value over the last 5 sessions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_5d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 12
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Foreign net value over the last 10 sessions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_10d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 13
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Foreign net value over the last 20 sessions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 14
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Foreign net value over the last 40 sessions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_40d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 15
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Foreign net value over the last 60 sessions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_60d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 16
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Domestic net value over the last 5 sessions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_net_5d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 17
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Domestic net value over the last 10 sessions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_net_10d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 18
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Domestic net value over the last 20 sessions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_net_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 19
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Domestic net value over the last 60 sessions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_net_60d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 20
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Foreign net value as a share of total traded value (buy side).",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_turnover_ratio_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 21
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Foreign net value over 5 sessions as a share of 5-session traded value.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_turnover_ratio_5d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 22
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Foreign net value over 20 sessions as a share of 20-session traded value.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_turnover_ratio_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 23
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Foreign buying as a share of traded value.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_buy_share_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 24
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Foreign selling as a share of traded value.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_sell_share_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 25
+    },
+    {
+      "data_type": "smallint",
+      "definition": "Index scope. Sessions with foreign net buying in the last 5 sessions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_buy_days_5d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 26
+    },
+    {
+      "data_type": "smallint",
+      "definition": "Index scope. Sessions with foreign net buying in the last 10 sessions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_buy_days_10d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 27
+    },
+    {
+      "data_type": "smallint",
+      "definition": "Index scope. Sessions with foreign net buying in the last 20 sessions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_buy_days_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 28
+    },
+    {
+      "data_type": "smallint",
+      "definition": "Index scope. Sessions with foreign net buying in the last 40 sessions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_buy_days_40d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 29
+    },
+    {
+      "data_type": "smallint",
+      "definition": "Index scope. Sessions with foreign net selling in the last 5 sessions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_sell_days_5d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 30
+    },
+    {
+      "data_type": "smallint",
+      "definition": "Index scope. Sessions with foreign net selling in the last 10 sessions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_sell_days_10d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 31
+    },
+    {
+      "data_type": "smallint",
+      "definition": "Index scope. Sessions with foreign net selling in the last 20 sessions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_sell_days_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 32
+    },
+    {
+      "data_type": "smallint",
+      "definition": "Index scope. Sessions with foreign net selling in the last 40 sessions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_sell_days_40d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 33
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Z-score of today's 5-session foreign net against its previous 252 values.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_zscore_5d_base252d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 34
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Z-score of today's 10-session foreign net against its previous 252 values.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_zscore_10d_base252d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 35
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Z-score of today's 20-session foreign net against its previous 252 values.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_zscore_20d_base252d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 36
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Z-score of today's 40-session foreign net against its previous 252 values.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_zscore_40d_base252d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 37
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Z-score of today's 60-session foreign net against its previous 252 values.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_zscore_60d_base252d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 38
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Midrank percentile of today's 5-session foreign net among its previous 252 values.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_percentile_5d_base252d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 39
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Midrank percentile of today's 10-session foreign net among its previous 252 values.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_percentile_10d_base252d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 40
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Midrank percentile of today's 20-session foreign net among its previous 252 values.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_percentile_20d_base252d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 41
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Midrank percentile of today's 40-session foreign net among its previous 252 values.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_percentile_40d_base252d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 42
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Midrank percentile of today's 60-session foreign net among its previous 252 values.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_percentile_60d_base252d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 43
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Z-score of today's 5-session foreign net against its previous 60 values.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_zscore_5d_base60d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 44
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Z-score of today's 10-session foreign net against its previous 60 values.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_zscore_10d_base60d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 45
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Z-score of today's 20-session foreign net against its previous 60 values.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_zscore_20d_base60d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 46
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Midrank percentile of today's 5-session foreign net among its previous 60 values.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_percentile_5d_base60d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 47
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Midrank percentile of today's 10-session foreign net among its previous 60 values.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_percentile_10d_base60d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 48
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Midrank percentile of today's 20-session foreign net among its previous 60 values.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_net_percentile_20d_base60d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 49
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Foreign net of the last 20 sessions minus the 20 sessions before them.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_flow_vs_prev_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 50
+    },
+    {
+      "data_type": "numeric",
+      "definition": "Index scope. Foreign net of the last 40 sessions minus the 40 sessions before them.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_flow_vs_prev_40d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 51
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Direction consistency of daily foreign net ratios over 20 sessions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_strength_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 52
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Direction consistency of daily foreign net ratios over 50 sessions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_strength_50d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 53
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Change of foreign_strength_20d over 5 sessions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_strength_momentum_5d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 54
+    },
+    {
+      "data_type": "bigint",
+      "definition": "Index scope. Foreign buy transactions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_buy_freq_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 55
+    },
+    {
+      "data_type": "bigint",
+      "definition": "Index scope. Foreign sell transactions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_sell_freq_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 56
+    },
+    {
+      "data_type": "bigint",
+      "definition": "Index scope. Domestic buy transactions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_buy_freq_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 57
+    },
+    {
+      "data_type": "bigint",
+      "definition": "Index scope. Domestic sell transactions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_sell_freq_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 58
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Foreign buy versus sell transaction imbalance.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_freq_imbalance_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 59
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Foreign transaction imbalance over 20 sessions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_freq_imbalance_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 60
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Foreign share of buy transactions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_buy_freq_share_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 61
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Foreign share of sell transactions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_sell_freq_share_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 62
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Average foreign buy value per transaction (ticket size).",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_avg_buy_value_per_freq_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 63
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Average foreign sell value per transaction.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_avg_sell_value_per_freq_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 64
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Foreign average buy ticket divided by average sell ticket.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_buy_sell_ticket_ratio_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 65
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Average foreign lots per buy transaction.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_avg_buy_lots_per_freq_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 66
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Average foreign lots per sell transaction.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_avg_sell_lots_per_freq_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 67
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Domestic buy versus sell transaction imbalance.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_freq_imbalance_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 68
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Domestic transaction imbalance over 20 sessions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_freq_imbalance_20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 69
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Domestic share of buy transactions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_buy_freq_share_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 70
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Domestic share of sell transactions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_sell_freq_share_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 71
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Average domestic buy value per transaction (ticket size).",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_avg_buy_value_per_freq_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 72
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Average domestic sell value per transaction.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_avg_sell_value_per_freq_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 73
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Domestic average buy ticket divided by average sell ticket.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_buy_sell_ticket_ratio_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 74
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Average domestic lots per buy transaction.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_avg_buy_lots_per_freq_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 75
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Average domestic lots per sell transaction.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_avg_sell_lots_per_freq_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 76
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Change of the domestic share of buy transactions: last 5 sessions versus the 20 before.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_buy_freq_share_change_5d_vs_prev20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 77
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Change of the foreign share of buy transactions: last 5 sessions versus the 20 before.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_buy_freq_share_change_5d_vs_prev20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 78
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Percent change of the domestic average buy value per transaction: last 5 sessions versus the 20 before.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_buy_value_per_freq_change_5d_vs_prev20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 79
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Percent change of the foreign average buy value per transaction: last 5 sessions versus the 20 before.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_buy_value_per_freq_change_5d_vs_prev20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 80
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Change of the domestic share of sell transactions: last 5 sessions versus the 20 before.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_sell_freq_share_change_5d_vs_prev20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 81
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Change of the foreign share of sell transactions: last 5 sessions versus the 20 before.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_sell_freq_share_change_5d_vs_prev20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 82
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Percent change of the domestic average sell value per transaction: last 5 sessions versus the 20 before.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "domestic_sell_value_per_freq_change_5d_vs_prev20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 83
+    },
+    {
+      "data_type": "double precision",
+      "definition": "Index scope. Percent change of the foreign average sell value per transaction: last 5 sessions versus the 20 before.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_sell_value_per_freq_change_5d_vs_prev20d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 84
+    },
+    {
+      "data_type": "boolean",
+      "definition": "Index scope. Foreign net value and foreign net transaction count point in different directions.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "foreign_value_freq_sign_mismatch_1d",
+      "is_nullable": "YES",
+      "column_default": null,
+      "ordinal_position": 85
+    },
+    {
+      "data_type": "boolean",
+      "definition": "Index scope. Internal: Feature 05 marks this date, ticker and board as a source gap (ERRORS M157).",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "source_balance_gap",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 86
+    },
+    {
+      "data_type": "timestamp with time zone",
+      "definition": "Index scope. Statement timestamp when the row was written.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "calculated_at",
+      "is_nullable": "NO",
+      "column_default": "statement_timestamp()",
+      "ordinal_position": 87
+    },
+    {
+      "data_type": "bigint",
+      "definition": "Count of contributing raw broker source rows.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "frequency_source_rows",
+      "is_nullable": "NO",
+      "column_default": "0",
+      "ordinal_position": 88
+    },
+    {
+      "data_type": "bigint",
+      "definition": "Contributing source rows with known buy frequency; not the number of buy trades.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "buy_freq_known_rows",
+      "is_nullable": "NO",
+      "column_default": "0",
+      "ordinal_position": 89
+    },
+    {
+      "data_type": "bigint",
+      "definition": "Contributing source rows with known sell frequency; not the number of sell trades.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "sell_freq_known_rows",
+      "is_nullable": "NO",
+      "column_default": "0",
+      "ordinal_position": 90
+    },
+    {
+      "data_type": "bigint",
+      "definition": "Contributing source rows whose buy frequency is unknown.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "buy_freq_missing_rows",
+      "is_nullable": "NO",
+      "column_default": "0",
+      "ordinal_position": 91
+    },
+    {
+      "data_type": "bigint",
+      "definition": "Contributing source rows whose sell frequency is unknown.",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX",
+      "column_name": "sell_freq_missing_rows",
+      "is_nullable": "NO",
+      "column_default": "0",
+      "ordinal_position": 92
+    },
+    {
+      "data_type": "text",
+      "definition": "Exact schema of the described physical Feature column.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "source_schema",
+      "is_nullable": "NO",
+      "column_default": "'public'::text",
+      "ordinal_position": 1
+    },
+    {
+      "data_type": "text",
+      "definition": "Exact physical Feature source table; stock and INDEX definitions stay separate.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "source_table",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 2
+    },
+    {
+      "data_type": "text",
+      "definition": "Exact physical source column name.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "column_name",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 3
+    },
+    {
+      "data_type": "text",
+      "definition": "Language of the presentation text, initially id-ID.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "language_code",
+      "is_nullable": "NO",
+      "column_default": "'id-ID'::text",
+      "ordinal_position": 4
+    },
+    {
+      "data_type": "smallint",
+      "definition": "Feature identifier 1,2,3,5 or6; Feature04 excluded.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "feature_number",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 5
+    },
+    {
+      "data_type": "text",
+      "definition": "stock (legacy non-INDEX tables) or index, derived from the exact source table identity; not an instrument-membership filter.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "scope",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 6
+    },
+    {
+      "data_type": "text",
+      "definition": "Reviewed readable English field label; acronyms and horizons preserved.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "column_name_proper",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 7
+    },
+    {
+      "data_type": "text",
+      "definition": "Display formula or identity rule, never executed as SQL.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "formula",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 8
+    },
+    {
+      "data_type": "text",
+      "definition": "Human-readable unit, distinguishing fraction, percent, percentage points and index points.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "unit",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 9
+    },
+    {
+      "data_type": "text",
+      "definition": "Indonesian explanation of what the source field measures.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "definition",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 10
+    },
+    {
+      "data_type": "text",
+      "definition": "Indonesian analytical interpretation without invented thresholds or prediction.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "what_it_tells_us",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 11
+    },
+    {
+      "data_type": "text",
+      "definition": "Business identity of one source Feature row.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "grain",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 12
+    },
+    {
+      "data_type": "text",
+      "definition": "Exact conditions for a legitimate NULL source value.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "null_rule",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 13
+    },
+    {
+      "data_type": "text",
+      "definition": "Source calculation window in actual observed sessions.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "lookback_window",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 14
+    },
+    {
+      "data_type": "text",
+      "definition": "Minimum valid source history before the metric is available.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "minimum_history",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 15
+    },
+    {
+      "data_type": "text",
+      "definition": "Scope, source-quality and interpretation limitations.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "caveat",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 16
+    },
+    {
+      "data_type": "text",
+      "definition": "dimension, metric, quality or metadata.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "column_kind",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 17
+    },
+    {
+      "data_type": "integer",
+      "definition": "Physical source column ordinal for consistent presentation.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "display_order",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 18
+    },
+    {
+      "data_type": "text",
+      "definition": "Active source Feature_Catalog version at review.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "source_feature_version",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 19
+    },
+    {
+      "data_type": "text",
+      "definition": "SHA256 of relevant source semantic fields; detects silent metadata drift.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "source_semantic_hash",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 20
+    },
+    {
+      "data_type": "text",
+      "definition": "DRAFT or VERIFIED after code-backed review and semantic-hash matching.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "review_status",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 21
+    },
+    {
+      "data_type": "ARRAY",
+      "definition": "Nonempty repository evidence paths supporting the reviewed definition.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "validation_evidence",
+      "is_nullable": "NO",
+      "column_default": null,
+      "ordinal_position": 22
+    },
+    {
+      "data_type": "timestamp with time zone",
+      "definition": "Initial dictionary entry timestamp.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "created_at",
+      "is_nullable": "NO",
+      "column_default": "statement_timestamp()",
+      "ordinal_position": 23
+    },
+    {
+      "data_type": "timestamp with time zone",
+      "definition": "Latest actual entry change timestamp; idempotent sync leaves it unchanged.",
+      "table_name": "Feature_Vocabulary",
+      "column_name": "updated_at",
+      "is_nullable": "NO",
+      "column_default": "statement_timestamp()",
+      "ordinal_position": 24
+    }
+  ],
+  "indexes": [
+    {
+      "name": "Feature_01_Stock_Daily_INDEX_pkey",
+      "definition": "CREATE UNIQUE INDEX \"Feature_01_Stock_Daily_INDEX_pkey\" ON public.\"Feature_01_Stock_Daily_INDEX\" USING btree (ticker, date)",
+      "table_name": "Feature_01_Stock_Daily_INDEX"
+    },
+    {
+      "name": "Feature_01_Stock_Daily_INDEX_date_idx",
+      "definition": "CREATE INDEX \"Feature_01_Stock_Daily_INDEX_date_idx\" ON public.\"Feature_01_Stock_Daily_INDEX\" USING btree (date)",
+      "table_name": "Feature_01_Stock_Daily_INDEX"
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_INDEX_pkey",
+      "definition": "CREATE UNIQUE INDEX \"Feature_02_Broker_Rolling_INDEX_pkey\" ON public.\"Feature_02_Broker_Rolling_INDEX\" USING btree (ticker, market_board, broker, investor_type, date)",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_INDEX_date_market_board_ticker_idx",
+      "definition": "CREATE INDEX \"Feature_02_Broker_Rolling_INDEX_date_market_board_ticker_idx\" ON public.\"Feature_02_Broker_Rolling_INDEX\" USING btree (date, market_board, ticker)",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_INDEX_pkey",
+      "definition": "CREATE UNIQUE INDEX \"Feature_03_Stock_Broker_Daily_INDEX_pkey\" ON public.\"Feature_03_Stock_Broker_Daily_INDEX\" USING btree (ticker, market_board, date)",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_INDE_date_market_board_ticker_idx",
+      "definition": "CREATE INDEX \"Feature_03_Stock_Broker_Daily_INDE_date_market_board_ticker_idx\" ON public.\"Feature_03_Stock_Broker_Daily_INDEX\" USING btree (date, market_board, ticker)",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_INDEX_pkey",
+      "definition": "CREATE UNIQUE INDEX \"Feature_04_Technical_Indicator_INDEX_pkey\" ON public.\"Feature_04_Technical_Indicator_INDEX\" USING btree (ticker, trade_date, timeframe, asset_type)",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_INDEX_trade_date_idx",
+      "definition": "CREATE INDEX \"Feature_04_Technical_Indicator_INDEX_trade_date_idx\" ON public.\"Feature_04_Technical_Indicator_INDEX\" USING btree (trade_date)",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_06_Foreign_Domestic_INDEX_pkey",
+      "definition": "CREATE UNIQUE INDEX \"Feature_06_Foreign_Domestic_INDEX_pkey\" ON public.\"Feature_06_Foreign_Domestic_INDEX\" USING btree (ticker, market_board, trade_date)",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "Feature_06_Foreign_Domestic_INDEX_trade_date_market_board_idx",
+      "definition": "CREATE INDEX \"Feature_06_Foreign_Domestic_INDEX_trade_date_market_board_idx\" ON public.\"Feature_06_Foreign_Domestic_INDEX\" USING btree (trade_date, market_board)",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX_pkey",
+      "definition": "CREATE UNIQUE INDEX \"Feature_05_Foreign_Domestic_Broker_Detail_INDEX_pkey\" ON public.\"Feature_05_Foreign_Domestic_Broker_Detail_INDEX\" USING btree (ticker, trade_date, broker, investor_type, market_board)",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX_trade_date_idx",
+      "definition": "CREATE INDEX \"Feature_05_Foreign_Domestic_Broker_Detail_INDEX_trade_date_idx\" ON public.\"Feature_05_Foreign_Domestic_Broker_Detail_INDEX\" USING btree (trade_date)",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "Feature_Vocabulary_pkey",
+      "definition": "CREATE UNIQUE INDEX \"Feature_Vocabulary_pkey\" ON public.\"Feature_Vocabulary\" USING btree (source_schema, source_table, column_name, language_code)",
+      "table_name": "Feature_Vocabulary"
+    }
+  ],
+  "triggers": [
+    {
+      "name": "index_feature_identity_guard",
+      "definition": "CREATE TRIGGER index_feature_identity_guard BEFORE INSERT OR UPDATE OF ticker ON public.\"Feature_01_Stock_Daily_INDEX\" FOR EACH ROW EXECUTE FUNCTION validate_index_feature_identity()",
+      "table_name": "Feature_01_Stock_Daily_INDEX"
+    },
+    {
+      "name": "index_feature_identity_guard",
+      "definition": "CREATE TRIGGER index_feature_identity_guard BEFORE INSERT OR UPDATE OF ticker ON public.\"Feature_02_Broker_Rolling_INDEX\" FOR EACH ROW EXECUTE FUNCTION validate_index_feature_identity()",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "index_feature_identity_guard",
+      "definition": "CREATE TRIGGER index_feature_identity_guard BEFORE INSERT OR UPDATE OF ticker ON public.\"Feature_03_Stock_Broker_Daily_INDEX\" FOR EACH ROW EXECUTE FUNCTION validate_index_feature_identity()",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "index_feature_identity_guard",
+      "definition": "CREATE TRIGGER index_feature_identity_guard BEFORE INSERT OR UPDATE OF ticker ON public.\"Feature_04_Technical_Indicator_INDEX\" FOR EACH ROW EXECUTE FUNCTION validate_index_feature_identity()",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "index_feature_identity_guard",
+      "definition": "CREATE TRIGGER index_feature_identity_guard BEFORE INSERT OR UPDATE OF ticker ON public.\"Feature_06_Foreign_Domestic_INDEX\" FOR EACH ROW EXECUTE FUNCTION validate_index_feature_identity()",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "index_feature_identity_guard",
+      "definition": "CREATE TRIGGER index_feature_identity_guard BEFORE INSERT OR UPDATE OF ticker ON public.\"Feature_05_Foreign_Domestic_Broker_Detail_INDEX\" FOR EACH ROW EXECUTE FUNCTION validate_index_feature_identity()",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    }
+  ],
+  "checked_at": "2026-10-24T19:32:23.621798+00:00",
+  "constraints": [
+    {
+      "name": "Feature_01_Stock_Daily_INDEX_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (ticker, date)",
+      "table_name": "Feature_01_Stock_Daily_INDEX"
+    },
+    {
+      "name": "Feature_01_Stock_Daily_close_nonnegative",
+      "type": "c",
+      "definition": "CHECK ((close >= (0)::numeric))",
+      "table_name": "Feature_01_Stock_Daily_INDEX"
+    },
+    {
+      "name": "Feature_01_Stock_Daily_close_not_null",
+      "type": "n",
+      "definition": "NOT NULL close",
+      "table_name": "Feature_01_Stock_Daily_INDEX"
+    },
+    {
+      "name": "Feature_01_Stock_Daily_date_not_null",
+      "type": "n",
+      "definition": "NOT NULL date",
+      "table_name": "Feature_01_Stock_Daily_INDEX"
+    },
+    {
+      "name": "Feature_01_Stock_Daily_industry_not_null",
+      "type": "n",
+      "definition": "NOT NULL industry",
+      "table_name": "Feature_01_Stock_Daily_INDEX"
+    },
+    {
+      "name": "Feature_01_Stock_Daily_sector_not_null",
+      "type": "n",
+      "definition": "NOT NULL sector",
+      "table_name": "Feature_01_Stock_Daily_INDEX"
+    },
+    {
+      "name": "Feature_01_Stock_Daily_ticker_not_blank",
+      "type": "c",
+      "definition": "CHECK ((btrim(ticker) <> ''::text))",
+      "table_name": "Feature_01_Stock_Daily_INDEX"
+    },
+    {
+      "name": "Feature_01_Stock_Daily_ticker_not_null",
+      "type": "n",
+      "definition": "NOT NULL ticker",
+      "table_name": "Feature_01_Stock_Daily_INDEX"
+    },
+    {
+      "name": "Feature_01_Stock_Daily_volume_nonnegative",
+      "type": "c",
+      "definition": "CHECK ((volume >= (0)::numeric))",
+      "table_name": "Feature_01_Stock_Daily_INDEX"
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_INDEX_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (ticker, market_board, broker, investor_type, date)",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_v2_board_check",
+      "type": "c",
+      "definition": "CHECK ((market_board = ANY (ARRAY['Regular'::text, 'Nego'::text, 'Tunai'::text])))",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_v2_broker_not_null",
+      "type": "n",
+      "definition": "NOT NULL broker",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_v2_buy_lots_1d_not_null",
+      "type": "n",
+      "definition": "NOT NULL buy_lots_1d",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_v2_buy_value_1d_not_null",
+      "type": "n",
+      "definition": "NOT NULL buy_value_1d",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_v2_calculated_at_not_null",
+      "type": "n",
+      "definition": "NOT NULL calculated_at",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_v2_date_not_null",
+      "type": "n",
+      "definition": "NOT NULL date",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_v2_gross_check",
+      "type": "c",
+      "definition": "CHECK (((buy_value_1d >= (0)::numeric) AND (sell_value_1d >= (0)::numeric) AND (buy_lots_1d >= (0)::numeric) AND (sell_lots_1d >= (0)::numeric)))",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_v2_identity_check",
+      "type": "c",
+      "definition": "CHECK (((btrim(ticker) <> ''::text) AND (btrim(broker) <> ''::text)))",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_v2_investor_type_check",
+      "type": "c",
+      "definition": "CHECK ((investor_type = ANY (ARRAY['Domestic'::text, 'Foreign'::text])))",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_v2_investor_type_not_null",
+      "type": "n",
+      "definition": "NOT NULL investor_type",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_v2_market_board_not_null",
+      "type": "n",
+      "definition": "NOT NULL market_board",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_v2_net_check",
+      "type": "c",
+      "definition": "CHECK (((net_value_1d = (buy_value_1d - sell_value_1d)) AND (net_lots_1d = (buy_lots_1d - sell_lots_1d))))",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_v2_net_lots_1d_not_null",
+      "type": "n",
+      "definition": "NOT NULL net_lots_1d",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_v2_net_value_1d_not_null",
+      "type": "n",
+      "definition": "NOT NULL net_value_1d",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_v2_percentile_check",
+      "type": "c",
+      "definition": "CHECK ((((net_value_percentile_20d IS NULL) OR ((net_value_percentile_20d >= (0)::double precision) AND (net_value_percentile_20d <= (100)::double precision))) AND ((net_value_percentile_60d IS NULL) OR ((net_value_percentile_60d >= (0)::double precision) AND (net_value_percentile_60d <= (100)::double precision)))))",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_v2_ratio_check",
+      "type": "c",
+      "definition": "CHECK ((((buy_day_ratio_20d IS NULL) OR ((buy_day_ratio_20d >= (0)::double precision) AND (buy_day_ratio_20d <= (1)::double precision))) AND ((buy_share_active_days_20d IS NULL) OR ((buy_share_active_days_20d >= (0)::double precision) AND (buy_share_active_days_20d <= (1)::double precision))) AND ((buy_day_ratio_60d IS NULL) OR ((buy_day_ratio_60d >= (0)::double precision) AND (buy_day_ratio_60d <= (1)::double precision))) AND ((buy_share_active_days_60d IS NULL) OR ((buy_share_active_days_60d >= (0)::double precision) AND (buy_share_active_days_60d <= (1)::double precision))) AND ((largest_buy_day_share_20d IS NULL) OR ((largest_buy_day_share_20d >= (0)::double precision) AND (largest_buy_day_share_20d <= (1)::double precision)))))",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_v2_sell_lots_1d_not_null",
+      "type": "n",
+      "definition": "NOT NULL sell_lots_1d",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_v2_sell_value_1d_not_null",
+      "type": "n",
+      "definition": "NOT NULL sell_value_1d",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "Feature_02_Broker_Rolling_v2_ticker_not_null",
+      "type": "n",
+      "definition": "NOT NULL ticker",
+      "table_name": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_INDEX_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (ticker, market_board, date)",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_active_broker_count_not_null",
+      "type": "n",
+      "definition": "NOT NULL active_broker_count",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_board_check",
+      "type": "c",
+      "definition": "CHECK ((market_board = ANY (ARRAY['Regular'::text, 'Nego'::text, 'Tunai'::text])))",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_calculated_at_not_null",
+      "type": "n",
+      "definition": "NOT NULL calculated_at",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_count_check",
+      "type": "c",
+      "definition": "CHECK (((active_broker_count >= 0) AND (net_buy_broker_count >= 0) AND (net_sell_broker_count >= 0) AND ((net_buy_broker_count + net_sell_broker_count) <= active_broker_count)))",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_date_not_null",
+      "type": "n",
+      "definition": "NOT NULL date",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_domestic_net_value_not_null",
+      "type": "n",
+      "definition": "NOT NULL domestic_net_value",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_dominant_check",
+      "type": "c",
+      "definition": "CHECK ((((top_buyer IS NULL) = (top_buyer_net_value IS NULL)) AND ((top_seller IS NULL) = (top_seller_net_value IS NULL)) AND ((top_buyer_net_value IS NULL) OR (top_buyer_net_value > (0)::numeric)) AND ((top_seller_net_value IS NULL) OR (top_seller_net_value < (0)::numeric)) AND (top3_buyer_net_value >= (0)::numeric) AND (positive_net_value_total >= top3_buyer_net_value)))",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_foreign_net_value_not_null",
+      "type": "n",
+      "definition": "NOT NULL foreign_net_value",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_gross_check",
+      "type": "c",
+      "definition": "CHECK (((total_buy_value >= (0)::numeric) AND (total_sell_value >= (0)::numeric)))",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_identity_check",
+      "type": "c",
+      "definition": "CHECK ((btrim(ticker) <> ''::text))",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_institutional_net_value_not_null",
+      "type": "n",
+      "definition": "NOT NULL institutional_net_value",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_market_board_not_null",
+      "type": "n",
+      "definition": "NOT NULL market_board",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_mixed_net_value_not_null",
+      "type": "n",
+      "definition": "NOT NULL mixed_net_value",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_net_buy_broker_count_not_null",
+      "type": "n",
+      "definition": "NOT NULL net_buy_broker_count",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_net_sell_broker_count_not_null",
+      "type": "n",
+      "definition": "NOT NULL net_sell_broker_count",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_niche_net_value_not_null",
+      "type": "n",
+      "definition": "NOT NULL niche_net_value",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_positive_net_value_total_not_null",
+      "type": "n",
+      "definition": "NOT NULL positive_net_value_total",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_ratio_check",
+      "type": "c",
+      "definition": "CHECK ((((net_buy_broker_ratio IS NULL) OR ((net_buy_broker_ratio >= (0)::double precision) AND (net_buy_broker_ratio <= (1)::double precision))) AND ((top3_buyer_share IS NULL) OR ((top3_buyer_share >= (0)::double precision) AND (top3_buyer_share <= (1)::double precision))) AND ((broker_concentration_hhi IS NULL) OR ((broker_concentration_hhi > (0)::double precision) AND (broker_concentration_hhi <= (1)::double precision)))))",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_retail_net_value_not_null",
+      "type": "n",
+      "definition": "NOT NULL retail_net_value",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_ticker_not_null",
+      "type": "n",
+      "definition": "NOT NULL ticker",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_top3_buyer_net_value_not_null",
+      "type": "n",
+      "definition": "NOT NULL top3_buyer_net_value",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_total_buy_value_not_null",
+      "type": "n",
+      "definition": "NOT NULL total_buy_value",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_03_Stock_Broker_Daily_total_sell_value_not_null",
+      "type": "n",
+      "definition": "NOT NULL total_sell_value",
+      "table_name": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_INDEX_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (ticker, trade_date, timeframe, asset_type)",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_asset_type_not_null",
+      "type": "n",
+      "definition": "NOT NULL asset_type",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_atr_14_check",
+      "type": "c",
+      "definition": "CHECK (((atr_14 IS NULL) OR ((atr_14 > '-Infinity'::double precision) AND (atr_14 < 'Infinity'::double precision))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_atr_14_check1",
+      "type": "c",
+      "definition": "CHECK (((atr_14 IS NULL) OR (atr_14 >= (0)::double precision)))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_bb_lower_20_check",
+      "type": "c",
+      "definition": "CHECK (((bb_lower_20 IS NULL) OR ((bb_lower_20 > '-Infinity'::double precision) AND (bb_lower_20 < 'Infinity'::double precision))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_bb_middle_20_check",
+      "type": "c",
+      "definition": "CHECK (((bb_middle_20 IS NULL) OR ((bb_middle_20 > '-Infinity'::double precision) AND (bb_middle_20 < 'Infinity'::double precision))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_bb_upper_20_check",
+      "type": "c",
+      "definition": "CHECK (((bb_upper_20 IS NULL) OR ((bb_upper_20 > '-Infinity'::double precision) AND (bb_upper_20 < 'Infinity'::double precision))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_calculated_at_not_null",
+      "type": "n",
+      "definition": "NOT NULL calculated_at",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_calculation_version_check",
+      "type": "c",
+      "definition": "CHECK ((btrim(calculation_version) <> ''::text))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_calculation_version_not_null",
+      "type": "n",
+      "definition": "NOT NULL calculation_version",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_close_finite_check",
+      "type": "c",
+      "definition": "CHECK (((close > '-Infinity'::double precision) AND (close < 'Infinity'::double precision)))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_close_nonnegative_check",
+      "type": "c",
+      "definition": "CHECK ((close >= (0)::double precision))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_close_not_null",
+      "type": "n",
+      "definition": "NOT NULL close",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_ema_12_check",
+      "type": "c",
+      "definition": "CHECK (((ema_12 IS NULL) OR ((ema_12 > '-Infinity'::double precision) AND (ema_12 < 'Infinity'::double precision))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_ema_26_check",
+      "type": "c",
+      "definition": "CHECK (((ema_26 IS NULL) OR ((ema_26 > '-Infinity'::double precision) AND (ema_26 < 'Infinity'::double precision))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_macd_check",
+      "type": "c",
+      "definition": "CHECK (((macd IS NULL) OR ((macd > '-Infinity'::double precision) AND (macd < 'Infinity'::double precision))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_macd_histogram_check",
+      "type": "c",
+      "definition": "CHECK (((macd_histogram IS NULL) OR ((macd_histogram > '-Infinity'::double precision) AND (macd_histogram < 'Infinity'::double precision))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_macd_signal_check",
+      "type": "c",
+      "definition": "CHECK (((macd_signal IS NULL) OR ((macd_signal > '-Infinity'::double precision) AND (macd_signal < 'Infinity'::double precision))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_rsi_14_check",
+      "type": "c",
+      "definition": "CHECK (((rsi_14 IS NULL) OR ((rsi_14 > '-Infinity'::double precision) AND (rsi_14 < 'Infinity'::double precision))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_rsi_14_check1",
+      "type": "c",
+      "definition": "CHECK (((rsi_14 IS NULL) OR ((rsi_14 >= (0)::double precision) AND (rsi_14 <= (100)::double precision))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_sma_20_check",
+      "type": "c",
+      "definition": "CHECK (((sma_20 IS NULL) OR ((sma_20 > '-Infinity'::double precision) AND (sma_20 < 'Infinity'::double precision))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_sma_50_check",
+      "type": "c",
+      "definition": "CHECK (((sma_50 IS NULL) OR ((sma_50 > '-Infinity'::double precision) AND (sma_50 < 'Infinity'::double precision))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_ticker_check",
+      "type": "c",
+      "definition": "CHECK (((ticker = upper(btrim(ticker))) AND (ticker <> ''::text)))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_ticker_not_null",
+      "type": "n",
+      "definition": "NOT NULL ticker",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_timeframe_check",
+      "type": "c",
+      "definition": "CHECK ((timeframe = 'Daily'::text))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_timeframe_not_null",
+      "type": "n",
+      "definition": "NOT NULL timeframe",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_04_Technical_Indicator_trade_date_not_null",
+      "type": "n",
+      "definition": "NOT NULL trade_date",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "feature04_adx_14_valid",
+      "type": "c",
+      "definition": "CHECK (((adx_14 IS NULL) OR ((adx_14 >= (0)::double precision) AND (adx_14 <= (100)::double precision))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "feature04_break_swing_high_valid",
+      "type": "c",
+      "definition": "CHECK (((break_swing_high IS NULL) OR (break_swing_high = ANY (ARRAY[0, 1]))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "feature04_ema_200_finite",
+      "type": "c",
+      "definition": "CHECK (((ema_200 IS NULL) OR ((ema_200 > '-Infinity'::double precision) AND (ema_200 < 'Infinity'::double precision))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "feature04_ema_50_finite",
+      "type": "c",
+      "definition": "CHECK (((ema_50 IS NULL) OR ((ema_50 > '-Infinity'::double precision) AND (ema_50 < 'Infinity'::double precision))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "feature04_inside_bar_binary",
+      "type": "c",
+      "definition": "CHECK (((inside_bar IS NULL) OR (inside_bar = ANY (ARRAY[0, 1]))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "feature04_last_swing_high_valid",
+      "type": "c",
+      "definition": "CHECK (((last_swing_high IS NULL) OR ((last_swing_high > '-Infinity'::double precision) AND (last_swing_high < 'Infinity'::double precision))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "feature04_smi_valid",
+      "type": "c",
+      "definition": "CHECK (((smi IS NULL) OR ((smi > '-Infinity'::double precision) AND (smi < 'Infinity'::double precision))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "feature04_temp_high_bar_valid",
+      "type": "c",
+      "definition": "CHECK (((temp_high_bar IS NULL) OR (temp_high_bar >= 0)))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "feature04_temp_high_valid",
+      "type": "c",
+      "definition": "CHECK (((temp_high IS NULL) OR ((temp_high > '-Infinity'::double precision) AND (temp_high < 'Infinity'::double precision))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "feature04_temp_low_bar_valid",
+      "type": "c",
+      "definition": "CHECK (((temp_low_bar IS NULL) OR (temp_low_bar >= 0)))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "feature04_temp_low_valid",
+      "type": "c",
+      "definition": "CHECK (((temp_low IS NULL) OR ((temp_low > '-Infinity'::double precision) AND (temp_low < 'Infinity'::double precision))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "feature04_tracking_high_valid",
+      "type": "c",
+      "definition": "CHECK (((tracking_high IS NULL) OR (tracking_high = ANY (ARRAY[0, 1]))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "feature04_tracking_low_valid",
+      "type": "c",
+      "definition": "CHECK (((tracking_low IS NULL) OR (tracking_low = ANY (ARRAY[0, 1]))))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "index_asset_type_only",
+      "type": "c",
+      "definition": "CHECK ((asset_type = 'index'::text))",
+      "table_name": "Feature_04_Technical_Indicator_INDEX"
+    },
+    {
+      "name": "Feature_06_Foreign_Domestic_INDEX_buy_freq_known_rows_not_null",
+      "type": "n",
+      "definition": "NOT NULL buy_freq_known_rows",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "Feature_06_Foreign_Domestic_INDEX_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (ticker, market_board, trade_date)",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "Feature_06_Foreign_Domestic_INDEX_sell_freq_known_rows_not_null",
+      "type": "n",
+      "definition": "NOT NULL sell_freq_known_rows",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "Feature_06_Foreign_Domestic_INDE_buy_freq_missing_rows_not_null",
+      "type": "n",
+      "definition": "NOT NULL buy_freq_missing_rows",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "Feature_06_Foreign_Domestic_INDE_frequency_source_rows_not_null",
+      "type": "n",
+      "definition": "NOT NULL frequency_source_rows",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "Feature_06_Foreign_Domestic_IND_sell_freq_missing_rows_not_null",
+      "type": "n",
+      "definition": "NOT NULL sell_freq_missing_rows",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "feature_06_foreign_domestic_calculated_at_not_null",
+      "type": "n",
+      "definition": "NOT NULL calculated_at",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "feature_06_foreign_domestic_domestic_buy_1d_not_null",
+      "type": "n",
+      "definition": "NOT NULL domestic_buy_1d",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "feature_06_foreign_domestic_domestic_cumulative_net_not_null",
+      "type": "n",
+      "definition": "NOT NULL domestic_cumulative_net",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "feature_06_foreign_domestic_domestic_net_1d_not_null",
+      "type": "n",
+      "definition": "NOT NULL domestic_net_1d",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "feature_06_foreign_domestic_domestic_sell_1d_not_null",
+      "type": "n",
+      "definition": "NOT NULL domestic_sell_1d",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "feature_06_foreign_domestic_foreign_buy_1d_not_null",
+      "type": "n",
+      "definition": "NOT NULL foreign_buy_1d",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "feature_06_foreign_domestic_foreign_cumulative_net_not_null",
+      "type": "n",
+      "definition": "NOT NULL foreign_cumulative_net",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "feature_06_foreign_domestic_foreign_net_1d_not_null",
+      "type": "n",
+      "definition": "NOT NULL foreign_net_1d",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "feature_06_foreign_domestic_foreign_sell_1d_not_null",
+      "type": "n",
+      "definition": "NOT NULL foreign_sell_1d",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "feature_06_foreign_domestic_market_board_check",
+      "type": "c",
+      "definition": "CHECK ((market_board = ANY (ARRAY['Regular'::text, 'Nego'::text, 'Tunai'::text])))",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "feature_06_foreign_domestic_market_board_not_null",
+      "type": "n",
+      "definition": "NOT NULL market_board",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "feature_06_foreign_domestic_source_balance_gap_not_null",
+      "type": "n",
+      "definition": "NOT NULL source_balance_gap",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "feature_06_foreign_domestic_ticker_not_null",
+      "type": "n",
+      "definition": "NOT NULL ticker",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "feature_06_foreign_domestic_trade_date_not_null",
+      "type": "n",
+      "definition": "NOT NULL trade_date",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "index_frequency_coverage_check",
+      "type": "c",
+      "definition": "CHECK (((frequency_source_rows >= 0) AND (buy_freq_known_rows >= 0) AND (sell_freq_known_rows >= 0) AND (buy_freq_missing_rows >= 0) AND (sell_freq_missing_rows >= 0) AND ((buy_freq_known_rows + buy_freq_missing_rows) = frequency_source_rows) AND ((sell_freq_known_rows + sell_freq_missing_rows) = frequency_source_rows)))",
+      "table_name": "Feature_06_Foreign_Domestic_INDEX"
+    },
+    {
+      "name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (ticker, trade_date, broker, investor_type, market_board)",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_foreign_domestic_broker__source_balance_gap_not_null",
+      "type": "n",
+      "definition": "NOT NULL source_balance_gap",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_foreign_domestic_broker_detai_calculated_at_not_null",
+      "type": "n",
+      "definition": "NOT NULL calculated_at",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_foreign_domestic_broker_detai_investor_type_not_null",
+      "type": "n",
+      "definition": "NOT NULL investor_type",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_foreign_domestic_broker_detail_broker_not_null",
+      "type": "n",
+      "definition": "NOT NULL broker",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_foreign_domestic_broker_detail_buy_freq_check",
+      "type": "c",
+      "definition": "CHECK (((buy_freq IS NULL) OR (buy_freq >= 0)))",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_foreign_domestic_broker_detail_buy_lots_check",
+      "type": "c",
+      "definition": "CHECK ((buy_lots >= (0)::numeric))",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_foreign_domestic_broker_detail_buy_lots_not_null",
+      "type": "n",
+      "definition": "NOT NULL buy_lots",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_foreign_domestic_broker_detail_buy_value_check",
+      "type": "c",
+      "definition": "CHECK ((buy_value >= (0)::numeric))",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_foreign_domestic_broker_detail_buy_value_not_null",
+      "type": "n",
+      "definition": "NOT NULL buy_value",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_foreign_domestic_broker_detail_investor_type_check",
+      "type": "c",
+      "definition": "CHECK ((investor_type = ANY (ARRAY['Foreign'::text, 'Domestic'::text])))",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_foreign_domestic_broker_detail_market_board_check",
+      "type": "c",
+      "definition": "CHECK ((market_board = ANY (ARRAY['Regular'::text, 'Nego'::text, 'Tunai'::text])))",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_foreign_domestic_broker_detail_market_board_not_null",
+      "type": "n",
+      "definition": "NOT NULL market_board",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_foreign_domestic_broker_detail_net_lots_not_null",
+      "type": "n",
+      "definition": "NOT NULL net_lots",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_foreign_domestic_broker_detail_net_value_not_null",
+      "type": "n",
+      "definition": "NOT NULL net_value",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_foreign_domestic_broker_detail_sell_freq_check",
+      "type": "c",
+      "definition": "CHECK (((sell_freq IS NULL) OR (sell_freq >= 0)))",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_foreign_domestic_broker_detail_sell_lots_check",
+      "type": "c",
+      "definition": "CHECK ((sell_lots >= (0)::numeric))",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_foreign_domestic_broker_detail_sell_lots_not_null",
+      "type": "n",
+      "definition": "NOT NULL sell_lots",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_foreign_domestic_broker_detail_sell_value_check",
+      "type": "c",
+      "definition": "CHECK ((sell_value >= (0)::numeric))",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_foreign_domestic_broker_detail_sell_value_not_null",
+      "type": "n",
+      "definition": "NOT NULL sell_value",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_foreign_domestic_broker_detail_ticker_not_null",
+      "type": "n",
+      "definition": "NOT NULL ticker",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_foreign_domestic_broker_detail_trade_date_not_null",
+      "type": "n",
+      "definition": "NOT NULL trade_date",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_net_lots_check",
+      "type": "c",
+      "definition": "CHECK ((net_lots = (buy_lots - sell_lots)))",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "feature_05_net_value_check",
+      "type": "c",
+      "definition": "CHECK ((net_value = (buy_value - sell_value)))",
+      "table_name": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "name": "Feature_Vocabulary_caveat_not_null",
+      "type": "n",
+      "definition": "NOT NULL caveat",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_check",
+      "type": "c",
+      "definition": "CHECK ((scope =\nCASE\n    WHEN (\"right\"(source_table, 6) = '_INDEX'::text) THEN 'index'::text\n    ELSE 'stock'::text\nEND))",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_check1",
+      "type": "c",
+      "definition": "CHECK ((feature_number = (\"substring\"(source_table, '^Feature_([0-9]{2})_'::text))::smallint))",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_column_kind_check",
+      "type": "c",
+      "definition": "CHECK ((column_kind = ANY (ARRAY['dimension'::text, 'metric'::text, 'quality'::text, 'metadata'::text])))",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_column_kind_not_null",
+      "type": "n",
+      "definition": "NOT NULL column_kind",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_column_name_check",
+      "type": "c",
+      "definition": "CHECK ((btrim(column_name) <> ''::text))",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_column_name_not_null",
+      "type": "n",
+      "definition": "NOT NULL column_name",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_column_name_proper_check",
+      "type": "c",
+      "definition": "CHECK ((btrim(column_name_proper) <> ''::text))",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_column_name_proper_not_null",
+      "type": "n",
+      "definition": "NOT NULL column_name_proper",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_created_at_not_null",
+      "type": "n",
+      "definition": "NOT NULL created_at",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_definition_check",
+      "type": "c",
+      "definition": "CHECK ((btrim(definition) <> ''::text))",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_definition_not_null",
+      "type": "n",
+      "definition": "NOT NULL definition",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_display_order_check",
+      "type": "c",
+      "definition": "CHECK ((display_order > 0))",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_display_order_not_null",
+      "type": "n",
+      "definition": "NOT NULL display_order",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_feature_number_check",
+      "type": "c",
+      "definition": "CHECK ((feature_number = ANY (ARRAY[1, 2, 3, 5, 6])))",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_feature_number_not_null",
+      "type": "n",
+      "definition": "NOT NULL feature_number",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_formula_check",
+      "type": "c",
+      "definition": "CHECK ((btrim(formula) <> ''::text))",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_formula_not_null",
+      "type": "n",
+      "definition": "NOT NULL formula",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_grain_check",
+      "type": "c",
+      "definition": "CHECK ((btrim(grain) <> ''::text))",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_grain_not_null",
+      "type": "n",
+      "definition": "NOT NULL grain",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_language_code_check",
+      "type": "c",
+      "definition": "CHECK ((language_code = 'id-ID'::text))",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_language_code_not_null",
+      "type": "n",
+      "definition": "NOT NULL language_code",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_lookback_window_not_null",
+      "type": "n",
+      "definition": "NOT NULL lookback_window",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_minimum_history_not_null",
+      "type": "n",
+      "definition": "NOT NULL minimum_history",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_null_rule_check",
+      "type": "c",
+      "definition": "CHECK ((btrim(null_rule) <> ''::text))",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_null_rule_not_null",
+      "type": "n",
+      "definition": "NOT NULL null_rule",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (source_schema, source_table, column_name, language_code)",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_review_status_check",
+      "type": "c",
+      "definition": "CHECK ((review_status = ANY (ARRAY['DRAFT'::text, 'VERIFIED'::text])))",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_review_status_not_null",
+      "type": "n",
+      "definition": "NOT NULL review_status",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_scope_check",
+      "type": "c",
+      "definition": "CHECK ((scope = ANY (ARRAY['stock'::text, 'index'::text])))",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_scope_not_null",
+      "type": "n",
+      "definition": "NOT NULL scope",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_source_feature_version_check",
+      "type": "c",
+      "definition": "CHECK ((source_feature_version ~ '^v[1-9][0-9]*$'::text))",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_source_feature_version_not_null",
+      "type": "n",
+      "definition": "NOT NULL source_feature_version",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_source_schema_check",
+      "type": "c",
+      "definition": "CHECK ((source_schema = 'public'::text))",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_source_schema_not_null",
+      "type": "n",
+      "definition": "NOT NULL source_schema",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_source_semantic_hash_check",
+      "type": "c",
+      "definition": "CHECK ((source_semantic_hash ~ '^[0-9a-f]{64}$'::text))",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_source_semantic_hash_not_null",
+      "type": "n",
+      "definition": "NOT NULL source_semantic_hash",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_source_table_check",
+      "type": "c",
+      "definition": "CHECK ((btrim(source_table) <> ''::text))",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_source_table_not_null",
+      "type": "n",
+      "definition": "NOT NULL source_table",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_unit_check",
+      "type": "c",
+      "definition": "CHECK ((btrim(unit) <> ''::text))",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_unit_not_null",
+      "type": "n",
+      "definition": "NOT NULL unit",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_updated_at_not_null",
+      "type": "n",
+      "definition": "NOT NULL updated_at",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_validation_evidence_check",
+      "type": "c",
+      "definition": "CHECK ((cardinality(validation_evidence) > 0))",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_validation_evidence_not_null",
+      "type": "n",
+      "definition": "NOT NULL validation_evidence",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_what_it_tells_us_check",
+      "type": "c",
+      "definition": "CHECK ((btrim(what_it_tells_us) <> ''::text))",
+      "table_name": "Feature_Vocabulary"
+    },
+    {
+      "name": "Feature_Vocabulary_what_it_tells_us_not_null",
+      "type": "n",
+      "definition": "NOT NULL what_it_tells_us",
+      "table_name": "Feature_Vocabulary"
+    }
+  ]
+}

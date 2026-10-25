@@ -4643,3 +4643,651 @@ View of Feature_06_Foreign_Domestic limited to the current IDX stock universe (I
 ## Applied fixed-income provider-session migration (2026-10-20)
 
 Applied and read back at18:43 WIB. Migration `20261013_011_verify_fixed_income_sessions.sql` adds required text columns `provider_timezone_name` (verified TradingView timezone) and `provider_session` (daily session anchor) to `Fixed_Income_Market_Schedule`. Both ID and US use NEXT_BUSINESS_DAY source mapping under the reviewed policy. The changed physical table section above has been refreshed from live readback.
+
+Dedicated index schema preparation (2026-10-24): forward migration
+20261024_010_create_index_feature_tables.sql defines six Feature01–06 _INDEX outputs with existing
+grains/analytical columns; Feature04 asset_type is constrained to index. Feature05/06 each add five
+nonnegative frequency coverage counts (source, known buy/sell, missing buy/sell). An index-universe
+identity trigger guards every target. Private migration_archive.index_feature_rows retains lossless
+legacy row snapshots for cleanup recovery. Apply status is recorded in DATABASE_CHANGELOG.md.
+
+## Dedicated INDEX outputs and Feature vocabulary — live 2026-10-25
+
+The sections below are generated from scoped PostgreSQL readback. INDEX bootstrap is manual; daily routing is not enabled. Source dates/counts are in DATABASE_CHANGELOG.md. This supersedes the earlier INDEX preparation note.
+
+### Feature_01_Stock_Daily_INDEX
+
+Dedicated universe-index output with validated historical bootstrap. Price and broker source endpoints differ. Broker scope includes all raw source symbols, not official historical constituents. Automatic daily updates are not enabled.
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `date` | date | NO | — | Index scope. Trading date of the source candle represented by the feature row. |
+| `ticker` | text | NO | — | Universe index code; eligibility from IDX_Stock_Universe Security Type=index. |
+| `close` | numeric | NO | — | Index scope. Closing price for the ticker on the trading date. |
+| `volume` | numeric | YES | — | Index scope. Trading volume reported for the ticker on the trading date. |
+| `sector` | text | NO | — | Index scope. Current Sector classification for the ticker; it is not point-in-time historical classification. |
+| `industry` | text | NO | — | Index scope. Current Industry classification for the ticker; it is not point-in-time historical classification. |
+| `close_1d_ago` | numeric | YES | — | Index scope. Closing price one prior valid trading observation earlier for the same ticker. |
+| `close_5d_ago` | numeric | YES | — | Index scope. Closing price five prior valid trading observations earlier for the same ticker. |
+| `close_20d_ago` | numeric | YES | — | Index scope. Closing price twenty prior valid trading observations earlier for the same ticker. |
+| `close_60d_ago` | numeric | YES | — | Index scope. Closing price sixty prior valid trading observations earlier for the same ticker. |
+| `return_1d_pct` | double precision | YES | — | Index scope. Percentage price return between the current close and the close one valid trading observation earlier for the same ticker. |
+| `return_5d_pct` | double precision | YES | — | Index scope. Percentage price return between the current close and the close five valid trading observations earlier for the same ticker. |
+| `return_20d_pct` | double precision | YES | — | Index scope. Percentage price return between the current close and the close twenty valid trading observations earlier for the same ticker. |
+| `return_60d_pct` | double precision | YES | — | Index scope. Percentage price return between the current close and the close sixty valid trading observations earlier for the same ticker. |
+| `abs_return_1d_pct` | double precision | YES | — | Index scope. Absolute magnitude of the one-trading-observation percentage return, without direction. |
+| `volatility_5d_ann_pct` | double precision | YES | — | Index scope. Annualized sample standard deviation of the latest five valid daily decimal returns for the ticker, expressed as percent. |
+| `volatility_20d_ann_pct` | double precision | YES | — | Index scope. Annualized sample standard deviation of the latest twenty valid daily decimal returns for the ticker, expressed as percent. |
+| `volatility_60d_ann_pct` | double precision | YES | — | Index scope. Annualized sample standard deviation of the latest sixty valid daily decimal returns for the ticker, expressed as percent. |
+| `volatility_5d_change_pct` | double precision | YES | — | Index scope. Percentage change in annualized five-return volatility versus its value five valid trading observations earlier. |
+| `volatility_20d_change_pct` | double precision | YES | — | Index scope. Percentage change in annualized twenty-return volatility versus its value twenty valid trading observations earlier. |
+| `volatility_60d_change_pct` | double precision | YES | — | Index scope. Percentage change in annualized sixty-return volatility versus its value sixty valid trading observations earlier. |
+| `volume_avg_20d` | double precision | YES | — | Index scope. Average source trading volume over the latest twenty valid trading observations for the ticker. |
+| `volume_std_20d` | double precision | YES | — | Index scope. Sample standard deviation of source trading volume over the latest twenty valid trading observations for the ticker. |
+| `volume_ratio_20d` | double precision | YES | — | Index scope. Current trading volume divided by the average volume of the latest twenty valid trading observations. |
+| `volume_zscore_20d` | double precision | YES | — | Index scope. Current trading-volume deviation from its latest twenty-observation average, measured in sample standard deviations. |
+| `high_20d` | numeric | YES | — | Index scope. Highest closing price among the latest twenty valid trading observations for the ticker. |
+| `high_60d` | numeric | YES | — | Index scope. Highest closing price among the latest sixty valid trading observations for the ticker. |
+| `drawdown_20d_pct` | double precision | YES | — | Index scope. Percentage position of the current close below the highest close in the latest twenty valid trading observations. |
+| `drawdown_60d_pct` | double precision | YES | — | Index scope. Percentage position of the current close below the highest close in the latest sixty valid trading observations. |
+
+#### Constraints
+
+| Name | Definition |
+|---|---|
+| `Feature_01_Stock_Daily_INDEX_pkey` | PRIMARY KEY (ticker, date) |
+| `Feature_01_Stock_Daily_close_nonnegative` | CHECK ((close >= (0)::numeric)) |
+| `Feature_01_Stock_Daily_close_not_null` | NOT NULL close |
+| `Feature_01_Stock_Daily_date_not_null` | NOT NULL date |
+| `Feature_01_Stock_Daily_industry_not_null` | NOT NULL industry |
+| `Feature_01_Stock_Daily_sector_not_null` | NOT NULL sector |
+| `Feature_01_Stock_Daily_ticker_not_blank` | CHECK ((btrim(ticker) <> ''::text)) |
+| `Feature_01_Stock_Daily_ticker_not_null` | NOT NULL ticker |
+| `Feature_01_Stock_Daily_volume_nonnegative` | CHECK ((volume >= (0)::numeric)) |
+
+#### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_01_Stock_Daily_INDEX_pkey` | CREATE UNIQUE INDEX "Feature_01_Stock_Daily_INDEX_pkey" ON public."Feature_01_Stock_Daily_INDEX" USING btree (ticker, date) |
+| `Feature_01_Stock_Daily_INDEX_date_idx` | CREATE INDEX "Feature_01_Stock_Daily_INDEX_date_idx" ON public."Feature_01_Stock_Daily_INDEX" USING btree (date) |
+
+#### Triggers
+
+| Name | Definition |
+|---|---|
+| `index_feature_identity_guard` | CREATE TRIGGER index_feature_identity_guard BEFORE INSERT OR UPDATE OF ticker ON public."Feature_01_Stock_Daily_INDEX" FOR EACH ROW EXECUTE FUNCTION validate_index_feature_identity() |
+
+### Feature_02_Broker_Rolling_INDEX
+
+Dedicated universe-index output with validated historical bootstrap. Price and broker source endpoints differ. Broker scope includes all raw source symbols, not official historical constituents. Automatic daily updates are not enabled.
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `date` | date | NO | — | Index scope. Ticker transaction date from IDX_Broker_Summary; the rolling calendar uses all observed dates for the ticker across investor types and boards. |
+| `ticker` | text | NO | — | Universe-classified index identifier; aggregate source symbols are not copied into the index ticker. |
+| `broker` | text | NO | — | Index scope. Exact source Broker code identifying the executing broker. |
+| `investor_type` | text | NO | — | Index scope. Exact source Investor Type: Domestic or Foreign. This describes the investor represented by the source row, not the broker domicile. |
+| `market_board` | text | NO | — | Index scope. Exact source Market Board: Regular, Nego or Tunai; boards never mix in rolling calculations. |
+| `broker_classification` | text | YES | — | Index scope. Current broker usage classification from IDX_Broker_Profile; metadata only and not point-in-time history. |
+| `buy_value_1d` | numeric | NO | — | Index scope. Source Buy Value for this date, ticker, broker, investor type and board. |
+| `sell_value_1d` | numeric | NO | — | Index scope. Source Sell Value for this date, ticker, broker, investor type and board. |
+| `net_value_1d` | numeric | NO | — | Index scope. Buy value minus sell value for this date, ticker, broker, source Investor Type and board. Positive means net buying; negative means net selling. |
+| `buy_lots_1d` | numeric | NO | — | Index scope. Source Buy Lots for this date, ticker, broker, investor type and board. |
+| `sell_lots_1d` | numeric | NO | — | Index scope. Source Sell Lots for this date, ticker, broker, investor type and board. |
+| `net_lots_1d` | numeric | NO | — | Index scope. Buy lots minus sell lots for this date, ticker, broker, source Investor Type and board. Positive means net buying; negative means net selling. |
+| `net_value_5d` | numeric | YES | — | Index scope. Sum of net_value_1d over 5 ticker transaction dates within broker, investor type and board; missing activity contributes zero. |
+| `net_value_20d` | numeric | YES | — | Index scope. Sum of net_value_1d over 20 ticker transaction dates within broker, investor type and board; missing activity contributes zero. |
+| `net_value_60d` | numeric | YES | — | Index scope. Sum of net_value_1d over 60 ticker transaction dates within broker, investor type and board; missing activity contributes zero. |
+| `net_lots_5d` | numeric | YES | — | Index scope. Sum of net_lots_1d over 5 ticker transaction dates within broker, investor type and board. |
+| `net_lots_20d` | numeric | YES | — | Index scope. Sum of net_lots_1d over 20 ticker transaction dates within broker, investor type and board. |
+| `net_lots_60d` | numeric | YES | — | Index scope. Sum of net_lots_1d over 60 ticker transaction dates within broker, investor type and board. |
+| `buy_days_20d` | smallint | YES | — | Index scope. Number of positive net-value dates in the complete 20-date window for this broker, investor type and board. |
+| `sell_days_20d` | smallint | YES | — | Index scope. Number of negative net-value dates in the complete 20-date window for this broker, investor type and board. |
+| `active_days_20d` | smallint | YES | — | Index scope. Number of dates with nonzero gross activity in the complete 20-date window for this broker, investor type and board. |
+| `stock_trading_days_20d` | smallint | YES | — | Index scope. 20 after the ticker has 20 observed transaction dates across any investor type or board; otherwise NULL. |
+| `buy_day_ratio_20d` | double precision | YES | — | Index scope. buy_days_20d divided by 20; for example 12 positive dates produces 0.60. |
+| `buy_share_active_days_20d` | double precision | YES | — | Index scope. buy_days_20d divided by active_days_20d; NULL when there are no active dates. |
+| `buy_days_60d` | smallint | YES | — | Index scope. Number of positive net-value dates in the complete 60-date window for this broker, investor type and board. |
+| `sell_days_60d` | smallint | YES | — | Index scope. Number of negative net-value dates in the complete 60-date window for this broker, investor type and board. |
+| `active_days_60d` | smallint | YES | — | Index scope. Number of dates with nonzero gross activity in the complete 60-date window for this broker, investor type and board. |
+| `stock_trading_days_60d` | smallint | YES | — | Index scope. 60 after the ticker has 60 observed transaction dates across any investor type or board; otherwise NULL. |
+| `buy_day_ratio_60d` | double precision | YES | — | Index scope. buy_days_60d divided by 60. |
+| `buy_share_active_days_60d` | double precision | YES | — | Index scope. buy_days_60d divided by active_days_60d; NULL when there are no active dates. |
+| `net_value_zscore_20d` | double precision | YES | — | Index scope. Current 20-date net value minus the mean of the preceding 252 complete 20-date values, divided by their sample standard deviation; current date excluded. |
+| `net_value_zscore_60d` | double precision | YES | — | Index scope. Current 60-date net value minus the mean of the preceding 252 complete 60-date values, divided by their sample standard deviation; current date excluded. |
+| `net_value_percentile_20d` | double precision | YES | — | Index scope. Empirical midrank percentile of current 20-date net value against the preceding 252 complete values in the same broker, investor type and board partition. |
+| `net_value_percentile_60d` | double precision | YES | — | Index scope. Empirical midrank percentile of current 60-date net value against the preceding 252 complete values in the same broker, investor type and board partition. |
+| `positive_net_value_20d` | numeric | YES | — | Index scope. Sum of positive daily net values in the complete 20-date window; zero when the complete window has no positive date. |
+| `largest_buy_day_20d` | numeric | YES | — | Index scope. Largest positive daily net value in the complete 20-date window; NULL when no positive date exists. |
+| `largest_buy_day_share_20d` | double precision | YES | — | Index scope. largest_buy_day_20d divided by positive_net_value_20d; for example 40 of 100 total positive flow produces 0.40. |
+| `calculated_at` | timestamp with time zone | NO | CURRENT_TIMESTAMP | Index scope. Database statement timestamp when this canonical v2 row was materialized; not source event time or data availability time. |
+
+#### Constraints
+
+| Name | Definition |
+|---|---|
+| `Feature_02_Broker_Rolling_INDEX_pkey` | PRIMARY KEY (ticker, market_board, broker, investor_type, date) |
+| `Feature_02_Broker_Rolling_v2_board_check` | CHECK ((market_board = ANY (ARRAY['Regular'::text, 'Nego'::text, 'Tunai'::text]))) |
+| `Feature_02_Broker_Rolling_v2_broker_not_null` | NOT NULL broker |
+| `Feature_02_Broker_Rolling_v2_buy_lots_1d_not_null` | NOT NULL buy_lots_1d |
+| `Feature_02_Broker_Rolling_v2_buy_value_1d_not_null` | NOT NULL buy_value_1d |
+| `Feature_02_Broker_Rolling_v2_calculated_at_not_null` | NOT NULL calculated_at |
+| `Feature_02_Broker_Rolling_v2_date_not_null` | NOT NULL date |
+| `Feature_02_Broker_Rolling_v2_gross_check` | CHECK (((buy_value_1d >= (0)::numeric) AND (sell_value_1d >= (0)::numeric) AND (buy_lots_1d >= (0)::numeric) AND (sell_lots_1d >= (0)::numeric))) |
+| `Feature_02_Broker_Rolling_v2_identity_check` | CHECK (((btrim(ticker) <> ''::text) AND (btrim(broker) <> ''::text))) |
+| `Feature_02_Broker_Rolling_v2_investor_type_check` | CHECK ((investor_type = ANY (ARRAY['Domestic'::text, 'Foreign'::text]))) |
+| `Feature_02_Broker_Rolling_v2_investor_type_not_null` | NOT NULL investor_type |
+| `Feature_02_Broker_Rolling_v2_market_board_not_null` | NOT NULL market_board |
+| `Feature_02_Broker_Rolling_v2_net_check` | CHECK (((net_value_1d = (buy_value_1d - sell_value_1d)) AND (net_lots_1d = (buy_lots_1d - sell_lots_1d)))) |
+| `Feature_02_Broker_Rolling_v2_net_lots_1d_not_null` | NOT NULL net_lots_1d |
+| `Feature_02_Broker_Rolling_v2_net_value_1d_not_null` | NOT NULL net_value_1d |
+| `Feature_02_Broker_Rolling_v2_percentile_check` | CHECK ((((net_value_percentile_20d IS NULL) OR ((net_value_percentile_20d >= (0)::double precision) AND (net_value_percentile_20d <= (100)::double precision))) AND ((net_value_percentile_60d IS NULL) OR ((net_value_percentile_60d >= (0)::double precision) AND (net_value_percentile_60d <= (100)::double precision))))) |
+| `Feature_02_Broker_Rolling_v2_ratio_check` | CHECK ((((buy_day_ratio_20d IS NULL) OR ((buy_day_ratio_20d >= (0)::double precision) AND (buy_day_ratio_20d <= (1)::double precision))) AND ((buy_share_active_days_20d IS NULL) OR ((buy_share_active_days_20d >= (0)::double precision) AND (buy_share_active_days_20d <= (1)::double precision))) AND ((buy_day_ratio_60d IS NULL) OR ((buy_day_ratio_60d >= (0)::double precision) AND (buy_day_ratio_60d <= (1)::double precision))) AND ((buy_share_active_days_60d IS NULL) OR ((buy_share_active_days_60d >= (0)::double precision) AND (buy_share_active_days_60d <= (1)::double precision))) AND ((largest_buy_day_share_20d IS NULL) OR ((largest_buy_day_share_20d >= (0)::double precision) AND (largest_buy_day_share_20d <= (1)::double precision))))) |
+| `Feature_02_Broker_Rolling_v2_sell_lots_1d_not_null` | NOT NULL sell_lots_1d |
+| `Feature_02_Broker_Rolling_v2_sell_value_1d_not_null` | NOT NULL sell_value_1d |
+| `Feature_02_Broker_Rolling_v2_ticker_not_null` | NOT NULL ticker |
+
+#### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_02_Broker_Rolling_INDEX_pkey` | CREATE UNIQUE INDEX "Feature_02_Broker_Rolling_INDEX_pkey" ON public."Feature_02_Broker_Rolling_INDEX" USING btree (ticker, market_board, broker, investor_type, date) |
+| `Feature_02_Broker_Rolling_INDEX_date_market_board_ticker_idx` | CREATE INDEX "Feature_02_Broker_Rolling_INDEX_date_market_board_ticker_idx" ON public."Feature_02_Broker_Rolling_INDEX" USING btree (date, market_board, ticker) |
+
+#### Triggers
+
+| Name | Definition |
+|---|---|
+| `index_feature_identity_guard` | CREATE TRIGGER index_feature_identity_guard BEFORE INSERT OR UPDATE OF ticker ON public."Feature_02_Broker_Rolling_INDEX" FOR EACH ROW EXECUTE FUNCTION validate_index_feature_identity() |
+
+### Feature_03_Stock_Broker_Daily_INDEX
+
+Dedicated universe-index output with validated historical bootstrap. Price and broker source endpoints differ. Broker scope includes all raw source symbols, not official historical constituents. Automatic daily updates are not enabled.
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `date` | date | NO | — | Index scope. Source transaction date for this ticker and market board. |
+| `ticker` | text | NO | — | Universe-classified index identifier; aggregate source symbols are not copied into the index ticker. |
+| `market_board` | text | NO | — | Index scope. Exact source board: Regular, Nego or Tunai; aggregates never mix boards. |
+| `total_buy_value` | numeric | NO | — | Index scope. Sum of all broker buy_value_1d for the ticker, date and board. |
+| `total_sell_value` | numeric | NO | — | Index scope. Sum of all broker sell_value_1d for the ticker, date and board. |
+| `active_broker_count` | smallint | NO | — | Index scope. Brokers with nonzero gross buy/sell value or lots on the ticker, date and board. |
+| `net_buy_broker_count` | smallint | NO | — | Index scope. Brokers whose aggregated daily net value is positive. |
+| `net_sell_broker_count` | smallint | NO | — | Index scope. Brokers whose aggregated daily net value is negative. |
+| `net_buy_broker_ratio` | double precision | YES | — | Index scope. net_buy_broker_count divided by active_broker_count; null when no broker is active. |
+| `foreign_net_value` | numeric | NO | — | Index scope. Sum of daily net value for source Foreign Investor Type across all brokers. Investor Type identifies the source investor, not broker domicile. |
+| `domestic_net_value` | numeric | NO | — | Index scope. Sum of daily net value for source Domestic Investor Type across all brokers. Investor Type identifies the source investor, not broker domicile. |
+| `institutional_net_value` | numeric | NO | — | Index scope. Sum of daily broker net value where current broker_classification is Institutional-heavy. |
+| `retail_net_value` | numeric | NO | — | Index scope. Sum of daily broker net value where current broker_classification is Retail-heavy. |
+| `mixed_net_value` | numeric | NO | — | Index scope. Sum of daily broker net value where current broker_classification is Mixed. |
+| `niche_net_value` | numeric | NO | — | Index scope. Sum of daily broker net value where current broker_classification is Niche. |
+| `top_buyer` | text | YES | — | Index scope. Positive-net broker with the greatest daily net value; ties use broker code ascending. |
+| `top_buyer_net_value` | numeric | YES | — | Index scope. Positive daily net value of top_buyer. |
+| `top_seller` | text | YES | — | Index scope. Negative-net broker with the lowest daily net value; ties use broker code ascending. |
+| `top_seller_net_value` | numeric | YES | — | Index scope. Negative daily net value of top_seller. |
+| `top3_buyer_net_value` | numeric | NO | — | Index scope. Sum of the three greatest positive broker net values, with fewer used when fewer exist. |
+| `positive_net_value_total` | numeric | NO | — | Index scope. Sum of every positive broker daily net value. |
+| `top3_buyer_share` | double precision | YES | — | Index scope. top3_buyer_net_value divided by positive_net_value_total; null when the denominator is zero. |
+| `broker_concentration_hhi` | double precision | YES | — | Index scope. Sum of squared absolute-net-flow weights across brokers; null when total absolute net value is zero. |
+| `calculated_at` | timestamp with time zone | NO | CURRENT_TIMESTAMP | Index scope. Database statement timestamp when the row was calculated. |
+
+#### Constraints
+
+| Name | Definition |
+|---|---|
+| `Feature_03_Stock_Broker_Daily_INDEX_pkey` | PRIMARY KEY (ticker, market_board, date) |
+| `Feature_03_Stock_Broker_Daily_active_broker_count_not_null` | NOT NULL active_broker_count |
+| `Feature_03_Stock_Broker_Daily_board_check` | CHECK ((market_board = ANY (ARRAY['Regular'::text, 'Nego'::text, 'Tunai'::text]))) |
+| `Feature_03_Stock_Broker_Daily_calculated_at_not_null` | NOT NULL calculated_at |
+| `Feature_03_Stock_Broker_Daily_count_check` | CHECK (((active_broker_count >= 0) AND (net_buy_broker_count >= 0) AND (net_sell_broker_count >= 0) AND ((net_buy_broker_count + net_sell_broker_count) <= active_broker_count))) |
+| `Feature_03_Stock_Broker_Daily_date_not_null` | NOT NULL date |
+| `Feature_03_Stock_Broker_Daily_domestic_net_value_not_null` | NOT NULL domestic_net_value |
+| `Feature_03_Stock_Broker_Daily_dominant_check` | CHECK ((((top_buyer IS NULL) = (top_buyer_net_value IS NULL)) AND ((top_seller IS NULL) = (top_seller_net_value IS NULL)) AND ((top_buyer_net_value IS NULL) OR (top_buyer_net_value > (0)::numeric)) AND ((top_seller_net_value IS NULL) OR (top_seller_net_value < (0)::numeric)) AND (top3_buyer_net_value >= (0)::numeric) AND (positive_net_value_total >= top3_buyer_net_value))) |
+| `Feature_03_Stock_Broker_Daily_foreign_net_value_not_null` | NOT NULL foreign_net_value |
+| `Feature_03_Stock_Broker_Daily_gross_check` | CHECK (((total_buy_value >= (0)::numeric) AND (total_sell_value >= (0)::numeric))) |
+| `Feature_03_Stock_Broker_Daily_identity_check` | CHECK ((btrim(ticker) <> ''::text)) |
+| `Feature_03_Stock_Broker_Daily_institutional_net_value_not_null` | NOT NULL institutional_net_value |
+| `Feature_03_Stock_Broker_Daily_market_board_not_null` | NOT NULL market_board |
+| `Feature_03_Stock_Broker_Daily_mixed_net_value_not_null` | NOT NULL mixed_net_value |
+| `Feature_03_Stock_Broker_Daily_net_buy_broker_count_not_null` | NOT NULL net_buy_broker_count |
+| `Feature_03_Stock_Broker_Daily_net_sell_broker_count_not_null` | NOT NULL net_sell_broker_count |
+| `Feature_03_Stock_Broker_Daily_niche_net_value_not_null` | NOT NULL niche_net_value |
+| `Feature_03_Stock_Broker_Daily_positive_net_value_total_not_null` | NOT NULL positive_net_value_total |
+| `Feature_03_Stock_Broker_Daily_ratio_check` | CHECK ((((net_buy_broker_ratio IS NULL) OR ((net_buy_broker_ratio >= (0)::double precision) AND (net_buy_broker_ratio <= (1)::double precision))) AND ((top3_buyer_share IS NULL) OR ((top3_buyer_share >= (0)::double precision) AND (top3_buyer_share <= (1)::double precision))) AND ((broker_concentration_hhi IS NULL) OR ((broker_concentration_hhi > (0)::double precision) AND (broker_concentration_hhi <= (1)::double precision))))) |
+| `Feature_03_Stock_Broker_Daily_retail_net_value_not_null` | NOT NULL retail_net_value |
+| `Feature_03_Stock_Broker_Daily_ticker_not_null` | NOT NULL ticker |
+| `Feature_03_Stock_Broker_Daily_top3_buyer_net_value_not_null` | NOT NULL top3_buyer_net_value |
+| `Feature_03_Stock_Broker_Daily_total_buy_value_not_null` | NOT NULL total_buy_value |
+| `Feature_03_Stock_Broker_Daily_total_sell_value_not_null` | NOT NULL total_sell_value |
+
+#### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_03_Stock_Broker_Daily_INDEX_pkey` | CREATE UNIQUE INDEX "Feature_03_Stock_Broker_Daily_INDEX_pkey" ON public."Feature_03_Stock_Broker_Daily_INDEX" USING btree (ticker, market_board, date) |
+| `Feature_03_Stock_Broker_Daily_INDE_date_market_board_ticker_idx` | CREATE INDEX "Feature_03_Stock_Broker_Daily_INDE_date_market_board_ticker_idx" ON public."Feature_03_Stock_Broker_Daily_INDEX" USING btree (date, market_board, ticker) |
+
+#### Triggers
+
+| Name | Definition |
+|---|---|
+| `index_feature_identity_guard` | CREATE TRIGGER index_feature_identity_guard BEFORE INSERT OR UPDATE OF ticker ON public."Feature_03_Stock_Broker_Daily_INDEX" FOR EACH ROW EXECUTE FUNCTION validate_index_feature_identity() |
+
+### Feature_04_Technical_Indicator_INDEX
+
+Dedicated universe-index output with validated historical bootstrap. Price and broker source endpoints differ. Broker scope includes all raw source symbols, not official historical constituents. Automatic daily updates are not enabled.
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `ticker` | text | NO | — | Universe index code; eligibility from IDX_Stock_Universe Security Type=index. |
+| `trade_date` | date | NO | — | Index scope. Trading observation date copied from source date. |
+| `timeframe` | text | NO | — | Index scope. Verified daily timeframe copied exactly from source. |
+| `sma_20` | double precision | YES | — | Index scope. Unweighted mean of 20 observed closes. |
+| `sma_50` | double precision | YES | — | Index scope. Unweighted mean of 50 observed closes. |
+| `ema_12` | double precision | YES | — | Index scope. Fast exponentially weighted close; alpha=2/13. |
+| `ema_26` | double precision | YES | — | Index scope. Slow exponentially weighted close; alpha=2/27. |
+| `rsi_14` | double precision | YES | — | Index scope. Wilder gain/loss oscillator on 14 consecutive close changes, scaled 0–100. |
+| `macd` | double precision | YES | — | Index scope. Difference of the stored fast and slow EMA price baselines. |
+| `macd_signal` | double precision | YES | — | Index scope. Nine-period EMA of valid MACD line observations. |
+| `macd_histogram` | double precision | YES | — | Index scope. Difference between MACD line and its nine-period signal. |
+| `atr_14` | double precision | YES | — | Index scope. Wilder average of 14 true ranges using prior observed close. |
+| `bb_upper_20` | double precision | YES | — | Index scope. Upper 20-period Bollinger band, population standard deviation multiplier 2. |
+| `bb_middle_20` | double precision | YES | — | Index scope. Middle 20-period Bollinger band, identical to SMA20. |
+| `bb_lower_20` | double precision | YES | — | Index scope. Lower 20-period Bollinger band, population standard deviation multiplier 2. |
+| `cdl_piercing` | integer | YES | — | Index scope. Native TA-Lib piercing pattern recognition code from historical OHLC. |
+| `cdl_morning_star` | integer | YES | — | Index scope. Native TA-Lib morning star pattern recognition code from historical OHLC. |
+| `cdl_morning_doji_star` | integer | YES | — | Index scope. Native TA-Lib morning doji star pattern recognition code from historical OHLC. |
+| `cdl_engulfing` | integer | YES | — | Index scope. Native TA-Lib engulfing pattern recognition code from historical OHLC. |
+| `cdl_3_white_soldiers` | integer | YES | — | Index scope. Native TA-Lib 3 white soldiers pattern recognition code from historical OHLC. |
+| `cdl_hammer` | integer | YES | — | Index scope. Native TA-Lib hammer pattern recognition code from historical OHLC. |
+| `cdl_inverted_hammer` | integer | YES | — | Index scope. Native TA-Lib inverted hammer pattern recognition code from historical OHLC. |
+| `cdl_3_inside` | integer | YES | — | Index scope. Native TA-Lib 3 inside pattern recognition code from historical OHLC. |
+| `cdl_3_outside` | integer | YES | — | Index scope. Native TA-Lib 3 outside pattern recognition code from historical OHLC. |
+| `cdl_harami` | integer | YES | — | Index scope. Native TA-Lib harami pattern recognition code from historical OHLC. |
+| `cdl_harami_cross` | integer | YES | — | Index scope. Native TA-Lib harami cross pattern recognition code from historical OHLC. |
+| `cdl_dark_cloud_cover` | integer | YES | — | Index scope. Native TA-Lib dark cloud cover pattern recognition code from historical OHLC. |
+| `cdl_evening_star` | integer | YES | — | Index scope. Native TA-Lib evening star pattern recognition code from historical OHLC. |
+| `cdl_evening_doji_star` | integer | YES | — | Index scope. Native TA-Lib evening doji star pattern recognition code from historical OHLC. |
+| `cdl_3_black_crows` | integer | YES | — | Index scope. Native TA-Lib 3 black crows pattern recognition code from historical OHLC. |
+| `cdl_shooting_star` | integer | YES | — | Index scope. Native TA-Lib shooting star pattern recognition code from historical OHLC. |
+| `cdl_hanging_man` | integer | YES | — | Index scope. Native TA-Lib hanging man pattern recognition code from historical OHLC. |
+| `cdl_doji` | integer | YES | — | Index scope. Native TA-Lib doji pattern recognition code from historical OHLC. |
+| `cdl_dragonfly_doji` | integer | YES | — | Index scope. Native TA-Lib dragonfly doji pattern recognition code from historical OHLC. |
+| `cdl_gravestone_doji` | integer | YES | — | Index scope. Native TA-Lib gravestone doji pattern recognition code from historical OHLC. |
+| `cdl_marubozu` | integer | YES | — | Index scope. Native TA-Lib marubozu pattern recognition code from historical OHLC. |
+| `cdl_kicking` | integer | YES | — | Index scope. Native TA-Lib kicking pattern recognition code from historical OHLC. |
+| `cdl_rise_fall_3_methods` | integer | YES | — | Index scope. Native TA-Lib rise fall 3 methods pattern recognition code from historical OHLC. |
+| `cdl_mat_hold` | integer | YES | — | Index scope. Native TA-Lib mat hold pattern recognition code from historical OHLC. |
+| `cdl_hikkake` | integer | YES | — | Index scope. Native TA-Lib hikkake pattern recognition code from historical OHLC. |
+| `calculation_version` | text | NO | — | Index scope. Version binds formulas, seeds and pinned TA-Lib versions. |
+| `calculated_at` | timestamp with time zone | NO | — | Index scope. Timezone-aware execution time of the last changed output row. |
+| `adx_14` | double precision | YES | — | Index scope. Wilder average directional index measuring trend strength on a 0–100 scale. |
+| `ema_50` | double precision | YES | — | Index scope. Fifty-observation exponentially weighted close; alpha=2/51. |
+| `ema_200` | double precision | YES | — | Index scope. Two-hundred-observation exponentially weighted close; alpha=2/201. |
+| `inside_bar` | integer | YES | — | Index scope. Strict current-candle range containment within the previous valid observed candle. |
+| `smi` | double precision | YES | — | Index scope. Stochastic Momentum Index: double-smoothed close displacement from the midpoint of a rolling 14-bar high/low range. |
+| `tracking_high` | integer | YES | — | Index scope. High-search state after all current-bar Pine blocks execute. |
+| `tracking_low` | integer | YES | — | Index scope. Low-search state after all current-bar Pine blocks execute. |
+| `temp_high` | double precision | YES | — | Index scope. Provisional highest high in the current active SMI-above-40 tracking interval. |
+| `temp_high_bar` | integer | YES | — | Index scope. Zero-based source observation index of the currently tracked temporary high. |
+| `temp_low` | double precision | YES | — | Index scope. Provisional lowest low in the current active SMI-below-minus-40 tracking interval. |
+| `temp_low_bar` | integer | YES | — | Index scope. Zero-based source observation index of the currently tracked temporary low. |
+| `last_swing_high` | double precision | YES | — | Index scope. Latest swing-high price available after its SMI-downcross confirmation, carried forward. |
+| `break_swing_high` | integer | YES | — | Index scope. Integer event flag for the supplied Pine close/last-swing-high crossover. |
+| `asset_type` | text | NO | — | Index asset class, resolved from approved universe metadata. |
+| `close` | double precision | NO | — | Index scope. Daily closing price copied from the matching universe-classified price source row. |
+
+#### Constraints
+
+| Name | Definition |
+|---|---|
+| `Feature_04_Technical_Indicator_INDEX_pkey` | PRIMARY KEY (ticker, trade_date, timeframe, asset_type) |
+| `Feature_04_Technical_Indicator_asset_type_not_null` | NOT NULL asset_type |
+| `Feature_04_Technical_Indicator_atr_14_check` | CHECK (((atr_14 IS NULL) OR ((atr_14 > '-Infinity'::double precision) AND (atr_14 < 'Infinity'::double precision)))) |
+| `Feature_04_Technical_Indicator_atr_14_check1` | CHECK (((atr_14 IS NULL) OR (atr_14 >= (0)::double precision))) |
+| `Feature_04_Technical_Indicator_bb_lower_20_check` | CHECK (((bb_lower_20 IS NULL) OR ((bb_lower_20 > '-Infinity'::double precision) AND (bb_lower_20 < 'Infinity'::double precision)))) |
+| `Feature_04_Technical_Indicator_bb_middle_20_check` | CHECK (((bb_middle_20 IS NULL) OR ((bb_middle_20 > '-Infinity'::double precision) AND (bb_middle_20 < 'Infinity'::double precision)))) |
+| `Feature_04_Technical_Indicator_bb_upper_20_check` | CHECK (((bb_upper_20 IS NULL) OR ((bb_upper_20 > '-Infinity'::double precision) AND (bb_upper_20 < 'Infinity'::double precision)))) |
+| `Feature_04_Technical_Indicator_calculated_at_not_null` | NOT NULL calculated_at |
+| `Feature_04_Technical_Indicator_calculation_version_check` | CHECK ((btrim(calculation_version) <> ''::text)) |
+| `Feature_04_Technical_Indicator_calculation_version_not_null` | NOT NULL calculation_version |
+| `Feature_04_Technical_Indicator_close_finite_check` | CHECK (((close > '-Infinity'::double precision) AND (close < 'Infinity'::double precision))) |
+| `Feature_04_Technical_Indicator_close_nonnegative_check` | CHECK ((close >= (0)::double precision)) |
+| `Feature_04_Technical_Indicator_close_not_null` | NOT NULL close |
+| `Feature_04_Technical_Indicator_ema_12_check` | CHECK (((ema_12 IS NULL) OR ((ema_12 > '-Infinity'::double precision) AND (ema_12 < 'Infinity'::double precision)))) |
+| `Feature_04_Technical_Indicator_ema_26_check` | CHECK (((ema_26 IS NULL) OR ((ema_26 > '-Infinity'::double precision) AND (ema_26 < 'Infinity'::double precision)))) |
+| `Feature_04_Technical_Indicator_macd_check` | CHECK (((macd IS NULL) OR ((macd > '-Infinity'::double precision) AND (macd < 'Infinity'::double precision)))) |
+| `Feature_04_Technical_Indicator_macd_histogram_check` | CHECK (((macd_histogram IS NULL) OR ((macd_histogram > '-Infinity'::double precision) AND (macd_histogram < 'Infinity'::double precision)))) |
+| `Feature_04_Technical_Indicator_macd_signal_check` | CHECK (((macd_signal IS NULL) OR ((macd_signal > '-Infinity'::double precision) AND (macd_signal < 'Infinity'::double precision)))) |
+| `Feature_04_Technical_Indicator_rsi_14_check` | CHECK (((rsi_14 IS NULL) OR ((rsi_14 > '-Infinity'::double precision) AND (rsi_14 < 'Infinity'::double precision)))) |
+| `Feature_04_Technical_Indicator_rsi_14_check1` | CHECK (((rsi_14 IS NULL) OR ((rsi_14 >= (0)::double precision) AND (rsi_14 <= (100)::double precision)))) |
+| `Feature_04_Technical_Indicator_sma_20_check` | CHECK (((sma_20 IS NULL) OR ((sma_20 > '-Infinity'::double precision) AND (sma_20 < 'Infinity'::double precision)))) |
+| `Feature_04_Technical_Indicator_sma_50_check` | CHECK (((sma_50 IS NULL) OR ((sma_50 > '-Infinity'::double precision) AND (sma_50 < 'Infinity'::double precision)))) |
+| `Feature_04_Technical_Indicator_ticker_check` | CHECK (((ticker = upper(btrim(ticker))) AND (ticker <> ''::text))) |
+| `Feature_04_Technical_Indicator_ticker_not_null` | NOT NULL ticker |
+| `Feature_04_Technical_Indicator_timeframe_check` | CHECK ((timeframe = 'Daily'::text)) |
+| `Feature_04_Technical_Indicator_timeframe_not_null` | NOT NULL timeframe |
+| `Feature_04_Technical_Indicator_trade_date_not_null` | NOT NULL trade_date |
+| `feature04_adx_14_valid` | CHECK (((adx_14 IS NULL) OR ((adx_14 >= (0)::double precision) AND (adx_14 <= (100)::double precision)))) |
+| `feature04_break_swing_high_valid` | CHECK (((break_swing_high IS NULL) OR (break_swing_high = ANY (ARRAY[0, 1])))) |
+| `feature04_ema_200_finite` | CHECK (((ema_200 IS NULL) OR ((ema_200 > '-Infinity'::double precision) AND (ema_200 < 'Infinity'::double precision)))) |
+| `feature04_ema_50_finite` | CHECK (((ema_50 IS NULL) OR ((ema_50 > '-Infinity'::double precision) AND (ema_50 < 'Infinity'::double precision)))) |
+| `feature04_inside_bar_binary` | CHECK (((inside_bar IS NULL) OR (inside_bar = ANY (ARRAY[0, 1])))) |
+| `feature04_last_swing_high_valid` | CHECK (((last_swing_high IS NULL) OR ((last_swing_high > '-Infinity'::double precision) AND (last_swing_high < 'Infinity'::double precision)))) |
+| `feature04_smi_valid` | CHECK (((smi IS NULL) OR ((smi > '-Infinity'::double precision) AND (smi < 'Infinity'::double precision)))) |
+| `feature04_temp_high_bar_valid` | CHECK (((temp_high_bar IS NULL) OR (temp_high_bar >= 0))) |
+| `feature04_temp_high_valid` | CHECK (((temp_high IS NULL) OR ((temp_high > '-Infinity'::double precision) AND (temp_high < 'Infinity'::double precision)))) |
+| `feature04_temp_low_bar_valid` | CHECK (((temp_low_bar IS NULL) OR (temp_low_bar >= 0))) |
+| `feature04_temp_low_valid` | CHECK (((temp_low IS NULL) OR ((temp_low > '-Infinity'::double precision) AND (temp_low < 'Infinity'::double precision)))) |
+| `feature04_tracking_high_valid` | CHECK (((tracking_high IS NULL) OR (tracking_high = ANY (ARRAY[0, 1])))) |
+| `feature04_tracking_low_valid` | CHECK (((tracking_low IS NULL) OR (tracking_low = ANY (ARRAY[0, 1])))) |
+| `index_asset_type_only` | CHECK ((asset_type = 'index'::text)) |
+
+#### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_04_Technical_Indicator_INDEX_pkey` | CREATE UNIQUE INDEX "Feature_04_Technical_Indicator_INDEX_pkey" ON public."Feature_04_Technical_Indicator_INDEX" USING btree (ticker, trade_date, timeframe, asset_type) |
+| `Feature_04_Technical_Indicator_INDEX_trade_date_idx` | CREATE INDEX "Feature_04_Technical_Indicator_INDEX_trade_date_idx" ON public."Feature_04_Technical_Indicator_INDEX" USING btree (trade_date) |
+
+#### Triggers
+
+| Name | Definition |
+|---|---|
+| `index_feature_identity_guard` | CREATE TRIGGER index_feature_identity_guard BEFORE INSERT OR UPDATE OF ticker ON public."Feature_04_Technical_Indicator_INDEX" FOR EACH ROW EXECUTE FUNCTION validate_index_feature_identity() |
+
+### Feature_05_Foreign_Domestic_Broker_Detail_INDEX
+
+Dedicated universe-index output with validated historical bootstrap. Price and broker source endpoints differ. Broker scope includes all raw source symbols, not official historical constituents. Automatic daily updates are not enabled.
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | date | NO | — | Index scope. Exchange trading date of the source row. |
+| `ticker` | text | NO | — | Universe-classified index identifier; aggregate source symbols are not copied into the index ticker. |
+| `broker` | text | NO | — | Index scope. Two-character broker code. |
+| `market_board` | text | NO | — | Index scope. Source board: Regular, Nego or Tunai. |
+| `investor_type` | text | NO | — | Index scope. Source investor identity: Foreign or Domestic, not broker domicile. |
+| `buy_value` | numeric | NO | — | Index scope. Gross buy value. |
+| `sell_value` | numeric | NO | — | Index scope. Gross sell value. |
+| `net_value` | numeric | NO | — | Index scope. Net buy value; positive is net buying, negative net selling. |
+| `buy_lots` | numeric | NO | — | Index scope. Lots bought (1 lot = 100 shares; odd lots as fractions). |
+| `sell_lots` | numeric | NO | — | Index scope. Lots sold (1 lot = 100 shares; odd lots as fractions). |
+| `net_lots` | numeric | NO | — | Index scope. Net lots; positive is net buying. |
+| `buy_freq` | bigint | YES | — | Index scope. Number of buy transactions. |
+| `sell_freq` | bigint | YES | — | Index scope. Number of sell transactions. |
+| `source_balance_gap` | boolean | NO | — | True when any contributing source symbol has a buy/sell value imbalance; opposite symbol gaps cannot cancel this flag. |
+| `calculated_at` | timestamp with time zone | NO | statement_timestamp() | Index scope. Statement timestamp when the row was written. |
+
+#### Constraints
+
+| Name | Definition |
+|---|---|
+| `Feature_05_Foreign_Domestic_Broker_Detail_INDEX_pkey` | PRIMARY KEY (ticker, trade_date, broker, investor_type, market_board) |
+| `feature_05_foreign_domestic_broker__source_balance_gap_not_null` | NOT NULL source_balance_gap |
+| `feature_05_foreign_domestic_broker_detai_calculated_at_not_null` | NOT NULL calculated_at |
+| `feature_05_foreign_domestic_broker_detai_investor_type_not_null` | NOT NULL investor_type |
+| `feature_05_foreign_domestic_broker_detail_broker_not_null` | NOT NULL broker |
+| `feature_05_foreign_domestic_broker_detail_buy_freq_check` | CHECK (((buy_freq IS NULL) OR (buy_freq >= 0))) |
+| `feature_05_foreign_domestic_broker_detail_buy_lots_check` | CHECK ((buy_lots >= (0)::numeric)) |
+| `feature_05_foreign_domestic_broker_detail_buy_lots_not_null` | NOT NULL buy_lots |
+| `feature_05_foreign_domestic_broker_detail_buy_value_check` | CHECK ((buy_value >= (0)::numeric)) |
+| `feature_05_foreign_domestic_broker_detail_buy_value_not_null` | NOT NULL buy_value |
+| `feature_05_foreign_domestic_broker_detail_investor_type_check` | CHECK ((investor_type = ANY (ARRAY['Foreign'::text, 'Domestic'::text]))) |
+| `feature_05_foreign_domestic_broker_detail_market_board_check` | CHECK ((market_board = ANY (ARRAY['Regular'::text, 'Nego'::text, 'Tunai'::text]))) |
+| `feature_05_foreign_domestic_broker_detail_market_board_not_null` | NOT NULL market_board |
+| `feature_05_foreign_domestic_broker_detail_net_lots_not_null` | NOT NULL net_lots |
+| `feature_05_foreign_domestic_broker_detail_net_value_not_null` | NOT NULL net_value |
+| `feature_05_foreign_domestic_broker_detail_sell_freq_check` | CHECK (((sell_freq IS NULL) OR (sell_freq >= 0))) |
+| `feature_05_foreign_domestic_broker_detail_sell_lots_check` | CHECK ((sell_lots >= (0)::numeric)) |
+| `feature_05_foreign_domestic_broker_detail_sell_lots_not_null` | NOT NULL sell_lots |
+| `feature_05_foreign_domestic_broker_detail_sell_value_check` | CHECK ((sell_value >= (0)::numeric)) |
+| `feature_05_foreign_domestic_broker_detail_sell_value_not_null` | NOT NULL sell_value |
+| `feature_05_foreign_domestic_broker_detail_ticker_not_null` | NOT NULL ticker |
+| `feature_05_foreign_domestic_broker_detail_trade_date_not_null` | NOT NULL trade_date |
+| `feature_05_net_lots_check` | CHECK ((net_lots = (buy_lots - sell_lots))) |
+| `feature_05_net_value_check` | CHECK ((net_value = (buy_value - sell_value))) |
+
+#### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_05_Foreign_Domestic_Broker_Detail_INDEX_pkey` | CREATE UNIQUE INDEX "Feature_05_Foreign_Domestic_Broker_Detail_INDEX_pkey" ON public."Feature_05_Foreign_Domestic_Broker_Detail_INDEX" USING btree (ticker, trade_date, broker, investor_type, market_board) |
+| `Feature_05_Foreign_Domestic_Broker_Detail_INDEX_trade_date_idx` | CREATE INDEX "Feature_05_Foreign_Domestic_Broker_Detail_INDEX_trade_date_idx" ON public."Feature_05_Foreign_Domestic_Broker_Detail_INDEX" USING btree (trade_date) |
+
+#### Triggers
+
+| Name | Definition |
+|---|---|
+| `index_feature_identity_guard` | CREATE TRIGGER index_feature_identity_guard BEFORE INSERT OR UPDATE OF ticker ON public."Feature_05_Foreign_Domestic_Broker_Detail_INDEX" FOR EACH ROW EXECUTE FUNCTION validate_index_feature_identity() |
+
+### Feature_06_Foreign_Domestic_INDEX
+
+Dedicated universe-index output with validated historical bootstrap. Price and broker source endpoints differ. Broker scope includes all raw source symbols, not official historical constituents. Automatic daily updates are not enabled.
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | date | NO | — | Index scope. Trading date on which this board of the ticker traded. |
+| `ticker` | text | NO | — | Universe-classified index identifier; aggregate source symbols are not copied into the index ticker. |
+| `market_board` | text | NO | — | Index scope. Source board: Regular, Nego or Tunai; no ALL board (user decision). |
+| `foreign_buy_1d` | numeric | NO | — | Index scope. Foreign buy value for the ticker, date and board. |
+| `foreign_sell_1d` | numeric | NO | — | Index scope. Foreign sell value for the ticker, date and board. |
+| `foreign_net_1d` | numeric | NO | — | Index scope. Foreign net value; positive is net buying for the ticker, date and board. |
+| `domestic_buy_1d` | numeric | NO | — | Index scope. Domestic buy value for the ticker, date and board. |
+| `domestic_sell_1d` | numeric | NO | — | Index scope. Domestic sell value for the ticker, date and board. |
+| `domestic_net_1d` | numeric | NO | — | Index scope. Domestic net value; positive is net buying for the ticker, date and board. |
+| `foreign_cumulative_net` | numeric | NO | — | Running total of aggregate foreign net value from the first available broker-source session, including historical symbols absent on the output date. |
+| `domestic_cumulative_net` | numeric | NO | — | Running total of aggregate domestic net value from the first available broker-source session, including historical symbols absent on the output date. |
+| `foreign_net_5d` | numeric | YES | — | Index scope. Foreign net value over the last 5 sessions. |
+| `foreign_net_10d` | numeric | YES | — | Index scope. Foreign net value over the last 10 sessions. |
+| `foreign_net_20d` | numeric | YES | — | Index scope. Foreign net value over the last 20 sessions. |
+| `foreign_net_40d` | numeric | YES | — | Index scope. Foreign net value over the last 40 sessions. |
+| `foreign_net_60d` | numeric | YES | — | Index scope. Foreign net value over the last 60 sessions. |
+| `domestic_net_5d` | numeric | YES | — | Index scope. Domestic net value over the last 5 sessions. |
+| `domestic_net_10d` | numeric | YES | — | Index scope. Domestic net value over the last 10 sessions. |
+| `domestic_net_20d` | numeric | YES | — | Index scope. Domestic net value over the last 20 sessions. |
+| `domestic_net_60d` | numeric | YES | — | Index scope. Domestic net value over the last 60 sessions. |
+| `foreign_net_turnover_ratio_1d` | double precision | YES | — | Index scope. Foreign net value as a share of total traded value (buy side). |
+| `foreign_net_turnover_ratio_5d` | double precision | YES | — | Index scope. Foreign net value over 5 sessions as a share of 5-session traded value. |
+| `foreign_net_turnover_ratio_20d` | double precision | YES | — | Index scope. Foreign net value over 20 sessions as a share of 20-session traded value. |
+| `foreign_buy_share_1d` | double precision | YES | — | Index scope. Foreign buying as a share of traded value. |
+| `foreign_sell_share_1d` | double precision | YES | — | Index scope. Foreign selling as a share of traded value. |
+| `foreign_buy_days_5d` | smallint | YES | — | Index scope. Sessions with foreign net buying in the last 5 sessions. |
+| `foreign_buy_days_10d` | smallint | YES | — | Index scope. Sessions with foreign net buying in the last 10 sessions. |
+| `foreign_buy_days_20d` | smallint | YES | — | Index scope. Sessions with foreign net buying in the last 20 sessions. |
+| `foreign_buy_days_40d` | smallint | YES | — | Index scope. Sessions with foreign net buying in the last 40 sessions. |
+| `foreign_sell_days_5d` | smallint | YES | — | Index scope. Sessions with foreign net selling in the last 5 sessions. |
+| `foreign_sell_days_10d` | smallint | YES | — | Index scope. Sessions with foreign net selling in the last 10 sessions. |
+| `foreign_sell_days_20d` | smallint | YES | — | Index scope. Sessions with foreign net selling in the last 20 sessions. |
+| `foreign_sell_days_40d` | smallint | YES | — | Index scope. Sessions with foreign net selling in the last 40 sessions. |
+| `foreign_net_zscore_5d_base252d` | double precision | YES | — | Index scope. Z-score of today's 5-session foreign net against its previous 252 values. |
+| `foreign_net_zscore_10d_base252d` | double precision | YES | — | Index scope. Z-score of today's 10-session foreign net against its previous 252 values. |
+| `foreign_net_zscore_20d_base252d` | double precision | YES | — | Index scope. Z-score of today's 20-session foreign net against its previous 252 values. |
+| `foreign_net_zscore_40d_base252d` | double precision | YES | — | Index scope. Z-score of today's 40-session foreign net against its previous 252 values. |
+| `foreign_net_zscore_60d_base252d` | double precision | YES | — | Index scope. Z-score of today's 60-session foreign net against its previous 252 values. |
+| `foreign_net_percentile_5d_base252d` | double precision | YES | — | Index scope. Midrank percentile of today's 5-session foreign net among its previous 252 values. |
+| `foreign_net_percentile_10d_base252d` | double precision | YES | — | Index scope. Midrank percentile of today's 10-session foreign net among its previous 252 values. |
+| `foreign_net_percentile_20d_base252d` | double precision | YES | — | Index scope. Midrank percentile of today's 20-session foreign net among its previous 252 values. |
+| `foreign_net_percentile_40d_base252d` | double precision | YES | — | Index scope. Midrank percentile of today's 40-session foreign net among its previous 252 values. |
+| `foreign_net_percentile_60d_base252d` | double precision | YES | — | Index scope. Midrank percentile of today's 60-session foreign net among its previous 252 values. |
+| `foreign_net_zscore_5d_base60d` | double precision | YES | — | Index scope. Z-score of today's 5-session foreign net against its previous 60 values. |
+| `foreign_net_zscore_10d_base60d` | double precision | YES | — | Index scope. Z-score of today's 10-session foreign net against its previous 60 values. |
+| `foreign_net_zscore_20d_base60d` | double precision | YES | — | Index scope. Z-score of today's 20-session foreign net against its previous 60 values. |
+| `foreign_net_percentile_5d_base60d` | double precision | YES | — | Index scope. Midrank percentile of today's 5-session foreign net among its previous 60 values. |
+| `foreign_net_percentile_10d_base60d` | double precision | YES | — | Index scope. Midrank percentile of today's 10-session foreign net among its previous 60 values. |
+| `foreign_net_percentile_20d_base60d` | double precision | YES | — | Index scope. Midrank percentile of today's 20-session foreign net among its previous 60 values. |
+| `foreign_flow_vs_prev_20d` | numeric | YES | — | Index scope. Foreign net of the last 20 sessions minus the 20 sessions before them. |
+| `foreign_flow_vs_prev_40d` | numeric | YES | — | Index scope. Foreign net of the last 40 sessions minus the 40 sessions before them. |
+| `foreign_strength_20d` | double precision | YES | — | Index scope. Direction consistency of daily foreign net ratios over 20 sessions. |
+| `foreign_strength_50d` | double precision | YES | — | Index scope. Direction consistency of daily foreign net ratios over 50 sessions. |
+| `foreign_strength_momentum_5d` | double precision | YES | — | Index scope. Change of foreign_strength_20d over 5 sessions. |
+| `foreign_buy_freq_1d` | bigint | YES | — | Index scope. Foreign buy transactions. |
+| `foreign_sell_freq_1d` | bigint | YES | — | Index scope. Foreign sell transactions. |
+| `domestic_buy_freq_1d` | bigint | YES | — | Index scope. Domestic buy transactions. |
+| `domestic_sell_freq_1d` | bigint | YES | — | Index scope. Domestic sell transactions. |
+| `foreign_freq_imbalance_1d` | double precision | YES | — | Index scope. Foreign buy versus sell transaction imbalance. |
+| `foreign_freq_imbalance_20d` | double precision | YES | — | Index scope. Foreign transaction imbalance over 20 sessions. |
+| `foreign_buy_freq_share_1d` | double precision | YES | — | Index scope. Foreign share of buy transactions. |
+| `foreign_sell_freq_share_1d` | double precision | YES | — | Index scope. Foreign share of sell transactions. |
+| `foreign_avg_buy_value_per_freq_1d` | double precision | YES | — | Index scope. Average foreign buy value per transaction (ticket size). |
+| `foreign_avg_sell_value_per_freq_1d` | double precision | YES | — | Index scope. Average foreign sell value per transaction. |
+| `foreign_buy_sell_ticket_ratio_1d` | double precision | YES | — | Index scope. Foreign average buy ticket divided by average sell ticket. |
+| `foreign_avg_buy_lots_per_freq_1d` | double precision | YES | — | Index scope. Average foreign lots per buy transaction. |
+| `foreign_avg_sell_lots_per_freq_1d` | double precision | YES | — | Index scope. Average foreign lots per sell transaction. |
+| `domestic_freq_imbalance_1d` | double precision | YES | — | Index scope. Domestic buy versus sell transaction imbalance. |
+| `domestic_freq_imbalance_20d` | double precision | YES | — | Index scope. Domestic transaction imbalance over 20 sessions. |
+| `domestic_buy_freq_share_1d` | double precision | YES | — | Index scope. Domestic share of buy transactions. |
+| `domestic_sell_freq_share_1d` | double precision | YES | — | Index scope. Domestic share of sell transactions. |
+| `domestic_avg_buy_value_per_freq_1d` | double precision | YES | — | Index scope. Average domestic buy value per transaction (ticket size). |
+| `domestic_avg_sell_value_per_freq_1d` | double precision | YES | — | Index scope. Average domestic sell value per transaction. |
+| `domestic_buy_sell_ticket_ratio_1d` | double precision | YES | — | Index scope. Domestic average buy ticket divided by average sell ticket. |
+| `domestic_avg_buy_lots_per_freq_1d` | double precision | YES | — | Index scope. Average domestic lots per buy transaction. |
+| `domestic_avg_sell_lots_per_freq_1d` | double precision | YES | — | Index scope. Average domestic lots per sell transaction. |
+| `domestic_buy_freq_share_change_5d_vs_prev20d` | double precision | YES | — | Index scope. Change of the domestic share of buy transactions: last 5 sessions versus the 20 before. |
+| `foreign_buy_freq_share_change_5d_vs_prev20d` | double precision | YES | — | Index scope. Change of the foreign share of buy transactions: last 5 sessions versus the 20 before. |
+| `domestic_buy_value_per_freq_change_5d_vs_prev20d` | double precision | YES | — | Index scope. Percent change of the domestic average buy value per transaction: last 5 sessions versus the 20 before. |
+| `foreign_buy_value_per_freq_change_5d_vs_prev20d` | double precision | YES | — | Index scope. Percent change of the foreign average buy value per transaction: last 5 sessions versus the 20 before. |
+| `domestic_sell_freq_share_change_5d_vs_prev20d` | double precision | YES | — | Index scope. Change of the domestic share of sell transactions: last 5 sessions versus the 20 before. |
+| `foreign_sell_freq_share_change_5d_vs_prev20d` | double precision | YES | — | Index scope. Change of the foreign share of sell transactions: last 5 sessions versus the 20 before. |
+| `domestic_sell_value_per_freq_change_5d_vs_prev20d` | double precision | YES | — | Index scope. Percent change of the domestic average sell value per transaction: last 5 sessions versus the 20 before. |
+| `foreign_sell_value_per_freq_change_5d_vs_prev20d` | double precision | YES | — | Index scope. Percent change of the foreign average sell value per transaction: last 5 sessions versus the 20 before. |
+| `foreign_value_freq_sign_mismatch_1d` | boolean | YES | — | Index scope. Foreign net value and foreign net transaction count point in different directions. |
+| `source_balance_gap` | boolean | NO | — | Index scope. Internal: Feature 05 marks this date, ticker and board as a source gap (ERRORS M157). |
+| `calculated_at` | timestamp with time zone | NO | statement_timestamp() | Index scope. Statement timestamp when the row was written. |
+| `frequency_source_rows` | bigint | NO | 0 | Count of contributing raw broker source rows. |
+| `buy_freq_known_rows` | bigint | NO | 0 | Contributing source rows with known buy frequency; not the number of buy trades. |
+| `sell_freq_known_rows` | bigint | NO | 0 | Contributing source rows with known sell frequency; not the number of sell trades. |
+| `buy_freq_missing_rows` | bigint | NO | 0 | Contributing source rows whose buy frequency is unknown. |
+| `sell_freq_missing_rows` | bigint | NO | 0 | Contributing source rows whose sell frequency is unknown. |
+
+#### Constraints
+
+| Name | Definition |
+|---|---|
+| `Feature_06_Foreign_Domestic_INDEX_buy_freq_known_rows_not_null` | NOT NULL buy_freq_known_rows |
+| `Feature_06_Foreign_Domestic_INDEX_pkey` | PRIMARY KEY (ticker, market_board, trade_date) |
+| `Feature_06_Foreign_Domestic_INDEX_sell_freq_known_rows_not_null` | NOT NULL sell_freq_known_rows |
+| `Feature_06_Foreign_Domestic_INDE_buy_freq_missing_rows_not_null` | NOT NULL buy_freq_missing_rows |
+| `Feature_06_Foreign_Domestic_INDE_frequency_source_rows_not_null` | NOT NULL frequency_source_rows |
+| `Feature_06_Foreign_Domestic_IND_sell_freq_missing_rows_not_null` | NOT NULL sell_freq_missing_rows |
+| `feature_06_foreign_domestic_calculated_at_not_null` | NOT NULL calculated_at |
+| `feature_06_foreign_domestic_domestic_buy_1d_not_null` | NOT NULL domestic_buy_1d |
+| `feature_06_foreign_domestic_domestic_cumulative_net_not_null` | NOT NULL domestic_cumulative_net |
+| `feature_06_foreign_domestic_domestic_net_1d_not_null` | NOT NULL domestic_net_1d |
+| `feature_06_foreign_domestic_domestic_sell_1d_not_null` | NOT NULL domestic_sell_1d |
+| `feature_06_foreign_domestic_foreign_buy_1d_not_null` | NOT NULL foreign_buy_1d |
+| `feature_06_foreign_domestic_foreign_cumulative_net_not_null` | NOT NULL foreign_cumulative_net |
+| `feature_06_foreign_domestic_foreign_net_1d_not_null` | NOT NULL foreign_net_1d |
+| `feature_06_foreign_domestic_foreign_sell_1d_not_null` | NOT NULL foreign_sell_1d |
+| `feature_06_foreign_domestic_market_board_check` | CHECK ((market_board = ANY (ARRAY['Regular'::text, 'Nego'::text, 'Tunai'::text]))) |
+| `feature_06_foreign_domestic_market_board_not_null` | NOT NULL market_board |
+| `feature_06_foreign_domestic_source_balance_gap_not_null` | NOT NULL source_balance_gap |
+| `feature_06_foreign_domestic_ticker_not_null` | NOT NULL ticker |
+| `feature_06_foreign_domestic_trade_date_not_null` | NOT NULL trade_date |
+| `index_frequency_coverage_check` | CHECK (((frequency_source_rows >= 0) AND (buy_freq_known_rows >= 0) AND (sell_freq_known_rows >= 0) AND (buy_freq_missing_rows >= 0) AND (sell_freq_missing_rows >= 0) AND ((buy_freq_known_rows + buy_freq_missing_rows) = frequency_source_rows) AND ((sell_freq_known_rows + sell_freq_missing_rows) = frequency_source_rows))) |
+
+#### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_06_Foreign_Domestic_INDEX_pkey` | CREATE UNIQUE INDEX "Feature_06_Foreign_Domestic_INDEX_pkey" ON public."Feature_06_Foreign_Domestic_INDEX" USING btree (ticker, market_board, trade_date) |
+| `Feature_06_Foreign_Domestic_INDEX_trade_date_market_board_idx` | CREATE INDEX "Feature_06_Foreign_Domestic_INDEX_trade_date_market_board_idx" ON public."Feature_06_Foreign_Domestic_INDEX" USING btree (trade_date, market_board) |
+
+#### Triggers
+
+| Name | Definition |
+|---|---|
+| `index_feature_identity_guard` | CREATE TRIGGER index_feature_identity_guard BEFORE INSERT OR UPDATE OF ticker ON public."Feature_06_Foreign_Domestic_INDEX" FOR EACH ROW EXECUTE FUNCTION validate_index_feature_identity() |
+
+### Feature_Vocabulary
+
+Reviewed Indonesian frontend dictionary for Feature01/02/03/05/06 stocks and INDEX; one entry per physical source table/column/language. No market data or executable formulas. Feature_Catalog remains semantic authority.
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `source_schema` | text | NO | 'public'::text | Exact schema of the described physical Feature column. |
+| `source_table` | text | NO | — | Exact physical Feature source table; stock and INDEX definitions stay separate. |
+| `column_name` | text | NO | — | Exact physical source column name. |
+| `language_code` | text | NO | 'id-ID'::text | Language of the presentation text, initially id-ID. |
+| `feature_number` | smallint | NO | — | Feature identifier 1,2,3,5 or6; Feature04 excluded. |
+| `scope` | text | NO | — | stock (legacy non-INDEX tables) or index, derived from the exact source table identity; not an instrument-membership filter. |
+| `column_name_proper` | text | NO | — | Reviewed readable English field label; acronyms and horizons preserved. |
+| `formula` | text | NO | — | Display formula or identity rule, never executed as SQL. |
+| `unit` | text | NO | — | Human-readable unit, distinguishing fraction, percent, percentage points and index points. |
+| `definition` | text | NO | — | Indonesian explanation of what the source field measures. |
+| `what_it_tells_us` | text | NO | — | Indonesian analytical interpretation without invented thresholds or prediction. |
+| `grain` | text | NO | — | Business identity of one source Feature row. |
+| `null_rule` | text | NO | — | Exact conditions for a legitimate NULL source value. |
+| `lookback_window` | text | NO | — | Source calculation window in actual observed sessions. |
+| `minimum_history` | text | NO | — | Minimum valid source history before the metric is available. |
+| `caveat` | text | NO | — | Scope, source-quality and interpretation limitations. |
+| `column_kind` | text | NO | — | dimension, metric, quality or metadata. |
+| `display_order` | integer | NO | — | Physical source column ordinal for consistent presentation. |
+| `source_feature_version` | text | NO | — | Active source Feature_Catalog version at review. |
+| `source_semantic_hash` | text | NO | — | SHA256 of relevant source semantic fields; detects silent metadata drift. |
+| `review_status` | text | NO | — | DRAFT or VERIFIED after code-backed review and semantic-hash matching. |
+| `validation_evidence` | ARRAY | NO | — | Nonempty repository evidence paths supporting the reviewed definition. |
+| `created_at` | timestamp with time zone | NO | statement_timestamp() | Initial dictionary entry timestamp. |
+| `updated_at` | timestamp with time zone | NO | statement_timestamp() | Latest actual entry change timestamp; idempotent sync leaves it unchanged. |
+
+#### Constraints
+
+| Name | Definition |
+|---|---|
+| `Feature_Vocabulary_caveat_not_null` | NOT NULL caveat |
+| `Feature_Vocabulary_check` | CHECK ((scope = CASE     WHEN ("right"(source_table, 6) = '_INDEX'::text) THEN 'index'::text     ELSE 'stock'::text END)) |
+| `Feature_Vocabulary_check1` | CHECK ((feature_number = ("substring"(source_table, '^Feature_([0-9]{2})_'::text))::smallint)) |
+| `Feature_Vocabulary_column_kind_check` | CHECK ((column_kind = ANY (ARRAY['dimension'::text, 'metric'::text, 'quality'::text, 'metadata'::text]))) |
+| `Feature_Vocabulary_column_kind_not_null` | NOT NULL column_kind |
+| `Feature_Vocabulary_column_name_check` | CHECK ((btrim(column_name) <> ''::text)) |
+| `Feature_Vocabulary_column_name_not_null` | NOT NULL column_name |
+| `Feature_Vocabulary_column_name_proper_check` | CHECK ((btrim(column_name_proper) <> ''::text)) |
+| `Feature_Vocabulary_column_name_proper_not_null` | NOT NULL column_name_proper |
+| `Feature_Vocabulary_created_at_not_null` | NOT NULL created_at |
+| `Feature_Vocabulary_definition_check` | CHECK ((btrim(definition) <> ''::text)) |
+| `Feature_Vocabulary_definition_not_null` | NOT NULL definition |
+| `Feature_Vocabulary_display_order_check` | CHECK ((display_order > 0)) |
+| `Feature_Vocabulary_display_order_not_null` | NOT NULL display_order |
+| `Feature_Vocabulary_feature_number_check` | CHECK ((feature_number = ANY (ARRAY[1, 2, 3, 5, 6]))) |
+| `Feature_Vocabulary_feature_number_not_null` | NOT NULL feature_number |
+| `Feature_Vocabulary_formula_check` | CHECK ((btrim(formula) <> ''::text)) |
+| `Feature_Vocabulary_formula_not_null` | NOT NULL formula |
+| `Feature_Vocabulary_grain_check` | CHECK ((btrim(grain) <> ''::text)) |
+| `Feature_Vocabulary_grain_not_null` | NOT NULL grain |
+| `Feature_Vocabulary_language_code_check` | CHECK ((language_code = 'id-ID'::text)) |
+| `Feature_Vocabulary_language_code_not_null` | NOT NULL language_code |
+| `Feature_Vocabulary_lookback_window_not_null` | NOT NULL lookback_window |
+| `Feature_Vocabulary_minimum_history_not_null` | NOT NULL minimum_history |
+| `Feature_Vocabulary_null_rule_check` | CHECK ((btrim(null_rule) <> ''::text)) |
+| `Feature_Vocabulary_null_rule_not_null` | NOT NULL null_rule |
+| `Feature_Vocabulary_pkey` | PRIMARY KEY (source_schema, source_table, column_name, language_code) |
+| `Feature_Vocabulary_review_status_check` | CHECK ((review_status = ANY (ARRAY['DRAFT'::text, 'VERIFIED'::text]))) |
+| `Feature_Vocabulary_review_status_not_null` | NOT NULL review_status |
+| `Feature_Vocabulary_scope_check` | CHECK ((scope = ANY (ARRAY['stock'::text, 'index'::text]))) |
+| `Feature_Vocabulary_scope_not_null` | NOT NULL scope |
+| `Feature_Vocabulary_source_feature_version_check` | CHECK ((source_feature_version ~ '^v[1-9][0-9]*$'::text)) |
+| `Feature_Vocabulary_source_feature_version_not_null` | NOT NULL source_feature_version |
+| `Feature_Vocabulary_source_schema_check` | CHECK ((source_schema = 'public'::text)) |
+| `Feature_Vocabulary_source_schema_not_null` | NOT NULL source_schema |
+| `Feature_Vocabulary_source_semantic_hash_check` | CHECK ((source_semantic_hash ~ '^[0-9a-f]{64}$'::text)) |
+| `Feature_Vocabulary_source_semantic_hash_not_null` | NOT NULL source_semantic_hash |
+| `Feature_Vocabulary_source_table_check` | CHECK ((btrim(source_table) <> ''::text)) |
+| `Feature_Vocabulary_source_table_not_null` | NOT NULL source_table |
+| `Feature_Vocabulary_unit_check` | CHECK ((btrim(unit) <> ''::text)) |
+| `Feature_Vocabulary_unit_not_null` | NOT NULL unit |
+| `Feature_Vocabulary_updated_at_not_null` | NOT NULL updated_at |
+| `Feature_Vocabulary_validation_evidence_check` | CHECK ((cardinality(validation_evidence) > 0)) |
+| `Feature_Vocabulary_validation_evidence_not_null` | NOT NULL validation_evidence |
+| `Feature_Vocabulary_what_it_tells_us_check` | CHECK ((btrim(what_it_tells_us) <> ''::text)) |
+| `Feature_Vocabulary_what_it_tells_us_not_null` | NOT NULL what_it_tells_us |
+
+#### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_Vocabulary_pkey` | CREATE UNIQUE INDEX "Feature_Vocabulary_pkey" ON public."Feature_Vocabulary" USING btree (source_schema, source_table, column_name, language_code) |
+
+#### Triggers
+
+| Name | Definition |
+|---|---|

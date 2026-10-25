@@ -262,3 +262,22 @@ Every Indonesian meaning is left empty (`description_id` NULL; user decision, st
 
 Feature 02 and Feature 03 keep every code; the views' table descriptions say so. Read-back: DATABASE_CHANGELOG.md
 2026-10-23.
+
+
+## INDEX bootstrap and frontend vocabulary — 2026-10-25
+
+The six dedicated *_INDEX tables now contain validated IHSG history (DATABASE_CHANGELOG.md).
+F05 INDEX has the original 15 analytical/identity fields after the five coverage columns were removed;
+F06 INDEX retains all five coverage fields. Active Feature/physical column metadata is synchronized
+for all 255 INDEX columns. Current broker scope is all source symbols, each board, with common
+aggregate sessions and a broker-history cumulative baseline independent of index price inception.
+Daily updates and new AI exposure remain separate; existing legacy worker routing is unchanged.
+
+`Feature_Vocabulary` is a **Reference** presentation dictionary, not a new numerical Feature.
+It has 24 documented physical fields and 391 reviewed rows for F01/02/03/05/06 stock and INDEX
+sources. Exact source table/column/language identity separates meanings. Source semantic hashes
+reject drift at sync; idempotent updates preserve timestamps for unchanged entries. Formula text
+is never executed. Scope stock labels legacy non-INDEX tables, which can contain non-stock raw
+symbols. The seven frontend fields and maintenance/query instructions are in FEATURE_VOCABULARY.md.
+No Feature_Catalog definitions are required for vocabulary metadata fields; their registration is
+Table_Catalog/Column_Catalog. No frontend endpoint, browser credentials or AI tools were added.

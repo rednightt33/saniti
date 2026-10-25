@@ -1,0 +1,9 @@
+{
+  "service_id": "5e377107-8e63-440a-9e44-188772a1729e",
+  "environment_id": "4d3e5af2-302b-4a2e-84e2-7d7476d6ff49",
+  "deleted": true,
+  "global_delete_not_authorized": "Project token is environment-scoped; explicit environmentId deletion succeeded.",
+  "result": "environment-scoped deletion true; service absent in project service list",
+  "read_back_absent": true,
+  "permanent_services_changed": false
+}

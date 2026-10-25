@@ -1,0 +1,7 @@
+{
+  "database/migrations/20261024_010_create_index_feature_tables.sql": "1643ca3615a83ff69c6cfe2228ebce5a3e8fa41162d197e05880a21e374e8a74",
+  "scripts/initialize_index_feature_sample.py": "203b97e8c20f8c312663a4b65bad1579caa81c82ddd4a067f36d62ed1587d8ec",
+  "scripts/upsert_index_broker_feature_sample.py": "3f2a5248ac4831b407dc0d1e2c87461967cab35c2f802f276b130b633a75ac3d",
+  "scripts/backfill_feature_02_v2.py": "92d108a5d4fb737d6374fbac9df4e15909f57dbdb64995f3996be9c993103942",
+  "features/feature04/engine.py": "a16a8934e79889ac660a1204cf59bca9e2dcb635dd6758f32399babc9093f50e"
+}
