@@ -307,3 +307,13 @@ def test_reference_files_do_not_count_as_tickers(env):
 def test_responses_are_not_cached(env):
     client, _, _ = env
     assert client.get('/health').headers['cache-control'] == 'no-store'
+
+
+def test_history_uses_the_window_of_its_own_dataset(env):
+    client, store, bucket = env
+    sign_in(client)
+    bucket.manifests['BBCA']['datasets']['price']['first_year'] = 2018
+    r = client.get(f'{API}/history/price', params={'ticker': 'BBCA', 'from': '2019-01-01', 'to': '2019-12-31'})
+    assert r.status_code == 400 and '2018-01-01' in r.json()['message']
+    r = client.get(f'{API}/history/broker', params={'ticker': 'BBCA', 'from': '2019-01-01', 'to': '2019-12-31'})
+    assert r.status_code == 200

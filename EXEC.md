@@ -7393,6 +7393,21 @@ User decisions 2026-10-24 (after the live report):
   created and disabled by the admin, no self sign-up or payment yet; DESIGN section 4). Open: the user's go on the
   implementation steps (DESIGN section 5).
 
+User decisions 2026-10-25 (indicators and rack):
+- Rack refresh: "Yes, boleh untuk segarkan rak. Tapi untuk data broker kemungkinan tidak akan setiap hari update. Jadi
+  mesti dicek juga. Kalau datanya update, maka bisa di-update raknya. Tapi jika tidak, ya maka as is." The publisher's
+  daily mode republishes broker files only when Feature 05 has newer trading dates.
+- Not merged: "nanti dulu jangan gabungkan kode ke main."
+- Terminal page: "https://edge-bff-dev.up.railway.app/ domain bisa pakai in saja dulu, buat tab terpisah di sebelah
+  monitor." (frontend phase).
+- Indicator alignment (report `verification/terminal_api/INDICATOR_ALIGNMENT.md`): "Yang ada kita sesuaikan saja dengan
+  feature 4, tapi jika tidak ada kita pakai HTML." Indicators that Feature 04 stores follow Feature 04 (TA-Lib: ATR, ADX
+  seeds; RSI 0 on a flat window); the others follow the HTML engine.
+- The 38 indicators without a Feature 04 column: catalog only, in `AI_formula_reference` ("1. ok formula reference").
+- SMI, swing state and candlestick patterns: "ai dulu" (not displayed for now).
+- RVOL includes the current bar ("RVOLtermasuk volume hari ini").
+- Price files from the first stored year (2018) instead of 5 years ("3. ok"); broker files keep 5 years.
+
 Open questions for the user (after the live inspection):
 - Q1: done (network access opened 2026-10-24).
 - Q2: decisions S1–S11 in the report (volatility basis, drawdown window, partial month, meaning of "Foreign" in the

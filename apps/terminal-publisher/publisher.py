@@ -115,7 +115,10 @@ class Bucket:
 class Publisher:
     def __init__(self, conn, bucket, today=None):
         self.conn, self.bucket = conn, bucket
+        # first_year/last_year: the broker window (TERMINAL_YEARS). Price is small (~2 KB per ticker-year) and is
+        # published from its first stored year, so browser indicators start where Feature 04 does (user 2026-10-25).
         self.first_year, self.last_year = window(today)
+        self.price_first_year = None
         self.manifests = {}
         self.written = 0
         self.bytes = 0
@@ -129,11 +132,14 @@ class Publisher:
 
     def save_manifest(self, ticker, data_through):
         m = self.manifest(ticker)
-        m['window'] = {'first_year': self.first_year, 'last_year': self.last_year}
+        m['window'] = {'first_year': self.first_year, 'last_year': self.last_year,
+                       'price_first_year': self.price_first_year}
         for dataset, through in data_through.items():
             ds = m['datasets'].setdefault(dataset, {'files': {}})
+            first = self.dataset_first_year(dataset)
             ds['data_through'] = through
-            ds['files'] = {y: f for y, f in ds['files'].items() if int(y) >= self.first_year}
+            ds['first_year'] = first
+            ds['files'] = {y: f for y, f in ds['files'].items() if int(y) >= first}
         m['generated_at'] = dt.datetime.now(dt.timezone.utc).isoformat()
         self.bucket.put(f'manifest/{ticker}.json', json.dumps(m, separators=(',', ':')).encode(), 'application/json')
 
@@ -174,6 +180,14 @@ class Publisher:
             body, _ = encode(doc)
             self.bucket.put(key, body, 'application/gzip')
 
+    def dataset_first_year(self, dataset):
+        return self.price_first_year if dataset == 'price' else self.first_year
+
+    def resolve_price_first_year(self):
+        first = self.conn.execute('SELECT min(date)::text FROM public."Price_Stock_Indonesia_IDX" '
+                                  "WHERE timeframe = 'Daily' AND is_final").fetchone()[0]
+        self.price_first_year = min(int(first[:4]), self.first_year) if first else self.first_year
+
     def data_through(self):
         price = self.conn.execute('SELECT max(date)::text FROM public."Price_Stock_Indonesia_IDX" '
                                   "WHERE timeframe = 'Daily' AND is_final").fetchone()[0]
@@ -187,11 +201,12 @@ class Publisher:
         universe = self.universe()
         kind = {t: typ for t, _, typ in universe}
         through = self.data_through()
+        self.resolve_price_first_year()
         state = self.bucket.get_json('state.json') or {}
         todo = []  # (dataset, ticker, year, stamp)
         years = range(self.first_year, self.last_year + 1)
         if mode == 'backfill':
-            todo = [('price', t, y, None) for t in kind for y in years]
+            todo = [('price', t, y, None) for t in kind for y in range(self.price_first_year, self.last_year + 1)]
             todo += [('broker', t, y, None) for t, typ in kind.items() if typ == 'stock' for y in years]
         elif mode == 'daily':
             todo = self.changed_prices(kind)
@@ -208,7 +223,8 @@ class Publisher:
                     for y in range(max(lo, self.first_year), hi + 1)]
         else:
             raise SystemExit(f'unknown mode {mode}')
-        log('plan', mode=mode, files=len(todo), window=[self.first_year, self.last_year], data_through=through)
+        log('plan', mode=mode, files=len(todo), window=[self.first_year, self.last_year],
+            price_first_year=self.price_first_year, data_through=through)
         touched = set()
         for n, (dataset, ticker, year, stamp) in enumerate(todo, 1):
             self.publish(dataset, ticker, year, stamp)
@@ -222,7 +238,7 @@ class Publisher:
         broker_through = through['broker'] if mode in ('backfill', 'daily') else state.get('broker_through')
         self.bucket.put('state.json', json.dumps({
             'schema_version': SCHEMA_VERSION, 'price_through': through['price'], 'broker_through': broker_through,
-            'window': [self.first_year, self.last_year], 'last_mode': mode,
+            'window': [self.first_year, self.last_year], 'price_first_year': self.price_first_year, 'last_mode': mode,
             'finished_at': dt.datetime.now(dt.timezone.utc).isoformat()}).encode(), 'application/json')
         log('done', mode=mode, files_planned=len(todo), files_written=self.written, mb=round(self.bytes / 1e6, 2),
             tickers=len(touched), seconds=round(time.monotonic() - started, 1))
@@ -230,11 +246,16 @@ class Publisher:
     def changed_prices(self, kind):
         """Price ticker-years whose source stamp (rows, last date, last ingestion, sum of closes) differs from the
         manifest; a correction of an old candle changes the stamp of its year."""
-        out = []
-        for ticker, year, count, last, ingested, total in self.conn.execute(
-                PRICE_STAMPS_SQL, (f'{self.first_year}-01-01',)).fetchall():
+        out, seen = [], set()
+        rows = self.conn.execute(PRICE_STAMPS_SQL, (f'{self.price_first_year}-01-01',)).fetchall()
+        log('planning', step='price stamps read', ticker_years=len(rows))
+        for ticker, year, count, last, ingested, total in rows:
             if ticker not in kind:
                 continue
+            if ticker not in seen:  # reading each manifest from the bucket is the slow part of planning
+                seen.add(ticker)
+                if len(seen) % 200 == 0:
+                    log('planning', step='manifests read', tickers=len(seen))
             stamp = f'rows={count};last={last};ing={ingested};sum={total}'
             current = self.manifest(ticker)['datasets'].get('price', {}).get('files', {}).get(str(year), {})
             if current.get('stamp') != stamp:

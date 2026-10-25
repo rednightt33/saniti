@@ -272,8 +272,9 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
                 'files': [{'year': y, 'url': bucket.presign(f['key'], ttl), 'sha256': f['sha256'],
                            'bytes': f['bytes'], 'rows': f['rows']} for y, f in zip(years, chosen)]}
 
-    def history_range(m, lo: dt.date, hi: dt.date, max_days: int):
-        first_year = (m.get('window') or {}).get('first_year')
+    def history_range(m, dataset, lo: dt.date, hi: dt.date, max_days: int):
+        first_year = (m.get('datasets', {}).get(dataset, {}).get('first_year')
+                      or (m.get('window') or {}).get('first_year'))
         if hi < lo:
             error(400, 'invalid_range', '`from` must be on or before `to`.')
         if (hi - lo).days + 1 > max_days:
@@ -284,7 +285,7 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
 
     def run_history(request, who, ticker, kind, fetch, cols, max_days, lo, hi):
         m = ticker_manifest(ticker)
-        history_range(m, lo, hi, max_days)
+        history_range(m, 'price' if kind == 'history_price' else 'broker', lo, hi, max_days)
         sid = who['subscriber_id']
         with store.tx() as c:
             store.lock_subscriber(c, sid)

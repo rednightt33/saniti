@@ -61,6 +61,8 @@ class FakeConn:
             return [(len(r), min(x[1] for x in r), max(x[1] for x in r), sum(x[5] + x[6] for x in r))]
         if 'IDX_Broker_Profile' in sql:
             return [('AK', 'UBS', 'Foreign'), ('YP', 'Mirae', 'Domestic')]
+        if 'min(date)' in sql:
+            return [(min(r[1] for r in self.prices),)]
         if 'max(date)' in sql:
             return [(max(r[1] for r in self.prices),)]
         if 'max(trade_date)' in sql:
@@ -143,3 +145,22 @@ def test_verify_detects_a_changed_object():
     assert pub.verify(conn, bucket) == 0
     bucket.objects['price/BBCA/2026.json.gz'] = gzip.compress(b'{}')
     assert pub.verify(conn, bucket) == 1
+
+
+def test_price_is_published_from_its_first_year_and_broker_keeps_the_window():
+    prices = PRICES + [('BBCA', '2019-06-03', 50.0, 51.0, 49.0, 50.5, 10.0)]
+    brokers = BROKERS + [('BBCA', '2019-06-03', 'AK', 'Foreign', 'Regular', 1.0, 0.0, 0.01, 0.0, False)]
+    p, _, bucket = run('backfill', conn=FakeConn(prices, brokers, UNIVERSE))
+    assert p.price_first_year == 2019
+    assert 'price/BBCA/2019.json.gz' in bucket.objects and 'broker/BBCA/2019.json.gz' not in bucket.objects
+    m = bucket.get_json('manifest/BBCA.json')
+    assert m['datasets']['price']['first_year'] == 2019 and m['datasets']['broker']['first_year'] == 2021
+    assert '2019' in m['datasets']['price']['files'] and '2019' not in m['datasets']['broker']['files']
+
+
+def test_daily_adds_missing_early_price_years():
+    _, conn, bucket = run('backfill')
+    conn.prices = PRICES + [('BBCA', '2019-06-03', 50.0, 51.0, 49.0, 50.5, 10.0)]
+    p2 = pub.Publisher(conn, bucket, today=TODAY)
+    p2.run('daily')
+    assert 'price/BBCA/2019.json.gz' in bucket.objects and p2.written == 1
