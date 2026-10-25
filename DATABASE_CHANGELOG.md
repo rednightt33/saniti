@@ -2458,3 +2458,31 @@ or raw source data changed. Daily INDEX updates remain a separately approved des
   - the enum types of the dropped columns;
   - the lineage text of `Feature_Catalog` F05 `buy_freq`/`sell_freq` (historical source).
 - `apps/feature-05-06-job/job.py`: the retired task `phase1_backfill` was removed.
+
+## 2026-10-25 — Feature refresh from the re-downloaded Broker Summary (EXEC-REFRESH-1025, EXEC-INCR-1025)
+
+- Source: `IDX_Broker_Summary` 2026-09-01 to 2026-10-23 (39 dates, `buy_freq`/`sell_freq` on every row), re-downloaded
+  by the user's loader. That loader writes no `stockbit_broker_summary_load_log` row (the log stops at 2026-08-31).
+- R1, Feature 05 and 06 (job `70c406e6-79e2-4fdd-9fae-f075ff07528f`, log kept in the session scratchpad):
+  - `refresh_feature_05('2026-09-01', '2026-10-24')`: 968,042 rows, equal to the source rows (0 differing), 73.8 s;
+    a second pass found 0 differing and skipped.
+  - `refresh_feature_06(ticker, '2026-09-01')` for the 912 tickers with new F05 rows: 38,163 rows; reconcile against
+    the Σ F05 groups 38,163 = 38,163, 0 differing.
+  - Incremental equals full (rolled back): BBCA, BBRI, MIKA, GOTO, TLKM, ANTM, BUMI, 0 differences each.
+- INDEX (IHSG) Feature 01-06 (`scripts/backfill_index_features.py` `prepare` + `apply_chunks`, without
+  `archive_and_migrate`, driver job in the scratchpad):
+  - validations passed: F02 77,425 rows, F03 144,900, F06 601,335, sample 11,326;
+  - every year 2016-2025 wrote 0 rows (the rewrite equals the stored history); the rerun modified 0 and every
+    payload hash matched;
+  - 2026 wrote exactly the new rows: F02 and F05 7,802, F03 and F06 117, F01 and F04 0 (no price row changed);
+  - the broker-based INDEX tables (F02, F03, F05, F06) now reach 2026-10-23.
+- Migration `20261025_008_refresh_feature_02_incremental.sql` (sha256 `832c9661…`, in `APPLIED.sha256`): new
+  `public.refresh_feature_02(p_ticker text, p_from date DEFAULT NULL) RETURNS bigint`.
+  - The SQL is the one of `scripts/backfill_feature_02_v2.py` `INSERT_TICKER`; the daily rows are read from
+    Feature 05 (`buy_value - sell_value` as net value) with the 311 earlier sessions the longest window needs
+    (60-session window plus 252 sessions for the z-score and percentile), and only rows on or after `p_from` are
+    deleted and written. An advisory lock per ticker guards concurrent runs.
+  - Before APPLY, 10 cases in a rolled-back transaction equalled the stored full calculation with 0 differences
+    (BBCA from 2026-08-03 and from 2024-01-02, BBRI, GOTO twice, TLKM from 2020, a thin ticker, a warrant, PSAT
+    incremental and full).
+  - Table_Catalog `related_functions` of `Feature_02_Broker_Rolling` names it.
