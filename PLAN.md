@@ -859,7 +859,11 @@ cum/ex/record/pay/start/end, angka bertipe numeric dengan satuan, kolom insider 
 dan `/insider/company/majorholder`. Uji tarik 2026-10-25: 22.019 baris corporate action (termasuk 2.760 economic yang
 dikeluarkan), 103.788 baris insider unik, 964 ticker, 2017-10-12 s.d. 2026-10-23 (belum dimuat ke database).
 
+**Arahan user, 2026-10-25 (kata user):** "Kalau insider, kita harus menunjukkan atau show current percentage compared to previous percentage. Siapa yang beli, apa broker dan sebagainya. Tapi kalau corporate action seperti dividend, stock split, dan lain-lain, hanya cukup tunjukkan tanggalnya saja dan jenis corporate action. Detailnya nggak gitu penting." Usulan diringkas: corporate action hanya `event_type` + `annotation_date` (+ peran tanggal), detail tetap di `source_payload`; insider membawa `action`, `holder_*`, `broker_code`, saham dan persen sebelum/sesudah/perubahan, `pct_quality_flag`, harga, nilai, `data_origin`. Contoh 10 + 10 baris dikirim ke user dalam Excel (belum disetujui).
+
 Pertanyaan terbuka:
+- Usulan kolom dan contoh Excel 2026-10-25: disetujui atau diubah?
+- `pct_quality_flag` memakai pembanding saham beredar paling jauh 30 hari (nilai desain, perlu konfirmasi).
 - Persentase insider (D21): simpan nilai API apa adanya + flag kualitas, atau juga kolom hasil hitung ulang?
 - Waran terstruktur (simbol seperti `AADIBQCQ6A`): ikut atau tidak?
 - Pembaruan terjadwal: Stockbit JWT berlaku sekitar 1 hari; cara memperbarui token dan jadwalnya belum diputuskan.
