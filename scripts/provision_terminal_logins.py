@@ -13,7 +13,8 @@ from psycopg import sql
 from psycopg.rows import dict_row
 
 MARKET = {('public', t) for t in ('Price_Stock_Indonesia_IDX', 'Feature_05_Foreign_Domestic_Broker_Detail',
-                                   'IDX_Broker_Profile', 'IDX_Stock_Universe')}
+                                   'IDX_Broker_Profile', 'IDX_Stock_Universe',
+                                   'idx_event_annotation')}  # since 20261025_101
 TERMINAL = {('terminal', t) for t in ('subscriber', 'session', 'access_log', 'sign_in_attempt', 'quota',
                                       'quota_override', 'admin_log')}
 LOGINS = {

@@ -128,8 +128,11 @@ class FakeBucket:
                           'first': f'{y}-01-02', 'last': f'{y}-12-30'} for y in range(2021, 2027)}
         broker = {str(y): {'key': f'v1/broker/BBCA/{y}.json.gz', 'sha256': 'b' * 64, 'bytes': 250_000,
                            'rows': 24000, 'first': f'{y}-01-02', 'last': f'{y}-12-30'} for y in range(2021, 2027)}
+        events = {'all': {'key': 'v1/events/BBCA/all.json.gz', 'sha256': 'c' * 64, 'bytes': 9000, 'rows': 120,
+                          'first': '2009-01-20', 'last': '2026-11-03'}}
         self.manifests = {'BBCA': {'window': {'first_year': 2021, 'last_year': 2026}, 'datasets': {
             'price': {'data_through': '2026-10-23', 'files': files},
+            'events': {'data_through': '2026-10-25T17:04:28Z', 'files': events},
             'broker': {'data_through': '2026-08-31', 'files': broker}}}}
 
     def manifest(self, ticker):
@@ -317,3 +320,15 @@ def test_history_uses_the_window_of_its_own_dataset(env):
     assert r.status_code == 400 and '2018-01-01' in r.json()['message']
     r = client.get(f'{API}/history/broker', params={'ticker': 'BBCA', 'from': '2019-01-01', 'to': '2019-12-31'})
     assert r.status_code == 200
+
+
+def test_events_file_needs_no_years_and_counts_as_one_file(env):
+    client, store, _ = env
+    sign_in(client)
+    r = client.post(f'{API}/files', json={'ticker': 'BBCA', 'dataset': 'events'})
+    assert r.status_code == 200 and r.json()['files'][0]['year'] is None
+    assert store.access[-1]['key'] == 'v1/events/BBCA/all.json.gz'
+    r = client.post(f'{API}/files', json={'ticker': 'BBCA', 'dataset': 'events', 'years': [2026]})
+    assert r.status_code == 400
+    r = client.post(f'{API}/files', json={'ticker': 'BBCA', 'dataset': 'price'})
+    assert r.status_code == 400

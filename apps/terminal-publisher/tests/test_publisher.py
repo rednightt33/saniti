@@ -27,8 +27,9 @@ class FakeBucket:
 
 class FakeConn:
     """Answers the publisher's statements from small in-memory tables."""
-    def __init__(self, prices, brokers, universe):
+    def __init__(self, prices, brokers, universe, events=None):
         self.prices, self.brokers, self.universe = prices, brokers, universe
+        self.events = list(EVENTS if events is None else events)
         self.statements = []
 
     def execute(self, sql, params=()):
@@ -51,6 +52,18 @@ class FakeConn:
                 key = (t, int(d[:4]))
                 out.setdefault(key, []).append((d, _rest[3]))
             return [(t, y, len(v), max(x[0] for x in v), '', str(sum(x[1] for x in v))) for (t, y), v in out.items()]
+        if sql == pub.EVENTS_SQL:
+            return [e[1:] for e in sorted(self.events, key=lambda e: e[1]) if e[0] == params[0]]
+        if sql == pub.EVENT_STAMPS_SQL:
+            out = {}
+            for e in self.events:
+                out.setdefault(e[0], []).append(e)
+            return [(t, len(v), max(x[1] for x in v), 'ing') for t, v in out.items()]
+        if 'max(ingestion_time)' in sql and 'idx_event_annotation' in sql:
+            return [('2026-10-25 17:04:28+00',)]
+        if sql.startswith('SELECT count(*), min(annotation_date)'):
+            r = [e for e in self.events if e[0] == params[0]]
+            return [(len(r), min(e[1] for e in r), max(e[1] for e in r), sum(e[16] or 0 for e in r))]
         if sql.startswith('SELECT count(*), min(date)'):
             t, lo, hi = params
             r = [x for x in self.prices if x[0] == t and lo <= x[1] <= hi]
@@ -77,6 +90,12 @@ PRICES = [('BBCA', '2025-12-30', 100.0, 110.0, 95.0, 105.0, 1000.0),
           ('IHSG', '2026-01-02', 7000.0, 7100.0, 6950.0, 7050.0, None)]
 BROKERS = [('BBCA', '2026-01-02', 'AK', 'Foreign', 'Regular', 500.0, 0.0, 5.0, 0.0, False),
            ('BBCA', '2026-01-02', 'YP', 'Domestic', 'Regular', 0.0, 500.0, 0.0, 4.5, True)]
+EVENTS = [('BBCA', '2026-03-10', 'EX_DATE', 'CORPORATE_ACTION', 'DIVIDEND', None, None, None, None, None, None, None,
+           None, None, 250.0, None, None, None),
+          ('BBCA', '2026-05-02', 'TRANSACTION_DATE', 'INSIDER', 'INSIDER_TRANSACTION', 'BUY', 'A. Holder', 'Director',
+           'YP', None, 10000.0, 1.25, 0.01, 'OK', 9000.0, False, 90000000.0, 'KSEI'),
+          ('GONE', '2026-01-02', 'EX_DATE', 'CORPORATE_ACTION', 'DIVIDEND', None, None, None, None, None, None, None,
+           None, None, 10.0, None, None, None)]
 UNIVERSE = [('BBCA', 'Bank Central Asia', 'stock'), ('IHSG', 'Composite', 'index')]
 TODAY = dt.date(2026, 10, 25)
 
@@ -164,3 +183,25 @@ def test_daily_adds_missing_early_price_years():
     p2 = pub.Publisher(conn, bucket, today=TODAY)
     p2.run('daily')
     assert 'price/BBCA/2019.json.gz' in bucket.objects and p2.written == 1
+
+
+def test_events_are_one_file_per_listed_ticker_with_display_columns_only():
+    _, _, bucket = run('backfill')
+    doc = bucket.get_json('events/BBCA/all.json.gz')
+    assert doc['columns'] == pub.EVENT_COLUMNS and doc['d'] == ['2026-03-10', '2026-05-02']
+    assert doc['holder'] == [None, 'A. Holder'] and doc['pct_flag'] == [None, 'OK']
+    assert 'source_payload' not in doc and 'events/GONE/all.json.gz' not in bucket.objects  # delisted: not served
+    m = bucket.get_json('manifest/BBCA.json')
+    assert m['datasets']['events']['files']['all']['rows'] == 2 and 'events' not in bucket.get_json('manifest/IHSG.json')['datasets']
+
+
+def test_daily_republishes_events_only_when_the_ticker_changed():
+    _, conn, bucket = run('backfill')
+    p2 = pub.Publisher(conn, bucket, today=TODAY)
+    p2.run('daily')
+    assert p2.written == 0
+    conn.events.append(('BBCA', '2026-09-01', 'MEETING_DATE', 'CORPORATE_ACTION', 'RUPS', None, None, None, None,
+                        None, None, None, None, None, None, None, None, None))
+    p3 = pub.Publisher(conn, bucket, today=TODAY)
+    p3.run('daily')
+    assert p3.written == 1 and len(bucket.get_json('events/BBCA/all.json.gz')['d']) == 3

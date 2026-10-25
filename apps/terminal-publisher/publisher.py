@@ -9,11 +9,14 @@ Modes (TERMINAL_PUBLISH_MODE, or the first argument):
   backfill      every ticker-year of the window (initial load or a schema change).
   broker-range  TERMINAL_FROM, TERMINAL_TO [, TERMINAL_TICKERS=A,B]: republish broker files after a manual
                 refresh_feature_05 of that range (the same arguments).
+  events        only the event files of tickers whose idx_event_annotation rows changed.
   verify        compare every published file with SQL (row count, sums, first and last date); prints mismatches.
 
 Objects (all under v1/):
   price/{ticker}/{year}.json.gz    columns d,o,h,l,c,v (v null for an index without volume)
   broker/{ticker}/{year}.json.gz   columns d,b,i,m,bv,sv,bl,sl; gap = [[date, board], ...] (ERRORS M157)
+  events/{ticker}/all.json.gz      corporate actions and insider transactions of idx_event_annotation, all dates
+                                   (one file per ticker, file id "all"); republished when the ticker's rows change
   manifest/{ticker}.json           per dataset: data_through and, per year, key, sha256, bytes, rows, first, last, stamp
   ref/tickers.json.gz, ref/brokers.json.gz, state.json
 Data files are written before the manifest that names them, so a reader never sees a manifest pointing at a file that
@@ -43,6 +46,14 @@ PRICE_STAMPS_SQL = ('SELECT ticker, extract(year FROM date)::int, count(*), max(
                     "coalesce(max(ingestion_time)::text, ''), sum(close)::text "
                     'FROM public."Price_Stock_Indonesia_IDX" '
                     "WHERE timeframe = 'Daily' AND is_final AND date >= %s GROUP BY 1, 2")
+EVENTS_SQL = ('SELECT annotation_date::text, annotation_date_role, event_family, event_type, action, holder_name, '
+              'holder_role, broker_code, instrument_code, shares_change::float8, pct_after::float8, '
+              'pct_change::float8, pct_quality_flag, price::float8, is_estimated_price, value_idr::float8, data_origin '
+              'FROM public.idx_event_annotation WHERE ticker = %s ORDER BY annotation_date, event_key')
+EVENT_COLUMNS = ['d', 'role', 'family', 'type', 'action', 'holder', 'holder_role', 'broker', 'instrument',
+                 'shares_change', 'pct_after', 'pct_change', 'pct_flag', 'price', 'price_estimated', 'value', 'origin']
+EVENT_STAMPS_SQL = ('SELECT ticker, count(*), max(annotation_date)::text, max(ingestion_time)::text '
+                    'FROM public.idx_event_annotation GROUP BY ticker')
 UNIVERSE_SQL = ('SELECT "Ticker", "Company Name", "Security Type" FROM public."IDX_Stock_Universe" '
                 "WHERE \"Security Type\" IN ('stock', 'index') ORDER BY 1")
 
@@ -82,6 +93,16 @@ def broker_doc(ticker, year, rows):
             'investor_type': 'source investor identity (Foreign/Domestic), not broker domicile',
             'columns': ['d', 'b', 'i', 'm', 'bv', 'sv', 'bl', 'sl'],
             **columnar(data, ['d', 'b', 'i', 'm', 'bv', 'sv', 'bl', 'sl']), 'gap': [list(g) for g in gaps]}
+
+
+def events_doc(ticker, rows):
+    return {'schema_version': SCHEMA_VERSION, 'dataset': 'events', 'ticker': ticker,
+            'units': {'shares_change': 'shares', 'pct_after': 'percent of shares', 'pct_change': 'percentage points',
+                      'price': 'IDR per share', 'value': 'IDR'},
+            'means': {'d': 'annotation date; its meaning is in role (EX_DATE, MEETING_DATE, TRANSACTION_DATE, ...)',
+                      'pct_flag': 'quality of the insider percentages (OK, ROUNDING, INCONSISTENT, ...)',
+                      'origin': 'IDX or KSEI for insider rows'},
+            'columns': EVENT_COLUMNS, **columnar(rows, EVENT_COLUMNS)}
 
 
 class Bucket:
@@ -139,20 +160,23 @@ class Publisher:
             first = self.dataset_first_year(dataset)
             ds['data_through'] = through
             ds['first_year'] = first
-            ds['files'] = {y: f for y, f in ds['files'].items() if int(y) >= first}
+            ds['files'] = {y: f for y, f in ds['files'].items() if not y.isdigit() or int(y) >= first}
         m['generated_at'] = dt.datetime.now(dt.timezone.utc).isoformat()
         self.bucket.put(f'manifest/{ticker}.json', json.dumps(m, separators=(',', ':')).encode(), 'application/json')
 
     # ---- one file --------------------------------------------------------------------------------------------
     def publish(self, dataset, ticker, year, stamp=None):
-        lo, hi = f'{year}-01-01', f'{year}-12-31'
-        sql_text = PRICE_SQL if dataset == 'price' else BROKER_SQL
-        rows = self.conn.execute(sql_text, (ticker, lo, hi)).fetchall()
+        if dataset == 'events':
+            rows = self.conn.execute(EVENTS_SQL, (ticker,)).fetchall()
+        else:
+            lo, hi = f'{year}-01-01', f'{year}-12-31'
+            rows = self.conn.execute(PRICE_SQL if dataset == 'price' else BROKER_SQL, (ticker, lo, hi)).fetchall()
         files = self.manifest(ticker)['datasets'].setdefault(dataset, {'files': {}})['files']
         if not rows:
             files.pop(str(year), None)
             return None
-        doc = price_doc(ticker, year, rows) if dataset == 'price' else broker_doc(ticker, year, rows)
+        doc = (price_doc(ticker, year, rows) if dataset == 'price' else broker_doc(ticker, year, rows)
+               if dataset == 'broker' else events_doc(ticker, rows))
         body, sha = encode(doc)
         key = f'{dataset}/{ticker}/{year}.json.gz'
         if files.get(str(year), {}).get('sha256') != sha:
@@ -193,7 +217,8 @@ class Publisher:
                                   "WHERE timeframe = 'Daily' AND is_final").fetchone()[0]
         broker = self.conn.execute('SELECT max(trade_date)::text FROM '
                                    'public."Feature_05_Foreign_Domestic_Broker_Detail"').fetchone()[0]
-        return {'price': price, 'broker': broker}
+        events = self.conn.execute('SELECT max(ingestion_time)::text FROM public.idx_event_annotation').fetchone()[0]
+        return {'price': price, 'broker': broker, 'events': events}
 
     # ---- modes -----------------------------------------------------------------------------------------------
     def run(self, mode, start_from=None, end_to=None, only=None):
@@ -208,14 +233,17 @@ class Publisher:
         if mode == 'backfill':
             todo = [('price', t, y, None) for t in kind for y in range(self.price_first_year, self.last_year + 1)]
             todo += [('broker', t, y, None) for t, typ in kind.items() if typ == 'stock' for y in years]
+            todo += self.changed_events(kind, force=True)
         elif mode == 'daily':
-            todo = self.changed_prices(kind)
+            todo = self.changed_prices(kind) + self.changed_events(kind)
             since = state.get('broker_through')
             if since and through['broker'] and through['broker'] > since:
                 new = self.conn.execute(
                     'SELECT DISTINCT ticker, extract(year FROM trade_date)::int FROM '
                     'public."Feature_05_Foreign_Domestic_Broker_Detail" WHERE trade_date > %s', (since,)).fetchall()
                 todo += [('broker', t, y, None) for t, y in new if kind.get(t) == 'stock' and y >= self.first_year]
+        elif mode == 'events':
+            todo = self.changed_events(kind)
         elif mode == 'broker-range':
             tickers = only or [t for t, typ in kind.items() if typ == 'stock']
             lo, hi = int(start_from[:4]), int(end_to[:4])
@@ -232,8 +260,12 @@ class Publisher:
             if n % 500 == 0:
                 log('progress', done=n, of=len(todo), written=self.written, mb=round(self.bytes / 1e6, 1))
         for ticker in sorted(touched):
-            self.save_manifest(ticker, {'price': through['price'], 'broker': through['broker']} if kind.get(ticker) ==
-                               'stock' else {'price': through['price']})
+            datasets = {'price': through['price']}
+            if kind.get(ticker) == 'stock':
+                datasets['broker'] = through['broker']
+            if self.manifest(ticker)['datasets'].get('events', {}).get('files'):
+                datasets['events'] = through['events']
+            self.save_manifest(ticker, datasets)
         self.publish_refs(universe)
         broker_through = through['broker'] if mode in ('backfill', 'daily') else state.get('broker_through')
         self.bucket.put('state.json', json.dumps({
@@ -242,6 +274,19 @@ class Publisher:
             'finished_at': dt.datetime.now(dt.timezone.utc).isoformat()}).encode(), 'application/json')
         log('done', mode=mode, files_planned=len(todo), files_written=self.written, mb=round(self.bytes / 1e6, 2),
             tickers=len(touched), seconds=round(time.monotonic() - started, 1))
+
+    def changed_events(self, kind, force=False):
+        """Tickers whose event rows changed (count, last date, last ingestion), or every ticker with events."""
+        out = []
+        for ticker, count, last, ingested in self.conn.execute(EVENT_STAMPS_SQL).fetchall():
+            if ticker not in kind:
+                continue  # delisted tickers are not served by the terminal
+            stamp = f'rows={count};last={last};ing={ingested}'
+            current = self.manifest(ticker)['datasets'].get('events', {}).get('files', {}).get('all', {})
+            if force or current.get('stamp') != stamp:
+                out.append(('events', ticker, 'all', stamp))
+        log('planning', step='event stamps read', changed=len(out))
+        return out
 
     def changed_prices(self, kind):
         """Price ticker-years whose source stamp (rows, last date, last ingestion, sum of closes) differs from the
@@ -283,7 +328,13 @@ def verify(conn, bucket):
                     continue
                 doc = json.loads(gzip.decompress(body))
                 lo, hi = f'{year}-01-01', f'{year}-12-31'
-                if dataset == 'price':
+                if dataset == 'events':
+                    sql_row = conn.execute(
+                        'SELECT count(*), min(annotation_date)::text, max(annotation_date)::text, '
+                        'coalesce(sum(value_idr), 0)::float8 FROM public.idx_event_annotation WHERE ticker=%s',
+                        (ticker,)).fetchone()
+                    got = (len(doc['d']), doc['d'][0], doc['d'][-1], sum(v or 0 for v in doc['value']))
+                elif dataset == 'price':
                     sql_row = conn.execute(
                         'SELECT count(*), min(date)::text, max(date)::text, sum(close)::float8 FROM '
                         'public."Price_Stock_Indonesia_IDX" WHERE ticker=%s AND timeframe=\'Daily\' AND is_final '

@@ -15,7 +15,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from . import quota
 from .config import Settings
@@ -47,8 +47,16 @@ class ChangePassword(Strict):
 
 class FilesRequest(Strict):
     ticker: str = Field(pattern=TICKER.pattern)
-    dataset: Literal['price', 'broker']
-    years: list[int] = Field(min_length=1, max_length=MAX_YEARS_PER_CALL)
+    dataset: Literal['price', 'broker', 'events']
+    years: list[int] = Field(default_factory=list, max_length=MAX_YEARS_PER_CALL)
+
+    @model_validator(mode='after')
+    def years_fit_dataset(self):
+        if self.dataset == 'events' and self.years:
+            raise ValueError('events is one file per ticker with every date: send no years')
+        if self.dataset != 'events' and not self.years:
+            raise ValueError(f'{self.dataset} files are per year: send 1-{MAX_YEARS_PER_CALL} years')
+        return self
 
 
 class NewSubscriber(Strict):
@@ -252,12 +260,19 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         same_origin_post(request)
         m = ticker_manifest(body.ticker)
         published = m.get('datasets', {}).get(body.dataset, {}).get('files', {})
-        years = sorted(set(body.years))
-        missing = [y for y in years if str(y) not in published]
-        if missing:
-            error(404, 'year_not_published', f'{body.dataset} {body.ticker} has no file for {missing}; published '
-                                             f'years: {sorted(int(y) for y in published)}. Older data: /history.')
-        chosen = [published[str(y)] for y in years]
+        if body.dataset == 'events':
+            if 'all' not in published:
+                error(404, 'no_events', f'No corporate action or insider event is published for {body.ticker}.')
+            years, ids = [None], ['all']
+        else:
+            years = sorted(set(body.years))
+            ids = [str(y) for y in years]
+            missing = [y for y in years if str(y) not in published]
+            if missing:
+                error(404, 'year_not_published', f'{body.dataset} {body.ticker} has no file for {missing}; published '
+                                                 f'years: {sorted(int(y) for y in published if y.isdigit())}. '
+                                                 'Older data: /history.')
+        chosen = [published[i] for i in ids]
         size = sum(f['bytes'] for f in chosen)
         sid, ip = who['subscriber_id'], ip_of(request)
         with store.tx() as c:
