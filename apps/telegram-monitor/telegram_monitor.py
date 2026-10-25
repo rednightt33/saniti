@@ -23,7 +23,8 @@ from psycopg.types.json import Jsonb
 MONITORING_TABLE = 'public."Monitoring_Price_ALL"'
 LOG_TABLE = 'public."Telegram_Notification_Log"'
 PRICE_MONITORING_SOURCES = {"Monitoring_Price_ALL", "Monitoring_Fixed_Income"}
-SUPPORTED_SOURCES = PRICE_MONITORING_SOURCES | {"Monitoring_Feature04"}
+STOCKBIT_SOURCE = "Monitoring_Stockbit_Update"
+SUPPORTED_SOURCES = PRICE_MONITORING_SOURCES | {"Monitoring_Feature04", STOCKBIT_SOURCE}
 MAX_REQUEST_BYTES = 16_384
 MAX_TELEGRAM_TEXT = 4_000
 JAKARTA_TZ = ZoneInfo("Asia/Jakarta")
@@ -178,6 +179,72 @@ def fetch_fixed_income_summary(
         missing_tickers=missing, status=str(row[8]), started_at=row[9], finished_at=row[10],
         duration_seconds=max(0.0, (row[10] - row[9]).total_seconds()), last_error=row[11],
     )
+
+
+@dataclass(frozen=True)
+class StockbitUpdateSummary:
+    execution_id: str
+    mode: str
+    status: str
+    started_at: datetime
+    finished_at: datetime
+    token_expires_at: datetime | None
+    broker_dates: tuple[str, ...]
+    broker_rows: int | None
+    features: dict
+    index_result: dict
+    events: dict
+    verify: dict
+    last_error: str | None
+
+
+def fetch_stockbit_update_summary(
+    connection: psycopg.Connection, execution_id: str
+) -> StockbitUpdateSummary | None:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """SELECT mode,status,started_at,finished_at,token_expires_at,broker_dates,broker_rows,
+                      features,index_result,events,broker,last_error
+               FROM public."Monitoring_Stockbit_Update" WHERE execution_id=%s::uuid""",
+            (execution_id,),
+        )
+        row = cursor.fetchone()
+    if row is None or row[3] is None:
+        return None
+    return StockbitUpdateSummary(
+        execution_id=execution_id, mode=str(row[0]), status=str(row[1]), started_at=row[2], finished_at=row[3],
+        token_expires_at=row[4], broker_dates=tuple(row[5] or ()), broker_rows=row[6], features=row[7] or {},
+        index_result=row[8] or {}, events=row[9] or {}, verify=(row[10] or {}).get("verify") or {},
+        last_error=row[11],
+    )
+
+
+def build_stockbit_messages(summary: StockbitUpdateSummary, max_length: int = MAX_TELEGRAM_TEXT) -> list[str]:
+    emoji = STATUS_EMOJI.get(summary.status, "ℹ️")
+    duration = format_duration(max(0.0, (summary.finished_at - summary.started_at).total_seconds()))
+    lines = [f"{emoji} Stockbit update {summary.mode} {summary.status} • {duration}"]
+    if summary.mode == "VERIFY" and summary.verify:
+        v = summary.verify
+        lines.append(f"Verify {v.get('date')}: fetched {v.get('fetched_rows')} • stored {v.get('stored_rows')} • "
+                     f"different {v.get('different')} • missing {v.get('missing_in_fetch')} • new {v.get('new_in_fetch')}")
+    elif summary.mode == "APPLY":
+        dates = ", ".join(summary.broker_dates) if summary.broker_dates else "tidak ada tanggal baru"
+        lines.append(f"Broker Summary: {dates} • rows {summary.broker_rows or 0}")
+        changed = summary.features.get("changed_dates")
+        if changed is not None:
+            lines.append(f"Feature 02/03/05/06: {len(changed)} tanggal di-refresh" + (f" (dari {changed[0]})" if changed else ""))
+        if summary.index_result:
+            lines.append("INDEX: " + ("dilewati" if "skipped" in summary.index_result else "di-refresh"))
+        ca, ins = summary.events.get("reconcile_corporate_action"), summary.events.get("reconcile_insider")
+        if ca and ins:
+            lines.append(f"Corporate action: baru {ca.get('new')}, berubah {ca.get('changed')}, hilang {ca.get('removed')} • "
+                         f"Insider: baru {ins.get('new')}, berubah {ins.get('changed')}, hilang {ins.get('removed')}")
+    if summary.token_expires_at:
+        lines.append("Token berlaku sampai " + summary.token_expires_at.astimezone(JAKARTA_TZ).strftime("%d %b %Y %H:%M") + " WIB")
+    if summary.last_error:
+        lines.append("Error: " + summary.last_error)
+    lines.append("Triggered at: " + summary.started_at.astimezone(JAKARTA_TZ).strftime("%d %b %Y %H:%M") + " WIB")
+    return ["\n".join(lines)[:max_length]]
 
 
 def fetch_feature04_summary(
@@ -623,6 +690,8 @@ class TelegramMonitor:
                 summary = fetch_monitoring_summary(connection, execution_id)
             elif source_table == "Monitoring_Fixed_Income":
                 summary = fetch_fixed_income_summary(connection, execution_id)
+            elif source_table == STOCKBIT_SOURCE:
+                summary = fetch_stockbit_update_summary(connection, execution_id)
             else:
                 summary = fetch_feature04_summary(connection, execution_id)
             if summary is None:
@@ -653,7 +722,11 @@ class TelegramMonitor:
 
             message_ids: list[int] = []
             try:
-                if (summary.status != "SUCCESS" or env_flag("TELEGRAM_NOTIFY_SUCCESS")
+                if isinstance(summary, StockbitUpdateSummary):
+                    # every round is reported, success included (EXEC-STOCKBIT-UPDATER, decision K5)
+                    for message in build_stockbit_messages(summary):
+                        message_ids.append(self.send_message(self.token, self.chat_id, message))
+                elif (summary.status != "SUCCESS" or env_flag("TELEGRAM_NOTIFY_SUCCESS")
                         or (isinstance(summary, Feature04Summary) and state == "edit")):
                     if isinstance(summary, Feature04Summary):
                         message = build_feature04_messages(summary)[0]
