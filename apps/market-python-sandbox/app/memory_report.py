@@ -59,3 +59,28 @@ def snapshot(proc: Path = Path("/proc"), cgroup: Path = Path("/sys/fs/cgroup"), 
         pass
     report["cgroup_mb"] = cgroup_mb
     return report
+
+
+def release() -> dict[str, Any]:
+    """Return freed heap of the main process to the operating system (FUTURE_PLAN U1, measured 2026-10-26: the main
+    process grew 187 -> 481 MB after two analyses and kept it while idle, with duckdb and pandas imported; the session
+    workers had exited). Covers every main-process data path at the allocator, not one call site: the Arrow pool
+    (mimalloc) gives back unused pages and glibc trims its heap. Imported library code is not released. Never raises."""
+    before = _kib(_status(Path("/proc/self/status")).get("VmRSS"))
+    steps: list[str] = []
+    if "pyarrow" in sys.modules:
+        try:
+            sys.modules["pyarrow"].default_memory_pool().release_unused()
+            steps.append("arrow_pool")
+        except Exception:  # noqa: BLE001 - an older or different pool
+            pass
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+        steps.append("malloc_trim")
+    except Exception:  # noqa: BLE001 - not glibc
+        pass
+    after = _kib(_status(Path("/proc/self/status")).get("VmRSS"))
+    return {"steps": steps,
+            "rss_before_mb": round(before / 1024, 1) if before is not None else None,
+            "rss_after_mb": round(after / 1024, 1) if after is not None else None}

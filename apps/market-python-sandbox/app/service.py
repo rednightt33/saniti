@@ -1116,7 +1116,8 @@ class AnalysisService:
         summary = {"files_removed": removed, "analyses_expired": len(expired), "records_purged": purged,
                    "workspaces_removed": workspaces, "cache_files_removed": cache}
         self._log("sandbox_cleanup", **summary)
-        try:  # FUTURE_PLAN U1: where the idle memory sits (read-only)
+        try:  # FUTURE_PLAN U1: give freed main-process memory back, then report where the memory sits
+            self._log("sandbox_memory_release", **memory_report.release())
             self._log("sandbox_memory", **memory_report.snapshot())
         except Exception:  # noqa: BLE001 - a report never breaks the janitor
             logger.exception("sandbox_memory_report_error")

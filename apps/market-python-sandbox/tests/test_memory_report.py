@@ -30,3 +30,19 @@ def test_the_report_lists_processes_by_size_and_reads_the_cgroup(tmp_path) -> No
 def test_a_missing_proc_or_cgroup_gives_an_empty_report_not_an_error(tmp_path) -> None:
     report = memory_report.snapshot(tmp_path / "none", tmp_path / "none")
     assert report["process_count"] == 0 and report["cgroup_mb"] == {} and report["main_rss_mb"] is None
+
+
+def test_release_gives_back_freed_memory_and_never_raises() -> None:
+    import pyarrow as pa
+    table = pa.array(range(2_000_000))  # allocate in the Arrow pool, then free it
+    del table
+    result = memory_report.release()
+    assert "arrow_pool" in result["steps"] and "malloc_trim" in result["steps"]
+    assert result["rss_after_mb"] is not None and result["rss_before_mb"] is not None
+
+
+def test_the_janitor_releases_before_it_reports() -> None:
+    import inspect
+    from app.service import AnalysisService
+    source = inspect.getsource(AnalysisService.cleanup)
+    assert source.index("memory_report.release()") < source.index("memory_report.snapshot()")
