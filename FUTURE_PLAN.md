@@ -737,6 +737,10 @@ Urutan yang disarankan: U1 → M215 usulan A → U4.
   butuh kunci SSH yang didaftarkan ke akun Railway (tidak dilakukan tanpa izin user), atau satu baris log RSS per proses
   di janitor sandbox (perubahan kode kecil). Usulan sesudah terverifikasi: kerja Parquet/DuckDB proses utama dijalankan
   di subproses berumur pendek, supaya memorinya kembali ke OS. Penghematan ±0,5 GB ≈ USD 5/bulan.
+  - 2026-10-26 (user: "ya, saya kasih kamu akses SSH"): SSH belum bisa dari sesi cloud ini. `railway ssh keys add` →
+    "SSH key management is not supported with project tokens (`RAILWAY_TOKEN`)", dan `railway ssh` dengan token proyek
+    → "Unauthorized". Klien OpenSSH dipasang dan kunci sesi dibuat, tetapi koneksi butuh token akun atau workspace
+    Railway (`RAILWAY_API_TOKEN`) di secret environment, dibaca oleh sesi baru.
 - **U3.** Selesai: Part A butir 25 (biaya disk dihitung di header migrasi; view bila bisa diturunkan saat dibaca).
 - **U4.** Tidak dinyalakan. docs.railway.com/reference/app-sleeping: layanan tidur sesudah 5-10 menit tanpa lalu lintas
   keluar, dan permintaan pertama yang membangunkannya bisa mendapat 502. Temuan per layanan:
@@ -745,6 +749,17 @@ Urutan yang disarankan: U1 → M215 usulan A → U4.
   - sandbox dan web-governor bisa tidur, tetapi klien orc tidak mencoba ulang 502 atau gagal koneksi
     (`app/tools/analysis.py`:612-621, `app/tools/web_research.py`:78-83). Pertanyaan pertama sesudah layanan tidur bisa
     gagal.
+  - Alur bila sandbox sedang tidur (dibaca dari kode 2026-10-26): EDGE → BFF → worker → orc tidak tidur, jadi run
+    mulai seperti biasa. orc sudah menyimpan runtime sandbox sejak start (`app/runtime_recovery.py`:39-57), jadi fitur
+    tidak mati. Panggilan alat pertama ke sandbox membangunkannya; bila Railway menjawab 502, `_rejected`
+    (`app/tools/analysis.py`:640-648) mengembalikan "sandbox unavailable (HTTP 502)", dan bila koneksi putus
+    `_call`:612-621 mengembalikan "unreachable". Keduanya sampai ke model sebagai galat alat
+    (`app/tools/registry.py`:480-483); model yang memutuskan mencoba lagi atau menjawab dengan keterbatasan. Di EDGE,
+    langkah itu tampil di daftar progres; jawaban bisa lebih lambat atau berisi keterbatasan. Session analisis tidak
+    bertahan saat restart (`app/sessions.py`:16): sandbox tidur 5-10 menit sesudah diam, lebih cepat dari batas diam
+    session 15 menit, jadi pertanyaan lanjutan sesudah jeda kehilangan session hangat. Proses aplikasi siap ±1 detik
+    sesudah kontainer jalan (deploy `8f1d3d53`: `sandbox_started` 12:31:35,5, `Application startup complete` sesudahnya);
+    waktu Railway menyalakan kontainer tidak tercatat.
   - Usulan (perlu go): orc memanggil `/ready` sandbox dengan retry terbatas sebelum langkah pertama yang memakainya
     (GET aman diulang), lalu sleep dinyalakan untuk sandbox saja. Penghematan maksimal RAM diam sandbox ±0,7 GB ≈ USD 7/bulan,
     dibayar dengan jeda bangun di pertanyaan pertama.

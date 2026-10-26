@@ -1824,6 +1824,15 @@ change yet.
   kunci payload → kolom di migrasi, agar jenis baru cukup menambah satu baris pemetaan. Ditambah Column_Catalog dengan
   unit dan baris AI_column_catalog. Tidak menyentuh dua tabel sumber.
 - **Status:** OPEN.
+- **Pengecekan ulang 2026-10-26 (job `ecc0df26`, read-only):** bukan masalah pendaftaran katalog. Ke-26 kolom
+  `idx_event_annotation` terdaftar di `AI_column_catalog`, 22 terlihat. Kolom syaratnya memang tidak ada di tabel:
+  `cum_date`, `ex_date`, `record_date`, `pay_date`, `start_date` dan `end_date` hanya ada di `stockbit_corporate_action`,
+  dan nominal atau rasio hanya ada di `source_payload` (`ai_allowed = false`). Untuk 19.259 baris corporate action,
+  `price`, `value_idr`, `shares_change` dan `action` semuanya NULL; kolom itu milik baris insider. Isi sumber: dividen
+  5.301/5.301 punya `dividend_value` dan keempat tanggal; split 258 dan bonus 91 punya rasio; rights 325 punya
+  `rightissue_price`; warrant 2.223 punya `wrant_exc_price`. `market_ai_sql_reader` hanya punya SELECT pada
+  `idx_event_annotation`, dan kedua tabel sumber tidak ada di `AI_table_catalog`. Sebabnya rancangan migrasi `013`:
+  tabel itu dibuat sebagai penanda grafik (satu `annotation_date` per event), bukan tabel syarat aksi korporasi.
 - **Lesson:** saat meng-onboard tabel turunan, bandingkan kolomnya dengan kolom dan payload sumbernya. Setiap atribut yang
   menjawab pertanyaan user harus bertipe dan terlihat (Part A: tidak ada makna yang hanya ada di payload tersembunyi).
 
@@ -1840,6 +1849,13 @@ change yet.
   (atau dari waktu muat sumber), dan jumlah baris sesudah `as_of` dilaporkan terpisah (`scheduled_rows`). Tabel tanpa
   baris masa depan tidak berubah.
 - **Status:** OPEN.
+- **Cara hitung saat ini (dibaca 2026-10-26):** `coverage_job.py`:184-194 menyimpan `max(annotation_date)` per ticker
+  dan untuk seluruh tabel ke `AI_data_coverage.actual_max_date`. orc `app/freshness.py`:49-61 menghitung usia =
+  `max((hari_ini - actual_max_date).days, 0)` hari kalender (SLA tabel ini 7 hari, jadi bukan basis hari kerja):
+  SEGAR bila ≤ SLA, TERLAMBAT ≤ 2×SLA, BASI di atasnya. Tanggal di masa depan dijepit ke 0. Contoh: bila putaran
+  stockbit-updater berhenti sesudah 2026-10-23, tabel tetap SEGAR sampai sekitar 2026-12-25 (2026-12-18 + 7 hari),
+  karena RUPS dan ex date terjadwal tetap ada di tabel. Router hanya diberi tanggal hari ini, bukan tanggal data, jadi
+  router tidak terpengaruh.
 - **Lesson:** "tanggal terakhir" sebagai ukuran kesegaran hanya sah untuk data observasi; data berjadwal butuh batas
   `as_of`.
 
