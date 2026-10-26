@@ -2144,6 +2144,12 @@ change yet.
   tidak terjadi tetap dugaan. Terverifikasi: `recovery_window.py` `correction_target_dates` hanya memeriksa tanggal
   yang sudah tersimpan plus satu sesi terbaru, sehingga hari bursa yang hilang seluruhnya tidak pernah diisi ulang.
   Usulan perbaikan dan pengisian: EXEC-TERMINAL-1026B F3.
+- Audit tanggal 2026-10-26 (read-only, pgweb; tanggal unik lewat loose index scan pada primary key `IDX_Broker_Summary`
+  ("Date", …) dan indeks tanggal harga): Broker Summary 2.599 tanggal (2016-01-04..2026-10-23); harga Daily final 2.126
+  tanggal (2018-01-02..2026-10-26), 2.124 di antaranya punya baris saham. Dalam rentang yang tumpang tindih
+  (2018-01-02..2026-10-23): ada broker tanpa harga saham hanya 2026-09-17 (Kamis) dan 2026-09-18 (Jumat), masing-masing
+  0 saham dan 1 baris IHSG; ada harga tanpa broker: 0 tanggal. Di luar rentang itu: 474 tanggal broker 2016–2017
+  (harga dimulai 2018) dan harga 2026-10-26 (broker hari ini belum dimuat). Tidak ada tanggal broker di akhir pekan.
 - **Class:** celah tanggal di satu sumber (harga) membuat angka turunan dari sumber lain (broker) hilang diam-diam; kena
   ke setiap ticker, setiap tanggal yang tidak punya harga, dan nanti ke data makro/lintas aset yang disejajarkan ke sesi
   harga.

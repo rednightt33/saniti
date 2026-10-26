@@ -2745,3 +2745,16 @@ insider." Every migration ran DRYRUN (rolled back) then APPLY by one-off jobs on
 - Closing job `62448fa9`: `audit_feature_catalog_semantics.py` PASS (was failing on M225); `DATABASE_SCHEMA.md` and
   `Database_Table_Status` regenerated (84 tables); `sync_database_catalog.py` still fails on the `_Stock` views (ERRORS
   M236, not caused by this change; nothing written).
+
+## 2026-10-26 — Audit tanggal Broker Summary vs harga saham (read-only, ERRORS M238)
+
+User 2026-10-26: "boleh lakukan pengecekan untuk tanggal 17 sampai 18 September apakah ada datanya di price stock IDX.
+Kemudian boleh lakukan audit di database kita, mana tanggal-tanggal yang ada broker summary tapi tidak ada tanggal
+transaksi, begitupun juga sebaliknya." Tidak ada data yang diubah.
+
+- Audit tanggal 2026-10-26 (read-only, pgweb; tanggal unik lewat loose index scan pada primary key `IDX_Broker_Summary`
+  ("Date", …) dan indeks tanggal harga): Broker Summary 2.599 tanggal (2016-01-04..2026-10-23); harga Daily final 2.126
+  tanggal (2018-01-02..2026-10-26), 2.124 di antaranya punya baris saham. Dalam rentang yang tumpang tindih
+  (2018-01-02..2026-10-23): ada broker tanpa harga saham hanya 2026-09-17 (Kamis) dan 2026-09-18 (Jumat), masing-masing
+  0 saham dan 1 baris IHSG; ada harga tanpa broker: 0 tanggal. Di luar rentang itu: 474 tanggal broker 2016–2017
+  (harga dimulai 2018) dan harga 2026-10-26 (broker hari ini belum dimuat). Tidak ada tanggal broker di akhir pekan.

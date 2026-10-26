@@ -8002,3 +8002,16 @@ Butir:
   bukan hanya tanggal yang sudah tersimpan (`recovery_window.py`, tes).
 - F4 Kerangka saat memuat: status panel dan tanda "Loading MAPI…" dipasang begitu halaman terbuka (sebelum data),
   tanpa teks contoh referensi.
+
+Jawaban user 2026-10-26: "Oke, boleh tambahkan sejajar dengan horizontal ray untuk poin nomor 2. Oke, untuk usulan loading
+mapi. Oke, untuk usulan bahwa riwayat diunduh di tahun terbaru dulu. Jadi ketika user scroll setelah riwayat diunduh dan
+data sudah terdisplay, maka mulai bertahap ke tahun-tahun sebelumnya. Masukkan exec. jalankan pengecekan terkait dengan
+price stock IDX tadi."
+- F2 disetujui: "Ray" di menu garis, sejajar dengan "Horizontal ray".
+- F4 disetujui: status panel dan "Loading <ticker>…" sejak halaman terbuka.
+- F5 (baru) disetujui: tahun terbaru dulu. Halaman memuat tahun-tahun yang menutupi tampilan awal; tahun sebelumnya
+  dimuat bertahap saat pengguna menggulir ke kiri mendekati awal data yang sudah dimuat (seperti `getBars` TradingView).
+  Terbuka: berapa tahun dimuat di awal (usulan: tahun berjalan dan tahun lalu) dan apakah statistik atau Flow menunggu
+  tahun lama.
+- Pengecekan harga 17–18 Sep dijalankan (ERRORS M238, DATABASE_CHANGELOG 2026-10-26): tidak ada baris saham.
+- Masih menunggu: F1 (ukuran font), F3 (isi harga dua tanggal itu dan perbaikan pemulihan).
