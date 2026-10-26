@@ -1874,7 +1874,7 @@ change yet.
   baru (event, makro) yang diberi kategori Feature tanpa definisi Feature akan selalu mematahkan audit.
 - **Solution (usulan, perlu go):** migrasi maju yang mengubah kategori menjadi `Transactional`, sama dengan dua tabel
   sumbernya. Ikut dalam EXEC-M223, atau dijalankan sendiri bila diminta lebih dulu.
-- **Status:** OPEN.
+- **Status:** OPEN. Rencana di EXEC.md EXEC-M225 (user 2026-10-26: "M225 masukan exec jangan execute dulu").
 - **Lesson:** kategori Feature hanya untuk tabel yang punya baris `Feature_Catalog`; jalankan audit Feature sesudah setiap
   tabel baru, bukan hanya sesudah perubahan Feature.
 

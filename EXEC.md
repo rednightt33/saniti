@@ -7905,3 +7905,28 @@ L3 berbayar: ulang pertanyaan dividen BBCA (`edge_04f42c64`) dan satu pertanyaan
 nominal dan tanggal dari tabel, dan angkanya sama dengan SQL.
 
 **Permanen.** Rollback: fungsi versi `013` dideploy ulang lewat migrasi maju; kolom baru dibiarkan NULL.
+
+### EXEC-M225: kategori `Table_Catalog` `idx_event_annotation` menjadi Transactional (disetujui untuk direncanakan 2026-10-26, belum dijalankan)
+
+**User 2026-10-26:** "M225 masukan exec jangan execute dulu." Eksekusi menunggu "go".
+
+**Akar masalah (terverifikasi, ERRORS M225, job `71673659`):** `Table_Catalog.category = 'Feature'` untuk
+`idx_event_annotation` (migrasi `20261025_013`). `scripts/audit_feature_catalog_semantics.py`:35-52 menuntut definisi
+`Feature_Catalog` untuk setiap kolom tabel ber-kategori Feature, jadi audit wajib (AGENTS) gagal untuk 26 kolom. Tabel ini
+bukan Feature: `AI_table_catalog` mencatatnya TRANSACTIONAL, sama dengan dua tabel sumbernya.
+
+**Kelas:** kategori yang dipilih saat tabel dibuat menentukan audit mana yang berlaku. Tabel turunan baru (event, makro)
+yang salah kategori akan selalu mematahkan audit Feature.
+
+**Langkah:**
+1. Migrasi maju: `UPDATE public."Table_Catalog" SET category = 'Transactional', updated_at = now()` untuk
+   `idx_event_annotation`, ditambah blok periksa yang gagal bila masih ada tabel ber-kategori Feature tanpa satu pun baris
+   `Feature_Catalog`. Penjaga ini berlaku untuk semua tabel, bukan hanya tabel ini.
+2. DRYRUN lalu APPLY lewat `migration_job.py`; baca ulang kategori.
+3. Jalankan `scripts/audit_feature_catalog_semantics.py`, yang harus `overall: PASS`; regenerasi `Database_Table_Status`
+   dan `DATABASE_SCHEMA.md`.
+4. Opsional: perubahan ini ikut dalam migrasi EXEC-M223 bila keduanya diberi go bersamaan.
+5. NEW_TABLE_ONBOARDING_PLAN mendapat satu kalimat: kategori Feature hanya untuk tabel yang punya baris `Feature_Catalog`;
+   audit Feature dijalankan sesudah setiap tabel baru.
+
+**Permanen.** Rollback: kategori dikembalikan dengan migrasi maju (catatan dokumentasi saja; data tidak berubah).
