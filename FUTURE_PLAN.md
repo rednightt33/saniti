@@ -831,6 +831,18 @@ tetap dihitung; konvensi TA-Lib di item 6 tetap berlaku sampai user memutuskan l
 
 Selesai 2026-10-26 (EXEC-TERMINAL-UI-1026 U1; ERRORS "EXEC-TERMINAL-UI-1026 — selesai").
 
+## Terminal: muat bertahap (usulan 2026-10-26; ERRORS M234)
+
+User 2026-10-26: "Also saat ini kalau kita mau load chart, maka akan sedikit lag, karena semua chart data load at once
+ya? Dan semua panel otomatis terbuka (yang kiri, kanan dan bawah) - boleh optimized?"
+
+Butir 1, 3, 4 dan 6 selesai 2026-10-26 (EXEC-TERMINAL-UI-1026 U5–U7). Tetap usulan, belum disetujui:
+2. Tahun terbaru dulu: harga dan broker untuk rentang tampilan awal (±1 tahun) dan 30 sesi Broker activity diminta
+   pertama; tahun lama menyusul di latar belakang.
+5. Cache file di browser menurut sha256 manifest (IndexedDB): tahun lama tidak berubah, membuka ticker yang sama lagi
+   hampir seketika.
+(Catatan: bagian ini terhapus oleh commit `294aa68` dan dipulihkan dari percakapan 2026-10-26.)
+
 ## Kesegaran dari waktu muat untuk tabel berjadwal (ERRORS M235, usulan 2026-10-26, menunggu keputusan)
 
 Sesudah EXEC-M224, tanggal sesudah hari ini dipisah, tetapi event yang dimuat lebih dulu tetap lewat hari demi hari, jadi

@@ -2162,6 +2162,24 @@ change yet.
 - **Status:** RESOLVED. **Lesson:** fitur yang sengaja berbeda dari referensi diberi gerbang mode (live/fixture), supaya
   cek 1:1 tetap mengukur sisa tampilan.
 
+### M239 — Commit sesi terminal mengosongkan EXEC.md, FUTURE_PLAN.md dan terminal.css (2026-10-26)
+
+- **Symptom:** `294aa68` menghapus 831 baris FUTURE_PLAN.md (dipulihkan sesi lain di `43e4eb7`), `5f52dd9` menghapus
+  8.005 baris EXEC.md, `63540f5` menghapus 755 baris `apps/edge-bff/terminal/src/styles/terminal.css`; yang terakhir
+  ikut ke `main` `8489c8a` dan edge-bff `f70adcd0` (SUCCESS 09:48 UTC) menyajikan CSS terminal kosong (0 byte, diperiksa
+  dengan sha256 aset live) sampai deployment perbaikan.
+- **Verified cause:** perintah perapian akhir berkas `open(p,'w').write(open(p).read().rstrip('\n')+'\n')`: Python
+  membuka berkas untuk ditulis (dan mengosongkannya) sebelum argumen `open(p).read()` dibaca. `git diff --check` lulus
+  karena berkas kosong tidak punya baris kosong di akhir; pesan commit tidak menyebut penghapusan.
+- **Class:** setiap penulisan ulang berkas di tempat yang membuka untuk menulis sebelum membaca (Python, shell `> f`
+  dari `f` yang sama); paling berbahaya pada berkas besar yang hanya ditambah (EXEC, ERRORS, changelog, CSS).
+- **Solution:** dipulihkan dari versi sebelum penghapusan (`5f52dd9^`, `7ff714f`), lalu perubahan yang memang dimaksud
+  dipasang ulang (blok CSS `fit`, bagian FUTURE_PLAN "muat bertahap", penutupan EXEC-TERMINAL-UI-1026); build ulang
+  dicek: CSS 59 KB, tata letak enam ukuran sama dengan hasil uji sebelumnya. Cara kerja: baca dulu ke variabel, baru
+  tulis; sebelum commit periksa `git diff --stat` untuk penghapusan besar yang tidak dimaksud.
+- **Status:** RESOLVED (berkas pulih; deployment perbaikan dicatat di RAILWAY_CHANGELOG 2026-10-26).
+- **Lesson:** `git diff --check` tidak menangkap berkas yang terhapus isinya; ringkasan `--stat` sebelum commit wajib.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.

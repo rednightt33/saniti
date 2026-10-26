@@ -4638,3 +4638,13 @@ User 2026-10-26: "Oke, untuk setiap approve exec, bisa dijalankan again ... Buat
   `87e18813`, `7762b98e`; migrations DRYRUN `5ea6e33e`, APPLY `2c909de8`, DRYRUN `0452683d`, APPLY `2af62a7d`; L2
   `l2_tools`; closing job `62448fa9`. L3 suites `c1e19e2f` and `9163b0b0` (`apps/orc-test-runner/suites/
   event_insider_l3_20261026.json` and `…b.json`). No variable or other service changed.
+
+## 2026-10-26 — terminal: `/bundle`, staged loading and screen-filling layout (EXEC-TERMINAL-UI-1026)
+
+User 2026-10-26: "Go untuk seluruh approved exec." (U1–U7, EXEC.md EXEC-TERMINAL-API "Done 2026-10-26,
+EXEC-TERMINAL-UI-1026").
+- terminal-api `cb5af983` (CLI upload of `apps/terminal-api`, SUCCESS 09:11 UTC): `POST /bundle`; live: BBCA 21 URLs
+  (price 9, broker 11, events 1), IHSG price 9, about 1.1 s from the sandbox. No variable changed.
+- edge-bff from `main` `8489c8a`: deployment `f70adcd0` SUCCESS 09:48 UTC with the staged loader, Web Worker
+  (`assets/worker-*.js` 200) and the `bundle` route (403 without Origin, as other writes) — but with an empty terminal
+  stylesheet (0 bytes; ERRORS M239). Fixed by the next `main` push (deployment below).
