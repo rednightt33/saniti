@@ -1861,7 +1861,20 @@ change yet.
   `ratio_old`, `ratio_new`, `terms_price`. Nilainya diambil dari payload per `action_type` lewat satu tabel pemetaan
   kunci payload → kolom di migrasi, agar jenis baru cukup menambah satu baris pemetaan. Ditambah Column_Catalog dengan
   unit dan baris AI_column_catalog. Tidak menyentuh dua tabel sumber.
-- **Status:** OPEN. Rencana di EXEC.md EXEC-M223 (user 2026-10-26: "M223 masukan exec jangan execute dulu").
+- **Status:** RESOLVED 2026-10-26 (user 2026-10-26: "Ok, inspect database dan infra. Jalankan untuk ke 3 exec tersebut + 2 testing terkait event annot dan insider. Ensure setiap keputusan yang diambil berdasarkan code."). Migrasi `20261026_002_event_annotation_terms.sql` (DRYRUN `5ea6e33e`,
+  APPLY `2c909de8`): 10 kolom baru (`cum_date`, `ex_date`, `record_date`, `pay_date`, `start_date`, `end_date`,
+  `amount_per_share`, `currency`, `ratio_old`, `ratio_new`; `terms_price` usulan awal digabung ke `amount_per_share`
+  karena tiap jenis aksi hanya punya satu harga), tabel pemetaan `idx_event_annotation_terms_map` (13 baris, dibaca dari
+  payload live, job `87e18813`), fungsi `refresh_idx_event_annotation()` membaca pemetaan itu, 10 baris
+  AI_column_catalog (36 kolom, 32 terlihat). Script penarik tidak diubah. Dibaca ulang: dividen 5.301/5.301 punya
+  `amount_per_share`; BBCA `dividend:118073` Rp 25 IDR, cum 2026-08-28, ex 2026-08-31, record 2026-09-01, bayar
+  2026-09-16; tanggal sama dengan kolom sumber di semua 19.259 baris (0 beda); baris insider tidak berubah (hash
+  103.788 baris sama sebelum dan sesudah); `market_ai_sql_reader` membaca kolom baru dan tidak bisa membaca tabel
+  pemetaan. L2 `l2_tools` (job orc-test-runner, 2026-10-26) menampilkan kolom baru dengan unit. L3: lihat EXEC-M223 L3
+  di DATABASE_CHANGELOG 2026-10-26.
+- **Catatan data sumber:** 5 dari 708 baris rasio punya faktor Stockbit yang tidak cocok dengan rasio lama:baru
+  (`bonus:7675` 1:1 faktor 2,05; `reversesplit:31` 1:2 faktor 0,5; `reversesplit:1685` faktor 0; `rightissue:1974`
+  1:1 faktor 1; `stocksplit:1030` 1:3 faktor 2,5). Rasio disalin apa adanya dari sumber; tidak dikoreksi.
 - **Pengecekan ulang 2026-10-26 (job `ecc0df26`, read-only):** bukan masalah pendaftaran katalog. Ke-26 kolom
   `idx_event_annotation` terdaftar di `AI_column_catalog`, 22 terlihat. Kolom syaratnya memang tidak ada di tabel:
   `cum_date`, `ex_date`, `record_date`, `pay_date`, `start_date` dan `end_date` hanya ada di `stockbit_corporate_action`,
@@ -1886,7 +1899,17 @@ change yet.
 - **Solution (usulan, perlu go user; lapisan job cakupan):** kesegaran dihitung dari `max(date) WHERE date <= as_of`
   (atau dari waktu muat sumber), dan jumlah baris sesudah `as_of` dilaporkan terpisah (`scheduled_rows`). Tabel tanpa
   baris masa depan tidak berubah.
-- **Status:** OPEN. Rencana di EXEC.md EXEC-M224 (user 2026-10-26: "masukan exec jangan execute dulu").
+- **Status:** RESOLVED untuk tanggal masa depan 2026-10-26 (user 2026-10-26: "Ok, inspect database dan infra. Jalankan untuk ke 3 exec tersebut + 2 testing terkait event annot dan insider. Ensure setiap keputusan yang diambil berdasarkan code."); sisa masalah dicatat sebagai M235. Migrasi
+  `20261026_003_coverage_scheduled_rows.sql` (APPLY `2c909de8`): `AI_data_coverage.scheduled_max_date` dan
+  `scheduled_row_count`, di-grant ke peran yang membaca `actual_max_date` (diturunkan dari katalog). `coverage_job.py`
+  (main `831c52b`, deploy `7baae610`): satu query per sumber mentah dari `RAW_SOURCES`; `actual_max_date` = tanggal
+  terakhir ≤ tanggal cek (Asia/Jakarta), baris sesudahnya dihitung terpisah; nilai lama di masa depan tidak dipertahankan
+  `GREATEST`. orc (deploy `bf5e8a05`): COVERAGE menampilkan kedua kolom dan `scheduled_note`; `freshness.py` memberi
+  UNKNOWN bila tanggal terakhir sesudah tanggal acuan. Job cakupan `2bede738` lalu baca ulang: `idx_event_annotation`
+  `actual_max_date` 2026-10-26 (sebelumnya 2026-12-18), `scheduled_max_date` 2026-12-18, `scheduled_row_count` 97 =
+  `count(*) WHERE annotation_date > hari ini`; 0 entitas dengan tanggal terakhir di masa depan; dataset lain sama
+  seperti sebelumnya dengan `scheduled_row_count` 0. Tes: `apps/ai-data-coverage/test_coverage_postgres.py` (event, harga,
+  nilai lama), `tests/test_freshness.py`, `tests/test_catalog_postgres.py`.
 - **Cara hitung saat ini (dibaca 2026-10-26):** `coverage_job.py`:184-194 menyimpan `max(annotation_date)` per ticker
   dan untuk seluruh tabel ke `AI_data_coverage.actual_max_date`. orc `app/freshness.py`:49-61 menghitung usia =
   `max((hari_ini - actual_max_date).days, 0)` hari kalender (SLA tabel ini 7 hari, jadi bukan basis hari kerja):
@@ -1969,9 +1992,43 @@ change yet.
   baru (event, makro) yang diberi kategori Feature tanpa definisi Feature akan selalu mematahkan audit.
 - **Solution (usulan, perlu go):** migrasi maju yang mengubah kategori menjadi `Transactional`, sama dengan dua tabel
   sumbernya. Ikut dalam EXEC-M223, atau dijalankan sendiri bila diminta lebih dulu.
-- **Status:** OPEN. Rencana di EXEC.md EXEC-M225 (user 2026-10-26: "M225 masukan exec jangan execute dulu").
+- **Status:** RESOLVED 2026-10-26 (user 2026-10-26: "Ok, inspect database dan infra. Jalankan untuk ke 3 exec tersebut + 2 testing terkait event annot dan insider. Ensure setiap keputusan yang diambil berdasarkan code."). Migrasi `20261026_001_event_annotation_table_category.sql` (APPLY
+  `2c909de8`): kategori `Transactional`, ditambah blok periksa dengan aturan audit sendiri untuk semua objek
+  ber-kategori Feature (definisi langsung atau lewat kolom dasar view); lulus di DRYRUN dan APPLY.
 - **Lesson:** kategori Feature hanya untuk tabel yang punya baris `Feature_Catalog`; jalankan audit Feature sesudah setiap
   tabel baru, bukan hanya sesudah perubahan Feature.
+
+### M235 — Kesegaran tabel berjadwal tetap SEGAR walau muatan berhenti, karena event terjadwal lewat hari demi hari (2026-10-26)
+
+- **Symptom:** sesudah EXEC-M224, `idx_event_annotation` `actual_max_date` = 2026-10-26 (hari ini) dan SEGAR, padahal
+  muatan terakhir 2026-10-25 18:13 UTC dan baris insider terakhir 2026-10-23 (job `2bede738` dan baca ulang).
+- **Verified cause:** baris aksi korporasi dimuat jauh sebelum tanggalnya. Setiap hari sebagian baris terjadwal
+  (97 per 2026-10-26, sampai 2026-12-18) berpindah ke masa lalu, sehingga tanggal terakhir yang "sudah terjadi" terus
+  maju tanpa muatan baru. Tanggal event bukan bukti muatan; EXEC-M224 hanya memisahkan tanggal sesudah hari ini.
+- **Class:** setiap tabel yang barisnya diumumkan sebelum terjadi (kalender aksi korporasi, jatuh tempo obligasi,
+  kalender rilis makro, jadwal IPO). Tabel observasi (harga, broker, Feature) tidak terkena: tanggalnya ditulis saat
+  data muncul.
+- **Solution (usulan, perlu go):** kesegaran tabel seperti ini diukur dari waktu muat, bukan dari tanggal event: kolom
+  waktu muat dicatat di katalog (misalnya `AI_table_catalog`, untuk tabel ini `source_fetched_at` atau log
+  `Monitoring_Stockbit_Update`), job cakupan menyimpan waktu muat terakhir, dan orc memakai yang lebih tua dari
+  keduanya. Diturunkan dari katalog, bukan daftar tabel.
+- **Status:** OPEN (FUTURE_PLAN).
+- **Lesson:** ukuran kesegaran harus mengikuti cara data masuk: tanggal observasi untuk data yang dicatat saat terjadi,
+  waktu muat untuk data yang diumumkan lebih dulu.
+
+### M236 — `sync_database_catalog.py` menolak view `_Stock` yang lolos audit Feature (2026-10-26)
+
+- **Symptom:** job `62448fa9`: "Feature columns need active Feature_Catalog entries" untuk kolom
+  `Feature_05_Foreign_Domestic_Broker_Detail_Stock` dan `Feature_06_Foreign_Domestic_Stock`; tidak ada yang ditulis.
+- **Verified cause:** `scripts/sync_database_catalog.py`:127-144 mewajibkan definisi langsung untuk setiap kolom objek
+  ber-kategori Feature, sedangkan `audit_feature_catalog_semantics.py` (M221) menerima kolom view yang membaca kolom
+  dasar ber-definisi (`view_column_usage`). Dua aturan untuk hal yang sama.
+- **Class:** setiap view Feature baru (view `_Stock` atau view turunan nanti) mematahkan sinkron katalog, sehingga
+  langkah "sync_database_catalog sebelum sync_database_schema" (migrations README) tidak bisa dijalankan.
+- **Solution (usulan, perlu go):** kedua skrip memakai satu fungsi aturan yang sama (definisi langsung atau lewat kolom
+  dasar view), juga dipakai blok periksa migrasi `20261026_001`.
+- **Status:** OPEN.
+- **Lesson:** satu aturan katalog, satu implementasi; aturan yang disalin akan menyimpang.
 
 ### M232 — Tes EDGE `test_a_short_title_never_wraps_and_a_long_title_folds_within_its_width` gagal di `main` (2026-10-26)
 

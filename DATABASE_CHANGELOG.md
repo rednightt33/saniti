@@ -2710,3 +2710,38 @@ No database object or row changed; the publisher reads only (`terminal_publisher
 - Events files format 2: corporate-action terms read from `idx_event_annotation.source_payload` (ERRORS M223: no typed
   columns yet) with three derived values from `Price_Stock_Indonesia_IDX` (close on the cum date; close of the last
   session within 10 days before a tender start). Blank or 0 source values are published as null.
+
+## 2026-10-26 — EXEC-M223, EXEC-M224, EXEC-M225: corporate action terms, scheduled coverage rows, table category
+
+User 2026-10-26: "Ok, inspect database dan infra. Jalankan untuk ke 3 exec tersebut + 2 testing terkait event annot dan
+insider." Every migration ran DRYRUN (rolled back) then APPLY by one-off jobs on `orc-test-runner`
+(`scripts/onboarding/migration_job.py`, `DATABASE_URL` set for the run and removed, VAR_REMOVED); sha256 in
+`database/migrations/APPLIED.sha256`. Evidence before the change: read-only jobs `87e18813` and `7762b98e`.
+
+- `20261026_001_event_annotation_table_category.sql` (DRYRUN `5ea6e33e`, APPLY `2c909de8`): `Table_Catalog.category`
+  of `idx_event_annotation` Feature → Transactional (ERRORS M225), with the audit's own rule as a check for every
+  Feature-category object.
+- `20261026_002_event_annotation_terms.sql` (same jobs): 10 columns on `idx_event_annotation` (`cum_date`, `ex_date`,
+  `record_date`, `pay_date`, `start_date`, `end_date`, `amount_per_share`, `currency`, `ratio_old`, `ratio_new`), new
+  Reference table `idx_event_annotation_terms_map` (13 rows), `refresh_idx_event_annotation()` reads it and was run once
+  (123,047 rows: 19,259 corporate actions, 103,788 insider). Read back: dividends 5,301 of 5,301 with an amount (2 are 0
+  at the source); BBCA `dividend:118073` Rp 25 IDR, cum 2026-08-28, ex 2026-08-31, record 2026-09-01, pay 2026-09-16;
+  every date equals its source column; insider rows unchanged (row hash `35e8d89e…` before and after); AI catalog 36
+  columns, 32 visible; the AI reader reads the new columns and not the map. Source note: 5 of 708 ratio rows carry a
+  Stockbit factor that disagrees with their old:new ratio (ERRORS M223); copied as given.
+- `20261026_003_coverage_scheduled_rows.sql` (same jobs): `AI_data_coverage.scheduled_max_date`,
+  `scheduled_row_count`, check constraint, column grants to the five readers of `actual_max_date`.
+- `20261026_004_coverage_scheduled_count_definition.sql` (DRYRUN `0452683d`, APPLY `2af62a7d`): corrected the
+  Column_Catalog definition of `scheduled_row_count` (counted on every run).
+- Coverage run `2bede738` (new code): `idx_event_annotation` `actual_max_date` 2026-12-18 → 2026-10-26,
+  `scheduled_max_date` 2026-12-18, `scheduled_row_count` 97 (= rows after 2026-10-26, 89 tickers); every other dataset
+  unchanged with 0 scheduled rows.
+- Validation: L2 `l2_tools` (COLUMNS with units, COVERAGE with the scheduled fields and note). L3 suite
+  `ma-event-insider-l3-20261026a` (`c1e19e2f`, USD 0.05): SPMA insider sales of 2026-10-23 equal SQL (GLORIAJAYA
+  GEMPITA 2 × 3,000,000, WELLY 1,987,500, Rp 160); the BBCA dividend question was routed to FACT (no warehouse data)
+  and answered LIMITATION. Rerun through ANALYSIS `ma-event-insider-l3-20261026b` (`9163b0b0`, USD 0.02): Rp 25, cum
+  2026-08-28, ex 2026-08-31, record 2026-09-01, pay 2026-09-16, 13 dividends since 2021-04-08, all equal SQL (job
+  `62448fa9`).
+- Closing job `62448fa9`: `audit_feature_catalog_semantics.py` PASS (was failing on M225); `DATABASE_SCHEMA.md` and
+  `Database_Table_Status` regenerated (84 tables); `sync_database_catalog.py` still fails on the `_Stock` views (ERRORS
+  M236, not caused by this change; nothing written).

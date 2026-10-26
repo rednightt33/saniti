@@ -1,6 +1,6 @@
 # Database schema
 
-Generated from PostgreSQL schema `public` at `2026-10-25T19:18:32+00:00`.
+Generated from PostgreSQL schema `public` at `2026-10-26T08:58:47+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -33,8 +33,8 @@ Generated from PostgreSQL schema `public` at `2026-10-25T19:18:32+00:00`.
 | `Analysis_Step_Log` | System | Appended for each analysis step; large raw results and secrets are never stored. | — | `2026-09-13 15:02:15+00:00` | Baseline only | Audit record for every query, tool, compaction, or analytical step in an AI request. |
 | `Analytics_Dataset_Snapshot` | System | Created only after catalog, row, byte and query-plan validation; expires within the configured short retention window. | — | `2026-09-14 07:39:52+00:00` | Baseline only | Metadata and retention state for immutable bounded raw or Feature analytical input snapshots stored in a private Railway bucket. |
 | `Analytics_Job` | System | Backend submits idempotently by request/job label; isolated worker leases and completes or fails the job. | — | `2026-09-14 07:39:52+00:00` | Baseline only | Durable queue, lease, resource contract, result, and failure audit for separately authenticated query-sandbox and statistical-validation workers. |
-| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-10-25 18:53:29.914055+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-10-25 19:18:32+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-10-26 08:38:23.822039+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-10-26 08:58:47+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
 | `Equity_Market_Schedule` | Reference | Edit when the official market clock or correction policy changes. | — | `2026-10-20 14:07:00+00:00` | Baseline only | Equity market timezone, close, finality delay and correction-session policy. |
 | `Feature04_Calculation_Log` | System | One terminal attempt row per claim, including partial and superseded results. | — | `2026-10-11 08:51:27+00:00` | Baseline only | Immutable Feature04 calculation attempt audit. |
 | `Feature04_Calculation_Queue` | System | Final source changes coalesce the earliest dirty date per ticker and invalidate dependent checkpoints. | — | `2026-10-11 08:51:27+00:00` | Baseline only | Durable coalesced Feature04 work and lease state. |
@@ -71,20 +71,21 @@ Generated from PostgreSQL schema `public` at `2026-10-25T19:18:32+00:00`.
 | `IDX_Stock_Universe_History` | Reference | Appended by the capture after every write statement on IDX_Stock_Universe (a change supersedes the open version and records the new one; a missing key is only counted) and by public.correct_stock_universe_history for documented corrections. Rows are never deleted. | — | `2026-10-23 14:44:34.455689+00:00` | Tracked automatically | Point-in-time (bitemporal) history of the tracked IDX_Stock_Universe attributes (Company Name, Exchange, Security Type, Type Specs, Is Common Stock, ISIN, Sector, Industry), captured by Saniti from the first capture onward. Current knowledge is recorded_to IS NULL; superseded knowledge is kept. |
 | `Monitoring_Feature04` | Monitoring | Price writer opens/seals automatic runs; worker finalizes; monitor records price delivery. | — | `2026-10-11 08:51:27+00:00` | Baseline only | Feature04 automatic/retry batch summary and notification ordering gate. |
 | `Monitoring_Feature04_Ticker` | Monitoring | Trigger records required generation; worker records terminal result. | — | `2026-10-11 08:51:27+00:00` | Baseline only | Per-ticker membership and outcome of a Feature04 execution. |
-| `Monitoring_Fixed_Income` | Monitoring | One row is inserted after every market-specific daily/recovery attempt. | `2026-10-23` | `2026-10-25 11:00:51.807278+00:00` | Derived from fixed-income cron monitoring rows | One market-specific fixed-income daily or recovery execution summary. |
-| `Monitoring_Price_ALL` | System | Written after each DAILY or RECOVERY price execution. | `2026-10-23` | `2026-10-25 10:01:05.212017+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
+| `Monitoring_Fixed_Income` | Monitoring | One row is inserted after every market-specific daily/recovery attempt. | `2026-10-23` | `2026-10-26 00:00:53.507915+00:00` | Derived from fixed-income cron monitoring rows | One market-specific fixed-income daily or recovery execution summary. |
+| `Monitoring_Price_ALL` | System | Written after each DAILY or RECOVERY price execution. | `2026-10-23` | `2026-10-25 23:02:33.564085+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
 | `Monitoring_Stockbit_Update` | Monitoring | Inserted RUNNING when a round starts and finished once per round (each deploy of stockbit-updater). | `2026-10-25` | `2026-10-25 18:14:05+00:00` | Baseline only | One row per round of the stockbit-updater service: mode, status, token expiry, Broker Summary dates and rows loaded, Feature 02/03/05/06 and INDEX refresh results, Stockbit corporate action and insider reload, error. |
 | `Price_Fixed_Income` | Source | Market-specific daily and recovery jobs re-query the latest completed session; only exact final candles are material-upserted. | `2026-10-23` | `2026-10-23 23:03:42.867002+00:00` | Latest date and write time derived from fixed-income observations | Final daily fixed-income OHLC observations with source-bar and market-close finality evidence. |
 | `Price_Stock_Indonesia_IDX` | Transactional | Market-aware daily/recovery jobs material-upsert exact final candles; recovery re-verifies configured recent sessions. | `2026-10-23` | `2026-10-25 10:02:43.766326+00:00` | Latest date derived; future changes tracked automatically | Final daily Indonesian equity OHLCV observations with market-close finality evidence. Includes universe-classified benchmark indices: missing index volume is NULL, and index price levels are in points. |
 | `Reference_History_Capture_Log` | System | Inserted by every capture and correction; a failed trigger capture writes status FAILED with its error and leaves the reference load unaffected. | — | `2026-10-23 14:44:34.457389+00:00` | Tracked automatically | One row per capture of IDX_Stock_Universe or IDX_Broker_Profile into its history (trigger, initial, manual or correction): changed and new versions, keys absent from the load, and the error of a failed capture. |
-| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-10-25 18:53:29.889750+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
+| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-10-26 08:38:23.641634+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
 | `Telegram_Command_Log` | System | Written when an authorized Telegram command is received. | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
-| `Telegram_Notification_Log` | System | telegram-monitor inserts or reclaims a delivery identity, then records sent or edited Telegram message IDs and failures. | — | `2026-10-25 18:14:45.855416+00:00` | Tracked automatically | Outbound Telegram delivery and edit ledger for execution-level price results and logical Feature04 market/date or retry results. |
+| `Telegram_Notification_Log` | System | telegram-monitor inserts or reclaims a delivery identity, then records sent or edited Telegram message IDs and failures. | — | `2026-10-26 00:00:56.888609+00:00` | Tracked automatically | Outbound Telegram delivery and edit ledger for execution-level price results and logical Feature04 market/date or retry results. |
 | `Tool_Catalog` | Reference | Updated with backend/worker releases; runtime configuration is the enforcement authority. | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned generic AI tool metadata, activation state, schemas, and advertised operational ceilings. |
 | `Universe_Equity_Description` | Reference | Updated when equity descriptions or classifications change. | — | `2026-10-02 18:07:58.949068+00:00` | Tracked automatically | Issuer descriptions and TradingView/curated sector and industry classifications. |
 | `Universe_Fixed_income` | Reference | Universe rows supply every source symbol and unit; the loader contains no ticker roster. | — | `2026-10-11 14:01:27.117686+00:00` | Baseline only | Approved fixed-income series with explicit source symbol, unit and market-country membership. |
 | `feature04_backfill_log` | Monitoring | Manual serial runner; completed output and audit committed together; failed ticker rolls back. | `2026-10-23` | `2026-10-23 16:21:35.766900+00:00` | Derived from completed atomic ticker loads; manual execution only | Atomic Feature04 per-run/ticker historical calculation audit and resumable extraction/output fingerprints. |
-| `idx_event_annotation` | Feature | Rebuilt by refresh_idx_event_annotation() at the end of every Stockbit event load (stockbit-updater round or apps/stockbit-event-annotation job), in the same transaction. | — | `2026-10-25 18:14:05+00:00` | Baseline only | One annotation source for EDGE price charts: corporate actions (type and date only) and insider transactions (action, holder, broker, current percent, change percent, quality flag, origin IDX/KSEI). |
+| `idx_event_annotation` | Transactional | Rebuilt by refresh_idx_event_annotation() at the end of every Stockbit event load (stockbit-updater round or apps/stockbit-event-annotation job), in the same transaction. | — | `2026-10-25 18:14:05+00:00` | Baseline only | Corporate actions (type, dates and terms: cum, ex, record and pay dates, period start and end, amount per share, currency, old:new ratio) and insider transactions (action, holder, broker, current percent, change percent, quality flag, origin IDX/KSEI) of IDX stocks; the annotation source of EDGE price charts and the event table the AI reads. |
+| `idx_event_annotation_terms_map` | Reference | Changed by migration when Stockbit adds an action type or key; read on every refresh_idx_event_annotation(). | — | `2026-10-26 08:58:47+00:00` | Baseline only | Which Stockbit corporate action payload key fills which term column of idx_event_annotation (amount_per_share, currency, ratio_old, ratio_new), per action type. |
 | `idx_stockbit_backfill_status` | System | Written by the date-first backfill between 2026-10-11 and 2026-10-15; every date completed; no job writes it now. | `2026-10-09` | `2026-10-12 02:33:20+00:00` | Baseline only | Per-date control of the date-first Stockbit Broker Summary backfill of 2016-2026 (the user's importer, before the ticker-first import of stockbit_full_broker_import_status): state, filter and request counts, rows written, attempts, error. |
 | `idx_stockbit_value_corrections` | System | Inserted once per correction the user approves; 10 rows written 2026-10-15. | `2017-02-07` | `2026-10-20 14:07:00+00:00` | Baseline only | Audit of user-approved corrections to Stockbit Broker Summary values: per trade date, ticker and investor type the summary row before and after, the per-broker patches, the raw source rows and the reason. Holds the BHIT negative-value correction (USER_APPROVED_ABS_BHIT_20261016: negative raw trade values made positive per user instruction; not independently source-verified). |
 | `stockbit_broker_summary_load_log` | System | Updated by each broker-summary load attempt. | `2026-08-31` | `2026-09-09 16:55:55.713468+00:00` | Derived from load log | Per-trading-date Stockbit broker-summary load progress, retries, and review state. |
@@ -597,6 +598,8 @@ Automated actual raw-source coverage plus explicitly inferred expectations for d
 | `last_full_checked_at` | `timestamp with time zone` | Yes | — | Governed last_full_checked_at field of AI_data_coverage; see the creating migration for its exact contract. |
 | `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed created_at field of AI_data_coverage; see the creating migration for its exact contract. |
 | `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Governed updated_at field of AI_data_coverage; see the creating migration for its exact contract. |
+| `scheduled_max_date` | `date` | Yes | — | Latest date of the rows dated after the check date (announced schedules such as corporate action dates); actual_max_date is the last date on or before the check date (Asia/Jakarta), so freshness is measured from data that has happened. |
+| `scheduled_row_count` | `bigint` | Yes | — | Number of source rows dated after the check date (announced schedules), counted on every run: rows after the check date always fall inside the nightly window, so a nightly count is complete. |
 
 ### Constraints
 
@@ -608,6 +611,7 @@ Automated actual raw-source coverage plus explicitly inferred expectations for d
 | `AI_data_coverage_expected_dates_check` | Check | `CHECK (expected_min_date IS NULL OR expected_max_date IS NULL OR expected_max_date >= expected_min_date)` |
 | `AI_data_coverage_mode_check` | Check | `CHECK (coverage_mode = ANY (ARRAY['ACTUAL_SOURCE'::text, 'EXPECTED_DERIVED'::text, 'SNAPSHOT'::text]))` |
 | `AI_data_coverage_quality_check` | Check | `CHECK (quality_status = ANY (ARRAY['HEALTHY'::text, 'WARNING'::text, 'FAILED'::text, 'ERROR'::text]))` |
+| `AI_data_coverage_scheduled_check` | Check | `CHECK ((scheduled_row_count IS NULL OR scheduled_row_count >= 0) AND (scheduled_max_date IS NULL OR actual_max_date IS NULL OR scheduled_max_date > actual_max_date))` |
 | `AI_data_coverage_scope_check` | Check | `CHECK (coverage_scope = ANY (ARRAY['DATASET'::text, 'ENTITY'::text]))` |
 | `AI_data_coverage_timestamp_check` | Check | `CHECK (updated_at >= created_at)` |
 | `AI_data_coverage_verification_check` | Check | `CHECK (verification_status = ANY (ARRAY['VERIFIED'::text, 'PIPELINE_CONFIRMED'::text, 'UNVERIFIED'::text]))` |
@@ -3911,7 +3915,7 @@ Atomic Feature04 per-run/ticker historical calculation audit and resumable extra
 
 ## idx_event_annotation
 
-One annotation source for EDGE price charts: corporate actions (type and date only) and insider transactions (action, holder, broker, current percent, change percent, quality flag, origin IDX/KSEI).
+Corporate actions (type, dates and terms: cum, ex, record and pay dates, period start and end, amount per share, currency, old:new ratio) and insider transactions (action, holder, broker, current percent, change percent, quality flag, origin IDX/KSEI) of IDX stocks; the annotation source of EDGE price charts and the event table the AI reads.
 
 ### Columns
 
@@ -3943,6 +3947,16 @@ One annotation source for EDGE price charts: corporate actions (type and date on
 | `source_endpoint` | `text` | No | — | Stockbit endpoint of the row. |
 | `source_fetched_at` | `timestamp with time zone` | No | — | Latest pull that saw the source row. |
 | `ingestion_time` | `timestamp with time zone` | No | `statement_timestamp()` | Database time of the latest rebuild. |
+| `cum_date` | `date` | Yes | — | Cum date: last trading date to hold the share and receive the action (dividend, split, bonus, rights). |
+| `ex_date` | `date` | Yes | — | Ex date: first trading date without the entitlement (dividend, split, bonus, rights). |
+| `record_date` | `date` | Yes | — | Recording date of the shareholder register (RUPS: eligible date). |
+| `pay_date` | `date` | Yes | — | Payment or distribution date (dividend, bonus share, tender offer). |
+| `start_date` | `date` | Yes | — | Start of the period: rights trading, warrant trading, tender offer; RUPS or public expose date. |
+| `end_date` | `date` | Yes | — | End of the period: rights trading, warrant trading, tender offer. |
+| `amount_per_share` | `numeric` | Yes | — | Amount per share: cash dividend (in currency), rights exercise price, warrant exercise price or tender offer price (IDR). |
+| `currency` | `text` | Yes | — | Currency of a dividend as Stockbit gives it (IDR for every row on 2026-10-26). |
+| `ratio_old` | `numeric` | Yes | — | Old side of the ratio: shares held before a split or reverse split, or shares held that entitle to ratio_new (bonus, rights). |
+| `ratio_new` | `numeric` | Yes | — | New side of the ratio: shares after a split or reverse split for ratio_old before, or bonus or new rights shares received for ratio_old held. |
 
 ### Constraints
 
@@ -3962,6 +3976,33 @@ One annotation source for EDGE price charts: corporate actions (type and date on
 | `idx_event_annotation_family_date_idx` | `CREATE INDEX idx_event_annotation_family_date_idx ON public.idx_event_annotation USING btree (event_family, annotation_date)` |
 | `idx_event_annotation_pkey` | `CREATE UNIQUE INDEX idx_event_annotation_pkey ON public.idx_event_annotation USING btree (event_key)` |
 | `idx_event_annotation_ticker_date_idx` | `CREATE INDEX idx_event_annotation_ticker_date_idx ON public.idx_event_annotation USING btree (ticker, annotation_date)` |
+
+## idx_event_annotation_terms_map
+
+Which Stockbit corporate action payload key fills which term column of idx_event_annotation (amount_per_share, currency, ratio_old, ratio_new), per action type.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `action_type` | `text` | No | — | Corporate action type of stockbit_corporate_action. |
+| `target_column` | `text` | No | — | Term column of idx_event_annotation: amount_per_share, currency, ratio_old, ratio_new. |
+| `payload_key` | `text` | No | — | Key of stockbit_corporate_action.source_payload that holds the value. |
+| `meaning` | `text` | No | — | What the value means for this action type. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `idx_event_annotation_terms_map_payload_key_check` | Check | `CHECK (btrim(payload_key) <> ''::text)` |
+| `idx_event_annotation_terms_map_target_column_check` | Check | `CHECK (target_column = ANY (ARRAY['amount_per_share'::text, 'currency'::text, 'ratio_old'::text, 'ratio_new'::text]))` |
+| `idx_event_annotation_terms_map_pkey` | Primary key | `PRIMARY KEY (action_type, target_column)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_event_annotation_terms_map_pkey` | `CREATE UNIQUE INDEX idx_event_annotation_terms_map_pkey ON public.idx_event_annotation_terms_map USING btree (action_type, target_column)` |
 
 ## idx_stockbit_backfill_status
 

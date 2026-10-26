@@ -4627,3 +4627,14 @@ User 2026-10-26: "Oke, untuk setiap approve exec, bisa dijalankan again ... Buat
   UTC — Terminal tab live on `edge-bff-dev`: `/terminal` and `/terminal-app/` 200, `/api/terminal/v1/...` 401 without
   a session, terminal page CSP as built, bundle `index-DYT4ceUc.js` byte-equal to the local build (sha256). Only
   edge-bff's watch pattern was touched; terminal-api and terminal-publisher are CLI uploads (live code = branch code).
+
+## 2026-10-26 — EXEC-M224 deploys and one-off jobs
+
+- `main` `831c52b`: `market-ai-orc` `bf5e8a05` SUCCESS (COVERAGE scheduled fields, freshness UNKNOWN for a future last
+  date) and `ai-data-coverage` `7baae610` SUCCESS (scheduled rows apart). The coverage cron does not run on deploy
+  (ERRORS M229), so the new code ran once as a one-off job on `orc-test-runner` (`2bede738`); the cron schedule is
+  unchanged (`30 0,10 * * *`).
+- `orc-test-runner` one-off jobs, each with `DATABASE_URL` set for the run and removed (VAR_REMOVED): read-only
+  `87e18813`, `7762b98e`; migrations DRYRUN `5ea6e33e`, APPLY `2c909de8`, DRYRUN `0452683d`, APPLY `2af62a7d`; L2
+  `l2_tools`; closing job `62448fa9`. L3 suites `c1e19e2f` and `9163b0b0` (`apps/orc-test-runner/suites/
+  event_insider_l3_20261026.json` and `…b.json`). No variable or other service changed.

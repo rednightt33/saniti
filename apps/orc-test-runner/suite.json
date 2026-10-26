@@ -1,27 +1,18 @@
 {
-  "prefix": "ma-onboard-l3-20261023b",
+  "prefix": "ma-event-insider-l3-20261026b",
   "workers": 1,
   "audit_wait_seconds": 0,
   "items": [
     {
-      "id": "c_f06_bbri_monthly_2025",
+      "id": "a2_bbca_dividend_terms_analysis",
       "model": "deepseek/deepseek-v4.1-flash",
       "reasoning_level": "high",
       "lane": "fast",
-      "expect": "EXEC-M208-L3 L3: Feature_06 foreign_net_1d of BBRI summed per month over 2025 (SUM rule)",
+      "expect": "EXEC-M223 L3 rerun through ANALYSIS (the first run was routed to FACT, which reads no warehouse data): amount_per_share, cum_date, record_date, pay_date of BBCA's latest dividend equal SQL",
       "turns": [
-        "Bagaimana net beli asing BBRI per bulan sepanjang 2025?"
-      ]
-    },
-    {
-      "id": "d_f06_all_stocks_1y",
-      "model": "deepseek/deepseek-v4.1-flash",
-      "reasoning_level": "high",
-      "lane": "fast",
-      "expect": "EXEC-M208-L3 L3: every stock over the last year (Feature_06, net foreign), the user's many-months requirement; records the planner's parts (M208)",
-      "turns": [
-        "Dalam setahun terakhir, saham mana yang paling banyak dibeli bersih oleh asing?"
-      ]
+        "Berapa dividen tunai terakhir BBCA per lembar, dan kapan cum date, recording date dan tanggal pembayarannya?"
+      ],
+      "analysis_path": "ANALYSIS"
     }
   ]
 }

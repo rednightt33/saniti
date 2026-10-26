@@ -1,0 +1,23 @@
+{
+  "prefix": "ma-event-insider-l3-20261026a",
+  "workers": 1,
+  "audit_wait_seconds": 0,
+  "items": [
+    {
+      "id": "a_bbca_dividend_terms",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "lane": "fast",
+      "expect": "EXEC-M223 L3: reads idx_event_annotation amount_per_share, cum_date, record_date, pay_date of BBCA's latest dividend (typed columns, no research_web); values equal SQL",
+      "turns": ["Berapa dividen tunai terakhir BBCA per lembar, dan kapan cum date, recording date dan tanggal pembayarannya?"]
+    },
+    {
+      "id": "b_spma_insider_sales",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "reasoning_level": "high",
+      "lane": "fast",
+      "expect": "EXEC-M223 L3 insider: reads idx_event_annotation INSIDER rows of SPMA on 2026-10-23 (holder_name, action SELL, shares_change); insider rows unchanged by the migration",
+      "turns": ["Siapa saja insider yang menjual saham SPMA pada 23 Oktober 2026, dan berapa lembar masing-masing?"]
+    }
+  ]
+}

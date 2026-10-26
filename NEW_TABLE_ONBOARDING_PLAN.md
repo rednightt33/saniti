@@ -81,7 +81,7 @@ Collected before any load; the agent fills it in with the user and records the a
 
 | # | Item | Where it lands | Part A |
 |---|---|---|---|
-| 1 | Purpose, source (provider, endpoint/file), licence, refresh schedule | `Table_Catalog` (`definition`, `source_system`, `update_rule`) | A5.21 |
+| 1 | Purpose, source (provider, endpoint/file), licence, refresh schedule | `Table_Catalog` (`definition`, `source_system`, `update_rule`, `category`: Feature only for a table with `Feature_Catalog` rows, ERRORS M225; run `scripts/audit_feature_catalog_semantics.py` after every new table) | A5.21 |
 | 2 | Grain and primary key; every meaning-bearing dimension in the key (currency, tenor, series, board) | migration, `Table_Catalog.grain` | A1.1 |
 | 3 | Entity identifier and its code system (`USDIDR`, ISIN, series code); mapping to existing codes if they differ | `AI_table_catalog`, mapping table if needed | A1.2 |
 | 4 | Subject metadata: `data_domain`, `entity_type`, `asset_type` (NULL for a cross-asset Feature), `supported_frequencies`, `time_semantics` | `AI_table_catalog` | A1.3 |

@@ -24,6 +24,12 @@ tables only. It never reads `Feature_01_Stock_Daily`,
   status table confirms it here, so it stays `UNVERIFIED` with
   `EVENT_DRIVEN_NOT_CONFIRMED`.
 
+- EXEC-M224 (2026-10-26): every raw source is read with one query from its `RAW_SOURCES` columns.
+  `actual_max_date` is the last date on or before the check date (Asia/Jakarta); rows dated after it (announced
+  schedules, for example corporate action dates in `idx_event_annotation`) are counted apart in
+  `scheduled_row_count` and `scheduled_max_date`. A source without future rows gives the same values as before.
+  `test_coverage_postgres.py` runs against a disposable server (`COVERAGE_TEST_POSTGRES_URL`).
+
 Railway runs `python coverage_job.py --mode nightly` at 07:30 Asia/Jakarta
 (`30 0 * * *` UTC). Nightly mode scans the latest 30 calendar days of raw
 history and preserves the most recent full-scan counts. A controlled initial or
