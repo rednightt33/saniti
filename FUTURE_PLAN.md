@@ -826,3 +826,22 @@ Bukti: `verification/terminal_api/FRONTEND_ARCHITECTURE.md` bagian 6–7, `apps/
 Jawaban user 2026-10-26 (rinci di EXEC.md, EXEC-TERMINAL-API T7–T10): T7 jadwal 07:30 dan 19:00 WIB, T8 dan T9 dijalankan
 dan selesai; item 6: riset hari harga datar dihentikan user ("Stop the research ya"), T10 opsi A (hari bursa dengan harga
 tetap dihitung; konvensi TA-Lib di item 6 tetap berlaku sampai user memutuskan lain).
+
+## Terminal: tinggi mengikuti layar (usulan 2026-10-26, menunggu go; ERRORS M233)
+
+User 2026-10-26: "kalau saya zoom 100% hasilnya seperti ini, sepertinya bagian chart terlalu tinggi. Coba konfirmasi dan
+benchmark best practice ya dari sisi ratio agar kalau dibuka di berbagai monitor hasilnya bagus dan rapih."
+
+Usulan (lapisan: CSS terminal dan konstanta `flow.ts`; data dan API tidak berubah):
+1. Halaman terminal tepat setinggi frame (tanpa gulir halaman); toolbar 46 px dan footer 28 px tetap.
+2. Pembagian bawaan chart : Flow = 70 : 30 dari tinggi tersisa, Flow dibatasi minimal ±180 dan maksimal 346 px
+   (346 = referensi); chart minimal ±240 px.
+3. Tinggi yang diseret pengguna disimpan sebagai rasio, bukan px, sehingga ikut menyesuaikan di monitor lain.
+4. Frame pendek (< ±650 px): Flow mulai terlipat (header saja, satu klik untuk membuka) atau header Flow dipadatkan satu
+   baris; di bawah ±480 px halaman boleh bergulir sebagai jalan keluar.
+5. Mode `?fixture=reference` tetap memakai tinggi referensi, supaya cek 1:1 (75 screenshot) tetap berlaku; tes baru
+   mengukur tanpa gulir di 1280×542, 1366×592, 1536×672, 1440×732, 1920×892, 2560×1242.
+6. Panel indikator terpisah (nanti) berbagi area chart dengan bobot (harga 3 : indikator 1).
+
+Pertanyaan untuk user: rasio bawaan (70:30 disarankan, 75:25, atau tetap 63:37 seperti referensi) dan perilaku layar
+pendek (Flow terlipat disarankan, header padat, atau gulir).

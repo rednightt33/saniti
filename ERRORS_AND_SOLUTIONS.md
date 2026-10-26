@@ -2005,6 +2005,26 @@ change yet.
 - **Status:** RESOLVED. **Lesson:** cron Railway mengubah cara run manual (M229); periksa variabel deployment yang aktif
   sesudah mengubah variabel tanpa deploy.
 
+### M233 — Tab Terminal lebih tinggi dari layar: halaman ikut bergulir, Flow Timeline di bawah layar (2026-10-26)
+
+- **Symptom:** user 2026-10-26 (screenshot, zoom 100%, Windows ±150%): "sepertinya bagian chart terlalu tinggi"; area
+  chart memenuhi layar, panel Flow Timeline tidak terlihat, ada scrollbar di dalam frame.
+- **Verified cause:** tinggi tetap dari HTML referensi dibawa 1:1 ke `apps/edge-bff/terminal/src/styles/terminal.css`:
+  `.main-col` 976 px (baris 454), `body` padding 22 px (baris 5), `.shell` `min-height:640px` (baris 8), footer 28 px;
+  `src/app/flow.ts` (sekitar baris 270) `FLOW_MIN = 260`, `FLOW_DEFAULT = 346`, tinggi seret disimpan dalam px.
+  Diukur (fixture, Chromium): halaman selalu 1.050 px dan chart 584 px; frame EDGE (tinggi jendela − 58 px top bar)
+  542 px (1280×720, layar 1920×1080 di 150 %) → 508 px tergulir; 1366×768 → 458; 1536×864 → 378; 1440×900 → 318;
+  1920×1080 di 100 % → 158; hanya 2560×1440 yang muat (dan chart tetap 584 px, ruang tersisa kosong).
+- **Class:** tata letak yang menyalin tinggi piksel tetap dari mock statis yang dirancang untuk satu ukuran layar; kena
+  ke setiap panel bertinggi tetap (chart, Flow Timeline, nanti panel indikator terpisah) dan ke ukuran yang disimpan
+  pengguna dalam px.
+- **Solution (usulan, menunggu go):** FUTURE_PLAN.md "Terminal: tinggi mengikuti layar". Prototipe CSS (disisipkan saat
+  ukur, kode tidak berubah): halaman = tinggi frame, pembagian chart 70 : Flow 30 dibatasi 180–346 px → tanpa gulir
+  di keenam ukuran; sisa masalah: di frame < ±650 px plot Flow tinggal ±86 px karena header panel ±94 px.
+- **Status:** OPEN.
+- **Lesson:** mock statis menentukan rupa, bukan tinggi; ukuran panel diturunkan dari ruang yang tersedia dan diuji di
+  beberapa ukuran layar (termasuk skala OS 125 % dan 150 %), tidak hanya di ukuran referensi.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.
