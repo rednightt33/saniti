@@ -7973,3 +7973,32 @@ label dates "03 December 2025"; U5 chart first, then Flow, side panels filled wh
 U7 Web Worker. Evidence: ERRORS "EXEC-TERMINAL-UI-1026 — selesai", RAILWAY_CHANGELOG 2026-10-26. Still proposals:
 recent years first and a browser cache (FUTURE_PLAN "Terminal: muat bertahap" items 2 and 5); the price gap of
 2026-09-17/18 (ERRORS M238) waits for the user.
+
+## EXEC-TERMINAL-1026B — font Flow, alat Ray, isi harga 17–18 Sep 2026, tampilan saat memuat (dicatat 2026-10-26, menunggu go)
+
+User 2026-10-26: "A: fontnya boleh diperkecil?", "Harga 17 dan 18 September 2026 ... --> isi dua tanggal itu. Also kenapa
+bisa hilang ya?", "Also, boleh tambah fitur ray?", lalu "saat ini kalau kita visit the web, yang langsung muncul adalah
+seperti ini. Cek apakah ini buat lag juga kalau kita load data? Also cek dan research bagaimana server seperti
+tradingview dll fetch and display their data almost real time. Apakah ada yang flawed dari API kita?"
+
+Bukti (kode `main`, data live 2026-10-26):
+- Font Flow: `terminal.css`:187 label 12 px, :221 angka 15 px.
+- Ray: `lightweight-charts-drawing` sudah punya alat `ray`; menu garis `drawings.ts`:241-246 belum menawarkannya.
+- Harga 17–18 Sep (ERRORS M238): `Monitoring_Price_ALL` tidak punya baris run apa pun (DAILY maupun RECOVERY) untuk
+  dua tanggal itu; run 16 dan 21 Sep tercatat (PARTIAL, 828/844). Log deployment cron yang aktif (`ae37f76e`) hanya
+  tersimpan sejak 2026-09-27, jadi alasan job tidak berjalan tidak bisa dibuktikan (dugaan: run tidak terjadi atau
+  mati sebelum mencatat). Terverifikasi: `recovery_window.py` `correction_target_dates` hanya memeriksa ulang tanggal
+  yang SUDAH ada di tabel harga ditambah satu sesi terbaru, jadi hari bursa yang hilang seluruhnya tidak pernah diisi.
+- Tampilan saat memuat: `main.ts` menjalankan `start()` sesudah harga tiba; status panel (tertutup) dan isi baru
+  dipasang saat itu, jadi sebelumnya terlihat kerangka HTML referensi (panel terbuka, kosong, "BBCA · Broker summary")
+  lalu bergeser.
+
+Butir:
+- F1 Font panel Flow lebih kecil: label 12 → 11 px, angka 15 → 13 px (usulan; menunggu konfirmasi angka).
+- F2 Alat Ray di menu garis (garis dari dua titik yang memanjang ke satu arah), mengikuti alat yang ada di library.
+- F3 Isi harga semua saham 2026-09-17 dan 2026-09-18 dari TradingView dengan `price_update.py --mode manual
+  --target-date … --request-bars 40` (dry-run dulu, lalu tulis; Feature 04 ikut dihitung ulang lewat jalur normal),
+  dan perbaikan umum: pemulihan memeriksa setiap hari bursa terjadwal dalam jendela koreksi yang belum punya harga,
+  bukan hanya tanggal yang sudah tersimpan (`recovery_window.py`, tes).
+- F4 Kerangka saat memuat: status panel dan tanda "Loading MAPI…" dipasang begitu halaman terbuka (sebelum data),
+  tanpa teks contoh referensi.
