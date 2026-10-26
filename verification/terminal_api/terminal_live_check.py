@@ -138,6 +138,16 @@ try:
             report[ticker].update(seconds_to_panels=loaded, downloads=len(downloads),
                                   download_status=sorted({d['status'] for d in downloads}),
                                   megabytes=round(sum(d['bytes'] for d in downloads) / 1e6, 2), errors=errors)
+            # EXEC-TERMINAL-SPEED: a second visit reads the files from the browser cache (IndexedDB by sha256), and
+            # ?perf=1 shows the stage and file timings
+            before = len(downloads); t0 = time.time()
+            page.goto(f'http://127.0.0.1:{port}/terminal-app/?perf=1', wait_until='load', timeout=120000)
+            page.wait_for_function("() => document.querySelector('#flowSummary .flow-stat') || document.querySelector('[role=alert]')", timeout=90000)
+            again = round(time.time() - t0, 2)
+            page.wait_for_function("() => /KB +(cache|net)/.test(document.querySelector('.ml-perf')?.innerText || '') && (document.getElementById('flowNote').hidden || !/^Loading/.test(document.getElementById('flowNote').textContent))", timeout=90000)
+            page.wait_for_timeout(1000)
+            report[ticker]['second_visit'] = {'seconds_to_flow': again, 'downloads': len(downloads) - before,
+                                              'perf': page.evaluate("() => document.querySelector('.ml-perf')?.innerText || null")}
             ctx.close()
         browser.close()
 finally:
