@@ -7861,6 +7861,76 @@ jadi tidak berubah.
 
 **Permanen**, bukan TEMPORARY. Rollback: kolom baru dibiarkan NULL dan job versi sebelumnya dideploy ulang.
 
+### EXEC-M223: syarat aksi korporasi bertipe di `idx_event_annotation` (disetujui untuk direncanakan 2026-10-26, belum dijalankan)
+
+**User 2026-10-26:** "M223 masukan exec jangan execute dulu." Eksekusi menunggu "go".
+
+**Akar masalah (terverifikasi, ERRORS M223, job `ecc0df26`):** `refresh_idx_event_annotation()` hanya menyalin satu
+`annotation_date` per aksi korporasi ditambah `source_payload`, yang tersembunyi dari AI. Tabel sumber
+`stockbit_corporate_action` punya `cum_date`, `ex_date`, `record_date`, `pay_date`, `start_date`, `end_date`, dan
+payload-nya berisi nominal, rasio dan harga. Script penarik (`apps/stockbit-event-annotation/job.py`:38-39) sudah menyimpan
+semua itu, jadi **script penarik tidak diubah**. Yang diubah adalah fungsi database yang dipanggilnya (`job.py`:193).
+
+**Kelas:** tabel turunan yang dibuka ke AI tetapi membuang atribut khusus jenis event. Ini berlaku untuk semua jenis aksi
+korporasi, dan untuk sumber event lain nanti (kalender makro, IPO).
+
+**Langkah 1 — migrasi (lapisan data):**
+- Kolom baru di `idx_event_annotation`, semuanya NULL untuk baris insider:
+  - `cum_date`, `ex_date`, `record_date`, `pay_date`, `start_date`, `end_date` (date);
+  - `amount_per_share` (numeric, IDR per lembar: dividen tunai, harga rights, harga tender, harga exercise warrant);
+  - `currency` (text);
+  - `ratio_old`, `ratio_new` (numeric: split, reverse split, bonus, rights).
+- Tabel pemetaan kecil `idx_event_annotation_terms_map (action_type, target_column, payload_key)`, diisi dari kunci payload
+  yang terbaca live (job `39363dfd`/`ecc0df26`), misalnya `DIVIDEND` → `dividend_value`, `dividend_currency`;
+  `STOCK_SPLIT` → `stocksplit_old`/`stocksplit_new`; `RIGHT_ISSUE` → `rightissue_price`, `rightissue_old`/`rightissue_new`;
+  `WARRANT` → `wrant_exc_price`; `BONUS_SHARE` → rasio bonus. Jenis baru cukup menambah baris pemetaan, tanpa mengubah fungsi.
+- `CREATE OR REPLACE FUNCTION refresh_idx_event_annotation()`: tanggal disalin dari kolom sumber, syarat diambil dari
+  payload lewat tabel pemetaan; nilai yang bukan angka menjadi NULL dan dihitung. Lalu fungsi dijalankan sekali di migrasi
+  yang sama.
+- Ditambah: Table_Catalog/Column_Catalog, baris AI_column_catalog (unit, deskripsi Indonesia DRAFT),
+  `Table_Catalog.category` diperbaiki menjadi `Transactional` (ERRORS M225), DATABASE_SCHEMA, DATABASE_CHANGELOG.
+- Part A: dicek sebelum muat (butir 26: tidak ada makna yang hanya di payload tersembunyi).
+
+**Langkah 2 — tes dan baca ulang:**
+- DRYRUN, lalu APPLY lewat `migration_job.py`. Baca ulang:
+  - jumlah baris dividen dengan `amount_per_share` terisi = jumlah baris sumber yang punya `dividend_value` (5.301);
+  - BBCA `dividend:118073`: Rp 25, cum 2026-08-28, record 2026-09-01, pay 2026-09-16;
+  - split, rights dan warrant dicek per jenis dengan cara yang sama;
+  - baris insider tidak berubah (hash per baris sebelum dan sesudah).
+- Kasus yang tidak berlaku: RUPS dan public expose tidak punya nominal atau rasio, jadi kolom itu tetap NULL dan
+  deskripsi kolom menyebutnya.
+
+**Langkah 3 — onboarding:** index acceptance bila ada pola baru; L2 (COLUMNS menampilkan kolom baru beserta unit);
+L3 berbayar: ulang pertanyaan dividen BBCA (`edge_04f42c64`) dan satu pertanyaan split/rights. Jawaban harus menyebut
+nominal dan tanggal dari tabel, dan angkanya sama dengan SQL.
+
+**Permanen.** Rollback: fungsi versi `013` dideploy ulang lewat migrasi maju; kolom baru dibiarkan NULL.
+
+### EXEC-M225: kategori `Table_Catalog` `idx_event_annotation` menjadi Transactional (disetujui untuk direncanakan 2026-10-26, belum dijalankan)
+
+**User 2026-10-26:** "M225 masukan exec jangan execute dulu." Eksekusi menunggu "go".
+
+**Akar masalah (terverifikasi, ERRORS M225, job `71673659`):** `Table_Catalog.category = 'Feature'` untuk
+`idx_event_annotation` (migrasi `20261025_013`). `scripts/audit_feature_catalog_semantics.py`:35-52 menuntut definisi
+`Feature_Catalog` untuk setiap kolom tabel ber-kategori Feature, jadi audit wajib (AGENTS) gagal untuk 26 kolom. Tabel ini
+bukan Feature: `AI_table_catalog` mencatatnya TRANSACTIONAL, sama dengan dua tabel sumbernya.
+
+**Kelas:** kategori yang dipilih saat tabel dibuat menentukan audit mana yang berlaku. Tabel turunan baru (event, makro)
+yang salah kategori akan selalu mematahkan audit Feature.
+
+**Langkah:**
+1. Migrasi maju: `UPDATE public."Table_Catalog" SET category = 'Transactional', updated_at = now()` untuk
+   `idx_event_annotation`, ditambah blok periksa yang gagal bila masih ada tabel ber-kategori Feature tanpa satu pun baris
+   `Feature_Catalog`. Penjaga ini berlaku untuk semua tabel, bukan hanya tabel ini.
+2. DRYRUN lalu APPLY lewat `migration_job.py`; baca ulang kategori.
+3. Jalankan `scripts/audit_feature_catalog_semantics.py`, yang harus `overall: PASS`; regenerasi `Database_Table_Status`
+   dan `DATABASE_SCHEMA.md`.
+4. Opsional: perubahan ini ikut dalam migrasi EXEC-M223 bila keduanya diberi go bersamaan.
+5. NEW_TABLE_ONBOARDING_PLAN mendapat satu kalimat: kategori Feature hanya untuk tabel yang punya baris `Feature_Catalog`;
+   audit Feature dijalankan sesudah setiap tabel baru.
+
+**Permanen.** Rollback: kategori dikembalikan dengan migrasi maju (catatan dokumentasi saja; data tidak berubah).
+
 ## EXEC-TERMINAL-API — approved 2026-10-24 (Phase 1 and Phase 2 only)
 
 User 2026-10-24: "Cek variable. Or notepad token railway terlampir." with the task "Database Inspection, Data
@@ -8031,73 +8101,3 @@ Plan:
 5. Merge the branch into `main`, push; edge-bff deploys from `main`; check the deployment reaches SUCCESS and the
    Terminal tab answers.
 6. Changelogs, ERRORS, FRONTEND_HANDOFF, README; remove done items from EXEC.
-
-### EXEC-M223: syarat aksi korporasi bertipe di `idx_event_annotation` (disetujui untuk direncanakan 2026-10-26, belum dijalankan)
-
-**User 2026-10-26:** "M223 masukan exec jangan execute dulu." Eksekusi menunggu "go".
-
-**Akar masalah (terverifikasi, ERRORS M223, job `ecc0df26`):** `refresh_idx_event_annotation()` hanya menyalin satu
-`annotation_date` per aksi korporasi ditambah `source_payload`, yang tersembunyi dari AI. Tabel sumber
-`stockbit_corporate_action` punya `cum_date`, `ex_date`, `record_date`, `pay_date`, `start_date`, `end_date`, dan
-payload-nya berisi nominal, rasio dan harga. Script penarik (`apps/stockbit-event-annotation/job.py`:38-39) sudah menyimpan
-semua itu, jadi **script penarik tidak diubah**. Yang diubah adalah fungsi database yang dipanggilnya (`job.py`:193).
-
-**Kelas:** tabel turunan yang dibuka ke AI tetapi membuang atribut khusus jenis event. Ini berlaku untuk semua jenis aksi
-korporasi, dan untuk sumber event lain nanti (kalender makro, IPO).
-
-**Langkah 1 — migrasi (lapisan data):**
-- Kolom baru di `idx_event_annotation`, semuanya NULL untuk baris insider:
-  - `cum_date`, `ex_date`, `record_date`, `pay_date`, `start_date`, `end_date` (date);
-  - `amount_per_share` (numeric, IDR per lembar: dividen tunai, harga rights, harga tender, harga exercise warrant);
-  - `currency` (text);
-  - `ratio_old`, `ratio_new` (numeric: split, reverse split, bonus, rights).
-- Tabel pemetaan kecil `idx_event_annotation_terms_map (action_type, target_column, payload_key)`, diisi dari kunci payload
-  yang terbaca live (job `39363dfd`/`ecc0df26`), misalnya `DIVIDEND` → `dividend_value`, `dividend_currency`;
-  `STOCK_SPLIT` → `stocksplit_old`/`stocksplit_new`; `RIGHT_ISSUE` → `rightissue_price`, `rightissue_old`/`rightissue_new`;
-  `WARRANT` → `wrant_exc_price`; `BONUS_SHARE` → rasio bonus. Jenis baru cukup menambah baris pemetaan, tanpa mengubah fungsi.
-- `CREATE OR REPLACE FUNCTION refresh_idx_event_annotation()`: tanggal disalin dari kolom sumber, syarat diambil dari
-  payload lewat tabel pemetaan; nilai yang bukan angka menjadi NULL dan dihitung. Lalu fungsi dijalankan sekali di migrasi
-  yang sama.
-- Ditambah: Table_Catalog/Column_Catalog, baris AI_column_catalog (unit, deskripsi Indonesia DRAFT),
-  `Table_Catalog.category` diperbaiki menjadi `Transactional` (ERRORS M225), DATABASE_SCHEMA, DATABASE_CHANGELOG.
-- Part A: dicek sebelum muat (butir 26: tidak ada makna yang hanya di payload tersembunyi).
-
-**Langkah 2 — tes dan baca ulang:**
-- DRYRUN, lalu APPLY lewat `migration_job.py`. Baca ulang:
-  - jumlah baris dividen dengan `amount_per_share` terisi = jumlah baris sumber yang punya `dividend_value` (5.301);
-  - BBCA `dividend:118073`: Rp 25, cum 2026-08-28, record 2026-09-01, pay 2026-09-16;
-  - split, rights dan warrant dicek per jenis dengan cara yang sama;
-  - baris insider tidak berubah (hash per baris sebelum dan sesudah).
-- Kasus yang tidak berlaku: RUPS dan public expose tidak punya nominal atau rasio, jadi kolom itu tetap NULL dan
-  deskripsi kolom menyebutnya.
-
-**Langkah 3 — onboarding:** index acceptance bila ada pola baru; L2 (COLUMNS menampilkan kolom baru beserta unit);
-L3 berbayar: ulang pertanyaan dividen BBCA (`edge_04f42c64`) dan satu pertanyaan split/rights. Jawaban harus menyebut
-nominal dan tanggal dari tabel, dan angkanya sama dengan SQL.
-
-**Permanen.** Rollback: fungsi versi `013` dideploy ulang lewat migrasi maju; kolom baru dibiarkan NULL.
-
-### EXEC-M225: kategori `Table_Catalog` `idx_event_annotation` menjadi Transactional (disetujui untuk direncanakan 2026-10-26, belum dijalankan)
-
-**User 2026-10-26:** "M225 masukan exec jangan execute dulu." Eksekusi menunggu "go".
-
-**Akar masalah (terverifikasi, ERRORS M225, job `71673659`):** `Table_Catalog.category = 'Feature'` untuk
-`idx_event_annotation` (migrasi `20261025_013`). `scripts/audit_feature_catalog_semantics.py`:35-52 menuntut definisi
-`Feature_Catalog` untuk setiap kolom tabel ber-kategori Feature, jadi audit wajib (AGENTS) gagal untuk 26 kolom. Tabel ini
-bukan Feature: `AI_table_catalog` mencatatnya TRANSACTIONAL, sama dengan dua tabel sumbernya.
-
-**Kelas:** kategori yang dipilih saat tabel dibuat menentukan audit mana yang berlaku. Tabel turunan baru (event, makro)
-yang salah kategori akan selalu mematahkan audit Feature.
-
-**Langkah:**
-1. Migrasi maju: `UPDATE public."Table_Catalog" SET category = 'Transactional', updated_at = now()` untuk
-   `idx_event_annotation`, ditambah blok periksa yang gagal bila masih ada tabel ber-kategori Feature tanpa satu pun baris
-   `Feature_Catalog`. Penjaga ini berlaku untuk semua tabel, bukan hanya tabel ini.
-2. DRYRUN lalu APPLY lewat `migration_job.py`; baca ulang kategori.
-3. Jalankan `scripts/audit_feature_catalog_semantics.py`, yang harus `overall: PASS`; regenerasi `Database_Table_Status`
-   dan `DATABASE_SCHEMA.md`.
-4. Opsional: perubahan ini ikut dalam migrasi EXEC-M223 bila keduanya diberi go bersamaan.
-5. NEW_TABLE_ONBOARDING_PLAN mendapat satu kalimat: kategori Feature hanya untuk tabel yang punya baris `Feature_Catalog`;
-   audit Feature dijalankan sesudah setiap tabel baru.
-
-**Permanen.** Rollback: kategori dikembalikan dengan migrasi maju (catatan dokumentasi saja; data tidak berubah).

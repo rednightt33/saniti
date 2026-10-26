@@ -1973,6 +1973,19 @@ change yet.
 - **Lesson:** kategori Feature hanya untuk tabel yang punya baris `Feature_Catalog`; jalankan audit Feature sesudah setiap
   tabel baru, bukan hanya sesudah perubahan Feature.
 
+### M232 — Tes EDGE `test_a_short_title_never_wraps_and_a_long_title_folds_within_its_width` gagal di `main` (2026-10-26)
+
+- **Symptom:** suite edge-bff sebelum merge cabang terminal (2026-10-26): 169 lulus, 2 gagal; tes ini gagal juga di
+  `origin/main` `e1715cb` tanpa kode cabang (worktree terpisah, bersama `test_composer_layout` mobile M212). Pesan:
+  judul kolom panjang terlipat 2 baris pada lebar 1440 px, tes meminta paling sedikit 3.
+- **Suspected cause (belum diverifikasi):** lebar teks bergantung pada font yang tersedia di mesin tes (font cadangan
+  Chromium di kontainer berbeda dari mesin tempat tes ditulis), bukan pada kode. Cek yang memastikan: ukur lebar
+  `.edge-sort-label` dengan font yang sama dimuat dari berkas (seperti harness visual terminal, M228) dan bandingkan.
+- **Class:** tes tata letak yang menghitung baris teks tanpa mengunci font.
+- **Solution:** belum ada; tes tidak dilewati atau dinonaktifkan. Bukan regresi cabang terminal.
+- **Status:** OPEN (rendah).
+- **Lesson:** tes tata letak teks harus memuat font-nya sendiri, seperti harness visual terminal.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.
