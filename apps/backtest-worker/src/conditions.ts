@@ -65,6 +65,10 @@ export function indicatorCondition(c: Calc, cond: IndicatorCondition, field = 'c
   const outs = c.out(r.key, params);
   const a = side(c, cond.lhs, outs, r.outputs, r.price_input, `${field}.lhs`, false);
   const b = side(c, cond.rhs, outs, r.outputs, r.price_input, `${field}.rhs`, true);
+  // parameters the registry accepts can still leave an output without a single value (CCI constant 0, a length longer
+  // than the history, a volume indicator on an index); that is an error, not a condition that is silently never true
+  for (const [s, f] of [[a, `${field}.lhs`], [b, `${field}.rhs`]] as [Series | null, string][])
+    if (s && !s.some(isN)) throw new ValidationError('INDICATOR_OUTPUT_EMPTY', f, `${f}: ${r.id} with these parameters has no value on this ticker's bars.`);
   return compare(a as Series, cond.op, b, b ? 0 : cond.rhs.value as number, c.n);
 }
 
@@ -76,14 +80,18 @@ const num = (p: Params, key: string, def: number, field: string, integer = true,
   return v;
 };
 const threshold = (cond: PriceActionCondition, field: string): number => {
+  const spec = PRICE_ACTION[cond.type].value as { unit: string; above: number };
   if (typeof cond.value !== 'number' || !Number.isFinite(cond.value)) throw new ValidationError('INVALID_CONDITION', `${field}.value`, `${field}.value must be a number.`);
+  if (!(cond.value > spec.above)) throw new ValidationError('VALUE_OUT_OF_RANGE', `${field}.value`, `${field}.value is a ${spec.unit} and must be above ${spec.above}.`);
   return cond.value;
 };
 
-export const PRICE_ACTION: Record<string, { ops: string[]; params: Record<string, number>; value: boolean }> = {
-  dip: { ops: ['lte'], params: {}, value: true },                                   // one-day return <= value (fraction)
+/* value: what the threshold measures and the range that quantity can take; a threshold outside it is refused (a
+   percent typed where a fraction is expected, -3 for -3%, would otherwise give a condition that is never true) */
+export const PRICE_ACTION: Record<string, { ops: string[]; params: Record<string, number>; value: false | { unit: string; above: number } }> = {
+  dip: { ops: ['lte'], params: {}, value: { unit: 'one-day return, fraction', above: -1 } },             // return <= value
   breakout: { ops: ['close_above_high'], params: { length: 20 }, value: false },     // close > highest high of the previous N bars
-  volspike: { ops: ['gt'], params: { length: 20 }, value: true },                   // volume / SMA(volume, N) ending the bar before > value
+  volspike: { ops: ['gt'], params: { length: 20 }, value: { unit: 'volume ratio', above: 0 } },          // volume / SMA(volume, N) ending the bar before > value
   macross: { ops: ['golden_cross', 'fast_above_slow'], params: { fast_length: 20, slow_length: 50 }, value: false },
   macd: { ops: ['bullish_divergence', 'crosses_above_signal', 'histogram_positive'], params: { fast_length: 12, slow_length: 26, signal_length: 9 }, value: false },
 };
@@ -146,12 +154,21 @@ export function conditionSeries(c: Calc, cond: Condition, field = 'condition'): 
 
 export type EntryLogic = 'all' | 'any' | 'at_least';
 
-/** The combined entry state (page `signalsFor`). */
-export function combineEntry(series: Signal[], logic: EntryLogic, atLeast: number, windowBars: number, n: number): Signal {
+export const WINDOW_BARS = { min: 1, max: 20 };                  // the page's "within N bars" input (min 1, max 20)
+
+/** The combined entry state (page `signalsFor`). Inputs outside the page's controls are refused, never adjusted:
+    logic all/any/at_least, a whole window of 1-20 bars, and at_least a whole number of at least 1. As on the page, an
+    at_least above the number of active conditions means all of them (a condition switched off keeps the rule usable). */
+export function combineEntry(series: Signal[], logic: EntryLogic, atLeast: number | undefined, windowBars: number, n: number): Signal {
+  if (!['all', 'any', 'at_least'].includes(logic)) throw new ValidationError('INVALID_ENTRY', 'entry.logic', 'entry.logic must be all, any or at_least.');
+  if (!Number.isInteger(windowBars) || windowBars < WINDOW_BARS.min || windowBars > WINDOW_BARS.max)
+    throw new ValidationError('INVALID_ENTRY', 'entry.window_bars', `entry.window_bars must be a whole number from ${WINDOW_BARS.min} to ${WINDOW_BARS.max}.`);
+  if (logic === 'at_least' && !(Number.isInteger(atLeast) && (atLeast as number) >= 1))
+    throw new ValidationError('INVALID_ENTRY', 'entry.at_least', 'entry.at_least must be a whole number of at least 1.');
   const entry = new Uint8Array(n);
   if (!series.length) return entry;
-  const need = logic === 'all' ? series.length : logic === 'any' ? 1 : Math.min(atLeast, series.length);
-  const W = Math.max(1, windowBars | 0), recent = series.map(() => -1e9);
+  const need = logic === 'all' ? series.length : logic === 'any' ? 1 : Math.min(atLeast as number, series.length);
+  const W = windowBars, recent = series.map(() => -1e9);
   for (let i = 0; i < n; i++) {
     let met = 0;
     for (let k = 0; k < series.length; k++) { if (series[k][i]) recent[k] = i; if (i - recent[k] < W) met++ }
@@ -162,6 +179,7 @@ export function combineEntry(series: Signal[], logic: EntryLogic, atLeast: numbe
 
 /** The exit-signal state (page `exitSeries`): any or all of the active exit conditions on the same bar. */
 export function combineExit(series: Signal[], logic: 'any' | 'all', n: number): Signal {
+  if (logic !== 'any' && logic !== 'all') throw new ValidationError('INVALID_EXIT', 'exit.signals.logic', 'exit.signals.logic must be any or all.');
   const r = new Uint8Array(n);
   if (!series.length) return r;
   for (let i = 0; i < n; i++) { let hit = 0; for (const s of series) hit += s[i]; r[i] = logic === 'all' ? +(hit === series.length) : +(hit > 0) }

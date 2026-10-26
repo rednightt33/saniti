@@ -20,7 +20,9 @@ Done (no business decision needed):
 Not yet (waiting for decisions E1–E5, K3–K8, U1): storage reader, execution engine, statistics, robustness, HTTP
 service, Dockerfile, edge-bff integration. Flow and broker conditions stay disabled until their storage data is verified.
 
-Differences from the page, on purpose: thresholds are fractions (`dip` value -0.03, not -3); a missing low is never a
+Differences from the page, on purpose: thresholds are fractions (`dip` value -0.03, not -3; a value outside what the
+condition measures, e.g. -3, is refused); an output without any value is refused (INDICATOR_OUTPUT_EMPTY); entry
+logic, window (1–20) and at_least are checked (the page clamps at_least to the active count, so does the worker); a missing low is never a
 swing low in the bullish divergence (the page treats NaN as a low).
 
 Tests: `npm test` (Node ≥ 22.6 with type stripping, no dependencies). The condition tests run on the Terminal parity fixtures (real

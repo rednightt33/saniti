@@ -53,16 +53,23 @@ const withValue = (cond: Condition, c: Calc): Condition => cond.kind === 'indica
 const CASES = indicatorCases();
 
 test(`indicator conditions equal the page's regEval (${CASES.length} conditions x ${fixtures.length} tickers)`, () => {
-  let switched = 0;
+  let switched = 0, empty = 0;
   for (const { ticker, bars } of fixtures) {
     const c = new Calc(bars);
     for (const { cond, oracle } of CASES) {
-      const s = conditionSeries(c, withValue(cond, c));
+      let s: Signal;
+      try { s = conditionSeries(c, withValue(cond, c)) } catch (e) {
+        // an output without any value is refused; check that it really is empty and that the page's result is all zeros
+        assert.ok(e instanceof ValidationError && e.code === 'INDICATOR_OUTPUT_EMPTY', `${ticker} ${cond.id}: ${e}`);
+        assert.ok(!oracle(c).some(Boolean), `${ticker} ${cond.id}: refused although the page finds signals`);
+        empty++; continue;
+      }
       same(s, oracle(c), `${ticker} ${cond.id}`);
       switched += switchOns(s, 0, s.length - 1).length;
     }
   }
   assert.ok(switched > 100000, 'the conditions do switch on (the comparison is not all zeros)');
+  assert.ok(empty > 0 && empty < CASES.length, `refused ${empty}: only outputs without values (volume indicators on IHSG)`);
 });
 
 test('price-action and pattern conditions equal the page', () => {
@@ -89,8 +96,10 @@ test('combined entry ("within N bars"), its arrows, and exit signals equal the p
   for (const { ticker, bars } of fixtures) {
     const c = new Calc(bars), n = bars.C.length, idx = [...Array(n).keys()].slice(Math.floor(n / 3));
     for (let k = 0; k < 150; k++) {
-      const chosen = Array.from({ length: 2 + Math.floor(rnd() * 4) }, () => pick(CASES));
-      const ss = chosen.map(x => conditionSeries(c, withValue(x.cond, c)));
+      const ss: Signal[] = [];
+      while (ss.length < 2 + Math.floor(rnd() * 4)) {
+        try { ss.push(conditionSeries(c, withValue(pick(CASES).cond, c))) } catch (e) { if (!(e instanceof ValidationError && e.code === 'INDICATOR_OUTPUT_EMPTY')) throw e }
+      }
       const logic = pick(logics), atLeast = 1 + Math.floor(rnd() * ss.length), W = 1 + Math.floor(rnd() * 20);
       const want = O.signalsFor(ss, logic === 'at_least' ? 'n' : logic, atLeast, W);
       const got = combineEntry(ss, logic, atLeast, W, n);
