@@ -2316,6 +2316,47 @@ change yet.
   memakai mekanisme yang sama (bagian `.st` di `.side-scroll`, `makeRange` dengan kunci).
 - **Status:** RESOLVED.
 
+### M241 — Satu transaksi insider tersimpan dua kali (IDX dan KSEI); AI menjumlahkan keduanya (2026-10-26)
+
+- **Symptom:** run `edge_8233fa7f6e2386bc368387b700838f1f` ("saham yang dibeli insider seminggu terakhir"): total beli
+  pertama Rp16,49 triliun; AI sendiri menemukan baris kembar (WIFI, GULA, ENRG) di iterasi 8–9, membuang yang ganda
+  (Rp12,41 triliun) dan merilis ulang tabel (`complete_analysis` dua kali, ±2 iterasi tambahan).
+- **Verified cause** (SQL read-only lewat pgweb, 2026-10-26):
+  - Desain loader: "The same movement reported by IDX and by KSEI stays two rows, told apart by `data_origin`"
+    (`apps/stockbit-event-annotation/stockbit_events.py`:309).
+  - Katalog yang dibaca AI tidak menyebutnya: `AI_table_catalog.description` live tanpa kalimat soal baris kembar;
+    `value_idr` dan `shares_change` punya agregasi baku `SUM` (`20261025_015_onboard_idx_event_annotation.sql`, baris
+    kolom `value_idr`, `shares_change`).
+  - Seluruh tabel: 1.233 kunci (ticker, nama pemegang, tanggal, perubahan saham) muncul di kedua sumber, 1.268 baris
+    lebih; 1.078 kunci lain berulang di satu sumber saja (sebagian transaksi berbeda harga, misalnya ATIC, ALII, WINE
+    yang dicek AI, jadi bukan ganda).
+  - Jendela 19–23 Okt, aksi BUY: 272 kunci, jumlah semua baris Rp16.485.000.975.587, sesudah kembar lintas sumber
+    diambil sekali Rp12.414.182.494.587 (3 kunci). WIFI SINERGI GRAHA KAPITAL 2026-10-19 Rp4,06 triliun ada di IDX dan
+    KSEI.
+- **Class:** tabel yang menggabungkan fakta yang sama dari beberapa sumber laporan tanpa penanda baris utama; setiap
+  jumlah, hitung atau peringkat terlalu besar. Berlaku juga untuk data makro dan lintas aset yang direncanakan (CPI
+  dari BPS dan vendor, kurs JISDOR dan vendor, harga obligasi dari beberapa feed).
+- **Solution (usulan, menunggu go):** lihat FUTURE_PLAN "Baris kembar dan nilai tak diketahui di idx_event_annotation".
+- **Status:** OPEN.
+- **Lesson for new data:** tabel multi-sumber menyimpan penanda baris utama (atau satu baris kanonik) beserta aturan
+  pasangannya, dan katalog menyatakan cara menjumlahkan; Part A butir 28 diusulkan.
+
+### M242 — Harga dan nilai insider yang tidak diketahui tersimpan 0, bukan NULL (2026-10-26)
+
+- **Symptom:** run yang sama: ENRG TRIMEGAH 2026-10-21 KSEI `price` 0, `value_idr` 0 di samping baris IDX Rp135,4 miliar;
+  AI harus memilih baris bernilai lebih dari nol dengan aturan sendiri.
+- **Verified cause:** Stockbit mengirim `{"raw": {"value": "0"}, "formatted": "-"}` untuk harga dan nilai yang tidak ada
+  (`source_payload` baris ENRG di atas); loader menyimpan `raw` apa adanya
+  (`apps/stockbit-event-annotation/stockbit_events.py`:353, 355). Live: KSEI 270 harga 0 dan 2.797 nilai 0, IDX 3 dan 11;
+  tidak ada NULL sama sekali. Selain itu 81.164 dari 81.439 baris KSEI (dan 860 IDX) berharga perkiraan
+  (`is_estimated_price`), sementara deskripsi `value_idr` untuk AI hanya "Nilai transaksi insider dalam rupiah."
+- **Class:** sumber yang menandai "tidak ada" dengan 0 plus tampilan "-"; rata-rata, minimum dan jumlah salah tanpa
+  terlihat. Berlaku untuk setiap muatan Stockbit lain dan sumber makro yang memakai 0 atau "-" untuk kosong.
+- **Solution (usulan, menunggu go):** FUTURE_PLAN, entri yang sama.
+- **Status:** OPEN.
+- **Lesson for new data:** angka yang ditandai sumber sebagai tidak ada disimpan NULL; aturan diambil dari penanda sumber
+  ("-"), bukan dari nilai 0, karena 0 bisa sah (misalnya hibah tanpa harga).
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.
