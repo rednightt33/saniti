@@ -4569,7 +4569,7 @@ User 2026-10-25: "Ok" on `verification/terminal_api/DESIGN.md` section 5.
 - terminal-publisher backfill `d8270f21-92ef-4d60-9412-806212d853a1`: 9,173 files, 283.89 MB, 845 tickers,
   8,150 s. Verify `bb3a6397-e8d4-4532-83a1-561e62974762`: 297 mismatches, all broker 2026 (Feature 05 refreshed to
   2026-10-23 after the backfill); it restarted under the default restart policy and was removed with `railway down`
-  (ERRORS M226). Variable `TERMINAL_PUBLISH_MODE` currently `verify`; no deployment active.
+  (ERRORS M231). Variable `TERMINAL_PUBLISH_MODE` currently `verify`; no deployment active.
 - `railway config pull --force --variables=unmanaged` was tried and reverted: it rewrites the whole file without the
   `preserve()` entries, so `.railway/railway.ts` is unchanged and the two terminal services are not in it yet.
 

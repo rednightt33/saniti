@@ -32,6 +32,7 @@ from .datasets import DatasetFailure, DatasetProvider
 from .executor import Executor, Outcome, disk_usage, read_child_json
 from .intent import messages_sha256, review
 from .isolation import IsolationReport, run_selftest
+from . import memory_report
 from .logical import PARTITION_INCOMPLETE, BindingError, GrantedFile, bind
 from .models import TERMINAL, AnalysisRequest, AnalysisResult, next_action
 from .outputs import OutputRejected, OutputStore
@@ -1115,6 +1116,11 @@ class AnalysisService:
         summary = {"files_removed": removed, "analyses_expired": len(expired), "records_purged": purged,
                    "workspaces_removed": workspaces, "cache_files_removed": cache}
         self._log("sandbox_cleanup", **summary)
+        try:  # FUTURE_PLAN U1: give freed main-process memory back, then report where the memory sits
+            self._log("sandbox_memory_release", **memory_report.release())
+            self._log("sandbox_memory", **memory_report.snapshot())
+        except Exception:  # noqa: BLE001 - a report never breaks the janitor
+            logger.exception("sandbox_memory_report_error")
         return summary
 
     def _janitor(self) -> None:
