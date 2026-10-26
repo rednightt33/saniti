@@ -741,6 +741,25 @@ Urutan yang disarankan: U1 → M215 usulan A → U4.
     "SSH key management is not supported with project tokens (`RAILWAY_TOKEN`)", dan `railway ssh` dengan token proyek
     → "Unauthorized". Klien OpenSSH dipasang dan kunci sesi dibuat, tetapi koneksi butuh token akun atau workspace
     Railway (`RAILWAY_API_TOKEN`) di secret environment, dibaca oleh sesi baru.
+  - 2026-10-26, terverifikasi live (user: "Boleh juga dijalankan untuk pilihan satu"). SSH tetap tidak bisa: port 22 tidak
+    dijangkau dari sesi cloud (proxy hanya HTTPS); kunci yang sempat didaftarkan sudah dihapus. Sebagai gantinya janitor
+    sandbox mencatat `sandbox_memory` (commit `4db9a30`, deploy `0712bf35`):
+    - sesudah restart: proses utama uvicorn 187 MB, import `pyarrow`, `numpy`; cgroup 273 MB;
+    - sesudah dua analisis, saat worker masih hidup: uvicorn 469 MB, dua worker 208 dan 168 MB; cgroup 855 MB;
+    - diam, worker sudah keluar: uvicorn **481 MB**, import `duckdb`, `pyarrow`, `pandas`, `numpy`; cgroup 669 MB (anon 387,
+      page cache 190).
+    Penyebab terbukti: memori diam ada di proses utama, yang membesar ±290 MB setelah memakai DuckDB/pandas/Arrow di
+    jalurnya sendiri (`carried.py`:81, `dataneed_service.py`:1470-1510, validasi dan temuan riset, `service.py`:839). Worker
+    session ditutup dengan benar.
+  - Percobaan perbaikan di lapisan allocator (commit `e1715cb`, deploy `5ec6b936`): janitor memanggil
+    `release_unused()` pool Arrow (mimalloc) dan `malloc_trim(0)`. Hasil live dengan dua pertanyaan yang sama:
+    baseline 154 MB; sesudah analisis 470 → 434 MB; diam 479 → **447 MB**; Railway 0,57 GB. Hanya ±35 MB kembali.
+    Secara lokal cara ini memulihkan 213 → 143 MB, jadi sisa memori live bukan heap bebas glibc/Arrow, melainkan
+    allocator DuckDB sendiri atau objek yang masih hidup (belum dibedakan). Langkah ini dibiarkan karena aman dan
+    memberi ±35 MB.
+  - Usulan berikut (perlu go): kerja DuckDB/Parquet/pandas di proses utama dijalankan di subproses berumur pendek; memori
+    kembali ke OS saat subproses selesai, apa pun allocator-nya. Target: diam kembali ke ±155 MB (hemat ±290 MB ≈ USD 3/bulan).
+    Biaya: ±0,3-0,5 detik per pemanggilan untuk start subproses dengan import library.
 - **U3.** Selesai: Part A butir 25 (biaya disk dihitung di header migrasi; view bila bisa diturunkan saat dibaca).
 - **U4.** Tidak dinyalakan. docs.railway.com/reference/app-sleeping: layanan tidur sesudah 5-10 menit tanpa lalu lintas
   keluar, dan permintaan pertama yang membangunkannya bisa mendapat 502. Temuan per layanan:
