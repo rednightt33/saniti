@@ -4662,3 +4662,5 @@ EXEC-TERMINAL-UI-1026").
 - EXEC-TERMINAL-LOGO: terminal-api `0de27268` SUCCESS 14:27 UTC (`/logo`, `reference/logos`). terminal-publisher: cron
   cleared, `TERMINAL_PUBLISH_MODE=logos`, upload `88820a8e` (842 logos, 659 s), then `TERMINAL_PUBLISH_MODE=daily`,
   `cronSchedule "0,30 0,12 * * *"` (read back) and upload `2e230a5d` (ERRORS M229 procedure).
+- `main` `93a1fc2` (EXEC-TERMINAL-LOGO): edge-bff `e4fcade6` SUCCESS 14:46 UTC. `main` `9226867` (EXEC-TERMINAL-1026C):
+  edge-bff `085ea16a` SUCCESS 15:35 UTC; live `index` and `style` assets equal the build (sha256).
