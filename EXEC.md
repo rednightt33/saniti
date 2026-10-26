@@ -7814,3 +7814,49 @@ keputusan sendiri. Urutan: 1 lebih dulu (token Stockbit berlaku sampai 2026-10-2
    `Feature_04_Technical_Indicator_INDEX`. Semua angka = SQL (job `afdd0a90`): −12,86 %, 50,92 %, Regular −Rp 8,03 T,
    semua papan −Rp 6,67 T, RSI 35,60. Temuan kecil: baris hari transaksi menyebut "saham" untuk IHSG; kalimatnya kini
    netral (saham, indeks atau obligasi).
+
+### EXEC-M224: kesegaran dari tanggal yang sudah terjadi, baris terjadwal dilaporkan terpisah (disetujui untuk direncanakan 2026-10-26, belum dijalankan)
+
+**User 2026-10-26:** "Ok untuk M244 masukan exec jangan execute dulu." (M224; ERRORS M224.) Eksekusi menunggu "go".
+
+**Akar masalah (terverifikasi, ERRORS M224):** `apps/ai-data-coverage/coverage_job.py`:184-194 menyimpan
+`max(annotation_date)` sebagai `AI_data_coverage.actual_max_date`. `apps/market-ai-orc/app/freshness.py`:49-61 menghitung
+usia = `max((hari_ini - actual_max_date).days, 0)`. `idx_event_annotation` berisi event terjadwal sampai 2026-12-18, jadi
+usianya 0 dan statusnya SEGAR walau muatan berhenti.
+
+**Kelas:** setiap tabel yang menyimpan baris bertanggal masa depan, misalnya kalender aksi korporasi, jatuh tempo
+obligasi, kalender rilis makro nanti atau jadwal IPO. Tabel observasi (harga, broker, Feature) tidak punya baris masa depan,
+jadi tidak berubah.
+
+**Tidak terdampak (dicek 2026-10-26):** router hanya diberi tanggal hari ini (`conversation_router.py` DATE_RULE);
+`end LATEST` diikat ke tanggal acuan oleh sandbox (`market-python-sandbox/app/data_need.py`:93-95).
+
+**Langkah 1 — data (lapisan job cakupan, pemilik mekanismenya):**
+- Migrasi baru: kolom `AI_data_coverage.scheduled_max_date date` dan `scheduled_row_count bigint` (NULL/0 = tidak ada baris
+  masa depan), plus Column_Catalog, DATABASE_SCHEMA dan DATABASE_CHANGELOG.
+- `coverage_job.py`: untuk setiap sumber mentah, `actual_max_date` = tanggal terbesar yang ≤ tanggal hari ini (Asia/Jakarta),
+  dan baris sesudahnya dihitung ke dua kolom baru. Aturan ini diturunkan dari data, bukan dari daftar tabel, jadi sumber baru
+  langsung tercakup. Sumber yang tidak punya baris masa depan menghasilkan angka yang sama dengan sekarang.
+- `actual_min_date`, `source_row_count` dan `source_key_count` tetap menghitung semua baris.
+
+**Langkah 2 — tampilan ke AI (orc):**
+- COVERAGE di `get_catalog_details` menampilkan `scheduled_max_date` dan `scheduled_row_count` bila ada, dengan satu catatan:
+  "baris sesudah hari ini adalah event terjadwal; kesegaran diukur dari tanggal terakhir yang sudah terjadi".
+- `freshness.py`: penjagaan cadangan, yaitu tanggal terakhir yang lebih baru dari tanggal acuan memberi `UNKNOWN` dengan
+  alasan, bukan SEGAR. Penjagaan ini tetap bekerja bila job cakupan belum jalan.
+- Bila teks atau deskripsi alat berubah: snapshot prompt, `AI_TOOLS.md`, ronde Tool_Catalog.
+
+**Langkah 3 — tes:**
+- coverage job: tabel dengan baris masa depan (event) memisahkan dua tanggal; tabel tanpa baris masa depan (harga)
+  menghasilkan baris yang sama dengan sebelum perubahan.
+- freshness: tanggal masa depan memberi UNKNOWN, tanggal lewat memberi status lama.
+- Kasus tidak berlaku: dataset SNAPSHOT (tanpa rentang tanggal) tetap NOT_APPLICABLE.
+
+**Langkah 4 — deploy dan bukti live:**
+- Migrasi DRYRUN lalu APPLY; deploy ai-data-coverage dan orc sampai SUCCESS (cek run EDGE aktif dulu); satu run cakupan.
+- Baca ulang: `idx_event_annotation` `actual_max_date` ≤ hari ini (2026-10-23 per data 2026-10-26), `scheduled_max_date`
+  2026-12-18, jumlah baris terjadwal sama dengan `count(*) WHERE annotation_date > hari ini`. Semua dataset lain sama
+  dengan sebelum perubahan (dibandingkan baris per baris).
+- L2 `get_catalog_details` COVERAGE untuk `idx_event_annotation` menunjukkan kedua tanggal dan status yang benar.
+
+**Permanen**, bukan TEMPORARY. Rollback: kolom baru dibiarkan NULL dan job versi sebelumnya dideploy ulang.
