@@ -2025,6 +2025,29 @@ change yet.
 - **Lesson:** mock statis menentukan rupa, bukan tinggi; ukuran panel diturunkan dari ruang yang tersedia dan diuji di
   beberapa ukuran layar (termasuk skala OS 125 % dan 150 %), tidak hanya di ukuran referensi.
 
+### M234 — Tab Terminal terasa lambat saat membuka chart: semua data dimuat dulu, lalu halaman membeku sejenak (2026-10-26)
+
+- **Symptom:** user 2026-10-26: "kalau kita mau load chart, maka akan sedikit lag, karena semua chart data load at once
+  ya? Dan semua panel otomatis terbuka".
+- **Verified cause** (profil Chromium, edge-bff lokal → terminal-api live, file bucket dari cache tes; skrip di scratchpad
+  sesi, angka BBCA):
+  - `src/main.ts` `boot()` menunggu `liveData()` selesai seluruhnya sebelum `start()` menggambar apa pun; `live.ts`:122-163
+    berantai: sesi → referensi ticker → manifest → `/files` → unduhan, broker baru diminta sesudah manifest harga. Satu
+    ticker = 42 permintaan (13 panggilan API, 29 file: harga 2018–2026, IHSG 2018–2026, broker 2016–2026, events,
+    referensi). Data terakhir tiba ±5 s sesudah halaman dibuka di sandbox (jaringan sandbox ikut menambah).
+  - `/files` langsung ke terminal-api: 0,2 s satu panggilan; 4 panggilan bersamaan 0,2–0,94 s karena kunci kuota per
+    akun (`apps/terminal-api/app/store.py`:45-46, `pg_advisory_xact_lock`), jadi panggilan paralel mengantre.
+  - Sesudah data tiba, main thread terblokir ±1,6 s (long task 1.154 + 410 ms + beberapa ±70–90 ms): dekompresi dan
+    parse JSON (`liveData` 745 ms; `rowsOf` 370, `download` 247) — terbesar broker 11 tahun (±200 rb baris sejak T8) —
+    lalu `start()` 208 ms (chart 58, drawings 42, broker 38, flow ±45, statistics 8).
+  - Panel: status buka/tutup sudah diingat browser (`stats.ts`:21, `broker.ts`:22, `flow.ts`:321); bawaannya terbuka.
+    Biaya hitung panel kecil (±90 ms), jadi menutup panel hampir tidak mempercepat.
+- **Class:** "muat semua sebelum gambar pertama": setiap dataset baru (overlay pembanding, data makro/lintas aset nanti)
+  menambah waktu tunggu dan beku layar untuk semua ticker.
+- **Solution (usulan, menunggu go):** FUTURE_PLAN.md "Terminal: muat bertahap".
+- **Status:** OPEN.
+- **Lesson:** ukur jalur kritis (gambar pertama) setiap kali rentang data diperluas (T8 menambah 5 tahun broker).
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.
