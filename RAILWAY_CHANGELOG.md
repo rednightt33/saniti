@@ -4602,3 +4602,24 @@ merged to `main`: "nanti dulu jangan gabungkan kode ke main").
   corporate actions); the Terminal page on real data through a local edge-bff (`verification/terminal_api/
   terminal_live_check.py`): BBCA, GOTO, IHSG load without page errors, figures equal SQL (close, volume, broker net
   and lots, foreign net). Parallel downloads for one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
+
+## 2026-10-26 — terminal-publisher: events format 2, broker history 2016–2020, schedule 07:30 and 19:00 WIB (EXEC-TERMINAL-T7-T10)
+
+User 2026-10-26: "Oke, untuk setiap approve exec, bisa dijalankan again ... Buat implementation plan dan jalankan." and
+"Approve untuk poin 1-3. Langsung deploy ke main once ini sudah selesai." (1 broker 2016–2020 with a check against SQL,
+2 the T7 cron, 3 merge to `main` and the edge-bff deployment).
+
+- Deployments (CLI uploads of `apps/terminal-publisher`): `ed7e198d` and `eac064eb` (redeploy) never ran: a service with
+  a `cronSchedule` does not run on deploy and a redeploy keeps the old deployment (ERRORS M229). `cronSchedule` cleared,
+  `adef5a5b` (mode `daily`, events format 2): 842 files, 3.04 MB, 1,469 s — every events file republished with `title`
+  and `detail`; checked through terminal-api: BBCA dividend (Rp 25, yield 0.39 %) and 1 : 5 split (price after 1,464),
+  AUTO tender premium 6.51 %, PRDA future split without a derived price, YELO RUPS (agenda blank → null).
+- `a1d2b396` (mode `broker-range`, `TERMINAL_FROM=2016-01-01`, `TERMINAL_TO=2020-12-31`): 4,220 planned, 2,506 files
+  written, 118.72 MB, 3,390 s; 2,506 = the (stock, year) pairs with Feature 05 rows in 2016–2020 (SQL). Files equal SQL
+  for BBCA 2016/2018/2020, TLKM 2016/2019, ASII 2017/2020 (rows, buy and sell value sums, lot sums, first and last date);
+  manifests read `broker_first_year` 2016 and broker years 2016..2026; GOTO (listed 2022) has none, as expected.
+- Then `TERMINAL_FROM` and `TERMINAL_TO` deleted, `TERMINAL_PUBLISH_MODE=daily`, `TERMINAL_RUN_TIMES_WIB=07:30,19:00`
+  (new), `cronSchedule "0,30 0,12 * * *"` with `restartPolicyType NEVER` (read back), and a new upload `a783220f`
+  (SUCCESS 08:23 UTC) so the scheduled container surely carries the new variables (precaution: whether a cron tick
+  of an older deployment reads variables changed after it was built is not verified). A tick at 00:00 or 12:30 UTC exits at once (`skipped`); 00:30 and 12:00 UTC run `daily`.
+- No other service changed.

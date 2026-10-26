@@ -8071,7 +8071,8 @@ above) and the merge to `main` ("Deploy ke main setelah pertanyaan2 diatas sudah
 Verification against `main` (b26a73c, merged into the branch as dd16cb4) and the live data, before any change:
 - AGENTS.md on `main` adds only the `UPDATE_TABLE.md` pointer (broker and Stockbit refresh); no rule changes this plan.
 - `main` already uses `20261025_001`–`017`: the terminal schema migration is renamed `20261025_100_…` (content and
-  sha256 unchanged, already applied); this branch's error ids become M225–M228 (main uses M217–M224); at the next merge (2026-10-26) `main` took M225 too, so the branch's M225 and M226 became M230 and M231.
+  sha256 unchanged, already applied); this branch's error ids become M225–M228 (main uses M217–M224); at the next
+  merge (2026-10-26, `e1715cb`) `main` took M225 too, so the branch's M225 and M226 became M230 and M231.
 - T9: ERRORS M223 (main, OPEN) — `idx_event_annotation` has no typed columns for the terms; they are only in
   `source_payload`. Read-only check 2026-10-26: every corporate-action row carries its keys (dividend 5,301/5,301
   `dividend_value` and cum/ex/record/pay dates; split 258, reverse split 34, bonus 91 ratio `old : new` and dates;
@@ -8101,3 +8102,8 @@ Plan:
 5. Merge the branch into `main`, push; edge-bff deploys from `main`; check the deployment reaches SUCCESS and the
    Terminal tab answers.
 6. Changelogs, ERRORS, FRONTEND_HANDOFF, README; remove done items from EXEC.
+
+User 2026-10-26 after the events run: "Yes, oke. Okay. Approve untuk poin 1-3. Langsung deploy ke main once ini sudah
+selesai." (1 broker 2016–2020 and its check against SQL, 2 the T7 cron, 3 merge to `main` and the edge-bff deployment).
+Status 2026-10-26: steps 1–4 done (RAILWAY_CHANGELOG 2026-10-26: `adef5a5b` events format 2, `a1d2b396` 2,506 broker
+files equal SQL on the sample, cron `0,30 0,12 * * *` with `a783220f`); step 5 in progress.

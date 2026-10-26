@@ -2701,3 +2701,12 @@ public table or catalog change):
   (`edge-owner@terminal.local`) set to 1,000,000,000 for `files_per_hour`, `tickers_per_hour`, `tickers_per_day`,
   `megabytes_per_day`, `history_per_hour` (TEMPORARY; script `jobs/quota_unlimited_edge_owner.sql` sha256 `4227c1ad…`,
   log `jobs/quota_unlimited_apply.log`, 5 rows read back). Defaults for other subscribers unchanged.
+
+## 2026-10-26 — Terminal rack: broker files from 2016, corporate-action detail (EXEC-TERMINAL-T7-T10)
+
+No database object or row changed; the publisher reads only (`terminal_publisher` role). Source metadata of the rack:
+- Broker files now start at the first stored `trade_date` of `Feature_05_Foreign_Domestic_Broker_Detail` (2016-01-04)
+  instead of 5 years: 2,506 files for 2016–2020 (118.72 MB gzip), equal to SQL on the sample (RAILWAY_CHANGELOG).
+- Events files format 2: corporate-action terms read from `idx_event_annotation.source_payload` (ERRORS M223: no typed
+  columns yet) with three derived values from `Price_Stock_Indonesia_IDX` (close on the cum date; close of the last
+  session within 10 days before a tender start). Blank or 0 source values are published as null.
