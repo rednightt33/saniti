@@ -340,6 +340,35 @@ def test_events_file_needs_no_years_and_counts_as_one_file(env):
     assert r.status_code == 400
 
 
+def test_bundle_gives_every_file_of_the_ticker_in_one_call_with_the_same_counting(env):
+    client, store, _ = env
+    sign_in(client)
+    store.locks = 0
+    store.lock_subscriber = lambda c, sid: setattr(store, 'locks', store.locks + 1)
+    r = client.post(f'{API}/bundle', json={'ticker': 'BBCA'})
+    assert r.status_code == 200, r.text
+    b = r.json()
+    assert [f['year'] for f in b['datasets']['price']['files']] == list(range(2021, 2027))
+    assert [f['year'] for f in b['datasets']['broker']['files']] == list(range(2021, 2027))
+    assert b['datasets']['events']['files'][0]['year'] is None and b['expires_in_seconds'] == 120
+    assert b['datasets']['broker']['data_through'] == '2026-08-31'
+    assert len(store.access) == 13 and store.locks == 1                 # 13 files logged like /files, one quota lock
+    assert sum(a['bytes'] for a in store.access) == 6 * 2000 + 6 * 250_000 + 9000
+    r = client.post(f'{API}/bundle', json={'ticker': 'BBCA', 'datasets': ['price']})
+    assert list(r.json()['datasets']) == ['price'] and len(store.access) == 19
+
+
+def test_bundle_quota_refuses_the_whole_bundle_and_logs_nothing(env):
+    client, store, _ = env
+    sign_in(client)
+    store.limits_value['files_per_hour'] = 12
+    r = client.post(f'{API}/bundle', json={'ticker': 'BBCA'})
+    assert r.status_code == 429 and 'files_per_hour' in r.json()['message'] and store.access == []
+    assert client.post(f'{API}/bundle', json={'ticker': 'NOPE'}).status_code == 404
+    assert client.post(f'{API}/bundle', json={'ticker': 'BBCA', 'datasets': []}).status_code == 400
+    assert client.post(f'{API}/bundle', json={'ticker': 'BBCA', 'datasets': ['history']}).status_code == 400
+
+
 PROXY_KEY = 'p' * 40
 
 

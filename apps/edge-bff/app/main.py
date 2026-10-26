@@ -31,7 +31,7 @@ SCRIPT_NAME = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*')
 TERMINAL_APP = STATIC / 'terminal-app'
 TERMINAL_ASSET = re.compile(r'[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*\.(?:js|css|woff2|svg|png)')
 TERMINAL_ROUTES = {'GET': re.compile(r'manifest/[A-Z0-9]{1,12}|reference/(?:tickers|brokers)|history/(?:price|broker)'),
-                   'POST': re.compile(r'files')}
+                   'POST': re.compile(r'files|bundle')}   # bundle: every file of one ticker in one call (EXEC-TERMINAL-UI-1026 U6)
 # The terminal page has no inline script; it downloads its files from the private bucket by presigned URL (virtual-host
 # addressing, https://<bucket>.t3.storageapi.dev). Inline style attributes are kept: the reference page builds them.
 TERMINAL_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "

@@ -60,6 +60,14 @@ class FilesRequest(Strict):
         return self
 
 
+class BundleRequest(Strict):
+    """EXEC-TERMINAL-UI-1026 U6 (user 2026-10-26: "Satu panggilan API per saham ... sesuai dengan ticker yang di display"):
+    every published file of the chosen datasets of one ticker in one answer."""
+    ticker: str = Field(pattern=TICKER.pattern)
+    datasets: list[Literal['price', 'broker', 'events']] = Field(default=['price', 'broker', 'events'], min_length=1,
+                                                                 max_length=3)
+
+
 class NewSubscriber(Strict):
     email: str = Field(min_length=3, max_length=254)
     display_name: str = Field(min_length=1, max_length=120)
@@ -274,6 +282,24 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
                                               for y, f in sorted(ds.get('files', {}).items())}}
                              for name, ds in m.get('datasets', {}).items()}}
 
+    def grant(request, who, ticker, chosen):
+        """Quota and audit for a set of files of one ticker, under one lock: the same counting for /files and /bundle.
+        chosen = [(dataset, year or None, manifest file entry)]."""
+        size = sum(f['bytes'] for _, _, f in chosen)
+        sid, ip = who['subscriber_id'], ip_of(request)
+        with store.tx() as c:
+            store.lock_subscriber(c, sid)
+            limits = store.limits(c, sid)
+            take(c, sid, quota.check(limits, store.usage(c, sid), files=len(chosen), ticker=ticker, bytes_=size))
+            ttl = limits['url_ttl_seconds']
+            for dataset, y, f in chosen:
+                store.log_access(c, sid, 'file', ticker, ip, dataset=dataset, year=y, key=f['key'], bytes_=f['bytes'])
+        return ttl
+
+    def file_answer(y, f, ttl):
+        return {'year': y, 'url': bucket.presign(f['key'], ttl), 'sha256': f['sha256'], 'bytes': f['bytes'],
+                'rows': f['rows']}
+
     @app.post(f'{API}/files')
     def files(body: FilesRequest, request: Request, who=Depends(subscriber)):
         same_origin_post(request)
@@ -291,20 +317,30 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
                 error(404, 'year_not_published', f'{body.dataset} {body.ticker} has no file for {missing}; published '
                                                  f'years: {sorted(int(y) for y in published if y.isdigit())}. '
                                                  'Older data: /history.')
-        chosen = [published[i] for i in ids]
-        size = sum(f['bytes'] for f in chosen)
-        sid, ip = who['subscriber_id'], ip_of(request)
-        with store.tx() as c:
-            store.lock_subscriber(c, sid)
-            limits = store.limits(c, sid)
-            take(c, sid, quota.check(limits, store.usage(c, sid), files=len(chosen), ticker=body.ticker, bytes_=size))
-            ttl = limits['url_ttl_seconds']
-            for y, f in zip(years, chosen):
-                store.log_access(c, sid, 'file', body.ticker, ip, dataset=body.dataset, year=y, key=f['key'],
-                                 bytes_=f['bytes'])
+        chosen = [(body.dataset, y, published[i]) for y, i in zip(years, ids)]
+        ttl = grant(request, who, body.ticker, chosen)
         return {'ticker': body.ticker, 'dataset': body.dataset, 'expires_in_seconds': ttl, 'encoding': 'gzip json',
-                'files': [{'year': y, 'url': bucket.presign(f['key'], ttl), 'sha256': f['sha256'],
-                           'bytes': f['bytes'], 'rows': f['rows']} for y, f in zip(years, chosen)]}
+                'files': [file_answer(y, f, ttl) for _, y, f in chosen]}
+
+    @app.post(f'{API}/bundle')
+    def bundle(body: BundleRequest, request: Request, who=Depends(subscriber)):
+        """The manifest and every published file of the asked datasets of one ticker (oldest year first); a dataset the
+        ticker does not have (broker for an index, events for a ticker without events) answers with no files."""
+        same_origin_post(request)
+        m = ticker_manifest(body.ticker)
+        chosen = []
+        for name in dict.fromkeys(body.datasets):
+            published = m.get('datasets', {}).get(name, {}).get('files', {})
+            ids = ['all'] if name == 'events' else sorted((y for y in published if y.isdigit()), key=int)
+            chosen += [(name, None if i == 'all' else int(i), published[i]) for i in ids if i in published]
+        ttl = grant(request, who, body.ticker, chosen) if chosen else 0
+        out = {}
+        for name in dict.fromkeys(body.datasets):
+            ds = m.get('datasets', {}).get(name, {})
+            out[name] = {'data_through': ds.get('data_through'), 'first_year': ds.get('first_year'),
+                         'files': [file_answer(y, f, ttl) for n, y, f in chosen if n == name]}
+        return {'ticker': body.ticker, 'window': m.get('window'), 'generated_at': m.get('generated_at'),
+                'expires_in_seconds': ttl, 'encoding': 'gzip json', 'datasets': out}
 
     def history_range(m, dataset, lo: dt.date, hi: dt.date, max_days: int):
         first_year = (m.get('datasets', {}).get(dataset, {}).get('first_year')

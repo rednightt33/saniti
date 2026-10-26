@@ -81,6 +81,9 @@ def test_gateway_needs_the_edge_session_and_csrf_for_writes(gateway):
     assert sent['url'] == 'http://terminal-api.railway.internal:8080/api/terminal/v1/files'
     assert sent['headers']['x-terminal-proxy-key'] == KEY and json.loads(sent['body'])['ticker'] == 'BBCA'
     assert 'cookie' not in {k.lower() for k in sent['headers']}
+    c.post('/api/terminal/v1/bundle', headers=h, json={'ticker': 'BBCA'})
+    assert FakeTerminal.calls[-1]['url'].endswith('/api/terminal/v1/bundle')
+    assert c.post('/api/terminal/v1/bundles', headers=h, json={'ticker': 'BBCA'}).status_code == 404
 
 
 def test_gateway_forwards_only_the_data_routes(gateway):
