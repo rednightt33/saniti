@@ -903,3 +903,18 @@ Usulan (belum disetujui): (a) satu akun terminal per pengguna EDGE (kunci dan ku
 dari penghitung per akun per jam/hari, bukan dari log; audit satu baris per `/bundle`; (c) gabungkan tahun lama broker
 menjadi satu berkas arsip per ticker (21 → ±6 berkas); (d) cache berkas di browser menurut sha256 (usulan lama butir 5);
 (e) uji beban 50–100 pengguna bersamaan sesudahnya.
+
+Benchmark lanjutan 2026-10-26 (ERRORS M240; user: "Apakah memang 21 file itu harus dipanggil secara langsung? ... Coba
+benchmark dan research lebih dahulu."):
+- Yang lambat adalah latensi per objek bucket (±0,8 s per berkas, HTTP/1.1, maks 6 koneksi), bukan ukuran (ANTM 2,4 MB).
+  Jalur chart (9 berkas harga, ±30 KB) saja 1,34 s; semua 21 berkas 3,74 s. Railway edge (HTTP/2) mengirim 203 KB dalam
+  0,27–0,54 s.
+- Cara TradingView (praktik umum): satu koneksi tetap (WebSocket), meminta hanya jumlah bar yang terlihat, data dari
+  server mereka sendiri dekat pengguna; tidak ada satu berkas per tahun.
+Usulan urutan baru (belum disetujui; menggantikan butir (c) dan (d) di atas):
+1. Jalur chart = satu permintaan: satu berkas "chart" per ticker (harga semua tahun + events, ±40 KB).
+2. Berkas tampilan dilayani lewat Railway edge (HTTP/2) dari cache server (memori/disk, kunci sha256) di depan bucket;
+   bucket tetap sumber. URL bernama sha256 → `Cache-Control: immutable`, kunjungan berikutnya tanpa unduh ulang.
+3. Broker: dua berkas per ticker (2 tahun terakhir untuk Flow, arsip tahun lama di latar), dari cache yang sama.
+4. Akun terminal per pengguna EDGE dan penghitung kuota (butir (a), (b) di atas), lalu uji beban 50–100 pengguna.
+Target ukur: chart tampil < 1 s sesudah halaman terbuka pada koneksi biasa; kunjungan ulang tanpa unduh berkas data.

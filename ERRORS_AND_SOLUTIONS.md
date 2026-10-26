@@ -2241,6 +2241,23 @@ change yet.
 - **Bukti:** vitest 662, 1:1 75 screenshot 0 piksel beda, live check ANTM tanpa error.
 - **Status:** RESOLVED. C4 prototipe dan C6 laporan: EXEC-TERMINAL-1026C.
 
+### M240 — Muat terminal lambat karena latensi per objek bucket dan HTTP/1.1, bukan ukuran data (2026-10-26)
+
+- **Symptom:** user 2026-10-26: "Kalau saya buka trading view, dengan kecepatan internet yang sama, dia lebih cepat.
+  Apakah metode kita sudah best practice ... mendownload 21 file sekaligus?"
+- **Verified cause** (curl dan unduhan paralel dari sandbox, ANTM, 2026-10-26):
+  - Bucket `*.t3.storageapi.dev` melayani HTTP/1.1; waktu sampai byte pertama 0,72–1,42 s per objek walau berkas hanya
+    ±3 KB (TLS 0,11–0,15 s) — biayanya per permintaan, bukan per byte. terminal-api yang membaca logo dari bucket yang
+    sama juga menunggu 1,19–2,61 s.
+  - Browser memakai paling banyak 6 koneksi HTTP/1.1 per host: 21 berkas 6 sekaligus = 3,74 s (21 sekaligus 2,63 s,
+    satu per satu 19,4 s); 9 berkas harga saja (jalur chart) 1,34 s.
+  - Railway edge (edge-bff) melayani HTTP/2: berkas 2,4 KB 0,24 s; 203 KB (gzip) 0,27–0,54 s.
+- **Class:** data tampilan yang dipecah menjadi banyak objek kecil di penyimpanan objek tanpa cache di depannya:
+  setiap dataset baru (makro, lintas aset) menambah objek dan antrean.
+- **Solution (usulan, menunggu keputusan):** FUTURE_PLAN "Terminal: waktu muat dan banyak pengguna", bagian benchmark.
+- **Status:** OPEN.
+- **Lesson:** ukur waktu per permintaan (TTFB) sumber berkas sebelum memecah data menjadi banyak berkas.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.
