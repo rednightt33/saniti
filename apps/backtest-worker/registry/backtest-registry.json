@@ -1,0 +1,2118 @@
+{
+  "schema_version": 1,
+  "generated_by": "apps/backtest-worker/scripts/build-registry.mjs",
+  "sources": [
+    {
+      "file": "apps/edge-bff/terminal/src/data/indRegistry.json",
+      "sha256": "6a9bc397d8572629c764997c616bd06e0317c1a8fb343016c35803c523c7d924"
+    },
+    {
+      "file": "apps/edge-bff/terminal/src/calc/indicators.ts",
+      "sha256": "0169f94359abd5bc3b13a70daaf66f6e6da0823c4f4ad46c3309ae9386ceec01"
+    }
+  ],
+  "indicators": [
+    {
+      "id": "I01",
+      "key": "sma",
+      "name": "Simple Moving Average",
+      "category": "Trend",
+      "function": "F.sma",
+      "inputs": [
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "sma"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 20,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "close",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I02",
+      "key": "ema",
+      "name": "Exponential Moving Average",
+      "category": "Trend",
+      "function": "F.ema",
+      "inputs": [
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "ema"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 20,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "close",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I03",
+      "key": "wma",
+      "name": "Weighted Moving Average",
+      "category": "Trend",
+      "function": "F.wma",
+      "inputs": [
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "wma"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 20,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "close",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I04",
+      "key": "hma",
+      "name": "Hull Moving Average",
+      "category": "Trend",
+      "function": "F.hma",
+      "inputs": [
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "hma"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 9,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "close",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I05",
+      "key": "kama",
+      "name": "Kaufman Adaptive Moving Average",
+      "category": "Trend",
+      "function": "F.kama",
+      "inputs": [
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "kama"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 10,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "fast_length",
+          "type": "integer",
+          "default": 2,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "slow_length",
+          "type": "integer",
+          "default": 30,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "close",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I06",
+      "key": "macd",
+      "name": "MACD",
+      "category": "Trend",
+      "function": "F.macd",
+      "inputs": [
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "macd",
+        "signal",
+        "histogram"
+      ],
+      "params": [
+        {
+          "key": "fast_length",
+          "type": "integer",
+          "default": 12,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "slow_length",
+          "type": "integer",
+          "default": 26,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "signal_length",
+          "type": "integer",
+          "default": 9,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "close",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I07",
+      "key": "adx",
+      "name": "Average Directional Index",
+      "category": "Trend",
+      "function": "F.adx",
+      "inputs": [
+        "H",
+        "L",
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "adx",
+        "plus_di",
+        "minus_di"
+      ],
+      "params": [
+        {
+          "key": "di_length",
+          "type": "integer",
+          "default": 14,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "adx_smoothing",
+          "type": "integer",
+          "default": 14,
+          "min": 1,
+          "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I08",
+      "key": "aroon",
+      "name": "Aroon Indicator",
+      "category": "Trend",
+      "function": "F.aroon",
+      "inputs": [
+        "H",
+        "L"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "aroon_up",
+        "aroon_down"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 14,
+          "min": 1,
+          "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I09",
+      "key": "supertrend",
+      "name": "Supertrend",
+      "category": "Trend",
+      "function": "F.supertrend",
+      "inputs": [
+        "H",
+        "L",
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "supertrend",
+        "direction"
+      ],
+      "params": [
+        {
+          "key": "atr_length",
+          "type": "integer",
+          "default": 10,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "factor",
+          "type": "number",
+          "default": 3,
+          "min": 0,
+          "step": 0.1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I10",
+      "key": "donchian",
+      "name": "Donchian Channels",
+      "category": "Trend",
+      "function": "F.donchian",
+      "inputs": [
+        "H",
+        "L"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "upper",
+        "basis",
+        "lower"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 20,
+          "min": 1,
+          "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I11",
+      "key": "keltner",
+      "name": "Keltner Channels",
+      "category": "Trend",
+      "function": "F.keltner",
+      "inputs": [
+        "H",
+        "L",
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "upper",
+        "basis",
+        "lower"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 20,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "close",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        },
+        {
+          "key": "multiplier",
+          "type": "number",
+          "default": 2,
+          "min": 0,
+          "step": 0.1
+        },
+        {
+          "key": "use_exponential_ma",
+          "type": "boolean",
+          "default": true
+        },
+        {
+          "key": "bands_style",
+          "type": "enum",
+          "default": "ATR",
+          "options": [
+            "ATR",
+            "TR",
+            "HL_RANGE"
+          ]
+        },
+        {
+          "key": "atr_length",
+          "type": "integer",
+          "default": 10,
+          "min": 1,
+          "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I12",
+      "key": "psar",
+      "name": "Parabolic SAR",
+      "category": "Trend",
+      "function": "F.psar",
+      "inputs": [
+        "H",
+        "L",
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "sar",
+        "direction"
+      ],
+      "params": [
+        {
+          "key": "start",
+          "type": "number",
+          "default": 0.02,
+          "min": 0,
+          "step": 0.01
+        },
+        {
+          "key": "increment",
+          "type": "number",
+          "default": 0.02,
+          "min": 0,
+          "step": 0.01
+        },
+        {
+          "key": "maximum",
+          "type": "number",
+          "default": 0.2,
+          "min": 0,
+          "step": 0.01
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I13",
+      "key": "rsi",
+      "name": "Relative Strength Index",
+      "category": "Momentum",
+      "function": "F.rsi",
+      "inputs": [
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "rsi"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 14,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "close",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I14",
+      "key": "stoch_rsi",
+      "name": "Stochastic RSI",
+      "category": "Momentum",
+      "function": "F.stoch_rsi",
+      "inputs": [
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "k",
+        "d"
+      ],
+      "params": [
+        {
+          "key": "rsi_length",
+          "type": "integer",
+          "default": 14,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "stoch_length",
+          "type": "integer",
+          "default": 14,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "smooth_k",
+          "type": "integer",
+          "default": 3,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "smooth_d",
+          "type": "integer",
+          "default": 3,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "close",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I15",
+      "key": "stochastic",
+      "name": "Stochastic Oscillator",
+      "category": "Momentum",
+      "function": "F.stochastic",
+      "inputs": [
+        "H",
+        "L",
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "k",
+        "d"
+      ],
+      "params": [
+        {
+          "key": "k_length",
+          "type": "integer",
+          "default": 14,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "smooth_k",
+          "type": "integer",
+          "default": 3,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "d_length",
+          "type": "integer",
+          "default": 3,
+          "min": 1,
+          "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I16",
+      "key": "williams_r",
+      "name": "Williams %R",
+      "category": "Momentum",
+      "function": "F.williams_r",
+      "inputs": [
+        "H",
+        "L",
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "williams_r"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 14,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "close",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I17",
+      "key": "roc",
+      "name": "Rate of Change",
+      "category": "Momentum",
+      "function": "F.roc",
+      "inputs": [
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "roc"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 9,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "close",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I18",
+      "key": "momentum",
+      "name": "Momentum",
+      "category": "Momentum",
+      "function": "F.momentum",
+      "inputs": [
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "momentum"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 10,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "close",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I19",
+      "key": "cci",
+      "name": "Commodity Channel Index",
+      "category": "Momentum",
+      "function": "F.cci",
+      "inputs": [
+        "H",
+        "L",
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "cci"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 20,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "constant",
+          "type": "number",
+          "default": 0.015,
+          "min": 0,
+          "step": 0.001
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I20",
+      "key": "cmo",
+      "name": "Chande Momentum Oscillator",
+      "category": "Momentum",
+      "function": "F.cmo",
+      "inputs": [
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "cmo"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 14,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "close",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I21",
+      "key": "tsi",
+      "name": "True Strength Index",
+      "category": "Momentum",
+      "function": "F.tsi",
+      "inputs": [
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "tsi",
+        "signal"
+      ],
+      "params": [
+        {
+          "key": "long_length",
+          "type": "integer",
+          "default": 25,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "short_length",
+          "type": "integer",
+          "default": 13,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "signal_length",
+          "type": "integer",
+          "default": 7,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "close",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I22",
+      "key": "trix",
+      "name": "TRIX",
+      "category": "Momentum",
+      "function": "F.trix",
+      "inputs": [
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "trix"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 15,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "close",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I23",
+      "key": "ultimate_osc",
+      "name": "Ultimate Oscillator",
+      "category": "Momentum",
+      "function": "F.ultimate_osc",
+      "inputs": [
+        "H",
+        "L",
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "uo"
+      ],
+      "params": [
+        {
+          "key": "fast_length",
+          "type": "integer",
+          "default": 7,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "middle_length",
+          "type": "integer",
+          "default": 14,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "slow_length",
+          "type": "integer",
+          "default": 28,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "weight_fast",
+          "type": "number",
+          "default": 4,
+          "min": 0,
+          "step": 1
+        },
+        {
+          "key": "weight_middle",
+          "type": "number",
+          "default": 2,
+          "min": 0,
+          "step": 1
+        },
+        {
+          "key": "weight_slow",
+          "type": "number",
+          "default": 1,
+          "min": 0,
+          "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I24",
+      "key": "awesome_osc",
+      "name": "Awesome Oscillator",
+      "category": "Momentum",
+      "function": "F.awesome_osc",
+      "inputs": [
+        "H",
+        "L"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "ao"
+      ],
+      "params": [
+        {
+          "key": "fast_length",
+          "type": "integer",
+          "default": 5,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "slow_length",
+          "type": "integer",
+          "default": 34,
+          "min": 1,
+          "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I25",
+      "key": "ppo",
+      "name": "Percentage Price Oscillator",
+      "category": "Momentum",
+      "function": "F.ppo",
+      "inputs": [
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "ppo",
+        "signal",
+        "histogram"
+      ],
+      "params": [
+        {
+          "key": "fast_length",
+          "type": "integer",
+          "default": 12,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "slow_length",
+          "type": "integer",
+          "default": 26,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "signal_length",
+          "type": "integer",
+          "default": 9,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "close",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I26",
+      "key": "bop",
+      "name": "Balance of Power",
+      "category": "Momentum",
+      "function": "F.bop",
+      "inputs": [
+        "O",
+        "H",
+        "L",
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "bop"
+      ],
+      "params": [],
+      "not_accepted": [
+        {
+          "key": "source",
+          "value": "OHLC",
+          "reason": "fixed in the workbook"
+        }
+      ],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I27",
+      "key": "bollinger",
+      "name": "Bollinger Bands",
+      "category": "Volatility",
+      "function": "F.bollinger",
+      "inputs": [
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "upper",
+        "basis",
+        "lower"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 20,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "close",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        },
+        {
+          "key": "basis_ma_type",
+          "type": "enum",
+          "default": "SMA",
+          "options": [
+            "SMA",
+            "EMA",
+            "WMA",
+            "RMA",
+            "VWMA"
+          ]
+        },
+        {
+          "key": "std_dev",
+          "type": "number",
+          "default": 2,
+          "min": 0.0001,
+          "max": 50,
+          "step": 0.1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I28",
+      "key": "bollinger_pctb",
+      "name": "Bollinger %B",
+      "category": "Volatility",
+      "function": "F.bollinger_pctb",
+      "inputs": [
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "percent_b"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 20,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "close",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        },
+        {
+          "key": "std_dev",
+          "type": "number",
+          "default": 2,
+          "min": 0.0001,
+          "max": 50,
+          "step": 0.1
+        },
+        {
+          "key": "basis_ma_type",
+          "type": "enum",
+          "default": "SMA",
+          "options": [
+            "SMA",
+            "EMA",
+            "WMA",
+            "RMA"
+          ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I29",
+      "key": "bollinger_width",
+      "name": "Bollinger Bandwidth",
+      "category": "Volatility",
+      "function": "F.bollinger_width",
+      "inputs": [
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "bandwidth"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 20,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "close",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        },
+        {
+          "key": "std_dev",
+          "type": "number",
+          "default": 2,
+          "min": 0.0001,
+          "max": 50,
+          "step": 0.1
+        },
+        {
+          "key": "basis_ma_type",
+          "type": "enum",
+          "default": "SMA",
+          "options": [
+            "SMA",
+            "EMA",
+            "WMA",
+            "RMA"
+          ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I30",
+      "key": "atr",
+      "name": "Average True Range",
+      "category": "Volatility",
+      "function": "F.atr",
+      "inputs": [
+        "H",
+        "L",
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "atr"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 14,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "smoothing_type",
+          "type": "enum",
+          "default": "RMA",
+          "options": [
+            "RMA",
+            "SMA",
+            "EMA",
+            "WMA"
+          ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I31",
+      "key": "natr",
+      "name": "Normalized ATR",
+      "category": "Volatility",
+      "function": "F.natr",
+      "inputs": [
+        "H",
+        "L",
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "natr"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 14,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "smoothing_type",
+          "type": "enum",
+          "default": "RMA",
+          "options": [
+            "RMA",
+            "SMA",
+            "EMA",
+            "WMA"
+          ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I32",
+      "key": "stddev",
+      "name": "Standard Deviation",
+      "category": "Volatility",
+      "function": "F.stddev",
+      "inputs": [
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "stddev"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 20,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "close",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        },
+        {
+          "key": "stdev_method",
+          "type": "enum",
+          "default": "population",
+          "options": [
+            "population",
+            "sample"
+          ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I33",
+      "key": "hist_vol",
+      "name": "Historical Volatility",
+      "category": "Volatility",
+      "function": "F.hist_vol",
+      "inputs": [
+        "C"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "historical_volatility"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 20,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "close",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        },
+        {
+          "key": "return_type",
+          "type": "enum",
+          "default": "log",
+          "options": [
+            "log",
+            "simple"
+          ]
+        },
+        {
+          "key": "annualization_periods",
+          "type": "number",
+          "default": 252,
+          "min": 1,
+          "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I34",
+      "key": "adr",
+      "name": "Average Daily Range",
+      "category": "Volatility",
+      "function": "F.adr",
+      "inputs": [
+        "H",
+        "L"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "adr"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 14,
+          "min": 1,
+          "step": 1
+        }
+      ],
+      "not_accepted": [
+        {
+          "key": "timeframe",
+          "value": "1D",
+          "reason": "not read by the calculation module"
+        }
+      ],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I35",
+      "key": "volume_sma",
+      "name": "Volume SMA",
+      "category": "Volume",
+      "function": "F.volume_sma",
+      "inputs": [
+        "V"
+      ],
+      "price_input": "volume",
+      "outputs": [
+        "volume_sma"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 20,
+          "min": 1,
+          "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I36",
+      "key": "volume_ema",
+      "name": "Volume EMA",
+      "category": "Volume",
+      "function": "F.volume_ema",
+      "inputs": [
+        "V"
+      ],
+      "price_input": "volume",
+      "outputs": [
+        "volume_ema"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 20,
+          "min": 1,
+          "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I37",
+      "key": "rvol",
+      "name": "Relative Volume",
+      "category": "Volume",
+      "function": "F.rvol",
+      "inputs": [
+        "V"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "rvol"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 20,
+          "min": 1,
+          "step": 1
+        }
+      ],
+      "not_accepted": [
+        {
+          "key": "reference_method",
+          "value": "rolling_sma",
+          "reason": "not read by the calculation module"
+        },
+        {
+          "key": "include_current_bar",
+          "value": false,
+          "reason": "not read by the calculation module"
+        }
+      ],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I38",
+      "key": "pvo",
+      "name": "Percentage Volume Oscillator",
+      "category": "Volume",
+      "function": "F.pvo",
+      "inputs": [
+        "V"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "pvo",
+        "signal",
+        "histogram"
+      ],
+      "params": [
+        {
+          "key": "fast_length",
+          "type": "integer",
+          "default": 12,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "slow_length",
+          "type": "integer",
+          "default": 26,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "signal_length",
+          "type": "integer",
+          "default": 9,
+          "min": 1,
+          "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I39",
+      "key": "volume_roc",
+      "name": "Volume Rate of Change",
+      "category": "Volume",
+      "function": "F.volume_roc",
+      "inputs": [
+        "V"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "volume_roc"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 10,
+          "min": 1,
+          "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I40",
+      "key": "obv",
+      "name": "On-Balance Volume",
+      "category": "PriceVolume",
+      "function": "F.obv",
+      "inputs": [
+        "C",
+        "V"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "obv"
+      ],
+      "params": [],
+      "not_accepted": [
+        {
+          "key": "calculation_parameters",
+          "value": "none",
+          "reason": "fixed in the workbook"
+        }
+      ],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I41",
+      "key": "pvt",
+      "name": "Price Volume Trend",
+      "category": "PriceVolume",
+      "function": "F.pvt",
+      "inputs": [
+        "C",
+        "V"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "pvt"
+      ],
+      "params": [],
+      "not_accepted": [
+        {
+          "key": "calculation_parameters",
+          "value": "none",
+          "reason": "fixed in the workbook"
+        }
+      ],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I42",
+      "key": "vwma",
+      "name": "Volume Weighted Moving Average",
+      "category": "PriceVolume",
+      "function": "F.vwma",
+      "inputs": [
+        "C",
+        "V"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "vwma"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 20,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "close",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I43",
+      "key": "vwap",
+      "name": "Volume Weighted Average Price",
+      "category": "PriceVolume",
+      "function": "F.vwap",
+      "inputs": [
+        "H",
+        "L",
+        "C",
+        "V"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "vwap",
+        "upper1",
+        "lower1"
+      ],
+      "params": [
+        {
+          "key": "anchor",
+          "type": "enum",
+          "default": "Session",
+          "options": [
+            "Session",
+            "Week",
+            "Month",
+            "Quarter",
+            "Year",
+            "Decade",
+            "Century"
+          ]
+        },
+        {
+          "key": "source",
+          "type": "enum",
+          "default": "hlc3",
+          "options": [
+            "open",
+            "high",
+            "low",
+            "close",
+            "hl2",
+            "hlc3",
+            "ohlc4"
+          ]
+        },
+        {
+          "key": "bands_mode",
+          "type": "enum",
+          "default": "StdDev",
+          "options": [
+            "StdDev",
+            "Percentage",
+            "None"
+          ]
+        },
+        {
+          "key": "band_1_multiplier",
+          "type": "number",
+          "default": 1,
+          "min": 0,
+          "step": 0.1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I44",
+      "key": "adl",
+      "name": "Accumulation/Distribution Line",
+      "category": "PriceVolume",
+      "function": "F.adl",
+      "inputs": [
+        "H",
+        "L",
+        "C",
+        "V"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "adl"
+      ],
+      "params": [],
+      "not_accepted": [
+        {
+          "key": "calculation_parameters",
+          "value": "none",
+          "reason": "fixed in the workbook"
+        }
+      ],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I45",
+      "key": "cmf",
+      "name": "Chaikin Money Flow",
+      "category": "PriceVolume",
+      "function": "F.cmf",
+      "inputs": [
+        "H",
+        "L",
+        "C",
+        "V"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "cmf"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 20,
+          "min": 1,
+          "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I46",
+      "key": "chaikin_osc",
+      "name": "Chaikin Oscillator",
+      "category": "PriceVolume",
+      "function": "F.chaikin_osc",
+      "inputs": [
+        "H",
+        "L",
+        "C",
+        "V"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "chaikin_osc"
+      ],
+      "params": [
+        {
+          "key": "fast_length",
+          "type": "integer",
+          "default": 3,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "slow_length",
+          "type": "integer",
+          "default": 10,
+          "min": 1,
+          "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I47",
+      "key": "mfi",
+      "name": "Money Flow Index",
+      "category": "PriceVolume",
+      "function": "F.mfi",
+      "inputs": [
+        "H",
+        "L",
+        "C",
+        "V"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "mfi"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 14,
+          "min": 1,
+          "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I48",
+      "key": "force_index",
+      "name": "Elder's Force Index",
+      "category": "PriceVolume",
+      "function": "F.force_index",
+      "inputs": [
+        "C",
+        "V"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "force_index"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 13,
+          "min": 1,
+          "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I49",
+      "key": "eom",
+      "name": "Ease of Movement",
+      "category": "PriceVolume",
+      "function": "F.eom",
+      "inputs": [
+        "H",
+        "L",
+        "V"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "eom"
+      ],
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "default": 14,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "volume_scale",
+          "type": "number",
+          "default": 1000000,
+          "min": 0,
+          "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I50",
+      "key": "nvi",
+      "name": "Negative Volume Index",
+      "category": "PriceVolume",
+      "function": "F.nvi",
+      "inputs": [
+        "C",
+        "V"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "nvi"
+      ],
+      "params": [
+        {
+          "key": "initial_value",
+          "type": "number",
+          "default": 1000,
+          "min": 0,
+          "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I51",
+      "key": "pvi",
+      "name": "Positive Volume Index",
+      "category": "PriceVolume",
+      "function": "F.pvi",
+      "inputs": [
+        "C",
+        "V"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "pvi"
+      ],
+      "params": [
+        {
+          "key": "initial_value",
+          "type": "number",
+          "default": 1000,
+          "min": 0,
+          "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I52",
+      "key": "kvo",
+      "name": "Klinger Volume Oscillator",
+      "category": "PriceVolume",
+      "function": "F.kvo",
+      "inputs": [
+        "H",
+        "L",
+        "C",
+        "V"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "kvo",
+        "signal"
+      ],
+      "params": [
+        {
+          "key": "fast_length",
+          "type": "integer",
+          "default": 34,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "slow_length",
+          "type": "integer",
+          "default": 55,
+          "min": 1,
+          "step": 1
+        },
+        {
+          "key": "signal_length",
+          "type": "integer",
+          "default": 13,
+          "min": 1,
+          "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    },
+    {
+      "id": "I53",
+      "key": "market_fi",
+      "name": "Market Facilitation Index",
+      "category": "PriceVolume",
+      "function": "F.market_fi",
+      "inputs": [
+        "H",
+        "L",
+        "V"
+      ],
+      "price_input": "close",
+      "outputs": [
+        "market_fi"
+      ],
+      "params": [
+        {
+          "key": "volume_scale",
+          "type": "number",
+          "default": 1,
+          "min": 0,
+          "step": 1
+        }
+      ],
+      "not_accepted": [],
+      "available_for_backtest": true
+    }
+  ]
+}
