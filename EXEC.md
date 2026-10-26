@@ -8075,3 +8075,45 @@ lambat, bagiamana kalau user banyak. Yang lain OK, jalankan".
 Status 2026-10-26: C1, C2, C3, C5 selesai (ERRORS "EXEC-TERMINAL-1026C — C1/C2/C3/C5 selesai"). C4: prototipe di
 `/terminal-app/?drawpanes=1`, menunggu tanggapan user sebelum dirapikan (simpan gambar, undo, tarik-lepas). C6: laporan
 di FUTURE_PLAN "Terminal: waktu muat dan banyak pengguna" (usulan, belum disetujui).
+
+## EXEC-TERMINAL-SPEED — kecepatan muat dan efisiensi backend (rencana 2026-10-26, menunggu go)
+
+User 2026-10-26: "Oke, coba inspect database kita. Buat implementation plan, ensure bahwa setiap step yang diambil
+berdasarkan kode. Apabila berdasarkan memori, maka harus juga divalidasi dengan kode. goalnya adalah kecepatan loading
+data, beserta dengan efisiensi di backend. Cache boleh, tapi jangan sampai cache itu terlalu menjadi besar dan membebani
+biaya." Dasar: ERRORS M240, FUTURE_PLAN "Terminal: waktu muat dan banyak pengguna".
+
+Bukti kode dan data (diperiksa 2026-10-26):
+- `.railway/railway.ts`:23 bucket `terminal-display` region `sin`; terminal-api, edge-bff, publisher, Postgres `sfo`.
+  Server membaca bucket lintas Pasifik: manifest per ticker (`app/bucket.py` `manifest`, cache 60 s, `config.py`:24)
+  dan logo 1,2–2,6 s; permintaan manifest pertama 1,18 s. Unduhan browser langsung ke bucket `sin` (dekat pengguna di
+  Indonesia); angka sandbox (bukan dari Indonesia) belum mewakili pengguna.
+- Satu ticker = 21 objek (harga 9 tahun, broker 11 tahun, events 1; `publisher.py` satu berkas per tahun); bucket
+  HTTP/1.1, ±0,8 s per objek dari sandbox; browser maksimal 6 koneksi per host.
+- URL presigned berganti tiap permintaan (`bucket.py` `presign`), jadi cache browser tidak terpakai walau objek
+  bertanda `max-age=31536000` (`publisher.py` `Bucket.put`).
+- `terminal.access_log` 3.166 baris (592 KB), 515 seq scan vs 64 index scan, tanpa penghapusan baris lama (tidak ada
+  DELETE di kode); `/bundle` menulis satu baris per berkas (21) dan menghitung kuota dari log hari itu di bawah kunci per
+  akun (`store.py`:45). Semua pengguna EDGE = satu akun gateway (subscriber 2).
+- terminal-api 2 worker × pool 8 koneksi (`Dockerfile`, `store.py`:24); edge-bff membuka klien HTTP baru per permintaan
+  terminal (`app/main.py` `forward_terminal`).
+
+Rencana (urutan):
+1. Ukur dari lokasi pengguna: halaman mencatat waktu tiap tahap (performance entries) dan menampilkannya dengan
+   `?perf=1`; user mengirim angka dari Indonesia. Dasar sebelum/sesudah.
+2. Jalur chart satu objek: publisher menulis `chart/{TICKER}.json.gz` (harga semua tahun + events, ±40 KB) dan broker
+   dua objek (`recent` = 2 tahun terakhir, `archive` = sisanya); `/bundle` memberi tiga URL ini; berkas per tahun tetap
+   untuk `/files` sampai tidak dipakai. 21 → 3 objek per ticker.
+3. Cache browser tanpa biaya server: halaman menyimpan berkas di IndexedDB dengan kunci sha256 (sudah ada di jawaban
+   `/bundle`), batas 50 MB dengan pengusiran yang paling lama tidak dipakai; berkas yang sama tidak diunduh ulang.
+4. Cache server kecil: manifest disimpan di memori terminal-api sampai publikasi berikutnya (dicek dari `state.json`,
+   bukan 60 s); ±845 × beberapa KB = beberapa MB. Tidak ada cache berkas data di server.
+5. Efisiensi tulis dan kuota: `/bundle` menulis satu baris audit (daftar berkas di satu kolom); kuota dihitung dari
+   kolom jumlah berkas/byte; indeks yang dipakai diukur dengan EXPLAIN; penghapusan baris lebih tua dari N hari (N
+   keputusan user). edge-bff memakai satu klien HTTP yang dipakai ulang ke terminal-api.
+6. Banyak pengguna: rancangan akun terminal per pengguna EDGE (kunci dan kuota per orang) — dikerjakan saat EDGE punya
+   lebih dari satu pengguna; uji beban 50–100 permintaan bersamaan sesudah 2–5.
+7. Verifikasi: harness waktu muat (sebelum/sesudah), 1:1, tes; target chart < 1 s sesudah halaman terbuka, kunjungan
+   ulang tanpa unduh berkas data.
+Terbuka: N hari simpan `access_log`; apakah region layanan dipindah ke Asia (Postgres tetap `sfo`, jadi tidak
+disarankan sekarang); putaran loading (C3) 0,15 s atau tetap 0,25 s.
