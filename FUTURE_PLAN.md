@@ -803,18 +803,14 @@ User 2026-10-25: "let me decide later."
 Bukti: `verification/terminal_api/FRONTEND_ARCHITECTURE.md` bagian 6–7, `apps/edge-bff/terminal/tests/calc/PARITY.md`,
 `verification/terminal_api/terminal_live_check.py`.
 
-1. **Deploy tab Terminal ke `edge-bff-dev`.** edge-bff dideploy dari `main`; user: "nanti dulu jangan gabungkan kode ke
-   main". Pilihan: gabung ke `main` (deploy otomatis), atau unggah CLI dari branch (ditimpa push `main` berikutnya dari
-   sesi lain).
-2. **Kuota file per jam.** Membuka satu ticker sekarang ±27 file (harga 2018–2026, IHSG, broker 2021–2026, peristiwa,
-   referensi); bawaan 60 file/jam = ±2 ticker/jam. Akun gateway pemilik diberi 600 (SEMENTARA). Pilihan: naikkan
-   bawaan, atau gabungkan file per ticker (lebih sedikit URL).
-3. **Rentang broker vs harga.** Harga dari 2018, broker di rak dari 2021 (5 tahun); Flow Timeline bernilai nol sebelum
-   2021 dan "Period net total" berarti sejak 2021 (BBCA asing −51,34 T sejak 2021; −47,32 T sejak 2016 di database).
-   Pilihan: terbitkan broker sejak data pertama (2016), atau tandai awal data broker di chart.
-4. **Detail aksi korporasi.** Nilai dividen, rasio split, harga tender dsb. hanya ada di `source_payload`, yang tidak
-   diterbitkan (T6). Marker sekarang menampilkan jenis dan tanggal (peran tanggal) saja. Pilihan: terbitkan beberapa
-   kolom terpilih dari payload per jenis.
+1. **Deploy tab Terminal ke `edge-bff-dev`.** Selesai 2026-10-26: digabung ke `main` (`c34614f`), edge-bff `e812c274`
+   SUCCESS (RAILWAY_CHANGELOG).
+2. **Kuota unduhan bawaan.** Akun gateway pemilik tanpa batas untuk masa testing (user 2026-10-26 "Untuk batas asat ini
+   di eliminate saja dulu"). Bawaan untuk subscriber sungguhan (`terminal.quota`, 60 file/jam) masih terbuka; satu
+   ticker sekarang ±32 file (broker sejak 2016) sebelum subscriber login.
+3. **Rentang broker vs harga.** Selesai 2026-10-26 (T8): broker di rak sejak 2016, sama dengan database.
+4. **Detail aksi korporasi.** Selesai 2026-10-26 (T9): baris detail per jenis dari `source_payload`, nilai kosong tampil
+   "Unavailable". Kolom bertipe menunggu EXEC-M223.
 5. **Gauge "Broker action" dan "Bandar detector":** disembunyikan di data asli (rumus belum disetujui, DESIGN.md S5/S6).
 6. **Konvensi indikator yang ditemukan T1** (PARITY.md, "Findings"): ambang nol TA-Lib 1e-14; I39 Volume ROC null vs
    TA-Lib 0; WILLR/CCI/ROC/PVO/MFI 0 pada penyebut nol (mengikuti TA-Lib); StochRSI dan %B/Bandwidth tidak stabil pada
@@ -824,10 +820,9 @@ Bukti: `verification/terminal_api/FRONTEND_ARCHITECTURE.md` bagian 6–7, `apps/
    sampel (n−1); CALC_062 (RVOL) tanpa bar hari ini, keputusan user dengan bar hari ini.
 8. **Kategori broker:** warna tag broker di data asli dari `IDX_Broker_Profile.broker_type` (Foreign/Domestic); kategori
    BUMN referensi (CC NI OD DX) tidak ada di database.
-9. **Kecepatan:** ±5 detik untuk satu ticker dari sandbox (26 file paralel); tepat di batas target user (< 5 detik).
+9. **Kecepatan:** 2026-10-26 sesudah broker 2016: BBCA 21 file data, 2,45 MB, ±2 detik API + ±3 detik unduhan paralel
+   dari sandbox; masih di sekitar batas target user (< 5 detik). Pilihan bila perlu: gabungkan tahun lama per ticker.
 
-Jawaban user 2026-10-26 (rinci di EXEC.md, EXEC-TERMINAL-API T7–T9): item 1 → deploy ke `main` setelah semua pertanyaan
-di atas selesai; item 3 → broker dipindah ke storage sejak data pertama (T8, belum dieksekusi); item 4 → detail aksi
-korporasi dari tabel event, nilai kosong tampil "Unavailable" (T9, pemetaan menunggu go); item 6 → benchmark eksternal
-dihitung (berjalan); jadwal publisher 19:00 dan 07:30 (T7, belum dieksekusi). Item 2 (kuota) ditanyakan balik
-("Maksudnya batas unduhan bawaan?"); dijelaskan ulang, menunggu pilihan.
+Jawaban user 2026-10-26 (rinci di EXEC.md, EXEC-TERMINAL-API T7–T10): T7 jadwal 07:30 dan 19:00 WIB, T8 dan T9 dijalankan
+dan selesai; item 6: riset hari harga datar dihentikan user ("Stop the research ya"), T10 opsi A (hari bursa dengan harga
+tetap dihitung; konvensi TA-Lib di item 6 tetap berlaku sampai user memutuskan lain).

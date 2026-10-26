@@ -1986,6 +1986,25 @@ change yet.
 - **Status:** OPEN (rendah).
 - **Lesson:** tes tata letak teks harus memuat font-nya sendiri, seperti harness visual terminal.
 
+### EXEC-TERMINAL-T7-T10 — selesai (2026-10-26)
+
+- **Go user:** "Oke, untuk setiap approve exec, bisa dijalankan again ..." dan "Approve untuk poin 1-3. Langsung deploy ke
+  main once ini sudah selesai." Setiap keputusan dicek ulang ke kode `main` dan data live (EXEC-TERMINAL-API).
+- **T7:** `TERMINAL_RUN_TIMES_WIB=07:30,19:00`, cron `0,30 0,12 * * *` diturunkan dari daftar itu (`cron_for`); tick di luar
+  daftar keluar tanpa membaca database (`should_run`). Deployment `a783220f`. Run manual: ERRORS M229.
+- **T8:** broker sejak `trade_date` pertama Feature 05 (2016, diturunkan saat run); run `a1d2b396`: 2.506 file 2016–2020
+  (118,72 MB) = jumlah pasangan saham-tahun di SQL; sampel BBCA, TLKM, ASII sama dengan SQL (baris, nilai, lot, tanggal).
+- **T9:** file events format 2: `title` dan baris `detail` per jenis dari `source_payload` (0/kosong → null → "Unavailable"
+  di halaman), plus yield dividen, harga sesudah split dan premi tender dari harga penutupan. Run `adef5a5b` (842 file).
+  Venue RUPS 120 karakter terpotong di sumber; ticker di luar `IDX_Stock_Universe` (mis. CBMF) memang 404.
+- **T10:** tidak ada perubahan; modul indikator sudah menghitung setiap hari bursa yang punya harga (opsi A).
+- **Deploy:** `main` `c34614f`, edge-bff `e812c274` SUCCESS; `/terminal` dan `/terminal-app/` 200, API tanpa sesi 401,
+  bundle sama byte dengan build lokal (sha256). Halaman dengan data live (edge-bff lokal → terminal-api live): BBCA,
+  AUTO, IHSG tanpa error. Tes: publisher 18, terminal-api 23, vitest 661 lulus; edge-bff 169 lulus, 2 gagal yang juga
+  gagal di `main` (M212, M232).
+- **Status:** RESOLVED. **Lesson:** cron Railway mengubah cara run manual (M229); periksa variabel deployment yang aktif
+  sesudah mengubah variabel tanpa deploy.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.

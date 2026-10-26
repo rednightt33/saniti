@@ -4623,3 +4623,7 @@ User 2026-10-26: "Oke, untuk setiap approve exec, bisa dijalankan again ... Buat
   (SUCCESS 08:23 UTC) so the scheduled container surely carries the new variables (precaution: whether a cron tick
   of an older deployment reads variables changed after it was built is not verified). A tick at 00:00 or 12:30 UTC exits at once (`skipped`); 00:30 and 12:00 UTC run `daily`.
 - No other service changed.
+- `main` `c34614f` (branch `claude/laughing-goodall-x2dkmt` merged, fast-forward): edge-bff `e812c274` SUCCESS 08:26
+  UTC — Terminal tab live on `edge-bff-dev`: `/terminal` and `/terminal-app/` 200, `/api/terminal/v1/...` 401 without
+  a session, terminal page CSP as built, bundle `index-DYT4ceUc.js` byte-equal to the local build (sha256). Only
+  edge-bff's watch pattern was touched; terminal-api and terminal-publisher are CLI uploads (live code = branch code).

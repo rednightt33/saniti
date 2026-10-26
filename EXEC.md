@@ -8010,8 +8010,8 @@ Approved work items 2026-10-25 (user's words in each line), EXEC-TERMINAL-API:
   20–50 ms on 2,123 bars. Waiting: edge-bff deployment.
 - T6 done 2026-10-25: grant migration 101, publisher run `a82de1e2` (842 event files), API dataset `events`; files
   equal SQL for BBCA, GOTO, TLKM (RAILWAY_CHANGELOG).
-- Deployment of the Terminal tab on `edge-bff-dev`: needs the user's decision (edge-bff deploys from `main`; "nanti
-  dulu jangan gabungkan kode ke main"), FUTURE_PLAN.md item 1.
+- Deployment of the Terminal tab on `edge-bff-dev`: done 2026-10-26 (`main` `c34614f`, edge-bff `e812c274`; user "Approve
+  untuk poin 1-3. Langsung deploy ke main once ini sudah selesai").
 - Deferred by the user ("let me decide later"): AI rule "use the stored Feature 04 value first" (FUTURE_PLAN.md).
 
 Open questions for the user (after the live inspection):
@@ -8061,49 +8061,7 @@ stopped by the user ("Stop the research ya").
   marking on the chart. Days without a price row (holiday, suspension) stay gaps, as now. This is the current
   behaviour; recorded, nothing to execute until the user's go.
 
-## EXEC-TERMINAL-T7-T10 — execution of the approved terminal items (go 2026-10-26)
-
-User 2026-10-26: "Oke, untuk setiap approve exec, bisa dijalankan again, baca dulu agents MD, dan setiap keputusan yang
-harus diambil harus diverifikasi ulang menggunakan kode. Apabila comes from your memory, maka harus divalidasi ulang
-dengan codebase actual yang ada di main. Buat implementation plan dan jalankan." Items: T7, T8, T9, T10 (EXEC-TERMINAL-API
-above) and the merge to `main` ("Deploy ke main setelah pertanyaan2 diatas sudah conclude").
-
-Verification against `main` (b26a73c, merged into the branch as dd16cb4) and the live data, before any change:
-- AGENTS.md on `main` adds only the `UPDATE_TABLE.md` pointer (broker and Stockbit refresh); no rule changes this plan.
-- `main` already uses `20261025_001`–`017`: the terminal schema migration is renamed `20261025_100_…` (content and
-  sha256 unchanged, already applied); this branch's error ids become M225–M228 (main uses M217–M224); at the next
-  merge (2026-10-26, `e1715cb`) `main` took M225 too, so the branch's M225 and M226 became M230 and M231.
-- T9: ERRORS M223 (main, OPEN) — `idx_event_annotation` has no typed columns for the terms; they are only in
-  `source_payload`. Read-only check 2026-10-26: every corporate-action row carries its keys (dividend 5,301/5,301
-  `dividend_value` and cum/ex/record/pay dates; split 258, reverse split 34, bonus 91 ratio `old : new` and dates;
-  rights 325 price, ratio, trading period; tender 190 price, shares, %, period, pay date; warrant 2,223 exercise price,
-  exercise and trading periods; RUPS 6,839 date, time, venue, eligible date; agenda and RUPS type empty). BBCA's 2021
-  split reads `1 : 5` (known fact). Unknown numbers are stored as 0.
-- T8: `apps/terminal-publisher/publisher.py` publishes broker for `window()` (TERMINAL_YEARS, 5 years) while price uses
-  its first stored year; terminal-api `history_range` and the page (`live.ts` `yearsOf`) already read each dataset's
-  `first_year` from the manifest, so only the publisher changes.
-- T7: the publisher has no time guard; one Railway `cronSchedule` holds one expression.
-- T10: `src/calc/indicators.ts` already counts every bar with a price, flat or not (edge tests "Flat prices"); nothing
-  to change.
-
-Plan:
-1. T8 publisher: broker first year = the year of the first stored `trade_date` (derived, like price); daily and
-   broker-range use it; manifest `first_year` per dataset. Run `broker-range` 2016-01-01..2020-12-31 for the universe
-   stocks, then verify a sample of files against SQL.
-2. T9 publisher: events rows gain `title` and `detail` = [[label, value or null, kind], …] from one per-type mapping of
-   payload keys (0 and empty → null), with three derived values sourced from the price table: dividend yield = dividend
-   ÷ close on the cum date; price after a split = close on the cum date × old ÷ new; tender premium = offer price ÷ close
-   of the session before the offer start − 1. The events format version enters the change stamp, so every events file
-   is republished once by the next daily run. Page: tooltip rows from `detail`; null shows "Unavailable". When M223's
-   typed columns land, the mapping reads them instead of the payload.
-3. T7 publisher: `TERMINAL_RUN_TIMES_WIB=07:30,19:00`; cron `0,30 0,12 * * *` (derived from the times); a run at an
-   unlisted cron tick exits at once without reading the database; a deploy or manual run outside the ticks still runs.
-4. Tests (publisher, API, calc, edge-bff, 1:1 visual), deploy publisher and run, verify live, live page check.
-5. Merge the branch into `main`, push; edge-bff deploys from `main`; check the deployment reaches SUCCESS and the
-   Terminal tab answers.
-6. Changelogs, ERRORS, FRONTEND_HANDOFF, README; remove done items from EXEC.
-
-User 2026-10-26 after the events run: "Yes, oke. Okay. Approve untuk poin 1-3. Langsung deploy ke main once ini sudah
-selesai." (1 broker 2016–2020 and its check against SQL, 2 the T7 cron, 3 merge to `main` and the edge-bff deployment).
-Status 2026-10-26: steps 1–4 done (RAILWAY_CHANGELOG 2026-10-26: `adef5a5b` events format 2, `a1d2b396` 2,506 broker
-files equal SQL on the sample, cron `0,30 0,12 * * *` with `a783220f`); step 5 in progress.
+Done 2026-10-26 (go: "Oke, untuk setiap approve exec, bisa dijalankan again ... Buat implementation plan dan jalankan."
+and "Approve untuk poin 1-3. Langsung deploy ke main once ini sudah selesai."): T7, T8, T9, T10 and the merge to `main`
+(ERRORS "EXEC-TERMINAL-T7-T10 — selesai", RAILWAY_CHANGELOG and DATABASE_CHANGELOG 2026-10-26). Still open: default
+download quotas for real subscribers (FUTURE_PLAN.md "Terminal: keputusan terbuka" item 2) and the other items there.
