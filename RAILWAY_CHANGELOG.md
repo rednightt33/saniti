@@ -4653,3 +4653,6 @@ EXEC-TERMINAL-UI-1026").
   build: 75 screenshots, 0 differing pixels, no text or markup difference.
 - `main` `10d22f4` (EXEC-TERMINAL-1026B F1, F2, F4, F5): edge-bff `6cabcc40` SUCCESS 10:55 UTC; live `index`, `style` and
   `worker` assets equal the build (sha256), stylesheet 59,363 bytes.
+- Check-in T7 (19:00 WIB tick, deployment `a783220f`): 12:00 UTC run `plan` mode daily (1,670 files: price 2026 files
+  and 842 event files re-stamped after the event table update of 08:38 UTC), `done` 12:29:29 UTC, 828 written, 1.88 MB,
+  1,481 s; 12:30 UTC tick logged `skipped` ("cron tick is not a listed run time"). Schedule works as designed.
