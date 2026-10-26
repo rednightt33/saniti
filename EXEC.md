@@ -7453,7 +7453,9 @@ User decisions 2026-10-26 (answers to the open terminal decisions, FUTURE_PLAN.m
 - T8 Broker history to the rack: "Yes, data broker feel free untuk dipindahkan ke storage. Masukan exec jangan execute
   dulu." Recorded, not executed. Planned: broker files from the first stored trade date (Feature 05 starts 2016-01-04)
   instead of 5 years, as price already is (publisher `first_year` per dataset, manifest `first_year`, API window and
-  history fallback follow); backfill size to measure before running (broker dominates the rack: 5 years ≈ 280 MB).
+  history fallback follow). Size measured 2026-10-26 (read-only): Feature 05 holds 2.36 M rows in 2016, 3.02 M in 2018,
+  3.30 M in 2020 (5.84 M in 2025), so 2016–2020 add about 14–15 M rows, roughly 150–170 MB of gzip files on top of the
+  ≈ 280 MB rack; opening a ticker then takes about 5 more broker files (quota question below).
 - T9 Corporate-action details: "Detail aksi Korporasi dari table event, nilainya juga harus bisa di bawah. Tapi jika
   nilainya blank, diput saja sebagai unavailable pada front end". Recorded. The values come from
   `idx_event_annotation.source_payload` (not published in T6): a per-type list of display fields (field mapping to be
