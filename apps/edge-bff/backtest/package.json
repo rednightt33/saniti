@@ -1,0 +1,25 @@
+{
+  "name": "edge-backtest",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "EDGE backtest page: the reference backtest.html as modular TypeScript on the shared backtest core (src/core) and the edge-bff backtest API.",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "build:smoke": "vite build --mode smoke",
+    "build:fixture": "vite build --mode fixture",
+    "dev": "vite",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "smoke": "vite build --mode smoke && node tests/smoke/smoke.mjs",
+    "visual": "vite build --mode fixture && node tests/visual/compare.mjs && python3 tests/visual/diff.py"
+  },
+  "dependencies": {
+    "lightweight-charts": "5.2.1"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "7.1.9",
+    "vitest": "3.2.4"
+  }
+}

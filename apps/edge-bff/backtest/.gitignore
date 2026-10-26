@@ -1,0 +1,4 @@
+# build outputs (the edge-bff Dockerfile builds dist/ into static/backtest-app); test builds
+dist/
+dist-smoke/
+dist-fixture/
