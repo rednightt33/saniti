@@ -72,6 +72,8 @@ class FakeConn:
             t, lo, hi = params
             r = [x for x in self.brokers if x[0] == t and lo <= x[1] <= hi]
             return [(len(r), min(x[1] for x in r), max(x[1] for x in r), sum(x[5] + x[6] for x in r))]
+        if 'min(trade_date)' in sql:
+            return [(min(r[1] for r in self.brokers),)]
         if 'IDX_Broker_Profile' in sql:
             return [('AK', 'UBS', 'Foreign'), ('YP', 'Mirae', 'Domestic')]
         if 'min(date)' in sql:
@@ -90,12 +92,13 @@ PRICES = [('BBCA', '2025-12-30', 100.0, 110.0, 95.0, 105.0, 1000.0),
           ('IHSG', '2026-01-02', 7000.0, 7100.0, 6950.0, 7050.0, None)]
 BROKERS = [('BBCA', '2026-01-02', 'AK', 'Foreign', 'Regular', 500.0, 0.0, 5.0, 0.0, False),
            ('BBCA', '2026-01-02', 'YP', 'Domestic', 'Regular', 0.0, 500.0, 0.0, 4.5, True)]
+# the 17 display columns, then source_payload and the two closes of EVENTS_SQL
 EVENTS = [('BBCA', '2026-03-10', 'EX_DATE', 'CORPORATE_ACTION', 'DIVIDEND', None, None, None, None, None, None, None,
-           None, None, 250.0, None, None, None),
+           None, None, 250.0, None, None, None, {'dividend_value': '250', 'dividend_currency': 'CURRENCY_IDR', 'dividend_cumdate': '2026-03-09', 'dividend_exdate': '2026-03-10', 'dividend_recdate': '2026-03-11', 'dividend_paydate': ''}, 10000.0, None),
           ('BBCA', '2026-05-02', 'TRANSACTION_DATE', 'INSIDER', 'INSIDER_TRANSACTION', 'BUY', 'A. Holder', 'Director',
-           'YP', None, 10000.0, 1.25, 0.01, 'OK', 9000.0, False, 90000000.0, 'KSEI'),
+           'YP', None, 10000.0, 1.25, 0.01, 'OK', 9000.0, False, 90000000.0, 'KSEI', None, None, None),
           ('GONE', '2026-01-02', 'EX_DATE', 'CORPORATE_ACTION', 'DIVIDEND', None, None, None, None, None, None, None,
-           None, None, 10.0, None, None, None)]
+           None, None, 10.0, None, None, None, {}, None, None)]
 UNIVERSE = [('BBCA', 'Bank Central Asia', 'stock', 'Finance'), ('IHSG', 'Composite', 'index', None)]
 TODAY = dt.date(2026, 10, 25)
 
@@ -166,15 +169,17 @@ def test_verify_detects_a_changed_object():
     assert pub.verify(conn, bucket) == 1
 
 
-def test_price_is_published_from_its_first_year_and_broker_keeps_the_window():
+def test_price_and_broker_are_published_from_their_own_first_year():
+    # T8 (user 2026-10-26): broker no longer keeps the 5-year window; each dataset starts at its first stored year
     prices = PRICES + [('BBCA', '2019-06-03', 50.0, 51.0, 49.0, 50.5, 10.0)]
-    brokers = BROKERS + [('BBCA', '2019-06-03', 'AK', 'Foreign', 'Regular', 1.0, 0.0, 0.01, 0.0, False)]
+    brokers = BROKERS + [('BBCA', '2020-06-03', 'AK', 'Foreign', 'Regular', 1.0, 0.0, 0.01, 0.0, False)]
     p, _, bucket = run('backfill', conn=FakeConn(prices, brokers, UNIVERSE))
-    assert p.price_first_year == 2019
-    assert 'price/BBCA/2019.json.gz' in bucket.objects and 'broker/BBCA/2019.json.gz' not in bucket.objects
+    assert (p.price_first_year, p.broker_first_year) == (2019, 2020)
+    assert 'price/BBCA/2019.json.gz' in bucket.objects and 'broker/BBCA/2020.json.gz' in bucket.objects
     m = bucket.get_json('manifest/BBCA.json')
-    assert m['datasets']['price']['first_year'] == 2019 and m['datasets']['broker']['first_year'] == 2021
-    assert '2019' in m['datasets']['price']['files'] and '2019' not in m['datasets']['broker']['files']
+    assert m['datasets']['price']['first_year'] == 2019 and m['datasets']['broker']['first_year'] == 2020
+    assert '2019' in m['datasets']['price']['files'] and '2020' in m['datasets']['broker']['files']
+    assert m['window']['broker_first_year'] == 2020
 
 
 def test_daily_adds_missing_early_price_years():
@@ -201,7 +206,7 @@ def test_daily_republishes_events_only_when_the_ticker_changed():
     p2.run('daily')
     assert p2.written == 0
     conn.events.append(('BBCA', '2026-09-01', 'MEETING_DATE', 'CORPORATE_ACTION', 'RUPS', None, None, None, None,
-                        None, None, None, None, None, None, None, None, None))
+                        None, None, None, None, None, None, None, None, None, {'rups_date': '2026-09-01'}, None, None))
     p3 = pub.Publisher(conn, bucket, today=TODAY)
     p3.run('daily')
     assert p3.written == 1 and len(bucket.get_json('events/BBCA/all.json.gz')['d']) == 3
@@ -211,3 +216,52 @@ def test_ticker_reference_carries_the_sector_for_the_symbol_search():
     _, _, bucket = run('backfill')
     doc = bucket.get_json('ref/tickers.json.gz')
     assert doc['columns'] == ['ticker', 'name', 'type', 'sector'] and doc['sector'] == ['Finance', None]
+
+
+def test_corporate_action_detail_comes_from_the_payload_and_blank_is_none():
+    _, _, bucket = run('backfill')
+    doc = bucket.get_json('events/BBCA/all.json.gz')
+    assert doc['title'] == ['Cash dividend', None] and doc['detail'][1] is None   # insider rows have no detail
+    rows = {label: value for label, value, _ in doc['detail'][0]}
+    assert rows['Dividend'] == 250 and rows['Cum date'] == '2026-03-09' and rows['Payment'] is None   # '' -> None
+    assert abs(rows['Yield (on cum-date close)'] - 2.5) < 1e-12                                    # 250 / 10,000
+
+
+def test_derived_values_need_their_close_and_zero_means_unknown():
+    title, rows = pub.corporate_action('STOCK_SPLIT', {'stocksplit_old': '1', 'stocksplit_new': '5',
+                                                       'stocksplit_new_price': 0}, 7320.0, None)
+    assert title == 'Stock split 1 : 5' and dict((a, b) for a, b, _ in rows)['Price after (from cum-date close)'] == 1464
+    title, rows = pub.corporate_action('STOCK_SPLIT', {'stocksplit_old': '1', 'stocksplit_new': '5'}, None, None)
+    assert dict((a, b) for a, b, _ in rows)['Price after (from cum-date close)'] is None    # cum date not traded yet
+    _, rows = pub.corporate_action('TENDER_OFFER', {'tender_price': '3600', 'tender_shares': '0'}, None, 3380.0)
+    d = dict((a, b) for a, b, _ in rows)
+    assert abs(d['Premium (vs close before start)'] - (3600 / 3380 - 1) * 100) < 1e-9 and d['Shares sought'] is None
+    assert pub.corporate_action('PUBLIC_EXPOSE', {}, None, None) == (None, None)
+
+
+def test_a_new_events_format_republishes_every_events_file_once():
+    _, conn, bucket = run('backfill')
+    m = bucket.get_json('manifest/BBCA.json')
+    m['datasets']['events']['files']['all']['stamp'] = 'rows=1;last=2026-03-10;ing=ing'   # a stamp from format 1
+    bucket.put('manifest/BBCA.json', json.dumps(m).encode(), 'application/json')
+    p2 = pub.Publisher(conn, bucket, today=TODAY)
+    assert [t for _, t, _, _ in p2.changed_events({'BBCA': 'stock'})] == ['BBCA']
+
+
+def test_broker_is_published_from_its_first_stored_year():
+    conn = FakeConn(PRICES, BROKERS + [('BBCA', '2016-01-04', 'AK', 'Foreign', 'Regular', 1.0, 0.0, 0.01, 0.0, False)],
+                    UNIVERSE)
+    _, _, bucket = run('backfill', conn)
+    assert 'broker/BBCA/2016.json.gz' in bucket.objects
+    ds = bucket.get_json('manifest/BBCA.json')['datasets']['broker']
+    assert ds['first_year'] == 2016 and '2016' in ds['files']
+
+
+def test_run_times_skip_only_the_unlisted_cron_ticks():
+    times = pub.run_times('07:30,19:00')
+    assert pub.cron_for(times) == '0,30 0,12 * * *'                   # 00:30 and 12:00 UTC are 07:30 and 19:00 WIB
+    at = lambda h, m: dt.datetime(2026, 10, 26, h, m, tzinfo=dt.timezone.utc)
+    assert pub.should_run(times, at(0, 31)) and pub.should_run(times, at(12, 2))      # listed times
+    assert not pub.should_run(times, at(0, 1)) and not pub.should_run(times, at(12, 31))  # 07:00 and 19:30 WIB
+    assert pub.should_run(times, at(5, 0))                             # a deploy or manual run away from every tick
+    assert pub.should_run([], at(0, 1))                                # no list: always runs

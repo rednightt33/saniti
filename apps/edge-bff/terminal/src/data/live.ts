@@ -33,6 +33,18 @@ const EVENT_TITLE: Record<string, string> = {
   dividend:'Dividend', stocksplit:'Stock split', reversesplit:'Reverse split', rightissue:'Rights issue',
   bonus:'Bonus shares', rups:'RUPS', tenderoffer:'Tender offer', warrant:'Warrant'
 };
+/* one detail value as the reference tooltip writes it (Rp 25 / share, 2.50%, 2026-08-28); null → Unavailable */
+export const UNAVAILABLE = 'Unavailable';
+export function detailText(value: unknown, kind: string): string {
+  if (value === null || value === undefined || value === '') return UNAVAILABLE;
+  if (typeof value !== 'number') return String(value);
+  const idr = (n: number) => 'Rp ' + (Number.isInteger(n) ? n : +n.toFixed(2)).toLocaleString('en-US');
+  if (kind === 'idr_per_share') return idr(value) + ' / share';
+  if (kind === 'idr') return idr(value);
+  if (kind === 'pct') return value.toFixed(2) + '%';
+  if (kind === 'shares') return Math.round(value).toLocaleString('en-US');
+  return String(value);
+}
 const roleLabel = (role: string) => role.toLowerCase().split('_').map((w, i) => i ? w : w[0].toUpperCase() + w.slice(1)).join(' ');
 
 interface Columnar { columns: string[]; [k: string]: any }
@@ -165,9 +177,12 @@ export async function liveData(stored: string | null): Promise<MarketData> {
       const type = r.family === 'CORPORATE_ACTION' ? EVENT_TYPE[r.type] : undefined;
       if (!type || r.d < dates[0]) return [];
       const at = dates.find(t => t >= r.d);                 // the marker sits on the first session on or after the date
-      const rows: [string, string][] = [[roleLabel(r.role || 'Date'), r.d]];
+      /* T9 (user 2026-10-26): the published detail rows; a value the source leaves blank shows "Unavailable" */
+      const rows: [string, string][] = Array.isArray(r.detail)
+        ? r.detail.map(([label, value, kind]: [string, unknown, string]) => [label, detailText(value, kind)] as [string, string])
+        : [[roleLabel(r.role || 'Date'), r.d]];
       if (r.instrument) rows.push(['Instrument', r.instrument]);
-      return [{ id:`${SYMBOL}-${type}-${r.d}-${k}`, type, date:r.d, at, title:EVENT_TITLE[type], rows }];
+      return [{ id:`${SYMBOL}-${type}-${r.d}-${k}`, type, date:r.d, at, title:r.title || EVENT_TITLE[type], rows }];
     });
   };
 

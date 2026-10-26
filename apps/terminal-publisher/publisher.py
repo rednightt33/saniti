@@ -48,10 +48,28 @@ PRICE_STAMPS_SQL = ('SELECT ticker, extract(year FROM date)::int, count(*), max(
                     "WHERE timeframe = 'Daily' AND is_final AND date >= %s GROUP BY 1, 2")
 EVENTS_SQL = ('SELECT annotation_date::text, annotation_date_role, event_family, event_type, action, holder_name, '
               'holder_role, broker_code, instrument_code, shares_change::float8, pct_after::float8, '
-              'pct_change::float8, pct_quality_flag, price::float8, is_estimated_price, value_idr::float8, data_origin '
-              'FROM public.idx_event_annotation WHERE ticker = %s ORDER BY annotation_date, event_key')
+              'pct_change::float8, pct_quality_flag, price::float8, is_estimated_price, value_idr::float8, data_origin, '
+              # corporate-action terms live only in source_payload (ERRORS M223); the closes feed the derived values
+              'e.source_payload, cum.close::float8, before.close::float8 '
+              'FROM public.idx_event_annotation e '
+              'LEFT JOIN LATERAL (SELECT p.close FROM public."Price_Stock_Indonesia_IDX" p WHERE p.ticker = e.ticker '
+              # the close ON the cum date: a cum date not traded yet (a future event) has no close and no derived value
+              "AND p.timeframe = 'Daily' AND p.is_final AND p.date = (SELECT CASE WHEN v ~ '^\\d{4}-\\d{2}-\\d{2}$' "
+              'THEN v::date END FROM (SELECT coalesce(e.source_payload->>\'dividend_cumdate\', '
+              "e.source_payload->>'stocksplit_cumdate', e.source_payload->>'rightissue_cumdate') AS v) c) "
+              'ORDER BY p.date DESC LIMIT 1) cum ON true '
+              "LEFT JOIN LATERAL (SELECT CASE WHEN e.source_payload->>'tender_start' ~ '^\\d{4}-\\d{2}-\\d{2}$' "
+              "THEN (e.source_payload->>'tender_start')::date END AS start) s ON true "
+              'LEFT JOIN LATERAL (SELECT p.close FROM public."Price_Stock_Indonesia_IDX" p WHERE p.ticker = e.ticker '
+              # the last session before the offer start, within 10 days of it (none for an offer far ahead)
+              "AND p.timeframe = 'Daily' AND p.is_final AND p.date < s.start AND p.date >= s.start - 10 "
+              'ORDER BY p.date DESC LIMIT 1) before ON true '
+              'WHERE e.ticker = %s ORDER BY e.annotation_date, e.event_key')
 EVENT_COLUMNS = ['d', 'role', 'family', 'type', 'action', 'holder', 'holder_role', 'broker', 'instrument',
-                 'shares_change', 'pct_after', 'pct_change', 'pct_flag', 'price', 'price_estimated', 'value', 'origin']
+                 'shares_change', 'pct_after', 'pct_change', 'pct_flag', 'price', 'price_estimated', 'value', 'origin',
+                 'title', 'detail']
+# EXEC-TERMINAL-T7-T10 T9: bumping the events format re-stamps every ticker, so the next run republishes all files
+EVENTS_FORMAT = 2
 EVENT_STAMPS_SQL = ('SELECT ticker, count(*), max(annotation_date)::text, max(ingestion_time)::text '
                     'FROM public.idx_event_annotation GROUP BY ticker')
 UNIVERSE_SQL = ('SELECT "Ticker", "Company Name", "Security Type", "Sector" FROM public."IDX_Stock_Universe" '
@@ -95,11 +113,115 @@ def broker_doc(ticker, year, rows):
             **columnar(data, ['d', 'b', 'i', 'm', 'bv', 'sv', 'bl', 'sl']), 'gap': [list(g) for g in gaps]}
 
 
+def _val(payload, key):
+    """A payload value, or None when the source leaves it blank; 0 is Stockbit's "unknown" for numbers."""
+    v = payload.get(key)
+    if v is None or (isinstance(v, str) and not v.strip()):
+        return None
+    if isinstance(v, (int, float)) or (isinstance(v, str) and v.strip().replace('.', '', 1).isdigit()):
+        n = float(v)
+        return None if n == 0 else n
+    return v.strip()
+
+
+def _period(payload, a, b):
+    lo, hi = _val(payload, a), _val(payload, b)
+    return f'{lo} – {hi}' if lo and hi else None
+
+
+def _ratio(payload, old, new):
+    o, n = _val(payload, old), _val(payload, new)
+    return (o, n) if o and n else (None, None)
+
+
+def _fmt_ratio(o, n):
+    return f'{o:g} : {n:g}' if o and n else None
+
+
+def _div(a, b):
+    return a / b if a is not None and b else None
+
+
+# T9 (user 2026-10-26): the rows each corporate action shows, from its payload keys; a None value shows "Unavailable".
+# kind tells the page how to format: idr, date, text, pct, shares. The three derived rows name their formula.
+def corporate_action(etype, payload, close_cum, close_before):
+    p = payload or {}
+    v = lambda k: _val(p, k)
+    if etype == 'DIVIDEND':
+        dps = v('dividend_value')
+        cur = (v('dividend_currency') or '').replace('CURRENCY_', '')
+        rows = [['Dividend', dps if cur in ('', 'IDR') else None, 'idr_per_share'],
+                ['Currency', cur or None, 'text'],
+                # derived: dividend per share / close on the cum date x 100
+                ['Yield (on cum-date close)', None if dps is None or cur not in ('', 'IDR') else
+                 (_div(dps, close_cum) * 100 if close_cum else None), 'pct'],
+                ['Cum date', v('dividend_cumdate'), 'date'], ['Ex date', v('dividend_exdate'), 'date'],
+                ['Record date', v('dividend_recdate'), 'date'], ['Payment', v('dividend_paydate'), 'date']]
+        return 'Cash dividend', rows
+    if etype in ('STOCK_SPLIT', 'REVERSE_SPLIT'):
+        o, n = _ratio(p, 'stocksplit_old', 'stocksplit_new')
+        rows = [['Ratio (old : new)', _fmt_ratio(o, n), 'text'],
+                ['Cum date', v('stocksplit_cumdate'), 'date'], ['Effective (ex date)', v('stocksplit_exdate'), 'date'],
+                ['Record date', v('stocksplit_recdate'), 'date'],
+                # derived: close on the cum date x old / new
+                ['Price after (from cum-date close)', close_cum * o / n if close_cum and o and n else None, 'idr']]
+        name = 'Stock split' if etype == 'STOCK_SPLIT' else 'Reverse split'
+        return (f'{name} {_fmt_ratio(o, n)}' if o else name), rows
+    if etype == 'RIGHT_ISSUE':
+        o, n = _ratio(p, 'rightissue_old', 'rightissue_new')
+        rows = [['Ratio (old : new)', _fmt_ratio(o, n), 'text'], ['Exercise price', v('rightissue_price'), 'idr'],
+                ['Cum date', v('rightissue_cumdate'), 'date'], ['Ex date', v('rightissue_exdate'), 'date'],
+                ['Trading period', _period(p, 'rightissue_trading_start', 'rightissue_trading_end'), 'text']]
+        return (f'Rights issue {_fmt_ratio(o, n)}' if o else 'Rights issue'), rows
+    if etype == 'BONUS_SHARE':
+        o, n = _ratio(p, 'stocksplit_old', 'stocksplit_new')
+        rows = [['Ratio (held : bonus)', _fmt_ratio(o, n), 'text'], ['Cum date', v('stocksplit_cumdate'), 'date'],
+                ['Ex date', v('stocksplit_exdate'), 'date'], ['Distribution', v('stocksplit_paymentdate'), 'date']]
+        return (f'Bonus shares {_fmt_ratio(o, n)}' if o else 'Bonus shares'), rows
+    if etype == 'RUPS':
+        meeting = v('rups_date')
+        rows = [['Meeting', f"{meeting} {v('rups_time') or ''}".strip() if meeting else None, 'text'],
+                ['Venue', v('rups_venue'), 'text'], ['Agenda', v('rups_iqp_agenda'), 'text'],
+                ['Record date', v('rups_eligible_date'), 'date']]
+        kind = (v('rups_iqp_type') or '').upper()
+        return ('RUPSLB (extraordinary)' if 'LB' in kind else 'RUPST (annual)' if 'T' in kind else 'RUPS'), rows
+    if etype == 'TENDER_OFFER':
+        price = v('tender_price')
+        rows = [['Offer price', price, 'idr'],
+                # derived: offer price / close of the session before the offer start - 1
+                ['Premium (vs close before start)', (price / close_before - 1) * 100 if price and close_before else None,
+                 'pct'],
+                ['Shares sought', v('tender_shares'), 'shares'], ['Share of capital', v('tender_percentage'), 'pct'],
+                ['Period', _period(p, 'tender_start', 'tender_end'), 'text'], ['Payment', v('tender_paydate'), 'date']]
+        return 'Tender offer', rows
+    if etype == 'WARRANT':
+        rows = [['Exercise price', v('wrant_exc_price'), 'idr'],
+                ['Exercise period', _period(p, 'wrant_exc_from', 'wrant_exc_end'), 'text'],
+                ['Trading period', _period(p, 'wrant_trading_from', 'wrant_trading_end'), 'text'],
+                ['Expiry', v('wrant_exc_end'), 'date']]
+        return 'Warrant', rows
+    return None, None
+
+
+def event_rows(rows):
+    """SQL rows -> file rows: the display columns, then title and detail (corporate actions only)."""
+    out = []
+    for r in rows:
+        base, (payload, close_cum, close_before) = list(r[:17]), r[17:20]
+        title, detail = (corporate_action(r[3], payload, close_cum, close_before) if r[2] == 'CORPORATE_ACTION'
+                         else (None, None))
+        out.append(base + [title, detail])
+    return out
+
+
 def events_doc(ticker, rows):
     return {'schema_version': SCHEMA_VERSION, 'dataset': 'events', 'ticker': ticker,
             'units': {'shares_change': 'shares', 'pct_after': 'percent of shares', 'pct_change': 'percentage points',
                       'price': 'IDR per share', 'value': 'IDR'},
+            'format': EVENTS_FORMAT,
             'means': {'d': 'annotation date; its meaning is in role (EX_DATE, MEETING_DATE, TRANSACTION_DATE, ...)',
+                      'detail': 'corporate actions: [[label, value or null, kind], ...]; null = not in the source '
+                                '(shown as Unavailable); kind: idr, idr_per_share, date, text, pct, shares',
                       'pct_flag': 'quality of the insider percentages (OK, ROUNDING, INCONSISTENT, ...)',
                       'origin': 'IDX or KSEI for insider rows'},
             'columns': EVENT_COLUMNS, **columnar(rows, EVENT_COLUMNS)}
@@ -140,6 +262,7 @@ class Publisher:
         # published from its first stored year, so browser indicators start where Feature 04 does (user 2026-10-25).
         self.first_year, self.last_year = window(today)
         self.price_first_year = None
+        self.broker_first_year = None
         self.manifests = {}
         self.written = 0
         self.bytes = 0
@@ -154,7 +277,7 @@ class Publisher:
     def save_manifest(self, ticker, data_through):
         m = self.manifest(ticker)
         m['window'] = {'first_year': self.first_year, 'last_year': self.last_year,
-                       'price_first_year': self.price_first_year}
+                       'price_first_year': self.price_first_year, 'broker_first_year': self.broker_first_year}
         for dataset, through in data_through.items():
             ds = m['datasets'].setdefault(dataset, {'files': {}})
             first = self.dataset_first_year(dataset)
@@ -167,7 +290,7 @@ class Publisher:
     # ---- one file --------------------------------------------------------------------------------------------
     def publish(self, dataset, ticker, year, stamp=None):
         if dataset == 'events':
-            rows = self.conn.execute(EVENTS_SQL, (ticker,)).fetchall()
+            rows = event_rows(self.conn.execute(EVENTS_SQL, (ticker,)).fetchall())
         else:
             lo, hi = f'{year}-01-01', f'{year}-12-31'
             rows = self.conn.execute(PRICE_SQL if dataset == 'price' else BROKER_SQL, (ticker, lo, hi)).fetchall()
@@ -205,12 +328,17 @@ class Publisher:
             self.bucket.put(key, body, 'application/gzip')
 
     def dataset_first_year(self, dataset):
-        return self.price_first_year if dataset == 'price' else self.first_year
+        return {'price': self.price_first_year, 'broker': self.broker_first_year}.get(dataset) or self.first_year
 
     def resolve_price_first_year(self):
+        """Price and broker are published from their first stored year (price: user 2026-10-25; broker: T8, user
+        2026-10-26 "data broker feel free untuk dipindahkan ke storage"); derived from the data, no year is coded."""
         first = self.conn.execute('SELECT min(date)::text FROM public."Price_Stock_Indonesia_IDX" '
                                   "WHERE timeframe = 'Daily' AND is_final").fetchone()[0]
         self.price_first_year = min(int(first[:4]), self.first_year) if first else self.first_year
+        first = self.conn.execute('SELECT min(trade_date)::text FROM '
+                                  'public."Feature_05_Foreign_Domestic_Broker_Detail"').fetchone()[0]
+        self.broker_first_year = min(int(first[:4]), self.first_year) if first else self.first_year
 
     def data_through(self):
         price = self.conn.execute('SELECT max(date)::text FROM public."Price_Stock_Indonesia_IDX" '
@@ -229,7 +357,7 @@ class Publisher:
         self.resolve_price_first_year()
         state = self.bucket.get_json('state.json') or {}
         todo = []  # (dataset, ticker, year, stamp)
-        years = range(self.first_year, self.last_year + 1)
+        years = range(self.broker_first_year, self.last_year + 1)
         if mode == 'backfill':
             todo = [('price', t, y, None) for t in kind for y in range(self.price_first_year, self.last_year + 1)]
             todo += [('broker', t, y, None) for t, typ in kind.items() if typ == 'stock' for y in years]
@@ -241,18 +369,18 @@ class Publisher:
                 new = self.conn.execute(
                     'SELECT DISTINCT ticker, extract(year FROM trade_date)::int FROM '
                     'public."Feature_05_Foreign_Domestic_Broker_Detail" WHERE trade_date > %s', (since,)).fetchall()
-                todo += [('broker', t, y, None) for t, y in new if kind.get(t) == 'stock' and y >= self.first_year]
+                todo += [('broker', t, y, None) for t, y in new if kind.get(t) == 'stock' and y >= self.broker_first_year]
         elif mode == 'events':
             todo = self.changed_events(kind)
         elif mode == 'broker-range':
             tickers = only or [t for t, typ in kind.items() if typ == 'stock']
             lo, hi = int(start_from[:4]), int(end_to[:4])
             todo = [('broker', t, y, None) for t in tickers if kind.get(t) == 'stock'
-                    for y in range(max(lo, self.first_year), hi + 1)]
+                    for y in range(max(lo, self.broker_first_year), hi + 1)]
         else:
             raise SystemExit(f'unknown mode {mode}')
         log('plan', mode=mode, files=len(todo), window=[self.first_year, self.last_year],
-            price_first_year=self.price_first_year, data_through=through)
+            price_first_year=self.price_first_year, broker_first_year=self.broker_first_year, data_through=through)
         touched = set()
         for n, (dataset, ticker, year, stamp) in enumerate(todo, 1):
             self.publish(dataset, ticker, year, stamp)
@@ -270,7 +398,8 @@ class Publisher:
         broker_through = through['broker'] if mode in ('backfill', 'daily') else state.get('broker_through')
         self.bucket.put('state.json', json.dumps({
             'schema_version': SCHEMA_VERSION, 'price_through': through['price'], 'broker_through': broker_through,
-            'window': [self.first_year, self.last_year], 'price_first_year': self.price_first_year, 'last_mode': mode,
+            'window': [self.first_year, self.last_year], 'price_first_year': self.price_first_year,
+            'broker_first_year': self.broker_first_year, 'last_mode': mode,
             'finished_at': dt.datetime.now(dt.timezone.utc).isoformat()}).encode(), 'application/json')
         log('done', mode=mode, files_planned=len(todo), files_written=self.written, mb=round(self.bytes / 1e6, 2),
             tickers=len(touched), seconds=round(time.monotonic() - started, 1))
@@ -281,7 +410,7 @@ class Publisher:
         for ticker, count, last, ingested in self.conn.execute(EVENT_STAMPS_SQL).fetchall():
             if ticker not in kind:
                 continue  # delisted tickers are not served by the terminal
-            stamp = f'rows={count};last={last};ing={ingested}'
+            stamp = f'format={EVENTS_FORMAT};rows={count};last={last};ing={ingested}'
             current = self.manifest(ticker)['datasets'].get('events', {}).get('files', {}).get('all', {})
             if force or current.get('stamp') != stamp:
                 out.append(('events', ticker, 'all', stamp))
@@ -355,8 +484,49 @@ def verify(conn, bucket):
     return bad
 
 
+WIB = dt.timezone(dt.timedelta(hours=7))
+
+
+def run_times(value):
+    """'07:30,19:00' -> [(7, 30), (19, 0)] in WIB."""
+    out = []
+    for part in (value or '').split(','):
+        if part.strip():
+            h, m = part.strip().split(':')
+            out.append((int(h), int(m)))
+    return out
+
+
+def cron_for(times):
+    """The one Railway cronSchedule (UTC) that fires at every listed WIB time: the product of their UTC minutes and
+    hours; ticks that are not a listed time are skipped by should_run."""
+    utc = [((h - 7) % 24, m) for h, m in times]
+    minutes = sorted({m for _, m in utc}); hours = sorted({h for h, _ in utc})
+    return f"{','.join(map(str, minutes))} {','.join(map(str, hours))} * * *"
+
+
+def should_run(times, now=None, slack_minutes=20):
+    """T7 (user 2026-10-26: "jadwal publisher ... jam 19.00 dan jam 7.30"): a run near a cron tick that is not a listed
+    time exits at once; a run near a listed time, or away from every tick (a deploy or manual run), goes ahead."""
+    if not times:
+        return True
+    now = (now or dt.datetime.now(dt.timezone.utc)).astimezone(WIB)
+    mins = now.hour * 60 + now.minute
+    near = lambda h, m: 0 <= (mins - (h * 60 + m)) % 1440 <= slack_minutes
+    if any(near(h, m) for h, m in times):
+        return True
+    utc = [((h - 7) % 24, m) for h, m in times]
+    ticks = {((uh + 7) % 24, um) for uh in {h for h, _ in utc} for um in {m for _, m in utc}}
+    return not any(near(h, m) for h, m in ticks)
+
+
 def main(argv):
     mode = (argv[1] if len(argv) > 1 else os.environ.get('TERMINAL_PUBLISH_MODE', 'daily')).strip()
+    times = run_times(os.environ.get('TERMINAL_RUN_TIMES_WIB'))
+    if mode == 'daily' and not should_run(times):
+        log('skipped', reason='cron tick is not a listed run time', run_times_wib=os.environ.get('TERMINAL_RUN_TIMES_WIB'),
+            cron=cron_for(times))
+        return 0
     with psycopg.connect(os.environ['TERMINAL_PUBLISHER_DATABASE_URL'], autocommit=True) as conn:
         bucket = Bucket()
         if mode == 'verify':
