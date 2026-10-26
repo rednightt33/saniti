@@ -8055,3 +8055,19 @@ Rencana:
 3. Halaman (live): ikon di tombol simbol, daftar pencarian, pembanding dan legenda; monogram (huruf ticker, warna dari
    sektor) bila tidak ada logo. Fixture tetap seperti referensi (cek 1:1).
 4. Tes publisher, API, edge-bff, vitest, 1:1; jalankan mode `logos` sekali (prosedur M229), deploy, cek live.
+
+## EXEC-TERMINAL-1026C — rentang sesi, Latest day net, putaran loading, gambar di panel bawah, batal dengan klik kanan, waktu muat (go 2026-10-26)
+
+User 2026-10-26: "Terkait dengan sessions, boleh ditambahkan date covered ... Kemudian untuk latest day net, kalau negatif ya
+di show saja huruf merah. Dengan minus. Kemudian untuk putaran antam, masih terlalu lama, kita mesti buat 50 kali lebih
+cepat." dan "yang sifatnya trendline, horizontal ray, dan lain sebagainya. Bisa juga digambar di bagian indikator panel
+bawah ... ketika saya sedang menarik trendline, ketika saya klik kanan, maka otomatis trendline sedang saya tarik menjadi
+hilang." Lalu: "A dulu, tapi explore B abis diman awaktunya. Inga tini untuk multiuser kedepannya. Kalau 1 user saja
+lambat, bagiamana kalau user banyak. Yang lain OK, jalankan".
+- C1: "N sessions · dd MMM yyyy – dd MMM yyyy" di panel Statistics.
+- C2: Latest day net = hari terakhir yang punya data broker (tanggalnya ditampilkan); negatif merah dengan minus, nol
+  abu-abu. (Penyebab "Rp 0" hijau: sesi harga terakhir belum punya broker, terverifikasi live 2026-10-26.)
+- C3 (A): putaran loading lebih cepat; 50× (0,012 s) lebih cepat dari satu frame layar, dipakai 0,25 s per putaran.
+- C4: alat gambar di panel indikator bawah (mis. MACD) dan chart Flow — prototipe dulu, ditunjukkan ke user.
+- C5: klik kanan saat menarik garis membatalkan garis itu.
+- C6 (B): ukur ke mana waktu muat habis, termasuk untuk banyak pengguna sekaligus; laporan, tanpa perubahan.
