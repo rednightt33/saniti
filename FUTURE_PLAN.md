@@ -878,3 +878,28 @@ Usulan:
 3. Disajikan lewat edge-bff dengan URL tetap dan cache browser panjang (logo bukan data berbayar), bukan URL presigned
    per permintaan, supaya daftar pencarian dan pembanding tidak meminta izin per ikon.
 4. Tampil di tombol simbol, daftar pencarian, pembanding (Add Series) dan legenda.
+
+## Terminal: waktu muat dan banyak pengguna (laporan 2026-10-26, EXEC-TERMINAL-1026C C6; usulan menunggu keputusan)
+
+User 2026-10-26: "explore B abis diman awaktunya. Inga tini untuk multiuser kedepannya. Kalau 1 user saja lambat,
+bagiamana kalau user banyak".
+
+Ukuran (live dev, dari sandbox; jaringan sandbox ikut menambah):
+- terminal-api: manifest 0,26–0,34 s (permintaan pertama 1,18 s: manifest belum di cache server), referensi 0,27–0,37 s,
+  `/bundle` ANTM 0,35 s (21 URL).
+- Unduhan bucket ANTM: 21 file 2,38 MB; median 0,84 s per file, terlama 2,33 s — waktu terbesar ada di sini (jarak ke
+  bucket per file, bukan ukuran).
+- Browser (file sudah di cache tes): chart tampil 1,2–1,9 s; beku terlama ±0,4 s (gambar chart pertama).
+- Beban bersamaan `/bundle`: 1 → 0,35–3,2 s, 5 → median 1,17 s, 10 → median 1,28 s (maks 1,65), 20 → median 1,39 s,
+  maks 3,39 s.
+
+Penyebab yang akan memburuk dengan banyak pengguna (dari kode):
+1. Semua pengguna EDGE masuk sebagai SATU akun terminal (gateway, subscriber 2): satu kunci kuota
+   (`pg_advisory_xact_lock` per akun, `store.py`:45) membuat `/bundle` semua pengguna mengantre satu per satu.
+2. Setiap `/bundle` menulis 21 baris audit dan menghitung pemakaian dari `terminal.access_log` hari itu untuk akun yang
+   sama; tabel itu tumbuh dengan jumlah pengguna, jadi hitungan makin lambat.
+3. Setiap buka ticker mengunduh ulang ±2,4 MB (URL presigned berganti, tidak bisa di-cache browser) dalam 21 file kecil.
+Usulan (belum disetujui): (a) satu akun terminal per pengguna EDGE (kunci dan kuota per orang); (b) pemakaian dihitung
+dari penghitung per akun per jam/hari, bukan dari log; audit satu baris per `/bundle`; (c) gabungkan tahun lama broker
+menjadi satu berkas arsip per ticker (21 → ±6 berkas); (d) cache berkas di browser menurut sha256 (usulan lama butir 5);
+(e) uji beban 50–100 pengguna bersamaan sesudahnya.

@@ -2228,6 +2228,19 @@ change yet.
   check ANTM (logo dimuat, tanpa error).
 - **Status:** RESOLVED.
 
+### EXEC-TERMINAL-1026C — C1/C2/C3/C5 selesai (2026-10-26)
+
+- **Go user:** "A dulu, tapi explore B ... Yang lain OK, jalankan".
+- **C1:** Statistics "129 sessions · 14 Apr 2026 – 26 Oct 2026" (live; fixture tetap referensi).
+- **C2:** penyebab "Latest day net Rp 0" hijau terverifikasi: sesi harga terakhir (26 Okt) belum punya broker. Kini hari
+  terakhir yang punya broker (worker `flowTo`), tanggalnya ditulis; negatif merah dengan minus, nol abu-abu. ANTM 23 Oct
+  2026 −Rp 42.1B = SQL. Total dan rata-rata periode juga berhenti di hari broker terakhir.
+- **C3:** putaran 0,25 s (dari 0,6 s); 50× (0,012 s) lebih cepat dari satu frame layar.
+- **C5:** klik kanan saat alat gambar aktif membatalkan garis yang sedang ditarik (`setTool(null)`), menu baru terbuka
+  pada klik kanan berikutnya; diuji di browser (0 gambar tersisa, tanpa error).
+- **Bukti:** vitest 662, 1:1 75 screenshot 0 piksel beda, live check ANTM tanpa error.
+- **Status:** RESOLVED. C4 prototipe dan C6 laporan: EXEC-TERMINAL-1026C.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.

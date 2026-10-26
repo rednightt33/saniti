@@ -343,6 +343,10 @@ export function initDrawings(ctx: Ctx) {
   wrap.addEventListener('contextmenu', (e: any) => {
     if(e.target.closest('.dr-bar,.dr-menu,.dr-text')) return;
     e.preventDefault(); menus.forEach(m => m.close(false));
+    /* EXEC-TERMINAL-1026C C5 (user 2026-10-26: "ketika saya sedang menarik trendline, ketika saya klik kanan, maka otomatis
+       trendline sedang saya tarik menjadi hilang"): a right-click while a tool is armed drops the drawing in progress and
+       disarms the tool (the toolbar follows through the 'tool' event); the menu opens on the next right-click */
+    if(dm.tool()){ dm.setTool(null); return }
     const r = wrap.getBoundingClientRect(); openCtx(e.clientX - r.left, e.clientY - r.top);
   });
   document.addEventListener('pointerdown', e => { if(!menuEl.hidden && !menuEl.contains(e.target as Node)) closeCtx() });
@@ -385,6 +389,45 @@ export function initDrawings(ctx: Ctx) {
     });
   }
   document.addEventListener('keydown', (e: any) => { if(e.altKey && e.code === 'KeyR' && !e.ctrlKey && !e.metaKey && !/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)){ e.preventDefault(); resetView() } });
+
+  /* EXEC-TERMINAL-1026C C4 PROTOTYPE (user 2026-10-26: "trendline, horizontal ray ... Bisa juga digambar di bagian
+     indikator panel bawah"), on with ?drawpanes=1 only: one more drawing manager per indicator pane and one on the Flow
+     Timeline; the library keeps each manager to its own pane, so the armed toolbar tool moves to the manager of the pane
+     the press lands in. Not yet: saving these drawings, undo, drag-release for two-point tools (click, click). */
+  if(new URLSearchParams(location.search).get('drawpanes') === '1') {
+    const extra = new Map<any, any>();                       // series → its DrawingManager
+    const all = () => [dm, ...extra.values()];
+    const armed = () => all().map(m => m.tool()).find(Boolean) || null;
+    const managerFor = (c: any, series: any) => {
+      let m = extra.get(series);
+      if(!m){
+        m = new LibAny.DrawingManager(c, series, { magnet: prefs.magnet ? 'weak' : 'off', stayInDrawingMode: false });
+        m.on('tool', (k: any) => { if(!k && !armed()) syncTool(null) });
+        extra.set(series, m);
+      }
+      return m;
+    };
+    const route = (target: any) => {
+      const kind = armed();
+      if(!kind || target.tool() === kind) return;
+      all().forEach(m => { if(m !== target && m.tool()) m.setTool(null) });
+      target.setTool(kind); syncTool(kind);
+    };
+    wrap.addEventListener('pointerdown', (e: PointerEvent) => {
+      if(e.button !== 0 || !armed()) return;
+      const panes = chart.panes();
+      for(let i = 1; i < panes.length; i++){
+        const r = panes[i].getHTMLElement()?.getBoundingClientRect(), s = panes[i].getSeries()[0];
+        if(r && s && e.clientY >= r.top && e.clientY <= r.bottom){ route(managerFor(chart, s)); return }
+      }
+      route(dm);
+    }, true);
+    const fwrapEl = document.getElementById('flowChart')!.parentElement as HTMLElement;
+    fwrapEl.addEventListener('pointerdown', (e: PointerEvent) => { if(e.button === 0 && armed()) route(managerFor(ctx.flowChart, (ctx as any).flowSeries)) }, true);
+    // C5 for these panes too: a right-click while any tool is armed drops the drawing in progress
+    const cancel = (e: Event) => { if(!armed()) return; e.preventDefault(); e.stopImmediatePropagation(); all().forEach(m => m.tool() && m.setTool(null)); syncTool(null) };
+    wrap.addEventListener('contextmenu', cancel, true); fwrapEl.addEventListener('contextmenu', cancel, true);
+  }
 
   syncTool(null); syncMagnet(); syncRemove(); syncLineButton(); applyCursor();
 

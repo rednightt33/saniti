@@ -772,9 +772,9 @@ html.fit .main-col.flow-collapsed{grid-template-rows:46px minmax(200px,1fr) auto
 /* EXEC-TERMINAL-1026B F1 (user 2026-10-26: "fontnya boleh diperkecil?" → "Untuk F1 oke"): smaller Flow figures */
 html.fit .flow-stat-label{font-size:11px}
 html.fit .flow-stat-val{font-size:13px}
-/* EXEC-TERMINAL-SPIN: the loading ring (one turn in 0.6 s; slower, not stopped, when the user asks for less motion) */
+/* EXEC-TERMINAL-SPIN: the loading ring (one turn in 0.25 s since EXEC-TERMINAL-1026C C3; slower, not stopped, when the user asks for less motion) */
 .ml-loading{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--text-2);white-space:nowrap}
-.ml-spin{width:14px;height:14px;box-sizing:border-box;border:2px solid var(--border);border-top-color:var(--text);border-radius:50%;animation:ml-spin .6s linear infinite;flex-shrink:0}
+.ml-spin{width:14px;height:14px;box-sizing:border-box;border:2px solid var(--border);border-top-color:var(--text);border-radius:50%;animation:ml-spin .25s linear infinite;flex-shrink:0}
 .ml-boot{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);z-index:20;pointer-events:none}
 .ml-boot .ml-spin{width:22px;height:22px;border-width:2.5px}
 .ml-boot .ml-loading{font-size:13px;gap:10px}
@@ -788,4 +788,7 @@ html.fit .flow-stat-val{font-size:13px}
 .tk-sm{width:16px;height:16px;font-size:7px;margin-right:5px;vertical-align:-3px}
 .gp-avatar.has-logo{background:transparent;padding:0}
 .gp-avatar.has-logo .tk-logo,.gp-avatar.has-logo .tk-mono{width:32px;height:32px;font-size:11px}
+/* EXEC-TERMINAL-1026C C2: the latest broker day's date and a neutral zero */
+.flow-stat-day{color:var(--text-3);font-size:10.5px;margin-left:3px}
+.flow-stat-val.flat{color:var(--text-2)}
 

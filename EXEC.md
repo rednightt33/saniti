@@ -8071,3 +8071,7 @@ lambat, bagiamana kalau user banyak. Yang lain OK, jalankan".
 - C4: alat gambar di panel indikator bawah (mis. MACD) dan chart Flow — prototipe dulu, ditunjukkan ke user.
 - C5: klik kanan saat menarik garis membatalkan garis itu.
 - C6 (B): ukur ke mana waktu muat habis, termasuk untuk banyak pengguna sekaligus; laporan, tanpa perubahan.
+
+Status 2026-10-26: C1, C2, C3, C5 selesai (ERRORS "EXEC-TERMINAL-1026C — C1/C2/C3/C5 selesai"). C4: prototipe di
+`/terminal-app/?drawpanes=1`, menunggu tanggapan user sebelum dirapikan (simpan gambar, undo, tarik-lepas). C6: laporan
+di FUTURE_PLAN "Terminal: waktu muat dan banyak pengguna" (usulan, belum disetujui).

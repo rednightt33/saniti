@@ -10,7 +10,7 @@ export interface PriceRow { d: string; o: number; h: number; l: number; c: numbe
 export interface WorkerCombo { broker: string; investor: string; board: string; gross: number; net: Float64Array }
 export type WorkerAnswer =
   | { id: number; type: 'price'; rows: PriceRow[] }
-  | { id: number; type: 'broker' | 'brokerAll'; combos: WorkerCombo[]; flowFrom: number; dates: string[]; rows: BrokerRow[][] }
+  | { id: number; type: 'broker' | 'brokerAll'; combos: WorkerCombo[]; flowFrom: number; flowTo: number; dates: string[]; rows: BrokerRow[][] }
   | { id: number; type: 'events'; rows: Record<string, unknown>[] }
   | { id: number; type: 'error'; message: string; status: number };
 
@@ -47,7 +47,7 @@ const board = (m: string) => /nego/i.test(m) ? 'Nego' : /cash|tunai/i.test(m) ? 
 export function brokerData(docs: Columnar[], dates: string[]) {
   const N = dates.length, idx = new Map(dates.map((t, i) => [t, i]));
   const combos = new Map<string, WorkerCombo>(), byDate = new Map<string, BrokerRow[]>();
-  let flowFrom = N;
+  let flowFrom = N, flowTo = -1;                      // first and last session with broker rows
   for (const doc of docs) {
     const { d, b, i: inv, m, bv, sv, bl, sl } = doc;
     for (let k = 0; k < d.length; k++) {
@@ -56,6 +56,7 @@ export function brokerData(docs: Columnar[], dates: string[]) {
       (byDate.get(d[k]) || byDate.set(d[k], []).get(d[k])!).push(row);
       const i = idx.get(d[k]); if (i === undefined) continue;
       if (i < flowFrom) flowFrom = i;
+      if (i > flowTo) flowTo = i;
       const key = `${row[0]}|${row[1]}|${brd}`;
       let c = combos.get(key);
       if (!c) combos.set(key, c = { broker:row[0], investor:row[1], board:brd, gross:0, net:new Float64Array(N) });
@@ -63,7 +64,7 @@ export function brokerData(docs: Columnar[], dates: string[]) {
     }
   }
   const last = [...byDate.keys()].sort().slice(-30);
-  return { combos:[...combos.values()], flowFrom, dates:last, rows:last.map(t => byDate.get(t)!) };
+  return { combos:[...combos.values()], flowFrom, flowTo, dates:last, rows:last.map(t => byDate.get(t)!) };
 }
 
 export const rowsOf = (doc: Columnar) => {

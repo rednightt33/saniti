@@ -23,7 +23,7 @@ export interface MarketEvent { id: string; type: string; date: string; at?: stri
   label?: string }
 
 /** live broker data that arrives after the first draw: the recent years first, then the whole history (F5) */
-export interface LateBroker { combos: Combo[]; flowFrom: number; broker: MarketData['broker'] }
+export interface LateBroker { combos: Combo[]; flowFrom: number; flowTo: number; broker: MarketData['broker'] }
 
 export interface MarketData {
   mode: 'fixture' | 'live';

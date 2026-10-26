@@ -108,3 +108,6 @@ Auth and admin routes are not forwarded. The presigned downloads go straight fro
 
 - (EXEC-TERMINAL-LOGO) `GET /logo/{ticker}` returns the ticker's logo (PNG or SVG; cached a week, ask with `?v=<sha256
   prefix>` from `reference/logos`, columns ticker, file, sha256, source, fetched_at); 404 `no_logo` → show a monogram.
+- (EXEC-TERMINAL-1026C) Worker answers carry `flowTo` (last session with broker rows): Latest day net uses it and shows
+  its date. Statistics shows the visible dates. Right-click while a drawing tool is armed cancels the drawing.
+  Prototype `?drawpanes=1`: drawing tools on indicator panes and the Flow chart (not saved yet).

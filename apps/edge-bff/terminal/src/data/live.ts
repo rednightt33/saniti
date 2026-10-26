@@ -175,7 +175,7 @@ export async function liveData(stored: string | null): Promise<MarketData> {
     const b = await stage;
     const brokerTypes = new Map((await brokerRefP.catch(() => [])).map((r: any) => [r.code, r.type] as [string, string]));
     return {
-      combos:b.combos.map(c => ({ ...c, tilt:0 })) as Combo[], flowFrom:b.flowFrom,
+      combos:b.combos.map(c => ({ ...c, tilt:0 })) as Combo[], flowFrom:b.flowFrom, flowTo:b.flowTo,
       broker:{ dates:b.dates, rows:(d: number) => b.rows[d] || [], label:SYMBOL,
                category:(code: string) => brokerTypes.get(code) === 'Foreign' ? 'F' : 'L' }
     };

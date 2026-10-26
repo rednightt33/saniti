@@ -58,8 +58,8 @@ function later(ctx: Ctx, M: MarketData) {
   const failed = () => { const note = $('flowNote'); note.textContent = 'Broker data could not be loaded. Reload the page to try again.'; note.hidden = false };
   /* F5: the recent years first (Flow and Broker activity), then the whole history replaces them in the Flow Timeline */
   M.later.broker.then(b => {
-    ctx.setFlowData(b.combos, b.flowFrom, true); ctx.setBrokerPanelData(b.broker);
-    M.later!.brokerAll.then(all => ctx.setFlowData(all.combos, all.flowFrom), failed);
+    ctx.setFlowData(b.combos, b.flowFrom, true, b.flowTo); ctx.setBrokerPanelData(b.broker);
+    M.later!.brokerAll.then(all => ctx.setFlowData(all.combos, all.flowFrom, false, all.flowTo), failed);
   }, () => { ctx.setFlowData([], ctx.N); failed() });
 }
 

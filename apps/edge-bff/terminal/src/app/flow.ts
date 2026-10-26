@@ -51,6 +51,7 @@ export function initFlow(ctx: Ctx) {
     priceScaleId:'right', priceLineVisible:false, lastValueVisible:false,
     priceFormat:{ type:'custom', formatter:(v: number)=>axisTextFor(()=>flowBars, v, 8), minMove:1 }
   });
+  (ctx as any).flowSeries = flowBars;                     // the Flow chart's drawing anchor (C4 prototype)
   const flowCum: any = flowChart.addSeries(L.LineSeries, {
     priceScaleId:'left', color:'#171717', lineWidth:2, priceLineVisible:false, lastValueVisible:false,
     crosshairMarkerRadius:3, priceFormat:{ type:'custom', formatter:(v: number)=>axisTextFor(()=>flowCum, v), minMove:1 }
@@ -70,7 +71,7 @@ export function initFlow(ctx: Ctx) {
      terdisplay saja, sama seperti bagian statistics"): the period is the chart's visible range, the daily average
      counts the visible sessions that have broker data (live data before the first broker date has no rows); each
      figure has an info mark that says in one sentence how it is computed */
-  let flowFrom = ctx.M.flowFrom;
+  let flowFrom = ctx.M.flowFrom, flowTo = N - 1;         // flowTo: the last session with broker rows (C2)
   let flowLoading = !!ctx.M.later;                        // live: the broker files arrive after the first draw
   let flowMore = false;                                   // F5: the recent years are in, the older ones still loading
   const visible = () => {
@@ -85,10 +86,15 @@ export function initFlow(ctx: Ctx) {
   const info = (l: string) => `<span class="flow-info" tabindex="0" role="img" aria-label="${FLOW_INFO[l]}" data-tip="${l}|${FLOW_INFO[l]}"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.6v4.2"/><circle cx="8" cy="11.2" r=".5"/></svg></span>`;
   const LIVE = ctx.M.mode === 'live';                      // the fixture keeps the reference's whole-series figures (1:1 check)
   const flowSummary = () => {
-    const [a, b] = LIVE ? visible() : [0, N-1], from = Math.max(a, flowFrom);
+    /* EXEC-TERMINAL-1026C C2 (user 2026-10-26: "kalau negatif ya di show saja huruf merah. Dengan minus"): live, the latest
+       day is the last session with broker rows (the newest price session may not have them yet) and carries its date;
+       a negative figure is red with its minus, zero is neutral */
+    const [a, b0] = LIVE ? visible() : [0, N-1], b = LIVE ? Math.min(b0, flowTo) : b0, from = Math.max(a, flowFrom);
     let total = 0; for(let i=from;i<=b;i++) total += flowNet[i];
-    const last = flowNet[N-1], avg = total/(b - from + 1 > 0 ? b - from + 1 : 1);
-    const stat = (l: string, v: number) => `<div class="flow-stat"><span class="flow-stat-label">${l}${LIVE ? info(l) : ''}</span><span class="flow-stat-val ${v>=0?'up':'down'}">${rupiah(v)}</span></div>`;
+    const lastI = LIVE ? flowTo : N-1, last = lastI >= 0 ? flowNet[lastI] : 0, avg = total/(b - from + 1 > 0 ? b - from + 1 : 1);
+    const tone = (v: number) => LIVE ? (v > 0 ? 'up' : v < 0 ? 'down' : 'flat') : (v>=0?'up':'down');
+    const day = (l: string) => LIVE && l === 'Latest day net' && lastI >= 0 && lastI < N ? ` <span class="flow-stat-day">${fmtDMY(lastI)}</span>` : '';
+    const stat = (l: string, v: number) => `<div class="flow-stat"><span class="flow-stat-label">${l}${day(l)}${LIVE ? info(l) : ''}</span><span class="flow-stat-val ${tone(v)}">${rupiah(v)}</span></div>`;
     $('flowSummary').innerHTML = stat('Latest day net', last) + stat('Period net total', total) + stat('Avg daily net', avg);
   };
   let summaryRaf = 0;
@@ -283,9 +289,9 @@ export function initFlow(ctx: Ctx) {
     }
   };
   /* live: the broker files read by the worker after the first draw (EXEC-TERMINAL-UI-1026 U5) */
-  ctx.setFlowData = (combos, from, more = false) => {
+  ctx.setFlowData = (combos, from, more = false, to = N - 1) => {
     const wasAll = flt.brokers.size === allBrokers().length;   // a broker choice the user made survives the full history
-    ctx.COMBOS = combos; flowFrom = from; flowLoading = false; flowMore = more;
+    ctx.COMBOS = combos; flowFrom = from; flowTo = to; flowLoading = false; flowMore = more;
     if(wasAll){ flt.brokers.clear(); allBrokers().forEach(b=>flt.brokers.add(b)) }
     [fBroker,fBoard,fInv].forEach(f=>f.refresh()); onFilter();
     ctx.refreshFlowIndicators?.();

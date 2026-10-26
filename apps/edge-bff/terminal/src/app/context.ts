@@ -110,7 +110,7 @@ export interface Ctx {
   pushRange: (from: LWC.IChartApi, to: LWC.IChartApi) => void;
   syncAxisWidths: () => void;
   /* data that arrives after the first draw (live, EXEC-TERMINAL-UI-1026 U5) */
-  setFlowData: (combos: Combo[], flowFrom: number, more?: boolean) => void;
+  setFlowData: (combos: Combo[], flowFrom: number, more?: boolean, flowTo?: number) => void;
   setBrokerPanelData: (broker: MarketData['broker']) => void;
   refreshFlowIndicators: () => void;
 }

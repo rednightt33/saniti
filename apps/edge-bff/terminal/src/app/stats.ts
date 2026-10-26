@@ -209,10 +209,12 @@ export function initStats(ctx: Ctx) {
     const [a,b] = visRange(); renderSeasonality(a,b);
   };
 
+  const shortDate = (d: string) => new Date(d+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'});
   const renderStats = () => {
     if(ws.classList.contains('left-collapsed')) return;
     const [a,b] = visRange();
-    $('statsRange').textContent = `${b-a+1} sessions`;
+    // EXEC-TERMINAL-1026C C1 (user 2026-10-26: "date covered ... tanggal berapa sampai tanggal berapa"): live shows the dates
+    $('statsRange').textContent = `${b-a+1} sessions` + (ctx.M.mode === 'live' ? ` · ${shortDate(dates[a])} – ${shortDate(dates[b])}` : '');
     $('statsRange').title = `Visible range: ${dates[a]} → ${dates[b]}`;
 
     /* 1 · Return distribution */
