@@ -2030,6 +2030,28 @@ change yet.
 - **Status:** OPEN.
 - **Lesson:** satu aturan katalog, satu implementasi; aturan yang disalin akan menyimpang.
 
+### M237 — Pertanyaan nilai tersimpan satu emiten (dividen terakhir BBCA) dirutekan FACT, jadi dijawab tanpa data (2026-10-26)
+
+- **Symptom:** L3 `ma-event-insider-l3-20261026a-a_bbca_dividend_terms-1` (EXEC-M223): "Berapa dividen tunai terakhir
+  BBCA per lembar, dan kapan cum date, recording date dan tanggal pembayarannya?" → router `FACT`, status `LIMITED`,
+  jawaban "belum bisa saya sebutkan ... pengambilan data itu belum dijalankan di sini". Pertanyaan yang sama dengan
+  `analysis_path` ANALYSIS (`…20261026b-a2…`) menjawab benar dari `idx_event_annotation`. Pertanyaan insider SPMA
+  dirutekan ANALYSIS dan benar.
+- **Verified cause:** `apps/market-ai-orc/app/conversation_router.py` `FIRST_ROUTES["FACT"]` memuat "a fact about a
+  company ... that a web fact or the data catalog answers", sedangkan langkah FACT berjalan "no warehouse data"
+  (`NOTES["FACT"]`, `first_route_path`). Nilai yang tersimpan di tabel gudang (dividen, tanggal aksi korporasi) cocok
+  dengan kalimat definisi FACT, padahal FACT tidak bisa membacanya. Router memilih dari teks; backend tidak memeriksa.
+- **Class:** setiap pertanyaan satu nilai tersimpan tentang satu emiten (dividen, split, insider, harga penutupan
+  terakhir, data makro atau lintas-aset nanti) bisa dirutekan FACT dan berakhir LIMITED; makin banyak tabel, makin
+  sering. Ini kelas yang sama dengan M144 (batas FACT vs data) dari arah sebaliknya.
+- **Solution (usulan, perlu go):** batas FACT dijaga backend, bukan hanya kalimat router: bila rute FACT dan intent
+  menyebut emiten atau ukuran yang ada di katalog (AI_table_catalog/AI_column_catalog, diturunkan saat run), backend
+  menurunkan rute ke ANALYSIS (sudah ada `first_route_path`), lalu definisi FACT dipersempit ke definisi, konsep dan
+  isi katalog. Tes: dividen BBCA, harga penutupan terakhir, dan "apa itu RSI" (harus tetap FACT).
+- **Status:** OPEN.
+- **Lesson:** rute tanpa akses data harus dibatasi oleh pemeriksaan backend yang membaca katalog, bukan oleh kata di
+  prompt router.
+
 ### M232 — Tes EDGE `test_a_short_title_never_wraps_and_a_long_title_folds_within_its_width` gagal di `main` (2026-10-26)
 
 - **Symptom:** suite edge-bff sebelum merge cabang terminal (2026-10-26): 169 lulus, 2 gagal; tes ini gagal juga di
