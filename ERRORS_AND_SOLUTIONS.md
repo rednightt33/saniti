@@ -1823,7 +1823,7 @@ change yet.
   `ratio_old`, `ratio_new`, `terms_price`. Nilainya diambil dari payload per `action_type` lewat satu tabel pemetaan
   kunci payload → kolom di migrasi, agar jenis baru cukup menambah satu baris pemetaan. Ditambah Column_Catalog dengan
   unit dan baris AI_column_catalog. Tidak menyentuh dua tabel sumber.
-- **Status:** OPEN.
+- **Status:** OPEN. Rencana di EXEC.md EXEC-M223 (user 2026-10-26: "M223 masukan exec jangan execute dulu").
 - **Pengecekan ulang 2026-10-26 (job `ecc0df26`, read-only):** bukan masalah pendaftaran katalog. Ke-26 kolom
   `idx_event_annotation` terdaftar di `AI_column_catalog`, 22 terlihat. Kolom syaratnya memang tidak ada di tabel:
   `cum_date`, `ex_date`, `record_date`, `pay_date`, `start_date` dan `end_date` hanya ada di `stockbit_corporate_action`,
@@ -1858,6 +1858,25 @@ change yet.
   router tidak terpengaruh.
 - **Lesson:** "tanggal terakhir" sebagai ukuran kesegaran hanya sah untuk data observasi; data berjadwal butuh batas
   `as_of`.
+
+### M225 — Audit Feature catalog gagal: `idx_event_annotation` tercatat sebagai kategori Feature (2026-10-26)
+
+- **Symptom:** `scripts/audit_feature_catalog_semantics.py` (job `0732a602`, 2026-10-26) berhenti dengan
+  "Feature columns without active definitions" untuk 26 kolom `idx_event_annotation`.
+- **Verified cause** (job `71673659`): `Table_Catalog.category = 'Feature'` untuk `idx_event_annotation` (migrasi
+  `20261025_013`). Audit mewajibkan baris `Feature_Catalog` untuk setiap tabel ber-kategori Feature
+  (`audit_feature_catalog_semantics.py`:35-52). Tabel ini bukan Feature: namanya tidak berpola `Feature_NN_…` yang diterima
+  trigger `Feature_Catalog` (M202), dan `AI_table_catalog`-nya TRANSACTIONAL. Selain tabel ini, audit bersih: Feature
+  01–06 dan `_INDEX` lengkap (setiap kolom live punya definisi CALCULATION_VERIFIED, baris AI_column_catalog dan
+  AI_calculation_catalog). `Feature_Vocabulary` (`scripts/sync_feature_vocabulary.py`, mode rollback, job `2efdbc8d`)
+  berisi 391 entri tanpa drift makna.
+- **Class:** kategori `Table_Catalog` yang dipilih saat tabel dibuat menentukan audit mana yang berlaku. Tabel turunan
+  baru (event, makro) yang diberi kategori Feature tanpa definisi Feature akan selalu mematahkan audit.
+- **Solution (usulan, perlu go):** migrasi maju yang mengubah kategori menjadi `Transactional`, sama dengan dua tabel
+  sumbernya. Ikut dalam EXEC-M223, atau dijalankan sendiri bila diminta lebih dulu.
+- **Status:** OPEN.
+- **Lesson:** kategori Feature hanya untuk tabel yang punya baris `Feature_Catalog`; jalankan audit Feature sesudah setiap
+  tabel baru, bukan hanya sesudah perubahan Feature.
 
 ## Fixed-income selected-date repair — 2026-10-20 status
 
