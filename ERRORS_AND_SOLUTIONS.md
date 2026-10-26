@@ -2139,8 +2139,11 @@ change yet.
   dua tanggal itu SQL = −4,246 T ÷ 95 = −44,7 M, sama dengan halaman. Halaman menyusun Flow per sesi harga (aturan
   referensi `setBroksumRows`: tanggal di luar sesi chart dilewati). Catatan lama yang sama: entri 2026-10-23 "OHLC-only
   index" ("Current stored price data contains neither date").
-- **Suspected cause of the gap (belum diverifikasi):** cron harga harian (`idx-price-cron`) gagal atau tidak berjalan
-  pada dua hari itu. Cek: log deployment cron 2026-09-17/18 dan `price_update` untuk tanggal tersebut.
+- **Penyebab celah (diperiksa 2026-10-26):** `Monitoring_Price_ALL` tidak punya baris run (DAILY maupun RECOVERY) untuk
+  2026-09-17/18; run 16 dan 21 Sep tercatat. Log deployment `ae37f76e` hanya tersimpan sejak 2026-09-27, jadi alasan run
+  tidak terjadi tetap dugaan. Terverifikasi: `recovery_window.py` `correction_target_dates` hanya memeriksa tanggal
+  yang sudah tersimpan plus satu sesi terbaru, sehingga hari bursa yang hilang seluruhnya tidak pernah diisi ulang.
+  Usulan perbaikan dan pengisian: EXEC-TERMINAL-1026B F3.
 - **Class:** celah tanggal di satu sumber (harga) membuat angka turunan dari sumber lain (broker) hilang diam-diam; kena
   ke setiap ticker, setiap tanggal yang tidak punya harga, dan nanti ke data makro/lintas aset yang disejajarkan ke sesi
   harga.
