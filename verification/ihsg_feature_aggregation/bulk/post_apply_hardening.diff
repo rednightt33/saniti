@@ -1,0 +1,15 @@
+--- applied/backfill_index_features.py
++++ current/backfill_index_features.py
+@@ -274,0 +275,6 @@
++        existing=db.execute('SELECT count(*) AS n FROM migration_archive.index_feature_rows WHERE snapshot_id=%s AND source_table=%s',(snapshot,target)).fetchone()['n']
++        if existing:
++            bad=db.execute('SELECT count(*) AS n FROM migration_archive.index_feature_rows WHERE snapshot_id=%s AND source_table=%s AND row_hash<>md5(row_data::text)',(snapshot,target)).fetchone()['n']
++            if bad:raise RuntimeError('Existing pre-bulk archive hash mismatch')
++            emit('original_snapshot_preserved',table=target,rows=existing)
++            continue
+@@ -308 +314 @@
+-         source_code_paths=array_append(source_code_paths,'scripts/backfill_index_features.py'),
++         source_code_paths=CASE WHEN 'scripts/backfill_index_features.py'=ANY(source_code_paths) THEN source_code_paths ELSE array_append(source_code_paths,'scripts/backfill_index_features.py') END,
+@@ -313 +319 @@
+-         validation_evidence=array_append(validation_evidence,'verification/ihsg_feature_aggregation/bulk/') WHERE is_active AND feature_table=ANY(%s)''',(targets,))
++         validation_evidence=CASE WHEN 'verification/ihsg_feature_aggregation/bulk/'=ANY(validation_evidence) THEN validation_evidence ELSE array_append(validation_evidence,'verification/ihsg_feature_aggregation/bulk/') END WHERE is_active AND feature_table=ANY(%s)''',(targets,))

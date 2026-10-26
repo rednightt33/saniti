@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh AI data coverage without reading Feature 01, 02, 03, or 04 tables."""
+"""Refresh AI data coverage without reading any Feature table (Feature 01-06, their stock views and INDEX tables)."""
 
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ READ_TABLES = frozenset(
         "Feature_Status",
         "Price_Fixed_Income_Final",
         "Universe_Fixed_income",
+        "idx_event_annotation",
     }
 )
 WRITE_TABLES = frozenset({"AI_data_coverage"})
@@ -36,6 +37,12 @@ FORBIDDEN_FEATURE_TABLES = frozenset(
         "Feature_06_Foreign_Domestic",
         "Feature_05_Foreign_Domestic_Broker_Detail_Stock",
         "Feature_06_Foreign_Domestic_Stock",
+        "Feature_01_Stock_Daily_INDEX",
+        "Feature_02_Broker_Rolling_INDEX",
+        "Feature_03_Stock_Broker_Daily_INDEX",
+        "Feature_04_Technical_Indicator_INDEX",
+        "Feature_05_Foreign_Domestic_Broker_Detail_INDEX",
+        "Feature_06_Foreign_Domestic_INDEX",
     }
 )
 # EXEC-M204 (2026-10-23): manual-refresh Features derived from IDX_Broker_Summary, with the entity filter of the object
@@ -43,6 +50,20 @@ FORBIDDEN_FEATURE_TABLES = frozenset(
 # Broker Summary coverage of those stocks (the filter is the views' own, read from IDX_Stock_Universe, not a list).
 STOCK_UNIVERSE_FILTER = (
     'AND source.entity_id IN (SELECT u."Ticker" FROM public."IDX_Stock_Universe" AS u WHERE u."Security Type" = \'stock\')'
+)
+# EXEC-INDEX-1 (2026-10-25): the index codes are the IDX_Stock_Universe rows of "Security Type" index, read at run
+# time, not listed. Stock Features hold no index row (the INDEX tables do), so their expectations leave index codes out.
+INDEX_CODES = 'SELECT u."Ticker" FROM public."IDX_Stock_Universe" AS u WHERE u."Security Type" = \'index\''
+INDEX_FILTER = "AND source.entity_id IN (" + INDEX_CODES + ")"
+NOT_INDEX_FILTER = "AND source.entity_id NOT IN (" + INDEX_CODES + ")"
+# INDEX Features of the index price (one row per index and price date) and of market-wide broker flows (one row per
+# index and Broker Summary date: every source symbol of the date, so the expected range is the Broker Summary range)
+PRICE_INDEX_FEATURES = ("Feature_01_Stock_Daily_INDEX", "Feature_04_Technical_Indicator_INDEX")
+MARKET_WIDE_INDEX_FEATURES = (
+    "Feature_02_Broker_Rolling_INDEX",
+    "Feature_03_Stock_Broker_Daily_INDEX",
+    "Feature_05_Foreign_Domestic_Broker_Detail_INDEX",
+    "Feature_06_Foreign_Domestic_INDEX",
 )
 BROKER_SUMMARY_FEATURES = {
     "Feature_02_Broker_Rolling": "",
@@ -55,12 +76,12 @@ RAW_SOURCES = {
     "Price_Stock_Indonesia_IDX": {
         "entity_column": "ticker",
         "date_column": "date",
-        "reference_for": ("Feature_01_Stock_Daily", "Feature_04_Technical_Indicator"),
+        "reference_for": ("Feature_01_Stock_Daily", "Feature_04_Technical_Indicator") + PRICE_INDEX_FEATURES,
     },
     "IDX_Broker_Summary": {
         "entity_column": "Symbol",
         "date_column": "Date",
-        "reference_for": tuple(BROKER_SUMMARY_FEATURES),
+        "reference_for": tuple(BROKER_SUMMARY_FEATURES) + MARKET_WIDE_INDEX_FEATURES,
     },
     # EXEC-ONBOARD-1: the final daily bond bars (both metric types per ticker); Feature 04's bond rows come from the
     # price series of this view
@@ -68,6 +89,12 @@ RAW_SOURCES = {
         "entity_column": "ticker",
         "date_column": "date",
         "reference_for": ("Feature_04_Technical_Indicator",),
+    },
+    # EXEC-GO-1025: Stockbit corporate actions and insider movements, one row per event (its own coverage)
+    "idx_event_annotation": {
+        "entity_column": "ticker",
+        "date_column": "annotation_date",
+        "reference_for": (),
     },
 }
 SNAPSHOTS = ("IDX_Stock_Universe", "IDX_Broker_Profile", "Universe_Fixed_income")
@@ -153,6 +180,17 @@ def raw_coverage_rows(
             ORDER BY ticker
             """,
             parameters,
+        ).fetchall()
+    if dataset_name == "idx_event_annotation":
+        # every pull rebuilds the whole table, so the full range is always read (123,047 rows on 2026-10-25)
+        return connection.execute(
+            """
+            SELECT ticker, min(annotation_date), max(annotation_date),
+                   count(*)::bigint, count(DISTINCT annotation_date)::bigint
+            FROM public.idx_event_annotation
+            GROUP BY ticker
+            ORDER BY ticker
+            """
         ).fetchall()
     raise ValueError(f"Unsupported raw dataset: {dataset_name}")
 
@@ -376,6 +414,7 @@ def upsert_feature_one_expectations(
          AND status.ticker = source.entity_id
         WHERE source.dataset_name = 'Price_Stock_Indonesia_IDX'
           AND source.coverage_scope = 'ENTITY'
+        """ + NOT_INDEX_FILTER + """
         ON CONFLICT (dataset_name, coverage_scope, (COALESCE(entity_id, ''))) DO UPDATE SET
             reference_dataset_name = EXCLUDED.reference_dataset_name,
             coverage_mode = EXCLUDED.coverage_mode,
@@ -472,8 +511,9 @@ def upsert_feature_four_expectations(
             SELECT entity_id, 'Price_Stock_Indonesia_IDX' AS reference_dataset_name,
                    actual_min_date AS expected_min_date, actual_max_date AS expected_max_date,
                    source_row_count, source_key_count, last_full_checked_at
-            FROM public."AI_data_coverage"
+            FROM public."AI_data_coverage" AS source
             WHERE dataset_name = 'Price_Stock_Indonesia_IDX' AND coverage_scope = 'ENTITY'
+            """ + NOT_INDEX_FILTER + """
             UNION ALL
             SELECT ticker, 'Price_Fixed_Income_Final', min(date), max(date),
                    count(*)::bigint, count(DISTINCT date)::bigint, %s
@@ -502,7 +542,7 @@ def upsert_feature_four_expectations(
 
 
 def prune_feature_four_entities(connection: psycopg.Connection[Any]) -> None:
-    """Full mode: a Feature 04 entity in neither raw source is dropped."""
+    """Every mode: a Feature 04 entity in neither raw source (index codes left out of the stock prices) is dropped."""
     connection.execute(
         """
         DELETE FROM public."AI_data_coverage" AS derived
@@ -513,6 +553,7 @@ def prune_feature_four_entities(connection: psycopg.Connection[Any]) -> None:
               WHERE source.dataset_name = 'Price_Stock_Indonesia_IDX'
                 AND source.coverage_scope = 'ENTITY'
                 AND source.entity_id = derived.entity_id
+                """ + NOT_INDEX_FILTER + """
           )
           AND NOT EXISTS (
               SELECT 1 FROM public."Price_Fixed_Income_Final" AS bond
@@ -526,7 +567,9 @@ def prune_derived_entities(
     connection: psycopg.Connection[Any],
     feature_table: str,
     source_table: str,
+    entity_filter: str = "",
 ) -> None:
+    """A derived entity whose source entity is gone, or no longer passes the Feature's entity filter, is dropped."""
     connection.execute(
         """
         DELETE FROM public."AI_data_coverage" AS derived
@@ -538,9 +581,116 @@ def prune_derived_entities(
               WHERE source.dataset_name = %s
                 AND source.coverage_scope = 'ENTITY'
                 AND source.entity_id = derived.entity_id
+                """ + entity_filter + """
           )
         """,
         (feature_table, source_table),
+    )
+
+
+def upsert_price_index_expectations(
+    connection: psycopg.Connection[Any],
+    feature_table: str,
+    checked_at: datetime,
+) -> None:
+    """An INDEX price Feature expects the price range of each index code; its refresh is manual (EXEC-INDEX-1)."""
+    connection.execute(
+        """
+        INSERT INTO public."AI_data_coverage" (
+            dataset_name, coverage_scope, entity_id,
+            reference_dataset_name, coverage_mode,
+            actual_min_date, actual_max_date,
+            expected_min_date, expected_max_date,
+            source_row_count, source_key_count,
+            pipeline_status, verification_status, quality_status,
+            check_error, last_checked_at, last_full_checked_at
+        )
+        SELECT
+            %s, 'ENTITY', source.entity_id,
+            'Price_Stock_Indonesia_IDX', 'EXPECTED_DERIVED',
+            NULL, NULL, source.actual_min_date, source.actual_max_date,
+            source.source_row_count, source.source_key_count,
+            'MANUAL_REFRESH_REQUIRED', 'UNVERIFIED', 'WARNING',
+            NULL, %s, source.last_full_checked_at
+        FROM public."AI_data_coverage" AS source
+        WHERE source.dataset_name = 'Price_Stock_Indonesia_IDX'
+          AND source.coverage_scope = 'ENTITY'
+        """ + INDEX_FILTER + """
+        ON CONFLICT (dataset_name, coverage_scope, (COALESCE(entity_id, ''))) DO UPDATE SET
+            reference_dataset_name = EXCLUDED.reference_dataset_name,
+            coverage_mode = EXCLUDED.coverage_mode,
+            actual_min_date = NULL,
+            actual_max_date = NULL,
+            expected_min_date = EXCLUDED.expected_min_date,
+            expected_max_date = EXCLUDED.expected_max_date,
+            source_row_count = EXCLUDED.source_row_count,
+            source_key_count = EXCLUDED.source_key_count,
+            pipeline_status = EXCLUDED.pipeline_status,
+            verification_status = EXCLUDED.verification_status,
+            quality_status = EXCLUDED.quality_status,
+            check_error = NULL,
+            last_checked_at = EXCLUDED.last_checked_at,
+            last_full_checked_at = EXCLUDED.last_full_checked_at
+        """,
+        (feature_table, checked_at),
+    )
+
+
+def upsert_market_wide_index_expectations(
+    connection: psycopg.Connection[Any],
+    feature_table: str,
+    checked_at: datetime,
+) -> None:
+    """A market-wide INDEX broker Feature aggregates every source symbol of a date, so each index code expects the
+    whole Broker Summary range (its DATASET row); the refresh is manual (EXEC-INDEX-1). Index codes no longer in the
+    universe are dropped."""
+    connection.execute(
+        """
+        INSERT INTO public."AI_data_coverage" (
+            dataset_name, coverage_scope, entity_id,
+            reference_dataset_name, coverage_mode,
+            actual_min_date, actual_max_date,
+            expected_min_date, expected_max_date,
+            source_row_count, source_key_count,
+            pipeline_status, verification_status, quality_status,
+            check_error, last_checked_at, last_full_checked_at
+        )
+        SELECT
+            %s, 'ENTITY', codes."Ticker",
+            'IDX_Broker_Summary', 'EXPECTED_DERIVED',
+            NULL, NULL, source.actual_min_date, source.actual_max_date,
+            source.source_row_count, source.source_key_count,
+            'MANUAL_REFRESH_REQUIRED', 'UNVERIFIED', 'WARNING',
+            NULL, %s, source.last_full_checked_at
+        FROM public."AI_data_coverage" AS source
+        CROSS JOIN (""" + INDEX_CODES + """) AS codes
+        WHERE source.dataset_name = 'IDX_Broker_Summary'
+          AND source.coverage_scope = 'DATASET'
+        ON CONFLICT (dataset_name, coverage_scope, (COALESCE(entity_id, ''))) DO UPDATE SET
+            reference_dataset_name = EXCLUDED.reference_dataset_name,
+            coverage_mode = EXCLUDED.coverage_mode,
+            actual_min_date = NULL,
+            actual_max_date = NULL,
+            expected_min_date = EXCLUDED.expected_min_date,
+            expected_max_date = EXCLUDED.expected_max_date,
+            source_row_count = EXCLUDED.source_row_count,
+            source_key_count = EXCLUDED.source_key_count,
+            pipeline_status = EXCLUDED.pipeline_status,
+            verification_status = EXCLUDED.verification_status,
+            quality_status = EXCLUDED.quality_status,
+            check_error = NULL,
+            last_checked_at = EXCLUDED.last_checked_at,
+            last_full_checked_at = EXCLUDED.last_full_checked_at
+        """,
+        (feature_table, checked_at),
+    )
+    connection.execute(
+        """
+        DELETE FROM public."AI_data_coverage"
+        WHERE dataset_name = %s AND coverage_scope = 'ENTITY'
+          AND entity_id NOT IN (""" + INDEX_CODES + """)
+        """,
+        (feature_table,),
     )
 
 
@@ -631,12 +781,13 @@ def run(mode: str, recent_days: int) -> dict[str, Any]:
 
         if "Feature_01_Stock_Daily" in enabled:
             upsert_feature_one_expectations(connection, checked_at)
-            if mode == "full":
-                prune_derived_entities(
-                    connection,
-                    "Feature_01_Stock_Daily",
-                    "Price_Stock_Indonesia_IDX",
-                )
+            # every mode: an index code left in from before EXEC-INDEX-1 is dropped too
+            prune_derived_entities(
+                connection,
+                "Feature_01_Stock_Daily",
+                "Price_Stock_Indonesia_IDX",
+                NOT_INDEX_FILTER,
+            )
             upsert_derived_dataset_summary(
                 connection,
                 "Feature_01_Stock_Daily",
@@ -661,9 +812,21 @@ def run(mode: str, recent_days: int) -> dict[str, Any]:
 
         if FEATURE_FOUR in enabled:
             upsert_feature_four_expectations(connection, checked_at)
-            if mode == "full":
-                prune_feature_four_entities(connection)
+            prune_feature_four_entities(connection)
             upsert_derived_dataset_summary(connection, FEATURE_FOUR, None, checked_at)
+
+        for feature_table in PRICE_INDEX_FEATURES:
+            if feature_table not in enabled:
+                continue
+            upsert_price_index_expectations(connection, feature_table, checked_at)
+            prune_derived_entities(connection, feature_table, "Price_Stock_Indonesia_IDX", INDEX_FILTER)
+            upsert_derived_dataset_summary(connection, feature_table, "Price_Stock_Indonesia_IDX", checked_at)
+
+        for feature_table in MARKET_WIDE_INDEX_FEATURES:
+            if feature_table not in enabled:
+                continue
+            upsert_market_wide_index_expectations(connection, feature_table, checked_at)
+            upsert_derived_dataset_summary(connection, feature_table, "IDX_Broker_Summary", checked_at)
 
         summary_rows = connection.execute(
             """

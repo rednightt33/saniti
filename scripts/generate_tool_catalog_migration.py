@@ -56,6 +56,9 @@ registering the new versions of the tools whose contract changed in that round.
 - round_ab (20261021_001): run_python v10 (in_period is a row mask with a right and a wrong example; emit_json declares
   units like emit_table; EXEC-RULES-1021).
 - round_ac (20261023_005): preview_table_rows v3 (twelve objects: the Feature 05/06 stock views added; EXEC-M204).
+- round_ad (20261025_006): preview_table_rows v4 (eighteen objects: the six INDEX Feature tables added; EXEC-INDEX-1).
+- round_ae (20261025_009): submit_data_need_spec v16, check_data_feasibility v8 and check_research_feasibility v8 (the
+  relationship key lists may be empty for a relationship on the date only; EXEC-M216).
 - round_w (20261015_015): the first row of search_values and get_dimension_values v3 (the user's words matched to
   stored codes and values: names, initials, part of a name; EXEC-IMPL-1016 Fase 3, O1).
 
@@ -631,8 +634,40 @@ ROUNDS = {
         "limits": {"preview_objects": "twelve approved objects; the ORDER BY of each is app/tools/preview.py ORDERING and "
                                       "public.ai_preview_table_rows (20261023_004)"},
     },
+    "round_ad": {
+        "target": ROOT / "database/migrations/20261025_006_round_ad_tool_catalog.sql",
+        "versions": {"preview_table_rows": ("v3", "v4")},
+        "contracts": {"preview_table_rows": ("input_schema", "Feature_06_Foreign_Domestic_INDEX")},
+        "title": "Feature 01-06 INDEX tables onboarded",
+        "header": "EXEC.md EXEC-INDEX-1 (user \"buat visible ke AI juga ya\", 2026-10-25)",
+        "design": "NEW_TABLE_ONBOARDING_PLAN.md section 4; EXEC.md EXEC-INDEX-1",
+        "limits_design": "EXEC.md EXEC-INDEX-1",
+        "summary": ["preview_table_rows previews eighteen objects: the twelve of round_ac and the six IDX Composite",
+                    "Index (IHSG) Feature tables Feature_01_Stock_Daily_INDEX to Feature_06_Foreign_Domestic_INDEX",
+                    "(database function in 20261025_005); the count in its description is derived from ORDERING."],
+        "limits": {"preview_objects": "eighteen approved objects; the ORDER BY of each is app/tools/preview.py ORDERING and "
+                                      "public.ai_preview_table_rows (20261025_005)"},
+    },
+    "round_ae": {
+        "target": ROOT / "database/migrations/20261025_009_round_ae_tool_catalog.sql",
+        "versions": {"submit_data_need_spec": ("v15", "v16"),
+                     "check_data_feasibility": ("v7", "v8"),
+                     "check_research_feasibility": ("v7", "v8")},
+        "contracts": {"submit_data_need_spec": ("input_schema", "meets on the date only"),
+                      "check_data_feasibility": ("input_schema", "meets on the date only"),
+                      "check_research_feasibility": ("input_schema", "meets on the date only")},
+        "title": "relationships on the date only",
+        "header": "EXEC.md EXEC-M216 (user \"Oke, kita go dengan eksekusi B.\", 2026-10-25)",
+        "design": "EXEC.md EXEC-M216; ERRORS_AND_SOLUTIONS.md M216",
+        "limits_design": "EXEC.md EXEC-M216",
+        "summary": ["The relationship key columns (left_columns / right_columns) may be empty: a relationship that meets",
+                    "on the date only (a stock and the IHSG index, a macro series) pairs only the time columns under",
+                    "EXACT_DATE or AS_OF; the side it declares one must name one series in its scope",
+                    "(ONE_SIDE_NOT_UNIQUE, sandbox and SQL Governor)."],
+        "limits": {},
+    },
 }
-NEWEST = "round_ac"
+NEWEST = "round_ae"
 
 
 def _tools_doc():

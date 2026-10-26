@@ -1,0 +1,74 @@
+{
+  "date": "2026-08-31",
+  "ticker": "IHSG",
+  "index_rows": {
+    "1": 1,
+    "2": 214,
+    "3": 3,
+    "4": 1,
+    "5": 214,
+    "6": 3
+  },
+  "legacy_counts": {
+    "feature1": 0,
+    "feature2": 0,
+    "feature3": 0,
+    "feature4": 0,
+    "feature5": 0,
+    "feature6": 0
+  },
+  "frequency_by_board": {
+    "Regular": {
+      "buy_freq": 2372642,
+      "sell_freq": 2372642,
+      "missing_buy_rows": 1715,
+      "missing_sell_rows": 1715
+    },
+    "Nego": {
+      "buy_freq": 859,
+      "sell_freq": 859,
+      "missing_buy_rows": 1,
+      "missing_sell_rows": 1
+    },
+    "Tunai": {
+      "buy_freq": 4,
+      "sell_freq": 4,
+      "missing_buy_rows": 1,
+      "missing_sell_rows": 1
+    }
+  },
+  "catalog_counts": [
+    {
+      "feature_table": "Feature_01_Stock_Daily_INDEX",
+      "active_columns": 29
+    },
+    {
+      "feature_table": "Feature_02_Broker_Rolling_INDEX",
+      "active_columns": 38
+    },
+    {
+      "feature_table": "Feature_03_Stock_Broker_Daily_INDEX",
+      "active_columns": 24
+    },
+    {
+      "feature_table": "Feature_04_Technical_Indicator_INDEX",
+      "active_columns": 57
+    },
+    {
+      "feature_table": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX",
+      "active_columns": 20
+    },
+    {
+      "feature_table": "Feature_06_Foreign_Domestic_INDEX",
+      "active_columns": 92
+    }
+  ],
+  "source_prices": {
+    "rows": 2125,
+    "first": "2018-01-02",
+    "last": "2026-10-23"
+  },
+  "readback_utc": "2026-10-24T16:12:25.475757807Z",
+  "bulk": false,
+  "daily_logic_changed": false
+}

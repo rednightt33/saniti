@@ -4401,7 +4401,145 @@ edge-bff only (static EDGE files); no variable or other service change. Rollback
 ## 2026-10-24 — EDGE quote without accent bar (EXEC-UI-1025b)
 
 edge-bff only (static CSS); preview tool changes are not deployed. Rollback reference: edge-bff `6e002b98`.
+### 2026-10-24 — IHSG one-date Feature03/05/06 job
 
+Explicit one-date data upsert only; no permanent deployment/configuration change. Temporary job
+service 965fbe5b-2ab8-4c52-84b5-e33f03d5e142 applied deployment
+aa12e983-b960-4d60-b2e5-a16481ce49ce (SUCCESS, committed=true). Stored counts/readback are in
+verification/ihsg_feature_aggregation/single_date. After readback, removed that service and the prior
+metadata diagnostic service be4de698-83a8-4461-b3be-cd183732095b. Source cron schedules and ordinary
+workers unchanged; no broader index worker/Telegram rollout or bulk feature load was released.
+
+### 2026-10-24 — dedicated INDEX six-table validation job
+
+Temporary service 106547df-4649-4896-984f-5fedad63571a executed rollback checks, sample APPLY,
+archive verification and metadata sync. APPLY deployment 71ee86d3-177f-4953-8772-8b22d536ea14
+committed at 16:11 UTC (23:11 WIB), then was retired when postchecks ran. Metadata sync deployment
+2d6b05db-60be-40b6-a2ac-467bda2a91c7 was observed SUCCESS. DB/pgweb independent readback confirms
+six INDEX samples, zero shared legacy IHSG rows, and retained source prices. The temporary service
+was deleted after verification; no permanent schedules, variables, worker/routing/Telegram deployments,
+or AI access settings changed. Private DB archive remains. Evidence: index_tables/ under
+verification/ihsg_feature_aggregation. Daily update design is still a separate approval gate.
+
+
+## 2026-10-25 — temporary INDEX bootstrap/vocabulary job, removed after verification
+
+Project lucid-patience / dev; temporary service index-feature-approved-bulk
+`5e377107-8e63-440a-9e44-188772a1729e`, image python:3.12-slim, no volume, no schedule,
+restartPolicyType=NEVER. DATABASE_URL uses the Postgres variable reference; no secret values recorded.
+Sources are repository scripts/migrations/seed bundled for a one-off private-network execution,
+not a permanent replacement Railway upload for any existing cron/worker.
+
+- First preparation d1006b00 failed before public writes (duplicate temporary calc2); rollback-only
+  smoke 0c4eaee7 exercised 330 sessions and passed after the fix.
+- Bootstrap f2323d2e completed at 02:13:43 WIB, 1,171,802 INDEX rows, all 62 chunks verified and
+  idempotent. Independent public readback matches. No daily routing enabled.
+- Metadata job b68db68a archived 585 original catalog rows and applied forward semantic refinement;
+  private archive hashes=0 mismatches.
+- Vocabulary attempt a1812e5a stopped on sibling import before DDL; fixed standalone runpy path.
+  Retry e2397fbc observed terminal SUCCESS, vocabulary_complete committed=true at 02:29:04 WIB:
+  391 entries, exact payload match and rerun_modified=0. Global audit only reports the known two
+  *_Stock views; scoped new metadata passes.
+- CLI variable upload is bounded into <60 KB mutation batches (24 KB chunks), avoiding the OS argv
+  limit. A managed executor restart did not stop the independent Railway job; persistent workspace
+  recovery records restored local tooling without restarting the calculation.
+- After logs/schema/data/catalog checks, service deleted with explicit environmentId. A global delete
+  was unauthorized for the environment-scoped project token; scoped deletion succeeded and the
+  service is absent from the project list. No idle service, new cron or volume remains.
+
+All permanent services, sources and schedules are unchanged; .railway/railway.ts has no persistent
+infrastructure delta for this temporary job. Detailed deployment statuses/events and cleanup readback:
+verification/ihsg_feature_aggregation/bulk/. Older deployment statuses became REMOVED as later
+one-off modes replaced them; current state is deleted, not running. Source changes are on the feature
+branch; this task does not release daily worker/frontend changes to main.
+
+## 2026-10-25 — INDEX tables exposed to the AI (EXEC-INDEX-1)
+
+- Commit `4557dd4` on `main` (with `371f5a2`, `6133be9`): market-ai-orc deployment `763e0476` SUCCESS (preview of the
+  six INDEX tables, router scope names IHSG); ai-data-coverage deployment `b12ccdef` SUCCESS (INDEX coverage, stock
+  coverage without index codes).
+- Before the push: no active EDGE run; first-message router benchmark with ask-back PASS (cost USD 0.079); orc suite
+  2,022 passed.
+- One-off jobs on orc-test-runner (each removed its temporary `DATABASE_URL`, VAR_REMOVED):
+  - read and size checks `618899ca`;
+  - Freq `3b6f4916` (DRYRUN) and `aaec0df4` (APPLY); an earlier job `c4e5e308` was started without its script, ran
+    nothing and was stopped;
+  - discovery and read jobs;
+  - index acceptance ×6;
+  - onboarding `db778889` and `7f348403` (DRYRUN), `8af07acc` (APPLY);
+  - L2 and the Governor checks.
+- Rollback: orc `be7c6693`, coverage previous deployment; catalog rollback per the migration header.
+
+## 2026-10-25 — EXEC-M216 date-only relationships
+
+- Push `cbdeb0c` to `main`: market-sql-governor `c9ca1da1`, market-python-sandbox `8f1d3d53`, market-ai-orc
+  `c70666b7`, each SUCCESS; orc startup without new inactive features.
+- orc-test-runner jobs (temporary `DATABASE_URL` reference, removed after each; VAR_REMOVED): catalog inspection
+  (read-only), migration DRYRUN `c99b3ff3`, migration APPLY `58657e12` (20261025_009, 20261025_010), end-to-end check
+  `e7f24086` (read-only).
+- No variable changed.
+
+## 2026-10-25 — EXEC-M219 jobs
+
+- orc-test-runner (temporary `DATABASE_URL`, VAR_REMOVED after each): read-only inspections, DRYRUN `a1eea00c` (refused by
+  a foreign key, nothing kept), `831eb843`, `c6800486`, APPLY `6c467349` (20261025_011). No service or variable changed.
+
+## 2026-10-25 — Feature_Vocabulary correction jobs
+
+- orc-test-runner (temporary `DATABASE_URL`, VAR_REMOVED after each): read-only export and scans `5c3b27ff`, `55d76e73`,
+  DRYRUN `f5eb55f2`, APPLY `c1f2bde9` (20261025_012 + vocabulary sync), audit `93b6feee` (FAILED in the build: Railway
+  builder `buildkitd.sock` unavailable, before the job ran; variable read back absent) and its re-run `7e26af13` (same
+  build failure; variable read back absent). No service or
+  variable changed.
+
+## 2026-10-25 — Audit re-run and Database_Table_Status refresh jobs
+
+- orc-test-runner (temporary `DATABASE_URL`, VAR_REMOVED after each): audit `2c0132bb` (PASS, read-only), status
+  inspection (read-only), DRYRUN `9c0a7d8b`, APPLY `88a5a7a2` (Database_Table_Status), read-back `1eb87b20`. The Railway
+  builder built these jobs normally again. No service or variable changed.
+
+## 2026-10-25 — Broker consistency check jobs
+
+- orc-test-runner (temporary `DATABASE_URL`, VAR_REMOVED after each): `0d76ad3c` (stopped at a query error in the job,
+  read-only) and `eb43c1ec` (read-only freshness, visibility and consistency). No service or variable changed.
+
+## 2026-10-25 — Stockbit event annotation jobs
+
+- orc-test-runner: migration DRYRUN and APPLY `10fbc797` (20261025_013), load DRYRUN `12ff43fd` and APPLY `88886559`
+  (`STOCKBIT_TOKEN` set by stdin for the run, TOKEN_REMOVED; `DATABASE_URL` VAR_REMOVED), read-back `5e566a73`. Stockbit
+  is reachable from Railway. No service or variable kept.
+
+## 2026-10-25 — EXEC-GO-1025: service stockbit-updater, idx_event_annotation onboarding, janitor cache, window basis
+
+User 2026-10-25: "Okay, yang menunggu GO silahkan di jalankan. Plus, go for this as well Service stockbit-updater dan
+onboarding hanya table idx_event_annotation." Before each push that redeployed orc or edge-bff: no active EDGE run.
+
+- **New service `stockbit-updater`** (`c197c9c5-99e7-492c-9c10-be0c165acf31`, region sfo): volume
+  `stockbit-updater-volume` at `/data`; restart `NEVER`; no GitHub source (code uploaded with
+  `apps/stockbit-updater/deploy.sh`, so a push never starts a round). Variables, names only: `DATABASE_URL`
+  (`${{Postgres.DATABASE_URL}}`), `TELEGRAM_NOTIFY_URL` (telegram-monitor private address), `TELEGRAM_NOTIFY_SECRET`
+  (reference to telegram-monitor), `STATE_DIR`, `RAW_RETENTION_DAYS=3`, `UPDATER_WORKERS=6`, `UPDATER_MODE=APPLY`,
+  `UPDATER_VERIFY_DATE` (still set from the VERIFY round; read only in VERIFY, `updater.py`:120-142), and
+  `STOCKBIT_TOKEN` (set by stdin; value never printed or stored in Git). Deployments: VERIFY round `bb00eae3`
+  (execution `70aa6c1b`), APPLY round `b90418c7` (execution `a02b83df`, started by the `UPDATER_MODE` variable change:
+  decision K2 A works) SUCCESS, Telegram summary accepted (status 200). The token expires 2026-10-26 05:42 UTC.
+- telegram-monitor `1414dda2` SUCCESS (commit `22e86c5`): source `Monitoring_Stockbit_Update`, one summary per round
+  (K5).
+- market-ai-orc `725539eb` SUCCESS (`b41a2af`, idx_event_annotation in the router scope, prompt v019) and `ee15977b`
+  SUCCESS (`77cfc49`, window basis in COLUMNS, prompt v020); no new `*_inactive` at startup. ai-data-coverage
+  `12dcb889` SUCCESS (`b41a2af`). market-sql-governor `14c44e51` SUCCESS (`ba811e3`, janitor manifest cache, M215):
+  first pass after the restart `datasets_seen=3695 manifests_fetched=3695`, second pass (19:44 UTC)
+  `datasets_seen=3699 manifests_fetched=4`.
+- First-message router benchmark with ask-back, before and after the scope change: new "events" set 2/12 (8 data
+  questions sent to FACT) → 12/12; hard criteria PASS (about USD 0.19 for both runs). Live checks: L3 `edge_04f42c64`,
+  `edge_9380a451`; EXEC-M209 step 5 `edge_5a2c8e54`, `edge_143ce386`, plus `edge_*` ADHI z-score (about USD 0.08 in all).
+- orc-test-runner one-off jobs (each VAR_REMOVED): migrations `addf6968`/`226fc268` (015), `fe48c32d`/`7f50a7aa` (016),
+  `5e67671c`/`5db91e4b` (017); coverage `344bc29f`; L2 `36fd8b6c`; Governor check `d10ba8ea`; index acceptance
+  `f89c9b11`; reads `e74f4670`, `187fa567`, `7fc383ea`, `d0eab471`, `39363dfd`, `4b0b2ff4`, `8b13c7c2`; schema document
+  regeneration (below).
+- `railway config pull --force` added `stockbit-updater`, its volume and the `terminal-*` resources created outside this
+  work; the Postgres memory comment that the pull drops was restored by hand. `railway config plan` (with `_` set to the
+  CLI path): up to date.
 
 ## 2026-10-25 — terminal-api and terminal-publisher services (EXEC-TERMINAL-API)
 
@@ -4431,7 +4569,7 @@ User 2026-10-25: "Ok" on `verification/terminal_api/DESIGN.md` section 5.
 - terminal-publisher backfill `d8270f21-92ef-4d60-9412-806212d853a1`: 9,173 files, 283.89 MB, 845 tickers,
   8,150 s. Verify `bb3a6397-e8d4-4532-83a1-561e62974762`: 297 mismatches, all broker 2026 (Feature 05 refreshed to
   2026-10-23 after the backfill); it restarted under the default restart policy and was removed with `railway down`
-  (ERRORS M218). Variable `TERMINAL_PUBLISH_MODE` currently `verify`; no deployment active.
+  (ERRORS M226). Variable `TERMINAL_PUBLISH_MODE` currently `verify`; no deployment active.
 - `railway config pull --force --variables=unmanaged` was tried and reverted: it rewrites the whole file without the
   `preserve()` entries, so `.railway/railway.ts` is unchanged and the two terminal services are not in it yet.
 
@@ -4459,7 +4597,7 @@ merged to `main`: "nanti dulu jangan gabungkan kode ke main").
 - Bucket CORS: GET/HEAD from `https://terminal-api-dev.up.railway.app` and `https://edge-bff-dev.up.railway.app`
   (read back).
 - orc-test-runner: migration jobs 101/102 (DRYRUN/APPLY) and the quota override; one job replaced another session's
-  unfinished READ job (`b9950dba`, ERRORS M219); `scripts/onboarding/run_job.sh` now refuses while a job runs.
+  unfinished READ job (`b9950dba`, ERRORS M227); `scripts/onboarding/run_job.sh` now refuses while a job runs.
 - Live checks: gateway key accepted, wrong key 401; events files equal SQL for BBCA, GOTO, TLKM (rows, first/last date,
   corporate actions); the Terminal page on real data through a local edge-bff (`verification/terminal_api/
   terminal_live_check.py`): BBCA, GOTO, IHSG load without page errors, figures equal SQL (close, volume, broker net

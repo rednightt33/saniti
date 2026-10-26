@@ -1,5 +1,6 @@
-"""EXEC-M209 step 3 (user 2026-10-23): the system's assumption that a stored Feature column with a window counts the
-stock's own trading days; added after the run's loop, so no answer gate reads it."""
+"""EXEC-M209 steps 1 and 3 (user 2026-10-23): the structured window of a stored Feature column (catalog
+window_basis/window_length), shown in COLUMNS, and the system's assumption that such a column counts the stock's own
+trading days; added after the run's loop, so no answer gate reads it."""
 from __future__ import annotations
 
 import inspect
@@ -9,17 +10,40 @@ from app import user_texts as texts
 from app.orchestrator import AgentOrchestrator, RunState
 from app.schemas import FinalResponse
 from app.tools import _windowed_columns, build_default_registry
-from app.tools.catalog import is_windowed
+from app.tools.catalog import WINDOW_NOTE, _columns_v2, is_windowed
 from conftest import ScriptedClient, make_settings
 
 
-def test_a_window_of_several_observations_counts_and_one_day_does_not() -> None:
-    # live lookback_window values (job 2105d567)
-    assert is_windowed("20 sessions") and is_windowed("5 ticker transaction dates")
-    assert is_windowed("20 trading observations including current observation")
-    assert is_windowed("14 valid OHLCV bars; lookback=13")
-    assert not is_windowed("1 source date") and not is_windowed("1 session")
-    assert not is_windowed("Current trading observation") and not is_windowed(None)
+def test_a_window_of_several_entity_sessions_counts_and_others_do_not() -> None:
+    assert is_windowed({"window_basis": "ENTITY_SESSIONS", "window_length": "20"})
+    assert is_windowed({"window_basis": "ENTITY_SESSIONS", "window_length": 14})
+    assert not is_windowed({"window_basis": "ENTITY_SESSIONS", "window_length": "1"})
+    assert not is_windowed({"window_basis": "ENTITY_SESSIONS", "window_length": None})  # cumulative "all sessions"
+    # an exchange-day window would be a different statement to the user, so the entity-session line does not apply
+    assert not is_windowed({"window_basis": "EXCHANGE_DAYS", "window_length": "20"})
+    assert not is_windowed({}) and not is_windowed({"window_basis": "ENTITY_SESSIONS", "window_length": "x"})
+
+
+def column_row(name: str, length=None, basis=None) -> dict:
+    return {"table_name": "F6", "column_name": name, "description": "d", "data_type": "numeric", "unit": "IDR",
+            "table_total": 2, "total_matching": 2, "window_length": length, "window_basis": basis}
+
+
+def test_columns_show_the_window_where_the_model_reads_the_column() -> None:
+    section = _columns_v2([column_row("foreign_net_20d", "20", "ENTITY_SESSIONS"), column_row("ticker")],
+                          ["F6"], None, 100_000)
+    by_name = {entry["column_name"]: entry for entry in section["by_table"]["F6"]}
+    assert by_name["foreign_net_20d"]["window"] == {"length": 20, "basis": "ENTITY_SESSIONS"}
+    assert "window" not in by_name["ticker"] and section["window_note"] == WINDOW_NOTE
+    plain = _columns_v2([column_row("ticker")], ["F6"], None, 100_000)
+    assert "window_note" not in plain
+
+
+def test_the_window_survives_the_smallest_tier() -> None:
+    rows = [column_row(f"c{i}", "20", "ENTITY_SESSIONS") | {"description": "x" * 400} for i in range(40)]
+    section = _columns_v2(rows, ["F6"], None, 9_000)
+    assert section["detail"] in ("COMPACT", "MINIMAL")
+    assert all(entry["window"]["basis"] == "ENTITY_SESSIONS" for entry in section["by_table"]["F6"])
 
 
 class Reader:
@@ -36,9 +60,11 @@ class Reader:
         yield run
 
 
-def test_the_catalog_check_reads_the_lookback_and_never_raises() -> None:
-    rows = [{"target_table": "F6", "column_name": "foreign_net_20d", "lookback_window": "20 sessions"},
-            {"target_table": "F6", "column_name": "foreign_net_1d", "lookback_window": "1 session"}]
+def test_the_catalog_check_reads_the_structured_window_and_never_raises() -> None:
+    rows = [{"target_table": "F6", "column_name": "foreign_net_20d", "window_basis": "ENTITY_SESSIONS",
+             "window_length": "20"},
+            {"target_table": "F6", "column_name": "foreign_net_1d", "window_basis": "ENTITY_SESSIONS",
+             "window_length": "1"}]
     check = _windowed_columns(Reader(rows))
     assert check([("F6", "foreign_net_20d"), ("F6", "ticker")])
     assert not check([("F6", "foreign_net_1d")])

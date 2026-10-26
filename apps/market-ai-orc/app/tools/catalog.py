@@ -190,22 +190,27 @@ FROM public."AI_table_catalog" t
 WHERE t.table_name = ANY(%s)
 '''
 
-# EXEC-M209 step 3 (user 2026-10-23): the lookback of the stored Feature columns a run's data need asked for. TEMPORARY:
-# the window is read from the free-text parameters.lookback_window until a structured window_basis exists (EXEC-M209
-# step 1); every live value counts the stock's own observations (sessions, ticker transaction dates, trading
-# observations, valid bars; job 2105d567), none counts exchange or calendar days.
+# EXEC-M209 steps 1 and 3 (user 2026-10-23): the window of the stored Feature columns a run's data need asked for, from
+# the structured AI_calculation_catalog.parameters window_basis and window_length (migration 20261025_016; derived
+# from each Feature's code: F01 ROWS windows per ticker, F02 ticker transaction dates, F04 the ticker's valid bars,
+# F06 the ticker's sessions, the INDEX tables cloning the same writers). Text-only lookbacks ("all sessions") carry no
+# window_length and are not windows of N days.
+WINDOW_BASES = ("ENTITY_SESSIONS", "EXCHANGE_DAYS", "CALENDAR_DAYS")
 WINDOWED_COLUMNS_SQL = '''
-SELECT k.target_table, col AS column_name, k.parameters ->> 'lookback_window' AS lookback_window
+SELECT k.target_table, col AS column_name, k.parameters ->> 'window_basis' AS window_basis,
+       k.parameters ->> 'window_length' AS window_length
 FROM public."AI_calculation_catalog" AS k, unnest(k.target_columns) AS col
-WHERE k.status = 'ACTIVE' AND k.target_table = ANY(%s) AND col = ANY(%s)
-  AND k.parameters ->> 'lookback_window' IS NOT NULL
+WHERE k.status = 'ACTIVE' AND k.target_table = ANY(%s) AND col = ANY(%s) AND k.parameters ? 'window_basis'
 '''
 
 
-def is_windowed(lookback: str | None) -> bool:
-    """A lookback naming more than one observation ("20 sessions", "5 ticker transaction dates", "14 valid OHLCV bars;
-    lookback=13"); "1 source date", "Current trading observation" and text without a number are not."""
-    return any(int(n) >= 2 for n in re.findall(r"\d+", lookback or ""))
+def is_windowed(row: dict[str, Any]) -> bool:
+    """A stored column whose value reads several of the entity's own sessions (window_basis ENTITY_SESSIONS and
+    window_length of two or more): the case the system's window-basis line explains."""
+    try:
+        return row.get("window_basis") == "ENTITY_SESSIONS" and int(row.get("window_length") or 0) >= 2
+    except (TypeError, ValueError):
+        return False
 
 
 EXPORT_COLUMNS_SQL = '''
@@ -287,7 +292,8 @@ LIMIT %s
 '''
 
 # v2 adds the resample rule (migration 20260925_003; to_jsonb keeps the query valid before it, and resample_recorded
-# tells the two apart) and each table's own column count, which LIMIT does not cut.
+# tells the two apart), each table's own column count, which LIMIT does not cut, and (EXEC-M209 step 1) the window of
+# a stored Feature column from its calculation row.
 COLUMNS_V2_SQL = '''
 SELECT c.table_name, c.column_name, c.description, c.data_type, c.semantic_type, c.unit, c.nullable,
        c.is_primary_key, c.source_column_or_expression, c.allowed_aggregations, c.filter_allowed,
@@ -296,9 +302,16 @@ SELECT c.table_name, c.column_name, c.description, c.data_type, c.semantic_type,
        (to_jsonb(c) ? 'resample_aggregation') AS resample_recorded,
        to_jsonb(c) ->> 'cross_entity_aggregation' AS cross_entity_aggregation,
        to_jsonb(c) ->> 'value_time_basis' AS value_time_basis,
+       w.window_length, w.window_basis,
        count(*) OVER (PARTITION BY c.table_name) AS table_total,
        count(*) OVER () AS total_matching
 FROM public."AI_column_catalog" c
+LEFT JOIN LATERAL (
+    SELECT k.parameters ->> 'window_length' AS window_length, k.parameters ->> 'window_basis' AS window_basis
+    FROM public."AI_calculation_catalog" k
+    WHERE k.status = 'ACTIVE' AND k.target_table = c.table_name AND c.column_name = ANY(k.target_columns)
+      AND k.parameters ? 'window_basis'
+    ORDER BY k.calculation_name LIMIT 1) w ON true
 WHERE c.table_name = ANY(%s) AND c.ai_allowed AND NOT c.is_sensitive
   AND (%s::text[] IS NULL OR c.column_name = ANY(%s::text[]))
 ORDER BY c.table_name, c.ordinal_position
@@ -920,7 +933,8 @@ def _columns_v2(rows: list[dict[str, Any]], tables: list[str], column_filter: li
         # IP1 Stage D: a column holding today's reference value on every historical row says so
         entries = [_column_entry_v2(row, fields, shorten=detail != "FULL")
                    | ({"value_time_basis": "CURRENT_STATE"} if current_state
-                      and row.get("value_time_basis") == "CURRENT_STATE" else {}) for row in rows]
+                      and row.get("value_time_basis") == "CURRENT_STATE" else {})
+                   | _window(row) for row in rows]
         if _size(entries) <= budget:
             break
     kept, _ = _fit(entries, budget)
@@ -964,9 +978,29 @@ def _columns_v2(rows: list[dict[str, Any]], tables: list[str], column_filter: li
         section["hint"] = "Call get_catalog_details with each recovery_calls entry to read the columns that were cut."
     if rows and not any(row.get("resample_recorded") for row in rows):
         section["resample_rules_recorded"] = False
+    if any(entry.get("window") for entry in kept):
+        section["window_note"] = WINDOW_NOTE
     if not kept:
         section["note"] = "No matching catalog records."
     return section
+
+
+# EXEC-M209 step 1 (user 2026-10-23: "harus di-disclose kepada user bahwa ini adalah hari di mana saham tersebut
+# bertransaksi instead of hari kerja"): the model reads the window basis where it reads the column
+WINDOW_NOTE = ("window.length is how many observations a stored column reads; basis ENTITY_SESSIONS means the "
+               "entity's own trading sessions (the dates it has a row), not exchange or calendar days, so for a "
+               "thinly traded stock a 20-session window can span more than a month, and the latest row can be older "
+               "than the date asked. Read the column when the user's window is that one, and give its date range.")
+
+
+def _window(row: dict[str, Any]) -> dict[str, Any]:
+    basis, length = row.get("window_basis"), row.get("window_length")
+    if basis not in WINDOW_BASES:
+        return {}
+    try:
+        return {"window": {"length": int(length) if length is not None else None, "basis": basis}}
+    except (TypeError, ValueError):
+        return {"window": {"length": None, "basis": basis}}
 
 
 def entity_key_pairs(left_columns: list[str], right_columns: list[str], left_time_column: str | None,
@@ -1002,7 +1036,12 @@ def _relationships_v2(rows: list[dict[str, Any]], budget: int) -> dict[str, Any]
             "A data need may use only a relationship's supported_join_semantics (empty: not joinable). EXACT_DATE and "
             "AS_OF use left_time_column/right_time_column; EFFECTIVE_DATED uses effective_from_column/"
             "effective_to_column. A null field is not recorded in the catalog, not a default. A data need's key "
-            "columns are request_key_columns (the entity keys); the time columns are never listed as keys.")
+            "columns are request_key_columns (the entity keys); the time columns are never listed as keys. "
+            "When a relationship does not pair the entity of its \"one\" side (request_key_columns empty, a date-only "
+            "join such as a stock and the IHSG index; or other keys only, such as the market board), that side's "
+            "request must give one row per date: its scope fixes each primary key column the relationship leaves "
+            "open with EQ (or IN with one value). Right: an index table's request with scope ticker EQ one index "
+            "code. Wrong: no ticker condition, or ticker IN several codes (refused as ONE_SIDE_NOT_UNIQUE).")
     elif rows:
         result["join_semantics_recorded"] = False
     if len(kept) < total:

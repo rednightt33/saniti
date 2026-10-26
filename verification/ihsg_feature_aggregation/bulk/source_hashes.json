@@ -1,0 +1,10 @@
+{
+  "database/feature_vocabulary_seed.json": "9a1e1e24b3b6bce91e97e2da0df5fdcc5e20f2c82ad05248ae425e7643ae372b",
+  "database/migrations/20261025_001_index_feature05_remove_frequency_coverage.sql": "a3b6c4bcc61947a9c524b776ec63b74cba736d5502a0a0c1d071a3423766ea9a",
+  "database/migrations/20261025_002_refine_index_vocabulary_source_semantics.sql": "0c0a92d8de12d295aef924cf02be93174ebf38d6234d5458a76757ba5ed9dd62",
+  "database/migrations/20261025_003_create_feature_vocabulary.sql": "d9c875e2ffc9184dae4472eaea878ec3822ea8499915c3ae20980b55f16b2bd5",
+  "scripts/backfill_index_features.py": "f0cb2a059d27d48d430e1d9ef71be0205f95c9219abb6e50036845130813a86e",
+  "scripts/build_feature_vocabulary_seed.py": "c68616f4fef3841b8e4b3adf59e38621cdd67db3fdb0e683282dbdfc5529764d",
+  "scripts/initialize_index_feature_sample.py": "36b70024fd146b7068ed45ca66b1a957ecdbeae08d864e0a684a33ece115ee31",
+  "scripts/sync_feature_vocabulary.py": "4ac9054c4ee6fed6f95661062b3c7c6c8980d76077cdb8ea0ad643b9639a52f8"
+}

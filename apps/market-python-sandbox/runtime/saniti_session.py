@@ -1013,6 +1013,9 @@ def join(relationship_id: int, left=None, right=None, how: str | None = None):
         raise SanitiError("how must be 'inner' or 'left'.")
     lc, rc = _keys(rel)
     semantics = rel["join_semantics"]
+    if not lc and semantics not in ("EXACT_DATE", "AS_OF"):
+        raise SanitiError(f"Relationship {relationship_id} has no entity key: it joins on the date only (EXACT_DATE "
+                          "or AS_OF).")
     rtype = rel.get("relationship_type")
     suffixes = ("", f"_{right_request['logical_name']}")
     lt = rel.get("left_time_column") or left_request.get("time_column")
@@ -1061,8 +1064,9 @@ def join(relationship_id: int, left=None, right=None, how: str | None = None):
     elif semantics == "AS_OF":
         l_sorted = left.assign(_t=pd.to_datetime(left[lt])).sort_values("_t", kind="mergesort")
         r_sorted = right.assign(_t=pd.to_datetime(right[rt]), _m=1).sort_values("_t", kind="mergesort")
-        merged = pd.merge_asof(l_sorted, r_sorted, on="_t", left_by=lc, right_by=rc, direction="backward",
-                               suffixes=suffixes)
+        # a relationship on the date only (EXEC-M216) has no "by" keys: one series, each left date takes its latest row
+        merged = pd.merge_asof(l_sorted, r_sorted, on="_t", left_by=lc or None, right_by=rc or None,
+                               direction="backward", suffixes=suffixes)
         merged["_merge"] = merged.pop("_m").map({1: "both"}).fillna("left_only")
         merged = merged.drop(columns="_t")
     else:

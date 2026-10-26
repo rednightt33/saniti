@@ -1,0 +1,54 @@
+{
+  "date": "2026-08-31",
+  "read_only": true,
+  "frequency_cell_comparisons": 428,
+  "mismatches_against_current_completeness_policy": 0,
+  "boards": [
+    {
+      "market_board": "Nego",
+      "index_groups": 71,
+      "source_rows": 371,
+      "missing_buy_rows": 1,
+      "missing_sell_rows": 1,
+      "source_known_buy_sum": 859,
+      "source_known_sell_sum": 859,
+      "index_known_buy_sum": 676,
+      "index_known_sell_sum": 684,
+      "index_buy_available": 70,
+      "index_sell_available": 70,
+      "buy_mismatches": 0,
+      "sell_mismatches": 0
+    },
+    {
+      "market_board": "Regular",
+      "index_groups": 139,
+      "source_rows": 26681,
+      "missing_buy_rows": 1715,
+      "missing_sell_rows": 1715,
+      "source_known_buy_sum": 2372642,
+      "source_known_sell_sum": 2372642,
+      "index_known_buy_sum": 357804,
+      "index_known_sell_sum": 467928,
+      "index_buy_available": 77,
+      "index_sell_available": 77,
+      "buy_mismatches": 0,
+      "sell_mismatches": 0
+    },
+    {
+      "market_board": "Tunai",
+      "index_groups": 4,
+      "source_rows": 7,
+      "missing_buy_rows": 1,
+      "missing_sell_rows": 1,
+      "source_known_buy_sum": 4,
+      "source_known_sell_sum": 4,
+      "index_known_buy_sum": 4,
+      "index_known_sell_sum": 4,
+      "index_buy_available": 3,
+      "index_sell_available": 3,
+      "buy_mismatches": 0,
+      "sell_mismatches": 0
+    }
+  ],
+  "finding": "SUM of available IHSG group frequencies is partial because incomplete groups are NULL; it must not be labelled whole-market total. Raw known frequencies are also not proof that missing instruments had zero trades."
+}

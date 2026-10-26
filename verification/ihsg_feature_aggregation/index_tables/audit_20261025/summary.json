@@ -1,0 +1,9 @@
+{
+  "date": "2026-08-31",
+  "ticker": "IHSG",
+  "comparisons": 21,
+  "mismatches": 0,
+  "hhi_null_policy_matches": true,
+  "read_only": true,
+  "query_finish_utc": "2026-10-24T17:32:30.944051659Z"
+}

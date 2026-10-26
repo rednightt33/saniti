@@ -1,0 +1,148 @@
+{
+  "frontend_changed": false,
+  "entries": 391,
+  "rerun_modified": 0,
+  "changed": 391,
+  "message": "",
+  "coverage": [
+    {
+      "entries": 29,
+      "scope": "stock",
+      "source_table": "Feature_01_Stock_Daily"
+    },
+    {
+      "entries": 29,
+      "scope": "index",
+      "source_table": "Feature_01_Stock_Daily_INDEX"
+    },
+    {
+      "entries": 38,
+      "scope": "stock",
+      "source_table": "Feature_02_Broker_Rolling"
+    },
+    {
+      "entries": 38,
+      "scope": "index",
+      "source_table": "Feature_02_Broker_Rolling_INDEX"
+    },
+    {
+      "entries": 24,
+      "scope": "stock",
+      "source_table": "Feature_03_Stock_Broker_Daily"
+    },
+    {
+      "entries": 24,
+      "scope": "index",
+      "source_table": "Feature_03_Stock_Broker_Daily_INDEX"
+    },
+    {
+      "entries": 15,
+      "scope": "stock",
+      "source_table": "Feature_05_Foreign_Domestic_Broker_Detail"
+    },
+    {
+      "entries": 15,
+      "scope": "index",
+      "source_table": "Feature_05_Foreign_Domestic_Broker_Detail_INDEX"
+    },
+    {
+      "entries": 87,
+      "scope": "stock",
+      "source_table": "Feature_06_Foreign_Domestic"
+    },
+    {
+      "entries": 92,
+      "scope": "index",
+      "source_table": "Feature_06_Foreign_Domestic_INDEX"
+    }
+  ],
+  "event": "vocabulary_complete",
+  "committed": true,
+  "timestamp": "2026-10-24T19:29:04.305293727Z",
+  "level": "info",
+  "query_plan": {
+    "QUERY PLAN": [
+      {
+        "Execution Time": 0.357,
+        "Plan": {
+          "Actual Loops": 1,
+          "Actual Rows": 92,
+          "Actual Startup Time": 0.317,
+          "Actual Total Time": 0.323,
+          "Async Capable": false,
+          "Disabled": false,
+          "Local Dirtied Blocks": 0,
+          "Local Hit Blocks": 0,
+          "Local Read Blocks": 0,
+          "Local Written Blocks": 0,
+          "Node Type": "Sort",
+          "Parallel Aware": false,
+          "Plan Rows": 1,
+          "Plan Width": 196,
+          "Plans": [
+            {
+              "Actual Loops": 1,
+              "Actual Rows": 92,
+              "Actual Startup Time": 0.104,
+              "Actual Total Time": 0.251,
+              "Alias": "Feature_Vocabulary",
+              "Async Capable": false,
+              "Disabled": false,
+              "Index Cond": "((source_schema = 'public'::text) AND (source_table = 'Feature_06_Foreign_Domestic_INDEX'::text) AND (language_code = 'id-ID'::text))",
+              "Index Name": "Feature_Vocabulary_pkey",
+              "Index Searches": 1,
+              "Local Dirtied Blocks": 0,
+              "Local Hit Blocks": 0,
+              "Local Read Blocks": 0,
+              "Local Written Blocks": 0,
+              "Node Type": "Index Scan",
+              "Parallel Aware": false,
+              "Parent Relationship": "Outer",
+              "Plan Rows": 1,
+              "Plan Width": 196,
+              "Relation Name": "Feature_Vocabulary",
+              "Rows Removed by Index Recheck": 0,
+              "Scan Direction": "Forward",
+              "Shared Dirtied Blocks": 0,
+              "Shared Hit Blocks": 74,
+              "Shared Read Blocks": 0,
+              "Shared Written Blocks": 0,
+              "Startup Cost": 0.28,
+              "Temp Read Blocks": 0,
+              "Temp Written Blocks": 0,
+              "Total Cost": 8.3
+            }
+          ],
+          "Shared Dirtied Blocks": 0,
+          "Shared Hit Blocks": 74,
+          "Shared Read Blocks": 0,
+          "Shared Written Blocks": 0,
+          "Sort Key": [
+            "display_order"
+          ],
+          "Sort Method": "quicksort",
+          "Sort Space Type": "Memory",
+          "Sort Space Used": 68,
+          "Startup Cost": 8.31,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0,
+          "Total Cost": 8.31
+        },
+        "Planning": {
+          "Local Dirtied Blocks": 0,
+          "Local Hit Blocks": 0,
+          "Local Read Blocks": 0,
+          "Local Written Blocks": 0,
+          "Shared Dirtied Blocks": 0,
+          "Shared Hit Blocks": 0,
+          "Shared Read Blocks": 0,
+          "Shared Written Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0
+        },
+        "Planning Time": 0.124,
+        "Triggers": []
+      }
+    ]
+  }
+}

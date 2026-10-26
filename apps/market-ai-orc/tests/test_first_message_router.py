@@ -115,7 +115,7 @@ def test_every_benchmark_route_is_a_route_the_backend_knows() -> None:
     from pathlib import Path
 
     cases = json.loads((Path(__file__).parent / "fixtures/first_message_router_cases.json").read_text())
-    for item in cases["development"] + cases["heldout"]:
+    for item in (i for items in cases.values() if isinstance(items, list) for i in items):
         assert set(item["routes"]) <= {*router.FIRST_ROUTES, router.ASK_BACK}, item
 
 

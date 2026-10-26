@@ -6,6 +6,8 @@ Before touching Railway or PostgreSQL, read `README.md`, `PROJECT_CONTEXT.md`, `
 
 `ERRORS_AND_SOLUTIONS.md` lists every error found so far, with its root cause, solution and status. Check it before diagnosing a failure: the error may already be known. Its Part A is the data-format standard. Before adding a new data source or table (for example cross-asset or macro data), confirm that it meets every item of Part A, and settle any gap with the user before loading. To expose a table or Feature to the AI (onboarding), follow `NEW_TABLE_ONBOARDING_PLAN.md` end to end, Feature 04 being the benchmark; its index acceptance (section 3) is part of every onboarding.
 
+To update the broker tables after `IDX_Broker_Summary` changes (Feature 02, 03, 05, 06 and the `_INDEX` tables), follow `UPDATE_TABLE.md`: refresh order, checks, and the open gap that the loader in Git does not write `buy_freq`/`sell_freq`. To update the Stockbit corporate actions, insider movements and `idx_event_annotation` (ad hoc, with a token the user gives), follow `UPDATE_TABLE.md` part B.
+
 ## Plans
 
 - `EXEC.md` holds every execution the user approved, one complete section per execution (user decision 2026-10-06).

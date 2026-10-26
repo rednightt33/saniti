@@ -1,0 +1,27 @@
+{
+  "read_only": "on",
+  "checked_at": "2026-10-24T19:32:22.338233+00:00",
+  "vocabulary": {
+    "rows": 391,
+    "index": 198,
+    "stock": 193,
+    "feature04": 0,
+    "unverified": 0,
+    "missing_physical_columns": 0,
+    "payload_matches_reviewed_seed": true
+  },
+  "legacy_ihsg_counts": {
+    "F01": 0,
+    "F02": 0,
+    "F03": 0,
+    "F04": 0,
+    "F05": 0,
+    "F06": 0
+  },
+  "source_rows_covered": 45229673,
+  "feature03_hhi_nonnull": 0,
+  "feature05_removed_columns": 0,
+  "feature04_close_mismatches": 0,
+  "feature04_wrong_asset_type": 0,
+  "feature06_coverage_columns": 5
+}

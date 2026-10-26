@@ -1,0 +1,117 @@
+{
+  "read_only": "on",
+  "checked_at": "2026-10-24T17:57:21.944837+00:00",
+  "price_range": {
+    "last": "2026-10-23",
+    "rows": 2125,
+    "first": "2018-01-02"
+  },
+  "index_counts": {
+    "Feature01": {
+      "last": "2026-08-31",
+      "rows": 1,
+      "first": "2026-08-31"
+    },
+    "Feature02": {
+      "last": "2026-08-31",
+      "rows": 214,
+      "first": "2026-08-31"
+    },
+    "Feature03": {
+      "last": "2026-08-31",
+      "rows": 3,
+      "first": "2026-08-31"
+    },
+    "Feature04": {
+      "last": "2026-08-31",
+      "rows": 1,
+      "first": "2026-08-31"
+    },
+    "Feature05": {
+      "last": "2026-08-31",
+      "rows": 214,
+      "first": "2026-08-31"
+    },
+    "Feature06": {
+      "last": "2026-08-31",
+      "rows": 3,
+      "first": "2026-08-31"
+    }
+  },
+  "catalog_fields": [
+    "feature_table",
+    "feature_column",
+    "grain",
+    "feature_category",
+    "definition",
+    "calculation",
+    "source_tables",
+    "source_columns",
+    "lookback_window",
+    "minimum_history",
+    "unit",
+    "null_rule",
+    "refresh_trigger",
+    "dependency_rule",
+    "version",
+    "is_active",
+    "created_at",
+    "updated_at",
+    "semantic_role",
+    "allowed_aggregations",
+    "ranking_interpretation",
+    "is_filterable",
+    "is_groupable",
+    "availability_rule",
+    "point_in_time_safe",
+    "historical_metadata_warning",
+    "analytical_interpretation",
+    "recommended_use",
+    "misuse_warning",
+    "semantic_review_status",
+    "validation_evidence"
+  ],
+  "possible_vocabulary_tables": null,
+  "dependencies": {
+    "routines": [
+      {
+        "md5": "da976a85573253409324af5667c929eb",
+        "name": "refresh_feature_01_stock_daily"
+      },
+      {
+        "md5": "bf9b9cc0df1a21aa9a8e1edfdca4d20a",
+        "name": "refresh_feature_03_stock_broker_daily"
+      },
+      {
+        "md5": "6288c1792bb053eec6dd54bdf5c3ce62",
+        "name": "refresh_feature_06"
+      }
+    ],
+    "broker_first": "2016-01-04",
+    "broker_latest": "2026-08-31",
+    "legacy_recreated": {
+      "Feature01": 0,
+      "Feature04": 0
+    }
+  },
+  "mode": "READ_ONLY; documentation proposal only",
+  "physical_candidates": 396,
+  "planned_exclusions": 5,
+  "expected_after_removal": 391,
+  "table_column_counts": {
+    "Feature_01_Stock_Daily": 29,
+    "Feature_01_Stock_Daily_INDEX": 29,
+    "Feature_02_Broker_Rolling": 38,
+    "Feature_02_Broker_Rolling_INDEX": 38,
+    "Feature_03_Stock_Broker_Daily": 24,
+    "Feature_03_Stock_Broker_Daily_INDEX": 24,
+    "Feature_05_Foreign_Domestic_Broker_Detail": 15,
+    "Feature_05_Foreign_Domestic_Broker_Detail_INDEX": 20,
+    "Feature_06_Foreign_Domestic": 87,
+    "Feature_06_Foreign_Domestic_INDEX": 92
+  },
+  "missing_active_definitions": 0,
+  "missing_interpretations": 0,
+  "vocabulary_table_created": false,
+  "bulk_executed": false
+}

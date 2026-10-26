@@ -1,0 +1,1 @@
+{"columns":["ticker","buy","sell","gap"],"rows":[["MAPADRCU6A","1408200","555000","853200"]],"stats":{"columns_count":4,"rows_count":1,"rows_affected":0,"query_start_time":"2026-10-24T15:03:36.552220528Z","query_finish_time":"2026-10-24T15:03:38.566378791Z","query_duration_ms":2014}}

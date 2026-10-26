@@ -47,57 +47,9 @@ def migrate(name: str) -> None:
     log("migration_applied", file=name, seconds=round(time.monotonic() - started, 1))
 
 
-BS_MONTH_FACTS = """
-SELECT count(*), coalesce(sum("Buy Value"),0), coalesce(sum("Sell Value"),0),
-       coalesce(sum("Buy Lots"),0), coalesce(sum("Sell Lots"),0),
-       count(buy_freq), count(sell_freq)
-FROM public."IDX_Broker_Summary" WHERE "Date" >= %s AND "Date" < %s
-"""
-FREQ_MISMATCH = """
-SELECT count(*) FILTER (WHERE b.buy_freq IS DISTINCT FROM f.buy_freq OR b.sell_freq IS DISTINCT FROM f.sell_freq),
-       count(*)
-FROM public."IDX_Broker_Summary" b
-JOIN public."IDX_Broker_Summary_Freq" f
-  ON f.trade_date = b."Date" AND f.symbol = b."Symbol" AND f.broker = b."Broker"
- AND f.investor_type::text = b."Investor Type" AND f.market_board::text = b."Market Board"
-WHERE b."Date" >= %s AND b."Date" < %s AND f.trade_date >= %s AND f.trade_date < %s
-"""
-
-
-def phase1_backfill() -> None:
-    """Per month: facts before, sync, facts after; values and row counts must not change and every joined key must
-    equal Freq. A failed check rolls the month back and stops the job. VACUUM after each year reuses the space."""
-    with connect() as conn:
-        last = conn.execute('SELECT max("Date") FROM public."IDX_Broker_Summary"').fetchone()[0]
-    end = (last.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
-    total_started = time.monotonic()
-    year_done = None
-    for a, b in months(FIRST_MONTH, end):
-        started = time.monotonic()
-        with connect() as conn:
-            conn.execute("SET LOCAL statement_timeout = '30min'")
-            before = conn.execute(BS_MONTH_FACTS, (a, b)).fetchone()
-            written = conn.execute("SELECT public.sync_broker_summary_freq(%s, %s)", (a, b)).fetchone()[0]
-            after = conn.execute(BS_MONTH_FACTS, (a, b)).fetchone()
-            mismatch, joined = conn.execute(FREQ_MISMATCH, (a, b, a, b)).fetchone()
-            ok = before[:5] == after[:5] and mismatch == 0 and after[5] == joined and after[6] == joined
-            if not ok:
-                conn.rollback()
-                log("phase1_month_failed", month=a, before=before, after=after, mismatch=mismatch, joined=joined)
-                sys.exit(1)
-            conn.commit()
-        log("phase1_month", month=a, rows=after[0], written=written, with_freq=after[5],
-            without_freq=after[0] - after[5], seconds=round(time.monotonic() - started, 1))
-        if b.year != a.year or b >= end:
-            vstart = time.monotonic()
-            with connect(autocommit=True) as conn:
-                conn.execute('VACUUM (ANALYZE) public."IDX_Broker_Summary"')
-            log("phase1_vacuum", year=a.year, seconds=round(time.monotonic() - vstart, 1))
-    with connect() as conn:
-        conn.execute("SET LOCAL statement_timeout = '60min'")
-        conn.execute('ALTER TABLE public."IDX_Broker_Summary" VALIDATE CONSTRAINT "IDX_Broker_Summary_freq_nonnegative_check"')
-        conn.commit()
-    log("phase1_done", seconds=round(time.monotonic() - total_started, 1))
+# phase1_backfill (the one-off copy of buy_freq/sell_freq from IDX_Broker_Summary_Freq, done 2026-10-22) is retired:
+# the staging table and sync_broker_summary_freq were dropped by 20261025_007 (EXEC-INDEX-1); the Broker Summary load
+# now carries the frequency itself.
 
 
 F05_CHECK = """
@@ -309,7 +261,7 @@ def measure() -> None:
         log("measure_sizes", sizes=sizes, database=conn.execute("SELECT pg_database_size(current_database())").fetchone()[0])
 
 
-TASKS = {"phase1_backfill": phase1_backfill, "phase2_backfill": phase2_backfill, "phase3_backfill": phase3_backfill,
+TASKS = {"phase2_backfill": phase2_backfill, "phase3_backfill": phase3_backfill,
          "phase3_reconcile": phase3_reconcile, "validate_samples": validate_samples, "measure": measure}
 
 

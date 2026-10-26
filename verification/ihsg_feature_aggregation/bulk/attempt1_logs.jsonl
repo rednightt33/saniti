@@ -1,0 +1,153 @@
+{"message":"Starting Container","timestamp":"2026-10-24T18:19:35.926337283Z","level":"info"}
+{"message":"[notice] To update, run: pip install --upgrade pip","level":"error","timestamp":"2026-10-24T18:19:45.593545501Z"}
+{"message":"WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.","timestamp":"2026-10-24T18:19:45.593597240Z","level":"error"}
+{"message":"","level":"error","timestamp":"2026-10-24T18:19:45.593688489Z"}
+{"level":"error","message":"[notice] A new release of pip is available: 25.0.1 -> 26.2.2","timestamp":"2026-10-24T18:19:45.593705208Z"}
+{"plan":{"QUERY PLAN":[{"JIT":{"Functions":6,"Options":{"Deforming":true,"Expressions":true,"Inlining":false,"Optimization":false}},"Plan":{"Async Capable":false,"Disabled":false,"Group Key":["\"Date\"","\"Broker\"","\"Investor Type\"","\"Market Board\""],"Node Type":"Aggregate","Parallel Aware":false,"Partial Mode":"Simple","Plan Rows":163713,"Plan Width":54,"Planned Partitions":0,"Plans":[{"Alias":"IDX_Broker_Summary","Async Capable":false,"Disabled":false,"Node Type":"Bitmap Heap Scan","Parallel Aware":false,"Parent Relationship":"Outer","Plan Rows":171805,"Plan Width":28,"Plans":[{"Async Capable":false,"Disabled":false,"Index Cond":"((\"Date\" >= '2016-01-04'::date) AND (\"Date\" < '2016-02-01'::date))","Index Name":"IDX_Broker_Summary_pkey","Node Type":"Bitmap Index Scan","Parallel Aware":false,"Parent Relationship":"Outer","Plan Rows":171805,"Plan Width":0,"Startup Cost":0,"Total Cost":9150.61}],"Recheck Cond":"((\"Date\" >= '2016-01-04'::date) AND (\"Date\" < '2016-02-01'::date))","Relation Name":"IDX_Broker_Summary","Startup Cost":9193.57,"Total Cost":426555.49}],"Startup Cost":428703.06,"Strategy":"Hashed","Total Cost":430749.47}}]},"level":"info","message":"","event":"bounded_source_plan","month":"2016-01-04","timestamp":"2026-10-24T18:19:46.519768876Z"}
+{"message":"","seconds":6.4,"timestamp":"2026-10-24T18:19:52.683202272Z","source_rows":159630,"level":"info","event":"raw_month_staged","groups":4496,"start":"2016-01-04"}
+{"message":"","groups":4508,"seconds":5.23,"timestamp":"2026-10-24T18:19:57.881646524Z","source_rows":172600,"event":"raw_month_staged","level":"info","start":"2016-02-01"}
+{"groups":5011,"message":"","start":"2016-03-01","seconds":2.43,"timestamp":"2026-10-24T18:20:00.861756004Z","level":"info","event":"raw_month_staged","source_rows":210331}
+{"groups":4868,"message":"","level":"info","start":"2016-04-01","source_rows":204979,"seconds":2.37,"event":"raw_month_staged","timestamp":"2026-10-24T18:20:02.712973898Z"}
+{"timestamp":"2026-10-24T18:20:05.736643954Z","message":"","level":"info","groups":4667,"source_rows":179723,"event":"raw_month_staged","start":"2016-05-01","seconds":2.78}
+{"event":"raw_month_staged","source_rows":216257,"seconds":2.69,"message":"","level":"info","timestamp":"2026-10-24T18:20:08.140519305Z","start":"2016-06-01","groups":6103}
+{"start":"2016-07-01","timestamp":"2026-10-24T18:20:10.271155217Z","level":"info","seconds":2.14,"event":"raw_month_staged","groups":4173,"source_rows":177396,"message":""}
+{"level":"info","message":"","event":"raw_month_staged","seconds":3.98,"timestamp":"2026-10-24T18:20:14.249983939Z","start":"2016-08-01","groups":5699,"source_rows":248478}
+{"timestamp":"2026-10-24T18:20:18.374369461Z","groups":5133,"message":"","start":"2016-09-01","event":"raw_month_staged","source_rows":205940,"level":"info","seconds":4.06}
+{"seconds":5.94,"timestamp":"2026-10-24T18:20:24.245466012Z","groups":5350,"message":"","event":"raw_month_staged","level":"info","start":"2016-10-01","source_rows":209749}
+{"start":"2016-11-01","level":"info","message":"","source_rows":198120,"event":"raw_month_staged","timestamp":"2026-10-24T18:20:29.193812315Z","seconds":4.95,"groups":5257}
+{"source_rows":175911,"groups":4802,"message":"","level":"info","timestamp":"2026-10-24T18:20:34.544965255Z","start":"2016-12-01","event":"raw_month_staged","seconds":5.35}
+{"level":"info","seconds":8.69,"event":"raw_month_staged","source_rows":220034,"groups":5311,"start":"2017-01-01","timestamp":"2026-10-24T18:20:43.395050666Z","message":""}
+{"level":"info","seconds":8.04,"source_rows":202625,"groups":4568,"message":"","timestamp":"2026-10-24T18:20:51.313692949Z","start":"2017-02-01","event":"raw_month_staged"}
+{"source_rows":224672,"level":"info","message":"","groups":5455,"timestamp":"2026-10-24T18:21:00.506717749Z","seconds":8.86,"start":"2017-03-01","event":"raw_month_staged"}
+{"groups":4448,"message":"","level":"info","seconds":11.73,"source_rows":188029,"start":"2017-04-01","event":"raw_month_staged","timestamp":"2026-10-24T18:21:20.051202264Z"}
+{"level":"info","event":"raw_month_staged","message":"","source_rows":226048,"groups":3074,"seconds":11.11,"start":"2017-05-01","timestamp":"2026-10-24T18:21:23.155329713Z"}
+{"groups":2890,"seconds":7.69,"message":"","timestamp":"2026-10-24T18:21:30.827396956Z","level":"info","start":"2017-06-01","source_rows":162164,"event":"raw_month_staged"}
+{"message":"","level":"info","start":"2017-07-01","groups":5363,"source_rows":225076,"timestamp":"2026-10-24T18:21:36.984326130Z","seconds":6.34,"event":"raw_month_staged"}
+{"seconds":11.07,"level":"info","message":"","groups":4851,"source_rows":233993,"event":"raw_month_staged","timestamp":"2026-10-24T18:21:56.996869559Z","start":"2017-08-01"}
+{"seconds":11.71,"source_rows":209449,"timestamp":"2026-10-24T18:21:59.961580184Z","event":"raw_month_staged","groups":4458,"level":"info","message":"","start":"2017-09-01"}
+{"source_rows":248624,"level":"info","timestamp":"2026-10-24T18:22:19.303058609Z","message":"","seconds":13.83,"start":"2017-10-01","event":"raw_month_staged","groups":5000}
+{"timestamp":"2026-10-24T18:22:25.342087816Z","groups":3412,"message":"","event":"raw_month_staged","level":"info","seconds":11.74,"start":"2017-11-01","source_rows":258271}
+{"source_rows":193005,"level":"info","start":"2017-12-01","groups":2773,"timestamp":"2026-10-24T18:22:45.401720058Z","seconds":10.22,"event":"raw_month_staged","message":""}
+{"seconds":10.8,"level":"info","start":"2018-01-01","event":"raw_month_staged","message":"","source_rows":275304,"timestamp":"2026-10-24T18:22:46.373457632Z","groups":3403}
+{"seconds":9.74,"level":"info","groups":2956,"message":"","timestamp":"2026-10-24T18:23:06.111231289Z","event":"raw_month_staged","source_rows":240406,"start":"2018-02-01"}
+{"message":"","timestamp":"2026-10-24T18:23:06.111235339Z","event":"raw_month_staged","start":"2018-03-01","level":"info","groups":3227,"source_rows":260319,"seconds":6.95}
+{"timestamp":"2026-10-24T18:23:15.282418422Z","event":"raw_month_staged","source_rows":271848,"message":"","groups":3497,"start":"2018-04-01","seconds":11.22,"level":"info"}
+{"seconds":11.06,"groups":4602,"level":"info","event":"raw_month_staged","start":"2018-05-01","timestamp":"2026-10-24T18:23:35.275730934Z","source_rows":257150,"message":""}
+{"message":"","timestamp":"2026-10-24T18:23:37.099545980Z","groups":3545,"source_rows":166710,"seconds":11.48,"level":"info","start":"2018-06-01","event":"raw_month_staged"}
+{"level":"info","timestamp":"2026-10-24T18:23:56.684585980Z","event":"raw_month_staged","message":"","seconds":17.36,"groups":5484,"source_rows":269481,"start":"2018-07-01"}
+{"timestamp":"2026-10-24T18:24:01.625803993Z","level":"info","start":"2018-08-01","seconds":6.8,"message":"","source_rows":260934,"event":"raw_month_staged","groups":5028}
+{"timestamp":"2026-10-24T18:24:03.832797436Z","event":"raw_month_staged","source_rows":233885,"seconds":2.52,"start":"2018-09-01","groups":4586,"message":"","level":"info"}
+{"source_rows":282462,"message":"","level":"info","timestamp":"2026-10-24T18:24:22.985819666Z","start":"2018-10-01","seconds":11.1,"event":"raw_month_staged","groups":5489}
+{"start":"2018-11-01","seconds":13.4,"event":"raw_month_staged","groups":5234,"timestamp":"2026-10-24T18:24:27.990957881Z","level":"info","message":"","source_rows":264976}
+{"event":"raw_month_staged","seconds":10.84,"source_rows":234274,"message":"","start":"2018-12-01","level":"info","timestamp":"2026-10-24T18:24:47.991573395Z","groups":4715}
+{"level":"info","timestamp":"2026-10-24T18:24:55.112922563Z","message":"","groups":5593,"event":"raw_month_staged","start":"2019-01-01","seconds":16.07,"source_rows":314293}
+{"level":"info","groups":4653,"message":"","timestamp":"2026-10-24T18:25:15.430796529Z","seconds":16.48,"start":"2019-02-01","source_rows":271370,"event":"raw_month_staged"}
+{"source_rows":269404,"seconds":10.8,"groups":4837,"level":"info","start":"2019-03-01","timestamp":"2026-10-24T18:25:22.303111742Z","message":"","event":"raw_month_staged"}
+{"source_rows":254517,"event":"raw_month_staged","level":"info","start":"2019-04-01","groups":4675,"message":"","timestamp":"2026-10-24T18:25:27.339248745Z","seconds":5.09}
+{"seconds":11.66,"groups":5113,"source_rows":278506,"timestamp":"2026-10-24T18:25:46.688448947Z","level":"info","message":"","event":"raw_month_staged","start":"2019-05-01"}
+{"start":"2019-06-01","seconds":15.38,"groups":4004,"level":"info","timestamp":"2026-10-24T18:25:54.552965782Z","message":"","source_rows":208042,"event":"raw_month_staged"}
+{"message":"","level":"info","seconds":7.67,"groups":6229,"start":"2019-07-01","timestamp":"2026-10-24T18:26:01.983122497Z","event":"raw_month_staged","source_rows":328815}
+{"level":"info","seconds":5.18,"source_rows":305822,"event":"raw_month_staged","message":"","groups":5330,"start":"2019-08-01","timestamp":"2026-10-24T18:26:07.512934397Z"}
+{"timestamp":"2026-10-24T18:26:14.854370659Z","level":"info","seconds":6.98,"groups":5126,"source_rows":295235,"start":"2019-09-01","event":"raw_month_staged","message":""}
+{"timestamp":"2026-10-24T18:26:18.114954139Z","start":"2019-10-01","level":"info","message":"","seconds":3.97,"event":"raw_month_staged","source_rows":326606,"groups":5790}
+{"event":"raw_month_staged","timestamp":"2026-10-24T18:26:22.874048666Z","source_rows":290530,"message":"","start":"2019-11-01","groups":4990,"level":"info","seconds":4.11}
+{"source_rows":255382,"seconds":3.43,"event":"raw_month_staged","timestamp":"2026-10-24T18:26:25.680036686Z","message":"","groups":4694,"start":"2019-12-01","level":"info"}
+{"level":"info","timestamp":"2026-10-24T18:26:45.296110011Z","groups":5008,"message":"","start":"2020-01-01","event":"raw_month_staged","source_rows":287998,"seconds":10.68}
+{"source_rows":239582,"event":"raw_month_staged","seconds":5.02,"groups":4508,"level":"info","start":"2020-02-01","timestamp":"2026-10-24T18:26:45.296116561Z","message":""}
+{"level":"info","event":"raw_month_staged","groups":4761,"message":"","source_rows":247235,"timestamp":"2026-10-24T18:26:45.296119291Z","seconds":3.03,"start":"2020-03-01"}
+{"start":"2020-04-01","timestamp":"2026-10-24T18:26:47.164955905Z","level":"info","event":"raw_month_staged","groups":4513,"message":"","seconds":2.78,"source_rows":248019}
+{"source_rows":190912,"start":"2020-05-01","seconds":6.63,"timestamp":"2026-10-24T18:26:54.293893063Z","level":"info","groups":3383,"event":"raw_month_staged","message":""}
+{"groups":4414,"message":"","level":"info","event":"raw_month_staged","source_rows":281473,"seconds":2.87,"timestamp":"2026-10-24T18:26:56.686511169Z","start":"2020-06-01"}
+{"start":"2020-07-01","message":"","timestamp":"2026-10-24T18:27:03.941826113Z","level":"info","source_rows":298904,"groups":4993,"event":"raw_month_staged","seconds":6.52}
+{"seconds":7.3,"message":"","level":"info","groups":4198,"timestamp":"2026-10-24T18:27:11.365481836Z","source_rows":259953,"event":"raw_month_staged","start":"2020-08-01"}
+{"level":"info","seconds":8.98,"event":"raw_month_staged","start":"2020-09-01","timestamp":"2026-10-24T18:27:19.647111778Z","groups":5251,"message":"","source_rows":309145}
+{"groups":3996,"seconds":4.21,"event":"raw_month_staged","message":"","level":"info","source_rows":264479,"timestamp":"2026-10-24T18:27:23.844219581Z","start":"2020-10-01"}
+{"seconds":10.79,"source_rows":336661,"groups":4798,"level":"info","event":"raw_month_staged","start":"2020-11-01","timestamp":"2026-10-24T18:27:43.237876213Z","message":""}
+{"message":"","event":"raw_month_staged","seconds":10.68,"level":"info","groups":4486,"source_rows":339394,"timestamp":"2026-10-24T18:27:45.143537984Z","start":"2020-12-01"}
+{"level":"info","source_rows":347709,"seconds":9.36,"event":"raw_month_staged","timestamp":"2026-10-24T18:27:55.011592817Z","groups":4270,"start":"2021-01-01","message":""}
+{"message":"","timestamp":"2026-10-24T18:28:03.146991949Z","start":"2021-02-01","event":"raw_month_staged","groups":4052,"source_rows":325194,"level":"info","seconds":8.64}
+{"level":"info","groups":5081,"source_rows":409556,"message":"","seconds":5.25,"timestamp":"2026-10-24T18:28:08.410554823Z","event":"raw_month_staged","start":"2021-03-01"}
+{"source_rows":377969,"start":"2021-04-01","level":"info","event":"raw_month_staged","message":"","seconds":4.68,"groups":5023,"timestamp":"2026-10-24T18:28:13.240806899Z"}
+{"timestamp":"2026-10-24T18:28:18.168572715Z","event":"raw_month_staged","source_rows":310043,"level":"info","start":"2021-05-01","seconds":4.91,"groups":3647,"message":""}
+{"timestamp":"2026-10-24T18:28:25.366935840Z","event":"raw_month_staged","source_rows":399618,"seconds":6.93,"level":"info","start":"2021-06-01","groups":4834,"message":""}
+{"source_rows":402605,"start":"2021-07-01","event":"raw_month_staged","timestamp":"2026-10-24T18:28:44.846455737Z","groups":4940,"seconds":11.79,"level":"info","message":""}
+{"timestamp":"2026-10-24T18:29:05.137945502Z","groups":4393,"source_rows":399130,"seconds":24.56,"start":"2021-08-01","message":"","event":"raw_month_staged","level":"info"}
+{"level":"info","seconds":12.74,"start":"2021-09-01","message":"","groups":5751,"timestamp":"2026-10-24T18:29:14.152962205Z","event":"raw_month_staged","source_rows":455834}
+{"groups":4570,"message":"","event":"raw_month_staged","timestamp":"2026-10-24T18:29:18.093240133Z","level":"info","start":"2021-10-01","source_rows":423374,"seconds":3.83}
+{"seconds":4.09,"start":"2021-11-01","message":"","groups":5196,"level":"info","source_rows":472495,"timestamp":"2026-10-24T18:29:22.135361499Z","event":"raw_month_staged"}
+{"timestamp":"2026-10-24T18:29:41.566846716Z","level":"info","source_rows":468999,"seconds":10.31,"start":"2021-12-01","message":"","groups":5602,"event":"raw_month_staged"}
+{"timestamp":"2026-10-24T18:29:48.196411389Z","start":"2022-01-01","message":"","event":"raw_month_staged","groups":4934,"level":"info","seconds":15.84,"source_rows":446856}
+{"message":"","groups":4060,"event":"raw_month_staged","source_rows":395458,"seconds":6.2,"start":"2022-02-01","timestamp":"2026-10-24T18:29:54.355542893Z","level":"info"}
+{"event":"raw_month_staged","timestamp":"2026-10-24T18:29:59.427002163Z","groups":5361,"seconds":5.01,"start":"2022-03-01","level":"info","source_rows":483733,"message":""}
+{"event":"raw_month_staged","source_rows":426615,"groups":4417,"message":"","timestamp":"2026-10-24T18:30:04.727045119Z","level":"info","seconds":5.42,"start":"2022-04-01"}
+{"source_rows":333453,"groups":3502,"level":"info","event":"raw_month_staged","message":"","timestamp":"2026-10-24T18:30:10.531172221Z","start":"2022-05-01","seconds":5.55}
+{"event":"raw_month_staged","start":"2022-06-01","source_rows":459266,"timestamp":"2026-10-24T18:30:30.085979533Z","message":"","seconds":18.7,"groups":4740,"level":"info"}
+{"source_rows":437121,"level":"info","groups":4492,"start":"2022-07-01","message":"","timestamp":"2026-10-24T18:31:00.294746415Z","event":"raw_month_staged","seconds":26.6}
+{"event":"raw_month_staged","level":"info","message":"","seconds":25.73,"groups":5153,"timestamp":"2026-10-24T18:31:29.720927832Z","source_rows":491358,"start":"2022-08-01"}
+{"seconds":18.18,"source_rows":510331,"message":"","timestamp":"2026-10-24T18:31:39.590893739Z","event":"raw_month_staged","start":"2022-09-01","level":"info","groups":4650}
+{"level":"info","source_rows":457274,"event":"raw_month_staged","groups":4622,"timestamp":"2026-10-24T18:32:09.932190215Z","start":"2022-10-01","seconds":20.12,"message":""}
+{"seconds":9.7,"start":"2022-11-01","event":"raw_month_staged","timestamp":"2026-10-24T18:32:09.932197555Z","message":"","groups":5204,"level":"info","source_rows":480925}
+{"groups":5792,"start":"2022-12-01","timestamp":"2026-10-24T18:32:14.768010764Z","message":"","level":"info","source_rows":461693,"event":"raw_month_staged","seconds":5.48}
+{"message":"","seconds":14.76,"groups":5058,"event":"raw_month_staged","start":"2023-01-01","source_rows":444396,"level":"info","timestamp":"2026-10-24T18:32:34.401508531Z"}
+{"groups":4576,"seconds":5.72,"start":"2023-02-01","source_rows":428769,"level":"info","message":"","timestamp":"2026-10-24T18:32:35.252527823Z","event":"raw_month_staged"}
+{"level":"info","seconds":7.65,"event":"raw_month_staged","message":"","start":"2023-03-01","timestamp":"2026-10-24T18:32:43.052900565Z","groups":4250,"source_rows":442873}
+{"event":"raw_month_staged","source_rows":304300,"seconds":4.68,"message":"","groups":3008,"level":"info","timestamp":"2026-10-24T18:32:47.579916316Z","start":"2023-04-01"}
+{"level":"info","timestamp":"2026-10-24T18:33:07.604469133Z","message":"","start":"2023-05-01","groups":4430,"source_rows":463956,"event":"raw_month_staged","seconds":10.06}
+{"groups":3545,"level":"info","message":"","event":"raw_month_staged","start":"2023-06-01","timestamp":"2026-10-24T18:33:07.604472343Z","source_rows":375133,"seconds":4.21}
+{"start":"2023-07-01","event":"raw_month_staged","seconds":7.55,"timestamp":"2026-10-24T18:33:09.603228643Z","source_rows":461079,"groups":4628,"message":"","level":"info"}
+{"groups":4662,"start":"2023-08-01","message":"","seconds":4.77,"level":"info","timestamp":"2026-10-24T18:33:14.575369657Z","event":"raw_month_staged","source_rows":508035}
+{"timestamp":"2026-10-24T18:33:19.729526131Z","event":"raw_month_staged","source_rows":461145,"groups":4099,"level":"info","start":"2023-09-01","seconds":5.49,"message":""}
+{"groups":4435,"event":"raw_month_staged","seconds":8.38,"source_rows":494884,"message":"","timestamp":"2026-10-24T18:33:28.057081787Z","level":"info","start":"2023-10-01"}
+{"message":"","level":"info","timestamp":"2026-10-24T18:33:48.075660279Z","start":"2023-11-01","event":"raw_month_staged","groups":4435,"source_rows":475475,"seconds":10.9}
+{"seconds":13.27,"source_rows":411520,"start":"2023-12-01","timestamp":"2026-10-24T18:33:52.227294965Z","level":"info","groups":4243,"message":"","event":"raw_month_staged"}
+{"timestamp":"2026-10-24T18:34:12.258860960Z","seconds":14.39,"groups":4643,"start":"2024-01-01","source_rows":464544,"level":"info","message":"","event":"raw_month_staged"}
+{"message":"","event":"raw_month_staged","source_rows":375000,"seconds":4.31,"groups":3573,"level":"info","start":"2024-02-01","timestamp":"2026-10-24T18:34:12.258864430Z"}
+{"start":"2024-03-01","source_rows":375766,"timestamp":"2026-10-24T18:34:15.553586723Z","groups":3861,"level":"info","seconds":4.63,"message":"","event":"raw_month_staged"}
+{"start":"2024-04-01","level":"info","seconds":3.74,"source_rows":335329,"groups":3401,"event":"raw_month_staged","message":"","timestamp":"2026-10-24T18:34:19.366502013Z"}
+{"message":"","groups":3601,"timestamp":"2026-10-24T18:34:22.658001338Z","start":"2024-05-01","level":"info","source_rows":368975,"seconds":2.87,"event":"raw_month_staged"}
+{"timestamp":"2026-10-24T18:34:25.956277147Z","level":"info","source_rows":357289,"event":"raw_month_staged","start":"2024-06-01","groups":3807,"message":"","seconds":3.77}
+{"message":"","timestamp":"2026-10-24T18:34:30.139796065Z","level":"info","seconds":4.2,"groups":4783,"source_rows":479922,"event":"raw_month_staged","start":"2024-07-01"}
+{"event":"raw_month_staged","seconds":3.57,"message":"","timestamp":"2026-10-24T18:34:33.696994223Z","groups":4282,"source_rows":481052,"start":"2024-08-01","level":"info"}
+{"timestamp":"2026-10-24T18:34:39.652139795Z","groups":4059,"seconds":5.83,"source_rows":467775,"level":"info","message":"","event":"raw_month_staged","start":"2024-09-01"}
+{"source_rows":520425,"seconds":5.78,"groups":4596,"start":"2024-10-01","level":"info","message":"","event":"raw_month_staged","timestamp":"2026-10-24T18:34:45.303150025Z"}
+{"source_rows":438399,"groups":4042,"start":"2024-11-01","level":"info","message":"","timestamp":"2026-10-24T18:34:53.082445907Z","event":"raw_month_staged","seconds":7.76}
+{"event":"raw_month_staged","message":"","seconds":10.61,"level":"info","timestamp":"2026-10-24T18:35:12.496444520Z","source_rows":411308,"start":"2024-12-01","groups":3992}
+{"groups":3871,"start":"2025-01-01","source_rows":409818,"level":"info","timestamp":"2026-10-24T18:35:21.185398774Z","message":"","event":"raw_month_staged","seconds":17.49}
+{"timestamp":"2026-10-24T18:35:50.751608302Z","message":"","start":"2025-02-01","level":"info","source_rows":432346,"groups":4000,"seconds":22,"event":"raw_month_staged"}
+{"timestamp":"2026-10-24T18:35:59.938864781Z","source_rows":406022,"groups":3820,"seconds":16.77,"level":"info","event":"raw_month_staged","start":"2025-03-01","message":""}
+{"groups":3312,"level":"info","seconds":5.54,"timestamp":"2026-10-24T18:36:05.591386354Z","source_rows":355391,"start":"2025-04-01","message":"","event":"raw_month_staged"}
+{"event":"raw_month_staged","groups":3522,"level":"info","source_rows":405427,"message":"","start":"2025-05-01","timestamp":"2026-10-24T18:36:11.988463385Z","seconds":6.5}
+{"message":"","source_rows":420195,"start":"2025-06-01","seconds":3.8,"event":"raw_month_staged","groups":3779,"timestamp":"2026-10-24T18:36:15.791982202Z","level":"info"}
+{"seconds":15.54,"event":"raw_month_staged","level":"info","timestamp":"2026-10-24T18:36:35.162152047Z","message":"","start":"2025-07-01","source_rows":534144,"groups":5461}
+{"groups":4358,"start":"2025-08-01","timestamp":"2026-10-24T18:36:38.888047943Z","source_rows":528993,"message":"","event":"raw_month_staged","level":"info","seconds":6.94}
+{"level":"info","seconds":9.91,"timestamp":"2026-10-24T18:36:48.167308799Z","message":"","groups":4606,"start":"2025-09-01","source_rows":581733,"event":"raw_month_staged"}
+{"message":"","source_rows":644876,"event":"raw_month_staged","seconds":8.98,"start":"2025-10-01","timestamp":"2026-10-24T18:36:57.144815294Z","groups":5077,"level":"info"}
+{"source_rows":552712,"event":"raw_month_staged","seconds":3,"level":"info","message":"","start":"2025-11-01","timestamp":"2026-10-24T18:37:00.149953359Z","groups":4505}
+{"message":"","timestamp":"2026-10-24T18:37:07.240890997Z","groups":4663,"source_rows":569958,"level":"info","event":"raw_month_staged","seconds":7.09,"start":"2025-12-01"}
+{"message":"","source_rows":634145,"event":"raw_month_staged","level":"info","start":"2026-01-01","seconds":13.82,"timestamp":"2026-10-24T18:37:26.587491943Z","groups":4893}
+{"level":"info","message":"","start":"2026-02-01","seconds":7.25,"event":"raw_month_staged","groups":3697,"source_rows":518553,"timestamp":"2026-10-24T18:37:28.316103200Z"}
+{"level":"info","timestamp":"2026-10-24T18:37:35.425507186Z","event":"raw_month_staged","start":"2026-03-01","groups":3431,"message":"","seconds":6.47,"source_rows":451793}
+{"event":"raw_month_staged","message":"","seconds":3.14,"start":"2026-04-01","source_rows":575398,"groups":4167,"timestamp":"2026-10-24T18:37:38.410716331Z","level":"info"}
+{"level":"info","start":"2026-05-01","seconds":2.31,"event":"raw_month_staged","source_rows":437748,"message":"","timestamp":"2026-10-24T18:37:40.338140634Z","groups":3234}
+{"timestamp":"2026-10-24T18:37:42.554805361Z","source_rows":512969,"message":"","start":"2026-06-01","groups":3977,"level":"info","seconds":1.83,"event":"raw_month_staged"}
+{"level":"info","source_rows":566589,"groups":5397,"timestamp":"2026-10-24T18:37:45.451832336Z","message":"","start":"2026-07-01","event":"raw_month_staged","seconds":3.2}
+{"seconds":2.1,"timestamp":"2026-10-24T18:37:47.683518464Z","event":"raw_month_staged","level":"info","groups":3804,"source_rows":495775,"message":"","start":"2026-08-01"}
+{"level":"error","message":"  File \"<string>\", line 1, in <module>","timestamp":"2026-10-24T18:37:52.605135059Z"}
+{"timestamp":"2026-10-24T18:37:52.605145939Z","level":"error","message":"  File \"<string>\", line 14, in <module>"}
+{"timestamp":"2026-10-24T18:37:52.605150298Z","level":"error","message":"  File \"<frozen runpy>\", line 287, in run_path"}
+{"level":"error","message":"  File \"<frozen runpy>\", line 98, in _run_module_code","timestamp":"2026-10-24T18:37:52.605157408Z"}
+{"level":"error","message":"  File \"<frozen runpy>\", line 88, in _run_code","timestamp":"2026-10-24T18:37:52.605162478Z"}
+{"message":"  File \"/tmp/index-approved-bulk/scripts/backfill_index_features.py\", line 320, in <module>","timestamp":"2026-10-24T18:37:52.605167788Z","level":"error"}
+{"message":"    if __name__=='__main__':main()","timestamp":"2026-10-24T18:37:52.605172278Z","level":"error"}
+{"message":"                            ^^^^^^","timestamp":"2026-10-24T18:37:52.605177408Z","level":"error"}
+{"level":"error","message":"  File \"/tmp/index-approved-bulk/scripts/backfill_index_features.py\", line 312, in main","timestamp":"2026-10-24T18:37:52.605182278Z"}
+{"level":"error","timestamp":"2026-10-24T18:37:52.605187078Z","message":"    prepare(db,a.ticker,a.sample_date)"}
+{"level":"error","timestamp":"2026-10-24T18:37:52.605193048Z","message":"  File \"/tmp/index-approved-bulk/scripts/backfill_index_features.py\", line 256, in prepare"}
+{"message":"    stage2(db,ticker);freq=stage6(db,ticker);history=stage_prices(db,ticker)","level":"error","timestamp":"2026-10-24T18:37:52.605198968Z"}
+{"level":"error","timestamp":"2026-10-24T18:37:52.605203458Z","message":"    ^^^^^^^^^^^^^^^^^"}
+{"message":"  File \"/tmp/index-approved-bulk/scripts/backfill_index_features.py\", line 103, in stage2","timestamp":"2026-10-24T18:37:52.605208257Z","level":"error"}
+{"message":"    db.execute('CREATE TEMP TABLE calc2 (LIKE public.\"Feature_02_Broker_Rolling\" INCLUDING ALL) ON COMMIT PRESERVE ROWS')","timestamp":"2026-10-24T18:37:52.605212877Z","level":"error"}
+{"timestamp":"2026-10-24T18:37:52.605217917Z","level":"error","message":"  File \"/usr/local/lib/python3.12/site-packages/psycopg/connection.py\", line 269, in execute"}
+{"timestamp":"2026-10-24T18:37:52.605312276Z","message":"Traceback (most recent call last):","level":"error"}
+{"timestamp":"2026-10-24T18:37:52.608951772Z","message":"    raise ex.with_traceback(None)","level":"error"}
+{"level":"error","message":"psycopg.errors.DuplicateTable: relation \"calc2\" already exists","timestamp":"2026-10-24T18:37:52.608955492Z"}

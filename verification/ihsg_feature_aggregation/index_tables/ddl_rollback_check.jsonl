@@ -1,0 +1,6 @@
+{"message":"Starting Container","timestamp":"2026-10-24T15:58:38.736536384Z","level":"info"}
+{"level":"error","timestamp":"2026-10-24T15:58:49.186161202Z","message":"WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning."}
+{"message":"","timestamp":"2026-10-24T15:58:49.186166292Z","level":"error"}
+{"level":"error","timestamp":"2026-10-24T15:58:49.186170812Z","message":"[notice] A new release of pip is available: 25.0.1 -> 26.2.2"}
+{"level":"error","timestamp":"2026-10-24T15:58:49.186178302Z","message":"[notice] To update, run: pip install --upgrade pip"}
+{"level":"info","message":"","timestamp":"2026-10-24T15:58:50.169513309Z","event":"ddl_rollback_verified"}

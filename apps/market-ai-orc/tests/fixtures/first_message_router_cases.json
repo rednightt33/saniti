@@ -1,5 +1,5 @@
 {
- "note": "First-message router benchmark set (ROUTER_BENCHMARK_2026-10-04.md). Labels were written by one reviewer; 'heldout' was labelled before its first run. Each case: message and the acceptable routes. ask_back (EXEC-3, 2026-10-06; run with --ask-back): MUST cases have to be asked back (ASK_BACK), the NEVER cases are the clear first messages of golden test ma-qa-20261006b and must not be asked back. 2026-10-06 (user: \"kenapa gak serahkan ke model saja?\"): a message with two reasonable answers lists both (ASK_BACK is accepted for \"ok\" and for the open pattern question); the hard criteria are the costly errors only. time (M130, 2026-10-09; run with --ask-back --today 2026-10-09): periods before that date, named by month, year or 'terbaru', must never be asked back as if they were in the future; the acceptable routes are the usual ones for the question.",
+ "note": "First-message router benchmark set (ROUTER_BENCHMARK_2026-10-04.md). Labels were written by one reviewer; 'heldout' was labelled before its first run. Each case: message and the acceptable routes. ask_back (EXEC-3, 2026-10-06; run with --ask-back): MUST cases have to be asked back (ASK_BACK), the NEVER cases are the clear first messages of golden test ma-qa-20261006b and must not be asked back. 2026-10-06 (user: \"kenapa gak serahkan ke model saja?\"): a message with two reasonable answers lists both (ASK_BACK is accepted for \"ok\" and for the open pattern question); the hard criteria are the costly errors only. time (M130, 2026-10-09; run with --ask-back --today 2026-10-09): periods before that date, named by month, year or 'terbaru', must never be asked back as if they were in the future; the acceptable routes are the usual ones for the question. events (EXEC-GO-1025, 2026-10-25, labelled before its first run): idx_event_annotation is in the catalog, so a question about a stored corporate action or an insider or major-holder movement is a data question (ANALYSIS or EXPLORE, never FACT); a macro or news question stays FACT, the case the onboarding does not cover. Runs with --ask-back and must not be asked back. After the first run one label was widened: the pattern question about cum dates also accepts RESEARCH, as every pattern-test case of this set does.",
  "development": [
   {
    "message": "bagaimana kabarmu",
@@ -419,6 +419,52 @@
    "routes": [
     "ANALYSIS",
     "EXPLORE",
+    "FACT"
+   ],
+   "ask": "NEVER"
+  }
+ ],
+ "events": [
+  {
+   "message": "Kapan BBCA terakhir membagikan dividen tunai dan berapa per sahamnya?",
+   "routes": [
+    "ANALYSIS"
+   ],
+   "ask": "NEVER"
+  },
+  {
+   "message": "Siapa saja direksi atau komisaris yang menjual saham TLKM sepanjang 2026?",
+   "routes": [
+    "ANALYSIS"
+   ],
+   "ask": "NEVER"
+  },
+  {
+   "message": "Daftar emiten yang melakukan stock split tahun ini",
+   "routes": [
+    "ANALYSIS"
+   ],
+   "ask": "NEVER"
+  },
+  {
+   "message": "Apakah harga saham biasanya naik setelah cum date dividen di bank besar?",
+   "routes": [
+    "ANALYSIS",
+    "EXPLORE",
+    "RESEARCH"
+   ],
+   "ask": "NEVER"
+  },
+  {
+   "message": "Show me the major shareholder ownership changes in ADRO over the last three months",
+   "routes": [
+    "ANALYSIS"
+   ],
+   "ask": "NEVER"
+  },
+  {
+   "message": "Berapa inflasi tahunan Indonesia bulan lalu?",
+   "routes": [
     "FACT"
    ],
    "ask": "NEVER"

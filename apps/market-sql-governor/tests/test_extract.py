@@ -793,3 +793,132 @@ def test_a_summary_extraction_equals_the_same_summary_computed_independently(gov
     assert manifest["entities_present_count"] is None  # the entity was summed away
     refused = submit(ext, summary(measures=[{"column": "close", "function": "SUM", "as": "close_sum"}]))
     assert (refused["status"], refused["code"]) == ("REJECTED_POLICY", "AGGREGATION_NOT_ADDITIVE")
+
+
+# ---------------------------------------------------------------- EXEC-M216: relationships on the date only
+
+def date_only(relationship_id: int, semantics: str, right_table: str, right_scope: dict[str, Any], *,
+              right_time: str, direction: str | None = None) -> dict[str, Any]:
+    rule = restriction(relationship_id, semantics, right_table, right_scope, left_time="date", right_time=right_time,
+                       direction=direction)
+    del rule["left_column"], rule["right_column"]
+    return {**rule, "left_columns": [], "right_columns": []}
+
+
+@pytest.fixture(scope="module")
+def market_series(governed_db):
+    """Two index series on the same dates (IHSG, LQ45) and two monthly macro series: what a stock meets on the date
+    only."""
+    admin(governed_db, '''
+CREATE TABLE public."Index_Daily_Synthetic" (ticker text, date date, return_1d numeric, PRIMARY KEY (ticker, date));
+INSERT INTO public."Index_Daily_Synthetic"
+SELECT t, g::date, CASE WHEN (t, g::date) IN (('IHSG', DATE '2025-01-06'), ('IHSG', DATE '2025-02-10'),
+                                              ('LQ45', DATE '2025-01-07')) THEN -2.5 ELSE 0.1 END
+FROM unnest(ARRAY['IHSG', 'LQ45']) AS t, generate_series(DATE '2025-01-02', DATE '2025-03-31', interval '1 day') AS g
+WHERE extract(isodow FROM g) < 6;
+CREATE TABLE public."Macro_Monthly_Synthetic" (series_id text, period date, value numeric,
+                                               PRIMARY KEY (series_id, period));
+INSERT INTO public."Macro_Monthly_Synthetic" VALUES ('BI_RATE', '2025-01-01', 6.0), ('BI_RATE', '2025-02-01', 5.75),
+                                                    ('CPI', '2025-02-15', 9.0);
+GRANT SELECT ON public."Index_Daily_Synthetic", public."Macro_Monthly_Synthetic" TO market_ai_sql_reader;
+INSERT INTO public."AI_table_catalog" (table_name, description, category, grain, primary_key_columns, time_column,
+    entity_column, is_active, ai_access_level, coverage_enabled, documentation_status, data_domain, entity_type,
+    asset_type, supported_frequencies, time_semantics) VALUES
+ ('Index_Daily_Synthetic', 'Synthetic.', 'FEATURE', 'ticker x date', ARRAY['ticker','date'], 'date', 'ticker', true,
+  'BOUNDED_READ', false, 'VERIFIED', 'MARKET', 'INDEX', 'IDX_INDEX', ARRAY['1D'], 'Trading date'),
+ ('Macro_Monthly_Synthetic', 'Synthetic.', 'REFERENCE', 'series_id x period', ARRAY['series_id','period'], 'period',
+  'series_id', true, 'BOUNDED_READ', false, 'VERIFIED', 'MACRO', 'SERIES', NULL, ARRAY['1M'], 'Period start');
+INSERT INTO public."AI_column_catalog" (table_name, column_name, ordinal_position, description, data_type,
+    semantic_type, nullable, is_primary_key, allowed_aggregations, filter_allowed, group_by_allowed,
+    documentation_status) VALUES
+ ('Index_Daily_Synthetic', 'ticker', 1, 'x', 'text', 'IDENTIFIER', false, true, ARRAY['COUNT'], true, true, 'VERIFIED'),
+ ('Index_Daily_Synthetic', 'date', 2, 'x', 'date', 'TIME', false, true, ARRAY['COUNT'], true, true, 'VERIFIED'),
+ ('Index_Daily_Synthetic', 'return_1d', 3, 'x', 'numeric', 'MEASURE', true, false, ARRAY['AVG'], true, false,
+  'VERIFIED'),
+ ('Macro_Monthly_Synthetic', 'series_id', 1, 'x', 'text', 'IDENTIFIER', false, true, ARRAY['COUNT'], true, true,
+  'VERIFIED'),
+ ('Macro_Monthly_Synthetic', 'period', 2, 'x', 'date', 'TIME', false, true, ARRAY['COUNT'], true, true, 'VERIFIED'),
+ ('Macro_Monthly_Synthetic', 'value', 3, 'x', 'numeric', 'MEASURE', true, false, ARRAY['AVG'], true, false,
+  'VERIFIED');
+''')
+    exact = admin(governed_db, '''
+INSERT INTO public."AI_catalog_relationships" (left_table, left_columns, right_table, right_columns,
+    relationship_type, temporal_rule, safe_output_grain, requires_preaggregation, description, version, is_allowed,
+    supported_join_semantics, left_time_column, right_time_column)
+VALUES ('Price_Stock_Indonesia_IDX', ARRAY['date'], 'Index_Daily_Synthetic', ARRAY['date'], 'MANY_TO_ONE',
+        'Same trading date', 'date x ticker', false, 'Synthetic.', 'v1', true, ARRAY['EXACT_DATE'], 'date', 'date')
+RETURNING relationship_id''')[0][0]
+    as_of = admin(governed_db, '''
+INSERT INTO public."AI_catalog_relationships" (left_table, left_columns, right_table, right_columns,
+    relationship_type, temporal_rule, safe_output_grain, requires_preaggregation, description, version, is_allowed,
+    supported_join_semantics, left_time_column, right_time_column)
+VALUES ('Price_Stock_Indonesia_IDX', ARRAY['date'], 'Macro_Monthly_Synthetic', ARRAY['period'], 'MANY_TO_ONE',
+        'Latest value at or before the date', 'date x ticker', false, 'Synthetic.', 'v1', true, ARRAY['AS_OF'], 'date',
+        'period') RETURNING relationship_id''')[0][0]
+    admin(governed_db, "ANALYZE")
+    yield {"exact": exact, "as_of": as_of}
+    admin(governed_db, '''
+DELETE FROM public."AI_catalog_relationships" WHERE right_table IN ('Index_Daily_Synthetic', 'Macro_Monthly_Synthetic');
+DELETE FROM public."AI_column_catalog" WHERE table_name IN ('Index_Daily_Synthetic', 'Macro_Monthly_Synthetic');
+DELETE FROM public."AI_table_catalog" WHERE table_name IN ('Index_Daily_Synthetic', 'Macro_Monthly_Synthetic');
+DROP TABLE public."Index_Daily_Synthetic", public."Macro_Monthly_Synthetic";''')
+
+
+def test_a_date_only_restriction_keeps_the_days_of_the_named_series(governed_db, tmp_path, market_series) -> None:
+    ext = extractor(governed_db, tmp_path)
+    scope = {"type": "AND", "children": [pred("return_1d", "LT", "-2"), pred("ticker", "EQ", "IHSG")]}  # canonical order
+    rule = date_only(market_series["exact"], "EXACT_DATE", "Index_Daily_Synthetic", scope, right_time="date")
+    outcome = submit(ext, extraction(restrictions=[rule]))
+    rows = rows_of(ext, outcome)
+    # LQ45 fell on 2025-01-07 too; the scope names IHSG, so only its two days are kept, for every stock
+    assert {r["date"] for r in rows} == {date(2025, 1, 6), date(2025, 2, 10)}
+    assert len(rows) == 2 * 30
+    executed = manifest_of(ext, outcome)["executed_scope"]
+    assert executed["restriction_sha256"] == sha256_json([rule])  # the canonical form keeps the two empty key lists
+
+
+def test_a_date_only_as_of_needs_the_series_fixed_then_reads_its_latest_value(governed_db, tmp_path,
+                                                                              market_series) -> None:
+    ext = extractor(governed_db, tmp_path)
+    loose = date_only(market_series["as_of"], "AS_OF", "Macro_Monthly_Synthetic", pred("value", "GTE", "6"),
+                      right_time="period", direction="BACKWARD")
+    refused = submit(ext, extraction(restrictions=[loose]))
+    assert (refused["status"], refused["code"]) == ("REJECTED_POLICY", "ONE_SIDE_NOT_UNIQUE")
+    assert "series_id" in refused["message"] and "EQ" in refused["message"]
+    scope = {"type": "AND", "children": [pred("series_id", "EQ", "BI_RATE"), pred("value", "GTE", "6")]}
+    fixed = date_only(market_series["as_of"], "AS_OF", "Macro_Monthly_Synthetic", scope, right_time="period",
+                      direction="BACKWARD")
+    rows = rows_of(ext, submit(ext, extraction(restrictions=[fixed])))
+    # BI_RATE was 6.0 from 2025-01-01 and 5.75 from 2025-02-01; the CPI row of 2025-02-15 never stands in for it
+    assert max(r["date"] for r in rows) == date(2025, 1, 31) and min(r["date"] for r in rows) == date(2025, 1, 2)
+
+
+def test_the_date_only_key_form_is_its_own_and_refused_where_the_catalog_has_keys(governed_db, tmp_path,
+                                                                               market_series) -> None:
+    with pytest.raises(ValueError, match="EXACT_DATE or AS_OF"):
+        ex.Restriction.model_validate({**date_only(1, "EXACT_DATE", "x", ALL, right_time="date"),
+                                       "join_semantics": "CURRENT_STATE", "left_time_column": None,
+                                       "right_time_column": None})
+    with pytest.raises(ValueError, match="single key pair"):
+        ex.Restriction.model_validate({**date_only(1, "EXACT_DATE", "x", ALL, right_time="date"),
+                                       "left_columns": ["ticker"], "right_columns": ["ticker"]})
+    ext = extractor(governed_db, tmp_path)
+    rel = admin(governed_db, '''SELECT relationship_id FROM public."AI_catalog_relationships"
+                                WHERE left_table = 'Price_Stock_Indonesia_IDX'
+                                  AND right_table = 'Feature_01_Stock_Daily' ''')[0][0]
+    keyless = date_only(rel, "EXACT_DATE", "Feature_01_Stock_Daily", pred("ticker", "EQ", "BBCA"), right_time="date")
+    outcome = submit(ext, extraction(restrictions=[keyless]))
+    assert (outcome["status"], outcome["code"]) == ("REJECTED_POLICY", "RELATIONSHIP_KEY_MISMATCH")
+
+
+def test_the_date_only_key_form_of_the_sandbox_is_the_governors() -> None:
+    """Contract (EXEC-M216): the sandbox's canonical key form for a relationship without entity pairs validates here
+    and keeps its form in the executed restriction."""
+    module_spec = importlib.util.spec_from_file_location("sandbox_data_need", SANDBOX_DATA_NEED)
+    sandbox = importlib.util.module_from_spec(module_spec)
+    sys.modules["sandbox_data_need"] = sandbox
+    module_spec.loader.exec_module(sandbox)
+    keys = sandbox.key_fields([])
+    assert keys == {"left_columns": [], "right_columns": []}
+    item = ex.Restriction.model_validate({**date_only(1, "EXACT_DATE", "x", ALL, right_time="date"), **keys})
+    assert item.pairs == []

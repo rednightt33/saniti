@@ -1,0 +1,12 @@
+{
+ "version": 20,
+ "date": "2026-10-25",
+ "name": "v020-2026-10-25-window-basis",
+ "decision": "User 2026-10-23 (EXEC-M209): Feature 1-6 'bisa sebisa mungkin digunakan, tapi tidak wajib, hanya sifatnya adalah supplementary' and the data 'harus di-disclose ... hari di mana saham tersebut bertransaksi'; go 2026-10-25 EXEC-GO-1025: 'Okay, yang menunggu GO silahkan di jalankan' (item 6, EXEC-M209 steps 1, 2 and 5)",
+ "change": "Stored-value rule covers windowed sums, counts, z-scores and percentiles read when their COLUMNS window is the user's, with a right and a wrong example; fast-lane rule 8 names flows and counts",
+ "prompt_chars": 42329,
+ "prompt_sha256": "b0852ffac87c3af48447bbb7cca6616132030fa5a2506bedd970e70c74d86e46",
+ "schema_sha256": "ef9b0ecbca7d7a3b0c5e08e3062a04dddce274ebff1b74d121fbe791a3787883",
+ "fast_prompt_chars": 29972,
+ "fast_prompt_sha256": "4467aea92ba617e838aac45f800cfb24ea94271f77b150f6ea9ade9f461e828a"
+}

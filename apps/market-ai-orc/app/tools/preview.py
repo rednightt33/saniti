@@ -18,12 +18,16 @@ PreviewTable = Literal[
     "IDX_Broker_Profile", "IDX_Broker_Summary", "IDX_Stock_Universe", "Price_Stock_Indonesia_IDX",
     "Price_Fixed_Income_Final", "Universe_Fixed_income", "Feature_04_Technical_Indicator",
     "Feature_05_Foreign_Domestic_Broker_Detail_Stock", "Feature_06_Foreign_Domestic_Stock",
+    "Feature_01_Stock_Daily_INDEX", "Feature_02_Broker_Rolling_INDEX", "Feature_03_Stock_Broker_Daily_INDEX",
+    "Feature_04_Technical_Indicator_INDEX", "Feature_05_Foreign_Domestic_Broker_Detail_INDEX",
+    "Feature_06_Foreign_Domestic_INDEX",
 ]
 
 # Must equal the ORDER BY clauses of public.ai_preview_table_rows in its newest migration,
-# database/migrations/20261023_004_onboard_feature05_06_stock_views.sql (first: 20260923_002); the database function
+# database/migrations/20261025_005_onboard_index_features.sql (first: 20260923_002); the database function
 # is the enforcement point; tests compare both.
 RECENT = "Rows with the most recent {date} first; ties broken by the remaining key columns, all descending."
+INDEX_NOTE = " Index rows (IHSG); broker and foreign flows are market-wide aggregates of every source symbol."
 ORDERING: dict[str, tuple[str, str]] = {
     "Feature_01_Stock_Daily": ("date DESC, ticker DESC", RECENT.format(date="date")),
     "Feature_02_Broker_Rolling": (
@@ -54,6 +58,24 @@ ORDERING: dict[str, tuple[str, str]] = {
         "trade_date DESC, market_board DESC, ticker DESC",
         RECENT.format(date="trade_date") + " IDX stocks of the current universe only.",
     ),
+    # EXEC-INDEX-1: the IDX Composite Index (IHSG) tables, in their stock counterparts' key order
+    "Feature_01_Stock_Daily_INDEX": ("date DESC, ticker DESC", RECENT.format(date="date") + INDEX_NOTE),
+    "Feature_02_Broker_Rolling_INDEX": (
+        "date DESC, market_board DESC, ticker DESC, broker DESC, investor_type DESC",
+        RECENT.format(date="date") + INDEX_NOTE,
+    ),
+    "Feature_03_Stock_Broker_Daily_INDEX": ("date DESC, market_board DESC, ticker DESC",
+                                            RECENT.format(date="date") + INDEX_NOTE),
+    "Feature_04_Technical_Indicator_INDEX": (
+        "trade_date DESC, asset_type DESC, ticker DESC",
+        RECENT.format(date="trade_date") + INDEX_NOTE + " The calculation state columns are left out.",
+    ),
+    "Feature_05_Foreign_Domestic_Broker_Detail_INDEX": (
+        "trade_date DESC, ticker DESC, broker DESC, investor_type DESC, market_board DESC",
+        RECENT.format(date="trade_date") + INDEX_NOTE,
+    ),
+    "Feature_06_Foreign_Domestic_INDEX": ("trade_date DESC, market_board DESC, ticker DESC",
+                                          RECENT.format(date="trade_date") + INDEX_NOTE),
 }
 NOTICE = (
     "Example rows only: at most 20 per table in a fixed deterministic order. They are not a "

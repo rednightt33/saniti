@@ -534,9 +534,11 @@ FAST_LANE_ROUTES = (
 # What the warehouse holds, as the router reads it. EXEC-ONBOARD-1 (2026-10-20): without bond yields and the stored
 # indicators the router sent "yield obligasi 10 tahun" to FACT (the web) although the catalog holds it; a new data
 # domain is added here when it is onboarded (NEW_TABLE_ONBOARDING_PLAN.md, the guideline's list of hand-written places)
-WAREHOUSE_SCOPE = ("Indonesian stocks, a warehouse of stock prices, broker and foreign flows, Indonesian and US "
-                   "government bond prices and yields, and stored technical indicators and candlestick patterns, a "
-                   "web fact finder")
+WAREHOUSE_SCOPE = ("Indonesian stocks, a warehouse of stock prices, broker and foreign flows, the IDX Composite Index "
+                   "(IHSG) with its index features, technical indicators and market-wide broker and foreign flows, "
+                   "Indonesian and US government bond prices and yields, stored technical indicators and "
+                   "candlestick patterns, corporate actions (dividends, splits, rights issues, RUPS) and insider "
+                   "and major-holder ownership movements, a web fact finder")
 FIRST_INSTRUCTIONS = (
     "You route the FIRST message of a conversation in a stock-market analysis app (" + WAREHOUSE_SCOPE + "). "
     "Choose exactly one route:\n"

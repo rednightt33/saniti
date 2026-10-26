@@ -1,0 +1,75 @@
+{
+  "read_only": "on",
+  "checked_at": "2026-10-24T19:16:35.613934+00:00",
+  "price_range": {
+    "last": "2026-10-23",
+    "rows": 2125,
+    "first": "2018-01-02"
+  },
+  "index_counts": {
+    "Feature01": {
+      "last": "2026-10-23",
+      "rows": 2125,
+      "first": "2018-01-02"
+    },
+    "Feature02": {
+      "last": "2026-08-31",
+      "rows": 576648,
+      "first": "2016-01-04"
+    },
+    "Feature03": {
+      "last": "2026-08-31",
+      "rows": 7128,
+      "first": "2016-01-04"
+    },
+    "Feature04": {
+      "last": "2026-10-23",
+      "rows": 2125,
+      "first": "2018-01-02"
+    },
+    "Feature05": {
+      "last": "2026-08-31",
+      "rows": 576648,
+      "first": "2016-01-04"
+    },
+    "Feature06": {
+      "last": "2026-08-31",
+      "rows": 7128,
+      "first": "2016-01-04"
+    }
+  },
+  "catalog_fields": [
+    "feature_table",
+    "feature_column",
+    "grain",
+    "feature_category",
+    "definition",
+    "calculation",
+    "source_tables",
+    "source_columns",
+    "lookback_window",
+    "minimum_history",
+    "unit",
+    "null_rule",
+    "refresh_trigger",
+    "dependency_rule",
+    "version",
+    "is_active",
+    "created_at",
+    "updated_at",
+    "semantic_role",
+    "allowed_aggregations",
+    "ranking_interpretation",
+    "is_filterable",
+    "is_groupable",
+    "availability_rule",
+    "point_in_time_safe",
+    "historical_metadata_warning",
+    "analytical_interpretation",
+    "recommended_use",
+    "misuse_warning",
+    "semantic_review_status",
+    "validation_evidence"
+  ],
+  "possible_vocabulary_tables": null
+}

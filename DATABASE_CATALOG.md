@@ -262,3 +262,49 @@ Every Indonesian meaning is left empty (`description_id` NULL; user decision, st
 
 Feature 02 and Feature 03 keep every code; the views' table descriptions say so. Read-back: DATABASE_CHANGELOG.md
 2026-10-23.
+
+
+## INDEX bootstrap and frontend vocabulary — 2026-10-25
+
+The six dedicated *_INDEX tables now contain validated IHSG history (DATABASE_CHANGELOG.md).
+F05 INDEX has the original 15 analytical/identity fields after the five coverage columns were removed;
+F06 INDEX retains all five coverage fields. Active Feature/physical column metadata is synchronized
+for all 255 INDEX columns. Current broker scope is all source symbols, each board, with common
+aggregate sessions and a broker-history cumulative baseline independent of index price inception.
+Daily updates and new AI exposure remain separate; existing legacy worker routing is unchanged.
+
+`Feature_Vocabulary` is a **Reference** presentation dictionary, not a new numerical Feature.
+It has 24 documented physical fields and 391 reviewed rows for F01/02/03/05/06 stock and INDEX
+sources. Exact source table/column/language identity separates meanings. Source semantic hashes
+reject drift at sync; idempotent updates preserve timestamps for unchanged entries. Formula text
+is never executed. Scope stock labels legacy non-INDEX tables, which can contain non-stock raw
+symbols. The seven frontend fields and maintenance/query instructions are in FEATURE_VOCABULARY.md.
+No Feature_Catalog definitions are required for vocabulary metadata fields; their registration is
+Table_Catalog/Column_Catalog. No frontend endpoint, browser credentials or AI tools were added.
+
+## Relationships on the date only and on non-entity keys — 2026-10-25 (EXEC-M216)
+
+Migration `20261025_010` registers six relationships from each exposed stock Feature object to its `_INDEX`
+counterpart (`AI_catalog_relationships` 250-255, and `Feature_Relationship_Catalog` on the base tables), EXACT_DATE,
+MANY_TO_ONE. The keys are derived, not listed: the primary key columns both tables share, without the entity and the
+time column, that hold a common stored value.
+
+| Stock object | Paired with the INDEX row on |
+|---|---|
+| Feature 01 | the date only |
+| Feature 02 | market_board, broker, investor_type, date |
+| Feature 03 | market_board, date |
+| Feature 04 | timeframe, trade_date (asset_type differs: equity/bonds against index) |
+| Feature 05 stock view | broker, investor_type, market_board, trade_date |
+| Feature 06 stock view | market_board, trade_date |
+
+Rules (enforced in code, not only described):
+- A relationship whose only pair is the time pair has empty `request_key_columns` in the AI catalog and supports
+  `EXACT_DATE` / `AS_OF` only (`AI_catalog_relationships_date_only_check`; sandbox and Governor refuse other semantics).
+- When a relationship does not pair the entity column of the side it declares "one", that side's data request must fix
+  every primary key column the relationship leaves open with `EQ` or one-value `IN` (`ONE_SIDE_NOT_UNIQUE`, sandbox
+  `data_need.py`; Governor `extract.py` for a date-only `AS_OF`). For the INDEX tables that is `ticker` (and
+  `asset_type` for Feature 04), so a second index never doubles or mixes rows.
+- `/v1/query` (the retired `request_data` path) refuses a date-only row join (`DATE_ONLY_JOIN_NOT_SUPPORTED`).
+- The same rule covers a future macro or cross-asset series table: a series id in its primary key is fixed by the
+  scope; a table with one row per date (no entity column) needs nothing.

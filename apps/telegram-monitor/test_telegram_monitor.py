@@ -13,6 +13,8 @@ from telegram_monitor import (
     edit_telegram_message,
     feature04_markup,
     fetch_fixed_income_summary,
+    StockbitUpdateSummary,
+    build_stockbit_messages,
 )
 
 
@@ -162,6 +164,37 @@ class TelegramMonitorTests(unittest.TestCase):
         self.assertEqual(len(messages), 1)
         self.assertIn("…and 5 more", messages[0])
         self.assertNotIn("T10.JK", messages[0])
+
+    def test_stockbit_update_round_is_reported_with_its_counts(self):
+        value = StockbitUpdateSummary(
+            execution_id="7b0c0d3e-0000-4000-8000-000000000001", mode="APPLY", status="SUCCESS",
+            started_at=datetime(2026, 10, 26, 10, 0, tzinfo=timezone.utc),
+            finished_at=datetime(2026, 10, 26, 11, 5, tzinfo=timezone.utc),
+            token_expires_at=datetime(2026, 10, 27, 5, 42, tzinfo=timezone.utc),
+            broker_dates=("2026-10-26",), broker_rows=24000,
+            features={"changed_dates": ["2026-10-26"]}, index_result={"newest": {}},
+            events={"reconcile_corporate_action": {"new": 3, "changed": 1, "removed": 0},
+                    "reconcile_insider": {"new": 40, "changed": 0, "removed": 0}},
+            verify={}, last_error=None,
+        )
+        text = build_stockbit_messages(value)[0]
+        self.assertIn("Stockbit update APPLY SUCCESS", text)
+        self.assertIn("Broker Summary: 2026-10-26 • rows 24000", text)
+        self.assertIn("1 tanggal di-refresh (dari 2026-10-26)", text)
+        self.assertIn("Corporate action: baru 3, berubah 1", text)
+        self.assertIn("27 Oct 2026 12:42 WIB", text)
+
+    def test_stockbit_update_failure_names_the_error(self):
+        value = StockbitUpdateSummary(
+            execution_id="x", mode="APPLY", status="FAILED",
+            started_at=datetime(2026, 10, 26, 10, 0, tzinfo=timezone.utc),
+            finished_at=datetime(2026, 10, 26, 10, 0, 5, tzinfo=timezone.utc), token_expires_at=None,
+            broker_dates=(), broker_rows=None, features={}, index_result={}, events={}, verify={},
+            last_error="RuntimeError: Token Stockbit kedaluwarsa",
+        )
+        text = build_stockbit_messages(value)[0]
+        self.assertIn("FAILED", text)
+        self.assertIn("Error: RuntimeError: Token Stockbit kedaluwarsa", text)
 
 
 if __name__ == "__main__":

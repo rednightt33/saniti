@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""EXEC-TERMINAL-API: create or rotate the two terminal logins after migration 20261025_001.
+"""EXEC-TERMINAL-API: create or rotate the two terminal logins after migration 20261025_100 (the terminal schema).
 
 Requires DATABASE_URL (admin), TERMINAL_DB_PASSWORD and TERMINAL_PUBLISHER_DB_PASSWORD; never prints any of them.
 terminal_api_login       -> terminal_runtime (schema terminal) + terminal_market_reader (four market tables)
@@ -40,7 +40,7 @@ def main():
     with psycopg.connect(url, row_factory=dict_row) as c:
         for group in ('terminal_runtime', 'terminal_market_reader'):
             if not c.execute('SELECT 1 FROM pg_roles WHERE rolname=%s', (group,)).fetchone():
-                raise RuntimeError('Apply migration 20261025_001 first')
+                raise RuntimeError('Apply migration 20261025_100 (terminal schema) first')
         for login, spec in LOGINS.items():
             password = os.environ.get(spec['env'], '')
             if len(password) < 32:

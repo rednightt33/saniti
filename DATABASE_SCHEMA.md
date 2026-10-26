@@ -1,6 +1,6 @@
 # Database schema
 
-Refreshed from the applied public-schema migration and live readback at `2026-10-12T09:29:57+00:00`; `IDX_Broker_Summary`, `Feature_05_Foreign_Domestic_Broker_Detail` and `Feature_06_Foreign_Domestic` re-read live (read-only) on `2026-10-22` after migrations `20261022_001`-`005`. The indexes of `Feature_04_Technical_Indicator` and `Feature_05_Foreign_Domestic_Broker_Detail` re-read live on `2026-10-23` after migrations `20261023_001`-`003`.
+Generated from PostgreSQL schema `public` at `2026-10-25T19:18:32+00:00`.
 
 `Latest Data Date` is the newest business date represented in a table. `Last Changed At` is the latest tracked database change or completed load. `Last Checked At` is only the time this catalog inspected the table.
 
@@ -8,102 +8,89 @@ Refreshed from the applied public-schema migration and live readback at `2026-10
 
 | Table Name | Category | Update Pattern | Latest Data Date | Last Changed At | Tracking | Definition |
 |---|---|---|---|---|---|---|
-| `AI_calculation_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing calculation contracts derived from active, validated Feature definitions. |
-| `AI_catalog_relationships` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing safe join, temporal alignment, preaggregation, and output-grain contracts. |
-| `AI_column_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing column semantics and bounded-query permissions for the seven approved tables. |
-| `AI_entity_alias` | System | Forward migrations or a reviewed load | — | `2026-10-15` | Baseline only | Curated aliases of entity codes (a brand, a former code) the display names cannot give; generated aliases are derived by the SQL Governor, not stored (migration `20261015_014`). |
-| `AI_conversation` | Unclassified | Unknown | — | `2026-09-27 08:23:59+00:00` | Baseline only | market-ai-orc conversations kept by the server (history_mode SERVER): one row per chat box with its owner, retention and the lease that allows one active run at a time. |
-| `AI_conversation_evidence` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | Claims of market-ai-orc answers recomputed by the backend on a path separate from the model's code (SQL Governor summary or the released base table), with the status, the backend value and at most 200 rows of evidence. |
-| `AI_conversation_execution` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | The code of each sandbox execution of a market-ai-orc conversation, so a result can be traced and reproduced after the sandbox copy expired. |
-| `AI_conversation_export` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | Files exported from a market-ai-orc conversation for the user to download (CSV, XLSX or Parquet, at most 20 MB). |
-| `AI_conversation_output` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | Released outputs of market-ai-orc conversations (tables, JSON, text, charts) with their definition, units, lineage and the last date of the data they were computed from; the content up to 20 MB is here, a larger one in the bucket market-ai-conversation-outputs. |
-| `AI_conversation_run_memory` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | What each run of a market-ai-orc conversation (a turn or a step of a mode 4 turn) leaves for the runs after it: the memo later runs read in their prompt, the full texts it names (message, answer, plan, refusals with the refused drafts, design values with their origin, web facts, catalog details), the values it made citable, the model's own note and its reasoning. |
-| `AI_conversation_turn` | Unclassified | Unknown | — | `2026-09-27 08:23:59+00:00` | Baseline only | One message of a market-ai-orc conversation: the user message, the run status and the response returned to the caller. |
-| `AI_data_coverage` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | Automated actual raw-source coverage plus explicitly inferred expectations for derived Feature tables. |
-| `AI_formula_reference` | Unclassified | Unknown | — | `2026-09-24 09:22:02+00:00` | Baseline only | Global reference catalog of calculation formulas for the orchestrator; entries document a formula, not a verified or executable implementation. |
-| `AI_method_guide` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | Model-facing menu and manual of the analysis paths (G1-G4) and session helpers: when to use and not, inputs, limits, what the backend checks, results, common errors and tested examples; bound to the code by guides_sha256. |
-| `AI_metric_catalog` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | Official metrics market-ai-orc's query_metric answers in one SQL Governor summary: source table, measure column, rule over time, dimensions, default row filter and meaning. Units and additivity are read from AI_column_catalog. |
-| `AI_research_catalog` | Unclassified | Unknown | — | `2026-09-24 07:24:52+00:00` | Baseline only | Global reference catalog of research methods for the orchestrator; entries do not enable sandbox execution. |
-| `AI_research_library` | Unclassified | Unknown | — | `2026-10-09 05:36:34+00:00` | Baseline only | Model-facing description of the eight Multi-Angle Research methods (roles, parameters, data requirements, interpretation, misuse warning), generated from the sandbox research library and bound to it by library_sha256. |
-| `AI_research_run_audit` | Unclassified | Unknown | — | `2026-09-24 12:33:35+00:00` | Baseline only | Durable audit of market-ai-orc runs: the question, the final answer, its evidence label and gate outcome, and every experiment with its Research Governor decision, validation, evidence decision and fingerprints. |
-| `AI_table_catalog` | Unclassified | Unknown | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing master list and bounded-access contract for seven approved source and Feature tables. |
-| `Analysis_Evidence` | System | When compact evidence is recorded for an analysis | — | `2026-09-13 15:02:15+00:00` | Baseline only | Compact reproducible evidence supporting material AI analysis claims. |
-| `Analysis_Model_Call` | System | One row after every provider model response; retained reasoning is purged by policy | — | `2026-09-14 03:49:36+00:00` | Baseline only | Per-provider-call audit containing usage, progressive tool exposure, a concise decision summary, and temporarily retained provider-returned reasoning. |
-| `Analysis_Request` | System | One lifecycle per submitted AI analysis | — | `2026-09-13 15:02:15+00:00` | Baseline only | Durable AI analysis request lifecycle, structured result, progressive tool exposure state, and token usage. |
-| `Analysis_Step_Log` | System | After each AI analysis tool or compaction step | — | `2026-09-13 15:02:15+00:00` | Baseline only | Audit record for every query, tool, compaction, or analytical step in an AI request. |
-| `Analytics_Dataset_Snapshot` | System | Per bounded analytics input; remove private object after terminal grace or expiry | — | `2026-09-14 07:39:52+00:00` | Baseline only | Metadata and retention state for immutable bounded raw or Feature analytical input snapshots stored in a private Railway bucket. |
-| `Analytics_Job` | System | Per generic analytics submission, lease, result, or failure | — | `2026-09-14 07:39:52+00:00` | Baseline only | Durable queue, lease, resource contract, result, and failure audit for separately authenticated query-sandbox and statistical-validation workers. |
-| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-10-12 02:22:41.938133+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
-| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-10-12 02:39:08+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
-| `Equity_Market_Schedule` | Reference | When an equity market close, finality delay or correction window changes | — | `2026-10-12 04:59:16+00:00` | Baseline only | Equity market timezone, closing clock, final-candle delay and correction-session policy. |
-| `Feature04_Calculation_Log` | System | After each Feature04 worker attempt | — | `2026-10-11 08:51:27+00:00` | Baseline only | Immutable Feature04 calculation attempt audit. |
-| `Feature04_Calculation_State` | System | After Feature04 checkpoint bootstrap or successful suffix calculation | `2026-10-09` | `2026-10-12 05:43:20+00:00` | Derived from final source observations | Recent versioned per-instrument calculation checkpoints for exact bounded Feature04 suffix updates. |
-| `Feature04_Calculation_Queue` | System | After relevant price changes and Feature04 worker transitions | — | `2026-10-11 08:51:27+00:00` | Baseline only | Durable coalesced Feature04 work and lease state. |
-| `Feature04_Column_Status` | System | After Feature04 validation or failure | — | `2026-10-11 08:51:27+00:00` | Baseline only | Per-ticker per-output Feature04 readiness and failure state. |
-| `Feature04_Notification_Outbox` | System | After a Feature04 execution becomes terminal | — | `2026-10-11 08:51:27+00:00` | Baseline only | Durable Feature04 completion-notification work. |
-| `Feature04_Retry_Request` | System | When the owner requests an active failure retry or its Telegram acknowledgement is recorded | — | `2026-10-11 08:51:27+00:00` | Baseline only | Audited failure-only Telegram retry request, bounded five-session scope, editable acknowledgement, and child execution. |
-| `Feature_01_Stock_Daily` | Feature | After validated daily-price changes | `2026-10-09` | `2026-10-09 10:06:33.150795+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. |
-| `Feature_02_Broker_Rolling` | Feature | After validated broker-summary changes; manual v2 ticker rebuild | `2026-08-31` | `2026-09-14 14:26:33.580099+00:00` | Derived from IDX_Broker_Summary; Investor-Type Feature 02 v2 refresh is manual | Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata. |
-| `Feature_03_Stock_Broker_Daily` | Feature | After Feature 02 refresh; manual Investor-Type v2 refresh | `2026-08-31` | `2026-09-14 15:17:23.131992+00:00` | Derived from Investor-Type Feature_02_Broker_Rolling; Feature 03 v2 refresh is manual | Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate. |
-| `Feature_04_Technical_Indicator` | Feature | Event-driven after committed final price changes; exact affected suffix per asset/ticker | `2026-10-09` | `2026-10-12 05:43:20+00:00` | Derived from final price rows; changes queued and tracked per ticker | Cross-asset Daily closing price and causal technical indicators from universe-classified equity or bonds OHLC. |
-| `Feature_05_Foreign_Domestic_Broker_Detail` | Feature | Manual: sync_broker_summary_freq then refresh_feature_05 for the new dates | `2026-08-31` | `2026-10-22` | Derived from IDX_Broker_Summary (EXEC-F05-F06) | EXEC-F05-F06 Feature 05: one row per IDX_Broker_Summary row (date, ticker, broker, investor type, board) with buy/sell value, lots and frequency; the only source of Feature 06. Refreshed manually by refresh_feature_05(p_from, p_to, p_tickers) after sync_broker_summary_freq. |
-| `Feature_06_Foreign_Domestic` | Feature | Manual: refresh_feature_06 per changed ticker from the first new date | `2026-08-31` | `2026-10-22` | Derived from Feature_05_Foreign_Domestic_Broker_Detail (EXEC-F05-F06) | EXEC-F05-F06 Feature 06: stock-level daily foreign/domestic flow by ticker, market board and ticker session (Feature 02 session definition), with rolling 1/5/10/20/40/60-session flows, cumulative flow, participation, frequency, z-scores and midrank percentiles against the previous 252 (and 60) sessions. Refreshed manually per ticker by refresh_feature_06(p_ticker, p_from). |
-| `Feature_Calculation_Log` | System | After completed worker attempts | `2026-10-09` | `2026-10-09 10:06:33.159836+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
-| `Feature_Calculation_Queue` | System | After committed price inserts/updates and worker transitions | `2026-10-09` | `2026-10-09 10:06:33.099491+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
-| `Feature_Catalog` | Reference | After each validated Feature schema change | — | `2026-10-12 02:04:32.840328+00:00` | Tracked automatically | Versioned, machine-readable formula, interpretation, recommended-use, misuse, availability, point-in-time safety and validation-evidence contract for every validated Feature column. |
-| `Feature_Relationship_Catalog` | Reference | After a validated Feature join contract changes | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned safe-join and grain contracts between verified Feature tables. |
-| `Feature_Status` | System | After enqueue and worker state transitions | `2026-10-09` | `2026-10-09 10:06:33.099491+00:00` | Derived from per-ticker status rows | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
-| `Fixed_Income_Market_Schedule` | Reference | When a market close or source-label convention changes | — | `2026-10-12 02:33:20+00:00` | Baseline only | Fixed-income market timezone, closing clock, final-candle delay and source-label date mapping. |
-| `Golden_Analysis_Test` | System | After a versioned golden analytical expectation changes | — | `2026-09-13 15:08:56+00:00` | Baseline only | Versioned analytical regression-test definitions with reproducible conditions and tolerances. |
-| `Golden_Analysis_Test_Result` | System | After each test in a golden-suite run | — | `2026-09-13 15:08:56+00:00` | Baseline only | Per-test correctness, methodology, evidence, warning, latency and token outcome. |
-| `Golden_Analysis_Test_Run` | System | Before major releases and material model, prompt, Feature, or tool changes | — | `2026-09-13 15:08:56+00:00` | Baseline only | Historical execution record for one complete golden analytical regression suite. |
-| `IDX_Broker_Profile` | Reference | Periodic / approximately annual | — | `2026-09-10 07:23:34.854803+00:00` | Tracked automatically | Broker code and name, domestic/foreign type, and usage profile such as Institutional-heavy, Retail-heavy, Mixed, or Niche. |
-| `IDX_Broker_Profile_History` | Reference | Captured after every write to IDX_Broker_Profile; never deleted | — | `2026-10-09 05:36:34+00:00` | Baseline; exact changes tracked from this time forward | Point-in-time (bitemporal) history of the tracked IDX_Broker_Profile attributes (broker_name, broker_type, broker_classification), captured by Saniti from the first capture onward. Current knowledge is recorded_to IS NULL; superseded knowledge is kept. |
-| `IDX_Broker_Summary` | Transactional | Continuous / each loaded trading day; buy_freq/sell_freq filled by sync_broker_summary_freq | `2026-08-31` | `2026-10-22` | Derived from table data and load log | Daily broker buy/sell values, lots and (since 2026-10-22) buy/sell transaction frequency by symbol, broker, investor type, and market board. |
-| `IDX_Broker_Summary_Freq` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `IDX_Net_Foreign_Summary` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `IDX_Stock_Universe` | Reference | Periodic / when the listed universe changes | — | `2026-10-02 18:07:58.944512+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
-| `IDX_Stock_Universe_History` | Reference | Captured after every write to IDX_Stock_Universe; never deleted | — | `2026-10-09 05:36:34+00:00` | Baseline; exact changes tracked from this time forward | Point-in-time (bitemporal) history of the tracked IDX_Stock_Universe attributes (Company Name, Exchange, Security Type, Type Specs, Is Common Stock, ISIN, Sector, Industry), captured by Saniti from the first capture onward. Current knowledge is recorded_to IS NULL; superseded knowledge is kept. |
-| `Monitoring_Feature04` | Monitoring | Per automatic or Telegram Feature04 execution | — | `2026-10-11 08:51:27+00:00` | Baseline only | Feature04 automatic/retry batch summary and notification ordering gate. |
-| `Monitoring_Feature04_Ticker` | Monitoring | Per eligible ticker in a Feature04 execution | — | `2026-10-11 08:51:27+00:00` | Baseline only | Per-ticker membership and outcome of a Feature04 execution. |
-| `Monitoring_Fixed_Income` | Monitoring | One row after each fixed-income daily or recovery execution | `2026-10-11` | `2026-10-12 02:30:28.508014+00:00` | Derived from fixed-income cron monitoring rows | One market-specific fixed-income daily or recovery execution summary. |
-| `Monitoring_Price_ALL` | System | Twice daily alongside IDX price automation | `2026-10-11` | `2026-10-11 23:00:25.791923+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
-| `Price_Fixed_Income` | Transactional | Daily and recovery fixed-income price/yield schedules | `2026-10-09` | `2026-10-12 02:29:42.035219+00:00` | Latest date and write time derived from fixed-income observations | Final daily fixed-income OHLC observations with source-bar and market-close finality evidence. |
-| `Price_Stock_Indonesia_IDX` | Transactional | Periodic / when daily IDX prices are refreshed | `2026-10-09` | `2026-10-12 04:59:16+00:00` | Latest date and finality evidence derived | Final daily Indonesian stock OHLCV candles sourced from TradingView. |
-| `Reference_History_Capture_Log` | System | One row per reference-history capture or correction | — | `2026-10-09 05:36:34+00:00` | Baseline; exact changes tracked from this time forward | One row per capture of IDX_Stock_Universe or IDX_Broker_Profile into its history (trigger, initial, manual or correction): changed and new versions, keys absent from the load, and the error of a failed capture. |
-| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-10-12 02:22:41.935764+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
-| `Telegram_Command_Log` | System | Event-driven / when an authorized Telegram command is received | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
-| `Telegram_Notification_Log` | System | Event-driven / after a monitored job completes | — | `2026-10-12 02:32:28.134150+00:00` | Tracked automatically | Outbound Telegram delivery state and anti-duplicate ledger. |
-| `Tool_Catalog` | Reference | With each approved backend or analytics tool release | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned generic AI tool metadata, activation state, schemas, and advertised operational ceilings. |
-| `Universe_Equity_Description` | Reference | Periodic / when equity descriptions change | — | `2026-10-02 18:07:58.949068+00:00` | Tracked automatically | Issuer descriptions and TradingView/curated sector and industry classifications. |
-| `Universe_Fixed_income` | Reference | Periodic / when the fixed-income universe changes | — | `2026-10-11 14:01:27.117686+00:00` | Baseline only | Approved fixed-income series with explicit source symbol, unit and market-country membership. |
-| `feature04_backfill_log` | Monitoring | Atomic per-run/ticker Feature04 calculation metadata | `2026-10-09` | `2026-10-11 06:25:12.790322+00:00` | Derived from completed atomic ticker loads; manual execution only | Atomic Feature04 per-run/ticker historical calculation audit and resumable extraction/output fingerprints. |
-| `idx_broker_summary_freq_2016` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_broker_summary_freq_2017` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_broker_summary_freq_2018` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_broker_summary_freq_2019` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_broker_summary_freq_2020` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_broker_summary_freq_2021` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_broker_summary_freq_2022` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_broker_summary_freq_2023` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_broker_summary_freq_2024` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_broker_summary_freq_2025` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_broker_summary_freq_2026` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_broker_summary_freq_2027` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_net_foreign_summary_2016` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_net_foreign_summary_2017` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_net_foreign_summary_2018` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_net_foreign_summary_2019` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_net_foreign_summary_2020` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_net_foreign_summary_2021` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_net_foreign_summary_2022` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_net_foreign_summary_2023` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_net_foreign_summary_2024` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_net_foreign_summary_2025` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_net_foreign_summary_2026` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_net_foreign_summary_2027` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `idx_stockbit_backfill_status` | Unclassified | Unknown | — | `2026-10-12 02:33:20+00:00` | Baseline only | No description has been recorded. |
-| `stockbit_broker_summary_load_log` | System | Continuous / alongside broker-summary loads | `2026-08-31` | `2026-09-09 16:55:55.713468+00:00` | Derived from load log | Per-trading-date Stockbit broker-summary load progress, retries, and review state. |
+| `AI_calculation_catalog` | Reference | Controlled migration after validated Feature definition changes. | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing calculation contracts derived from active, validated Feature definitions. |
+| `AI_catalog_relationships` | Reference | Controlled migration or reviewed relationship change only. | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing safe join, temporal alignment, preaggregation, and output-grain contracts. |
+| `AI_column_catalog` | Reference | Controlled migration or reviewed metadata change only. | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing column semantics and bounded-query permissions for the seven approved tables. |
+| `AI_conversation` | System | Created by the first SERVER-mode message; updated when a turn starts and ends; deleted after expires_at by the orchestrator's cleanup. | — | `2026-09-27 08:23:59+00:00` | Baseline only | market-ai-orc conversations kept by the server (history_mode SERVER): one row per chat box with its owner, retention and the lease that allows one active run at a time. |
+| `AI_conversation_evidence` | System | Inserted once per checked claim; deleted with its conversation. Not written since 2026-10-06: get_evidence was removed from market-ai-orc (EXEC-E); the rows stay with their conversation. | — | `2026-10-09 05:36:34+00:00` | Baseline only | Claims of market-ai-orc answers recomputed by the backend on a path separate from the model's code (SQL Governor summary or the released base table), with the status, the backend value and at most 200 rows of evidence. |
+| `AI_conversation_execution` | System | Inserted once per execution; deleted with its conversation. | — | `2026-10-09 05:36:34+00:00` | Baseline only | The code of each sandbox execution of a market-ai-orc conversation, so a result can be traced and reproduced after the sandbox copy expired. |
+| `AI_conversation_export` | System | Inserted once per export; deleted with its conversation. | — | `2026-10-09 05:36:34+00:00` | Baseline only | Files exported from a market-ai-orc conversation for the user to download (CSV, XLSX or Parquet, at most 20 MB). |
+| `AI_conversation_output` | System | Inserted once per released output; deleted with its conversation. | — | `2026-10-09 05:36:34+00:00` | Baseline only | Released outputs of market-ai-orc conversations (tables, JSON, text, charts) with their definition, units, lineage and the last date of the data they were computed from; the content up to 20 MB is here, a larger one in the bucket market-ai-conversation-outputs. |
+| `AI_conversation_run_memory` | System | Inserted once per run (a retried run id is left as it is); deleted with its conversation. | — | `2026-10-09 05:36:34+00:00` | Baseline only | What each run of a market-ai-orc conversation (a turn or a step of a mode 4 turn) leaves for the runs after it: the memo later runs read in their prompt, the full texts it names (message, answer, plan, refusals with the refused drafts, design values with their origin, web facts, catalog details), the values it made citable, the model's own note and its reasoning. |
+| `AI_conversation_turn` | System | Inserted RUNNING when a turn starts; set to COMPLETED, FAILED or INTERRUPTED once; deleted with its conversation. | — | `2026-09-27 08:23:59+00:00` | Baseline only | One message of a market-ai-orc conversation: the user message, the run status and the response returned to the caller. |
+| `AI_data_coverage` | System | Nightly raw/control-table coverage upsert; Feature 01-03 physical tables are never scanned. | — | `2026-09-22 16:55:06+00:00` | Baseline only | Automated actual raw-source coverage plus explicitly inferred expectations for derived Feature tables. |
+| `AI_entity_alias` | System | Rows are added by forward migrations or a reviewed load; the model never writes them. | — | `2026-10-20 14:07:00+00:00` | Baseline only | Curated aliases of entity codes (tickers, broker codes) that the display names cannot give, for the SQL Governor's search-values: MANUAL (a brand or common short form) and FORMER_CODE. Generated aliases are derived from the AI_column_catalog.entity_name columns at run time and not stored. |
+| `AI_formula_reference` | Reference | Controlled migration and separately audited workbook import. | — | `2026-09-24 09:22:02+00:00` | Baseline only | Global reference catalog of calculation formulas for the orchestrator; entries document a formula, not a verified or executable implementation. |
+| `AI_method_guide` | Reference | Regenerated by a forward migration whenever the guides in code change; never edited by hand. | — | `2026-10-09 05:36:34+00:00` | Baseline only | Model-facing menu and manual of the analysis paths (G1-G4) and session helpers: when to use and not, inputs, limits, what the backend checks, results, common errors and tested examples; bound to the code by guides_sha256. |
+| `AI_metric_catalog` | System | A changed metric is a new metric_version through a forward migration; the old version is set inactive. | — | `2026-10-09 05:36:34+00:00` | Baseline only | Official metrics market-ai-orc's query_metric answers in one SQL Governor summary: source table, measure column, rule over time, dimensions, default row filter and meaning. Units and additivity are read from AI_column_catalog. |
+| `AI_research_catalog` | Reference | Controlled migration and separately audited workbook import. | — | `2026-09-24 07:24:52+00:00` | Baseline only | Global reference catalog of research methods for the orchestrator; entries do not enable sandbox execution. |
+| `AI_research_library` | Reference | Regenerated by a forward migration whenever the library in code changes; never edited by hand. | — | `2026-10-09 05:36:34+00:00` | Baseline only | Model-facing description of the eight Multi-Angle Research methods (roles, parameters, data requirements, interpretation, misuse warning), generated from the sandbox research library and bound to it by library_sha256. |
+| `AI_research_run_audit` | System | INSERT once per run by the orchestrator; never updated or deleted by the application. | — | `2026-09-24 12:33:35+00:00` | Baseline only | Durable audit of market-ai-orc runs: the question, the final answer, its evidence label and gate outcome, and every experiment with its Research Governor decision, validation, evidence decision and fingerprints. |
+| `AI_table_catalog` | Reference | Controlled migration or reviewed metadata change only. | — | `2026-09-22 16:55:06+00:00` | Baseline only | AI-facing master list and bounded-access contract for seven approved source and Feature tables. |
+| `Analysis_Evidence` | System | Appended by evidence tools, with at most 25 items per request enforced by the backend. | — | `2026-09-13 15:02:15+00:00` | Baseline only | Compact reproducible evidence supporting material AI analysis claims. |
+| `Analysis_Model_Call` | System | Inserted after every provider response; expired reasoning_details are cleared opportunistically while the audit row and decision summary remain. | — | `2026-09-14 03:49:36+00:00` | Baseline only | Per-provider-call audit containing usage, progressive tool exposure, a concise decision summary, and temporarily retained provider-returned reasoning. |
+| `Analysis_Request` | System | Written and leased by market-ai-backend. | — | `2026-09-13 15:02:15+00:00` | Baseline only | Durable AI analysis request lifecycle, structured result, progressive tool exposure state, and token usage. |
+| `Analysis_Step_Log` | System | Appended for each analysis step; large raw results and secrets are never stored. | — | `2026-09-13 15:02:15+00:00` | Baseline only | Audit record for every query, tool, compaction, or analytical step in an AI request. |
+| `Analytics_Dataset_Snapshot` | System | Created only after catalog, row, byte and query-plan validation; expires within the configured short retention window. | — | `2026-09-14 07:39:52+00:00` | Baseline only | Metadata and retention state for immutable bounded raw or Feature analytical input snapshots stored in a private Railway bucket. |
+| `Analytics_Job` | System | Backend submits idempotently by request/job label; isolated worker leases and completes or fails the job. | — | `2026-09-14 07:39:52+00:00` | Baseline only | Durable queue, lease, resource contract, result, and failure audit for separately authenticated query-sandbox and statistical-validation workers. |
+| `Column_Catalog` | Reference | After approved column metadata changes | — | `2026-10-25 18:53:29.914055+00:00` | Tracked automatically | Physical column inventory and evidence-graded semantic definitions for tables registered in Table_Catalog. |
+| `Database_Table_Status` | System | Automatic / daily documentation refresh | — | `2026-10-25 19:18:32+00:00` | System-managed | Tracks the data freshness, change time, and update pattern of each table. |
+| `Equity_Market_Schedule` | Reference | Edit when the official market clock or correction policy changes. | — | `2026-10-20 14:07:00+00:00` | Baseline only | Equity market timezone, close, finality delay and correction-session policy. |
+| `Feature04_Calculation_Log` | System | One terminal attempt row per claim, including partial and superseded results. | — | `2026-10-11 08:51:27+00:00` | Baseline only | Immutable Feature04 calculation attempt audit. |
+| `Feature04_Calculation_Queue` | System | Final source changes coalesce the earliest dirty date per ticker and invalidate dependent checkpoints. | — | `2026-10-11 08:51:27+00:00` | Baseline only | Durable coalesced Feature04 work and lease state. |
+| `Feature04_Calculation_State` | System | Written transactionally after a validated suffix; invalidated on/after a changed source date. | — | `2026-10-20 14:07:00+00:00` | Baseline only | Recent versioned Feature04 recursive and rolling state checkpoints. |
+| `Feature04_Column_Status` | System | Worker advances only validated output bundles; expected NULL remains SUCCESS. | — | `2026-10-11 08:51:27+00:00` | Baseline only | Per-ticker per-output Feature04 readiness and failure state. |
+| `Feature04_Notification_Outbox` | System | Worker inserts after terminal run; dispatcher retries independently of calculations. | — | `2026-10-11 08:51:27+00:00` | Baseline only | Durable Feature04 completion-notification work. |
+| `Feature04_Retry_Request` | System | telegram-trigger stores the acknowledgement message ID; the worker records terminal status and telegram-monitor edits the same message. | — | `2026-10-11 08:51:27+00:00` | Baseline only | Audited owner Telegram failure-only retry request with editable acknowledgement and bounded five-session replay. |
+| `Feature_01_Stock_Daily` | Feature | Explicit refresh routine after validated source changes; automatic price-cron integration is not active. | `2026-10-23` | `2026-10-25 15:00:08.301603+00:00` | Derived from Price_Stock_Indonesia_IDX | Daily per-ticker price, return, volatility, volume, and drawdown features. Universe-classified indices are not included: their rows are in Feature_01_Stock_Daily_INDEX (EXEC-M219). |
+| `Feature_01_Stock_Daily_INDEX` | Feature | Explicit validated INDEX historical bootstrap; automatic daily routing is not enabled. | `2026-10-23` | `2026-10-25 15:52:57+00:00` | Baseline only | Dedicated index output. Daily per-ticker price, return, volatility, volume, and drawdown features. Includes universe-classified benchmark indices: missing index volume is NULL, and index price levels are in points. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket. |
+| `Feature_02_Broker_Rolling` | Feature | Validated full v2 backfill. No automatic Feature 02 worker is deployed; rebuild affected tickers after Broker Summary changes. | `2026-10-23` | `2026-10-25 11:34:18.820457+00:00` | Derived from IDX_Broker_Summary; Investor-Type Feature 02 v2 refresh is manual | Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata. |
+| `Feature_02_Broker_Rolling_INDEX` | Feature | Explicit validated INDEX historical bootstrap; automatic daily routing is not enabled. | `2026-10-23` | `2026-10-25 15:52:57+00:00` | Baseline only | Dedicated index output. Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket. |
+| `Feature_03_Stock_Broker_Daily` | Feature | Full v2 rebuild after Feature 02 Investor-Type cutover. Refresh affected date/tickers after valid Feature 02 refresh; no automatic Feature 03 worker is deployed. | `2026-10-23` | `2026-10-25 11:34:58.071828+00:00` | Derived from Investor-Type Feature_02_Broker_Rolling; Feature 03 v2 refresh is manual | Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate. |
+| `Feature_03_Stock_Broker_Daily_INDEX` | Feature | Explicit validated INDEX historical bootstrap; automatic daily routing is not enabled. | `2026-10-23` | `2026-10-25 15:52:57+00:00` | Baseline only | Dedicated index output. Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket. |
+| `Feature_04_Technical_Indicator` | Feature | Committed final source changes recalculate only the affected suffix from a compatible prior checkpoint. | `2026-10-23` | `2026-10-23 23:03:48.736344+00:00` | Derived from price rows; changes queued and tracked per ticker | Cross-asset Daily close and technical indicators calculated from final source prices with exact checkpointed suffix refresh. |
+| `Feature_04_Technical_Indicator_INDEX` | Feature | Explicit validated INDEX historical bootstrap; automatic daily routing is not enabled. | `2026-10-23` | `2026-10-25 15:52:57+00:00` | Baseline only | Dedicated index output. Cross-asset Daily close and technical indicators calculated from final source prices with exact checkpointed suffix refresh. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket. |
+| `Feature_05_Foreign_Domestic_Broker_Detail` | Feature | refresh_feature_05(date range, tickers) after the IDX_Broker_Summary load for the same dates (the load carries buy_freq and sell_freq) | `2026-10-23` | `2026-10-25 15:52:57+00:00` | Baseline only | Broker-level daily buy/sell value, lots and frequency by investor type and board; the only source of Feature 06. |
+| `Feature_05_Foreign_Domestic_Broker_Detail_INDEX` | Feature | Explicit validated INDEX historical bootstrap; automatic daily routing is not enabled. | `2026-10-23` | `2026-10-25 15:52:57+00:00` | Baseline only | Dedicated index output. Broker-level daily buy/sell value, lots and frequency by investor type and board; the only source of Feature 06. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket. |
+| `Feature_06_Foreign_Domestic` | Feature | refresh_feature_06(ticker, first changed date) after refresh_feature_05; reads 312 prior sessions | `2026-10-23` | `2026-10-25 15:52:57+00:00` | Baseline only | Stock-level foreign/domestic flow, persistence, z-scores and percentiles, strength and frequency analytics per ticker, board and date. |
+| `Feature_06_Foreign_Domestic_INDEX` | Feature | Explicit validated INDEX historical bootstrap; automatic daily routing is not enabled. | `2026-10-23` | `2026-10-25 15:52:57+00:00` | Baseline only | Dedicated index output. Stock-level foreign/domestic flow, persistence, z-scores and percentiles, strength and frequency analytics per ticker, board and date. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket. |
+| `Feature_Calculation_Log` | System | The Feature 01 worker records one completed result for every claim, including retries and expired leases. | `2026-10-23` | `2026-10-25 10:05:51.504480+00:00` | Derived from attempt log rows | Completed attempt and retry history for Feature 01 calculation work. |
+| `Feature_Calculation_Queue` | System | A price-row trigger transactionally creates/reopens work; a separate worker claims, calculates, retries, and completes it. | `2026-10-23` | `2026-10-25 10:05:51.380512+00:00` | Derived from queue rows | Durable pending and completed Feature 01 calculation work per changed source candle. |
+| `Feature_Catalog` | Reference | Updated by a forward-only migration after a Feature definition or physical schema change. | — | `2026-10-25 15:21:59.537214+00:00` | Tracked automatically | Versioned, machine-readable formula, interpretation, recommended-use, misuse, availability, point-in-time safety and validation-evidence contract for every validated Feature column. |
+| `Feature_Relationship_Catalog` | Reference | Updated by forward-only migration when a safe Feature relationship is validated. | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned safe-join and grain contracts between verified Feature tables. |
+| `Feature_Status` | System | Price enqueue and worker transitions reconcile the per-ticker summary; SUCCESS follows validated completion only. | `2026-10-23` | `2026-10-25 10:05:51.212701+00:00` | Derived from per-ticker status rows | Current Feature 01 calculation freshness and outstanding-work summary per ticker. |
+| `Feature_Vocabulary` | Reference | Explicit schema/semantic release synchronization, never daily price computation. Frontend API and AI onboarding remain separate. | — | `2026-10-25 15:52:57+00:00` | Baseline only | Reviewed frontend names, formulas, units, definitions and interpretations for physical stock and INDEX Feature01/02/03/05/06 columns; Feature04 excluded. |
+| `Fixed_Income_Market_Schedule` | Reference | Edit a market row when its official session clock or provider daily-bar label convention changes; cron UTC schedules are maintained in Railway. | — | `2026-10-12 02:33:20+00:00` | Baseline only | Fixed-income market close/finality policy and verified provider timezone, session and observation-date mapping. |
+| `Golden_Analysis_Test` | System | Definitions are added or versioned by forward-only migrations; material expectations are never overwritten. | — | `2026-09-13 15:08:56+00:00` | Baseline only | Versioned analytical regression-test definitions with reproducible conditions and tolerances. |
+| `Golden_Analysis_Test_Result` | System | Inserted after each golden test and retained for regression trend comparison. | — | `2026-09-13 15:08:56+00:00` | Baseline only | Per-test correctness, methodology, evidence, warning, latency and token outcome. |
+| `Golden_Analysis_Test_Run` | System | Inserted at suite start and finalized after all selected tests reach terminal status. | — | `2026-09-13 15:08:56+00:00` | Baseline only | Historical execution record for one complete golden analytical regression suite. |
+| `IDX_Broker_Profile` | Reference | Updated when broker reference data or broker usage classification changes. | — | `2026-09-10 07:23:34.854803+00:00` | Tracked automatically | Broker code and name, domestic/foreign type, and usage profile such as Institutional-heavy, Retail-heavy, Mixed, or Niche. |
+| `IDX_Broker_Profile_History` | Reference | Appended by the capture after every write statement on IDX_Broker_Profile (a change supersedes the open version and records the new one; a missing key is only counted) and by public.correct_broker_profile_history for documented corrections. Rows are never deleted. | — | `2026-10-09 05:36:34+00:00` | Baseline; exact changes tracked from this time forward | Point-in-time (bitemporal) history of the tracked IDX_Broker_Profile attributes (broker_name, broker_type, broker_classification), captured by Saniti from the first capture onward. Current knowledge is recorded_to IS NULL; superseded knowledge is kept. |
+| `IDX_Broker_Summary` | Transactional | Loaded by the Stockbit broker backfill or subsequent daily broker ingestion. | `2026-10-23` | `2026-09-09 14:41:15.160142+00:00` | Derived from table data and load log | Daily broker buy/sell values and lots by symbol, broker, investor type, and market board. |
+| `IDX_Stock_Universe` | Reference | Updated when the listed universe or classifications change. | — | `2026-10-23 14:44:34.380120+00:00` | Tracked automatically | Current Indonesian listed-security universe, ticker identity, and classifications. |
+| `IDX_Stock_Universe_History` | Reference | Appended by the capture after every write statement on IDX_Stock_Universe (a change supersedes the open version and records the new one; a missing key is only counted) and by public.correct_stock_universe_history for documented corrections. Rows are never deleted. | — | `2026-10-23 14:44:34.455689+00:00` | Tracked automatically | Point-in-time (bitemporal) history of the tracked IDX_Stock_Universe attributes (Company Name, Exchange, Security Type, Type Specs, Is Common Stock, ISIN, Sector, Industry), captured by Saniti from the first capture onward. Current knowledge is recorded_to IS NULL; superseded knowledge is kept. |
+| `Monitoring_Feature04` | Monitoring | Price writer opens/seals automatic runs; worker finalizes; monitor records price delivery. | — | `2026-10-11 08:51:27+00:00` | Baseline only | Feature04 automatic/retry batch summary and notification ordering gate. |
+| `Monitoring_Feature04_Ticker` | Monitoring | Trigger records required generation; worker records terminal result. | — | `2026-10-11 08:51:27+00:00` | Baseline only | Per-ticker membership and outcome of a Feature04 execution. |
+| `Monitoring_Fixed_Income` | Monitoring | One row is inserted after every market-specific daily/recovery attempt. | `2026-10-23` | `2026-10-25 11:00:51.807278+00:00` | Derived from fixed-income cron monitoring rows | One market-specific fixed-income daily or recovery execution summary. |
+| `Monitoring_Price_ALL` | System | Written after each DAILY or RECOVERY price execution. | `2026-10-23` | `2026-10-25 10:01:05.212017+00:00` | Derived from monitoring rows | Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs. |
+| `Monitoring_Stockbit_Update` | Monitoring | Inserted RUNNING when a round starts and finished once per round (each deploy of stockbit-updater). | `2026-10-25` | `2026-10-25 18:14:05+00:00` | Baseline only | One row per round of the stockbit-updater service: mode, status, token expiry, Broker Summary dates and rows loaded, Feature 02/03/05/06 and INDEX refresh results, Stockbit corporate action and insider reload, error. |
+| `Price_Fixed_Income` | Source | Market-specific daily and recovery jobs re-query the latest completed session; only exact final candles are material-upserted. | `2026-10-23` | `2026-10-23 23:03:42.867002+00:00` | Latest date and write time derived from fixed-income observations | Final daily fixed-income OHLC observations with source-bar and market-close finality evidence. |
+| `Price_Stock_Indonesia_IDX` | Transactional | Market-aware daily/recovery jobs material-upsert exact final candles; recovery re-verifies configured recent sessions. | `2026-10-23` | `2026-10-25 10:02:43.766326+00:00` | Latest date derived; future changes tracked automatically | Final daily Indonesian equity OHLCV observations with market-close finality evidence. Includes universe-classified benchmark indices: missing index volume is NULL, and index price levels are in points. |
+| `Reference_History_Capture_Log` | System | Inserted by every capture and correction; a failed trigger capture writes status FAILED with its error and leaves the reference load unaffected. | — | `2026-10-23 14:44:34.457389+00:00` | Tracked automatically | One row per capture of IDX_Stock_Universe or IDX_Broker_Profile into its history (trigger, initial, manual or correction): changed and new versions, keys absent from the load, and the error of a failed capture. |
+| `Table_Catalog` | Reference | After approved table metadata changes | — | `2026-10-25 18:53:29.889750+00:00` | Tracked automatically | Curated meanings, grain, provenance, and update contracts for approved public data tables; not a freshness monitor. |
+| `Telegram_Command_Log` | System | Written when an authorized Telegram command is received. | — | `2026-09-11 14:19:34.821458+00:00` | Tracked automatically | Inbound Telegram command audit and duplicate-prevention ledger. |
+| `Telegram_Notification_Log` | System | telegram-monitor inserts or reclaims a delivery identity, then records sent or edited Telegram message IDs and failures. | — | `2026-10-25 18:14:45.855416+00:00` | Tracked automatically | Outbound Telegram delivery and edit ledger for execution-level price results and logical Feature04 market/date or retry results. |
+| `Tool_Catalog` | Reference | Updated with backend/worker releases; runtime configuration is the enforcement authority. | — | `2026-09-13 15:02:15+00:00` | Baseline only | Versioned generic AI tool metadata, activation state, schemas, and advertised operational ceilings. |
+| `Universe_Equity_Description` | Reference | Updated when equity descriptions or classifications change. | — | `2026-10-02 18:07:58.949068+00:00` | Tracked automatically | Issuer descriptions and TradingView/curated sector and industry classifications. |
+| `Universe_Fixed_income` | Reference | Universe rows supply every source symbol and unit; the loader contains no ticker roster. | — | `2026-10-11 14:01:27.117686+00:00` | Baseline only | Approved fixed-income series with explicit source symbol, unit and market-country membership. |
+| `feature04_backfill_log` | Monitoring | Manual serial runner; completed output and audit committed together; failed ticker rolls back. | `2026-10-23` | `2026-10-23 16:21:35.766900+00:00` | Derived from completed atomic ticker loads; manual execution only | Atomic Feature04 per-run/ticker historical calculation audit and resumable extraction/output fingerprints. |
+| `idx_event_annotation` | Feature | Rebuilt by refresh_idx_event_annotation() at the end of every Stockbit event load (stockbit-updater round or apps/stockbit-event-annotation job), in the same transaction. | — | `2026-10-25 18:14:05+00:00` | Baseline only | One annotation source for EDGE price charts: corporate actions (type and date only) and insider transactions (action, holder, broker, current percent, change percent, quality flag, origin IDX/KSEI). |
+| `idx_stockbit_backfill_status` | System | Written by the date-first backfill between 2026-10-11 and 2026-10-15; every date completed; no job writes it now. | `2026-10-09` | `2026-10-12 02:33:20+00:00` | Baseline only | Per-date control of the date-first Stockbit Broker Summary backfill of 2016-2026 (the user's importer, before the ticker-first import of stockbit_full_broker_import_status): state, filter and request counts, rows written, attempts, error. |
+| `idx_stockbit_value_corrections` | System | Inserted once per correction the user approves; 10 rows written 2026-10-15. | `2017-02-07` | `2026-10-20 14:07:00+00:00` | Baseline only | Audit of user-approved corrections to Stockbit Broker Summary values: per trade date, ticker and investor type the summary row before and after, the per-broker patches, the raw source rows and the reason. Holds the BHIT negative-value correction (USER_APPROVED_ABS_BHIT_20261016: negative raw trade values made positive per user instruction; not independently source-verified). |
+| `stockbit_broker_summary_load_log` | System | Updated by each broker-summary load attempt. | `2026-08-31` | `2026-09-09 16:55:55.713468+00:00` | Derived from load log | Per-trading-date Stockbit broker-summary load progress, retries, and review state. |
+| `stockbit_corporate_action` | Transactional | Ad hoc on user request: full pull of every type and year, reconciled (new inserted, changed updated, absent marked source_removed_at); UPDATE_TABLE.md. | — | `2026-10-25 18:14:05+00:00` | Baseline only | Stockbit corporate actions of IDX listed securities: dividend, stock split, reverse split, bonus share, rights issue, warrant (structured warrants on their underlying ticker), tender offer, RUPS and public expose. Typed key dates plus the verbatim Stockbit row. |
+| `stockbit_full_broker_import_status` | System | Written fetching, completed or failed by each import of a date. | `2026-10-23` | `2026-10-25 15:52:57+00:00` | Baseline only | Per-date control of the ticker-first Broker Summary import (the user's importer, then stockbit-updater): manifest hash of the symbol list, state, expected and completed symbols, rows, anomaly symbols, heartbeat, error. |
+| `stockbit_insider_transaction` | Transactional | Ad hoc on user request: full pull per ticker, reconciled (new inserted, changed updated, absent marked source_removed_at); UPDATE_TABLE.md. | — | `2026-10-25 18:14:05+00:00` | Baseline only | Stockbit insider and major holder share movements of IDX stocks (IDX insider reports and KSEI 5% holder changes): holder, role, nationality, broker, shares before/after/change, ownership percent, price, value, origin. |
 
 ## Logical relationships
 
@@ -119,11 +106,10 @@ These relationships are documented for analysis but are not enforced as PostgreS
 | `Price_Stock_Indonesia_IDX.ticker` | `IDX_Stock_Universe."Ticker"` | Logical many-to-one by ticker | Daily price rows map to the stock universe when a matching ticker exists. No database foreign key is enforced. |
 | `Feature_01_Stock_Daily.(ticker, date)` | `Price_Stock_Indonesia_IDX.(ticker, date)` | Logical one-to-one by ticker and trading date | Each feature row is derived from exactly one available price candle. No database foreign key is enforced. |
 | `Feature_01_Stock_Daily.ticker` | `IDX_Stock_Universe."Ticker"` | Logical many-to-one by ticker | Feature classifications use the current Sector and Industry values from the stock universe. No database foreign key is enforced. |
-| `Feature_06_Foreign_Domestic.(ticker, market_board, trade_date)` | `Feature_05_Foreign_Domestic_Broker_Detail.(ticker, market_board, trade_date)` | Logical one-to-many aggregate | Feature 06 sums Feature 05 over brokers and investor types per ticker, board and session; registered in Feature_Relationship_Catalog. No database foreign key is enforced. |
 | `Feature_Catalog.(feature_table, feature_column)` | `Locked Feature table physical columns` | Governed semantic reference | Active catalog rows are validated by trigger against exact physical columns in the public schema. |
 | `Monitoring_Price_ALL.asset_type` | `IDX_Stock_Universe."Security Type"` | Logical grouped snapshot | Monitoring rows group expected and missing ticker counts by the universe Security Type value. |
 | `Monitoring_Price_ALL.update_for_date` | `Price_Stock_Indonesia_IDX.date` | Logical | A monitoring date describes the daily-price date targeted by an automation run. |
-| `Telegram_Notification_Log.source_execution_id` | Source monitor or Feature04 logical delivery key | Logical delivery identity | Price/manual results use one source execution; scheduled Feature04 uses market/trade date and retry uses its child execution. No database foreign key is enforced. |
+| `Telegram_Notification_Log.source_execution_id` | `Monitoring_Price_ALL.execution_id` | Logical many-to-one by execution | The notifier reads all monitoring rows for one execution before sending and recording delivery. No database foreign key is enforced. |
 
 ## AI_calculation_catalog
 
@@ -200,6 +186,7 @@ AI-facing safe join, temporal alignment, preaggregation, and output-grain contra
 | Name | Type | Definition |
 |---|---|---|
 | `AI_catalog_relationships_columns_check` | Check | `CHECK (cardinality(left_columns) > 0 AND cardinality(left_columns) = cardinality(right_columns))` |
+| `AI_catalog_relationships_date_only_check` | Check | `CHECK (NOT (cardinality(left_columns) = 1 AND left_columns[1] = left_time_column AND right_columns[1] = right_time_column) OR supported_join_semantics <@ ARRAY['EXACT_DATE'::text, 'AS_OF'::text])` |
 | `AI_catalog_relationships_effective_columns_check` | Check | `CHECK (NOT ('EFFECTIVE_DATED'::text = ANY (supported_join_semantics)) OR effective_from_column IS NOT NULL AND effective_to_column IS NOT NULL)` |
 | `AI_catalog_relationships_join_semantics_check` | Check | `CHECK (supported_join_semantics <@ ARRAY['CURRENT_STATE'::text, 'EXACT_DATE'::text, 'AS_OF'::text, 'EFFECTIVE_DATED'::text])` |
 | `AI_catalog_relationships_temporal_columns_check` | Check | `CHECK (NOT supported_join_semantics && ARRAY['EXACT_DATE'::text, 'AS_OF'::text] OR left_time_column IS NOT NULL AND right_time_column IS NOT NULL)` |
@@ -251,7 +238,7 @@ AI-facing column semantics and bounded-query permissions for the seven approved 
 | `value_time_basis` | `text` | No | — | HISTORICAL (the value belongs to its row's date or version) or CURRENT_STATE (today's reference value on every row); a point-in-time DataNeedSpec may not read or filter a CURRENT_STATE column. |
 | `description_id` | `text` | Yes | — | The column meaning in Indonesian, translated once from description by the production model; description stays the source text. |
 | `description_id_status` | `text` | Yes | — | DRAFT (machine translation, not yet reviewed) or REVIEWED; NULL exactly when description_id is NULL. |
-| `entity_name` | `boolean` | No | `false` | True for the column that holds an entity's display name in a static reference table; the SQL Governor derives names and generated aliases from it for search-values (migration `20261015_014`). |
+| `entity_name` | `boolean` | No | `false` | True for the column that holds an entity's display name in a static reference table (a company name, a broker name); the SQL Governor derives names and generated aliases from it for search-values. |
 
 ### Constraints
 
@@ -274,39 +261,6 @@ AI-facing column semantics and bounded-query permissions for the seven approved 
 | Name | Definition |
 |---|---|
 | `AI_column_catalog_pkey` | `CREATE UNIQUE INDEX "AI_column_catalog_pkey" ON public."AI_column_catalog" USING btree (table_name, column_name)` |
-
-## AI_entity_alias
-
-Curated aliases of entity codes (a brand, a former code) the display names cannot give; generated aliases (initials, the name without its legal form) are derived by the SQL Governor, not stored. Rows come from forward migrations or a reviewed load, never from the model. Read by `market_ai_sql_reader`, `market_ai_catalog_reader` and `pgweb_reader` (SELECT only).
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `table_name` | `text` | No | — | The catalog table whose entity column the alias belongs to. |
-| `column_name` | `text` | No | — | The entity column (a ticker or broker code column) the alias resolves to. |
-| `code` | `text` | No | — | The stored entity code the alias stands for, upper-case and trimmed. |
-| `alias` | `text` | No | — | The alias as written (a brand, a common short form, a former code). |
-| `alias_folded` | `text` | No | — | The alias in lower case with single spaces, the form search-values matches on. |
-| `alias_type` | `text` | No | — | MANUAL (a curated alias) or FORMER_CODE (a code the entity used before). |
-| `note` | `text` | Yes | — | Why the alias exists, in plain words; NULL when no note is needed. |
-| `source_decision` | `text` | No | — | The decision or review the alias comes from. |
-| `created_at` | `timestamp with time zone` | No | `statement_timestamp()` | When the row was inserted. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `ai_entity_alias_type` | Check | `CHECK (alias_type = ANY (ARRAY['MANUAL'::text, 'FORMER_CODE'::text]))` |
-| `ai_entity_alias_folded` | Check | `CHECK (alias_folded = lower(regexp_replace(btrim(alias), '\s+', ' ', 'g')) AND alias_folded <> '')` |
-| `ai_entity_alias_code` | Check | `CHECK (code = upper(btrim(code)) AND code <> '')` |
-| `AI_entity_alias_pkey` | Primary key | `PRIMARY KEY (table_name, column_name, alias_folded, code)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `AI_entity_alias_pkey` | `CREATE UNIQUE INDEX "AI_entity_alias_pkey" ON public."AI_entity_alias" USING btree (table_name, column_name, alias_folded, code)` |
 
 ## AI_conversation
 
@@ -669,6 +623,39 @@ Automated actual raw-source coverage plus explicitly inferred expectations for d
 | `AI_data_coverage_pkey` | `CREATE UNIQUE INDEX "AI_data_coverage_pkey" ON public."AI_data_coverage" USING btree (coverage_id)` |
 | `AI_data_coverage_reference_idx` | `CREATE INDEX "AI_data_coverage_reference_idx" ON public."AI_data_coverage" USING btree (reference_dataset_name, entity_id) WHERE (reference_dataset_name IS NOT NULL)` |
 | `AI_data_coverage_status_idx` | `CREATE INDEX "AI_data_coverage_status_idx" ON public."AI_data_coverage" USING btree (quality_status, verification_status, dataset_name)` |
+
+## AI_entity_alias
+
+Curated aliases of entity codes (tickers, broker codes) that the display names cannot give, for the SQL Governor's search-values: MANUAL (a brand or common short form) and FORMER_CODE. Generated aliases are derived from the AI_column_catalog.entity_name columns at run time and not stored.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `table_name` | `text` | No | — | The catalog table whose entity column the alias belongs to. |
+| `column_name` | `text` | No | — | The entity column (a ticker or broker code column) the alias resolves to. |
+| `code` | `text` | No | — | The stored entity code the alias stands for, upper-case and trimmed. |
+| `alias` | `text` | No | — | The alias as written (a brand, a common short form, a former code). |
+| `alias_folded` | `text` | No | — | The alias in lower case with single spaces, the form search-values matches on. |
+| `alias_type` | `text` | No | — | MANUAL (a curated alias) or FORMER_CODE (a code the entity used before). |
+| `note` | `text` | Yes | — | Why the alias exists, in plain words. |
+| `source_decision` | `text` | No | — | The decision or review the alias comes from. |
+| `created_at` | `timestamp with time zone` | No | `statement_timestamp()` | When the row was inserted. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `ai_entity_alias_code` | Check | `CHECK (code = upper(btrim(code)) AND code <> ''::text)` |
+| `ai_entity_alias_folded` | Check | `CHECK (alias_folded = lower(regexp_replace(btrim(alias), '\s+'::text, ' '::text, 'g'::text)) AND alias_folded <> ''::text)` |
+| `ai_entity_alias_type` | Check | `CHECK (alias_type = ANY (ARRAY['MANUAL'::text, 'FORMER_CODE'::text]))` |
+| `AI_entity_alias_pkey` | Primary key | `PRIMARY KEY (table_name, column_name, alias_folded, code)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `AI_entity_alias_pkey` | `CREATE UNIQUE INDEX "AI_entity_alias_pkey" ON public."AI_entity_alias" USING btree (table_name, column_name, alias_folded, code)` |
 
 ## AI_formula_reference
 
@@ -1370,30 +1357,30 @@ Tracks the data freshness, change time, and update pattern of each table.
 
 ## Equity_Market_Schedule
 
-Equity market timezone, closing clock, final-candle delay and correction-session policy.
+Equity market timezone, close, finality delay and correction-session policy.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `market_code` | `text` | No | — | Canonical equity market code. |
-| `exchange` | `text` | No | — | TradingView exchange code for the market. |
-| `timezone_name` | `text` | No | — | IANA timezone used to interpret the local session close. |
-| `session_close_local` | `time without time zone` | No | — | Local official daily-session close. |
-| `finality_delay_minutes` | `integer` | No | — | Delay after close before a daily candle can be accepted as final. |
-| `correction_lookback_sessions` | `integer` | No | `5` | Number of recent completed sessions reverified and eligible for normal suffix repair. |
-| `enabled` | `boolean` | No | `true` | Whether this market policy is active. |
-| `updated_at` | `timestamp with time zone` | No | `statement_timestamp()` | Time of the latest policy write. |
+| `market_code` | `text` | No | — | Operational checkpoint or market-policy field. |
+| `exchange` | `text` | No | — | Operational checkpoint or market-policy field. |
+| `timezone_name` | `text` | No | — | Operational checkpoint or market-policy field. |
+| `session_close_local` | `time without time zone` | No | — | Operational checkpoint or market-policy field. |
+| `finality_delay_minutes` | `integer` | No | — | Operational checkpoint or market-policy field. |
+| `correction_lookback_sessions` | `integer` | No | `5` | Operational checkpoint or market-policy field. |
+| `enabled` | `boolean` | No | `true` | Operational checkpoint or market-policy field. |
+| `updated_at` | `timestamp with time zone` | No | `statement_timestamp()` | Operational checkpoint or market-policy field. |
 
 ### Constraints
 
 | Name | Type | Definition |
 |---|---|---|
 | `Equity_Market_Schedule_code_check` | Check | `CHECK (market_code = upper(btrim(market_code)) AND market_code <> ''::text)` |
+| `Equity_Market_Schedule_correction_window_check` | Check | `CHECK (correction_lookback_sessions >= 1 AND correction_lookback_sessions <= 20)` |
+| `Equity_Market_Schedule_delay_check` | Check | `CHECK (finality_delay_minutes >= 0 AND finality_delay_minutes <= 360)` |
 | `Equity_Market_Schedule_exchange_check` | Check | `CHECK (exchange = upper(btrim(exchange)) AND exchange <> ''::text)` |
 | `Equity_Market_Schedule_timezone_check` | Check | `CHECK (timezone_name = btrim(timezone_name) AND timezone_name <> ''::text)` |
-| `Equity_Market_Schedule_delay_check` | Check | `CHECK (finality_delay_minutes >= 0 AND finality_delay_minutes <= 360)` |
-| `Equity_Market_Schedule_correction_window_check` | Check | `CHECK (correction_lookback_sessions >= 1 AND correction_lookback_sessions <= 20)` |
 | `Equity_Market_Schedule_pkey` | Primary key | `PRIMARY KEY (market_code)` |
 | `Equity_Market_Schedule_exchange_key` | Unique | `UNIQUE (exchange)` |
 
@@ -1434,8 +1421,8 @@ Immutable Feature04 calculation attempt audit.
 | `error_code` | `text` | Yes | — | Operational error code field for Feature04_Calculation_Log. |
 | `detail` | `text` | Yes | — | Operational detail field for Feature04_Calculation_Log. |
 | `asset_type` | `text` | No | — | Universe-derived asset class: equity from IDX_Stock_Universe; bonds from Universe_Fixed_income. |
-| `checkpoint_date` | `date` | Yes | — | Trusted checkpoint immediately before the recalculated suffix. |
-| `dirty_from_date` | `date` | Yes | — | Earliest source observation recalculated by this attempt. |
+| `checkpoint_date` | `date` | Yes | — | Trusted state date immediately before the calculated suffix. |
+| `dirty_from_date` | `date` | Yes | — | Earliest changed source session for this attempt. |
 
 ### Constraints
 
@@ -1445,10 +1432,10 @@ Immutable Feature04 calculation attempt audit.
 | `Feature04_Calculation_Log_changed_rows_check` | Check | `CHECK (changed_rows IS NULL OR changed_rows >= 0)` |
 | `Feature04_Calculation_Log_check` | Check | `CHECK (source_generation >= 0 AND work_revision > 0)` |
 | `Feature04_Calculation_Log_check1` | Check | `CHECK (finished_at >= started_at)` |
+| `Feature04_Calculation_Log_incremental_range_check` | Check | `CHECK (checkpoint_date IS NULL OR dirty_from_date IS NULL OR checkpoint_date < dirty_from_date)` |
 | `Feature04_Calculation_Log_result_check` | Check | `CHECK (result = ANY (ARRAY['SUCCESS'::text, 'PARTIAL'::text, 'FAILED'::text, 'SUPERSEDED'::text]))` |
 | `Feature04_Calculation_Log_source_rows_check` | Check | `CHECK (source_rows IS NULL OR source_rows >= 0)` |
 | `Feature04_Calculation_Log_timeframe_check` | Check | `CHECK (timeframe = 'Daily'::text)` |
-| `Feature04_Calculation_Log_incremental_range_check` | Check | `CHECK (checkpoint_date IS NULL OR dirty_from_date IS NULL OR checkpoint_date < dirty_from_date)` |
 | `Feature04_Calculation_Log_retry_fkey` | Foreign key | `FOREIGN KEY (retry_request_id) REFERENCES "Feature04_Retry_Request"(request_id)` |
 | `Feature04_Calculation_Log_pkey` | Primary key | `PRIMARY KEY (id)` |
 
@@ -1458,47 +1445,6 @@ Immutable Feature04 calculation attempt audit.
 |---|---|
 | `Feature04_Calculation_Log_pkey` | `CREATE UNIQUE INDEX "Feature04_Calculation_Log_pkey" ON public."Feature04_Calculation_Log" USING btree (id)` |
 | `Feature04_Calculation_Log_ticker_time_idx` | `CREATE INDEX "Feature04_Calculation_Log_ticker_time_idx" ON public."Feature04_Calculation_Log" USING btree (asset_type, ticker, started_at DESC)` |
-
-## Feature04_Calculation_State
-
-Recent versioned per-instrument calculation checkpoints for exact bounded Feature04 suffix updates.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `asset_type` | `text` | No | — | Universe-derived asset class: equity or bonds. |
-| `ticker` | `text` | No | — | Canonical universe ticker. |
-| `timeframe` | `text` | No | `'Daily'::text` | Supported observation interval. |
-| `checkpoint_date` | `date` | No | — | Source date represented by the post-row state snapshot. |
-| `state_version` | `text` | No | — | Serialization and state-machine compatibility version. |
-| `calculation_version` | `text` | No | — | Feature04 formula/library contract version. |
-| `source_position` | `integer` | No | — | One-based position of the checkpoint observation in the valid source stream. |
-| `source_chain_sha256` | `text` | No | — | Cumulative digest of source observations through the checkpoint. |
-| `state_payload` | `jsonb` | No | — | Recursive, rolling, pattern, SMI and swing state after the checkpoint row. |
-| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Initial checkpoint creation time. |
-| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Latest replacement time. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `Feature04_Calculation_State_asset_type_check` | Check | `CHECK (asset_type = ANY (ARRAY['equity'::text, 'bonds'::text]))` |
-| `Feature04_Calculation_State_ticker_check` | Check | `CHECK (ticker = upper(btrim(ticker)) AND ticker <> ''::text)` |
-| `Feature04_Calculation_State_timeframe_check` | Check | `CHECK (timeframe = 'Daily'::text)` |
-| `Feature04_Calculation_State_state_version_check` | Check | `CHECK (btrim(state_version) <> ''::text AND btrim(calculation_version) <> ''::text)` |
-| `Feature04_Calculation_State_source_position_check` | Check | `CHECK (source_position > 0)` |
-| `Feature04_Calculation_State_source_chain_sha256_check` | Check | `CHECK (source_chain_sha256 ~ '^[0-9a-f]{64}$'::text)` |
-| `Feature04_Calculation_State_state_payload_check` | Check | `CHECK (state_payload ->> 'last_date'::text = checkpoint_date::text)` |
-| `Feature04_Calculation_State_state_payload_check1` | Check | `CHECK (state_payload ->> 'source_chain_sha256'::text = source_chain_sha256)` |
-| `Feature04_Calculation_State_pkey` | Primary key | `PRIMARY KEY (asset_type, ticker, timeframe, checkpoint_date)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `Feature04_Calculation_State_latest_idx` | `CREATE INDEX "Feature04_Calculation_State_latest_idx" ON public."Feature04_Calculation_State" USING btree (asset_type, ticker, timeframe, checkpoint_date DESC)` |
-| `Feature04_Calculation_State_pkey` | `CREATE UNIQUE INDEX "Feature04_Calculation_State_pkey" ON public."Feature04_Calculation_State" USING btree (asset_type, ticker, timeframe, checkpoint_date)` |
 
 ## Feature04_Calculation_Queue
 
@@ -1551,6 +1497,47 @@ Durable coalesced Feature04 work and lease state.
 | `Feature04_Calculation_Queue_lease_idx` | `CREATE INDEX "Feature04_Calculation_Queue_lease_idx" ON public."Feature04_Calculation_Queue" USING btree (claim_expires_at) WHERE (status = 'PROCESSING'::text)` |
 | `Feature04_Calculation_Queue_pkey` | `CREATE UNIQUE INDEX "Feature04_Calculation_Queue_pkey" ON public."Feature04_Calculation_Queue" USING btree (asset_type, ticker, timeframe)` |
 | `Feature04_Calculation_Queue_ready_idx` | `CREATE INDEX "Feature04_Calculation_Queue_ready_idx" ON public."Feature04_Calculation_Queue" USING btree (next_attempt_at, updated_at) WHERE (status = ANY (ARRAY['PENDING'::text, 'FAILED'::text]))` |
+
+## Feature04_Calculation_State
+
+Recent versioned Feature04 recursive and rolling state checkpoints.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `asset_type` | `text` | No | — | Operational checkpoint or market-policy field. |
+| `ticker` | `text` | No | — | Operational checkpoint or market-policy field. |
+| `timeframe` | `text` | No | `'Daily'::text` | Operational checkpoint or market-policy field. |
+| `checkpoint_date` | `date` | No | — | Operational checkpoint or market-policy field. |
+| `state_version` | `text` | No | — | Operational checkpoint or market-policy field. |
+| `calculation_version` | `text` | No | — | Operational checkpoint or market-policy field. |
+| `source_position` | `integer` | No | — | Operational checkpoint or market-policy field. |
+| `source_chain_sha256` | `text` | No | — | Operational checkpoint or market-policy field. |
+| `state_payload` | `jsonb` | No | — | Operational checkpoint or market-policy field. |
+| `created_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational checkpoint or market-policy field. |
+| `updated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Operational checkpoint or market-policy field. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature04_Calculation_State_asset_type_check` | Check | `CHECK (asset_type = ANY (ARRAY['equity'::text, 'bonds'::text]))` |
+| `Feature04_Calculation_State_check` | Check | `CHECK (btrim(state_version) <> ''::text AND btrim(calculation_version) <> ''::text)` |
+| `Feature04_Calculation_State_check1` | Check | `CHECK ((state_payload ->> 'last_date'::text) = checkpoint_date::text)` |
+| `Feature04_Calculation_State_check2` | Check | `CHECK ((state_payload ->> 'source_chain_sha256'::text) = source_chain_sha256)` |
+| `Feature04_Calculation_State_source_chain_sha256_check` | Check | `CHECK (source_chain_sha256 ~ '^[0-9a-f]{64}$'::text)` |
+| `Feature04_Calculation_State_source_position_check` | Check | `CHECK (source_position > 0)` |
+| `Feature04_Calculation_State_ticker_check` | Check | `CHECK (ticker = upper(btrim(ticker)) AND ticker <> ''::text)` |
+| `Feature04_Calculation_State_timeframe_check` | Check | `CHECK (timeframe = 'Daily'::text)` |
+| `Feature04_Calculation_State_pkey` | Primary key | `PRIMARY KEY (asset_type, ticker, timeframe, checkpoint_date)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature04_Calculation_State_latest_idx` | `CREATE INDEX "Feature04_Calculation_State_latest_idx" ON public."Feature04_Calculation_State" USING btree (asset_type, ticker, timeframe, checkpoint_date DESC)` |
+| `Feature04_Calculation_State_pkey` | `CREATE UNIQUE INDEX "Feature04_Calculation_State_pkey" ON public."Feature04_Calculation_State" USING btree (asset_type, ticker, timeframe, checkpoint_date)` |
 
 ## Feature04_Column_Status
 
@@ -1641,7 +1628,7 @@ Durable Feature04 completion-notification work.
 
 ## Feature04_Retry_Request
 
-Audited failure-only Telegram retry request with a bounded five-session scope and editable acknowledgement.
+Audited owner Telegram failure-only retry request with editable acknowledgement and bounded five-session replay.
 
 ### Columns
 
@@ -1663,14 +1650,14 @@ Audited failure-only Telegram retry request with a bounded five-session scope an
 | `finished_at` | `timestamp with time zone` | Yes | — | Operational finished at field for Feature04_Retry_Request. |
 | `last_error` | `text` | Yes | — | Operational last error field for Feature04_Retry_Request. |
 | `asset_type` | `text` | Yes | — | Universe-derived asset class: equity from IDX_Stock_Universe; bonds from Universe_Fixed_income. |
-| `acknowledgement_message_id` | `bigint` | Yes | — | Telegram acknowledgement message edited with the terminal retry result; zero means acknowledgement delivery failed. |
+| `acknowledgement_message_id` | `bigint` | Yes | — | Telegram message ID for the retry acknowledgement that is edited with the terminal result. |
 
 ### Constraints
 
 | Name | Type | Definition |
 |---|---|---|
-| `Feature04_Retry_Request_asset_type_check` | Check | `CHECK (asset_type IS NULL OR (asset_type = ANY (ARRAY['equity'::text, 'bonds'::text])))` |
 | `Feature04_Retry_Request_ack_message_check` | Check | `CHECK (acknowledgement_message_id IS NULL OR acknowledgement_message_id >= 0)` |
+| `Feature04_Retry_Request_asset_type_check` | Check | `CHECK (asset_type IS NULL OR (asset_type = ANY (ARRAY['equity'::text, 'bonds'::text])))` |
 | `Feature04_Retry_Request_check` | Check | `CHECK (request_scope = 'TICKER'::text AND requested_columns IS NULL OR request_scope = 'COLUMN'::text AND requested_columns IS NOT NULL AND cardinality(requested_columns) > 0)` |
 | `Feature04_Retry_Request_check1` | Check | `CHECK (source_generation >= 0 AND work_revision > 0)` |
 | `Feature04_Retry_Request_request_scope_check` | Check | `CHECK (request_scope = ANY (ARRAY['TICKER'::text, 'COLUMN'::text]))` |
@@ -1689,7 +1676,7 @@ Audited failure-only Telegram retry request with a bounded five-session scope an
 
 ## Feature_01_Stock_Daily
 
-Daily per-ticker price, return, volatility, volume, and drawdown features.
+Daily per-ticker price, return, volatility, volume, and drawdown features. Universe-classified indices are not included: their rows are in Feature_01_Stock_Daily_INDEX (EXEC-M219).
 
 ### Columns
 
@@ -1698,7 +1685,7 @@ Daily per-ticker price, return, volatility, volume, and drawdown features.
 | `date` | `date` | No | — | Trading date of the source candle represented by the feature row. |
 | `ticker` | `text` | No | — | Exact IDX ticker identifying the security represented by the feature row. |
 | `close` | `numeric` | No | — | Closing price for the ticker on the trading date. |
-| `volume` | `numeric` | Yes | — | Source volume; NULL only for a universe-classified index without volume. Stocks require nonnegative volume. |
+| `volume` | `numeric` | Yes | — | Trading volume reported for the ticker on the trading date. |
 | `sector` | `text` | No | — | Current Sector classification for the ticker; it is not point-in-time historical classification. |
 | `industry` | `text` | No | — | Current Industry classification for the ticker; it is not point-in-time historical classification. |
 | `close_1d_ago` | `numeric` | Yes | — | Closing price one prior valid trading observation earlier for the same ticker. |
@@ -1741,6 +1728,60 @@ Daily per-ticker price, return, volatility, volume, and drawdown features.
 | `Feature_01_Stock_Daily_date_idx` | `CREATE INDEX "Feature_01_Stock_Daily_date_idx" ON public."Feature_01_Stock_Daily" USING btree (date)` |
 | `Feature_01_Stock_Daily_pkey` | `CREATE UNIQUE INDEX "Feature_01_Stock_Daily_pkey" ON public."Feature_01_Stock_Daily" USING btree (ticker, date)` |
 
+## Feature_01_Stock_Daily_INDEX
+
+Dedicated index output. Daily per-ticker price, return, volatility, volume, and drawdown features. Includes universe-classified benchmark indices: missing index volume is NULL, and index price levels are in points. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `date` | `date` | No | — | Index scope. Trading date of the source candle represented by the feature row. |
+| `ticker` | `text` | No | — | Universe index code; eligibility from IDX_Stock_Universe Security Type=index. |
+| `close` | `numeric` | No | — | Index scope. Closing price for the ticker on the trading date. |
+| `volume` | `numeric` | Yes | — | Index scope. Trading volume reported for the ticker on the trading date. |
+| `sector` | `text` | No | — | Index scope. Current Sector classification for the ticker; it is not point-in-time historical classification. |
+| `industry` | `text` | No | — | Index scope. Current Industry classification for the ticker; it is not point-in-time historical classification. |
+| `close_1d_ago` | `numeric` | Yes | — | Index scope. Closing price one prior valid trading observation earlier for the same ticker. |
+| `close_5d_ago` | `numeric` | Yes | — | Index scope. Closing price five prior valid trading observations earlier for the same ticker. |
+| `close_20d_ago` | `numeric` | Yes | — | Index scope. Closing price twenty prior valid trading observations earlier for the same ticker. |
+| `close_60d_ago` | `numeric` | Yes | — | Index scope. Closing price sixty prior valid trading observations earlier for the same ticker. |
+| `return_1d_pct` | `double precision` | Yes | — | Index scope. Percentage price return between the current close and the close one valid trading observation earlier for the same ticker. |
+| `return_5d_pct` | `double precision` | Yes | — | Index scope. Percentage price return between the current close and the close five valid trading observations earlier for the same ticker. |
+| `return_20d_pct` | `double precision` | Yes | — | Index scope. Percentage price return between the current close and the close twenty valid trading observations earlier for the same ticker. |
+| `return_60d_pct` | `double precision` | Yes | — | Index scope. Percentage price return between the current close and the close sixty valid trading observations earlier for the same ticker. |
+| `abs_return_1d_pct` | `double precision` | Yes | — | Index scope. Absolute magnitude of the one-trading-observation percentage return, without direction. |
+| `volatility_5d_ann_pct` | `double precision` | Yes | — | Index scope. Annualized sample standard deviation of the latest five valid daily decimal returns for the ticker, expressed as percent. |
+| `volatility_20d_ann_pct` | `double precision` | Yes | — | Index scope. Annualized sample standard deviation of the latest twenty valid daily decimal returns for the ticker, expressed as percent. |
+| `volatility_60d_ann_pct` | `double precision` | Yes | — | Index scope. Annualized sample standard deviation of the latest sixty valid daily decimal returns for the ticker, expressed as percent. |
+| `volatility_5d_change_pct` | `double precision` | Yes | — | Index scope. Percentage change in annualized five-return volatility versus its value five valid trading observations earlier. |
+| `volatility_20d_change_pct` | `double precision` | Yes | — | Index scope. Percentage change in annualized twenty-return volatility versus its value twenty valid trading observations earlier. |
+| `volatility_60d_change_pct` | `double precision` | Yes | — | Index scope. Percentage change in annualized sixty-return volatility versus its value sixty valid trading observations earlier. |
+| `volume_avg_20d` | `double precision` | Yes | — | Index scope. Average source trading volume over the latest twenty valid trading observations for the ticker. |
+| `volume_std_20d` | `double precision` | Yes | — | Index scope. Sample standard deviation of source trading volume over the latest twenty valid trading observations for the ticker. |
+| `volume_ratio_20d` | `double precision` | Yes | — | Index scope. Current trading volume divided by the average volume of the latest twenty valid trading observations. |
+| `volume_zscore_20d` | `double precision` | Yes | — | Index scope. Current trading-volume deviation from its latest twenty-observation average, measured in sample standard deviations. |
+| `high_20d` | `numeric` | Yes | — | Index scope. Highest closing price among the latest twenty valid trading observations for the ticker. |
+| `high_60d` | `numeric` | Yes | — | Index scope. Highest closing price among the latest sixty valid trading observations for the ticker. |
+| `drawdown_20d_pct` | `double precision` | Yes | — | Index scope. Percentage position of the current close below the highest close in the latest twenty valid trading observations. |
+| `drawdown_60d_pct` | `double precision` | Yes | — | Index scope. Percentage position of the current close below the highest close in the latest sixty valid trading observations. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature_01_Stock_Daily_close_nonnegative` | Check | `CHECK (close >= 0::numeric)` |
+| `Feature_01_Stock_Daily_ticker_not_blank` | Check | `CHECK (btrim(ticker) <> ''::text)` |
+| `Feature_01_Stock_Daily_volume_nonnegative` | Check | `CHECK (volume >= 0::numeric)` |
+| `Feature_01_Stock_Daily_INDEX_pkey` | Primary key | `PRIMARY KEY (ticker, date)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_01_Stock_Daily_INDEX_date_idx` | `CREATE INDEX "Feature_01_Stock_Daily_INDEX_date_idx" ON public."Feature_01_Stock_Daily_INDEX" USING btree (date)` |
+| `Feature_01_Stock_Daily_INDEX_pkey` | `CREATE UNIQUE INDEX "Feature_01_Stock_Daily_INDEX_pkey" ON public."Feature_01_Stock_Daily_INDEX" USING btree (ticker, date)` |
+
 ## Feature_02_Broker_Rolling
 
 Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata.
@@ -1750,7 +1791,7 @@ Validated daily and rolling broker flows by source ticker, broker, Investor Type
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
 | `date` | `date` | No | — | Ticker transaction date from IDX_Broker_Summary; the rolling calendar uses all observed dates for the ticker across investor types and boards. |
-| `ticker` | `text` | No | — | Exact IDX_Broker_Summary Symbol; no Stock Universe filter is applied. |
+| `ticker` | `text` | No | — | Source Symbol, including instruments not present in the current stock universe. |
 | `broker` | `text` | No | — | Exact source Broker code identifying the executing broker. |
 | `investor_type` | `text` | No | — | Exact source Investor Type: Domestic or Foreign. This describes the investor represented by the source row, not the broker domicile. |
 | `market_board` | `text` | No | — | Exact source Market Board: Regular, Nego or Tunai; boards never mix in rolling calculations. |
@@ -1808,6 +1849,73 @@ Validated daily and rolling broker flows by source ticker, broker, Investor Type
 | `Feature_02_Broker_Rolling_date_board_ticker_idx` | `CREATE INDEX "Feature_02_Broker_Rolling_date_board_ticker_idx" ON public."Feature_02_Broker_Rolling" USING btree (date, market_board, ticker)` |
 | `Feature_02_Broker_Rolling_pkey` | `CREATE UNIQUE INDEX "Feature_02_Broker_Rolling_pkey" ON public."Feature_02_Broker_Rolling" USING btree (ticker, market_board, broker, investor_type, date)` |
 
+## Feature_02_Broker_Rolling_INDEX
+
+Dedicated index output. Validated daily and rolling broker flows by source ticker, broker, Investor Type, Market Board and transaction date. Investor Type is exact source investor identity; broker_classification remains current profile metadata. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `date` | `date` | No | — | Index scope. Ticker transaction date from IDX_Broker_Summary; the rolling calendar uses all observed dates for the ticker across investor types and boards. |
+| `ticker` | `text` | No | — | Universe-classified index identifier; aggregate source symbols are not copied into the index ticker. |
+| `broker` | `text` | No | — | Index scope. Exact source Broker code identifying the executing broker. |
+| `investor_type` | `text` | No | — | Index scope. Exact source Investor Type: Domestic or Foreign. This describes the investor represented by the source row, not the broker domicile. |
+| `market_board` | `text` | No | — | Index scope. Exact source Market Board: Regular, Nego or Tunai; boards never mix in rolling calculations. |
+| `broker_classification` | `text` | Yes | — | Index scope. Current broker usage classification from IDX_Broker_Profile; metadata only and not point-in-time history. |
+| `buy_value_1d` | `numeric` | No | — | Index scope. Source Buy Value for this date, ticker, broker, investor type and board. |
+| `sell_value_1d` | `numeric` | No | — | Index scope. Source Sell Value for this date, ticker, broker, investor type and board. |
+| `net_value_1d` | `numeric` | No | — | Index scope. Buy value minus sell value for this date, ticker, broker, source Investor Type and board. Positive means net buying; negative means net selling. |
+| `buy_lots_1d` | `numeric` | No | — | Index scope. Source Buy Lots for this date, ticker, broker, investor type and board. |
+| `sell_lots_1d` | `numeric` | No | — | Index scope. Source Sell Lots for this date, ticker, broker, investor type and board. |
+| `net_lots_1d` | `numeric` | No | — | Index scope. Buy lots minus sell lots for this date, ticker, broker, source Investor Type and board. Positive means net buying; negative means net selling. |
+| `net_value_5d` | `numeric` | Yes | — | Index scope. Sum of net_value_1d over 5 ticker transaction dates within broker, investor type and board; missing activity contributes zero. |
+| `net_value_20d` | `numeric` | Yes | — | Index scope. Sum of net_value_1d over 20 ticker transaction dates within broker, investor type and board; missing activity contributes zero. |
+| `net_value_60d` | `numeric` | Yes | — | Index scope. Sum of net_value_1d over 60 ticker transaction dates within broker, investor type and board; missing activity contributes zero. |
+| `net_lots_5d` | `numeric` | Yes | — | Index scope. Sum of net_lots_1d over 5 ticker transaction dates within broker, investor type and board. |
+| `net_lots_20d` | `numeric` | Yes | — | Index scope. Sum of net_lots_1d over 20 ticker transaction dates within broker, investor type and board. |
+| `net_lots_60d` | `numeric` | Yes | — | Index scope. Sum of net_lots_1d over 60 ticker transaction dates within broker, investor type and board. |
+| `buy_days_20d` | `smallint` | Yes | — | Index scope. Number of positive net-value dates in the complete 20-date window for this broker, investor type and board. |
+| `sell_days_20d` | `smallint` | Yes | — | Index scope. Number of negative net-value dates in the complete 20-date window for this broker, investor type and board. |
+| `active_days_20d` | `smallint` | Yes | — | Index scope. Number of dates with nonzero gross activity in the complete 20-date window for this broker, investor type and board. |
+| `stock_trading_days_20d` | `smallint` | Yes | — | Index scope. 20 after the ticker has 20 observed transaction dates across any investor type or board; otherwise NULL. |
+| `buy_day_ratio_20d` | `double precision` | Yes | — | Index scope. buy_days_20d divided by 20; for example 12 positive dates produces 0.60. |
+| `buy_share_active_days_20d` | `double precision` | Yes | — | Index scope. buy_days_20d divided by active_days_20d; NULL when there are no active dates. |
+| `buy_days_60d` | `smallint` | Yes | — | Index scope. Number of positive net-value dates in the complete 60-date window for this broker, investor type and board. |
+| `sell_days_60d` | `smallint` | Yes | — | Index scope. Number of negative net-value dates in the complete 60-date window for this broker, investor type and board. |
+| `active_days_60d` | `smallint` | Yes | — | Index scope. Number of dates with nonzero gross activity in the complete 60-date window for this broker, investor type and board. |
+| `stock_trading_days_60d` | `smallint` | Yes | — | Index scope. 60 after the ticker has 60 observed transaction dates across any investor type or board; otherwise NULL. |
+| `buy_day_ratio_60d` | `double precision` | Yes | — | Index scope. buy_days_60d divided by 60. |
+| `buy_share_active_days_60d` | `double precision` | Yes | — | Index scope. buy_days_60d divided by active_days_60d; NULL when there are no active dates. |
+| `net_value_zscore_20d` | `double precision` | Yes | — | Index scope. Current 20-date net value minus the mean of the preceding 252 complete 20-date values, divided by their sample standard deviation; current date excluded. |
+| `net_value_zscore_60d` | `double precision` | Yes | — | Index scope. Current 60-date net value minus the mean of the preceding 252 complete 60-date values, divided by their sample standard deviation; current date excluded. |
+| `net_value_percentile_20d` | `double precision` | Yes | — | Index scope. Empirical midrank percentile of current 20-date net value against the preceding 252 complete values in the same broker, investor type and board partition. |
+| `net_value_percentile_60d` | `double precision` | Yes | — | Index scope. Empirical midrank percentile of current 60-date net value against the preceding 252 complete values in the same broker, investor type and board partition. |
+| `positive_net_value_20d` | `numeric` | Yes | — | Index scope. Sum of positive daily net values in the complete 20-date window; zero when the complete window has no positive date. |
+| `largest_buy_day_20d` | `numeric` | Yes | — | Index scope. Largest positive daily net value in the complete 20-date window; NULL when no positive date exists. |
+| `largest_buy_day_share_20d` | `double precision` | Yes | — | Index scope. largest_buy_day_20d divided by positive_net_value_20d; for example 40 of 100 total positive flow produces 0.40. |
+| `calculated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Index scope. Database statement timestamp when this canonical v2 row was materialized; not source event time or data availability time. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature_02_Broker_Rolling_v2_board_check` | Check | `CHECK (market_board = ANY (ARRAY['Regular'::text, 'Nego'::text, 'Tunai'::text]))` |
+| `Feature_02_Broker_Rolling_v2_gross_check` | Check | `CHECK (buy_value_1d >= 0::numeric AND sell_value_1d >= 0::numeric AND buy_lots_1d >= 0::numeric AND sell_lots_1d >= 0::numeric)` |
+| `Feature_02_Broker_Rolling_v2_identity_check` | Check | `CHECK (btrim(ticker) <> ''::text AND btrim(broker) <> ''::text)` |
+| `Feature_02_Broker_Rolling_v2_investor_type_check` | Check | `CHECK (investor_type = ANY (ARRAY['Domestic'::text, 'Foreign'::text]))` |
+| `Feature_02_Broker_Rolling_v2_net_check` | Check | `CHECK (net_value_1d = (buy_value_1d - sell_value_1d) AND net_lots_1d = (buy_lots_1d - sell_lots_1d))` |
+| `Feature_02_Broker_Rolling_v2_percentile_check` | Check | `CHECK ((net_value_percentile_20d IS NULL OR net_value_percentile_20d >= 0::double precision AND net_value_percentile_20d <= 100::double precision) AND (net_value_percentile_60d IS NULL OR net_value_percentile_60d >= 0::double precision AND net_value_percentile_60d <= 100::double precision))` |
+| `Feature_02_Broker_Rolling_v2_ratio_check` | Check | `CHECK ((buy_day_ratio_20d IS NULL OR buy_day_ratio_20d >= 0::double precision AND buy_day_ratio_20d <= 1::double precision) AND (buy_share_active_days_20d IS NULL OR buy_share_active_days_20d >= 0::double precision AND buy_share_active_days_20d <= 1::double precision) AND (buy_day_ratio_60d IS NULL OR buy_day_ratio_60d >= 0::double precision AND buy_day_ratio_60d <= 1::double precision) AND (buy_share_active_days_60d IS NULL OR buy_share_active_days_60d >= 0::double precision AND buy_share_active_days_60d <= 1::double precision) AND (largest_buy_day_share_20d IS NULL OR largest_buy_day_share_20d >= 0::double precision AND largest_buy_day_share_20d <= 1::double precision))` |
+| `Feature_02_Broker_Rolling_INDEX_pkey` | Primary key | `PRIMARY KEY (ticker, market_board, broker, investor_type, date)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_02_Broker_Rolling_INDEX_date_market_board_ticker_idx` | `CREATE INDEX "Feature_02_Broker_Rolling_INDEX_date_market_board_ticker_idx" ON public."Feature_02_Broker_Rolling_INDEX" USING btree (date, market_board, ticker)` |
+| `Feature_02_Broker_Rolling_INDEX_pkey` | `CREATE UNIQUE INDEX "Feature_02_Broker_Rolling_INDEX_pkey" ON public."Feature_02_Broker_Rolling_INDEX" USING btree (ticker, market_board, broker, investor_type, date)` |
+
 ## Feature_03_Stock_Broker_Daily
 
 Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate.
@@ -1860,9 +1968,61 @@ Validated stock-level daily broker breadth, source-Investor-Type flows, current 
 | `Feature_03_Stock_Broker_Daily_date_board_ticker_idx` | `CREATE INDEX "Feature_03_Stock_Broker_Daily_date_board_ticker_idx" ON public."Feature_03_Stock_Broker_Daily" USING btree (date, market_board, ticker)` |
 | `Feature_03_Stock_Broker_Daily_pkey` | `CREATE UNIQUE INDEX "Feature_03_Stock_Broker_Daily_pkey" ON public."Feature_03_Stock_Broker_Daily" USING btree (ticker, market_board, date)` |
 
+## Feature_03_Stock_Broker_Daily_INDEX
+
+Dedicated index output. Validated stock-level daily broker breadth, source-Investor-Type flows, current broker-profile classified flows, dominant brokers and net-flow concentration; Market Boards remain separate. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `date` | `date` | No | — | Index scope. Source transaction date for this ticker and market board. |
+| `ticker` | `text` | No | — | Universe-classified index identifier; aggregate source symbols are not copied into the index ticker. |
+| `market_board` | `text` | No | — | Index scope. Exact source board: Regular, Nego or Tunai; aggregates never mix boards. |
+| `total_buy_value` | `numeric` | No | — | Index scope. Sum of all broker buy_value_1d for the ticker, date and board. |
+| `total_sell_value` | `numeric` | No | — | Index scope. Sum of all broker sell_value_1d for the ticker, date and board. |
+| `active_broker_count` | `smallint` | No | — | Index scope. Brokers with nonzero gross buy/sell value or lots on the ticker, date and board. |
+| `net_buy_broker_count` | `smallint` | No | — | Index scope. Brokers whose aggregated daily net value is positive. |
+| `net_sell_broker_count` | `smallint` | No | — | Index scope. Brokers whose aggregated daily net value is negative. |
+| `net_buy_broker_ratio` | `double precision` | Yes | — | Index scope. net_buy_broker_count divided by active_broker_count; null when no broker is active. |
+| `foreign_net_value` | `numeric` | No | — | Index scope. Sum of daily net value for source Foreign Investor Type across all brokers. Investor Type identifies the source investor, not broker domicile. |
+| `domestic_net_value` | `numeric` | No | — | Index scope. Sum of daily net value for source Domestic Investor Type across all brokers. Investor Type identifies the source investor, not broker domicile. |
+| `institutional_net_value` | `numeric` | No | — | Index scope. Sum of daily broker net value where current broker_classification is Institutional-heavy. |
+| `retail_net_value` | `numeric` | No | — | Index scope. Sum of daily broker net value where current broker_classification is Retail-heavy. |
+| `mixed_net_value` | `numeric` | No | — | Index scope. Sum of daily broker net value where current broker_classification is Mixed. |
+| `niche_net_value` | `numeric` | No | — | Index scope. Sum of daily broker net value where current broker_classification is Niche. |
+| `top_buyer` | `text` | Yes | — | Index scope. Positive-net broker with the greatest daily net value; ties use broker code ascending. |
+| `top_buyer_net_value` | `numeric` | Yes | — | Index scope. Positive daily net value of top_buyer. |
+| `top_seller` | `text` | Yes | — | Index scope. Negative-net broker with the lowest daily net value; ties use broker code ascending. |
+| `top_seller_net_value` | `numeric` | Yes | — | Index scope. Negative daily net value of top_seller. |
+| `top3_buyer_net_value` | `numeric` | No | — | Index scope. Sum of the three greatest positive broker net values, with fewer used when fewer exist. |
+| `positive_net_value_total` | `numeric` | No | — | Index scope. Sum of every positive broker daily net value. |
+| `top3_buyer_share` | `double precision` | Yes | — | Index scope. top3_buyer_net_value divided by positive_net_value_total; null when the denominator is zero. |
+| `broker_concentration_hhi` | `double precision` | Yes | — | Index scope. Sum of squared absolute-net-flow weights across brokers; null when total absolute net value is zero. |
+| `calculated_at` | `timestamp with time zone` | No | `CURRENT_TIMESTAMP` | Index scope. Database statement timestamp when the row was calculated. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature_03_Stock_Broker_Daily_board_check` | Check | `CHECK (market_board = ANY (ARRAY['Regular'::text, 'Nego'::text, 'Tunai'::text]))` |
+| `Feature_03_Stock_Broker_Daily_count_check` | Check | `CHECK (active_broker_count >= 0 AND net_buy_broker_count >= 0 AND net_sell_broker_count >= 0 AND (net_buy_broker_count + net_sell_broker_count) <= active_broker_count)` |
+| `Feature_03_Stock_Broker_Daily_dominant_check` | Check | `CHECK ((top_buyer IS NULL) = (top_buyer_net_value IS NULL) AND (top_seller IS NULL) = (top_seller_net_value IS NULL) AND (top_buyer_net_value IS NULL OR top_buyer_net_value > 0::numeric) AND (top_seller_net_value IS NULL OR top_seller_net_value < 0::numeric) AND top3_buyer_net_value >= 0::numeric AND positive_net_value_total >= top3_buyer_net_value)` |
+| `Feature_03_Stock_Broker_Daily_gross_check` | Check | `CHECK (total_buy_value >= 0::numeric AND total_sell_value >= 0::numeric)` |
+| `Feature_03_Stock_Broker_Daily_identity_check` | Check | `CHECK (btrim(ticker) <> ''::text)` |
+| `Feature_03_Stock_Broker_Daily_ratio_check` | Check | `CHECK ((net_buy_broker_ratio IS NULL OR net_buy_broker_ratio >= 0::double precision AND net_buy_broker_ratio <= 1::double precision) AND (top3_buyer_share IS NULL OR top3_buyer_share >= 0::double precision AND top3_buyer_share <= 1::double precision) AND (broker_concentration_hhi IS NULL OR broker_concentration_hhi > 0::double precision AND broker_concentration_hhi <= 1::double precision))` |
+| `Feature_03_Stock_Broker_Daily_INDEX_pkey` | Primary key | `PRIMARY KEY (ticker, market_board, date)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_03_Stock_Broker_Daily_INDEX_pkey` | `CREATE UNIQUE INDEX "Feature_03_Stock_Broker_Daily_INDEX_pkey" ON public."Feature_03_Stock_Broker_Daily_INDEX" USING btree (ticker, market_board, date)` |
+| `Feature_03_Stock_Broker_Daily_INDE_date_market_board_ticker_idx` | `CREATE INDEX "Feature_03_Stock_Broker_Daily_INDE_date_market_board_ticker_idx" ON public."Feature_03_Stock_Broker_Daily_INDEX" USING btree (date, market_board, ticker)` |
+
 ## Feature_04_Technical_Indicator
 
-Cross-asset Daily closing price and causal technical indicators from universe-classified equity or bonds OHLC.
+Cross-asset Daily close and technical indicators calculated from final source prices with exact checkpointed suffix refresh.
 
 ### Columns
 
@@ -1972,9 +2132,121 @@ Cross-asset Daily closing price and causal technical indicators from universe-cl
 | `Feature_04_Technical_Indicator_pkey` | `CREATE UNIQUE INDEX "Feature_04_Technical_Indicator_pkey" ON public."Feature_04_Technical_Indicator" USING btree (ticker, trade_date, timeframe, asset_type)` |
 | `Feature_04_Technical_Indicator_trade_date_idx` | `CREATE INDEX "Feature_04_Technical_Indicator_trade_date_idx" ON public."Feature_04_Technical_Indicator" USING btree (trade_date)` |
 
+## Feature_04_Technical_Indicator_INDEX
+
+Dedicated index output. Cross-asset Daily close and technical indicators calculated from final source prices with exact checkpointed suffix refresh. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `ticker` | `text` | No | — | Universe index code; eligibility from IDX_Stock_Universe Security Type=index. |
+| `trade_date` | `date` | No | — | Index scope. Trading observation date copied from source date. |
+| `timeframe` | `text` | No | — | Index scope. Verified daily timeframe copied exactly from source. |
+| `sma_20` | `double precision` | Yes | — | Index scope. Unweighted mean of 20 observed closes. |
+| `sma_50` | `double precision` | Yes | — | Index scope. Unweighted mean of 50 observed closes. |
+| `ema_12` | `double precision` | Yes | — | Index scope. Fast exponentially weighted close; alpha=2/13. |
+| `ema_26` | `double precision` | Yes | — | Index scope. Slow exponentially weighted close; alpha=2/27. |
+| `rsi_14` | `double precision` | Yes | — | Index scope. Wilder gain/loss oscillator on 14 consecutive close changes, scaled 0–100. |
+| `macd` | `double precision` | Yes | — | Index scope. Difference of the stored fast and slow EMA price baselines. |
+| `macd_signal` | `double precision` | Yes | — | Index scope. Nine-period EMA of valid MACD line observations. |
+| `macd_histogram` | `double precision` | Yes | — | Index scope. Difference between MACD line and its nine-period signal. |
+| `atr_14` | `double precision` | Yes | — | Index scope. Wilder average of 14 true ranges using prior observed close. |
+| `bb_upper_20` | `double precision` | Yes | — | Index scope. Upper 20-period Bollinger band, population standard deviation multiplier 2. |
+| `bb_middle_20` | `double precision` | Yes | — | Index scope. Middle 20-period Bollinger band, identical to SMA20. |
+| `bb_lower_20` | `double precision` | Yes | — | Index scope. Lower 20-period Bollinger band, population standard deviation multiplier 2. |
+| `cdl_piercing` | `integer` | Yes | — | Index scope. Native TA-Lib piercing pattern recognition code from historical OHLC. |
+| `cdl_morning_star` | `integer` | Yes | — | Index scope. Native TA-Lib morning star pattern recognition code from historical OHLC. |
+| `cdl_morning_doji_star` | `integer` | Yes | — | Index scope. Native TA-Lib morning doji star pattern recognition code from historical OHLC. |
+| `cdl_engulfing` | `integer` | Yes | — | Index scope. Native TA-Lib engulfing pattern recognition code from historical OHLC. |
+| `cdl_3_white_soldiers` | `integer` | Yes | — | Index scope. Native TA-Lib 3 white soldiers pattern recognition code from historical OHLC. |
+| `cdl_hammer` | `integer` | Yes | — | Index scope. Native TA-Lib hammer pattern recognition code from historical OHLC. |
+| `cdl_inverted_hammer` | `integer` | Yes | — | Index scope. Native TA-Lib inverted hammer pattern recognition code from historical OHLC. |
+| `cdl_3_inside` | `integer` | Yes | — | Index scope. Native TA-Lib 3 inside pattern recognition code from historical OHLC. |
+| `cdl_3_outside` | `integer` | Yes | — | Index scope. Native TA-Lib 3 outside pattern recognition code from historical OHLC. |
+| `cdl_harami` | `integer` | Yes | — | Index scope. Native TA-Lib harami pattern recognition code from historical OHLC. |
+| `cdl_harami_cross` | `integer` | Yes | — | Index scope. Native TA-Lib harami cross pattern recognition code from historical OHLC. |
+| `cdl_dark_cloud_cover` | `integer` | Yes | — | Index scope. Native TA-Lib dark cloud cover pattern recognition code from historical OHLC. |
+| `cdl_evening_star` | `integer` | Yes | — | Index scope. Native TA-Lib evening star pattern recognition code from historical OHLC. |
+| `cdl_evening_doji_star` | `integer` | Yes | — | Index scope. Native TA-Lib evening doji star pattern recognition code from historical OHLC. |
+| `cdl_3_black_crows` | `integer` | Yes | — | Index scope. Native TA-Lib 3 black crows pattern recognition code from historical OHLC. |
+| `cdl_shooting_star` | `integer` | Yes | — | Index scope. Native TA-Lib shooting star pattern recognition code from historical OHLC. |
+| `cdl_hanging_man` | `integer` | Yes | — | Index scope. Native TA-Lib hanging man pattern recognition code from historical OHLC. |
+| `cdl_doji` | `integer` | Yes | — | Index scope. Native TA-Lib doji pattern recognition code from historical OHLC. |
+| `cdl_dragonfly_doji` | `integer` | Yes | — | Index scope. Native TA-Lib dragonfly doji pattern recognition code from historical OHLC. |
+| `cdl_gravestone_doji` | `integer` | Yes | — | Index scope. Native TA-Lib gravestone doji pattern recognition code from historical OHLC. |
+| `cdl_marubozu` | `integer` | Yes | — | Index scope. Native TA-Lib marubozu pattern recognition code from historical OHLC. |
+| `cdl_kicking` | `integer` | Yes | — | Index scope. Native TA-Lib kicking pattern recognition code from historical OHLC. |
+| `cdl_rise_fall_3_methods` | `integer` | Yes | — | Index scope. Native TA-Lib rise fall 3 methods pattern recognition code from historical OHLC. |
+| `cdl_mat_hold` | `integer` | Yes | — | Index scope. Native TA-Lib mat hold pattern recognition code from historical OHLC. |
+| `cdl_hikkake` | `integer` | Yes | — | Index scope. Native TA-Lib hikkake pattern recognition code from historical OHLC. |
+| `calculation_version` | `text` | No | — | Index scope. Version binds formulas, seeds and pinned TA-Lib versions. |
+| `calculated_at` | `timestamp with time zone` | No | — | Index scope. Timezone-aware execution time of the last changed output row. |
+| `adx_14` | `double precision` | Yes | — | Index scope. Wilder average directional index measuring trend strength on a 0–100 scale. |
+| `ema_50` | `double precision` | Yes | — | Index scope. Fifty-observation exponentially weighted close; alpha=2/51. |
+| `ema_200` | `double precision` | Yes | — | Index scope. Two-hundred-observation exponentially weighted close; alpha=2/201. |
+| `inside_bar` | `integer` | Yes | — | Index scope. Strict current-candle range containment within the previous valid observed candle. |
+| `smi` | `double precision` | Yes | — | Index scope. Stochastic Momentum Index: double-smoothed close displacement from the midpoint of a rolling 14-bar high/low range. |
+| `tracking_high` | `integer` | Yes | — | Index scope. High-search state after all current-bar Pine blocks execute. |
+| `tracking_low` | `integer` | Yes | — | Index scope. Low-search state after all current-bar Pine blocks execute. |
+| `temp_high` | `double precision` | Yes | — | Index scope. Provisional highest high in the current active SMI-above-40 tracking interval. |
+| `temp_high_bar` | `integer` | Yes | — | Index scope. Zero-based source observation index of the currently tracked temporary high. |
+| `temp_low` | `double precision` | Yes | — | Index scope. Provisional lowest low in the current active SMI-below-minus-40 tracking interval. |
+| `temp_low_bar` | `integer` | Yes | — | Index scope. Zero-based source observation index of the currently tracked temporary low. |
+| `last_swing_high` | `double precision` | Yes | — | Index scope. Latest swing-high price available after its SMI-downcross confirmation, carried forward. |
+| `break_swing_high` | `integer` | Yes | — | Index scope. Integer event flag for the supplied Pine close/last-swing-high crossover. |
+| `asset_type` | `text` | No | — | Index asset class, resolved from approved universe metadata. |
+| `close` | `double precision` | No | — | Index scope. Daily closing price copied from the matching universe-classified price source row. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature_04_Technical_Indicator_atr_14_check` | Check | `CHECK (atr_14 IS NULL OR atr_14 > '-Infinity'::double precision AND atr_14 < 'Infinity'::double precision)` |
+| `Feature_04_Technical_Indicator_atr_14_check1` | Check | `CHECK (atr_14 IS NULL OR atr_14 >= 0::double precision)` |
+| `Feature_04_Technical_Indicator_bb_lower_20_check` | Check | `CHECK (bb_lower_20 IS NULL OR bb_lower_20 > '-Infinity'::double precision AND bb_lower_20 < 'Infinity'::double precision)` |
+| `Feature_04_Technical_Indicator_bb_middle_20_check` | Check | `CHECK (bb_middle_20 IS NULL OR bb_middle_20 > '-Infinity'::double precision AND bb_middle_20 < 'Infinity'::double precision)` |
+| `Feature_04_Technical_Indicator_bb_upper_20_check` | Check | `CHECK (bb_upper_20 IS NULL OR bb_upper_20 > '-Infinity'::double precision AND bb_upper_20 < 'Infinity'::double precision)` |
+| `Feature_04_Technical_Indicator_calculation_version_check` | Check | `CHECK (btrim(calculation_version) <> ''::text)` |
+| `Feature_04_Technical_Indicator_close_finite_check` | Check | `CHECK (close > '-Infinity'::double precision AND close < 'Infinity'::double precision)` |
+| `Feature_04_Technical_Indicator_close_nonnegative_check` | Check | `CHECK (close >= 0::double precision)` |
+| `Feature_04_Technical_Indicator_ema_12_check` | Check | `CHECK (ema_12 IS NULL OR ema_12 > '-Infinity'::double precision AND ema_12 < 'Infinity'::double precision)` |
+| `Feature_04_Technical_Indicator_ema_26_check` | Check | `CHECK (ema_26 IS NULL OR ema_26 > '-Infinity'::double precision AND ema_26 < 'Infinity'::double precision)` |
+| `Feature_04_Technical_Indicator_macd_check` | Check | `CHECK (macd IS NULL OR macd > '-Infinity'::double precision AND macd < 'Infinity'::double precision)` |
+| `Feature_04_Technical_Indicator_macd_histogram_check` | Check | `CHECK (macd_histogram IS NULL OR macd_histogram > '-Infinity'::double precision AND macd_histogram < 'Infinity'::double precision)` |
+| `Feature_04_Technical_Indicator_macd_signal_check` | Check | `CHECK (macd_signal IS NULL OR macd_signal > '-Infinity'::double precision AND macd_signal < 'Infinity'::double precision)` |
+| `Feature_04_Technical_Indicator_rsi_14_check` | Check | `CHECK (rsi_14 IS NULL OR rsi_14 > '-Infinity'::double precision AND rsi_14 < 'Infinity'::double precision)` |
+| `Feature_04_Technical_Indicator_rsi_14_check1` | Check | `CHECK (rsi_14 IS NULL OR rsi_14 >= 0::double precision AND rsi_14 <= 100::double precision)` |
+| `Feature_04_Technical_Indicator_sma_20_check` | Check | `CHECK (sma_20 IS NULL OR sma_20 > '-Infinity'::double precision AND sma_20 < 'Infinity'::double precision)` |
+| `Feature_04_Technical_Indicator_sma_50_check` | Check | `CHECK (sma_50 IS NULL OR sma_50 > '-Infinity'::double precision AND sma_50 < 'Infinity'::double precision)` |
+| `Feature_04_Technical_Indicator_ticker_check` | Check | `CHECK (ticker = upper(btrim(ticker)) AND ticker <> ''::text)` |
+| `Feature_04_Technical_Indicator_timeframe_check` | Check | `CHECK (timeframe = 'Daily'::text)` |
+| `feature04_adx_14_valid` | Check | `CHECK (adx_14 IS NULL OR adx_14 >= 0::double precision AND adx_14 <= 100::double precision)` |
+| `feature04_break_swing_high_valid` | Check | `CHECK (break_swing_high IS NULL OR (break_swing_high = ANY (ARRAY[0, 1])))` |
+| `feature04_ema_200_finite` | Check | `CHECK (ema_200 IS NULL OR ema_200 > '-Infinity'::double precision AND ema_200 < 'Infinity'::double precision)` |
+| `feature04_ema_50_finite` | Check | `CHECK (ema_50 IS NULL OR ema_50 > '-Infinity'::double precision AND ema_50 < 'Infinity'::double precision)` |
+| `feature04_inside_bar_binary` | Check | `CHECK (inside_bar IS NULL OR (inside_bar = ANY (ARRAY[0, 1])))` |
+| `feature04_last_swing_high_valid` | Check | `CHECK (last_swing_high IS NULL OR last_swing_high > '-Infinity'::double precision AND last_swing_high < 'Infinity'::double precision)` |
+| `feature04_smi_valid` | Check | `CHECK (smi IS NULL OR smi > '-Infinity'::double precision AND smi < 'Infinity'::double precision)` |
+| `feature04_temp_high_bar_valid` | Check | `CHECK (temp_high_bar IS NULL OR temp_high_bar >= 0)` |
+| `feature04_temp_high_valid` | Check | `CHECK (temp_high IS NULL OR temp_high > '-Infinity'::double precision AND temp_high < 'Infinity'::double precision)` |
+| `feature04_temp_low_bar_valid` | Check | `CHECK (temp_low_bar IS NULL OR temp_low_bar >= 0)` |
+| `feature04_temp_low_valid` | Check | `CHECK (temp_low IS NULL OR temp_low > '-Infinity'::double precision AND temp_low < 'Infinity'::double precision)` |
+| `feature04_tracking_high_valid` | Check | `CHECK (tracking_high IS NULL OR (tracking_high = ANY (ARRAY[0, 1])))` |
+| `feature04_tracking_low_valid` | Check | `CHECK (tracking_low IS NULL OR (tracking_low = ANY (ARRAY[0, 1])))` |
+| `index_asset_type_only` | Check | `CHECK (asset_type = 'index'::text)` |
+| `Feature_04_Technical_Indicator_INDEX_pkey` | Primary key | `PRIMARY KEY (ticker, trade_date, timeframe, asset_type)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_04_Technical_Indicator_INDEX_pkey` | `CREATE UNIQUE INDEX "Feature_04_Technical_Indicator_INDEX_pkey" ON public."Feature_04_Technical_Indicator_INDEX" USING btree (ticker, trade_date, timeframe, asset_type)` |
+| `Feature_04_Technical_Indicator_INDEX_trade_date_idx` | `CREATE INDEX "Feature_04_Technical_Indicator_INDEX_trade_date_idx" ON public."Feature_04_Technical_Indicator_INDEX" USING btree (trade_date)` |
+
 ## Feature_05_Foreign_Domestic_Broker_Detail
 
-EXEC-F05-F06 Feature 05: one row per IDX_Broker_Summary row (date, ticker, broker, investor type, board) with buy/sell value, lots and frequency; the only source of Feature 06. Refreshed manually by refresh_feature_05(p_from, p_to, p_tickers) after sync_broker_summary_freq.
+Broker-level daily buy/sell value, lots and frequency by investor type and board; the only source of Feature 06.
 
 ### Columns
 
@@ -2019,9 +2291,56 @@ EXEC-F05-F06 Feature 05: one row per IDX_Broker_Summary row (date, ticker, broke
 | `Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx` | `CREATE INDEX "Feature_05_Foreign_Domestic_Broker_Detail_trade_date_idx" ON public."Feature_05_Foreign_Domestic_Broker_Detail" USING btree (trade_date)` |
 | `feature_05_foreign_domestic_broker_detail_pkey` | `CREATE UNIQUE INDEX feature_05_foreign_domestic_broker_detail_pkey ON public."Feature_05_Foreign_Domestic_Broker_Detail" USING btree (ticker, trade_date, broker, investor_type, market_board)` |
 
+## Feature_05_Foreign_Domestic_Broker_Detail_INDEX
+
+Dedicated index output. Broker-level daily buy/sell value, lots and frequency by investor type and board; the only source of Feature 06. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | Index scope. Exchange trading date of the source row. |
+| `ticker` | `text` | No | — | Universe-classified index identifier; aggregate source symbols are not copied into the index ticker. |
+| `broker` | `text` | No | — | Index scope. Two-character broker code. |
+| `market_board` | `text` | No | — | Index scope. Source board: Regular, Nego or Tunai. |
+| `investor_type` | `text` | No | — | Index scope. Source investor identity: Foreign or Domestic, not broker domicile. |
+| `buy_value` | `numeric` | No | — | Index scope. Gross buy value. |
+| `sell_value` | `numeric` | No | — | Index scope. Gross sell value. |
+| `net_value` | `numeric` | No | — | Index scope. Net buy value; positive is net buying, negative net selling. |
+| `buy_lots` | `numeric` | No | — | Index scope. Lots bought (1 lot = 100 shares; odd lots as fractions). |
+| `sell_lots` | `numeric` | No | — | Index scope. Lots sold (1 lot = 100 shares; odd lots as fractions). |
+| `net_lots` | `numeric` | No | — | Index scope. Net lots; positive is net buying. |
+| `buy_freq` | `bigint` | Yes | — | Index scope. Number of buy transactions. |
+| `sell_freq` | `bigint` | Yes | — | Index scope. Number of sell transactions. |
+| `source_balance_gap` | `boolean` | No | — | True when any contributing source symbol has a buy/sell value imbalance; opposite symbol gaps cannot cancel this flag. |
+| `calculated_at` | `timestamp with time zone` | No | `statement_timestamp()` | Index scope. Statement timestamp when the row was written. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `feature_05_foreign_domestic_broker_detail_buy_freq_check` | Check | `CHECK (buy_freq IS NULL OR buy_freq >= 0)` |
+| `feature_05_foreign_domestic_broker_detail_buy_lots_check` | Check | `CHECK (buy_lots >= 0::numeric)` |
+| `feature_05_foreign_domestic_broker_detail_buy_value_check` | Check | `CHECK (buy_value >= 0::numeric)` |
+| `feature_05_foreign_domestic_broker_detail_investor_type_check` | Check | `CHECK (investor_type = ANY (ARRAY['Foreign'::text, 'Domestic'::text]))` |
+| `feature_05_foreign_domestic_broker_detail_market_board_check` | Check | `CHECK (market_board = ANY (ARRAY['Regular'::text, 'Nego'::text, 'Tunai'::text]))` |
+| `feature_05_foreign_domestic_broker_detail_sell_freq_check` | Check | `CHECK (sell_freq IS NULL OR sell_freq >= 0)` |
+| `feature_05_foreign_domestic_broker_detail_sell_lots_check` | Check | `CHECK (sell_lots >= 0::numeric)` |
+| `feature_05_foreign_domestic_broker_detail_sell_value_check` | Check | `CHECK (sell_value >= 0::numeric)` |
+| `feature_05_net_lots_check` | Check | `CHECK (net_lots = (buy_lots - sell_lots))` |
+| `feature_05_net_value_check` | Check | `CHECK (net_value = (buy_value - sell_value))` |
+| `Feature_05_Foreign_Domestic_Broker_Detail_INDEX_pkey` | Primary key | `PRIMARY KEY (ticker, trade_date, broker, investor_type, market_board)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_05_Foreign_Domestic_Broker_Detail_INDEX_pkey` | `CREATE UNIQUE INDEX "Feature_05_Foreign_Domestic_Broker_Detail_INDEX_pkey" ON public."Feature_05_Foreign_Domestic_Broker_Detail_INDEX" USING btree (ticker, trade_date, broker, investor_type, market_board)` |
+| `Feature_05_Foreign_Domestic_Broker_Detail_INDEX_trade_date_idx` | `CREATE INDEX "Feature_05_Foreign_Domestic_Broker_Detail_INDEX_trade_date_idx" ON public."Feature_05_Foreign_Domestic_Broker_Detail_INDEX" USING btree (trade_date)` |
+
 ## Feature_06_Foreign_Domestic
 
-EXEC-F05-F06 Feature 06: stock-level daily foreign/domestic flow by ticker, market board and ticker session (Feature 02 session definition), with rolling 1/5/10/20/40/60-session flows, cumulative flow, participation, frequency, z-scores and midrank percentiles against the previous 252 (and 60) sessions. Refreshed manually per ticker by refresh_feature_06(p_ticker, p_from).
+Stock-level foreign/domestic flow, persistence, z-scores and percentiles, strength and frequency analytics per ticker, board and date.
 
 ### Columns
 
@@ -2128,6 +2447,122 @@ EXEC-F05-F06 Feature 06: stock-level daily foreign/domestic flow by ticker, mark
 |---|---|
 | `Feature_06_Foreign_Domestic_date_board_idx` | `CREATE INDEX "Feature_06_Foreign_Domestic_date_board_idx" ON public."Feature_06_Foreign_Domestic" USING btree (trade_date, market_board)` |
 | `feature_06_foreign_domestic_pkey` | `CREATE UNIQUE INDEX feature_06_foreign_domestic_pkey ON public."Feature_06_Foreign_Domestic" USING btree (ticker, market_board, trade_date)` |
+
+## Feature_06_Foreign_Domestic_INDEX
+
+Dedicated index output. Stock-level foreign/domestic flow, persistence, z-scores and percentiles, strength and frequency analytics per ticker, board and date. Transaction aggregates include all declared source symbols, including warrants/rights; not an official historical constituent basket.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | Index scope. Trading date on which this board of the ticker traded. |
+| `ticker` | `text` | No | — | Universe-classified index identifier; aggregate source symbols are not copied into the index ticker. |
+| `market_board` | `text` | No | — | Index scope. Source board: Regular, Nego or Tunai; no ALL board (user decision). |
+| `foreign_buy_1d` | `numeric` | No | — | Index scope. Foreign buy value for the ticker, date and board. |
+| `foreign_sell_1d` | `numeric` | No | — | Index scope. Foreign sell value for the ticker, date and board. |
+| `foreign_net_1d` | `numeric` | No | — | Index scope. Foreign net value; positive is net buying for the ticker, date and board. |
+| `domestic_buy_1d` | `numeric` | No | — | Index scope. Domestic buy value for the ticker, date and board. |
+| `domestic_sell_1d` | `numeric` | No | — | Index scope. Domestic sell value for the ticker, date and board. |
+| `domestic_net_1d` | `numeric` | No | — | Index scope. Domestic net value; positive is net buying for the ticker, date and board. |
+| `foreign_cumulative_net` | `numeric` | No | — | Running total of aggregate foreign net value from the first available broker-source session, including historical symbols absent on the output date. |
+| `domestic_cumulative_net` | `numeric` | No | — | Running total of aggregate domestic net value from the first available broker-source session, including historical symbols absent on the output date. |
+| `foreign_net_5d` | `numeric` | Yes | — | Index scope. Foreign net value over the last 5 sessions. |
+| `foreign_net_10d` | `numeric` | Yes | — | Index scope. Foreign net value over the last 10 sessions. |
+| `foreign_net_20d` | `numeric` | Yes | — | Index scope. Foreign net value over the last 20 sessions. |
+| `foreign_net_40d` | `numeric` | Yes | — | Index scope. Foreign net value over the last 40 sessions. |
+| `foreign_net_60d` | `numeric` | Yes | — | Index scope. Foreign net value over the last 60 sessions. |
+| `domestic_net_5d` | `numeric` | Yes | — | Index scope. Domestic net value over the last 5 sessions. |
+| `domestic_net_10d` | `numeric` | Yes | — | Index scope. Domestic net value over the last 10 sessions. |
+| `domestic_net_20d` | `numeric` | Yes | — | Index scope. Domestic net value over the last 20 sessions. |
+| `domestic_net_60d` | `numeric` | Yes | — | Index scope. Domestic net value over the last 60 sessions. |
+| `foreign_net_turnover_ratio_1d` | `double precision` | Yes | — | Index scope. Foreign net value as a share of total traded value (buy side). |
+| `foreign_net_turnover_ratio_5d` | `double precision` | Yes | — | Index scope. Foreign net value over 5 sessions as a share of 5-session traded value. |
+| `foreign_net_turnover_ratio_20d` | `double precision` | Yes | — | Index scope. Foreign net value over 20 sessions as a share of 20-session traded value. |
+| `foreign_buy_share_1d` | `double precision` | Yes | — | Index scope. Foreign buying as a share of traded value. |
+| `foreign_sell_share_1d` | `double precision` | Yes | — | Index scope. Foreign selling as a share of traded value. |
+| `foreign_buy_days_5d` | `smallint` | Yes | — | Index scope. Sessions with foreign net buying in the last 5 sessions. |
+| `foreign_buy_days_10d` | `smallint` | Yes | — | Index scope. Sessions with foreign net buying in the last 10 sessions. |
+| `foreign_buy_days_20d` | `smallint` | Yes | — | Index scope. Sessions with foreign net buying in the last 20 sessions. |
+| `foreign_buy_days_40d` | `smallint` | Yes | — | Index scope. Sessions with foreign net buying in the last 40 sessions. |
+| `foreign_sell_days_5d` | `smallint` | Yes | — | Index scope. Sessions with foreign net selling in the last 5 sessions. |
+| `foreign_sell_days_10d` | `smallint` | Yes | — | Index scope. Sessions with foreign net selling in the last 10 sessions. |
+| `foreign_sell_days_20d` | `smallint` | Yes | — | Index scope. Sessions with foreign net selling in the last 20 sessions. |
+| `foreign_sell_days_40d` | `smallint` | Yes | — | Index scope. Sessions with foreign net selling in the last 40 sessions. |
+| `foreign_net_zscore_5d_base252d` | `double precision` | Yes | — | Index scope. Z-score of today's 5-session foreign net against its previous 252 values. |
+| `foreign_net_zscore_10d_base252d` | `double precision` | Yes | — | Index scope. Z-score of today's 10-session foreign net against its previous 252 values. |
+| `foreign_net_zscore_20d_base252d` | `double precision` | Yes | — | Index scope. Z-score of today's 20-session foreign net against its previous 252 values. |
+| `foreign_net_zscore_40d_base252d` | `double precision` | Yes | — | Index scope. Z-score of today's 40-session foreign net against its previous 252 values. |
+| `foreign_net_zscore_60d_base252d` | `double precision` | Yes | — | Index scope. Z-score of today's 60-session foreign net against its previous 252 values. |
+| `foreign_net_percentile_5d_base252d` | `double precision` | Yes | — | Index scope. Midrank percentile of today's 5-session foreign net among its previous 252 values. |
+| `foreign_net_percentile_10d_base252d` | `double precision` | Yes | — | Index scope. Midrank percentile of today's 10-session foreign net among its previous 252 values. |
+| `foreign_net_percentile_20d_base252d` | `double precision` | Yes | — | Index scope. Midrank percentile of today's 20-session foreign net among its previous 252 values. |
+| `foreign_net_percentile_40d_base252d` | `double precision` | Yes | — | Index scope. Midrank percentile of today's 40-session foreign net among its previous 252 values. |
+| `foreign_net_percentile_60d_base252d` | `double precision` | Yes | — | Index scope. Midrank percentile of today's 60-session foreign net among its previous 252 values. |
+| `foreign_net_zscore_5d_base60d` | `double precision` | Yes | — | Index scope. Z-score of today's 5-session foreign net against its previous 60 values. |
+| `foreign_net_zscore_10d_base60d` | `double precision` | Yes | — | Index scope. Z-score of today's 10-session foreign net against its previous 60 values. |
+| `foreign_net_zscore_20d_base60d` | `double precision` | Yes | — | Index scope. Z-score of today's 20-session foreign net against its previous 60 values. |
+| `foreign_net_percentile_5d_base60d` | `double precision` | Yes | — | Index scope. Midrank percentile of today's 5-session foreign net among its previous 60 values. |
+| `foreign_net_percentile_10d_base60d` | `double precision` | Yes | — | Index scope. Midrank percentile of today's 10-session foreign net among its previous 60 values. |
+| `foreign_net_percentile_20d_base60d` | `double precision` | Yes | — | Index scope. Midrank percentile of today's 20-session foreign net among its previous 60 values. |
+| `foreign_flow_vs_prev_20d` | `numeric` | Yes | — | Index scope. Foreign net of the last 20 sessions minus the 20 sessions before them. |
+| `foreign_flow_vs_prev_40d` | `numeric` | Yes | — | Index scope. Foreign net of the last 40 sessions minus the 40 sessions before them. |
+| `foreign_strength_20d` | `double precision` | Yes | — | Index scope. Direction consistency of daily foreign net ratios over 20 sessions. |
+| `foreign_strength_50d` | `double precision` | Yes | — | Index scope. Direction consistency of daily foreign net ratios over 50 sessions. |
+| `foreign_strength_momentum_5d` | `double precision` | Yes | — | Index scope. Change of foreign_strength_20d over 5 sessions. |
+| `foreign_buy_freq_1d` | `bigint` | Yes | — | Index scope. Foreign buy transactions. |
+| `foreign_sell_freq_1d` | `bigint` | Yes | — | Index scope. Foreign sell transactions. |
+| `domestic_buy_freq_1d` | `bigint` | Yes | — | Index scope. Domestic buy transactions. |
+| `domestic_sell_freq_1d` | `bigint` | Yes | — | Index scope. Domestic sell transactions. |
+| `foreign_freq_imbalance_1d` | `double precision` | Yes | — | Index scope. Foreign buy versus sell transaction imbalance. |
+| `foreign_freq_imbalance_20d` | `double precision` | Yes | — | Index scope. Foreign transaction imbalance over 20 sessions. |
+| `foreign_buy_freq_share_1d` | `double precision` | Yes | — | Index scope. Foreign share of buy transactions. |
+| `foreign_sell_freq_share_1d` | `double precision` | Yes | — | Index scope. Foreign share of sell transactions. |
+| `foreign_avg_buy_value_per_freq_1d` | `double precision` | Yes | — | Index scope. Average foreign buy value per transaction (ticket size). |
+| `foreign_avg_sell_value_per_freq_1d` | `double precision` | Yes | — | Index scope. Average foreign sell value per transaction. |
+| `foreign_buy_sell_ticket_ratio_1d` | `double precision` | Yes | — | Index scope. Foreign average buy ticket divided by average sell ticket. |
+| `foreign_avg_buy_lots_per_freq_1d` | `double precision` | Yes | — | Index scope. Average foreign lots per buy transaction. |
+| `foreign_avg_sell_lots_per_freq_1d` | `double precision` | Yes | — | Index scope. Average foreign lots per sell transaction. |
+| `domestic_freq_imbalance_1d` | `double precision` | Yes | — | Index scope. Domestic buy versus sell transaction imbalance. |
+| `domestic_freq_imbalance_20d` | `double precision` | Yes | — | Index scope. Domestic transaction imbalance over 20 sessions. |
+| `domestic_buy_freq_share_1d` | `double precision` | Yes | — | Index scope. Domestic share of buy transactions. |
+| `domestic_sell_freq_share_1d` | `double precision` | Yes | — | Index scope. Domestic share of sell transactions. |
+| `domestic_avg_buy_value_per_freq_1d` | `double precision` | Yes | — | Index scope. Average domestic buy value per transaction (ticket size). |
+| `domestic_avg_sell_value_per_freq_1d` | `double precision` | Yes | — | Index scope. Average domestic sell value per transaction. |
+| `domestic_buy_sell_ticket_ratio_1d` | `double precision` | Yes | — | Index scope. Domestic average buy ticket divided by average sell ticket. |
+| `domestic_avg_buy_lots_per_freq_1d` | `double precision` | Yes | — | Index scope. Average domestic lots per buy transaction. |
+| `domestic_avg_sell_lots_per_freq_1d` | `double precision` | Yes | — | Index scope. Average domestic lots per sell transaction. |
+| `domestic_buy_freq_share_change_5d_vs_prev20d` | `double precision` | Yes | — | Index scope. Change of the domestic share of buy transactions: last 5 sessions versus the 20 before. |
+| `foreign_buy_freq_share_change_5d_vs_prev20d` | `double precision` | Yes | — | Index scope. Change of the foreign share of buy transactions: last 5 sessions versus the 20 before. |
+| `domestic_buy_value_per_freq_change_5d_vs_prev20d` | `double precision` | Yes | — | Index scope. Percent change of the domestic average buy value per transaction: last 5 sessions versus the 20 before. |
+| `foreign_buy_value_per_freq_change_5d_vs_prev20d` | `double precision` | Yes | — | Index scope. Percent change of the foreign average buy value per transaction: last 5 sessions versus the 20 before. |
+| `domestic_sell_freq_share_change_5d_vs_prev20d` | `double precision` | Yes | — | Index scope. Change of the domestic share of sell transactions: last 5 sessions versus the 20 before. |
+| `foreign_sell_freq_share_change_5d_vs_prev20d` | `double precision` | Yes | — | Index scope. Change of the foreign share of sell transactions: last 5 sessions versus the 20 before. |
+| `domestic_sell_value_per_freq_change_5d_vs_prev20d` | `double precision` | Yes | — | Index scope. Percent change of the domestic average sell value per transaction: last 5 sessions versus the 20 before. |
+| `foreign_sell_value_per_freq_change_5d_vs_prev20d` | `double precision` | Yes | — | Index scope. Percent change of the foreign average sell value per transaction: last 5 sessions versus the 20 before. |
+| `foreign_value_freq_sign_mismatch_1d` | `boolean` | Yes | — | Index scope. Foreign net value and foreign net transaction count point in different directions. |
+| `source_balance_gap` | `boolean` | No | — | Index scope. Internal: Feature 05 marks this date, ticker and board as a source gap (ERRORS M157). |
+| `calculated_at` | `timestamp with time zone` | No | `statement_timestamp()` | Index scope. Statement timestamp when the row was written. |
+| `frequency_source_rows` | `bigint` | No | `0` | Count of contributing raw broker source rows. |
+| `buy_freq_known_rows` | `bigint` | No | `0` | Contributing source rows with known buy frequency; not the number of buy trades. |
+| `sell_freq_known_rows` | `bigint` | No | `0` | Contributing source rows with known sell frequency; not the number of sell trades. |
+| `buy_freq_missing_rows` | `bigint` | No | `0` | Contributing source rows whose buy frequency is unknown. |
+| `sell_freq_missing_rows` | `bigint` | No | `0` | Contributing source rows whose sell frequency is unknown. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `feature_06_foreign_domestic_market_board_check` | Check | `CHECK (market_board = ANY (ARRAY['Regular'::text, 'Nego'::text, 'Tunai'::text]))` |
+| `index_frequency_coverage_check` | Check | `CHECK (frequency_source_rows >= 0 AND buy_freq_known_rows >= 0 AND sell_freq_known_rows >= 0 AND buy_freq_missing_rows >= 0 AND sell_freq_missing_rows >= 0 AND (buy_freq_known_rows + buy_freq_missing_rows) = frequency_source_rows AND (sell_freq_known_rows + sell_freq_missing_rows) = frequency_source_rows)` |
+| `Feature_06_Foreign_Domestic_INDEX_pkey` | Primary key | `PRIMARY KEY (ticker, market_board, trade_date)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_06_Foreign_Domestic_INDEX_pkey` | `CREATE UNIQUE INDEX "Feature_06_Foreign_Domestic_INDEX_pkey" ON public."Feature_06_Foreign_Domestic_INDEX" USING btree (ticker, market_board, trade_date)` |
+| `Feature_06_Foreign_Domestic_INDEX_trade_date_market_board_idx` | `CREATE INDEX "Feature_06_Foreign_Domestic_INDEX_trade_date_market_board_idx" ON public."Feature_06_Foreign_Domestic_INDEX" USING btree (trade_date, market_board)` |
 
 ## Feature_Calculation_Log
 
@@ -2356,11 +2791,79 @@ Current Feature 01 calculation freshness and outstanding-work summary per ticker
 | `Feature_Status_pkey` | `CREATE UNIQUE INDEX "Feature_Status_pkey" ON public."Feature_Status" USING btree (feature_table, ticker)` |
 | `Feature_Status_state_idx` | `CREATE INDEX "Feature_Status_state_idx" ON public."Feature_Status" USING btree (feature_table, status, updated_at)` |
 
+## Feature_Vocabulary
+
+Reviewed frontend names, formulas, units, definitions and interpretations for physical stock and INDEX Feature01/02/03/05/06 columns; Feature04 excluded.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `source_schema` | `text` | No | `'public'::text` | Exact schema of the described physical Feature column. |
+| `source_table` | `text` | No | — | Exact physical Feature source table; stock and INDEX definitions stay separate. |
+| `column_name` | `text` | No | — | Exact physical source column name. |
+| `language_code` | `text` | No | `'id-ID'::text` | Language of the presentation text, initially id-ID. |
+| `feature_number` | `smallint` | No | — | Feature identifier 1,2,3,5 or6; Feature04 excluded. |
+| `scope` | `text` | No | — | stock (legacy non-INDEX tables) or index, derived from the exact source table identity; not an instrument-membership filter. |
+| `column_name_proper` | `text` | No | — | Reviewed readable English field label; acronyms and horizons preserved. |
+| `formula` | `text` | No | — | Display formula or identity rule, never executed as SQL. |
+| `unit` | `text` | No | — | Human-readable unit, distinguishing fraction, percent, percentage points and index points. |
+| `definition` | `text` | No | — | Indonesian explanation of what the source field measures. |
+| `what_it_tells_us` | `text` | No | — | Indonesian analytical interpretation without invented thresholds or prediction. |
+| `grain` | `text` | No | — | Business identity of one source Feature row. |
+| `null_rule` | `text` | No | — | Exact conditions for a legitimate NULL source value. |
+| `lookback_window` | `text` | No | — | Source calculation window in actual observed sessions. |
+| `minimum_history` | `text` | No | — | Minimum valid source history before the metric is available. |
+| `caveat` | `text` | No | — | Scope, source-quality and interpretation limitations. |
+| `column_kind` | `text` | No | — | dimension, metric, quality or metadata. |
+| `display_order` | `integer` | No | — | Physical source column ordinal for consistent presentation. |
+| `source_feature_version` | `text` | No | — | Active source Feature_Catalog version at review. |
+| `source_semantic_hash` | `text` | No | — | SHA256 of relevant source semantic fields; detects silent metadata drift. |
+| `review_status` | `text` | No | — | DRAFT or VERIFIED after code-backed review and semantic-hash matching. |
+| `validation_evidence` | `ARRAY` | No | — | Nonempty repository evidence paths supporting the reviewed definition. |
+| `created_at` | `timestamp with time zone` | No | `statement_timestamp()` | Initial dictionary entry timestamp. |
+| `updated_at` | `timestamp with time zone` | No | `statement_timestamp()` | Latest actual entry change timestamp; idempotent sync leaves it unchanged. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Feature_Vocabulary_check` | Check | `CHECK (scope =
+CASE
+    WHEN "right"(source_table, 6) = '_INDEX'::text THEN 'index'::text
+    ELSE 'stock'::text
+END)` |
+| `Feature_Vocabulary_check1` | Check | `CHECK (feature_number = "substring"(source_table, '^Feature_([0-9]{2})_'::text)::smallint)` |
+| `Feature_Vocabulary_column_kind_check` | Check | `CHECK (column_kind = ANY (ARRAY['dimension'::text, 'metric'::text, 'quality'::text, 'metadata'::text]))` |
+| `Feature_Vocabulary_column_name_check` | Check | `CHECK (btrim(column_name) <> ''::text)` |
+| `Feature_Vocabulary_column_name_proper_check` | Check | `CHECK (btrim(column_name_proper) <> ''::text)` |
+| `Feature_Vocabulary_definition_check` | Check | `CHECK (btrim(definition) <> ''::text)` |
+| `Feature_Vocabulary_display_order_check` | Check | `CHECK (display_order > 0)` |
+| `Feature_Vocabulary_feature_number_check` | Check | `CHECK (feature_number = ANY (ARRAY[1, 2, 3, 5, 6]))` |
+| `Feature_Vocabulary_formula_check` | Check | `CHECK (btrim(formula) <> ''::text)` |
+| `Feature_Vocabulary_grain_check` | Check | `CHECK (btrim(grain) <> ''::text)` |
+| `Feature_Vocabulary_language_code_check` | Check | `CHECK (language_code = 'id-ID'::text)` |
+| `Feature_Vocabulary_null_rule_check` | Check | `CHECK (btrim(null_rule) <> ''::text)` |
+| `Feature_Vocabulary_review_status_check` | Check | `CHECK (review_status = ANY (ARRAY['DRAFT'::text, 'VERIFIED'::text]))` |
+| `Feature_Vocabulary_scope_check` | Check | `CHECK (scope = ANY (ARRAY['stock'::text, 'index'::text]))` |
+| `Feature_Vocabulary_source_feature_version_check` | Check | `CHECK (source_feature_version ~ '^v[1-9][0-9]*$'::text)` |
+| `Feature_Vocabulary_source_schema_check` | Check | `CHECK (source_schema = 'public'::text)` |
+| `Feature_Vocabulary_source_semantic_hash_check` | Check | `CHECK (source_semantic_hash ~ '^[0-9a-f]{64}$'::text)` |
+| `Feature_Vocabulary_source_table_check` | Check | `CHECK (btrim(source_table) <> ''::text)` |
+| `Feature_Vocabulary_unit_check` | Check | `CHECK (btrim(unit) <> ''::text)` |
+| `Feature_Vocabulary_validation_evidence_check` | Check | `CHECK (cardinality(validation_evidence) > 0)` |
+| `Feature_Vocabulary_what_it_tells_us_check` | Check | `CHECK (btrim(what_it_tells_us) <> ''::text)` |
+| `Feature_Vocabulary_pkey` | Primary key | `PRIMARY KEY (source_schema, source_table, column_name, language_code)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Feature_Vocabulary_pkey` | `CREATE UNIQUE INDEX "Feature_Vocabulary_pkey" ON public."Feature_Vocabulary" USING btree (source_schema, source_table, column_name, language_code)` |
+
 ## Fixed_Income_Market_Schedule
 
 Fixed-income market close/finality policy and verified provider timezone, session and observation-date mapping.
-
-This table section was independently refreshed from live PostgreSQL on2026-10-20 after migration011; other sections retain their recorded snapshot dates.
 
 ### Columns
 
@@ -2374,23 +2877,23 @@ This table section was independently refreshed from live PostgreSQL on2026-10-20
 | `enabled` | `boolean` | No | `true` | Fixed-income market schedule configuration. |
 | `updated_at` | `timestamp with time zone` | No | `statement_timestamp()` | Fixed-income market schedule configuration. |
 | `source_date_mapping` | `text` | No | — | Rule mapping the provider daily-session anchor to its observation date; both verified ID and US anchors currently map to the next business day. |
-| `correction_lookback_sessions` | `integer` | No | `5` | Number of recent completed market sessions reverified and eligible for normal suffix repair. |
-| `provider_session` | `text` | No | — | Verified TradingView session string; not the local economic-market closing clock. |
+| `correction_lookback_sessions` | `integer` | No | `5` | Operational checkpoint or market-policy field. |
 | `provider_timezone_name` | `text` | No | — | Verified TradingView symbol timezone; reject a source metadata mismatch. |
+| `provider_session` | `text` | No | — | Verified TradingView session string; not the local economic-market closing clock. |
 
 ### Constraints
 
 | Name | Type | Definition |
 |---|---|---|
 | `Fixed_Income_Market_Schedule_code_check` | Check | `CHECK (market_code = upper(btrim(market_code)) AND market_code <> ''::text)` |
-| `Fixed_Income_Market_Schedule_delay_check` | Check | `CHECK (finality_delay_minutes >= 0 AND finality_delay_minutes <= 360)` |
-| `Fixed_Income_Market_Schedule_source_date_mapping_check` | Check | `CHECK (source_date_mapping = ANY (ARRAY['CURRENT_OR_PREVIOUS_BUSINESS_DAY'::text, 'NEXT_BUSINESS_DAY'::text]))` |
 | `Fixed_Income_Market_Schedule_correction_window_check` | Check | `CHECK (correction_lookback_sessions >= 1 AND correction_lookback_sessions <= 20)` |
+| `Fixed_Income_Market_Schedule_delay_check` | Check | `CHECK (finality_delay_minutes >= 0 AND finality_delay_minutes <= 360)` |
+| `Fixed_Income_Market_Schedule_provider_session_check` | Check | `CHECK (provider_session ~ '^[0-9]{4}-[0-9]{4}$'::text)` |
+| `Fixed_Income_Market_Schedule_provider_timezone_check` | Check | `CHECK (provider_timezone_name = btrim(provider_timezone_name) AND provider_timezone_name <> ''::text)` |
+| `Fixed_Income_Market_Schedule_source_date_mapping_check` | Check | `CHECK (source_date_mapping = ANY (ARRAY['CURRENT_OR_PREVIOUS_BUSINESS_DAY'::text, 'NEXT_BUSINESS_DAY'::text]))` |
 | `Fixed_Income_Market_Schedule_timezone_check` | Check | `CHECK (timezone_name = btrim(timezone_name) AND timezone_name <> ''::text)` |
 | `Fixed_Income_Market_Schedule_pkey` | Primary key | `PRIMARY KEY (market_code)` |
 | `Fixed_Income_Market_Schedule_country_key` | Unique | `UNIQUE (country)` |
-| `Fixed_Income_Market_Schedule_provider_session_check` | Check | `CHECK ((provider_session ~ '^[0-9]{4}-[0-9]{4}$'::text))` |
-| `Fixed_Income_Market_Schedule_provider_timezone_check` | Check | `CHECK (((provider_timezone_name = btrim(provider_timezone_name)) AND (provider_timezone_name <> ''::text)))` |
 
 ### Indexes
 
@@ -2628,8 +3131,8 @@ Daily broker buy/sell values and lots by symbol, broker, investor type, and mark
 | `Net Lots` | `numeric` | No | — | Buy Lots minus Sell Lots. |
 | `Avg Buy` | `numeric` | Yes | — | Average purchase price when supplied by Stockbit. |
 | `Avg Sell` | `numeric` | Yes | — | Average sale price when supplied by Stockbit. |
-| `buy_freq` | `bigint` | Yes | — | Number of buy transactions for the key, copied from IDX_Broker_Summary_Freq.buy_freq on the same Date, Symbol, Broker, Investor Type and Market Board. |
-| `sell_freq` | `bigint` | Yes | — | Number of sell transactions for the key, copied from IDX_Broker_Summary_Freq.sell_freq on the same key. |
+| `buy_freq` | `bigint` | Yes | — | Number of buy transactions for the key (Date, Symbol, Broker, Investor Type, Market Board), loaded with the Broker Summary row; up to 2026-08-31 copied from the former staging table IDX_Broker_Summary_Freq (dropped 2026-10-25). NULL when the source has no frequency. |
+| `sell_freq` | `bigint` | Yes | — | Number of sell transactions for the key, loaded with the Broker Summary row; up to 2026-08-31 copied from the former staging table IDX_Broker_Summary_Freq (dropped 2026-10-25). NULL when the source has no frequency. |
 
 ### Constraints
 
@@ -2656,84 +3159,9 @@ Daily broker buy/sell values and lots by symbol, broker, investor type, and mark
 |---|---|
 | `IDX_Broker_Summary_pkey` | `CREATE UNIQUE INDEX "IDX_Broker_Summary_pkey" ON public."IDX_Broker_Summary" USING btree ("Date", "Symbol", "Broker", "Investor Type", "Market Board")` |
 
-## IDX_Broker_Summary_Freq
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `symbol` | `text` | No | — | No column description has been recorded. |
-| `broker` | `text` | No | — | No column description has been recorded. |
-| `broker_name` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
-| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
-| `IDX_Broker_Summary_Freq_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `IDX_Broker_Summary_Freq_pkey` | `CREATE UNIQUE INDEX "IDX_Broker_Summary_Freq_pkey" ON ONLY public."IDX_Broker_Summary_Freq" USING btree (trade_date, symbol, broker, investor_type, market_board)` |
-| `idx_broker_freq_broker_date` | `CREATE INDEX idx_broker_freq_broker_date ON ONLY public."IDX_Broker_Summary_Freq" USING btree (broker, trade_date DESC)` |
-| `idx_broker_freq_symbol_date` | `CREATE INDEX idx_broker_freq_symbol_date ON ONLY public."IDX_Broker_Summary_Freq" USING btree (symbol, trade_date DESC, investor_type, market_board)` |
-
-## IDX_Net_Foreign_Summary
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `ticker` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `buy_value` | `numeric` | No | — | No column description has been recorded. |
-| `sell_value` | `numeric` | No | — | No column description has been recorded. |
-| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
-| `IDX_Net_Foreign_Summary_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `IDX_Net_Foreign_Summary_pkey` | `CREATE UNIQUE INDEX "IDX_Net_Foreign_Summary_pkey" ON ONLY public."IDX_Net_Foreign_Summary" USING btree (trade_date, ticker, investor_type)` |
-| `idx_net_foreign_ticker_date` | `CREATE INDEX idx_net_foreign_ticker_date ON ONLY public."IDX_Net_Foreign_Summary" USING btree (ticker, trade_date DESC, investor_type)` |
-
 ## IDX_Stock_Universe
 
 Current Indonesian listed-security universe, ticker identity, and classifications.
-
-Since 2026-10-23 this universe also contains benchmark index `IHSG` mapped to
-`IDX:COMPOSITE`, classified as `index` and not common stock. Currency and ISIN are
-Not applicable; Sector/Industry and Type Specs are Undefined. The price reader
-uses this mapping directly; the internal ticker fits the existing varchar(4) price key.
 
 ### Columns
 
@@ -3008,6 +3436,48 @@ Per-execution grouped outcomes and completeness of DAILY and RECOVERY price runs
 | `Monitoring_Price_ALL_execution_key` | `CREATE UNIQUE INDEX "Monitoring_Price_ALL_execution_key" ON public."Monitoring_Price_ALL" USING btree (execution_id, exchange, asset_type, timeframe)` |
 | `Monitoring_Price_ALL_pkey` | `CREATE UNIQUE INDEX "Monitoring_Price_ALL_pkey" ON public."Monitoring_Price_ALL" USING btree (id)` |
 
+## Monitoring_Stockbit_Update
+
+One row per round of the stockbit-updater service: mode, status, token expiry, Broker Summary dates and rows loaded, Feature 02/03/05/06 and INDEX refresh results, Stockbit corporate action and insider reload, error.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `execution_id` | `uuid` | No | — | Round id, also the Telegram delivery key. |
+| `mode` | `text` | No | — | APPLY (load and refresh) or VERIFY (fetch one stored date and compare, no write). |
+| `status` | `text` | No | — | RUNNING, SUCCESS or FAILED. |
+| `started_at` | `timestamp with time zone` | No | — | Start of the round. |
+| `finished_at` | `timestamp with time zone` | Yes | — | End of the round. |
+| `deployment_id` | `text` | Yes | — | Railway deployment that ran the round. |
+| `token_expires_at` | `timestamp with time zone` | Yes | — | Expiry (JWT exp) of the Stockbit token the round used; the token itself is never stored. |
+| `broker` | `jsonb` | Yes | — | Broker Summary step result: symbols, dates, per-date rows (VERIFY: comparison counts). |
+| `broker_dates` | `jsonb` | Yes | — | Trade dates the round loaded into IDX_Broker_Summary. |
+| `broker_rows` | `bigint` | Yes | — | Rows loaded into IDX_Broker_Summary. |
+| `features` | `jsonb` | Yes | — | Feature 05/02/03/06 refresh: changed dates and counts. |
+| `index_result` | `jsonb` | Yes | — | INDEX tables refresh result or why it was skipped. |
+| `events` | `jsonb` | Yes | — | Stockbit corporate action and insider reconcile counts. |
+| `last_error` | `text` | Yes | — | Error that ended the round. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | Last change of the row. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `Monitoring_Stockbit_Update_broker_rows_check` | Check | `CHECK (broker_rows >= 0)` |
+| `Monitoring_Stockbit_Update_check` | Check | `CHECK (finished_at IS NULL OR finished_at >= started_at)` |
+| `Monitoring_Stockbit_Update_check1` | Check | `CHECK ((status = 'RUNNING'::text) = (finished_at IS NULL))` |
+| `Monitoring_Stockbit_Update_mode_check` | Check | `CHECK (mode = ANY (ARRAY['APPLY'::text, 'VERIFY'::text]))` |
+| `Monitoring_Stockbit_Update_status_check` | Check | `CHECK (status = ANY (ARRAY['RUNNING'::text, 'SUCCESS'::text, 'FAILED'::text]))` |
+| `Monitoring_Stockbit_Update_pkey` | Primary key | `PRIMARY KEY (execution_id)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `Monitoring_Stockbit_Update_pkey` | `CREATE UNIQUE INDEX "Monitoring_Stockbit_Update_pkey" ON public."Monitoring_Stockbit_Update" USING btree (execution_id)` |
+| `Monitoring_Stockbit_Update_started_idx` | `CREATE INDEX "Monitoring_Stockbit_Update_started_idx" ON public."Monitoring_Stockbit_Update" USING btree (started_at DESC)` |
+
 ## Price_Fixed_Income
 
 Final daily fixed-income OHLC observations with source-bar and market-close finality evidence.
@@ -3057,7 +3527,7 @@ Final daily fixed-income OHLC observations with source-bar and market-close fina
 
 ## Price_Stock_Indonesia_IDX
 
-Final daily Indonesian stock OHLCV candles sourced from TradingView.
+Final daily Indonesian equity OHLCV observations with market-close finality evidence. Includes universe-classified benchmark indices: missing index volume is NULL, and index price levels are in points.
 
 ### Columns
 
@@ -3071,21 +3541,22 @@ Final daily Indonesian stock OHLCV candles sourced from TradingView.
 | `high` | `numeric` | No | — | Highest price. |
 | `low` | `numeric` | No | — | Lowest price. |
 | `close` | `numeric` | No | — | Closing price. |
-| `volume` | `numeric` | Yes | — | Source volume; NULL only for a universe-classified index without volume. Stocks require nonnegative volume. |
+| `volume` | `numeric` | Yes | — | Trading volume reported by the source. |
 | `source` | `character varying` | No | — | Price data source. |
 | `query_date` | `date` | No | — | Date the source data was queried. |
 | `timeframe` | `character varying` | No | — | Price-series interval. |
 | `ingestion_time` | `timestamp with time zone` | Yes | `statement_timestamp()` | Timezone-aware database statement time of the latest successful insert or upsert; null for historical rows whose exact ingestion time is unknown. |
-| `market_code` | `text` | No | — | Equity market policy used for close and finality. |
-| `source_bar_time` | `timestamp with time zone` | Yes | — | Original provider daily-bar timestamp; NULL for legacy rows where it was not retained. |
-| `market_close_at` | `timestamp with time zone` | No | — | Configured market close instant for this observation date. |
-| `is_final` | `boolean` | No | `false` | Whether the exact daily candle was accepted after the configured finality delay. |
+| `market_code` | `text` | No | — | Configured equity market partition. |
+| `source_bar_time` | `timestamp with time zone` | Yes | — | Original TradingView daily bar timestamp. |
+| `market_close_at` | `timestamp with time zone` | No | — | Configured close instant for the observation date. |
+| `is_final` | `boolean` | No | `false` | Whether the exact Daily candle was accepted after finality delay. |
 | `finalized_at` | `timestamp with time zone` | No | — | Time this completed candle was verified. |
 
 ### Constraints
 
 | Name | Type | Definition |
 |---|---|---|
+| `Price_Stock_Indonesia_IDX_finality_check` | Check | `CHECK (NOT is_final OR finalized_at >= market_close_at)` |
 | `price_stock_indonesia_IDX_check` | Check | `CHECK (low <= open AND open <= high)` |
 | `price_stock_indonesia_IDX_check1` | Check | `CHECK (low <= close AND close <= high)` |
 | `price_stock_indonesia_IDX_close_check` | Check | `CHECK (close >= 0::numeric)` |
@@ -3093,7 +3564,6 @@ Final daily Indonesian stock OHLCV candles sourced from TradingView.
 | `price_stock_indonesia_IDX_low_check` | Check | `CHECK (low >= 0::numeric)` |
 | `price_stock_indonesia_IDX_open_check` | Check | `CHECK (open >= 0::numeric)` |
 | `price_stock_indonesia_IDX_volume_check` | Check | `CHECK (volume >= 0::numeric)` |
-| `Price_Stock_Indonesia_IDX_finality_check` | Check | `CHECK (NOT is_final OR finalized_at >= market_close_at)` |
 | `Price_Stock_Indonesia_IDX_market_fkey` | Foreign key | `FOREIGN KEY (market_code) REFERENCES "Equity_Market_Schedule"(market_code)` |
 | `Price_Stock_Indonesia_IDX_pkey` | Primary key | `PRIMARY KEY (ticker, date)` |
 
@@ -3439,869 +3909,83 @@ Atomic Feature04 per-run/ticker historical calculation audit and resumable extra
 |---|---|
 | `feature04_backfill_log_pkey` | `CREATE UNIQUE INDEX feature04_backfill_log_pkey ON public.feature04_backfill_log USING btree (run_id, ticker)` |
 
-## idx_broker_summary_freq_2016
+## idx_event_annotation
 
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `symbol` | `text` | No | — | No column description has been recorded. |
-| `broker` | `text` | No | — | No column description has been recorded. |
-| `broker_name` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
-| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
-| `idx_broker_summary_freq_2016_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_broker_summary_freq_2016_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2016_broker_trade_date_idx ON public.idx_broker_summary_freq_2016 USING btree (broker, trade_date DESC)` |
-| `idx_broker_summary_freq_2016_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2016_pkey ON public.idx_broker_summary_freq_2016 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
-| `idx_broker_summary_freq_2016_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2016_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2016 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
-
-## idx_broker_summary_freq_2017
-
-No description has been recorded.
+One annotation source for EDGE price charts: corporate actions (type and date only) and insider transactions (action, holder, broker, current percent, change percent, quality flag, origin IDX/KSEI).
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `symbol` | `text` | No | — | No column description has been recorded. |
-| `broker` | `text` | No | — | No column description has been recorded. |
-| `broker_name` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
+| `event_key` | `text` | No | — | CA:<corporate_action_key> or the insider_key. |
+| `event_family` | `text` | No | — | CORPORATE_ACTION or INSIDER. |
+| `event_type` | `text` | No | — | Corporate action type or INSIDER_TRANSACTION. |
+| `ticker` | `text` | No | — | Chart ticker. |
+| `instrument_code` | `text` | Yes | — | Structured-warrant code shown on its underlying's chart. |
+| `annotation_date` | `date` | No | — | Chart marker date. |
+| `annotation_date_role` | `text` | No | — | Meaning of annotation_date: EX_DATE, TRADING_START, OFFER_START, MEETING_DATE, EXPOSE_DATE, TRANSACTION_DATE. |
+| `action` | `text` | Yes | — | Insider movement type (BUY, SELL, ...). |
+| `holder_name` | `text` | Yes | — | Insider holder name. |
+| `holder_role` | `text` | Yes | — | Insider roles joined by comma: DIREKTUR, KOMISARIS, PENGENDALI. |
+| `holder_nationality` | `text` | Yes | — | LOCAL or FOREIGN. |
+| `broker_code` | `text` | Yes | — | Broker code of the insider movement. |
+| `shares_before` | `numeric` | Yes | — | Shares before the insider movement. |
+| `shares_after` | `numeric` | Yes | — | Shares after the insider movement. |
+| `shares_change` | `numeric` | Yes | — | Change in shares (+ added, - reduced). |
+| `pct_after` | `numeric` | Yes | — | Current % ownership after the movement (Stockbit). |
+| `pct_change` | `numeric` | Yes | — | Change % = shares_change / current shares outstanding (Stockbit). |
+| `pct_quality_flag` | `text` | Yes | — | In-row percent check: OK, ROUNDING, INCONSISTENT, NOT_CHECKABLE, INVALID_SENTINEL. |
+| `price` | `numeric` | Yes | — | Insider movement price. |
+| `is_estimated_price` | `boolean` | Yes | — | TRUE when the insider price is Stockbit's estimate. |
+| `value_idr` | `numeric` | Yes | — | Insider movement value. |
+| `data_origin` | `text` | Yes | — | IDX or KSEI. |
+| `source_payload` | `jsonb` | No | — | Verbatim Stockbit row (corporate action details live here). |
+| `source_endpoint` | `text` | No | — | Stockbit endpoint of the row. |
+| `source_fetched_at` | `timestamp with time zone` | No | — | Latest pull that saw the source row. |
+| `ingestion_time` | `timestamp with time zone` | No | `statement_timestamp()` | Database time of the latest rebuild. |
 
 ### Constraints
 
 | Name | Type | Definition |
 |---|---|---|
-| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
-| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
-| `idx_broker_summary_freq_2017_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
+| `idx_event_annotation_annotation_date_role_check` | Check | `CHECK (annotation_date_role = ANY (ARRAY['EX_DATE'::text, 'TRADING_START'::text, 'OFFER_START'::text, 'MEETING_DATE'::text, 'EXPOSE_DATE'::text, 'TRANSACTION_DATE'::text]))` |
+| `idx_event_annotation_check` | Check | `CHECK ((event_family = 'INSIDER'::text) = (event_type = 'INSIDER_TRANSACTION'::text))` |
+| `idx_event_annotation_check1` | Check | `CHECK (event_family <> 'INSIDER'::text OR action IS NOT NULL AND data_origin IS NOT NULL AND shares_change IS NOT NULL AND pct_quality_flag IS NOT NULL)` |
+| `idx_event_annotation_event_family_check` | Check | `CHECK (event_family = ANY (ARRAY['CORPORATE_ACTION'::text, 'INSIDER'::text]))` |
+| `idx_event_annotation_event_type_check` | Check | `CHECK (event_type = ANY (ARRAY['DIVIDEND'::text, 'STOCK_DIVIDEND'::text, 'STOCK_SPLIT'::text, 'REVERSE_SPLIT'::text, 'BONUS_SHARE'::text, 'RIGHT_ISSUE'::text, 'WARRANT'::text, 'TENDER_OFFER'::text, 'RUPS'::text, 'PUBLIC_EXPOSE'::text, 'INSIDER_TRANSACTION'::text]))` |
+| `idx_event_annotation_pkey` | Primary key | `PRIMARY KEY (event_key)` |
 
 ### Indexes
 
 | Name | Definition |
 |---|---|
-| `idx_broker_summary_freq_2017_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2017_broker_trade_date_idx ON public.idx_broker_summary_freq_2017 USING btree (broker, trade_date DESC)` |
-| `idx_broker_summary_freq_2017_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2017_pkey ON public.idx_broker_summary_freq_2017 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
-| `idx_broker_summary_freq_2017_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2017_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2017 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
-
-## idx_broker_summary_freq_2018
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `symbol` | `text` | No | — | No column description has been recorded. |
-| `broker` | `text` | No | — | No column description has been recorded. |
-| `broker_name` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
-| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
-| `idx_broker_summary_freq_2018_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_broker_summary_freq_2018_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2018_broker_trade_date_idx ON public.idx_broker_summary_freq_2018 USING btree (broker, trade_date DESC)` |
-| `idx_broker_summary_freq_2018_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2018_pkey ON public.idx_broker_summary_freq_2018 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
-| `idx_broker_summary_freq_2018_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2018_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2018 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
-
-## idx_broker_summary_freq_2019
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `symbol` | `text` | No | — | No column description has been recorded. |
-| `broker` | `text` | No | — | No column description has been recorded. |
-| `broker_name` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
-| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
-| `idx_broker_summary_freq_2019_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_broker_summary_freq_2019_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2019_broker_trade_date_idx ON public.idx_broker_summary_freq_2019 USING btree (broker, trade_date DESC)` |
-| `idx_broker_summary_freq_2019_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2019_pkey ON public.idx_broker_summary_freq_2019 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
-| `idx_broker_summary_freq_2019_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2019_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2019 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
-
-## idx_broker_summary_freq_2020
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `symbol` | `text` | No | — | No column description has been recorded. |
-| `broker` | `text` | No | — | No column description has been recorded. |
-| `broker_name` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
-| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
-| `idx_broker_summary_freq_2020_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_broker_summary_freq_2020_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2020_broker_trade_date_idx ON public.idx_broker_summary_freq_2020 USING btree (broker, trade_date DESC)` |
-| `idx_broker_summary_freq_2020_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2020_pkey ON public.idx_broker_summary_freq_2020 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
-| `idx_broker_summary_freq_2020_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2020_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2020 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
-
-## idx_broker_summary_freq_2021
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `symbol` | `text` | No | — | No column description has been recorded. |
-| `broker` | `text` | No | — | No column description has been recorded. |
-| `broker_name` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
-| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
-| `idx_broker_summary_freq_2021_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_broker_summary_freq_2021_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2021_broker_trade_date_idx ON public.idx_broker_summary_freq_2021 USING btree (broker, trade_date DESC)` |
-| `idx_broker_summary_freq_2021_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2021_pkey ON public.idx_broker_summary_freq_2021 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
-| `idx_broker_summary_freq_2021_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2021_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2021 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
-
-## idx_broker_summary_freq_2022
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `symbol` | `text` | No | — | No column description has been recorded. |
-| `broker` | `text` | No | — | No column description has been recorded. |
-| `broker_name` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
-| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
-| `idx_broker_summary_freq_2022_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_broker_summary_freq_2022_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2022_broker_trade_date_idx ON public.idx_broker_summary_freq_2022 USING btree (broker, trade_date DESC)` |
-| `idx_broker_summary_freq_2022_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2022_pkey ON public.idx_broker_summary_freq_2022 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
-| `idx_broker_summary_freq_2022_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2022_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2022 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
-
-## idx_broker_summary_freq_2023
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `symbol` | `text` | No | — | No column description has been recorded. |
-| `broker` | `text` | No | — | No column description has been recorded. |
-| `broker_name` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
-| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
-| `idx_broker_summary_freq_2023_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_broker_summary_freq_2023_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2023_broker_trade_date_idx ON public.idx_broker_summary_freq_2023 USING btree (broker, trade_date DESC)` |
-| `idx_broker_summary_freq_2023_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2023_pkey ON public.idx_broker_summary_freq_2023 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
-| `idx_broker_summary_freq_2023_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2023_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2023 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
-
-## idx_broker_summary_freq_2024
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `symbol` | `text` | No | — | No column description has been recorded. |
-| `broker` | `text` | No | — | No column description has been recorded. |
-| `broker_name` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
-| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
-| `idx_broker_summary_freq_2024_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_broker_summary_freq_2024_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2024_broker_trade_date_idx ON public.idx_broker_summary_freq_2024 USING btree (broker, trade_date DESC)` |
-| `idx_broker_summary_freq_2024_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2024_pkey ON public.idx_broker_summary_freq_2024 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
-| `idx_broker_summary_freq_2024_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2024_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2024 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
-
-## idx_broker_summary_freq_2025
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `symbol` | `text` | No | — | No column description has been recorded. |
-| `broker` | `text` | No | — | No column description has been recorded. |
-| `broker_name` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
-| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
-| `idx_broker_summary_freq_2025_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_broker_summary_freq_2025_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2025_broker_trade_date_idx ON public.idx_broker_summary_freq_2025 USING btree (broker, trade_date DESC)` |
-| `idx_broker_summary_freq_2025_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2025_pkey ON public.idx_broker_summary_freq_2025 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
-| `idx_broker_summary_freq_2025_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2025_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2025 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
-
-## idx_broker_summary_freq_2026
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `symbol` | `text` | No | — | No column description has been recorded. |
-| `broker` | `text` | No | — | No column description has been recorded. |
-| `broker_name` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
-| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
-| `idx_broker_summary_freq_2026_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_broker_summary_freq_2026_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2026_broker_trade_date_idx ON public.idx_broker_summary_freq_2026 USING btree (broker, trade_date DESC)` |
-| `idx_broker_summary_freq_2026_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2026_pkey ON public.idx_broker_summary_freq_2026 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
-| `idx_broker_summary_freq_2026_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2026_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2026 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
-
-## idx_broker_summary_freq_2027
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `symbol` | `text` | No | — | No column description has been recorded. |
-| `broker` | `text` | No | — | No column description has been recorded. |
-| `broker_name` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `market_board` | `idx_market_board` | No | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Broker_Summary_Freq_broker_check` | Check | `CHECK (broker ~ '^[A-Z0-9]{2}$'::text)` |
-| `IDX_Broker_Summary_Freq_symbol_check` | Check | `CHECK (symbol ~ '^[A-Z]{4}$'::text)` |
-| `idx_broker_summary_freq_2027_pkey` | Primary key | `PRIMARY KEY (trade_date, symbol, broker, investor_type, market_board)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_broker_summary_freq_2027_broker_trade_date_idx` | `CREATE INDEX idx_broker_summary_freq_2027_broker_trade_date_idx ON public.idx_broker_summary_freq_2027 USING btree (broker, trade_date DESC)` |
-| `idx_broker_summary_freq_2027_pkey` | `CREATE UNIQUE INDEX idx_broker_summary_freq_2027_pkey ON public.idx_broker_summary_freq_2027 USING btree (trade_date, symbol, broker, investor_type, market_board)` |
-| `idx_broker_summary_freq_2027_symbol_trade_date_investor_typ_idx` | `CREATE INDEX idx_broker_summary_freq_2027_symbol_trade_date_investor_typ_idx ON public.idx_broker_summary_freq_2027 USING btree (symbol, trade_date DESC, investor_type, market_board)` |
-
-## idx_net_foreign_summary_2016
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `ticker` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `buy_value` | `numeric` | No | — | No column description has been recorded. |
-| `sell_value` | `numeric` | No | — | No column description has been recorded. |
-| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
-| `idx_net_foreign_summary_2016_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_net_foreign_summary_2016_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2016_pkey ON public.idx_net_foreign_summary_2016 USING btree (trade_date, ticker, investor_type)` |
-| `idx_net_foreign_summary_2016_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2016_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2016 USING btree (ticker, trade_date DESC, investor_type)` |
-
-## idx_net_foreign_summary_2017
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `ticker` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `buy_value` | `numeric` | No | — | No column description has been recorded. |
-| `sell_value` | `numeric` | No | — | No column description has been recorded. |
-| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
-| `idx_net_foreign_summary_2017_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_net_foreign_summary_2017_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2017_pkey ON public.idx_net_foreign_summary_2017 USING btree (trade_date, ticker, investor_type)` |
-| `idx_net_foreign_summary_2017_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2017_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2017 USING btree (ticker, trade_date DESC, investor_type)` |
-
-## idx_net_foreign_summary_2018
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `ticker` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `buy_value` | `numeric` | No | — | No column description has been recorded. |
-| `sell_value` | `numeric` | No | — | No column description has been recorded. |
-| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
-| `idx_net_foreign_summary_2018_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_net_foreign_summary_2018_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2018_pkey ON public.idx_net_foreign_summary_2018 USING btree (trade_date, ticker, investor_type)` |
-| `idx_net_foreign_summary_2018_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2018_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2018 USING btree (ticker, trade_date DESC, investor_type)` |
-
-## idx_net_foreign_summary_2019
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `ticker` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `buy_value` | `numeric` | No | — | No column description has been recorded. |
-| `sell_value` | `numeric` | No | — | No column description has been recorded. |
-| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
-| `idx_net_foreign_summary_2019_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_net_foreign_summary_2019_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2019_pkey ON public.idx_net_foreign_summary_2019 USING btree (trade_date, ticker, investor_type)` |
-| `idx_net_foreign_summary_2019_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2019_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2019 USING btree (ticker, trade_date DESC, investor_type)` |
-
-## idx_net_foreign_summary_2020
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `ticker` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `buy_value` | `numeric` | No | — | No column description has been recorded. |
-| `sell_value` | `numeric` | No | — | No column description has been recorded. |
-| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
-| `idx_net_foreign_summary_2020_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_net_foreign_summary_2020_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2020_pkey ON public.idx_net_foreign_summary_2020 USING btree (trade_date, ticker, investor_type)` |
-| `idx_net_foreign_summary_2020_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2020_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2020 USING btree (ticker, trade_date DESC, investor_type)` |
-
-## idx_net_foreign_summary_2021
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `ticker` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `buy_value` | `numeric` | No | — | No column description has been recorded. |
-| `sell_value` | `numeric` | No | — | No column description has been recorded. |
-| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
-| `idx_net_foreign_summary_2021_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_net_foreign_summary_2021_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2021_pkey ON public.idx_net_foreign_summary_2021 USING btree (trade_date, ticker, investor_type)` |
-| `idx_net_foreign_summary_2021_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2021_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2021 USING btree (ticker, trade_date DESC, investor_type)` |
-
-## idx_net_foreign_summary_2022
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `ticker` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `buy_value` | `numeric` | No | — | No column description has been recorded. |
-| `sell_value` | `numeric` | No | — | No column description has been recorded. |
-| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
-| `idx_net_foreign_summary_2022_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_net_foreign_summary_2022_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2022_pkey ON public.idx_net_foreign_summary_2022 USING btree (trade_date, ticker, investor_type)` |
-| `idx_net_foreign_summary_2022_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2022_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2022 USING btree (ticker, trade_date DESC, investor_type)` |
-
-## idx_net_foreign_summary_2023
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `ticker` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `buy_value` | `numeric` | No | — | No column description has been recorded. |
-| `sell_value` | `numeric` | No | — | No column description has been recorded. |
-| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
-| `idx_net_foreign_summary_2023_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_net_foreign_summary_2023_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2023_pkey ON public.idx_net_foreign_summary_2023 USING btree (trade_date, ticker, investor_type)` |
-| `idx_net_foreign_summary_2023_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2023_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2023 USING btree (ticker, trade_date DESC, investor_type)` |
-
-## idx_net_foreign_summary_2024
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `ticker` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `buy_value` | `numeric` | No | — | No column description has been recorded. |
-| `sell_value` | `numeric` | No | — | No column description has been recorded. |
-| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
-| `idx_net_foreign_summary_2024_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_net_foreign_summary_2024_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2024_pkey ON public.idx_net_foreign_summary_2024 USING btree (trade_date, ticker, investor_type)` |
-| `idx_net_foreign_summary_2024_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2024_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2024 USING btree (ticker, trade_date DESC, investor_type)` |
-
-## idx_net_foreign_summary_2025
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `ticker` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `buy_value` | `numeric` | No | — | No column description has been recorded. |
-| `sell_value` | `numeric` | No | — | No column description has been recorded. |
-| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
-| `idx_net_foreign_summary_2025_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_net_foreign_summary_2025_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2025_pkey ON public.idx_net_foreign_summary_2025 USING btree (trade_date, ticker, investor_type)` |
-| `idx_net_foreign_summary_2025_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2025_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2025 USING btree (ticker, trade_date DESC, investor_type)` |
-
-## idx_net_foreign_summary_2026
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `ticker` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `buy_value` | `numeric` | No | — | No column description has been recorded. |
-| `sell_value` | `numeric` | No | — | No column description has been recorded. |
-| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
-| `idx_net_foreign_summary_2026_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_net_foreign_summary_2026_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2026_pkey ON public.idx_net_foreign_summary_2026 USING btree (trade_date, ticker, investor_type)` |
-| `idx_net_foreign_summary_2026_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2026_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2026 USING btree (ticker, trade_date DESC, investor_type)` |
-
-## idx_net_foreign_summary_2027
-
-No description has been recorded.
-
-### Columns
-
-| Column | Type | Nullable | Default | Definition |
-|---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `ticker` | `text` | No | — | No column description has been recorded. |
-| `investor_type` | `idx_investor_type` | No | — | No column description has been recorded. |
-| `buy_value` | `numeric` | No | — | No column description has been recorded. |
-| `sell_value` | `numeric` | No | — | No column description has been recorded. |
-| `net_value` | `numeric` | Yes | — | No column description has been recorded. |
-| `buy_freq` | `bigint` | No | — | No column description has been recorded. |
-| `sell_freq` | `bigint` | No | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `is_anomaly` | `boolean` | No | `false` | No column description has been recorded. |
-| `remark` | `text` | Yes | — | No column description has been recorded. |
-
-### Constraints
-
-| Name | Type | Definition |
-|---|---|---|
-| `IDX_Net_Foreign_Summary_ticker_check` | Check | `CHECK (ticker ~ '^[A-Z]{4}$'::text)` |
-| `idx_net_foreign_summary_2027_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
-
-### Indexes
-
-| Name | Definition |
-|---|---|
-| `idx_net_foreign_summary_2027_pkey` | `CREATE UNIQUE INDEX idx_net_foreign_summary_2027_pkey ON public.idx_net_foreign_summary_2027 USING btree (trade_date, ticker, investor_type)` |
-| `idx_net_foreign_summary_2027_ticker_trade_date_investor_typ_idx` | `CREATE INDEX idx_net_foreign_summary_2027_ticker_trade_date_investor_typ_idx ON public.idx_net_foreign_summary_2027 USING btree (ticker, trade_date DESC, investor_type)` |
+| `idx_event_annotation_family_date_idx` | `CREATE INDEX idx_event_annotation_family_date_idx ON public.idx_event_annotation USING btree (event_family, annotation_date)` |
+| `idx_event_annotation_pkey` | `CREATE UNIQUE INDEX idx_event_annotation_pkey ON public.idx_event_annotation USING btree (event_key)` |
+| `idx_event_annotation_ticker_date_idx` | `CREATE INDEX idx_event_annotation_ticker_date_idx ON public.idx_event_annotation USING btree (ticker, annotation_date)` |
 
 ## idx_stockbit_backfill_status
 
-No description has been recorded.
+Per-date control of the date-first Stockbit Broker Summary backfill of 2016-2026 (the user's importer, before the ticker-first import of stockbit_full_broker_import_status): state, filter and request counts, rows written, attempts, error.
 
 ### Columns
 
 | Column | Type | Nullable | Default | Definition |
 |---|---|---|---|---|
-| `trade_date` | `date` | No | — | No column description has been recorded. |
-| `backfill_year` | `integer` | No | — | No column description has been recorded. |
-| `state` | `text` | No | — | No column description has been recorded. |
+| `trade_date` | `date` | No | — | Broker Summary trade date the row controls. |
+| `backfill_year` | `integer` | No | — | Calendar year of trade_date the backfill batch belongs to (CHECK 2016-2100). |
+| `state` | `text` | No | — | queued, fetching, uploading, completed, failed_fetch, failed_reconciliation, failed_database, blocked_auth or blocked_storage (CHECK); every stored row is completed. |
 | `expected_filters` | `integer` | No | `0` | No column description has been recorded. |
 | `completed_filters` | `integer` | No | `0` | No column description has been recorded. |
 | `detail_rows` | `bigint` | No | `0` | No column description has been recorded. |
 | `summary_rows` | `bigint` | No | `0` | No column description has been recorded. |
 | `request_count` | `bigint` | No | `0` | No column description has been recorded. |
-| `attempt_count` | `integer` | No | `0` | No column description has been recorded. |
-| `error_class` | `text` | Yes | — | No column description has been recorded. |
-| `error_message` | `text` | Yes | — | No column description has been recorded. |
-| `started_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `heartbeat_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
-| `completed_at` | `timestamp with time zone` | Yes | — | No column description has been recorded. |
-| `updated_at` | `timestamp with time zone` | No | `now()` | No column description has been recorded. |
+| `attempt_count` | `integer` | No | `0` | Attempts the backfill made for the date. |
+| `error_class` | `text` | Yes | — | Exception class of the last error; may remain on a completed row. |
+| `error_message` | `text` | Yes | — | Message of the last error. |
+| `started_at` | `timestamp with time zone` | Yes | — | Start of the last attempt. |
+| `heartbeat_at` | `timestamp with time zone` | No | `now()` | Last progress time. |
+| `completed_at` | `timestamp with time zone` | Yes | — | Time the date completed. |
+| `updated_at` | `timestamp with time zone` | No | `now()` | Last change of the row. |
 
 ### Constraints
 
@@ -4323,6 +4007,36 @@ No description has been recorded.
 |---|---|
 | `idx_stockbit_backfill_state_date` | `CREATE INDEX idx_stockbit_backfill_state_date ON public.idx_stockbit_backfill_status USING btree (state, trade_date)` |
 | `idx_stockbit_backfill_status_pkey` | `CREATE UNIQUE INDEX idx_stockbit_backfill_status_pkey ON public.idx_stockbit_backfill_status USING btree (trade_date)` |
+
+## idx_stockbit_value_corrections
+
+Audit of user-approved corrections to Stockbit Broker Summary values: per trade date, ticker and investor type the summary row before and after, the per-broker patches, the raw source rows and the reason. Holds the BHIT negative-value correction (USER_APPROVED_ABS_BHIT_20261016: negative raw trade values made positive per user instruction; not independently source-verified).
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | Trade date of the corrected Broker Summary rows. |
+| `ticker` | `text` | No | — | Ticker of the corrected rows. |
+| `investor_type` | `text` | No | — | Foreign or Domestic, as in IDX_Broker_Summary. |
+| `before_summary` | `jsonb` | No | — | JSON array: the summary row before the correction (date, ticker, investor type, buy value, sell value, two counts, a flag and the source note). |
+| `after_summary` | `jsonb` | No | — | JSON array: the same summary row after the correction, its note extended with the reason. |
+| `detail_patches` | `jsonb` | No | — | JSON array of per-broker changes: board, broker, investor and the buy and sell values and counts before and after. |
+| `raw_source_rows` | `jsonb` | No | — | JSON array: the per-broker rows as the source returned them, kept as the original values. |
+| `reason` | `text` | No | — | Approval code and reason of the correction. |
+| `created_at` | `timestamp with time zone` | No | `now()` | Time the correction was recorded. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `idx_stockbit_value_corrections_pkey` | Primary key | `PRIMARY KEY (trade_date, ticker, investor_type)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `idx_stockbit_value_corrections_pkey` | `CREATE UNIQUE INDEX idx_stockbit_value_corrections_pkey ON public.idx_stockbit_value_corrections USING btree (trade_date, ticker, investor_type)` |
 
 ## stockbit_broker_summary_load_log
 
@@ -4358,51 +4072,153 @@ Per-trading-date Stockbit broker-summary load progress, retries, and review stat
 |---|---|
 | `stockbit_broker_summary_load_log_pkey` | `CREATE UNIQUE INDEX stockbit_broker_summary_load_log_pkey ON public.stockbit_broker_summary_load_log USING btree (target_table, trade_date)` |
 
-## Views
+## stockbit_corporate_action
 
-Views below were read back from live dev after migration `20261020_001` (EXEC-ONBOARD-1, 2026-10-20) by `scripts/sync_database_schema.py`, which now renders views; the table sections above were not regenerated in that run (the migration changed no table structure). The two Feature 05/06 stock views were read back live (read-only, job `ddea1f04`) on 2026-10-23 after migration `20261023_004` (EXEC-M204 step 5): columns and types from `pg_attribute`, definitions from `Column_Catalog`, SQL from `pg_get_viewdef`.
+Stockbit corporate actions of IDX listed securities: dividend, stock split, reverse split, bonus share, rights issue, warrant (structured warrants on their underlying ticker), tender offer, RUPS and public expose. Typed key dates plus the verbatim Stockbit row.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `corporate_action_key` | `text` | No | — | Stable key: Stockbit type slug, colon, Stockbit event id (e.g. dividend:12345). |
+| `action_type` | `text` | No | — | Corporate action type: DIVIDEND, STOCK_DIVIDEND, STOCK_SPLIT, REVERSE_SPLIT, BONUS_SHARE, RIGHT_ISSUE, WARRANT, TENDER_OFFER, RUPS, PUBLIC_EXPOSE. |
+| `source_slug` | `text` | No | — | Stockbit endpoint slug of /corpaction/{slug}. |
+| `source_record_id` | `text` | No | — | Stockbit event id from the type's id field (dividend_id, stocksplit_id, ...). |
+| `symbol` | `text` | No | — | Security code as Stockbit gives it (company_symbol), including structured-warrant codes. |
+| `ticker` | `text` | No | — | Chart ticker: the 4-letter underlying of a structured warrant (IDX code pattern AAAA + 6 characters, underlying a known stock), else symbol. |
+| `instrument_code` | `text` | Yes | — | Original structured-warrant code when ticker is its underlying. |
+| `annotation_date` | `date` | No | — | Chart marker date: ex date (dividend, split, bonus, rights), trading start (warrant), offer start (tender), meeting date (RUPS), expose date. |
+| `annotation_date_role` | `text` | No | — | Meaning of annotation_date: EX_DATE, TRADING_START, OFFER_START, MEETING_DATE, EXPOSE_DATE. |
+| `cum_date` | `date` | Yes | — | Cum date from Stockbit. |
+| `ex_date` | `date` | Yes | — | Ex date from Stockbit. |
+| `record_date` | `date` | Yes | — | Recording date (RUPS: eligible date). |
+| `pay_date` | `date` | Yes | — | Payment date (dividend, bonus, tender). |
+| `start_date` | `date` | Yes | — | Start of the period: rights trading, warrant trading, tender offer, RUPS or expose date. |
+| `end_date` | `date` | Yes | — | End of the period: rights trading, warrant trading, tender offer. |
+| `source_payload` | `jsonb` | No | — | Verbatim Stockbit row; every detail (ratios, prices, venues) is kept here. |
+| `first_seen_at` | `timestamp with time zone` | No | — | First pull that saw the row. |
+| `last_seen_at` | `timestamp with time zone` | No | — | Latest pull that saw the row. |
+| `source_removed_at` | `timestamp with time zone` | Yes | — | First pull that no longer returned the row; the row is kept, not deleted. |
+| `load_run_id` | `text` | No | — | Run id of the latest load that wrote the row. |
+| `ingestion_time` | `timestamp with time zone` | No | `statement_timestamp()` | Database time of the first insert. |
+| `updated_at` | `timestamp with time zone` | No | `statement_timestamp()` | Database time of the latest change of the row's content or removal state. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `stockbit_corporate_action_action_type_check` | Check | `CHECK (action_type = ANY (ARRAY['DIVIDEND'::text, 'STOCK_DIVIDEND'::text, 'STOCK_SPLIT'::text, 'REVERSE_SPLIT'::text, 'BONUS_SHARE'::text, 'RIGHT_ISSUE'::text, 'WARRANT'::text, 'TENDER_OFFER'::text, 'RUPS'::text, 'PUBLIC_EXPOSE'::text]))` |
+| `stockbit_corporate_action_annotation_date_role_check` | Check | `CHECK (annotation_date_role = ANY (ARRAY['EX_DATE'::text, 'TRADING_START'::text, 'OFFER_START'::text, 'MEETING_DATE'::text, 'EXPOSE_DATE'::text]))` |
+| `stockbit_corporate_action_check` | Check | `CHECK (corporate_action_key = ((source_slug || ':'::text) || source_record_id))` |
+| `stockbit_corporate_action_check1` | Check | `CHECK (last_seen_at >= first_seen_at)` |
+| `stockbit_corporate_action_corporate_action_key_check` | Check | `CHECK (corporate_action_key ~ '^[a-z_]+:[^:]+$'::text)` |
+| `stockbit_corporate_action_symbol_check` | Check | `CHECK (symbol = upper(btrim(symbol)) AND symbol <> ''::text)` |
+| `stockbit_corporate_action_ticker_check` | Check | `CHECK (ticker = upper(btrim(ticker)) AND ticker <> ''::text)` |
+| `stockbit_corporate_action_pkey` | Primary key | `PRIMARY KEY (corporate_action_key)` |
+| `stockbit_corporate_action_source_slug_source_record_id_key` | Unique | `UNIQUE (source_slug, source_record_id)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `stockbit_corporate_action_pkey` | `CREATE UNIQUE INDEX stockbit_corporate_action_pkey ON public.stockbit_corporate_action USING btree (corporate_action_key)` |
+| `stockbit_corporate_action_source_slug_source_record_id_key` | `CREATE UNIQUE INDEX stockbit_corporate_action_source_slug_source_record_id_key ON public.stockbit_corporate_action USING btree (source_slug, source_record_id)` |
+| `stockbit_corporate_action_ticker_date_idx` | `CREATE INDEX stockbit_corporate_action_ticker_date_idx ON public.stockbit_corporate_action USING btree (ticker, annotation_date)` |
+
+## stockbit_full_broker_import_status
+
+Per-date control of the ticker-first Broker Summary import (the user's importer, then stockbit-updater): manifest hash of the symbol list, state, expected and completed symbols, rows, anomaly symbols, heartbeat, error.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `trade_date` | `date` | No | — | Broker Summary trade date. |
+| `manifest_hash` | `text` | No | — | SHA-256 of the symbol list fetched for the date. |
+| `state` | `text` | No | — | fetching, completed or failed. |
+| `expected_symbols` | `integer` | No | — | Symbols in the list for the date. |
+| `completed_symbols` | `integer` | No | `0` | Symbols whose six filters finished. |
+| `row_count` | `bigint` | No | `0` | IDX_Broker_Summary rows written for the date. |
+| `anomaly_symbols` | `integer` | No | `0` | Symbols with a retained source anomaly (missing average, buy/sell imbalance). |
+| `heartbeat_at` | `timestamp with time zone` | No | `now()` | Last progress time. |
+| `completed_at` | `timestamp with time zone` | Yes | — | Commit time of the date. |
+| `error_message` | `text` | Yes | — | Error that stopped the date. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `stockbit_full_broker_import_status_pkey` | Primary key | `PRIMARY KEY (trade_date)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `stockbit_full_broker_import_status_pkey` | `CREATE UNIQUE INDEX stockbit_full_broker_import_status_pkey ON public.stockbit_full_broker_import_status USING btree (trade_date)` |
+
+## stockbit_insider_transaction
+
+Stockbit insider and major holder share movements of IDX stocks (IDX insider reports and KSEI 5% holder changes): holder, role, nationality, broker, shares before/after/change, ownership percent, price, value, origin.
+
+### Columns
+
+| Column | Type | Nullable | Default | Definition |
+|---|---|---|---|---|
+| `insider_key` | `text` | No | — | Stable key: INS, hash of ticker, holder id, date, action, shares before/after/change, price and origin, and the payload variant number. |
+| `ticker` | `text` | No | — | IDX stock code. |
+| `transaction_date` | `date` | No | — | Movement date from Stockbit (KSEI: report date of the position). |
+| `action_type` | `text` | No | — | Movement type from Stockbit without the ACTION_TYPE_ prefix: BUY, SELL, CROSS, TRANSFER, RIGHT_ISSUE, WARRANT_EXERCISE, ... |
+| `holder_id` | `text` | Yes | — | Stockbit holder id (the API field id identifies the holder, not the movement). |
+| `holder_name` | `text` | Yes | — | Holder name. |
+| `holder_roles` | `ARRAY` | No | `'{}'::text[]` | Insider roles: DIREKTUR, KOMISARIS, PENGENDALI. |
+| `holder_nationality` | `text` | Yes | — | LOCAL or FOREIGN. |
+| `broker_code` | `text` | Yes | — | Broker code of the movement. |
+| `shares_before` | `numeric` | No | — | Shares held before the movement. |
+| `shares_after` | `numeric` | No | — | Shares held after the movement. |
+| `shares_change` | `numeric` | No | — | shares_after minus shares_before (positive buy/added, negative sell/reduced). |
+| `pct_before` | `numeric` | Yes | — | Stockbit ownership percent before, on the previous report's share base (kept for completeness; not shown in the annotation). |
+| `pct_after` | `numeric` | Yes | — | Current %: Stockbit ownership percent after the movement = shares_after / current shares outstanding. |
+| `pct_change` | `numeric` | Yes | — | Change %: Stockbit shares_change / current shares outstanding; not pct_after minus pct_before. |
+| `pct_quality_flag` | `text` | No | — | In-row check: pct_change vs pct_after x shares_change / shares_after: OK, ROUNDING, INCONSISTENT, NOT_CHECKABLE (shares_change or shares_after 0), INVALID_SENTINEL. |
+| `price` | `numeric` | Yes | — | Movement price per share. |
+| `is_estimated_price` | `boolean` | No | — | TRUE when the price is Stockbit's estimate (most KSEI rows). |
+| `value_idr` | `numeric` | Yes | — | Movement value (shares x price). |
+| `data_origin` | `text` | No | — | IDX (insider report) or KSEI (5% holder position change). |
+| `source_copies` | `integer` | No | — | How many identical copies of this movement Stockbit listed in the pull (exact duplicates are one row). |
+| `source_payload` | `jsonb` | No | — | Verbatim Stockbit movement. |
+| `first_seen_at` | `timestamp with time zone` | No | — | First pull that saw the row. |
+| `last_seen_at` | `timestamp with time zone` | No | — | Latest pull that saw the row. |
+| `source_removed_at` | `timestamp with time zone` | Yes | — | First pull that no longer returned the row; the row is kept, not deleted. |
+| `load_run_id` | `text` | No | — | Run id of the latest load that wrote the row. |
+| `ingestion_time` | `timestamp with time zone` | No | `statement_timestamp()` | Database time of the first insert. |
+| `updated_at` | `timestamp with time zone` | No | `statement_timestamp()` | Database time of the latest change of the row's content or removal state. |
+
+### Constraints
+
+| Name | Type | Definition |
+|---|---|---|
+| `stockbit_insider_transaction_check` | Check | `CHECK ((shares_after - shares_before) = shares_change)` |
+| `stockbit_insider_transaction_check1` | Check | `CHECK (last_seen_at >= first_seen_at)` |
+| `stockbit_insider_transaction_insider_key_check` | Check | `CHECK (insider_key ~ '^INS:[0-9a-f]{24}:[1-9][0-9]*$'::text)` |
+| `stockbit_insider_transaction_pct_quality_flag_check` | Check | `CHECK (pct_quality_flag = ANY (ARRAY['OK'::text, 'ROUNDING'::text, 'INCONSISTENT'::text, 'NOT_CHECKABLE'::text, 'INVALID_SENTINEL'::text]))` |
+| `stockbit_insider_transaction_source_copies_check` | Check | `CHECK (source_copies >= 1)` |
+| `stockbit_insider_transaction_ticker_check` | Check | `CHECK (ticker = upper(btrim(ticker)) AND ticker <> ''::text)` |
+| `stockbit_insider_transaction_pkey` | Primary key | `PRIMARY KEY (insider_key)` |
+
+### Indexes
+
+| Name | Definition |
+|---|---|
+| `stockbit_insider_transaction_pkey` | `CREATE UNIQUE INDEX stockbit_insider_transaction_pkey ON public.stockbit_insider_transaction USING btree (insider_key)` |
+| `stockbit_insider_transaction_ticker_date_idx` | `CREATE INDEX stockbit_insider_transaction_ticker_date_idx ON public.stockbit_insider_transaction USING btree (ticker, transaction_date)` |
+
+## Views
 
 | View Name | Definition |
 |---|---|
 | `Feature_05_Foreign_Domestic_Broker_Detail_Stock` | View of Feature_05_Foreign_Domestic_Broker_Detail limited to the current IDX stock universe (IDX_Stock_Universe "Security Type" = stock), without calculated_at. The object exposed to the AI. Broker-level daily buy/sell value, lots and frequency by investor type and board; the only source of Feature 06. |
 | `Feature_06_Foreign_Domestic_Stock` | View of Feature_06_Foreign_Domestic limited to the current IDX stock universe (IDX_Stock_Universe "Security Type" = stock), without calculated_at. The object exposed to the AI. Stock-level foreign/domestic flow, persistence, z-scores and percentiles, strength and frequency analytics per ticker, board and date. |
 | `Price_Fixed_Income_Final` | View of the final daily (Timeframe 1D, is_final) bars of Price_Fixed_Income with the analytical columns only: country, instrument_name, ticker, metric_type, date, open, high, low, close, value_unit. The object exposed to the AI. |
-
-## Price_Fixed_Income_Final
-
-View of the final daily (Timeframe 1D, is_final) bars of Price_Fixed_Income with the analytical columns only: country, instrument_name, ticker, metric_type, date, open, high, low, close, value_unit. The object exposed to the AI.
-
-### Columns
-
-| Column | Type | Definition |
-|---|---|---|
-| `country` | `text` | Country of the bond market: Indonesia or United States. |
-| `instrument_name` | `text` | Source name of the series, for example Indonesia 10 Year Government Bonds Yield (the yield series) or Indonesia 10 Year Government Bonds (the price series). |
-| `ticker` | `text` | Benchmark code: country prefix ID or US, tenor and Y, for example ID10Y (Indonesia 10 year), ID01MY (1 month), US02Y. The price and the yield series share the ticker; metric_type tells them apart. |
-| `metric_type` | `text` | Which series the row holds: price (bond price quote) or yield_to_maturity (yield in percent). Filter it in every query. |
-| `date` | `date` | Market-local trading date of the final daily bar (Indonesia Asia/Jakarta, United States America/New_York). Market holidays have no row. |
-| `open` | `numeric` | Opening value of the day in the unit of value_unit (yield in percent, or the price quote). |
-| `high` | `numeric` | Highest value of the day in the unit of value_unit. |
-| `low` | `numeric` | Lowest value of the day in the unit of value_unit. |
-| `close` | `numeric` | Closing value of the day: the yield in percent (metric_type yield_to_maturity) or the price quote (metric_type price) in the unit of value_unit. A yield change is in percentage points. |
-| `value_unit` | `text` | Unit label of open/high/low/close as recorded from the source: percent (yields), PCTPAR (price as percent of par) or PCTDY (the source's quote unit of US Treasury bill price series). The PCTPAR and PCTDY meanings are inferred from the source labels. |
-
-### View definition
-
-```sql
-SELECT "Country" AS country,
-    instrument_name,
-    ticker::text AS ticker,
-    metric_type::text AS metric_type,
-    date,
-    open,
-    high,
-    low,
-    close,
-    value_unit::text AS value_unit
-   FROM "Price_Fixed_Income" p
-  WHERE is_final AND "Timeframe"::text = '1D'::text;
-```
 
 ## Feature_05_Foreign_Domestic_Broker_Detail_Stock
 
@@ -4430,7 +4246,7 @@ View of Feature_05_Foreign_Domestic_Broker_Detail limited to the current IDX sto
 ### View definition
 
 ```sql
- SELECT trade_date,
+SELECT trade_date,
     ticker,
     broker,
     market_board,
@@ -4548,7 +4364,7 @@ View of Feature_06_Foreign_Domestic limited to the current IDX stock universe (I
 ### View definition
 
 ```sql
- SELECT trade_date,
+SELECT trade_date,
     ticker,
     market_board,
     foreign_buy_1d,
@@ -4640,6 +4456,38 @@ View of Feature_06_Foreign_Domestic limited to the current IDX stock universe (I
           WHERE u."Security Type" = 'stock'::text));
 ```
 
-## Applied fixed-income provider-session migration (2026-10-20)
+## Price_Fixed_Income_Final
 
-Applied and read back at18:43 WIB. Migration `20261013_011_verify_fixed_income_sessions.sql` adds required text columns `provider_timezone_name` (verified TradingView timezone) and `provider_session` (daily session anchor) to `Fixed_Income_Market_Schedule`. Both ID and US use NEXT_BUSINESS_DAY source mapping under the reviewed policy. The changed physical table section above has been refreshed from live readback.
+View of the final daily (Timeframe 1D, is_final) bars of Price_Fixed_Income with the analytical columns only: country, instrument_name, ticker, metric_type, date, open, high, low, close, value_unit. The object exposed to the AI.
+
+### Columns
+
+| Column | Type | Definition |
+|---|---|---|
+| `country` | `text` | Country of the bond market: Indonesia or United States. |
+| `instrument_name` | `text` | Source name of the series, for example Indonesia 10 Year Government Bonds Yield (the yield series) or Indonesia 10 Year Government Bonds (the price series). |
+| `ticker` | `text` | Benchmark code: country prefix ID or US, tenor and Y, for example ID10Y (Indonesia 10 year), ID01MY (1 month), US02Y. The price and the yield series share the ticker; metric_type tells them apart. |
+| `metric_type` | `text` | Which series the row holds: price (bond price quote) or yield_to_maturity (yield in percent). Filter it in every query. |
+| `date` | `date` | Market-local trading date of the final daily bar (Indonesia Asia/Jakarta, United States America/New_York). Market holidays have no row. |
+| `open` | `numeric` | Opening value of the day in the unit of value_unit (yield in percent, or the price quote). |
+| `high` | `numeric` | Highest value of the day in the unit of value_unit. |
+| `low` | `numeric` | Lowest value of the day in the unit of value_unit. |
+| `close` | `numeric` | Closing value of the day: the yield in percent (metric_type yield_to_maturity) or the price quote (metric_type price) in the unit of value_unit. A yield change is in percentage points. |
+| `value_unit` | `text` | Unit label of open/high/low/close as recorded from the source: percent (yields), PCTPAR (price as percent of par) or PCTDY (the source's quote unit of US Treasury bill price series). The PCTPAR and PCTDY meanings are inferred from the source labels. |
+
+### View definition
+
+```sql
+SELECT "Country" AS country,
+    instrument_name,
+    ticker::text AS ticker,
+    metric_type::text AS metric_type,
+    date,
+    open,
+    high,
+    low,
+    close,
+    value_unit::text AS value_unit
+   FROM "Price_Fixed_Income" p
+  WHERE is_final AND "Timeframe"::text = '1D'::text;
+```

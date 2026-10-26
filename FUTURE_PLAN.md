@@ -660,6 +660,113 @@ dari `IDX_Broker_Summary`; daftar tulis-tangan `APPROVED`, `RAW_SOURCES`/`FORBID
 **Keputusan user yang dibutuhkan:** indeks F05 (±0,4 GB, disk 49 GB dari 75 GB); indeks F04; perbaikan Governor (2);
 F05 dibuka seluruhnya atau hanya F06; preview; refresh harian F05/F06 masih manual (freshness akan BASI tanpa job).
 
+## STOCKBIT-UPDATER — satu service Railway: token → IDX_Broker_Summary → F05/F02/F03/F06 → INDEX → tiga tabel event (usulan 2026-10-25, menunggu go)
+
+**Permintaan user, 2026-10-25 (kata user):** "Bisa nggak buat satu service di mana ketika kita running the service, maka
+data IDX Broker Summary di-ingest atau di-update dari latest updated data. Ada variable bearer token yang bisa saya update
+karena tokennya akan update setiap hari. Dan ketika saya update, maka table IDX Broker Summary akan terupdate. Kemudian
+feature 2, 3, 5, dan 6 juga otomatis terupdate. Termasuk 3 table yang baru saja ada terkait dengan [corporate] action dan
+insider ... Script ini harus digunakan agar [Railway] bisa mengquery data. Bukan melalui lokal saya." Script yang
+dilampirkan: `import_full_broker_summary.py` + `stockbit_ihsg_daily.py` (loader yang memuat 2026-09-01…10-23, M217),
+`FULL_BROKER_IMPORT.md`, `audit_full_broker_import.py`. Ini menggantikan keputusan sebelumnya "untuk saat ini tidak perlu
+bikin service baru" (branch `claude/keen-keller-cq1d96`, STOCKBIT-PULLER) begitu user memberi go.
+
+**Keadaan yang diperiksa 2026-10-25** (job read-only `eb43c1ec`, `verification/broker_consistency_20261025/`):
+- semua Feature 01–06 saham dan `_INDEX` sampai 2026-10-23, sama dengan tanggal terbaru harga dan `IDX_Broker_Summary`;
+- 12 objek aktif di `AI_table_catalog` (BOUNDED_READ) dan bisa dibaca `market_ai_sql_reader`; F05/F06 lewat view
+  `_Stock`, tabel dasarnya tertutup;
+- rantai sumber (kode live): `IDX_Broker_Summary` → F05 → F02 → F03, F05 → F06; F02/F03 juga membaca `IDX_Broker_Profile`;
+- per tanggal 2016-01-04…2026-10-23 (2.599 tanggal): sumber = F05 (baris, beli, jual, net, frekuensi, net asing), F05 = F02
+  (baris, beli, jual, net), F02 = F03 (grup saham-papan, beli, net), F05 = F06 (net asing, total beli): 0 tanggal berbeda.
+
+**Uji lokal script user** (Stockbit palsu, PostgreSQL lokal dengan skema live `IDX_Broker_Summary`,
+`loader_local_test.py`): dua tanggal × 520 simbol masuk dan cocok dua arah; jalan ulang melewati tanggal yang sudah
+selesai; nilai sumber yang dikoreksi memperbarui baris; baris warrant yang ada tidak disentuh; tanggal awal yang bukan
+hari bursa ditolak (tidak dimundurkan). Yang harus diubah untuk Railway: daftar simbol dari SQLite di PC
+(`--historical-state`) dan path Windows; simbol hanya 4 huruf (`^[A-Z]{4}$`, M218); state (raw, checkpoint) perlu disk
+tetap; baris yang tidak lagi dikirim Stockbit membuat tanggal itu berhenti (tidak dihapus diam-diam).
+
+**Usulan (lapisan: service Railway + fungsi refresh yang sudah ada, tanpa rumus baru):**
+1. Service `stockbit-updater` (`apps/stockbit-updater/`), `restartPolicyType: NEVER`, satu putaran per deploy. Variabel
+   rahasia `STOCKBIT_TOKEN` diisi user di dashboard Railway (tidak lewat chat atau Git); mengganti token lalu Deploy =
+   satu putaran update. `DATABASE_URL` referensi Postgres privat. Volume kecil untuk raw response dan checkpoint.
+2. Tanggal diturunkan dari data, bukan dari argumen: tanggal bursa di `Price_Stock_Indonesia_IDX` yang belum ada di
+   `IDX_Broker_Summary` (termasuk gap lama), sampai tanggal harga terbaru. Tanggal yang harganya belum masuk ditunda.
+3. Muat per tanggal dengan logika script user (enam filter per simbol, validasi, satu transaksi, cek dua arah 15 kolom,
+   `stockbit_full_broker_import_status`), token kedaluwarsa dicek dari `exp` JWT sebelum mulai.
+4. Refresh berantai untuk tanggal yang berubah (diturunkan dari selisih sumber vs F05, seperti `UPDATE_TABLE.md`
+   bagian 4): F05 → F02 → F03 → F06 → INDEX (`backfill_index_features.py`), cek setiap langkah, `ANALYZE`, lalu tiga tabel
+   event (loader `apps/stockbit-event-annotation/` dari branch keen-keller) dan `Database_Table_Status`.
+5. Ringkasan satu baris per putaran (log, opsional Telegram).
+
+**Yang perlu diputuskan user:** K1 warrant/rights sesudah 2026-08-31 (temukan simbol lewat endpoint aktivitas broker,
+seperti loader lama, atau tetap 4 huruf); K2 hanya saat deploy (token baru) atau juga cron harian; K3 lama simpan raw
+response; K4 tiga tabel event ikut dalam putaran yang sama (perlu merge branch keen-keller; migrasinya bernama
+`20261025_011`, bentrok dengan `20261025_011_exclude_index_from_stock_features.sql` yang sudah diterapkan, jadi harus
+diganti nomor sebelum diterapkan); K5 notifikasi Telegram.
+
+**Risiko:** Stockbit belum terbukti bisa diakses dari IP Railway (perlu satu uji dengan token); token berlaku ±1 hari;
+F02 ±3 detik per ticker (±45 menit per putaran berapa pun jumlah tanggalnya).
+
+## STOCKBIT-PULLER — satu service Railway untuk semua tarikan Stockbit (usulan user, belum disetujui untuk dibuat)
+
+**Usulan user, 2026-10-25 (kata user):** "Saya berpikir untuk dibuat satu service yang goalnya adalah menarik data dari Stockbit. Dengan variabel bearer token tersebut. Jadi setiap hari atau setiap saya mau update, saya tinggal update saja. Variabel bearer token dan kemudian saya tinggal minta [AI] untuk update. Data-data yang diperlukan. Masuk broker summary." Untuk saat ini tidak dibuat ("tidak perlu bikin service baru"); skrip corporate action dan insider (PLAN.md EVENT-ANNOTATION) disusun supaya bisa dipindah ke service itu. Terbuka: loader broker summary yang menulis `buy_freq`/`sell_freq` belum ada di Git (`UPDATE_TABLE.md` bagian 2); cara token disimpan (variabel tetap vs dipasang per putaran).
+
+## Biaya Railway U1–U5 (usulan 2026-10-24 di chat, ERRORS M215; dicatat 2026-10-25, menunggu keputusan)
+
+Diagnosis biaya ada di ERRORS M215 (bagian "Biaya"). Usulan yang diberikan di chat 2026-10-24, belum ada yang dijalankan
+kecuali U2:
+
+| # | Usulan | Lapisan | Status |
+|---|---|---|---|
+| U1 | Cek penyebab sandbox ±0,7 GB saat diam (daftar proses di kontainer), lalu perbaiki di sumbernya | kode sandbox | DICEK 2026-10-25 (go EXEC-GO-1025), perbaikan menunggu keputusan; lihat di bawah |
+| U2 | Staging `IDX_Broker_Summary_Freq` (±10 GB) | data | SELESAI: dihapus `20261025_004`/`007` (user "Hapus saja") |
+| U3 | Aturan Part A: sebelum tabel turunan baru dibuat, hitung biaya disknya; bila bisa diturunkan saat dibaca (view), jangan disimpan penuh | standar data | SELESAI 2026-10-25: ERRORS Part A butir 25 |
+| U4 | Fitur sleep Railway untuk layanan yang jarang dipakai (sandbox, web-governor, audit-store, pgweb); janitor M215 (usulan A) harus dibereskan dulu supaya layanan bisa tidur | konfigurasi Railway | DICEK 2026-10-25, TIDAK dinyalakan; lihat di bawah |
+| U5 | Ukur lonjakan memori Postgres per job; bila terbukti cache halaman, jadwalkan job berat berdekatan | operasional | DIUKUR 2026-10-25; penjadwalan tidak perlu; lihat di bawah |
+
+Urutan yang disarankan: U1 → M215 usulan A → U4.
+
+**Hasil 2026-10-25 (go EXEC-GO-1025 butir 4), dibaca dari metrik dan kode:**
+- **U1.** `railway metrics --memory --raw` 7 hari: sesudah restart sandbox ±0,19-0,21 GB (2026-10-18; 2026-10-25 13:00),
+  naik pada hari ada analisis (2026-10-25 18:00 0,21 → 19:00 0,75 GB) dan tidak turun saat diam (2026-10-22…24 tetap
+  0,57-0,70 GB), walau session ditutup sesudah 15 menit diam (`PY_SANDBOX_SESSION_IDLE_SECONDS` 900,
+  `app/sessions.py`:513). Proses utama meng-import `duckdb`/`pyarrow` saat dipakai pertama kali (`app/carried.py`:81,
+  `app/dataneed_service.py`:1470, 1506) dan memorinya tinggal sampai restart. **Dugaan, belum terverifikasi:** sisa
+  memori itu ada di proses utama, bukan di worker. Cek yang memastikan: RSS per proses di kontainer. `railway ssh`
+  butuh kunci SSH yang didaftarkan ke akun Railway (tidak dilakukan tanpa izin user), atau satu baris log RSS per proses
+  di janitor sandbox (perubahan kode kecil). Usulan sesudah terverifikasi: kerja Parquet/DuckDB proses utama dijalankan
+  di subproses berumur pendek, supaya memorinya kembali ke OS. Penghematan ±0,5 GB ≈ USD 5/bulan.
+  - 2026-10-26 (user: "ya, saya kasih kamu akses SSH"): SSH belum bisa dari sesi cloud ini. `railway ssh keys add` →
+    "SSH key management is not supported with project tokens (`RAILWAY_TOKEN`)", dan `railway ssh` dengan token proyek
+    → "Unauthorized". Klien OpenSSH dipasang dan kunci sesi dibuat, tetapi koneksi butuh token akun atau workspace
+    Railway (`RAILWAY_API_TOKEN`) di secret environment, dibaca oleh sesi baru.
+- **U3.** Selesai: Part A butir 25 (biaya disk dihitung di header migrasi; view bila bisa diturunkan saat dibaca).
+- **U4.** Tidak dinyalakan. docs.railway.com/reference/app-sleeping: layanan tidur sesudah 5-10 menit tanpa lalu lintas
+  keluar, dan permintaan pertama yang membangunkannya bisa mendapat 502. Temuan per layanan:
+  - `market-audit-store` membaca Postgres tiap `outbox_poll_seconds` (`app/ingest.py`:60-66) dan pgweb memegang koneksi
+    database, jadi keduanya tidak akan tidur;
+  - sandbox dan web-governor bisa tidur, tetapi klien orc tidak mencoba ulang 502 atau gagal koneksi
+    (`app/tools/analysis.py`:612-621, `app/tools/web_research.py`:78-83). Pertanyaan pertama sesudah layanan tidur bisa
+    gagal.
+  - Alur bila sandbox sedang tidur (dibaca dari kode 2026-10-26): EDGE → BFF → worker → orc tidak tidur, jadi run
+    mulai seperti biasa. orc sudah menyimpan runtime sandbox sejak start (`app/runtime_recovery.py`:39-57), jadi fitur
+    tidak mati. Panggilan alat pertama ke sandbox membangunkannya; bila Railway menjawab 502, `_rejected`
+    (`app/tools/analysis.py`:640-648) mengembalikan "sandbox unavailable (HTTP 502)", dan bila koneksi putus
+    `_call`:612-621 mengembalikan "unreachable". Keduanya sampai ke model sebagai galat alat
+    (`app/tools/registry.py`:480-483); model yang memutuskan mencoba lagi atau menjawab dengan keterbatasan. Di EDGE,
+    langkah itu tampil di daftar progres; jawaban bisa lebih lambat atau berisi keterbatasan. Session analisis tidak
+    bertahan saat restart (`app/sessions.py`:16): sandbox tidur 5-10 menit sesudah diam, lebih cepat dari batas diam
+    session 15 menit, jadi pertanyaan lanjutan sesudah jeda kehilangan session hangat. Proses aplikasi siap ±1 detik
+    sesudah kontainer jalan (deploy `8f1d3d53`: `sandbox_started` 12:31:35,5, `Application startup complete` sesudahnya);
+    waktu Railway menyalakan kontainer tidak tercatat.
+  - Usulan (perlu go): orc memanggil `/ready` sandbox dengan retry terbatas sebelum langkah pertama yang memakainya
+    (GET aman diulang), lalu sleep dinyalakan untuk sandbox saja. Penghematan maksimal RAM diam sandbox ±0,7 GB ≈ USD 7/bulan,
+    dibayar dengan jeda bangun di pertanyaan pertama.
+- **U5.** `railway metrics -s Postgres --memory --raw` 7 hari: sebelum batas 4 GB (2026-10-22) puncak 14,71 GB
+  (2026-10-20) dan 13,56 GB (2026-10-21); sesudahnya puncak harian 0,85-1,86 GB, saat diam 0,24-0,28 GB. Puncak
+  2026-10-25 sejalan dengan job (10:00 1,86 GB; 18:00 1,48 GB saat putaran stockbit-updater) dan turun kembali dalam
+  satu jam. Batas memori sudah memotong biaya cache halaman; menjadwalkan job berdekatan tidak diperlukan sekarang.
 
 ## AI: pakai nilai tersimpan Feature 04 sebelum menghitung ulang (usulan 2026-10-25, menunggu keputusan)
 

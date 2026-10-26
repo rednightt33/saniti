@@ -135,7 +135,7 @@ Accounts are created and disabled by the admin; no self sign-up and no payment y
 
 | Item | Proposal (follows the existing `edge_bff` pattern, migration `20261008_002`) |
 |---|---|
-| Storage | new schema `terminal` in the main PostgreSQL. As built (migration `20261025_001`): NOLOGIN groups `terminal_runtime` (read/write on `terminal`) and `terminal_market_reader` (SELECT on P, F05, BP, U); logins `terminal_api_login` (both groups, statement_timeout 10s) and `terminal_publisher_login` (market reader only, read-only transactions). |
+| Storage | new schema `terminal` in the main PostgreSQL. As built (migration `20261025_100`, first named `20261025_001`): NOLOGIN groups `terminal_runtime` (read/write on `terminal`) and `terminal_market_reader` (SELECT on P, F05, BP, U); logins `terminal_api_login` (both groups, statement_timeout 10s) and `terminal_publisher_login` (market reader only, read-only transactions). |
 | Tables | `terminal.subscriber` (id, email unique, display name, password hash `scrypt` like `edge-bff/app/security.py`, `active`, `expires_at`, created/updated), `terminal.session` (token hash, subscriber, expires, revoked; max 2 active), `terminal.url_issue_log` (subscriber, ticker, dataset, year, bytes, ip, issued_at), `terminal.quota_override` (optional per-subscriber limits). |
 | Admin | a CLI script `scripts/terminal_subscriber.py add/disable/extend/reset-password/list`, run by the admin with the `terminal_api_login` URL; no admin web page yet. |
 | Login | `POST /api/terminal/v1/auth/sign-in` (email + password) → HttpOnly Secure cookie; `sign-out`; `change-password`. A subscriber is allowed only while `active AND expires_at > now()`. |

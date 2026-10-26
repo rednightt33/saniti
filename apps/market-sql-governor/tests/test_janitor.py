@@ -63,6 +63,62 @@ def test_second_pass_is_idempotent(tmp_path) -> None:
     assert cleanup_expired(store, now=NOW, retention_hours=168)["datasets_deleted"] == 0
 
 
+class CountingStore(LocalStore):
+    """Counts manifest downloads (ERRORS M215: every pass downloaded every manifest and tombstone)."""
+
+    def __init__(self, root: str) -> None:
+        super().__init__(root)
+        self.manifest_gets = 0
+
+    def get(self, key: str) -> bytes:
+        self.manifest_gets += key.endswith("/manifest.json")
+        return super().get(key)
+
+
+def test_a_manifest_is_downloaded_once_while_the_janitor_runs(tmp_path) -> None:
+    """M215: manifests are immutable, so later passes read expires_at from memory; a dataset written after the first
+    pass is downloaded once, and a dataset read earlier still expires on time from the cached date."""
+    store, cache = CountingStore(str(tmp_path)), {}
+    seed_local(store)
+    first = cleanup_expired(store, now=NOW, retention_hours=168, tombstone_hours=720, expires_cache=cache)
+    assert first["manifests_fetched"] == store.manifest_gets == 3  # EXPIRED, LIVE, BROKEN
+    assert set(cache) == {EXPIRED, LIVE}  # an unreadable manifest is not cached: it is tried again
+    second = cleanup_expired(store, now=NOW, retention_hours=168, tombstone_hours=720, expires_cache=cache)
+    assert second["manifests_fetched"] == 1 and store.manifest_gets == 4  # only BROKEN again
+    late = "ds_" + "f" * 24
+    store.put_immutable(f"datasets/{late}/data.parquet", b"x", "", "c")
+    store.put_immutable(f"datasets/{late}/manifest.json", manifest(NOW + timedelta(days=1)), "", "c")
+    later = NOW + timedelta(days=7)  # LIVE (six days) has expired, late (one day) too
+    third = cleanup_expired(store, now=later, retention_hours=168, tombstone_hours=720, expires_cache=cache)
+    assert third["manifests_fetched"] == 2 and sorted(third["deleted_ids"]) == sorted([LIVE, late])
+    assert (tmp_path / "datasets" / LIVE / "manifest.json").exists()  # kept as a tombstone, its date still cached
+
+
+def test_the_cache_follows_the_bucket_and_a_restart_reads_every_manifest_once(tmp_path) -> None:
+    store, cache = CountingStore(str(tmp_path)), {}
+    seed_local(store)
+    cleanup_expired(store, now=NOW, retention_hours=168, tombstone_hours=720, expires_cache=cache)
+    assert EXPIRED in cache  # its data is gone, the manifest stays as a tombstone
+    cleanup_expired(store, now=NOW + timedelta(hours=721), retention_hours=168, tombstone_hours=720,
+                    expires_cache=cache)
+    assert EXPIRED not in cache and not (tmp_path / "datasets" / EXPIRED / "manifest.json").exists()
+    (tmp_path / "datasets" / LIVE / "manifest.json").unlink()  # removed by someone else
+    cleanup_expired(store, now=NOW, retention_hours=168, tombstone_hours=720, expires_cache=cache)
+    assert LIVE not in cache
+    restarted = CountingStore(str(tmp_path / "restarted"))
+    seed_local(restarted)
+    summary = cleanup_expired(restarted, now=NOW, retention_hours=168, tombstone_hours=720, expires_cache={})
+    assert summary["manifests_fetched"] == restarted.manifest_gets == 3
+
+
+def test_the_janitor_keeps_its_cache_between_passes(tmp_path) -> None:
+    store = CountingStore(str(tmp_path))
+    seed_local(store)
+    janitor = DatasetJanitor(store, interval_seconds=3600, retention_hours=168, tombstone_hours=720)
+    assert janitor.run_once()["manifests_fetched"] == 3
+    assert janitor.run_once()["manifests_fetched"] == 1  # only the unreadable manifest
+
+
 class FakeS3:
     def __init__(self, objects: dict[str, tuple[bytes, datetime]]) -> None:
         self.objects = dict(objects)

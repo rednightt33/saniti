@@ -1,0 +1,14 @@
+{"level":"info","message":"Starting Container","timestamp":"2026-10-24T19:24:32.548824606Z"}
+{"level":"error","timestamp":"2026-10-24T19:24:41.682551575Z","message":"WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning."}
+{"timestamp":"2026-10-24T19:24:41.682560195Z","message":"","level":"error"}
+{"timestamp":"2026-10-24T19:24:41.682564222Z","level":"error","message":"[notice] A new release of pip is available: 25.0.1 -> 26.2.2"}
+{"message":"[notice] To update, run: pip install --upgrade pip","timestamp":"2026-10-24T19:24:41.682568158Z","level":"error"}
+{"timestamp":"2026-10-24T19:24:41.682572895Z","level":"error","message":"Traceback (most recent call last):"}
+{"level":"error","message":"  File \"<string>\", line 1, in <module>","timestamp":"2026-10-24T19:24:41.682576857Z"}
+{"timestamp":"2026-10-24T19:24:41.682579979Z","level":"error","message":"  File \"<string>\", line 28, in <module>"}
+{"timestamp":"2026-10-24T19:24:41.682583177Z","level":"error","message":"  File \"<frozen runpy>\", line 287, in run_path"}
+{"message":"  File \"<frozen runpy>\", line 98, in _run_module_code","level":"error","timestamp":"2026-10-24T19:24:41.682587009Z"}
+{"timestamp":"2026-10-24T19:24:41.682590722Z","message":"  File \"<frozen runpy>\", line 88, in _run_code","level":"error"}
+{"message":"  File \"/tmp/index-approved-bulk/scripts/sync_feature_vocabulary.py\", line 11, in <module>","timestamp":"2026-10-24T19:24:41.682594659Z","level":"error"}
+{"message":"    from build_feature_vocabulary_seed import SOURCES,semantic_hash","timestamp":"2026-10-24T19:24:41.682598272Z","level":"error"}
+{"timestamp":"2026-10-24T19:24:41.682602191Z","level":"error","message":"ModuleNotFoundError: No module named 'build_feature_vocabulary_seed'"}

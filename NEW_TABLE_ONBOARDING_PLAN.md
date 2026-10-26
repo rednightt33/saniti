@@ -140,6 +140,9 @@ In addition to section 2:
   review status, validation-evidence paths), then `scripts/audit_feature_catalog_semantics.py`;
 - `Feature_Relationship_Catalog` for safe Feature joins and `AI_catalog_relationships` for the AI;
 - one `AI_calculation_catalog` row per active definition, inserted by the onboarding migration (V5);
+- every calculation whose lookback reads several observations carries `parameters.window_basis` (`ENTITY_SESSIONS`,
+  `EXCHANGE_DAYS` or `CALENDAR_DAYS`, read from the Feature's code) and `window_length` (EXEC-M209, migration
+  `20261025_016`); COLUMNS shows them as `window` and the system's window-basis line reads them;
 - coverage derived from its raw source (`coverage_job.py` `reference_for`), or actual;
 - a refresh path (worker or job, schedule, `freshness_sla`);
 - an independent validation (`scripts/validate_feature_02.py` pattern) before `semantic_review_status` and
@@ -345,3 +348,19 @@ view; 2-10 ok; 11 nanti saja", "Daftar saham sekarang (Recommended)", "1 aja".
   - the Governor's newest-date lookup changed the same way.
 - The Governor level got its own script, `governor_check.py`. Its first run found that the planner underestimates
   rows through the universe filter, so long requests are split again while extracting (M208, open).
+
+**2026-10-25, EXEC-INDEX-1 (Feature 01-06 INDEX tables).** User: "buat visible ke AI juga ya"; "Sesama INDEX + ke saham
+per tanggal"; "Dari Feature_Vocabulary". Migrations `20261025_005` and `20261025_006` (round AD). The AI_column_catalog
+rules were derived, not typed: the structure from the stock counterpart's reviewed rows, the description and unit from
+the INDEX Feature_Catalog, the Indonesian meaning from Feature_Vocabulary. Found: the join contract needs an entity
+key, so a join on the date alone (a stock against IHSG) cannot be registered (M216).
+
+**2026-10-25, EXEC-GO-1025 (`idx_event_annotation`).** User: "go for this as well Service stockbit-updater dan
+onboarding hanya table idx_event_annotation." One transactional table (corporate actions and insider movements); its two
+source tables stay hidden. Migration `20261025_015` (DRYRUN `addf6968`, APPLY `226fc268`); code `b41a2af`: coverage
+source, Governor approved list, the first-message router scope and the research_web examples (snapshot v019). Index
+acceptance `f89c9b11` PASS without a new index; L2 `36fd8b6c` (found by the user's words for dividends, insiders and
+splits; 22 columns with units; coverage); Governor `d10ba8ea` PASS; router benchmark with a new labelled "events" set:
+2/12 before (8 data questions sent to the web), 12/12 after. L3 `edge_9380a451` (TLKM insider sales) matched SQL;
+`edge_04f42c64` (BBCA dividend) found M223: the table carries one date per corporate action and none of its terms. The
+coverage freshness of a table with scheduled future rows is M224. Preview and relationships were not added.

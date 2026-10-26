@@ -2294,26 +2294,370 @@ Read-back (APPLY job probes, after commit): `market_ai_conversation_store` reads
 `[]`; `edge_bff_runtime` reads `kind`, 72 rows all MAIN; `Column_Catalog` row `lineage` VERIFIED; 0 EDGE jobs active.
 Rollback (forward migration): drop the added columns, the index and the `Column_Catalog` row.
 
+### 2026-10-24 — IHSG Feature 3/5/6 one-date sample
+
+Explicit user scope: IHSG, 2026-08-31, Feature03/05/06 only; no bulk, schema or source changes.
+Shared sample/bulk calculation helper: scripts/upsert_index_broker_feature_sample.py. Daily raw broker
+aggregation feeds the existing Feature03 formula. Canonical historical Feature05 detail feeds Feature06
+rolling/cumulative calculations in temporary tables. Independent preflight: 60 Feature03 metric checks
+and 249 Feature06 metric checks passed. HHI NULL by user policy; incomplete frequency windows NULL.
+Upsert executes in one REPEATABLE READ transaction and verifies all stored columns against staging.
+Final live readback is recorded in verification/ihsg_feature_aggregation/single_date after execution.
+
+Live result: APPLY deployment aa12e983-b960-4d60-b2e5-a16481ce49ce SUCCESS, committed 2026-10-24
+20:40 WIB. Independent readback verified IHSG 2026-08-31 only: Feature03 3 rows, Feature05 214,
+Feature06 3; all Feature03 HHI NULL. SQL payload comparison found zero mismatches. Feature02 remains
+empty for IHSG and Feature04's 2,125 IHSG rows retain the exact before/after fingerprint. Evidence:
+verification/ihsg_feature_aggregation/single_date/{feature356_apply.jsonl,feature356_readback_summary.json}.
+Two temporary job services removed; no schema or permanent infrastructure changes. Bulk awaits user validation.
+
+### 2026-10-24 — dedicated INDEX sample initialization (preparing)
+
+User approved six _INDEX tables, IHSG 2026-08-31 output only, refined known-frequency SUM with coverage,
+and deletion of legacy shared feature rows after archival/verification. Migration 20261024_010 and
+scripts/initialize_index_feature_sample.py keep schema, sample, backup and cleanup atomic. No source
+price/universe removal, bulk or automatic update logic is authorized. Evidence and final status:
+verification/ihsg_feature_aggregation/index_tables/README.md. A private JSONB archive preserves every
+original legacy row before deletion; no current-history data is discarded without recoverable backup.
+
+Applied and read back 2026-10-24 23:11–23:17 WIB: six _INDEX tables have IHSG 2026-08-31 only,
+counts 1/214/3/1/214/3. Shared Feature01–06 IHSG counts are all zero; archive snapshot
+293f4c52-0fd2-4d43-b02e-e0c6dba94f30 preserves all 4,470 original rows with zero hash mismatches.
+Source IHSG price history remains 2,125 rows, 2018-01-02..2026-10-23. Refined frequency/coverage
+reconciliation passes. Forward metadata migration 20261024_011 synced all 260 INDEX column/feature
+semantics and source dependencies; scoped check found zero missing definitions/drift/incomplete guidance.
+No bulk or permanent daily logic/configuration changes. Evidence: verification/ihsg_feature_aggregation/index_tables/.
+
+
+## 2026-10-25 — IHSG INDEX historical bootstrap and Feature vocabulary
+
+User: "Ok, jalankan" after review of the dedicated INDEX bulk and shared stock/INDEX vocabulary plan.
+
+- `20261025_001_index_feature05_remove_frequency_coverage.sql`: removed frequency_source_rows,
+  buy_freq_known_rows, sell_freq_known_rows, buy_freq_missing_rows, sell_freq_missing_rows from
+  Feature_05_Foreign_Domestic_Broker_Detail_INDEX only; retired matching active definitions and
+  physical catalog entries. F06 coverage and SUM-known/NULL rules retained.
+- `20261025_002_refine_index_vocabulary_source_semantics.sql`: clarified INDEX daily SUM grouping,
+  cumulative baseline, source references and gap propagation; corrected copied volume guidance and
+  schema comments. No numerical formula change or automated update rollout.
+- `scripts/backfill_index_features.py`: monthly raw aggregation, exact canonical monetary comparison,
+  bounded-memory broker rolling, canonical F03/F06/F01 and existing F04 engine. 45,229,673 raw rows,
+  128 months; 823,210 independent/sample comparisons pass. Public writes only after dry validation.
+  62 transactional year chunks: zero payload differences and zero changes on immediate idempotent rerun.
+
+| INDEX table | Rows | First date | Last date |
+|---|---:|---|---|
+| Feature_01_Stock_Daily_INDEX | 2,125 | 2018-01-02 | 2026-10-23 |
+| Feature_02_Broker_Rolling_INDEX | 576,648 | 2016-01-04 | 2026-08-31 |
+| Feature_03_Stock_Broker_Daily_INDEX | 7,128 | 2016-01-04 | 2026-08-31 |
+| Feature_04_Technical_Indicator_INDEX | 2,125 | 2018-01-02 | 2026-10-23 |
+| Feature_05_Foreign_Domestic_Broker_Detail_INDEX | 576,648 | 2016-01-04 | 2026-08-31 |
+| Feature_06_Foreign_Domestic_INDEX | 7,128 | 2016-01-04 | 2026-08-31 |
+
+Committed at 02:13:43 WIB, independently read back. IHSG only, each board retained; broker scope is
+all raw symbols including non-stock instruments, not official historical constituents. Source gaps
+remain flagged, not repaired. Shared legacy IHSG rows remain zero; source prices/universe unchanged.
+Before DDL/writes, 436 accepted INDEX sample rows archived losslessly under snapshot
+`dc859a6a-04f3-4af4-8876-4e61e5212a6e`; 585 original catalog rows added to the same private archive,
+all hashes verified. Earlier legacy archive `293f4c52-0fd2-4d43-b02e-e0c6dba94f30` retained.
+
+- `20261025_003_create_feature_vocabulary.sql`: one 24-column Reference table, `Feature_Vocabulary`,
+  with seven requested presentation fields plus source/scope/NULL/history/review/version evidence.
+  Reviewed JSON seed and code-backed templates generate **391 entries**: stock/non-INDEX 193,
+  INDEX 198. F01/02/03/05/06 only; no F04 or removed F05 columns. English labels, Indonesian
+  explanations, self-contained alias legends, distinct units and explicit HHI NULL policy.
+  Committed at 02:29:04 WIB; all payloads match and second sync modifies zero entries. pgweb SELECT
+  granted; frontend/API and AI-tool onboarding are separate. No extra lookup index added: measured
+  dictionary read plan is retained with completion logs.
+- Schema/catalog readback: all 279 new/changed scoped columns documented; dictionary has no missing
+  physical targets or unverified entries, F04 price-close mismatches=0, wrong asset_type=0, HHI nonnull=0.
+  Global semantic audit still fails only for the pre-existing F05/F06 *_Stock view definitions (100);
+  scoped new/changed objects pass. No guard relaxed or unrelated catalog repair attempted.
+
+Validation: 35 existing F04 regressions and 15 vocabulary tests pass, plus rollback-only 330-session
+PostgreSQL integration fixture and full live/source/readback checks. Deployment/recovery details,
+including pre-write tooling failures, are retained under `verification/ihsg_feature_aggregation/bulk/`.
+No daily routing, worker queues/checkpoints, permanent Railway config, frontend, stock/bond numbers,
+or raw source data changed. Daily INDEX updates remain a separately approved design phase.
+
+## 2026-10-25 — `IDX_Broker_Summary_Freq` emptied; `sync_broker_summary_freq` guarded (EXEC-INDEX-1 B)
+
+- User 2026-10-25: "Hapus saja. IDX_Broker_Summary Agustus keatas memang lagi di download ulang termasuk untuk data
+  freq"; the target table of the new frequency load "Belum tahu", so the structure stays.
+- Read-only check (ERRORS M215): last read 2026-10-22 by `sync_broker_summary_freq` only; no view, FK, AI catalog row
+  or AI grant; 9.93 GB in 12 yearly partitions (2016-01-04 to 2026-10-09).
+- Migration `20261025_004_truncate_broker_summary_freq.sql` (sha256 `366661d0…`, in `APPLIED.sha256`): DRYRUN job
+  `3b6f4916`, APPLY job `aaec0df4`.
+  - `sync_broker_summary_freq` refuses a range in which a Broker Summary date has no Freq row. Before, it set
+    `buy_freq`/`sell_freq` to NULL for every key without a Freq row, so a call after the truncate would have erased
+    the copied frequency. DRYRUN: refused 2026-08-31 and 2026-09-01; 2026-09-01 already exists in
+    `IDX_Broker_Summary` (re-download in progress).
+  - `TRUNCATE` of the parent; table comment updated.
+- Read back (APPLY job): Freq 0 rows, 12 partitions, 0.4 MB; `IDX_Broker_Summary` 2026-08-31 keeps 25,342 of 27,059
+  rows with frequency (unchanged); database 53.82 GB → 43.93 GB.
+- Refresh path from now on: load Freq for the new dates, then `sync_broker_summary_freq(from, to)` →
+  `refresh_feature_05` → `refresh_feature_06`.
+
+## 2026-10-25 — Feature 01-06 INDEX tables exposed to the AI (EXEC-INDEX-1 C)
+
+- User 2026-10-25: "saya ada tambahkan feature 1-6 _INDEX... buat visible ke AI juga ya"; joins "Sesama INDEX + ke
+  saham per tanggal (Recommended)"; description_id "Dari Feature_Vocabulary (Recommended)". The INDEX tables come from
+  branch `codex/ihsg-f356-one-date` (migrations `20261024_010`…`20261025_003`), merged into `main` first (`f67769a`).
+- Migration `20261025_005_onboard_index_features.sql` (sha256 `1dd6c4aa…`) and Tool_Catalog round AD
+  `20261025_006_round_ad_tool_catalog.sql` (sha256 `f12e1d2e…`), in `APPLIED.sha256`. DRYRUN jobs `db778889`,
+  `7f348403`; APPLY job `8af07acc`.
+  - Grants to `market_ai_sql_reader` and `market_ai_preview_owner`; the Governor login reads all six (probe).
+  - `AI_table_catalog`: 6 rows, subject MARKET / INDEX / IDX_INDEX, freshness one day, coverage on.
+  - `AI_column_catalog`: 255 rows, 245 visible.
+    - Hidden: F04 `calculation_version`, `calculated_at` and the six Pine state columns; F05/F06 `calculated_at`.
+    - Rules: structure from the stock counterpart's reviewed rows; description and unit (`index points` for close)
+      from the INDEX Feature_Catalog.
+    - `description_id`: 198 from Feature_Vocabulary as REVIEWED; F04 NULL (not in the vocabulary).
+  - `AI_catalog_relationships`: 20 in all.
+    - 5 INDEX↔INDEX from Feature_Relationship_Catalog (EXACT_DATE).
+    - 15 reference joins copied from the stock counterparts (IDX_Stock_Universe, IDX_Broker_Profile CURRENT_STATE and
+      their histories EFFECTIVE_DATED).
+    - The stock↔IHSG join on the date alone is not registered: the join contract needs an entity key (ERRORS M216).
+  - `AI_calculation_catalog`: 255, with the counterparts' formula references (F04 19, F06 29).
+  - Preview: `ai_preview_table_rows` serves eighteen objects.
+  - `preview_table_rows` v4 in Tool_Catalog (inactive like every orc row).
+- Read back (APPLY job): reader counts F01 2,125 / F06 7,128, newest F01 date 2026-10-23; preview of F04 INDEX 49
+  columns without state columns.
+- Coverage (`coverage_job.py`, deployed `b12ccdef`, run once by job L2): INDEX tables expect IHSG from their raw
+  sources (MANUAL_REFRESH_REQUIRED). Stock Feature 01/04 expectations leave the universe index codes out (before,
+  Feature 01 expected IHSG although the stock table holds no IHSG row).
+- Index acceptance and Governor level: `DATABASE_INDEX_ACCEPTANCE.md` 2026-10-25, all PASS; no index added.
+- L2 (job, orc tools as `market_ai_orc`): "return IHSG", "net beli asing IHSG" and "RSI IHSG" find the INDEX tables;
+  COLUMNS show units and summaries; COVERAGE shows the range; preview hides the hidden columns.
+- Open: the broker INDEX tables end 2026-08-31 while `IDX_Broker_Summary` already holds dates to 2026-10-21 (re-download
+  in progress); their refresh is manual (PLAN.md INDEX daily routing). L3 (paid) not run yet.
+
+## 2026-10-25 — `IDX_Broker_Summary_Freq` and `IDX_Net_Foreign_Summary` dropped (EXEC-INDEX-1 D)
+
+- User 2026-10-25 (screenshot of both partition families and `IDX_Broker_Profile_History`): "apakah tesis saya
+  screenshot ini dipakai atau tidak. Jika tidak dipakai, dihapus saja."
+- Read-only check (job, `run_job.sh`; repository and every remote branch searched):
+  - `IDX_Broker_Profile_History` is used and is kept: AI_table_catalog, the Governor login, 5 relationships, the
+    point-in-time functions and a status trigger.
+  - `IDX_Broker_Summary_Freq`: empty since `20261025_004`; only `sync_broker_summary_freq` and the one-off F05/F06 job
+    read it. The re-downloaded `IDX_Broker_Summary` dates 2026-09-01 to 2026-10-23 carry `buy_freq`/`sell_freq` on
+    100 % of rows, so the loader writes the frequency itself.
+  - `IDX_Net_Foreign_Summary`: 2,713,314 rows (2016-01-04 to 2026-10-09). No view, FK, function, AI catalog row, AI
+    grant (only `postgres` and `pgweb_reader`) or code reads it.
+- Migration `20261025_007_drop_broker_summary_freq_and_net_foreign.sql` (sha256 `d582177b…`, in `APPLIED.sha256`):
+  DRYRUN twice (the first found `related_functions` written `sync_broker_summary_freq(date,date)` without a space;
+  cleanup by pattern), then APPLY.
+  - Drops both partitioned tables with their 24 partitions and the function `sync_broker_summary_freq`.
+  - Table_Catalog `related_functions` cleaned.
+  - Column_Catalog and AI_column_catalog meanings of `IDX_Broker_Summary.buy_freq`/`sell_freq` and the column
+    comments now say the frequency comes with the load.
+- Read back: no object left, no function, `IDX_Broker_Summary` frequency kept (49,053 rows on 2026-08-31 and
+  2026-10-23); database 43.94 → 43.40 GB.
+- Left as they are:
+  - 26 `Database_Table_Status` rows that name the dropped tables (that table's refresh waits for approval);
+  - the enum types of the dropped columns;
+  - the lineage text of `Feature_Catalog` F05 `buy_freq`/`sell_freq` (historical source).
+- `apps/feature-05-06-job/job.py`: the retired task `phase1_backfill` was removed.
+
+## 2026-10-25 — Feature refresh from the re-downloaded Broker Summary (EXEC-REFRESH-1025, EXEC-INCR-1025)
+
+- Source: `IDX_Broker_Summary` 2026-09-01 to 2026-10-23 (39 dates, `buy_freq`/`sell_freq` on every row), re-downloaded
+  by the user's loader. That loader writes no `stockbit_broker_summary_load_log` row (the log stops at 2026-08-31).
+- R1, Feature 05 and 06 (job `70c406e6-79e2-4fdd-9fae-f075ff07528f`, log kept in the session scratchpad):
+  - `refresh_feature_05('2026-09-01', '2026-10-24')`: 968,042 rows, equal to the source rows (0 differing), 73.8 s;
+    a second pass found 0 differing and skipped.
+  - `refresh_feature_06(ticker, '2026-09-01')` for the 912 tickers with new F05 rows: 38,163 rows; reconcile against
+    the Σ F05 groups 38,163 = 38,163, 0 differing.
+  - Incremental equals full (rolled back): BBCA, BBRI, MIKA, GOTO, TLKM, ANTM, BUMI, 0 differences each.
+- INDEX (IHSG) Feature 01-06 (`scripts/backfill_index_features.py` `prepare` + `apply_chunks`, without
+  `archive_and_migrate`, driver job in the scratchpad):
+  - validations passed: F02 77,425 rows, F03 144,900, F06 601,335, sample 11,326;
+  - every year 2016-2025 wrote 0 rows (the rewrite equals the stored history); the rerun modified 0 and every
+    payload hash matched;
+  - 2026 wrote exactly the new rows: F02 and F05 7,802, F03 and F06 117, F01 and F04 0 (no price row changed);
+  - the broker-based INDEX tables (F02, F03, F05, F06) now reach 2026-10-23.
+- Migration `20261025_008_refresh_feature_02_incremental.sql` (sha256 `832c9661…`, in `APPLIED.sha256`): new
+  `public.refresh_feature_02(p_ticker text, p_from date DEFAULT NULL) RETURNS bigint`.
+  - The SQL is the one of `scripts/backfill_feature_02_v2.py` `INSERT_TICKER`; the daily rows are read from
+    Feature 05 (`buy_value - sell_value` as net value) with the 311 earlier sessions the longest window needs
+    (60-session window plus 252 sessions for the z-score and percentile), and only rows on or after `p_from` are
+    deleted and written. An advisory lock per ticker guards concurrent runs.
+  - Before APPLY, 10 cases in a rolled-back transaction equalled the stored full calculation with 0 differences
+    (BBCA from 2026-08-03 and from 2024-01-02, BBRI, GOTO twice, TLKM from 2020, a thin ticker, a warrant, PSAT
+    incremental and full).
+  - Table_Catalog `related_functions` of `Feature_02_Broker_Rolling` names it.
+- I1, Feature 02 and 03 from 2026-09-01 (orc-test-runner job, scratchpad log `f02/run.log`, 2,906 s):
+  - `refresh_feature_02(ticker, '2026-09-01')` for the 912 tickers with new F05 rows: 968,042 rows, equal to the
+    F05 source rows for the range; no ticker took over 60 s.
+  - `refresh_feature_03_stock_broker_daily(date, NULL)` for the 39 new dates: 38,163 rows, equal to the F02
+    `(date, ticker, market_board)` groups.
+  - The new rows equal a longer rewrite from 2026-06-01 (rolled back) for BBCA 3,864, BBRI 3,620, GOTO 2,883,
+    PSAT 470 and TLKM 3,395 new rows: 0 differences each.
+  - Read back: F02 and F03 newest date 2026-10-23; database 44.07 GB.
+
+## 2026-10-25 — Relationships on the date only; stock-to-INDEX relationships (EXEC-M216)
+
+- User 2026-10-25: "Oke, kita go dengan eksekusi B." (ERRORS M216).
+- Migration `20261025_009_round_ae_tool_catalog.sql` (sha256 `64468b75…`): Tool_Catalog submit_data_need_spec v16,
+  check_data_feasibility v8, check_research_feasibility v8 (inactive like every orc row; key lists may be empty).
+- Migration `20261025_010_date_only_relationships.sql` (sha256 `28f1e936…`):
+  - six relationships from each exposed stock Feature object to its `_INDEX` counterpart, in AI_catalog_relationships
+    (ids 250-255) and Feature_Relationship_Catalog;
+  - keys derived from the shared primary key columns that hold a common stored value (DATABASE_CATALOG.md);
+  - new CHECK `AI_catalog_relationships_date_only_check`.
+- DRYRUN job `c99b3ff3` (rolled back), APPLY job `58657e12`; read back: six rows each, keys as derived, CHECK
+  validated, Tool_Catalog versions present.
+- End-to-end check job `e7f24086` (sandbox validator + Governor extractor in process as `market_ai_sql_reader`,
+  `verification/m216_date_only_join/`):
+  - IHSG request without a ticker condition refused (`ONE_SIDE_NOT_UNIQUE`);
+  - BBCA and BBRI on the 48 days IHSG fell more than 1 % in 2026: 96 rows, equal to an independent SQL query;
+  - BBCA Regular on days the market's Regular foreign net was negative: 149 rows = 149.
+
+## 2026-10-25 — Universe indices kept out of the stock Feature tables (EXEC-M219)
+
+- User 2026-10-25: "Fix M219 ... seharusnya di feature 1 tidak ada IHSG karena IHSG sudah punya table sendiri".
+- Migration `20261025_011_exclude_index_from_stock_features.sql` (sha256 `1baef9b9…`):
+  - new `is_universe_index(text)` and `validate_stock_feature_identity()`;
+  - `enqueue_feature_01_price_row` and `enqueue_feature04_group` replaced by their live bodies (md5 checked) plus an
+    index skip;
+  - trigger `stock_feature_index_guard` on `Feature_01_Stock_Daily` and `Feature_04_Technical_Indicator`;
+  - deleted: 1 IHSG row of `Feature_01_Stock_Daily` (2026-10-23), the IHSG `Feature_Status` row, the FAILED IHSG
+    Feature 04 queue row and its 51 column-status rows. The 2,125 DONE Feature 01 queue rows stay (referenced by
+    `Feature_Calculation_Log`).
+- DRYRUN `831eb843`, `c6800486`; APPLY `6c467349`; read back as in ERRORS M219.
+
+## 2026-10-25 — Feature_Vocabulary corrections at their owner, Feature_Catalog (EXEC.md "Feature_Vocabulary: koreksi laporan verifikasi")
+
+- User 2026-10-25: "Cari solusi juga untuk ini. Kalau straightforward, langsung edit. Inspect code base dulu dan
+  dependensi. Seharusnya fitur 5 referke table IDX broker summary."
+- Migration `20261025_012_feature_vocabulary_corrections.sql` (sha256 `fdceeeaa…`), 63 Feature_Catalog corrections
+  (old text checked first) and their catalog copies, found by key and old text:
+  - `null_rule` 43 (F02/F05/F06 stock and INDEX): Column_Catalog.null_rule 59 rows (table and `_Stock` view),
+    AI_calculation_catalog.missing_data_policy 43;
+  - `unit` 16 (F06 percentile columns, `percent` → `Percentile 0-100`): AI_column_catalog.unit 16, Column_Catalog.unit 24,
+    AI_calculation_catalog.output_definition.unit 16;
+  - `minimum_history` 2 (F02 / F02_INDEX `investor_type` → `1 source row`): AI_calculation_catalog.parameters 2;
+  - `calculation` 2 (F05 `buy_freq`/`sell_freq` → `IDX_Broker_Summary.<col> (stored with each Broker Summary row)`):
+    AI_calculation_catalog.definition 2, AI_column_catalog and Column_Catalog source_column_or_expression 2 each;
+  - Feature 05 `refresh_trigger` (15 rows) and Table_Catalog.update_rule (F05 and its `_Stock` view) no longer name
+    the dropped `sync_broker_summary_freq`.
+- Preflight on the live code: `refresh_feature_06` sums known frequencies as the new texts say; `IDX_Broker_Summary_Freq`
+  is absent.
+- Feature_Vocabulary re-synced in the same transaction from the rebuilt `database/feature_vocabulary_seed.json`
+  (`scripts/build_feature_vocabulary_seed.py`: unit label `Persentil 0–100`; stock F06 frequency reading): 67 of 391
+  entries changed, rerun 0, payload equal to the seed, no entry with the old Freq formula left.
+- Jobs: export (read-only), copy scans `5c3b27ff`, `55d76e73` (read-only), DRYRUN `f5eb55f2` (rolled back), APPLY
+  `c1f2bde9` (committed). Evidence: `verification/feature_vocabulary_20261025/`.
+- Part A: metadata only, no market data; no gap.
+
+## 2026-10-25 — Database_Table_Status refresh and DATABASE_SCHEMA.md regenerated
+
+- User 2026-10-25: "Coba jalankan ulang audit M221 sekarang dan database table status."
+- `scripts/sync_database_schema.py` now takes each table's category, update rule and latest data date from
+  Table_Catalog (owner; latest date read only through an index that starts with its `observation_date_column`); the
+  rule list in the script is the fallback for tables the catalog does not register (ERRORS M222).
+- DRYRUN `9c0a7d8b` (rolled back), APPLY `88a5a7a2` (committed): 95 → 79 rows; 26 rows of dropped tables
+  removed (`IDX_Broker_Summary_Freq`, `IDX_Net_Foreign_Summary` and their 24 partitions); 10 tables added (six `_INDEX`,
+  F05, F06, Feature_Vocabulary, `stockbit_full_broker_import_status`); 74 rows changed. Latest data date now 2026-10-23
+  for IDX_Broker_Summary, F01-F06 and the `_INDEX` tables (was 2026-08-31 / 2026-10-20). No trigger created.
+- `DATABASE_SCHEMA.md` regenerated from live by the same job. Two hand-written notes it held are kept here:
+
+Applied and read back at18:43 WIB. Migration `20261013_011_verify_fixed_income_sessions.sql` adds required text columns `provider_timezone_name` (verified TradingView timezone) and `provider_session` (daily session anchor) to `Fixed_Income_Market_Schedule`. Both ID and US use NEXT_BUSINESS_DAY source mapping under the reviewed policy. The changed physical table section above has been refreshed from live readback.
+
+Dedicated index schema preparation (2026-10-24): forward migration
+20261024_010_create_index_feature_tables.sql defines six Feature01–06 _INDEX outputs with existing
+grains/analytical columns; Feature04 asset_type is constrained to index. Feature05/06 each add five
+nonnegative frequency coverage counts (source, known buy/sell, missing buy/sell). An index-universe
+identity trigger guards every target. Private migration_archive.index_feature_rows retains lossless
+legacy row snapshots for cleanup recovery. Apply status is recorded in DATABASE_CHANGELOG.md.
+
+## 2026-10-25 — Broker Feature freshness, AI visibility and consistency check (read-only)
+
+- User 2026-10-25: "apakah feature 1 sampai 6 ... sudah terupdate ... AI sudah mendapatkan visibility ... konsisten dengan
+  data di [IDX Broker Summary]?"
+- Job `eb43c1ec` (read-only, `verification/broker_consistency_20261025/confirm_job.py`): newest date 2026-10-23 for
+  F01–F06, their `_INDEX` tables, `IDX_Broker_Summary` and `Price_Stock_Indonesia_IDX`; 12 objects active in
+  AI_table_catalog and readable by `market_ai_sql_reader` (F05/F06 through `_Stock` views); per-date totals over
+  2,599 dates (2016-01-04…2026-10-23): IDX_Broker_Summary = F05, F05 = F02, F02 = F03, F05 = F06, 0 dates differing.
+- `AI_data_coverage` holds a newest date for `IDX_Broker_Summary` and prices (2026-10-23) but none for the Feature tables
+  (its update rule: Feature tables are not scanned).
+
+## 2026-10-25 — Stockbit corporate action, insider and idx_event_annotation created and loaded (EXEC-EVENT-ANNOTATION)
+
+- User 2026-10-25: "Naikan 3 table corp, insider dan kombinasinya ke postgres. Prioritaskan ini".
+- Migration `20261025_013_create_stockbit_event_annotation.sql` (written as `20261025_011` on branch
+  `claude/keen-keller-cq1d96`, renumbered because `20261025_011` was already applied; sha256 `b5b39fd0…`): DRYRUN
+  (rolled back), APPLY `10fbc797`, read back: three tables, `refresh_idx_event_annotation()`, Table_Catalog 3 rows,
+  Column_Catalog 22 + 28 + 26 rows. Read grant to pgweb only; not exposed to the AI.
+- Load `apps/stockbit-event-annotation/job.py` with the user's Stockbit token on orc-test-runner: DRYRUN `12ff43fd`
+  (run `sbev-20261025T163633Z-9246d5`, rolled back), APPLY `88886559` (run `sbev-20261025T165136Z-347ecb`, 786 s,
+  committed): corporate actions 19,259 (from 20,629 raw rows, 9 types, 2003-01-10…2026-12-18, 1,004 tickers); insider
+  103,788 distinct movements (104,738 listed; IDX 22,349, KSEI 81,439; 964 tickers, 2017-10-12…2026-10-23); percent flag
+  OK 86,119, ROUNDING 13,735, NOT_CHECKABLE 3,207, INCONSISTENT 707, INVALID_SENTINEL 20; idx_event_annotation 123,047.
+- Independent read-back `5e566a73` (`verification/event_annotation_20261025/readback_job.py`): counts as above, all rows
+  active, one load run, annotation rows = active source rows; sizes 18 MB, 141 MB, 158 MB.
+- Part A: new source (Stockbit corporate action and insider endpoints), keys, units and null rules documented in
+  Column_Catalog by the migration (PLAN.md EVENT-ANNOTATION decisions).
+
+## 2026-10-25 — EXEC-GO-1025: stockbit-updater tables, idx_event_annotation onboarded, window basis, Stockbit catalog rows
+
+User 2026-10-25: "Okay, yang menunggu GO silahkan di jalankan. Plus, go for this as well Service stockbit-updater dan
+onboarding hanya table idx_event_annotation." Every migration below ran DRYRUN (rolled back) then APPLY by one-off jobs
+on `orc-test-runner` (`scripts/onboarding/migration_job.py`, `DATABASE_URL` set for the run and removed, VAR_REMOVED);
+sha256 in `database/migrations/APPLIED.sha256`.
+
+- `20261025_014_monitoring_stockbit_update.sql` (APPLY `00ca2472`, sha `efdc4f54…`): table
+  `Monitoring_Stockbit_Update` (one row per stockbit-updater round: mode, status, token expiry, broker dates and rows,
+  Feature/INDEX/event results, error); Table_Catalog and Column_Catalog rows for it (15 columns) and for
+  `stockbit_full_broker_import_status` (10 columns).
+- `20261025_015_onboard_idx_event_annotation.sql` (DRYRUN `addf6968`, APPLY `226fc268`, sha `2e8bd2e1…`): SELECT for
+  `market_ai_sql_reader` (and `pgweb_reader`) on `idx_event_annotation` only; `AI_table_catalog` row (TRANSACTIONAL,
+  `annotation_date`, `ticker`, freshness 7 days, ACTIVITY_ONLY); 26 `AI_column_catalog` rows, 22 visible (payload,
+  endpoint, fetch time and ingestion time hidden), Indonesian meanings DRAFT; Table_Catalog update rule. Read back in the
+  same job: the reader reads 123,047 rows, is denied on `stockbit_insider_transaction`, and sees BBCA insider rows.
+- `20261025_016_calculation_window_basis.sql` (DRYRUN `fe48c32d`, APPLY `7f50a7aa`, sha `93a380f5…`):
+  `AI_calculation_catalog.parameters.window_basis = ENTITY_SESSIONS` and `window_length` on 272 active calculations
+  (F01 20, F02 25, F04 41, F06 50, each with its INDEX twin), derived from the first number of `lookback_window` (≥ 2).
+  Read back: one-observation lookbacks (`1 session`, `1 source date`, …) carry no window; COLUMNS join returns
+  `foreign_net_20d` 20 / ENTITY_SESSIONS and nothing for `foreign_net_1d` and `foreign_cumulative_net`.
+- `20261025_017_catalog_stockbit_backfill_tables.sql` (DRYRUN `5e67671c`, APPLY `5db91e4b`, sha `d5bf5543…`):
+  Table_Catalog (System, PARTIAL) and Column_Catalog for `idx_stockbit_backfill_status` (15 columns, 5 NEEDS_REVIEW
+  with NULL meaning: the writer is outside Git) and `idx_stockbit_value_corrections` (9 columns). Read back: only
+  `Column_Catalog`, `Database_Table_Status` and `Table_Catalog` remain without a Table_Catalog row (ERRORS M222).
+- Data, stockbit-updater rounds: VERIFY `70aa6c1b` (deployment `bb00eae3`): 2026-10-23 fetched 23,711 rows = stored
+  23,711, 0 different, 0 missing, 0 new. APPLY `a02b83df` (deployment `b90418c7`, 17:56–18:14 UTC): no Broker Summary
+  date to load (910 symbols), no changed Feature date (253 s), INDEX skipped, event reload run
+  `sbev-20261025T180019Z-05e702` committed (corporate actions 19,259, insider 103,788, annotation 123,047; 0 removed),
+  Database_Table_Status refreshed; SUCCESS.
+- Coverage: one `coverage_job.py --mode full` run (job `344bc29f`): `idx_event_annotation` 1,020 entities, range
+  2003-01-10…2026-12-18, VERIFIED/HEALTHY (the future end date is ERRORS M224).
+- Read-only checks: `187fa567` (the two backfill tables), `7fc383ea` (lookback windows), `e74f4670` (onboarding read),
+  `f89c9b11` (index acceptance, `DATABASE_INDEX_ACCEPTANCE.md`), `36fd8b6c` (L2), `d10ba8ea` (Governor), `d0eab471`,
+  `39363dfd`, `4b0b2ff4`, `8b13c7c2` (live answers against SQL).
+- Not changed: the two Stockbit source tables stay hidden from the AI; no Feature definition changed, so
+  `scripts/audit_feature_catalog_semantics.py` was not required.
+- Rollback (forward migrations): `is_active = false` on the `idx_event_annotation` AI_table_catalog row and REVOKE;
+  remove the two `parameters` keys; the catalog rows are documentation only.
 
 ## 2026-10-25 — Terminal schema and logins (EXEC-TERMINAL-API)
 
 User 2026-10-25: "Ok" on `verification/terminal_api/DESIGN.md` section 5 (steps 1-6). Operational schema like
 `edge_bff`, not a public data table, so no Table/Column_Catalog row (same as `edge_bff`).
 
-- **`20261025_001_create_terminal_schema.sql`** (sha256 `1843a24fcb0fb05e1ecfca0c1ca865ab7e99440d64a8d17187b8368bafbf32cc`):
+- **`20261025_100_create_terminal_schema.sql`** (renamed from `20261025_001_create_terminal_schema.sql` on 2026-10-26 when merging `main`, which uses `20261025_001` for another migration; content and sha256 unchanged) (sha256 `1843a24fcb0fb05e1ecfca0c1ca865ab7e99440d64a8d17187b8368bafbf32cc`):
   schema `terminal` with `subscriber`, `session`, `access_log`, `sign_in_attempt`, `quota` (10 named limits),
   `quota_override`, `admin_log`; NOLOGIN groups `terminal_runtime` (read/write on `terminal`) and
   `terminal_market_reader` (SELECT on `Price_Stock_Indonesia_IDX`, `Feature_05_Foreign_Domestic_Broker_Detail`,
   `IDX_Broker_Profile`, `IDX_Stock_Universe`). No market table or existing grant changed.
   Applied by the DRYRUN job `345802f7` itself, without a rehearsal: the job found the commented rollback example's
-  `-- COMMIT;` (ERRORS M217; job fixed). Read-back (job `migration_readback`, admin, read-only): 7 tables, `quota` 10
+  `-- COMMIT;` (ERRORS M225; job fixed). Read-back (job `migration_readback`, admin, read-only): 7 tables, `quota` 10
   rows, all other tables 0 rows, 2 roles NOLOGIN non-superuser, grants exactly as written. Logs:
   `verification/terminal_api/jobs/`.
 - **Logins** (`scripts/provision_terminal_logins.py`, job on orc-test-runner; passwords only as Railway variables of
   terminal-api / terminal-publisher, passed to the job as references and removed afterwards):
   `terminal_api_login` (member of both groups; statement_timeout 10s; reaches exactly 11 relations) and
   `terminal_publisher_login` (market reader only; read-only transactions; statement_timeout 120s; reaches exactly 4).
-- Rollback: a forward migration with the commented block at the end of `20261025_001`.
+- Rollback: a forward migration with the commented block at the end of `20261025_100`.
 
 
 ## 2026-10-25 — Terminal: event annotations readable by the publisher; 46 terminal indicator formulas (EXEC-TERMINAL-API T6, T2)

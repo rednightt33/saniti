@@ -91,16 +91,18 @@ class ScopeNode(Strict):
 class Restriction(Strict):
     """One INNER relationship pushed down as a semi-join. The entity key is one pair (left_column, right_column) or,
     for a composite key (IP1 Stage B), two or more pairs (left_columns, right_columns), in the catalog's order; never
-    both forms, so the canonical form (and its hash) stays unique and single-key restrictions keep their old form."""
+    both forms, so the canonical form (and its hash) stays unique and single-key restrictions keep their old form.
+    A relationship that meets on the date only (EXEC-M216: a stock and the IHSG index, a macro series) has no entity
+    pair: left_columns and right_columns are both empty, under EXACT_DATE or AS_OF."""
 
     relationship_id: int = Field(ge=1)
     join_semantics: Literal["CURRENT_STATE", "EXACT_DATE", "AS_OF", "EFFECTIVE_DATED"]
     left_column: str | None = Field(default=None, pattern=COLUMN_PATTERN)
     right_column: str | None = Field(default=None, pattern=COLUMN_PATTERN)
     left_columns: list[Annotated[str, StringConstraints(pattern=COLUMN_PATTERN)]] | None = Field(
-        default=None, min_length=2, max_length=8)
+        default=None, max_length=8)
     right_columns: list[Annotated[str, StringConstraints(pattern=COLUMN_PATTERN)]] | None = Field(
-        default=None, min_length=2, max_length=8)
+        default=None, max_length=8)
     left_time_column: str | None = Field(pattern=COLUMN_PATTERN)
     right_time_column: str | None = Field(pattern=COLUMN_PATTERN)
     as_of_direction: Literal["BACKWARD"] | None
@@ -121,6 +123,10 @@ class Restriction(Strict):
         if composite and (self.left_columns is None or self.right_columns is None
                           or len(self.left_columns) != len(self.right_columns)):
             raise ValueError("left_columns and right_columns must have the same length")
+        if composite and len(self.left_columns or []) == 1:
+            raise ValueError("a single key pair is written as left_column and right_column")
+        if composite and not self.left_columns and self.join_semantics not in ("EXACT_DATE", "AS_OF"):
+            raise ValueError("a relationship without entity key pairs meets on the date: EXACT_DATE or AS_OF only")
         return self
 
     @property
@@ -286,6 +292,9 @@ class BoundRestriction:
     right_table: str
     right_scope: BoundNode
     canonical: dict[str, Any]
+    # EXEC-M216: a date-only AS_OF reads the latest row of one series; these right key columns and their fixed
+    # values (from the right scope) select it, as an entity key pair would
+    constant_keys: list[tuple[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -382,6 +391,18 @@ def _bind_scope(node: ScopeNode, columns: dict[str, dict[str, Any]], table: str,
                                           for child in children])
 
 
+def fixed_values(node: BoundNode) -> dict[str, Any]:
+    """The columns a scope fixes to one value: an EQ predicate, or IN with one value, alone or directly under the
+    top-level AND (EXEC-M216)."""
+    nodes = node.children if node.type == "AND" else [node]
+    fixed: dict[str, Any] = {}
+    for child in nodes:
+        p = child.predicate if child.type == "PREDICATE" else None
+        if p is not None and (p.operator == "EQ" or (p.operator == "IN" and len(p.values) == 1)):
+            fixed.setdefault(p.column, p.values[0])
+    return fixed
+
+
 def _relationship_orientation(rel: dict[str, Any], source: str, right: str) -> bool | None:
     if (rel["left_table"], rel["right_table"]) == (source, right):
         return True
@@ -446,6 +467,19 @@ def _bind_restriction(index: int, item: Restriction, source_meta: dict[str, Any]
         if semantics == "CURRENT_STATE" and item.left_time_column is not None:
             raise policy("TIME_COLUMN_MISMATCH", f"{label}: CURRENT_STATE takes no time columns.")
     scope = _bind_scope(item.right_scope, right_columns, item.right_table, max_in)
+    constant_keys: list[tuple[str, Any]] = []
+    if not pairs and semantics == "AS_OF":
+        # the latest row at or before a date is one row only when the scope fixes every other key column of the
+        # right table (its primary key without its time column); otherwise it would be any series' latest row
+        fixed = fixed_values(scope)
+        needed = [c for c in right_meta.get("primary_key_columns") or [] if c != rtime]
+        missing = [c for c in needed if c not in fixed]
+        if missing:
+            raise policy("ONE_SIDE_NOT_UNIQUE",
+                         f"{label}: relationship {item.relationship_id} meets {item.right_table} on the date only, so "
+                         f"its scope must fix {', '.join(missing)} with EQ (or IN with one value), e.g. "
+                         f"{missing[0]} EQ '<one stored value>'.", columns=missing)
+        constant_keys = [(c, fixed[c]) for c in needed]
     right_canonical = canonical(scope)
     if sha256_json(right_canonical) != item.right_scope_sha256:
         raise policy("SCOPE_HASH_MISMATCH", f"{label}: right_scope_sha256 does not match the right scope.")
@@ -456,7 +490,7 @@ def _bind_restriction(index: int, item: Restriction, source_meta: dict[str, Any]
              "as_of_direction": item.as_of_direction, "effective_from_column": item.effective_from_column,
              "effective_to_column": item.effective_to_column, "right_table": item.right_table,
              "right_scope": right_canonical, "right_scope_sha256": item.right_scope_sha256}
-    return BoundRestriction(index, item, item.right_table, scope, entry)
+    return BoundRestriction(index, item, item.right_table, scope, entry, constant_keys)
 
 
 def _bind_aggregate(spec: ExtractionSpec, meta: dict[str, Any], known: dict[str, dict[str, Any]]
@@ -619,11 +653,15 @@ def _restriction_sql(r: BoundRestriction, base: str, time_column: str | None, pa
     item = r.spec
     alias = f"r{r.index}"
     table = sql.Identifier("public", r.right_table)
-    key = sql.SQL(" AND ").join(sql.SQL("{} = {}").format(_column(alias, right), _column(base, left))
-                                for left, right in item.pairs)
+    keys = [sql.SQL("{} = {}").format(_column(alias, right), _column(base, left)) for left, right in item.pairs]
     semantics = item.join_semantics
     if semantics == "AS_OF":
-        # the latest reference row at or before the observation date must satisfy the reference scope
+        # the latest reference row at or before the observation date must satisfy the reference scope; a date-only
+        # relationship selects its one series by the scope's fixed key values (constant_keys, EXEC-M216)
+        for column, value in r.constant_keys:
+            params.append(value)
+            keys.append(sql.SQL("{} = {}").format(_column(alias, column), sql.Placeholder()))
+        key = sql.SQL(" AND ").join(keys) if keys else sql.SQL("TRUE")
         inner = sql.SQL("SELECT {cols} FROM {table} AS {alias} WHERE {key} AND {rt} <= {lt} "
                         "ORDER BY {rt} DESC LIMIT 1").format(
             cols=sql.SQL("{}.*").format(sql.Identifier(alias)), table=table, alias=sql.Identifier(alias), key=key,
@@ -632,7 +670,7 @@ def _restriction_sql(r: BoundRestriction, base: str, time_column: str | None, pa
         condition = _scope_sql(r.right_scope, latest, params)
         return sql.SQL("EXISTS (SELECT 1 FROM ({inner}) AS {latest} WHERE {condition})").format(
             inner=inner, latest=sql.Identifier(latest), condition=condition)
-    parts: list[sql.Composable] = [key]
+    parts: list[sql.Composable] = list(keys)
     if semantics == "EXACT_DATE":
         parts.append(sql.SQL("{} = {}").format(_column(alias, item.right_time_column),
                                                _column(base, item.left_time_column)))

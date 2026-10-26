@@ -821,24 +821,57 @@ siapa pun). Untuk 32 dari 844 saham, 20 sesi lebih panjang dari sebulan kalender
 harus menyebut definisi sesi ini, dan jawaban harus menyebut rentang tanggal jendela bila lebih panjang dari yang user
 sebut.
 
-## IHSG — Feature 2/3/5/6 market aggregation and Feature 4 index classification (inspection recorded 2026-10-24)
+## INDEX — next phase: propose daily update routing
 
-User decisions: aggregate all tickers by date; “leave as null ... feature 3: broker_concentration_hhi”;
-“untuk feature 4 kolom asset type buat jadi 'index'”. Latest instruction is to inspect every column's
-creation script and record it before implementation. **Inspection complete; implementation not started.**
+User approved and completed the separate INDEX historical bootstrap and stock+INDEX vocabulary on
+2026-10-25 ("Ok, jalankan"). Execution/results: EXEC.md, DATABASE_CHANGELOG.md,
+FEATURE_VOCABULARY.md, verification/ihsg_feature_aggregation/bulk/. The accepted 31-Aug sample,
+F05 INDEX five-column cleanup and historical load are complete; do not repeat their old initializer.
 
-Source-based report: [verification/ihsg_feature_aggregation/README.md](verification/ihsg_feature_aggregation/README.md).
-Full formula/NULL/history/change matrix: [COLUMN_INSPECTION.md](verification/ihsg_feature_aggregation/COLUMN_INSPECTION.md),
-plus CSV and revision/count manifest in the same directory. Covers all **221 columns** of Features 2–6.
+Next phase remains a **proposal**, not permission to enable daily jobs. Design the metadata-derived
+split for existing price-driven Feature01/04 workers and broker-driven Feature02/03/05/06 outputs,
+including queue/status/checkpoint/Telegram/retry and explicit AI-access dependencies. Preserve stocks
+and bonds, source NULL volume/frequency, current formulas and exact recent-correction behavior.
+Feature04 checkpoint fingerprints include asset_type; do not blindly rename equity state to index.
 
-Implementation must aggregate raw daily inputs before computing nonlinear/rolling outputs, preserve board,
-broker and investor-type grain, leave aggregate HHI NULL by policy, guard partial frequency across daily
-and rolling inputs, and preserve constituent source-gap flags. Index classification is universe-driven
-and requires SQL constraints/resolver/queue/state, loaders/engine, worker, Telegram retry/monitor and
-catalog/join/view changes. Existing checkpoints include asset_type in fingerprints: no blind key rename.
-F05/F06 stock-only AI views currently exclude index; existing F02/F03 scripts and staged F05/F06 job do
-not provide automatic aggregate refresh. Detailed impact, source-scope caveats and acceptance are in the report.
+Current INDEX histories: F01/F04 2018-01-02..2026-10-23; F02/F03/F05/F06 2016-01-04..2026-08-31.
+Broker aggregates retain all raw symbols/each board; not official historical IHSG constituents.
+Do not manufacture broker dates beyond source availability or repair old source gaps implicitly.
 
-No runtime code, migration, database, configuration or deployment change was made by this inspection.
-Recheck live schema/source coverage and deployment baseline at implementation preflight; this inspection
-uses the identified local Git snapshot and explicitly does not claim a new live database audit.
+Existing legacy workers can recreate IHSG rows in shared tables after new prices; no silent pause,
+queue deletion, new schedule or routing patch was authorized by the historical bootstrap. Current
+readback still has zero legacy IHSG rows. Propose the daily design and obtain the user's go before
+its implementation. The vocabulary is static release metadata and needs no daily cron or service.
+
+## EVENT-ANNOTATION — satu tabel anotasi corporate action + insider untuk EDGE (desain disetujui, belum "go")
+
+**Keputusan user, 2026-10-25 (kata user):** "bikin satu table yang isinya adalah kombinasi dari corporate action dan
+insider. Goal-nya adalah nanti di front end akan ada satu sumber source di mana setiap annotation akan refer ke satu
+table ini"; atas pertanyaan desain: "1: A" (satu baris per kejadian, tanggal lain di kolom), "2: Tidak pakai kalender
+ekonomi", "3. A" (dibaca front-end EDGE dulu, bukan AI), "4. B" (diperbarui terjadwal), dan "data origin perlu
+dilampirkan di dalam sumber".
+
+Usulan tabel `idx_event_annotation` (nama belum final): `event_key`, `event_family` (CORPORATE_ACTION, INSIDER),
+`event_type`, `event_subtype`, `ticker`, `instrument_code`, `annotation_date` + `annotation_date_role`, tanggal
+cum/ex/record/pay/start/end, angka bertipe numeric dengan satuan, kolom insider (`holder_*`, `broker_code`,
+`data_origin` IDX/KSEI, `is_estimated_price`), `source_payload` jsonb verbatim, `source_endpoint`, `source_fetched_at`,
+`ingestion_time`, `load_run_id`. Sumber: Stockbit `/corpaction/{type}?year=` (10 tipe, tanpa `economic` dan `ipo`)
+dan `/insider/company/majorholder`. Uji tarik 2026-10-25: 22.019 baris corporate action (termasuk 2.760 economic yang
+dikeluarkan), 103.788 baris insider unik, 964 ticker, 2017-10-12 s.d. 2026-10-23 (belum dimuat ke database).
+
+**Arahan user, 2026-10-25 (kata user):** "Kalau insider, kita harus menunjukkan atau show current percentage compared to previous percentage. Siapa yang beli, apa broker dan sebagainya. Tapi kalau corporate action seperti dividend, stock split, dan lain-lain, hanya cukup tunjukkan tanggalnya saja dan jenis corporate action. Detailnya nggak gitu penting." Usulan diringkas: corporate action hanya `event_type` + `annotation_date` (+ peran tanggal), detail tetap di `source_payload`; insider membawa `action`, `holder_*`, `broker_code`, saham dan persen sebelum/sesudah/perubahan, `pct_quality_flag`, harga, nilai, `data_origin`. Contoh 10 + 10 baris dikirim ke user dalam Excel (belum disetujui).
+
+**Keputusan user, 2026-10-25 (kata user):** "Kolom Excel sudah sesuai. Warna terstruktur ikut. Dilakukan di railway." (kolom usulan disetujui; waran terstruktur ikut; penarikan terjadwal berjalan di Railway).
+
+**Keputusan user, 2026-10-25 (kata user):** "Current % Change % Ini saja yang perlu ada" (`pct_before` dikeluarkan; persen insider = `pct_after` dan `pct_change` dari Stockbit). Cek 2026-10-25: keduanya tidak bisa dihitung dari kolom saham saja (saham beredar tidak ada di sumber), tetapi saling mengecek dalam satu baris: `pct_change` ≈ `pct_after` × `shares_change` ÷ `shares_after` cocok di 100.788 dari 101.495 baris yang bisa dicek (99,3%); `pct_quality_flag` diganti ke cek dalam baris ini (OK, ROUNDING, INCONSISTENT, NOT_CHECKABLE, INVALID_SENTINEL), sehingga batas 30 hari tidak diperlukan.
+
+**Arahan user, 2026-10-25 (kata user):** "update ini akan dilakukan secara daily atau secara ad hoc. Baca update data MD sudah ada di Git. Jadi nanti kamu kirim dulu scriptnya ... Yang tujuannya adalah untuk tarik data ... akan dapat dua kan, call action dan insider. Dari dua data ini nanti akan dibuatkan satu Excel yang seperti kamu kirim barusan. Propose ke saya nama tabelnya apa? Jadi total ada tiga table, right?" Usulan nama: `stockbit_corporate_action`, `stockbit_insider_transaction`, `idx_event_annotation` (menunggu konfirmasi). Pola mengikuti `UPDATE_TABLE.md`: tarik Stockbit dengan token di PC user, simpan di PostgreSQL Railway, tabel gabungan dihitung dari dua tabel sumber.
+
+**Arahan user, 2026-10-25 (kata user):** "Kenapa tidak scriptnya di [Railway] saja? Dan saya akan kasih bearer token yang bisa dirunning oleh agent untuk mengupdate ... datanya tidak diupdate setiap hari ... Just need to ensure ketika diupdate, maka akan continue from latest data point. Tidak duplicate, tidak missing value, atau tidak ada gap. Mungkin di updated MD bisa dipisah ya, per table. Dan dibuat section khusus untuk 3 table ini". Usulan: job ad hoc di Railway, token diberikan user per putaran dan dipasang sementara sebagai variabel lalu dihapus (pola `scripts/onboarding/run_job.sh`); setiap putaran menarik ulang seluruh sumber (±10 menit) dan merekonsiliasi dengan isi tabel; `UPDATE_TABLE.md` dipisah per kelompok tabel.
+
+**Keputusan user, 2026-10-25 (kata user):** "kalau misalkan saya tarik, maka datanya akan ditarik secara full"; "Untuk saat ini, tidak perlu bikin service baru. Tapi untuk source script dan lain-lain bisa ditaruh di Git"; "update [UPDATE_TABLE.md] juga boleh diupdate to let the AI and user know how the script works kemudian table tersebut sudah mulai diupload ke Postgres konfirmasi kalau masih ada yang ambigu". Service penarik Stockbit tersendiri dicatat di `FUTURE_PLAN.md` (STOCKBIT-PULLER).
+
+Pertanyaan terbuka:
+- Token di Railway: belum ada mekanisme pembaruan Stockbit JWT otomatis di repo (runner broker summary memakai token yang diganti manual, `apps/stockbit-broker-backfill/README.md`); JWT uji 2026-10-25 berlaku sekitar 1 hari.
+- 20 baris dengan angka rusak (D21): `pct_after`/`pct_change` dikosongkan; tidak bisa dihitung dari baris itu sendiri.
+- Kunci insider tanpa ID transaksi: aturan upsert saat refresh (D21).

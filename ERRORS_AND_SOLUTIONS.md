@@ -143,6 +143,18 @@ A new table (any asset class, any frequency) is ready for the AI only when every
     - The sandbox bundle holds at most 2,000,000 rows / 256 MB by default (`PY_SANDBOX_BUNDLE_MAX_ROWS`; 5,000,000 on dev since 2026-10-01, 10,000,000 since the same evening). The planner checks the total before extracting (G14), and a session refuses a pandas frame larger than its frame budget, so a large source must be reduced in DuckDB first (filter, aggregate by its entity and time columns).
 
     Size new sources so ordinary questions fit. (G01)
+25. **Disk cost before a derived table is stored** (user go 2026-10-25, EXEC-GO-1025 item 4, FUTURE_PLAN U3; ERRORS M215
+    "Biaya"). Before creating a derived table, estimate its rows × row width and its index size from the source
+    (`pg_relation_size` of the source and a sample), and record the estimate in the migration header. When the values
+    can be computed when read (a view over the source, as `Feature_05_…_Stock` and `Feature_06_…_Stock`), use a view; store
+    the table only when a measured query pattern (item 24) needs it, and say which. The Postgres volume grew 27.8 → 56.5
+    GB in a month mostly from four copies of broker data, and the volume is billed by size.
+26. **No meaning only in a hidden payload.** A table exposed to the AI carries, as typed and catalogued columns, every
+    attribute that answers a user question about a row (an amount, a ratio, each dated role such as cum, ex, record and
+    pay date). A raw payload may stay as a hidden column for audit, never as the only home of such an attribute. (M223)
+27. **Scheduled rows are declared.** A table whose time column holds future dates (announced corporate actions,
+    maturities, release calendars) says so in `AI_table_catalog` and its catalog row, and freshness is measured from the
+    last date at or before today, or from the load time, not from the largest date. (M224)
 
 ---
 
@@ -172,6 +184,7 @@ A new table (any asset class, any frequency) is ready for the AI only when every
 | D18 | 2026-09-23 | AI catalog lacks calculation expressions; `example_value` NULL; all columns `ai_allowed=true` and `is_sensitive=false` | Seeded by copying from the legacy catalog | Known gaps, reported | OPEN | Decide the flags per column (A4.16) |
 | D19 | 2026-09-12 | First Feature 01 migration failed | A renamed CTE alias; PostgreSQL rolled the whole transaction back | Alias corrected, absence of partial objects verified, re-applied | FIXED | Migrations run in one transaction and are rehearsed on a scratch database |
 | D20 | 2026-10-11 | Fixed-income prices had separate daily/recovery crons and monitoring rows, but no Feature04 enqueue or Telegram tracking path | Feature04 and telegram-monitor recognized only the IDX price source; the fixed-income updater source was deployed separately and is not present in this repository | Universe-classified database triggers enqueue only fixed-income `price/1D` tickers and translate each committed `Monitoring_Fixed_Income` row into a source-specific price event plus gated Feature04 run. Existing worker/monitor/trigger services were extended; cron services and schedules stay independent. Rollback trigger tests, 24-ticker backfill, and live Telegram completion passed | FIXED | A new source with its own scheduler needs a committed monitoring-to-feature bridge and source-specific notification acknowledgement; do not couple it through a hardcoded ticker list |
+| D21 | 2026-10-25 | Stockbit insider (`/insider/company/majorholder`, pulled 2026-10-25, not loaded): 38 percentage values are `±922337203685477.62`; 475 rows show previous % `0.00` although previous shares > 0 (e.g. ABBA 2020-02-25, 1,592,831,618 shares); 2.8% of previous/current % do not match shares ÷ shares outstanding; change % differs from current % − previous % in 22% of rows; the API `id` repeats across rows | Verified by recomputation (shares outstanding derived per ticker and date from holders ≥5%): 93.1% of 209,438 values match exactly and 3.3% within one last digit. The sentinel is an int64 overflow (division by a missing share base). Previous % uses the share base of the previous report: after a rights issue or placement it differs (546 of 1,278 previous-only mismatches match an earlier base, e.g. ACST 2020-09-07 86.13% → 73.11% with no change in shares). Change % is change shares ÷ current base (97% match), not the difference of the rounded percentages (78%), except when the base changed. `id` is the holder id, not a transaction id (153 rows stay identical on every transaction field). Shares: current − previous = change in 104,738 of 104,738 rows | Planned for `idx_event_annotation` (PLAN.md, EVENT-ANNOTATION): sentinel and placeholder 0 stored as NULL with a reason; a percentage-quality flag per row; key = transaction fields + sequence number | OPEN | A percentage needs its denominator: declare which base (previous or current report) each percentage uses and validate it by recomputation on the full history, not a sample; a source `id` is not a row key until its uniqueness is measured (A1.1, A1.4, A3.15a) |
 
 ### B2. Catalog and metadata (C)
 
@@ -1472,6 +1485,21 @@ change yet.
   - TEMPORARY: membaca teks `lookback_window`, sampai langkah 1 (`window_basis` terstruktur). Tidak tertutup: kolom
     yang teksnya tanpa angka.
   - Langkah 1, 2 dan 5 belum dijalankan.
+- **Status 2026-10-25: FIXED** (EXEC-GO-1025 butir 6, langkah 1, 2, 5).
+  - Langkah 1: migrasi `20261025_016` (DRYRUN `fe48c32d`, APPLY `7f50a7aa`): `parameters.window_basis`
+    `ENTITY_SESSIONS` dan `window_length` pada 272 kalkulasi aktif F01/F02/F04/F06 dan tabel INDEX-nya, diturunkan dari
+    `lookback_window`. Dasarnya dibaca dari kode: F01 `ROWS BETWEEN … PARTITION BY ticker` (`20260912_001`:217-223), F04
+    bar valid ticker (`features/feature04/engine.py` `_segments`), INDEX meng-clone writer yang sama
+    (`scripts/backfill_index_features.py`:112-155). COLUMNS menampilkan `window {length, basis}` dan `window_note`
+    (`app/tools/catalog.py` `COLUMNS_V2_SQL`, `_window`); baris `WINDOW_BASIS_LINE` membaca field terstruktur, jadi
+    TEMPORARY di atas hilang.
+  - Langkah 2: `STORED_FEATURE_SENTENCE` umum (jumlah/hitungan berjendela, z-score, persentil) dengan contoh benar dan
+    salah; aturan cepat (8) menyebut aliran dan hitungan; snapshot `v020`. Commit `77cfc49`, orc `ee15977b` SUCCESS.
+  - Langkah 5 (live, ±USD 0,05): BBCA dan TGUK "20 hari terakhir" dijawab `query_metric` (20 tanggal bursa,
+    `governor.py`:1151-1165, rentang tanggal disebut); angka = SQL (job `4b0b2ff4`). ADHI z-score 20 sesi dijawab dari
+    `foreign_net_20d` dan `foreign_net_zscore_20d_base252d`, baris asumsi muncul, angka = SQL (job `8b13c7c2`).
+  - Tidak tertutup: jendela kumulatif tanpa angka ("all sessions") tidak mendapat `window_length`; data baru wajib
+    mengisi kedua field (NEW_TABLE_ONBOARDING_PLAN.md).
 - **Lesson:** aturan "baca, jangan hitung ulang" harus diturunkan dari katalog (`stored_in`), bukan dari daftar jenis
   kolom.
 
@@ -1489,6 +1517,11 @@ change yet.
   ke service itu. Aturan ditulis di `scripts/onboarding/run_job.sh` dan NEW_TABLE_ONBOARDING_PLAN bagian 5. Tidak ada
   pengecekan otomatis.
 - **Lesson:** satu service one-off, satu pekerjaan pada satu waktu.
+- **Terulang 2026-10-25 (antar sesi):** job regenerasi skema `b9950dba` (19:04:00 UTC) digantikan 14 detik kemudian
+  oleh `d7df1139`, job migrasi `quota_override_edge_owner.sql` dari sesi lain. Kunci `flock` sesi ini hanya melindungi
+  job dari sesi yang sama. Tidak ada data yang rusak: job saya belum menulis apa pun, job sesi lain selesai
+  (`JOB_DONE MIGRATION APPLY`), dan `DATABASE_URL` sudah terhapus. Job diulang sesudah runner kosong. Usulan otomatis di
+  atas (menolak bila deploy terakhir masih aktif) kini juga melindungi antar sesi; masih perlu keputusan user.
 
 ### M211 — Baris "AI request running" di kotak pesan tidak rata tengah vertikal (2026-10-24)
 
@@ -1545,9 +1578,9 @@ change yet.
   Branch, side chat, reload).
 - **Status:** FIXED (deploy edge-bff, lihat RAILWAY_CHANGELOG 2026-10-24).
 
-### M217 — Rehearsal (DRYRUN) migrasi ter-commit karena contoh rollback di komentar (2026-10-25)
+### M225 — Rehearsal (DRYRUN) migrasi ter-commit karena contoh rollback di komentar (2026-10-25)
 
-- **Symptom:** EXEC-TERMINAL-API, job DRYRUN `345802f7` untuk `20261025_001_create_terminal_schema.sql`: log
+- **Symptom:** EXEC-TERMINAL-API, job DRYRUN `345802f7` untuk `20261025_001_create_terminal_schema.sql` (sekarang `20261025_100_…`): log
   `MIG DRYRUN_BODY_OK`, lalu `SAVEPOINT can only be used in transaction blocks`; restart berikutnya gagal di preflight
   "terminal schema/roles exist".
 - **Verified cause:** `scripts/onboarding/migration_job.py` (DRYRUN) mencari `COMMIT;` dengan `rfind` pada teks mentah.
@@ -1560,11 +1593,11 @@ change yet.
 - **Solution:** job DRYRUN sekarang mencari `BEGIN;` dan `COMMIT;` hanya sebagai baris pernyataan (bukan komentar),
   menolak file yang punya lebih dari satu, dan menolak teks selain komentar sesudah `COMMIT;`. Dicek pada 159 migrasi
   repo: 157 lolos, 2 ditolak seperti sebelumnya (indeks `CONCURRENTLY` tanpa transaksi, `20261023_001`/`002`).
-  File `20261025_001` tidak diubah (sudah diterapkan; sha256 `1843a24f…`).
+  File `20261025_001` (sekarang `20261025_100`) tidak diubah (sudah diterapkan; sha256 `1843a24f…`).
 - **Status:** FIXED (job), migrasi terminal diterapkan dan diverifikasi live.
 - **Lesson:** rehearsal yang bisa commit lebih berbahaya daripada tanpa rehearsal; parser harus mengabaikan komentar.
 
-### M218 — Job `verify` terminal-publisher berulang sendiri setelah selesai (2026-10-25)
+### M226 — Job `verify` terminal-publisher berulang sendiri setelah selesai (2026-10-25)
 
 - **Symptom:** EXEC-TERMINAL-API, deployment `bb3a6397` (mode `verify`): `event="verify_done" files=9173 mismatches=297`
   pukul 10:36 UTC, lalu baris `verify_mismatch` muncul lagi mulai 10:5x UTC — job berjalan ulang dan membaca database
@@ -1583,7 +1616,288 @@ change yet.
 - **Lesson:** service job harus restart NEVER sejak dibuat; `verify` yang gagal adalah laporan, bukan alasan mengulang.
 - **Lesson:** tes antarmuka masuk dari setiap path yang dilayani, bukan hanya satu.
 
-### M219 — Job orc-test-runner menggantikan job sesi lain yang belum selesai (2026-10-25)
+### M215 — Network egress/ingress market-sql-governor naik terus walau tidak ada pemakaian (2026-10-24)
+
+- **Symptom:** user 2026-10-24: "Network egress terus naik". `railway metrics --network --raw` (dev, 30 hari):
+  market-sql-governor TX 6,5 GB / RX 15,8 GB; per jam stabil ±4,9 MB TX dan ±41 MB RX, juga di jam tanpa run EDGE
+  (2026-10-23 18:00 s.d. 2026-10-24 21:00 UTC).
+- **Verified cause:** semua koneksi database dan antar-layanan memakai `*.railway.internal` (nama variabel dibaca,
+  nilai tidak dicetak); yang lewat jaringan publik hanya bucket `t3.storageapi.dev`, OpenRouter dan browser. Janitor
+  Governor (`apps/market-sql-governor/app/janitor.py` `cleanup_expired`, tiap `SQL_DATASET_CLEANUP_INTERVAL_SECONDS`
+  = 3600, default `app/config.py:134`) me-list seluruh `datasets/` lalu mengunduh **setiap** `manifest.json` untuk
+  membaca `expires_at`. Manifest tetap sebagai tombstone 720 jam sesudah data dihapus
+  (`SQL_DATASET_TOMBSTONE_RETENTION_HOURS`, `app/config.py:145`), jadi jumlahnya hanya bertambah. Bucket dibaca
+  read-only 2026-10-24: 3.692 manifest (34,4 MB, rata-rata 9,3 KB; 3.115 tombstone) dan 577 parquet (194,8 MB).
+  34,4 MB + overhead TLS ≈ 41 MB RX per putaran; 3.692 GET × ±1,3 KB ≈ 4,9 MB TX. Log
+  `sql_governor_dataset_cleanup datasets_seen=3692` tiap ±67 menit.
+- **Class:** loop pemeliharaan yang biayanya sebanding dengan semua objek yang pernah disimpan (termasuk tombstone),
+  bukan dengan pekerjaan yang ada, dan membaca isi objek lewat endpoint publik. Lalu lintas lain di 30 hari bersifat
+  sesaat: Postgres TX 8,3 GB pada 2026-10-11 (backfill Feature04), unggah dataset dan arsip audit saat golden test
+  (Governor 1,76 GB pada 2026-10-01), orc ke OpenRouter (±100 MB/hari sebelum 2026-10-10).
+- **Solution:** belum (usulan menunggu keputusan user): manifest bersifat immutable (`put_immutable`), jadi janitor
+  cukup menyimpan `expires_at` per dataset di memori dan hanya mengunduh manifest baru; satu putaran penuh sesudah
+  restart.
+- **Status:** OPEN (diagnosis saja; tidak ada perubahan kode atau konfigurasi).
+- **Status 2026-10-25: FIXED** (usulan A, EXEC-GO-1025 butir 3): `apps/market-sql-governor/app/janitor.py` menyimpan
+  `expires_at` manifest yang terbaca di `DatasetJanitor.expires_cache`; hanya manifest baru yang diunduh; entri hilang
+  saat manifest dihapus atau tidak terdaftar lagi; log menambah `manifests_fetched`. Tes `tests/test_janitor.py` (3 baru,
+  termasuk dataset baru sesudah pass pertama dan restart). Commit `ba811e3`, Governor `14c44e51` SUCCESS. Pass pertama
+  sesudah restart: `datasets_seen=3695 manifests_fetched=3695` (18:44 UTC, sesuai rancangan); pass kedua 19:44 UTC:
+  `datasets_seen=3699 manifests_fetched=4` (hanya empat dataset baru dari uji live). Unduhan per putaran turun dari
+  ±34 MB ke beberapa KB; lalu lintas LIST tetap ada.
+- **Lesson:** setiap loop latar ditinjau dari biaya per putaran terhadap jumlah objek yang terus tumbuh.
+- **Biaya (user 2026-10-24: "yang jadi masalah adalah biaya railway yang terus membengkak"):** tagihan tidak bisa
+  dibaca (token proyek; `railway usage` Unauthorized). Perkiraan dari `railway metrics --raw` 30 hari × harga
+  docs.railway.com (RAM $10/GB-bulan, CPU $20/vCPU-bulan, volume $0,15/GB-bulan, egress $0,05/GB): ±USD 34,7, yaitu
+  RAM ±USD 27 (Postgres 11,8; sandbox 6,3; Governor 1,7; orc 1,4; web-governor 1,1; lainnya <1), volume Postgres 5,1,
+  CPU ±0,9, egress ±1. Pendorong yang tumbuh: (1) volume Postgres 27,8 → 56,5 GB (job `618899ca`, read-only: database
+  53,8 GB; data broker ±47 GB dalam empat bentuk: `Feature_02_Broker_Rolling` 15,7, `IDX_Broker_Summary` 10,5,
+  `idx_broker_summary_freq_*` ±11, `Feature_05_Foreign_Domestic_Broker_Detail` 10,1); (2) memori Postgres 0,3 GB saat
+  diam, naik ke 2–4 GB rata-rata harian pada hari job data (2026-10-01/02, 10-20/21/22), dengan `shared_buffers`
+  128 MB (diduga cache halaman OS dihitung sebagai memori kontainer; belum diverifikasi); (3) sandbox ±0,7 GB saat
+  diam tanpa sesi (penyebab belum diverifikasi).
+- **`IDX_Broker_Summary_Freq` (user 2026-10-25: "cek ini dipakai gak ya?"), job read-only `run_job.sh` 2026-10-25:**
+  tabel partisi (RANGE `trade_date`, 12 partisi tahunan, 9,93 GB), data 2016-01-04 s.d. 2026-10-09. Ditulis
+  2026-10-12 s.d. 10-15 (role `postgres`), terakhir dibaca 2026-10-22 (backfill `sync_broker_summary_freq`,
+  `apps/feature-05-06-job/job.py`); sesudah itu tidak ada scan. Tidak ada view, FK, baris Table_Catalog/Column_Catalog,
+  atau grant untuk Governor/orc (hanya `postgres` dan `pgweb_reader`). Satu-satunya pemakai: fungsi
+  `sync_broker_summary_freq` (migrasi `20261022_001`), yang **mengosongkan** `buy_freq`/`sell_freq` untuk kunci
+  tanpa baris Freq; tanggal 2026-09-01 s.d. 10-09 di Freq belum tersalin karena `IDX_Broker_Summary` baru sampai
+  2026-08-31. User 2026-10-25: "Hapus saja" → dikosongkan (TRUNCATE, struktur tetap) dan sync dijaga, migrasi
+  `20261025_004` (APPLY job `aaec0df4`, database 53,82 → 43,93 GB). Lalu user 2026-10-25 "Jika tidak dipakai, dihapus
+  saja": Freq dan `IDX_Net_Foreign_Summary` (tidak dipakai objek atau kode mana pun) di-DROP beserta fungsi sync,
+  migrasi `20261025_007` (database 43,94 → 43,40 GB). Janitor Governor (usulan A) dan U1–U5 masih menunggu keputusan.
+
+### M216 — Join "per tanggal saja" (saham ↔ IHSG) tidak bisa didaftarkan: kontrak join wajib punya kunci entitas (2026-10-25)
+
+- **Symptom:** user 2026-10-25 memilih join "Sesama INDEX + ke saham per tanggal" untuk tabel `_INDEX` (EXEC-INDEX-1).
+  Join saham ke IHSG tidak punya kolom entitas yang sama (BBCA lawan IHSG); yang sama hanya tanggalnya.
+- **Verified cause (code):**
+  - Governor `apps/market-sql-governor/app/extract.py`: `Restriction.pairs` selalu memberi minimal satu pasangan.
+    `_restriction_sql` menyusun `key` dari pasangan itu; tanpa pasangan SQL-nya menjadi `WHERE  AND ...`.
+  - orc `apps/market-ai-orc/app/tools/data_need.py`: `Relationship.left_column` dan `right_column` wajib.
+  - Sandbox `apps/market-python-sandbox/app/data_need.py` `entity_key_pairs` dan `runtime/saniti_session.py`
+    `_keys` menganggap ada kunci entitas.
+- **Class:** setiap join antar-entitas yang hanya bertemu di waktu tidak bisa dinyatakan di katalog: benchmark atau
+  indeks lawan saham, makro (BI-Rate, kurs) lawan saham, komoditas lawan emiten. Ini juga berlaku untuk data
+  cross-asset dan makro yang direncanakan.
+- **Solution (sementara):** tidak didaftarkan. AI meminta dua kebutuhan data terpisah (saham dan IHSG) lalu
+  menyejajarkannya per tanggal di analisis. Usulan permanen: semantik join baru tanpa kunci entitas
+  (`EXACT_DATE` atau `AS_OF` pada kolom waktu saja, satu baris kanan per tanggal yang dijamin oleh grain katalog)
+  di Governor, orc dan sandbox; menunggu keputusan user.
+- **Status:** FIXED 2026-10-25 (EXEC-M216, user "Oke, kita go dengan eksekusi B."):
+  - kode `cbdeb0c`, deploy SUCCESS: Governor `c9ca1da1`, sandbox `8f1d3d53`, orc `c70666b7`;
+  - kontrak sambungan sekarang menerima daftar kunci kosong (EXACT_DATE/AS_OF). Sisi "satu" yang entitasnya tidak
+    dipasangkan wajib menyebut satu seri (`ONE_SIDE_NOT_UNIQUE`, aturan diturunkan dari `primary_key_columns`
+    katalog);
+  - migrasi `20261025_009` (Tool_Catalog ronde ae) dan `20261025_010` (enam sambungan saham → INDEX, CHECK baru)
+    di-APPLY (job `58657e12`) dan dibaca ulang;
+  - cek end-to-end tanpa model (job `e7f24086`, `verification/m216_date_only_join/`): data need tanpa ticker IHSG
+    ditolak; BBCA/BBRI pada hari IHSG turun > 1 % 96 baris = SQL independen; sambungan lewat papan F06 149 = 149;
+  - tes: Governor 302, sandbox 901, orc 2025 lolos;
+  - 59 sambungan lama tidak terkena aturan baru (dicek live).
+- **Lesson:** periksa kontrak join sebelum menjanjikan relasi untuk sumber data dengan sistem kode entitas berbeda
+  (Part A A1.2, A4.17). Tabel seri baru (indeks, makro, komoditas) wajib punya kolom seri di kunci utama
+  `AI_table_catalog`; sambungannya ke saham dicatat tanpa pasangan entitas, dan aturan sisi "satu" berlaku otomatis.
+
+### M217 — Loader Stockbit di Git tidak menulis frekuensi; loader yang memuat 2026-09-01…10-23 tidak ada di Git (2026-10-25)
+
+- **Symptom:** saat menyusun `UPDATE_TABLE.md` (permintaan user 2026-10-25), sumber `IDX_Broker_Summary`
+  2026-09-01…10-23 punya `buy_freq`/`sell_freq` di 100 % baris tetapi tanpa baris `stockbit_broker_summary_load_log`.
+- **Verified cause (code):** `apps/stockbit-broker-backfill/stockbit_marketwide_broker_activity.py`
+  `CANONICAL_KEYS` (baris 42-46) tidak memuat frekuensi, dan `replace_date` (526) menghapus seluruh tanggal lalu menulis
+  hanya kolom itu, plus baris log `COMPLETED`. Tidak ada branch remote yang memuat loader berfrekuensi (`git grep`).
+  Jadi tanggal baru dimuat oleh program di luar Git.
+- **Class:** sumber data yang dimuat oleh kode di luar repo. Isi dan bentuknya tidak bisa diperiksa, diulang, atau
+  dilindungi. Ini berlaku untuk setiap loader lokal (Stockbit, dan sumber cross-asset/makro yang direncanakan).
+- **Risiko:** menjalankan loader Git pada tanggal yang sudah ada akan menghapus frekuensinya. Staging
+  `IDX_Broker_Summary_Freq` sudah dihapus (`20261025_007`), jadi frekuensi F05/F06 tanggal itu menjadi kosong tanpa
+  cadangan.
+- **Solution (usulan, perlu go):** loader yang dipakai user masuk ke `apps/stockbit-broker-backfill/`, menulis
+  frekuensi dan baris log. Rencana lengkap (loader di Git, penjaga di database, log wajib): EXEC.md EXEC-LOADER-M217,
+  dicatat 2026-10-25 tanpa eksekusi. Sampai itu terjadi, `UPDATE_TABLE.md` bagian 2 melarang memakai loader Git untuk tanggal
+  yang sudah berfrekuensi.
+- **Status:** OPEN.
+- **Status 2026-10-25: sebagian FIXED.** Loader importir user kini di Git sebagai service `stockbit-updater`
+  (`apps/stockbit-updater/broker_import.py`): menulis `buy_freq`/`sell_freq` (baris 41, 161-178; frekuensi pecahan
+  menghentikan run), log per tanggal di `stockbit_full_broker_import_status` dan per putaran di
+  `Monitoring_Stockbit_Update`. VERIFY `70aa6c1b` (2026-10-23: 23.711 baris diambil = tersimpan, 0 beda) dan APPLY
+  `a02b83df` SUCCESS. Sisa: loader lama `apps/stockbit-broker-backfill/` tetap tanpa frekuensi (larangan bagian 2 tetap)
+  dan penjaga di database (EXEC-LOADER-M217) belum dibangun.
+- **Lesson:** loader setiap sumber baru harus ada di Git dan menulis log muat per tanggal sebelum datanya dipakai
+  Feature (Part A).
+
+### M218 — Sejak 2026-09-01 `IDX_Broker_Summary` hanya memuat simbol 4 huruf (2026-10-25)
+
+- **Symptom:** sub-agent verifikasi Feature (job C2 `b5f8bdb7`, D3 `a5ed8546`, read-only) menemukan:
+  - 2026-08-31: 1.320 simbol, 1.717 baris non-4-huruf (waran, right, R-LQ45X);
+  - 2026-09-01: 867 simbol; 0 baris non-4-huruf di 8 tanggal uji 2026-09-01…10-23.
+- **Verified effects:**
+  - F05/F06 untuk waran, right dan R-LQ45X berhenti di 2026-08-31;
+  - agregat INDEX broker ("semua simbol sumber") berganti komposisi sejak 2026-09-01, jadi deret alirannya tidak
+    sebanding sebelum dan sesudah tanggal itu;
+  - kolom frekuensi turunan F06_INDEX Regular, yang NULL di semua baris sampai 08-31 (simbol tanpa frekuensi),
+    mulai terisi sejak 09-01.
+- **Suspected cause (not verified):** loader yang memuat 2026-09-01…10-23 (M217, di luar Git) membatasi daftar
+  simbol ke saham. Cek yang mengonfirmasi: konfigurasi atau daftar simbol loader itu.
+- **Class:** perubahan cakupan sumber di tengah deret, tanpa catatan; mengenai setiap Feature dan agregat pasar yang
+  dibangun dari sumber yang sama.
+- **Solution:** belum ada; perlu keputusan user (muat ulang simbol non-saham untuk 09-01…, atau catat batas cakupan
+  di katalog dan Feature_Vocabulary INDEX).
+- **Status:** OPEN.
+- **Lesson:** loader harus mencatat cakupan simbol per tanggal di log muatnya (M217 L3), supaya perubahan cakupan
+  terlihat sebelum Feature dihitung.
+
+### M219 — Baris IHSG tertulis lagi di tabel saham `Feature_01_Stock_Daily` (2026-10-25)
+
+- **Symptom:** satu baris IHSG 2026-10-23 (volume NULL) di `Feature_01_Stock_Daily`, ditulis feature-01-worker
+  (`Feature_Calculation_Log` id 43574, 2026-10-25 10:05 UTC) setelah re-ingest harga 10:02 (sub-agent job B
+  `9bcab66c` / A `41e5bc3a`). `Feature_04_Technical_Indicator` tidak punya baris IHSG.
+- **Verified cause:** catatan terbuka "INDEX initialization final status (2026-10-24)": worker harga lama membuat
+  ulang baris indeks di tabel bersama setelah harga baru masuk, karena routing INDEX harian belum dibangun.
+- **Class:** worker turunan yang tidak membedakan jenis efek; berlaku untuk setiap indeks atau seri yang masuk ke tabel
+  harga saham.
+- **Cakupan lebih luas (dicek 2026-10-25):** `feature04_asset_type()` menggolongkan IHSG sebagai `equity`, sehingga
+  antrean F04 juga memuat IHSG (FAILED `REPAIR_REQUIRED`, 51 status kolom FAILED). Tabel saham F04 belum punya baris
+  IHSG hanya karena job itu gagal.
+- **Solution (EXEC-M219, user "Fix M219", 2026-10-25):** migrasi `20261025_011`:
+  - `is_universe_index()` diturunkan dari universe;
+  - `enqueue_feature_01_price_row` dan `enqueue_feature04_group` (semua jalur antrean F04) melewatkan indeks;
+  - penjaga `stock_feature_index_guard` di `Feature_01_Stock_Daily` dan `Feature_04_Technical_Indicator`;
+  - baris IHSG dan antrean/status terbuka dihapus. Entri antrean F01 yang DONE tetap ada sebagai riwayat
+    (`Feature_Calculation_Log_queue_fkey`).
+  - `refresh_feature_01_stock_daily` tidak diubah, karena bootstrap INDEX menyalinnya untuk menghitung IHSG.
+- **Verifikasi:**
+  - DRYRUN `831eb843` dan `c6800486` (rollback): harga IHSG yang dimuat ulang tidak masuk antrean, BBCA tetap masuk,
+    dan insert IHSG ke F01 saham ditolak;
+  - APPLY `6c467349`, dibaca ulang: 0 baris indeks di F01/F04 saham dan antrean terbuka; tabel `_INDEX` utuh
+    (2.125/2.125).
+- **Status:** FIXED. Pembaruan harian tabel `_INDEX` tetap item terbuka (routing INDEX harian).
+
+### M220 — Feature_Vocabulary dan katalog menyalin teks Feature yang salah atau basi (2026-10-25)
+
+- **Symptom:** laporan verifikasi Feature_Vocabulary: 65 koreksi teks (6 sedang, 59 ringan). Feature 05 masih menyebut
+  tabel staging `IDX_Broker_Summary_Freq` dan sync-nya yang sudah dihapus (`20261025_007`). Kolom persentil F06
+  bersatuan "percent", dan aturan NULL frekuensi F06 saham tidak sesuai dengan kodenya.
+- **Verified cause:** teksnya salah di pemiliknya, `Feature_Catalog`. Builder seed dan migrasi onboarding menyalinnya
+  ke Column_Catalog, AI_column_catalog, AI_calculation_catalog dan Feature_Vocabulary. Bukti kode: `refresh_feature_05`
+  membaca `buy_freq`/`sell_freq` dari `IDX_Broker_Summary`; `refresh_feature_06` memakai SUM yang melewati NULL
+  (`20261022_005`).
+- **Class:** teks turunan yang disalin dari satu pemilik ke beberapa katalog. Koreksi di salah satu salinan saja tidak
+  menyebar, dan perubahan tabel sumber (staging dihapus) tidak memperbarui teksnya.
+- **Solution:** migrasi `20261025_012`:
+  - 63 koreksi di Feature_Catalog (teks lama dicek dulu);
+  - setiap salinan yang masih memuat teks lama ikut diperbarui, dicari menurut kunci, bukan daftar;
+  - `refresh_trigger` F05 dan `Table_Catalog.update_rule` menyebut load Broker Summary;
+  - builder seed: label "Persentil 0–100" dan arti frekuensi F06 saham;
+  - seed dibangun ulang dan disinkronkan dalam transaksi yang sama.
+- **Verifikasi:** DRYRUN `f5eb55f2`, APPLY `c1f2bde9`: 67 dari 391 entri vocabulary berubah, rerun 0, tidak ada teks
+  lama tersisa. Tes `scripts/tests/test_feature_vocabulary.py` 18 lulus.
+- **Status:** FIXED. `Database_Table_Status` dan DATABASE_SCHEMA.md disegarkan 2026-10-25 (M222).
+- **Lesson:** teks diperbaiki di pemiliknya, lalu salinannya diturunkan dari kunci dan teks lama.
+
+### M221 — Audit Feature catalog gagal untuk view `_Stock` (sejak 2026-10-23)
+
+- **Symptom:** `scripts/audit_feature_catalog_semantics.py` keluar rc=1 (job APPLY `c1f2bde9`): kolom
+  `Feature_05_…_Stock` dan `Feature_06_…_Stock` "without active definitions".
+- **Verified cause:** `20261023_004` mendaftarkan kedua view dengan kategori `Feature` di Table_Catalog. Definisinya
+  ada di tabel dasar, sedangkan audit hanya mencari baris Feature_Catalog dengan nama view itu sendiri. Bukan akibat
+  `20261025_012`.
+- **Class:** setiap view yang membuka tabel Feature.
+- **Solution:** audit menganggap kolom view tercakup bila kolom tabel dasar bernama sama yang dibaca view itu
+  (`information_schema.view_column_usage`) punya definisi aktif.
+- **Status:** FIXED (2026-10-25). Dua job audit pertama (`93b6feee`, `7e26af13`) gagal di build Railway
+  (`buildkitd.sock` tidak tersedia) sebelum job berjalan. Job ulang `2c0132bb`: audit PASS (505 aktif, 505
+  CALCULATION_VERIFIED, 0 tidak lengkap, 12 tabel Feature dengan cakupan fisik tepat). Query lama masih melewatkan 14
+  kolom F05 `_Stock` dan 86 kolom F06 `_Stock`; semuanya tercakup lewat kolom tabel dasarnya.
+
+### M222 — `Database_Table_Status` basi: 26 baris tabel terhapus, 10 tabel tanpa baris, 19 "Unclassified" (2026-10-25)
+
+- **Symptom:** dibaca live (job `inspect`, read-only):
+  - 95 baris untuk 79 tabel;
+  - baris untuk `IDX_Broker_Summary_Freq`, `IDX_Net_Foreign_Summary` dan 24 partisinya (sudah dihapus);
+  - tanpa baris: F05, F06, enam tabel `_INDEX`, Feature_Vocabulary;
+  - 19 tabel `Unclassified / Unknown`;
+  - tanggal terbaru F02/F03/`IDX_Broker_Summary` 2026-08-31, padahal datanya sampai 2026-10-23.
+- **Verified cause (kode):** `scripts/sync_database_schema.py` mengambil kategori dan pola update dari daftar di skrip
+  (`TABLE_STATUS_RULES`), dan tanggal terbaru hanya untuk tabel yang namanya ada di kode. Tabel baru jatuh ke
+  "Unclassified / Unknown". Skrip juga tidak lagi dijalankan otomatis (R33).
+- **Class:** metadata yang diketik ulang di skrip, bukan dibaca dari pemiliknya (Table_Catalog). Setiap tabel atau sumber
+  baru, termasuk data cross-asset dan makro nanti, akan kena.
+- **Solution:**
+  - kategori, aturan update dan `observation_date_column` diambil dari Table_Catalog; daftar di skrip hanya cadangan
+    untuk tabel yang tidak terdaftar (katalog itu sendiri);
+  - tanggal terbaru dibaca hanya lewat indeks yang diawali kolom tanggalnya (satu probe indeks), selain itu dibiarkan
+    kosong, tidak memindai tabel.
+  - Tes `scripts/tests/test_sync_database_schema_status.py`.
+- **Verifikasi:** DRYRUN `9c0a7d8b` (rollback, 38,7 detik, tanpa trigger baru), APPLY `88a5a7a2`, baca ulang `1eb87b20`:
+  79 baris untuk 79 tabel, 0 basi, 0 hilang; tanggal terbaru 2026-10-23 untuk sumber broker, harga dan F01–F06.
+  `DATABASE_SCHEMA.md` dibuat ulang dari live.
+- **Status 2026-10-25:** sisa di bawah selesai: `stockbit_full_broker_import_status` lewat `20261025_014`, dua tabel
+  lainnya lewat `20261025_017` (DRYRUN `5e67671c`, APPLY `5db91e4b`); sesudahnya hanya tiga tabel katalog sendiri
+  tanpa baris Table_Catalog (pengecualian AGENTS). Makna kolom yang hanya terbaca dari nama dibiarkan NULL dengan
+  `NEEDS_REVIEW` (penulisnya di luar Git).
+- **Status:** FIXED. Sisa: `idx_stockbit_backfill_status`, `idx_stockbit_value_corrections` dan
+  `stockbit_full_broker_import_status` tidak punya baris Table_Catalog, jadi masih "Unclassified" (pendaftaran perlu go).
+  Refresh otomatis tetap menunggu R33.
+- **Lesson:** dokumen status dibaca dari katalog pemilik; tabel baru wajib punya baris Table_Catalog.
+
+### M223 — `idx_event_annotation` tidak memuat syarat aksi korporasi (nominal dividen, cum/record/pay date, rasio) (2026-10-25)
+
+- **Symptom:** L3 onboarding `edge_04f42c64` ("Kapan BBCA terakhir membagikan dividen tunai, berapa per sahamnya, dan
+  kapan cum date-nya?"): AI menyebut ex date 2026-08-31 dengan benar, menghitung cum date dari kalender harga, dan
+  menyatakan nominal per saham tidak tersimpan.
+- **Verified cause** (job `39363dfd`, `pg_get_functiondef`): `refresh_idx_event_annotation()` menyalin satu
+  `annotation_date` per aksi plus `source_payload` (kolom tersembunyi dari AI). Tabel sumber `stockbit_corporate_action`
+  punya `cum_date`, `ex_date`, `record_date`, `pay_date`, `start_date`, `end_date` dan payload berisi syaratnya: dividen
+  BBCA `dividend:118073` Rp 25 (`dividend_value`, `dividend_currency`), cum 2026-08-28, record 2026-09-01, bayar
+  2026-09-16. Split/bonus/rights/tender/warrant punya rasio dan harga di payload (`stocksplit_old/new`,
+  `rightissue_price`, `wrant_exc_price`, dst.).
+- **Class:** tabel anotasi yang dibuka ke AI adalah proyeksi yang membuang atribut khusus jenis event. Setiap pertanyaan
+  tentang syarat aksi korporasi (nominal dividen, yield dividen, rasio split, harga rights/warrant/tender, tanggal
+  bayar) terkena; sama untuk sumber event lain nanti (kalender makro: nilai aktual/konsensus; IPO: harga dan jadwal).
+- **Solution (usulan, perlu go user; lapisan data):** kolom bertipe di `idx_event_annotation`: `cum_date`, `ex_date`,
+  `record_date`, `pay_date`, `start_date`, `end_date` (disalin dari kolom sumber) dan `amount_per_share`, `currency`,
+  `ratio_old`, `ratio_new`, `terms_price`. Nilainya diambil dari payload per `action_type` lewat satu tabel pemetaan
+  kunci payload → kolom di migrasi, agar jenis baru cukup menambah satu baris pemetaan. Ditambah Column_Catalog dengan
+  unit dan baris AI_column_catalog. Tidak menyentuh dua tabel sumber.
+- **Status:** OPEN.
+- **Pengecekan ulang 2026-10-26 (job `ecc0df26`, read-only):** bukan masalah pendaftaran katalog. Ke-26 kolom
+  `idx_event_annotation` terdaftar di `AI_column_catalog`, 22 terlihat. Kolom syaratnya memang tidak ada di tabel:
+  `cum_date`, `ex_date`, `record_date`, `pay_date`, `start_date` dan `end_date` hanya ada di `stockbit_corporate_action`,
+  dan nominal atau rasio hanya ada di `source_payload` (`ai_allowed = false`). Untuk 19.259 baris corporate action,
+  `price`, `value_idr`, `shares_change` dan `action` semuanya NULL; kolom itu milik baris insider. Isi sumber: dividen
+  5.301/5.301 punya `dividend_value` dan keempat tanggal; split 258 dan bonus 91 punya rasio; rights 325 punya
+  `rightissue_price`; warrant 2.223 punya `wrant_exc_price`. `market_ai_sql_reader` hanya punya SELECT pada
+  `idx_event_annotation`, dan kedua tabel sumber tidak ada di `AI_table_catalog`. Sebabnya rancangan migrasi `013`:
+  tabel itu dibuat sebagai penanda grafik (satu `annotation_date` per event), bukan tabel syarat aksi korporasi.
+- **Lesson:** saat meng-onboard tabel turunan, bandingkan kolomnya dengan kolom dan payload sumbernya. Setiap atribut yang
+  menjawab pertanyaan user harus bertipe dan terlihat (Part A: tidak ada makna yang hanya ada di payload tersembunyi).
+
+### M224 — Kesegaran cakupan dihitung dari tanggal terbesar, termasuk event terjadwal di masa depan (2026-10-25)
+
+- **Symptom:** L2 onboarding `36fd8b6c`: COVERAGE `idx_event_annotation` `actual_max_date` 2026-12-18, `freshness`
+  SEGAR, `age_days` 0, padahal tanggal hari ini 2026-10-25.
+- **Verified cause** (job `d0eab471`): baris CORPORATE_ACTION punya tanggal terjadwal sampai 2026-12-18 (RUPS, ex date
+  mendatang); `max(annotation_date)` hingga hari ini 2026-10-23 untuk kedua keluarga. Job cakupan
+  (`apps/ai-data-coverage/coverage_job.py`) dan kesegarannya membaca `max(date_column)` tanpa batas `as_of`.
+- **Class:** setiap tabel yang menyimpan baris berjadwal (kalender aksi korporasi, jatuh tempo obligasi, kalender rilis
+  makro, jadwal IPO) akan selalu tampak segar walau muatannya berhenti; peringatan basi tidak akan pernah muncul.
+- **Solution (usulan, perlu go user; lapisan job cakupan):** kesegaran dihitung dari `max(date) WHERE date <= as_of`
+  (atau dari waktu muat sumber), dan jumlah baris sesudah `as_of` dilaporkan terpisah (`scheduled_rows`). Tabel tanpa
+  baris masa depan tidak berubah.
+- **Status:** OPEN. Rencana di EXEC.md EXEC-M224 (user 2026-10-26: "masukan exec jangan execute dulu").
+- **Cara hitung saat ini (dibaca 2026-10-26):** `coverage_job.py`:184-194 menyimpan `max(annotation_date)` per ticker
+  dan untuk seluruh tabel ke `AI_data_coverage.actual_max_date`. orc `app/freshness.py`:49-61 menghitung usia =
+  `max((hari_ini - actual_max_date).days, 0)` hari kalender (SLA tabel ini 7 hari, jadi bukan basis hari kerja):
+  SEGAR bila ≤ SLA, TERLAMBAT ≤ 2×SLA, BASI di atasnya. Tanggal di masa depan dijepit ke 0. Contoh: bila putaran
+  stockbit-updater berhenti sesudah 2026-10-23, tabel tetap SEGAR sampai sekitar 2026-12-25 (2026-12-18 + 7 hari),
+  karena RUPS dan ex date terjadwal tetap ada di tabel. Router hanya diberi tanggal hari ini, bukan tanggal data, jadi
+  router tidak terpengaruh.
+- **Lesson:** "tanggal terakhir" sebagai ukuran kesegaran hanya sah untuk data observasi; data berjadwal butuh batas
+  `as_of`.
+
+### M227 — Job orc-test-runner menggantikan job sesi lain yang belum selesai (2026-10-25)
 
 - **Symptom:** EXEC-TERMINAL-API, 19:04 UTC: job APPLY `quota_override_edge_owner.sql` (deployment `d7df1139`)
   dimulai 14 detik setelah deployment `b9950dba` milik sesi lain (job READ). `b9950dba` menjadi REMOVED tanpa
@@ -1599,7 +1913,7 @@ change yet.
 - **Status:** RESOLVED (guard di kode); job READ sesi lain perlu dijalankan ulang oleh sesi itu.
 - **Lesson:** aturan yang melindungi pekerjaan orang lain harus dijaga oleh kode, bukan ingatan.
 
-### M220 — Tampilan TS awal bergeser satu bar dari referensi pada 1600 px (2026-10-25)
+### M228 — Tampilan TS awal bergeser satu bar dari referensi pada 1600 px (2026-10-25)
 
 - **Symptom:** uji 1:1 (`apps/edge-bff/terminal/tests/visual`) pada 1600×1000: halaman TypeScript menampilkan 133 sesi,
   referensi 132 (atau sebaliknya), berganti-ganti antar putaran; 1280 dan 390 piksel identik.
@@ -1689,3 +2003,100 @@ Table_Catalog entries came from the earlier 20261023_004 onboarding; this migrat
 does not touch them. Scoped Feature01/04 semantic and volume-nullability checks
 have zero failures. Preserve this distinction: passing target checks is not a
 claim that the global audit passed. Evidence: verification/ihsg_price_history/apply/.
+
+### IHSG aggregate frequency completeness — one-date sample resolved (2026-10-24)
+
+Risk observed in existing Feature06 SQL: SUM ignores NULL frequency, allowing partial aggregate
+frequency to be interpreted as a total. The explicit sample helper requires all contributing raw
+frequency rows and all sessions of each dependent window; otherwise its frequency-derived output is
+NULL. Values/lots and source-gap flags remain independent. Independent Feature06 comparison passed
+249 fields; Feature03 comparison passed 60; SQL stored payload comparison had zero mismatches.
+Status: resolved for the approved IHSG 2026-08-31 sample and shared sample/bulk calculation helper;
+standard stock refresh functions and bulk/automatic aggregate rollout remain unchanged. Evidence:
+verification/ihsg_feature_aggregation/single_date. HHI NULL is intentional user policy, not a failure.
+
+### Feature06 audit: 2026-07-27 Regular MAPADRCU6A source imbalance (OPEN, 2026-10-24)
+
+Read-only audit found raw IDX_Broker_Summary Buy Value 1,408,200 vs Sell Value 555,000 for MAPADRCU6A,
+2026-07-27 Regular: +853,200 mismatch. Non-index Feature06 flags the source gap and carries the same
+Foreign+Domestic daily net mismatch. The index 60-session window ending 2026-08-31 therefore has
+foreign_net_60d + domestic_net_60d = +853,200. Verified input inconsistency, not an index arithmetic
+mismatch; upstream reason not established. No refetch or data change approved/executed. Keep the gap
+visible; settle instrument scope and audit the source before any repair. Evidence:
+verification/ihsg_feature_aggregation/number_audit/feature6_recent_{source_balance,raw_gap}.json.
+
+### Feature06 rolling-decomposition audit query timeout (bounded retry resolved, 2026-10-24)
+
+Initial read-only decomposition hit statement_timeout; the query joined multiple rolling bounds to the
+feature history without a single constant lower-date restriction on the materialized context. Rewritten
+to materialize only the verified latest 60 source sessions and reuse those rows; retry succeeded. No
+limits or indexes were changed. The failure and successful query/results remain in number_audit/.
+
+### INDEX table initialization catalog guards (dry-run resolved, 2026-10-24)
+
+First rollback-only initialization hit validate_feature_catalog_target because active definitions
+require a VERIFIED Table_Catalog target. Corrected the sequence: new definitions stay inactive while
+schema/sample/reference checks run; metadata activates only after sample payload and archive checks.
+A subsequent DDL rollback test caught version text `index-sample-v1`, which violates the catalog's
+^v[1-9][0-9]*$ constraint. The new table definitions now use v1, separate from base-table versions.
+No existing catalog guard was relaxed. DDL-only rollback verification succeeded; full dry/apply checks
+continue. No live source or analytical data was changed by the failed dry runs. Lesson: inspect live
+catalog constraints/activation triggers before cloning metadata; keep availability scoped to the sample.
+
+INDEX initialization final status (2026-10-24): full dry run and APPLY passed, metadata activates only
+after validations. Scoped INDEX semantic audit passes for all 260 columns after forward migration 011.
+Global audit still reports the existing missing Feature05/06 *_Stock view Feature_Catalog definitions;
+this is a pre-existing unrelated issue, not an INDEX failure, and was left unchanged. Archive readback
+verifies 4,470 rows and zero hash mismatches. Permanent daily routing remains an explicit open design
+item: legacy price-driven workers can recreate shared-table index rows after a new price arrives unless
+index exclusion/routing is approved and implemented; no unapproved runtime workaround was deployed.
+
+### Frontend vocabulary preflight: catalog prose scope/NULL alignment (RESOLVED, 2026-10-25)
+
+Read-only inventory of Feature01/02/03/05/06 stock and INDEX definitions found all 396 current
+physical columns documented, but copied prose is not uniformly aligned with current semantics.
+F01 volume null_rule correctly allows source-less index volume=NULL while misuse_warning still
+says volume must never be NULL. INDEX F06 cumulative definition/warning retains ticker-inception
+language instead of the aggregate broker-history baseline, and some per-column source references
+still name legacy tables after cloned INDEX definitions and table-level dependencies were updated.
+Verified cause: schema/catalog cloning and selective field updates preserved these other texts;
+see migrations 20261023_007, 20261024_010 and 20261024_011. Existing numeric sample checks do not
+validate display prose for every column. Scope: metadata guidance, not evidence of new numeric errors.
+Resolution: forward migrations 20261025_001/002 correct the copied metadata; migration 003 and
+reviewed seed publish 391 code-backed Indonesian vocabulary entries with per-column semantic hashes.
+Public payload/schema readback and idempotent sync pass. Status RESOLVED 2026-10-25. Lesson: complete/VERIFIED catalog coverage does not by itself
+prove all copied guidance matches the new asset/scope/NULL contract. Evidence:
+verification/ihsg_feature_aggregation/vocabulary_review/.
+
+### INDEX bulk staging duplicate temporary target (fixed before public writes, 2026-10-25)
+
+First bulk attempt d1006b00-6baf-4c1f-9dba-dabcbef866b3 reconciled every monthly raw/canonical
+monetary slice (2016-01..2026-08) but stopped on DuplicateTable calc2. Verified root cause:
+prepare() already creates all six temporary calculation targets; stage2() redundantly created calc2.
+Removed the second CREATE. The preparation transaction rolled back; no public INDEX data, catalog,
+or F05 DROP ran in that attempt. Added --smoke rollback-only integration mode: 330 session-local
+fixture observations exercise statistical warmups, F03 and F06 references before another full scan.
+Evidence: verification/ihsg_feature_aggregation/bulk/attempt1_logs.jsonl (captured operational logs).
+Lesson: exercise the entire preparation lifecycle against PostgreSQL before an expensive raw scan,
+not just Python compilation/imports; temporary table ownership belongs to one preparation layer.
+
+
+### Vocabulary one-off job upload/import issues (resolved before vocabulary writes, 2026-10-25)
+
+The larger reviewed seed made the CLI --variables JSON exceed Linux's per-argument limit
+(OSError E2BIG). No API request ran. Upload now batches variable-collection upserts below 60 KB,
+with 24 KB file chunks and skipDeploys=true; deployment starts only after all parts succeed.
+The first vocabulary container then hit ModuleNotFoundError because runpy does not automatically
+add scripts/ to sys.path. Fixed the standalone sync entry point and verified runpy import plus
+15 vocabulary regressions; that failure occurred before connecting or executing DDL. Retry committed
+391 rows; exact payload/readback and second-sync modified=0 pass. No numerical INDEX output changed.
+Lesson: test the actual remote entry point and account for OS argv limits, not only API payload limits.
+
+### Cloud executor restart during independent Railway job (recovered, 2026-10-25)
+
+The managed workspace briefly went offline/restarted during bulk calculation. Workspace files
+persisted; /tmp helpers/venv did not. Railway calculation continued independently and was not
+restarted. Restored helpers from /workspace/artifacts/index-bulk, observed uninterrupted pair
+progress and verified final committed data. Keep one-off job IDs/recovery scripts in the persistent
+workspace and save logs before replacing a temporary deployment; never assume a local executor
+restart stopped an external database job.

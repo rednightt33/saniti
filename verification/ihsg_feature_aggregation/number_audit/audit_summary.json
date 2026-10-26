@@ -1,0 +1,23 @@
+{
+  "date": "2026-08-31",
+  "ticker": "IHSG",
+  "boards": [
+    "Nego",
+    "Regular",
+    "Tunai"
+  ],
+  "columns_checked": [
+    "active_broker_count",
+    "net_buy_broker_count",
+    "net_sell_broker_count",
+    "net_buy_broker_ratio",
+    "top_buyer_net_value",
+    "top_seller_net_value",
+    "top3_buyer_net_value",
+    "positive_net_value_total"
+  ],
+  "comparisons": 24,
+  "mismatches": 0,
+  "read_only": true,
+  "query_finish_utc": "2026-10-24T14:18:41.892420353Z"
+}

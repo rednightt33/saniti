@@ -1,0 +1,16 @@
+{"message":"Starting Container","timestamp":"2026-10-24T13:37:27.721022552Z","level":"info"}
+{"level":"error","message":"WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.","timestamp":"2026-10-24T13:37:33.801147916Z"}
+{"timestamp":"2026-10-24T13:37:33.801151866Z","level":"error","message":""}
+{"level":"error","message":"[notice] A new release of pip is available: 25.0.1 -> 26.2.2","timestamp":"2026-10-24T13:37:33.801155726Z"}
+{"message":"[notice] To update, run: pip install --upgrade pip","timestamp":"2026-10-24T13:37:33.801161766Z","level":"error"}
+{"event":"formula_snapshot","routine":"public.refresh_feature_03_stock_broker_daily(date,text[])","sha256":"8590668bf4dcb1fa797196ad43fc711ba8952db94d25f75511bea4e5e750af66","level":"info","timestamp":"2026-10-24T13:37:36.573869597Z","message":""}
+{"level":"info","event":"stage_complete","stage":"daily_and_feature3","message":"","timestamp":"2026-10-24T13:37:36.594557370Z"}
+{"rows":12895,"event":"stage_complete","message":"","timestamp":"2026-10-24T13:39:57.673305040Z","level":"info","stage":"historical_context"}
+{"level":"info","routine":"public.refresh_feature_06(text,date)","sha256":"061e6cb4818aa7c3245c0320484d8395f6defef1fc945d51a7ddf1a93ada70cb","timestamp":"2026-10-24T13:39:57.673312180Z","event":"formula_snapshot","message":""}
+{"timestamp":"2026-10-24T13:40:02.164947263Z","message":"/tmp/index-f356/scripts/check_feature_06_sample.py:46: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`","level":"error"}
+{"message":"  d[\"gap\"] = act.gap.reindex(d.index).fillna(False).astype(bool)","timestamp":"2026-10-24T13:40:02.164950173Z","level":"error"}
+{"message":"/tmp/index-f356/scripts/check_feature_06_sample.py:46: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`","level":"error","timestamp":"2026-10-24T13:40:02.927578061Z"}
+{"timestamp":"2026-10-24T13:40:02.927582831Z","message":"  d[\"gap\"] = act.gap.reindex(d.index).fillna(False).astype(bool)","level":"error"}
+{"timestamp":"2026-10-24T13:40:04.199704122Z","message":"","feature6_comparisons":249,"hhi":"NULL by policy","level":"info","event":"validated","source":"raw daily + canonical historical broker detail","feature3_comparisons":60}
+{"level":"info","ticker":"IHSG","rows":{"3":3,"5":214,"6":3},"message":"","event":"upsert_verified","mismatches":0,"timestamp":"2026-10-24T13:40:04.532839095Z","output_dates":1,"date":"2026-08-31"}
+{"committed":true,"ticker":"IHSG","features":[3,5,6],"event":"complete","timestamp":"2026-10-24T13:40:04.532842275Z","level":"info","date":"2026-08-31","message":"","output_dates":1}

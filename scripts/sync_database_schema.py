@@ -574,13 +574,58 @@ def existing_status(connection: psycopg.Connection[Any], schema: str) -> dict[st
     }
 
 
+def catalog_status_rules(connection: psycopg.Connection[Any], schema: str) -> dict[str, tuple[Any, ...]]:
+    """Category, update rule and observation date column of every table registered in Table_Catalog, the owner of
+    that metadata; TABLE_STATUS_RULES only covers the tables it does not register (the catalogs themselves)."""
+    if not connection.execute("""SELECT to_regclass('public."Table_Catalog"') IS NOT NULL""").fetchone()[0]:
+        return {}
+    return {
+        name: (category, rule, date_column)
+        for name, category, rule, date_column in connection.execute(
+            """
+            SELECT table_name, category, update_rule, observation_date_column
+            FROM public."Table_Catalog" WHERE table_schema = %s
+            """,
+            (schema,),
+        ).fetchall()
+    }
+
+
+def indexed_latest_date(connection: psycopg.Connection[Any], schema: str, name: str, column: str) -> Any:
+    """The newest value of a table's observation date column, read only through an index that starts with it (one
+    index probe); a column without such an index is left unknown rather than scanned."""
+    leading = connection.execute(
+        """
+        SELECT EXISTS (
+            SELECT 1 FROM pg_catalog.pg_index AS i
+            JOIN pg_catalog.pg_class AS c ON c.oid = i.indrelid
+            JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+            JOIN pg_catalog.pg_attribute AS a ON a.attrelid = c.oid AND a.attnum = i.indkey[0]
+            WHERE n.nspname = %s AND c.relname = %s AND a.attname = %s AND i.indisvalid
+        )
+        """,
+        (schema, name, column),
+    ).fetchone()[0]
+    if not leading:
+        return None
+    return connection.execute(
+        sql.SQL("SELECT ({col})::date FROM {}.{} WHERE {col} IS NOT NULL ORDER BY {col} DESC LIMIT 1").format(
+            sql.Identifier(schema), sql.Identifier(name), col=sql.Identifier(column)
+        )
+    ).fetchone()
+
+
 def derive_status_rows(
     connection: psycopg.Connection[Any], schema: str, names: list[str], refreshed_at: datetime
 ) -> list[tuple[Any, ...]]:
     previous = existing_status(connection, schema)
+    catalog = catalog_status_rules(connection, schema)
     rows: list[tuple[Any, ...]] = []
     for name in names:
         category, pattern = TABLE_STATUS_RULES.get(name, ("Unclassified", "Unknown"))
+        catalog_category, catalog_rule, date_column = catalog.get(name, (None, None, None))
+        category = catalog_category or category
+        pattern = (catalog_rule or "").strip() or pattern
         latest_data_date = None
         last_changed_at = previous.get(name, {}).get("last_changed_at")
         tracking_status = previous.get(name, {}).get("tracking_status") or "Baseline"
@@ -719,6 +764,10 @@ def derive_status_rows(
             last_changed_at = refreshed_at
             tracking_status = "Baseline only"
             last_operation = "BASELINE"
+
+        if latest_data_date is None and date_column:
+            newest = indexed_latest_date(connection, schema, name, date_column)
+            latest_data_date = newest[0] if newest else None
 
         rows.append(
             (
