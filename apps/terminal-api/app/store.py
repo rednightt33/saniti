@@ -55,7 +55,7 @@ class Store:
     @staticmethod
     def usage(c, sid):
         r = c.execute(
-            "SELECT count(*) FILTER (WHERE kind = 'file' AND at > now() - interval '1 hour') AS files_hour, "
+            "SELECT coalesce(sum(file_count) FILTER (WHERE kind = 'file' AND at > now() - interval '1 hour'), 0) AS files_hour, "
             "coalesce(array_agg(DISTINCT ticker) FILTER (WHERE ticker <> %s AND at > now() - interval '1 hour'), "
             "'{}') AS tickers_hour, "
             "coalesce(array_agg(DISTINCT ticker) FILTER (WHERE ticker <> %s), '{}') AS tickers_day, "
@@ -67,9 +67,17 @@ class Store:
                      r['history_hour'])
 
     @staticmethod
-    def log_access(c, sid, kind, ticker, ip, dataset=None, year=None, key=None, bytes_=0):
-        c.execute('INSERT INTO terminal.access_log(subscriber_id, kind, ticker, dataset, year, object_key, bytes, ip) '
-                  'VALUES (%s, %s, %s, %s, %s, %s, %s, %s)', (sid, kind, ticker, dataset, year, key, bytes_, ip))
+    def log_access(c, sid, kind, ticker, ip, dataset=None, year=None, key=None, bytes_=0, keys=None):
+        """One row; `keys` (EXEC-TERMINAL-SPEED): every file a /bundle grants, counted in file_count."""
+        c.execute('INSERT INTO terminal.access_log(subscriber_id, kind, ticker, dataset, year, object_key, bytes, ip, '
+                  'file_count, object_keys) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
+                  (sid, kind, ticker, dataset, year, key or (keys[0] if keys else None), bytes_, ip,
+                   len(keys) if keys else 1, keys))
+
+    @staticmethod
+    def prune(c, days):
+        """Audit rows older than `days` (user 2026-10-26: 90); quotas look back one day at most."""
+        return c.execute('DELETE FROM terminal.access_log WHERE at < now() - make_interval(days => %s)', (days,)).rowcount
 
     # ---- accounts and sessions -------------------------------------------------------------------------------
     @staticmethod

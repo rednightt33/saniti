@@ -2,7 +2,8 @@
    gateway (FRONTEND_HANDOFF.md). The page asks for presigned URLs and downloads the gzip JSON files itself.
    Everything is mapped into the reference page's own shapes (types.ts). */
 import type { Bar, Combo, CompareSpec, Instrument, MarketData, MarketEvent, Point, VolumePoint } from './types';
-import { brokerData, download, priceRows, rowsOf, type PriceRow, type WorkerAnswer } from './worker';
+import { brokerData, download, priceRows, rowsOf, type FileRef, type PriceRow, type WorkerAnswer } from './worker';
+import { fileStats, mark } from '../app/perf';
 
 const API = '/api/terminal/v1';
 
@@ -75,10 +76,13 @@ async function session(): Promise<string> {
 
 /* EXEC-TERMINAL-UI-1026 U6: one call gives every file of the displayed ticker (terminal-api /bundle) */
 type Dataset = 'price' | 'broker' | 'events';
+/* EXEC-TERMINAL-SPEED step 2: with packs the price is one file and the broker the archive plus the last two years (5
+   objects instead of 21); each file carries its sha256, the key of the browser cache */
 async function bundle(ticker: string, datasets: Dataset[], csrf: string) {
-  const answer = await api('/bundle', csrf, { ticker, datasets });
-  const urls = (name: Dataset) => (answer.datasets?.[name]?.files || []).map((f: any) => f.url as string);
-  return { price:urls('price'), broker:urls('broker'), events:urls('events') };
+  const answer = await api('/bundle', csrf, { ticker, datasets, packs:true });
+  const refs = (name: Dataset): FileRef[] => (answer.datasets?.[name]?.files || []).map((f: any) =>
+    ({ url:f.url, sha:f.sha256, name:`${name}/${f.pack || f.year || 'all'}` }));
+  return { price:refs('price'), broker:refs('broker'), events:refs('events') };
 }
 
 /* U7: the files are downloaded, inflated and parsed by one Web Worker (worker.ts); its answers arrive in stages.
@@ -88,7 +92,7 @@ type BrokerAnswer = Omit<Extract<WorkerAnswer, { type:'broker' | 'brokerAll' }>,
 interface Job { price: Promise<PriceRow[]>; broker: Promise<BrokerAnswer>; brokerAll: Promise<BrokerAnswer>; events: Promise<Record<string, unknown>[]> }
 let worker: Worker | null = null, jobs = 0;
 const waiting = new Map<number, Record<string, [(v: any) => void, (e: any) => void]>>();
-function run(files: { price: string[]; broker: string[]; events: string[] }): Job {
+function run(files: { price: FileRef[]; broker: FileRef[]; events: FileRef[] }): Job {
   const stage = <T>() => { let ok!: (v: T) => void, no!: (e: any) => void; const p = new Promise<T>((a, b) => { ok = a; no = b }); p.catch(() => {}); return { p, ok, no } };
   const price = stage<PriceRow[]>(), broker = stage<any>(), brokerAll = stage<any>(), events = stage<Record<string, unknown>[]>();
   if (typeof Worker === 'undefined') {
@@ -103,6 +107,7 @@ function run(files: { price: string[]; broker: string[]; events: string[] }): Jo
   if (!worker) {
     worker = new Worker(new URL('./worker.ts', import.meta.url));
     worker.onmessage = (e: MessageEvent<WorkerAnswer>) => {
+      if (e.data.type === 'stats') { fileStats(e.data.files); return }
       const w = waiting.get(e.data.id); if (!w) return;
       const { id, type, ...data } = e.data as any;
       if (type === 'error') {
@@ -139,6 +144,7 @@ function alignTo(dates: string[], rows: { d: string; c: number }[]): Point[] {
    the events follow through `later`, IHSG (Statistics, Relative performance) only when that panel asks for it. */
 export async function liveData(stored: string | null): Promise<MarketData> {
   const csrf = await session();
+  mark('session');
   const reference = async (name: string) => rowsOf(await download((await api(`/reference/${name}`, csrf)).url));
   /* the ticker list, the broker list and the files of the remembered ticker are asked for together */
   const tickersP = reference('tickers'), brokerRefP = reference('brokers');
@@ -154,7 +160,9 @@ export async function liveData(stored: string | null): Promise<MarketData> {
   const SYMBOL = stored && known.has(stored) ? stored : known.has('MAPI') ? 'MAPI' : tickers[0].ticker;
   const job = run(SYMBOL === guess ? await guessP : await bundle(SYMBOL, ['price', 'broker', 'events'], csrf));
 
+  mark('ticker list and bundle');
   const rows = await job.price;
+  mark('price read');
   if (!rows.length) throw new TerminalError(`No price data is published for ${SYMBOL}.`);
   const ohlc: Bar[] = rows.map(r => ({ time:r.d, open:r.o, high:r.h, low:r.l, close:r.c }));
   const volume: VolumePoint[] = rows.map(r => ({ time:r.d, value:r.v ?? 0, color:r.c >= r.o ? 'rgba(0,150,109,.48)' : 'rgba(235,57,69,.48)' }));

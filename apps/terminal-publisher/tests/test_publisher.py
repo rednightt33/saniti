@@ -155,7 +155,8 @@ def test_daily_republishes_only_the_changed_price_year_and_new_broker_dates():
     conn.brokers = BROKERS + [('BBCA', '2026-01-05', 'AK', 'Foreign', 'Regular', 10.0, 0.0, 0.1, 0.0, False)]
     p2 = pub.Publisher(conn, bucket, today=TODAY)
     p2.run('daily')
-    assert p2.written == 2  # price/BBCA/2026 and broker/BBCA/2026; 2025 and IHSG untouched
+    assert p2.written == 3  # price/BBCA/2026, broker/BBCA/2026 and BBCA's price pack; 2025 and IHSG untouched
+    assert ('pack', 'BBCA', 'broker-archive') not in p2.changed   # a current-year broker change leaves the archive
     assert bucket.get_json('manifest/BBCA.json')['datasets']['broker']['data_through'] == '2026-01-05'
 
 
@@ -189,7 +190,7 @@ def test_daily_adds_missing_early_price_years():
     conn.prices = PRICES + [('BBCA', '2019-06-03', 50.0, 51.0, 49.0, 50.5, 10.0)]
     p2 = pub.Publisher(conn, bucket, today=TODAY)
     p2.run('daily')
-    assert 'price/BBCA/2019.json.gz' in bucket.objects and p2.written == 1
+    assert 'price/BBCA/2019.json.gz' in bucket.objects and p2.written == 2   # the year and the price pack
 
 
 def test_events_are_one_file_per_listed_ticker_with_display_columns_only():
@@ -326,4 +327,39 @@ def test_daily_refreshes_logos_only_when_the_index_is_older_than_a_week():
     p.run('daily')
     assert bucket.get_json('ref/logos.json.gz')['generated_at'] == first    # fresh: not fetched again
     assert p.logos_stale(dt.datetime.fromisoformat(first) + dt.timedelta(days=8))
+
+
+# ---- EXEC-TERMINAL-SPEED -----------------------------------------------------------------------------------------
+def test_packs_hold_every_price_year_and_the_broker_years_before_the_last_two():
+    p, conn, bucket = run('backfill')
+    m = bucket.get_json('manifest/BBCA.json')
+    price = bucket.get_json('pack/BBCA/price.json.gz')
+    assert price['d'] == sorted(r[1] for r in PRICES if r[0] == 'BBCA') and m['packs']['price']['sha256']
+    assert 'broker-archive' not in m['packs']                        # no broker row before 2025 in the fixture
+    assert 'broker-archive' not in bucket.get_json('manifest/IHSG.json').get('packs', {})
+
+
+def test_an_old_broker_year_rebuilds_the_archive_and_daily_leaves_it_otherwise():
+    _, conn, bucket = run('backfill')
+    conn.brokers = BROKERS + [('BBCA', '2022-03-01', 'YU', 'Domestic', 'Regular', 5.0, 1.0, 0.5, 0.1, False)]
+    p2 = pub.Publisher(conn, bucket, today=TODAY)
+    p2.run('broker-range', '2022-01-01', '2022-12-31')
+    m = bucket.get_json('manifest/BBCA.json')
+    assert m['packs']['broker-archive']['years'] == [2021, 2024] and m['packs']['broker-archive']['rows'] == 1
+    assert bucket.get_json('pack/BBCA/broker-archive.json.gz')['d'] == ['2022-03-01']
+    p3 = pub.Publisher(conn, bucket, today=TODAY)
+    p3.run('daily')
+    assert not any(k == 'pack' for k, _, _ in p3.changed)              # nothing changed: no pack rewritten
+
+
+def test_packs_mode_builds_missing_packs_without_rewriting_existing_ones():
+    _, conn, bucket = run('backfill')
+    p2 = pub.Publisher(conn, bucket, today=TODAY)
+    p2.run('packs')
+    assert p2.written == 0
+    del bucket.objects['pack/BBCA/price.json.gz']
+    m = bucket.get_json('manifest/BBCA.json'); m.pop('packs'); bucket.objects['manifest/BBCA.json'] = json.dumps(m).encode()
+    p3 = pub.Publisher(conn, bucket, today=TODAY)
+    p3.run('packs')
+    assert 'pack/BBCA/price.json.gz' in bucket.objects and p3.written == 1
 

@@ -158,6 +158,9 @@ def create_app(settings=None, store=None, orc=None):
     worker = Worker(settings, store, orc)
     ready = {'value': False}
     failures = defaultdict(deque)
+    # EXEC-TERMINAL-SPEED step 5: one pooled HTTP client to terminal-api, made on first use and closed at shutdown
+    # (a client per request opened a new connection every time)
+    terminal_http = {'client': None}
 
     @asynccontextmanager
     async def lifespan(app):
@@ -173,6 +176,8 @@ def create_app(settings=None, store=None, orc=None):
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
         orc.close()
+        if terminal_http['client'] is not None and hasattr(terminal_http['client'], 'aclose'):
+            await terminal_http['client'].aclose()
 
     app = FastAPI(title='EDGE private gateway', docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.worker, app.state.store = worker, store
@@ -330,11 +335,12 @@ def create_app(settings=None, store=None, orc=None):
         if not TERMINAL_ROUTES[method].fullmatch(path):
             return error('NOT_FOUND', 404)
         body = await request.body() if method == 'POST' else None
+        if terminal_http['client'] is None:
+            terminal_http['client'] = httpx.AsyncClient(timeout=30)
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                answer = await client.request(
-                    method, f'{settings.terminal_url}/api/terminal/v1/{path}', params=request.query_params,
-                    content=body, headers={'content-type': 'application/json', 'x-terminal-proxy-key': settings.terminal_proxy_key})
+            answer = await terminal_http['client'].request(
+                method, f'{settings.terminal_url}/api/terminal/v1/{path}', params=request.query_params,
+                content=body, headers={'content-type': 'application/json', 'x-terminal-proxy-key': settings.terminal_proxy_key})
         except httpx.HTTPError:
             return error('TERMINAL_UNAVAILABLE', 503)
         if answer.status_code == 200 and answer.headers.get('content-type', '').startswith('image/'):
