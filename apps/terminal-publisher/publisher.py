@@ -14,8 +14,9 @@ Modes (TERMINAL_PUBLISH_MODE, or the first argument):
 
 Schedule (T7, user 2026-10-26): TERMINAL_RUN_TIMES_WIB=07:30,19:00 and the service's Railway cronSchedule =
 cron_for(those times) ("0,30 0,12 * * *"); a tick that is not a listed time exits at once (should_run). A Railway
-service with a cronSchedule does not run when deployed: for a manual run clear the cronSchedule, redeploy, and set it
-back after the run (RAILWAY_CHANGELOG 2026-10-26).
+service with a cronSchedule does not run when deployed: for a manual run clear the cronSchedule, upload a NEW deployment
+(`railway up`; a `railway redeploy` keeps the old deployment's cron and does not run, ERRORS M229) and set the
+cronSchedule back after the run.
 Price and broker are published from their first stored year (broker: T8, user 2026-10-26).
 
 Objects (all under v1/):

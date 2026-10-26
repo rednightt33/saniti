@@ -1930,6 +1930,21 @@ change yet.
 - **Lesson:** port 1:1 harus meniru juga cara dan saat script dijalankan, bukan hanya kodenya; uji piksel membutuhkan
   kondisi jaringan yang sama untuk kedua sisi.
 
+### M229 — Publisher terminal tidak jalan setelah deploy/redeploy karena cron (2026-10-26)
+
+- **Symptom:** EXEC-TERMINAL-T7-T10: deployment `ed7e198d` (SUCCESS 05:39 UTC) dan `eac064eb` (redeploy 05:54 UTC,
+  sesudah `cronSchedule` dikosongkan) tidak menulis log apa pun selama ±1 jam; run harian tidak terjadi.
+- **Verified cause:** service Railway dengan `cronSchedule` tidak menjalankan container saat deploy, hanya pada jadwal.
+  `railway redeploy` memakai ulang snapshot deployment lama, termasuk cron-nya, sehingga tetap menunggu jadwal. Upload
+  baru (`railway up`, `adef5a5b`) sesudah cron dikosongkan langsung berjalan (log 06:54 UTC). Rencana EXEC menganggap
+  "deploy langsung jalan" dari ingatan (deploy sebelum cron dipasang memang langsung jalan).
+- **Class:** setiap service job Railway yang dijadwalkan (publisher, nanti job harian lain): run manual dan perubahan
+  kode tidak berjalan sampai tick berikutnya.
+- **Solution:** prosedur run manual: kosongkan `cronSchedule`, `railway up`, pasang lagi `cronSchedule` setelah run
+  (docstring `apps/terminal-publisher/publisher.py`).
+- **Status:** RESOLVED (prosedur).
+- **Lesson:** perilaku platform diverifikasi dengan log deployment, bukan dengan status SUCCESS.
+
 ### EXEC-TERMINAL-API T1, T2, T6 — selesai (2026-10-25)
 
 - **T1:** spesifikasi tunggal 53 indikator (`scripts/terminal_indicator_spec.py` → `INDICATOR_SPEC.md`), modul
