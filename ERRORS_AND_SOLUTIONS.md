@@ -1848,7 +1848,7 @@ change yet.
 - **Solution (usulan, perlu go user; lapisan job cakupan):** kesegaran dihitung dari `max(date) WHERE date <= as_of`
   (atau dari waktu muat sumber), dan jumlah baris sesudah `as_of` dilaporkan terpisah (`scheduled_rows`). Tabel tanpa
   baris masa depan tidak berubah.
-- **Status:** OPEN.
+- **Status:** OPEN. Rencana di EXEC.md EXEC-M224 (user 2026-10-26: "masukan exec jangan execute dulu").
 - **Cara hitung saat ini (dibaca 2026-10-26):** `coverage_job.py`:184-194 menyimpan `max(annotation_date)` per ticker
   dan untuk seluruh tabel ke `AI_data_coverage.actual_max_date`. orc `app/freshness.py`:49-61 menghitung usia =
   `max((hari_ini - actual_max_date).days, 0)` hari kalender (SLA tabel ini 7 hari, jadi bukan basis hari kerja):
