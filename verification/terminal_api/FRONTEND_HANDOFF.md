@@ -101,4 +101,4 @@ Auth and admin routes are not forwarded. The presigned downloads go straight fro
 - Flow figures (live): "Period net total" and "Avg daily net" cover the chart's visible range (like Statistics); each
   figure has an info mark. Right-click on the Flow Timeline: "Reset chart view" (its value scales only). Event labels
   write dates as "03 December 2025".
-- Broker dates without a price row are not on the chart's sessions and are not counted in Flow (ERRORS M235).
+- Broker dates without a price row are not on the chart's sessions and are not counted in Flow (ERRORS M238).

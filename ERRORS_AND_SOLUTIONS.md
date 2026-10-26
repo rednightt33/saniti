@@ -2108,7 +2108,7 @@ change yet.
   Belum dikerjakan (belum disetujui): tahun terbaru dulu, cache browser (FUTURE_PLAN).
 - **Lesson:** ukur jalur kritis (gambar pertama) setiap kali rentang data diperluas (T8 menambah 5 tahun broker).
 
-### M235 — Harga saham 17 dan 18 September 2026 tidak tersimpan; Flow tidak menghitung broker hari itu (2026-10-26)
+### M238 — Harga saham 17 dan 18 September 2026 tidak tersimpan; Flow tidak menghitung broker hari itu (2026-10-26)
 
 - **Symptom:** live check EXEC-TERMINAL-UI-1026: "Period net total" BBCA (asing, 2026-06-08..2026-10-23) −Rp 4,2 T di
   halaman, SQL Feature 05 −Rp 4,632 T (97 tanggal broker, halaman 95 sesi).
