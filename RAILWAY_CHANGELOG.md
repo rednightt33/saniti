@@ -4658,3 +4658,7 @@ EXEC-TERMINAL-UI-1026").
   1,481 s; 12:30 UTC tick logged `skipped` ("cron tick is not a listed run time"). Schedule works as designed.
 - `main` `493b23f` (EXEC-TERMINAL-SPIN): edge-bff `f2ffb776` SUCCESS 14:06 UTC; live `index` and `style` assets equal the
   build (sha256).
+
+- EXEC-TERMINAL-LOGO: terminal-api `0de27268` SUCCESS 14:27 UTC (`/logo`, `reference/logos`). terminal-publisher: cron
+  cleared, `TERMINAL_PUBLISH_MODE=logos`, upload `88820a8e` (842 logos, 659 s), then `TERMINAL_PUBLISH_MODE=daily`,
+  `cronSchedule "0,30 0,12 * * *"` (read back) and upload `2e230a5d` (ERRORS M229 procedure).

@@ -2213,6 +2213,21 @@ change yet.
   muat, tanpa error; vitest 662; 1:1 75 screenshot 0 piksel beda.
 - **Status:** RESOLVED. Urutan panel (butir 4) tidak dikerjakan atas pilihan user.
 
+### EXEC-TERMINAL-LOGO — selesai (2026-10-26)
+
+- **Go user:** "All right, please create and implementation plan and execute." (usulan FUTURE_PLAN; tiga pertanyaan
+  memakai saran). Hak pakai logo Stockbit/TradingView belum diperiksa: keputusan user.
+- **Publisher** mode `logos` (dan di `daily` bila indeks > 7 hari): run `88820a8e` 845 ticker, 842 logo (semua Stockbit
+  PNG), 3 tanpa logo (XCID, XCIS, XSPI → monogram), 659 s; indeks `v1/ref/logos.json.gz`. Publisher kembali `daily`,
+  cron dipasang lagi, deployment `2e230a5d`.
+- **terminal-api** `GET /logo/{ticker}` (`0de27268`): BBCA/ANTM/IHSG 200 image/png, `private, max-age=604800`, CSP tanpa
+  skrip; XSPI 404 `no_logo`; tanpa kuota dan tanpa baris audit. `reference/logos`.
+- **edge-bff** meneruskan gambar dengan CSP ketatnya (middleware tidak menimpanya); halaman live: logo di tombol simbol,
+  daftar pencarian, pembanding dan chip seri; monogram bila tidak ada atau gagal dimuat. Fixture tanpa logo.
+- **Bukti:** publisher 21, terminal-api 26, edge-bff terminal 6, vitest 662, 1:1 75 screenshot 0 piksel beda, live
+  check ANTM (logo dimuat, tanpa error).
+- **Status:** RESOLVED.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.

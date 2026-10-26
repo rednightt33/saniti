@@ -132,6 +132,8 @@ try:
             page.wait_for_function("() => !/^Loading/.test(document.getElementById('flowNote').textContent) || document.getElementById('flowNote').hidden", timeout=90000)
             checks['flow_note_after_all'] = page.evaluate("() => document.getElementById('flowNote').hidden ? null : document.getElementById('flowNote').textContent")
             checks['shell'] = shell
+            # EXEC-TERMINAL-LOGO: the symbol pill's logo has loaded (or the monogram stands in)
+            checks['logo'] = page.evaluate("() => { const i = document.querySelector('#symbolPill .tk-logo'); return i ? {src: i.getAttribute('src').split('?')[0], loaded: i.complete && i.naturalWidth > 0} : {monogram: document.querySelector('#symbolPill .tk-mono')?.textContent || null} }")
             report[ticker]['checks'] = checks
             report[ticker].update(seconds_to_panels=loaded, downloads=len(downloads),
                                   download_status=sorted({d['status'] for d in downloads}),

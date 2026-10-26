@@ -853,7 +853,7 @@ Sesudah EXEC-M224, tanggal sesudah hari ini dipisah, tetapi event yang dimuat le
 - Berlaku juga untuk kalender makro, jatuh tempo obligasi dan jadwal IPO nanti; tabel harga, broker dan Feature tidak
   berubah karena kolomnya kosong. Tes: tabel berjadwal dengan muatan lama menjadi TERLAMBAT/BASI; tabel harga sama.
 
-## Terminal: logo per ticker (usulan 2026-10-26, menunggu keputusan)
+## Terminal: logo per ticker (dijalankan 2026-10-26, EXEC-TERMINAL-LOGO; terbuka: hak pakai logo)
 
 User 2026-10-26: "sudah waktunya kita untuk tarik icon atau logo untuk setiap chart, atau setiap ticker, atau setiap
 emiten. Can you source di mana caranya kita bisa dapat logo tersebut ... Mungkin bisa lihat dari Stockbit atau lihat dari
