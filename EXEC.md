@@ -7442,3 +7442,26 @@ Open questions for the user (after the live inspection):
 - Q2: decisions S1–S11 in the report (volatility basis, drawdown window, partial month, meaning of "Foreign" in the
   Bandar detector, gauge and verdict formulas, "inventory" wording, cumulative start, Cash/Tunai, net-to-zero note,
   timeframes, date alignment, odd lots, foreign broker list: S1–S13).
+
+User decisions 2026-10-26 (answers to the open terminal decisions, FUTURE_PLAN.md "Terminal: keputusan terbuka"):
+- T7 Publisher schedule: "Untuk jadwal publisher boleh dirubah jadi jam 19.00 dan jam 7.30. Masukan exec jangan execute
+  dulu." Recorded, not executed; the current schedule stays `45 10,23 * * *` UTC (17:45 and 06:45 WIB). Planned: runs at
+  19:00 and 07:30 WIB (12:00 and 00:30 UTC; the times read as WIB, as quoted to the user). Open detail: one Railway
+  `cronSchedule` takes one expression and the two times have different minutes; proposed: `0,30 0,12 * * *` with the
+  publisher exiting at once (no database read) unless the run is within a few minutes of a time listed in one
+  variable (`TERMINAL_RUN_TIMES_WIB=07:30,19:00`), so the times change without code.
+- T8 Broker history to the rack: "Yes, data broker feel free untuk dipindahkan ke storage. Masukan exec jangan execute
+  dulu." Recorded, not executed. Planned: broker files from the first stored trade date (Feature 05 starts 2016-01-04)
+  instead of 5 years, as price already is (publisher `first_year` per dataset, manifest `first_year`, API window and
+  history fallback follow); backfill size to measure before running (broker dominates the rack: 5 years ≈ 280 MB).
+- T9 Corporate-action details: "Detail aksi Korporasi dari table event, nilainya juga harus bisa di bawah. Tapi jika
+  nilainya blank, diput saja sebagai unavailable pada front end". Recorded. The values come from
+  `idx_event_annotation.source_payload` (not published in T6): a per-type list of display fields (field mapping to be
+  shown to the user), published in the events file; a blank value shows as "Unavailable" in the tooltip. Execution
+  waits for the user's go on the mapping.
+- Indicator rules on a flat price window: "Aturan indikator kalau harga tidak bergerak bagaimana, coba benchmark dengan
+  external resource dalam hal ini dihitung." Benchmark against external libraries and references, computed on shared
+  inputs (report to the user; no rule changes without approval).
+- Deployment: "Deploy ke main setelah pertanyaan2 diatas sudah conclude jawabannya dari saya." Merge to `main` (edge-bff
+  deploys the Terminal tab) only after the user has concluded the questions above (T7–T9, download limit, flat-price
+  rules).

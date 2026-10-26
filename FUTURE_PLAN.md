@@ -699,3 +699,9 @@ Bukti: `verification/terminal_api/FRONTEND_ARCHITECTURE.md` bagian 6–7, `apps/
 8. **Kategori broker:** warna tag broker di data asli dari `IDX_Broker_Profile.broker_type` (Foreign/Domestic); kategori
    BUMN referensi (CC NI OD DX) tidak ada di database.
 9. **Kecepatan:** ±5 detik untuk satu ticker dari sandbox (26 file paralel); tepat di batas target user (< 5 detik).
+
+Jawaban user 2026-10-26 (rinci di EXEC.md, EXEC-TERMINAL-API T7–T9): item 1 → deploy ke `main` setelah semua pertanyaan
+di atas selesai; item 3 → broker dipindah ke storage sejak data pertama (T8, belum dieksekusi); item 4 → detail aksi
+korporasi dari tabel event, nilai kosong tampil "Unavailable" (T9, pemetaan menunggu go); item 6 → benchmark eksternal
+dihitung (berjalan); jadwal publisher 19:00 dan 07:30 (T7, belum dieksekusi). Item 2 (kuota) ditanyakan balik
+("Maksudnya batas unduhan bawaan?"); dijelaskan ulang, menunggu pilihan.
