@@ -8125,3 +8125,26 @@ Status 2026-10-26: langkah 1–5 dan 7 selesai (ERRORS "EXEC-TERMINAL-SPEED — 
 harga (semua tahun, events tetap berkas sendiri) dan arsip broker + dua tahun terakhir: saham 5 objek, bukan 3, supaya
 berkas per tahun dan events tidak ditulis dua kali. Langkah 6: uji beban 20 `/bundle` bersamaan median 0,53 s; akun per
 pengguna EDGE tetap di FUTURE_PLAN (EDGE masih satu pengguna). Tersisa dari user: angka `?perf=1` dari Indonesia.
+
+## EXEC-TERMINAL-PANELS — urutan panel, periode broker dari kalender atau chart, rel anotasi (go 2026-10-26)
+
+User 2026-10-26: "Bisa nggak kalau saya klik kolom header untuk rearrange, misalkan panel broker summary mau dipindah ke
+urutan nomor 2 ... Bisa nggak buat satu opsi, let's say, okay, set melalui kalender satu. Tapi opsi lagi adalah kita draw
+atau bikin range di main chart ... Bisa nggak ketika kita enable annotation maka di bawah date itu kayak muncul satu rel
+baru tempat annotation itu berada. Konfirmasi dulu ya".
+Go user 2026-10-26: "A1 OK / B1 OK, batasi 2 tahun. / C1 OK / D1 OK / Rel anotasi ... --> OK / jalankan, cek infra
+terlebih dahulu as usual."
+
+Keputusan:
+- A1: bagian panel samping dipindah dengan menyeret pegangan di judulnya; klik judul tetap melipat; urutan diingat browser.
+- B1 dibatasi 2 tahun: panel broker kanan dihitung dari data broker 2 tahun terakhir (sebelumnya 30 hari bursa,
+  `src/data/worker.ts`:118); rentang di luar itu dipotong dengan pemberitahuan.
+- C1: rentang yang ditarik di chart dipakai semua panel broker kanan; tiap panel tetap bisa diubah sesudahnya.
+- D1: "Custom" menjadi satu kalender pilih rentang (klik awal, klik akhir); hari tanpa data broker redup.
+- Rel anotasi: bila anotasi menyala, penanda pindah ke rel sendiri di bawah tanggal (chart ±24 px lebih pendek); mati →
+  rel hilang.
+Asumsi (dicatat, bisa diubah user): "broker flow" dibaca sebagai salah satu bagian panel kanan; seret-urut berlaku juga
+untuk panel Statistics kiri (mekanisme yang sama). Fixture referensi (`?fixture=reference`) tetap 1:1.
+Infra dicek 2026-10-26 sebelum mulai: edge-bff `39c29b9d` SUCCESS (push dokumen sesudahnya SKIPPED), terminal-api
+`1c428bb6`, publisher `4a4124a8` cron "0,30 0,12 * * *" NEVER; `main` = cabang.
+
