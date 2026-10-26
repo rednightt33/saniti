@@ -1,4 +1,4 @@
-/* Builds registry/backtest-registry.json, the backtest's indicator registry (prompt "INDICATOR CATALOG"), from the two
+/* Builds edge-bff/backtest/src/core/backtest-registry.json, the backtest's indicator registry (prompt "INDICATOR CATALOG"), from the two
    sources the Terminal already runs on: the 53-indicator registry generated from the workbook
    (edge-bff/terminal/src/data/indRegistry.json) and the executable defaults of the calculation module
    (edge-bff/terminal/src/calc/indicators.ts, DEFAULTS). Nothing is listed by hand:
@@ -17,9 +17,12 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 const REGISTRY_SRC = path.resolve(root, '../edge-bff/terminal/src/data/indRegistry.json');
 const CALC_SRC = path.resolve(root, '../edge-bff/terminal/src/calc/indicators.ts');
-const OUT = path.join(root, 'registry/backtest-registry.json');
+// the artifact lives next to the pure modules the page and the worker share (edge-bff/backtest/src/core)
+const OUT = path.resolve(root, '../edge-bff/backtest/src/core/backtest-registry.json');
 
 const sha256 = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+/** Content hash of the two sources (no hand-kept version number); the worker recomputes it at start. */
+export const registryVersion = () => crypto.createHash('sha256').update(fs.readFileSync(REGISTRY_SRC)).update(fs.readFileSync(CALC_SRC)).digest('hex').slice(0, 16);
 const rel = file => path.relative(path.resolve(root, '../..'), file).split(path.sep).join('/');
 
 export async function build() {
@@ -47,6 +50,7 @@ export async function build() {
   });
   return {
     schema_version: 1,
+    registry_version: registryVersion(),
     generated_by: 'apps/backtest-worker/scripts/build-registry.mjs',
     sources: [{ file: rel(REGISTRY_SRC), sha256: sha256(REGISTRY_SRC) }, { file: rel(CALC_SRC), sha256: sha256(CALC_SRC) }],
     indicators,

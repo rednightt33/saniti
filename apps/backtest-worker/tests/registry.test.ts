@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { test } from 'node:test';
 import { DEFAULTS, F } from '../../edge-bff/terminal/src/calc/indicators.ts';
-import { build, serialize } from '../scripts/build-registry.mjs';
-import { BY_ID, REGISTRY, REGISTRY_VERSION, ValidationError, indicator, resolveParams } from '../src/registry.ts';
+import { build, registryVersion, serialize } from '../scripts/build-registry.mjs';
+import { BY_ID, REGISTRY, REGISTRY_VERSION, ValidationError, indicator, resolveParams } from '../../edge-bff/backtest/src/core/registry.ts';
 
 const source = JSON.parse(fs.readFileSync(new URL('../../edge-bff/terminal/src/data/indRegistry.json', import.meta.url), 'utf8'));
 
 test('the committed registry is the one the sources build (npm run registry)', async () => {
-  assert.equal(fs.readFileSync(new URL('../registry/backtest-registry.json', import.meta.url), 'utf8'), serialize(await build()));
+  assert.equal(fs.readFileSync(new URL('../../edge-bff/backtest/src/core/backtest-registry.json', import.meta.url), 'utf8'), serialize(await build()));
 });
 
 test('53 indicators, each mapped to a function of the calculation module with its outputs', () => {
@@ -51,6 +51,7 @@ test('parameter validation refuses instead of rounding or clamping', () => {
   assert.equal(code(() => indicator('I54')), 'UNKNOWN_INDICATOR');
 });
 
-test('the registry version is a content hash', () => {
+test('the registry version is the content hash of its sources', () => {
   assert.match(REGISTRY_VERSION, /^[0-9a-f]{16}$/);
+  assert.equal(REGISTRY_VERSION, registryVersion());
 });

@@ -6,8 +6,8 @@
    - "within N bars" keeps, per condition, the last bar it was true; the entry is true on bar i when at least `need`
      conditions were true on one of the bars i-N+1..i (they need not be true on the same bar).
    Flow and broker conditions are not here: they stay disabled until their storage data is verified. */
-import { F, isN } from '../../edge-bff/terminal/src/calc/indicators.ts';
-import type { Bars, Num, Out, Params } from '../../edge-bff/terminal/src/calc/indicators.ts';
+import { F, isN } from '../../../terminal/src/calc/indicators.ts';
+import type { Bars, Num, Out, Params } from '../../../terminal/src/calc/indicators.ts';
 import { ValidationError, indicator, resolveParams } from './registry.ts';
 
 export type Op = 'gt' | 'lt' | 'crosses_above' | 'crosses_below';

@@ -2,8 +2,8 @@
    page's controls cannot produce (they are refused, not adjusted). */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Calc, combineEntry, combineExit, compare, conditionSeries, switchOns } from '../src/conditions.ts';
-import { ValidationError } from '../src/registry.ts';
+import { Calc, combineEntry, combineExit, compare, conditionSeries, switchOns } from '../../edge-bff/backtest/src/core/conditions.ts';
+import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 
 const bits = (s: Uint8Array) => Array.from(s).join('');
 const codeOf = (f: () => unknown) => { try { f() } catch (e) { assert.ok(e instanceof ValidationError, String(e)); return (e as ValidationError).code } return null };

@@ -1,10 +1,10 @@
-/* The backtest indicator registry (registry/backtest-registry.json, built by scripts/build-registry.mjs) and the checks
-   a request's indicator parameters must pass before anything is calculated. The calculation itself is the Terminal's
-   module (F), so the chart, the preview and the worker share one formula per indicator. */
-import crypto from 'node:crypto';
-import fs from 'node:fs';
-import { F } from '../../edge-bff/terminal/src/calc/indicators.ts';
-import type { Bars, Out, Params } from '../../edge-bff/terminal/src/calc/indicators.ts';
+/* The backtest indicator registry (backtest-registry.json, built by apps/backtest-worker/scripts/build-registry.mjs) and
+   the checks a request's indicator parameters must pass before anything is calculated. The calculation itself is the
+   Terminal's module (F), so the chart, the page's preview and the worker share one formula per indicator.
+   Pure module: no DOM and no Node API, so the page (Vite) and the worker (Node, type stripping) import the same file. */
+import { F } from '../../../terminal/src/calc/indicators.ts';
+import type { Bars, Out, Params } from '../../../terminal/src/calc/indicators.ts';
+import doc from './backtest-registry.json' with { type: 'json' };
 
 export interface RegistryParam {
   key: string; type: 'integer' | 'number' | 'enum' | 'boolean'; default: unknown;
@@ -15,15 +15,17 @@ export interface RegistryIndicator {
   price_input: 'close' | 'volume'; outputs: string[]; params: RegistryParam[];
   not_accepted: { key: string; value: unknown; reason: string }[]; available_for_backtest: boolean;
 }
+export interface RegistryDoc {
+  schema_version: number; registry_version: string; generated_by: string;
+  sources: { file: string; sha256: string }[]; indicators: RegistryIndicator[];
+}
 
-const REGISTRY_URL = new URL('../registry/backtest-registry.json', import.meta.url);
-const CALC_URL = new URL('../../edge-bff/terminal/src/calc/indicators.ts', import.meta.url);
-const text = fs.readFileSync(REGISTRY_URL, 'utf8');
-export const REGISTRY: { schema_version: number; indicators: RegistryIndicator[] } = JSON.parse(text);
+export const REGISTRY = doc as unknown as RegistryDoc;
 export const BY_ID: Record<string, RegistryIndicator> = Object.fromEntries(REGISTRY.indicators.map(r => [r.id, r]));
 
-/** Changes whenever the registry or the calculation module changes (no hand-kept version number). */
-export const REGISTRY_VERSION = crypto.createHash('sha256').update(text).update(fs.readFileSync(CALC_URL)).digest('hex').slice(0, 16);
+/** Content hash of the two sources the registry is built from (indRegistry.json and indicators.ts), written by the
+    generator; the worker re-checks it against the files at start, so a stale artifact cannot run. */
+export const REGISTRY_VERSION: string = REGISTRY.registry_version;
 
 export class ValidationError extends Error {
   code: string; field: string;
@@ -52,7 +54,7 @@ export function resolveParams(r: RegistryIndicator, given: unknown, field = 'par
   }
   const out: Params = {};
   for (const p of r.params) {
-    const v = k(g, p.key) ? g[p.key] : p.default, f = `${field}.${p.key}`;
+    const v = has(g, p.key) ? g[p.key] : p.default, f = `${field}.${p.key}`;
     if (p.type === 'integer' || p.type === 'number') {
       if (typeof v !== 'number' || !Number.isFinite(v)) throw new ValidationError('INVALID_PARAM', f, `${f} must be a number.`);
       if (p.type === 'integer' && !Number.isInteger(v)) throw new ValidationError('INVALID_PARAM', f, `${f} must be a whole number.`);
@@ -63,11 +65,11 @@ export function resolveParams(r: RegistryIndicator, given: unknown, field = 'par
     } else if (p.type === 'boolean') {
       if (typeof v !== 'boolean') throw new ValidationError('INVALID_PARAM', f, `${f} must be true or false.`);
     }
-    out[p.key] = v;
+    out[p.key] = v as Params[string];
   }
   return out;
 }
-const k = (o: object, key: string) => Object.prototype.hasOwnProperty.call(o, key);
+const has = (o: object, key: string) => Object.prototype.hasOwnProperty.call(o, key);
 
 /** One indicator's outputs on the bars, with checked parameters. */
 export function calculate(r: RegistryIndicator, bars: Bars, params: Params): Out {

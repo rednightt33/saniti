@@ -6,9 +6,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DEFAULTS } from '../../edge-bff/terminal/src/calc/indicators.ts';
 import { loadFixtures } from '../../edge-bff/terminal/tests/calc/fixtures.mjs';
-import { Calc, combineEntry, combineExit, conditionSeries, switchOns, trueBars } from '../src/conditions.ts';
-import type { Condition, EntryLogic, Op, Signal } from '../src/conditions.ts';
-import { REGISTRY, ValidationError } from '../src/registry.ts';
+import { Calc, combineEntry, combineExit, conditionSeries, switchOns, trueBars } from '../../edge-bff/backtest/src/core/conditions.ts';
+import type { Condition, EntryLogic, Op, Signal } from '../../edge-bff/backtest/src/core/conditions.ts';
+import { REGISTRY, ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 import * as O from './oracle.mjs';
 
 const fixtures = loadFixtures().map((f: any) => ({ ticker: f.ticker, bars: { T: f.T, O: f.O, H: f.H, L: f.L, C: f.C, V: f.V } }));

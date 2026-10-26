@@ -1,5 +1,6 @@
 {
   "schema_version": 1,
+  "registry_version": "b6a8dc0ba206ed65",
   "generated_by": "apps/backtest-worker/scripts/build-registry.mjs",
   "sources": [
     {
