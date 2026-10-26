@@ -3,7 +3,8 @@
 Derived when the catalog is read, from AI_table_catalog.freshness_sla and the dataset's last date in
 AI_data_coverage (actual_max_date, else expected_max_date for a derived dataset), against the run's reference date:
 SEGAR when the age is at most the SLA, TERLAMBAT up to twice the SLA, BASI beyond. Without an SLA or a last date the
-status is UNKNOWN; a SNAPSHOT dataset has no date range (NOT_APPLICABLE).
+status is UNKNOWN; a SNAPSHOT dataset has no date range (NOT_APPLICABLE). A last date after the reference date is a
+schedule, not a load, so it is UNKNOWN too (EXEC-M224); the coverage job keeps such rows in scheduled_max_date.
 
 Age: for an SLA shorter than a week (a daily market table), the weekdays after the last date up to the reference date,
 so a weekend does not make Monday's data late; public holidays are not in the catalog, so the day after a holiday
@@ -54,6 +55,11 @@ def freshness(row: dict[str, Any], sla: Any, today: date) -> dict[str, Any]:
     limit = sla_days(sla)
     if last is None or limit is None:
         return {"status": "UNKNOWN", "reason": "no freshness SLA" if limit is None else "no last date"}
+    if last > today:
+        # EXEC-M224: a last date after the reference date is a schedule, not data that has happened; age 0 would
+        # read SEGAR however long the loads have stopped
+        return {"status": "UNKNOWN", "last_date": last.isoformat(), "as_of": today.isoformat(),
+                "reason": "the last date is after the reference date (scheduled rows), so it cannot show freshness"}
     weekdays = limit < WEEKDAY_BASIS_BELOW_DAYS
     age = _weekdays_after(last, today) if weekdays else max((today - last).days, 0)
     status = "SEGAR" if age <= limit else "TERLAMBAT" if age <= 2 * limit else "BASI"

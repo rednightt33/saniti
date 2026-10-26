@@ -38,6 +38,17 @@ def test_unknown_and_not_applicable() -> None:
     assert freshness({"coverage_mode": "SNAPSHOT"}, "30 days", MONDAY)["status"] == "NOT_APPLICABLE"
 
 
+def test_a_last_date_after_the_reference_date_is_unknown_not_fresh() -> None:
+    """EXEC-M224: a scheduled row (an announced corporate action date) is not a load; age 0 must not read SEGAR."""
+    scheduled = freshness({"coverage_mode": "ACTUAL_SOURCE", "actual_max_date": "2026-12-18"}, "7 days", MONDAY)
+    assert scheduled["status"] == "UNKNOWN" and "after the reference date" in scheduled["reason"]
+    assert scheduled["last_date"] == "2026-12-18"
+    # the same SLA with a past last date keeps the calendar-day statuses
+    past = {"coverage_mode": "ACTUAL_SOURCE", "actual_max_date": "2026-09-25"}
+    assert freshness(past, "7 days", MONDAY)["status"] == "TERLAMBAT"
+    assert freshness({**past, "actual_max_date": "2026-10-05"}, "7 days", MONDAY)["status"] == "SEGAR"
+
+
 def test_a_latest_end_overlaps_later_ranges() -> None:
     assert _overlap(("2026-01-01", "LATEST"), ("2026-09-01", "2026-10-02"))
     assert not _overlap(("2026-01-01", "LATEST"), ("2025-01-01", "2025-12-31"))

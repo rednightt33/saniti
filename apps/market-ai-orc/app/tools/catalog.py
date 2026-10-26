@@ -453,6 +453,7 @@ LIMIT %s
 COVERAGE_DATASET_SQL = '''
 SELECT dataset_name, coverage_mode, reference_dataset_name, actual_min_date, actual_max_date,
        expected_min_date, expected_max_date, source_row_count, source_key_count,
+       scheduled_max_date, scheduled_row_count,
        pipeline_status, verification_status, quality_status, check_error,
        last_checked_at, last_full_checked_at
 FROM public."AI_data_coverage"
@@ -473,13 +474,19 @@ LIMIT %s
 COVERAGE_ENTITIES_SQL = '''
 SELECT dataset_name, entity_id, coverage_mode, reference_dataset_name, actual_min_date,
        actual_max_date, expected_min_date, expected_max_date, source_row_count,
-       source_key_count, pipeline_status, verification_status, quality_status, check_error,
+       source_key_count, scheduled_max_date, scheduled_row_count, pipeline_status, verification_status, quality_status, check_error,
        last_checked_at
 FROM public."AI_data_coverage"
 WHERE coverage_scope = 'ENTITY' AND dataset_name = ANY(%s) AND entity_id = ANY(%s)
 ORDER BY dataset_name, entity_id
 LIMIT %s
 '''
+
+
+SCHEDULED_NOTE = (
+    "scheduled_max_date and scheduled_row_count count the rows dated after the coverage check: announced schedules "
+    "(for example corporate action dates), not data that has happened. actual_max_date is the last date on or before "
+    "the check, and freshness is measured from it.")
 
 
 def _reference_date() -> date:
@@ -813,7 +820,7 @@ RELATIONSHIP_FIELDS = (
 COVERAGE_FIELDS = (
     "coverage_mode", "reference_dataset_name", "actual_min_date", "actual_max_date",
     "expected_min_date", "expected_max_date", "source_row_count", "source_key_count",
-    "pipeline_status", "verification_status", "quality_status", "check_error",
+    "scheduled_max_date", "scheduled_row_count", "pipeline_status", "verification_status", "quality_status", "check_error",
     "last_checked_at", "last_full_checked_at",
 )
 
@@ -1442,6 +1449,9 @@ class CatalogTools:
             for row in datasets
         }
         result["datasets"] = by_dataset
+        # EXEC-M224: rows dated after the check date are announced schedules, kept apart from the last date
+        if any(row.get("scheduled_row_count") for row in datasets):
+            result["scheduled_note"] = SCHEDULED_NOTE
         # 1b / C06: this summary is refreshed by a scheduled check and can lag the newest load
         result["end_date_note"] = (
             "These dates are a summary checked at last_checked_at and can lag the newest load. For data up to the "

@@ -183,6 +183,30 @@ def test_coverage_dataset_status_entities_and_disabled(database: str) -> None:
     assert coverage["coverage_disabled_tables"] == ["IDX_Broker_Profile"]
 
 
+def test_coverage_shows_scheduled_rows_apart_with_a_note(database: str) -> None:
+    """EXEC-M224: scheduled rows (dated after the coverage check) are shown beside the last date, with the note; a
+    dataset without them shows neither."""
+    with psycopg.connect(database, autocommit=True) as connection:
+        connection.execute("""UPDATE public."AI_data_coverage" SET scheduled_max_date = '2026-12-18',
+            scheduled_row_count = 97 WHERE dataset_name = 'IDX_Broker_Summary'""")
+    try:
+        coverage = details(registry_for(database), ["IDX_Broker_Summary", "Feature_02_Broker_Rolling"], ["COVERAGE"],
+                           entity_ids=["BBCA"])["sections"]["COVERAGE"]
+        dataset = coverage["datasets"]["IDX_Broker_Summary"]
+        assert dataset["actual_max_date"] == "2026-08-31"
+        assert dataset["scheduled_max_date"] == "2026-12-18" and dataset["scheduled_row_count"] == 97
+        assert dataset["freshness"]["last_date"] == "2026-08-31"
+        assert "announced schedules" in coverage["scheduled_note"]
+        assert coverage["entities"]["IDX_Broker_Summary"][0]["scheduled_row_count"] == 97
+        assert "scheduled_max_date" not in coverage["datasets"]["Feature_02_Broker_Rolling"]
+        alone = details(registry_for(database), ["Feature_02_Broker_Rolling"], ["COVERAGE"])["sections"]["COVERAGE"]
+        assert "scheduled_note" not in alone
+    finally:
+        with psycopg.connect(database, autocommit=True) as connection:
+            connection.execute("""UPDATE public."AI_data_coverage" SET scheduled_max_date = NULL,
+                scheduled_row_count = NULL WHERE dataset_name = 'IDX_Broker_Summary'""")
+
+
 def test_the_catalog_summary_follows_the_same_visibility_rules(database: str) -> None:
     from app.tools.catalog import CatalogTools
     store = CatalogStore(database, connect_timeout_seconds=5, statement_timeout_ms=5000)

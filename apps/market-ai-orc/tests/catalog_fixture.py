@@ -8,6 +8,7 @@ CATALOG_MIGRATION = REPO_ROOT / "database/migrations/20260922_001_create_ai_cata
 READER_MIGRATION = REPO_ROOT / "database/migrations/20260923_001_create_market_ai_catalog_reader.sql"
 RESEARCH_MIGRATION = REPO_ROOT / "database/migrations/20260924_001_create_ai_research_catalog.sql"
 FORMULA_MIGRATION = REPO_ROOT / "database/migrations/20260924_003_create_ai_formula_reference.sql"
+COVERAGE_SCHEDULED_MIGRATION = REPO_ROOT / "database/migrations/20261026_003_coverage_scheduled_rows.sql"
 
 TRIGGER_FUNCTION_STUB = '''
 CREATE FUNCTION public.set_database_catalog_updated_at() RETURNS trigger
@@ -20,7 +21,10 @@ def catalog_ddl() -> str:
     text = CATALOG_MIGRATION.read_text()
     start = text.index('CREATE TABLE public."AI_table_catalog"')
     end = text.index("WITH requested(")
-    return text[start:end]
+    # EXEC-M224: the scheduled-row columns, the ALTER of the applied migration verbatim
+    later = COVERAGE_SCHEDULED_MIGRATION.read_text()
+    alter = later[later.index('ALTER TABLE public."AI_data_coverage"'):]
+    return text[start:end] + "\n" + alter[:alter.index(";") + 1] + "\n"
 
 
 def research_catalog_ddl() -> str:

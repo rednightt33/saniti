@@ -8,8 +8,10 @@ import json
 import os
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import psycopg
+from psycopg import sql
 
 
 READ_TABLES = frozenset(
@@ -90,13 +92,16 @@ RAW_SOURCES = {
         "date_column": "date",
         "reference_for": ("Feature_04_Technical_Indicator",),
     },
-    # EXEC-GO-1025: Stockbit corporate actions and insider movements, one row per event (its own coverage)
+    # EXEC-GO-1025: Stockbit corporate actions and insider movements, one row per event (its own coverage); every pull
+    # rebuilds the whole table, so the full range is always read (123,047 rows on 2026-10-25)
     "idx_event_annotation": {
         "entity_column": "ticker",
         "date_column": "annotation_date",
         "reference_for": (),
+        "always_full": True,
     },
 }
+MARKET_TIMEZONE = ZoneInfo("Asia/Jakarta")
 SNAPSHOTS = ("IDX_Stock_Universe", "IDX_Broker_Profile", "Universe_Fixed_income")
 FEATURE_FOUR = "Feature_04_Technical_Indicator"
 # Feature 04 is calculated by an event-driven worker after final price changes; no status table here confirms it,
@@ -132,67 +137,46 @@ def enabled_datasets(connection: psycopg.Connection[Any]) -> set[str]:
     }
 
 
+def check_date() -> date:
+    """EXEC-M224: the date coverage is measured against, in the market's timezone (the cron runs 07:30 and 17:30 WIB).
+    A source row dated after it is an announced schedule, not data that has happened."""
+    return datetime.now(MARKET_TIMEZONE).date()
+
+
 def raw_coverage_rows(
     connection: psycopg.Connection[Any],
     dataset_name: str,
     mode: str,
     recent_days: int,
+    as_of: date,
 ) -> list[tuple[Any, ...]]:
-    cutoff = date.today() - timedelta(days=recent_days)
-    if dataset_name == "Price_Stock_Indonesia_IDX":
-        where_clause = "" if mode == "full" else "WHERE date >= %s"
-        parameters: tuple[Any, ...] = () if mode == "full" else (cutoff,)
-        return connection.execute(
-            f"""
-            SELECT ticker::text, min(date), max(date),
-                   count(*)::bigint, count(DISTINCT date)::bigint
-            FROM public."Price_Stock_Indonesia_IDX"
-            {where_clause}
-            GROUP BY ticker
-            ORDER BY ticker
-            """,
-            parameters,
-        ).fetchall()
-    if dataset_name == "IDX_Broker_Summary":
-        where_clause = "" if mode == "full" else "WHERE \"Date\" >= %s"
-        parameters = () if mode == "full" else (cutoff,)
-        return connection.execute(
-            f"""
-            SELECT "Symbol"::text, min("Date"), max("Date"),
-                   count(*)::bigint, count(DISTINCT "Date")::bigint
-            FROM public."IDX_Broker_Summary"
-            {where_clause}
-            GROUP BY "Symbol"
-            ORDER BY "Symbol"
-            """,
-            parameters,
-        ).fetchall()
-    if dataset_name == "Price_Fixed_Income_Final":
-        where_clause = "" if mode == "full" else "WHERE date >= %s"
-        parameters = () if mode == "full" else (cutoff,)
-        return connection.execute(
-            f"""
-            SELECT ticker, min(date), max(date),
-                   count(*)::bigint, count(DISTINCT date)::bigint
-            FROM public."Price_Fixed_Income_Final"
-            {where_clause}
-            GROUP BY ticker
-            ORDER BY ticker
-            """,
-            parameters,
-        ).fetchall()
-    if dataset_name == "idx_event_annotation":
-        # every pull rebuilds the whole table, so the full range is always read (123,047 rows on 2026-10-25)
-        return connection.execute(
-            """
-            SELECT ticker, min(annotation_date), max(annotation_date),
-                   count(*)::bigint, count(DISTINCT annotation_date)::bigint
-            FROM public.idx_event_annotation
-            GROUP BY ticker
-            ORDER BY ticker
-            """
-        ).fetchall()
-    raise ValueError(f"Unsupported raw dataset: {dataset_name}")
+    """Per entity: (entity, first date, last date on or before as_of, row count, date count, rows after as_of, last
+    date after as_of). Every raw source is read the same way from its RAW_SOURCES columns; the split at as_of is
+    derived from the rows, so a source without future rows gives the same last date as the plain maximum (EXEC-M224).
+    A nightly run reads the latest recent_days only; rows after as_of are always inside that window, so their count is
+    complete in both modes."""
+    if dataset_name not in RAW_SOURCES:
+        raise ValueError(f"Unsupported raw dataset: {dataset_name}")
+    source = RAW_SOURCES[dataset_name]
+    table = sql.Identifier("public", dataset_name)
+    entity = sql.Identifier(source["entity_column"])
+    day = sql.Identifier(source["date_column"])
+    windowed = mode != "full" and not source.get("always_full")
+    where = sql.SQL("WHERE {} >= %(cutoff)s").format(day) if windowed else sql.SQL("")
+    query = sql.SQL(
+        """
+        SELECT {entity}::text, min({day}), max({day}) FILTER (WHERE {day} <= %(as_of)s),
+               count(*)::bigint, count(DISTINCT {day})::bigint,
+               count(*) FILTER (WHERE {day} > %(as_of)s)::bigint, max({day}) FILTER (WHERE {day} > %(as_of)s)
+        FROM {table}
+        {where}
+        GROUP BY {entity}
+        ORDER BY {entity}
+        """
+    ).format(entity=entity, day=day, table=table, where=where)
+    return connection.execute(
+        query, {"cutoff": date.today() - timedelta(days=recent_days), "as_of": as_of}
+    ).fetchall()
 
 
 def upsert_raw_entities(
@@ -201,6 +185,7 @@ def upsert_raw_entities(
     rows: list[tuple[Any, ...]],
     checked_at: datetime,
     mode: str,
+    as_of: date,
 ) -> None:
     full_checked_at = checked_at if mode == "full" else None
     parameters = [
@@ -211,10 +196,13 @@ def upsert_raw_entities(
             max_date,
             row_count if mode == "full" else None,
             key_count if mode == "full" else None,
+            scheduled_count,
+            scheduled_max,
             checked_at,
             full_checked_at,
+            as_of,
         )
-        for entity_id, min_date, max_date, row_count, key_count in rows
+        for entity_id, min_date, max_date, row_count, key_count, scheduled_count, scheduled_max in rows
     ]
     with connection.cursor() as cursor:
         cursor.executemany(
@@ -225,12 +213,13 @@ def upsert_raw_entities(
             actual_min_date, actual_max_date,
             expected_min_date, expected_max_date,
             source_row_count, source_key_count,
+            scheduled_row_count, scheduled_max_date,
             pipeline_status, verification_status, quality_status,
             check_error, last_checked_at, last_full_checked_at
         )
         VALUES (
             %s, 'ENTITY', %s, NULL, 'ACTUAL_SOURCE',
-            %s, %s, NULL, NULL, %s, %s,
+            %s, %s, NULL, NULL, %s, %s, %s, %s,
             'SOURCE_OBSERVED', 'VERIFIED', 'HEALTHY', NULL, %s, %s
         )
         ON CONFLICT (dataset_name, coverage_scope, (COALESCE(entity_id, ''))) DO UPDATE SET
@@ -238,10 +227,14 @@ def upsert_raw_entities(
                 public."AI_data_coverage".actual_min_date,
                 EXCLUDED.actual_min_date
             ),
+            -- EXEC-M224: a stored last date after the check date (written before the split) is not kept
             actual_max_date = GREATEST(
-                public."AI_data_coverage".actual_max_date,
+                CASE WHEN public."AI_data_coverage".actual_max_date <= %s::date
+                     THEN public."AI_data_coverage".actual_max_date END,
                 EXCLUDED.actual_max_date
             ),
+            scheduled_row_count = EXCLUDED.scheduled_row_count,
+            scheduled_max_date = EXCLUDED.scheduled_max_date,
             source_row_count = COALESCE(
                 EXCLUDED.source_row_count,
                 public."AI_data_coverage".source_row_count
@@ -278,6 +271,7 @@ def upsert_raw_dataset_summary(
     connection: psycopg.Connection[Any],
     dataset_name: str,
     checked_at: datetime,
+    as_of: date,
 ) -> None:
     connection.execute(
         """
@@ -287,26 +281,30 @@ def upsert_raw_dataset_summary(
             actual_min_date, actual_max_date,
             expected_min_date, expected_max_date,
             source_row_count, source_key_count,
+            scheduled_row_count, scheduled_max_date,
             pipeline_status, verification_status, quality_status,
             check_error, last_checked_at, last_full_checked_at
         )
         SELECT
-            %s, 'DATASET', NULL, NULL, 'ACTUAL_SOURCE',
-            min(actual_min_date), max(actual_max_date), NULL, NULL,
+            %(dataset)s, 'DATASET', NULL, NULL, 'ACTUAL_SOURCE',
+            min(actual_min_date), max(actual_max_date) FILTER (WHERE actual_max_date <= %(as_of)s), NULL, NULL,
             CASE WHEN bool_and(source_row_count IS NOT NULL)
                  THEN sum(source_row_count) END,
             CASE WHEN bool_and(source_key_count IS NOT NULL)
                  THEN sum(source_key_count) END,
-            'SOURCE_OBSERVED', 'VERIFIED', 'HEALTHY', NULL, %s,
+            coalesce(sum(scheduled_row_count), 0), max(scheduled_max_date),
+            'SOURCE_OBSERVED', 'VERIFIED', 'HEALTHY', NULL, %(checked_at)s,
             max(last_full_checked_at)
         FROM public."AI_data_coverage"
-        WHERE dataset_name = %s AND coverage_scope = 'ENTITY'
+        WHERE dataset_name = %(dataset)s AND coverage_scope = 'ENTITY'
         HAVING count(*) > 0
         ON CONFLICT (dataset_name, coverage_scope, (COALESCE(entity_id, ''))) DO UPDATE SET
             actual_min_date = EXCLUDED.actual_min_date,
             actual_max_date = EXCLUDED.actual_max_date,
             source_row_count = EXCLUDED.source_row_count,
             source_key_count = EXCLUDED.source_key_count,
+            scheduled_row_count = EXCLUDED.scheduled_row_count,
+            scheduled_max_date = EXCLUDED.scheduled_max_date,
             pipeline_status = EXCLUDED.pipeline_status,
             verification_status = EXCLUDED.verification_status,
             quality_status = EXCLUDED.quality_status,
@@ -314,7 +312,7 @@ def upsert_raw_dataset_summary(
             last_checked_at = EXCLUDED.last_checked_at,
             last_full_checked_at = EXCLUDED.last_full_checked_at
         """,
-        (dataset_name, checked_at, dataset_name),
+        {"dataset": dataset_name, "checked_at": checked_at, "as_of": as_of},
     )
 
 
@@ -759,6 +757,7 @@ def upsert_derived_dataset_summary(
 def run(mode: str, recent_days: int) -> dict[str, Any]:
     validate_access_contract()
     checked_at = datetime.now(timezone.utc)
+    as_of = check_date()
     with psycopg.connect(connection_url()) as connection:
         lock_acquired = connection.execute(
             "SELECT pg_try_advisory_xact_lock(hashtextextended('ai_data_coverage_job', 0))"
@@ -771,9 +770,9 @@ def run(mode: str, recent_days: int) -> dict[str, Any]:
             dependents = set(RAW_SOURCES[raw_dataset]["reference_for"])
             if raw_dataset not in enabled and not (dependents & enabled):
                 continue
-            rows = raw_coverage_rows(connection, raw_dataset, mode, recent_days)
-            upsert_raw_entities(connection, raw_dataset, rows, checked_at, mode)
-            upsert_raw_dataset_summary(connection, raw_dataset, checked_at)
+            rows = raw_coverage_rows(connection, raw_dataset, mode, recent_days, as_of)
+            upsert_raw_entities(connection, raw_dataset, rows, checked_at, mode, as_of)
+            upsert_raw_dataset_summary(connection, raw_dataset, checked_at, as_of)
 
         for snapshot in SNAPSHOTS:
             if snapshot in enabled:
@@ -843,6 +842,7 @@ def run(mode: str, recent_days: int) -> dict[str, Any]:
         "status": "SUCCESS",
         "mode": mode,
         "checked_at": checked_at.isoformat(),
+        "as_of": as_of.isoformat(),
         "read_tables": sorted(READ_TABLES),
         "write_tables": sorted(WRITE_TABLES),
         "coverage_summary": [
