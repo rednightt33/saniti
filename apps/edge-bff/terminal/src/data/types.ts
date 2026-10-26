@@ -22,6 +22,9 @@ export interface MarketEvent { id: string; type: string; date: string; at?: stri
   /** the date as the tooltip writes it (live: "03 December 2025"); the fixture shows `date` as the reference does */
   label?: string }
 
+/** live broker data that arrives after the first draw: the recent years first, then the whole history (F5) */
+export interface LateBroker { combos: Combo[]; flowFrom: number; broker: MarketData['broker'] }
+
 export interface MarketData {
   mode: 'fixture' | 'live';
   symbol: string;
@@ -39,7 +42,7 @@ export interface MarketData {
   ihsg: Point[];
   loadIhsg?(): Promise<Point[]>;
   /** live: the broker data, after the first draw (Flow Timeline, then Broker activity when its panel is open) */
-  later?: { broker: Promise<{ combos: Combo[]; flowFrom: number; broker: MarketData['broker'] }> };
+  later?: { broker: Promise<LateBroker>; brokerAll: Promise<LateBroker> };
   combos: Combo[];
   flowSource: 'synthetic' | 'real';
   /** first session index that has broker data (0 in the fixture) */

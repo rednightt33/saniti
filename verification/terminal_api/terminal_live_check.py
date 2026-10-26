@@ -85,6 +85,8 @@ try:
             page.evaluate(f"localStorage.setItem('ml.symbol', '{ticker}')")
             t0 = time.time()
             page.goto(f'http://127.0.0.1:{port}/terminal-app/', wait_until='load', timeout=120000)
+            # F4: what shows before the data (loading notice, side panels already in their state)
+            shell = page.evaluate("() => ({ notice: document.querySelector('[role=status]')?.textContent || null, rpSub: document.getElementById('rpSub').textContent, left: document.getElementById('workspace').classList.contains('left-collapsed'), right: document.getElementById('workspace').classList.contains('right-collapsed') })")
             try:
                 # EXEC-TERMINAL-UI-1026 U5: the chart first, then the Flow Timeline; the side panels start closed
                 page.wait_for_function("() => document.querySelector('#flowSummary .flow-stat') || document.querySelector('[role=alert]')", timeout=90000)
@@ -125,6 +127,11 @@ try:
             if mk:
                 mk.hover(); page.wait_for_timeout(300)
                 checks['event_tip'] = page.evaluate("() => document.querySelector('.ev-tip')?.innerText.slice(0, 160) || null")
+            # F2: Ray in the line menu; F5: the Flow note once the whole broker history is in
+            checks['line_menu'] = page.evaluate("() => [...document.querySelectorAll('.dr-mi')].map(b => b.innerText.split('\\n')[0]).filter(t => /ray|line/i.test(t))")
+            page.wait_for_function("() => !/^Loading/.test(document.getElementById('flowNote').textContent) || document.getElementById('flowNote').hidden", timeout=90000)
+            checks['flow_note_after_all'] = page.evaluate("() => document.getElementById('flowNote').hidden ? null : document.getElementById('flowNote').textContent")
+            checks['shell'] = shell
             report[ticker]['checks'] = checks
             report[ticker].update(seconds_to_panels=loaded, downloads=len(downloads),
                                   download_status=sorted({d['status'] for d in downloads}),

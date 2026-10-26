@@ -83,20 +83,22 @@ async function bundle(ticker: string, datasets: Dataset[], csrf: string) {
 
 /* U7: the files are downloaded, inflated and parsed by one Web Worker (worker.ts); its answers arrive in stages.
    Without Worker support the same functions run here. */
-interface Job { price: Promise<PriceRow[]>; broker: Promise<Omit<Extract<WorkerAnswer, { type:'broker' }>, 'id' | 'type'>>; events: Promise<Record<string, unknown>[]> }
+type BrokerAnswer = Omit<Extract<WorkerAnswer, { type:'broker' | 'brokerAll' }>, 'id' | 'type'>;
+/* broker: the recent years (F5), brokerAll: the whole history, read after them */
+interface Job { price: Promise<PriceRow[]>; broker: Promise<BrokerAnswer>; brokerAll: Promise<BrokerAnswer>; events: Promise<Record<string, unknown>[]> }
 let worker: Worker | null = null, jobs = 0;
 const waiting = new Map<number, Record<string, [(v: any) => void, (e: any) => void]>>();
 function run(files: { price: string[]; broker: string[]; events: string[] }): Job {
   const stage = <T>() => { let ok!: (v: T) => void, no!: (e: any) => void; const p = new Promise<T>((a, b) => { ok = a; no = b }); p.catch(() => {}); return { p, ok, no } };
-  const price = stage<PriceRow[]>(), broker = stage<any>(), events = stage<Record<string, unknown>[]>();
+  const price = stage<PriceRow[]>(), broker = stage<any>(), brokerAll = stage<any>(), events = stage<Record<string, unknown>[]>();
   if (typeof Worker === 'undefined') {
     (async () => {
       const brokerDocs = Promise.all(files.broker.map(download)), eventDocs = Promise.all(files.events.map(download));
       const rows = priceRows(await Promise.all(files.price.map(download))); price.ok(rows);
-      broker.ok(brokerData(await brokerDocs, rows.map(r => r.d)));
+      const all = brokerData(await brokerDocs, rows.map(r => r.d)); broker.ok(all); brokerAll.ok(all);
       events.ok((await eventDocs).flatMap(rowsOf));
-    })().catch(e => [price, broker, events].forEach(s => s.no(e)));
-    return { price:price.p, broker:broker.p, events:events.p };
+    })().catch(e => [price, broker, brokerAll, events].forEach(s => s.no(e)));
+    return { price:price.p, broker:broker.p, brokerAll:brokerAll.p, events:events.p };
   }
   if (!worker) {
     worker = new Worker(new URL('./worker.ts', import.meta.url));
@@ -112,9 +114,9 @@ function run(files: { price: string[]; broker: string[]; events: string[] }): Jo
     };
   }
   const id = ++jobs;
-  waiting.set(id, { price:[price.ok, price.no], broker:[broker.ok, broker.no], events:[events.ok, events.no] });
+  waiting.set(id, { price:[price.ok, price.no], broker:[broker.ok, broker.no], brokerAll:[brokerAll.ok, brokerAll.no], events:[events.ok, events.no] });
   worker.postMessage({ id, ...files });
-  return { price:price.p, broker:broker.p, events:events.p };
+  return { price:price.p, broker:broker.p, brokerAll:brokerAll.p, events:events.p };
 }
 
 async function prices(ticker: string, csrf: string) {
@@ -167,16 +169,17 @@ export async function liveData(stored: string | null): Promise<MarketData> {
   };
 
   /* broker files: Flow Timeline (net per broker × investor type × board) and Broker activity (last 30 sessions) */
-  const broker = (async () => {
-    const b = await job.broker;
+  const brokerOf = async (stage: Promise<BrokerAnswer>) => {
+    const b = await stage;
     const brokerTypes = new Map((await brokerRefP.catch(() => [])).map((r: any) => [r.code, r.type] as [string, string]));
     return {
       combos:b.combos.map(c => ({ ...c, tilt:0 })) as Combo[], flowFrom:b.flowFrom,
       broker:{ dates:b.dates, rows:(d: number) => b.rows[d] || [], label:SYMBOL,
                category:(code: string) => brokerTypes.get(code) === 'Foreign' ? 'F' : 'L' }
     };
-  })();
-  broker.catch(() => {});
+  };
+  const broker = brokerOf(job.broker), brokerAll = brokerOf(job.brokerAll);
+  broker.catch(() => {}); brokerAll.catch(() => {});
 
   const catalog = COMPARE.filter(c => known.has(c.symbol));
   const loadCompare = async (id: string) => {
@@ -201,7 +204,7 @@ export async function liveData(stored: string | null): Promise<MarketData> {
     mode:'live', symbol:SYMBOL, instruments, ohlc, volume, lineData, catalog, loadCompare, ihsg:[], loadIhsg,
     combos:[], flowSource:'real', flowFrom:N,
     broker: { dates:[], rows:() => [], label:SYMBOL, category:() => 'L' },
-    later: { broker },
+    later: { broker, brokerAll },
     loadEvents,
     hide: { brokerGauge:true, bandar:true }
   };

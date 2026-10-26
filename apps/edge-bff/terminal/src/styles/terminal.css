@@ -769,3 +769,6 @@ html.fit .main-col.flow-collapsed{grid-template-rows:46px minmax(200px,1fr) auto
 .flow-info svg circle:last-child{fill:currentColor;stroke:none}
 .flow-info:hover,.flow-info:focus-visible{color:var(--text);outline:none}
 .flow-info:focus-visible{box-shadow:0 0 0 2px rgba(0,112,243,.35)}
+/* EXEC-TERMINAL-1026B F1 (user 2026-10-26: "fontnya boleh diperkecil?" → "Untuk F1 oke"): smaller Flow figures */
+html.fit .flow-stat-label{font-size:11px}
+html.fit .flow-stat-val{font-size:13px}

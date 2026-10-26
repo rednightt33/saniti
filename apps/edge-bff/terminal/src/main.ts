@@ -53,22 +53,27 @@ function start(M: MarketData, rawSeries: Record<string, Point[]>) {
 /* live (EXEC-TERMINAL-UI-1026 U5): the chart is drawn; the broker files follow into the Flow Timeline, and into Broker
    activity when that panel is open */
 function later(ctx: Ctx, M: MarketData) {
-  M.later?.broker.then(b => { ctx.setFlowData(b.combos, b.flowFrom); ctx.setBrokerPanelData(b.broker) }, () => {
-    ctx.setFlowData([], ctx.N);
-    const note = $('flowNote'); note.textContent = 'Broker data could not be loaded. Reload the page to try again.'; note.hidden = false;
-  });
+  if (!M.later) return;
+  const failed = () => { const note = $('flowNote'); note.textContent = 'Broker data could not be loaded. Reload the page to try again.'; note.hidden = false };
+  /* F5: the recent years first (Flow and Broker activity), then the whole history replaces them in the Flow Timeline */
+  M.later.broker.then(b => {
+    ctx.setFlowData(b.combos, b.flowFrom, true); ctx.setBrokerPanelData(b.broker);
+    M.later!.brokerAll.then(all => ctx.setFlowData(all.combos, all.flowFrom), failed);
+  }, () => { ctx.setFlowData([], ctx.N); failed() });
 }
 
-/* a load failure is shown on the chart, in the reference's own panel style */
-function fail(message: string) {
+/* a message on the chart, in the reference's own panel style: the loading notice, or a load failure (role alert) */
+function notice(message: string, role = 'status') {
   const host = $('chart');
   const box = document.createElement('div');
   box.className = 'st-tip';
-  box.setAttribute('role', 'alert');
+  box.setAttribute('role', role);
   box.style.cssText = 'position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);max-width:420px;pointer-events:auto';
   box.textContent = message;
   (host?.parentElement || document.body).appendChild(box);
+  return box;
 }
+const fail = (message: string) => notice(message, 'alert');
 
 function boot() {
   const stored = store.get('ml.symbol');
@@ -81,8 +86,17 @@ function boot() {
     start(M, M.rawSeries);
     return;
   }
-  liveData(stored).then(M => { const ctx = start(M, {}); if (ctx) later(ctx, M) }, e =>
-    fail(e instanceof TerminalError ? e.message : 'The terminal could not load its data. Reload the page to try again.'));
+  /* EXEC-TERMINAL-1026B F4 (user 2026-10-26: "Oke, untuk usulan loading mapi"): before any data, the side panels take the
+     state they will have (closed unless the user left them open) and the chart says what it is loading, instead of the
+     reference's empty page with its sample texts */
+  const ws = $('workspace');
+  ws.classList.toggle('left-collapsed', (store.get('ml.stats.collapsed') ?? '1') === '1');
+  ws.classList.toggle('right-collapsed', (store.get('ml.broker.collapsed') ?? '1') === '1');
+  $('symText').textContent = stored || 'MAPI';
+  $('rpSub').textContent = '';
+  const loading = notice(`Loading ${stored || 'MAPI'}…`);
+  liveData(stored).then(M => { loading.remove(); const ctx = start(M, {}); if (ctx) later(ctx, M) }, e => { loading.remove();
+    fail(e instanceof TerminalError ? e.message : 'The terminal could not load its data. Reload the page to try again.') });
 }
 
 boot();

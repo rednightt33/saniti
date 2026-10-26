@@ -10,7 +10,7 @@ export interface PriceRow { d: string; o: number; h: number; l: number; c: numbe
 export interface WorkerCombo { broker: string; investor: string; board: string; gross: number; net: Float64Array }
 export type WorkerAnswer =
   | { id: number; type: 'price'; rows: PriceRow[] }
-  | { id: number; type: 'broker'; combos: WorkerCombo[]; flowFrom: number; dates: string[]; rows: BrokerRow[][] }
+  | { id: number; type: 'broker' | 'brokerAll'; combos: WorkerCombo[]; flowFrom: number; dates: string[]; rows: BrokerRow[][] }
   | { id: number; type: 'events'; rows: Record<string, unknown>[] }
   | { id: number; type: 'error'; message: string; status: number };
 
@@ -78,16 +78,29 @@ if (typeof scope.WorkerGlobalScope !== 'undefined' && scope instanceof scope.Wor
     const { id, price, broker, events } = e.data;
     const post = (answer: WorkerAnswer, transfer: Transferable[] = []) => scope.postMessage(answer, transfer);
     const fail = (err: any) => post({ id, type:'error', message:err?.message || 'The terminal could not read its data.', status:err?.status || 0 });
-    const brokerDocs = Promise.all(broker.map(download));
+    /* EXEC-TERMINAL-1026B F5 (user 2026-10-26: "dimuat di awal tahun, tapi setelah terload maka sistem akan otomatis meload
+       seluruh data"): the broker files (about 98 % of a ticker's bytes) come newest first: the last RECENT years are read
+       and answered (`broker`), then the older years follow by themselves and the whole history is answered
+       (`brokerAll`). The price (about 0.03 MB for all years) is read at once: the chart keeps one fixed timeline. */
+    const RECENT = 2;
+    const recent = broker.slice(-RECENT), older = broker.slice(0, -RECENT);
+    const recentDocs = Promise.all(recent.map(download));
     const eventDocs = Promise.all(events.map(download));
-    brokerDocs.catch(() => {}); eventDocs.catch(() => {});      // read below, after the price; no unhandled rejection
+    recentDocs.catch(() => {}); eventDocs.catch(() => {});      // read below, after the price; no unhandled rejection
     let rows: PriceRow[];
     try { rows = priceRows(await Promise.all(price.map(download))) } catch (err) { return fail(err) }
     post({ id, type:'price', rows });
+    const dates = rows.map(r => r.d);
+    let latest: Columnar[];
     try {
-      const b = brokerData(await brokerDocs, rows.map(r => r.d));
+      latest = await recentDocs;
+      const b = brokerData(latest, dates);
       post({ id, type:'broker', ...b }, b.combos.map(c => c.net.buffer));
     } catch (err) { return fail(err) }
     try { post({ id, type:'events', rows:(await eventDocs).flatMap(rowsOf) }) } catch (err) { fail(err) }
+    try {
+      const all = brokerData([...await Promise.all(older.map(download)), ...latest], dates);
+      post({ id, type:'brokerAll', ...all }, all.combos.map(c => c.net.buffer));
+    } catch (err) { fail(err) }
   };
 }

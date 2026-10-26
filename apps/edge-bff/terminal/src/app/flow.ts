@@ -72,6 +72,7 @@ export function initFlow(ctx: Ctx) {
      figure has an info mark that says in one sentence how it is computed */
   let flowFrom = ctx.M.flowFrom;
   let flowLoading = !!ctx.M.later;                        // live: the broker files arrive after the first draw
+  let flowMore = false;                                   // F5: the recent years are in, the older ones still loading
   const visible = () => {
     const r = chart.timeScale().getVisibleLogicalRange();
     return r ? [Math.max(0, Math.ceil(r.from)), Math.min(N-1, Math.floor(r.to))] : [0, N-1];
@@ -113,8 +114,8 @@ export function initFlow(ctx: Ctx) {
     flowSummary();
     const note = $('flowNote');
     const everything = flt.brokers.size===allBrokers().length && flt.boards.size===BOARDS.length && flt.investors.size===INVESTORS.length;
-    note.hidden = !(flowLoading || everything || used===0);
-    note.textContent = flowLoading ? 'Loading broker data…' : used===0 ? 'No flow matches the current filters' : 'All brokers, boards and investor types net to zero by definition';
+    note.hidden = !(flowLoading || flowMore || everything || used===0);
+    note.textContent = flowLoading ? 'Loading broker data…' : flowMore ? 'Loading earlier broker data…' : used===0 ? 'No flow matches the current filters' : 'All brokers, boards and investor types net to zero by definition';
     showTip(ctx.lastTipIdx);
   };
 
@@ -281,9 +282,10 @@ export function initFlow(ctx: Ctx) {
     }
   };
   /* live: the broker files read by the worker after the first draw (EXEC-TERMINAL-UI-1026 U5) */
-  ctx.setFlowData = (combos, from) => {
-    ctx.COMBOS = combos; flowFrom = from; flowLoading = false;
-    flt.brokers.clear(); allBrokers().forEach(b=>flt.brokers.add(b));
+  ctx.setFlowData = (combos, from, more = false) => {
+    const wasAll = flt.brokers.size === allBrokers().length;   // a broker choice the user made survives the full history
+    ctx.COMBOS = combos; flowFrom = from; flowLoading = false; flowMore = more;
+    if(wasAll){ flt.brokers.clear(); allBrokers().forEach(b=>flt.brokers.add(b)) }
     [fBroker,fBoard,fInv].forEach(f=>f.refresh()); onFilter();
     ctx.refreshFlowIndicators?.();
   };

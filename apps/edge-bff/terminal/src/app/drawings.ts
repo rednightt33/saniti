@@ -243,6 +243,10 @@ export function initDrawings(ctx: Ctx) {
     { id:'trend-line',      label:'Trend line',      keys:'Alt + T', icon:TOOLBAR.find(t => t.kind === 'trend-line')!.icon },
     { id:'horizontal-line', label:'Horizontal line', keys:'Alt + H', icon:svg('<path d="M5 14h6.8M16.2 14H23"/><circle cx="14" cy="14" r="2.2"/>') },
     { id:'horizontal-ray',  label:'Horizontal ray',  keys:'Alt + J', icon:svg('<circle cx="7" cy="14" r="2.2"/><path d="M9.2 14H23"/>') },
+    /* EXEC-TERMINAL-1026B F2 (user 2026-10-26: "boleh tambahkan sejajar dengan horizontal ray"): a line from two points that
+       runs on past the second; live layout only, the fixture's menu stays the reference's (1:1 check) */
+    ...(document.documentElement.classList.contains('fit')
+      ? [{ id:'ray', label:'Ray', keys:'', icon:svg('<circle cx="7" cy="21" r="2.2"/><circle cx="14" cy="14" r="2.2"/><path d="M8.6 19.4l3.8-3.8M15.6 12.4L23 5"/>') }] : []),
     { id:'vertical-line',   label:'Vertical line',   keys:'Alt + V', icon:svg('<path d="M14 5v6.8M14 16.2V23"/><circle cx="14" cy="14" r="2.2"/>') }
   ];
   let lineType = store.get('ml.draw.line') as string; if(!LINES.some(l => l.id === lineType)) lineType = 'trend-line';

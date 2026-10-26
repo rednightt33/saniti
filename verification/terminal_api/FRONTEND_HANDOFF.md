@@ -102,3 +102,6 @@ Auth and admin routes are not forwarded. The presigned downloads go straight fro
   figure has an info mark. Right-click on the Flow Timeline: "Reset chart view" (its value scales only). Event labels
   write dates as "03 December 2025".
 - Broker dates without a price row are not on the chart's sessions and are not counted in Flow (ERRORS M238).
+- (EXEC-TERMINAL-1026B) The worker answers the broker in two stages: the last two years (`broker`), then the whole
+  history (`brokerAll`); the Flow Timeline shows "Loading earlier broker data…" in between. Before any data the page
+  shows "Loading <ticker>…" with the side panels already in their state. Line tools add "Ray".

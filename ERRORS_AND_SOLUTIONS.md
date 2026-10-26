@@ -2189,6 +2189,19 @@ change yet.
 - **Status:** RESOLVED (berkas pulih; deployment perbaikan dicatat di RAILWAY_CHANGELOG 2026-10-26).
 - **Lesson:** `git diff --check` tidak menangkap berkas yang terhapus isinya; ringkasan `--stat` sebelum commit wajib.
 
+### EXEC-TERMINAL-1026B F1/F2/F4/F5 — selesai (2026-10-26)
+
+- **Go user:** "Oke, untuk F5 dimuat di awal tahun, tapi setelah terload maka sistem akan otomatis meload seluruh data
+  untuk F5. Untuk F1 oke, untuk F3 nanti saja." (F2 dan F4 "oke" sebelumnya).
+- **F1:** angka Flow 13 px, label 11 px (tampilan live). **F2:** "Ray" di menu garis di bawah "Horizontal ray" (alat `ray`
+  library); digambar dan tersimpan (`ml.drawings.*`). **F4:** sebelum data: "Loading <ticker>…" dan panel samping
+  sudah pada statusnya, tanpa teks contoh referensi. **F5:** broker (±98 % byte per ticker; harga semua tahun ±0,03 MB)
+  dua tahun terakhir dulu, lalu seluruh riwayat menyusul otomatis di latar; Flow menulis "Loading earlier broker data…"
+  sampai lengkap; pilihan filter broker pengguna tetap.
+- **Bukti:** vitest 662, edge-bff terminal 5, 1:1 75 screenshot 0 piksel beda, live check BBCA (catatan F4, menu Ray,
+  catatan Flow hilang setelah riwayat penuh, tanpa error).
+- **Status:** RESOLVED.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.

@@ -7974,7 +7974,7 @@ U7 Web Worker. Evidence: ERRORS "EXEC-TERMINAL-UI-1026 — selesai", RAILWAY_CHA
 recent years first and a browser cache (FUTURE_PLAN "Terminal: muat bertahap" items 2 and 5); the price gap of
 2026-09-17/18 (ERRORS M238) waits for the user.
 
-## EXEC-TERMINAL-1026B — font Flow, alat Ray, isi harga 17–18 Sep 2026, tampilan saat memuat (dicatat 2026-10-26, menunggu go)
+## EXEC-TERMINAL-1026B — font Flow, alat Ray, isi harga 17–18 Sep 2026, tampilan saat memuat (F1, F2, F4, F5 selesai 2026-10-26; F3 ditunda)
 
 User 2026-10-26: "A: fontnya boleh diperkecil?", "Harga 17 dan 18 September 2026 ... --> isi dua tanggal itu. Also kenapa
 bisa hilang ya?", "Also, boleh tambah fitur ray?", lalu "saat ini kalau kita visit the web, yang langsung muncul adalah
@@ -8015,3 +8015,13 @@ price stock IDX tadi."
   tahun lama.
 - Pengecekan harga 17–18 Sep dijalankan (ERRORS M238, DATABASE_CHANGELOG 2026-10-26): tidak ada baris saham.
 - Masih menunggu: F1 (ukuran font), F3 (isi harga dua tanggal itu dan perbaikan pemulihan).
+
+Jawaban user 2026-10-26: "Oke, untuk F5 dimuat di awal tahun, tapi setelah terload maka sistem akan otomatis meload
+seluruh data untuk F5. Untuk F1 oke, untuk F3 nanti saja." Dibaca sebagai go untuk F1, F2, F4, F5 (semua sudah "oke"):
+- F5: tahun terbaru dimuat dulu (tampilan awal ±1 tahun = tahun berjalan dan tahun lalu), lalu sisanya dimuat otomatis
+  di latar tanpa menunggu gulir.
+- F1: label 11 px, angka 13 px.
+- F3 ditunda ("nanti saja").
+
+Status 2026-10-26: F1, F2, F4 dan F5 selesai (ERRORS "EXEC-TERMINAL-1026B F1/F2/F4/F5 — selesai", RAILWAY_CHANGELOG
+2026-10-26). Tersisa di bagian ini: F3 (isi harga 2026-09-17/18 dan perbaikan pemulihan), ditunda user ("nanti saja").
