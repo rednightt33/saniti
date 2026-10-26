@@ -8094,3 +8094,17 @@ Butir:
 - U3 Ikon info (tanda seru dalam lingkaran) di samping angka Flow; hover menampilkan 1–2 kalimat cara hitung. Terbuka:
   arti "Period" dan apakah "Latest day net" ikut diberi ikon.
 - U4 Tanggal di anotasi event dengan format dd mmmm yyyy. Terbuka: bahasa nama bulan dan cakupan.
+
+Jawaban user 2026-10-26: "Period total net dan AVG daily net harusnya menghitung yang di terdisplay saja, sama seperti
+bagian statistics dihitung saat ini. Format tanggal dd mmmm yyyy: bahasa nama bulan dan di bagian mana saja diterapkan.
+--> cukup dibagian label annotations 1. A 2. A 3. A 4. A 5. juga masukan exec". Keputusan (semua butir disetujui untuk
+direncanakan, eksekusi menunggu go):
+- U1: rasio 70 : 30; frame pendek (< ±650 px) → Flow mulai terlipat (judul saja, satu klik membuka).
+- U2: klik kanan di panel Flow → "Reset chart view" merapikan skala nilai chart Flow saja; chart harga dan rentang waktu
+  tidak berubah.
+- U3: "Period net total" dan "Avg daily net" dihitung atas rentang yang terlihat di chart (seperti panel Statistics,
+  ikut berubah saat zoom/geser); "Avg daily net" = total ÷ jumlah sesi terlihat yang punya data broker. Ikon info
+  di ketiga angka (termasuk "Latest day net"), teks Inggris 1–2 kalimat, mis. "Sum of daily net (buy − sell value) for
+  the selected filters over the visible range."
+- U4: bahasa Inggris, "03 December 2025", hanya pada label anotasi event (judul tooltip, baris detail, rentang
+  "10 December 2025 – 10 June 2026"); tanggal lain di terminal tetap.
