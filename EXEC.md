@@ -8065,3 +8065,32 @@ Done 2026-10-26 (go: "Oke, untuk setiap approve exec, bisa dijalankan again ... 
 and "Approve untuk poin 1-3. Langsung deploy ke main once ini sudah selesai."): T7, T8, T9, T10 and the merge to `main`
 (ERRORS "EXEC-TERMINAL-T7-T10 — selesai", RAILWAY_CHANGELOG and DATABASE_CHANGELOG 2026-10-26). Still open: default
 download quotas for real subscribers (FUTURE_PLAN.md "Terminal: keputusan terbuka" item 2) and the other items there.
+
+## EXEC-TERMINAL-UI-1026 — Terminal: tinggi layar, reset Flow, keterangan angka Flow, format tanggal (dicatat 2026-10-26, belum dijalankan)
+
+User 2026-10-26: "Ok rasio chart no 1 masukan exec. Minta di tambahkan feature klik kanan reset chart view di panel flow
+timeline maka akan reset chart dibawah agar rapih. masukan exec. Btw period total net + avg daily net ini dihitung
+berdasarkan apa ya? Bisa tambahkan tanda seru dalam lingkaran yang mana kalau di hover akan muncul tooltip untuk
+menjelaskan 1/2 kalimat bagaimana angka tersebut dihitung. masukan exec. also semua yang annotation apabila ada date boleh
+pakai format dd mmmm yyyy? konfirmasi apabila ada yang mau kamu confirm". Eksekusi menunggu go.
+
+Bukti kode (`main` `3db68b7`):
+- Tinggi: ERRORS M233 (`terminal.css` `.main-col` 976 px, `flow.ts` `FLOW_MIN 260`, `FLOW_DEFAULT 346`).
+- Flow: `src/data/live.ts`:161 net harian per kombinasi = nilai beli − nilai jual (Rp); `src/app/flow.ts`:71-74
+  "Latest day net" = net sesi terakhir, "Period net total" = jumlah net semua sesi yang dimuat (sejak data broker
+  pertama, kini 2016), bukan rentang yang terlihat; "Avg daily net" = total ÷ jumlah sesi sejak data broker pertama
+  (`flowFrom`). Semua mengikuti filter Broker, Board dan Investor (bawaan Foreign). Panel Statistics memakai rentang
+  yang terlihat (`stats.ts`:275).
+- Klik kanan: `src/app/drawings.ts`:304-353 menu "Reset chart view" (Alt + R) hanya di chart harga; rentang waktu chart
+  harga dan Flow dikunci bersama (`flow.ts`:112-119), skala nilai masing-masing.
+- Tanggal event: `live.ts` `detailText` (jenis `date`) dan judul tooltip `events.ts` menampilkan `YYYY-MM-DD`.
+
+Butir:
+- U1 Tinggi mengikuti layar (dari FUTURE_PLAN, ERRORS M233): rasio bawaan chart : Flow = 70 : 30 (user: "rasio chart no
+  1"), Flow ±180–346 px, chart minimal ±240 px; halaman setinggi frame tanpa gulir; tinggi seret disimpan sebagai rasio;
+  `?fixture=reference` tetap tinggi referensi untuk cek 1:1; tes tanpa gulir di 1280×542, 1366×592, 1536×672, 1440×732,
+  1920×892, 2560×1242. Terbuka: perilaku layar pendek (< ±650 px).
+- U2 Klik kanan di panel Flow Timeline: menu "Reset chart view" untuk merapikan chart Flow. Terbuka: cakupan reset.
+- U3 Ikon info (tanda seru dalam lingkaran) di samping angka Flow; hover menampilkan 1–2 kalimat cara hitung. Terbuka:
+  arti "Period" dan apakah "Latest day net" ikut diberi ikon.
+- U4 Tanggal di anotasi event dengan format dd mmmm yyyy. Terbuka: bahasa nama bulan dan cakupan.
