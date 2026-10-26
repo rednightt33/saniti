@@ -4677,3 +4677,10 @@ bucket `sin`).
 - orc-test-runner read-only job `532a81e0` (`DATABASE_URL` set for the run and removed, VAR_REMOVED).
 - `main` `5ca018d`: edge-bff `39c29b9d` SUCCESS 17:52 UTC; live `index`, `style` and `worker` assets equal the build
   (sha256); the page asks `/bundle` with packs and keeps files in IndexedDB `terminal-files`.
+
+## 2026-10-26 — edge-bff: terminal panels, broker periods, annotation rail (EXEC-TERMINAL-PANELS)
+
+User 2026-10-26: "A1 OK / B1 OK, batasi 2 tahun. / C1 OK / D1 OK / Rel anotasi ... --> OK / jalankan, cek infra terlebih
+dahulu as usual." Infra checked first (EXEC.md EXEC-TERMINAL-PANELS). `main` `4544983` (with `main`'s ERRORS M241/M242
+merged): edge-bff `b78ff0a6` SUCCESS 18:34 UTC; live `index`, `style` and `worker` assets equal the build (sha256). No
+variable or other service changed.

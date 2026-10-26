@@ -131,3 +131,17 @@ Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
 - `src/app/perf.ts`: `mark(name)` at session, ticker list and bundle, price read, page script, chart drawn, Flow last
   two years, Flow every year; the worker posts per-file stats (`stats`). `?perf=1` shows them (`.ml-perf`).
 - The loading ring turns in 0.15 s (`.ml-spin`, user 2026-10-26).
+
+## 10. Panel order, broker periods and the annotation rail (EXEC-TERMINAL-PANELS, 2026-10-26)
+
+- `src/ui/reorder.ts` (live): a grip in each `.st-head` of `#leftScroll` and `#rightScroll`; dragging moves the section,
+  Alt+↑/↓ on a header moves it by keyboard; the order is kept in `ml.stats.order` / `ml.broker.order`.
+- Broker activity reads the broker dates after `panelStart(latest)` (`worker.ts`, two years). `main.ts` `later()` hands
+  the panel the recent answer, then the full one; `broker.ts` keeps each panel's period by date (`kept`), the filters and
+  the picked brokers across that redraw.
+- `makeRange` (live): Custom opens `openRangeCalendar` (`src/ui/calendar.ts`, one month grid, year chips, only broker
+  dates pickable, "Select on chart"). `ctx.selectRangeOnChart` (`src/app/rangeSelect.ts`) puts a layer over the chart
+  (pan and zoom off, restored from a deep copy) and returns the first and last session; `applyChartRange` sets it on
+  every panel (`setDates`, clipped to the panel's dates with a note).
+- `events.ts` (live): with events on, `.chart-wrap.ev-rail` gives the chart 24 px less and the markers sit on the rail.
+- Live check: `verification/terminal_api/panels_live_check.py`.

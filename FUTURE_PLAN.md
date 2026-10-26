@@ -923,3 +923,36 @@ Usulan urutan baru (belum disetujui; menggantikan butir (c) dan (d) di atas):
 3. Broker: dua berkas per ticker (2 tahun terakhir untuk Flow, arsip tahun lama di latar), dari cache yang sama.
 4. Akun terminal per pengguna EDGE dan penghitung kuota (butir (a), (b) di atas), lalu uji beban 50–100 pengguna.
 Target ukur: chart tampil < 1 s sesudah halaman terbuka pada koneksi biasa; kunjungan ulang tanpa unduh berkas data.
+
+## Baris kembar dan nilai tak diketahui di idx_event_annotation (ERRORS M241, M242; usulan 2026-10-26, menunggu go)
+
+1. **Data (M241):** `refresh_idx_event_annotation()` menulis dua kolom baru, `report_group_key` (pasangan lintas sumber:
+   ticker, nama pemegang dilipat huruf kecil, tanggal, perubahan saham, sumber berbeda) dan `is_primary_report` (baris
+   IDX bila nilainya ada, selain itu baris yang bernilai). Baris tidak dihapus. Katalog AI: kolom baru dijelaskan, dan
+   deskripsi `value_idr`/`shares_change` menyebut "jumlahkan hanya `is_primary_report`". Tidak menyentuh 1.078 kunci yang
+   berulang di satu sumber (bisa transaksi berbeda). Batas: KSEI memakai tanggal laporan, jadi kembar yang beda tanggal
+   tidak terpasang; sebelum memilih aturan, ukur dulu berapa pasangan dalam jendela ±N hari.
+2. **Loader (M242):** `stockbit_events.py` menyimpan NULL bila `formatted` sumber "-"; 0 dengan tampilan "0" tetap 0.
+   Muat ulang lewat ronde event berikutnya; deskripsi `value_idr` menyebut harga perkiraan (`is_estimated_price`).
+3. **Standar (Part A butir 28, 29):** tabel multi-sumber wajib punya penanda baris utama; angka "tidak ada" wajib NULL
+   menurut penanda sumber.
+- Verifikasi: hitung ulang jendela 19–23 Okt BUY dari `is_primary_report` = Rp12.414.182.494.587; 0 baris `formatted`
+  "-" yang bernilai 0; satu pertanyaan live sejenis `edge_8233fa7f` tanpa langkah buang kembar.
+
+## Biaya run panjang (analisis `edge_8233fa7f`, usulan 2026-10-26, menunggu keputusan)
+
+Bukti (log orc, read-only): 10 panggilan MiMo v2.6 flash di Cohere, input 1.017.184 token (58% dari cache), USD 0,0677.
+Prefiks statis sama di semua panggilan (`static_prefix_sha256` 70fecd4e02f7e086), daftar tool sama, riwayat hanya
+ditambah. Panggilan 1, 5, 10 tanpa cache sama sekali (USD 0,0090 + 0,0137 + 0,0241), panggilan 9 sebagian.
+1. **Cache meleset di penyedia (dugaan):** sisi kita stabil (terverifikasi); 0 token cache padahal instruksi dan tool sama
+   hanya bisa dari penyedia (replika lain atau cache terbuang). Cek yang memastikan: dari log orc beberapa hari, per
+   penyedia × model, porsi panggilan iterasi ≥ 2 dengan `cached_input_tokens` 0. Bila satu penyedia jauh lebih buruk,
+   kriteria hit-rate terukur ditambahkan ke `app/provider_policy.py` (perubahan penyedia: perlu persetujuan user).
+   Potensi: ±USD 0,032 (47%) di run ini.
+2. **Konteks yang selalu dikirim:** catatan data record 31.818 karakter, sumber percakapan 11.087, memori run 10.398,
+   catatan giliran 9.466 (±16 rb token) ikut di 10 panggilan (±16% input), padahal giliran NEW_TOPIC dan 0 dari 12 output
+   lama dibaca (`conversation_reuse_summary released_outputs_read=[]`). Usulan: giliran baru menerima indeks singkat
+   (nama dan satu baris per tabel) dan membuka rincian lewat alat yang ada (`load_output`).
+3. **Iterasi tambahan:** dua SCRIPT_ERROR (merge_asof pada tanggal object; tabel hilang setelah error) dan buang kembar
+   (M241). Usulan: petunjuk error terarah seperti `IN_PERIOD_HINT` (`apps/market-python-sandbox/app/sessions.py`) untuk
+   galat kunci merge bertipe object, yang menyebut `saniti.join` (AS_OF) atau `pd.to_datetime`.

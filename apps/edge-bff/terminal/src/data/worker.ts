@@ -94,8 +94,13 @@ export function priceRows(docs: Columnar[]): PriceRow[] {
 
 const board = (m: string) => /nego/i.test(m) ? 'Nego' : /cash|tunai/i.test(m) ? 'Cash' : 'Regular';
 
+/* EXEC-TERMINAL-PANELS B1 (user 2026-10-26: "B1 OK, batasi 2 tahun"): Broker activity reads the broker dates of the last
+   PANEL_YEARS years before the latest one (it read the last 30 before) */
+export const PANEL_YEARS = 2;
+export const panelStart = (latest: string) => `${+latest.slice(0, 4) - PANEL_YEARS}${latest.slice(4)}`;
+
 /* Flow Timeline: net value (buy − sell) per broker × investor type × board on each session of the chart; Broker
-   activity: the summary rows of the last 30 broker dates */
+   activity: the summary rows of the broker dates after panelStart */
 export function brokerData(docs: Columnar[], dates: string[]) {
   const N = dates.length, idx = new Map(dates.map((t, i) => [t, i]));
   const combos = new Map<string, WorkerCombo>(), byDate = new Map<string, BrokerRow[]>();
@@ -115,7 +120,8 @@ export function brokerData(docs: Columnar[], dates: string[]) {
       c.net[i] += row[3] - row[4]; c.gross += row[3] + row[4];
     }
   }
-  const last = [...byDate.keys()].sort().slice(-30);
+  const all = [...byDate.keys()].sort(), from = all.length ? panelStart(all[all.length - 1]) : '';
+  const last = all.filter(t => t > from);
   return { combos:[...combos.values()], flowFrom, flowTo, dates:last, rows:last.map(t => byDate.get(t)!) };
 }
 
