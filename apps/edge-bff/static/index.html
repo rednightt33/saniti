@@ -10610,7 +10610,8 @@ function SectionTitle({ children, action }) { return element("div", { className:
     element("span", null, children),
     action); }
 // EXEC-TERMINAL-API T3 (user 2026-10-25: "buat tab terpisah di sebelah monitor"): the financial terminal tab
-const nav = [["Monitor", "monitor"], [EdgeLabels.terminal.nav, "terminal"]];
+// EDGE backtest (CONTRACT.md section 10): the Backtest tab next to Terminal
+const nav = [["Monitor", "monitor"], [EdgeLabels.terminal.nav, "terminal"], ["Backtest", "backtest"]];
 function Shell({ route, go, children, chart = false, mobilePanelOpen = false }) {
     const viewRecord = currentView;
     const { theme, toggle } = themeState;
@@ -10649,7 +10650,7 @@ function Shell({ route, go, children, chart = false, mobilePanelOpen = false }) 
             element("button", { className: "brand", onClick: () => go("monitor") },
                 element("span", { className: "brand-mark" }, "E"),
                 element("strong", null, "EDGE")),
-            element("nav", null, nav.map(([label, r]) => { const active = route === "monitor" ? label === "Monitor" : route === r; return element("button", { key: label, "aria-current": active ? "page" : undefined, className: `nav-${label.toLowerCase()} ${active ? "active" : ""}`, disabled: !["monitor", "terminal"].includes(r), title: !["monitor", "terminal"].includes(r) ? "Page not included in this extract" : undefined, onClick: () => go(r) }, label); })),
+            element("nav", null, nav.map(([label, r]) => { const active = route === "monitor" ? label === "Monitor" : route === r; return element("button", { key: label, "aria-current": active ? "page" : undefined, className: `nav-${label.toLowerCase()} ${active ? "active" : ""}`, disabled: !["monitor", "terminal", "backtest"].includes(r), title: !["monitor", "terminal", "backtest"].includes(r) ? "Page not included in this extract" : undefined, onClick: () => go(r) }, label); })),
             element("div", { className: "top-actions" },
                 element("span",{className:"market-search-anchor"},
                     element("button",{type:"button",ref:marketSearchRef,className:`search market-search-inactive ${marketSoon?"active":""}`,onClick:()=>marketSoon?closeMarketSoon():showMarketSoon(),"aria-label":"Search markets — coming soon","aria-describedby":marketSoon?"market-search-coming-soon":undefined},
@@ -10796,6 +10797,14 @@ function TerminalPage({ go }) {
     return element(Shell, { route: "terminal", go: go, chart: true },
         element("main", { className: "terminal-page" },
             element("iframe", { className: "terminal-frame", src: "/terminal-app/", title: EdgeLabels.terminal.frameTitle })));
+}
+// EDGE backtest (CONTRACT.md section 10): the backtest is its own page (/backtest-app/, built from apps/edge-bff/backtest)
+// in the same kind of same-origin frame as the terminal; its jobs and data go through /api/v1/backtests and
+// /api/terminal/... with this EDGE session.
+function BacktestPage({ go }) {
+    return element(Shell, { route: "backtest", go: go, chart: true },
+        element("main", { className: "terminal-page" },
+            element("iframe", { className: "terminal-frame", src: "/backtest-app/", title: "Backtest" })));
 }
 function Monitor({ go }) {
     const viewRecord = currentView;
@@ -12420,7 +12429,7 @@ function Flow({ run }) {
 
 function App() {
     const viewRecord = currentView;
-    const currentPath = () => routeLocation().pathname === "/terminal" ? "/terminal" : ["/monitor","/markets"].includes(routeLocation().pathname) || routeLocation().pathname.startsWith("/c/") ? "/monitor" : "/login";
+    const currentPath = () => ["/terminal","/backtest"].includes(routeLocation().pathname) ? routeLocation().pathname : ["/monitor","/markets"].includes(routeLocation().pathname) || routeLocation().pathname.startsWith("/c/") ? "/monitor" : "/login";
     const authenticated=initialValue(viewRecord,"authenticated",()=>false),checked=initialValue(viewRecord,"checked",()=>false);
     onLifecycle(viewRecord,"auth",()=>{const sync=()=>updateValue(viewRecord,"authenticated",Boolean(Edge.auth));addEventListener("edge-auth",sync);Edge.session().then(()=>{sync();updateValue(viewRecord,"checked",true);});return()=>removeEventListener("edge-auth",sync);},[]);
     const path = initialValue(viewRecord, "path", currentPath), setPath = next => updateValue(viewRecord, "path", next);
@@ -12435,8 +12444,8 @@ function App() {
         document.documentElement.style.colorScheme = theme;
     }, [theme]);
     const go = route => {
-        if (!["monitor", "markets", "terminal", "/monitor", "/markets", "/terminal", "/login", "/"].includes(route)) return;
-        const nextPath = ["terminal","/terminal"].includes(route) ? "/terminal" : ["markets","/markets","monitor","/monitor"].includes(route) ? "/monitor" : "/login";
+        if (!["monitor", "markets", "terminal", "backtest", "/monitor", "/markets", "/terminal", "/backtest", "/login", "/"].includes(route)) return;
+        const nextPath = ["terminal","/terminal"].includes(route) ? "/terminal" : ["backtest","/backtest"].includes(route) ? "/backtest" : ["markets","/markets","monitor","/monitor"].includes(route) ? "/monitor" : "/login";
         // EXEC-CHAT-URL: signing in at /c/<id> stays on that conversation
         if (!(nextPath === "/monitor" && routeLocation().pathname.startsWith("/c/"))) routeHistory.pushState({}, "", nextPath);
         setPath(nextPath);
@@ -12448,7 +12457,7 @@ function App() {
         return next;
     });
     themeState = { theme, toggle };
-    return !checked ? element("div",{className:"auth-page"},"Checking session…") : authenticated ? (path === "/terminal" ? element(TerminalPage,{go}) : element(Monitor,{go})) : element(AuthPage,{mode:"login",go});
+    return !checked ? element("div",{className:"auth-page"},"Checking session…") : authenticated ? (path === "/terminal" ? element(TerminalPage,{go}) : path === "/backtest" ? element(BacktestPage,{go}) : element(Monitor,{go})) : element(AuthPage,{mode:"login",go});
 }
 
 refresh();

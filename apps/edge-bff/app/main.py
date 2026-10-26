@@ -16,6 +16,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .backtest import Backtests
 from .client import OrcClient, OrcError, public_data
 from .config import Settings
 from .security import csrf_token, token_hash, verify_password
@@ -39,6 +40,12 @@ TERMINAL_CSP = ("default-src 'self'; script-src 'self'; worker-src 'self'; "
                 "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; "
                 "img-src 'self' data: blob:; connect-src 'self' https://*.t3.storageapi.dev; object-src 'none'; "
                 "base-uri 'self'; frame-ancestors 'self'")
+# EDGE backtest (CONTRACT.md section 10): the built backtest page (apps/edge-bff/backtest -> static/backtest-app), shown in
+# the Backtest tab's frame. It loads what the terminal page loads (its own script and stylesheet, Google Fonts, inline
+# style attributes) and, for the signal preview, the ticker files the /api/terminal/v1/bundle answer presigns on the
+# bucket, so it takes the terminal page's policy.
+BACKTEST_APP = STATIC / 'backtest-app'
+BACKTEST_CSP = TERMINAL_CSP
 CONV = r'^conv_[0-9a-f]{32}$'
 CHOICES = r'^(QUICK_SUMMARY|ANALYSIS|RESEARCH|EXPLORE|FACT|CLARIFY|INSIGHT|CONTINUE|APPROVE|NEW_TOPIC)$'
 # EXEC-MODELS: the shape of a model id and the reasoning levels; Orc checks the choice against its offered models
@@ -156,6 +163,7 @@ def create_app(settings=None, store=None, orc=None):
     store = store or Store(settings.database_url)
     orc = orc or OrcClient(settings)
     worker = Worker(settings, store, orc)
+    backtests = Backtests(settings, store)
     ready = {'value': False}
     failures = defaultdict(deque)
     # EXEC-TERMINAL-SPEED step 5: one pooled HTTP client to terminal-api, made on first use and closed at shutdown
@@ -170,17 +178,24 @@ def create_app(settings=None, store=None, orc=None):
         except Exception:
             ready['value'] = False
         task = asyncio.create_task(worker.run()) if settings.worker_enabled and ready['value'] else None
+        # EDGE backtest: its own loop, only with a worker configured; it does not wait for /ready (a missing backtest
+        # table keeps only the backtest feature off, BACKTEST_NOT_READY)
+        backtest_task = asyncio.create_task(backtests.loop.run()) if settings.worker_enabled and backtests.loop else None
         yield
         worker.stop()
-        if task:
-            task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
+        if backtests.loop:
+            backtests.loop.stop()
+        for running in (task, backtest_task):
+            if running:
+                running.cancel()
+                await asyncio.gather(running, return_exceptions=True)
         orc.close()
+        backtests.close()
         if terminal_http['client'] is not None and hasattr(terminal_http['client'], 'aclose'):
             await terminal_http['client'].aclose()
 
     app = FastAPI(title='EDGE private gateway', docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
-    app.state.worker, app.state.store = worker, store
+    app.state.worker, app.state.store, app.state.backtests = worker, store, backtests
 
     def error(code, status):
         return JSONResponse(status_code=status, content={'error': {'code': code}})
@@ -224,7 +239,7 @@ def create_app(settings=None, store=None, orc=None):
             return response
         # EXEC-ASK-BRANCH: the side chat frames EDGE inside EDGE, so only EDGE's own pages may frame it (another site
         # still cannot; frame-ancestors 'self' keeps the clickjacking guard)
-        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+        response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else BACKTEST_CSP if request.url.path.startswith('/backtest-app/') else "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
         return response
 
     async def session(request: Request):
@@ -267,6 +282,7 @@ def create_app(settings=None, store=None, orc=None):
     @app.get('/index.html')
     @app.get('/monitor')
     @app.get('/terminal')
+    @app.get('/backtest')
     @app.get('/login')
     async def index():
         return FileResponse(STATIC / 'index.html', media_type='text/html')
@@ -326,6 +342,22 @@ def create_app(settings=None, store=None, orc=None):
             return error('NOT_FOUND', 404)
         return FileResponse(target, headers={'Cache-Control': 'public, max-age=31536000, immutable'})
 
+    # EDGE backtest (CONTRACT.md section 10): the backtest page is served like the terminal page (no data in it; it asks
+    # /api/v1/backtests and /api/terminal for it); its hashed assets never change and are cached.
+    @app.get('/backtest-app/')
+    async def backtest_page():
+        target = BACKTEST_APP / 'index.html'
+        if not target.is_file():
+            return error('NOT_FOUND', 404)
+        return FileResponse(target, media_type='text/html')
+
+    @app.get('/backtest-app/assets/{name}')
+    async def backtest_asset(name: str):
+        target = BACKTEST_APP / 'assets' / name
+        if not TERMINAL_ASSET.fullmatch(name) or not target.is_file():
+            return error('NOT_FOUND', 404)
+        return FileResponse(target, headers={'Cache-Control': 'public, max-age=31536000, immutable'})
+
     # EXEC-TERMINAL-API T4 (user 2026-10-25: "edge-bff meneruskan /api/terminal/... ke terminal-api --> OK"): the owner's
     # EDGE session reaches terminal-api as its one terminal account (quotas and audit there); writes keep EDGE's
     # same-origin and CSRF checks. Only the data routes are forwarded.
@@ -360,6 +392,9 @@ def create_app(settings=None, store=None, orc=None):
     @app.post('/api/terminal/v1/{path:path}')
     async def terminal_write(path: str, request: Request, _=Depends(write)):
         return await forward_terminal('POST', path, request)
+
+    # EDGE backtest (CONTRACT.md section 9): /api/v1/backtests... with this session (writes with CSRF, as /api/v1/runs)
+    backtests.routes(app, session, write)
 
     @app.post('/api/v1/auth/sign-in')
     async def sign_in(body: Login, request: Request):

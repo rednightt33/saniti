@@ -1,29 +1,254 @@
-# backtest-worker (EDGE backtest, in progress)
+# backtest-worker (EDGE backtest)
 
-Private worker for the EDGE backtest page. User decision K1 = C (2026-10-26): the worker runs on Node and imports the
-Terminal's calculation module (`apps/edge-bff/terminal/src/calc/indicators.ts`), so the chart, the page's preview and
-the backtest share one formula per indicator. Inspection and open decisions:
-`/mnt/project-files/backtest/inspeksi-lengkap-backtest-2026-10-26.md` (project files).
+Private HTTP service that computes the EDGE backtests. It is part of the backtest feature described in
+`apps/edge-bff/backtest/CONTRACT.md`, which holds the rules and the decisions taken for the user.
 
-Done (no business decision needed):
+- **Caller.** edge-bff (`app/backtest.py` WorkerClient) is the only caller. The page never reaches the worker.
+- **Runtime.** Node 22 with type stripping and no npm dependency (user decision K1 = C, 2026-10-26).
+- **What computes a result.** Every number comes from the shared core (`apps/edge-bff/backtest/src/core`). The core
+  uses the Terminal's own indicator module (`apps/edge-bff/terminal/src/calc/indicators.ts`). The page, the Terminal
+  chart and the worker therefore share one formula per indicator.
+- **Data access.** The worker reads market data only through terminal-api `/bundle` and the presigned file URLs it
+  returns. It holds no Postgres and no bucket credentials.
 
-- `registry/backtest-registry.json`: the 53 indicators with their function, inputs, accepted parameters (only the ones
-  the module reads, with its executable defaults and the workbook limits), outputs and `available_for_backtest`; no
-  visual settings. Built by `scripts/build-registry.mjs` from `indRegistry.json` + `DEFAULTS`; `npm run registry`
-  rewrites it, a test fails when it is stale.
-- `src/registry.ts`: parameter validation (refuses unknown parameters, wrong types, out-of-range values, fractional
-  integers, unlisted options; never rounds or clamps) and `REGISTRY_VERSION` (hash of the registry and the module).
-- `src/conditions.ts`: indicator conditions (price/volume or an output against an output or a value; `gt`, `lt`,
-  `crosses_above`, `crosses_below`), the page's price-action and pattern conditions on verified indicator outputs,
-  ALL / ANY / AT LEAST N within 1–20 bars, exit signals ANY / ALL, switch-on events and true-bar counts.
+## Layout
 
-Not yet (waiting for decisions E1–E5, K3–K8, U1): storage reader, execution engine, statistics, robustness, HTTP
-service, Dockerfile, edge-bff integration. Flow and broker conditions stay disabled until their storage data is verified.
+| File | Role |
+|---|---|
+| `src/server.ts` | `node:http` API: authentication, routes, the job record, the preview queue, timeouts, start-up checks |
+| `src/compute.ts` | the two long-lived `worker_threads` threads, one for jobs and one for signals previews; progress and results are sent as messages, cancellation uses a shared flag, `kill()` handles a run over its time |
+| `src/run.ts` | one job end to end (`runJob`) and one signals preview (`runSignals`) |
+| `src/validate.ts` | request checks before any download (unknown fields, page options, universes, flow availability, the core's own validation) |
+| `src/load.ts` | reads the files of a run within the limits: every manifest first, the limits checked, then the downloads; a URL that expired is fetched again |
+| `src/terminal.ts` | the terminal-api client: `/bundle`, presigned files, sha256 and size checks, the cache (memory, optionally disk) |
+| `src/catalog.ts` | `GET /v1/catalog` from the reference files, IHSG's published bars, the limits and the flow switch |
+| `src/config.ts` | environment variables, their defaults and their checks |
+| `src/version.ts` | `engine_version`, `registry_version`, the start-up registry check |
+| `src/errors.ts`, `src/log.ts` | the error shape and statuses; JSON log lines |
+| `scripts/build-registry.mjs` | builds the core's `backtest-registry.json`; the server checks its hash at start |
 
-Differences from the page, on purpose: thresholds are fractions (`dip` value -0.03, not -3; a value outside what the
-condition measures, e.g. -3, is refused); an output without any value is refused (INDICATOR_OUTPUT_EMPTY); entry
-logic, window (1–20) and at_least are checked (the page clamps at_least to the active count, so does the worker); a missing low is never a
-swing low in the bullish divergence (the page treats NaN as a low).
+## API
 
-Tests: `npm test` (Node ≥ 22.6 with type stripping, no dependencies). The condition tests run on the Terminal parity fixtures (real
-stored bars of 8 tickers) against the page's own condition code (`tests/oracle.mjs`); signals must be equal bar by bar.
+The header `x-backtest-worker-key: $BACKTEST_WORKER_KEY` is required on every route except `/health`. Without it the
+worker answers `401 {"error":{"code":"UNAUTHORIZED"}}`.
+
+| Route | Answer |
+|---|---|
+| `GET /health` | `{ok: true, engine_version, registry_version}` |
+| `GET /v1/catalog` | `Catalog` (contract.ts) |
+| `POST /v1/validate {request}` | `200 {ok: true, lineage_key, variant_hash, tickers}`, or `422` with the error |
+| `POST /v1/signals` | the body is a `SignalsPreviewRequest`; the answer is a `SignalsPreview` |
+| `POST /v1/jobs {job_id, request, context}` | `202 {job_id}`, `409 BUSY` or `422` |
+| `GET /v1/jobs/{id}` | `JobStatus`, or `404 UNKNOWN_JOB` |
+| `GET /v1/jobs/{id}/result` | `200` with the gzip of the result JSON (`Content-Encoding: gzip`), `409 NOT_FINISHED`, or `410 RESULT_GONE` once it has been sent |
+| `POST /v1/jobs/{id}/cancel` | `202 JobStatus`; a running job stops at its next check and ends `CANCELLED` |
+
+### Signals previews
+
+- Previews run on the preview thread while the caller waits.
+- One preview computes at a time; the others wait in arrival order.
+- When the caller disconnects, its preview is cancelled.
+
+### Jobs
+
+- **One job at a time.** While a job runs, a job with another id gets `409 BUSY`. A POST with the current job's id
+  answers `202` again, because edge-bff retries a POST whose answer it lost.
+- **Checked before it is accepted.** The request is checked before the `202`. A refused request is a `422` and never
+  becomes a job.
+- **Only the latest job is kept.** The worker forgets the previous job when a new one starts, and keeps none across a
+  restart. edge-bff turns the resulting 404 into `WORKER_LOST`.
+- **The result is sent once.** The gzip result stays in memory until it has been sent once, or until the next job
+  starts.
+- **Progress phases.** `queued`, `loading`, `signals`, `backtest`, `sensitivity`, `monte_carlo`, `finalizing`, with
+  `done` and `total` counts.
+- **Cancellation.** The job checks for it between phases, between tickers while loading, inside the engine (per ticker
+  and per calendar day), and between sensitivity cells. A result that completes after a cancel is dropped.
+- **Time limit.** A job over `BACKTEST_TIMEOUT_SECONDS` ends `FAILED TIMEOUT`, and its thread is terminated. The next
+  job starts a new thread.
+
+### Synchronous calls
+
+Validation, the catalog and a preview each get `BACKTEST_TIMEOUT_SECONDS`. Over that time they answer
+`504 TIMEOUT`, and a preview over its time has its thread terminated.
+
+### Errors
+
+Errors have the shape `{"error": {code, field?, message?, details?}}`.
+
+| Status | Codes |
+|---|---|
+| 422 | validation errors, `LIMIT_EXCEEDED`, `INVALID_JSON`, `INVALID_JOB_ID`, `INVALID_CONTEXT` |
+| 424 | data errors: `DATA_MISSING`, `DATA_INTEGRITY`, `DATA_UNAVAILABLE` |
+| 409 | `BUSY`, `NOT_FINISHED` |
+| 404 | `UNKNOWN_JOB`, `NOT_FOUND` |
+| 405 | `METHOD_NOT_ALLOWED` |
+| 410 | `RESULT_GONE` |
+| 504 | `TIMEOUT` |
+| 500 | `INTERNAL_ERROR`, or `OUT_OF_MEMORY` when a thread ran out of heap |
+
+A job's error is the same object, carried in `JobStatus.error`.
+
+## What a job does
+
+1. **Check the request** (`validate.ts`). Any field the page does not send is refused with `UNKNOWN_FIELD` and its
+   path. The checks include the page's options, the core's `validateRun`, the registry parameters and the condition
+   shapes.
+2. **Resolve the tickers.**
+   - Single mode: the one ticker, which must be of type `stock`.
+   - Portfolio mode: universe `all` is every stock of terminal-api's reference ticker list; `sector:<name>` is the
+     stocks of that sector. The publisher writes that list from `IDX_Stock_Universe`, the same list it publishes the
+     tickers' files from. A listed stock without published files fails the run with `DATA_MISSING`; it is never
+     skipped.
+3. **Load the data** (`load.ts`).
+   - IHSG prices, and each ticker's prices and corporate actions.
+   - Broker files only when a flow condition or `rank_by: 'fnet'` needs them.
+   - Every manifest is read first. The run is refused with `LIMIT_EXCEEDED`, before any download, when the manifest
+     sizes exceed `BACKTEST_MAX_DOWNLOAD_BYTES` or the broker rows exceed `BACKTEST_MAX_BROKER_ROWS`. Cached files
+     count too, so the same request gets the same answer whatever the cache holds.
+4. **Check the period against the data.**
+   - `PERIOD_AFTER_DATA`: `period.to` is after IHSG's last published bar.
+   - `DATA_UNAVAILABLE`: a run that uses broker data, when the newest broker `data_through` does not reach `period.to`.
+   - `DATA_MISSING`: in single mode, no bar of the ticker falls inside the period.
+   - `PERIOD_BEFORE_DATA`: a buy-and-hold benchmark has no close on or before the first day of the period.
+5. **Run the engine:** `prepare`, then `run` (`engine.ts`).
+6. **Sensitivity:** 25 reruns from `sensitivityPlan` (`robustness.ts`) on the same prepared data. Identical cells run
+   once.
+7. **Build the result:** `buildResult` (`result.ts`), which computes the statistics, tables, trials and the Monte
+   Carlo. The result also carries `variant_hash`, `lineage_key` and `request_hash`, plus the versions (`hash.ts`).
+8. **Pack the result:** JSON, then gzip, on the job thread.
+
+The same request on the same published files gives the same result, except `meta.duration_ms`.
+
+### Versions
+
+- `data_version`: the sha256 over the files read (CONTRACT.md section 2).
+- `registry_version`: the hash of `indRegistry.json` and `indicators.ts`, written into the registry artifact. At
+  start, the server recomputes it from the files in the image and exits 1 when they differ.
+- `engine_version`: the first 16 hex characters of a sha256 over the paths and sha256 of every file that decides a
+  number: `apps/edge-bff/backtest/src/core/*.ts` and `*.json`, and `apps/backtest-worker/src/*.ts`. It is computed at
+  start, not kept by hand, so it changes whenever that code changes.
+
+## Configuration
+
+Every variable is read once at start. A missing or invalid variable exits with code 1; the log line names the
+variable and never its value.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `PORT` | 8080 | HTTP port (`0.0.0.0`) |
+| `BACKTEST_WORKER_KEY` | required | shared secret with edge-bff, ≥ 32 characters |
+| `TERMINAL_URL` | required | terminal-api origin, e.g. `http://terminal-api.railway.internal:8080` |
+| `TERMINAL_PROXY_KEY` | required | terminal-api gateway key (D-U1, `${{terminal-api.TERMINAL_PROXY_KEY}}`), ≥ 32 characters, never logged |
+| `BACKTEST_CACHE_BYTES` | required | memory cache budget per thread (gzip bytes); 0 = none |
+| `BACKTEST_CACHE_DIR`, `BACKTEST_CACHE_DIR_BYTES` | off | optional disk cache and its budget; the directory must be writable by uid 1000 |
+| `BACKTEST_DOWNLOAD_CONCURRENCY` | required | HTTP requests in flight per thread |
+| `BACKTEST_DOWNLOAD_RETRIES`, `BACKTEST_RETRY_BASE_MS` | required | retries of a network error or 5xx answer; backoff `base × 2^k` |
+| `BACKTEST_HTTP_TIMEOUT_MS` | required | per HTTP request |
+| `BACKTEST_MAX_DOWNLOAD_BYTES` | required | bytes of published files one job or preview may read |
+| `BACKTEST_MAX_BROKER_ROWS` | required | broker rows one job or preview may read |
+| `BACKTEST_TIMEOUT_SECONDS` | required | longest job, preview, validation or catalog |
+| `BACKTEST_MAX_POSITIONS` | 10 | ≤ 10, the page's input and `engine.ts` MAX_POSITIONS; may only be lowered |
+| `BACKTEST_MONTE_CARLO_RUNS` | 1000 | the page's `monteCarlo(…, runs = 1000)`; a request asks for exactly this or 0 |
+| `BACKTEST_QUEUED_PER_OWNER` | 3 | reported in the catalog; edge-bff enforces it |
+| `BACKTEST_FLOW_ENABLED` | off | `1` turns on the flow and broker conditions and `rank_by: 'fnet'` |
+
+**Flow conditions.** Set `BACKTEST_FLOW_ENABLED=1` only after the published broker files have been checked against SQL
+(`verification/backtest/FLOW_DATA_CHECK.md`). While the flag is off, `catalog.flow.reason` says why, and those
+conditions are refused with `FLOW_UNAVAILABLE`.
+
+**Limits.** The limits that have no default are measured in the dev E2E (K7b). They must not be guessed.
+
+**Timeouts.** edge-bff has its own `BACKTEST_TIMEOUT_SECONDS`, which limits the whole job on its side, polling
+included. At that deadline edge-bff ends the job `TIMEOUT` and sends the worker a cancel.
+
+**Memory.** Each compute thread has its own client and cache. Memory is therefore up to 2 × `BACKTEST_CACHE_BYTES`,
+plus the HTTP thread's IHSG files for the catalog.
+
+## Logs
+
+Logs go to stdout, one JSON object per line: `{ts, level, event, …}`. The compute threads pass their lines to the
+main thread. The logs never contain a header, a request body, a key or a presigned URL.
+
+| Event | Fields |
+|---|---|
+| `start`, `stop` | the configuration without its secrets; the signal |
+| `config_invalid`, `registry_mismatch` | the variable at fault; the two registry hashes (the process then exits 1) |
+| `http` | method, path, status, ms |
+| `job_start`, `job_end` | state, code, ms, result bytes |
+| `job_cancel` | |
+| `terminal_bundle`, `terminal_file` | ticker, file, cache use |
+| `terminal_retry` | |
+| `request_failed`, `compute_failed` | name, code, message, first stack frames; only for unexpected errors |
+
+## Build and run
+
+The build context is the repository root:
+
+```sh
+docker build -f apps/backtest-worker/Dockerfile -t backtest-worker .
+```
+
+The image:
+
+- uses `node:22-slim` and runs as the user `node`;
+- runs `node --experimental-strip-types src/server.ts`;
+- copies only the worker's `package.json`, `src` and `scripts`, the shared core, `terminal/src/calc` and
+  `terminal/src/data/indRegistry.json`, in the repository layout under `/app`.
+
+To run it locally:
+
+```sh
+cd apps/backtest-worker && npm start
+```
+
+`npm start` needs the variables above.
+
+## Tests
+
+Run `npm test` (`node --experimental-strip-types --test tests/*.test.ts`). It needs no dependency and no network.
+
+**`tests/run.test.ts`** runs jobs and previews through `run.ts` against `tests/fake-terminal.mjs`. The fake serves the
+Terminal parity fixtures (real stored bars of 7 stocks and IHSG) in the publisher's format. The tests cover:
+
+- the page's default request; each result must equal what the core computes directly from the same bars;
+- portfolio and sector universes;
+- determinism, with a cold and a warm cache;
+- 28 refusals, none of which reads any market data;
+- the period and data checks;
+- the limits, refused before any download;
+- flow and broker files, and corporate actions;
+- cancellation in every phase;
+- an expired presigned URL.
+
+**`tests/server.test.ts`** drives the HTTP API the way edge-bff does. It covers:
+
+- authentication on every route; health and the catalog;
+- validation and its errors;
+- single, portfolio and identical-request jobs through the gzip result, which must equal `runJob` in the test process;
+- `BUSY`, the same id again, `UNKNOWN_JOB`, `NOT_FINISHED` and `RESULT_GONE`;
+- cancellation and the timeout;
+- a data error after the hand-over;
+- invalid job bodies;
+- previews, including one the caller abandons;
+- log lines without secrets;
+- start-up as the image runs it, including exit 1 on a bad configuration.
+
+## Durations observed
+
+These were measured on the development container (Node 22.22) with the fixture bars from 2018 to 2026-10-23. They are
+observations, not limits.
+
+| Run | Total | Loading | Signals + backtest | Sensitivity (25 runs) | Monte Carlo (1000) and statistics |
+|---|---|---|---|---|---|
+| Single, UNVR, page defaults, cold | ≈ 265 ms | 46 ms | 23 ms | 124 ms | 71 ms |
+| Single, UNVR, page defaults, warm | ≈ 190 ms | 30 ms | 7 ms | 82 ms | 73 ms |
+| Portfolio `all`, 7 tickers, warm | ≈ 155 ms | 46 ms | 14 ms | 61 ms | 34 ms |
+| Portfolio, 70 tickers (copies of the fixtures), warm | ≈ 1.0 s | 356 ms | 125 ms | 423 ms | 71 ms |
+| Portfolio, 280 tickers (copies of the fixtures), warm | ≈ 3.2 s | 1.25 s | 0.46 s | 1.33 s | 0.11 s |
+
+Other observations:
+
+- **Through the HTTP API.** A single job takes about 450 ms, including the thread start (about 100 ms the first time)
+  and the status polling.
+- **Result size.** A single result is about 250 KB of JSON, or 52 KB gzip. A 280-ticker result is about 0.9 MB of JSON.
+- **Heap.** The 280-ticker run used up to about 380 MB of heap.

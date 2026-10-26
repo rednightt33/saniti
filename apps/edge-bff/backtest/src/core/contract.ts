@@ -108,10 +108,11 @@ export interface SeriesStats {
   n_returns: number;                 // number of daily returns
   total_return: number; cagr: number; volatility: number; sharpe: number; sharpe_daily: number;
   sortino: number; max_drawdown: number; calmar: number; longest_drawdown_bars: number; ulcer_index: number;
-  var_95: number; cvar_95: number; skew: number; kurtosis: number;
+  var_95: number; cvar_95: number;
+  skew: number | null; kurtosis: number | null;     // null: no volatility (flat equity, e.g. no trade), the page's NaN '—'
   beta: number | null; alpha: number | null; correlation: number | null;   // against the primary benchmark
   best_day: number; worst_day: number; positive_days: number;
-  psr_0: number;                     // probabilistic Sharpe against 0
+  psr_0: number | null;              // probabilistic Sharpe against 0; null as skew, or without any return
 }
 
 /** Trade statistics (page tradeStats). */
@@ -142,6 +143,8 @@ export interface Trade {
     stop_and_target_same_bar: boolean;                     // both touched in one candle: stop taken (E4)
     stale_mark: boolean;                                   // the exit or a mark used a last close from an earlier day
   };
+  streak?: number;                   // place in the current run of wins or losses, 1-based (page "Win / loss streaks")
+  streak_length?: number;            // length of that run
 }
 
 /** A 0/1 series on the result calendar, sent as the bars where it switches on and its true runs. */
@@ -155,12 +158,20 @@ export interface SkippedSignal {
   reason: 'already_held' | 'no_slot' | 'insufficient_cash' | 'ara_open_gap' | 'below_min_value' | 'no_next_bar' | 'period_end';
 }
 
-export interface MonthlyRow { year: number; month: number; ret: number; benchmark_ret: number }
+export interface MonthlyRow {
+  year: number; month: number; ret: number; benchmark_ret: number;
+  ytd?: number;                      // heatmap tooltip "Year to date": the year's months compounded up to this one
+}
 export interface AnnualRow {
   year: number; ret: number; benchmark_ret: number; max_drawdown: number; trades_closed: number; win_rate: number | null;
+  /* the heatmap's year column and its tooltip (ret above is the annual bars' last value / value before the year) */
+  months_compound?: number;          // the year's monthly returns compounded
+  best_month?: { month: number; ret: number }; worst_month?: { month: number; ret: number };   // first one on ties
+  positive_months?: number; months?: number;
 }
 export interface WeekdayRow {
-  weekday: 1 | 2 | 3 | 4 | 5; mean: number; median: number; positive_share: number; days: number; best: number; worst: number;
+  weekday: 1 | 2 | 3 | 4 | 5; mean: number; median: number | null; positive_share: number; days: number;
+  best: number | null; worst: number | null;   // null: no day of that weekday in the calendar
 }
 export interface DrawdownPeriod { peak: number; trough: number; recovery: number | null; depth: number; bars: number }  // calendar indices
 
@@ -172,6 +183,10 @@ export interface MonteCarlo {
   actual: number[];                  // the backtest's own trade order
   final_returns: number[];           // per run (runs values)
   max_drawdowns: number[];           // per run
+  /* the page's legends (page quant on final_returns / max_drawdowns) */
+  final_return_p05?: number; final_return_p50?: number; final_return_p95?: number;
+  loss_share?: number;               // "Chance of loss": share of runs with a final return below 0
+  max_drawdown_p50?: number; max_drawdown_p05?: number;   // median and "95 % worst" drawdown
 }
 export interface SensitivityCell { sharpe: number; cagr: number; profit_factor: ProfitFactor; trades: number; max_drawdown: number }
 export interface Sensitivity {
@@ -181,7 +196,7 @@ export interface Sensitivity {
   y_key: 'stop_pct' | 'stop_atr_mult' | 'stop_reward_risk_x' | 'max_hold_bars';
   ys: number[]; ys_display: number[];
   base_x: number; base_y: number;    // the run's own settings (wire units)
-  cells: SensitivityCell[][];        // cells[y][x]
+  cells: (SensitivityCell | null)[][];   // cells[y][x]; null: a threshold the condition refuses (volspike 2 - 2 = 0), not run
 }
 
 export interface BacktestResult {
@@ -197,7 +212,12 @@ export interface BacktestResult {
     benchmark: { kind: 'buy_and_hold' | 'ihsg'; ticker: string };
     data_through: string;            // the latest published bar the run could see
     warnings: { code: string; message: string; count?: number; tickers?: string[] }[];
-    trials: { prior: number; this_run: number; total: number };
+    trials: {
+      prior: number; this_run: number; total: number;
+      /** The distinct variants this run evaluated (the run itself and the sensitivity cells), which edge-bff records
+          in edge_bff.backtest_trials for the next run of the same lineage (K3). */
+      variants: { variant_hash: string; sharpe_daily: number; kind: 'run' | 'sensitivity' }[];
+    };
   };
   dates: string[];                   // result calendar: exchange days from the first to the last day of the period
   equity: number[];                  // IDR, after each day's close
@@ -206,15 +226,23 @@ export interface BacktestResult {
   exposure: number[];                // market value / equity after the close
   daily_returns: number[];           // equity[k] / equity[k-1] - 1, k = 1..n-1
   oos: { fraction: number; cut: number; cut_date: string | null };  // cut = page's `cut`: in-sample is equity[0..cut-1]
-  stats: { all: SeriesStats; in_sample: SeriesStats | null; out_of_sample: SeriesStats | null; benchmark: SeriesStats };
+  stats: {
+    all: SeriesStats; in_sample: SeriesStats | null; out_of_sample: SeriesStats | null; benchmark: SeriesStats;
+    exposure_mean?: number;          // KPI "Exposure": mean of exposure
+  };
   trade_stats: { all: TradeStats; in_sample: TradeStats; out_of_sample: TradeStats | null };
-  trade_returns: { mean: number; median: number; sd: number; skew: number | null };
+  trade_returns: { mean: number; median: number | null; sd: number; skew: number | null };   // median null: no trade
   tables: {
     monthly: MonthlyRow[]; annual: AnnualRow[]; weekday: WeekdayRow[];
     rolling_sharpe_126: (number | null)[];             // aligned with daily_returns
     drawdowns: DrawdownPeriod[];                       // five deepest, deepest first
     exit_reasons: { reason: ExitReason; trades: number; wins: number; avg_return: number; pnl_idr: number; avg_bars: number }[];
-    per_ticker: { ticker: string; entry_signals: number; last_signal: string | null; trades: number; wins: number; pnl_idr: number }[];
+    per_ticker: {
+      ticker: string; entry_signals: number; last_signal: string | null; trades: number; wins: number; pnl_idr: number;
+      avg_return?: number | null; pnl_share?: number | null;   // "P&L by stock" tooltip; null without a trade
+    }[];
+    rolling_return_126?: (number | null)[];            // rolling-Sharpe tooltip: the same 126 returns compounded
+    rolling_sharpe_126_share_above_1?: number | null;  // "Share of time above 1" over the finite points
   };
   trades: Trade[];
   events: {
@@ -226,7 +254,7 @@ export interface BacktestResult {
   robustness: {
     monte_carlo: MonteCarlo | null;                    // null with fewer than 3 trades (page rule)
     sensitivity: Sensitivity | null;                   // null without a numeric threshold or when switched off
-    deflated: { sr0: number; dsr: number; trials: number; sharpe_variance_from: 'trials' | 'sample' };
+    deflated: { sr0: number | null; dsr: number | null; trials: number; sharpe_variance_from: 'trials' | 'sample' };   // null: page NaN
   };
 }
 

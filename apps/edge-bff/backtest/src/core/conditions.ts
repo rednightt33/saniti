@@ -5,31 +5,46 @@
    - a bar where either side is not a finite number is false, and a cross also needs both sides on the bar before;
    - "within N bars" keeps, per condition, the last bar it was true; the entry is true on bar i when at least `need`
      conditions were true on one of the bars i-N+1..i (they need not be true on the same bar).
-   Flow and broker conditions are not here: they stay disabled until their storage data is verified. */
+   Flow and broker conditions (kind 'flow': CATALOG fnet, broker, top5) read the ticker's broker files through
+   flow.ts (the Terminal's flow definitions, values in IDR); the Calc carries them as its second argument. Whether
+   the page and the worker offer them is catalog.flow.available (CONTRACT.md section 3), not decided here. */
 import { F, isN } from '../../../terminal/src/calc/indicators.ts';
 import type { Bars, Num, Out, Params } from '../../../terminal/src/calc/indicators.ts';
+import type { FlowData } from './flow.ts';
+import { rollingSum, top5Accumulation } from './flow.ts';
 import { ValidationError, indicator, resolveParams } from './registry.ts';
 
 export type Op = 'gt' | 'lt' | 'crosses_above' | 'crosses_below';
 export interface Side { type: 'price' | 'output' | 'value'; output?: string; value?: number }
 export interface IndicatorCondition { id: string; enabled?: boolean; kind: 'indicator'; indicator: string; params?: Params; lhs: Side; op: Op; rhs: Side }
 export interface PriceActionCondition { id: string; enabled?: boolean; kind: 'price_action'; type: string; params?: Params; op?: string; value?: number }
-export type Condition = IndicatorCondition | PriceActionCondition;
+export interface FlowCondition { id: string; enabled?: boolean; kind: 'flow'; type: string; params?: { length?: unknown; broker?: unknown; [key: string]: unknown }; op?: string; value?: number }
+export type Condition = IndicatorCondition | PriceActionCondition | FlowCondition;
 export type Signal = Uint8Array;
 
 const OPS: Op[] = ['gt', 'lt', 'crosses_above', 'crosses_below'];
 type Series = ReadonlyArray<Num | undefined>;
 const val = (s: Series | null, v: number, i: number): number => s ? (isN(s[i]) ? s[i] as number : NaN) : v;
 
-/** Per-ticker memo of indicator outputs, keyed by function and parameters. */
+/** Per-ticker memo of indicator outputs, keyed by function and parameters, and of flow series (the ticker's flow
+    data, flow.ts flowData on the same bars, when its broker files were loaded). */
 export class Calc {
-  bars: Bars; n: number; memo = new Map<string, Out>();
-  constructor(bars: Bars) { this.bars = bars; this.n = bars.C.length }
+  bars: Bars; n: number; memo = new Map<string, Out>(); flow?: FlowData; flowMemo = new Map<string, Float64Array>();
+  constructor(bars: Bars, flow?: FlowData) {
+    this.bars = bars; this.n = bars.C.length;
+    if (flow && flow.fnet.length !== this.n) throw new RangeError(`Calc: flow data has ${flow.fnet.length} bars, the prices ${this.n}.`);
+    this.flow = flow;
+  }
   out(key: string, params: Params): Out {
     const id = key + JSON.stringify(params);
     let o = this.memo.get(id);
     if (!o) { o = F[key](this.bars, params); this.memo.set(id, o) }
     return o;
+  }
+  flowSeries(key: string, make: () => Float64Array): Float64Array {
+    let s = this.flowMemo.get(key);
+    if (!s) { s = make(); this.flowMemo.set(key, s) }
+    return s;
   }
 }
 
@@ -145,11 +160,65 @@ export function priceActionCondition(c: Calc, cond: PriceActionCondition, field 
   return r;
 }
 
+/* ---- flow and broker conditions of the page (CATALOG: fnet, broker, top5), values in IDR ---- */
+/* fnet: foreign net summed over `length` bars gt | lt value; broker: the broker's net summed over `length` bars gt
+   value; top5: the page's top-5 accumulation over `length` bars gt value. The page compares in Rp B (x / 1e9 > val);
+   the wire carries IDR (contract.ts), so the comparison is x > value. */
+export const FLOW: Record<string, { ops: string[]; params: string[] }> = {
+  fnet: { ops: ['gt', 'lt'], params: ['length'] },
+  broker: { ops: ['gt'], params: ['length', 'broker'] },
+  top5: { ops: ['gt'], params: ['length'] },
+};
+
+/** The checks a flow condition must pass without any data (type, operator, parameters, value), so a request can be
+    refused before its broker files are downloaded. */
+export function flowConditionShape(cond: FlowCondition, field = 'condition'): { type: string; op: 'gt' | 'lt'; length: number; broker: string | null; value: number } {
+  const spec = Object.prototype.hasOwnProperty.call(FLOW, cond.type) ? FLOW[cond.type] : undefined;
+  if (!spec) throw new ValidationError('UNKNOWN_CONDITION', `${field}.type`, `${field}.type must be one of ${Object.keys(FLOW).join(', ')}.`);
+  if (!spec.ops.includes(cond.op as string)) throw new ValidationError('INVALID_CONDITION', `${field}.op`, `${field}.op must be ${spec.ops.join(' or ')}.`);
+  const p = cond.params, f = `${field}.params`;
+  if (!p || typeof p !== 'object' || Array.isArray(p)) throw new ValidationError('INVALID_PARAMS', f, `${f} must be an object.`);
+  for (const key of Object.keys(p)) if (!spec.params.includes(key)) throw new ValidationError('PARAM_NOT_ACCEPTED', `${f}.${key}`, `${cond.type} does not accept ${key}.`);
+  const length = p.length;
+  if (typeof length !== 'number' || !Number.isInteger(length) || length < 1) throw new ValidationError('INVALID_PARAM', `${f}.length`, `${f}.length must be a whole number of at least 1.`);
+  let broker: string | null = null;
+  if (cond.type === 'broker') {
+    if (typeof p.broker !== 'string' || !p.broker) throw new ValidationError('INVALID_PARAM', `${f}.broker`, `${f}.broker must be a broker code.`);
+    broker = p.broker;
+  }
+  if (typeof cond.value !== 'number' || !Number.isFinite(cond.value)) throw new ValidationError('INVALID_CONDITION', `${field}.value`, `${field}.value must be a number (IDR).`);
+  return { type: cond.type, op: cond.op as 'gt' | 'lt', length, broker, value: cond.value };
+}
+
+/** A flow condition on the ticker's flow data. Without flow data every flow condition is FLOW_UNAVAILABLE, whatever
+    its shape (CONTRACT.md section 3 refuses them all while flow is unavailable); then the shape; then what needs the
+    data: no broker row on any price bar (FLOW_UNAVAILABLE), a broker without a row (UNKNOWN_BROKER). */
+export function flowCondition(c: Calc, cond: FlowCondition, field = 'condition'): Signal {
+  const flow = c.flow, n = c.n, unavailable = (why: string) => new ValidationError('FLOW_UNAVAILABLE', field, `${field}: flow conditions need the ticker's broker data, which ${why}.`);
+  if (!flow) throw unavailable('is not available');
+  const q = flowConditionShape(cond, field);
+  if (!(flow.from <= flow.to)) throw unavailable('has no row on any of its price bars');
+  if (q.type === 'top5') {
+    const acc = c.flowSeries(`top5|${q.length}`, () => top5Accumulation(flow, q.length)), r = new Uint8Array(n);
+    for (let i = 0; i < n; i++) r[i] = +(acc[i] > q.value);                // NaN (no value) compares false
+    return r;
+  }
+  let s: Float64Array;
+  if (q.type === 'fnet') s = c.flowSeries(`fnet|${q.length}`, () => rollingSum(flow.fnet, q.length, flow.from, flow.to));
+  else {
+    const a = flow.brokers.get(q.broker as string);
+    if (!a) throw new ValidationError('UNKNOWN_BROKER', `${field}.params.broker`, `${field}.params.broker: ${JSON.stringify(q.broker)} has no broker row on this ticker's price bars.`);
+    s = c.flowSeries(`broker|${q.broker}|${q.length}`, () => rollingSum(a, q.length, flow.from, flow.to));
+  }
+  return compare(s as unknown as Series, q.op, null, q.value, n);     // the page's cmpSeries: bar 0 never, NaN false
+}
+
 export function conditionSeries(c: Calc, cond: Condition, field = 'condition'): Signal {
   if (!cond || typeof cond !== 'object') throw new ValidationError('INVALID_CONDITION', field, `${field} must be an object.`);
   if (cond.kind === 'indicator') return indicatorCondition(c, cond, field);
   if (cond.kind === 'price_action') return priceActionCondition(c, cond, field);
-  throw new ValidationError('UNKNOWN_CONDITION', `${field}.kind`, `${field}.kind must be indicator or price_action (flow conditions are not enabled yet).`);
+  if (cond.kind === 'flow') return flowCondition(c, cond, field);
+  throw new ValidationError('UNKNOWN_CONDITION', `${field}.kind`, `${field}.kind must be indicator, price_action or flow.`);
 }
 
 export type EntryLogic = 'all' | 'any' | 'at_least';

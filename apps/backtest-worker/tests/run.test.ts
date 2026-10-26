@@ -1,0 +1,389 @@
+/* The worker's job and preview orchestration (src/run.ts, src/load.ts, src/validate.ts) on real stored bars: the
+   Terminal parity fixtures (apps/edge-bff/terminal/tests/calc/fixtures: 7 stocks and IHSG as Feature 04 stores them)
+   published by tests/fake-terminal.mjs in the publisher's format and read back through terminal-api's /bundle and
+   presigned files. A run's result must be what the shared core computes from the same bars (prepare, run, the
+   sensitivity reruns, buildResult), with the versions and hashes of CONTRACT.md sections 2 and 7; every refusal names
+   its field; the limits refuse before any file is downloaded; cancellation stops between and inside phases.
+   Sector names and company names of the fake reference list are test labels, not published values; the broker rows
+   and the corporate action of the flow and events tests are test rows, marked where they are made. */
+import assert from 'node:assert/strict';
+import { after, before, test } from 'node:test';
+import { loadFixtures } from '../../edge-bff/terminal/tests/calc/fixtures.mjs';
+import type { BacktestRequest, BacktestResult, Condition, JobProgress } from '../../edge-bff/backtest/src/core/contract.ts';
+import { DEFAULT_ENTRY, LEGACY, legacyCard, legacyToCondition } from '../../edge-bff/backtest/src/core/catalog.ts';
+import type { LegacyCard } from '../../edge-bff/backtest/src/core/catalog.ts';
+import { Calc } from '../../edge-bff/backtest/src/core/conditions.ts';
+import { DataError, dataVersion } from '../../edge-bff/backtest/src/core/datafile.ts';
+import type { PriceSeries } from '../../edge-bff/backtest/src/core/datafile.ts';
+import { Cancelled, prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
+import { lineageKey, requestHash, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
+import type { CellRun } from '../../edge-bff/backtest/src/core/ledger.ts';
+import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
+import { assertFiniteJson, buildResult } from '../../edge-bff/backtest/src/core/result.ts';
+import { sensitivityPlan } from '../../edge-bff/backtest/src/core/robustness.ts';
+import { previewRow, requestConditions } from '../../edge-bff/backtest/src/core/signals.ts';
+import type { Config } from '../src/config.ts';
+import { WorkerError } from '../src/errors.ts';
+import { PlannedClient } from '../src/load.ts';
+import { runJob, runSignals } from '../src/run.ts';
+import type { RunEnv } from '../src/run.ts';
+import type { TickerRef } from '../src/terminal.ts';
+import { checkRequest } from '../src/validate.ts';
+import { ENGINE_VERSION, REGISTRY_VERSION } from '../src/version.ts';
+import { EVENT_COLUMNS, brokerArchive, brokersRef, encode, eventsDoc, pricePack, startFakeTerminal, tickersRef } from './fake-terminal.mjs';
+
+/* ---- the published market: the fixtures' bars as price packs ------------------------------------------------------- */
+interface Fixture { ticker: string; T: string[]; O: number[]; H: number[]; L: number[]; C: number[]; V: (number | null)[] }
+const FX = new Map((loadFixtures() as Fixture[]).map(f => [f.ticker, f]));
+const STOCKS = [...FX.keys()].filter(t => t !== 'IHSG').sort();
+const THROUGH = [...FX.values()].map(f => f.T[f.T.length - 1]).sort().pop()!;
+const SECTOR: Record<string, string> = { BBCA: 'Sector A', UNVR: 'Sector A', GOTO: 'Sector A' };    // test labels
+const rowsOf = (f: Fixture) => f.T.map((d, i) => [d, f.O[i], f.H[i], f.L[i], f.C[i], f.V[i]]);
+const PACK = new Map([...FX.values()].map(f => [f.ticker, pricePack(f.ticker, rowsOf(f))]));
+const series = (t: string): PriceSeries => { const f = FX.get(t)!; return { ticker: t, dates: f.T, dropped: 0, bars: { O: f.O, H: f.H, L: f.L, C: f.C, V: f.V, T: f.T } } };
+type Extra = Record<string, { events?: object; broker?: { data_through: string; doc: object } }>;
+function market(extra: Extra = {}) {
+  const out: Record<string, unknown> = {};
+  for (const [t, f] of FX) {
+    const e = extra[t] ?? {};
+    out[t] = { generated_at: '2026-10-25T18:20:00+00:00', datasets: {
+      price: { data_through: THROUGH, first_year: +f.T[0].slice(0, 4), files: [{ pack: 'price', doc: PACK.get(t) }] },
+      ...(t === 'IHSG' ? {} : { events: { data_through: e.events ? '2026-10-25 17:04:28+00' : null, files: e.events ? [{ doc: e.events }] : [] } }),
+      ...(e.broker ? { broker: { data_through: e.broker.data_through, first_year: 2026, files: [{ pack: 'broker-archive', doc: e.broker.doc }] } } : {}),
+    } };
+  }
+  return out;
+}
+const REF_ROWS = [...FX.keys()].sort().map(t => [t, `${t} (test name)`, t === 'IHSG' ? 'index' : 'stock', t === 'IHSG' ? null : SECTOR[t] ?? 'Sector B']);
+const REFS = { tickers: tickersRef(REF_ROWS), brokers: brokersRef([['YU', 'test broker', 'Foreign']]) };
+/** A stock of the reference list without any published file (test row). */
+const NOPX: TickerRef = { ticker: 'NOPX', name: 'NOPX (test name)', type: 'stock', sector: 'Sector C' };
+
+const KEY = 'run-test-proxy-key-'.padEnd(48, 'x');
+const LIMITS: Config['limits'] = { max_positions: 10, window_bars: { min: 1, max: 20 }, monte_carlo_runs: 1000, max_download_bytes: 1e9, max_broker_rows: 1e9, timeout_seconds: 600, queued_per_owner: 3 };
+const OFF: Config['flow'] = { enabled: false, reason: 'flow is off in this test' };
+let fake: Awaited<ReturnType<typeof startFakeTerminal>>;
+let refs: TickerRef[];
+const env = (over: { limits?: Partial<Config['limits']>; flow?: Config['flow']; url?: string } = {}): RunEnv => ({
+  client: new PlannedClient({ url: over.url ?? fake.url, proxyKey: KEY, cacheBytes: 100_000_000, concurrency: 4, retries: 0, retryBaseMs: 0, timeoutMs: 20_000 }),
+  config: { limits: { ...LIMITS, ...over.limits }, flow: over.flow ?? OFF, terminal: { concurrency: 4 } },
+  versions: { engine_version: ENGINE_VERSION, registry_version: REGISTRY_VERSION },
+});
+before(async () => {
+  fake = await startFakeTerminal({ key: KEY, tickers: market(), refs: REFS });
+  refs = await env().client.reference('tickers');
+});
+after(() => fake.close());
+
+/* ---- the page's default settings (edge-bff/backtest/src/state.ts S, api/request.ts buildRequest) ---------------------- */
+/** The request the page sends with its boot settings: the default entry cards through the page's one card mapping
+    (core catalog.ts DEFAULT_ENTRY, legacyToCondition), without the flow cards (the page leaves out a card that is not
+    ready, and flow cards are not ready while catalog.flow.available is false); percents divided by 100 as buildRequest
+    does; Monte Carlo runs = catalog limits.monte_carlo_runs; the period from S.from to the catalog's data_through. */
+function pageDefault(ticker: string, flow = false): BacktestRequest {
+  const cards = DEFAULT_ENTRY.map(([t, over], k) => legacyCard(t, `c${k + 1}`, over as Partial<LegacyCard>)).filter(c => flow || LEGACY[c.type].group !== 'flow');
+  return {
+    schema_version: 1, mode: 'single', single: { ticker, benchmark: 'buy_and_hold' },
+    period: { from: '2019-06-03', to: THROUGH, oos_fraction: 30 / 100 as 0.3 },
+    entry: { logic: 'at_least', at_least: 3, window_bars: 5, conditions: cards.map(legacyToCondition) },
+    exit: {
+      atr_length: 14,
+      stop: { mode: 'pct', pct: 7 / 100, atr_mult: 2, reward_risk_x: 2, line: { indicator: 'I09', output: 'supertrend' } },
+      take_profit: { mode: 'pct', pct: 15 / 100, r_multiple: 2, atr_mult: 3 },
+      trailing: { mode: 'none', pct: 5 / 100, chandelier_length: 22, chandelier_mult: 3, line: { indicator: 'I01', output: 'sma' } },
+      max_hold_bars: 20, signals: { logic: 'any', conditions: [] },
+    },
+    sizing: { capital_idr: 100e6, allocation_fraction: 100 / 100 },
+    costs: { buy_fee: .15 / 100, sell_fee: .25 / 100, slippage: .05 / 100, skip_ara_open_gap: true, ara_gap_fraction: 0.2 },
+    robustness: { monte_carlo_runs: 1000, seed: 7, sensitivity: true },
+  };
+}
+/** The page's portfolio defaults: universe 'all', 5 positions, ranked by ADX, minimum 20-day value Rp 5 B. */
+function portfolioDefault(universe = 'all'): BacktestRequest {
+  const q = pageDefault('BBCA');
+  delete q.single;
+  return { ...q, mode: 'portfolio', portfolio: { universe, max_positions: 5, rank_by: 'adx', min_avg_value_20d_idr: 5 * 1e9 } };
+}
+const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));
+
+/** The oracle: the shared core run on the fixture bars directly (no terminal-api, no worker), as CONTRACT.md sections
+    4-7 compose it: prepare, run, one run per sensitivity cell, buildResult with the hashes and versions. */
+async function direct(q: BacktestRequest, tickers: string[], files: { ticker: string; dataset: string; sha256: string }[], prior: { variant_hash: string; sharpe_daily: number }[] = []): Promise<BacktestResult> {
+  const ctx = prepare({ ihsg: series('IHSG'), tickers: Object.fromEntries(tickers.map(t => [t, { prices: series(t), corporate_actions: [] }])) });
+  const ledger = run(ctx, q), plan = sensitivityPlan(q);
+  let sensitivity = null;
+  if (plan) {
+    const cells = [];
+    for (const row of plan.requests) { const r: (CellRun | null)[] = []; for (const c of row) r.push(c ? { ledger: run(ctx, c), variant_hash: await variantHash(c) } : null); cells.push(r) }
+    const { requests: _r, ...axes } = plan;
+    sensitivity = { ...axes, cells: cells as CellRun[][] };
+  }
+  const data_version = await dataVersion(files), v = { engine_version: ENGINE_VERSION, registry_version: REGISTRY_VERSION, data_version };
+  return buildResult({ request: q, ledger, versions: { ...v, data_through: THROUGH }, tickers, prior_trials: prior, sensitivity, duration_ms: 0,
+    variant_hash: await variantHash(q), lineage_key: await lineageKey(q), request_hash: await requestHash(q, v) });
+}
+const priceFile = (t: string) => ({ ticker: t, dataset: 'price', sha256: encode(PACK.get(t)).sha256 });
+const noDuration = (r: BacktestResult) => ({ ...r, meta: { ...r.meta, duration_ms: 0 } });
+function finiteOrNull(v: unknown, path = 'result'): void {
+  if (typeof v === 'number') assert.ok(Number.isFinite(v), `${path} = ${v}`);
+  else if (Array.isArray(v)) v.forEach((x, i) => finiteOrNull(x, `${path}[${i}]`));
+  else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) finiteOrNull(x, `${path}.${k}`);
+  else assert.ok(v === null || typeof v === 'string' || typeof v === 'boolean', `${path} is ${typeof v}`);
+}
+/** The value with every -0 as 0, as JSON carries it (stats.ts gives a gross loss of -0 when there is no loss). */
+const plusZero = (v: unknown): unknown => typeof v === 'number' ? (v === 0 ? 0 : v) : Array.isArray(v) ? v.map(plusZero)
+  : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, plusZero(x)])) : v;
+const refusal = async (p: Promise<unknown>) => {
+  try { await p } catch (e) { return [(e as { code: string }).code, (e as { field?: string }).field] }
+  assert.fail('not refused');
+};
+const PHASES: JobProgress['phase'][] = ['loading', 'signals', 'backtest', 'sensitivity', 'monte_carlo', 'finalizing'];
+
+/* ---- single and portfolio jobs --------------------------------------------------------------------------------------- */
+test('a single-stock job with the page default settings: every phase in order, and the result the core computes from the same bars', async () => {
+  const q = pageDefault(STOCKS[0]);                                    // the page picks the first published stock without MAPI
+  assert.equal(q.single!.ticker, 'BBCA');
+  assert.deepEqual(q.entry.conditions.map(c => c.kind === 'indicator' ? c.indicator : c.kind === 'price_action' ? c.type : c.kind), ['I07', 'I15', 'macd']);
+  const seen: JobProgress[] = [];
+  const t0 = performance.now();
+  const r = await runJob(q, { prior_trials: [] }, refs, env(), { progress: p => seen.push(p) });
+  const ms = performance.now() - t0;
+  const order = seen.map(p => p.phase).filter((p, i, a) => p !== a[i - 1]);
+  assert.deepEqual(order, PHASES);
+  for (const p of seen) assert.ok(Number.isInteger(p.done) && Number.isInteger(p.total) && p.done <= Math.max(p.total, p.done) && p.done >= 0);
+  assert.deepEqual(seen.filter(p => p.phase === 'sensitivity').pop(), { phase: 'sensitivity', done: 25, total: 25 });
+
+  const expected = await direct(q, ['BBCA'], [priceFile('IHSG'), priceFile('BBCA')]);
+  assert.deepStrictEqual(noDuration(r), noDuration(expected));
+  assert.equal(r.meta.engine_version, ENGINE_VERSION); assert.equal(r.meta.registry_version, REGISTRY_VERSION);
+  assert.equal(r.meta.data_version, await dataVersion([priceFile('IHSG'), priceFile('BBCA')]));
+  assert.deepEqual(r.meta.tickers, ['BBCA']); assert.deepEqual(r.meta.benchmark, { kind: 'buy_and_hold', ticker: 'BBCA' });
+  assert.equal(r.meta.data_through, THROUGH); assert.equal(r.dates[r.dates.length - 1], THROUGH); assert.ok(r.dates[0] >= q.period.from);
+  assert.ok(r.meta.duration_ms > 0 && r.meta.duration_ms <= ms + 1);
+  assert.equal(r.robustness.sensitivity!.cells.flat().filter(Boolean).length, 25);
+  assert.deepEqual(r.meta.warnings.map(w => w.code), ['ADJUSTED_HISTORY_BOUNDARY', 'ARB_NOT_MODELLED', 'TICK_NOT_MODELLED']);
+  assertFiniteJson(r); finiteOrNull(r);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(r)), plusZero(r)); // nothing JSON would drop or change (JSON writes -0 as 0)
+});
+
+test('a single job with trades on UNVR: trades point at entry events, OOS split, Monte Carlo of 1000 runs, prior trials counted', async () => {
+  const q = pageDefault('UNVR'), prior = [{ variant_hash: 'a'.repeat(64), sharpe_daily: 0.01 }, { variant_hash: 'b'.repeat(64), sharpe_daily: -0.02 }];
+  const r = await runJob(q, { prior_trials: prior }, refs, env());
+  assert.deepStrictEqual(noDuration(r), noDuration(await direct(q, ['UNVR'], [priceFile('IHSG'), priceFile('UNVR')], prior)));
+  assert.ok(r.trades.length >= 3, `${r.trades.length} trades`);
+  for (const t of r.trades) assert.equal(r.dates[r.events.entries.UNVR.on[t.signal_event]], t.signal_date);
+  assert.equal(r.robustness.monte_carlo!.runs, 1000); assert.equal(r.robustness.monte_carlo!.final_returns.length, 1000);
+  assert.equal(r.oos.cut, Math.floor(r.dates.length * 0.7));
+  assert.equal(r.meta.trials.prior, 2); assert.equal(r.robustness.deflated.trials, r.meta.trials.total);
+  assert.equal(r.meta.trials.variants[0].kind, 'run'); assert.equal(r.meta.trials.variants[0].variant_hash, await variantHash(q));
+});
+
+test('the same request on the same published data gives the same result, cold or warm cache (meta.duration_ms aside)', async () => {
+  const q = pageDefault('UNVR'), e = env();
+  const a = await runJob(q, { prior_trials: [] }, refs, e), b = await runJob(clone(q), { prior_trials: [] }, refs, e), c = await runJob(clone(q), { prior_trials: [] }, refs, env());
+  assert.deepStrictEqual(noDuration(b), noDuration(a)); assert.deepStrictEqual(noDuration(c), noDuration(a));
+  assert.ok(e.client.stats.cache_hits >= 2, 'the second run read its files from the cache');
+  const p = portfolioDefault();
+  assert.deepStrictEqual(noDuration(await runJob(p, { prior_trials: [] }, refs, e)), noDuration(await runJob(clone(p), { prior_trials: [] }, refs, env())));
+});
+
+test('a portfolio job on the fixture tickers: the universe, IHSG benchmark, slots, per-ticker rows, the core result', async () => {
+  const q = portfolioDefault();
+  const r = await runJob(q, { prior_trials: [] }, refs, env());
+  assert.deepEqual(r.meta.tickers, STOCKS);
+  assert.deepStrictEqual(noDuration(r), noDuration(await direct(q, STOCKS, [priceFile('IHSG'), ...STOCKS.map(priceFile)])));
+  assert.deepEqual(r.meta.benchmark, { kind: 'ihsg', ticker: 'IHSG' });
+  assert.ok(r.meta.warnings.some(w => w.code === 'SURVIVORSHIP'));
+  assert.deepEqual(r.tables.per_ticker.map(x => x.ticker), STOCKS);
+  assert.ok(r.trades.length > 0 && new Set(r.trades.map(t => t.ticker)).size > 1);
+  // never more than max_positions held after a day's open entries (a sale at that open has left)
+  for (let k = 0; k < r.dates.length; k++) {
+    const held = r.trades.filter(t => r.dates.indexOf(t.entry_date) <= k && (r.dates.indexOf(t.exit_date) > k || (r.dates.indexOf(t.exit_date) === k && t.exit_phase !== 'open'))).length;
+    assert.ok(held <= 5, `${held} positions on ${r.dates[k]}`);
+  }
+  assert.equal(r.robustness.monte_carlo?.scale ?? 1 / 5, 1 / 5);
+  // a sector universe: its published stocks only
+  const s = await runJob(portfolioDefault('sector:Sector A'), { prior_trials: [] }, refs, env());
+  assert.deepEqual(s.meta.tickers, ['BBCA', 'GOTO', 'UNVR']);
+  assert.deepEqual(s.tables.per_ticker.map(x => x.ticker), ['BBCA', 'GOTO', 'UNVR']);
+});
+
+/* ---- refusals -------------------------------------------------------------------------------------------------------- */
+test('refused requests name their field and download nothing', async () => {
+  const flowCard = legacyToCondition(legacyCard('fnet', 'f1', { len: 5, val: 0 }));
+  const cases: [string, (q: any) => void, string, string, Partial<Config['limits']>?][] = [
+    ['an index as the single ticker', q => { q.single.ticker = 'IHSG' }, 'UNKNOWN_TICKER', 'single.ticker'],
+    ['an unpublished ticker', q => { q.single.ticker = 'ZZZZ' }, 'UNKNOWN_TICKER', 'single.ticker'],
+    ['a universe the catalog does not have', q => { delete q.single; q.mode = 'portfolio'; q.portfolio = { universe: 'sector:Nope', max_positions: 5, rank_by: 'adx', min_avg_value_20d_idr: 0 } }, 'UNKNOWN_UNIVERSE', 'portfolio.universe'],
+    ['a field the page does not send', q => { q.benchmark = 'ihsg' }, 'UNKNOWN_FIELD', 'benchmark'],
+    ['a nested unknown field', q => { q.exit.stop.level = 3 }, 'UNKNOWN_FIELD', 'exit.stop.level'],
+    ['an unknown condition field', q => { q.entry.conditions[0].threshold = 3 }, 'UNKNOWN_FIELD', 'entry.conditions[0].threshold'],
+    ['an unknown side field', q => { q.entry.conditions[0].rhs.output = 'adx' }, 'UNKNOWN_FIELD', 'entry.conditions[0].rhs.output'],
+    ['portfolio settings in single mode', q => { q.portfolio = { universe: 'all' } }, 'UNKNOWN_FIELD', 'portfolio'],
+    ['schema_version 2', q => { q.schema_version = 2 }, 'INVALID_REQUEST', 'schema_version'],
+    ['an OOS share the page does not offer', q => { q.period.oos_fraction = 0.25 }, 'INVALID_PERIOD', 'period.oos_fraction'],
+    ['500 Monte Carlo runs', q => { q.robustness.monte_carlo_runs = 500 }, 'INVALID_ROBUSTNESS', 'robustness.monte_carlo_runs'],
+    ['a negative seed', q => { q.robustness.seed = -1 }, 'INVALID_ROBUSTNESS', 'robustness.seed'],
+    ['a fractional seed', q => { q.robustness.seed = 1.5 }, 'INVALID_ROBUSTNESS', 'robustness.seed'],
+    ['sensitivity not a boolean', q => { q.robustness.sensitivity = 1 }, 'INVALID_ROBUSTNESS', 'robustness.sensitivity'],
+    ['11 positions (engine)', q => { delete q.single; q.mode = 'portfolio'; q.portfolio = { universe: 'all', max_positions: 11, rank_by: 'adx', min_avg_value_20d_idr: 0 } }, 'INVALID_PORTFOLIO', 'portfolio.max_positions'],
+    ['6 positions over a configured 5', q => { delete q.single; q.mode = 'portfolio'; q.portfolio = { universe: 'all', max_positions: 6, rank_by: 'adx', min_avg_value_20d_idr: 0 } }, 'INVALID_PORTFOLIO', 'portfolio.max_positions', { max_positions: 5 }],
+    ['ranking by foreign flow while flow is off', q => { delete q.single; q.mode = 'portfolio'; q.portfolio = { universe: 'all', max_positions: 5, rank_by: 'fnet', min_avg_value_20d_idr: 0 } }, 'FLOW_UNAVAILABLE', 'portfolio.rank_by'],
+    ['a flow condition while flow is off', q => { q.entry.conditions.push(flowCard) }, 'FLOW_UNAVAILABLE', 'entry.conditions[3]'],
+    ['a flow exit condition while flow is off', q => { q.exit.signals.conditions = [{ ...flowCard, id: 'x1', op: 'lt' }] }, 'FLOW_UNAVAILABLE', 'exit.signals.conditions[0]'],
+    ['no enabled entry condition', q => { q.entry.conditions.forEach((c: Condition) => { c.enabled = false }) }, 'NO_ACTIVE_CONDITION', 'entry.conditions'],
+    ['an indicator parameter out of range', q => { q.entry.conditions[0].params.di_length = 0 }, 'PARAM_OUT_OF_RANGE', 'entry.conditions[0].params.di_length'],
+    ['a parameter the module does not read', q => { q.entry.conditions[0].params.colour = 'red' }, 'PARAM_NOT_ACCEPTED', 'entry.conditions[0].params.colour'],
+    ['an output the indicator does not have', q => { q.entry.conditions[0].lhs.output = 'rsi' }, 'UNKNOWN_OUTPUT', 'entry.conditions[0].lhs.output'],
+    ['a dip in percent instead of a fraction', q => { q.entry.conditions.push({ id: 'd', kind: 'price_action', type: 'dip', op: 'lte', value: -3 }) }, 'VALUE_OUT_OF_RANGE', 'entry.conditions[3].value'],
+    ['an R target without a stop', q => { q.exit.stop.mode = 'none'; q.exit.take_profit.mode = 'r' }, 'INVALID_EXIT', 'exit.take_profit.mode'],
+    ['a stop line that is not a price', q => { q.exit.stop.mode = 'line'; q.exit.stop.line = { indicator: 'I13', output: 'rsi' } }, 'INVALID_LINE', 'exit.stop.line.indicator'],
+    ['a window of 21 bars', q => { q.entry.window_bars = 21 }, 'INVALID_ENTRY', 'entry.window_bars'],
+    ['a duplicate condition id', q => { q.entry.conditions[1].id = q.entry.conditions[0].id }, 'DUPLICATE_CONDITION_ID', 'entry.conditions[1].id'],
+  ];
+  const before = fake.requests.length;
+  for (const [label, f, code, field, limits] of cases) {
+    const q = pageDefault('UNVR'); f(q);
+    assert.deepEqual(await refusal(runJob(q, { prior_trials: [] }, refs, env({ limits }))), [code, field], label);
+    assert.throws(() => checkRequest(q, refs, { limits: { ...LIMITS, ...limits }, flow: OFF }), (e: Error) => e instanceof ValidationError && e.code === code, label);
+  }
+  assert.equal(fake.requests.length, before, 'a refused request reads no market data');
+  // what conditions.ts can only say on the ticker's bars is the run's: an RSI length longer than the history
+  const long = pageDefault('ISEA'); (long.entry.conditions[1] as any).params.k_length = 5000;
+  assert.doesNotThrow(() => checkRequest(long, refs, { limits: LIMITS, flow: OFF }));
+  assert.deepEqual(await refusal(runJob(long, { prior_trials: [] }, refs, env())), ['INDICATOR_OUTPUT_EMPTY', 'entry.conditions[1].lhs']);
+});
+
+test('checks against the published data: PERIOD_AFTER_DATA, PERIOD_BEFORE_DATA, no bar in the period, an unpublished stock', async () => {
+  const late = pageDefault('UNVR'); late.period.to = '2026-10-26';
+  assert.deepEqual(await refusal(runJob(late, { prior_trials: [] }, refs, env())), ['PERIOD_AFTER_DATA', 'period.to']);
+  // GOTO's first bar is 2022-04-11: buy and hold cannot start in 2019; against IHSG it can (no trade before its listing)
+  const goto = pageDefault('GOTO');
+  const e = await runJob(goto, { prior_trials: [] }, refs, env()).catch(x => x);
+  assert.ok(e instanceof ValidationError && e.code === 'PERIOD_BEFORE_DATA' && e.field === 'period.from' && e.message.includes(FX.get('GOTO')!.T[0]), String(e));
+  goto.single!.benchmark = 'ihsg';
+  const r = await runJob(goto, { prior_trials: [] }, refs, env());
+  assert.ok(r.trades.every(t => t.entry_date >= FX.get('GOTO')!.T[0]));
+  goto.single!.benchmark = 'buy_and_hold'; goto.period.from = FX.get('GOTO')!.T[0];
+  assert.equal((await runJob(goto, { prior_trials: [] }, refs, env())).benchmark[0], goto.sizing.capital_idr);
+  // ISEA has no bar before 2024-07-08
+  const isea = pageDefault('ISEA'); isea.period = { from: '2019-06-03', to: '2023-12-29', oos_fraction: 0 };
+  assert.deepEqual(await refusal(runJob(isea, { prior_trials: [] }, refs, env())), ['DATA_MISSING', 'ISEA']);
+  // a stock of the reference list without published files: terminal-api's 404 is DATA_MISSING, never a skip
+  const withNopx = [...refs, NOPX];
+  const m = await runJob(pageDefault('NOPX'), { prior_trials: [] }, withNopx, env()).catch(x => x);
+  assert.ok(m instanceof DataError && m.code === 'DATA_MISSING', String(m));
+  // in a universe it fails the whole run too (CONTRACT.md section 2: a missing dataset is an error, never a fallback)
+  const u = await runJob(portfolioDefault('sector:Sector C'), { prior_trials: [] }, withNopx, env()).catch(x => x);
+  assert.ok(u instanceof DataError && u.code === 'DATA_MISSING', String(u));
+});
+
+test('limits: LIMIT_EXCEEDED before any file is downloaded; exactly at the limit runs', async () => {
+  const q = pageDefault('UNVR');
+  const total = encode(PACK.get('IHSG')).body.length + encode(PACK.get('UNVR')).body.length;
+  const bucket = () => fake.requests.filter(r => r.path.startsWith('/bucket/')).length;
+  const b0 = bucket();
+  const e = await runJob(q, { prior_trials: [] }, refs, env({ limits: { max_download_bytes: total - 1 } })).catch(x => x);
+  assert.ok(e instanceof WorkerError && e.code === 'LIMIT_EXCEEDED' && e.field === 'single.ticker' && e.status === 422, String(e));
+  assert.deepEqual(e.details, { limit: 'max_download_bytes', allowed: total - 1, needed: total });
+  assert.equal(bucket(), b0, 'nothing was downloaded');
+  assert.equal((await runJob(q, { prior_trials: [] }, refs, env({ limits: { max_download_bytes: total } }))).trades.length > 0, true);
+  const p = await runSignals({ schema_version: 1, universe: 'all', period: { from: '2019-06-03', to: THROUGH }, entry: q.entry }, refs, env({ limits: { max_download_bytes: 1000 } })).catch(x => x);
+  assert.ok(p instanceof WorkerError && p.code === 'LIMIT_EXCEEDED' && p.field === 'universe');
+});
+
+test('flow on: broker files only when a flow condition needs them, counted against max_broker_rows, and reaching period.to', async () => {
+  // test rows: broker YU buying UNVR as a foreign investor on its last 30 sessions (not published values)
+  const days = FX.get('UNVR')!.T.slice(-30);
+  const rows = days.map((d, k) => [d, 'YU', 'Foreign', 'Regular', 1e9 * (k % 3), 5e8, 1e4, 5e3, false]);
+  const doc = brokerArchive('UNVR', rows, [2026, 2026]);
+  const flowFake = await startFakeTerminal({ key: KEY, tickers: market({ UNVR: { broker: { data_through: THROUGH, doc } }, BBCA: { broker: { data_through: '2026-10-20', doc: brokerArchive('BBCA', [], [2026, 2026]) } } }), refs: REFS });
+  try {
+    const on: Config['flow'] = { enabled: true, reason: null };
+    const q = pageDefault('UNVR', true);                                   // the page default with its two flow cards
+    q.period.from = days[0];
+    const brokerAsked = () => flowFake.requests.filter(r => r.path === '/api/terminal/v1/bundle').length;
+    const r = await runJob(q, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }));
+    assert.equal(r.events.conditions.filter(c => c.condition_id === 'c4' || c.condition_id === 'c5').length, 2);
+    const files = [priceFile('IHSG'), priceFile('UNVR'), { ticker: 'UNVR', dataset: 'broker', sha256: encode(doc).sha256 }];
+    assert.equal(r.meta.data_version, await dataVersion(files));
+    assert.deepEqual(await refusal(runJob(q, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on, limits: { max_broker_rows: rows.length - 1 } }))), ['LIMIT_EXCEEDED', 'single.ticker']);
+    // without a flow condition no broker file is read
+    const plain = pageDefault('UNVR'); plain.period.from = days[0];
+    const n = brokerAsked();
+    const s = await runJob(plain, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }));
+    assert.equal(brokerAsked() - n, 2);
+    assert.equal(s.meta.data_version, await dataVersion([priceFile('IHSG'), priceFile('UNVR')]));
+    // BBCA's broker files end before the period does: DATA_UNAVAILABLE, never a run on missing flow
+    const bbca = pageDefault('BBCA', true); bbca.period.from = days[0];
+    assert.deepEqual(await refusal(runJob(bbca, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }))), ['DATA_UNAVAILABLE', 'broker']);
+    // GOTO has no broker file: DATA_MISSING
+    const goto = pageDefault('GOTO', true); goto.period.from = days[0]; goto.single!.benchmark = 'ihsg';
+    assert.deepEqual(await refusal(runJob(goto, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }))), ['DATA_MISSING', 'GOTO.broker']);
+  } finally { await flowFake.close() }
+});
+
+test('events: price-affecting corporate actions reach the trades held across them', async () => {
+  const q = pageDefault('UNVR');
+  const plain = await runJob(q, { prior_trials: [] }, refs, env());
+  const t = plain.trades.find(x => x.exit_date > x.entry_date)!;
+  // a test annotation on that trade's exit day (not a published action), and a cash dividend that is not price-affecting
+  const ev = (d: string, type: string) => EVENT_COLUMNS.map(c => ({ d, role: 'EX_DATE', family: 'CORPORATE_ACTION', type } as Record<string, unknown>)[c] ?? null);
+  const events = eventsDoc('UNVR', [ev(t.exit_date, 'STOCK_SPLIT'), ev(t.exit_date, 'DIVIDEND')]);
+  const evFake = await startFakeTerminal({ key: KEY, tickers: market({ UNVR: { events } }), refs: REFS });
+  try {
+    const r = await runJob(q, { prior_trials: [] }, refs, env({ url: evFake.url }));
+    const u = r.trades.find(x => x.trade_id === t.trade_id)!;
+    assert.deepEqual(u.flags.corporate_actions, [{ date: t.exit_date, type: 'STOCK_SPLIT' }]);
+    assert.equal(r.meta.data_version, await dataVersion([priceFile('IHSG'), priceFile('UNVR'), { ticker: 'UNVR', dataset: 'events', sha256: encode(events).sha256 }]));
+    assert.deepEqual(r.equity, plain.equity, 'a flag changes no number');
+  } finally { await evFake.close() }
+});
+
+/* ---- cancellation and an expired URL ----------------------------------------------------------------------------- */
+test('cancellation between and inside phases: Cancelled, and no later phase starts', async () => {
+  for (const at of ['loading', 'signals', 'backtest', 'sensitivity', 'monte_carlo', 'finalizing'] as const) {
+    let stop = false;
+    const seen: string[] = [];
+    const q = at === 'signals' || at === 'backtest' ? portfolioDefault() : pageDefault('UNVR');
+    const e = await runJob(q, { prior_trials: [] }, refs, env(), {
+      progress: p => { seen.push(p.phase); if (p.phase === at) stop = true },
+      shouldStop: () => stop,
+    }).catch(x => x);
+    assert.ok(e instanceof Cancelled, `${at}: ${e}`);
+    assert.ok(!seen.slice(seen.indexOf(at)).some(p => PHASES.indexOf(p as JobProgress['phase']) > PHASES.indexOf(at)), `${at}: ${seen.join(',')}`);
+  }
+  // inside the engine: stopped on the first calendar days, not at the end of the backtest
+  let days = 0;
+  const e = await runJob(portfolioDefault(), { prior_trials: [] }, refs, env(), { progress: p => { if (p.phase === 'backtest') days = Math.max(days, p.done) }, shouldStop: () => days > 0 || false }).catch(x => x);
+  assert.ok(e instanceof Cancelled);
+});
+
+test('a presigned URL that expired before its download is fetched again from a new manifest', async () => {
+  const q = pageDefault('UNVR'), bundles = () => fake.requests.filter(r => r.path === '/api/terminal/v1/bundle').length;
+  const n = bundles();
+  fake.fault((r: { path: string }) => r.path === '/bucket/v1/pack/UNVR/price.json.gz', [403]);
+  const r = await runJob(q, { prior_trials: [] }, refs, env());
+  assert.equal(bundles() - n, 3, 'IHSG and UNVR, then UNVR again');
+  assert.deepStrictEqual(noDuration(r), noDuration(await direct(q, ['UNVR'], [priceFile('IHSG'), priceFile('UNVR')])));
+});
+
+/* ---- signals preview ------------------------------------------------------------------------------------------------- */
+test('signals preview: each universe ticker as previewRow on its own bars, data_version of the files read, refusals', async () => {
+  const entry = pageDefault('UNVR').entry, period = { from: '2019-06-03', to: THROUGH };
+  const p = await runSignals({ schema_version: 1, universe: 'all', period, entry }, refs, env());
+  const active = requestConditions({ entry });
+  assert.deepEqual(p.rows, STOCKS.map(t => ({ ticker: t, ...previewRow(new Calc(series(t).bars), FX.get(t)!.T, { entry }, period.from, period.to, active) })));
+  assert.equal(p.data_version, await dataVersion(STOCKS.map(priceFile)));
+  assert.ok(p.rows.some(r => r.entry_signals > 0));
+  const s = await runSignals({ schema_version: 1, universe: 'sector:Sector A', period, entry }, refs, env());
+  assert.deepEqual(s.rows.map(r => r.ticker), ['BBCA', 'GOTO', 'UNVR']);
+  const bad: [object, string, string][] = [
+    [{ schema_version: 1, universe: 'sector:Nope', period, entry }, 'UNKNOWN_UNIVERSE', 'universe'],
+    [{ schema_version: 1, universe: 'all', period: { from: '2026-01-02', to: '2025-01-02' }, entry }, 'INVALID_PERIOD', 'period.to'],
+    [{ schema_version: 1, universe: 'all', period: { ...period, oos_fraction: 0 }, entry }, 'UNKNOWN_FIELD', 'period.oos_fraction'],
+    [{ schema_version: 1, universe: 'all', period, entry: { ...entry, conditions: [...entry.conditions, legacyToCondition(legacyCard('top5', 't5'))] } }, 'FLOW_UNAVAILABLE', 'entry.conditions[3]'],
+    [{ schema_version: 1, universe: 'all', period, entry, exit: {} }, 'UNKNOWN_FIELD', 'exit'],
+  ];
+  for (const [req, code, field] of bad) assert.deepEqual(await refusal(runSignals(req, refs, env())), [code, field], JSON.stringify(req).slice(0, 80));
+});

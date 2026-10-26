@@ -7,6 +7,17 @@ RUN npm ci --no-audit --no-fund
 COPY terminal/ ./
 RUN npm run build
 
+# EDGE backtest (CONTRACT.md section 10): the backtest page (backtest/, TypeScript + Vite) is built here into its dist/
+# and copied into static/backtest-app; its shared core imports the Terminal's calculation module and indicator registry
+# (terminal/src), so that source sits beside it as in the repository. The build output is not kept in git.
+FROM node:22-slim AS backtest
+WORKDIR /build/backtest
+COPY backtest/package.json backtest/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY terminal/src /build/terminal/src
+COPY backtest/ ./
+RUN npm run build
+
 FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
@@ -16,6 +27,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 COPY static ./static
 COPY --from=terminal /build/static/terminal-app ./static/terminal-app
+COPY --from=backtest /build/backtest/dist ./static/backtest-app
 RUN useradd --uid 10001 --create-home edge && chmod -R a+rX /app/app /app/static
 USER edge
 CMD ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8080", "--workers", "1", "--no-access-log", "--no-proxy-headers"]

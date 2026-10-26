@@ -29,6 +29,55 @@ Build and checks, from `terminal/`: `npm ci`, `npm run build` (typecheck + build
 `python3 tests/visual/diff.py <out>` (must report 0 differing pixels). `/terminal-app/?fixture=reference` runs the
 page on the reference's synthetic data.
 
+## Backtest tab (EDGE backtest, 2026-10-26)
+
+Rules and decisions: `backtest/CONTRACT.md`; wire types: `backtest/src/core/contract.ts`. The page `backtest/`
+(TypeScript + Vite) is built by the Dockerfile's `backtest` stage into `static/backtest-app/` (not kept in git) and
+shown under the EDGE top bar in a frame at `/backtest` (Backtest tab, next to Terminal). `/backtest-app/` has the
+terminal page's CSP (its own scripts only, inline style attributes, Google Fonts, and `connect-src` to the bucket
+because the signal preview downloads the files `/api/terminal/v1/bundle` presigns). The computation runs in the private
+`backtest-worker` (Node); edge-bff queues the jobs, keeps the results and counts the trials.
+
+| Method/path (session cookie; POST with Origin + `X-CSRF-Token`) | Result |
+| --- | --- |
+| GET `/api/v1/backtests/catalog` | the worker's `Catalog`, kept 60 s (the last one while the worker does not answer) |
+| POST `/api/v1/backtests` | body = `BacktestRequest` + optional `client_request_id`; the worker checks it (`/v1/validate`, its 422/424 relayed as they are), then 202 `{request_id, state, created}`; the same `client_request_id` returns the same job, another request under it 409 `SUBMISSION_CONFLICT`; 429 `QUEUE_FULL` with 3 queued jobs |
+| GET `/api/v1/backtests?limit=` | the latest jobs (30, at most 100), each `JobStatus` + its `request` |
+| GET `/api/v1/backtests/{id}` | `JobStatus` (progress as the worker reports it) |
+| GET `/api/v1/backtests/{id}/result` | the `core` part; in single mode with the ticker's events merged back (= the worker's `BacktestResult`); gzip; 409 `NOT_FINISHED`, 410 `RESULT_EXPIRED` |
+| GET `/api/v1/backtests/{id}/events?ticker=X` | `{conditions, exits}` of one ticker (part `events:X`); 404 `EVENTS_NOT_FOUND` |
+| POST `/api/v1/backtests/{id}/cancel` | 202 `JobStatus`: queued -> `CANCELLED` at once, running -> stopped at the worker by the loop; 409 `NOT_RUNNING` |
+| POST `/api/v1/backtests/signals` | `SignalsPreview` from the worker (no job, no trial) |
+
+Errors are `{"error": {code, field?, message?, details?}}` (CONTRACT.md section 11); the worker unreachable at a request
+is 503 `BACKTEST_UNAVAILABLE`, the feature off (no `BACKTEST_WORKER_URL`) 503 `BACKTEST_DISABLED`, the tables missing
+503 `BACKTEST_NOT_READY` (`/ready` does not read them).
+
+Tables (migration `database/migrations/20261026_005_edge_bff_backtest.sql`): `edge_bff.backtest_jobs` (request,
+lineage and variant hash from the worker, state QUEUED/RUNNING/FINISHED/FAILED/CANCELLED, progress, lease, error,
+versions, sizes; one RUNNING job per owner), `edge_bff.backtest_results` (gzip JSON per `(request_id, part)`: `core`
+and `events:<ticker>`, with bytes and sha256; deleted after 30 days) and `edge_bff.backtest_trials` (K3: every distinct
+variant a finished run evaluated, per owner and lineage, with its daily Sharpe; never reset). No market data.
+
+The loop (`app/backtest.py`, started with the ORC loop when `BACKTEST_WORKER_URL` is set) takes the oldest queued job
+under a lease (`EDGE_LEASE_SECONDS`, heartbeat `EDGE_HEARTBEAT_SECONDS`), reads its line's trials and posts
+`{job_id, request, context: {job_id, prior_trials}}` to the worker (`409 BUSY` = another job there: it waits), reads its
+status every `EDGE_POLL_SECONDS` (progress stored, cancellation forwarded), and on `FINISHED` fetches the result,
+stores its parts and its variants and marks the job `FINISHED` with the versions in one transaction. A job is never
+sent twice: the worker forgetting it (`404 UNKNOWN_JOB`) or not answering three times in a row is `FAILED WORKER_LOST`,
+a lease that expired (edge-bff stopped while following it) is `FAILED WORKER_LOST` too (the worker is told to cancel
+it), and a job running longer than `BACKTEST_TIMEOUT_SECONDS` is cancelled and `FAILED TIMEOUT`.
+
+| Variable | Value |
+| --- | --- |
+| BACKTEST_WORKER_URL | `http://backtest-worker.railway.internal:<port>` (private; empty = feature off) |
+| BACKTEST_WORKER_KEY | the worker's `BACKTEST_WORKER_KEY` (Railway reference), at least 32 characters; set with the URL |
+| BACKTEST_TIMEOUT_SECONDS | required with the URL (no default; set with the worker's limit, measured in the dev E2E) |
+| BACKTEST_QUEUED_PER_OWNER | 3 |
+
+Tests: `tests/test_backtest.py` (fake worker as a local HTTP server, disposable Postgres, one Chromium check of the
+tab).
+
 ## Front-end structure: editing the page without touching the API (EXEC-X, 2026-10-08)
 
 The page is edited as one HTML file and its API wiring is not locked to the view. Four layers, each with one job:
