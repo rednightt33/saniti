@@ -12,6 +12,12 @@ Modes (TERMINAL_PUBLISH_MODE, or the first argument):
   events        only the event files of tickers whose idx_event_annotation rows changed.
   verify        compare every published file with SQL (row count, sums, first and last date); prints mismatches.
 
+Schedule (T7, user 2026-10-26): TERMINAL_RUN_TIMES_WIB=07:30,19:00 and the service's Railway cronSchedule =
+cron_for(those times) ("0,30 0,12 * * *"); a tick that is not a listed time exits at once (should_run). A Railway
+service with a cronSchedule does not run when deployed: for a manual run clear the cronSchedule, redeploy, and set it
+back after the run (RAILWAY_CHANGELOG 2026-10-26).
+Price and broker are published from their first stored year (broker: T8, user 2026-10-26).
+
 Objects (all under v1/):
   price/{ticker}/{year}.json.gz    columns d,o,h,l,c,v (v null for an index without volume)
   broker/{ticker}/{year}.json.gz   columns d,b,i,m,bv,sv,bl,sl; gap = [[date, board], ...] (ERRORS M157)

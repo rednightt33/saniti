@@ -74,3 +74,14 @@ session (POST also with EDGE's CSRF token), and edge-bff forwards them over the 
 `X-Terminal-Proxy-Key`; terminal-api treats them as the one account `TERMINAL_PROXY_SUBSCRIBER` (quotas, audit).
 Auth and admin routes are not forwarded. The presigned downloads go straight from the page to the bucket (CORS lists
 `https://edge-bff-dev.up.railway.app`). Price files start in 2018 (first stored year); broker files in 2021.
+
+## 8. Since 2026-10-26 (EXEC-TERMINAL-T7-T10)
+
+- Broker files start at the first stored trade date (2016), like price (2018); each dataset's `first_year` is in the
+  manifest.
+- Events format 2: two more columns. `title` (e.g. "Stock split 1 : 5", "Cash dividend") and `detail` =
+  `[[label, value or null, kind], …]` for corporate actions (null for insider rows), built from `source_payload`
+  (ERRORS M223). `kind` ∈ `idr`, `idr_per_share`, `date`, `text`, `pct`, `shares`. A null value means the source has no
+  value; the page shows "Unavailable". Derived rows: dividend yield = dividend ÷ close on the cum date × 100; price
+  after a split = close on the cum date × old ÷ new; tender premium = offer price ÷ close of the last session before the
+  offer start (within 10 days) − 1. A cum date not traded yet (a future event) has no close, so these rows are null.
