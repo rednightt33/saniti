@@ -9,7 +9,7 @@ import { fixtureData } from './data/fixture';
 import { liveData, TerminalError } from './data/live';
 import type { MarketData, Point } from './data/types';
 import type { Ctx } from './app/context';
-import { $, store } from './app/context';
+import { $, spin, store } from './app/context';
 import { initChart } from './app/chart';
 import { initStats } from './app/stats';
 import { initVolume } from './app/volume';
@@ -94,7 +94,12 @@ function boot() {
   ws.classList.toggle('right-collapsed', (store.get('ml.broker.collapsed') ?? '1') === '1');
   $('symText').textContent = stored || 'MAPI';
   $('rpSub').textContent = '';
-  const loading = notice(`Loading ${stored || 'MAPI'}…`);
+  // an open side panel shows the ring too until its data is drawn (EXEC-TERMINAL-SPIN 1A)
+  if (!ws.classList.contains('left-collapsed')) $('distStats').innerHTML = `<div class="st-row">${spin('Loading')}</div>`;
+  if (!ws.classList.contains('right-collapsed')) $('bsBody').innerHTML = `<div class="rp-empty">${spin('Loading')}</div>`;
+  const loading = document.createElement('div');            // EXEC-TERMINAL-SPIN: a spinning ring, no box
+  loading.className = 'ml-boot'; loading.innerHTML = spin(`Loading ${stored || 'MAPI'}`);
+  ($('chart')?.parentElement || document.body).appendChild(loading);
   liveData(stored).then(M => { loading.remove(); const ctx = start(M, {}); if (ctx) later(ctx, M) }, e => { loading.remove();
     fail(e instanceof TerminalError ? e.message : 'The terminal could not load its data. Reload the page to try again.') });
 }

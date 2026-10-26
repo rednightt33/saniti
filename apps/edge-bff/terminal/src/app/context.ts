@@ -23,6 +23,9 @@ export const pct = (v: number, d=2) => (v>=0?'+':'')+v.toFixed(d)+'%';
 export const cls = (v: number) => v>=0 ? 'up' : 'down';
 export const row = (l: string, v: string | number, c='', tip='') => `<div class="st-row"${tip?` data-tip="${l}|${tip}"`:''}><span>${l}</span><b class="${c}">${v}</b></div>`;
 export const empty = (msg: string) => `<div class="st-row"><span>${msg}</span></div>`;
+/* EXEC-TERMINAL-SPIN (user 2026-10-26: "lingkaran berputar dengan cepat"): a spinning ring with a short text, for
+   anything still loading */
+export const spin = (msg: string) => `<span class="ml-loading" role="status"><span class="ml-spin" aria-hidden="true"></span>${msg}</span>`;
 
 export interface ActiveSeries extends CompareSpec { series: LWC.ISeriesApi<'Line'>; visible: boolean }
 

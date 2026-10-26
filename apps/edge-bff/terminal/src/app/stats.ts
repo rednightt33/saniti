@@ -1,6 +1,6 @@
 /* LEFT PANEL — Statistics (visible-range, collapsible, accordion), reference lines 1400-1655. */
 import type { Ctx } from './context';
-import { $, avgOf, cls, empty, median, pct, row, store } from './context';
+import { $, avgOf, cls, empty, median, pct, row, spin, store } from './context';
 
 export function initStats(ctx: Ctx) {
   const { chart, dates, closes, volume, N, SYMBOL } = ctx;
@@ -254,7 +254,7 @@ export function initStats(ctx: Ctx) {
         ihsgAsked = true;
         ctx.M.loadIhsg().then(sr => { ihsgSeries = sr; scheduleStats() }, () => { ihsgFailed = true; scheduleStats() });
       }
-      $('relChart').innerHTML = ''; $('relStats').innerHTML = empty(ihsgFailed ? 'IHSG could not be loaded' : 'Loading IHSG…');
+      $('relChart').innerHTML = ''; $('relStats').innerHTML = ihsgFailed ? empty('IHSG could not be loaded') : `<div class="st-row">${spin('Loading IHSG')}</div>`;
     } else {
       const m0 = closes[a], i0 = ihsgSeries[a].value, mp: number[] = [], ip: number[] = [];
       for(let i=a;i<=b;i++){ mp.push((closes[i]/m0-1)*100); ip.push((ihsgSeries[i].value/i0-1)*100) }

@@ -1,7 +1,7 @@
 /* RIGHT PANEL — Broker activity (reference lines 3685-3985). The fixture is the reference's dummy history built around
    a real BBCA day; live data is the published broker summary of the ticker (the last sessions in its files). */
 import type { Ctx } from './context';
-import { $, nfCompact, pct, row, store } from './context';
+import { $, nfCompact, pct, row, spin, store } from './context';
 
 export function initBroker(ctx: Ctx) {
   const { M, ws, showStTip, hideStTip, tipHtml, makeFilter } = ctx;
@@ -34,7 +34,8 @@ export function initBroker(ctx: Ctx) {
   ctx.setBrokerPanelData = broker => { M.broker = broker; ready = true; renderWhenReady() };
   if(M.later){
     $('rpSub').textContent = `${M.broker.label} · loading`;
-    ['bsBody','accBody','invBody','bdBody'].forEach(id => { $(id).innerHTML = `<div class="rp-empty">Loading…</div>` });
+    // the hidden Bandar section gets no ring: nothing would ever replace it
+    ['bsBody','accBody','invBody', ...(M.hide.bandar ? [] : ['bdBody'])].forEach(id => { $(id).innerHTML = `<div class="rp-empty">${spin('Loading')}</div>` });
   }
   setRightCollapsed((store.get('ml.broker.collapsed') ?? (M.later ? '1' : '0')) === '1');
   {

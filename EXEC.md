@@ -8025,3 +8025,14 @@ seluruh data untuk F5. Untuk F1 oke, untuk F3 nanti saja." Dibaca sebagai go unt
 
 Status 2026-10-26: F1, F2, F4 dan F5 selesai (ERRORS "EXEC-TERMINAL-1026B F1/F2/F4/F5 — selesai", RAILWAY_CHANGELOG
 2026-10-26). Tersisa di bagian ini: F3 (isi harga 2026-09-17/18 dan perbaikan pemulihan), ditunda user ("nanti saja").
+
+## EXEC-TERMINAL-SPIN — tanda loading berputar (go 2026-10-26; selesai 2026-10-26, ERRORS "EXEC-TERMINAL-SPIN — selesai")
+
+User 2026-10-26: "saat ini yes loading sudah muncul. Tapi bentuknya kotak dan statis. Bisa nggak dibikin bentuk seperti
+lingkaran berputar dengan cepat? ... Konfirmasi maksud saya dulu." Setelah konfirmasi (nomor 1–4): "1-3 saja execute ya".
+- 1A: lingkaran berputar di tengah chart saat halaman dibuka, dan lingkaran kecil di Flow ("Loading broker data",
+  "Loading earlier broker data"), panel kiri (Relative performance menunggu IHSG) dan panel kanan selama memuat.
+- 2A: lingkaran dengan teks kecil (mis. "Loading BBCA"), tanpa kotak.
+- 3: satu putaran ±0,6 detik; dengan `prefers-reduced-motion` tetap berputar pelan.
+- 4 (urutan chart → bawah → kiri → kanan) tidak dikerjakan. Pengukuran 2026-10-26 (BBCA, panel terbuka): chart 1,24 s,
+  Flow 1,49 s, kanan 1,49 s, kiri 1,53 s, IHSG 4,0 s; panel tertutup: kiri dan kanan tidak dihitung sampai dibuka.

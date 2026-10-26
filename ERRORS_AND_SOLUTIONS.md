@@ -2202,6 +2202,17 @@ change yet.
   catatan Flow hilang setelah riwayat penuh, tanpa error).
 - **Status:** RESOLVED.
 
+### EXEC-TERMINAL-SPIN — selesai (2026-10-26)
+
+- **Go user:** "1-3 saja execute ya". Lingkaran berputar (0,6 s per putaran; 1,6 s dengan `prefers-reduced-motion`)
+  dengan teks kecil, tanpa kotak: tengah chart ("Loading BBCA"), panel kiri/kanan yang terbuka sejak halaman dibuka, Flow
+  ("Loading broker data", "Loading earlier broker data"), Relative performance ("Loading IHSG"), isi Broker activity.
+- **Cacat yang ditemukan saat uji dan diperbaiki sebelum commit:** bagian Bandar detector (disembunyikan di data live)
+  menyimpan lingkaran yang tidak pernah diganti; sekarang tidak diberi lingkaran.
+- **Bukti:** muat BBCA dengan broker lama diperlambat: lingkaran tampil di tiap tahap, 0 lingkaran tersisa sesudah
+  muat, tanpa error; vitest 662; 1:1 75 screenshot 0 piksel beda.
+- **Status:** RESOLVED. Urutan panel (butir 4) tidak dikerjakan atas pilihan user.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.

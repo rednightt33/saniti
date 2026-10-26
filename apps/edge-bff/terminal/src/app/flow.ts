@@ -4,7 +4,7 @@
    Fixture: the reference's synthetic series. Live: the published broker files (bv − sv per session); sessions before
    the first broker date have no rows and count as 0, as in the reference's setBroksumRows. */
 import type { Ctx, FilterApi } from './context';
-import { $, cls, keyOf, nfCompact, rupiah, store } from './context';
+import { $, cls, keyOf, nfCompact, rupiah, spin, store } from './context';
 
 export function initFlow(ctx: Ctx) {
   const { L, chart, ohlc, volume, dates, N, idxByTime, closes } = ctx;
@@ -115,7 +115,8 @@ export function initFlow(ctx: Ctx) {
     const note = $('flowNote');
     const everything = flt.brokers.size===allBrokers().length && flt.boards.size===BOARDS.length && flt.investors.size===INVESTORS.length;
     note.hidden = !(flowLoading || flowMore || everything || used===0);
-    note.textContent = flowLoading ? 'Loading broker data…' : flowMore ? 'Loading earlier broker data…' : used===0 ? 'No flow matches the current filters' : 'All brokers, boards and investor types net to zero by definition';
+    if(flowLoading || flowMore) note.innerHTML = spin(flowLoading ? 'Loading broker data' : 'Loading earlier broker data');
+    else note.textContent = used===0 ? 'No flow matches the current filters' : 'All brokers, boards and investor types net to zero by definition';
     showTip(ctx.lastTipIdx);
   };
 
