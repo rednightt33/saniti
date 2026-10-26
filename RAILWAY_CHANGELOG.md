@@ -4675,4 +4675,5 @@ bucket `sin`).
   tickers, 1,656 packs, 302 MB, 4,202 s, `done` 17:45 UTC); then `TERMINAL_PUBLISH_MODE=daily`, `cronSchedule
   "0,30 0,12 * * *"` and `restartPolicyType NEVER` read back, upload `4a4124a8`.
 - orc-test-runner read-only job `532a81e0` (`DATABASE_URL` set for the run and removed, VAR_REMOVED).
-- edge-bff from `main`: see the next entry line once deployed.
+- `main` `5ca018d`: edge-bff `39c29b9d` SUCCESS 17:52 UTC; live `index`, `style` and `worker` assets equal the build
+  (sha256); the page asks `/bundle` with packs and keeps files in IndexedDB `terminal-files`.
