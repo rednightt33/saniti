@@ -852,3 +852,29 @@ Sesudah EXEC-M224, tanggal sesudah hari ini dipisah, tetapi event yang dimuat le
 - orc menghitung kesegaran dari yang lebih tua di antara tanggal terakhir yang sudah terjadi dan waktu muat terakhir.
 - Berlaku juga untuk kalender makro, jatuh tempo obligasi dan jadwal IPO nanti; tabel harga, broker dan Feature tidak
   berubah karena kolomnya kosong. Tes: tabel berjadwal dengan muatan lama menjadi TERLAMBAT/BASI; tabel harga sama.
+
+## Terminal: logo per ticker (usulan 2026-10-26, menunggu keputusan)
+
+User 2026-10-26: "sudah waktunya kita untuk tarik icon atau logo untuk setiap chart, atau setiap ticker, atau setiap
+emiten. Can you source di mana caranya kita bisa dapat logo tersebut ... Mungkin bisa lihat dari Stockbit atau lihat dari
+Trading View. Coba propose ke saya. Dan di mana kita akan store logo ini."
+
+Pengukuran 2026-10-26 (read-only): database belum punya kolom logo. Universe 844 saham.
+- Stockbit `assets.stockbit.com/logos/companies/{TICKER}.png`: sampel acak 60 ticker 60 ada (PNG 2,9–11,6 KB, median
+  4,6 KB), tanpa ukuran kembar (tidak terlihat gambar pengganti).
+- TradingView: scanner `indonesia/scan` kolom `logoid` ada untuk 835 dari 844 (kosong: ADHI, BACH, CSMI, EMMI, INPS, IPAC,
+  PPGL, PTPP, XSPI); gambar SVG di `s3-symbol-logos.tradingview.com` tidak terjangkau dari sandbox (perlu dibuka di
+  kebijakan jaringan).
+- IDX resmi (`idx.co.id`, LogoEmiten): 403 untuk akses otomatis.
+Hak pakai: logo adalah merek emiten; Stockbit dan TradingView menyalinnya untuk layanan mereka sendiri, dan menyalin
+ulang ke layanan berbayar kita perlu dicek terhadap syarat penggunaan masing-masing (belum diperiksa).
+
+Usulan:
+1. Sumber utama Stockbit (cakupan sampel 100 %, PNG kecil), cadangan TradingView SVG untuk yang tidak ada, terakhir
+   monogram buatan sendiri (huruf ticker dan warna sektor) — tidak ada ticker tanpa ikon.
+2. Simpan di bucket `terminal-display` `v1/logo/{TICKER}.{png|svg}` (±4 MB untuk semua) oleh publisher, dengan catatan
+   muat di PostgreSQL (`terminal.ticker_logo`: ticker, sumber, URL sumber, sha256, ukuran, waktu ambil, status), dan
+   pengecekan mingguan untuk ticker baru atau logo yang berubah (sha256).
+3. Disajikan lewat edge-bff dengan URL tetap dan cache browser panjang (logo bukan data berbayar), bukan URL presigned
+   per permintaan, supaya daftar pencarian dan pembanding tidak meminta izin per ikon.
+4. Tampil di tombol simbol, daftar pencarian, pembanding (Add Series) dan legenda.
