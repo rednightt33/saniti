@@ -86,7 +86,14 @@ try:
             t0 = time.time()
             page.goto(f'http://127.0.0.1:{port}/terminal-app/', wait_until='load', timeout=120000)
             try:
-                page.wait_for_function("() => document.getElementById('statsRange')?.textContent.includes('sessions') || document.querySelector('[role=alert]')", timeout=90000)
+                # EXEC-TERMINAL-UI-1026 U5: the chart first, then the Flow Timeline; the side panels start closed
+                page.wait_for_function("() => document.querySelector('#flowSummary .flow-stat') || document.querySelector('[role=alert]')", timeout=90000)
+                first = round(time.time() - t0, 2)
+                page.wait_for_function("() => !/^Loading/.test(document.getElementById('flowNote').textContent) || document.getElementById('flowNote').hidden", timeout=90000)
+                flow = round(time.time() - t0, 2)
+                closed = page.evaluate("() => [document.getElementById('workspace').classList.contains('left-collapsed'), document.getElementById('workspace').classList.contains('right-collapsed')]")
+                page.click('#statsExpand'); page.click('#rpExpand')
+                page.wait_for_function("() => document.getElementById('statsRange')?.textContent.includes('sessions') && !/Loading/.test(document.getElementById('relStats').textContent) && !/Loading/.test(document.getElementById('bsBody').textContent)", timeout=90000)
             except Exception:
                 (out / f'{ticker}.html').write_text(page.content()); print('page stuck', ticker, page.url, errors[:5], downloads[:5]); raise
             loaded = round(time.time() - t0, 2)
@@ -96,13 +103,30 @@ try:
               symbol: document.getElementById('symText').textContent,
               stats: document.getElementById('statsRange').textContent + ' · ' + document.getElementById('statsRange').title,
               flow: document.getElementById('flowSummary').innerText.replace(/\\n/g, ' '),
+              relative: document.getElementById('relStats').innerText.replace(/\\s+/g, ' ').trim(),
               broker: document.getElementById('rpSub').textContent,
               brokerRows: document.querySelectorAll('#bsBody tr[data-b]').length,
               bandarHidden: document.querySelector('.st[data-sec="bd"]').hidden,
               events: document.getElementById('evList').innerText.replace(/\\s+/g, ' ').trim(),
               markers: document.querySelectorAll('.ev-mk').length,
               alert: document.querySelector('[role=alert]')?.textContent || null })""")
-            report[ticker].update(seconds_to_stats=loaded, downloads=len(downloads),
+            report[ticker].update(seconds_to_chart=first, seconds_to_flow=flow, side_panels_closed_at_start=closed)
+            # U3: the info mark's tooltip; U2: the Flow Timeline's right-click menu; U4: the event tooltip's date
+            checks = {}
+            info = page.query_selector('#flowSummary .flow-info')
+            if info:
+                info.hover(); page.wait_for_timeout(200)
+                checks['info_tip'] = page.evaluate("() => document.querySelector('.st-tip:not([hidden])')?.innerText || null")
+            box = page.query_selector('.flow-wrap').bounding_box()
+            page.mouse.click(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2, button='right'); page.wait_for_timeout(200)
+            checks['flow_menu'] = page.evaluate("() => [...document.querySelectorAll('.flow-wrap .dr-menu:not([hidden]) .dr-mi')].map(b => b.innerText)")
+            page.keyboard.press('Escape')
+            mk = page.query_selector('.ev-mk')
+            if mk:
+                mk.hover(); page.wait_for_timeout(300)
+                checks['event_tip'] = page.evaluate("() => document.querySelector('.ev-tip')?.innerText.slice(0, 160) || null")
+            report[ticker]['checks'] = checks
+            report[ticker].update(seconds_to_panels=loaded, downloads=len(downloads),
                                   download_status=sorted({d['status'] for d in downloads}),
                                   megabytes=round(sum(d['bytes'] for d in downloads) / 1e6, 2), errors=errors)
             ctx.close()

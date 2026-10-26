@@ -18,7 +18,9 @@ export interface Combo { broker: string; investor: string; board: string; gross:
 export type BrokerRow = [string, string, string, number, number, number, number];
 
 /** `at`: the session the marker sits on when the event date is not a session (live data); the tooltip shows `date` */
-export interface MarketEvent { id: string; type: string; date: string; at?: string; title: string; rows: [string, string][] }
+export interface MarketEvent { id: string; type: string; date: string; at?: string; title: string; rows: [string, string][];
+  /** the date as the tooltip writes it (live: "03 December 2025"); the fixture shows `date` as the reference does */
+  label?: string }
 
 export interface MarketData {
   mode: 'fixture' | 'live';
@@ -32,8 +34,12 @@ export interface MarketData {
   loadCompare(id: string): Promise<Point[]>;
   /** fixture only: every compare series, built up front as the reference does */
   rawSeries?: Record<string, Point[]>;
-  /** IHSG aligned to the chart's sessions (Statistics, Relative performance) */
+  /** IHSG aligned to the chart's sessions (Statistics, Relative performance); live: empty, read with loadIhsg when
+      the Statistics panel is open */
   ihsg: Point[];
+  loadIhsg?(): Promise<Point[]>;
+  /** live: the broker data, after the first draw (Flow Timeline, then Broker activity when its panel is open) */
+  later?: { broker: Promise<{ combos: Combo[]; flowFrom: number; broker: MarketData['broker'] }> };
   combos: Combo[];
   flowSource: 'synthetic' | 'real';
   /** first session index that has broker data (0 in the fixture) */

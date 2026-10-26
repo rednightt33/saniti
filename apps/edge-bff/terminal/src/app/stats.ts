@@ -89,7 +89,8 @@ export function initStats(ctx: Ctx) {
   }
   const volRatio = new Float64Array(N).fill(NaN);     // volume / trailing 20D average
   for(let i=19;i<N;i++){ let s=0; for(let k=i-19;k<=i;k++) s+=volume[k].value; volRatio[i] = volume[i].value/(s/20); }
-  const ihsgSeries = ctx.M.ihsg;
+  /* live: IHSG is read the first time the open panel draws Relative performance (EXEC-TERMINAL-UI-1026 U5) */
+  let ihsgSeries = ctx.M.ihsg, ihsgAsked = false, ihsgFailed = false;
   const monthKey = (i: number) => dates[i].slice(0,7);
 
   /* ---- inline-SVG chart helpers (viewBox is fixed, so they scale with the panel) ---- */
@@ -248,17 +249,25 @@ export function initStats(ctx: Ctx) {
     } else { $('volChart').innerHTML = ''; $('volStats').innerHTML = empty('Not enough sessions in range') }
 
     /* 5 · Relative performance vs IHSG (both rebased to the first visible session) */
-    const m0 = closes[a], i0 = ihsgSeries[a].value, mp: number[] = [], ip: number[] = [];
-    for(let i=a;i<=b;i++){ mp.push((closes[i]/m0-1)*100); ip.push((ihsgSeries[i].value/i0-1)*100) }
-    const rlo = Math.min(...mp,...ip), rhi = Math.max(...mp,...ip);
-    const zpos = (0-rlo)/((rhi-rlo)||1), rdp = rhi-rlo>5 ? 0 : 1;
-    const rticks = (zpos>.18 && zpos<.82) ? [rhi,0,rlo] : [rhi,(rhi+rlo)/2,rlo];
-    lineChart($('relChart'), { series:[{vals:ip,color:'#a1a1a1',dash:'4 3'},{vals:mp,color:'#0070f3'}], idx:mp.map((_,k)=>a+k), lo:rlo, hi:rhi, ticks:rticks, zero:0,
-      fmtY:(v: number)=>Number(v.toFixed(rdp))===0 ? '0%' : (v>0?'+':'')+v.toFixed(rdp)+'%', tipFn:(k: number)=>`${SYMBOL} ${pct(mp[k],1)} · IHSG ${pct(ip[k],1)} · Δ ${(mp[k]-ip[k]).toFixed(1)} pp` });
-    const diff = mp.at(-1)!-ip.at(-1)!;
-    $('relStats').innerHTML = `<div class="st-legend"><span><i style="border-color:#0070f3"></i>${SYMBOL}</span><span><i style="border-color:#a1a1a1;border-top-style:dashed"></i>IHSG</span></div>`
-      + row(SYMBOL, pct(mp.at(-1)!,1), cls(mp.at(-1)!), `${SYMBOL} return since the first visible session`) + row('IHSG', pct(ip.at(-1)!,1), cls(ip.at(-1)!), 'IHSG return since the first visible session')
-      + row('Difference', `${diff>=0?'+':''}${diff.toFixed(1)} pp`, cls(diff), `${SYMBOL} minus IHSG, in percentage points`);
+    if(!ihsgSeries.length){
+      if(ctx.M.loadIhsg && !ihsgAsked){
+        ihsgAsked = true;
+        ctx.M.loadIhsg().then(sr => { ihsgSeries = sr; scheduleStats() }, () => { ihsgFailed = true; scheduleStats() });
+      }
+      $('relChart').innerHTML = ''; $('relStats').innerHTML = empty(ihsgFailed ? 'IHSG could not be loaded' : 'Loading IHSG…');
+    } else {
+      const m0 = closes[a], i0 = ihsgSeries[a].value, mp: number[] = [], ip: number[] = [];
+      for(let i=a;i<=b;i++){ mp.push((closes[i]/m0-1)*100); ip.push((ihsgSeries[i].value/i0-1)*100) }
+      const rlo = Math.min(...mp,...ip), rhi = Math.max(...mp,...ip);
+      const zpos = (0-rlo)/((rhi-rlo)||1), rdp = rhi-rlo>5 ? 0 : 1;
+      const rticks = (zpos>.18 && zpos<.82) ? [rhi,0,rlo] : [rhi,(rhi+rlo)/2,rlo];
+      lineChart($('relChart'), { series:[{vals:ip,color:'#a1a1a1',dash:'4 3'},{vals:mp,color:'#0070f3'}], idx:mp.map((_,k)=>a+k), lo:rlo, hi:rhi, ticks:rticks, zero:0,
+        fmtY:(v: number)=>Number(v.toFixed(rdp))===0 ? '0%' : (v>0?'+':'')+v.toFixed(rdp)+'%', tipFn:(k: number)=>`${SYMBOL} ${pct(mp[k],1)} · IHSG ${pct(ip[k],1)} · Δ ${(mp[k]-ip[k]).toFixed(1)} pp` });
+      const diff = mp.at(-1)!-ip.at(-1)!;
+      $('relStats').innerHTML = `<div class="st-legend"><span><i style="border-color:#0070f3"></i>${SYMBOL}</span><span><i style="border-color:#a1a1a1;border-top-style:dashed"></i>IHSG</span></div>`
+        + row(SYMBOL, pct(mp.at(-1)!,1), cls(mp.at(-1)!), `${SYMBOL} return since the first visible session`) + row('IHSG', pct(ip.at(-1)!,1), cls(ip.at(-1)!), 'IHSG return since the first visible session')
+        + row('Difference', `${diff>=0?'+':''}${diff.toFixed(1)} pp`, cls(diff), `${SYMBOL} minus IHSG, in percentage points`);
+    }
 
     /* 6 · Volume distribution */
     const vr: number[] = []; for(let i=a;i<=b;i++) if(Number.isFinite(volRatio[i])) vr.push(volRatio[i]);
@@ -273,6 +282,7 @@ export function initStats(ctx: Ctx) {
   let statsRaf = 0;
   const scheduleStats = ctx.scheduleStats = () => { cancelAnimationFrame(statsRaf); statsRaf = requestAnimationFrame(renderStats) };
   chart.timeScale().subscribeVisibleLogicalRangeChange(scheduleStats);
-  setLeftCollapsed(store.get('ml.stats.collapsed') === '1');
+  // live: closed until the user opens it (remembered); the fixture keeps the reference's open panel
+  setLeftCollapsed((store.get('ml.stats.collapsed') ?? (ctx.M.later ? '1' : '0')) === '1');
   scheduleStats();
 }

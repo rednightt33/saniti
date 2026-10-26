@@ -106,3 +106,18 @@ BBCA, GOTO and IHSG load without page errors; BBCA's close 5,025 and volume 495.
 (YU +709.0 B / 1.38M lots, SQ, AK) and the foreign net of the day (−767 B) equal SQL; an index (no broker data) shows
 "no broker data". The broker-action gauge and the Bandar detector are hidden on live data (formulas not approved).
 Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
+
+## 8. Staged loading, Web Worker and screen-filling layout (EXEC-TERMINAL-UI-1026, 2026-10-26)
+
+- Loading (`src/data/live.ts`): session → ticker and broker references together with `POST /bundle` for the remembered
+  ticker → one Web Worker (`src/data/worker.ts`, built as `assets/worker-*.js`, CSP `worker-src 'self'`) downloads and
+  parses every file and answers price, broker, events in that order. `main.ts` draws on the price; `later()` hands the
+  broker data to the Flow Timeline (`ctx.setFlowData`) and to Broker activity (`ctx.setBrokerPanelData`, rendered when
+  the panel is open); Statistics asks for IHSG (`M.loadIhsg`) only when Relative performance draws.
+- Measured (Chromium profile, BBCA, files served from the test cache, edge-bff local → terminal-api live): API calls
+  13 → 4; chart drawn at 1.9 s (before: everything at about 8 s); main-thread long tasks 0.9 s in shorter blocks, the
+  longest 414 ms (before 1.6 s, longest 1,154 ms); what remains is the chart library's first paint of about 2,100 bars.
+- Layout: `html.fit` (index.html) fills the frame; `?fixture=reference` removes it before the first draw, so the 1:1
+  check keeps the reference's 976 px column. 1:1 result after these changes: 0 differing pixels and no text or markup
+  difference over the 75 screenshots. Fit layout (fixture data, `&fit=1`): no page scroll at 1280×542, 1366×592,
+  1536×672, 1440×732, 1920×892 and 2560×1242; chart 413–822 px; Flow folded below 650 px.

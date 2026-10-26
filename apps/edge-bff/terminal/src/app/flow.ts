@@ -66,13 +66,39 @@ export function initFlow(ctx: Ctx) {
   const netBadge = flowBars.createPriceLine({ price:0, lineVisible:false, axisLabelVisible:true, axisLabelColor:'#089981', axisLabelTextColor:'#ffffff', title:'' });
   const cumBadge = flowCum.createPriceLine({ price:0, color:'#171717', lineVisible:false, axisLabelVisible:true, axisLabelColor:'#171717', axisLabelTextColor:'#ffffff', title:'' });
 
-  /* live data before the first broker date has no rows: the daily average counts only the sessions that have them */
-  const flowFrom = ctx.M.flowFrom;
+  /* EXEC-TERMINAL-UI-1026 U3 (user 2026-10-26: "Period total net dan AVG daily net harusnya menghitung yang di
+     terdisplay saja, sama seperti bagian statistics"): the period is the chart's visible range, the daily average
+     counts the visible sessions that have broker data (live data before the first broker date has no rows); each
+     figure has an info mark that says in one sentence how it is computed */
+  let flowFrom = ctx.M.flowFrom;
+  let flowLoading = !!ctx.M.later;                        // live: the broker files arrive after the first draw
+  const visible = () => {
+    const r = chart.timeScale().getVisibleLogicalRange();
+    return r ? [Math.max(0, Math.ceil(r.from)), Math.min(N-1, Math.floor(r.to))] : [0, N-1];
+  };
+  const FLOW_INFO: Record<string, string> = {
+    'Latest day net': 'Net value (buy − sell) on the latest session, for the selected brokers, boards and investor type.',
+    'Period net total': 'Sum of the daily net value (buy − sell) over the sessions visible on the chart, for the selected filters.',
+    'Avg daily net': 'Period net total divided by the number of visible sessions that have broker data.'
+  };
+  const info = (l: string) => `<span class="flow-info" tabindex="0" role="img" aria-label="${FLOW_INFO[l]}" data-tip="${l}|${FLOW_INFO[l]}"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.6v4.2"/><circle cx="8" cy="11.2" r=".5"/></svg></span>`;
+  const LIVE = ctx.M.mode === 'live';                      // the fixture keeps the reference's whole-series figures (1:1 check)
   const flowSummary = () => {
-    const total = flowCumArr[N-1], last = flowNet[N-1], avg = total/(N - flowFrom || 1);
-    const stat = (l: string, v: number) => `<div class="flow-stat"><span class="flow-stat-label">${l}</span><span class="flow-stat-val ${v>=0?'up':'down'}">${rupiah(v)}</span></div>`;
+    const [a, b] = LIVE ? visible() : [0, N-1], from = Math.max(a, flowFrom);
+    let total = 0; for(let i=from;i<=b;i++) total += flowNet[i];
+    const last = flowNet[N-1], avg = total/(b - from + 1 > 0 ? b - from + 1 : 1);
+    const stat = (l: string, v: number) => `<div class="flow-stat"><span class="flow-stat-label">${l}${LIVE ? info(l) : ''}</span><span class="flow-stat-val ${v>=0?'up':'down'}">${rupiah(v)}</span></div>`;
     $('flowSummary').innerHTML = stat('Latest day net', last) + stat('Period net total', total) + stat('Avg daily net', avg);
   };
+  let summaryRaf = 0;
+  if(LIVE) chart.timeScale().subscribeVisibleLogicalRangeChange(() => { cancelAnimationFrame(summaryRaf); summaryRaf = requestAnimationFrame(flowSummary) });
+  {
+    const host = $('flowSummary'), tip = (t: HTMLElement | null, x: number, y: number) => t ? ctx.showStTip(x, y, ctx.tipHtml(t.dataset.tip!)) : ctx.hideStTip();
+    host.addEventListener('pointermove', (e: any) => tip(e.target.closest('.flow-info'), e.clientX, e.clientY));
+    host.addEventListener('pointerleave', () => ctx.hideStTip());
+    host.addEventListener('focusin', (e: any) => { const t = e.target.closest('.flow-info'); if(t){ const r = t.getBoundingClientRect(); tip(t, r.left, r.bottom) } });
+    host.addEventListener('focusout', () => ctx.hideStTip());
+  }
   const recomputeFlow = () => {
     flowNet = new Float64Array(N);
     let used = 0;
@@ -87,8 +113,8 @@ export function initFlow(ctx: Ctx) {
     flowSummary();
     const note = $('flowNote');
     const everything = flt.brokers.size===allBrokers().length && flt.boards.size===BOARDS.length && flt.investors.size===INVESTORS.length;
-    note.hidden = !(everything || used===0);
-    note.textContent = used===0 ? 'No flow matches the current filters' : 'All brokers, boards and investor types net to zero by definition';
+    note.hidden = !(flowLoading || everything || used===0);
+    note.textContent = flowLoading ? 'Loading broker data…' : used===0 ? 'No flow matches the current filters' : 'All brokers, boards and investor types net to zero by definition';
     showTip(ctx.lastTipIdx);
   };
 
@@ -254,6 +280,13 @@ export function initFlow(ctx: Ctx) {
       [fBroker,fBoard,fInv].forEach(f=>f.refresh()); onFilter();
     }
   };
+  /* live: the broker files read by the worker after the first draw (EXEC-TERMINAL-UI-1026 U5) */
+  ctx.setFlowData = (combos, from) => {
+    ctx.COMBOS = combos; flowFrom = from; flowLoading = false;
+    flt.brokers.clear(); allBrokers().forEach(b=>flt.brokers.add(b));
+    [fBroker,fBoard,fInv].forEach(f=>f.refresh()); onFilter();
+    ctx.refreshFlowIndicators?.();
+  };
 
 
   /* ---- pill toggle (T02): show / hide the cumulative line ---- */
@@ -268,16 +301,24 @@ export function initFlow(ctx: Ctx) {
 
   /* ---- resizable split: drag the Flow Timeline header / grip to raise or lower the panel ---- */
   const mainCol = document.querySelector('.main-col') as HTMLElement, flowPanel = $('flowPanel'), grip = $('flowGrip');
-  const FLOW_MIN = 260, FLOW_DEFAULT = 346, CHART_MIN = 240 + 46;   // 46 = toolbar row inside the centre column
+  /* EXEC-TERMINAL-UI-1026 U1 (user 2026-10-26: "Ok rasio chart no 1"): the page fills the screen (html.fit) and the split
+     is a ratio, chart 70 : Flow 30 of the column below the toolbar, Flow 180–346 px; a height the user drags is kept as
+     a ratio, so it carries to another screen. The fixture keeps the reference's fixed 976 px column (1:1 check). */
+  const FIT = document.documentElement.classList.contains('fit');
+  const FLOW_MIN = FIT ? 180 : 260, FLOW_MAX = 346, FLOW_RATIO = .3, CHART_MIN = 240 + 46;   // 46 = toolbar row inside the centre column
+  const avail = () => Math.max(1, mainCol.clientHeight - 46);
   const maxFlow = () => Math.max(FLOW_MIN, mainCol.clientHeight - CHART_MIN);
+  const saveFlowH = (h: number) => FIT ? store.set('ml.flow.ratio', (h / avail()).toFixed(4)) : store.set('ml.flow.h', String(h));
   const setFlowH = (h: number, save = true) => {
     h = Math.round(Math.max(FLOW_MIN, Math.min(maxFlow(), h)));
     mainCol.style.setProperty('--flow-h', h + 'px');
     grip.setAttribute('aria-valuemin', FLOW_MIN); grip.setAttribute('aria-valuemax', maxFlow()); grip.setAttribute('aria-valuenow', h);
-    if(save) store.set('ml.flow.h', String(h));
+    if(save) saveFlowH(h);
     return h;
   };
-  setFlowH(Number(store.get('ml.flow.h')) || FLOW_DEFAULT, false);
+  const fitFlowH = () => setFlowH(Math.min(FLOW_MAX, avail() * (Number(store.get('ml.flow.ratio')) || FLOW_RATIO)), false);
+  if(FIT){ fitFlowH(); new ResizeObserver(() => { if(!drag) fitFlowH() }).observe(mainCol) }
+  else setFlowH(Number(store.get('ml.flow.h')) || FLOW_MAX, false);
   let drag: { y: number; h: number; el: HTMLElement } | null = null;
   const startDrag = (e: any) => {
     if(e.button !== undefined && e.button !== 0) return;
@@ -291,11 +332,11 @@ export function initFlow(ctx: Ctx) {
     if(!drag) return;
     try{ drag.el.releasePointerCapture(e.pointerId) }catch(_){}
     drag = null; mainCol.classList.remove('dragging');
-    store.set('ml.flow.h', String(Math.round(flowPanel.getBoundingClientRect().height)));
+    saveFlowH(Math.round(flowPanel.getBoundingClientRect().height));
   };
   [grip, $('flowHead')].forEach((el: HTMLElement) => { el.addEventListener('pointerdown', startDrag); el.addEventListener('pointermove', moveDrag);
     el.addEventListener('pointerup', endDrag); el.addEventListener('pointercancel', endDrag);
-    el.addEventListener('dblclick', (e: any) => { if(!e.target.closest('.flow-filters, button, input, select, a, label')) setFlowH(FLOW_DEFAULT) }) });
+    el.addEventListener('dblclick', (e: any) => { if(!e.target.closest('.flow-filters, button, input, select, a, label')) setFlowH(FIT ? Math.min(FLOW_MAX, avail() * FLOW_RATIO) : FLOW_MAX) }) });
   grip.addEventListener('keydown', (e: KeyboardEvent) => {
     const cur = flowPanel.getBoundingClientRect().height;
     if(e.key === 'ArrowUp'){ setFlowH(cur + 16); e.preventDefault() }
@@ -323,7 +364,9 @@ export function finishFlow(ctx: Ctx, flow: ReturnType<typeof initFlow>) {
     requestAnimationFrame(() => requestAnimationFrame(() => { try{ pushRange(chart, flowChart); syncAxisWidths() }catch(_){} }));
   }
   collapseBtn.addEventListener('click', () => setCollapsed(!mainCol.classList.contains('flow-collapsed')));
-  if(store.get('ml.flow.collapsed') === '1') setCollapsed(true, false);
+  // U1: on a short screen (frame under 650 px) the Flow Timeline starts folded until the user opens it (remembered)
+  const folded = store.get('ml.flow.collapsed');
+  if(folded === '1' || (folded === null && document.documentElement.classList.contains('fit') && innerHeight < 650)) setCollapsed(true, false);
 
   recomputeFlow();
   pushRange(chart, flowChart);

@@ -27,6 +27,7 @@ updated, `scripts/terminal_bucket_cors.py`). Every POST must carry the page's `O
 | `GET /reference/tickers`, `GET /reference/brokers` | — | `{url, expires_in_seconds}` of a gzip JSON list |
 | `GET /manifest/{ticker}` | — | window (first/last year), per dataset `data_through` and per year `bytes, rows, first, last, sha256` |
 | `POST /files` | `{ticker, dataset: "price"|"broker", years: [≤ 6]}` or `{ticker, dataset: "events"}` (one file, no years) | `files: [{year, url, sha256, bytes, rows}]`, `expires_in_seconds: 120` |
+| `POST /bundle` | `{ticker, datasets?: ["price","broker","events"]}` (default all three) | manifest window plus per dataset `{data_through, first_year, files: [{year, url, sha256, bytes, rows}]}`, every published file; counted like `/files` (one entry per file, one quota lock); a dataset the ticker lacks answers `files: []` (section 9) |
 | `GET /history/price` | `ticker, from, to` (≤ 3,660 days, only before the window) | columnar `d,o,h,l,c,v` |
 | `GET /history/broker` | `ticker, from, to` (≤ 366 days, only before the window), optional `brokers` (≤ 20), `investor_type`, `market_board` | columnar `d,b,i,m,bv,sv,bl,sl,gap` |
 
@@ -85,3 +86,19 @@ Auth and admin routes are not forwarded. The presigned downloads go straight fro
   value; the page shows "Unavailable". Derived rows: dividend yield = dividend ÷ close on the cum date × 100; price
   after a split = close on the cum date × old ÷ new; tender premium = offer price ÷ close of the last session before the
   offer start (within 10 days) − 1. A cum date not traded yet (a future event) has no close, so these rows are null.
+
+## 9. Since 2026-10-26 (EXEC-TERMINAL-UI-1026)
+
+- `POST /bundle` gives every published file of the displayed ticker in one call (13 API calls per ticker became 4:
+  session, two references, bundle). The page asks for the remembered ticker's bundle together with the ticker list.
+- One Web Worker (`src/data/worker.ts`) downloads, inflates and parses the files and builds the broker structures; it
+  answers in stages: price (the chart is drawn), broker (Flow Timeline), events (markers). Side panels start closed in
+  live mode (the user's last choice is remembered); Broker activity is filled when opened, IHSG (Statistics, Relative
+  performance) is asked for only when that section draws.
+- The page fills its frame (`html.fit`): chart 70 : Flow 30 of the column, Flow 180–346 px, the dragged split kept as a
+  ratio (`ml.flow.ratio`); on a frame under 650 px the Flow Timeline starts folded. `?fixture=reference` keeps the
+  reference's fixed heights for the 1:1 check (`&fit=1` shows the fixture in the new layout).
+- Flow figures (live): "Period net total" and "Avg daily net" cover the chart's visible range (like Statistics); each
+  figure has an info mark. Right-click on the Flow Timeline: "Reset chart view" (its value scales only). Event labels
+  write dates as "03 December 2025".
+- Broker dates without a price row are not on the chart's sessions and are not counted in Flow (ERRORS M235).

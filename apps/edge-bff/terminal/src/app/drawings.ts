@@ -317,11 +317,11 @@ export function initDrawings(ctx: Ctx) {
   menuEl.className = 'dr-menu ctx'; menuEl.tabIndex = -1; menuEl.hidden = true; menuEl.setAttribute('role', 'menu'); menuEl.setAttribute('aria-label', 'Chart actions');
   wrap.appendChild(menuEl);
   const closeCtx = () => { menuEl.hidden = true };
-  function ctxItem(icon: string, label: string, keys: string, enabled: boolean, run: () => void) {
+  function ctxItem(icon: string, label: string, keys: string, enabled: boolean, run: () => void, into: HTMLElement = menuEl) {
     const m = document.createElement('button');
     m.type = 'button'; m.className = 'dr-mi'; m.setAttribute('role', 'menuitem'); m.disabled = !enabled;
     m.innerHTML = icon + '<span>' + label + '</span>' + (keys ? '<kbd>' + keys + '</kbd>' : '');
-    m.onclick = () => { closeCtx(); run() }; menuEl.appendChild(m);
+    m.onclick = () => { into.hidden = true; run() }; into.appendChild(m);
   }
   function openCtx(x: number, y: number) {
     const sel = dm.selection().length, all = dm.drawings().length, n = sel || all, ind = (volCtl.removed ? 0 : 1) + Ind.count();
@@ -343,13 +343,43 @@ export function initDrawings(ctx: Ctx) {
   });
   document.addEventListener('pointerdown', e => { if(!menuEl.hidden && !menuEl.contains(e.target as Node)) closeCtx() });
   window.addEventListener('blur', closeCtx); window.addEventListener('resize', closeCtx);
-  menuEl.addEventListener('keydown', e => {
-    const list = [...menuEl.querySelectorAll<HTMLElement>('.dr-mi:not([disabled])')], k = list.indexOf(document.activeElement as HTMLElement);
+  const menuKeys = (el: HTMLElement) => el.addEventListener('keydown', e => {
+    const list = [...el.querySelectorAll<HTMLElement>('.dr-mi:not([disabled])')], k = list.indexOf(document.activeElement as HTMLElement);
     if(!list.length) return;
-    if(e.key === 'Escape'){ e.stopPropagation(); closeCtx() }
+    if(e.key === 'Escape'){ e.stopPropagation(); el.hidden = true }
     else if(e.key === 'ArrowDown'){ e.preventDefault(); list[(k + 1) % list.length].focus() }
     else if(e.key === 'ArrowUp'){ e.preventDefault(); list[(k + list.length - 1) % list.length].focus() }
   });
+  menuKeys(menuEl);
+
+  /* EXEC-TERMINAL-UI-1026 U2 (user 2026-10-26: "klik kanan reset chart view di panel flow timeline maka akan reset chart
+     dibawah agar rapih"; option A): the Flow Timeline's own menu resets its value scales only; the price chart and the
+     shared time range stay as they are */
+  {
+    const fwrap = document.getElementById('flowChart')!.parentElement as HTMLElement;   // .flow-wrap
+    let fmenu: HTMLElement | null = null;                     // built on the first right-click (the page's markup stays the reference's)
+    const menu = () => {
+      if(fmenu) return fmenu;
+      const el = fmenu = document.createElement('div');
+      el.className = 'dr-menu ctx'; el.tabIndex = -1; el.hidden = true; el.setAttribute('role', 'menu'); el.setAttribute('aria-label', 'Flow Timeline actions');
+      fwrap.appendChild(el); menuKeys(el);
+      document.addEventListener('pointerdown', e => { if(!el.hidden && !el.contains(e.target as Node)) el.hidden = true });
+      window.addEventListener('blur', () => { el.hidden = true }); window.addEventListener('resize', () => { el.hidden = true });
+      return el;
+    };
+    const resetFlow = () => ['left', 'right'].forEach(id => ctx.flowChart.priceScale(id).applyOptions({ autoScale:true }));
+    fwrap.addEventListener('contextmenu', (e: any) => {
+      if(e.target.closest('.dr-menu')) return;
+      e.preventDefault(); closeCtx(); menus.forEach(m => m.close(false));
+      const el = menu();
+      el.innerHTML = ''; ctxItem(iconReset, 'Reset chart view', '', true, resetFlow, el);
+      el.hidden = false;
+      const r = fwrap.getBoundingClientRect();
+      el.style.left = Math.max(4, Math.min(e.clientX - r.left, fwrap.clientWidth - el.offsetWidth - 4)) + 'px';
+      el.style.top  = Math.max(4, Math.min(e.clientY - r.top, fwrap.clientHeight - el.offsetHeight - 4)) + 'px';
+      el.focus({ preventScroll:true });
+    });
+  }
   document.addEventListener('keydown', (e: any) => { if(e.altKey && e.code === 'KeyR' && !e.ctrlKey && !e.metaKey && !/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)){ e.preventDefault(); resetView() } });
 
   syncTool(null); syncMagnet(); syncRemove(); syncLineButton(); applyCursor();

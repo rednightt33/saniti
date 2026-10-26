@@ -25,7 +25,7 @@ import { initBroker } from './app/broker';
 
 function start(M: MarketData, rawSeries: Record<string, Point[]>) {
   const container = $('chart');
-  if (!container) return;
+  if (!container) return null;
   const ohlc = M.ohlc;
   const ctx = {
     M, L, SYMBOL:M.symbol, INSTRUMENTS:M.instruments, container,
@@ -47,6 +47,16 @@ function start(M: MarketData, rawSeries: Record<string, Point[]>) {
   initSearch(ctx);
   initSelect();
   initBroker(ctx);
+  return ctx;
+}
+
+/* live (EXEC-TERMINAL-UI-1026 U5): the chart is drawn; the broker files follow into the Flow Timeline, and into Broker
+   activity when that panel is open */
+function later(ctx: Ctx, M: MarketData) {
+  M.later?.broker.then(b => { ctx.setFlowData(b.combos, b.flowFrom); ctx.setBrokerPanelData(b.broker) }, () => {
+    ctx.setFlowData([], ctx.N);
+    const note = $('flowNote'); note.textContent = 'Broker data could not be loaded. Reload the page to try again.'; note.hidden = false;
+  });
 }
 
 /* a load failure is shown on the chart, in the reference's own panel style */
@@ -62,13 +72,16 @@ function fail(message: string) {
 
 function boot() {
   const stored = store.get('ml.symbol');
-  if (new URLSearchParams(location.search).get('fixture') === 'reference') {
+  const params = new URLSearchParams(location.search);
+  if (params.get('fixture') === 'reference') {
+    /* the 1:1 check keeps the reference's fixed heights; &fit=1 shows the fixture in the screen-filling layout */
+    if (params.get('fit') !== '1') document.documentElement.classList.remove('fit');
     /* synchronous, like the reference: it builds every compare series up front, so adding one is immediate */
     const M = fixtureData(stored);
     start(M, M.rawSeries);
     return;
   }
-  liveData(stored).then(M => start(M, {}), e =>
+  liveData(stored).then(M => { const ctx = start(M, {}); if (ctx) later(ctx, M) }, e =>
     fail(e instanceof TerminalError ? e.message : 'The terminal could not load its data. Reload the page to try again.'));
 }
 

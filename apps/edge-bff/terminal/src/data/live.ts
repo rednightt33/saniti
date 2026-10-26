@@ -1,10 +1,10 @@
 /* Live data: the pre-published files of the rack (bucket terminal-display) reached through EDGE's /api/terminal
    gateway (FRONTEND_HANDOFF.md). The page asks for presigned URLs and downloads the gzip JSON files itself.
    Everything is mapped into the reference page's own shapes (types.ts). */
-import type { Bar, BrokerRow, Combo, CompareSpec, Instrument, MarketData, MarketEvent, Point, VolumePoint } from './types';
+import type { Bar, Combo, CompareSpec, Instrument, MarketData, MarketEvent, Point, VolumePoint } from './types';
+import { brokerData, download, priceRows, rowsOf, type PriceRow, type WorkerAnswer } from './worker';
 
 const API = '/api/terminal/v1';
-const MAX_YEARS_PER_CALL = 6;           // terminal-api FilesRequest
 
 export class TerminalError extends Error {
   constructor(message: string, readonly status = 0) { super(message) }
@@ -35,9 +35,14 @@ const EVENT_TITLE: Record<string, string> = {
 };
 /* one detail value as the reference tooltip writes it (Rp 25 / share, 2.50%, 2026-08-28); null → Unavailable */
 export const UNAVAILABLE = 'Unavailable';
+/* U4 (user 2026-10-26: "format dd mmmm yyyy ... cukup dibagian label annotations", English): every ISO date inside an
+   event label reads "03 December 2025", also inside a period ("… – …") or a meeting time */
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+export const longDates = (text: string) => text.replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g,
+  (all, y, m, d) => +m >= 1 && +m <= 12 ? `${d} ${MONTHS[+m - 1]} ${y}` : all);
 export function detailText(value: unknown, kind: string): string {
   if (value === null || value === undefined || value === '') return UNAVAILABLE;
-  if (typeof value !== 'number') return String(value);
+  if (typeof value !== 'number') return longDates(String(value));
   const idr = (n: number) => 'Rp ' + (Number.isInteger(n) ? n : +n.toFixed(2)).toLocaleString('en-US');
   if (kind === 'idr_per_share') return idr(value) + ' / share';
   if (kind === 'idr') return idr(value);
@@ -46,12 +51,6 @@ export function detailText(value: unknown, kind: string): string {
   return String(value);
 }
 const roleLabel = (role: string) => role.toLowerCase().split('_').map((w, i) => i ? w : w[0].toUpperCase() + w.slice(1)).join(' ');
-
-interface Columnar { columns: string[]; [k: string]: any }
-const rowsOf = (doc: Columnar) => {
-  const n = doc[doc.columns[0]].length;
-  return Array.from({ length:n }, (_, i) => Object.fromEntries(doc.columns.map(c => [c, doc[c][i]])));
-};
 
 async function api(path: string, csrf: string, body?: unknown) {
   const res = await fetch(API + path, body === undefined ? { credentials:'same-origin' }
@@ -67,18 +66,6 @@ async function api(path: string, csrf: string, body?: unknown) {
   return data;
 }
 
-/* gzip JSON from a presigned URL; a body the browser already inflated (Content-Encoding) is read as is */
-async function download(url: string): Promise<Columnar> {
-  const res = await fetch(url, { credentials:'omit' });
-  if (!res.ok) throw new TerminalError(`A data file could not be downloaded (${res.status}).`, res.status);
-  const bytes = new Uint8Array(await res.arrayBuffer());
-  if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
-    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
-    return JSON.parse(await new Response(stream).text());
-  }
-  return JSON.parse(new TextDecoder().decode(bytes));
-}
-
 async function session(): Promise<string> {
   const res = await fetch('/api/v1/auth/session', { credentials:'same-origin' });
   if (!res.ok) throw new TerminalError('Sign in to EDGE first, then open the Terminal tab again.', res.status);
@@ -86,26 +73,52 @@ async function session(): Promise<string> {
   return data.csrf_token || '';
 }
 
-/* every chunk of years is asked for and downloaded at once (the URLs live 120 s, so each chunk downloads right away) */
-async function datasetFiles(ticker: string, dataset: 'price' | 'broker', years: number[], csrf: string) {
-  const chunks: number[][] = [];
-  for (let k = 0; k < years.length; k += MAX_YEARS_PER_CALL) chunks.push(years.slice(k, k + MAX_YEARS_PER_CALL));
-  const parts = await Promise.all(chunks.map(async chunk => {
-    const answer = await api('/files', csrf, { ticker, dataset, years:chunk });
-    return Promise.all(answer.files.map((f: any) => download(f.url)));
-  }));
-  return parts.flat() as Columnar[];
+/* EXEC-TERMINAL-UI-1026 U6: one call gives every file of the displayed ticker (terminal-api /bundle) */
+type Dataset = 'price' | 'broker' | 'events';
+async function bundle(ticker: string, datasets: Dataset[], csrf: string) {
+  const answer = await api('/bundle', csrf, { ticker, datasets });
+  const urls = (name: Dataset) => (answer.datasets?.[name]?.files || []).map((f: any) => f.url as string);
+  return { price:urls('price'), broker:urls('broker'), events:urls('events') };
 }
 
-const yearsOf = (manifest: any, dataset: string) => Object.keys(manifest.datasets?.[dataset]?.years || {}).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+/* U7: the files are downloaded, inflated and parsed by one Web Worker (worker.ts); its answers arrive in stages.
+   Without Worker support the same functions run here. */
+interface Job { price: Promise<PriceRow[]>; broker: Promise<Omit<Extract<WorkerAnswer, { type:'broker' }>, 'id' | 'type'>>; events: Promise<Record<string, unknown>[]> }
+let worker: Worker | null = null, jobs = 0;
+const waiting = new Map<number, Record<string, [(v: any) => void, (e: any) => void]>>();
+function run(files: { price: string[]; broker: string[]; events: string[] }): Job {
+  const stage = <T>() => { let ok!: (v: T) => void, no!: (e: any) => void; const p = new Promise<T>((a, b) => { ok = a; no = b }); p.catch(() => {}); return { p, ok, no } };
+  const price = stage<PriceRow[]>(), broker = stage<any>(), events = stage<Record<string, unknown>[]>();
+  if (typeof Worker === 'undefined') {
+    (async () => {
+      const brokerDocs = Promise.all(files.broker.map(download)), eventDocs = Promise.all(files.events.map(download));
+      const rows = priceRows(await Promise.all(files.price.map(download))); price.ok(rows);
+      broker.ok(brokerData(await brokerDocs, rows.map(r => r.d)));
+      events.ok((await eventDocs).flatMap(rowsOf));
+    })().catch(e => [price, broker, events].forEach(s => s.no(e)));
+    return { price:price.p, broker:broker.p, events:events.p };
+  }
+  if (!worker) {
+    worker = new Worker(new URL('./worker.ts', import.meta.url));
+    worker.onmessage = (e: MessageEvent<WorkerAnswer>) => {
+      const w = waiting.get(e.data.id); if (!w) return;
+      const { id, type, ...data } = e.data as any;
+      if (type === 'error') {
+        const err = new TerminalError(data.message, data.status);
+        Object.values(w).forEach(([, no]) => no(err)); waiting.delete(id); return;
+      }
+      w[type][0](type === 'price' ? data.rows : type === 'events' ? data.rows : data);
+      delete w[type]; if (!Object.keys(w).length) waiting.delete(id);
+    };
+  }
+  const id = ++jobs;
+  waiting.set(id, { price:[price.ok, price.no], broker:[broker.ok, broker.no], events:[events.ok, events.no] });
+  worker.postMessage({ id, ...files });
+  return { price:price.p, broker:broker.p, events:events.p };
+}
 
 async function prices(ticker: string, csrf: string) {
-  const manifest = await api(`/manifest/${ticker}`, csrf);
-  const docs = await datasetFiles(ticker, 'price', yearsOf(manifest, 'price'), csrf);
-  const out: { d: string; o: number; h: number; l: number; c: number; v: number | null }[] = [];
-  docs.forEach(doc => rowsOf(doc).forEach((r: any) => { if ([r.o, r.h, r.l, r.c].every(Number.isFinite)) out.push(r) }));
-  out.sort((a, b) => a.d < b.d ? -1 : a.d > b.d ? 1 : 0);
-  return { manifest, rows: out };
+  return run(await bundle(ticker, ['price'], csrf)).price;
 }
 
 /* a series on the chart's sessions: the last close on or before each session (forward fill); sessions before its
@@ -119,78 +132,76 @@ function alignTo(dates: string[], rows: { d: string; c: number }[]): Point[] {
   return out;
 }
 
+/* U5 (user 2026-10-26: "automatically load chart dan panel bawah.. lalu panel kiri dan kanan akan load kalau user
+   buka/expand the panel"): the page draws as soon as the price is read; the broker data (Flow, Broker activity) and
+   the events follow through `later`, IHSG (Statistics, Relative performance) only when that panel asks for it. */
 export async function liveData(stored: string | null): Promise<MarketData> {
   const csrf = await session();
   const reference = async (name: string) => rowsOf(await download((await api(`/reference/${name}`, csrf)).url));
-  /* the independent downloads start together: references, the ticker's price, IHSG and the broker files */
-  const brokerRefP = reference('brokers');
-  const tickers = await reference('tickers') as { ticker: string; name: string; type: string; sector: string | null }[];
+  /* the ticker list, the broker list and the files of the remembered ticker are asked for together */
+  const tickersP = reference('tickers'), brokerRefP = reference('brokers');
+  brokerRefP.catch(() => {});
+  const guess = stored || 'MAPI';
+  const guessP = bundle(guess, ['price', 'broker', 'events'], csrf);
+  guessP.catch(() => {});
+  const tickers = await tickersP as { ticker: string; name: string; type: string; sector: string | null }[];
   const known = new Set(tickers.map(t => t.ticker));
   const instruments: Instrument[] = tickers.map(t => [t.ticker, t.name || t.ticker, t.sector || (t.type === 'index' ? 'Index' : 'Other'), 0]);
   const SYMBOL = stored && known.has(stored) ? stored : known.has('MAPI') ? 'MAPI' : tickers[0].ticker;
+  const job = run(SYMBOL === guess ? await guessP : await bundle(SYMBOL, ['price', 'broker', 'events'], csrf));
 
-  const mainP = prices(SYMBOL, csrf);
-  const ihsgP = SYMBOL === 'IHSG' ? mainP : prices('IHSG', csrf);
-  const brokerP = mainP.then(m => { const y = yearsOf(m.manifest, 'broker'); return y.length ? datasetFiles(SYMBOL, 'broker', y, csrf) : [] });
-  const main = await mainP;
-  if (!main.rows.length) throw new TerminalError(`No price data is published for ${SYMBOL}.`);
-  const ohlc: Bar[] = main.rows.map(r => ({ time:r.d, open:r.o, high:r.h, low:r.l, close:r.c }));
-  const volume: VolumePoint[] = main.rows.map(r => ({ time:r.d, value:r.v ?? 0, color:r.c >= r.o ? 'rgba(0,150,109,.48)' : 'rgba(235,57,69,.48)' }));
+  const rows = await job.price;
+  if (!rows.length) throw new TerminalError(`No price data is published for ${SYMBOL}.`);
+  const ohlc: Bar[] = rows.map(r => ({ time:r.d, open:r.o, high:r.h, low:r.l, close:r.c }));
+  const volume: VolumePoint[] = rows.map(r => ({ time:r.d, value:r.v ?? 0, color:r.c >= r.o ? 'rgba(0,150,109,.48)' : 'rgba(235,57,69,.48)' }));
   const lineData: Point[] = ohlc.map(b => ({ time:b.time, value:b.close }));
-  const dates = ohlc.map(b => b.time), N = dates.length, idx = new Map(dates.map((t, i) => [t, i]));
+  const dates = ohlc.map(b => b.time), N = dates.length;
 
   /* IHSG for Statistics → Relative performance; sessions before its first close take its first close */
-  const ihsgRows = (await ihsgP).rows;
-  const ihsgAligned = alignTo(dates, ihsgRows);
-  const first = ihsgAligned.length ? ihsgAligned[0].value : NaN;
-  const ihsg: Point[] = dates.map((t, i) => ihsgAligned[i - (N - ihsgAligned.length)] ?? { time:t, value:first });
+  let ihsgP: Promise<{ d: string; c: number }[]> | null = null;
+  const ihsgRows = () => ihsgP ||= SYMBOL === 'IHSG' ? Promise.resolve(rows) : prices('IHSG', csrf);
+  const loadIhsg = async (): Promise<Point[]> => {
+    const aligned = alignTo(dates, await ihsgRows());
+    const first = aligned.length ? aligned[0].value : NaN;
+    return dates.map((t, i) => aligned[i - (N - aligned.length)] ?? { time:t, value:first });
+  };
 
   /* broker files: Flow Timeline (net per broker × investor type × board) and Broker activity (last 30 sessions) */
-  const brokerDocs = await brokerP;
-  const brokerTypes = new Map((await brokerRefP).map((r: any) => [r.code, r.type]));
-  const board = (m: string) => /nego/i.test(m) ? 'Nego' : /cash|tunai/i.test(m) ? 'Cash' : 'Regular';
-  const combos = new Map<string, Combo>(), byDate = new Map<string, BrokerRow[]>();
-  let flowFrom = N;
-  brokerDocs.forEach(doc => rowsOf(doc).forEach((r: any) => {
-    const m = board(r.m), key = `${r.b}|${r.i}|${m}`;
-    const row: BrokerRow = [r.b, r.i, m, r.bv || 0, r.sv || 0, r.bl || 0, r.sl || 0];
-    (byDate.get(r.d) || byDate.set(r.d, []).get(r.d)!).push(row);
-    const i = idx.get(r.d); if (i === undefined) return;
-    flowFrom = Math.min(flowFrom, i);
-    if (!combos.has(key)) combos.set(key, { broker:r.b, investor:r.i, board:m, gross:0, tilt:0, net:new Float64Array(N) });
-    const c = combos.get(key)!; c.net[i] += row[3] - row[4]; c.gross += row[3] + row[4];
-  }));
-  const brokerDates = [...byDate.keys()].sort().slice(-30);
+  const broker = (async () => {
+    const b = await job.broker;
+    const brokerTypes = new Map((await brokerRefP.catch(() => [])).map((r: any) => [r.code, r.type] as [string, string]));
+    return {
+      combos:b.combos.map(c => ({ ...c, tilt:0 })) as Combo[], flowFrom:b.flowFrom,
+      broker:{ dates:b.dates, rows:(d: number) => b.rows[d] || [], label:SYMBOL,
+               category:(code: string) => brokerTypes.get(code) === 'Foreign' ? 'F' : 'L' }
+    };
+  })();
+  broker.catch(() => {});
 
   const catalog = COMPARE.filter(c => known.has(c.symbol));
   const loadCompare = async (id: string) => {
     const spec = catalog.find(c => c.id === id); if (!spec) return [];
-    const rows = spec.symbol === 'IHSG' ? ihsgRows : spec.symbol === SYMBOL ? main.rows : (await prices(spec.symbol, csrf)).rows;
-    return alignTo(dates, rows);
+    const series = spec.symbol === 'IHSG' ? await ihsgRows() : spec.symbol === SYMBOL ? rows : await prices(spec.symbol, csrf);
+    return alignTo(dates, series);
   };
 
-  const loadEvents = async (): Promise<MarketEvent[]> => {
-    if (!main.manifest.datasets?.events) return [];
-    const answer = await api('/files', csrf, { ticker:SYMBOL, dataset:'events' });
-    const doc = await download(answer.files[0].url);
-    return rowsOf(doc).flatMap((r: any, k) => {
-      const type = r.family === 'CORPORATE_ACTION' ? EVENT_TYPE[r.type] : undefined;
-      if (!type || r.d < dates[0]) return [];
-      const at = dates.find(t => t >= r.d);                 // the marker sits on the first session on or after the date
-      /* T9 (user 2026-10-26): the published detail rows; a value the source leaves blank shows "Unavailable" */
-      const rows: [string, string][] = Array.isArray(r.detail)
-        ? r.detail.map(([label, value, kind]: [string, unknown, string]) => [label, detailText(value, kind)] as [string, string])
-        : [[roleLabel(r.role || 'Date'), r.d]];
-      if (r.instrument) rows.push(['Instrument', r.instrument]);
-      return [{ id:`${SYMBOL}-${type}-${r.d}-${k}`, type, date:r.d, at, title:r.title || EVENT_TITLE[type], rows }];
-    });
-  };
+  const loadEvents = async (): Promise<MarketEvent[]> => (await job.events).flatMap((r: any, k) => {
+    const type = r.family === 'CORPORATE_ACTION' ? EVENT_TYPE[r.type] : undefined;
+    if (!type || r.d < dates[0]) return [];
+    const at = dates.find(t => t >= r.d);                 // the marker sits on the first session on or after the date
+    /* T9 (user 2026-10-26): the published detail rows; a value the source leaves blank shows "Unavailable" */
+    const rows: [string, string][] = Array.isArray(r.detail)
+      ? r.detail.map(([label, value, kind]: [string, unknown, string]) => [label, detailText(value, kind)] as [string, string])
+      : [[roleLabel(r.role || 'Date'), longDates(r.d)]];
+    if (r.instrument) rows.push(['Instrument', r.instrument]);
+    return [{ id:`${SYMBOL}-${type}-${r.d}-${k}`, type, date:r.d, label:longDates(r.d), at, title:r.title || EVENT_TITLE[type], rows }];
+  });
 
   return {
-    mode:'live', symbol:SYMBOL, instruments, ohlc, volume, lineData, catalog, loadCompare, ihsg,
-    combos:[...combos.values()], flowSource:'real', flowFrom,
-    broker: { dates:brokerDates, rows:d => byDate.get(brokerDates[d]) || [], label:SYMBOL,
-              category:b => brokerTypes.get(b) === 'Foreign' ? 'F' : 'L' },
+    mode:'live', symbol:SYMBOL, instruments, ohlc, volume, lineData, catalog, loadCompare, ihsg:[], loadIhsg,
+    combos:[], flowSource:'real', flowFrom:N,
+    broker: { dates:[], rows:() => [], label:SYMBOL, category:() => 'L' },
+    later: { broker },
     loadEvents,
     hide: { brokerGauge:true, bandar:true }
   };

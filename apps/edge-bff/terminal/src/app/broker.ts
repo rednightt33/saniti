@@ -20,10 +20,23 @@ export function initBroker(ctx: Ctx) {
     $('rpCollapse').setAttribute('aria-expanded', String(!c));
     $('rpExpand').setAttribute('aria-expanded', String(!c));
     store.set('ml.broker.collapsed', c?'1':'0');
+    if(!c) renderWhenReady();
   };
   $('rpCollapse').onclick = () => setRightCollapsed(true);
   $('rpExpand').onclick = () => setRightCollapsed(false);
-  setRightCollapsed(store.get('ml.broker.collapsed') === '1');
+  /* EXEC-TERMINAL-UI-1026 U5: live, the panel starts closed and is filled when it is opened (the user's last choice is
+     remembered); the fixture keeps the reference's open panel */
+  let ready = !M.later, rendered = false;
+  function renderWhenReady() {
+    if(!ready || rendered || ws.classList.contains('right-collapsed')) return;
+    rendered = true; renderData();
+  }
+  ctx.setBrokerPanelData = broker => { M.broker = broker; ready = true; renderWhenReady() };
+  if(M.later){
+    $('rpSub').textContent = `${M.broker.label} · loading`;
+    ['bsBody','accBody','invBody','bdBody'].forEach(id => { $(id).innerHTML = `<div class="rp-empty">Loading…</div>` });
+  }
+  setRightCollapsed((store.get('ml.broker.collapsed') ?? (M.later ? '1' : '0')) === '1');
   {
     const rz = $('rpResize');
     const setW = w => { rightW = clampR(w); applyRightW() };
@@ -60,6 +73,8 @@ export function initBroker(ctx: Ctx) {
     head.onclick = () => { const c = !sec.classList.contains('collapsed'); apply(c); rpSec[key] = c; store.set('ml.broker.sections', JSON.stringify(rpSec)) };
   });
 
+  function renderData() {
+  // (body kept at its reference indentation: its template strings are the panel's markup, compared 1:1)
   /* ---- broker-summary history: fixture = the reference's last real day (BK_BASE) + 29 synthetic sessions before it;
           live = the last sessions of the published broker files ---- */
   const bkDates = M.broker.dates;
@@ -290,4 +305,6 @@ export function initBroker(ctx: Ctx) {
   segWire('accSide','side', v => { RS.accSide = v; renderAcc() });
   segWire('bdTop','n', v => { RS.bdN = +v; renderBD() });
   renderAll();
+  }
+  renderWhenReady();
 }

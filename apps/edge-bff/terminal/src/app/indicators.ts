@@ -328,6 +328,8 @@ export function initIndicators(ctx: Ctx) {
     paintRow(inst);
   }
   const recompute = inst => { inst.raw = inst.def.compute(inst.params); refresh(inst) };
+  // live: the broker files arrive after the first draw; the flow indicators are computed again then (EXEC-TERMINAL-UI-1026 U5)
+  ctx.refreshFlowIndicators = () => list.forEach(inst => { if(inst.def === flowDef || inst.def === flowLineDef) recompute(inst) });
 
   function paintRow(inst, i = ctx.lastTipIdx) {
     if(!inst.row || (inst.def.multi && !inst.disp)) return;          // still being built

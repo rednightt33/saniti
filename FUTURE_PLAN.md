@@ -829,7 +829,7 @@ tetap dihitung; konvensi TA-Lib di item 6 tetap berlaku sampai user memutuskan l
 
 ## Terminal: tinggi mengikuti layar (ERRORS M233)
 
-Dipindah ke EXEC.md EXEC-TERMINAL-UI-1026 butir U1 (user 2026-10-26: "Ok rasio chart no 1 masukan exec").
+Selesai 2026-10-26 (EXEC-TERMINAL-UI-1026 U1; ERRORS "EXEC-TERMINAL-UI-1026 — selesai").
 
 ## Kesegaran dari waktu muat untuk tabel berjadwal (ERRORS M235, usulan 2026-10-26, menunggu keputusan)
 

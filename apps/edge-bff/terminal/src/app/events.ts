@@ -60,7 +60,7 @@ export function initEvents(ctx: Ctx) {
   const tip = $('evTip');
   const esc = (t: unknown) => String(t).replace(/[&<>]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' } as Record<string, string>)[c]);
   function showTip(el: HTMLElement, group: MarketEvent[]) {
-    tip.innerHTML = `<div class="d">${group[0].date}${group.length > 1 ? ` · ${group.length} events` : ''}</div>` + group.map(e => `<div class="it"><div class="t"><span class="ev-chip" style="background:${T[e.type].color}">${T[e.type].letter}</span>${esc(e.title)}</div><dl>${e.rows.map(r => `<dt>${esc(r[0])}</dt><dd>${esc(r[1])}</dd>`).join('')}</dl></div>`).join('');
+    tip.innerHTML = `<div class="d">${group[0].label || group[0].date}${group.length > 1 ? ` · ${group.length} events` : ''}</div>` + group.map(e => `<div class="it"><div class="t"><span class="ev-chip" style="background:${T[e.type].color}">${T[e.type].letter}</span>${esc(e.title)}</div><dl>${e.rows.map(r => `<dt>${esc(r[0])}</dt><dd>${esc(r[1])}</dd>`).join('')}</dl></div>`).join('');
     tip.hidden = false;
     const r = el.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
     tip.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px';

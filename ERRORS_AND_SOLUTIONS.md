@@ -2078,7 +2078,8 @@ change yet.
 - **Solution (usulan, menunggu go):** FUTURE_PLAN.md "Terminal: tinggi mengikuti layar". Prototipe CSS (disisipkan saat
   ukur, kode tidak berubah): halaman = tinggi frame, pembagian chart 70 : Flow 30 dibatasi 180–346 px → tanpa gulir
   di keenam ukuran; sisa masalah: di frame < ±650 px plot Flow tinggal ±86 px karena header panel ±94 px.
-- **Status:** OPEN.
+- **Status:** RESOLVED 2026-10-26 (EXEC-TERMINAL-UI-1026 U1): `html.fit`, rasio 70 : 30, Flow 180–346 px, rasio seret
+  disimpan, Flow terlipat di frame < 650 px; tanpa gulir di keenam ukuran (FRONTEND_ARCHITECTURE.md bagian 8).
 - **Lesson:** mock statis menentukan rupa, bukan tinggi; ukuran panel diturunkan dari ruang yang tersedia dan diuji di
   beberapa ukuran layar (termasuk skala OS 125 % dan 150 %), tidak hanya di ukuran referensi.
 
@@ -2102,8 +2103,42 @@ change yet.
 - **Class:** "muat semua sebelum gambar pertama": setiap dataset baru (overlay pembanding, data makro/lintas aset nanti)
   menambah waktu tunggu dan beku layar untuk semua ticker.
 - **Solution (usulan, menunggu go):** FUTURE_PLAN.md "Terminal: muat bertahap".
-- **Status:** OPEN.
+- **Status:** RESOLVED 2026-10-26 (EXEC-TERMINAL-UI-1026 U5–U7): `/bundle` (13 → 4 panggilan API), Web Worker,
+  chart dulu lalu Flow, panel samping saat dibuka; chart tampil 1,9 s, blok beku terpanjang 414 ms (dari 1.154 ms).
+  Belum dikerjakan (belum disetujui): tahun terbaru dulu, cache browser (FUTURE_PLAN).
 - **Lesson:** ukur jalur kritis (gambar pertama) setiap kali rentang data diperluas (T8 menambah 5 tahun broker).
+
+### M235 — Harga saham 17 dan 18 September 2026 tidak tersimpan; Flow tidak menghitung broker hari itu (2026-10-26)
+
+- **Symptom:** live check EXEC-TERMINAL-UI-1026: "Period net total" BBCA (asing, 2026-06-08..2026-10-23) −Rp 4,2 T di
+  halaman, SQL Feature 05 −Rp 4,632 T (97 tanggal broker, halaman 95 sesi).
+- **Verified cause** (pgweb, read-only): `Price_Stock_Indonesia_IDX` Daily punya 1 baris (IHSG) pada 2026-09-17 dan
+  2026-09-18, padahal ±829 saham pada hari bursa lain; Feature 05 punya 864 dan 863 ticker pada dua tanggal itu. Tanpa
+  dua tanggal itu SQL = −4,246 T ÷ 95 = −44,7 M, sama dengan halaman. Halaman menyusun Flow per sesi harga (aturan
+  referensi `setBroksumRows`: tanggal di luar sesi chart dilewati). Catatan lama yang sama: entri 2026-10-23 "OHLC-only
+  index" ("Current stored price data contains neither date").
+- **Suspected cause of the gap (belum diverifikasi):** cron harga harian (`idx-price-cron`) gagal atau tidak berjalan
+  pada dua hari itu. Cek: log deployment cron 2026-09-17/18 dan `price_update` untuk tanggal tersebut.
+- **Class:** celah tanggal di satu sumber (harga) membuat angka turunan dari sumber lain (broker) hilang diam-diam; kena
+  ke setiap ticker, setiap tanggal yang tidak punya harga, dan nanti ke data makro/lintas aset yang disejajarkan ke sesi
+  harga.
+- **Solution (usulan, perlu keputusan user):** isi ulang harga dua tanggal itu (backfill, perlu go); halaman memberi
+  tanda bila ada tanggal broker di luar sesi harga pada rentang terlihat.
+- **Status:** OPEN.
+- **Lesson:** penyejajaran antar-sumber harus melaporkan tanggal yang tidak cocok, bukan membuangnya tanpa jejak.
+
+### EXEC-TERMINAL-UI-1026 — selesai (2026-10-26)
+
+- **Go user:** "Go untuk seluruh approved exec." (U1–U7, EXEC.md sebelum ditutup).
+- **U1** layar penuh 70 : 30 (M233); **U2** klik kanan Flow → "Reset chart view" (skala nilai Flow saja); **U3** angka
+  Flow atas rentang terlihat + ikon info di ketiga angka; **U4** tanggal label event "03 December 2025" (aturan umum:
+  setiap tanggal ISO di teks label, termasuk rentang dan jam rapat); **U5** chart → Flow → panel samping saat dibuka;
+  **U6** terminal-api `POST /bundle` (`cb5af983`); **U7** Web Worker.
+- **Bukti:** terminal-api 25 tes, vitest 662, edge-bff 168 lulus (3 gagal sama dengan `main`: M212, M232), 1:1 75
+  screenshot 0 piksel beda, tata letak enam ukuran tanpa gulir, live check BBCA/AUTO/IHSG tanpa error (tooltip info,
+  menu Flow, tanggal event terbaca), profil muat (FRONTEND_ARCHITECTURE.md bagian 8).
+- **Status:** RESOLVED. **Lesson:** fitur yang sengaja berbeda dari referensi diberi gerbang mode (live/fixture), supaya
+  cek 1:1 tetap mengukur sisa tampilan.
 
 ## Fixed-income selected-date repair — 2026-10-20 status
 
