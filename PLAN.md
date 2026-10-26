@@ -875,3 +875,23 @@ Pertanyaan terbuka:
 - Token di Railway: belum ada mekanisme pembaruan Stockbit JWT otomatis di repo (runner broker summary memakai token yang diganti manual, `apps/stockbit-broker-backfill/README.md`); JWT uji 2026-10-25 berlaku sekitar 1 hari.
 - 20 baris dengan angka rusak (D21): `pct_after`/`pct_change` dikosongkan; tidak bisa dihitung dari baris itu sendiri.
 - Kunci insider tanpa ID transaksi: aturan upsert saat refresh (D21).
+
+## TERMINAL-CACHE-FIRST — chart langsung dari cache browser, lalu diperbarui (disetujui masuk rencana 2026-10-26)
+
+**Persetujuan, 2026-10-26 (kata user):** "Oke, masukkan ke plan ya, inspek dulu arsitektur kita sebelum melakukan
+perubahan terkait dengan hal ini."
+
+Usulan (dari jawaban 2026-10-26 atas "Misalkan saya buka Antam ... kemudian saya close, kemudian saya buka Antam lagi"):
+halaman mengingat daftar berkas terakhir per ticker (sha256), menggambar chart dari cache browser (IndexedDB
+`terminal-files`, EXEC-TERMINAL-SPEED) tanpa menunggu sesi, daftar ticker dan `/bundle`, lalu menanyakan `/bundle` dan
+memperbarui chart diam-diam bila ada berkas baru, dengan tanda "memperbarui…" selama data mungkin belum terbaru.
+Dasar ukur: kunjungan kedua ANTM chart 2,5 s, 2,2 s di antaranya menunggu daftar ticker dan `/bundle` (`?perf=1`,
+live check 2026-10-26).
+
+Syarat user: inspeksi arsitektur dulu sebelum perubahan apa pun. Inspeksi mencakup: urutan muat `src/data/live.ts`
+dan `src/main.ts`, alur worker (`src/data/worker.ts`), kapan sesi/kuota diperiksa (data tidak boleh tampil tanpa sesi
+sah), penanganan berkas yang berganti sha256 sesudah publikasi, dan daftar referensi ticker/broker tanpa sha256.
+
+Pertanyaan terbuka: apakah data lama boleh tampil sebelum sesi diperiksa (keamanan: perangkat bersama), dan bentuk tanda
+"memperbarui…".
+
