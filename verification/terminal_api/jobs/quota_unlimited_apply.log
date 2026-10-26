@@ -1,0 +1,4 @@
+Starting Container
+MIG APPLY quota_unlimited_edge_owner.sql sha256=4227c1ad9f6ef0cfc58db24e68e6390ea10612f93990d08c91aa18e797682e97
+OUT {"q": "override", "ms": 1, "part": 0, "rows": [["edge-owner@terminal.local", "files_per_hour", 1000000000], ["edge-owner@terminal.local", "history_per_hour", 1000000000], ["edge-owner@terminal.local", "megabytes_per_day", 1000000000], ["edge-owner@terminal.local", "tickers_per_day", 1000000000], ["edge-owner@terminal.local", "tickers_per_hour", 1000000000]]}
+JOB_DONE MIGRATION APPLY

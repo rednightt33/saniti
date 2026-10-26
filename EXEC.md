@@ -7467,3 +7467,12 @@ User decisions 2026-10-26 (answers to the open terminal decisions, FUTURE_PLAN.m
 - Deployment: "Deploy ke main setelah pertanyaan2 diatas sudah conclude jawabannya dari saya." Merge to `main` (edge-bff
   deploys the Terminal tab) only after the user has concluded the questions above (T7–T9, download limit, flat-price
   rules).
+
+User confirmations 2026-10-26 (later): "T7 OK masukan exec jangan execute dulu", "T8 OK di update ya, masukan exec jangan
+execute dulu", "T9 OK masukan exec jangan execute dulu" — T7, T8 and T9 above are approved for planning; execution waits
+for the user's go. Download limits: "Untuk batas asat ini di eliminate saja dulu. Ini kita mau tahap testing dan front end
+design. Goal saat ini adalah to ensure bahwa front-end works, menggunakan data dari back-end." Done 2026-10-26: every
+download quota of the testing (gateway) account `edge-owner@terminal.local` set to 1,000,000,000
+(`verification/terminal_api/jobs/quota_unlimited_edge_owner.sql`, read back); the defaults in `terminal.quota` for real
+subscribers are unchanged and stay an open decision before subscribers sign in. The flat-price research workflow was
+stopped by the user ("Stop the research ya").

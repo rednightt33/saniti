@@ -2352,3 +2352,8 @@ public table or catalog change):
   and removal statement: `verification/terminal_api/jobs/quota_override_edge_owner.sql` (sha256 `4ee7713d…`); APPLY
   log `jobs/quota_override_apply.log`, read back (one row). The default stays 60 until the user decides
   (FUTURE_PLAN.md).
+
+- 2026-10-26: user "Untuk batas asat ini di eliminate saja dulu" (testing phase): `terminal.quota_override` for subscriber 2
+  (`edge-owner@terminal.local`) set to 1,000,000,000 for `files_per_hour`, `tickers_per_hour`, `tickers_per_day`,
+  `megabytes_per_day`, `history_per_hour` (TEMPORARY; script `jobs/quota_unlimited_edge_owner.sql` sha256 `4227c1ad…`,
+  log `jobs/quota_unlimited_apply.log`, 5 rows read back). Defaults for other subscribers unchanged.
