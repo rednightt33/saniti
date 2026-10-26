@@ -2,11 +2,18 @@
    a real BBCA day; live data is the published broker summary of the ticker (the last sessions in its files). */
 import type { Ctx } from './context';
 import { $, nfCompact, pct, row, spin, store } from './context';
+import { closeRangeCalendar, longDay, openRangeCalendar } from '../ui/calendar';
 
 export function initBroker(ctx: Ctx) {
   const { M, ws, showStTip, hideStTip, tipHtml, makeFilter } = ctx;
   if(M.hide.bandar) ($('brokerPanel').querySelector('.st[data-sec="bd"]') as HTMLElement).hidden = true;   // live: formula not approved yet
   const rpAside = $('brokerPanel');
+  // panel state kept across redraws (declared before the first draw below can run)
+  const live = M.mode === 'live';
+  const kept: Record<string, { bn: string; f: string; t: string }> = {};      // each panel's period, by date
+  const RS = { d:0, inv:'All', board:'All', mode:'net', more:false, accSide:'buy', bdN:5, broker:null, invUnit:'lot' };
+  const invSel = new Set();                                         // brokers drawn in Broker inventory (max INV_MAX)
+  let applyChartRange = (_f: string, _t: string) => {};
   const RIGHT_MIN = 260, RIGHT_MAX = 520;
   let rightW = parseInt(store.get('ml.broker.w'),10) || 0;
   const clampR = w => Math.max(RIGHT_MIN, Math.min(RIGHT_MAX, Math.round((ws.clientWidth||1400)*.4), w));
@@ -31,7 +38,9 @@ export function initBroker(ctx: Ctx) {
     if(!ready || rendered || ws.classList.contains('right-collapsed')) return;
     rendered = true; renderData();
   }
-  ctx.setBrokerPanelData = broker => { M.broker = broker; ready = true; renderWhenReady() };
+  /* EXEC-TERMINAL-PANELS B1: the panel gets the recent broker years first and the full two years after them; a second
+     answer redraws it with the user's choices (periods by date, filters, picked brokers) kept */
+  ctx.setBrokerPanelData = broker => { M.broker = broker; ready = true; rendered = false; renderWhenReady() };
   if(M.later){
     $('rpSub').textContent = `${M.broker.label} · loading`;
     // the hidden Bandar section gets no ring: nothing would ever replace it
@@ -112,9 +121,9 @@ export function initBroker(ctx: Ctx) {
   const netLotOf = o => o.bl - o.sl;
 
   /* ---- state ---- */
-  const RS = { d: BK_DAYS-1, inv:'All', board:'All', mode:'net', more:false, accSide:'buy', bdN:5, broker:null, invUnit:'lot' };
+  RS.d = BK_DAYS-1;
   const INV_MAX = 5, INV_COLORS = ['#0070f3', '#f5a623', '#7928ca', '#12a594', '#d6409f'];
-  const invSel = new Set();                                         // brokers drawn in Broker inventory (max INV_MAX)
+  const firstRender = !invSel.size;
   const bkFmtDay = d => { const t = new Date(bkDates[d]+'T00:00:00Z'); return t.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}) };
   const dayShort = d => new Date(bkDates[d]+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',timeZone:'UTC'});
   const cv = v => nfCompact.format(Math.abs(v));
@@ -127,21 +136,31 @@ export function initBroker(ctx: Ctx) {
   };
 
   /* ---- period picker shared by every panel: presets + custom from/to (default = the latest session) ---- */
-  const makeRange = (root, { presets, def, nav = false, onChange }) => {
+  const makeRange = (root, { key, presets, def, nav = false, onChange }) => {
     const last = BK_DAYS - 1;
     const st = { bn:String(def), bf:0, bt:last };
+    /* live (EXEC-TERMINAL-PANELS D1): Custom opens one range calendar (with "Select on chart"); the fixture keeps the
+       reference's two date fields (1:1 check) */
     root.innerHTML = `${nav ? `<div class="rp-ctl"><button class="rp-btn" data-act="prev" aria-label="Previous period" title="Previous period">‹</button><span class="rp-date"></span><button class="rp-btn" data-act="next" aria-label="Next period" title="Next period">›</button></div>` : ''}
-      <div class="rp-ctl"><div class="seg" role="group" aria-label="Period">${presets.map(n => `<button data-n="${n}">${n}D</button>`).join('')}<button data-n="custom">Custom</button></div></div>
-      <div class="rp-ctl rp-custom" hidden><input class="rp-sel" type="date" aria-label="From date"><span class="rp-dash">–</span><input class="rp-sel" type="date" aria-label="To date"></div>`;
+      <div class="rp-ctl"><div class="seg" role="group" aria-label="Period">${presets.map(n => `<button data-n="${n}">${n}D</button>`).join('')}<button data-n="custom"${live ? ' aria-haspopup="dialog"' : ''}>Custom</button></div></div>
+      ${live ? '<div class="rp-note" hidden></div>' : '<div class="rp-ctl rp-custom" hidden><input class="rp-sel" type="date" aria-label="From date"><span class="rp-dash">–</span><input class="rp-sel" type="date" aria-label="To date"></div>'}`;
     const $q = s => root.querySelector(s), from = $q('input:first-of-type'), to = root.querySelectorAll('input')[1];
     const days = () => st.bt - st.bf + 1;
-    const text = () => days() === 1 ? dayShort(st.bt) : `${dayShort(st.bf)} – ${dayShort(st.bt)}`;
+    // live periods may span two years: the year is written when the ends fall in different years
+    const yearOf = d => bkDates[d].slice(0, 4);
+    const text = () => days() === 1 ? dayShort(st.bt) : live && yearOf(st.bf) !== yearOf(st.bt)
+      ? `${dayShort(st.bf)} ${yearOf(st.bf)} – ${dayShort(st.bt)} ${yearOf(st.bt)}` : `${dayShort(st.bf)} – ${dayShort(st.bt)}`;
+    const note = (msg = '') => { const n = $q('.rp-note'); if(n){ n.textContent = msg; n.hidden = !msg } };
+    const save = () => { kept[key] = { bn:st.bn, f:bkDates[st.bf], t:bkDates[st.bt] } };
     const preset = n => { st.bn = String(n); if(st.bn !== 'custom') st.bf = Math.max(0, st.bt - (+st.bn) + 1) };
     const render = () => {
       root.querySelectorAll('.seg button').forEach(b => b.classList.toggle('active', b.dataset.n === st.bn));
+      if(!live){
       root.querySelector('.rp-custom').hidden = st.bn !== 'custom';
       from.value = bkDates[st.bf]; to.value = bkDates[st.bt];
       from.min = to.min = bkDates[0]; from.max = to.max = bkDates[last];
+      }
+      save();
       if(nav){ $q('.rp-date').textContent = days() === 1 ? bkFmtDay(st.bt) : `${text()} ${bkDates[st.bt].slice(0,4)} · ${days()}D`;
         $q('[data-act=prev]').disabled = st.bf <= 0; $q('[data-act=next]').disabled = st.bt >= last }
     };
@@ -152,20 +171,38 @@ export function initBroker(ctx: Ctx) {
     };
     const idxOnOrAfter = v => { const i = bkDates.findIndex(x => x >= v); return i < 0 ? last : i };
     const idxOnOrBefore = v => { let r = 0; bkDates.forEach((x,i) => { if(x <= v) r = i }); return r };
-    root.querySelectorAll('.seg button').forEach(b => b.onclick = () => { preset(b.dataset.n); render(); onChange() });
-    if(nav) root.querySelectorAll('[data-act]').forEach(b => b.onclick = () => { shift(b.dataset.act === 'prev' ? -1 : 1); render(); onChange() });
+    const setIdx = (f, t, msg = '') => { st.bf = f; st.bt = t; st.bn = 'custom'; note(msg); render(); onChange() };
+    /* a period chosen by date (calendar or chart): clipped to the panel's broker dates, with a note when it was */
+    const setDates = (fd, td) => {
+      if(td < bkDates[0] || fd > bkDates[last]) { note(`${longDay(fd)} – ${longDay(td)} is outside the panels' two years (${longDay(bkDates[0])} – ${longDay(bkDates[last])}); nothing changed.`); return }
+      const f = idxOnOrAfter(fd), t = idxOnOrBefore(td);
+      setIdx(Math.min(f, t), Math.max(f, t), fd < bkDates[0] ? `Starts ${longDay(bkDates[0])}: the panels cover the last two years.` : '');
+    };
+    root.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
+      if(live && b.dataset.n === 'custom'){
+        openRangeCalendar({ anchor:b, dates:bkDates, from:bkDates[st.bf], to:bkDates[st.bt], onPick:setDates,
+          onChart:() => ctx.selectRangeOnChart((f, t) => applyChartRange(f, t)) });
+        return;
+      }
+      note(); preset(b.dataset.n); render(); onChange();
+    });
+    if(nav) root.querySelectorAll('[data-act]').forEach(b => b.onclick = () => { note(); shift(b.dataset.act === 'prev' ? -1 : 1); render(); onChange() });
     const custom = () => {
       if(!from.value || !to.value) return;
       let f = idxOnOrAfter(from.value), t = idxOnOrBefore(to.value); if(f > t) [f, t] = [t, f];
       st.bf = f; st.bt = t; st.bn = 'custom'; render(); onChange();
     };
-    from.onchange = custom; to.onchange = custom;
-    preset(def); render();
-    return Object.assign(st, { text, days });
+    if(from) { from.onchange = custom; to.onchange = custom }
+    const k = kept[key];
+    if(k && k.bn !== 'custom' && k.bn !== String(def)) preset(k.bn);
+    else if(k && k.bn === 'custom') { st.bf = idxOnOrAfter(k.f); st.bt = idxOnOrBefore(k.t); st.bn = 'custom'; if(st.bf > st.bt) preset(def) }
+    else preset(def);
+    render();
+    return Object.assign(st, { text, days, setDates });
   };
 
   /* ---- Broker summary ---- */
-  const bsRange = makeRange($('bsRange'), { presets:[1,5,20], def:1, nav:true, onChange:() => renderBS() });
+  const bsRange = makeRange($('bsRange'), { key:'bs', presets:[1,5,20], def:1, nav:true, onChange:() => renderBS() });
   function renderBS(){
     const list = bkAggRange(bsRange.bf, bsRange.bt, RS.inv, RS.board);
     const totBuy = list.reduce((s,o)=>s+o.bv,0);
@@ -201,7 +238,7 @@ export function initBroker(ctx: Ctx) {
   }
 
   /* ---- Top accumulators / distributors ---- */
-  const accRange = makeRange($('accRange'), { presets:[1,5,20], def:5, onChange:() => renderAcc() });
+  const accRange = makeRange($('accRange'), { key:'acc', presets:[1,5,20], def:5, onChange:() => renderAcc() });
   function renderAcc(){
     const buy = RS.accSide === 'buy';
     const l = bkAggRange(accRange.bf, accRange.bt, 'All', 'All').map(o => ({ b:o.b, net:netOf(o), lot:netLotOf(o) }))
@@ -217,7 +254,7 @@ export function initBroker(ctx: Ctx) {
   }
 
   /* ---- Broker inventory: cumulative net position of up to 5 brokers over the chosen period ---- */
-  const invRange = makeRange($('invRange'), { presets:[10,20,30], def:20, onChange:() => renderInv() });
+  const invRange = makeRange($('invRange'), { key:'inv', presets:[10,20,30], def:20, onChange:() => renderInv() });
   const invFilter = makeFilter($('invFilter'), { title:'Broker', searchable:true, placeholder:'Search broker code…', grid:true, mono:true, max:INV_MAX,
     getOptions:() => bkList.map(b => ({ id:b, label:b })), state:invSel,
     summary:s => s.size ? [...s].slice(0,3).join(', ') + (s.size > 3 ? ` +${s.size-3}` : '') : 'None', onChange:() => renderInv() });
@@ -257,13 +294,14 @@ export function initBroker(ctx: Ctx) {
   $('invUnit').querySelectorAll('button').forEach(b => b.onclick = () => {
     RS.invUnit = b.dataset.unit; $('invUnit').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); renderInv();
   });
-  { // default: the three biggest net accumulators of the default period
+  if(firstRender){ // default: the three biggest net accumulators of the default period
     const top = bkAggRange(invRange.bf, invRange.bt, 'All', 'All').sort((a,b) => netOf(b)-netOf(a)).slice(0,3);
-    top.forEach(o => invSel.add(o.b)); RS.broker = top.length ? top[0].b : bkList[0]; invFilter.refresh();
+    top.forEach(o => invSel.add(o.b)); RS.broker = top.length ? top[0].b : bkList[0];
   }
+  invFilter.refresh();
 
   /* ---- Bandar detector ---- */
-  const bdRange = makeRange($('bdRange'), { presets:[1,5,20], def:1, onChange:() => renderBD() });
+  const bdRange = makeRange($('bdRange'), { key:'bd', presets:[1,5,20], def:1, onChange:() => renderBD() });
   function renderBD(){
     if(M.hide.bandar) return;
     const list = bkAggRange(bdRange.bf, bdRange.bt, 'All', 'All');
@@ -291,6 +329,8 @@ export function initBroker(ctx: Ctx) {
   /* ---- wiring ---- */
   $('rpSub').textContent = `${M.broker.label} · ${bkDates[RS.d].slice(8)} ${new Date(bkDates[RS.d]+'T00:00:00Z').toLocaleDateString('en-GB',{month:'short',timeZone:'UTC'})} ${bkDates[RS.d].slice(0,4)}`;
   const renderAll = () => { renderBS(); renderAcc(); renderInv(); renderBD() };
+  // EXEC-TERMINAL-PANELS C1: a period dragged on the chart applies to every panel (each can change it again)
+  applyChartRange = (f, t) => { closeRangeCalendar(); [bsRange, accRange, invRange, bdRange].forEach(r => r.setDates(f, t)) };
   // clicking a broker anywhere highlights it and adds it to the inventory chart (oldest one drops out past 5)
   function selectBroker(b){
     RS.broker = b;

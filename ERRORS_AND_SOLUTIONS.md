@@ -2290,6 +2290,32 @@ change yet.
   diunduh ulang setiap kunjungan (kecil); akun terminal per pengguna EDGE (FUTURE_PLAN).
 - **Status:** RESOLVED.
 
+### EXEC-TERMINAL-PANELS — urutan panel, periode dari kalender atau chart, rel anotasi (2026-10-26)
+
+- **Go user:** "A1 OK / B1 OK, batasi 2 tahun. / C1 OK / D1 OK / Rel anotasi ... --> OK / jalankan, cek infra terlebih
+  dahulu as usual." (EXEC.md EXEC-TERMINAL-PANELS).
+- **Dibangun (live; fixture referensi tetap 1:1):** pegangan ⋮⋮ di judul bagian panel kiri dan kanan untuk menyeret
+  urutan, klik judul tetap melipat, Alt+↑/↓ dari keyboard, urutan diingat (`src/ui/reorder.ts`); panel broker kanan
+  membaca 2 tahun terakhir (`worker.ts` `PANEL_YEARS`, sebelumnya 30 hari bursa), lebih dulu dari dua berkas tahun
+  terakhir lalu dilengkapi arsip, pilihan pengguna tetap; "Custom" = satu kalender pilih rentang dengan hari tanpa data
+  redup dan tombol "Select on chart" (`src/ui/calendar.ts`); rentang yang diseret di chart berlaku untuk keempat panel
+  (`src/app/rangeSelect.ts`), dipotong ke 2 tahun dengan catatan; penanda anotasi di rel sendiri di bawah tanggal
+  (chart 24 px lebih pendek).
+- **Cacat yang ditemukan saat uji, sebelum deploy:** (1) status panel dideklarasikan sesudah gambar pertama yang bisa
+  langsung berjalan di fixture → ReferenceError, panel kanan kosong (1:1 timeout); dipindah ke atas. (2) memindah bagian
+  di halaman melepas pointer capture pada pegangan, jadi lepas-klik tidak sampai dan urutan tidak tersimpan; event
+  didengar di dokumen. (3) LWC `applyOptions` menggabung ke objek opsinya sendiri, jadi salinan referensi
+  `handleScroll`/`handleScale` ikut mati dan chart tidak bisa digeser sesudah memilih rentang; disimpan salinan penuh.
+- **Bukti:** vitest 669 (baru: `tests/data/panels.test.ts` jendela 2 tahun, kalender, sesi dari chart, urutan), edge-bff
+  `test_terminal`+`test_frontend_contract` 20, 1:1 0 piksel dan 0 beda markup. Live check lokal ANTM
+  (`verification/terminal_api/panels_live_check.py`): rel aktif, chart 24 px lebih pendek, 9 penanda di bawah tanggal;
+  kalender tahun 2024–2026; pilih kalender mengubah Broker summary; seret Jul–Sep di chart mengubah ketiga panel yang
+  tampil (Bandar disembunyikan di live); rentang 2022–2023 memberi catatan dan panel tidak berubah; urutan acc, bs
+  bertahan sesudah reload; tidak ada error halaman.
+- **Kelas:** pilihan periode dan urutan tampilan ada di halaman; data tambahan (makro, lintas aset) di panel samping
+  memakai mekanisme yang sama (bagian `.st` di `.side-scroll`, `makeRange` dengan kunci).
+- **Status:** RESOLVED.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.

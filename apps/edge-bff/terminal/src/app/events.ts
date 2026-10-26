@@ -66,9 +66,15 @@ export function initEvents(ctx: Ctx) {
     tip.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px';
     tip.style.top = Math.max(8, r.top - h - 10) + 'px';
   }
+  /* EXEC-TERMINAL-PANELS (user 2026-10-26: "ketika kita enable annotation maka di bawah date itu kayak muncul satu rel baru
+     tempat annotation itu berada"): live, the markers sit on their own rail under the dates while events are on (the
+     chart gives up RAIL px), so the date under the crosshair stays readable; the fixture keeps the reference's markers
+     on the time axis (1:1 check) */
+  const RAIL = 24, railed = ctx.M.mode === 'live';
   let sig = '';
   function layout() {
     raf = 0;
+    if(railed) wrapEl.classList.toggle('ev-rail', pref.on);
     const ts = chart.timeScale(), pane = chart.panes()[0];
     const left = chart.priceScale('left').width(), H = pane ? pane.getHeight() : 0, W = ts.width();
     const rng = ts.getVisibleLogicalRange();
@@ -78,14 +84,15 @@ export function initEvents(ctx: Ctx) {
     const pts = EVENTS.filter(e => pref.types[e.type]).map(e => ({ e, x:ts.timeToCoordinate((e.at || e.date) as any) })).filter(p => p.x != null && p.x >= 0 && p.x <= W).sort((a, b) => (a.x as number) - (b.x as number));
     const groups: { x: number; items: MarketEvent[] }[] = [];
     pts.forEach(p => { const g = groups[groups.length - 1]; if(g && (p.x as number) - g.x < 22) g.items.push(p.e); else groups.push({ x:p.x as number, items:[p.e] }) });
-    const y = $('chart').clientHeight - Math.round(ts.height() / 2);       // centre of the time-axis strip, below every pane and the volume bars
+    const y = railed ? $('chart').clientHeight + RAIL / 2                 // centre of the rail under the dates
+      : $('chart').clientHeight - Math.round(ts.height() / 2);             // centre of the time-axis strip, below every pane and the volume bars
     groups.forEach(g => {
       const one = g.items.length === 1, t = T[g.items[0].type], x = left + g.x;
       const el = document.createElement('div'); el.className = 'ev-mk'; el.style.left = x + 'px'; el.style.top = y + 'px';
       el.style.background = one ? t.color : '#171717'; el.textContent = one ? t.letter : String(g.items.length);
       el.setAttribute('aria-label', g.items.map(i => i.title).join(', '));
       let ln: HTMLElement | null = null;
-      el.addEventListener('mouseenter', () => { showTip(el, g.items); ln = document.createElement('div'); ln.className = 'ev-line'; ln.style.left = x + 'px'; ln.style.top = '0'; ln.style.height = (y - 12) + 'px'; layer.appendChild(ln) });
+      el.addEventListener('mouseenter', () => { showTip(el, g.items); ln = document.createElement('div'); ln.className = 'ev-line'; ln.style.left = x + 'px'; ln.style.top = '0'; ln.style.height = (railed ? $('chart').clientHeight - ts.height() : y - 12) + 'px'; layer.appendChild(ln) });
       el.addEventListener('mouseleave', () => { tip.hidden = true; if(ln) ln.remove() });
       layer.appendChild(el);
     });

@@ -113,4 +113,6 @@ export interface Ctx {
   setFlowData: (combos: Combo[], flowFrom: number, more?: boolean, flowTo?: number) => void;
   setBrokerPanelData: (broker: MarketData['broker']) => void;
   refreshFlowIndicators: () => void;
+  /* EXEC-TERMINAL-PANELS: drag a period on the main chart (rangeSelect.ts) */
+  selectRangeOnChart: (done: (from: string, to: string) => void) => void;
 }

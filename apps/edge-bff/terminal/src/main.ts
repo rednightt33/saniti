@@ -23,6 +23,8 @@ import { initIndicators } from './app/indicators';
 import { initSearch } from './app/search';
 import { initSelect } from './ui/select';
 import { initBroker } from './app/broker';
+import { initRangeSelect } from './app/rangeSelect';
+import { initReorder } from './ui/reorder';
 
 function start(M: MarketData, rawSeries: Record<string, Point[]>) {
   const container = $('chart');
@@ -49,6 +51,8 @@ function start(M: MarketData, rawSeries: Record<string, Point[]>) {
   initSearch(ctx);
   initSelect();
   initBroker(ctx);
+  initRangeSelect(ctx);
+  if (M.mode === 'live') initReorder();                    // EXEC-TERMINAL-PANELS A1; the fixture keeps the reference order
   return ctx;
 }
 
@@ -60,7 +64,10 @@ function later(ctx: Ctx, M: MarketData) {
   /* F5: the recent years first (Flow and Broker activity), then the whole history replaces them in the Flow Timeline */
   M.later.broker.then(b => {
     ctx.setFlowData(b.combos, b.flowFrom, true, b.flowTo); ctx.setBrokerPanelData(b.broker); mark('flow: last two years');
-    M.later!.brokerAll.then(all => { ctx.setFlowData(all.combos, all.flowFrom, false, all.flowTo); mark('flow: every year') }, failed);
+    M.later!.brokerAll.then(all => {
+      ctx.setFlowData(all.combos, all.flowFrom, false, all.flowTo); mark('flow: every year');
+      if (all.broker.dates.length > b.broker.dates.length) ctx.setBrokerPanelData(all.broker);   // B1: the full two years
+    }, failed);
   }, () => { ctx.setFlowData([], ctx.N); failed() });
 }
 

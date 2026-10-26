@@ -8126,7 +8126,7 @@ harga (semua tahun, events tetap berkas sendiri) dan arsip broker + dua tahun te
 berkas per tahun dan events tidak ditulis dua kali. Langkah 6: uji beban 20 `/bundle` bersamaan median 0,53 s; akun per
 pengguna EDGE tetap di FUTURE_PLAN (EDGE masih satu pengguna). Tersisa dari user: angka `?perf=1` dari Indonesia.
 
-## EXEC-TERMINAL-PANELS — urutan panel, periode broker dari kalender atau chart, rel anotasi (go 2026-10-26)
+## EXEC-TERMINAL-PANELS — urutan panel, periode broker dari kalender atau chart, rel anotasi (go 2026-10-26; selesai 2026-10-26, ERRORS "EXEC-TERMINAL-PANELS")
 
 User 2026-10-26: "Bisa nggak kalau saya klik kolom header untuk rearrange, misalkan panel broker summary mau dipindah ke
 urutan nomor 2 ... Bisa nggak buat satu opsi, let's say, okay, set melalui kalender satu. Tapi opsi lagi adalah kita draw
