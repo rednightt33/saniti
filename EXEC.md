@@ -7476,3 +7476,10 @@ download quota of the testing (gateway) account `edge-owner@terminal.local` set 
 (`verification/terminal_api/jobs/quota_unlimited_edge_owner.sql`, read back); the defaults in `terminal.quota` for real
 subscribers are unchanged and stay an open decision before subscribers sign in. The flat-price research workflow was
 stopped by the user ("Stop the research ya").
+- T10 Indicators on a trading day whose price did not move (user 2026-10-26: "Kalau harga dia meskipun trading day
+  active, which is ada series X maka indikator harus tetap menghitung harga di hari tersebut, which is ini harusnya fall
+  under opsi A. Right? Jika yes, masukkan ke exec, jangan eksekusi dulu."): option A confirmed. Every trading day that
+  has a price row counts in every indicator, also when the price did not move; the value and its display follow the
+  calculation module (TA-Lib / Feature 04 conventions for a zero denominator, INDICATOR_SPEC.md), with no blanking or
+  marking on the chart. Days without a price row (holiday, suspension) stay gaps, as now. This is the current
+  behaviour; recorded, nothing to execute until the user's go.
