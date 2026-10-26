@@ -10,6 +10,13 @@
    next bar's open), the end of the test; then the marks. Cash from an intraday or close sale is usable from the next
    open. Signals, windows and bars_held count the ticker's own bars; a day without a bar of a ticker is not filled in.
 
+   What the period and the universe become on the data (lead decisions 2026-10-26): single mode starts at the ticker's
+   first published bar when period.from is earlier (warning PERIOD_CLIPPED); a portfolio keeps its period and leaves
+   out a ticker whose own data cannot serve the strategy (signals.ts EXCLUDED_CODES, and the loader's
+   MarketData.excluded), listed in the warning TICKERS_EXCLUDED, and is refused when every ticker is left out
+   (UNIVERSE_EMPTY: no cash-only result); the calendar is built from the tickers that run. The primary benchmark must
+   have a close on the first calendar day (PERIOD_BEFORE_DATA).
+
    prepare(data) keeps one indicator memo per ticker (conditions.ts Calc), so the sensitivity grid's reruns of
    run(context, request) recompute only the comparisons, not the indicators. Pure module: no DOM and no Node API. */
 import type { BacktestRequest, ExitPhase, ExitReason, SkippedSignal, SignalTrack } from './contract.ts';
@@ -21,8 +28,10 @@ import { isN } from '../../../terminal/src/calc/indicators.ts';
 import display from '../../../terminal/src/data/indRegistry.json' with { type: 'json' };
 import { Calc } from './conditions.ts';
 import { BY_ID, REGISTRY, ValidationError, indicator, resolveParams } from './registry.ts';
-import { RANK_BY, barMap, conditionsWithin, emptyTrack, entryEvents, isIsoDate, liquidity, rankScores, requestConditions, resultCalendar, signalSummary, tickerSignals, track } from './signals.ts';
-import type { BarMap, RankBy, TickerSignals } from './signals.ts';
+import { RANK_BY, barMap, conditionsWithin, emptyTrack, isIsoDate, leftOut, liquidity, periodSignals, rankScores, requestConditions, resultCalendar, signalSummary, track, unlessLeftOut } from './signals.ts';
+import type { BarMap, Exclusion, RankBy, TickerSignals } from './signals.ts';
+export { EXCLUDED_CODES } from './signals.ts';
+export type { Exclusion } from './signals.ts';
 
 /* ---- input ---------------------------------------------------------------------------------------------- */
 
@@ -33,8 +42,10 @@ export interface TickerData {
   flow?: FlowData;                         // aligned with prices.bars; absent while catalog.flow.available is false
 }
 /** Everything a run reads. IHSG is always present (calendar, IHSG benchmark). Single mode reads the request's ticker;
-    portfolio mode trades every ticker of `tickers`, so the worker loads exactly the universe the run uses. */
-export interface MarketData { ihsg: PriceSeries; tickers: Record<string, TickerData> }
+    portfolio mode trades every ticker of `tickers`, so the worker loads exactly the universe the run uses.
+    excluded: universe tickers the loader left out (portfolio: no published files, DATA_MISSING); the run lists them
+    in its TICKERS_EXCLUDED warning with the tickers it leaves out itself. */
+export interface MarketData { ihsg: PriceSeries; tickers: Record<string, TickerData>; excluded?: Exclusion[] }
 
 export interface Hooks { progress?(done: number, total: number): void; shouldStop?(): boolean }
 /** Thrown by run() when hooks.shouldStop() answers true (job state CANCELLED). */
@@ -222,66 +233,97 @@ export function run(ctx: Context, req: BacktestRequest, hooks: Hooks = {}): Ledg
   const plan = validateRun(req, ihsg.dates[ihsg.dates.length - 1]);
   const active = requestConditions(req);
   const single = req.mode === 'single';
-  const tickers = single ? [req.single!.ticker] : Object.keys(ctx.data.tickers).sort(byTicker);
+  const universe = single ? [req.single!.ticker] : Object.keys(ctx.data.tickers).sort(byTicker);
   const tickerField = single ? 'single.ticker' : 'portfolio.universe';
-  const { from, to } = req.period;
-  const runs = tickers.map(t => prepared(ctx, t, tickerField));
+  const prep = universe.map(t => prepared(ctx, t, tickerField));
+  const warnings: Ledger['warnings'] = [];
+  const to = req.period.to;
+  let from = req.period.from;
+  // single mode: the ticker has no bar, and a buy-and-hold benchmark no value, before its first published bar, so a
+  // period that starts earlier starts there (PERIOD_CLIPPED, lead decision 2026-10-26); a portfolio keeps its period
+  const listed = single ? prep[0].data.prices.dates[0] : undefined;
+  if (listed !== undefined && listed > from && listed <= to) {
+    warnings.push({ code: 'PERIOD_CLIPPED', message: `${prep[0].ticker} has no published bar before ${listed}: the backtest starts on ${listed} instead of the requested ${from}.` });
+    from = listed;
+  }
 
-  const calKey = `${from}|${to}|${single ? tickers[0] : '*'}`;
-  let dates = ctx.calendars.get(calKey);
-  if (!dates) { dates = resultCalendar(from, to, [ihsg.dates, ...runs.map(p => p.data.prices.dates)]); ctx.calendars.set(calKey, dates) }
-  const nCal = dates.length, lastDay = nCal - 1;
-  if (!nCal) fail('PERIOD_EMPTY', 'period.from', 'The period contains no trading day.');
-
-  const total = runs.length + nCal;
-  let done = 0;
+  let done = 0, total = prep.length;                                           // tickers, then calendar days
   const tick = (force = false) => {
     if (hooks.shouldStop && hooks.shouldStop()) throw new Cancelled();
     if (hooks.progress && (force || done % 256 === 0)) hooks.progress(done, total);
   };
 
-  /* ---- signals per ticker, on its own bars ---- */
+  /* ---- signals per ticker, on its own bars (full history; events inside the period) ---- */
   const X = req.exit, rankBy = single ? null : req.portfolio!.rank_by;
+  const excluded: Exclusion[] = single ? [] : [...(ctx.data.excluded ?? [])];
+  const signalled: Omit<Run, 'm'>[] = [];
+  for (const p of prep) {
+    tick();
+    const signals = (): Omit<Run, 'm'> => {
+      // a ticker without a bar inside the period cannot trade and has no event there; whether its conditions have any
+      // value is decided on its bars up to period.to: bars after the period never leave it out (signals.ts periodSignals)
+      const { sig, events } = periodSignals(p.calc, p.data.prices.dates, req, active, from, to);
+      const r: Omit<Run, 'm'> = { p, sig, events, atr: null, chandelier: null, stopLine: null, trailLine: null, score: null, liq: null };
+      if (sig && events.length) {
+        const c = p.calc;
+        if (plan.atr) r.atr = c.out(BY_ID.I30.key, plan.atr).atr;
+        if (plan.chandelier) r.chandelier = c.out(BY_ID.I30.key, plan.chandelier).atr;
+        if (plan.stopLine) r.stopLine = c.out(plan.stopLine.key, plan.stopLine.params)[plan.stopLine.output];
+        if (plan.trailLine) r.trailLine = c.out(plan.trailLine.key, plan.trailLine.params)[plan.trailLine.output];
+        if (rankBy) {
+          r.score = p.scores[rankBy] ||= rankScores(c, rankBy, p.data.flow);
+          r.liq = p.liq ||= liquidity(c);
+        }
+      }
+      return r;
+    };
+    // portfolio: a ticker whose own data cannot serve the strategy is left out of this run, never the run itself
+    const r = single ? signals() : unlessLeftOut(p.ticker, excluded, signals);
+    if (r) signalled.push(r);
+    done++;
+  }
+  const left = single ? null : leftOut(excluded, signalled.length, 'portfolio.universe', 'run');   // UNIVERSE_EMPTY when none is left
+  if (left) warnings.push(left);
+
+  /* ---- the result calendar (IHSG and the run tickers inside the period) and the primary benchmark ---- */
+  const calKey = `${from}|${to}|${signalled.map(r => r.p.ticker).join(',')}`;
+  let dates = ctx.calendars.get(calKey);
+  if (!dates) { dates = resultCalendar(from, to, [ihsg.dates, ...signalled.map(r => r.p.data.prices.dates)]); ctx.calendars.set(calKey, dates) }
+  const nCal = dates.length, lastDay = nCal - 1;
+  if (!nCal) fail('PERIOD_EMPTY', 'period.from', 'The period contains no trading day.');
+  total = prep.length + nCal;
+  // result.ts scales the benchmark by its close on the first day: it must have one (the shared as-of rule)
+  const bench = single && req.single!.benchmark === 'buy_and_hold' ? prep[0].data.prices : ihsg;
+  const bm = barMap(bench.dates, dates);
+  if (bm.asof[0] < 0) fail('PERIOD_BEFORE_DATA', 'period.from', `The benchmark ${bench.ticker} has no published close on or before ${dates[0]}${bench.dates.length
+    ? ` (its first bar is ${bench.dates[0]}); start the period on or after ${bench.dates[0]}` : ' (it has no published bar)'}.`);
+
+  /* ---- the events on the calendar: tracks, orders for the next calendar day, skipped signals ---- */
   const conditions: Ledger['events']['conditions'] = [], entries: Record<string, SignalTrack> = {}, exits: Record<string, SignalTrack> = {};
   const skipped: SkippedSignal[] = [], perTicker: Ledger['per_ticker_signals'] = [];
   const orders: Order[][] = Array.from({ length: nCal }, () => []);
-  const gaps = new Map<string, number>();
-  const gap = (t: string) => gaps.set(t, (gaps.get(t) || 0) + 1);
+  // DATA_GAP: the distinct (ticker, calendar day) pairs without a bar of a held or signalled ticker; a day can be both
+  // (an event before it while the ticker is held), and it counts once
+  const gaps = new Set<string>(), gapTickers = new Set<string>();
+  const gap = (t: string, k: number) => { gaps.add(`${t}|${k}`); gapTickers.add(t) };
   const skip = (r: Run, j: number, ev: number, reason: SkippedSignal['reason']) =>
     skipped.push({ ticker: r.p.ticker, signal_date: dates![r.m.bar[j]], signal_event: ev, reason });
-  for (const p of runs) {
-    tick();
-    let m = p.maps.get(calKey);
-    if (!m) { m = barMap(p.data.prices.dates, dates); p.maps.set(calKey, m) }
-    const has = m.first <= m.last;
-    // a ticker without a bar inside the period cannot trade and has no event there
-    const sig = has ? tickerSignals(p.calc, req, active) : null;
-    const r: Run = { p, m, sig, events: sig ? entryEvents(sig, m.first, m.last) : [], atr: null, chandelier: null, stopLine: null, trailLine: null, score: null, liq: null };
-    const t = p.ticker;
+  for (const s of signalled) {
+    let m = s.p.maps.get(calKey);
+    if (!m) { m = barMap(s.p.data.prices.dates, dates); s.p.maps.set(calKey, m) }
+    const r: Run = { ...s, m }, t = s.p.ticker, sig = s.sig;
     for (const [list, key] of [[active.entry, 'entryConditions'], [active.exit, 'exitConditions']] as const)
       list.forEach((a, k) => conditions.push({ condition_id: a.id, ticker: t, track: sig ? track(sig[key][k].s, m!) : emptyTrack() }));
     entries[t] = sig ? { on: r.events.map(j => m!.bar[j]), runs: track(sig.entry, m).runs } : emptyTrack();
     exits[t] = sig ? track(sig.exit, m) : emptyTrack();
     perTicker.push({ ticker: t, ...signalSummary(entries[t], dates) });
-    if (sig && r.events.length) {
-      const c = p.calc;
-      if (plan.atr) r.atr = c.out(BY_ID.I30.key, plan.atr).atr;
-      if (plan.chandelier) r.chandelier = c.out(BY_ID.I30.key, plan.chandelier).atr;
-      if (plan.stopLine) r.stopLine = c.out(plan.stopLine.key, plan.stopLine.params)[plan.stopLine.output];
-      if (plan.trailLine) r.trailLine = c.out(plan.trailLine.key, plan.trailLine.params)[plan.trailLine.output];
-      if (rankBy) {
-        r.score = p.scores[rankBy] ||= rankScores(c, rankBy, p.data.flow);
-        r.liq = p.liq ||= liquidity(c);
-      }
-    }
     // every event inside the period becomes an order for the next calendar day, or a skipped signal
     r.events.forEach((j, ev) => {
       const kj = m!.bar[j];
       if (kj === lastDay) skip(r, j, ev, 'period_end');                        // the next day is after the period
-      else if (m!.cal[kj + 1] !== j + 1) { skip(r, j, ev, 'no_next_bar'); gap(t) }   // no stale fills
+      else if (m!.cal[kj + 1] !== j + 1) { skip(r, j, ev, 'no_next_bar'); gap(t, kj + 1) }   // no stale fills
       else orders[kj + 1].push({ r, j, ev });
     });
-    done++;
   }
 
   /* ---- the event clock ---- */
@@ -382,7 +424,11 @@ export function run(ctx: Context, req: BacktestRequest, hooks: Hooks = {}): Ledg
       for (const q of held) { const qi = q.r.m.cal[k]; mv += q.shares * (qi >= 0 ? q.r.p.O[qi] : q.r.p.C[q.r.m.asof[k]]) }
       const equityNow = cash + mv;
       const budget = single ? Math.min(cash, equityNow * req.sizing.allocation_fraction) : Math.min(cash, equityNow / maxPos);
-      const fill = o * (1 + slip), shares = Math.floor(budget / (fill * (1 + fb)) / 100) * 100;
+      const fill = o * (1 + slip);
+      let shares = Math.floor(budget / (fill * (1 + fb)) / 100) * 100;
+      // the formula's meaning in exact arithmetic: the cost never exceeds the budget (no leverage); the rounded division
+      // can give one lot whose cost, as computed below, is an ulp above it
+      while (shares >= 100 && fill * shares * (1 + fb) > budget) shares -= 100;
       if (shares < 100) { skip(r, j, ev, 'insufficient_cash'); continue }
       const cost = fill * shares * (1 + fb);
       cash -= cost;
@@ -413,14 +459,14 @@ export function run(ctx: Context, req: BacktestRequest, hooks: Hooks = {}): Ledg
         if (q.r.sig!.exit[i] && i > q.eb) q.pending = true;
       }
       if (k === lastDay) {
-        if (i < 0) { q.stale = true; gap(q.r.p.ticker) }                     // sold at its last close from an earlier day
+        if (i < 0) { q.stale = true; gap(q.r.p.ticker, k) }                  // sold at its last close from an earlier day
         sell(q, mark(q, k), 'end_of_test', 'close', k, i >= 0 ? i : q.r.m.asof[k]);
       } else if (i >= 0) q.peak = Math.max(q.peak, q.r.p.C[i]);
     }
     // 4. marks: a ticker without a bar today is marked at its last close
     let mv = 0;
     for (const q of held) {
-      if (q.r.m.cal[k] < 0) { q.stale = true; gap(q.r.p.ticker) }
+      if (q.r.m.cal[k] < 0) { q.stale = true; gap(q.r.p.ticker, k) }
       mv += q.shares * mark(q, k);
     }
     equity[k] = cash + mv; exposure[k] = mv / equity[k];
@@ -432,14 +478,10 @@ export function run(ctx: Context, req: BacktestRequest, hooks: Hooks = {}): Ledg
   skipped.sort((a, b) => byTicker(a.signal_date, b.signal_date) || byTicker(a.ticker, b.ticker));
 
   /* ---- benchmark and warnings ---- */
-  const bench = single && req.single!.benchmark === 'buy_and_hold' ? runs[0].data.prices : ihsg;
-  const bm = barMap(bench.dates, dates);
-  // the shared as-of rule: the last close on or before each calendar day, null before the series' first bar
-  const benchmark_close = Array.from(bm.asof, j => j >= 0 ? bench.bars.C[j] as number : null) as number[];
-  const warnings: Ledger['warnings'] = [];
+  const benchmark_close = Array.from(bm.asof, j => bench.bars.C[j] as number);   // asof[0] >= 0 (checked above), and it only rises
   if (gaps.size) {
-    const count = [...gaps.values()].reduce((s, n) => s + n, 0);
-    warnings.push({ code: 'DATA_GAP', count, tickers: [...gaps.keys()].sort(byTicker),
+    const count = gaps.size;
+    warnings.push({ code: 'DATA_GAP', count, tickers: [...gapTickers].sort(byTicker),
       message: `${count} calendar day(s) without a bar for a held or signalled ticker: held positions were marked at their last close (flags.stale_mark) and entry signals before such a day were skipped (no_next_bar).` });
   }
   if (from < ADJUSTED_HISTORY_BOUNDARY && to >= ADJUSTED_HISTORY_BOUNDARY)
@@ -450,7 +492,7 @@ export function run(ctx: Context, req: BacktestRequest, hooks: Hooks = {}): Ledg
 
   return {
     dates: dates.slice(), equity, exposure, benchmark_close,
-    benchmark: { kind: single ? req.single!.benchmark : 'ihsg', ticker: bench === ihsg ? ihsg.ticker : tickers[0] },
+    benchmark: { kind: single ? req.single!.benchmark : 'ihsg', ticker: bench === ihsg ? ihsg.ticker : prep[0].ticker },
     trades, events: { conditions, entries, exits, skipped }, per_ticker_signals: perTicker, warnings,
   };
 }

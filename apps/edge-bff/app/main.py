@@ -190,7 +190,7 @@ def create_app(settings=None, store=None, orc=None):
                 running.cancel()
                 await asyncio.gather(running, return_exceptions=True)
         orc.close()
-        backtests.close()
+        await backtests.aclose()
         if terminal_http['client'] is not None and hasattr(terminal_http['client'], 'aclose'):
             await terminal_http['client'].aclose()
 

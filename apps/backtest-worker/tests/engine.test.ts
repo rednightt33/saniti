@@ -315,7 +315,12 @@ test('ranking by lowest RSI(14) and by the 5-bar foreign net', () => {
   const fl = (vals: (i: number) => number) => ({ fnet: Float64Array.from({ length: 30 }, (_, i) => vals(i)), brokers: new Map() });
   const m = market({ AAA: { bars: put(flat(30), 24, { v: 2000 }), flow: fl(i => i === 19 ? 50e9 : i >= 20 ? 3e9 : 0) }, BBB: { bars: put(flat(30), 24, { v: 2000 }), flow: fl(i => i === 22 ? 1e9 : i >= 20 ? 4e9 : 0) } });
   assert.deepEqual(go(m, request(29, q => portfolio(q, 1, 'fnet'), 20)).trades.map(t => t.ticker), ['BBB']);
-  assert.deepEqual(refused(() => go(market({ AAA: { bars: put(flat(30), 24, { v: 2000 }) } }), request(29, q => portfolio(q, 1, 'fnet'), 20))), ['FLOW_UNAVAILABLE', 'portfolio.rank_by']);
+  // a ticker without flow data cannot be ranked by it: left out of the portfolio run (TICKERS_EXCLUDED), never refused
+  const x = go(market({ AAA: { bars: put(flat(30), 24, { v: 2000 }) }, BBB: { bars: put(flat(30), 24, { v: 2000 }), flow: fl(() => 1e9) } }), request(29, q => portfolio(q, 1, 'fnet'), 20));
+  assert.deepEqual(x.trades.map(t => t.ticker), ['BBB']);
+  const w = x.warnings.find(w => w.code === 'TICKERS_EXCLUDED')!;
+  assert.deepEqual([w.count, w.tickers, w.reasons!.map(r => [r.ticker, r.code, r.field])], [1, ['AAA'], [['AAA', 'FLOW_UNAVAILABLE', 'portfolio.rank_by']]]);
+  assert.deepEqual(x.per_ticker_signals.map(t => t.ticker), ['BBB']);
 });
 
 test('ranking by ADX follows the registry I07 adx(14, 14) on the signal bar', () => {
@@ -396,6 +401,83 @@ test('corporate actions with ex-date in (entry, exit] are flagged; warnings for 
   assert.deepEqual(p.benchmark_close, Array(10).fill(7000));
 });
 
+/* ---- what the period and the universe become on the data (lead decisions 2026-10-26) ------------------------- */
+
+const SMA20: Condition = { id: 's', kind: 'indicator', indicator: 'I01', params: { length: 20 }, lhs: { type: 'price' }, op: 'gt', rhs: { type: 'output', output: 'sma' } };
+const FNET10: Condition = { id: 'f', kind: 'flow', type: 'fnet', params: { length: 10 }, op: 'gt', value: 0 };
+/** Flow data on n bars with broker rows on bars [from, to] (foreign net v there, NaN outside), as flow.ts builds it. */
+const flowOf = (n: number, from: number, to: number, v = 1e9) => ({
+  fnet: Float64Array.from({ length: n }, (_, i) => i >= from && i <= to ? v : NaN), brokers: new Map<string, Float64Array>(), from, to, gap_bars: [], unmatched_rows: 0 });
+
+test('single mode: a period that starts before the ticker\'s first bar starts there (PERIOD_CLIPPED); a portfolio keeps its period', () => {
+  const b = flat(10); put(b, 3, { v: 2000 });
+  const m = market({ AAA: { bars: b, dates: DAYS.slice(5, 15) } }, DAYS.slice(0, 15));
+  for (const bench of ['buy_and_hold', 'ihsg'] as const) {
+    const clipped = go(m, request(14, q => { q.single!.benchmark = bench }, 0)), own = go(m, request(14, q => { q.single!.benchmark = bench }, 5));
+    assert.deepEqual(clipped.warnings[0], { code: 'PERIOD_CLIPPED', message: `AAA has no published bar before ${DAYS[5]}: the backtest starts on ${DAYS[5]} instead of the requested ${DAYS[0]}.` });
+    // the run from the first bar, and nothing else changes
+    assert.deepEqual({ ...clipped, warnings: clipped.warnings.slice(1) }, own);
+    assert.deepEqual([clipped.dates[0], clipped.dates.length, clipped.benchmark_close[0]], [DAYS[5], 10, bench === 'ihsg' ? 7000 : 100]);
+    assert.ok(!own.warnings.some(w => w.code === 'PERIOD_CLIPPED'));
+  }
+  assert.deepEqual(only(go(m, request(14))).entry_bar, 4);                      // the signal on AAA's bar 3 (calendar day 3)
+  // a portfolio is not clipped: its calendar starts on the requested day (IHSG's bars)
+  const p = go(m, request(14, q => portfolio(q, 1)));
+  assert.deepEqual([p.dates[0], p.dates.length, p.warnings.some(w => w.code === 'PERIOD_CLIPPED')], [DAYS[0], 15, false]);
+  // a period that ends before the first bar is not clipped: a buy-and-hold benchmark has no close (the worker's
+  // checkPriceRange refuses it first: DATA_MISSING)
+  assert.deepEqual(refused(() => go(m, request(3))), ['PERIOD_BEFORE_DATA', 'period.from']);
+  assert.equal(go(m, request(3, q => { q.single!.benchmark = 'ihsg' })).trades.length, 0);
+  // the primary benchmark without a close on the first calendar day: IHSG starts after a portfolio ticker's first bar
+  const late = market({ AAA: { bars: b } }, DAYS.slice(3, 10));
+  assert.deepEqual(refused(() => go(late, request(9, q => portfolio(q, 1)))), ['PERIOD_BEFORE_DATA', 'period.from']);
+});
+
+test('portfolio: a ticker whose own data cannot serve the strategy is left out (TICKERS_EXCLUDED); single mode still refuses', () => {
+  // IHSG and BBB have no bar on DAYS[10]; AAA (10 bars: SMA(20) has no value) has one, which must not reach the calendar
+  const days = DAYS.slice(0, 30).filter((_, i) => i !== 10), long = flat(29); put(long, 24, { v: 2000 });
+  const shortBars = flat(10); put(shortBars, 3, { v: 2000 });
+  const m = market({ AAA: { bars: shortBars, dates: DAYS.slice(5, 15) }, BBB: { bars: long, dates: days } }, days);
+  m.excluded = [{ ticker: 'CCC', code: 'DATA_MISSING', field: 'CCC.price', message: 'No price file is published for CCC.' }];   // the loader's
+  const r = request(29, q => { portfolio(q, 1); q.entry = { logic: 'any', at_least: 1, window_bars: 1, conditions: [VOL(), SMA20] } }, 0);
+  const l = go(m, r);
+  assert.deepEqual(l.trades.map(t => t.ticker), ['BBB']);
+  assert.deepEqual(l.per_ticker_signals.map(t => t.ticker), ['BBB']);
+  assert.deepEqual(Object.keys(l.events.entries), ['BBB']);
+  assert.deepEqual([l.dates.length, l.dates.includes(DAYS[10])], [29, false]);
+  const w = l.warnings[0];
+  assert.deepEqual([w.code, w.count, w.tickers], ['TICKERS_EXCLUDED', 2, ['AAA', 'CCC']]);
+  assert.deepEqual(w.reasons!.map(x => [x.ticker, x.code, x.field]), [['AAA', 'INDICATOR_OUTPUT_EMPTY', 'entry.conditions[1].rhs'], ['CCC', 'DATA_MISSING', 'CCC.price']]);
+  assert.match(w.reasons![0].message, /entry\.conditions\[1\]/);
+  assert.equal(w.message, '2 ticker(s) of the universe were left out of this run because their own data cannot serve the strategy (1 INDICATOR_OUTPUT_EMPTY, 1 DATA_MISSING); reasons gives the error of each. The run trades the other 1.');
+  // the same run without the left-out tickers gives the same ledger, the warning aside
+  const alone = go(market({ BBB: { bars: long, dates: days } }, days), r);
+  assert.deepEqual({ ...l, warnings: l.warnings.slice(1) }, alone);
+  // flow: a window longer than the bars with broker data (FLOW_OUTPUT_EMPTY), no broker row at all (FLOW_UNAVAILABLE)
+  const fm = market({ DDD: { bars: put(flat(30), 24, { v: 2000 }), flow: flowOf(30, 25, 29) as any }, EEE: { bars: put(flat(30), 24, { v: 2000 }), flow: flowOf(30, 0, 29) as any },
+    FFF: { bars: put(flat(30), 24, { v: 2000 }), flow: flowOf(30, 30, -1) as any } });
+  const fr = request(29, q => { portfolio(q, 1); q.entry.conditions = [VOL(), FNET10] }, 0), fl = go(fm, fr);
+  assert.deepEqual(fl.trades.map(t => t.ticker), ['EEE']);
+  assert.deepEqual(fl.warnings[0].reasons!.map(x => [x.ticker, x.code, x.field]), [['DDD', 'FLOW_OUTPUT_EMPTY', 'entry.conditions[1].params.length'], ['FFF', 'FLOW_UNAVAILABLE', 'entry.conditions[1]']]);
+  // single mode: the same data errors fail the run
+  assert.deepEqual(refused(() => go(m, request(14, q => { q.entry.conditions = [VOL(), SMA20] }, 5))), ['INDICATOR_OUTPUT_EMPTY', 'entry.conditions[1].rhs']);
+  assert.deepEqual(refused(() => go(market({ AAA: { bars: put(flat(30), 24, { v: 2000 }), flow: flowOf(30, 25, 29) as any } }), request(29, q => { q.entry.conditions = [VOL(), FNET10] }))), ['FLOW_OUTPUT_EMPTY', 'entry.conditions[1].params.length']);
+  // a request error fails a portfolio run too
+  assert.deepEqual(refused(() => go(m, request(29, q => { portfolio(q, 1); q.entry.conditions = [VOL(), { ...SMA20, params: { length: 0 } }] }))), ['PARAM_OUT_OF_RANGE', 'entry.conditions[1].params.length']);
+  // every ticker left out, by the run, by the loader or by both: refused, UNIVERSE_EMPTY (lead decision 2026-10-26: no
+  // cash-only result), the message with the count and the reasons by code
+  const empty = (mk: MarketData) => { try { go(mk, r) } catch (e) { assert.ok(e instanceof ValidationError, String(e)); return [e.code, e.field, e.message] } assert.fail('not refused') };
+  const onlyAaa = market({ AAA: { bars: shortBars, dates: DAYS.slice(5, 15) } }, days);
+  const [code, field, message] = empty(onlyAaa);
+  assert.deepEqual([code, field], ['UNIVERSE_EMPTY', 'portfolio.universe']);
+  assert.match(message, /^All 1 ticker\(s\) of the universe were left out because their own data cannot serve the strategy \(1 INDICATOR_OUTPUT_EMPTY\): no ticker is left to trade\. The first is AAA: entry\.conditions\[1\]/);
+  onlyAaa.excluded = m.excluded;
+  assert.match(empty(onlyAaa)[2], /^All 2 ticker\(s\) .* \(1 INDICATOR_OUTPUT_EMPTY, 1 DATA_MISSING\)/);
+  const loaderOnly = market({}, days); loaderOnly.excluded = m.excluded;
+  assert.deepEqual(empty(loaderOnly).slice(0, 2), ['UNIVERSE_EMPTY', 'portfolio.universe']);
+  assert.deepEqual(empty(market({}, days)), ['UNIVERSE_EMPTY', 'portfolio.universe', 'The universe has no ticker to run.']);
+});
+
 /* ---- initial levels and checks ------------------------------------------------------------------------------ */
 
 test('initial levels: ATR stop and target, R target, reward:risk stop, line stop below the fill only', () => {
@@ -471,4 +553,87 @@ test('the signals preview counts the same entry events as the backtest (portfoli
     const p = ctx.tickers.get(row.ticker)!;
     assert.deepEqual({ ticker: row.ticker, ...previewRow(p.calc, p.data.prices.dates, { entry: r.entry }, r.period.from, r.period.to) }, row);
   }
+});
+
+/* ---- review findings 2026-10-26 ------------------------------------------------------------------------------- */
+
+test('no look-ahead through the data checks: a result inside the period never depends on bars after period.to', () => {
+  // BBB lists on DAYS[60]: 20 bars inside a period ending DAYS[79]; ANY of volume above 1,500 (true on BBB's bar 5)
+  // and close above SMA(30), which has no value on BBB before its bar 29 (DAYS[89], after period.to)
+  const D = weekdays(110, '2024-01-01'), sma30: Condition = { id: 's', kind: 'indicator', indicator: 'I01', params: { length: 30 }, lhs: { type: 'price' }, op: 'gt', rhs: { type: 'output', output: 'sma' } };
+  const all = D.slice(60), bb = put(flat(all.length), 5, { v: 2000 });
+  const mk = (bDates: string[]) => {
+    const m = market({ AAA: { bars: flat(110), dates: D }, BBB: { bars: bb.slice(0, bDates.length), dates: bDates } }, D);
+    return m;
+  };
+  const r = (single: boolean) => {
+    const q = request(0, x => { if (!single) portfolio(x, 2); else x.single!.ticker = 'BBB'; x.entry = { logic: 'any', at_least: 1, window_bars: 1, conditions: [VOL(), sma30] } }, 0);
+    q.period = { from: D[single ? 60 : 40], to: D[79], oos_fraction: 0 };
+    return q;
+  };
+  const later = mk(all), asOfTo = mk(all.filter(d => d <= D[79]));
+  // the portfolio leaves BBB out in both: its SMA(30) has no value on its bars up to period.to
+  const a = go(later, r(false)), b = go(asOfTo, r(false));
+  assert.deepEqual(a, b);
+  assert.deepEqual(a.warnings[0].reasons!.map(x => [x.ticker, x.code, x.field]), [['BBB', 'INDICATOR_OUTPUT_EMPTY', 'entry.conditions[1].rhs']]);
+  assert.match(a.warnings[0].reasons![0].message, /up to the end of the period/);
+  // single mode refuses it in both
+  assert.deepEqual(refused(() => go(later, r(true))), ['INDICATOR_OUTPUT_EMPTY', 'entry.conditions[1].rhs']);
+  assert.deepEqual(refused(() => go(asOfTo, r(true))), ['INDICATOR_OUTPUT_EMPTY', 'entry.conditions[1].rhs']);
+  // flow: broker rows only after period.to (FLOW_UNAVAILABLE), or a window that has a value only after it (FLOW_OUTPUT_EMPTY)
+  const fr = (to: number) => request(to, q => { portfolio(q, 1); q.entry = { logic: 'any', at_least: 1, window_bars: 1, conditions: [VOL(), FNET10] } }, 0);
+  const fm = (flow: ReturnType<typeof flowOf>, n = 40) => market({ AAA: { bars: put(flat(n), 24, { v: 2000 }), flow: flowOf(n, 0, n - 1) as any }, DDD: { bars: put(flat(n), 24, { v: 2000 }), flow: flow as any } });
+  const codes = (l: Ledger) => l.warnings[0].reasons!.map(x => [x.ticker, x.code]);
+  assert.deepEqual(codes(go(fm(flowOf(40, 32, 39)), fr(29))), [['DDD', 'FLOW_UNAVAILABLE']]);
+  assert.deepEqual(go(fm(flowOf(40, 32, 39)), fr(29)), go(fm(flowOf(30, 30, -1), 30), fr(29)));         // cut at period.to: no row
+  assert.deepEqual(codes(go(fm(flowOf(40, 25, 39)), fr(29))), [['DDD', 'FLOW_OUTPUT_EMPTY']]);
+  assert.deepEqual(go(fm(flowOf(40, 25, 39)), fr(29)), go(fm(flowOf(30, 25, 29), 30), fr(29)));
+  // a series with a value up to period.to is evaluated as before
+  assert.deepEqual(go(fm(flowOf(40, 15, 39)), fr(29)).trades.map(t => t.ticker), ['AAA']);
+});
+
+test('DATA_GAP counts each (ticker, calendar day) once: a missing day after an event while the ticker is held', () => {
+  // AAA bought on DAYS[4]; while held its entry state switches on again on DAYS[6]; AAA has no bar on DAYS[7]
+  const dates = DAYS.slice(0, 12).filter(d => d !== DAYS[7]), b = flat(dates.length); put(b, 3, { v: 2000 }); put(b, 6, { v: 2000 });
+  const l = go(market({ AAA: { bars: b, dates } }, DAYS.slice(0, 12)), request(11));
+  assert.equal(only(l).flags.stale_mark, true);
+  assert.deepEqual(l.events.skipped.map(s => [s.signal_date, s.reason]), [[DAYS[6], 'no_next_bar']]);
+  const w = l.warnings.find(x => x.code === 'DATA_GAP')!;
+  assert.deepEqual([w.count, w.tickers], [1, ['AAA']]);
+});
+
+test('whole lots never cost more than the budget: no cash below 0, no exposure above 1 (no leverage)', () => {
+  // 50 x 20,600 x (1 + 0.0015) is 1,031,545 in decimals, but 1 + 0.0015 is above 1.0015 in binary: 20,600 shares cost
+  // 1,031,545.0000000000585 in exact arithmetic on the request's numbers, more than the capital; 205 lots fit
+  const b = flat(10, 50); put(b, 3, { v: 2000 });
+  const l = go(market({ AAA: { bars: b } }), request(9, q => { q.sizing.capital_idr = 1_031_545; q.costs.buy_fee = 0.0015 }));
+  const t = only(l);
+  assert.equal(t.shares, 20500);
+  assert.equal(t.cost_idr, 50 * 20500 * (1 + 0.0015));
+  assert.ok(1_031_545 - t.cost_idr >= 0);
+  assert.ok(l.exposure.every(x => x <= 1), String(Math.max(...l.exposure)));
+  // where the division is exact the formula is unchanged: 1,000,000 at 50 without fees buys 200 lots, cash 0
+  const u = only(go(market({ AAA: { bars: b } }), request(9, q => { q.sizing.capital_idr = 1_000_000 })));
+  assert.deepEqual([u.shares, u.cost_idr], [20000, 1_000_000]);
+});
+
+test('MAE / MFE of a position sold at the open: the raw open, as the bar range is raw (slippage is in the exit price only)', () => {
+  const b = flat(10); put(b, 3, { v: 2000 }); put(b, 5, { v: 100 }); b[6] = bar(90, 90, 90, 90);
+  const t = only(go(market({ AAA: { bars: b } }), request(9, q => { q.costs.slippage = 0.02; q.exit.signals.conditions = [QUIET()] })));
+  assert.deepEqual([t.exit_reason, t.exit_phase, t.entry_price, t.exit_price], ['exit_signal', 'open', 100 * (1 + 0.02), 90 * (1 - 0.02)]);
+  assert.equal(t.mae, 90 / t.entry_price - 1);
+  assert.equal(t.mfe, 0);                                         // no price above the fill
+});
+
+test('portfolio ranking: a candidate without a score on its signal bar ranks after every scored one, then by ticker', () => {
+  // rank_by rsi (lowest RSI first): AAA has RSI(14) 100 on its signal bar; BBB lists 5 bars before it (RSI warm-up)
+  const up = Array.from({ length: 30 }, (_, i) => bar(100 + i, 100 + i, 100 + i, 100 + i)); put(up, 24, { v: 2000 });
+  const late = put(flat(10), 4, { v: 2000 });
+  const m = market({ AAA: { bars: up }, BBB: { bars: late, dates: DAYS.slice(20, 30) } });
+  const l = go(m, request(29, q => portfolio(q, 1, 'rsi'), 20));
+  assert.deepEqual(l.trades.map(t => t.ticker), ['AAA']);
+  assert.deepEqual(l.events.skipped.map(s => [s.ticker, s.reason]), [['BBB', 'no_slot']]);
+  // two unscored candidates: by ticker
+  const n = go(market({ AAA: { bars: late, dates: DAYS.slice(20, 30) }, BBB: { bars: late, dates: DAYS.slice(20, 30) } }), request(29, q => portfolio(q, 1, 'rsi'), 20));
+  assert.deepEqual(n.trades.map(t => t.ticker), ['AAA']);
 });

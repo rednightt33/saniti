@@ -196,7 +196,14 @@ export interface Sensitivity {
   y_key: 'stop_pct' | 'stop_atr_mult' | 'stop_reward_risk_x' | 'max_hold_bars';
   ys: number[]; ys_display: number[];
   base_x: number; base_y: number;    // the run's own settings (wire units)
-  cells: (SensitivityCell | null)[][];   // cells[y][x]; null: a threshold the condition refuses (volspike 2 - 2 = 0), not run
+  cells: (SensitivityCell | null)[][];   // cells[y][x]; null: a threshold the condition refuses (volspike 1 - 2 = -1), not run
+}
+
+/** A note on how the run was made (meta.warnings). count and tickers where it concerns tickers; reasons only in
+    TICKERS_EXCLUDED: why each left-out ticker of a portfolio universe could not be run (the error it gave). */
+export interface Warning {
+  code: string; message: string; count?: number; tickers?: string[];
+  reasons?: { ticker: string; code: string; field?: string; message: string }[];
 }
 
 export interface BacktestResult {
@@ -208,10 +215,10 @@ export interface BacktestResult {
     lineage_key: string;             // the strategy line for trial counting (K3)
     seed: number; duration_ms: number;
     mode: 'single' | 'portfolio';
-    tickers: string[];               // single: [ticker]; portfolio: the universe the run used
+    tickers: string[];               // single: [ticker]; portfolio: the universe's tickers the run ran on (TICKERS_EXCLUDED lists the others)
     benchmark: { kind: 'buy_and_hold' | 'ihsg'; ticker: string };
     data_through: string;            // the latest published bar the run could see
-    warnings: { code: string; message: string; count?: number; tickers?: string[] }[];
+    warnings: Warning[];             // PERIOD_CLIPPED, TICKERS_EXCLUDED, DATA_GAP, ADJUSTED_HISTORY_BOUNDARY, ARB_NOT_MODELLED, TICK_NOT_MODELLED, SURVIVORSHIP
     trials: {
       prior: number; this_run: number; total: number;
       /** The distinct variants this run evaluated (the run itself and the sensitivity cells), which edge-bff records
@@ -258,6 +265,20 @@ export interface BacktestResult {
   };
 }
 
+/** One ticker's events of a finished run, as edge-bff stores them apart from the rest (CONTRACT.md section 9, part
+    events:<ticker>) and answers them on GET /api/v1/backtests/{id}/events?ticker=: that ticker's condition tracks and
+    its exit-signal track (exits has that ticker only). */
+export interface TickerEvents {
+  conditions: BacktestResult['events']['conditions'];
+  exits: BacktestResult['events']['exits'];
+}
+/** GET /api/v1/backtests/{id}/result: the BacktestResult without events.conditions and events.exits (edge-bff's part
+    core). A single run has its ticker's TickerEvents merged back, so both are there; a portfolio run has neither, and
+    the page asks /events per ticker. */
+export type BacktestResultCore = Omit<BacktestResult, 'events'> & {
+  events: Omit<BacktestResult['events'], 'conditions' | 'exits'> & Partial<TickerEvents>;
+};
+
 /* ------------------------------------------------------------------------------------------------------------ */
 /* jobs and errors (edge-bff relays these; the worker's private API uses the same shapes)                       */
 /* ------------------------------------------------------------------------------------------------------------ */
@@ -281,7 +302,9 @@ export interface SignalsPreviewRequest {
 }
 export interface SignalsPreview {
   data_version: string;
-  rows: { ticker: string; entry_signals: number; last_signal: string | null }[];
+  rows: { ticker: string; entry_signals: number; last_signal: string | null }[];   // the universe's tickers that are counted, ticker order
+  warnings: Warning[];             // TICKERS_EXCLUDED, as the run's: the tickers left out (no published files, or their own
+                                   // data cannot serve the entry rule); every ticker left out is UNIVERSE_EMPTY, not a preview
 }
 
 /** GET catalog: what the page may offer (built by the worker from its registry, catalog.ts and the published data). */
@@ -289,12 +312,18 @@ export interface Catalog {
   schema_version: 1; engine_version: string; registry_version: string;
   data_through: string;                                  // IHSG's latest published bar
   first_date: string;                                    // IHSG's first published bar
-  tickers: { ticker: string; name: string; type: string; sector: string | null }[];
+  tickers: { ticker: string; name: string | null; type: string; sector: string | null }[];   // name null: the source has none
   universes: { id: string; label: string; tickers: number }[];
-  flow: { available: boolean; reason: string | null; brokers: string[] };
+  flow: {
+    available: boolean; reason: string | null; brokers: string[];
+    data_through: string | null;                         // the newest broker data_through of the stocks' manifests: the last day a
+                                                         // flow run can reach (period.to after it: FLOW_DATA_THROUGH); null while flow is off
+  };
   limits: Limits;
 }
 export interface Limits {
   max_positions: number; window_bars: { min: number; max: number }; monte_carlo_runs: number;
   max_download_bytes: number; max_broker_rows: number; timeout_seconds: number; queued_per_owner: number;
+  max_conditions: number;                                // enabled conditions one list may have (entry.conditions,
+                                                         // exit.signals.conditions); more is LIMIT_EXCEEDED
 }

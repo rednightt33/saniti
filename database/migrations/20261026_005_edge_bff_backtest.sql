@@ -69,9 +69,11 @@ CREATE TABLE edge_bff.backtest_results (
 CREATE INDEX backtest_results_created ON edge_bff.backtest_results(created_at);
 
 -- Trials per owner and strategy line (K3): every distinct variant a finished run evaluated (the run itself and its
--- sensitivity cells) with its daily Sharpe; passed to the worker as prior_trials for the next run of the same line.
--- Never reset; the first recorded Sharpe of a variant is kept. request_id names the run that recorded it (no foreign
--- key: trials outlive their job rows).
+-- sensitivity cells) with its daily Sharpe, as the run's meta.trials.variants gives them; passed to the worker as
+-- prior_trials for the next run of the same line, in first-recorded order (recorded_seq). Never reset. A run that
+-- evaluates a recorded variant again replaces its Sharpe, kind and request_id (the worker's trial set takes that run's
+-- Sharpe, robustness.ts trialSet) and leaves its recorded_seq and created_at. request_id names the run whose values the
+-- row holds (no foreign key: trials outlive their job rows).
 CREATE TABLE edge_bff.backtest_trials (
     owner_key text NOT NULL,
     lineage_key text NOT NULL CHECK (lineage_key ~ '^[0-9a-f]{64}$'),
@@ -80,28 +82,47 @@ CREATE TABLE edge_bff.backtest_trials (
                                                   AND sharpe_daily < 'Infinity'::double precision),
     kind text NOT NULL CHECK (kind IN ('run','sensitivity')),
     request_id text NOT NULL CHECK (request_id ~ '^bt_[0-9a-f]{32}$'),
+    recorded_seq bigint GENERATED ALWAYS AS IDENTITY,
     created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (owner_key, lineage_key, variant_hash)
+    updated_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (owner_key, lineage_key, variant_hash),
+    UNIQUE (recorded_seq)
 );
 
 COMMENT ON TABLE edge_bff.backtest_jobs IS 'EDGE backtest jobs: the request as submitted, state, progress and versions; never market data or the result.';
 COMMENT ON COLUMN edge_bff.backtest_jobs.request IS 'The BacktestRequest as the page sent it (contract.ts), without client_request_id; handed to the worker unchanged.';
 COMMENT ON COLUMN edge_bff.backtest_jobs.submission_key IS 'client_request_id of the submission (generated when absent): the same key returns the same job.';
-COMMENT ON COLUMN edge_bff.backtest_jobs.error IS 'ApiError.error of a FAILED job: the worker''s error, or WORKER_LOST / TIMEOUT / RESULT_INVALID set by edge-bff.';
+COMMENT ON COLUMN edge_bff.backtest_jobs.error IS 'ApiError.error of a FAILED job: the worker''s error, or WORKER_LOST / TIMEOUT / RESULT_INVALID / LIMIT_EXCEEDED set by edge-bff.';
 COMMENT ON COLUMN edge_bff.backtest_jobs.result_bytes IS 'Sum of the stored gzip parts (edge_bff.backtest_results.bytes) of a FINISHED job.';
 COMMENT ON COLUMN edge_bff.backtest_jobs.duration_ms IS 'The worker''s own compute time (result meta.duration_ms, or its job status).';
 COMMENT ON TABLE edge_bff.backtest_results IS 'Gzip JSON parts of a finished backtest result per (request_id, part); deleted after 30 days.';
 COMMENT ON TABLE edge_bff.backtest_trials IS 'K3 trial count: distinct variants per owner and lineage with their daily Sharpe; never reset.';
+COMMENT ON COLUMN edge_bff.backtest_trials.sharpe_daily IS 'The variant''s daily Sharpe as the latest run that evaluated it reported it (meta.trials.variants).';
+COMMENT ON COLUMN edge_bff.backtest_trials.recorded_seq IS 'Identity (generated always): the first-recorded order, kept when a later run reports the variant again; JobContext.prior_trials follow it.';
+COMMENT ON COLUMN edge_bff.backtest_trials.updated_at IS 'When a run last wrote sharpe_daily, kind and request_id.';
 
+-- Each table gets what edge-bff (apps/edge-bff/app/backtest.py) does to it and no more: jobs are inserted and updated,
+-- never deleted; result parts are inserted, read and deleted after 30 days, never updated; trials are inserted and
+-- updated (INSERT ... ON CONFLICT DO UPDATE), never deleted (K3: the trial count is never reset).
 REVOKE ALL ON edge_bff.backtest_jobs, edge_bff.backtest_results, edge_bff.backtest_trials FROM PUBLIC;
-GRANT SELECT, INSERT, UPDATE, DELETE ON edge_bff.backtest_jobs, edge_bff.backtest_results, edge_bff.backtest_trials
-    TO edge_bff_runtime;
+GRANT SELECT, INSERT, UPDATE ON edge_bff.backtest_jobs TO edge_bff_runtime;
+GRANT SELECT, INSERT, DELETE ON edge_bff.backtest_results TO edge_bff_runtime;
+GRANT SELECT, INSERT, UPDATE ON edge_bff.backtest_trials TO edge_bff_runtime;
 DO $verify$
 BEGIN
-    IF NOT (has_table_privilege('edge_bff_runtime', 'edge_bff.backtest_jobs', 'SELECT, INSERT, UPDATE, DELETE')
-            AND has_table_privilege('edge_bff_runtime', 'edge_bff.backtest_results', 'SELECT, INSERT, UPDATE, DELETE')
-            AND has_table_privilege('edge_bff_runtime', 'edge_bff.backtest_trials', 'SELECT, INSERT, UPDATE, DELETE')) THEN
+    -- one privilege per call: has_table_privilege with a list is true when any one of them is held
+    IF EXISTS (SELECT 1 FROM (VALUES ('backtest_jobs', 'SELECT'), ('backtest_jobs', 'INSERT'), ('backtest_jobs', 'UPDATE'),
+                                     ('backtest_results', 'SELECT'), ('backtest_results', 'INSERT'), ('backtest_results', 'DELETE'),
+                                     ('backtest_trials', 'SELECT'), ('backtest_trials', 'INSERT'), ('backtest_trials', 'UPDATE'))
+                    AS needed(tbl, privilege)
+               WHERE NOT has_table_privilege('edge_bff_runtime', 'edge_bff.' || tbl, privilege)) THEN
         RAISE EXCEPTION 'edge_bff_runtime cannot use the backtest tables';
+    END IF;
+    -- and nothing else (a list is true when any one of them is held): TRUNCATE would empty the trials as DELETE would
+    IF has_table_privilege('edge_bff_runtime', 'edge_bff.backtest_jobs', 'DELETE, TRUNCATE, REFERENCES, TRIGGER')
+       OR has_table_privilege('edge_bff_runtime', 'edge_bff.backtest_results', 'UPDATE, TRUNCATE, REFERENCES, TRIGGER')
+       OR has_table_privilege('edge_bff_runtime', 'edge_bff.backtest_trials', 'DELETE, TRUNCATE, REFERENCES, TRIGGER') THEN
+        RAISE EXCEPTION 'edge_bff_runtime has more than the backtest tables need';
     END IF;
     IF has_table_privilege('public', 'edge_bff.backtest_jobs', 'SELECT') THEN
         RAISE EXCEPTION 'PUBLIC can read edge_bff.backtest_jobs';

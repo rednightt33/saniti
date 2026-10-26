@@ -11,9 +11,12 @@ import { fileURLToPath } from 'node:url';
 import { DataError, brokerGaps, brokerRows, corporateActions, dataVersion, priceSeries } from '../../edge-bff/backtest/src/core/datafile.ts';
 import type { Columnar } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { flowData } from '../../edge-bff/backtest/src/core/flow.ts';
-import { TerminalClient, checkDataThrough, checkPriceRange, optionsFromEnv } from '../src/terminal.ts';
+import http from 'node:http';
+import type net from 'node:net';
+import { describeConfig, loadConfig } from '../src/config.ts';
+import { TerminalClient, checkDataThrough, checkPriceRange, fileOriginOf, optionsFromEnv } from '../src/terminal.ts';
 import type { TerminalOptions } from '../src/terminal.ts';
-import { EVENT_COLUMNS, brokerArchive, brokerDoc, brokersRef, encode, eventsDoc, priceDoc, pricePack, startFakeTerminal, tickersRef } from './fake-terminal.mjs';
+import { EVENT_COLUMNS, brokerArchive, brokerDoc, brokersRef, encode, eventsDoc, priceDoc, pricePack, pyJson, startFakeTerminal, tickersRef } from './fake-terminal.mjs';
 
 const KEY = 'test-proxy-key-'.padEnd(48, 'x');
 const json = (doc: object) => JSON.parse(JSON.stringify(doc)) as Columnar;
@@ -59,7 +62,7 @@ const REFS = { tickers: tickersRef([['BBCA', 'Bank Central Asia', 'stock', 'Fina
 let fake: Awaited<ReturnType<typeof startFakeTerminal>>;
 const logs: unknown[] = [];
 const options = (extra: Partial<TerminalOptions> = {}): TerminalOptions => ({ url: fake.url, proxyKey: KEY, cacheBytes: 50_000_000, concurrency: 4, retries: 2, retryBaseMs: 1, timeoutMs: 5000,
-  log: (event, fields) => { logs.push({ event, ...fields }) }, ...extra });
+  fileOrigin: fake.url, maxFileBytes: 10_000_000, log: (event, fields) => { logs.push({ event, ...fields }) }, ...extra });
 const bucketGets = (from = 0) => fake.requests.slice(from).filter(r => r.path.startsWith('/bucket/'));
 before(async () => { fake = await startFakeTerminal({ key: KEY, tickers: MARKET, refs: REFS }) });
 after(() => fake.close());
@@ -186,7 +189,7 @@ test('files are cached by sha256: a second load downloads nothing, a new client 
 test('at most `concurrency` requests are in flight', async () => {
   const slow = await startFakeTerminal({ key: KEY, tickers: MARKET, delayMs: 15 });
   try {
-    const c = new TerminalClient({ ...options(), url: slow.url, concurrency: 2 });
+    const c = new TerminalClient({ ...options(), url: slow.url, fileOrigin: slow.url, concurrency: 2 });
     const r = await c.loadTickers(['T1', 'T2', 'T3', 'T4', 'T5', 'T6'], ['price']);
     assert.deepEqual(Object.keys(r.tickers), ['T1', 'T2', 'T3', 'T4', 'T5', 'T6']);
     assert.ok(slow.inflight.max <= 2 && slow.inflight.max >= 1, `max in flight ${slow.inflight.max}`);
@@ -213,9 +216,10 @@ test('the proxy key and the presigned URLs never appear in an error message, its
 
 test('optionsFromEnv reads every setting and assumes none', () => {
   const env = { TERMINAL_URL: 'http://terminal-api.railway.internal:8080/', TERMINAL_PROXY_KEY: KEY, BACKTEST_CACHE_BYTES: '200000000', BACKTEST_DOWNLOAD_CONCURRENCY: '6',
-    BACKTEST_DOWNLOAD_RETRIES: '3', BACKTEST_RETRY_BASE_MS: '250', BACKTEST_HTTP_TIMEOUT_MS: '30000' };
+    BACKTEST_DOWNLOAD_RETRIES: '3', BACKTEST_RETRY_BASE_MS: '250', BACKTEST_HTTP_TIMEOUT_MS: '30000', BACKTEST_FILE_ORIGIN: 'https://*.t3.storageapi.dev',
+    BACKTEST_MAX_FILE_BYTES: '50000000' };
   assert.deepEqual(optionsFromEnv(env), { url: 'http://terminal-api.railway.internal:8080', proxyKey: KEY, cacheBytes: 200000000, cacheDir: undefined, cacheDirBytes: undefined,
-    concurrency: 6, retries: 3, retryBaseMs: 250, timeoutMs: 30000 });
+    concurrency: 6, retries: 3, retryBaseMs: 250, timeoutMs: 30000, fileOrigin: 'https://*.t3.storageapi.dev', maxFileBytes: 50000000 });
   assert.equal(optionsFromEnv({ ...env, BACKTEST_CACHE_DIR: '/data/cache', BACKTEST_CACHE_DIR_BYTES: '1000' }).cacheDirBytes, 1000);
   for (const k of Object.keys(env)) {
     const { [k]: _, ...rest } = env as Record<string, string>;
@@ -224,6 +228,108 @@ test('optionsFromEnv reads every setting and assumes none', () => {
   assert.throws(() => optionsFromEnv({ ...env, BACKTEST_CACHE_DIR: '/data/cache' }), /BACKTEST_CACHE_DIR_BYTES/);
   assert.throws(() => optionsFromEnv({ ...env, BACKTEST_DOWNLOAD_CONCURRENCY: '0' }), /BACKTEST_DOWNLOAD_CONCURRENCY/);
   assert.throws(() => optionsFromEnv({ ...env, TERMINAL_URL: 'http://terminal-api/api/terminal/v1' }), /TERMINAL_URL/);
+});
+
+/* ---- what the client accepts (review findings 2026-10-26: SEC-2, SEC-7, SEC-8) ---------------------------------------- */
+const ENV_ALL = { TERMINAL_URL: 'http://terminal-api.railway.internal:8080', TERMINAL_PROXY_KEY: KEY, BACKTEST_CACHE_BYTES: '0', BACKTEST_DOWNLOAD_CONCURRENCY: '1',
+  BACKTEST_DOWNLOAD_RETRIES: '0', BACKTEST_RETRY_BASE_MS: '0', BACKTEST_HTTP_TIMEOUT_MS: '1000', BACKTEST_FILE_ORIGIN: 'https://*.t3.storageapi.dev', BACKTEST_MAX_FILE_BYTES: '1000' };
+
+test('TERMINAL_URL with a user name or password is refused without its value; the start log names the origin only (SEC-7)', () => {
+  for (const url of ['http://user:s3cretpass@terminal-api.railway.internal:8080', 'http://s3cretpass@terminal-api.railway.internal:8080', 'http://:s3cretpass@terminal-api.railway.internal:8080'])
+    assert.throws(() => optionsFromEnv({ ...ENV_ALL, TERMINAL_URL: url }), (e: Error) => /TERMINAL_URL must not contain a user name or password/.test(e.message) && !e.message.includes('s3cretpass'), url);
+  const cfg = loadConfig({ ...ENV_ALL, BACKTEST_WORKER_KEY: 'w'.repeat(32), BACKTEST_MAX_DOWNLOAD_BYTES: '1', BACKTEST_MAX_BROKER_ROWS: '1', BACKTEST_TIMEOUT_SECONDS: '1',
+    BACKTEST_MAX_CONDITIONS: '1', BACKTEST_MAX_RESULT_BYTES: '1' });
+  assert.equal((describeConfig(cfg).terminal as { origin: string }).origin, 'http://terminal-api.railway.internal:8080');
+  // whatever a URL holds, the log has its origin: no user name, password, path or query
+  const text = JSON.stringify(describeConfig({ ...cfg, terminal: { ...cfg.terminal, url: 'http://user:s3cretpass@terminal-api.railway.internal:8080' } }));
+  assert.ok(!text.includes('s3cretpass') && !text.includes('user@') && !text.includes(KEY), text);
+});
+
+test('fileOriginOf: scheme, host and port as a CSP host-source; every other URL is off the bucket origin (SEC-8)', () => {
+  const on = fileOriginOf('https://*.t3.storageapi.dev')!;
+  for (const u of ['https://abc.t3.storageapi.dev/k.json.gz?X-Amz-Signature=1', 'https://a.b.t3.storageapi.dev/k', 'https://abc.t3.storageapi.dev:443/k', 'https://ABC.t3.storageapi.dev/k'])
+    assert.ok(on(u), u);
+  for (const u of ['http://abc.t3.storageapi.dev/k', 'https://t3.storageapi.dev/k', 'https://abc.t3.storageapi.dev.evil.example/k', 'https://evilt3.storageapi.dev/k',
+    'https://abc.t3.storageapi.dev:8443/k', 'https://user:pw@abc.t3.storageapi.dev/k', 'https://abc.t3.storageapi.dev./k', 'https://127.0.0.1/k',
+    'http://169.254.169.254/latest/meta-data/', 'file:///etc/passwd', 'not a url'])
+    assert.ok(!on(u), u);
+  const local = fileOriginOf('http://127.0.0.1:9000')!;
+  assert.ok(local('http://127.0.0.1:9000/bucket/v1/x'));
+  for (const u of ['http://127.0.0.1:9001/x', 'http://127.0.0.1/x', 'http://localhost:9000/x', 'https://127.0.0.1:9000/x']) assert.ok(!local(u), u);
+  for (const p of ['', 'https://', '*.t3.storageapi.dev', 'https://*.t3.storageapi.dev/', 'https://*.T3.storageapi.dev', 'https://*', 'ftp://x.example', 'https://a.*.example',
+    'https://x.example:0', 'https://x.example:70000', 'https://user@x.example'])
+    assert.equal(fileOriginOf(p), null, p);
+  assert.throws(() => optionsFromEnv({ ...ENV_ALL, BACKTEST_FILE_ORIGIN: 'https://*.t3.storageapi.dev/path' }), /BACKTEST_FILE_ORIGIN/);
+  assert.throws(() => new TerminalClient(options({ fileOrigin: 'anything' })), /fileOrigin/);
+});
+
+test('a file or reference URL off the bucket origin is DATA_INTEGRITY and never requested (SEC-8)', async () => {
+  const hits: string[] = [];
+  const internal = http.createServer((req, res) => { hits.push(req.url ?? ''); res.end('{}') });
+  await new Promise<void>(ok => internal.listen(0, '127.0.0.1', ok));
+  const inside = `http://127.0.0.1:${(internal.address() as net.AddressInfo).port}`;
+  const evil = await startFakeTerminal({ key: KEY, tickers: { EVIL: { datasets: { price: price('EVIL', P2026, { url: `${inside}/internal-admin?x=1` }) } } }, refs: REFS });
+  try {
+    // a /bundle answer naming another host or port of the private network
+    const c = new TerminalClient(options({ url: evil.url, fileOrigin: evil.url }));
+    await assert.rejects(c.loadTicker('EVIL', ['price']), (e: unknown) => code('DATA_INTEGRITY', 'EVIL')(e) && /not on the bucket origin/.test((e as Error).message));
+    assert.deepEqual(hits, [], 'the internal address is never contacted');
+    // every file and reference URL of a terminal-api whose bucket is not the configured one
+    const other = new TerminalClient(options({ fileOrigin: 'https://*.t3.storageapi.dev' })), n = fake.requests.length;
+    await assert.rejects(other.loadTicker('T1', ['price']), code('DATA_INTEGRITY', 'T1'));
+    await assert.rejects(other.reference('tickers'), code('DATA_INTEGRITY', 'tickers'));
+    assert.deepEqual(fake.requests.slice(n).map(q => q.path), ['/api/terminal/v1/bundle', '/api/terminal/v1/reference/tickers'], 'no bucket request');
+  } finally { await evil.close(); internal.closeAllConnections(); await new Promise(ok => internal.close(ok)) }
+});
+
+test('a body is read as a stream and dropped at its cap: a data file at its manifest bytes, an answer at maxFileBytes (SEC-2)', async () => {
+  const CHUNK = 65536, CHUNKS = 200;
+  let pulled = 0, cancelled = 0;
+  const long = (status: number) => new Response(new ReadableStream<Uint8Array>({
+    pull(c) { if (++pulled > CHUNKS) c.close(); else c.enqueue(new Uint8Array(CHUNK)) }, cancel() { cancelled++ },
+  }), { status });
+  const via = (pick: (url: string) => number | null): typeof fetch => (async (url: string | URL | Request, init?: RequestInit) => {
+    const status = pick(String(url));
+    return status === null ? fetch(url, init) : long(status);
+  }) as typeof fetch;
+  // a data file far longer than its manifest says: DATA_INTEGRITY once it passes the manifest bytes
+  const file = new TerminalClient(options({ fetch: via(u => u.includes('/bucket/') && u.includes('/T4/') ? 200 : null) }));
+  await assert.rejects(file.loadTicker('T4', ['price']), (e: unknown) => code('DATA_INTEGRITY', 'T4.price')(e) && /more than the \d+ bytes its manifest says/.test((e as Error).message));
+  assert.ok(pulled <= 3 && cancelled === 1, `pulled ${pulled} of ${CHUNKS} chunks, cancelled ${cancelled}`);
+  // an error answer of the bucket, and a terminal-api answer, longer than maxFileBytes: DATA_UNAVAILABLE, not retried
+  for (const [pick, what] of [[(u: string) => u.includes('/bucket/') && u.includes('/T5/') ? 503 : null, 'T5.price'], [(u: string) => u.includes('/bundle') ? 200 : null, 'T5']] as const) {
+    pulled = 0; cancelled = 0;
+    const c = new TerminalClient(options({ maxFileBytes: CHUNK * 2, fetch: via(pick) }));
+    await assert.rejects(c.loadTicker('T5', ['price']), (e: unknown) => code('DATA_UNAVAILABLE', what)(e) && /more than 131072 bytes/.test((e as Error).message));
+    assert.ok(pulled <= 4 && cancelled === 1 && c.stats.retries === 0, `${what}: pulled ${pulled}, cancelled ${cancelled}, retries ${c.stats.retries}`);
+  }
+  // a declared length over the cap is refused before the body is read
+  pulled = 0;
+  const declared = new TerminalClient(options({ maxFileBytes: 10, fetch: (async () => new Response('x'.repeat(11), { status: 200, headers: { 'content-length': '11' } })) as typeof fetch }));
+  await assert.rejects(declared.reference('tickers'), code('DATA_UNAVAILABLE', 'tickers'));
+});
+
+test('a reference file or a data file inflates to at most maxFileBytes, a reference download is at most maxFileBytes (SEC-2)', async () => {
+  // a reference list and a price file that inflate about 20-fold, as a small file that inflates to a large one would
+  const day = (k: number) => new Date(Date.UTC(2000, 0, 3) + k * 86400000).toISOString().slice(0, 10);
+  const big = tickersRef(Array.from({ length: 3000 }, (_, k) => [`T${k}`, `Ticker number ${k}`, 'stock', 'Sector A']));
+  const rows = Array.from({ length: 3000 }, (_, k) => bar(day(k), 100));
+  const doc = priceDoc('BIGP', 2000, rows);
+  const refGz = encode(big).body.length, refJson = Buffer.byteLength(pyJson(big)), fileJson = Buffer.byteLength(pyJson(doc));
+  assert.ok(refJson > 5 * refGz, `${refGz} -> ${refJson}`);
+  const bigFake = await startFakeTerminal({ key: KEY, tickers: { BIGP: { datasets: { price: { data_through: day(2999), first_year: 2000, files: [{ year: 2000, doc }] } } } }, refs: { tickers: big } });
+  try {
+    const client = (maxFileBytes: number) => new TerminalClient(options({ url: bigFake.url, fileOrigin: bigFake.url, maxFileBytes, cacheBytes: 0 }));
+    const err = (details: Record<string, number>) => (e: unknown) => code('DATA_INTEGRITY')(e) && (assert.deepEqual((e as DataError).details, details), true);
+    // the download over the cap: refused while it arrives
+    await assert.rejects(client(refGz - 1).reference('tickers'), err({ max_file_bytes: refGz - 1 }));
+    // the download within the cap, the inflated document over it: inflating stops there
+    await assert.rejects(client(refGz).reference('tickers'), err({ max_inflated_bytes: refGz }));
+    assert.equal((await client(refJson).reference('tickers')).length, 3000);
+    // a data file (its download is capped by its manifest bytes): the inflated document at most maxFileBytes
+    await assert.rejects(client(fileJson - 1).loadTicker('BIGP', ['price']), (e: unknown) => err({ max_inflated_bytes: fileJson - 1 })(e) && (e as DataError).field === 'BIGP.price');
+    assert.equal((await client(fileJson).loadTicker('BIGP', ['price'])).prices!.dates.length, 3000);
+  } finally { await bigFake.close() }
 });
 
 /* CONTRACT.md section 1: the worker has no Postgres credentials and reads market data only through terminal-api */

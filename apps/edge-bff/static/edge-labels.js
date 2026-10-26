@@ -127,5 +127,7 @@ window.EdgeLabels = {
     retry:"Retry", changeModel:"Change model"
   },
   // EXEC-TERMINAL-API T3: the Terminal tab next to Monitor
-  terminal: { nav:"Terminal", frameTitle:"Financial terminal" }
+  terminal: { nav:"Terminal", frameTitle:"Financial terminal" },
+  // EDGE backtest (CONTRACT.md section 10): the Backtest tab next to Terminal
+  backtest: { nav:"Backtest", frameTitle:"Backtest" }
 };

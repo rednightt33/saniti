@@ -5,7 +5,7 @@
 import type { BacktestRequest, Condition, MonteCarlo, Sensitivity, SensitivityCell } from './contract.ts';
 import type { Ledger, LedgerTrade } from './ledger.ts';
 import { displayScale, threshold, withThreshold } from './catalog.ts';
-import { PRICE_ACTION } from './conditions.ts';
+import { thresholdAccepted } from './conditions.ts';
 import { dsr, finiteOrNull, profitFactor, quant, seriesStats, tradeStats } from './stats.ts';
 import type { SeriesStatsRaw } from './stats.ts';
 
@@ -100,12 +100,11 @@ const GRID_Y: Record<'pct' | 'atr' | 'rr' | 'hold', { key: YKey; step: number; m
 };
 const gridY = (q: BacktestRequest) => { const m = q.exit.stop.mode; return GRID_Y[m === 'pct' || m === 'atr' || m === 'rr' ? m : 'hold'] };
 
-/** Whether conditions.ts accepts this threshold: a price-action value must lie above the bound of what it measures
-    (dip > -1, volume ratio > 0). The page's grid can step past it (volspike 2 → 0); such a cell is not run. */
+/** Whether conditions.ts accepts this threshold: a price-action value must lie inside what it measures
+    (conditions.ts PRICE_ACTION: dip > -1, volume ratio >= 0). The page's grid can step past it (volspike 1 → -1);
+    such a cell is not run. */
 function accepted(c: Condition, value: number): boolean {
-  if (c.kind !== 'price_action') return true;
-  const spec = PRICE_ACTION[c.type]?.value;
-  return !spec || value > spec.above;
+  return c.kind !== 'price_action' || thresholdAccepted(c.type, value);
 }
 
 export interface SensitivityPlan {

@@ -7,7 +7,7 @@
    and assertFiniteJson refuses a result that would still carry NaN or ±Infinity.
    Pure module: no DOM and no Node API. */
 import type { AnnualRow, BacktestResult, DrawdownPeriod, ExitReason, MonthlyRow, Sensitivity, SensitivityCell, Trade, WeekdayRow } from './contract.ts';
-import type { CellRun, Ledger, LedgerTrade, ResultInput } from './ledger.ts';
+import type { Ledger, LedgerTrade, ResultInput } from './ledger.ts';
 import { finiteOrNull, mean, quant, sd, seriesStats, skew, toSeriesStats, toTradeStats, tradeStats } from './stats.ts';
 import { cellStats, deflatedSharpe, monteCarlo, monteCarloScale, sensitivityPlan, trialSet, trialSharpe } from './robustness.ts';
 import type { RunVariant } from './robustness.ts';
@@ -172,7 +172,7 @@ function sensitivity(input: ResultInput, variants: RunVariant[]): Sensitivity | 
   for (const k of ['condition_id', 'y_key', 'base_x', 'base_y'] as const) if (!Object.is(plan[k], s[k])) throw new Error(`result: sensitivity ${k} ${String(s[k])} is not the request's ${String(plan[k])}`);
   for (const k of ['xs', 'xs_display', 'ys', 'ys_display'] as const) if (!same(plan[k], s[k])) throw new Error(`result: sensitivity ${k} differ from the request's grid`);
   const cells: (SensitivityCell | null)[][] = plan.requests.map((row, i) => row.map((req, j) => {
-    const c = s.cells[i]?.[j] as CellRun | null | undefined;           // ledger.ts types cells non-null; see sensitivityPlan
+    const c = s.cells[i]?.[j];
     if (!req) { if (c) throw new Error(`result: sensitivity cell [${i}][${j}] has a run but its threshold is refused`); return null }
     if (!c) throw new Error(`result: sensitivity cell [${i}][${j}] is missing`);
     const cell = cellStats(c.ledger);

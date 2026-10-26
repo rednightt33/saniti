@@ -10,7 +10,8 @@
    inflated and decoded by the shared core (datafile.ts), so the worker reads the bars the Terminal draws.
    terminal-api answers errors as {error: code, message} (400 invalid_request also lists fields): 404 unknown_ticker,
    401 proxy_key_rejected / session_ended, 429 quota_exceeded; GET /reference/{tickers|brokers} answers {url} only
-   (no sha256: a reference file cannot be checked against a manifest).
+   (no sha256: a reference file cannot be checked against a manifest); GET /manifest/{ticker} answers the ticker's
+   manifest per dataset (data_through, the years' sha256, bytes and rows) without granting a file (no quota, no URL).
 
    Errors are DataError (datafile.ts): a ticker, dataset or file that is not published is DATA_MISSING; a file that is
    not what the manifest says is DATA_INTEGRITY; terminal-api or the bucket refusing or failing (4xx other than 404,
@@ -22,11 +23,20 @@
    gzip bytes in memory (LRU, byte budget) and optionally on disk (LRU, byte budget); a cached file is checked again
    (sha256, size) every time it is used, a damaged disk copy is dropped and downloaded again.
 
+   What the client accepts from terminal-api and the bucket (a wrong or compromised answer must not turn the worker into
+   a client of anything else, nor fill its memory):
+   - a file or reference URL must be on the bucket origin BACKTEST_FILE_ORIGIN (scheme, host and port; a host may
+     start with '*.' as in the CSP host-source the edge-bff pages allow for the same downloads, connect-src
+     https://*.t3.storageapi.dev); any other URL is DATA_INTEGRITY and is never requested;
+   - a body is read as a stream and dropped once it passes its size: a data file's manifest bytes (DATA_INTEGRITY),
+     anything else BACKTEST_MAX_FILE_BYTES (a reference file: DATA_INTEGRITY; a terminal-api answer: DATA_UNAVAILABLE);
+   - a file inflates to at most BACKTEST_MAX_FILE_BYTES (datafile.ts, DATA_INTEGRITY).
+
    Configuration (optionsFromEnv; no value is assumed, the limits are measured in the dev E2E, K7b):
-   TERMINAL_URL, TERMINAL_PROXY_KEY (>= 32 characters, as terminal-api and edge-bff require), BACKTEST_CACHE_BYTES,
-   BACKTEST_DOWNLOAD_CONCURRENCY (HTTP requests in flight), BACKTEST_DOWNLOAD_RETRIES (retries after the first try),
-   BACKTEST_RETRY_BASE_MS, BACKTEST_HTTP_TIMEOUT_MS (per request), optional BACKTEST_CACHE_DIR with
-   BACKTEST_CACHE_DIR_BYTES. */
+   TERMINAL_URL (an origin without user name or password), TERMINAL_PROXY_KEY (>= 32 characters, as terminal-api and
+   edge-bff require), BACKTEST_CACHE_BYTES, BACKTEST_DOWNLOAD_CONCURRENCY (HTTP requests in flight),
+   BACKTEST_DOWNLOAD_RETRIES (retries after the first try), BACKTEST_RETRY_BASE_MS, BACKTEST_HTTP_TIMEOUT_MS (per
+   request), BACKTEST_FILE_ORIGIN, BACKTEST_MAX_FILE_BYTES, optional BACKTEST_CACHE_DIR with BACKTEST_CACHE_DIR_BYTES. */
 import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -52,6 +62,8 @@ export interface TerminalOptions {
   retries: number;                   // retries of a network error or a 5xx answer
   retryBaseMs: number;               // backoff: retryBaseMs x 2^k before retry k (0-based)
   timeoutMs: number;                 // per HTTP request, body included
+  fileOrigin: string;                // the origin every file and reference URL must have (BACKTEST_FILE_ORIGIN, fileOriginOf)
+  maxFileBytes: number;              // the most bytes of one body that is not a data file, and of any inflated file
   fetch?: typeof fetch;              // tests
   log?: (event: string, fields: Record<string, unknown>) => void;
 }
@@ -67,13 +79,40 @@ export function optionsFromEnv(env: Record<string, string | undefined> = process
   };
   const url = need('TERMINAL_URL').replace(/\/+$/, '');
   if (!/^https?:\/\/[^/?#]+$/.test(url)) throw new Error('TERMINAL_URL must be an http(s) origin without a path.');
+  // credentials in the URL would reach the start log (config.ts describeConfig) and fetch refuses them anyway
+  let parsed: URL | null = null;
+  try { parsed = new URL(url) } catch { /* refused below */ }
+  if (!parsed) throw new Error('TERMINAL_URL must be an http(s) origin without a path.');
+  if (parsed.username || parsed.password) throw new Error('TERMINAL_URL must not contain a user name or password.');
   const proxyKey = need('TERMINAL_PROXY_KEY');
   if (proxyKey.length < 32) throw new Error('TERMINAL_PROXY_KEY must be at least 32 characters.');
+  const fileOrigin = need('BACKTEST_FILE_ORIGIN');
+  if (!fileOriginOf(fileOrigin)) throw new Error(FILE_ORIGIN_FORMAT);
   const cacheDir = (env.BACKTEST_CACHE_DIR ?? '').trim() || undefined;
   return {
     url, proxyKey, cacheBytes: whole('BACKTEST_CACHE_BYTES', 0), cacheDir, cacheDirBytes: cacheDir ? whole('BACKTEST_CACHE_DIR_BYTES', 1) : undefined,
     concurrency: whole('BACKTEST_DOWNLOAD_CONCURRENCY', 1), retries: whole('BACKTEST_DOWNLOAD_RETRIES', 0),
     retryBaseMs: whole('BACKTEST_RETRY_BASE_MS', 0), timeoutMs: whole('BACKTEST_HTTP_TIMEOUT_MS', 1),
+    fileOrigin, maxFileBytes: whole('BACKTEST_MAX_FILE_BYTES', 1),
+  };
+}
+
+/* ---- the bucket origin -------------------------------------------------------------------------------------------- */
+const FILE_ORIGIN_FORMAT = 'BACKTEST_FILE_ORIGIN must be scheme://host[:port], http or https, the host lowercase and optionally starting with *. (as the CSP host-source https://*.t3.storageapi.dev).';
+/** An origin pattern as a CSP host-source without a path: scheme, host (a leading '*.' matches one or more labels, never
+    the bare suffix) and port (none: the scheme's default port only). Null when the text is not one. */
+export function fileOriginOf(pattern: string): ((url: string) => boolean) | null {
+  const m = /^(https?):\/\/(\*\.)?([a-z0-9-]+(?:\.[a-z0-9-]+)*)(?::(\d{1,5}))?$/.exec(pattern);
+  if (!m) return null;
+  const [, scheme, wild, host, port = ''] = m;
+  if (port && (+port < 1 || +port > 65535)) return null;
+  const defaultPort = (p: string) => p === '' || (scheme === 'https' && p === '443') || (scheme === 'http' && p === '80');
+  return (url: string) => {
+    let u: URL;
+    try { u = new URL(url) } catch { return false }
+    if (u.protocol !== `${scheme}:` || u.username || u.password) return false;
+    if (port ? u.port !== port && !(defaultPort(port) && u.port === '') : u.port !== '') return false;
+    return wild ? u.hostname.endsWith(`.${host}`) : u.hostname === host;
   };
 }
 
@@ -107,6 +146,13 @@ export function checkDataThrough(t: LoadedTicker, dataset: Dataset, to: string):
   const through = t.data_through[dataset];
   if (!through || through < to)
     throw new DataError('DATA_UNAVAILABLE', `${t.ticker} ${dataset} is published through ${through ?? 'no date'}; the period ends on ${to}.`, `${t.ticker}.${dataset}`, { data_through: through ?? null, to });
+}
+/** What a /bundle answer says is not published for the datasets asked: the first dataset other than events without any
+    file (the publisher writes an events file only for a ticker with events, so no events file = no corporate action),
+    as the DataError loadTicker raises for it; null when every dataset has its files. */
+export function unpublished(b: { ticker: string; datasets: Partial<Record<Dataset, { files: readonly unknown[] }>> }, datasets: readonly Dataset[]): DataError | null {
+  for (const name of datasets) if (name !== 'events' && !b.datasets[name]?.files.length) return new DataError('DATA_MISSING', `No ${name} file is published for ${b.ticker}.`, `${b.ticker}.${name}`);
+  return null;
 }
 /** The caller's range check: the ticker has a price bar inside [from, to]. */
 export function checkPriceRange(t: LoadedTicker, from: string, to: string): void {
@@ -194,6 +240,26 @@ interface BundleDataset { data_through: string | null; first_year: number | null
 interface Bundle { ticker: string; generated_at: string | null; expires_in_seconds: number; datasets: Partial<Record<Dataset, BundleDataset>> }
 
 const json = (b: Uint8Array): any => { try { return JSON.parse(new TextDecoder().decode(b)) } catch { return null } };
+/** The most bytes a body may have by its status, and the error when it has more (http reads no further). */
+type Cap = (status: number) => { bytes: number; error: () => DataError };
+/** A body read as a stream, dropped once it passes the cap (the connection is cancelled; nothing more is buffered). */
+async function readBody(res: Response, cap: ReturnType<Cap>): Promise<Uint8Array> {
+  const declared = Number(res.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > cap.bytes) { await res.body?.cancel().catch(() => {}); throw cap.error() }
+  const reader = res.body?.getReader();
+  if (!reader) return new Uint8Array(0);
+  const parts: Uint8Array[] = []; let n = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    n += value.byteLength;
+    if (n > cap.bytes) { await reader.cancel().catch(() => {}); throw cap.error() }
+    parts.push(value);
+  }
+  const out = new Uint8Array(n); let at = 0;
+  for (const p of parts) { out.set(p, at); at += p.byteLength }
+  return out;
+}
 const upstream = (b: Uint8Array) => {
   const j = json(b), code = j && typeof j.error === 'string' ? j.error : null, message = j && typeof j.message === 'string' ? j.message : null;
   return { code, message };
@@ -203,12 +269,16 @@ const upstream = (b: Uint8Array) => {
 export class TerminalClient {
   private o: TerminalOptions; private gate: Gate; private mem: MemoryCache; private disk: DiskCache | null;
   private fetch: typeof fetch; private inflight = new Map<string, Promise<{ doc: Columnar; cached: boolean }>>();
+  private onBucket: (url: string) => boolean;
   stats = { bundles: 0, downloads: 0, download_bytes: 0, cache_hits: 0, retries: 0 };
 
   constructor(o: TerminalOptions) {
-    for (const [k, min] of [['cacheBytes', 0], ['concurrency', 1], ['retries', 0], ['retryBaseMs', 0], ['timeoutMs', 1]] as const)
+    for (const [k, min] of [['cacheBytes', 0], ['concurrency', 1], ['retries', 0], ['retryBaseMs', 0], ['timeoutMs', 1], ['maxFileBytes', 1]] as const)
       if (!Number.isSafeInteger(o[k]) || (o[k] as number) < min) throw new Error(`TerminalClient: ${k} must be a whole number of at least ${min}.`);
     if (!o.url || !o.proxyKey) throw new Error('TerminalClient: url and proxyKey are required.');
+    const onBucket = typeof o.fileOrigin === 'string' ? fileOriginOf(o.fileOrigin) : null;
+    if (!onBucket) throw new Error('TerminalClient: fileOrigin must be an origin pattern (fileOriginOf).');
+    this.onBucket = onBucket;
     if (o.cacheDir && !(Number.isSafeInteger(o.cacheDirBytes) && (o.cacheDirBytes as number) >= 1)) throw new Error('TerminalClient: cacheDirBytes is required with cacheDir.');
     this.o = { ...o, url: o.url.replace(/\/+$/, '') };
     this.gate = new Gate(o.concurrency); this.mem = new MemoryCache(o.cacheBytes);
@@ -218,16 +288,17 @@ export class TerminalClient {
   private log(event: string, fields: Record<string, unknown>) { try { this.o.log?.(event, fields) } catch { /* logging never fails a load */ } }
 
   /** One HTTP exchange with the retry rule: network errors (timeouts included) and 5xx are retried, anything else is
-      answered as it is. The body is read inside the attempt, so a connection lost mid-body is a network error. */
-  private async http(url: string, init: RequestInit, what: string, field?: string): Promise<Answer> {
+      answered as it is. The body is read inside the attempt, so a connection lost mid-body is a network error; a body
+      over its cap is the cap's error at once (never retried, never read to its end). */
+  private async http(url: string, init: RequestInit, what: string, field: string | undefined, cap: Cap): Promise<Answer> {
     for (let attempt = 0; ; attempt++) {
       let answer: Answer | null = null, failure = '';
       try {
         answer = await this.gate.run(async () => {
           const res = await this.fetch(url, { ...init, redirect: 'error', signal: AbortSignal.timeout(this.o.timeoutMs) });
-          return { status: res.status, bytes: new Uint8Array(await res.arrayBuffer()) };
+          return { status: res.status, bytes: await readBody(res, cap(res.status)) };
         });
-      } catch (e) { failure = (e as Error)?.name || 'Error' }
+      } catch (e) { if (e instanceof DataError) throw e; failure = (e as Error)?.name || 'Error' }
       if (answer && answer.status < 500) return answer;
       if (attempt >= this.o.retries) {
         const why = answer ? `answered ${answer.status}` : `could not be reached (${failure})`;
@@ -242,7 +313,8 @@ export class TerminalClient {
   private async api(method: 'GET' | 'POST', p: string, body: unknown, what: string, field?: string): Promise<any> {
     const headers: Record<string, string> = { [PROXY_HEADER]: this.o.proxyKey, accept: 'application/json' };
     if (body !== undefined) headers['content-type'] = 'application/json';
-    const a = await this.http(this.o.url + API + p, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }, what, field);
+    const max = this.o.maxFileBytes, cap: Cap = () => ({ bytes: max, error: () => new DataError('DATA_UNAVAILABLE', `${what}: terminal-api answered more than ${max} bytes.`, field) });
+    const a = await this.http(this.o.url + API + p, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }, what, field, cap);
     if (a.status === 200) {
       const j = json(a.bytes);
       if (!j || typeof j !== 'object') throw new DataError('DATA_UNAVAILABLE', `${what}: terminal-api answered something that is not JSON.`, field);
@@ -270,6 +342,7 @@ export class TerminalClient {
       const files = ds.files.map((f: any, k: number): BundleFile => {
         if (!f || typeof f.url !== 'string' || !/^https?:\/\//.test(f.url) || typeof f.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(f.sha256)
           || !Number.isSafeInteger(f.bytes) || f.bytes < 0) throw bad(`${name} file ${k + 1} has no valid url, sha256 or bytes`);
+        if (!this.onBucket(f.url)) throw bad(`${name} file ${k + 1} is not on the bucket origin ${this.o.fileOrigin} (BACKTEST_FILE_ORIGIN)`);
         return { url: f.url, sha256: f.sha256, bytes: f.bytes, ...(Number.isSafeInteger(f.rows) ? { rows: f.rows } : {}),
                  ...(Number.isSafeInteger(f.year) ? { year: f.year } : {}), ...(typeof f.pack === 'string' ? { pack: f.pack } : {}) };
       });
@@ -294,7 +367,7 @@ export class TerminalClient {
       const bytes = where === 'memory' ? this.mem.get(f.sha256) : this.disk ? await this.disk.get(f.sha256) : null;
       if (!bytes) continue;
       try {
-        const doc = await inflateVerified(bytes, f, what);
+        const doc = await inflateVerified(bytes, f, what, this.o.maxFileBytes);
         if (where === 'disk') this.mem.set(f.sha256, bytes);
         this.stats.cache_hits++;
         this.log('terminal_file', { what, bytes: f.bytes, cached: where });
@@ -304,7 +377,11 @@ export class TerminalClient {
       }
     }
     const t0 = Date.now();
-    const a = await this.http(f.url, { method: 'GET' }, what, field);    // no header: the URL is the only credential
+    // no header: the URL is the only credential; the file has its manifest size, an error answer at most maxFileBytes
+    const cap: Cap = status => status === 200
+      ? { bytes: f.bytes, error: () => new DataError('DATA_INTEGRITY', `${what} has more than the ${f.bytes} bytes its manifest says.`, field) }
+      : { bytes: this.o.maxFileBytes, error: () => new DataError('DATA_UNAVAILABLE', `${what}: the bucket answered ${status} with more than ${this.o.maxFileBytes} bytes.`, field, { status }) };
+    const a = await this.http(f.url, { method: 'GET' }, what, field, cap);
     if (a.status !== 200) {
       const missing = a.status === 404;
       throw new DataError(missing ? 'DATA_MISSING' : 'DATA_UNAVAILABLE', missing ? `${what} is named by the manifest but not in the bucket (404).`
@@ -312,7 +389,7 @@ export class TerminalClient {
     }
     this.stats.downloads++; this.stats.download_bytes += a.bytes.byteLength;
     let doc: Columnar;
-    try { doc = await inflateVerified(a.bytes, f, what) }
+    try { doc = await inflateVerified(a.bytes, f, what, this.o.maxFileBytes) }
     catch (e) { if (e instanceof DataError && !e.field) e.field = field; throw e }
     this.mem.set(f.sha256, a.bytes);
     if (this.disk) await this.disk.put(f.sha256, a.bytes).catch(e => this.log('terminal_cache_error', { error: (e as { code?: string })?.code ?? (e as Error)?.name }));
@@ -326,10 +403,11 @@ export class TerminalClient {
     const b = await this.bundle(ticker, datasets), files: ReadFile[] = [], docs: Partial<Record<Dataset, Columnar[]>> = {};
     const t: LoadedTicker = { ticker, prices: null, broker_rows: null, broker_gaps: null, flow: null, corporate_actions: null,
       data_through: {}, first_year: {}, generated_at: b.generated_at, files };
+    const none = unpublished(b, Object.keys(b.datasets) as Dataset[]);
+    if (none) throw none;
     await Promise.all((Object.keys(b.datasets) as Dataset[]).map(async name => {
       const ds = b.datasets[name] as BundleDataset;
       t.data_through[name] = ds.data_through; t.first_year[name] = ds.first_year;
-      if (!ds.files.length && name !== 'events') throw new DataError('DATA_MISSING', `No ${name} file is published for ${ticker}.`, `${ticker}.${name}`);
       docs[name] = await Promise.all(ds.files.map(async f => {
         const label = `${ticker} ${name} ${f.pack ?? f.year ?? 'all'}`;
         const { doc, cached } = await this.file(f, label, `${ticker}.${name}`);
@@ -366,6 +444,17 @@ export class TerminalClient {
     return { tickers: Object.fromEntries(loaded.map(t => [t.ticker, t])), files, data_version: await dataVersion(files) };
   }
 
+  /** One ticker's manifest (terminal-api GET /manifest/{ticker}): data_through per dataset, as /bundle reports it, without
+      granting any file. A ticker terminal-api does not publish is DATA_MISSING (its 404). */
+  async manifest(ticker: string): Promise<{ ticker: string; data_through: Partial<Record<Dataset, string | null>> }> {
+    if (typeof ticker !== 'string' || !TICKER.test(ticker)) throw new DataError('DATA_MISSING', `${JSON.stringify(ticker)} is not a ticker terminal-api publishes.`, 'ticker');
+    const m = await this.api('GET', `/manifest/${ticker}`, undefined, `The manifest of ${ticker}`, ticker);
+    if (m.ticker !== ticker || !m.datasets || typeof m.datasets !== 'object') throw new DataError('DATA_INTEGRITY', `terminal-api /manifest for ${ticker}: not the manifest of ${ticker}.`, ticker);
+    const data_through: Partial<Record<Dataset, string | null>> = {};
+    for (const name of DATASETS) if (m.datasets[name]) data_through[name] = typeof m.datasets[name].data_through === 'string' ? m.datasets[name].data_through : null;
+    return { ticker, data_through };
+  }
+
   /** A reference list (terminal-api /reference/{name}): tickers with type and sector, or brokers with name and type. */
   async reference(name: 'tickers'): Promise<TickerRef[]>;
   async reference(name: 'brokers'): Promise<BrokerRef[]>;
@@ -373,9 +462,12 @@ export class TerminalClient {
     if (name !== 'tickers' && name !== 'brokers') throw new TypeError('reference: tickers or brokers.');
     const what = `The ${name} reference`, j = await this.api('GET', `/reference/${name}`, undefined, what, name);
     if (typeof j.url !== 'string' || !/^https?:\/\//.test(j.url)) throw new DataError('DATA_INTEGRITY', `${what}: terminal-api answered no URL.`, name);
-    const a = await this.http(j.url, { method: 'GET' }, what, name);
+    if (!this.onBucket(j.url)) throw new DataError('DATA_INTEGRITY', `${what}: terminal-api answered a URL that is not on the bucket origin ${this.o.fileOrigin} (BACKTEST_FILE_ORIGIN).`, name);
+    // no manifest gives a reference file's size: BACKTEST_MAX_FILE_BYTES caps the download and the inflated document
+    const max = this.o.maxFileBytes;
+    const a = await this.http(j.url, { method: 'GET' }, what, name, () => ({ bytes: max, error: () => new DataError('DATA_INTEGRITY', `${what} has more than ${max} bytes, the most one file may have.`, name, { max_file_bytes: max }) }));
     if (a.status !== 200) throw new DataError(a.status === 404 ? 'DATA_MISSING' : 'DATA_UNAVAILABLE', `${what}: the bucket answered ${a.status}.`, name, { status: a.status });
-    const doc = await decodeColumnar(a.bytes, what);
+    const doc = await decodeColumnar(a.bytes, what, max);
     const keys = name === 'tickers' ? ['ticker', 'name', 'type', 'sector'] : ['code', 'name', 'type'];
     for (const k of keys) if (!doc.columns.includes(k)) throw new DataError('DATA_INTEGRITY', `${what}: column ${k} is missing.`, name);
     const c = keys.map(k => doc[k] as unknown[]), str = (v: unknown) => typeof v === 'string' ? v : null;

@@ -8,29 +8,30 @@
                 which run.ts reads through hooks.shouldStop and answers with Cancelled; kill() terminates the thread
                 (the next task starts a new one), for a task over its time.
    thread       runs the task (run.ts runJob / runSignals), posts progress, and for a job the result as gzip JSON (the
-                serialisation and packing happen here, not on the HTTP thread); an error crosses as errors.ts
+                serialisation and packing happen here, not on the HTTP thread; packResult: at most
+                BACKTEST_MAX_RESULT_BYTES of JSON, LIMIT_EXCEEDED otherwise); an error crosses as errors.ts
                 SerialError (its class does not survive the message). */
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import zlib from 'node:zlib';
-import type { JobContext, JobProgress, SignalsPreview } from '../../edge-bff/backtest/src/core/contract.ts';
+import type { BacktestResult, JobContext, JobProgress, SignalsPreview } from '../../edge-bff/backtest/src/core/contract.ts';
 import { Cancelled } from '../../edge-bff/backtest/src/core/engine.ts';
 import type { Config } from './config.ts';
-import { serialError } from './errors.ts';
+import { WorkerError, serialError } from './errors.ts';
 import type { SerialError } from './errors.ts';
 import { PlannedClient } from './load.ts';
 import { errorFields, log, setLogSink, writeLine } from './log.ts';
 import { runJob, runSignals } from './run.ts';
-import type { TickerRef } from './terminal.ts';
+import type { References } from './validate.ts';
 
 export type Task =
-  | { kind: 'job'; request: unknown; context: Pick<JobContext, 'prior_trials'>; refs: TickerRef[] }
-  | { kind: 'signals'; request: unknown; refs: TickerRef[] };
+  | { kind: 'job'; request: unknown; context: Pick<JobContext, 'prior_trials'>; refs: References }
+  | { kind: 'signals'; request: unknown; refs: References };
 export type Outcome =
   | { kind: 'job'; gzip: Uint8Array; json_bytes: number; duration_ms: number }
   | { kind: 'signals'; preview: SignalsPreview };
 
 /** What a thread needs: the configuration without functions (they cannot cross), the versions. */
-export interface ThreadConfig { limits: Config['limits']; flow: Config['flow']; terminal: Omit<Config['terminal'], 'fetch' | 'log'> }
+export interface ThreadConfig { limits: Config['limits']; maxResultBytes: Config['maxResultBytes']; flow: Config['flow']; terminal: Omit<Config['terminal'], 'fetch' | 'log'> }
 interface ThreadData { role: 'compute'; name: string; config: ThreadConfig; versions: { engine_version: string; registry_version: string }; flag: Int32Array }
 type FromThread = { seq: number } & ({ type: 'progress'; progress: JobProgress } | { type: 'done'; outcome: Outcome } | { type: 'failed'; error: SerialError } | { type: 'log'; line: string });
 
@@ -45,9 +46,22 @@ export class ThreadStopped extends Error {
   constructor(reason: 'killed' | 'crashed', code: string | null = null) { super(`compute thread ${reason}${code ? ` (${code})` : ''}`); this.name = 'ThreadStopped'; this.reason = reason; this.code = code }
 }
 
+/** A job's result as gzip JSON in its own buffer (so it can be transferred). Over maxBytes of JSON (BACKTEST_MAX_RESULT_BYTES,
+    edge-bff's measure: the bytes of the JSON text) it is refused before it is packed, LIMIT_EXCEEDED: edge-bff would
+    not store it either. */
+export function packResult(result: BacktestResult, maxBytes: number): { gzip: Uint8Array; json_bytes: number } {
+  const text = JSON.stringify(result), json_bytes = Buffer.byteLength(text);
+  if (json_bytes > maxBytes)
+    throw new WorkerError(422, 'LIMIT_EXCEEDED', `The backtest result has ${json_bytes} bytes of JSON; the limit is ${maxBytes} (BACKTEST_MAX_RESULT_BYTES). Choose a smaller universe, a shorter period or fewer conditions.`,
+      undefined, { limit: 'max_result_bytes', allowed: maxBytes, needed: json_bytes });
+  const packed = zlib.gzipSync(text), gzip = new Uint8Array(packed.byteLength);
+  gzip.set(packed);
+  return { gzip, json_bytes };
+}
+
 export const threadConfig = (c: Config): ThreadConfig => {
   const { fetch: _f, log: _l, ...terminal } = c.terminal;
-  return { limits: c.limits, flow: c.flow, terminal };
+  return { limits: c.limits, maxResultBytes: c.maxResultBytes, flow: c.flow, terminal };
 };
 
 /* ---- main thread ------------------------------------------------------------------------------------------------ */
@@ -118,11 +132,9 @@ function startThread(d: ThreadData): void {
     try {
       if (task.kind === 'job') {
         const result = await runJob(task.request, task.context, task.refs, env, hooks);
-        const text = JSON.stringify(result);
-        const packed = zlib.gzipSync(text), gzip = new Uint8Array(packed.byteLength);
-        gzip.set(packed);                                          // its own buffer, so it can be transferred
+        const { gzip, json_bytes } = packResult(result, d.config.maxResultBytes);
         if (hooks.shouldStop()) throw new Cancelled();             // a cancel that came while the result was packed
-        port.postMessage({ seq, type: 'done', outcome: { kind: 'job', gzip, json_bytes: Buffer.byteLength(text), duration_ms: result.meta.duration_ms } }, [gzip.buffer]);
+        port.postMessage({ seq, type: 'done', outcome: { kind: 'job', gzip, json_bytes, duration_ms: result.meta.duration_ms } }, [gzip.buffer]);
       } else {
         port.postMessage({ seq, type: 'done', outcome: { kind: 'signals', preview: await runSignals(task.request, task.refs, env, hooks) } });
       }

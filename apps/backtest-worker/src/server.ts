@@ -4,8 +4,9 @@
 
    GET  /health                   {ok: true, engine_version, registry_version}
    GET  /v1/catalog               Catalog (catalog.ts)
-   POST /v1/validate {request}    200 {ok: true, lineage_key, variant_hash, tickers} | 422 (validate.ts: no market data
-                                  beyond the reference ticker list)
+   POST /v1/validate {request}    200 {ok: true, lineage_key, variant_hash, tickers} | 422 (validate.ts on the reference
+                                  ticker and broker lists, then run.ts checkPublished on the catalog's dates:
+                                  FLOW_DATA_THROUGH, PERIOD_AFTER_DATA; no file of the request's tickers is read)
    POST /v1/signals               SignalsPreviewRequest -> SignalsPreview, computed on the preview thread while the
                                   caller waits; one preview at a time, the next ones wait in arrival order
    POST /v1/jobs {job_id, request, context}
@@ -14,8 +15,10 @@
                                   a POST whose answer it lost). A refused request is 422 and never becomes a job.
    GET  /v1/jobs/{id}             JobStatus; 404 UNKNOWN_JOB for any job but the latest (the worker keeps one job, and
                                   none after a restart)
-   GET  /v1/jobs/{id}/result      200 gzip of the BacktestResult JSON (Content-Encoding gzip); 409 NOT_FINISHED; kept
-                                  until it has been sent once or the next job starts, then 410 RESULT_GONE
+   GET  /v1/jobs/{id}/result      200 gzip of the BacktestResult JSON (Content-Encoding gzip), as often as it is asked
+                                  (a caller that lost an answer asks again); 409 NOT_FINISHED; kept until the next job
+                                  starts (lead decision 2026-10-26), then 410 RESULT_GONE for the job it replaced; 404
+                                  UNKNOWN_JOB for any older job
    POST /v1/jobs/{id}/cancel      202 JobStatus; a running job stops at its next check and ends CANCELLED (a result
                                   that completes after the cancel is dropped); an ended job is left as it is
    Errors: {"error": {code, field?, message?, details?}} with errors.ts statuses (validation 422, data 424, BUSY and
@@ -36,9 +39,10 @@ import type { Config } from './config.ts';
 import { WorkerError, invalid, toApiError } from './errors.ts';
 import type { ErrorBody } from './errors.ts';
 import { errorFields, log } from './log.ts';
+import { checkPublished } from './run.ts';
 import { TerminalClient } from './terminal.ts';
-import type { TickerRef } from './terminal.ts';
 import { checkRequest } from './validate.ts';
+import type { References } from './validate.ts';
 import { ENGINE_VERSION, REGISTRY_VERSION, checkRegistry } from './version.ts';
 
 export const KEY_HEADER = 'x-backtest-worker-key';
@@ -93,8 +97,12 @@ export function createApp(cfg: Config): WorkerApp {
   const key = Buffer.from(cfg.workerKey);
   const timeout = cfg.limits.timeout_seconds;
   let job: Job | null = null, starting = false;
+  let replaced: string | null = null;                   // the FINISHED job the current one replaced: its result is gone
 
-  const refs = (): Promise<TickerRef[]> => client.reference('tickers');
+  const refs = async (): Promise<References> => {
+    const [tickers, brokers] = await Promise.all([client.reference('tickers'), client.reference('brokers')]);
+    return { tickers, brokers };
+  };
   const within = async <T>(what: string, work: Promise<T>): Promise<T> => {
     const d = deadline(timeout, what);
     try { return await Promise.race([work, d.promise]) } finally { d.clear() }
@@ -222,8 +230,9 @@ export function createApp(cfg: Config): WorkerApp {
       const body = parseJson(raw) as { request?: unknown } | null;
       if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(k => k !== 'request')) throw invalid('INVALID_REQUEST', 'body', 'The body must be {request}.');
       const out = await within('The validation', (async () => {
-        const checked = checkRequest(body.request, await refs(), cfg);
+        const list = await refs(), checked = checkRequest(body.request, list, cfg);
         const q = body.request as Parameters<typeof variantHash>[0];
+        await checkPublished(q, checked, list, { client, config: cfg });
         const [lineage_key, variant_hash] = await Promise.all([lineageKey(q), variantHash(q)]);
         return { ok: true, lineage_key, variant_hash, tickers: checked.tickers };
       })());
@@ -241,10 +250,11 @@ export function createApp(cfg: Config): WorkerApp {
       if (job && job.id === b.job_id) return send(res, 202, { job_id: b.job_id });
       if (starting || (job && running(job))) return fail(res, 409, { code: 'BUSY', message: 'Another backtest is running.' });
       starting = true;
-      let list: TickerRef[];
+      let list: References;
       try { list = await within('The validation', refs()); checkRequest(b.request, list, cfg) }
       finally { starting = false }
       if (job && running(job)) return fail(res, 409, { code: 'BUSY', message: 'Another backtest is running.' });
+      replaced = job && job.status.state === 'FINISHED' ? job.id : null;
       job = startJob(b.job_id, { kind: 'job', request: b.request, context: { prior_trials: b.prior_trials }, refs: list });   // the previous job and its result are dropped
       return send(res, 202, { job_id: b.job_id });
     }
@@ -253,6 +263,7 @@ export function createApp(cfg: Config): WorkerApp {
       const [, id, sub] = m;
       allow(sub === '/cancel' ? 'POST' : 'GET');
       const j = job && job.id === id ? job : null;
+      if (!j && sub === '/result' && id === replaced) return fail(res, 410, { code: 'RESULT_GONE', message: 'A newer backtest has started on the worker; this result is no longer kept.' });
       if (!j) return fail(res, 404, { code: 'UNKNOWN_JOB' });
       if (!sub) return send(res, 200, j.status);
       if (sub === '/cancel') {
@@ -260,10 +271,8 @@ export function createApp(cfg: Config): WorkerApp {
         return send(res, 202, j.status);
       }
       if (j.status.state !== 'FINISHED') return fail(res, 409, { code: 'NOT_FINISHED' });
-      const gz = j.gzip;
-      if (!gz) return fail(res, 410, { code: 'RESULT_GONE', message: 'The result was already sent.' });
+      const gz = j.gzip as Uint8Array;                                   // a FINISHED job has its result until it is replaced
       res.writeHead(200, { 'content-type': 'application/json', 'content-encoding': 'gzip', 'content-length': String(gz.byteLength), 'cache-control': 'no-store' });
-      res.on('finish', () => { if (job === j) j.gzip = null });          // sent once: memory goes back
       res.end(gz);
       return;
     }

@@ -49,31 +49,50 @@ because the signal preview downloads the files `/api/terminal/v1/bundle` presign
 | POST `/api/v1/backtests/{id}/cancel` | 202 `JobStatus`: queued -> `CANCELLED` at once, running -> stopped at the worker by the loop; 409 `NOT_RUNNING` |
 | POST `/api/v1/backtests/signals` | `SignalsPreview` from the worker (no job, no trial) |
 
-Errors are `{"error": {code, field?, message?, details?}}` (CONTRACT.md section 11); the worker unreachable at a request
-is 503 `BACKTEST_UNAVAILABLE`, the feature off (no `BACKTEST_WORKER_URL`) 503 `BACKTEST_DISABLED`, the tables missing
-503 `BACKTEST_NOT_READY` (`/ready` does not read them).
+Errors are `{"error": {code, field?, message?, details?}}` (CONTRACT.md section 11). A body that is not a JSON object
+(also one nested deeper than the parser takes) is 422 `INVALID_INPUT`. The catalog, the validation at submit and the
+signals preview are relayed calls: the worker's 4xx error is passed on with its status, and its own 504 `TIMEOUT`
+(the call took longer than the worker's `BACKTEST_TIMEOUT_SECONDS`) is passed on as 504 with its error, so edge-bff
+waits for an answer up to `BACKTEST_TIMEOUT_SECONDS` + 30 s (connecting stays limited to 30 s). The worker unreachable
+or answering outside its API (a 504 without the worker's `TIMEOUT` error too) is 503 `BACKTEST_UNAVAILABLE`, the feature
+off (no `BACKTEST_WORKER_URL`) 503 `BACKTEST_DISABLED`, the tables missing 503 `BACKTEST_NOT_READY` (`/ready` does not
+read them). The relayed calls are awaited on the event loop, not in a thread, and a preview whose page went away is
+cancelled, which closes its connection to the worker.
 
 Tables (migration `database/migrations/20261026_005_edge_bff_backtest.sql`): `edge_bff.backtest_jobs` (request,
 lineage and variant hash from the worker, state QUEUED/RUNNING/FINISHED/FAILED/CANCELLED, progress, lease, error,
 versions, sizes; one RUNNING job per owner), `edge_bff.backtest_results` (gzip JSON per `(request_id, part)`: `core`
-and `events:<ticker>`, with bytes and sha256; deleted after 30 days) and `edge_bff.backtest_trials` (K3: every distinct
-variant a finished run evaluated, per owner and lineage, with its daily Sharpe; never reset). No market data.
+and `events:<ticker>`, with bytes and sha256; deleted after 30 days) and `edge_bff.backtest_trials` (K3: one row per
+owner, lineage and distinct variant of the finished runs' `meta.trials.variants`; never reset). A trial row holds the
+daily Sharpe, kind and request of the latest run that reported the variant; its `recorded_seq` (identity) keeps the
+place where it was first recorded. The loop passes a line's trials to the worker as `prior_trials` in `recorded_seq`
+order: runs in the order they finished, each run's variants in its order. The runtime role gets only what the code
+does: jobs SELECT/INSERT/UPDATE, results SELECT/INSERT/DELETE, trials SELECT/INSERT/UPDATE. No market data.
 
 The loop (`app/backtest.py`, started with the ORC loop when `BACKTEST_WORKER_URL` is set) takes the oldest queued job
 under a lease (`EDGE_LEASE_SECONDS`, heartbeat `EDGE_HEARTBEAT_SECONDS`), reads its line's trials and posts
 `{job_id, request, context: {job_id, prior_trials}}` to the worker (`409 BUSY` = another job there: it waits), reads its
-status every `EDGE_POLL_SECONDS` (progress stored, cancellation forwarded), and on `FINISHED` fetches the result,
-stores its parts and its variants and marks the job `FINISHED` with the versions in one transaction. A job is never
-sent twice: the worker forgetting it (`404 UNKNOWN_JOB`) or not answering three times in a row is `FAILED WORKER_LOST`,
-a lease that expired (edge-bff stopped while following it) is `FAILED WORKER_LOST` too (the worker is told to cancel
-it), and a job running longer than `BACKTEST_TIMEOUT_SECONDS` is cancelled and `FAILED TIMEOUT`.
+status every `EDGE_POLL_SECONDS` (progress stored, cancellation forwarded; an ended job keeps the worker's final
+progress), and on `FINISHED` fetches the result, stores its parts and its variants and marks the job `FINISHED` with
+the versions in one transaction. The result is unpacked by edge-bff as it arrives and never past
+`BACKTEST_MAX_RESULT_BYTES` of JSON (over it: `FAILED LIMIT_EXCEEDED`, nothing stored). The worker keeps a finished
+result until its next job starts, so a result that could not be fetched or stored is fetched again at the next poll.
+A job is never sent twice: the worker forgetting it (`404 UNKNOWN_JOB`) or no longer keeping its result (`410
+RESULT_GONE`: a newer job started there) is `FAILED WORKER_LOST` at once, not answering three times in a row is `FAILED
+WORKER_LOST` too, as is a lease that expired (edge-bff stopped while following it; the worker is told to cancel it),
+and a job running longer than `BACKTEST_TIMEOUT_SECONDS` is cancelled and `FAILED TIMEOUT`. Expired result parts are
+deleted when the loop starts and then once an hour.
 
-| Variable | Value |
-| --- | --- |
-| BACKTEST_WORKER_URL | `http://backtest-worker.railway.internal:<port>` (private; empty = feature off) |
-| BACKTEST_WORKER_KEY | the worker's `BACKTEST_WORKER_KEY` (Railway reference), at least 32 characters; set with the URL |
-| BACKTEST_TIMEOUT_SECONDS | required with the URL (no default; set with the worker's limit, measured in the dev E2E) |
-| BACKTEST_QUEUED_PER_OWNER | 3 |
+"Required" variables have no default in the code: with `BACKTEST_WORKER_URL` set, edge-bff does not start without
+them. The Railway dev column holds the dev values (the limits are initial values, re-measured in the dev E2E, K7b).
+
+| Variable | Default | Railway dev | Meaning |
+| --- | --- | --- | --- |
+| BACKTEST_WORKER_URL | empty = feature off | `http://backtest-worker.railway.internal:8080` | the worker's private Railway endpoint (`http`, host `backtest-worker.railway.internal`; anything else is refused outside `EDGE_ENVIRONMENT=local`) |
+| BACKTEST_WORKER_KEY | empty | `${{backtest-worker.BACKTEST_WORKER_KEY}}` (Railway reference; never a value here) | sent as `x-backtest-worker-key`; at least 32 characters; set together with the URL |
+| BACKTEST_TIMEOUT_SECONDS | required | 900 (the worker's value) | longest job on edge-bff's side; the relayed calls wait this + 30 s for the worker's answer |
+| BACKTEST_MAX_RESULT_BYTES | required | `${{backtest-worker.BACKTEST_MAX_RESULT_BYTES}}` (Railway reference) | the most JSON a result may unpack to; the same value as the worker's, which refuses a larger result before sending it |
+| BACKTEST_QUEUED_PER_OWNER | 3 | 3 (default; not set) | queued jobs per owner (`429 QUEUE_FULL` above it); the worker's catalog reports its own value, default 3 |
 
 Tests: `tests/test_backtest.py` (fake worker as a local HTTP server, disposable Postgres, one Chromium check of the
 tab).
@@ -196,11 +215,14 @@ Limitations written out (Word has no folded sections) and the footer. Tests: `te
 ## Persistence and ownership
 
 Orc owns history, answers, methodology, evidence, usage and exports. BFF accesses them only through authenticated
-Orc endpoints, not SQL. Its dedicated restricted schema holds three operational tables: sessions, jobs and UI
-metadata. Jobs retain original inputs for deterministic replay, not answers. Pins/bookmarks do not extend Orc's
-retention (code default 30 days, actual configuration must be checked before rollout). Expired history returns 410.
-There is currently no automatic purge of terminal job inputs/UI metadata: define an operational retention policy
-before long-term use. Sessions are cleaned hourly.
+Orc endpoints, not SQL. Its dedicated restricted schema holds its operational tables: sessions, jobs and UI metadata,
+and, with migration `20261026_005`, the three backtest tables (backtest jobs, result parts and trials; see Backtest
+tab), which hold no market data. Jobs retain original inputs for deterministic replay, not answers. Pins/bookmarks do
+not extend Orc's retention (code default 30 days, actual configuration must be checked before rollout). Expired
+history returns 410.
+There is currently no automatic purge of terminal job inputs/UI metadata or of backtest jobs: define an operational
+retention policy before long-term use. Backtest result parts are deleted after 30 days; the backtest trials are never
+reset (K3). Sessions are cleaned when the loop starts and then hourly.
 
 Deployment configuration rejects an administrative database username; it requires `edge_bff_login`.
 The server sets `X-Saniti-Owner`; a browser cannot choose an owner. One active job per owner is intentional for this

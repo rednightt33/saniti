@@ -10,14 +10,20 @@
    - trades never overlap in one ticker, never exceed the free slots, and each executes an entry switch-on of its
      ticker on the next calendar day; every entry event is a trade or a skipped signal;
    - a repeated run (same context, and a fresh one) is deep-equal.
+   And the variant hash (K3, hash.ts variantOf) on the same generator: what the engine does not read leaves it and the
+   trades unchanged; a change of any one field of the request that changes the trades or the equity changes it.
    Sums are compared within the rounding bound of double arithmetic: n additions of terms bounded by S differ from the
    exact sum by at most n x 2^-53 x S, so two summation orders differ by at most 2n x 2^-53 x S = n x EPSILON x S. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { isDeepStrictEqual } from 'node:util';
+import { PRICE_ACTION } from '../../edge-bff/backtest/src/core/conditions.ts';
 import { prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
 import type { MarketData } from '../../edge-bff/backtest/src/core/engine.ts';
 import type { BacktestRequest, Condition } from '../../edge-bff/backtest/src/core/contract.ts';
+import { variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
 import type { Ledger } from '../../edge-bff/backtest/src/core/ledger.ts';
+import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 
 let seed = 20261026;
 const rnd = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
@@ -191,4 +197,127 @@ test('random markets and requests reconcile: cash, equity, pnl, positions and ev
   for (const k of ['stop_loss/open', 'stop_loss/intraday', 'trailing_stop/intraday', 'take_profit/open', 'take_profit/intraday', 'time_exit/close', 'exit_signal/open', 'end_of_test/close',
     'already_held', 'no_slot', 'ara_open_gap', 'below_min_value', 'no_next_bar', 'period_end', 'stale_mark', 'corporate_actions'])
     assert.ok(kinds.has(k), `not reached: ${k} (${[...kinds].sort().join(', ')})`);
+});
+
+/* ---- the variant hash is what the engine reads (CONTRACT.md section 7, K3: hash.ts variantOf) --------------------- */
+/* A trial is a run's trades and equity curve. (1) What the engine does not read leaves the variant hash and the trades
+   as they are: the page's reload (a new id on every card), another card order, a disabled card, `enabled: true`
+   written out, the numbers of the stop, take-profit and trailing modes that are not chosen, atr_length without an ATR
+   mode, at_least outside logic at_least or above the number of enabled entry cards, the exit logic without an enabled
+   exit card, the OOS share, the ARA fraction while the rule is off, the allocation of a portfolio, the benchmark, the
+   robustness settings and the key order. (2) Every leaf of the request changed on its own (another number, enum,
+   date, ticker or flag the engine accepts): when the trades or the equity change, the variant hash changes too. */
+const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
+const trialOf = (l: Ledger) => ({ dates: l.dates, equity: l.equity, exposure: l.exposure, trades: l.trades.map(({ entry_condition_ids: _ids, ...t }) => t) });
+const signalsOf = (l: Ledger) => ({ ...trialOf(l), skipped: l.events.skipped, entries: l.events.entries, exits: l.events.exits, per_ticker: l.per_ticker_signals });
+const shuffle = <T>(a: T[]) => { for (let i = a.length - 1; i > 0; i--) { const j = int(0, i); [a[i], a[j]] = [a[j], a[i]] } return a };
+const keysReversed = (v: unknown): unknown => Array.isArray(v) ? v.map(keysReversed)
+  : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).reverse().map(([k, x]) => [k, keysReversed(x)])) : v;
+
+function unread(q0: BacktestRequest): BacktestRequest {
+  const q = clone(q0), x = q.exit;
+  let k = 0;
+  const id = () => `${int(0, 1295).toString(36)}${(k++).toString(36)}`;                      // unique, the page's alphabet
+  for (const list of [q.entry.conditions, x.signals.conditions]) { for (const c of list) c.id = id(); shuffle(list) }
+  if (rnd() < 0.7) { const list = rnd() < 0.5 ? q.entry.conditions : x.signals.conditions; list.splice(int(0, list.length), 0, { ...pick(ENTRY)(), id: id(), enabled: false } as Condition) }
+  for (const c of [...q.entry.conditions, ...x.signals.conditions]) if (c.enabled !== false && rnd() < 0.5) c.enabled = true;
+  if (x.stop.mode !== 'pct') x.stop.pct = pick([0.02, 0.05, 0.1]);
+  if (x.stop.mode !== 'atr') x.stop.atr_mult = pick([0.5, 1.5, 3]);
+  if (x.stop.mode !== 'rr') x.stop.reward_risk_x = pick([0.5, 1.5, 3]);
+  if (x.stop.mode !== 'line') x.stop.line = pick(LINES);
+  if (x.take_profit.mode !== 'pct') x.take_profit.pct = pick([0.03, 0.1, 0.3]);
+  if (x.take_profit.mode !== 'r') x.take_profit.r_multiple = pick([0.5, 1.5, 4]);
+  if (x.take_profit.mode !== 'atr') x.take_profit.atr_mult = pick([1, 2.5, 5]);
+  if (x.trailing.mode !== 'pct') x.trailing.pct = pick([0.02, 0.2]);
+  if (x.trailing.mode !== 'chandelier') { x.trailing.chandelier_length = pick([3, 10, 30]); x.trailing.chandelier_mult = pick([1, 2.5]) }
+  if (x.trailing.mode !== 'line') x.trailing.line = pick(LINES);
+  if (x.stop.mode !== 'atr' && x.take_profit.mode !== 'atr') x.atr_length = pick([3, 7, 21]);
+  const enabled = q.entry.conditions.filter(c => c.enabled !== false).length;
+  if (q.entry.logic !== 'at_least') q.entry.at_least = int(1, 5);
+  else if (q.entry.at_least >= enabled) q.entry.at_least = int(enabled, enabled + 3);
+  if (!x.signals.conditions.some(c => c.enabled !== false)) x.signals.logic = pick(['any', 'all'] as const);
+  q.period.oos_fraction = pick([0, 0.2, 0.3, 0.4] as const);
+  if (!q.costs.skip_ara_open_gap) q.costs.ara_gap_fraction = pick([0.05, 0.3, 0.5]);
+  if (q.mode === 'portfolio') q.sizing.allocation_fraction = pick([0.1, 0.5, 1]);
+  else q.single!.benchmark = pick(['buy_and_hold', 'ihsg'] as const);
+  q.robustness = { monte_carlo_runs: pick([0, 1000]), seed: int(0, 99), sensitivity: rnd() < 0.5 };
+  return keysReversed(q) as BacktestRequest;
+}
+
+type Path = (string | number)[];
+function leafPaths(v: unknown, p: Path = [], out: Path[] = []): Path[] {
+  if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) leafPaths(x, [...p, Array.isArray(v) ? +k : k], out);
+  else out.push(p);
+  return out;
+}
+const valueAt = (o: unknown, p: Path) => p.reduce((v: any, k) => v[k], o);
+const label = (p: Path) => p.map(k => typeof k === 'number' ? '[]' : k).join('.').replace(/\.\[\]/g, '[]');
+const ENUMS: Record<string, readonly string[]> = {
+  'exit.stop.mode': ['pct', 'atr', 'rr', 'line', 'none'], 'exit.take_profit.mode': ['pct', 'r', 'atr', 'none'], 'exit.trailing.mode': ['none', 'pct', 'chandelier', 'line'],
+  'entry.logic': ['all', 'any', 'at_least'], 'exit.signals.logic': ['any', 'all'], 'portfolio.rank_by': ['adx', 'fnet', 'vol', 'rsi'], 'single.benchmark': ['buy_and_hold', 'ihsg'],
+};
+/** Another value of the leaf at p that the engine may accept, or undefined for a leaf this check does not vary (the
+    schema version, the mode, a condition's kind, indicator, type, sides and id: the transformations above vary ids). */
+function another(q: BacktestRequest, p: Path, m: MarketData): unknown {
+  const v = valueAt(q, p), l = label(p), key = p[p.length - 1];
+  if (typeof v === 'boolean') return !v;
+  if (typeof v === 'number') return l === 'schema_version' ? undefined : pick([v + 1, v - 1, v * 1.5, v / 2, v + 0.01].filter(x => x !== v));
+  if (typeof v !== 'string') return undefined;
+  if (l === 'period.from' || l === 'period.to') return ALL[Math.min(ALL.length - 1, Math.max(0, ALL.indexOf(v) + pick([-3, -1, 1, 3])))];
+  if (l === 'single.ticker') { const others = Object.keys(m.tickers).filter(t => t !== v); return others.length ? pick(others) : undefined }
+  if (key === 'op' && (l === 'entry.conditions[].op' || l === 'exit.signals.conditions[].op')) {
+    const c = valueAt(q, p.slice(0, -1)) as Condition;
+    const ops = c.kind === 'indicator' ? ['gt', 'lt', 'crosses_above', 'crosses_below'] : c.kind === 'price_action' ? PRICE_ACTION[c.type].ops : [];
+    const others = ops.filter(o => o !== v);
+    return others.length ? pick(others) : undefined;
+  }
+  const options = ENUMS[l]?.filter(o => o !== v);
+  return options?.length ? pick(options) : undefined;
+}
+
+test('the variant hash is what the engine reads: unread fields keep it and the trades, every field that changes a trade changes it', async () => {
+  const runOrRefused = (ctx: ReturnType<typeof prepare>, q: BacktestRequest): Ledger | null => {
+    try { return run(ctx, q) } catch (e) { if (e instanceof ValidationError) return null; throw e }
+  };
+  seed = 20261027;                                                     // its own sequence, whichever tests run before it
+  const read = new Set<string>(), unreadSeen = new Set<string>();
+  let requests = 0, variations = 0;
+  for (let c = 0; c < 60; c++) {
+    const m = randomMarket(), ctx = prepare(m);
+    for (let n = 0; n < 2; n++) {
+      const q = randomRequest(m), base = runOrRefused(ctx, q);
+      if (!base) continue;
+      requests++;
+      const h = await variantHash(q), trial = trialOf(base), signals = signalsOf(base);
+      for (let k = 0; k < 3; k++) {
+        const u = unread(q), l = run(ctx, u);
+        assert.equal(await variantHash(u), h, `unread fields changed the variant hash: ${JSON.stringify(u)}`);
+        assert.deepEqual(signalsOf(l), signals, 'unread fields changed the run');
+      }
+      for (const p of leafPaths(q)) {
+        const v = another(q, p, m);
+        if (v === undefined) continue;
+        const q2 = clone(q), parent = valueAt(q2, p.slice(0, -1));
+        parent[p[p.length - 1]] = v;
+        const l2 = runOrRefused(ctx, q2);
+        if (!l2) continue;
+        variations++;
+        const h2 = await variantHash(q2);
+        if (!isDeepStrictEqual(trialOf(l2), trial)) {
+          assert.notEqual(h2, h, `${label(p)}: ${JSON.stringify(valueAt(q, p))} -> ${JSON.stringify(v)} changes the trades or the equity, not the variant hash`);
+          read.add(label(p));
+        } else if (h2 === h) unreadSeen.add(label(p));
+      }
+    }
+  }
+  // the generator must reach what the engine reads, and leaves it does not read must come back with the same hash
+  assert.ok(requests >= 60 && variations >= 2000, `${requests} requests, ${variations} variations`);
+  for (const f of ['period.from', 'period.to', 'single.ticker', 'portfolio.max_positions', 'portfolio.rank_by', 'portfolio.min_avg_value_20d_idr',
+    'entry.logic', 'entry.at_least', 'entry.window_bars', 'entry.conditions[].enabled', 'entry.conditions[].op', 'entry.conditions[].params.length', 'entry.conditions[].rhs.value', 'entry.conditions[].value',
+    'exit.atr_length', 'exit.stop.mode', 'exit.stop.pct', 'exit.stop.atr_mult', 'exit.stop.reward_risk_x', 'exit.take_profit.mode', 'exit.take_profit.pct', 'exit.take_profit.r_multiple', 'exit.take_profit.atr_mult',
+    'exit.trailing.mode', 'exit.trailing.pct', 'exit.trailing.chandelier_length', 'exit.trailing.chandelier_mult', 'exit.max_hold_bars', 'exit.signals.logic', 'exit.signals.conditions[].rhs.value',
+    'sizing.capital_idr', 'sizing.allocation_fraction', 'costs.buy_fee', 'costs.sell_fee', 'costs.slippage', 'costs.skip_ara_open_gap', 'costs.ara_gap_fraction'])
+    assert.ok(read.has(f), `no variation of ${f} changed the trades (${[...read].sort().join(', ')})`);
+  for (const f of ['period.oos_fraction', 'single.benchmark', 'robustness.seed', 'robustness.monte_carlo_runs', 'robustness.sensitivity', 'exit.stop.atr_mult', 'exit.take_profit.r_multiple', 'exit.trailing.pct', 'entry.at_least'])
+    assert.ok(unreadSeen.has(f), `no variation of ${f} where the engine does not read it (${[...unreadSeen].sort().join(', ')})`);
 });

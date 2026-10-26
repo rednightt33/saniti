@@ -8,9 +8,11 @@ import gzip
 import hashlib
 import json
 import logging
+import math
 import re
 import secrets
 import time
+import zlib
 
 import httpx
 import psycopg
@@ -50,12 +52,37 @@ class WorkerUnavailable(Exception):
     """The worker did not answer as its API says: no connection, a server error, our key refused, or not JSON."""
 
 
+class WorkerTimeout(WorkerUnavailable):
+    """The worker's own 504 TIMEOUT: the call took longer than its BACKTEST_TIMEOUT_SECONDS. The relayed calls answer
+    it as 504 with the worker's error; for the loop it stays an unanswered call (WorkerUnavailable)."""
+    def __init__(self, error):
+        self.error = error
+        super().__init__(error['code'])
+
+
 def _reject(value):
     raise ValueError(f'{value} is not JSON')   # NaN / Infinity: the contract never sends them (contract.ts units)
 
 
 def loads(raw):
-    return json.loads(raw, parse_constant=_reject)
+    """JSON that the contract can carry. Input nested deeper than the parser's recursion limit is no such JSON either:
+    its RecursionError is a ValueError here, so every caller refuses it as it refuses malformed JSON (a request
+    body 422 INVALID_INPUT, a worker answer outside its API)."""
+    try:
+        return json.loads(raw, parse_constant=_reject)
+    except RecursionError as e:
+        raise ValueError('JSON nested deeper than the parser takes') from e
+
+
+def finite(value):
+    """A JSON number that is a finite double: not a bool, and not an integer beyond a double (1e400 already loads as
+    inf)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
 
 
 def dumps(value):
@@ -118,22 +145,21 @@ def split_result(result, single_ticker=None):
     if not all(isinstance(v, str) and 0 < len(v) <= 200 for v in versions.values()) or not HEX64.fullmatch(versions['data_version']):
         raise ValueError('meta versions')
     duration = meta.get('duration_ms')
-    if isinstance(duration, bool) or not isinstance(duration, (int, float)) or duration < 0:
+    if not finite(duration) or duration < 0:
         raise ValueError('meta.duration_ms')
     variants = ((meta.get('trials') or {}).get('variants'))
     if not isinstance(variants, list):
         raise ValueError('meta.trials.variants')
+    # stored exactly as the run reports them, in its order (contract.ts: distinct variants, each with a finite daily
+    # Sharpe; result.ts assertFiniteJson refuses any other number): an entry outside that is no result, never skipped
     trials = []
     for v in variants:
         if not isinstance(v, dict) or not isinstance(v.get('variant_hash'), str) or not HEX64.fullmatch(v['variant_hash']) \
-                or v.get('kind') not in ('run', 'sensitivity'):
+                or v.get('kind') not in ('run', 'sensitivity') or not finite(v.get('sharpe_daily')):
             raise ValueError('meta.trials.variants entry')
-        sharpe = v.get('sharpe_daily')
-        if isinstance(sharpe, bool) or not isinstance(sharpe, (int, float)):
-            # a variant without a finite daily Sharpe cannot enter the trial variance; logged, never counted as 0
-            logger.warning(json.dumps({'event': 'backtest_trial_without_sharpe', 'variant_hash': v['variant_hash']}))
-            continue
-        trials.append((v['variant_hash'], float(sharpe), v['kind']))
+        trials.append((v['variant_hash'], float(v['sharpe_daily']), v['kind']))
+    if len({h for h, _, _ in trials}) != len(trials):
+        raise ValueError('meta.trials.variants not distinct')
     parts = {}
     def part(ticker):
         if not isinstance(ticker, str) or not TICKER.fullmatch(ticker):
@@ -153,47 +179,131 @@ def split_result(result, single_ticker=None):
             'lineage_key': meta.get('lineage_key')}
 
 
+class CallerGone(Exception):
+    """The client closed its connection before the relayed call answered (Backtests.unless_gone)."""
+
+
+class ResultTooLarge(Exception):
+    """The finished job's result unpacks to more than BACKTEST_MAX_RESULT_BYTES of JSON; reading stopped there."""
+
+
 class WorkerClient:
     """The private backtest worker (CONTRACT.md section 8), every route but /health behind x-backtest-worker-key.
-    Blocking calls; the routes and the loop run them in threads (as OrcClient)."""
+    The loop's calls block and run in a thread (as OrcClient; one job at a time, so one thread). The relayed calls of
+    the routes (acall: catalog, validate, signals) are awaited on the event loop instead: a preview may wait
+    BACKTEST_TIMEOUT_SECONDS for the worker, which computes previews one at a time, and pending previews holding
+    threads of the default pool would hold up every request that checks the session there (main.py session)."""
 
-    def __init__(self, settings, client=None):
+    def __init__(self, settings, client=None, relay=None):
         self.settings = settings
         self.client = client or httpx.Client(base_url=settings.backtest_worker_url, timeout=CONTROL_TIMEOUT,
                                              follow_redirects=False, trust_env=False)
+        self.relay = relay      # httpx.AsyncClient of the relayed calls, made on first use (main.py terminal_http)
 
-    def _send(self, method, path, body, timeout):
-        try:
-            response = self.client.request(method, path, json=body, timeout=timeout or CONTROL_TIMEOUT,
-                                           headers={'x-backtest-worker-key': self.settings.backtest_worker_key})
-        except httpx.HTTPError as e:
-            raise WorkerUnavailable() from e
+    def _headers(self):
+        return {'x-backtest-worker-key': self.settings.backtest_worker_key}
+
+    @staticmethod
+    def _checked(response):
+        """The answer when the worker answered as its API says; its 504 TIMEOUT is WorkerTimeout, any other server
+        error or our key refused WorkerUnavailable."""
+        if response.status_code == 504:
+            try:
+                found = error_of(loads(response.content))
+            except ValueError:
+                found = None
+            if found and found['code'] == 'TIMEOUT':
+                raise WorkerTimeout(found)
         if response.status_code >= 500 or response.status_code == 401:
             if response.status_code == 401:
                 logger.error('backtest_worker_key_refused')
             raise WorkerUnavailable()
         return response
 
-    def call(self, method, path, body=None, timeout=None):
-        """(status, JSON body) of one call."""
-        response = self._send(method, path, body, timeout)
+    @staticmethod
+    def _json(response):
         try:
             return response.status_code, loads(response.content)
         except ValueError as e:
             raise WorkerUnavailable() from e
+
+    def _send(self, method, path, body, timeout):
+        try:
+            response = self.client.request(method, path, json=body, timeout=timeout or CONTROL_TIMEOUT,
+                                           headers=self._headers())
+        except httpx.HTTPError as e:
+            raise WorkerUnavailable() from e
+        return self._checked(response)
+
+    def call(self, method, path, body=None, timeout=None):
+        """(status, JSON body) of one call."""
+        return self._json(self._send(method, path, body, timeout))
+
+    async def acall(self, method, path, body=None, timeout=None):
+        """call() awaited on the event loop (the relayed calls of the routes)."""
+        if self.relay is None:
+            self.relay = httpx.AsyncClient(base_url=self.settings.backtest_worker_url, timeout=CONTROL_TIMEOUT,
+                                           follow_redirects=False, trust_env=False)
+        try:
+            response = await self.relay.request(method, path, json=body, timeout=timeout or CONTROL_TIMEOUT,
+                                                headers=self._headers())
+        except httpx.HTTPError as e:
+            raise WorkerUnavailable() from e
+        return self._json(self._checked(response))
 
     def cancel(self, job_id):
         """True when the worker took the cancellation (its answer body is not read)."""
         return 200 <= self._send('POST', f'/v1/jobs/{job_id}/cancel', None, None).status_code < 300
 
     def result(self, job_id):
-        """(status, body bytes) of the finished job's result: the worker sends gzip JSON with Content-Encoding gzip,
-        which httpx unpacks. The download may take as long as a job may run."""
-        response = self._send('GET', f'/v1/jobs/{job_id}/result', None, self.settings.backtest_timeout_seconds)
-        return response.status_code, response.content
+        """(status, JSON bytes) of the finished job's result: the worker sends gzip JSON with Content-Encoding gzip and
+        keeps it until its next job starts (a fetch may be repeated). Read as it arrives and unpacked here, never
+        more than BACKTEST_MAX_RESULT_BYTES of JSON: ResultTooLarge past it, before anything beyond is unpacked. A
+        body that is not the worker's gzip (another encoding, a broken or cut stream) is WorkerUnavailable, as httpx's
+        own decoding error was. The download may take as long as a job may run."""
+        limit = self.settings.backtest_max_result_bytes
+        try:
+            with self.client.stream('GET', f'/v1/jobs/{job_id}/result', timeout=self.settings.backtest_timeout_seconds,
+                                    headers=self._headers()) as response:
+                if response.status_code >= 500 or response.status_code == 401:
+                    if response.status_code == 504:
+                        response.read()       # its error says whether it is the worker's own TIMEOUT
+                    self._checked(response)
+                if response.status_code != 200:
+                    return response.status_code, b''
+                encoding = response.headers.get('content-encoding', '').strip().lower()
+                if encoding not in ('gzip', '', 'identity'):
+                    raise WorkerUnavailable()
+                inflate = zlib.decompressobj(wbits=31) if encoding == 'gzip' else None   # 31: a gzip member
+                parts, size = [], 0
+                def take(piece):
+                    nonlocal size
+                    size += len(piece)
+                    if size > limit:
+                        raise ResultTooLarge()
+                    parts.append(piece)
+                for chunk in response.iter_raw():
+                    while chunk:
+                        if inflate is None:
+                            take(chunk)
+                            break
+                        take(inflate.decompress(chunk, limit + 1 - size))   # at most one byte past the limit
+                        chunk = inflate.unconsumed_tail
+                if inflate is not None:
+                    take(inflate.flush())
+                    if not inflate.eof:
+                        raise WorkerUnavailable()                          # the gzip stream was cut
+                return 200, b''.join(parts)
+        except (httpx.HTTPError, zlib.error) as e:
+            raise WorkerUnavailable() from e
 
     def close(self):
         self.client.close()
+
+    async def aclose(self):
+        self.close()
+        if self.relay is not None:
+            await self.relay.aclose()
 
 
 class BacktestStore:
@@ -338,10 +448,12 @@ class BacktestStore:
                                    row['lease_token'])).rowcount)
 
     def prior_trials(self, owner, lineage_key):
-        """JobContext.prior_trials: every variant recorded for this owner and strategy line, oldest first."""
+        """JobContext.prior_trials: every variant recorded for this owner and strategy line in first-recorded order
+        (recorded_seq: runs in the order they finished, each run's variants in its meta.trials.variants order; a
+        variant keeps its place when a later run reports it again)."""
         with self.connect() as c:
             rows = c.execute('''SELECT variant_hash, sharpe_daily FROM edge_bff.backtest_trials
-                WHERE owner_key=%s AND lineage_key=%s ORDER BY created_at, variant_hash''', (owner, lineage_key)).fetchall()
+                WHERE owner_key=%s AND lineage_key=%s ORDER BY recorded_seq''', (owner, lineage_key)).fetchall()
         return [{'variant_hash': r['variant_hash'], 'sharpe_daily': r['sharpe_daily']} for r in rows]
 
     def end(self, row, state, error=None, duration_ms=None):
@@ -355,7 +467,9 @@ class BacktestStore:
 
     def finish(self, row, split):
         """FINISHED with the result's versions, its stored parts and its trials, in one transaction fenced by the lease
-        (a lost lease stores nothing). A variant the line already has keeps its first Sharpe (on conflict do nothing)."""
+        (a lost lease stores nothing). The trials are meta.trials.variants exactly: a variant the line already has takes
+        this run's Sharpe and kind (the run evaluated it again on its data, robustness.ts trialSet) and keeps its
+        first-recorded place."""
         parts = split['parts']
         with self.connect() as c:
             changed = c.execute(f'''UPDATE edge_bff.backtest_jobs SET state='FINISHED',engine_version=%s,registry_version=%s,
@@ -372,7 +486,9 @@ class BacktestStore:
                     [(row['request_id'], name, payload, len(payload), hashlib.sha256(payload).hexdigest())
                      for name, payload in parts])
                 cur.executemany('''INSERT INTO edge_bff.backtest_trials(owner_key,lineage_key,variant_hash,sharpe_daily,
-                    kind,request_id) VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (owner_key,lineage_key,variant_hash) DO NOTHING''',
+                    kind,request_id) VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (owner_key,lineage_key,variant_hash)
+                    DO UPDATE SET sharpe_daily=EXCLUDED.sharpe_daily,kind=EXCLUDED.kind,request_id=EXCLUDED.request_id,
+                    updated_at=now()''',
                     [(row['owner_key'], row['lineage_key'], h, sharpe, kind, row['request_id'])
                      for h, sharpe, kind in split['trials']])
         self._log(changed, parts=len(parts), bytes=changed['result_bytes'])
@@ -403,10 +519,12 @@ class BacktestLoop:
             pass
 
     async def run(self):
-        pruned_at, not_ready = 0, False
+        # None: not pruned yet, so at the start. Never 0: time.monotonic() counts from an unspecified point (on Linux the
+        # host's boot), so on a host up for less than PRUNE_SECONDS a 0 would skip the start's prune.
+        pruned_at, not_ready = None, False
         while not self.stopping.is_set():
             try:
-                if time.monotonic() - pruned_at > PRUNE_SECONDS:
+                if pruned_at is None or time.monotonic() - pruned_at > PRUNE_SECONDS:
                     await self.call(self.store.prune)
                     pruned_at = time.monotonic()
                 for lost in await self.call(self.store.reap):
@@ -534,16 +652,19 @@ class BacktestLoop:
                 return
             state = data.get('state') if code == 200 and isinstance(data, dict) else None
             ended = None
-            if state in ('QUEUED', 'RUNNING'):
+            if state in ('QUEUED', 'RUNNING', *ENDED):
+                # the worker's progress; once the job ended there, its final one (FINISHED: finalizing 1/1), which the
+                # last poll while it ran did not see. Stored before the end, so the ended job reports it.
                 progress = data.get('progress') if isinstance(data.get('progress'), dict) else None
                 if progress != shown:
                     if not await self.call(self.store.progress, row, progress):
                         return
                     shown = progress
+            if state in ('QUEUED', 'RUNNING'):
                 failures = 0
                 continue
             reported = data.get('duration_ms') if state else None
-            duration = int(reported) if isinstance(reported, (int, float)) and not isinstance(reported, bool) and reported >= 0 else None
+            duration = int(reported) if finite(reported) and reported >= 0 else None
             if state == 'FINISHED':
                 ended = await self.ingest(row)
             elif state == 'FAILED':
@@ -552,19 +673,27 @@ class BacktestLoop:
                 ended = await self.call(self.store.end, row, 'CANCELLED', None, duration) or True
             if ended:
                 return
-            failures += 1     # no answer, an answer outside the API, or a result that could not be fetched yet
+            failures += 1     # no answer, an answer outside the API, or a result that could not be fetched or stored yet
             if failures >= WORKER_RETRIES:
                 await self.call(self.store.end, row, 'FAILED', {'code': 'WORKER_LOST'})
                 return
 
     async def ingest(self, row):
         """Fetch, split and store the finished result. True when the job ended (FINISHED, or FAILED RESULT_INVALID /
-        WORKER_LOST), None to try again at the next poll (no answer yet)."""
+        LIMIT_EXCEEDED / WORKER_LOST), None to try again at the next poll (no answer yet, or the store failed: the
+        worker keeps the result until its next job, so it is fetched again; follow bounds the attempts). The worker
+        answering that it does not have the result, 404 UNKNOWN_JOB or 410 RESULT_GONE (a newer job started there and
+        replaced it), ends the job WORKER_LOST at once: no later fetch can get it."""
         try:
             code, raw = await self.call(self.worker.result, row['request_id'])
         except WorkerUnavailable:
             return None
-        if code == 404:
+        except ResultTooLarge:
+            limit = self.settings.backtest_max_result_bytes
+            await self.call(self.store.end, row, 'FAILED', {'code': 'LIMIT_EXCEEDED', 'message':
+                f'The backtest result is larger than {limit} bytes of JSON, the most edge-bff stores (BACKTEST_MAX_RESULT_BYTES).'})
+            return True
+        if code in (404, 410):
             await self.call(self.store.end, row, 'FAILED', {'code': 'WORKER_LOST'})
             return True
         if code != 200:
@@ -577,7 +706,12 @@ class BacktestLoop:
             return True
         if split['lineage_key'] != row['lineage_key']:
             logger.warning(json.dumps({'event': 'backtest_lineage_differs', 'request_id': row['request_id']}))
-        await self.call(self.store.finish, row, split)
+        try:
+            await self.call(self.store.finish, row, split)   # one transaction: a failure stores nothing
+        except Exception:
+            # Database exceptions can contain credentials: the event only.
+            logger.error(json.dumps({'event': 'backtest_result_store_failed', 'request_id': row['request_id']}))
+            return None
         return True
 
     def stop(self):
@@ -595,9 +729,9 @@ class Backtests:
         self.ready = False
         self.catalog = {'at': None, 'data': None}
 
-    def close(self):
+    async def aclose(self):
         if self.worker:
-            self.worker.close()
+            await self.worker.aclose()
 
     async def guard(self):
         if not self.worker:
@@ -606,11 +740,18 @@ class Backtests:
             await asyncio.to_thread(self.store.ready)    # StoreError BACKTEST_NOT_READY while the tables are missing
             self.ready = True
 
-    async def ask(self, method, path, body=None, timeout=None):
-        """One relayed worker call: 2xx -> its JSON; a 4xx with an error -> that error and status, as the worker gave
-        them (validation 422, data 424, BUSY 409); anything else -> 503 BACKTEST_UNAVAILABLE."""
+    async def ask(self, method, path, body=None):
+        """One relayed worker call (catalog, validate, signals): 2xx -> its JSON; a 4xx with an error -> that error and
+        status, as the worker gave them (validation 422, data 424, BUSY 409); its 504 TIMEOUT -> 504 with its error;
+        anything else -> 503 BACKTEST_UNAVAILABLE. The worker answers each of these calls within its
+        BACKTEST_TIMEOUT_SECONDS (set with ours) or with that 504, so its answer is awaited that long plus one control
+        call for it to arrive (else our own timeout would always come first); connecting and sending stay one control
+        call. Awaited on the event loop, never in a thread (WorkerClient.acall)."""
+        wait = httpx.Timeout(CONTROL_TIMEOUT, read=self.settings.backtest_timeout_seconds + CONTROL_TIMEOUT)
         try:
-            code, data = await asyncio.to_thread(self.worker.call, method, path, body, timeout)
+            code, data = await self.worker.acall(method, path, body, wait)
+        except WorkerTimeout as e:
+            raise BacktestError(504, e.error)
         except WorkerUnavailable:
             raise BacktestError(503, {'code': 'BACKTEST_UNAVAILABLE'})
         if 200 <= code < 300:
@@ -619,6 +760,27 @@ class Backtests:
         if 400 <= code < 500 and found:
             raise BacktestError(code, found)
         raise BacktestError(503, {'code': 'BACKTEST_UNAVAILABLE'})
+
+    @staticmethod
+    async def unless_gone(request, work):
+        """The result of work, or CallerGone once the caller went away first (FastAPI does not cancel a route whose
+        client left). The call is then cancelled, which closes its connection to the worker, and the worker stops a
+        preview whose caller is gone (its server.ts preview): a preview the page dropped no longer keeps the worker's
+        one preview thread from the next one."""
+        task = asyncio.ensure_future(work)
+        async def gone():
+            while (await request.receive())['type'] != 'http.disconnect':   # the body is read: only the disconnect is left
+                pass
+        watch = asyncio.ensure_future(gone())
+        try:
+            await asyncio.wait((task, watch), return_when=asyncio.FIRST_COMPLETED)
+        finally:
+            watch.cancel()
+            task.cancel()
+            await asyncio.gather(watch, task, return_exceptions=True)
+        if task.cancelled():
+            raise CallerGone()
+        return task.result()
 
     @staticmethod
     async def json_object(request):
@@ -654,15 +816,20 @@ class Backtests:
 
         @app.post('/api/v1/backtests/signals')
         async def signals(request: Request, _=Depends(write)):
-            """SignalsPreview of a universe before a run (no job, no trial), computed by the worker while we wait."""
+            """SignalsPreview of a universe before a run (no job, no trial), computed by the worker while we wait; stopped
+            there when the page leaves before it answers."""
             await self.guard()
             body = await self.json_object(request)
-            return JSONResponse(await self.ask('POST', '/v1/signals', body, settings.backtest_timeout_seconds))
+            try:
+                return JSONResponse(await self.unless_gone(request, self.ask('POST', '/v1/signals', body)))
+            except CallerGone:
+                return Response(status_code=204)    # never sent: uvicorn drops an answer to a closed connection
 
         @app.post('/api/v1/backtests', status_code=202)
         async def submit(request: Request, _=Depends(write)):
             """202 {request_id}: the request checked by the worker (its 422 relayed as it is) and queued; the same
-            client_request_id returns the same job."""
+            client_request_id returns the same job. client_request_id is edge-bff's submission key: it is taken out
+            here, so neither /v1/validate nor /v1/jobs (the stored request) gets it; every other key goes on as sent."""
             await self.guard()
             body = await self.json_object(request)
             key = body.pop('client_request_id', None)

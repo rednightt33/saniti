@@ -10,7 +10,7 @@ import type { FlowCondition } from '../../edge-bff/backtest/src/core/conditions.
 import { legacyCard, legacyToCondition } from '../../edge-bff/backtest/src/core/catalog.ts';
 import type { BrokerRow, Columnar } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { brokerRows } from '../../edge-bff/backtest/src/core/datafile.ts';
-import { flowData, rollingSum, top5Accumulation } from '../../edge-bff/backtest/src/core/flow.ts';
+import { brokerNet, flowData, rollingSum, top5Accumulation } from '../../edge-bff/backtest/src/core/flow.ts';
 import type { FlowData } from '../../edge-bff/backtest/src/core/flow.ts';
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 import { brokerData } from '../../edge-bff/terminal/src/data/worker.ts';
@@ -66,6 +66,17 @@ test('flow conditions on the hand-computed sums (page cmpSeries: bar 0 never, no
   assert.deepEqual(s(cond('top5', { length: 1 }, 'gt', -100)), [0, 0, 1, 1, 1, 0]);
   assert.deepEqual(s(cond('top5', { length: 1 }, 'gt', 0)), [0, 0, 0, 0, 1, 0]);
   assert.ok(c.flowMemo.has('fnet|2') && c.flowMemo.has('broker|AK|1') && c.flowMemo.has('top5|1'));
+});
+
+test('a broker without any row on the ticker\'s bars has a net of 0 on every bar with broker data (lead decision 2026-10-26)', () => {
+  const f = flowData(ROWS, D), c = new Calc(bars(D.length), f);
+  assert.equal(brokerNet(f, 'AK'), f.brokers.get('AK'));
+  same(brokerNet(f, 'XX'), [N_, 0, 0, 0, 0, N_], 'XX');                           // NaN outside [from, to], as every flow series
+  same(brokerNet(flowData([], D), 'XX'), D.map(() => N_), 'no broker data');
+  // its condition is evaluated on those zeros (the code is checked against the broker list by the worker's validation)
+  assert.deepEqual([...conditionSeries(c, cond('broker', { length: 2, broker: 'XX' }, 'gt', -1))], [0, 0, 1, 1, 1, 0]);
+  assert.deepEqual([...conditionSeries(c, cond('broker', { length: 2, broker: 'XX' }, 'gt', 0))], [0, 0, 0, 0, 0, 0]);
+  assert.ok(c.flowMemo.has('broker|XX|2'));
 });
 
 /* ---- against the Terminal --------------------------------------------------------------------------------------- */
@@ -179,7 +190,12 @@ test('flow conditions refuse what the page cannot send and data they cannot read
   assert.deepEqual(codeOf(() => conditionSeries(new Calc(bars(D.length)), ok)), ['FLOW_UNAVAILABLE', 'condition']);
   assert.deepEqual(codeOf(() => conditionSeries(new Calc(bars(D.length)), { id: 'x', kind: 'flow', type: 'fnet' } as FlowCondition)), ['FLOW_UNAVAILABLE', 'condition']);
   assert.deepEqual(codeOf(() => conditionSeries(new Calc(bars(D.length), flowData([], D)), ok)), ['FLOW_UNAVAILABLE', 'condition']);
-  assert.deepEqual(codeOf(() => conditionSeries(c, cond('broker', { length: 5, broker: 'XX' }, 'gt', 0))), ['UNKNOWN_BROKER', 'condition.params.broker']);
+  // a series without any value on the ticker's bars (a window longer than its bars with broker data, 4 here)
+  assert.deepEqual(codeOf(() => conditionSeries(c, cond('fnet', { length: 5 }, 'gt', 0))), ['FLOW_OUTPUT_EMPTY', 'condition.params.length']);
+  assert.deepEqual(codeOf(() => conditionSeries(c, cond('broker', { length: 5, broker: 'AK' }, 'gt', 0))), ['FLOW_OUTPUT_EMPTY', 'condition.params.length']);
+  assert.deepEqual(codeOf(() => conditionSeries(c, cond('broker', { length: 5, broker: 'XX' }, 'gt', 0))), ['FLOW_OUTPUT_EMPTY', 'condition.params.length']);
+  assert.deepEqual(codeOf(() => conditionSeries(c, cond('top5', { length: 4 }, 'gt', 0))), ['FLOW_OUTPUT_EMPTY', 'condition.params.length']);   // from at bar from + n
+  assert.equal(codeOf(() => conditionSeries(c, cond('top5', { length: 3 }, 'gt', 0))), null);
   const cases: [FlowCondition, [string, string]][] = [
     [cond('volume', { length: 5 }, 'gt', 0), ['UNKNOWN_CONDITION', 'condition.type']],
     [cond('__proto__', { length: 5 }, 'gt', 0), ['UNKNOWN_CONDITION', 'condition.type']],

@@ -7,11 +7,13 @@
    inflight: { max } }:
      key      the proxy key terminal-api accepts (x-terminal-proxy-key); a wrong one answers 401 proxy_key_rejected
      tickers  { TICKER: { generated_at?, window?, datasets: { price|broker|events: { data_through, first_year?,
-              files: [{ doc | body, year?, pack?, sha256?, bytes?, missing?, status? }] } } } }
+              files: [{ doc | body, year?, pack?, sha256?, bytes?, missing?, status?, url? }] } } } }
               (year: a yearly file; pack: 'price' | 'broker-archive'; events: one file without year or pack;
               sha256 / bytes: what the manifest claims instead of the truth; missing: the bucket answers 404;
-              status: the bucket answers that status)
+              status: the bucket answers that status; url: what /bundle names instead of the presigned URL)
      refs     { tickers?: doc, brokers?: doc } for GET /reference/{name}
+     GET /manifest/{ticker} answers the manifest per dataset as main.py does: data_through and the yearly files (events:
+     'all'; the packs are not listed there) with bytes, rows, first, last and sha256; no URL.
      /bundle with packs: true answers the price pack instead of the yearly price files, and the broker archive plus the
      yearly broker files after its last year, as main.py does.
    requests: every request seen ({ method, path, headers }); fault(match, statuses): the next requests whose path starts
@@ -136,9 +138,26 @@ export async function startFakeTerminal({ key, tickers = {}, refs = {}, ttl = 12
         chosen = [archive, ...chosen.filter(x => x.f.year > last)];
       }
       datasets[name] = { data_through: ds.data_through ?? null, first_year: ds.first_year ?? null,
-        files: chosen.map(x => ({ year: x.f.pack ? null : name === 'events' ? null : x.f.year, url: presign(x.key), ...x.entry, ...(x.f.pack ? { pack: x.f.pack } : {}) })) };
+        files: chosen.map(x => ({ year: x.f.pack ? null : name === 'events' ? null : x.f.year, url: x.f.url ?? presign(x.key), ...x.entry, ...(x.f.pack ? { pack: x.f.pack } : {}) })) };
     }
     return [200, { ticker: body.ticker, window: t.window ?? null, generated_at: t.generated_at ?? null, expires_in_seconds: ttl, encoding: 'gzip json', datasets }];
+  }
+
+  function manifest(ticker) {
+    const t = tickers[ticker];
+    if (!TICKER.test(ticker)) return [400, { error: 'invalid_ticker', message: 'A ticker is 1-12 capital letters or digits, for example BBCA.' }];
+    if (!t) return [404, { error: 'unknown_ticker', message: `No published data for ${ticker}.` }];
+    const datasets = {};
+    for (const [name, ds] of Object.entries(t.datasets || {})) {
+      const years = {};
+      for (const x of answers[ticker][name] ?? []) {
+        if (x.f.pack || (name !== 'events' && (x.f.year === undefined || x.f.year === null))) continue;
+        const d = x.f.doc?.d ?? [];
+        years[name === 'events' ? 'all' : String(x.f.year)] = { bytes: x.entry.bytes, rows: x.entry.rows, first: d[0] ?? null, last: d[d.length - 1] ?? null, sha256: x.entry.sha256 };
+      }
+      datasets[name] = { data_through: ds.data_through ?? null, years: Object.fromEntries(Object.entries(years).sort()) };
+    }
+    return [200, { ticker, window: t.window ?? null, generated_at: t.generated_at ?? null, datasets }];
   }
 
   const server = http.createServer(async (req, res) => {
@@ -171,6 +190,11 @@ export async function startFakeTerminal({ key, tickers = {}, refs = {}, ttl = 12
         let parsed;
         try { parsed = JSON.parse(body.toString() || '{}') } catch { return send(res, 400, { error: 'invalid_request', message: 'Check the listed fields.', fields: [] }) }
         const [status, answer] = bundle(parsed);
+        return send(res, status, answer);
+      }
+      const man = /^\/api\/terminal\/v1\/manifest\/([^/]+)$/.exec(u.pathname);
+      if (req.method === 'GET' && man) {
+        const [status, answer] = manifest(decodeURIComponent(man[1]));
         return send(res, status, answer);
       }
       const ref = /^\/api\/terminal\/v1\/reference\/([^/]+)$/.exec(u.pathname);

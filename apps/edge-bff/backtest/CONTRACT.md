@@ -54,6 +54,22 @@ The result calendar `dates` is the sorted union of the published bar dates of IH
 (`flags.stale_mark` on the trade when that happened while held or at the exit). Signals, "within N bars" windows and
 `bars_held` count the ticker's own bars.
 
+What the period and the universe become on the data (`engine.ts` run, after the job was accepted):
+
+- Single **[D-period_clip]**: when `period.from` is before the ticker's first published bar and that bar is on or
+  before `period.to`, the run starts at that bar, so `dates[0]` is that bar and not `period.from`; the warning
+  `PERIOD_CLIPPED` names both dates. A portfolio keeps `period.from`.
+- Portfolio **[D-exclude]**: a universe ticker whose own data cannot serve the strategy is left out of the run instead
+  of failing it: no published files (`DATA_MISSING`, the worker's loader) or `INDICATOR_OUTPUT_EMPTY`,
+  `FLOW_OUTPUT_EMPTY`, `FLOW_UNAVAILABLE` (`engine.ts EXCLUDED_CODES`: an indicator or flow series the run needs
+  without any value, no broker data on the ticker's bars), decided on the ticker's bars up to `period.to` (bars after the period never leave a
+  ticker out). `meta.tickers` lists the tickers that ran; the warning `TICKERS_EXCLUDED` lists the others (`count`,
+  `tickers`, and `reasons` with each ticker's error). In single mode these errors fail the run; a request error (a
+  parameter, an indicator, a field) fails it in either mode.
+- The calendar is built from IHSG and the tickers that run. A period without any calendar day is `PERIOD_EMPTY`; a
+  primary benchmark (section 7) without a close on or before `dates[0]` is `PERIOD_BEFORE_DATA`, because the
+  benchmark is scaled by its first close (section 11).
+
 ## 5. Signals
 
 - Condition series as `conditions.ts` (page semantics, verified formulas). The combined entry state is
@@ -127,11 +143,25 @@ drawdowns, exit reasons, per ticker), so the page shows what `backtest.html` sho
   volspike, flow); xs = base + k × step, k = −2..2, step = max(1, |base_display| × 0.2) in display units
   (`catalog.ts DISPLAY`), rounded to 2 decimals in display units; ys from the stop mode (pct: step 2 %, min 1 %; atr:
   0.5 / 0.5; rr: 0.5 / 0.5; else max hold step 5, min 2). 25 full runs; each cell is a trial.
-- Trials **[D-K3]**: lineage = hash of the strategy shape (mode, universe, condition kinds/indicators/operators/
-  outputs, exit modes; no numbers). Variant hash = hash of the canonical request. edge-bff passes the lineage's
-  prior trials; the run adds its own variant and the 25 cells (distinct variant hashes only). DSR uses the trials'
-  Sharpe variance when there are ≥ 2 distinct trials, else the sample variance (`sharpe_variance_from`).
-- Warnings: `SURVIVORSHIP` (portfolio: today's universe, no delisted tickers) **[D-K6]**; `ADJUSTED_HISTORY_BOUNDARY`
+- Trials **[D-K3]** (`hash.ts`): the **lineage key** (the line trials are counted in) is the hash of the strategy's
+  shape: the mode; in single mode the ticker (the same strategy on another stock is another line), in portfolio mode
+  the universe; the entry logic and the shapes of the enabled entry conditions (kind, indicator or type, operator,
+  the output names compared; no numbers or parameters, in any order); the stop, take-profit and trailing modes, with
+  the line's indicator and output for a line mode; and, when an exit condition is enabled, the exit-signal logic and
+  those conditions' shapes. Every number, the parameters, condition ids, the period and OOS share, the benchmark, the
+  ranking and the robustness settings are not in it: changing one is a new variant of the same line. The **variant
+  hash** is the hash of what the engine reads, in a canonical form (`variantOf`): a request that differs only in what
+  no trade or trial Sharpe depends on is the same trial. Left out: `robustness` (Monte Carlo runs, seed, the
+  sensitivity switch), `single.benchmark`, `period.oos_fraction`; condition ids and disabled conditions (each list's
+  enabled conditions are compared as a sorted list, a repeated one stays repeated); `entry.at_least` unless the logic
+  is `at_least`; the exit-signal logic without an enabled exit condition; the numbers of the stop, take-profit and
+  trailing modes not chosen, and `exit.atr_length` without an ATR stop or target; `sizing.allocation_fraction` in
+  portfolio mode; `costs.ara_gap_fraction` while `skip_ara_open_gap` is off. edge-bff passes the lineage's prior
+  trials; the run adds its own variant and the 25 cells (distinct variant hashes only). DSR uses the trials' Sharpe
+  variance when there are ≥ 2 distinct trials, else the sample variance (`sharpe_variance_from`).
+- Warnings: `PERIOD_CLIPPED` (single: the run starts at the ticker's first published bar, section 4)
+  **[D-period_clip]**; `TICKERS_EXCLUDED` (portfolio: the universe tickers left out, with `count`, `tickers` and
+  `reasons`, section 4) **[D-exclude]**; `SURVIVORSHIP` (portfolio: today's universe, no delisted tickers) **[D-K6]**; `ADJUSTED_HISTORY_BOUNDARY`
   (period crosses 2026-09-12: history before is back-adjusted for splits/bonus/rights, after is raw) and per-trade
   `flags.corporate_actions` **[D-K4]**; `DATA_GAP` (calendar days without a bar for a held or signalled ticker);
   `ARB_NOT_MODELLED` (stops always fill at min(open, level); no lower-limit lock) **[D-K5a]**; `TICK_NOT_MODELLED`.
@@ -170,7 +200,9 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
 
 `{error:{code, field?, message?, details?}}`. Validation 422; data errors 424 (`DATA_MISSING`, `DATA_INTEGRITY`,
 `DATA_UNAVAILABLE`); limits 429 (`QUEUE_FULL`); `BACKTEST_DISABLED` 503; worker lost → job `FAILED`
-`WORKER_LOST`; timeout → `TIMEOUT`; cancel → `CANCELLED`.
+`WORKER_LOST`; timeout → `TIMEOUT`; cancel → `CANCELLED`. Found when the job runs on the data, so the job ends
+`FAILED` with the error (field `period.from`): `PERIOD_EMPTY` (no calendar day in the period) and
+`PERIOD_BEFORE_DATA` (the primary benchmark has no close on or before the first calendar day), section 4.
 
 ## 12. Decisions taken for the user (2026-10-26)
 
@@ -198,4 +230,6 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
 | grid | Which condition the grid varies | page (legacy cards only) / any numeric threshold | any numeric threshold | registry cards were only excluded by the mock-up |
 | no-autorun | Run at page load | yes (mock-up) / no | no | each run is a trial and a job |
 | period_end | Entry on the last day | allow / skip | skip | it would close at the same close |
+| period_clip | Single: `period.from` before the ticker's first published bar | refuse / start at that bar | start at that bar + `PERIOD_CLIPPED` (lead) | the ticker has no bar, and a buy-and-hold benchmark no value, before it |
+| exclude | Portfolio: a universe ticker whose own data cannot serve the strategy | fail the run / leave it out | leave it out + `TICKERS_EXCLUDED`: `DATA_MISSING` and `EXCLUDED_CODES`, decided on its bars up to `period.to` (lead) | one ticker's data never fails the universe's run; bars after the period never decide it |
 | bb bxin | Close back inside lower band | exact page op / crosses above | crosses above I27 lower | equal only when a close equals the band exactly |

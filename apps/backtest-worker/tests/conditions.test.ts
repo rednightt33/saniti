@@ -118,6 +118,7 @@ test('invalid conditions are refused with a field name', () => {
   assert.deepEqual(code({ id: 'a', kind: 'indicator', indicator: 'I13', lhs: { type: 'output', output: 'macd' }, op: 'gt', rhs: { type: 'value', value: 30 } }), ['UNKNOWN_OUTPUT', 'condition.lhs.output']);
   assert.deepEqual(code({ id: 'a', kind: 'indicator', indicator: 'I13', lhs: { type: 'value', value: 1 }, op: 'gt', rhs: { type: 'value', value: 30 } }), ['INVALID_CONDITION', 'condition.lhs.type']);
   assert.deepEqual(code({ id: 'a', kind: 'indicator', indicator: 'I13', lhs: { type: 'output', output: 'rsi' }, op: 'ge', rhs: { type: 'value', value: 30 } }), ['INVALID_CONDITION', 'condition.op']);
-  assert.deepEqual(code({ id: 'a', kind: 'flow', type: 'fnet' }), ['UNKNOWN_CONDITION', 'condition.kind']);
+  // a flow condition on bars without flow data: FLOW_UNAVAILABLE before its shape is read (lead decision 2026-10-26)
+  assert.deepEqual(code({ id: 'a', kind: 'flow', type: 'fnet' }), ['FLOW_UNAVAILABLE', 'condition']);
   assert.deepEqual(code({ id: 'a', kind: 'price_action', type: 'breakout', params: { length: 0 } }), ['INVALID_PARAM', 'condition.params.length']);
 });

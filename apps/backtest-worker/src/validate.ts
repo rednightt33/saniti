@@ -6,11 +6,18 @@
    - what the engine does not check: schema_version 1, oos_fraction one of the page's 0 / 0.2 / 0.3 / 0.4, Monte Carlo
      runs exactly limits.monte_carlo_runs or 0 and a whole seed >= 0, max_positions within limits.max_positions, the
      single ticker a published stock, the universe a catalog universe;
-   - every enabled condition as conditions.ts checks it, on an empty bar set: the registry indicator, its parameters,
-     operator, outputs and value, the price-action parameters and thresholds. Only INDICATOR_OUTPUT_EMPTY needs the
-     ticker's bars, so it is left to the run. Flow conditions and rank_by 'fnet' are FLOW_UNAVAILABLE while flow is off
-     (catalog.flow.available false), else checked by conditions.ts flowConditionShape.
-   PERIOD_AFTER_DATA (IHSG's last bar) and the data-dependent errors are the run's: they need the published files. */
+   - every condition, enabled or not, as conditions.ts checks it, on an empty bar set: its kind, the registry
+     indicator, its parameters, operator, outputs and value, the price-action parameters and thresholds, the flow
+     condition's shape (flowConditionShape). Only INDICATOR_OUTPUT_EMPTY needs the ticker's bars, so it is left to the
+     run. A disabled condition is not evaluated, but it is stored with the job and kept by the page, so it is held to
+     the same shape; what only an evaluation needs is checked on the enabled ones: flow conditions and rank_by 'fnet'
+     are FLOW_UNAVAILABLE while flow is off (catalog.flow.available false), and a broker condition's code must be a
+     broker of terminal-api's broker reference list (UNKNOWN_BROKER; a listed broker without any row on a ticker's bars
+     has a net of 0 there, flow.ts brokerNet);
+   - a condition id has the page's shape (CONDITION_ID) and a list has at most limits.max_conditions enabled
+     conditions (LIMIT_EXCEEDED): the result repeats the ids per ticker track and per trade.
+   PERIOD_AFTER_DATA (IHSG's last bar), FLOW_DATA_THROUGH (the broker data's date) and the data-dependent errors are
+   the run's: they need the published manifests or files. */
 import type { BacktestRequest, SignalsPreviewRequest } from '../../edge-bff/backtest/src/core/contract.ts';
 import { Calc, conditionSeries, flowConditionShape } from '../../edge-bff/backtest/src/core/conditions.ts';
 import type { Condition as CoreCondition, FlowCondition } from '../../edge-bff/backtest/src/core/conditions.ts';
@@ -19,9 +26,13 @@ import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 import { isIsoDate, requestConditions } from '../../edge-bff/backtest/src/core/signals.ts';
 import type { ActiveCondition } from '../../edge-bff/backtest/src/core/signals.ts';
 import type { Config } from './config.ts';
-import type { TickerRef } from './terminal.ts';
+import { invalid } from './errors.ts';
+import type { BrokerRef, TickerRef } from './terminal.ts';
 
 export const OOS_FRACTIONS = [0, 0.2, 0.3, 0.4];         // the page's Out-of-sample select: none, last 20 / 30 / 40 %
+/** A condition id as the page makes it, Math.random().toString(36).slice(2, 8) (state.ts mkCond, reg.ts mkReg,
+    workspace.ts): 1 to 6 base-36 digits. */
+export const CONDITION_ID = /^[0-9a-z]{1,6}$/;
 const fail = (code: string, field: string, message: string): never => { throw new ValidationError(code, field, message) };
 const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const byTicker = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
@@ -75,6 +86,9 @@ function entryFields(e: unknown, field: string): void {
   if (isObject(e)) conditionFields(e.conditions, `${field}.conditions`);
 }
 
+/** terminal-api's reference lists a request is checked against (GET /reference/tickers and /reference/brokers). */
+export interface References { tickers: readonly TickerRef[]; brokers: readonly BrokerRef[] }
+
 /* ---- universes (CONTRACT section 3, D-K6): every published stock, and the stocks of each published sector ------------ */
 export interface Universe { id: string; label: string; tickers: string[] }
 export const stocksOf = (refs: readonly TickerRef[]) => refs.filter(r => r.type === 'stock').map(r => r.ticker).sort(byTicker);
@@ -92,17 +106,29 @@ export function universeMembers(refs: readonly TickerRef[], id: unknown): string
 
 /* ---- conditions without bars --------------------------------------------------------------------------------------- */
 const EMPTY = { O: [], H: [], L: [], C: [], V: [], T: [] };
-function checkConditions(list: readonly ActiveCondition[], flow: Config['flow']): boolean {
+interface Listed { field: string; cond: CoreCondition; enabled: boolean }
+/** Every condition of a list, enabled or not, after requestConditions has checked the list, each object, id and flag. */
+const listed = (list: unknown, field: string): Listed[] =>
+  (list as CoreCondition[]).map((cond, k) => ({ field: `${field}[${k}]`, cond, enabled: (cond as { enabled?: boolean }).enabled !== false }));
+/** At most limits.max_conditions enabled conditions per list. */
+function withinConditions(lists: [readonly ActiveCondition[], string][], max: number): void {
+  for (const [list, field] of lists) if (list.length > max)
+    throw invalid('LIMIT_EXCEEDED', field, `${field} has ${list.length} enabled conditions; the limit is ${max}.`, { limit: 'max_conditions', allowed: max, needed: list.length });
+}
+function checkConditions(list: readonly Listed[], flow: Config['flow'], brokers: readonly BrokerRef[]): boolean {
   let needsBroker = false;
-  for (const a of list) {
-    const c = a.cond as CoreCondition;
+  for (const { field, cond: c, enabled } of list) {
+    if (!CONDITION_ID.test(c.id)) fail('INVALID_CONDITION', `${field}.id`, `${field}.id must be 1 to 6 lowercase letters or digits, as the page makes it.`);
     if (c.kind === 'flow') {
-      if (!flow.enabled) fail('FLOW_UNAVAILABLE', a.field, `${a.field}: flow and broker conditions are not available. ${flow.reason ?? ''}`.trim());
-      flowConditionShape(c as FlowCondition, a.field);
+      if (enabled && !flow.enabled) fail('FLOW_UNAVAILABLE', field, `${field}: flow and broker conditions are not available. ${flow.reason ?? ''}`.trim());
+      const { broker } = flowConditionShape(c as FlowCondition, field);
+      if (!enabled) continue;
+      if (broker !== null && !brokers.some(b => b.code === broker))
+        fail('UNKNOWN_BROKER', `${field}.params.broker`, `${field}: ${broker} is not a broker of the published broker list.`);
       needsBroker = true;
       continue;
     }
-    try { conditionSeries(new Calc(EMPTY), c, a.field) }
+    try { conditionSeries(new Calc(EMPTY), c, field) }                // an unknown kind is UNKNOWN_CONDITION here
     catch (e) { if (!(e instanceof ValidationError && e.code === 'INDICATOR_OUTPUT_EMPTY')) throw e }   // needs the ticker's bars
   }
   return needsBroker;
@@ -114,7 +140,7 @@ export interface CheckedRequest {
 }
 
 /** A backtest request checked as far as it can be without market data; ValidationError (422) otherwise. */
-export function checkRequest(input: unknown, refs: readonly TickerRef[], cfg: Pick<Config, 'limits' | 'flow'>): CheckedRequest {
+export function checkRequest(input: unknown, refs: References, cfg: Pick<Config, 'limits' | 'flow'>): CheckedRequest {
   if (!isObject(input)) fail('INVALID_REQUEST', 'request', 'The request must be a JSON object.');
   const q = input as unknown as BacktestRequest;
   only(q, 'request', '');
@@ -146,12 +172,12 @@ export function checkRequest(input: unknown, refs: readonly TickerRef[], cfg: Pi
   let broker = false;
   if (q.mode === 'single') {
     const t = q.single!.ticker;
-    if (!refs.some(x => x.ticker === t && x.type === 'stock')) fail('UNKNOWN_TICKER', 'single.ticker', `${t} is not a published stock.`);
+    if (!refs.tickers.some(x => x.ticker === t && x.type === 'stock')) fail('UNKNOWN_TICKER', 'single.ticker', `${t} is not a published stock.`);
     tickers = [t];
   } else {
     const p = q.portfolio!;
     if (p.max_positions > cfg.limits.max_positions) fail('INVALID_PORTFOLIO', 'portfolio.max_positions', `portfolio.max_positions must be at most ${cfg.limits.max_positions}.`);
-    const members = universeMembers(refs, p.universe);
+    const members = universeMembers(refs.tickers, p.universe);
     if (!members) fail('UNKNOWN_UNIVERSE', 'portfolio.universe', `${JSON.stringify(p.universe)} is not a universe of the catalog.`);
     tickers = members!;
     if (p.rank_by === 'fnet') {
@@ -160,12 +186,13 @@ export function checkRequest(input: unknown, refs: readonly TickerRef[], cfg: Pi
     }
   }
   const active = requestConditions(q);
-  if (checkConditions([...active.entry, ...active.exit], cfg.flow)) broker = true;
+  withinConditions([[active.entry, 'entry.conditions'], [active.exit, 'exit.signals.conditions']], cfg.limits.max_conditions);
+  if (checkConditions([...listed(q.entry.conditions, 'entry.conditions'), ...listed(q.exit.signals.conditions, 'exit.signals.conditions')], cfg.flow, refs.brokers)) broker = true;
   return { tickers, broker };
 }
 
 /** A signals preview request (SignalsPreviewRequest) checked the same way. */
-export function checkSignalsRequest(input: unknown, refs: readonly TickerRef[], cfg: Pick<Config, 'flow'>): CheckedRequest {
+export function checkSignalsRequest(input: unknown, refs: References, cfg: Pick<Config, 'limits' | 'flow'>): CheckedRequest {
   if (!isObject(input)) fail('INVALID_REQUEST', 'request', 'The request must be a JSON object.');
   const q = input as unknown as SignalsPreviewRequest;
   only(q, 'preview', ''); only(q.period, 'preview_period', 'period'); entryFields(q.entry, 'entry');
@@ -174,8 +201,9 @@ export function checkSignalsRequest(input: unknown, refs: readonly TickerRef[], 
   if (!isIsoDate(q.period.from)) fail('INVALID_PERIOD', 'period.from', 'period.from must be a date YYYY-MM-DD.');
   if (!isIsoDate(q.period.to)) fail('INVALID_PERIOD', 'period.to', 'period.to must be a date YYYY-MM-DD.');
   if (q.period.from > q.period.to) fail('INVALID_PERIOD', 'period.to', 'period.to must not be before period.from.');
-  const tickers = universeMembers(refs, q.universe);
+  const tickers = universeMembers(refs.tickers, q.universe);
   if (!tickers) fail('UNKNOWN_UNIVERSE', 'universe', `${JSON.stringify(q.universe)} is not a universe of the catalog.`);
   const active = requestConditions({ entry: q.entry });
-  return { tickers: tickers!, broker: checkConditions(active.entry, cfg.flow) };
+  withinConditions([[active.entry, 'entry.conditions']], cfg.limits.max_conditions);
+  return { tickers: tickers!, broker: checkConditions(listed(q.entry.conditions, 'entry.conditions'), cfg.flow, refs.brokers) };
 }

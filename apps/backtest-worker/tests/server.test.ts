@@ -16,13 +16,14 @@ import type { BacktestRequest, BacktestResult, Catalog, JobProgress, JobStatus, 
 import { DEFAULT_ENTRY, LEGACY, legacyCard, legacyToCondition } from '../../edge-bff/backtest/src/core/catalog.ts';
 import type { LegacyCard } from '../../edge-bff/backtest/src/core/catalog.ts';
 import { lineageKey, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
+import { packResult } from '../src/compute.ts';
 import { FLOW_OFF_REASON, loadConfig } from '../src/config.ts';
 import { PlannedClient } from '../src/load.ts';
 import { setLogSink } from '../src/log.ts';
 import { runJob, runSignals } from '../src/run.ts';
 import { createApp } from '../src/server.ts';
 import type { WorkerApp } from '../src/server.ts';
-import type { TickerRef } from '../src/terminal.ts';
+import type { References } from '../src/validate.ts';
 import { ENGINE_VERSION, REGISTRY_VERSION, checkRegistry } from '../src/version.ts';
 import { brokersRef, pricePack, startFakeTerminal, tickersRef } from './fake-terminal.mjs';
 
@@ -34,12 +35,16 @@ const FX = new Map((loadFixtures() as Fixture[]).map(f => [f.ticker, f]));
 const STOCKS = [...FX.keys()].filter(t => t !== 'IHSG').sort();
 const THROUGH = [...FX.values()].map(f => f.T[f.T.length - 1]).sort().pop()!;
 const SECTOR: Record<string, string> = { BBCA: 'Sector A', UNVR: 'Sector A', GOTO: 'Sector A' };    // test labels
+// broker manifests (test dates, no file): the publisher wrote its broker data_through into UNVR's manifest last, BBCA's earlier
+const BROKER_THROUGH: Record<string, string> = { UNVR: THROUGH, BBCA: '2026-10-20' };
 const MARKET = Object.fromEntries([...FX.values()].map(f => [f.ticker, { generated_at: '2026-10-25T18:20:00+00:00', datasets: {
   price: { data_through: THROUGH, first_year: +f.T[0].slice(0, 4), files: [{ pack: 'price', doc: pricePack(f.ticker, f.T.map((d, i) => [d, f.O[i], f.H[i], f.L[i], f.C[i], f.V[i]])) }] },
   ...(f.ticker === 'IHSG' ? {} : { events: { data_through: null, files: [] } }),
+  ...(BROKER_THROUGH[f.ticker] ? { broker: { data_through: BROKER_THROUGH[f.ticker], first_year: 2016, files: [] } } : {}),
 } }]));
 const REFS = {
-  tickers: tickersRef([...FX.keys()].sort().map(t => [t, `${t} (test name)`, t === 'IHSG' ? 'index' : 'stock', t === 'IHSG' ? null : SECTOR[t] ?? 'Sector B'])),
+  // LQ45: a test row of an index without a company name (the reference file holds null there)
+  tickers: tickersRef([...[...FX.keys()].sort().map(t => [t, `${t} (test name)`, t === 'IHSG' ? 'index' : 'stock', t === 'IHSG' ? null : SECTOR[t] ?? 'Sector B']), ['LQ45', null, 'index', null]]),
   brokers: brokersRef([['YU', 'test broker', 'Foreign'], ['ZP', 'test broker 2', 'Local']]),
 };
 
@@ -103,23 +108,25 @@ function startProxy(): Promise<void> {
 const ENV = (over: Record<string, string> = {}): Record<string, string> => ({
   BACKTEST_WORKER_KEY: WORKER_KEY, TERMINAL_URL: proxyUrl, TERMINAL_PROXY_KEY: PROXY_KEY,
   BACKTEST_CACHE_BYTES: '100000000', BACKTEST_DOWNLOAD_CONCURRENCY: '4', BACKTEST_DOWNLOAD_RETRIES: '0', BACKTEST_RETRY_BASE_MS: '0', BACKTEST_HTTP_TIMEOUT_MS: '20000',
-  BACKTEST_MAX_DOWNLOAD_BYTES: '1000000000', BACKTEST_MAX_BROKER_ROWS: '1000000000', BACKTEST_TIMEOUT_SECONDS: '60', ...over,
+  BACKTEST_FILE_ORIGIN: fake.url, BACKTEST_MAX_FILE_BYTES: '100000000',
+  BACKTEST_MAX_DOWNLOAD_BYTES: '1000000000', BACKTEST_MAX_BROKER_ROWS: '1000000000', BACKTEST_TIMEOUT_SECONDS: '60',
+  BACKTEST_MAX_CONDITIONS: '20', BACKTEST_MAX_RESULT_BYTES: '100000000', ...over,
 });
 
 const lines: string[] = [];
-let app: WorkerApp, base = '', refs: TickerRef[];
+let app: WorkerApp, base = '', refs: References;
 before(async () => {
   setLogSink(line => lines.push(line));
   fake = await startFakeTerminal({ key: PROXY_KEY, tickers: MARKET, refs: REFS });
   await startProxy();
   app = createApp(loadConfig(ENV()));
   base = `http://127.0.0.1:${await app.listen(0, '127.0.0.1')}`;
-  refs = await local().reference('tickers');
+  refs = { tickers: await local().reference('tickers'), brokers: await local().reference('brokers') };
 });
 after(async () => { await app.close(); proxy.closeAllConnections(); await new Promise(ok => proxy.close(ok)); await fake.close() });
 
 /** A client in this process, for the result run.ts computes without the HTTP layer. */
-const local = () => new PlannedClient({ url: fake.url, proxyKey: PROXY_KEY, cacheBytes: 100_000_000, concurrency: 4, retries: 0, retryBaseMs: 0, timeoutMs: 20_000 });
+const local = () => new PlannedClient({ url: fake.url, proxyKey: PROXY_KEY, cacheBytes: 100_000_000, concurrency: 4, retries: 0, retryBaseMs: 0, timeoutMs: 20_000, fileOrigin: fake.url, maxFileBytes: 100_000_000 });
 const directEnv = () => {
   const c = loadConfig(ENV());
   return { client: local(), config: { limits: c.limits, flow: c.flow, terminal: { concurrency: 4 } }, versions: { engine_version: ENGINE_VERSION, registry_version: REGISTRY_VERSION } };
@@ -196,20 +203,31 @@ test('catalog: the published tickers, universes and brokers, IHSG\'s first and l
   const c = a.json() as Catalog;
   assert.equal(c.schema_version, 1); assert.equal(c.engine_version, ENGINE_VERSION); assert.equal(c.registry_version, REGISTRY_VERSION);
   assert.equal(c.data_through, FX.get('IHSG')!.T.at(-1)); assert.equal(c.first_date, FX.get('IHSG')!.T[0]);
-  assert.deepEqual(c.tickers, refs.map(r => ({ ticker: r.ticker, name: r.name, type: r.type, sector: r.sector })));
+  assert.deepEqual(c.tickers, refs.tickers.map(r => ({ ticker: r.ticker, name: r.name, type: r.type, sector: r.sector })));
   assert.deepEqual(c.tickers.find(t => t.ticker === 'IHSG'), { ticker: 'IHSG', name: 'IHSG (test name)', type: 'index', sector: null });
+  assert.deepEqual(c.tickers.find(t => t.ticker === 'LQ45'), { ticker: 'LQ45', name: null, type: 'index', sector: null });   // as published
   assert.deepEqual(c.universes, [
     { id: 'all', label: `All stocks (${STOCKS.length})`, tickers: STOCKS.length },
     { id: 'sector:Sector A', label: 'Sector A (3)', tickers: 3 },
     { id: 'sector:Sector B', label: `Sector B (${STOCKS.length - 3})`, tickers: STOCKS.length - 3 },
   ]);
-  assert.deepEqual(c.flow, { available: false, reason: FLOW_OFF_REASON, brokers: ['YU', 'ZP'] });
-  assert.deepEqual(c.limits, { max_positions: 10, window_bars: { min: 1, max: 20 }, monte_carlo_runs: 1000, max_download_bytes: 1e9, max_broker_rows: 1e9, timeout_seconds: 60, queued_per_owner: 3 });
-  // flow on: available, no reason
+  assert.deepEqual(c.flow, { available: false, reason: FLOW_OFF_REASON, brokers: ['YU', 'ZP'], data_through: null });
+  const manifests = () => fake.requests.filter(r => r.path.startsWith('/api/terminal/v1/manifest/')).length, m0 = manifests();
+  assert.deepEqual(c.limits, { max_positions: 10, window_bars: { min: 1, max: 20 }, monte_carlo_runs: 1000, max_download_bytes: 1e9, max_broker_rows: 1e9, timeout_seconds: 60, queued_per_owner: 3, max_conditions: 20 });
+  assert.equal(manifests(), m0, 'flow off: no manifest is asked');
+  // flow on: available, no reason, and the newest broker data_through of every stock's manifest
   const on = createApp(loadConfig(ENV({ BACKTEST_FLOW_ENABLED: '1' })));
   try {
     const at = `http://127.0.0.1:${await on.listen(0, '127.0.0.1')}`;
-    assert.deepEqual((await call('GET', '/v1/catalog', undefined, { at })).json().flow, { available: true, reason: null, brokers: ['YU', 'ZP'] });
+    assert.deepEqual((await call('GET', '/v1/catalog', undefined, { at })).json().flow, { available: true, reason: null, brokers: ['YU', 'ZP'], data_through: THROUGH });
+    assert.equal(manifests() - m0, STOCKS.length, 'one manifest per stock (no index)');
+    // the broker list of terminal-api reaches the validation: an unlisted code is UNKNOWN_BROKER, a listed one passes
+    const q = pageDefault('UNVR'), withBroker = (code: string) => ({ ...q, entry: { ...q.entry, conditions: [...q.entry.conditions, legacyToCondition(legacyCard('broker', 'b1', { broker: code, len: 5, val: 0 }))] } });
+    const x = await call('POST', '/v1/validate', { request: withBroker('XX') }, { at });
+    assert.equal(x.status, 422); assert.deepEqual([x.json().error.code, x.json().error.field], ['UNKNOWN_BROKER', 'entry.conditions[3].params.broker']);
+    assert.equal((await call('POST', '/v1/validate', { request: withBroker('ZP') }, { at })).status, 200);
+    const j = await call('POST', '/v1/jobs', jobBody(newId(), withBroker('XX')), { at });
+    assert.equal(j.status, 422); assert.equal(j.json().error.code, 'UNKNOWN_BROKER');
   } finally { await on.close() }
 });
 
@@ -222,6 +240,7 @@ test('validate: the hashes and tickers of a valid request, the field of a refuse
   const refused: [unknown, string, string][] = [
     [{ request: { ...q, single: { ticker: 'IHSG', benchmark: 'buy_and_hold' } } }, 'UNKNOWN_TICKER', 'single.ticker'],
     [{ request: { ...q, extra: 1 } }, 'UNKNOWN_FIELD', 'extra'],
+    [{ request: { ...q, client_request_id: 'c'.repeat(32) } }, 'UNKNOWN_FIELD', 'client_request_id'],   // edge-bff strips it
     [{ request: { ...q, period: { ...q.period, from: '2019-02-30' } } }, 'INVALID_PERIOD', 'period.from'],
     [{ request: { ...q, entry: { ...q.entry, conditions: [...q.entry.conditions, legacyToCondition(legacyCard('fnet', 'f1', { len: 5, val: 0 }))] } } }, 'FLOW_UNAVAILABLE', 'entry.conditions[3]'],
     [{ request: q, more: 1 }, 'INVALID_REQUEST', 'body'],
@@ -236,10 +255,40 @@ test('validate: the hashes and tickers of a valid request, the field of a refuse
   }
   const bad = await call('POST', '/v1/validate', undefined, { raw: '{"request":' });
   assert.equal(bad.status, 422); assert.equal(bad.json().error.code, 'INVALID_JSON');
+  // the published data on the catalog's dates (lead decision 2026-10-26): PERIOD_AFTER_DATA with the job's code, field
+  // and message; IHSG's price files are all it reads (no manifest or file of the request's tickers)
+  const late = { ...q, period: { ...q.period, to: '2026-10-26' } }, r0 = fake.requests.length;
+  const after = await call('POST', '/v1/validate', { request: late });
+  assert.equal(after.status, 422, after.body.toString());
+  const job = await runJob(late, { prior_trials: [] }, refs, directEnv()).catch(e => e);
+  assert.deepEqual([after.json().error.code, after.json().error.field, after.json().error.message], ['PERIOD_AFTER_DATA', 'period.to', job.message]);
+  const seen = fake.requests.slice(r0).map(x => x.path);
+  assert.deepEqual(seen.filter(x => x.startsWith('/api/terminal/v1/')).sort(), ['/api/terminal/v1/bundle', '/api/terminal/v1/reference/brokers', '/api/terminal/v1/reference/tickers']);
+  assert.ok(seen.every(x => !x.startsWith('/bucket/v1/') || x.startsWith('/bucket/v1/ref/') || x.includes('/IHSG/')), seen.join(' '));
+  assert.equal((await call('POST', '/v1/validate', { request: { ...q, period: { ...q.period, to: THROUGH } } })).status, 200, 'period.to on the last bar');
+});
+
+test('validate with flow on: FLOW_DATA_THROUGH on every stock\'s manifest (the catalog\'s date) before PERIOD_AFTER_DATA, as the job', async () => {
+  const t = createApp(loadConfig(ENV({ BACKTEST_FLOW_ENABLED: '1' })));
+  try {
+    const at = `http://127.0.0.1:${await t.listen(0, '127.0.0.1')}`, q = pageDefault('UNVR');
+    const flow = { ...q, entry: { ...q.entry, conditions: [...q.entry.conditions, legacyToCondition(legacyCard('fnet', 'f1', { len: 5, val: 0 }))] } };
+    const manifests = () => fake.requests.filter(r => r.path.startsWith('/api/terminal/v1/manifest/')).length, m0 = manifests();
+    // UNVR's manifest says THROUGH, BBCA's 2026-10-20: the broker data is published through THROUGH
+    assert.equal((await call('POST', '/v1/validate', { request: flow }, { at })).status, 200);
+    assert.equal(manifests() - m0, STOCKS.length, 'every stock\'s manifest, as the catalog');
+    const late = await call('POST', '/v1/validate', { request: { ...flow, period: { ...flow.period, to: '2026-10-26' } } }, { at });
+    assert.equal(late.status, 422, late.body.toString());
+    assert.deepEqual([late.json().error.code, late.json().error.field, late.json().error.message], ['FLOW_DATA_THROUGH', 'period.to',
+      `The broker data is published through ${THROUGH}: a run with flow conditions or ranked by foreign net flow must end on or before it (period.to is 2026-10-26).`]);
+    // without a flow condition the broker date is not asked: PERIOD_AFTER_DATA
+    const m1 = manifests(), plain = await call('POST', '/v1/validate', { request: { ...q, period: { ...q.period, to: '2026-10-26' } } }, { at });
+    assert.deepEqual([plain.json().error.code, manifests() - m1], ['PERIOD_AFTER_DATA', 0]);
+  } finally { await t.close() }
 });
 
 /* ---- jobs ---------------------------------------------------------------------------------------------------------- */
-test('a single-stock job with the page default settings: 202, phases in order, the gzip result once, then 410', async () => {
+test('a single-stock job with the page default settings: 202, phases in order, the gzip result until the next job, then 410', async () => {
   const q = pageDefault('UNVR'), id = newId(), prior = [{ variant_hash: 'c'.repeat(64), sharpe_daily: 0.02 }];
   const t0 = performance.now();
   const p = await call('POST', '/v1/jobs', jobBody(id, q, prior));
@@ -265,12 +314,28 @@ test('a single-stock job with the page default settings: 202, phases in order, t
   finiteOrNull(r);
   observed.single = { job_ms: status.duration_ms!, compute_ms: r.meta.duration_ms, json_bytes: zlib.gunzipSync(a.body).length, gzip_bytes: a.body.length, trades: r.trades.length };
 
-  const again = await call('GET', `/v1/jobs/${id}/result`);
-  assert.equal(again.status, 410); assert.equal(again.json().error.code, 'RESULT_GONE');
+  // asked again (a caller that lost the answer): the same bytes, until the next job starts (lead decision 2026-10-26)
+  for (let k = 0; k < 2; k++) {
+    const again = await call('GET', `/v1/jobs/${id}/result`);
+    assert.equal(again.status, 200); assert.deepEqual(again.body, a.body);
+  }
   assert.equal((await call('GET', `/v1/jobs/${id}`)).json().state, 'FINISHED');     // the status stays
   // the same id again: 202 (edge-bff retries a POST whose answer it lost), nothing new starts
   assert.equal((await call('POST', '/v1/jobs', jobBody(id, q))).status, 202);
   assert.equal((await call('GET', `/v1/jobs/${id}`)).json().state, 'FINISHED');
+  assert.equal((await call('GET', `/v1/jobs/${id}/result`)).status, 200);
+  // a newer job: the replaced job's result is gone (410), its status unknown; one job further back, both unknown
+  const next = newId();
+  assert.equal((await call('POST', '/v1/jobs', jobBody(next, pageDefault('BBCA')))).status, 202);
+  const gone = await call('GET', `/v1/jobs/${id}/result`);
+  assert.equal(gone.status, 410); assert.equal(gone.json().error.code, 'RESULT_GONE');
+  assert.deepEqual((await call('GET', `/v1/jobs/${id}`)).json(), { error: { code: 'UNKNOWN_JOB' } });
+  assert.equal((await until(next)).status.state, 'FINISHED');
+  const third = newId();
+  assert.equal((await call('POST', '/v1/jobs', jobBody(third, pageDefault('BBCA')))).status, 202);
+  assert.equal((await call('GET', `/v1/jobs/${id}/result`)).status, 404);
+  assert.equal((await call('GET', `/v1/jobs/${next}/result`)).status, 410);
+  assert.equal((await until(third)).status.state, 'FINISHED');
 });
 
 test('the same request on the same data gives the same result through the API (meta.duration_ms aside)', async () => {
@@ -380,6 +445,24 @@ test('a data error after the hand-over ends the job FAILED with the error the co
   assert.equal((await call('POST', '/v1/jobs', jobBody(id2, late))).status, 202);
   const s2 = (await until(id2)).status;
   assert.equal(s2.state, 'FAILED'); assert.deepEqual([s2.error!.code, s2.error!.field], ['PERIOD_AFTER_DATA', 'period.to']);
+  assert.equal((await call('GET', `/v1/jobs/${id}/result`)).status, 404, 'a replaced job without a result is unknown, not gone');
+});
+
+test('a result over BACKTEST_MAX_RESULT_BYTES of JSON ends the job FAILED LIMIT_EXCEEDED with its sizes; one at the limit is kept', async () => {
+  const r = await runJob(pageDefault('UNVR'), { prior_trials: [] }, refs, directEnv()), bytes = Buffer.byteLength(JSON.stringify(r));
+  const packed = packResult(r, bytes);
+  assert.deepEqual([packed.json_bytes, JSON.parse(zlib.gunzipSync(packed.gzip).toString()).meta.request_hash], [bytes, r.meta.request_hash]);
+  const e = (() => { try { packResult(r, bytes - 1) } catch (x) { return x as { status: number; code: string; details: unknown } } assert.fail('not refused') })();
+  assert.deepEqual([e.status, e.code, e.details], [422, 'LIMIT_EXCEEDED', { limit: 'max_result_bytes', allowed: bytes - 1, needed: bytes }]);
+  const t = createApp(loadConfig(ENV({ BACKTEST_MAX_RESULT_BYTES: String(bytes - 1) })));
+  try {
+    const at = `http://127.0.0.1:${await t.listen(0, '127.0.0.1')}`, id = newId();
+    assert.equal((await call('POST', '/v1/jobs', jobBody(id, pageDefault('UNVR')), { at })).status, 202);
+    const { status } = await until(id, at);
+    assert.equal(status.state, 'FAILED');
+    assert.deepEqual([status.error!.code, status.error!.details], ['LIMIT_EXCEEDED', { limit: 'max_result_bytes', allowed: bytes - 1, needed: bytes }]);
+    assert.equal((await call('GET', `/v1/jobs/${id}/result`, undefined, { at })).json().error.code, 'NOT_FINISHED');
+  } finally { await t.close() }
 });
 
 test('a job over BACKTEST_TIMEOUT_SECONDS ends FAILED TIMEOUT, its thread is stopped, and the next job runs', async () => {

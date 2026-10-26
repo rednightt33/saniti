@@ -8,8 +8,9 @@ Private HTTP service that computes the EDGE backtests. It is part of the backtes
 - **What computes a result.** Every number comes from the shared core (`apps/edge-bff/backtest/src/core`). The core
   uses the Terminal's own indicator module (`apps/edge-bff/terminal/src/calc/indicators.ts`). The page, the Terminal
   chart and the worker therefore share one formula per indicator.
-- **Data access.** The worker reads market data only through terminal-api `/bundle` and the presigned file URLs it
-  returns. It holds no Postgres and no bucket credentials.
+- **Data access.** The worker reads market data only through terminal-api: `/bundle` and the presigned file URLs it
+  returns, `/manifest/{ticker}` (dates only, no file granted) and `/reference/{tickers|brokers}`. It holds no Postgres
+  and no bucket credentials.
 
 ## Layout
 
@@ -18,10 +19,10 @@ Private HTTP service that computes the EDGE backtests. It is part of the backtes
 | `src/server.ts` | `node:http` API: authentication, routes, the job record, the preview queue, timeouts, start-up checks |
 | `src/compute.ts` | the two long-lived `worker_threads` threads, one for jobs and one for signals previews; progress and results are sent as messages, cancellation uses a shared flag, `kill()` handles a run over its time |
 | `src/run.ts` | one job end to end (`runJob`) and one signals preview (`runSignals`) |
-| `src/validate.ts` | request checks before any download (unknown fields, page options, universes, flow availability, the core's own validation) |
-| `src/load.ts` | reads the files of a run within the limits: every manifest first, the limits checked, then the downloads; a URL that expired is fetched again |
-| `src/terminal.ts` | the terminal-api client: `/bundle`, presigned files, sha256 and size checks, the cache (memory, optionally disk) |
-| `src/catalog.ts` | `GET /v1/catalog` from the reference files, IHSG's published bars, the limits and the flow switch |
+| `src/validate.ts` | request checks before any download (unknown fields, page options, universes, flow availability, broker codes against the broker list, the core's own validation) |
+| `src/load.ts` | reads the files of a run within the limits: every manifest first, a portfolio's tickers without published files left out, the limits checked, then the downloads; a URL that expired is fetched again; the date the broker data is published through (`brokerDataThrough`) |
+| `src/terminal.ts` | the terminal-api client: `/bundle`, `/manifest`, the reference files, presigned files, sha256 and size checks, the cache (memory, optionally disk) |
+| `src/catalog.ts` | `GET /v1/catalog` from the reference files, IHSG's published bars, the limits, the flow switch and the broker data's date |
 | `src/config.ts` | environment variables, their defaults and their checks |
 | `src/version.ts` | `engine_version`, `registry_version`, the start-up registry check |
 | `src/errors.ts`, `src/log.ts` | the error shape and statuses; JSON log lines |
@@ -40,7 +41,7 @@ worker answers `401 {"error":{"code":"UNAUTHORIZED"}}`.
 | `POST /v1/signals` | the body is a `SignalsPreviewRequest`; the answer is a `SignalsPreview` |
 | `POST /v1/jobs {job_id, request, context}` | `202 {job_id}`, `409 BUSY` or `422` |
 | `GET /v1/jobs/{id}` | `JobStatus`, or `404 UNKNOWN_JOB` |
-| `GET /v1/jobs/{id}/result` | `200` with the gzip of the result JSON (`Content-Encoding: gzip`), `409 NOT_FINISHED`, or `410 RESULT_GONE` once it has been sent |
+| `GET /v1/jobs/{id}/result` | `200` with the gzip of the result JSON (`Content-Encoding: gzip`), as often as it is asked until the next job starts; `409 NOT_FINISHED`; `410 RESULT_GONE` for the finished job a newer job replaced; `404 UNKNOWN_JOB` for any other id |
 | `POST /v1/jobs/{id}/cancel` | `202 JobStatus`; a running job stops at its next check and ends `CANCELLED` |
 
 ### Signals previews
@@ -57,8 +58,8 @@ worker answers `401 {"error":{"code":"UNAUTHORIZED"}}`.
   becomes a job.
 - **Only the latest job is kept.** The worker forgets the previous job when a new one starts, and keeps none across a
   restart. edge-bff turns the resulting 404 into `WORKER_LOST`.
-- **The result is sent once.** The gzip result stays in memory until it has been sent once, or until the next job
-  starts.
+- **The result is kept until the next job starts** (lead decision 2026-10-26). A caller that lost an answer can fetch
+  it again. Once a newer job has started, the replaced job's result answers `410 RESULT_GONE` (its status `404`).
 - **Progress phases.** `queued`, `loading`, `signals`, `backtest`, `sensitivity`, `monte_carlo`, `finalizing`, with
   `done` and `total` counts.
 - **Cancellation.** The job checks for it between phases, between tickers while loading, inside the engine (per ticker
@@ -77,7 +78,7 @@ Errors have the shape `{"error": {code, field?, message?, details?}}`.
 
 | Status | Codes |
 |---|---|
-| 422 | validation errors, `LIMIT_EXCEEDED`, `INVALID_JSON`, `INVALID_JOB_ID`, `INVALID_CONTEXT` |
+| 422 | validation errors (among them `UNKNOWN_FIELD`, `UNKNOWN_BROKER`, `FLOW_UNAVAILABLE`, `FLOW_OUTPUT_EMPTY`, `INDICATOR_OUTPUT_EMPTY`, `PERIOD_AFTER_DATA`, `PERIOD_BEFORE_DATA`, `FLOW_DATA_THROUGH`), `LIMIT_EXCEEDED`, `INVALID_JSON`, `INVALID_JOB_ID`, `INVALID_CONTEXT` |
 | 424 | data errors: `DATA_MISSING`, `DATA_INTEGRITY`, `DATA_UNAVAILABLE` |
 | 409 | `BUSY`, `NOT_FINISHED` |
 | 404 | `UNKNOWN_JOB`, `NOT_FOUND` |
@@ -91,26 +92,40 @@ A job's error is the same object, carried in `JobStatus.error`.
 ## What a job does
 
 1. **Check the request** (`validate.ts`). Any field the page does not send is refused with `UNKNOWN_FIELD` and its
-   path. The checks include the page's options, the core's `validateRun`, the registry parameters and the condition
-   shapes.
+   path; `client_request_id` is edge-bff's, which takes it out before calling the worker. The checks include the
+   page's options, the core's `validateRun`, the registry parameters and the condition shapes. A broker condition's
+   code must be in terminal-api's broker reference list (`UNKNOWN_BROKER`).
 2. **Resolve the tickers.**
    - Single mode: the one ticker, which must be of type `stock`.
    - Portfolio mode: universe `all` is every stock of terminal-api's reference ticker list; `sector:<name>` is the
      stocks of that sector. The publisher writes that list from `IDX_Stock_Universe`, the same list it publishes the
-     tickers' files from. A listed stock without published files fails the run with `DATA_MISSING`; it is never
-     skipped.
+     tickers' files from.
 3. **Load the data** (`load.ts`).
    - IHSG prices, and each ticker's prices and corporate actions.
    - Broker files only when a flow condition or `rank_by: 'fnet'` needs them.
-   - Every manifest is read first. The run is refused with `LIMIT_EXCEEDED`, before any download, when the manifest
-     sizes exceed `BACKTEST_MAX_DOWNLOAD_BYTES` or the broker rows exceed `BACKTEST_MAX_BROKER_ROWS`. Cached files
-     count too, so the same request gets the same answer whatever the cache holds.
+   - Every manifest is read first. A portfolio leaves out a stock terminal-api does not publish (404) or that has no
+     file of a dataset the run reads (`DATA_MISSING`, listed in the warning `TICKERS_EXCLUDED`); in single mode that is
+     the run's `DATA_MISSING`. The run is refused with `LIMIT_EXCEEDED`, before any download, when the manifest sizes
+     exceed `BACKTEST_MAX_DOWNLOAD_BYTES` or the broker rows exceed `BACKTEST_MAX_BROKER_ROWS`. Cached files count
+     too, so the same request gets the same answer whatever the cache holds.
 4. **Check the period against the data.**
+   - `FLOW_DATA_THROUGH` (`period.to`), before any download: a run that uses broker data, when `period.to` is after
+     the date the broker data is published through. That date is the newest broker `data_through` of the stocks'
+     manifests (`catalog.flow.data_through`): the publisher writes its date into the manifest of each stock whose files
+     changed, so a stock without new files keeps an older one. When no loaded ticker's manifest reaches `period.to`,
+     every stock's manifest is asked.
    - `PERIOD_AFTER_DATA`: `period.to` is after IHSG's last published bar.
-   - `DATA_UNAVAILABLE`: a run that uses broker data, when the newest broker `data_through` does not reach `period.to`.
    - `DATA_MISSING`: in single mode, no bar of the ticker falls inside the period.
-   - `PERIOD_BEFORE_DATA`: a buy-and-hold benchmark has no close on or before the first day of the period.
-5. **Run the engine:** `prepare`, then `run` (`engine.ts`).
+   - Single mode: a `period.from` before the ticker's first published bar starts the run on that bar, with the warning
+     `PERIOD_CLIPPED` naming both dates. A portfolio keeps its period.
+   - `PERIOD_BEFORE_DATA` (engine): the primary benchmark has no close on or before the first day of the result
+     calendar.
+5. **Run the engine:** `prepare`, then `run` (`engine.ts`). A portfolio leaves out a ticker whose own data cannot
+   serve the strategy: an indicator or flow series without any value on its bars (`INDICATOR_OUTPUT_EMPTY`,
+   `FLOW_OUTPUT_EMPTY`) or no broker row on its bars (`FLOW_UNAVAILABLE`). The warning `TICKERS_EXCLUDED` lists every
+   left-out ticker with its error (`count`, `tickers`, `reasons`); `meta.tickers` holds the tickers the run ran on. A
+   request error still fails the run, and in single mode these data errors do too. A broker without any row on a
+   ticker's bars has a net of 0 there.
 6. **Sensitivity:** 25 reruns from `sensitivityPlan` (`robustness.ts`) on the same prepared data. Identical cells run
    once.
 7. **Build the result:** `buildResult` (`result.ts`), which computes the statistics, tables, trials and the Monte
@@ -133,36 +148,47 @@ The same request on the same published files gives the same result, except `meta
 Every variable is read once at start. A missing or invalid variable exits with code 1; the log line names the
 variable and never its value.
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `PORT` | 8080 | HTTP port (`0.0.0.0`) |
-| `BACKTEST_WORKER_KEY` | required | shared secret with edge-bff, ≥ 32 characters |
-| `TERMINAL_URL` | required | terminal-api origin, e.g. `http://terminal-api.railway.internal:8080` |
-| `TERMINAL_PROXY_KEY` | required | terminal-api gateway key (D-U1, `${{terminal-api.TERMINAL_PROXY_KEY}}`), ≥ 32 characters, never logged |
-| `BACKTEST_CACHE_BYTES` | required | memory cache budget per thread (gzip bytes); 0 = none |
-| `BACKTEST_CACHE_DIR`, `BACKTEST_CACHE_DIR_BYTES` | off | optional disk cache and its budget; the directory must be writable by uid 1000 |
-| `BACKTEST_DOWNLOAD_CONCURRENCY` | required | HTTP requests in flight per thread |
-| `BACKTEST_DOWNLOAD_RETRIES`, `BACKTEST_RETRY_BASE_MS` | required | retries of a network error or 5xx answer; backoff `base × 2^k` |
-| `BACKTEST_HTTP_TIMEOUT_MS` | required | per HTTP request |
-| `BACKTEST_MAX_DOWNLOAD_BYTES` | required | bytes of published files one job or preview may read |
-| `BACKTEST_MAX_BROKER_ROWS` | required | broker rows one job or preview may read |
-| `BACKTEST_TIMEOUT_SECONDS` | required | longest job, preview, validation or catalog |
-| `BACKTEST_MAX_POSITIONS` | 10 | ≤ 10, the page's input and `engine.ts` MAX_POSITIONS; may only be lowered |
-| `BACKTEST_MONTE_CARLO_RUNS` | 1000 | the page's `monteCarlo(…, runs = 1000)`; a request asks for exactly this or 0 |
-| `BACKTEST_QUEUED_PER_OWNER` | 3 | reported in the catalog; edge-bff enforces it |
-| `BACKTEST_FLOW_ENABLED` | off | `1` turns on the flow and broker conditions and `rank_by: 'fnet'` |
+"Required" variables have no default in the code. The Railway dev column holds the lead's initial dev values
+(2026-10-26); the limits and the HTTP settings among them are to be measured again in the dev E2E (K7b).
 
-**Flow conditions.** Set `BACKTEST_FLOW_ENABLED=1` only after the published broker files have been checked against SQL
-(`verification/backtest/FLOW_DATA_CHECK.md`). While the flag is off, `catalog.flow.reason` says why, and those
-conditions are refused with `FLOW_UNAVAILABLE`.
+| Variable | Default | Railway dev | Meaning |
+|---|---|---|---|
+| `PORT` | 8080 | 8080 (default) | HTTP port (`0.0.0.0`) |
+| `BACKTEST_WORKER_KEY` | required | the secret shared with edge-bff | shared secret with edge-bff, ≥ 32 characters, never logged |
+| `TERMINAL_URL` | required | terminal-api's private origin, e.g. `http://terminal-api.railway.internal:8080` | terminal-api origin |
+| `TERMINAL_PROXY_KEY` | required | `${{terminal-api.TERMINAL_PROXY_KEY}}` | terminal-api gateway key (D-U1), ≥ 32 characters, never logged |
+| `BACKTEST_CACHE_BYTES` | required | 1500000000 | memory cache budget per thread (gzip bytes); 0 = none |
+| `BACKTEST_CACHE_DIR`, `BACKTEST_CACHE_DIR_BYTES` | off | not set | optional disk cache and its budget; the directory must be writable by uid 1000 |
+| `BACKTEST_DOWNLOAD_CONCURRENCY` | required | 16 | HTTP requests in flight per thread |
+| `BACKTEST_DOWNLOAD_RETRIES` | required | 3 | retries of a network error or 5xx answer |
+| `BACKTEST_RETRY_BASE_MS` | required | 500 | backoff `base × 2^k` between retries |
+| `BACKTEST_HTTP_TIMEOUT_MS` | required | 60000 | per HTTP request |
+| `BACKTEST_MAX_DOWNLOAD_BYTES` | required | 1500000000 | bytes of published files one job or preview may read |
+| `BACKTEST_MAX_BROKER_ROWS` | required | 20000000 | broker rows one job or preview may read |
+| `BACKTEST_TIMEOUT_SECONDS` | required | 900 | longest job, preview, validation or catalog |
+| `BACKTEST_MAX_POSITIONS` | 10 | 10 (default) | ≤ 10, the page's input and `engine.ts` MAX_POSITIONS; may only be lowered |
+| `BACKTEST_MONTE_CARLO_RUNS` | 1000 | 1000 (default) | the page's `monteCarlo(…, runs = 1000)`; a request asks for exactly this or 0 |
+| `BACKTEST_QUEUED_PER_OWNER` | 3 | 3 (default) | reported in the catalog; edge-bff enforces it |
+| `BACKTEST_FLOW_ENABLED` | off | 1 | `1` turns on the flow and broker conditions and `rank_by: 'fnet'` |
 
-**Limits.** The limits that have no default are measured in the dev E2E (K7b). They must not be guessed.
+**Flow conditions.** They are enabled with `BACKTEST_FLOW_ENABLED=1`. The published broker files were checked against
+SQL (`verification/backtest/FLOW_DATA_CHECK.md`): 12 tickers, every published year, 0 mismatches, values in IDR. While
+the flag is off, `catalog.flow.reason` says so, and those conditions are refused with `FLOW_UNAVAILABLE`. While it is
+on, `catalog.flow.data_through` is the date the broker data is published through. The broker data can end before the
+price data, so a run that reads it and ends after that date is refused (`FLOW_DATA_THROUGH`).
+
+**Limits.** The limits have no default in the code. The values above are the lead's initial dev values and must be
+measured again in the dev E2E (K7b), not guessed.
 
 **Timeouts.** edge-bff has its own `BACKTEST_TIMEOUT_SECONDS`, which limits the whole job on its side, polling
 included. At that deadline edge-bff ends the job `TIMEOUT` and sends the worker a cancel.
 
 **Memory.** Each compute thread has its own client and cache. Memory is therefore up to 2 × `BACKTEST_CACHE_BYTES`,
 plus the HTTP thread's IHSG files for the catalog.
+
+**Catalog cost with flow on.** `catalog.flow.data_through` asks terminal-api for the manifest of every published stock
+(`/manifest`, no file granted, no quota), `BACKTEST_DOWNLOAD_CONCURRENCY` at a time. terminal-api keeps manifests in
+memory until the publisher's next run; edge-bff keeps the catalog for a minute.
 
 ## Logs
 
@@ -213,19 +239,27 @@ Terminal parity fixtures (real stored bars of 7 stocks and IHSG) in the publishe
 - the page's default request; each result must equal what the core computes directly from the same bars;
 - portfolio and sector universes;
 - determinism, with a cold and a warm cache;
-- 28 refusals, none of which reads any market data;
-- the period and data checks;
+- 29 refusals, none of which reads any market data;
+- the period and data checks, `PERIOD_CLIPPED` with either benchmark;
+- a portfolio that leaves out a stock without published files and a stock with too short a history (`TICKERS_EXCLUDED`);
 - the limits, refused before any download;
-- flow and broker files, and corporate actions;
+- flow and broker files: `FLOW_DATA_THROUGH` before any download, the manifest scan, `UNKNOWN_BROKER`, a listed
+  broker without rows, a portfolio that leaves out stocks without broker data; corporate actions;
 - cancellation in every phase;
 - an expired presigned URL.
+
+**`tests/validate.test.ts`** builds requests the way the page does, with every card the page can make (every legacy
+card and operator, the templates, every registry indicator, every price line), and checks that the worker accepts each
+of them field for field; `client_request_id` and any other extra key are refused; broker codes are checked.
 
 **`tests/server.test.ts`** drives the HTTP API the way edge-bff does. It covers:
 
 - authentication on every route; health and the catalog;
 - validation and its errors;
 - single, portfolio and identical-request jobs through the gzip result, which must equal `runJob` in the test process;
-- `BUSY`, the same id again, `UNKNOWN_JOB`, `NOT_FINISHED` and `RESULT_GONE`;
+- `BUSY`, the same id again, `UNKNOWN_JOB`, `NOT_FINISHED`; a result fetched again, then `RESULT_GONE` once a newer job
+  started;
+- the catalog's `flow.data_through` and a ticker name of null; the broker list reaching the validation;
 - cancellation and the timeout;
 - a data error after the hand-over;
 - invalid job bodies;

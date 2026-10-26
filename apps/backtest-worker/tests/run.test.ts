@@ -16,6 +16,7 @@ import { Calc } from '../../edge-bff/backtest/src/core/conditions.ts';
 import { DataError, dataVersion } from '../../edge-bff/backtest/src/core/datafile.ts';
 import type { PriceSeries } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { Cancelled, prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
+import type { Exclusion } from '../../edge-bff/backtest/src/core/engine.ts';
 import { lineageKey, requestHash, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
 import type { CellRun } from '../../edge-bff/backtest/src/core/ledger.ts';
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
@@ -29,6 +30,7 @@ import { runJob, runSignals } from '../src/run.ts';
 import type { RunEnv } from '../src/run.ts';
 import type { TickerRef } from '../src/terminal.ts';
 import { checkRequest } from '../src/validate.ts';
+import type { References } from '../src/validate.ts';
 import { ENGINE_VERSION, REGISTRY_VERSION } from '../src/version.ts';
 import { EVENT_COLUMNS, brokerArchive, brokersRef, encode, eventsDoc, pricePack, startFakeTerminal, tickersRef } from './fake-terminal.mjs';
 
@@ -55,23 +57,26 @@ function market(extra: Extra = {}) {
   return out;
 }
 const REF_ROWS = [...FX.keys()].sort().map(t => [t, `${t} (test name)`, t === 'IHSG' ? 'index' : 'stock', t === 'IHSG' ? null : SECTOR[t] ?? 'Sector B']);
-const REFS = { tickers: tickersRef(REF_ROWS), brokers: brokersRef([['YU', 'test broker', 'Foreign']]) };
+const REFS = { tickers: tickersRef(REF_ROWS), brokers: brokersRef([['YU', 'test broker', 'Foreign'], ['ZP', 'test broker', 'Domestic']]) };
 /** A stock of the reference list without any published file (test row). */
 const NOPX: TickerRef = { ticker: 'NOPX', name: 'NOPX (test name)', type: 'stock', sector: 'Sector C' };
 
 const KEY = 'run-test-proxy-key-'.padEnd(48, 'x');
-const LIMITS: Config['limits'] = { max_positions: 10, window_bars: { min: 1, max: 20 }, monte_carlo_runs: 1000, max_download_bytes: 1e9, max_broker_rows: 1e9, timeout_seconds: 600, queued_per_owner: 3 };
+const LIMITS: Config['limits'] = { max_positions: 10, window_bars: { min: 1, max: 20 }, monte_carlo_runs: 1000, max_download_bytes: 1e9, max_broker_rows: 1e9, timeout_seconds: 600, queued_per_owner: 3, max_conditions: 20 };
 const OFF: Config['flow'] = { enabled: false, reason: 'flow is off in this test' };
 let fake: Awaited<ReturnType<typeof startFakeTerminal>>;
-let refs: TickerRef[];
+let refs: References;
+/** The reference lists with NOPX added (a stock without any published file). */
+const withNopx = () => ({ ...refs, tickers: [...refs.tickers, NOPX] });
 const env = (over: { limits?: Partial<Config['limits']>; flow?: Config['flow']; url?: string } = {}): RunEnv => ({
-  client: new PlannedClient({ url: over.url ?? fake.url, proxyKey: KEY, cacheBytes: 100_000_000, concurrency: 4, retries: 0, retryBaseMs: 0, timeoutMs: 20_000 }),
+  client: new PlannedClient({ url: over.url ?? fake.url, proxyKey: KEY, cacheBytes: 100_000_000, concurrency: 4, retries: 0, retryBaseMs: 0, timeoutMs: 20_000, fileOrigin: over.url ?? fake.url, maxFileBytes: 100_000_000 }),
   config: { limits: { ...LIMITS, ...over.limits }, flow: over.flow ?? OFF, terminal: { concurrency: 4 } },
   versions: { engine_version: ENGINE_VERSION, registry_version: REGISTRY_VERSION },
 });
 before(async () => {
   fake = await startFakeTerminal({ key: KEY, tickers: market(), refs: REFS });
-  refs = await env().client.reference('tickers');
+  const c = env().client;
+  refs = { tickers: await c.reference('tickers'), brokers: await c.reference('brokers') };
 });
 after(() => fake.close());
 
@@ -108,18 +113,21 @@ const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));
 
 /** The oracle: the shared core run on the fixture bars directly (no terminal-api, no worker), as CONTRACT.md sections
     4-7 compose it: prepare, run, one run per sensitivity cell, buildResult with the hashes and versions. */
-async function direct(q: BacktestRequest, tickers: string[], files: { ticker: string; dataset: string; sha256: string }[], prior: { variant_hash: string; sharpe_daily: number }[] = []): Promise<BacktestResult> {
-  const ctx = prepare({ ihsg: series('IHSG'), tickers: Object.fromEntries(tickers.map(t => [t, { prices: series(t), corporate_actions: [] }])) });
+async function direct(q: BacktestRequest, tickers: string[], files: { ticker: string; dataset: string; sha256: string }[], prior: { variant_hash: string; sharpe_daily: number }[] = [],
+  excluded?: Exclusion[]): Promise<BacktestResult> {
+  const ctx = prepare({ ihsg: series('IHSG'), tickers: Object.fromEntries(tickers.map(t => [t, { prices: series(t), corporate_actions: [] }])), ...(excluded ? { excluded } : {}) });
   const ledger = run(ctx, q), plan = sensitivityPlan(q);
   let sensitivity = null;
   if (plan) {
-    const cells = [];
+    const cells: (CellRun | null)[][] = [];
     for (const row of plan.requests) { const r: (CellRun | null)[] = []; for (const c of row) r.push(c ? { ledger: run(ctx, c), variant_hash: await variantHash(c) } : null); cells.push(r) }
     const { requests: _r, ...axes } = plan;
-    sensitivity = { ...axes, cells: cells as CellRun[][] };
+    sensitivity = { ...axes, cells };
   }
   const data_version = await dataVersion(files), v = { engine_version: ENGINE_VERSION, registry_version: REGISTRY_VERSION, data_version };
-  return buildResult({ request: q, ledger, versions: { ...v, data_through: THROUGH }, tickers, prior_trials: prior, sensitivity, duration_ms: 0,
+  // meta.tickers: a portfolio's tickers the run ran on (the ones it left out are in TICKERS_EXCLUDED)
+  const ran = q.mode === 'single' ? tickers : ledger.per_ticker_signals.map(t => t.ticker);
+  return buildResult({ request: q, ledger, versions: { ...v, data_through: THROUGH }, tickers: ran, prior_trials: prior, sensitivity, duration_ms: 0,
     variant_hash: await variantHash(q), lineage_key: await lineageKey(q), request_hash: await requestHash(q, v) });
 }
 const priceFile = (t: string) => ({ ticker: t, dataset: 'price', sha256: encode(PACK.get(t)).sha256 });
@@ -178,6 +186,21 @@ test('a single job with trades on UNVR: trades point at entry events, OOS split,
   assert.equal(r.meta.trials.variants[0].kind, 'run'); assert.equal(r.meta.trials.variants[0].variant_hash, await variantHash(q));
 });
 
+test('a rerun after a reload adds no trial (K3): new card ids, another card order, a disabled card, another OOS share', async () => {
+  const q = pageDefault('UNVR'), a = await runJob(q, { prior_trials: [] }, refs, env());
+  const b = clone(q);
+  b.entry.conditions = b.entry.conditions.map((c, k) => ({ ...c, id: `r${k}x` }));                 // the page's ids are new on each load
+  [b.entry.conditions[1], b.entry.conditions[2]] = [b.entry.conditions[2], b.entry.conditions[1]];   // the grid's condition (ADX) stays first
+  b.entry.conditions.push({ ...b.entry.conditions[0], id: 'off1', enabled: false });
+  b.period.oos_fraction = 0.2;
+  const prior = a.meta.trials.variants.map(({ variant_hash, sharpe_daily }) => ({ variant_hash, sharpe_daily }));
+  const r = await runJob(b, { prior_trials: prior }, refs, env());
+  assert.ok(a.meta.trials.total > 1, `${a.meta.trials.total} trials`);
+  assert.deepEqual([r.meta.trials.prior, r.meta.trials.this_run, r.meta.trials.total], [a.meta.trials.total, 0, a.meta.trials.total]);
+  assert.deepEqual(r.robustness.deflated, a.robustness.deflated);
+  assert.deepEqual([r.equity, r.trades.map(t => [t.entry_date, t.exit_date, t.pnl_idr])], [a.equity, a.trades.map(t => [t.entry_date, t.exit_date, t.pnl_idr])]);
+});
+
 test('the same request on the same published data gives the same result, cold or warm cache (meta.duration_ms aside)', async () => {
   const q = pageDefault('UNVR'), e = env();
   const a = await runJob(q, { prior_trials: [] }, refs, e), b = await runJob(clone(q), { prior_trials: [] }, refs, e), c = await runJob(clone(q), { prior_trials: [] }, refs, env());
@@ -216,6 +239,7 @@ test('refused requests name their field and download nothing', async () => {
     ['an unpublished ticker', q => { q.single.ticker = 'ZZZZ' }, 'UNKNOWN_TICKER', 'single.ticker'],
     ['a universe the catalog does not have', q => { delete q.single; q.mode = 'portfolio'; q.portfolio = { universe: 'sector:Nope', max_positions: 5, rank_by: 'adx', min_avg_value_20d_idr: 0 } }, 'UNKNOWN_UNIVERSE', 'portfolio.universe'],
     ['a field the page does not send', q => { q.benchmark = 'ihsg' }, 'UNKNOWN_FIELD', 'benchmark'],
+    ['the page\'s client_request_id (edge-bff keeps it and strips it before the worker)', q => { q.client_request_id = 'c'.repeat(32) }, 'UNKNOWN_FIELD', 'client_request_id'],
     ['a nested unknown field', q => { q.exit.stop.level = 3 }, 'UNKNOWN_FIELD', 'exit.stop.level'],
     ['an unknown condition field', q => { q.entry.conditions[0].threshold = 3 }, 'UNKNOWN_FIELD', 'entry.conditions[0].threshold'],
     ['an unknown side field', q => { q.entry.conditions[0].rhs.output = 'adx' }, 'UNKNOWN_FIELD', 'entry.conditions[0].rhs.output'],
@@ -254,28 +278,57 @@ test('refused requests name their field and download nothing', async () => {
   assert.deepEqual(await refusal(runJob(long, { prior_trials: [] }, refs, env())), ['INDICATOR_OUTPUT_EMPTY', 'entry.conditions[1].lhs']);
 });
 
-test('checks against the published data: PERIOD_AFTER_DATA, PERIOD_BEFORE_DATA, no bar in the period, an unpublished stock', async () => {
+test('checks against the published data: PERIOD_AFTER_DATA, PERIOD_CLIPPED, no bar in the period, an unpublished stock', async () => {
   const late = pageDefault('UNVR'); late.period.to = '2026-10-26';
   assert.deepEqual(await refusal(runJob(late, { prior_trials: [] }, refs, env())), ['PERIOD_AFTER_DATA', 'period.to']);
-  // GOTO's first bar is 2022-04-11: buy and hold cannot start in 2019; against IHSG it can (no trade before its listing)
-  const goto = pageDefault('GOTO');
-  const e = await runJob(goto, { prior_trials: [] }, refs, env()).catch(x => x);
-  assert.ok(e instanceof ValidationError && e.code === 'PERIOD_BEFORE_DATA' && e.field === 'period.from' && e.message.includes(FX.get('GOTO')!.T[0]), String(e));
-  goto.single!.benchmark = 'ihsg';
-  const r = await runJob(goto, { prior_trials: [] }, refs, env());
-  assert.ok(r.trades.every(t => t.entry_date >= FX.get('GOTO')!.T[0]));
-  goto.single!.benchmark = 'buy_and_hold'; goto.period.from = FX.get('GOTO')!.T[0];
-  assert.equal((await runJob(goto, { prior_trials: [] }, refs, env())).benchmark[0], goto.sizing.capital_idr);
-  // ISEA has no bar before 2024-07-08
+  // GOTO's first bar is 2022-04-11: a single run from 2019 starts there (PERIOD_CLIPPED), with either benchmark
+  const first = FX.get('GOTO')!.T[0];
+  for (const benchmark of ['buy_and_hold', 'ihsg'] as const) {
+    const goto = pageDefault('GOTO'); goto.single!.benchmark = benchmark;
+    const r = await runJob(goto, { prior_trials: [] }, refs, env());
+    assert.deepStrictEqual(noDuration(r), noDuration(await direct(goto, ['GOTO'], [priceFile('IHSG'), priceFile('GOTO')])));
+    assert.deepEqual(r.meta.warnings[0], { code: 'PERIOD_CLIPPED', message: `GOTO has no published bar before ${first}: the backtest starts on ${first} instead of the requested 2019-06-03.` });
+    assert.deepEqual([r.dates[0], r.benchmark[0]], [first, goto.sizing.capital_idr]);
+    // the same run as one requested from the first bar (its request, hashes and warning aside)
+    const own = await runJob({ ...clone(goto), period: { ...goto.period, from: first } }, { prior_trials: [] }, refs, env());
+    assert.ok(!own.meta.warnings.some(w => w.code === 'PERIOD_CLIPPED'));
+    assert.deepStrictEqual([r.dates, r.equity, r.benchmark, r.trades], [own.dates, own.equity, own.benchmark, own.trades]);
+  }
+  // ISEA has no bar before 2024-07-08: a period that ends before it has nothing to clip to
   const isea = pageDefault('ISEA'); isea.period = { from: '2019-06-03', to: '2023-12-29', oos_fraction: 0 };
   assert.deepEqual(await refusal(runJob(isea, { prior_trials: [] }, refs, env())), ['DATA_MISSING', 'ISEA']);
-  // a stock of the reference list without published files: terminal-api's 404 is DATA_MISSING, never a skip
-  const withNopx = [...refs, NOPX];
-  const m = await runJob(pageDefault('NOPX'), { prior_trials: [] }, withNopx, env()).catch(x => x);
+  // a stock of the reference list without published files: in single mode terminal-api's 404 is DATA_MISSING
+  const m = await runJob(pageDefault('NOPX'), { prior_trials: [] }, withNopx(), env()).catch(x => x);
   assert.ok(m instanceof DataError && m.code === 'DATA_MISSING', String(m));
-  // in a universe it fails the whole run too (CONTRACT.md section 2: a missing dataset is an error, never a fallback)
-  const u = await runJob(portfolioDefault('sector:Sector C'), { prior_trials: [] }, withNopx, env()).catch(x => x);
-  assert.ok(u instanceof DataError && u.code === 'DATA_MISSING', String(u));
+});
+
+test('portfolio: a ticker without published files and a ticker with too short a history are left out (TICKERS_EXCLUDED)', async () => {
+  // an entry condition whose window is longer than ISEA's history (and shorter than every other stock's)
+  const isea = FX.get('ISEA')!.T.length;
+  assert.ok(STOCKS.every(t => t === 'ISEA' || FX.get(t)!.T.length > isea + 30));
+  const q = portfolioDefault();
+  q.entry.conditions.push({ id: 'long', kind: 'indicator', indicator: 'I01', params: { length: isea + 1 }, lhs: { type: 'price' }, op: 'gt', rhs: { type: 'output', output: 'sma' } });
+  q.entry.logic = 'any';
+  const b0 = fake.requests.length;
+  const r = await runJob(q, { prior_trials: [] }, withNopx(), env());
+  // NOPX: no /bundle answer (404), nothing downloaded for it; ISEA: loaded, then left out by the engine
+  assert.ok(fake.requests.slice(b0).every(x => !x.path.includes('NOPX') || x.path === '/api/terminal/v1/bundle'));
+  const nopx = { ticker: 'NOPX', code: 'DATA_MISSING', field: 'NOPX', message: 'The data of NOPX: terminal-api answered 404 (unknown_ticker: No published data for NOPX.).' };
+  const ran = STOCKS.filter(t => t !== 'ISEA');
+  assert.deepEqual(r.meta.tickers, ran);
+  assert.deepEqual(r.tables.per_ticker.map(x => x.ticker), ran);
+  const w = r.meta.warnings[0];
+  assert.deepEqual([w.code, w.count, w.tickers], ['TICKERS_EXCLUDED', 2, ['ISEA', 'NOPX']]);
+  assert.deepEqual(w.reasons!.map(x => [x.ticker, x.code, x.field]), [['ISEA', 'INDICATOR_OUTPUT_EMPTY', 'entry.conditions[3].rhs'], ['NOPX', 'DATA_MISSING', 'NOPX']]);
+  assert.deepEqual(w.reasons![1], nopx);
+  // the core on the same bars with the loader's exclusion; every file read counts in data_version (ISEA's too)
+  assert.deepStrictEqual(noDuration(r), noDuration(await direct(q, STOCKS, [priceFile('IHSG'), ...STOCKS.map(priceFile)], [], [nopx])));
+  // a universe of NOPX alone runs on no ticker: cash only, the warning says so
+  const c = await runJob(portfolioDefault('sector:Sector C'), { prior_trials: [] }, withNopx(), env());
+  assert.deepEqual([c.meta.tickers, c.trades.length, c.meta.warnings[0].tickers], [[], 0, ['NOPX']]);
+  // single mode still refuses what a portfolio leaves out
+  const one = pageDefault('ISEA'); one.entry.conditions.push(q.entry.conditions[3]);
+  assert.deepEqual(await refusal(runJob(one, { prior_trials: [] }, refs, env())), ['INDICATOR_OUTPUT_EMPTY', 'entry.conditions[3].rhs']);
 });
 
 test('limits: LIMIT_EXCEEDED before any file is downloaded; exactly at the limit runs', async () => {
@@ -292,7 +345,7 @@ test('limits: LIMIT_EXCEEDED before any file is downloaded; exactly at the limit
   assert.ok(p instanceof WorkerError && p.code === 'LIMIT_EXCEEDED' && p.field === 'universe');
 });
 
-test('flow on: broker files only when a flow condition needs them, counted against max_broker_rows, and reaching period.to', async () => {
+test('flow on: broker files only when a flow condition needs them, counted against max_broker_rows, FLOW_DATA_THROUGH, brokers', async () => {
   // test rows: broker YU buying UNVR as a foreign investor on its last 30 sessions (not published values)
   const days = FX.get('UNVR')!.T.slice(-30);
   const rows = days.map((d, k) => [d, 'YU', 'Foreign', 'Regular', 1e9 * (k % 3), 5e8, 1e4, 5e3, false]);
@@ -314,13 +367,54 @@ test('flow on: broker files only when a flow condition needs them, counted again
     const s = await runJob(plain, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }));
     assert.equal(brokerAsked() - n, 2);
     assert.equal(s.meta.data_version, await dataVersion([priceFile('IHSG'), priceFile('UNVR')]));
-    // BBCA's broker files end before the period does: DATA_UNAVAILABLE, never a run on missing flow
+    // BBCA's manifest says 2026-10-20 (the publisher did not touch it since): the date of the broker data is the
+    // newest of every stock's manifest (UNVR: THROUGH), so the period may end on THROUGH; BBCA's broker file has no row
+    // on its bars, which a single run refuses (a portfolio leaves BBCA out, below)
+    const manifests = () => flowFake.requests.filter(r => r.path.startsWith('/api/terminal/v1/manifest/')).length;
+    const m0 = manifests();
     const bbca = pageDefault('BBCA', true); bbca.period.from = days[0];
-    assert.deepEqual(await refusal(runJob(bbca, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }))), ['DATA_UNAVAILABLE', 'broker']);
-    // GOTO has no broker file: DATA_MISSING
+    assert.deepEqual(await refusal(runJob(bbca, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }))), ['FLOW_UNAVAILABLE', 'entry.conditions[3]']);
+    assert.equal(manifests() - m0, STOCKS.length, 'every stock\'s manifest was asked once');
+    await runJob(q, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }));
+    assert.equal(manifests() - m0, STOCKS.length, 'UNVR\'s own manifest reaches period.to: no other manifest is asked');
+    // GOTO has no broker file: DATA_MISSING in single mode
     const goto = pageDefault('GOTO', true); goto.period.from = days[0]; goto.single!.benchmark = 'ihsg';
     assert.deepEqual(await refusal(runJob(goto, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }))), ['DATA_MISSING', 'GOTO.broker']);
+    // a portfolio leaves both out: GOTO (no broker file, DATA_MISSING) and BBCA (no broker row on its bars, FLOW_UNAVAILABLE)
+    const sector = portfolioDefault('sector:Sector A'); sector.entry = q.entry; sector.period.from = days[0];
+    const ps = await runJob(sector, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }));
+    assert.deepEqual(ps.meta.tickers, ['UNVR']);
+    assert.deepEqual(ps.meta.warnings[0].reasons!.map(x => [x.ticker, x.code, x.field]), [['BBCA', 'FLOW_UNAVAILABLE', 'entry.conditions[3]'], ['GOTO', 'DATA_MISSING', 'GOTO.broker']]);
+    // a broker code is checked against the published broker list (UNKNOWN_BROKER, before any download); a listed
+    // broker without any row on UNVR's bars (ZP) has a net of 0 there: its condition runs and never switches on
+    const broker = (code: string) => { const b = clone(q); b.entry.conditions.push(legacyToCondition(legacyCard('broker', 'b9', { broker: code, len: 5, val: 0 }))); return b };
+    const b0 = flowFake.requests.length;
+    assert.deepEqual(await refusal(runJob(broker('XX'), { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }))), ['UNKNOWN_BROKER', 'entry.conditions[5].params.broker']);
+    assert.throws(() => checkRequest(broker('XX'), refs, { limits: LIMITS, flow: on }), (e: Error) => e instanceof ValidationError && e.code === 'UNKNOWN_BROKER');
+    assert.equal(flowFake.requests.length, b0, 'a refused broker reads nothing');
+    const zp = await runJob(broker('ZP'), { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }));
+    assert.deepEqual(zp.events.conditions.find(c => c.condition_id === 'b9')!.track, { on: [], runs: [] });
+    const yu = await runJob(broker('YU'), { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }));
+    assert.ok(yu.events.conditions.find(c => c.condition_id === 'b9')!.track.on.length > 0);
   } finally { await flowFake.close() }
+  // no stock's manifest reaches period.to: FLOW_DATA_THROUGH (period.to), refused before any file is downloaded
+  const staleRows = days.map(d => [d, 'YU', 'Foreign', 'Regular', 1e9, 5e8, 1e4, 5e3, false]);
+  const stale = await startFakeTerminal({ key: KEY, tickers: market({ UNVR: { broker: { data_through: days[25], doc: brokerArchive('UNVR', staleRows, [2026, 2026]) } } }), refs: REFS });
+  try {
+    const on: Config['flow'] = { enabled: true, reason: null };
+    const q = pageDefault('UNVR', true); q.period.from = days[0];
+    const e = await runJob(q, { prior_trials: [] }, refs, env({ url: stale.url, flow: on })).catch(x => x);
+    assert.ok(e instanceof ValidationError && e.code === 'FLOW_DATA_THROUGH' && e.field === 'period.to', String(e));
+    assert.equal(e.message, `The broker data is published through ${days[25]}: a run with flow conditions or ranked by foreign net flow must end on or before it (period.to is ${THROUGH}).`);
+    assert.equal(stale.requests.filter(r => r.path.startsWith('/bucket/')).length, 0, 'nothing was downloaded');
+    // ranked by foreign net flow: the same rule
+    const p = portfolioDefault('sector:Sector A'); p.portfolio!.rank_by = 'fnet'; p.period.from = days[0];
+    assert.deepEqual(await refusal(runJob(p, { prior_trials: [] }, refs, env({ url: stale.url, flow: on }))), ['FLOW_DATA_THROUGH', 'period.to']);
+    // without flow the broker date does not matter; ending on it, the flow run runs
+    assert.ok(await runJob(pageDefault('UNVR'), { prior_trials: [] }, refs, env({ url: stale.url, flow: on })));
+    q.period.to = days[25];
+    assert.equal((await runJob(q, { prior_trials: [] }, refs, env({ url: stale.url, flow: on }))).dates.at(-1), days[25]);
+  } finally { await stale.close() }
 });
 
 test('events: price-affecting corporate actions reach the trades held across them', async () => {

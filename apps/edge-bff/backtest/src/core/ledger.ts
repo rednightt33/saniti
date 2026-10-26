@@ -24,7 +24,8 @@ export interface Ledger {
   dates: string[];                   // result calendar (CONTRACT.md section 4)
   equity: number[];                  // IDR after each day's close
   exposure: number[];                // market value / equity after the close
-  benchmark_close: number[];         // the primary benchmark's close as of each calendar day (shared as-of rule)
+  benchmark_close: number[];         // the primary benchmark's close as of each calendar day (shared as-of rule); every day has one
+                                     // (engine.ts: single mode starts at the ticker's first bar, PERIOD_CLIPPED; else PERIOD_BEFORE_DATA)
   benchmark: { kind: 'buy_and_hold' | 'ihsg'; ticker: string };
   trades: LedgerTrade[];             // in exit order: exit_bar, then phase open < intraday < close, then ticker
   events: {
@@ -52,7 +53,7 @@ export interface ResultInput {
     condition_id: string; xs: number[]; xs_display: number[];
     y_key: 'stop_pct' | 'stop_atr_mult' | 'stop_reward_risk_x' | 'max_hold_bars'; ys: number[]; ys_display: number[];
     base_x: number; base_y: number;
-    cells: CellRun[][];              // cells[y][x]
+    cells: (CellRun | null)[][];     // cells[y][x]; null exactly where the plan has no request (robustness.ts sensitivityPlan)
   };
   duration_ms: number;
 }

@@ -11,7 +11,7 @@
 import { F, isN } from '../../../terminal/src/calc/indicators.ts';
 import type { Bars, Num, Out, Params } from '../../../terminal/src/calc/indicators.ts';
 import type { FlowData } from './flow.ts';
-import { rollingSum, top5Accumulation } from './flow.ts';
+import { brokerNet, rollingSum, top5Accumulation } from './flow.ts';
 import { ValidationError, indicator, resolveParams } from './registry.ts';
 
 export type Op = 'gt' | 'lt' | 'crosses_above' | 'crosses_below';
@@ -74,7 +74,18 @@ function side(c: Calc, s: Side, outs: Out, outputs: string[], priceInput: 'close
   throw new ValidationError('INVALID_CONDITION', `${field}.type`, `${field}.type must be ${allowValue ? 'output or value' : 'price or output'}.`);
 }
 
-export function indicatorCondition(c: Calc, cond: IndicatorCondition, field = 'condition'): Signal {
+/** Whether a series has a value on one of the bars 0..last. */
+function anyValue(s: ArrayLike<Num | undefined>, last: number, ok: (v: Num | undefined) => boolean): boolean {
+  for (let i = 0; i <= last && i < s.length; i++) if (ok(s[i])) return true;
+  return false;
+}
+/* `last`: the last bar the caller can see (a backtest: the ticker's last bar inside the period; not given: every bar).
+   Whether a series has any value at all (INDICATOR_OUTPUT_EMPTY, FLOW_OUTPUT_EMPTY, FLOW_UNAVAILABLE) is decided on
+   the bars up to it, so bars published after a backtest's period never decide whether its conditions can run, nor
+   the error's message (no look-ahead); the series themselves are computed on every bar and are causal. */
+const upTo = (last: number | undefined) => last === undefined ? '' : ' up to the end of the period';
+
+export function indicatorCondition(c: Calc, cond: IndicatorCondition, field = 'condition', last?: number): Signal {
   const r = indicator(cond.indicator, `${field}.indicator`), params = resolveParams(r, cond.params, `${field}.params`);
   if (!OPS.includes(cond.op)) throw new ValidationError('INVALID_CONDITION', `${field}.op`, `${field}.op must be one of ${OPS.join(', ')}.`);
   const outs = c.out(r.key, params);
@@ -83,7 +94,7 @@ export function indicatorCondition(c: Calc, cond: IndicatorCondition, field = 'c
   // parameters the registry accepts can still leave an output without a single value (CCI constant 0, a length longer
   // than the history, a volume indicator on an index); that is an error, not a condition that is silently never true
   for (const [s, f] of [[a, `${field}.lhs`], [b, `${field}.rhs`]] as [Series | null, string][])
-    if (s && !s.some(isN)) throw new ValidationError('INDICATOR_OUTPUT_EMPTY', f, `${f}: ${r.id} with these parameters has no value on this ticker's bars.`);
+    if (s && !anyValue(s, last ?? c.n - 1, isN)) throw new ValidationError('INDICATOR_OUTPUT_EMPTY', f, `${f}: ${r.id} with these parameters has no value on this ticker's bars${upTo(last)}.`);
   return compare(a as Series, cond.op, b, b ? 0 : cond.rhs.value as number, c.n);
 }
 
@@ -95,21 +106,33 @@ const num = (p: Params, key: string, def: number, field: string, integer = true,
   return v;
 };
 const threshold = (cond: PriceActionCondition, field: string): number => {
-  const spec = PRICE_ACTION[cond.type].value as { unit: string; above: number };
+  const spec = PRICE_ACTION[cond.type].value as ThresholdRange;
   if (typeof cond.value !== 'number' || !Number.isFinite(cond.value)) throw new ValidationError('INVALID_CONDITION', `${field}.value`, `${field}.value must be a number.`);
-  if (!(cond.value > spec.above)) throw new ValidationError('VALUE_OUT_OF_RANGE', `${field}.value`, `${field}.value is a ${spec.unit} and must be above ${spec.above}.`);
+  if (!inRange(spec, cond.value)) throw new ValidationError('VALUE_OUT_OF_RANGE', `${field}.value`, `${field}.value is a ${spec.unit} and must be ${spec.open ? 'above' : 'at least'} ${spec.min}.`);
   return cond.value;
 };
 
 /* value: what the threshold measures and the range that quantity can take; a threshold outside it is refused (a
-   percent typed where a fraction is expected, -3 for -3%, would otherwise give a condition that is never true) */
-export const PRICE_ACTION: Record<string, { ops: string[]; params: Record<string, number>; value: false | { unit: string; above: number } }> = {
-  dip: { ops: ['lte'], params: {}, value: { unit: 'one-day return, fraction', above: -1 } },             // return <= value
+   percent typed where a fraction is expected, -3 for -3%, would otherwise give a condition that is never true).
+   min with open = true: the value must be above min; open = false: at least min. A one-day return is above -1 (a
+   close of 0 is not a price); a volume ratio is at least 0 (volume and its average are never negative), and 0 is a
+   valid, trivial threshold (true on every bar with volume) that the page's sensitivity grid reaches from 2. */
+export interface ThresholdRange { unit: string; min: number; open: boolean }
+export const PRICE_ACTION: Record<string, { ops: string[]; params: Record<string, number>; value: false | ThresholdRange }> = {
+  dip: { ops: ['lte'], params: {}, value: { unit: 'one-day return, fraction', min: -1, open: true } },     // return <= value
   breakout: { ops: ['close_above_high'], params: { length: 20 }, value: false },     // close > highest high of the previous N bars
-  volspike: { ops: ['gt'], params: { length: 20 }, value: { unit: 'volume ratio', above: 0 } },          // volume / SMA(volume, N) ending the bar before > value
+  volspike: { ops: ['gt'], params: { length: 20 }, value: { unit: 'volume ratio', min: 0, open: false } },  // volume / SMA(volume, N) ending the bar before > value
   macross: { ops: ['golden_cross', 'fast_above_slow'], params: { fast_length: 20, slow_length: 50 }, value: false },
   macd: { ops: ['bullish_divergence', 'crosses_above_signal', 'histogram_positive'], params: { fast_length: 12, slow_length: 26, signal_length: 9 }, value: false },
 };
+const inRange = (r: ThresholdRange, v: number) => r.open ? v > r.min : v >= r.min;
+/** Whether a price-action threshold is inside what its quantity can take (PRICE_ACTION value); true for a type
+    without a threshold or an unknown type (those are refused by priceActionCondition itself). The sensitivity grid
+    (robustness.ts) asks this before it runs a cell. */
+export function thresholdAccepted(type: string, value: number): boolean {
+  const spec = Object.prototype.hasOwnProperty.call(PRICE_ACTION, type) ? PRICE_ACTION[type].value : false;
+  return !spec || (Number.isFinite(value) && inRange(spec, value));
+}
 
 /* bullish divergence (page `bullDiv`): a swing low confirmed k bars later, below the previous swing low within `look`
    bars, while the MACD line makes a higher low; flagged on the confirmation bar, so it uses no later data */
@@ -192,32 +215,38 @@ export function flowConditionShape(cond: FlowCondition, field = 'condition'): { 
 
 /** A flow condition on the ticker's flow data. Without flow data every flow condition is FLOW_UNAVAILABLE, whatever
     its shape (CONTRACT.md section 3 refuses them all while flow is unavailable); then the shape; then what needs the
-    data: no broker row on any price bar (FLOW_UNAVAILABLE), a broker without a row (UNKNOWN_BROKER). */
-export function flowCondition(c: Calc, cond: FlowCondition, field = 'condition'): Signal {
+    data: no broker row on any price bar (FLOW_UNAVAILABLE), a series without any value on the ticker's bars (a window
+    longer than the bars with broker data: FLOW_OUTPUT_EMPTY, the rule of INDICATOR_OUTPUT_EMPTY). A broker without a
+    row on this ticker's bars did not trade it: its net is 0 on every bar with broker data (flow.ts brokerNet), so its
+    condition is evaluated; whether the code is a broker at all is checked against the published broker list by the
+    caller (the worker's validation, UNKNOWN_BROKER). Both data checks look at the bars up to `last` only (see
+    indicatorCondition). */
+export function flowCondition(c: Calc, cond: FlowCondition, field = 'condition', last?: number): Signal {
   const flow = c.flow, n = c.n, unavailable = (why: string) => new ValidationError('FLOW_UNAVAILABLE', field, `${field}: flow conditions need the ticker's broker data, which ${why}.`);
   if (!flow) throw unavailable('is not available');
   const q = flowConditionShape(cond, field);
-  if (!(flow.from <= flow.to)) throw unavailable('has no row on any of its price bars');
+  const to = Math.min(flow.to, last ?? n - 1);
+  if (!(flow.from <= to)) throw unavailable(`has no row on any of its price bars${upTo(last)}`);
+  const s = q.type === 'top5' ? c.flowSeries(`top5|${q.length}`, () => top5Accumulation(flow, q.length))
+    : q.type === 'fnet' ? c.flowSeries(`fnet|${q.length}`, () => rollingSum(flow.fnet, q.length, flow.from, flow.to))
+    : c.flowSeries(`broker|${q.broker}|${q.length}`, () => rollingSum(brokerNet(flow, q.broker as string), q.length, flow.from, flow.to));
+  if (!anyValue(s, to, v => Number.isFinite(v)))
+    throw new ValidationError('FLOW_OUTPUT_EMPTY', `${field}.params.length`, `${field}: ${q.type} over ${q.length} bars has no value on this ticker's bars${upTo(last)} (its broker data covers ${to - flow.from + 1} price bars).`);
   if (q.type === 'top5') {
-    const acc = c.flowSeries(`top5|${q.length}`, () => top5Accumulation(flow, q.length)), r = new Uint8Array(n);
-    for (let i = 0; i < n; i++) r[i] = +(acc[i] > q.value);                // NaN (no value) compares false
+    const r = new Uint8Array(n);
+    for (let i = 0; i < n; i++) r[i] = +(s[i] > q.value);                  // NaN (no value) compares false
     return r;
-  }
-  let s: Float64Array;
-  if (q.type === 'fnet') s = c.flowSeries(`fnet|${q.length}`, () => rollingSum(flow.fnet, q.length, flow.from, flow.to));
-  else {
-    const a = flow.brokers.get(q.broker as string);
-    if (!a) throw new ValidationError('UNKNOWN_BROKER', `${field}.params.broker`, `${field}.params.broker: ${JSON.stringify(q.broker)} has no broker row on this ticker's price bars.`);
-    s = c.flowSeries(`broker|${q.broker}|${q.length}`, () => rollingSum(a, q.length, flow.from, flow.to));
   }
   return compare(s as unknown as Series, q.op, null, q.value, n);     // the page's cmpSeries: bar 0 never, NaN false
 }
 
-export function conditionSeries(c: Calc, cond: Condition, field = 'condition'): Signal {
+/** A condition's 0/1 series on the ticker's bars; `last` as in indicatorCondition (price-action conditions have no
+    data check). */
+export function conditionSeries(c: Calc, cond: Condition, field = 'condition', last?: number): Signal {
   if (!cond || typeof cond !== 'object') throw new ValidationError('INVALID_CONDITION', field, `${field} must be an object.`);
-  if (cond.kind === 'indicator') return indicatorCondition(c, cond, field);
+  if (cond.kind === 'indicator') return indicatorCondition(c, cond, field, last);
   if (cond.kind === 'price_action') return priceActionCondition(c, cond, field);
-  if (cond.kind === 'flow') return flowCondition(c, cond, field);
+  if (cond.kind === 'flow') return flowCondition(c, cond, field, last);
   throw new ValidationError('UNKNOWN_CONDITION', `${field}.kind`, `${field}.kind must be indicator, price_action or flow.`);
 }
 

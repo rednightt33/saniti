@@ -39,22 +39,35 @@ export interface Columnar { schema_version?: number; columns: string[]; [column:
 const hex = (buf: ArrayBuffer) => { let s = ''; for (const b of new Uint8Array(buf)) s += b.toString(16).padStart(2, '0'); return s };
 export const sha256Bytes = async (raw: Uint8Array): Promise<string> => hex(await crypto.subtle.digest('SHA-256', raw as BufferSource));
 
-async function gunzip(raw: Uint8Array): Promise<Uint8Array> {
+/** The inflated bytes; reading stops once they pass maxBytes (DATA_INTEGRITY), so a small file that inflates to a huge
+    one (a gzip bomb) never fills the memory. */
+async function gunzip(raw: Uint8Array, maxBytes: number, what: string): Promise<Uint8Array> {
   const reader = new Blob([raw as BlobPart]).stream().pipeThrough(new DecompressionStream('gzip')).getReader();
   const parts: Uint8Array[] = []; let n = 0;
-  for (;;) { const { done, value } = await reader.read(); if (done) break; parts.push(value); n += value.byteLength }
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    n += value.byteLength;
+    if (n > maxBytes) {
+      await reader.cancel().catch(() => {});
+      throw new DataError('DATA_INTEGRITY', `${what} inflates to more than ${maxBytes} bytes, the most one file may have.`, undefined, { max_inflated_bytes: maxBytes });
+    }
+    parts.push(value);
+  }
   const out = new Uint8Array(n); let at = 0;
   for (const p of parts) { out.set(p, at); at += p.byteLength }
   return out;
 }
 
 /** gzip JSON bytes -> a checked columnar document, without a hash check. Only for a file no manifest describes
-    (terminal-api /reference answers a URL without sha256); data files go through inflateVerified. */
-export async function decodeColumnar(raw: Uint8Array, what = 'file'): Promise<Columnar> {
+    (terminal-api /reference answers a URL without sha256); data files go through inflateVerified. maxBytes: the most
+    bytes the file may inflate to (the worker's BACKTEST_MAX_FILE_BYTES); more is DATA_INTEGRITY, and inflating stops
+    there. */
+export async function decodeColumnar(raw: Uint8Array, what = 'file', maxBytes = Infinity): Promise<Columnar> {
   if (!(raw.byteLength >= 2 && raw[0] === 0x1f && raw[1] === 0x8b)) throw integrity(`${what} is not a gzip file.`);
   let doc: unknown;
-  try { doc = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await gunzip(raw))) }
-  catch { throw integrity(`${what} is not valid gzip JSON.`) }
+  try { doc = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await gunzip(raw, maxBytes, what))) }
+  catch (e) { if (e instanceof DataError) throw e; throw integrity(`${what} is not valid gzip JSON.`) }
   if (!doc || typeof doc !== 'object' || Array.isArray(doc)) throw integrity(`${what} is not a JSON object.`);
   const d = doc as Columnar;
   if (d.schema_version !== undefined && d.schema_version !== SCHEMA_VERSION)
@@ -72,12 +85,13 @@ export async function decodeColumnar(raw: Uint8Array, what = 'file'): Promise<Co
 }
 
 /** A downloaded file -> its document, after the bytes are checked against the manifest's size and sha256 (a cached or
-    downloaded file that does not match is DATA_INTEGRITY, never used). */
-export async function inflateVerified(raw: Uint8Array, f: { sha256: string; bytes: number }, what = 'file'): Promise<Columnar> {
+    downloaded file that does not match is DATA_INTEGRITY, never used); maxBytes as in decodeColumnar (the manifest
+    gives the gzip size only). */
+export async function inflateVerified(raw: Uint8Array, f: { sha256: string; bytes: number }, what = 'file', maxBytes = Infinity): Promise<Columnar> {
   if (raw.byteLength !== f.bytes) throw integrity(`${what} has ${raw.byteLength} bytes; the manifest says ${f.bytes}.`);
   const sha = await sha256Bytes(raw);
   if (sha !== String(f.sha256).toLowerCase()) throw integrity(`${what} does not match its manifest sha256.`);
-  return decodeColumnar(raw, what);
+  return decodeColumnar(raw, what, maxBytes);
 }
 
 /* ---- shared checks ------------------------------------------------------------------------------------------ */

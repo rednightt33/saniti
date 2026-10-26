@@ -13,7 +13,9 @@
      for which both are the identity, Tunai -> Cash); fnet and broker sums take every board, so the board never
      changes a value here;
    - a price session without any broker row counts 0 (the Terminal's arrays start at 0 and only rows add to them);
-     FLOW_DATA_CHECK.md found 3 such sessions for DGIK, 1 for BMSR, 0 for 10 other tickers;
+     FLOW_DATA_CHECK.md found 3 such sessions for DGIK, 1 for BMSR, 0 for 10 other tickers; for the same reason a
+     broker without any row on the ticker's price bars (it did not trade the ticker) has a net of 0 on every session
+     with broker data (brokerNet), as a Terminal broker filter that matches no combo;
    - the publisher's `gap` markers (source_balance_gap, ERRORS M157: brokers missing from the 2016-2020 source) are not
      read by the Terminal; the values are kept as they are and the gap sessions are listed in `gap_bars`.
    Outside the sessions that have broker data (before the first and after the last price bar with a broker row, the
@@ -72,6 +74,17 @@ export function flowData(rows: readonly BrokerRow[], priceDates: readonly string
   const gap = new Set<number>();
   for (const g of gaps) { const i = idx.get(g.d); if (i !== undefined) gap.add(i) }
   return { fnet, brokers, from, to, gap_bars: [...gap].sort((a, b) => a - b), unmatched_rows: unmatched };
+}
+
+/** The net of broker `code` on the ticker's price bars: its series when it has a row on one of them, else 0 on every
+    bar with broker data [from, to] (the broker did not trade the ticker; nothing adds to the Terminal's zeros) and
+    NaN outside, as every flow series here. */
+export function brokerNet(flow: FlowData, code: string): Float64Array {
+  const a = flow.brokers.get(code);
+  if (a) return a;
+  const z = new Float64Array(flow.fnet.length).fill(NaN);
+  for (let i = Math.max(0, flow.from); i <= flow.to; i++) z[i] = 0;
+  return z;
 }
 
 /** The page's rollsum (running sum, first value at bar n-1 of the series) on the bars that have broker data

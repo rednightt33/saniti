@@ -318,11 +318,15 @@ test('sensitivity: display scales (dip %, flow Rp B), a refused threshold is no 
   const fnet: Condition = { id: 'f', kind: 'flow', type: 'fnet', params: { length: 5 }, op: 'gt', value: 0 };
   const pf = sensitivityPlan(request({ sensitivity: true, conditions: [fnet] }))!;
   assert.deepEqual(pf.xs_display, [-2, -1, 0, 1, 2]); assert.deepEqual(pf.xs, [-2e9, -1e9, 0, 1e9, 2e9]);           // step max(1, 0 || 1)
-  // volume ratio 2: the page's grid reaches 0, which conditions.ts refuses (a ratio must be above 0): no request
+  // volume ratio 2: the page's grid reaches 0, which conditions.ts accepts (a ratio of at least 0, lead decision
+  // 2026-10-26): every cell runs; from 1 it reaches -1, which it refuses: no request
   const vs: Condition = { id: 'v', kind: 'price_action', type: 'volspike', params: { length: 20 }, op: 'gt', value: 2 };
   const pv = sensitivityPlan(request({ sensitivity: true, conditions: [vs] }))!;
   assert.deepEqual(pv.xs_display, [0, 1, 2, 3, 4]);
-  assert.deepEqual(pv.requests.map(row => row.map(v => v !== null)), Array(5).fill([false, true, true, true, true]));
+  assert.deepEqual(pv.requests.map(row => row.map(v => v !== null)), Array(5).fill([true, true, true, true, true]));
+  const pv1 = sensitivityPlan(request({ sensitivity: true, conditions: [{ ...vs, value: 1 }] }))!;
+  assert.deepEqual(pv1.xs_display, [-1, 0, 1, 2, 3]);
+  assert.deepEqual(pv1.requests.map(row => row.map(v => v !== null)), Array(5).fill([false, true, true, true, true]));
   // the first ENABLED condition WITH a numeric threshold; output-vs-output and value-less conditions are skipped
   const dmi: Condition = { id: 'm', kind: 'indicator', indicator: 'I07', params: {}, lhs: { type: 'output', output: 'plus_di' }, op: 'gt', rhs: { type: 'output', output: 'minus_di' } };
   const brk: Condition = { id: 'b', kind: 'price_action', type: 'breakout', params: { length: 20 }, op: 'close_above_high' };
@@ -389,7 +393,102 @@ test('hashes: canonical JSON, sha256, variant (no robustness, no benchmark), lin
   assert.notEqual(await requestHash(q, { ...VERSIONS, data_version: 'other' }), H0);
 });
 
+test('variant hash: only what the engine reads; ids, order, disabled cards, the OOS share and unused numbers are not new trials', async () => {
+  const adx: Condition = { id: 'a1', kind: 'indicator', indicator: 'I07', params: { di_length: 14, adx_smoothing: 14 }, lhs: { type: 'output', output: 'adx' }, op: 'gt', rhs: { type: 'value', value: 25 } };
+  const dip: Condition = { id: 'd1', kind: 'price_action', type: 'dip', op: 'lte', value: -0.03 };
+  const q = request({ conditions: [RSI30, adx, dip], sensitivity: true, oos: 0.3 });
+  const same = async (f: (v: BacktestRequest) => void, label: string) => { const v = JSON.parse(JSON.stringify(q)) as BacktestRequest; f(v); assert.equal(await variantHash(v), await variantHash(q), label) };
+  const other = async (f: (v: BacktestRequest) => void, label: string) => { const v = JSON.parse(JSON.stringify(q)) as BacktestRequest; f(v); assert.notEqual(await variantHash(v), await variantHash(q), label) };
+  // the page gives every card a new random id on each load; the cards' order, a disabled card and the OOS share
+  await same(v => { v.entry.conditions = v.entry.conditions.map((c, k) => ({ ...c, id: `n${k}` })) }, 'new ids');
+  await same(v => { v.entry.conditions.reverse() }, 'another order');
+  await same(v => { v.entry.conditions.push({ ...adx, id: 'off', enabled: false, rhs: { type: 'value', value: 40 } }) }, 'a disabled card');
+  await same(v => { v.entry.conditions = v.entry.conditions.map(c => ({ ...c, enabled: true })) }, 'enabled: true written out');
+  await same(v => { v.period.oos_fraction = 0.2 }, 'another OOS share');
+  await same(v => { v.entry.at_least = 2 }, 'at_least under logic all');
+  // the numbers of the modes that are not chosen (stop pct, target pct, no trailing), atr_length without an ATR mode
+  await same(v => { v.exit.stop.atr_mult = 3; v.exit.stop.reward_risk_x = 4; v.exit.stop.line = { indicator: 'I12', output: 'sar' } }, 'stop numbers of other modes');
+  await same(v => { v.exit.take_profit.r_multiple = 5; v.exit.take_profit.atr_mult = 1 }, 'target numbers of other modes');
+  await same(v => { v.exit.trailing.pct = 0.2; v.exit.trailing.chandelier_length = 10; v.exit.trailing.chandelier_mult = 1 }, 'trailing numbers while off');
+  await same(v => { v.exit.atr_length = 20 }, 'atr_length without an ATR stop or target');
+  await same(v => { v.exit.signals.logic = 'all' }, 'exit logic without an exit condition');
+  await same(v => { v.exit.signals.conditions = [{ ...RSI30, id: 'x9', enabled: false }] }, 'a disabled exit card');
+  const off = (fraction: number) => { const v = JSON.parse(JSON.stringify(q)) as BacktestRequest; v.costs.skip_ara_open_gap = false; v.costs.ara_gap_fraction = fraction; return variantHash(v) };
+  assert.equal(await off(0.3), await off(0.2), 'ARA fraction while the rule is off');
+  // at_least above the number of enabled entry cards needs all of them (combineEntry): the page's at_least 3 with a
+  // card switched off is at_least 2
+  const atLeast = (n: number, extra: Condition[] = []) => { const v = JSON.parse(JSON.stringify(q)) as BacktestRequest; v.entry.logic = 'at_least'; v.entry.at_least = n; v.entry.conditions.push(...extra); return variantHash(v) };
+  assert.equal(await atLeast(5), await atLeast(3), 'at_least above the enabled cards');
+  assert.equal(await atLeast(4, [{ ...dip, id: 'd9', enabled: false }]), await atLeast(3));
+  assert.notEqual(await atLeast(2), await atLeast(3));
+  // what the engine reads is a new variant
+  await other(v => { v.costs.ara_gap_fraction = 0.3 }, 'ARA fraction while the rule is on');
+  await other(v => { (v.entry.conditions[1] as any).rhs.value = 26 }, 'a threshold');
+  await other(v => { (v.entry.conditions[0] as any).params.length = 9 }, 'a parameter');
+  await other(v => { v.entry.conditions.push({ ...dip, id: 'd2' }) }, 'a repeated condition (at_least counts it)');
+  await other(v => { v.entry.logic = 'at_least'; v.entry.at_least = 2 }, 'at_least');
+  await other(v => { v.exit.stop.pct = 0.08 }, 'the chosen stop');
+  await other(v => { v.exit.stop.mode = 'atr' }, 'another stop mode');
+  await other(v => { v.exit.stop.mode = 'atr'; v.exit.atr_length = 20 }, 'atr_length with an ATR stop');
+  await other(v => { v.exit.trailing.mode = 'chandelier' }, 'a trailing mode');
+  await other(v => { v.exit.signals.conditions = [{ ...RSI30, id: 'x9' }] }, 'an exit condition');
+  await other(v => { v.sizing.allocation_fraction = 0.5 }, 'the allocation of a single stock');
+  await other(v => { v.period.from = '2019-01-03' }, 'the period');
+  const p = request({ mode: 'portfolio' }), p2 = JSON.parse(JSON.stringify(p)) as BacktestRequest;
+  p2.sizing.allocation_fraction = 0.25;
+  assert.equal(await variantHash(p2), await variantHash(p), 'a portfolio slot is 1 / max positions, not the allocation');
+  // a rerun after a reload (new ids, a disabled card, another OOS share) adds no trial: this_run 0, the same DSR
+  const r = rng(11), L = randomLedger(r, 300, 30), plan = sensitivityPlan(q)!, { requests: _r, ...axes } = plan;
+  const cellsOf = async (v: BacktestRequest) => Promise.all(sensitivityPlan(v)!.requests.map(async row => Promise.all(row.map(async c => ({ ledger: L, variant_hash: await variantHash(c!) })))));
+  const first = buildResult(input(q, L, { variant_hash: await variantHash(q), sensitivity: { ...axes, cells: await cellsOf(q) } }));
+  const again = JSON.parse(JSON.stringify(q)) as BacktestRequest;
+  again.entry.conditions = again.entry.conditions.map((c, k) => ({ ...c, id: `z${k}` }));
+  again.entry.conditions.push({ ...dip, id: 'zoff', enabled: false });
+  again.period.oos_fraction = 0.2;
+  const ax2 = (({ requests: _q, ...a }) => a)(sensitivityPlan(again)!);
+  const second = buildResult(input(again, L, { variant_hash: await variantHash(again), prior_trials: first.meta.trials.variants.map(v => ({ variant_hash: v.variant_hash, sharpe_daily: v.sharpe_daily })),
+    sensitivity: { ...ax2, cells: await cellsOf(again) } }));
+  assert.deepEqual([second.meta.trials.prior, second.meta.trials.this_run, second.meta.trials.total], [first.meta.trials.total, 0, first.meta.trials.total]);
+  assert.deepEqual(second.robustness.deflated, first.robustness.deflated);
+});
+
 /* ---- the wire --------------------------------------------------------------------------------------------------- */
+test('trials: a run and cells without trades or with a flat equity have a finite daily Sharpe (the page\'s 0), no variant twice', async () => {
+  // stop 1 %: the page's stop rows max(1, 1 + 2k) are 1, 1, 1, 3, 5 %, so rows 0-2 are the same 5 variants (the run among
+  // them); the worker runs a variant once and gives every cell of it the same CellRun (run.ts runJob)
+  const r = rng(12), q = request({ sensitivity: true, capital: 1e9, stop: { pct: 0.01 } }), p = sensitivityPlan(q)!, dates = calendar(r, 40);
+  assert.deepEqual(p.ys_display, [1, 1, 1, 3, 5]);
+  const flat = ledger(dates, Array(40).fill(1e9), walk(r, 40, 5000), []);
+  const evenTrade = trade({ ticker: 'AAAA', signal_bar: 2, entry_bar: 3, exit_bar: 9, return: 0, pnl_idr: 0, bars_held: 7, exit_reason: 'time_exit' });
+  const flatWithTrade = ledger(dates, Array(40).fill(1e9), walk(r, 40, 5000), [evenTrade]);
+  const oneDay = ledger(dates.slice(0, 1), [1e9], [5000], []);
+  const runHash = await variantHash(q), runs = new Map<string, { ledger: Ledger; variant_hash: string }>([[runHash, { ledger: flat, variant_hash: runHash }]]);
+  const cells = [];
+  for (const [i, row] of p.requests.entries()) {
+    const out = [];
+    for (const [j, cq] of row.entries()) {
+      const h = await variantHash(cq!);
+      if (!runs.has(h)) runs.set(h, { ledger: [flat, flatWithTrade, oneDay][(i + j) % 3], variant_hash: h });
+      out.push(runs.get(h)!);
+    }
+    cells.push(out);
+  }
+  assert.equal(runs.size, 15, '1 run + 4 more variants in rows 0-2 + 10 in rows 3-4');
+  const { requests: _r, ...axes } = p;
+  const prior = [{ variant_hash: cells[0][0].variant_hash, sharpe_daily: 0.2 }, { variant_hash: 'old', sharpe_daily: 0.01 }, { variant_hash: 'old', sharpe_daily: 0.02 }];
+  for (const prior_trials of [[], prior]) {
+    const R = buildResult(input(q, flat, { variant_hash: runHash, prior_trials, sensitivity: { ...axes, cells } }));
+    const v = R.meta.trials.variants;
+    assert.equal(new Set(v.map(x => x.variant_hash)).size, v.length, 'no variant_hash twice');
+    assert.deepEqual(v.map(x => x.variant_hash), [...runs.keys()]);
+    assert.deepEqual(v.map(x => x.sharpe_daily), Array(15).fill(0), 'sd 0 or no return: the page\'s sharpe = sd(r) ? ... : 0');
+    assert.deepEqual([v[0].kind, v.slice(1).every(x => x.kind === 'sensitivity')], ['run', true]);
+    assert.deepEqual([R.meta.trials.prior, R.meta.trials.this_run, R.meta.trials.total], prior_trials.length ? [2, 14, 16] : [0, 15, 15]);
+    assert.ok(R.robustness.sensitivity!.cells.flat().every(c => c!.sharpe === 0));
+    assert.doesNotThrow(() => assertFiniteJson(R));
+  }
+});
+
 test('no NaN or Infinity on the wire: a flat run without trades, a one-day period, all wins', () => {
   const r = rng(10), dates = calendar(r, 30), flat = Array(30).fill(1e9);
   const R = buildResult(input(request({ capital: 1e9 }), ledger(dates, flat, walk(r, 30, 5000), [])));

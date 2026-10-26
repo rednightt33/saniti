@@ -28,11 +28,14 @@ class Settings:
     terminal_proxy_key: str = ''
     # EDGE backtest (CONTRACT.md section 9): the private backtest worker and its shared key; both empty = the feature is
     # off (BACKTEST_DISABLED). The job budget has no default: it is set with the worker (limits measured in the dev E2E,
-    # K7b). One running and backtest_queued_per_owner queued jobs per owner.
+    # K7b). One running and backtest_queued_per_owner queued jobs per owner. backtest_max_result_bytes: the most JSON a
+    # finished job's result may unpack to when edge-bff takes it from the worker (read as it arrives, never past it;
+    # over it the job is FAILED LIMIT_EXCEEDED); a limit like the job budget, so no default either (K7b).
     backtest_worker_url: str = ''
     backtest_worker_key: str = ''
     backtest_timeout_seconds: float = 0
     backtest_queued_per_owner: int = 3
+    backtest_max_result_bytes: int = 0
 
     @classmethod
     def from_env(cls):
@@ -58,7 +61,8 @@ class Settings:
                 backtest_worker_url=os.environ.get('BACKTEST_WORKER_URL', '').strip().rstrip('/'),
                 backtest_worker_key=os.environ.get('BACKTEST_WORKER_KEY', ''),
                 backtest_timeout_seconds=int(os.environ.get('BACKTEST_TIMEOUT_SECONDS', '0')),
-                backtest_queued_per_owner=int(os.environ.get('BACKTEST_QUEUED_PER_OWNER', '3')))
+                backtest_queued_per_owner=int(os.environ.get('BACKTEST_QUEUED_PER_OWNER', '3')),
+                backtest_max_result_bytes=int(os.environ.get('BACKTEST_MAX_RESULT_BYTES', '0')))
         s.validate()
         return s
 
@@ -94,6 +98,8 @@ class Settings:
             raise ValueError('BACKTEST_WORKER_URL must use the Railway private backtest-worker endpoint')
         if self.backtest_worker_url and self.backtest_timeout_seconds <= 0:
             raise ValueError('BACKTEST_TIMEOUT_SECONDS is required with BACKTEST_WORKER_URL')
+        if self.backtest_worker_url and self.backtest_max_result_bytes < 1:
+            raise ValueError('BACKTEST_MAX_RESULT_BYTES is required with BACKTEST_WORKER_URL')
         if self.backtest_queued_per_owner < 1:
             raise ValueError('BACKTEST_QUEUED_PER_OWNER must be at least 1')
         if self.orc_timeout_seconds < 3900 or self.session_seconds < 60 or self.heartbeat_seconds <= 0 or self.poll_seconds <= 0 or self.lease_seconds < self.heartbeat_seconds * 2:

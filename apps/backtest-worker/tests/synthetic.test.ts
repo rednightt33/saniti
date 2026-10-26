@@ -2,7 +2,7 @@
    page's controls cannot produce (they are refused, not adjusted). */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Calc, combineEntry, combineExit, compare, conditionSeries, switchOns } from '../../edge-bff/backtest/src/core/conditions.ts';
+import { Calc, combineEntry, combineExit, compare, conditionSeries, switchOns, thresholdAccepted } from '../../edge-bff/backtest/src/core/conditions.ts';
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 
 const bits = (s: Uint8Array) => Array.from(s).join('');
@@ -66,5 +66,11 @@ test('parameters that leave an output empty, and thresholds in the wrong unit, a
   assert.equal(codeOf(() => conditionSeries(c, { ...cci, params: { length: 41 } })), 'INDICATOR_OUTPUT_EMPTY');   // longer than the history
   assert.equal(codeOf(() => conditionSeries(c, { id: 'd', kind: 'price_action', type: 'dip', value: -3 })), 'VALUE_OUT_OF_RANGE');
   assert.equal(codeOf(() => conditionSeries(c, { id: 'd', kind: 'price_action', type: 'dip', value: -0.03 })), null);
+  assert.equal(codeOf(() => conditionSeries(c, { id: 'd', kind: 'price_action', type: 'dip', value: -1 })), 'VALUE_OUT_OF_RANGE');     // a return above -1
   assert.equal(codeOf(() => conditionSeries(c, { id: 'v', kind: 'price_action', type: 'volspike', value: -1 })), 'VALUE_OUT_OF_RANGE');
+  // a volume ratio of at least 0 (lead decision 2026-10-26): 0 is accepted, below it is refused
+  assert.equal(codeOf(() => conditionSeries(c, { id: 'v', kind: 'price_action', type: 'volspike', value: 0 })), null);
+  assert.equal(codeOf(() => conditionSeries(c, { id: 'v', kind: 'price_action', type: 'volspike', value: -0.01 })), 'VALUE_OUT_OF_RANGE');
+  assert.equal(thresholdAccepted('volspike', 0), true); assert.equal(thresholdAccepted('volspike', -0.01), false);
+  assert.equal(thresholdAccepted('dip', -1), false); assert.equal(thresholdAccepted('dip', -0.99), true); assert.equal(thresholdAccepted('breakout', -5), true);
 });

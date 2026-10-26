@@ -29,15 +29,47 @@ export async function sha256Hex(text: string): Promise<string> {
   return s;
 }
 
-/** The part of a request that decides the trades and the equity curve. Left out: `robustness` (Monte Carlo runs and
-    seed reshuffle the same trades; the sensitivity switch adds cells that are trials of their own) and
-    `single.benchmark` (it changes beta, alpha and correlation, never a trade or the Sharpe). Rerunning a request
-    that differs only there is not a new trial. */
+/** The part of a request that decides the trades and the equity curve: what the engine reads, in a canonical form.
+    Left out, because no trade and no trial Sharpe (the full run's, robustness.ts trialSharpe) depends on it:
+    - `robustness` (Monte Carlo runs and seed reshuffle the same trades; the sensitivity switch adds cells that are
+      trials of their own), `single.benchmark` (beta, alpha and correlation only), `period.oos_fraction` (it splits the
+      statistics, not the run);
+    - condition ids and disabled conditions: each list's enabled conditions are the sorted list of their content
+      without id and enabled flag (the entry and exit rules combine them in any order; a repeated condition stays
+      repeated, because at_least counts it);
+    - `entry.at_least` unless the logic is at_least, and above the number of enabled entry conditions (conditions.ts
+      combineEntry needs min(at_least, that number): the page's at_least 3 with 2 cards enabled is at_least 2); the
+      exit-signal logic without an enabled exit condition;
+    - the numbers of the stop, take-profit and trailing modes that are not chosen: only the chosen mode's number (pct,
+      atr_mult, reward_risk_x, r_multiple), the chandelier's length and multiple, a line mode's line, and atr_length
+      only with an ATR stop or target (engine.ts validateRun reads exactly these);
+    - `sizing.allocation_fraction` in portfolio mode (a slot is 1 / max_positions of equity); `costs.ara_gap_fraction`
+      while skip_ara_open_gap is off.
+    Rerunning a request that differs only there is not a new trial. */
 export function variantOf(q: BacktestRequest): Record<string, unknown> {
-  const { robustness: _r, single, ...rest } = q;
-  if (!single) return rest;
-  const { benchmark: _b, ...s } = single;
-  return { ...rest, single: s };
+  const x = q.exit, single = q.mode === 'single';
+  const content = (cs: readonly Condition[]) => cs.filter(c => c.enabled !== false).map(c => { const { id: _i, enabled: _e, ...rest } = c; return canonicalJson(rest) }).sort();
+  const entryConditions = content(q.entry.conditions), exitConditions = content(x.signals.conditions);
+  const s = x.stop, t = x.take_profit, tr = x.trailing;
+  const stop = s.mode === 'pct' ? { mode: s.mode, pct: s.pct } : s.mode === 'atr' ? { mode: s.mode, atr_mult: s.atr_mult }
+    : s.mode === 'rr' ? { mode: s.mode, reward_risk_x: s.reward_risk_x } : s.mode === 'line' ? { mode: s.mode, line: s.line } : { mode: s.mode };
+  const take_profit = t.mode === 'pct' ? { mode: t.mode, pct: t.pct } : t.mode === 'r' ? { mode: t.mode, r_multiple: t.r_multiple }
+    : t.mode === 'atr' ? { mode: t.mode, atr_mult: t.atr_mult } : { mode: t.mode };
+  const trailing = tr.mode === 'pct' ? { mode: tr.mode, pct: tr.pct } : tr.mode === 'chandelier' ? { mode: tr.mode, chandelier_length: tr.chandelier_length, chandelier_mult: tr.chandelier_mult }
+    : tr.mode === 'line' ? { mode: tr.mode, line: tr.line } : { mode: tr.mode };
+  return {
+    schema_version: q.schema_version, mode: q.mode,
+    ...(single ? { single: { ticker: q.single?.ticker } } : { portfolio: q.portfolio }),
+    period: { from: q.period.from, to: q.period.to },
+    entry: { logic: q.entry.logic, ...(q.entry.logic === 'at_least' ? { at_least: Math.min(q.entry.at_least, entryConditions.length) } : {}), window_bars: q.entry.window_bars, conditions: entryConditions },
+    exit: {
+      ...(s.mode === 'atr' || t.mode === 'atr' ? { atr_length: x.atr_length } : {}), stop, take_profit, trailing, max_hold_bars: x.max_hold_bars,
+      signals: exitConditions.length ? { logic: x.signals.logic, conditions: exitConditions } : { conditions: [] },
+    },
+    sizing: single ? { capital_idr: q.sizing.capital_idr, allocation_fraction: q.sizing.allocation_fraction } : { capital_idr: q.sizing.capital_idr },
+    costs: { buy_fee: q.costs.buy_fee, sell_fee: q.costs.sell_fee, slippage: q.costs.slippage, skip_ara_open_gap: q.costs.skip_ara_open_gap,
+      ...(q.costs.skip_ara_open_gap ? { ara_gap_fraction: q.costs.ara_gap_fraction } : {}) },
+  };
 }
 /** Hash of one evaluated strategy variant (K3: distinct variant hashes are the trials of a lineage). */
 export const variantHash = (q: BacktestRequest): Promise<string> => sha256Hex(canonicalJson(variantOf(q)));
