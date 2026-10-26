@@ -30,7 +30,8 @@ SCRIPT_NAME = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*')
 # routes the page may reach through this gateway (sign-in, password and admin routes stay on terminal-api only)
 TERMINAL_APP = STATIC / 'terminal-app'
 TERMINAL_ASSET = re.compile(r'[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*\.(?:js|css|woff2|svg|png)')
-TERMINAL_ROUTES = {'GET': re.compile(r'manifest/[A-Z0-9]{1,12}|reference/(?:tickers|brokers)|history/(?:price|broker)'),
+TERMINAL_ROUTES = {'GET': re.compile(r'manifest/[A-Z0-9]{1,12}|reference/(?:tickers|brokers|logos)|history/(?:price|broker)'
+                                      r'|logo/[A-Z0-9]{1,12}'),   # logo: EXEC-TERMINAL-LOGO
                    'POST': re.compile(r'files|bundle')}   # bundle: every file of one ticker in one call (EXEC-TERMINAL-UI-1026 U6)
 # The terminal page has no inline script; it downloads its files from the private bucket by presigned URL (virtual-host
 # addressing, https://<bucket>.t3.storageapi.dev). Inline style attributes are kept: the reference page builds them.
@@ -213,6 +214,9 @@ def create_app(settings=None, store=None, orc=None):
         response.headers.setdefault('Cache-Control', 'no-store')
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'same-origin'
+        # a terminal logo keeps terminal-api's stricter, script-free policy (EXEC-TERMINAL-LOGO); every other answer gets EDGE's
+        if request.url.path.startswith('/api/terminal/v1/logo/') and 'sandbox' in response.headers.get('Content-Security-Policy', ''):
+            return response
         # EXEC-ASK-BRANCH: the side chat frames EDGE inside EDGE, so only EDGE's own pages may frame it (another site
         # still cannot; frame-ancestors 'self' keeps the clickjacking guard)
         response.headers['Content-Security-Policy'] = TERMINAL_CSP if request.url.path.startswith('/terminal-app/') else "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
@@ -333,6 +337,10 @@ def create_app(settings=None, store=None, orc=None):
                     content=body, headers={'content-type': 'application/json', 'x-terminal-proxy-key': settings.terminal_proxy_key})
         except httpx.HTTPError:
             return error('TERMINAL_UNAVAILABLE', 503)
+        if answer.status_code == 200 and answer.headers.get('content-type', '').startswith('image/'):
+            # a ticker's logo passes through as it is, with terminal-api's caching and its no-script CSP
+            return Response(answer.content, media_type=answer.headers['content-type'], headers={
+                k: answer.headers[k] for k in ('cache-control', 'etag', 'content-security-policy') if k in answer.headers})
         try:
             data = answer.json()
         except ValueError:

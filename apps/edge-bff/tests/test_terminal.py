@@ -38,6 +38,9 @@ class FakeTerminal:
                                    'headers': dict(headers or {})})
         if url.endswith('/files'):
             return httpx.Response(429, json={'error': 'quota_exceeded', 'message': 'files per hour'})
+        if '/logo/' in url:
+            return httpx.Response(200, content=b'<svg/>', headers={'content-type': 'image/svg+xml', 'cache-control': 'private, max-age=604800',
+                                                                   'etag': '"abc"', 'content-security-policy': "default-src 'none'; sandbox", 'x-other': '1'})
         return httpx.Response(200, json={'ticker': 'BBCA', 'window': {'first_year': 2021}})
 
 
@@ -116,3 +119,16 @@ def test_gateway_settings_are_paired_strong_and_private(settings):
     dataclasses.replace(deployed, terminal_url='http://terminal-api.railway.internal:8080').validate()
     with pytest.raises(ValueError, match='EDGE_TERMINAL_URL'):
         dataclasses.replace(deployed, terminal_url='https://terminal-api-dev.up.railway.app').validate()
+
+
+def test_gateway_passes_a_logo_image_through_with_its_cache_and_csp(gateway):
+    c = gateway
+    assert c.get('/api/terminal/v1/logo/BBCA').status_code == 401
+    login(c)
+    r = c.get('/api/terminal/v1/logo/BBCA')
+    assert r.status_code == 200 and r.content == b'<svg/>' and r.headers['content-type'] == 'image/svg+xml'
+    assert r.headers['cache-control'] == 'private, max-age=604800' and r.headers['etag'] == '"abc"'
+    assert 'sandbox' in r.headers['content-security-policy'] and 'x-other' not in r.headers
+    assert c.get('/api/terminal/v1/logo/bbca').status_code == 404
+    assert c.get('/api/terminal/v1/reference/logos').status_code == 200
+

@@ -29,7 +29,8 @@ API = '/api/terminal/v1'
 MAX_YEARS_PER_CALL = 6
 MAX_PRICE_HISTORY_DAYS = 3660
 MAX_BROKER_HISTORY_DAYS = 366
-REF_FILES = {'tickers': 'v1/ref/tickers.json.gz', 'brokers': 'v1/ref/brokers.json.gz'}
+REF_FILES = {'tickers': 'v1/ref/tickers.json.gz', 'brokers': 'v1/ref/brokers.json.gz', 'logos': 'v1/ref/logos.json.gz'}
+LOGO_CACHE_SECONDS = 7 * 24 * 3600
 
 
 class Strict(BaseModel):
@@ -119,7 +120,7 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
     @app.middleware('http')
     async def headers(request: Request, call_next):
         response = await call_next(request)
-        response.headers['Cache-Control'] = 'no-store'
+        response.headers.setdefault('Cache-Control', 'no-store')   # only a logo sets its own (EXEC-TERMINAL-LOGO)
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'no-referrer'
         return response
@@ -272,6 +273,20 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
             ttl = limits['url_ttl_seconds']
             store.log_access(c, sid, 'file', quota.REF, ip_of(request), dataset='reference', key=key)
         return {'url': bucket.presign(key, ttl), 'expires_in_seconds': ttl, 'encoding': 'gzip json'}
+
+    @app.get(f'{API}/logo/{{ticker}}')
+    def logo(ticker: str, request: Request, who=Depends(subscriber)):
+        """EXEC-TERMINAL-LOGO: the ticker's logo image. Not a data file: no quota and no audit row; the browser keeps it
+        a week (the page asks with ?v=<sha256>, so a new logo is a new URL). An SVG is served with a CSP that runs nothing."""
+        if not TICKER.fullmatch(ticker):
+            error(400, 'invalid_ticker', 'A ticker is 1-12 capital letters or digits, for example BBCA.')
+        found = bucket.logo(ticker)
+        if not found:
+            error(404, 'no_logo', f'No logo is published for {ticker}; the page shows its monogram.')
+        body, ctype, sha = found
+        return Response(body, media_type=ctype, headers={
+            'Cache-Control': f'private, max-age={LOGO_CACHE_SECONDS}', 'ETag': f'"{sha[:32]}"',
+            'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox"})
 
     @app.get(f'{API}/manifest/{{ticker}}')
     def manifest(ticker: str, who=Depends(subscriber)):

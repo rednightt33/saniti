@@ -4,6 +4,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import publisher as pub  # noqa: E402
 
@@ -265,3 +267,63 @@ def test_run_times_skip_only_the_unlisted_cron_ticks():
     assert not pub.should_run(times, at(0, 1)) and not pub.should_run(times, at(12, 31))  # 07:00 and 19:30 WIB
     assert pub.should_run(times, at(5, 0))                             # a deploy or manual run away from every tick
     assert pub.should_run([], at(0, 1))                                # no list: always runs
+
+
+# ---- EXEC-TERMINAL-LOGO ------------------------------------------------------------------------------------------
+PNG = b'\x89PNG\r\n\x1a\n' + b'x' * 50
+SVG = b'<svg xmlns="http://www.w3.org/2000/svg"><circle r="4"/></svg>'
+
+
+def fake_get(stockbit=('BBCA',), tradingview=None, scan=None):
+    """Stockbit has the tickers in `stockbit`; TradingView's scanner gives `scan` logoids and serves their SVG."""
+    def get(url, data=None, timeout=30):
+        if url == pub.TRADINGVIEW_SCAN:
+            return 'application/json', json.dumps({'data': [{'s': f'IDX:{t}', 'd': [t, i]} for t, i in (scan or {}).items()]}).encode()
+        if 'stockbit' in url:
+            t = url.rsplit('/', 1)[1].split('.')[0]
+            if t in stockbit:
+                return 'image/png', PNG + t.encode()
+            raise pub.urllib.error.HTTPError(url, 404, 'nf', {}, None)
+        if 'tradingview' in url and tradingview:
+            return 'image/svg+xml', SVG
+        raise pub.urllib.error.URLError('offline')
+    return get
+
+
+@pytest.fixture(autouse=True)
+def offline(monkeypatch):
+    """No test reaches the network: the default logo fetch answers 'offline'."""
+    monkeypatch.setattr(pub, 'fetch', fake_get(stockbit=()))
+
+
+def test_logo_comes_from_stockbit_then_tradingview_and_a_page_is_not_an_image():
+    assert pub.logo_image('BBCA', None, fake_get())[1:] == ('png', 'stockbit')
+    assert pub.logo_image('IHSG', 'composite', fake_get(tradingview=True))[1:] == ('svg', 'tradingview')
+    assert pub.logo_image('IHSG', None, fake_get()) is None
+    html = lambda url, data=None, timeout=30: ('text/html', b'<html>not found</html>')
+    assert pub.logo_image('BBCA', 'x', html) is None
+
+
+def test_logos_mode_uploads_changed_images_only_and_writes_the_index():
+    bucket = FakeBucket()
+    p = pub.Publisher(FakeConn(PRICES, BROKERS, UNIVERSE), bucket, today=TODAY, get=fake_get(scan={'IHSG': 'composite'}, tradingview=True))
+    p.run('logos')
+    assert bucket.objects['logo/BBCA.png'].startswith(PNG) and bucket.objects['logo/IHSG.svg'] == SVG
+    index = bucket.get_json('ref/logos.json.gz')
+    assert index['ticker'] == ['BBCA', 'IHSG'] and index['source'] == ['stockbit', 'tradingview'] and index['generated_at']
+    puts = []
+    bucket.put = lambda key, body, ctype: (puts.append(key), FakeBucket.put(bucket, key, body, ctype))
+    p.run('logos')
+    assert [k for k in puts if k.startswith('logo/')] == []                 # nothing changed: no image uploaded again
+
+
+def test_daily_refreshes_logos_only_when_the_index_is_older_than_a_week():
+    bucket = FakeBucket()
+    p = pub.Publisher(FakeConn(PRICES, BROKERS, UNIVERSE), bucket, today=TODAY, get=fake_get())
+    p.run('daily')
+    assert 'logo/BBCA.png' in bucket.objects
+    first = bucket.get_json('ref/logos.json.gz')['generated_at']
+    p.run('daily')
+    assert bucket.get_json('ref/logos.json.gz')['generated_at'] == first    # fresh: not fetched again
+    assert p.logos_stale(dt.datetime.fromisoformat(first) + dt.timedelta(days=8))
+

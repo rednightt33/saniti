@@ -9,7 +9,7 @@ import { fixtureData } from './data/fixture';
 import { liveData, TerminalError } from './data/live';
 import type { MarketData, Point } from './data/types';
 import type { Ctx } from './app/context';
-import { $, spin, store } from './app/context';
+import { $, setLogos, spin, store } from './app/context';
 import { initChart } from './app/chart';
 import { initStats } from './app/stats';
 import { initVolume } from './app/volume';
@@ -34,6 +34,7 @@ function start(M: MarketData, rawSeries: Record<string, Point[]>) {
     active:new Map(), catalog:M.catalog, rawSeries, IND_REG
   } as unknown as Ctx;
 
+  setLogos(M.logos);                                       // live only: the fixture has no logos (1:1 check)
   initChart(ctx);
   initStats(ctx);
   initVolume(ctx);

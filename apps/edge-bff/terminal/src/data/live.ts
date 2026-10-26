@@ -142,6 +142,8 @@ export async function liveData(stored: string | null): Promise<MarketData> {
   const reference = async (name: string) => rowsOf(await download((await api(`/reference/${name}`, csrf)).url));
   /* the ticker list, the broker list and the files of the remembered ticker are asked for together */
   const tickersP = reference('tickers'), brokerRefP = reference('brokers');
+  /* EXEC-TERMINAL-LOGO: ticker → logo version (sha256 prefix); a ticker without one shows its monogram */
+  const logosP = reference('logos').then(rows => Object.fromEntries(rows.map((r: any) => [r.ticker, String(r.sha256).slice(0, 12)])), () => ({}));
   brokerRefP.catch(() => {});
   const guess = stored || 'MAPI';
   const guessP = bundle(guess, ['price', 'broker', 'events'], csrf);
@@ -201,7 +203,7 @@ export async function liveData(stored: string | null): Promise<MarketData> {
   });
 
   return {
-    mode:'live', symbol:SYMBOL, instruments, ohlc, volume, lineData, catalog, loadCompare, ihsg:[], loadIhsg,
+    mode:'live', symbol:SYMBOL, instruments, ohlc, volume, lineData, catalog, loadCompare, ihsg:[], loadIhsg, logos:await logosP,
     combos:[], flowSource:'real', flowFrom:N,
     broker: { dates:[], rows:() => [], label:SYMBOL, category:() => 'L' },
     later: { broker, brokerAll },

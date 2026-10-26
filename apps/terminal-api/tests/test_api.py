@@ -150,6 +150,9 @@ class FakeBucket:
     def presign(self, key, ttl):
         return f'https://bucket.example/{key}?X-Amz-Expires={ttl}&sig=x'
 
+    def logo(self, ticker):
+        return (b'\x89PNG-logo', 'image/png', 'd' * 64) if ticker == 'BBCA' else None
+
 
 SETTINGS = Settings(database_url='postgresql://terminal_api_login@x/db', admin_key='k' * 40, bucket_name='b',
                     bucket_endpoint='https://e', bucket_region='auto', bucket_access_key_id='a',
@@ -367,6 +370,19 @@ def test_bundle_quota_refuses_the_whole_bundle_and_logs_nothing(env):
     assert client.post(f'{API}/bundle', json={'ticker': 'NOPE'}).status_code == 404
     assert client.post(f'{API}/bundle', json={'ticker': 'BBCA', 'datasets': []}).status_code == 400
     assert client.post(f'{API}/bundle', json={'ticker': 'BBCA', 'datasets': ['history']}).status_code == 400
+
+
+def test_logo_is_an_image_kept_a_week_without_quota_or_audit(env):
+    client, store, _ = env
+    assert client.get(f'{API}/logo/BBCA').status_code == 401
+    sign_in(client)
+    store.limits_value['files_per_hour'] = 0
+    r = client.get(f'{API}/logo/BBCA')
+    assert r.status_code == 200 and r.content == b'\x89PNG-logo' and r.headers['content-type'] == 'image/png'
+    assert r.headers['cache-control'] == 'private, max-age=604800' and "sandbox" in r.headers['content-security-policy']
+    assert store.access == []
+    assert client.get(f'{API}/logo/GOTO').status_code == 404 and client.get(f'{API}/logo/bbca').status_code == 400
+    assert client.get(f'{API}/manifest/BBCA').headers['cache-control'] == 'no-store'
 
 
 PROXY_KEY = 'p' * 40

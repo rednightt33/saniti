@@ -1,6 +1,6 @@
 /* Main price chart, compare series and the toolbar groups (reference lines 1137-1384). */
 import type { Ctx } from './context';
-import { $ } from './context';
+import { $, hasLogos, logoHtml } from './context';
 import type { Point } from '../data/types';
 
 export function initChart(ctx: Ctx) {
@@ -184,7 +184,7 @@ export function initChart(ctx: Ctx) {
     $('addSeriesButton').disabled = remaining.length === 0;
     $('catalogGrid').innerHTML = remaining.slice(0, 6).map(item =>
       '<button type="button" data-quick-add="' + item.id + '" style="--series-color:' + item.color + '">' +
-      '<strong><span class="series-dot"></span>' + item.symbol + '</strong><small>' + item.name + '</small></button>'
+      '<strong><span class="series-dot"></span>' + (hasLogos() ? logoHtml(item.symbol, 'tk-sm') : '') + item.symbol + '</strong><small>' + item.name + '</small></button>'
     ).join('');
   }
 
@@ -192,7 +192,7 @@ export function initChart(ctx: Ctx) {
     const tabs = $('seriesTabs');
     tabs.innerHTML = Array.from(active.values()).map(item =>
       '<button class="series-chip ' + (item.visible ? '' : 'off') + '" data-toggle-series="' + item.id + '" style="--series-color:' + item.color + '">' +
-      '<span class="series-dot"></span><span class="series-symbol">' + item.symbol + '</span>' +
+      '<span class="series-dot"></span>' + (hasLogos() ? logoHtml(item.symbol, 'tk-sm') : '') + '<span class="series-symbol">' + item.symbol + '</span>' +
       '<span class="chip-x" data-remove-series="' + item.id + '">×</span></button>'
     ).join('');
     $('seriesCount').textContent = active.size + ' active';

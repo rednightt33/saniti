@@ -50,6 +50,8 @@ export interface MarketData {
   /** Broker activity panel: its sessions (ascending) and the summary rows of each */
   broker: { dates: string[]; rows(d: number): BrokerRow[]; label: string; category(code: string): string };
   loadEvents(): Promise<MarketEvent[]>;
+  /** live: ticker → logo version for /logo/{ticker}?v=…; absent in the fixture (the reference has no logos) */
+  logos?: Record<string, string>;
   /** what the live page cannot show yet (approved formulas pending); the fixture shows everything */
   hide: { brokerGauge: boolean; bandar: boolean };
 }

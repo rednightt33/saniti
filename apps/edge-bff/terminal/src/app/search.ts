@@ -2,11 +2,12 @@
    Choosing a ticker stores it and reloads, as in the reference; the list is the instrument master (live: the
    published ticker reference with its sector). */
 import type { Ctx } from './context';
-import { $, store } from './context';
+import { $, hasLogos, logoHtml, store } from './context';
 
 export function initSearch(ctx: Ctx) {
   const { SYMBOL, INSTRUMENTS } = ctx;
   $('symText').textContent = SYMBOL;
+  if(hasLogos()) $('symText').insertAdjacentHTML('beforebegin', logoHtml(SYMBOL, 'tk-pill'));   // EXEC-TERMINAL-LOGO
   document.title = `${SYMBOL} · Market Lab`;
   const ICON = '<svg viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="M13.2 13.2L17 17"/></svg>';
   let layer = null, opener = null;
@@ -34,7 +35,7 @@ export function initSearch(ctx: Ctx) {
       active = Math.min(active, Math.max(shown.length - 1, 0));
       const row = r => { const i = shown.indexOf(r);
         return `<button type="button" class="gp-row${i === active ? ' is-active' : ''}" role="option" aria-selected="${i === active}" data-i="${i}">
-            <span class="gp-avatar">${r[0].slice(0, 2)}</span>
+            ${hasLogos() ? `<span class="gp-avatar has-logo">${logoHtml(r[0])}</span>` : `<span class="gp-avatar">${r[0].slice(0, 2)}</span>`}
             <span class="gp-meta"><span class="gp-ticker">${r[0]}${r[0] === SYMBOL ? '<span class="gp-cur">Current</span>' : ''}</span><span class="gp-company">${esc(r[1])}</span></span>
             <span class="gp-rightmeta">${grouped ? '' : `<span class="gp-sector">${esc(r[2])}</span>`}<span class="gp-market">IDX · Equity</span></span></button>` };
       results.innerHTML = !shown.length ? '<p class="gp-empty">No instruments found</p>'

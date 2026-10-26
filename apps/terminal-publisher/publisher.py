@@ -10,6 +10,7 @@ Modes (TERMINAL_PUBLISH_MODE, or the first argument):
   broker-range  TERMINAL_FROM, TERMINAL_TO [, TERMINAL_TICKERS=A,B]: republish broker files after a manual
                 refresh_feature_05 of that range (the same arguments).
   events        only the event files of tickers whose idx_event_annotation rows changed.
+  logos         every ticker's logo (EXEC-TERMINAL-LOGO); `daily` also refreshes them when the index is > 7 days old.
   verify        compare every published file with SQL (row count, sums, first and last date); prints mismatches.
 
 Schedule (T7, user 2026-10-26): TERMINAL_RUN_TIMES_WIB=07:30,19:00 and the service's Railway cronSchedule =
@@ -26,6 +27,8 @@ Objects (all under v1/):
                                    (one file per ticker, file id "all"); republished when the ticker's rows change
   manifest/{ticker}.json           per dataset: data_through and, per year, key, sha256, bytes, rows, first, last, stamp
   ref/tickers.json.gz, ref/brokers.json.gz, state.json
+  logo/{ticker}.png|svg            the ticker's logo: Stockbit's PNG, else TradingView's SVG (scanner `logoid`)
+  ref/logos.json.gz                columns ticker, file, sha256, source, fetched_at (tickers without a logo are absent)
 Data files are written before the manifest that names them, so a reader never sees a manifest pointing at a file that
 is not there yet. The universe and the changes are derived from the database at run time; no ticker list is coded.
 """
@@ -36,6 +39,9 @@ import json
 import os
 import sys
 import time
+import urllib.error
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 
 import psycopg
 
@@ -81,6 +87,44 @@ EVENT_STAMPS_SQL = ('SELECT ticker, count(*), max(annotation_date)::text, max(in
                     'FROM public.idx_event_annotation GROUP BY ticker')
 UNIVERSE_SQL = ('SELECT "Ticker", "Company Name", "Security Type", "Sector" FROM public."IDX_Stock_Universe" '
                 "WHERE \"Security Type\" IN ('stock', 'index') ORDER BY 1")
+
+
+# EXEC-TERMINAL-LOGO (user 2026-10-26): logo sources in order; a ticker none of them has gets a monogram on the page
+STOCKBIT_LOGO = 'https://assets.stockbit.com/logos/companies/{ticker}.png'
+TRADINGVIEW_SCAN = 'https://scanner.tradingview.com/indonesia/scan'
+TRADINGVIEW_LOGO = 'https://s3-symbol-logos.tradingview.com/{logoid}--big.svg'
+LOGO_MAX_AGE_DAYS = 7
+LOGO_MAX_BYTES = 200_000
+
+
+def fetch(url, data=None, timeout=30):
+    req = urllib.request.Request(url, data=data, headers={'User-Agent': 'Mozilla/5.0 (terminal-publisher)',
+                                                          **({'Content-Type': 'application/json'} if data else {})})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.headers.get('Content-Type', ''), r.read(LOGO_MAX_BYTES + 1)
+
+
+def logo_image(ticker, logoid, get=fetch):
+    """(body, extension, source) of the first source that answers with an image, or None."""
+    tries = [('stockbit', STOCKBIT_LOGO.format(ticker=ticker), 'png', b'\x89PNG')]
+    if logoid:
+        tries.append(('tradingview', TRADINGVIEW_LOGO.format(logoid=logoid), 'svg', b'<svg'))
+    for source, url, ext, magic in tries:
+        try:
+            ctype, body = get(url)
+        except (urllib.error.URLError, TimeoutError, OSError):
+            continue
+        if magic in body[:400] and 0 < len(body) <= LOGO_MAX_BYTES:
+            return body, ext, source
+    return None
+
+
+def tradingview_logoids(get=fetch):
+    try:
+        _, body = get(TRADINGVIEW_SCAN, json.dumps({'columns': ['name', 'logoid'], 'range': [0, 5000]}).encode(), 60)
+        return {row['d'][0]: row['d'][1] for row in json.loads(body)['data'] if row['d'][1]}
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError, KeyError):
+        return {}
 
 
 def log(event, **kw):
@@ -263,8 +307,9 @@ class Bucket:
 
 
 class Publisher:
-    def __init__(self, conn, bucket, today=None):
+    def __init__(self, conn, bucket, today=None, get=None):
         self.conn, self.bucket = conn, bucket
+        self.get = get or fetch                                  # HTTP for the logo sources (tests pass a fake)
         # first_year/last_year: the broker window (TERMINAL_YEARS). Price is small (~2 KB per ticker-year) and is
         # published from its first stored year, so browser indicators start where Feature 04 does (user 2026-10-25).
         self.first_year, self.last_year = window(today)
@@ -334,6 +379,41 @@ class Publisher:
             body, _ = encode(doc)
             self.bucket.put(key, body, 'application/gzip')
 
+    def logos_stale(self, now=None):
+        index = self.bucket.get_json('ref/logos.json.gz')
+        if not index or not index.get('generated_at'):
+            return True
+        age = (now or dt.datetime.now(dt.timezone.utc)) - dt.datetime.fromisoformat(index['generated_at'])
+        return age > dt.timedelta(days=LOGO_MAX_AGE_DAYS)
+
+    def publish_logos(self, universe):
+        """Every ticker's logo; an image is uploaded only when its sha256 changed."""
+        get = self.get
+        old = self.bucket.get_json('ref/logos.json.gz') or {}
+        known = dict(zip(old.get('ticker', []), zip(old.get('file', []), old.get('sha256', []))))
+        logoids = tradingview_logoids(get)
+        tickers = [t for t, *_ in universe]
+        with ThreadPoolExecutor(8) as ex:
+            found = list(ex.map(lambda t: (t, logo_image(t, logoids.get(t), get)), tickers))
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        rows, uploaded, sources = [], 0, {}
+        for ticker, hit in found:
+            if not hit:
+                continue
+            body, ext, source = hit
+            sha, name = hashlib.sha256(body).hexdigest(), f'{ticker}.{ext}'
+            if known.get(ticker) != (name, sha):
+                self.bucket.put(f'logo/{name}', body, 'image/png' if ext == 'png' else 'image/svg+xml')
+                uploaded += 1
+            rows.append((ticker, name, sha, source, now))
+            sources[source] = sources.get(source, 0) + 1
+        doc = {'schema_version': SCHEMA_VERSION, 'columns': ['ticker', 'file', 'sha256', 'source', 'fetched_at'],
+               **columnar(rows, ['ticker', 'file', 'sha256', 'source', 'fetched_at']), 'generated_at': now}
+        body, _ = encode(doc)
+        self.bucket.put('ref/logos.json.gz', body, 'application/gzip')
+        log('logos', tickers=len(tickers), with_logo=len(rows), uploaded=uploaded, sources=sources,
+            tradingview_logoids=len(logoids), without=[t for t, hit in found if not hit][:40])
+
     def dataset_first_year(self, dataset):
         return {'price': self.price_first_year, 'broker': self.broker_first_year}.get(dataset) or self.first_year
 
@@ -379,6 +459,8 @@ class Publisher:
                 todo += [('broker', t, y, None) for t, y in new if kind.get(t) == 'stock' and y >= self.broker_first_year]
         elif mode == 'events':
             todo = self.changed_events(kind)
+        elif mode == 'logos':
+            todo = []
         elif mode == 'broker-range':
             tickers = only or [t for t, typ in kind.items() if typ == 'stock']
             lo, hi = int(start_from[:4]), int(end_to[:4])
@@ -402,6 +484,8 @@ class Publisher:
                 datasets['events'] = through['events']
             self.save_manifest(ticker, datasets)
         self.publish_refs(universe)
+        if mode == 'logos' or (mode == 'daily' and self.logos_stale()):
+            self.publish_logos(universe)
         broker_through = through['broker'] if mode in ('backfill', 'daily') else state.get('broker_through')
         self.bucket.put('state.json', json.dumps({
             'schema_version': SCHEMA_VERSION, 'price_through': through['price'], 'broker_through': broker_through,

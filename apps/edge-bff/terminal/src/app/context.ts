@@ -25,6 +25,20 @@ export const row = (l: string, v: string | number, c='', tip='') => `<div class=
 export const empty = (msg: string) => `<div class="st-row"><span>${msg}</span></div>`;
 /* EXEC-TERMINAL-SPIN (user 2026-10-26: "lingkaran berputar dengan cepat"): a spinning ring with a short text, for
    anything still loading */
+/* EXEC-TERMINAL-LOGO: a ticker's logo, or its monogram (first two letters) when it has none or the image fails */
+let LOGOS: Record<string, string> | null = null;
+export const setLogos = (logos: Record<string, string> | undefined) => {
+  LOGOS = logos || null;
+  if (LOGOS) document.addEventListener('error', (e: Event) => {
+    const img = e.target as HTMLElement;
+    if (img instanceof HTMLImageElement && img.classList.contains('tk-logo')) img.replaceWith(Object.assign(document.createElement('span'),
+      { className:'tk-mono ' + [...img.classList].filter(c => c !== 'tk-logo').join(' '), textContent:img.dataset.t!.slice(0, 2) }));
+  }, true);
+};
+export const hasLogos = () => !!LOGOS;
+export const logoHtml = (ticker: string, cls = '') => LOGOS && LOGOS[ticker]
+  ? `<img class="tk-logo ${cls}" src="/api/terminal/v1/logo/${ticker}?v=${LOGOS[ticker]}" alt="" data-t="${ticker}" loading="lazy" decoding="async">`
+  : `<span class="tk-mono ${cls}">${ticker.slice(0, 2)}</span>`;
 export const spin = (msg: string) => `<span class="ml-loading" role="status"><span class="ml-spin" aria-hidden="true"></span>${msg}</span>`;
 
 export interface ActiveSeries extends CompareSpec { series: LWC.ISeriesApi<'Line'>; visible: boolean }
