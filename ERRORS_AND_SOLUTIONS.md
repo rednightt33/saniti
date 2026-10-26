@@ -2128,6 +2128,7 @@ change yet.
 - **Status:** RESOLVED 2026-10-26 (EXEC-TERMINAL-UI-1026 U5–U7): `/bundle` (13 → 4 panggilan API), Web Worker,
   chart dulu lalu Flow, panel samping saat dibuka; chart tampil 1,9 s, blok beku terpanjang 414 ms (dari 1.154 ms).
   Belum dikerjakan (belum disetujui): tahun terbaru dulu, cache browser (FUTURE_PLAN).
+  Cache browser dan pack: EXEC-TERMINAL-SPEED (2026-10-26).
 - **Lesson:** ukur jalur kritis (gambar pertama) setiap kali rentang data diperluas (T8 menambah 5 tahun broker).
 
 ### M238 — Harga saham 17 dan 18 September 2026 tidak tersimpan; Flow tidak menghitung broker hari itu (2026-10-26)
@@ -2254,9 +2255,40 @@ change yet.
   - Railway edge (edge-bff) melayani HTTP/2: berkas 2,4 KB 0,24 s; 203 KB (gzip) 0,27–0,54 s.
 - **Class:** data tampilan yang dipecah menjadi banyak objek kecil di penyimpanan objek tanpa cache di depannya:
   setiap dataset baru (makro, lintas aset) menambah objek dan antrean.
-- **Solution (usulan, menunggu keputusan):** FUTURE_PLAN "Terminal: waktu muat dan banyak pengguna", bagian benchmark.
-- **Status:** OPEN.
+- **Solution:** EXEC-TERMINAL-SPEED (go user 2026-10-26: "Ok untuk saran kamu. Putaran loading 0.15 detik alright.
+  Jalankan."): pack per ticker (harga semua tahun satu berkas, arsip broker satu berkas), cache browser per sha256.
+- **Status:** RESOLVED 2026-10-26 (entri "EXEC-TERMINAL-SPEED — selesai" di bawah): saham 21 → 5 objek, unduhan 6
+  koneksi ±3,3 s → ±1,0 s dari sandbox; kunjungan ulang 0 unduhan berkas data. Angka dari Indonesia (`?perf=1`) belum
+  diterima.
 - **Lesson:** ukur waktu per permintaan (TTFB) sumber berkas sebelum memecah data menjadi banyak berkas.
+
+### EXEC-TERMINAL-SPEED — selesai (2026-10-26)
+
+- **Go user:** "Ok untuk saran kamu. Putaran loading 0.15 detik alright. Jalankan." (rencana EXEC.md
+  EXEC-TERMINAL-SPEED; `access_log` 90 hari; region tidak dipindah).
+- **Publisher** (`publish_packs`): `pack/{T}/price.json.gz` dan untuk saham `pack/{T}/broker-archive.json.gz` (tahun
+  broker kecuali dua terakhir), dicatat di manifest `packs`; dibangun ulang bila salah satu tahunnya berubah. Run
+  `dea824dc` mode `packs`: 845 ticker, 1.656 pack, 302 MB, 4.202 s. Publisher kembali `daily`, cron dipasang lagi
+  (dibaca ulang), deployment `4a4124a8`.
+- **Isi pack = berkas per tahun** (baris diurutkan dan dibandingkan): ANTM harga 2.124 dan arsip broker 174.075 baris,
+  BBCA 2.124/179.233, IHSG 2.126, GOTO 1.083/62.684 — semuanya sama.
+- **terminal-api** `1c428bb6`: `/bundle` `packs: true` (saham 5 objek: pack harga, arsip broker, broker 2025, 2026,
+  events; indeks 1); satu baris audit per `/bundle` (`file_count`, `object_keys`; migrasi
+  `20261026_100`), kuota menjumlahkan `file_count`; baris > 90 hari dihapus paling sering tiap 6 jam per worker;
+  manifest disimpan di memori sampai publikasi berikutnya (`state.json`). Cacat yang ditemukan di tes sebelum deploy:
+  penanda waktu hapus mulai di 0,0 dan dibandingkan dengan `time.monotonic()`, jadi penghapusan tidak pernah jalan pada
+  mesin yang baru hidup; diganti `None` (`apps/terminal-api/tests/test_api.py`:364 memeriksa hapus 90 hari).
+- **edge-bff**: satu klien HTTP ke terminal-api dipakai ulang; halaman: cache IndexedDB 50 MB (LRU, hanya bila sha256
+  cocok), `?perf=1`, putaran loading 0,15 s.
+- **Bukti:** ANTM/BBCA/TLKM yearly 21 objek 3,15–3,51 s vs pack 5 objek 0,94–1,16 s (6 koneksi, sandbox); IHSG 9 → 1
+  objek, 1,55 → 0,63 s. `/bundle` bersamaan (packs): 1 → 0,23 s; 5 → median 0,31 (maks 0,42); 10 → 0,42 (0,97); 20 →
+  0,53 (0,71) — sebelumnya 20 → median 1,39, maks 3,39 s. Kunjungan kedua ANTM (live check lokal): 30/30 berkas dari
+  cache browser, 0 KB. DB: baris `/bundle` membawa `file_count` 5 dan kunci pack; hitung kuota 0,85 ms (seq scan 59
+  buffer, tabel 3.271 baris). Tes: publisher 24, terminal-api 28, vitest 662, edge-bff 170 lolos (2 gagal lama: M212,
+  M232), 1:1 0 piksel beda.
+- **Belum:** angka dari lokasi pengguna (`?perf=1` dari Indonesia); daftar referensi ticker/broker belum ber-sha256 jadi
+  diunduh ulang setiap kunjungan (kecil); akun terminal per pengguna EDGE (FUTURE_PLAN).
+- **Status:** RESOLVED.
 
 ## Fixed-income selected-date repair — 2026-10-20 status
 

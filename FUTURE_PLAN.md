@@ -881,6 +881,11 @@ Usulan:
 
 ## Terminal: waktu muat dan banyak pengguna (laporan 2026-10-26, EXEC-TERMINAL-1026C C6; usulan menunggu keputusan)
 
+Status 2026-10-26: butir (b) audit satu baris, (c) dan (d), serta usulan baru 1 dan 3 dikerjakan di EXEC-TERMINAL-SPEED
+(ERRORS "EXEC-TERMINAL-SPEED — selesai"). Usulan baru 2 (cache server di depan bucket) tidak dikerjakan: cache browser
+per sha256 dan pack sudah menurunkan 21 → 5 objek tanpa biaya server. Masih terbuka: (a) akun terminal per pengguna
+EDGE dan penghitung kuota, lalu uji 50–100 pengguna; daftar referensi ticker/broker dengan sha256 agar ikut di-cache.
+
 User 2026-10-26: "explore B abis diman awaktunya. Inga tini untuk multiuser kedepannya. Kalau 1 user saja lambat,
 bagiamana kalau user banyak".
 
