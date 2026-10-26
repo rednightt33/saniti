@@ -8036,3 +8036,22 @@ lingkaran berputar dengan cepat? ... Konfirmasi maksud saya dulu." Setelah konfi
 - 3: satu putaran ±0,6 detik; dengan `prefers-reduced-motion` tetap berputar pelan.
 - 4 (urutan chart → bawah → kiri → kanan) tidak dikerjakan. Pengukuran 2026-10-26 (BBCA, panel terbuka): chart 1,24 s,
   Flow 1,49 s, kanan 1,49 s, kiri 1,53 s, IHSG 4,0 s; panel tertutup: kiri dan kanan tidak dihitung sampai dibuka.
+
+## EXEC-TERMINAL-LOGO — logo per ticker (go 2026-10-26)
+
+User 2026-10-26: "All right, please create and implementation plan and execute." (atas usulan FUTURE_PLAN "Terminal: logo
+per ticker"). Tiga pertanyaan usulan tidak dijawab; dipakai saran: sumber Stockbit → TradingView → monogram; tampil di
+tombol simbol, daftar pencarian, pembanding dan legenda. Hak pakai logo (syarat penggunaan Stockbit/TradingView) tetap
+keputusan terbuka user.
+
+Rencana:
+1. Publisher mode `logos` (dan otomatis di run `daily` bila indeks logo berumur > 7 hari): untuk setiap ticker universe
+   (saham dan indeks) ambil PNG Stockbit; bila tidak ada, SVG TradingView dari `logoid` scanner; simpan
+   `v1/logo/{TICKER}.{png|svg}` hanya bila sha256 berubah; indeks `v1/ref/logos.json.gz` (ticker, berkas, sha256,
+   sumber, waktu ambil). Tanpa logo → tidak ada berkas (halaman memakai monogram).
+2. terminal-api `GET /logo/{ticker}` (sesi wajib, tanpa kuota berkas): gambar dari bucket dengan
+   `Cache-Control: private, max-age=604800` dan ETag; `reference/logos`. edge-bff meneruskan gambar apa adanya (CSP ketat
+   untuk SVG).
+3. Halaman (live): ikon di tombol simbol, daftar pencarian, pembanding dan legenda; monogram (huruf ticker, warna dari
+   sektor) bila tidak ada logo. Fixture tetap seperti referensi (cek 1:1).
+4. Tes publisher, API, edge-bff, vitest, 1:1; jalankan mode `logos` sekali (prosedur M229), deploy, cek live.
