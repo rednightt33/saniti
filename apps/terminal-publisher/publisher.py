@@ -11,6 +11,7 @@ Modes (TERMINAL_PUBLISH_MODE, or the first argument):
                 refresh_feature_05 of that range (the same arguments).
   events        only the event files of tickers whose idx_event_annotation rows changed.
   logos         every ticker's logo (EXEC-TERMINAL-LOGO); `daily` also refreshes them when the index is > 7 days old.
+  packs         every ticker's packs (EXEC-TERMINAL-SPEED); the other modes keep the packs of the tickers they touch.
   verify        compare every published file with SQL (row count, sums, first and last date); prints mismatches.
 
 Schedule (T7, user 2026-10-26): TERMINAL_RUN_TIMES_WIB=07:30,19:00 and the service's Railway cronSchedule =
@@ -29,6 +30,10 @@ Objects (all under v1/):
   ref/tickers.json.gz, ref/brokers.json.gz, state.json
   logo/{ticker}.png|svg            the ticker's logo: Stockbit's PNG, else TradingView's SVG (scanner `logoid`)
   ref/logos.json.gz                columns ticker, file, sha256, source, fetched_at (tickers without a logo are absent)
+  pack/{ticker}/price.json.gz      every price year in one file (the chart's only download)
+  pack/{ticker}/broker-archive.json.gz   broker rows of every year before the last two (the last two stay yearly files)
+EXEC-TERMINAL-SPEED (user 2026-10-26): a ticker is five objects for the page instead of 21 (ERRORS M240: the bucket's
+cost is per object, ~0.8 s each, HTTP/1.1); the packs are listed in manifest `packs` with their sha256.
 Data files are written before the manifest that names them, so a reader never sees a manifest pointing at a file that
 is not there yet. The universe and the changes are derived from the database at run time; no ticker list is coded.
 """
@@ -316,6 +321,7 @@ class Publisher:
         self.price_first_year = None
         self.broker_first_year = None
         self.manifests = {}
+        self.changed = set()                                      # (dataset, ticker, year) written or removed this run
         self.written = 0
         self.bytes = 0
 
@@ -348,7 +354,8 @@ class Publisher:
             rows = self.conn.execute(PRICE_SQL if dataset == 'price' else BROKER_SQL, (ticker, lo, hi)).fetchall()
         files = self.manifest(ticker)['datasets'].setdefault(dataset, {'files': {}})['files']
         if not rows:
-            files.pop(str(year), None)
+            if files.pop(str(year), None):
+                self.changed.add((dataset, ticker, year))
             return None
         doc = (price_doc(ticker, year, rows) if dataset == 'price' else broker_doc(ticker, year, rows)
                if dataset == 'broker' else events_doc(ticker, rows))
@@ -358,10 +365,47 @@ class Publisher:
             self.bucket.put(key, body, 'application/gzip')
             self.written += 1
             self.bytes += len(body)
+            self.changed.add((dataset, ticker, year))
         files[str(year)] = {'key': f'{PREFIX}/{key}', 'sha256': sha, 'bytes': len(body), 'rows': len(rows),
                             'first': rows[0][0], 'last': rows[-1][0],
                             'stamp': stamp or f'rows={len(rows)};last={rows[-1][0]}'}
         return rows[-1][0]
+
+    # ---- packs (EXEC-TERMINAL-SPEED) ---------------------------------------------------------------------------
+    def put_pack(self, ticker, name, doc, rows, extra=None):
+        packs = self.manifest(ticker).setdefault('packs', {})
+        if not rows:
+            if packs.pop(name, None):
+                self.changed.add(('pack', ticker, name))
+            return
+        body, sha = encode(doc)
+        key = f'pack/{ticker}/{name}.json.gz'
+        if packs.get(name, {}).get('sha256') != sha:
+            self.bucket.put(key, body, 'application/gzip')
+            self.written += 1
+            self.bytes += len(body)
+            self.changed.add(('pack', ticker, name))
+        packs[name] = {'key': f'{PREFIX}/{key}', 'sha256': sha, 'bytes': len(body), 'rows': len(rows),
+                       'first': rows[0][0], 'last': rows[-1][0], **(extra or {})}
+
+    def publish_packs(self, ticker, typ, force=False):
+        """The price pack (every year) when a price year changed or it is missing; the broker archive (every year before
+        the last two) when an archived year changed, it is missing, or the year rolled over."""
+        packs = self.manifest(ticker).get('packs', {})
+        mine = {(d, y) for d, t, y in self.changed if t == ticker}
+        if force or 'price' not in packs or any(d == 'price' for d, _ in mine):
+            rows = self.conn.execute(PRICE_SQL, (ticker, f'{self.price_first_year}-01-01', f'{self.last_year}-12-31')).fetchall()
+            doc = {**price_doc(ticker, None, rows), 'dataset': 'price-pack'}
+            self.put_pack(ticker, 'price', doc, rows)
+        if typ != 'stock':
+            return
+        hi = self.last_year - 2                                   # the last two years stay yearly files
+        span = [self.broker_first_year, hi]
+        current = packs.get('broker-archive', {})
+        if force or not current or current.get('years') != span or any(d == 'broker' and isinstance(y, int) and y <= hi for d, y in mine):
+            rows = self.conn.execute(BROKER_SQL, (ticker, f'{self.broker_first_year}-01-01', f'{hi}-12-31')).fetchall() if hi >= self.broker_first_year else []
+            doc = {**broker_doc(ticker, None, rows), 'dataset': 'broker-archive', 'years': span}
+            self.put_pack(ticker, 'broker-archive', doc, rows, {'years': span})
 
     # ---- reference files and universe ------------------------------------------------------------------------
     def universe(self):
@@ -459,7 +503,7 @@ class Publisher:
                 todo += [('broker', t, y, None) for t, y in new if kind.get(t) == 'stock' and y >= self.broker_first_year]
         elif mode == 'events':
             todo = self.changed_events(kind)
-        elif mode == 'logos':
+        elif mode in ('logos', 'packs'):
             todo = []
         elif mode == 'broker-range':
             tickers = only or [t for t, typ in kind.items() if typ == 'stock']
@@ -476,6 +520,13 @@ class Publisher:
             touched.add(ticker)
             if n % 500 == 0:
                 log('progress', done=n, of=len(todo), written=self.written, mb=round(self.bytes / 1e6, 1))
+        # packs: every ticker in mode packs (or a ticker without them yet), else the tickers whose files changed
+        pack_tickers = list(kind) if mode in ('packs', 'backfill') else sorted({t for _, t, _ in self.changed})
+        for n, ticker in enumerate(pack_tickers, 1):
+            self.publish_packs(ticker, kind.get(ticker), force=mode == 'backfill')
+            touched.add(ticker)
+            if n % 200 == 0:
+                log('progress', step='packs', done=n, of=len(pack_tickers), written=self.written, mb=round(self.bytes / 1e6, 1))
         for ticker in sorted(touched):
             datasets = {'price': through['price']}
             if kind.get(ticker) == 'stock':

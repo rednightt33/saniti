@@ -1,5 +1,6 @@
 """terminal-api behaviour with an in-memory store and bucket (the SQL itself is checked live, Phase 7)."""
 import datetime as dt
+import json
 from contextlib import contextmanager
 
 import pytest
@@ -43,11 +44,15 @@ class FakeStore:
     def usage(self, c, sid):
         mine = [a for a in self.access if a['sid'] == sid]
         tickers = frozenset(a['ticker'] for a in mine if a['ticker'] != quota.REF)
-        return quota.Usage(sum(1 for a in mine if a['kind'] == 'file'), tickers, tickers,
+        return quota.Usage(sum(a.get('files', 1) for a in mine if a['kind'] == 'file'), tickers, tickers,
                            sum(a['bytes'] for a in mine), sum(1 for a in mine if a['kind'].startswith('history')))
 
-    def log_access(self, c, sid, kind, ticker, ip, dataset=None, year=None, key=None, bytes_=0):
-        self.access.append({'sid': sid, 'kind': kind, 'ticker': ticker, 'key': key, 'bytes': bytes_})
+    def log_access(self, c, sid, kind, ticker, ip, dataset=None, year=None, key=None, bytes_=0, keys=None):
+        self.access.append({'sid': sid, 'kind': kind, 'ticker': ticker, 'key': key or (keys[0] if keys else None),
+                            'keys': keys, 'files': len(keys) if keys else 1, 'bytes': bytes_})
+
+    def prune(self, c, days):
+        self.pruned = days
 
     def failed_sign_ins(self, c, email, ip):
         bad = [a for a in self.attempts if not a[2]]
@@ -355,10 +360,10 @@ def test_bundle_gives_every_file_of_the_ticker_in_one_call_with_the_same_countin
     assert [f['year'] for f in b['datasets']['broker']['files']] == list(range(2021, 2027))
     assert b['datasets']['events']['files'][0]['year'] is None and b['expires_in_seconds'] == 120
     assert b['datasets']['broker']['data_through'] == '2026-08-31'
-    assert len(store.access) == 13 and store.locks == 1                 # 13 files logged like /files, one quota lock
-    assert sum(a['bytes'] for a in store.access) == 6 * 2000 + 6 * 250_000 + 9000
+    assert len(store.access) == 1 and store.access[0]['files'] == 13 and store.locks == 1   # one row counts 13 files
+    assert store.access[0]['bytes'] == 6 * 2000 + 6 * 250_000 + 9000 and store.pruned == 90
     r = client.post(f'{API}/bundle', json={'ticker': 'BBCA', 'datasets': ['price']})
-    assert list(r.json()['datasets']) == ['price'] and len(store.access) == 19
+    assert list(r.json()['datasets']) == ['price'] and sum(a['files'] for a in store.access) == 19
 
 
 def test_bundle_quota_refuses_the_whole_bundle_and_logs_nothing(env):
@@ -383,6 +388,21 @@ def test_logo_is_an_image_kept_a_week_without_quota_or_audit(env):
     assert store.access == []
     assert client.get(f'{API}/logo/GOTO').status_code == 404 and client.get(f'{API}/logo/bbca').status_code == 400
     assert client.get(f'{API}/manifest/BBCA').headers['cache-control'] == 'no-store'
+
+
+def test_bundle_packs_give_one_price_file_and_the_broker_archive_before_the_last_yearly_files(env):
+    client, store, bucket = env
+    sign_in(client)
+    bucket.manifests['BBCA']['packs'] = {
+        'price': {'key': 'v1/pack/BBCA/price.json.gz', 'sha256': 'p' * 64, 'bytes': 30_000, 'rows': 1400},
+        'broker-archive': {'key': 'v1/pack/BBCA/broker-archive.json.gz', 'sha256': 'q' * 64, 'bytes': 900_000,
+                           'rows': 90_000, 'years': [2021, 2024]}}
+    b = client.post(f'{API}/bundle', json={'ticker': 'BBCA', 'packs': True}).json()['datasets']
+    assert [(f['year'], f.get('pack')) for f in b['price']['files']] == [(None, 'price')]
+    assert [(f['year'], f.get('pack')) for f in b['broker']['files']] == [(None, 'broker-archive'), (2025, None), (2026, None)]
+    assert store.access[-1]['files'] == 5                            # price pack, archive, 2025, 2026, events
+    plain = client.post(f'{API}/bundle', json={'ticker': 'BBCA'}).json()['datasets']   # without packs: yearly files
+    assert len(plain['price']['files']) == 6
 
 
 PROXY_KEY = 'p' * 40
@@ -430,3 +450,30 @@ def test_proxy_settings_come_together_and_strong():
         Settings(**{**SETTINGS.__dict__, 'proxy_key': PROXY_KEY}).validate()
     with pytest.raises(ValueError):
         Settings(**{**SETTINGS.__dict__, 'proxy_key': 'short', 'proxy_subscriber': 'a@b.c'}).validate()
+
+
+def test_manifest_cache_holds_until_the_publisher_finishes_a_run(monkeypatch):
+    """EXEC-TERMINAL-SPEED step 4: one state.json read per check interval, manifests read again only after a new run."""
+    import io
+    from app import bucket as bucket_mod
+    reads = []
+    state = {'finished_at': 'run-1'}
+
+    class S3:
+        class exceptions:
+            NoSuchKey = KeyError
+        def get_object(self, Bucket, Key):
+            reads.append(Key)
+            body = json.dumps(state if Key.endswith('state.json') else {'ticker': 'BBCA', 'run': state['finished_at']})
+            return {'Body': io.BytesIO(body.encode())}
+    b = object.__new__(bucket_mod.Bucket)
+    b.name, b.s3, b.cache_seconds, b._cache, b._version, b._checked = 'x', S3(), 60, {}, None, None
+    clock = [1000.0]
+    monkeypatch.setattr(bucket_mod.time, 'monotonic', lambda: clock[0])
+    assert b.manifest('BBCA')['run'] == 'run-1' and b.manifest('BBCA')['run'] == 'run-1'
+    assert reads == ['v1/state.json', 'v1/manifest/BBCA.json']
+    clock[0] += 3600; state['finished_at'] = 'run-1'
+    b.manifest('BBCA'); assert reads[-1] == 'v1/state.json'               # same run: no manifest read
+    clock[0] += 61; state['finished_at'] = 'run-2'
+    assert b.manifest('BBCA')['run'] == 'run-2' and reads[-1] == 'v1/manifest/BBCA.json'
+

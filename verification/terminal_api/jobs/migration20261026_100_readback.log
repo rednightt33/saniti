@@ -1,0 +1,7 @@
+Starting Container
+JOB_DONE MIGRATION APPLY
+OUT {"q": "bundle_rows", "ms": 14, "part": 0, "rows": [["file", 1186, 1844, 21, 78, "2026-10-26 17:48:19.229621+00:00"]]}
+OUT {"q": "sample_bundle", "ms": 3, "part": 0, "rows": [["GOTO", 5, 5, ["v1/pack/GOTO/price.json.gz", "v1/pack/GOTO/broker-archive.json.gz"], "2026-10-26 17:48:19.229621+00:00"], ["GOTO", 11, 11, ["v1/price/GOTO/2022.json.gz", "v1/price/GOTO/2023.json.gz"], "2026-10-26 17:48:18.764383+00:00"], ["IHSG", 9, 9, ["v1/price/IHSG/2018.json.gz", "v1/price/IHSG/2019.json.gz"], "2026-10-26 17:48:10.102544+00:00"]]}
+OUT {"q": "oldest", "ms": 2, "part": 0, "rows": [[3271, "2026-10-25 08:43:55.742242+00:00", "2026-10-26 17:48:19.229621+00:00"]]}
+OUT {"q": "explain_usage", "ms": 2, "part": 0, "rows": [["Aggregate  (cost=196.83..196.84 rows=1 width=40) (actual time=0.832..0.832 rows=1.00 loops=1)"], ["  Buffers: shared hit=59"], ["  ->  Seq Scan on access_log  (cost=0.00..138.52 rows=3887 width=25) (actual time=0.007..0.604 rows=3236.00 loops=1)"], ["        Filter: ((subscriber_id = 2) AND (at > (now() - '1 day'::interval)))"], ["        Rows Removed by Filter: 35"], ["        Buffers: shared hit=59"]]}
+OUT {"q": "explain_usage", "ms": 2, "part": 1, "rows": [["Planning:"], ["  Buffers: shared hit=17"], ["Planning Time: 0.166 ms"], ["Execution Time: 0.848 ms"]]}

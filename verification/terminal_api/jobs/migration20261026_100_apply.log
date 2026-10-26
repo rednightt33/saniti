@@ -1,0 +1,5 @@
+Starting Container
+MIG APPLY 20261026_100_terminal_access_log_bundle_row.sql sha256=4241a8c17c6b81149e4f77eab4f8089faa799fac39c7f561c6d6ab1b92952d1d
+OUT {"q": "columns", "ms": 18, "part": 0, "rows": [["file_count", "integer", "1"], ["object_keys", "ARRAY", null]]}
+OUT {"q": "rows", "ms": 29, "part": 0, "rows": [[3166, "2026-10-25 08:43:55.742242+00", "2026-10-26 15:45:09.101181+00"]]}
+JOB_DONE MIGRATION APPLY

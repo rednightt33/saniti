@@ -27,7 +27,7 @@ updated, `scripts/terminal_bucket_cors.py`). Every POST must carry the page's `O
 | `GET /reference/tickers`, `GET /reference/brokers` | — | `{url, expires_in_seconds}` of a gzip JSON list |
 | `GET /manifest/{ticker}` | — | window (first/last year), per dataset `data_through` and per year `bytes, rows, first, last, sha256` |
 | `POST /files` | `{ticker, dataset: "price"|"broker", years: [≤ 6]}` or `{ticker, dataset: "events"}` (one file, no years) | `files: [{year, url, sha256, bytes, rows}]`, `expires_in_seconds: 120` |
-| `POST /bundle` | `{ticker, datasets?: ["price","broker","events"]}` (default all three) | manifest window plus per dataset `{data_through, first_year, files: [{year, url, sha256, bytes, rows}]}`, every published file; counted like `/files` (one entry per file, one quota lock); a dataset the ticker lacks answers `files: []` (section 9) |
+| `POST /bundle` | `{ticker, datasets?: ["price","broker","events"], packs?: bool}` (default all three, packs false) | manifest window plus per dataset `{data_through, first_year, files: [{year, url, sha256, bytes, rows, pack?}]}`, every published file; with `packs: true` the price is one file (`pack: "price"`, every year) and the broker the archive pack (`pack: "broker-archive"`) plus the yearly files after it, where the ticker has them (section 10); one audit row per call with `file_count` (quotas sum it); a dataset the ticker lacks answers `files: []` (section 9) |
 | `GET /history/price` | `ticker, from, to` (≤ 3,660 days, only before the window) | columnar `d,o,h,l,c,v` |
 | `GET /history/broker` | `ticker, from, to` (≤ 366 days, only before the window), optional `brokers` (≤ 20), `investor_type`, `market_board` | columnar `d,b,i,m,bv,sv,bl,sl,gap` |
 
@@ -111,3 +111,17 @@ Auth and admin routes are not forwarded. The presigned downloads go straight fro
 - (EXEC-TERMINAL-1026C) Worker answers carry `flowTo` (last session with broker rows): Latest day net uses it and shows
   its date. Statistics shows the visible dates. Right-click while a drawing tool is armed cancels the drawing.
   Prototype `?drawpanes=1`: drawing tools on indicator panes and the Flow chart (not saved yet).
+
+## 10. Since 2026-10-26 (EXEC-TERMINAL-SPEED)
+
+- Packs (`apps/terminal-publisher/publisher.py` `publish_packs`): `pack/{TICKER}/price.json.gz` (every price year in one
+  file) and, for a stock, `pack/{TICKER}/broker-archive.json.gz` (every broker year up to the last two); the manifest
+  lists them under `packs` with `years`, `sha256`, `bytes`, `rows`. Rebuilt when one of their years changes. `/bundle`
+  with `packs: true` serves them: a stock opens with 5 objects (price pack, broker archive, two broker years, events)
+  instead of 21. The yearly files stay for `/files`.
+- Browser cache (`src/data/worker.ts`): every file with a sha256 is kept in IndexedDB `terminal-files`, at most 50 MB,
+  least recently used removed first, stored only when its bytes hash to the announced sha256. A file already there is
+  not downloaded again.
+- `?perf=1` shows the time of each loading stage and each file (size, ms, from cache or not) in a small overlay.
+- terminal-api keeps each manifest in memory until the next publication (`state.json` `finished_at`, checked at most
+  every cache period); `terminal.access_log` keeps 90 days (pruned by terminal-api at most every 6 hours per worker).

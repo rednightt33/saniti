@@ -4664,3 +4664,16 @@ EXEC-TERMINAL-UI-1026").
   `cronSchedule "0,30 0,12 * * *"` (read back) and upload `2e230a5d` (ERRORS M229 procedure).
 - `main` `93a1fc2` (EXEC-TERMINAL-LOGO): edge-bff `e4fcade6` SUCCESS 14:46 UTC. `main` `9226867` (EXEC-TERMINAL-1026C):
   edge-bff `085ea16a` SUCCESS 15:35 UTC; live `index` and `style` assets equal the build (sha256).
+
+## 2026-10-26 — terminal: packs, one audit row per bundle, manifest cache, pooled client (EXEC-TERMINAL-SPEED)
+
+User 2026-10-26: "Ok untuk saran kamu. Putaran loading 0.15 detik alright. Jalankan." No region moved (services `sfo`,
+bucket `sin`).
+- terminal-api `1c428bb6` (CLI upload of `apps/terminal-api`, SUCCESS): `/bundle` `packs`, one audit row per call,
+  90-day pruning, manifest cached until the next publication. No variable changed.
+- terminal-publisher (ERRORS M229 procedure): cron cleared, `TERMINAL_PUBLISH_MODE=packs`, upload `dea824dc` (845
+  tickers, 1,656 packs, 302 MB, 4,202 s, `done` 17:45 UTC); then `TERMINAL_PUBLISH_MODE=daily`, `cronSchedule
+  "0,30 0,12 * * *"` and `restartPolicyType NEVER` read back, upload `4a4124a8`.
+- orc-test-runner read-only job `532a81e0` (`DATABASE_URL` set for the run and removed, VAR_REMOVED).
+- `main` `5ca018d`: edge-bff `39c29b9d` SUCCESS 17:52 UTC; live `index`, `style` and `worker` assets equal the build
+  (sha256); the page asks `/bundle` with packs and keeps files in IndexedDB `terminal-files`.

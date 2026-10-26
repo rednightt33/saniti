@@ -121,3 +121,13 @@ Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
   check keeps the reference's 976 px column. 1:1 result after these changes: 0 differing pixels and no text or markup
   difference over the 75 screenshots. Fit layout (fixture data, `&fit=1`): no page scroll at 1280×542, 1366×592,
   1536×672, 1440×732, 1920×892 and 2560×1242; chart 413–822 px; Flow folded below 650 px.
+
+## 9. Packs, browser file cache and stage timings (EXEC-TERMINAL-SPEED, 2026-10-26)
+
+- `live.ts` asks `POST /bundle` with `packs: true` and hands the worker `FileRef {url, sha, name}` lists. The worker
+  reads each file from IndexedDB by sha256 first (`cacheGet`), else downloads it and stores it when the bytes hash to
+  that sha256 (`cachePut`, 50 MB LRU). Broker: the last two refs are the recent years (answered as `broker`), the rest
+  (the archive pack first) follow as `brokerAll`.
+- `src/app/perf.ts`: `mark(name)` at session, ticker list and bundle, price read, page script, chart drawn, Flow last
+  two years, Flow every year; the worker posts per-file stats (`stats`). `?perf=1` shows them (`.ml-perf`).
+- The loading ring turns in 0.15 s (`.ml-spin`, user 2026-10-26).

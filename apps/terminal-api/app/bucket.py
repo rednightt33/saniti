@@ -5,6 +5,7 @@ import json
 import time
 
 PREFIX = 'v1'
+MAX_CACHED = 4000   # manifests (a few KB each) and the logo index: a few MB at most
 
 
 class Bucket:
@@ -19,31 +20,47 @@ class Bucket:
             config=Config(s3={'addressing_style': 'virtual'}, signature_version='s3v4', retries={'max_attempts': 3}))
         self.cache_seconds = settings.manifest_cache_seconds
         self._cache = {}
+        self._version, self._checked = None, None
+
+    def _fresh(self):
+        """EXEC-TERMINAL-SPEED step 4: the cache holds until the publisher finishes a run (state.json `finished_at`),
+        checked at most every cache_seconds; the bucket is in another region (sin vs sfo), so a manifest read costs ~1 s
+        and is now paid once per publication instead of once a minute per ticker."""
+        now = time.monotonic()
+        if self._checked is not None and now - self._checked < self.cache_seconds:
+            return
+        self._checked = now
+        try:
+            version = json.loads(self.s3.get_object(Bucket=self.name, Key=f'{PREFIX}/state.json')['Body'].read()).get('finished_at')
+        except Exception:  # noqa: BLE001 - unreadable state: keep what is cached rather than fail every request
+            return
+        if version != self._version or len(self._cache) > MAX_CACHED:
+            self._version = version
+            self._cache.clear()
 
     def manifest(self, ticker):
-        hit = self._cache.get(ticker)
-        if hit and hit[0] > time.monotonic():
-            return hit[1]
+        self._fresh()
+        if ticker in self._cache:
+            return self._cache[ticker]
         try:
             body = self.s3.get_object(Bucket=self.name, Key=f'{PREFIX}/manifest/{ticker}.json')['Body'].read()
             value = json.loads(body)
         except self.s3.exceptions.NoSuchKey:
             value = None
-        self._cache[ticker] = (time.monotonic() + self.cache_seconds, value)
+        self._cache[ticker] = value
         return value
 
     def logo(self, ticker):
         """(body, content type, sha256) of the ticker's logo, or None (EXEC-TERMINAL-LOGO). The logo index is cached like
         a manifest."""
-        hit = self._cache.get('#logos')
-        if not (hit and hit[0] > time.monotonic()):
+        self._fresh()
+        if '#logos' not in self._cache:
             try:
                 doc = json.loads(gzip.decompress(self.s3.get_object(Bucket=self.name, Key=f'{PREFIX}/ref/logos.json.gz')['Body'].read()))
-                index = {t: (f, h) for t, f, h in zip(doc['ticker'], doc['file'], doc['sha256'])}
+                self._cache['#logos'] = {t: (f, h) for t, f, h in zip(doc['ticker'], doc['file'], doc['sha256'])}
             except self.s3.exceptions.NoSuchKey:
-                index = {}
-            hit = self._cache['#logos'] = (time.monotonic() + self.cache_seconds, index)
-        entry = hit[1].get(ticker)
+                self._cache['#logos'] = {}
+        entry = self._cache['#logos'].get(ticker)
         if not entry:
             return None
         name, sha = entry

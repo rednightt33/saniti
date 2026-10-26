@@ -2758,3 +2758,20 @@ transaksi, begitupun juga sebaliknya." Tidak ada data yang diubah.
   (2018-01-02..2026-10-23): ada broker tanpa harga saham hanya 2026-09-17 (Kamis) dan 2026-09-18 (Jumat), masing-masing
   0 saham dan 1 baris IHSG; ada harga tanpa broker: 0 tanggal. Di luar rentang itu: 474 tanggal broker 2016–2017
   (harga dimulai 2018) dan harga 2026-10-26 (broker hari ini belum dimuat). Tidak ada tanggal broker di akhir pekan.
+
+## 2026-10-26 — Terminal: one audit row per `/bundle`, 90-day retention (EXEC-TERMINAL-SPEED)
+
+User 2026-10-26: "Ok untuk saran kamu. Putaran loading 0.15 detik alright. Jalankan." (EXEC.md EXEC-TERMINAL-SPEED step 5;
+`access_log` kept 90 days). Operational schema `terminal`, no catalog row (as `20261025_100`).
+
+- **`20261026_100_terminal_access_log_bundle_row.sql`** (sha256 `4241a8c17c6b81149e4f77eab4f8089faa799fac39c7f561c6d6ab1b92952d1d`):
+  `terminal.access_log` gains `file_count integer NOT NULL DEFAULT 1 CHECK (file_count >= 1)` and `object_keys text[]`;
+  existing rows count one file each. DRYRUN then APPLY on orc-test-runner (`DATABASE_URL` removed, VAR_REMOVED); read
+  back: both columns present, 3,166 rows (2026-10-25 08:43 .. 2026-10-26 15:45 UTC).
+- **Live read-back** (job `532a81e0`, read-only, after terminal-api `1c428bb6`): `/bundle` rows carry `file_count` 5 and
+  the pack keys (`v1/pack/GOTO/price.json.gz`, …); 3,271 rows; the quota query runs in 0.85 ms (seq scan, 59 buffers,
+  almost every row inside the one-day window, so no index is added). Rows older than 90 days are deleted by terminal-api
+  (none yet: the oldest row is from 2026-10-25).
+- Logs: `verification/terminal_api/jobs/migration20261026_100_{dryrun,apply,readback}.log`.
+- Bucket `terminal-display` (not PostgreSQL): 1,656 pack objects, 302 MB (publisher run `dea824dc`), contents equal to
+  the yearly files for ANTM, BBCA, IHSG and GOTO.

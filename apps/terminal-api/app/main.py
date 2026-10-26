@@ -8,6 +8,7 @@ through /admin (option A, user 2026-10-25).
 import datetime as dt
 import json
 import re
+import time
 from contextlib import asynccontextmanager
 from typing import Literal
 
@@ -31,6 +32,8 @@ MAX_PRICE_HISTORY_DAYS = 3660
 MAX_BROKER_HISTORY_DAYS = 366
 REF_FILES = {'tickers': 'v1/ref/tickers.json.gz', 'brokers': 'v1/ref/brokers.json.gz', 'logos': 'v1/ref/logos.json.gz'}
 LOGO_CACHE_SECONDS = 7 * 24 * 3600
+ACCESS_LOG_DAYS = 90            # EXEC-TERMINAL-SPEED (user 2026-10-26): audit rows are kept 90 days
+PRUNE_EVERY_SECONDS = 6 * 3600
 
 
 class Strict(BaseModel):
@@ -67,6 +70,9 @@ class BundleRequest(Strict):
     ticker: str = Field(pattern=TICKER.pattern)
     datasets: list[Literal['price', 'broker', 'events']] = Field(default=['price', 'broker', 'events'], min_length=1,
                                                                  max_length=3)
+    # EXEC-TERMINAL-SPEED: the packs instead of yearly files where the manifest has them (price: one file for every
+    # year; broker: the archive pack plus the last two yearly files)
+    packs: bool = False
 
 
 class NewSubscriber(Strict):
@@ -297,9 +303,12 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
                                               for y, f in sorted(ds.get('files', {}).items())}}
                              for name, ds in m.get('datasets', {}).items()}}
 
-    def grant(request, who, ticker, chosen):
+    pruned = {'at': None}                                    # the first grant of a worker prunes once
+
+    def grant(request, who, ticker, chosen, one_row=False):
         """Quota and audit for a set of files of one ticker, under one lock: the same counting for /files and /bundle.
-        chosen = [(dataset, year or None, manifest file entry)]."""
+        chosen = [(dataset, year or None, manifest file entry)]. one_row (/bundle, EXEC-TERMINAL-SPEED): one audit row
+        that counts every file; quotas sum file_count either way."""
         size = sum(f['bytes'] for _, _, f in chosen)
         sid, ip = who['subscriber_id'], ip_of(request)
         with store.tx() as c:
@@ -307,8 +316,15 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
             limits = store.limits(c, sid)
             take(c, sid, quota.check(limits, store.usage(c, sid), files=len(chosen), ticker=ticker, bytes_=size))
             ttl = limits['url_ttl_seconds']
-            for dataset, y, f in chosen:
-                store.log_access(c, sid, 'file', ticker, ip, dataset=dataset, year=y, key=f['key'], bytes_=f['bytes'])
+            if one_row:
+                store.log_access(c, sid, 'file', ticker, ip, dataset='bundle', bytes_=size, keys=[f['key'] for _, _, f in chosen])
+            else:
+                for dataset, y, f in chosen:
+                    store.log_access(c, sid, 'file', ticker, ip, dataset=dataset, year=y, key=f['key'], bytes_=f['bytes'])
+        if (pruned['at'] is None or time.monotonic() - pruned['at'] > PRUNE_EVERY_SECONDS) and hasattr(store, 'prune'):
+            pruned['at'] = time.monotonic()                  # at most once per worker per 6 hours, outside the quota lock
+            with store.tx() as c:
+                store.prune(c, ACCESS_LOG_DAYS)
         return ttl
 
     def file_answer(y, f, ttl):
@@ -343,17 +359,26 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
         ticker does not have (broker for an index, events for a ticker without events) answers with no files."""
         same_origin_post(request)
         m = ticker_manifest(body.ticker)
+        packs = m.get('packs', {}) if body.packs else {}
         chosen = []
         for name in dict.fromkeys(body.datasets):
             published = m.get('datasets', {}).get(name, {}).get('files', {})
             ids = ['all'] if name == 'events' else sorted((y for y in published if y.isdigit()), key=int)
+            if name == 'price' and 'price' in packs:
+                chosen.append(('price', 'price', packs['price']))
+                continue
+            if name == 'broker' and 'broker-archive' in packs:
+                last = packs['broker-archive'].get('years', [0, 0])[1]
+                chosen.append(('broker', 'broker-archive', packs['broker-archive']))    # older years first, then yearly
+                ids = [y for y in ids if int(y) > last]
             chosen += [(name, None if i == 'all' else int(i), published[i]) for i in ids if i in published]
-        ttl = grant(request, who, body.ticker, chosen) if chosen else 0
+        ttl = grant(request, who, body.ticker, chosen, one_row=True) if chosen else 0
         out = {}
         for name in dict.fromkeys(body.datasets):
             ds = m.get('datasets', {}).get(name, {})
             out[name] = {'data_through': ds.get('data_through'), 'first_year': ds.get('first_year'),
-                         'files': [file_answer(y, f, ttl) for n, y, f in chosen if n == name]}
+                         'files': [{**file_answer(None if isinstance(y, str) else y, f, ttl), **({'pack': y} if isinstance(y, str) else {})}
+                                   for n, y, f in chosen if n == name]}
         return {'ticker': body.ticker, 'window': m.get('window'), 'generated_at': m.get('generated_at'),
                 'expires_in_seconds': ttl, 'encoding': 'gzip json', 'datasets': out}
 

@@ -5,22 +5,74 @@
    120 s). The shapes match what live.ts built before on the main thread. */
 import type { BrokerRow } from './types';
 
-export interface WorkerJob { id: number; price: string[]; broker: string[]; events: string[] }
+/** one file to read: its presigned URL and, from /bundle, the sha256 of its bytes (the browser cache key) */
+export interface FileRef { url: string; sha?: string; name?: string }
+export interface WorkerJob { id: number; price: FileRef[]; broker: FileRef[]; events: FileRef[] }
+/** EXEC-TERMINAL-SPEED step 1: what each download cost, for ?perf=1 */
+export interface FileStat { name: string; ms: number; bytes: number; cached: boolean }
 export interface PriceRow { d: string; o: number; h: number; l: number; c: number; v: number | null }
 export interface WorkerCombo { broker: string; investor: string; board: string; gross: number; net: Float64Array }
 export type WorkerAnswer =
   | { id: number; type: 'price'; rows: PriceRow[] }
   | { id: number; type: 'broker' | 'brokerAll'; combos: WorkerCombo[]; flowFrom: number; flowTo: number; dates: string[]; rows: BrokerRow[][] }
   | { id: number; type: 'events'; rows: Record<string, unknown>[] }
+  | { id: number; type: 'stats'; files: FileStat[] }
   | { id: number; type: 'error'; message: string; status: number };
 
 interface Columnar { columns: string[]; [k: string]: any }
 
-/* gzip JSON from a presigned URL; a body the browser already inflated (Content-Encoding) is read as is */
-export async function download(url: string): Promise<Columnar> {
-  const res = await fetch(url, { credentials:'omit' });
-  if (!res.ok) throw Object.assign(new Error(`A data file could not be downloaded (${res.status}).`), { status:res.status });
-  const bytes = new Uint8Array(await res.arrayBuffer());
+/* EXEC-TERMINAL-SPEED step 3 (user 2026-10-26: "Cache boleh, tapi jangan sampai cache itu terlalu menjadi besar"): the
+   files are kept in the browser (IndexedDB) under the sha256 of their bytes, at most CACHE_LIMIT bytes; the least
+   recently used go first. A file is stored only when its bytes hash to the sha256 /bundle announced. No server cost. */
+const CACHE_DB = 'terminal-files', CACHE_STORE = 'files', CACHE_LIMIT = 50_000_000;
+let cacheDb: Promise<IDBDatabase | null> | null = null;
+const idb = <T>(req: IDBRequest<T>) => new Promise<T>((ok, no) => { req.onsuccess = () => ok(req.result); req.onerror = () => no(req.error) });
+function openCache(): Promise<IDBDatabase | null> {
+  if (cacheDb) return cacheDb;
+  cacheDb = new Promise(ok => {
+    try {
+      const req = indexedDB.open(CACHE_DB, 1);
+      req.onupgradeneeded = () => req.result.createObjectStore(CACHE_STORE, { keyPath:'sha' }).createIndex('used', 'used');
+      req.onsuccess = () => ok(req.result); req.onerror = () => ok(null); req.onblocked = () => ok(null);
+    } catch { ok(null) }
+  });
+  return cacheDb;
+}
+async function cacheGet(sha: string): Promise<Uint8Array<ArrayBuffer> | null> {
+  const db = await openCache(); if (!db) return null;
+  try {
+    const store = db.transaction(CACHE_STORE, 'readwrite').objectStore(CACHE_STORE);
+    const hit: any = await idb(store.get(sha));
+    if (!hit) return null;
+    store.put({ ...hit, used:Date.now() });
+    return new Uint8Array(hit.bytes);
+  } catch { return null }
+}
+async function cachePut(sha: string, bytes: Uint8Array) {
+  const db = await openCache(); if (!db) return;
+  try {
+    const store = db.transaction(CACHE_STORE, 'readwrite').objectStore(CACHE_STORE);
+    await idb(store.put({ sha, bytes:bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), size:bytes.byteLength, used:Date.now() }));
+    const all: any[] = await idb(store.index('used').getAll());              // oldest use first
+    let total = all.reduce((t, r) => t + r.size, 0);
+    for (const r of all) { if (total <= CACHE_LIMIT) break; if (r.sha === sha) continue; store.delete(r.sha); total -= r.size }
+  } catch { /* a full or blocked store only loses the cache */ }
+}
+const hex = (buf: ArrayBuffer) => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+export const stats: FileStat[] = [];
+
+/* gzip JSON from a presigned URL (or the browser cache); a body the browser already inflated is read as is */
+export async function download(file: string | FileRef): Promise<Columnar> {
+  const ref = typeof file === 'string' ? { url:file } : file, t0 = performance.now();
+  let bytes: Uint8Array<ArrayBuffer> | null = ref.sha ? await cacheGet(ref.sha) : null;
+  const cached = !!bytes;
+  if (!bytes) {
+    const res = await fetch(ref.url, { credentials:'omit' });
+    if (!res.ok) throw Object.assign(new Error(`A data file could not be downloaded (${res.status}).`), { status:res.status });
+    bytes = new Uint8Array(await res.arrayBuffer());
+    if (ref.sha && typeof crypto !== 'undefined' && crypto.subtle && hex(await crypto.subtle.digest('SHA-256', bytes)) === ref.sha) cachePut(ref.sha, bytes);
+  }
+  stats.push({ name:ref.name || ref.url.split('?')[0].split('/').slice(-2).join('/'), ms:Math.round(performance.now() - t0), bytes:bytes.byteLength, cached });
   if (bytes[0] === 0x1f && bytes[1] === 0x8b) {
     const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
     return JSON.parse(await new Response(stream).text());
@@ -103,5 +155,6 @@ if (typeof scope.WorkerGlobalScope !== 'undefined' && scope instanceof scope.Wor
       const all = brokerData([...await Promise.all(older.map(download)), ...latest], dates);
       post({ id, type:'brokerAll', ...all }, all.combos.map(c => c.net.buffer));
     } catch (err) { fail(err) }
+    post({ id, type:'stats', files:stats.splice(0) });
   };
 }

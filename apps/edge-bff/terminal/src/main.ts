@@ -10,6 +10,7 @@ import { liveData, TerminalError } from './data/live';
 import type { MarketData, Point } from './data/types';
 import type { Ctx } from './app/context';
 import { $, setLogos, spin, store } from './app/context';
+import { mark } from './app/perf';
 import { initChart } from './app/chart';
 import { initStats } from './app/stats';
 import { initVolume } from './app/volume';
@@ -58,8 +59,8 @@ function later(ctx: Ctx, M: MarketData) {
   const failed = () => { const note = $('flowNote'); note.textContent = 'Broker data could not be loaded. Reload the page to try again.'; note.hidden = false };
   /* F5: the recent years first (Flow and Broker activity), then the whole history replaces them in the Flow Timeline */
   M.later.broker.then(b => {
-    ctx.setFlowData(b.combos, b.flowFrom, true, b.flowTo); ctx.setBrokerPanelData(b.broker);
-    M.later!.brokerAll.then(all => ctx.setFlowData(all.combos, all.flowFrom, false, all.flowTo), failed);
+    ctx.setFlowData(b.combos, b.flowFrom, true, b.flowTo); ctx.setBrokerPanelData(b.broker); mark('flow: last two years');
+    M.later!.brokerAll.then(all => { ctx.setFlowData(all.combos, all.flowFrom, false, all.flowTo); mark('flow: every year') }, failed);
   }, () => { ctx.setFlowData([], ctx.N); failed() });
 }
 
@@ -101,7 +102,8 @@ function boot() {
   const loading = document.createElement('div');            // EXEC-TERMINAL-SPIN: a spinning ring, no box
   loading.className = 'ml-boot'; loading.innerHTML = spin(`Loading ${stored || 'MAPI'}`);
   ($('chart')?.parentElement || document.body).appendChild(loading);
-  liveData(stored).then(M => { loading.remove(); const ctx = start(M, {}); if (ctx) later(ctx, M) }, e => { loading.remove();
+  mark('page script');
+  liveData(stored).then(M => { loading.remove(); const ctx = start(M, {}); mark('chart drawn'); if (ctx) later(ctx, M) }, e => { loading.remove();
     fail(e instanceof TerminalError ? e.message : 'The terminal could not load its data. Reload the page to try again.') });
 }
 

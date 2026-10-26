@@ -8076,7 +8076,7 @@ Status 2026-10-26: C1, C2, C3, C5 selesai (ERRORS "EXEC-TERMINAL-1026C — C1/C2
 `/terminal-app/?drawpanes=1`, menunggu tanggapan user sebelum dirapikan (simpan gambar, undo, tarik-lepas). C6: laporan
 di FUTURE_PLAN "Terminal: waktu muat dan banyak pengguna" (usulan, belum disetujui).
 
-## EXEC-TERMINAL-SPEED — kecepatan muat dan efisiensi backend (rencana 2026-10-26, menunggu go)
+## EXEC-TERMINAL-SPEED — kecepatan muat dan efisiensi backend (go 2026-10-26; selesai 2026-10-26, ERRORS "EXEC-TERMINAL-SPEED — selesai")
 
 User 2026-10-26: "Oke, coba inspect database kita. Buat implementation plan, ensure bahwa setiap step yang diambil
 berdasarkan kode. Apabila berdasarkan memori, maka harus juga divalidasi dengan kode. goalnya adalah kecepatan loading
@@ -8117,3 +8117,11 @@ Rencana (urutan):
    ulang tanpa unduh berkas data.
 Terbuka: N hari simpan `access_log`; apakah region layanan dipindah ke Asia (Postgres tetap `sfo`, jadi tidak
 disarankan sekarang); putaran loading (C3) 0,15 s atau tetap 0,25 s.
+
+Go user 2026-10-26: "Ok untuk saran kamu. Putaran loading 0.15 detik alright. Jalankan." Keputusan: langkah 1–7;
+`access_log` disimpan 90 hari; region tidak dipindah; putaran loading 0,15 s.
+
+Status 2026-10-26: langkah 1–5 dan 7 selesai (ERRORS "EXEC-TERMINAL-SPEED — selesai"). Langkah 2 dibuat sebagai pack
+harga (semua tahun, events tetap berkas sendiri) dan arsip broker + dua tahun terakhir: saham 5 objek, bukan 3, supaya
+berkas per tahun dan events tidak ditulis dua kali. Langkah 6: uji beban 20 `/bundle` bersamaan median 0,53 s; akun per
+pengguna EDGE tetap di FUTURE_PLAN (EDGE masih satu pengguna). Tersisa dari user: angka `?perf=1` dari Indonesia.
