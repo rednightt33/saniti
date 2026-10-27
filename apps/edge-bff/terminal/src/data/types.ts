@@ -52,6 +52,11 @@ export interface MarketData {
   loadEvents(): Promise<MarketEvent[]>;
   /** live: ticker → logo version for /logo/{ticker}?v=…; absent in the fixture (the reference has no logos) */
   logos?: Record<string, string>;
+  /** live (EXEC-TERMINAL-WM): the timeframe of the candles, each candle's last session date and the candle that holds
+      a date (drawings, G1); absent in the fixture (daily) */
+  tf?: 'D' | 'W' | 'M';
+  endDates?: string[];
+  barOf?(date: string): string | null;
   /** live (EXEC-TERMINAL-FRESH): each dataset's last date from the manifest; sessions after `broker` have no broker
       data yet. Absent in the fixture. */
   through?: { price?: string; broker?: string };

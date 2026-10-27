@@ -3,6 +3,7 @@
    Everything is mapped into the reference page's own shapes (types.ts). */
 import type { Bar, Combo, CompareSpec, Instrument, MarketData, MarketEvent, Point, VolumePoint } from './types';
 import { brokerData, download, priceRows, rowsOf, type FileRef, type PriceRow, type WorkerAnswer } from './worker';
+import { aggregateRows, buckets, candleOf, type Timeframe } from './timeframe';
 import { fileStats, mark } from '../app/perf';
 
 const API = '/api/terminal/v1';
@@ -94,14 +95,14 @@ type BrokerAnswer = Omit<Extract<WorkerAnswer, { type:'broker' | 'brokerAll' }>,
 interface Job { price: Promise<PriceRow[]>; broker: Promise<BrokerAnswer>; brokerAll: Promise<BrokerAnswer>; events: Promise<Record<string, unknown>[]> }
 let worker: Worker | null = null, jobs = 0;
 const waiting = new Map<number, Record<string, [(v: any) => void, (e: any) => void]>>();
-function run(files: { price: FileRef[]; broker: FileRef[]; events: FileRef[] }): Job {
+function run(files: { price: FileRef[]; broker: FileRef[]; events: FileRef[] }, tf: Timeframe = 'D'): Job {
   const stage = <T>() => { let ok!: (v: T) => void, no!: (e: any) => void; const p = new Promise<T>((a, b) => { ok = a; no = b }); p.catch(() => {}); return { p, ok, no } };
   const price = stage<PriceRow[]>(), broker = stage<any>(), brokerAll = stage<any>(), events = stage<Record<string, unknown>[]>();
   if (typeof Worker === 'undefined') {
     (async () => {
       const brokerDocs = Promise.all(files.broker.map(download)), eventDocs = Promise.all(files.events.map(download));
       const rows = priceRows(await Promise.all(files.price.map(download))); price.ok(rows);
-      const all = brokerData(await brokerDocs, rows.map(r => r.d)); broker.ok(all); brokerAll.ok(all);
+      const ds = rows.map(r => r.d), all = brokerData(await brokerDocs, ds, tf === 'D' ? null : buckets(ds, tf)); broker.ok(all); brokerAll.ok(all);
       events.ok((await eventDocs).flatMap(rowsOf));
     })().catch(e => [price, broker, brokerAll, events].forEach(s => s.no(e)));
     return { price:price.p, broker:broker.p, brokerAll:brokerAll.p, events:events.p };
@@ -122,7 +123,7 @@ function run(files: { price: FileRef[]; broker: FileRef[]; events: FileRef[] }):
   }
   const id = ++jobs;
   waiting.set(id, { price:[price.ok, price.no], broker:[broker.ok, broker.no], brokerAll:[brokerAll.ok, brokerAll.no], events:[events.ok, events.no] });
-  worker.postMessage({ id, ...files });
+  worker.postMessage({ id, ...files, tf });
   return { price:price.p, broker:broker.p, brokerAll:brokerAll.p, events:events.p };
 }
 
@@ -132,19 +133,20 @@ async function prices(ticker: string, csrf: string) {
 
 /* a series on the chart's sessions: the last close on or before each session (forward fill); sessions before its
    first close have no point */
-function alignTo(dates: string[], rows: { d: string; c: number }[]): Point[] {
+function alignTo(dates: string[], rows: { d: string; c: number }[], ends: string[] = dates): Point[] {
+  // EXEC-TERMINAL-WM: a weekly or monthly candle takes the value at its last session (`ends`), labelled with its first
   const out: Point[] = []; let k = 0, last: number | null = null;
-  for (const t of dates) {
-    while (k < rows.length && rows[k].d <= t) { last = rows[k].c; k++ }
+  dates.forEach((t, i) => {
+    while (k < rows.length && rows[k].d <= ends[i]) { last = rows[k].c; k++ }
     if (last !== null) out.push({ time:t, value:last });
-  }
+  });
   return out;
 }
 
 /* U5 (user 2026-10-26: "automatically load chart dan panel bawah.. lalu panel kiri dan kanan akan load kalau user
    buka/expand the panel"): the page draws as soon as the price is read; the broker data (Flow, Broker activity) and
    the events follow through `later`, IHSG (Statistics, Relative performance) only when that panel asks for it. */
-export async function liveData(stored: string | null): Promise<MarketData> {
+export async function liveData(stored: string | null, tf: Timeframe = 'D'): Promise<MarketData> {
   const csrf = await session();
   mark('session');
   const reference = async (name: string) => rowsOf(await download((await api(`/reference/${name}`, csrf)).url));
@@ -161,14 +163,16 @@ export async function liveData(stored: string | null): Promise<MarketData> {
   const instruments: Instrument[] = tickers.map(t => [t.ticker, t.name || t.ticker, t.sector || (t.type === 'index' ? 'Index' : 'Other'), 0]);
   const SYMBOL = stored && known.has(stored) ? stored : known.has('MAPI') ? 'MAPI' : tickers[0].ticker;
   const files = SYMBOL === guess ? await guessP : await bundle(SYMBOL, ['price', 'broker', 'events'], csrf);
-  const job = run(files);
+  const job = run(files, tf);
 
   mark('ticker list and bundle');
-  const rows = await job.price;
+  const rows = await job.price;                            // daily sessions
   mark('price read');
   if (!rows.length) throw new TerminalError(`No price data is published for ${SYMBOL}.`);
-  const ohlc: Bar[] = rows.map(r => ({ time:r.d, open:r.o, high:r.h, low:r.l, close:r.c }));
-  const volume: VolumePoint[] = rows.map(r => ({ time:r.d, value:r.v ?? 0, color:r.c >= r.o ? 'rgba(0,150,109,.48)' : 'rgba(235,57,69,.48)' }));
+  // EXEC-TERMINAL-WM: the chart's candles (daily, or built from the daily sessions); `ends` = each candle's last session
+  const sessions = rows.map(r => r.d), groups = buckets(sessions, tf), candles = aggregateRows(rows, tf), ends = groups.ends;
+  const ohlc: Bar[] = candles.map(r => ({ time:r.d, open:r.o, high:r.h, low:r.l, close:r.c }));
+  const volume: VolumePoint[] = candles.map(r => ({ time:r.d, value:r.v ?? 0, color:r.c >= r.o ? 'rgba(0,150,109,.48)' : 'rgba(235,57,69,.48)' }));
   const lineData: Point[] = ohlc.map(b => ({ time:b.time, value:b.close }));
   const dates = ohlc.map(b => b.time), N = dates.length;
 
@@ -176,7 +180,7 @@ export async function liveData(stored: string | null): Promise<MarketData> {
   let ihsgP: Promise<{ d: string; c: number }[]> | null = null;
   const ihsgRows = () => ihsgP ||= SYMBOL === 'IHSG' ? Promise.resolve(rows) : prices('IHSG', csrf);
   const loadIhsg = async (): Promise<Point[]> => {
-    const aligned = alignTo(dates, await ihsgRows());
+    const aligned = alignTo(dates, await ihsgRows(), ends);
     const first = aligned.length ? aligned[0].value : NaN;
     return dates.map((t, i) => aligned[i - (N - aligned.length)] ?? { time:t, value:first });
   };
@@ -198,13 +202,14 @@ export async function liveData(stored: string | null): Promise<MarketData> {
   const loadCompare = async (id: string) => {
     const spec = catalog.find(c => c.id === id); if (!spec) return [];
     const series = spec.symbol === 'IHSG' ? await ihsgRows() : spec.symbol === SYMBOL ? rows : await prices(spec.symbol, csrf);
-    return alignTo(dates, series);
+    return alignTo(dates, series, ends);
   };
 
   const loadEvents = async (): Promise<MarketEvent[]> => (await job.events).flatMap((r: any, k) => {
     const type = r.family === 'CORPORATE_ACTION' ? EVENT_TYPE[r.type] : undefined;
-    if (!type || r.d < dates[0]) return [];
-    const at = dates.find(t => t >= r.d);                 // the marker sits on the first session on or after the date
+    if (!type || r.d < sessions[0]) return [];
+    // the marker sits on the candle that holds the first session on or after the date
+    const at = candleOf(r.d, groups, sessions) ?? undefined;
     /* T9 (user 2026-10-26): the published detail rows; a value the source leaves blank shows "Unavailable" */
     const rows: [string, string][] = Array.isArray(r.detail)
       ? r.detail.map(([label, value, kind]: [string, unknown, string]) => [label, detailText(value, kind)] as [string, string])
@@ -218,6 +223,7 @@ export async function liveData(stored: string | null): Promise<MarketData> {
     combos:[], flowSource:'real', flowFrom:N,
     broker: { dates:[], rows:() => [], label:SYMBOL, category:() => 'L' },
     later: { broker, brokerAll },
+    tf, endDates:ends, barOf:(d: string) => candleOf(d, groups, sessions),
     through: files.through,
     loadEvents,
     hide: { brokerGauge:true, bandar:true }

@@ -315,7 +315,7 @@ export function initBroker(ctx: Ctx) {
   function renderInvLive(){
     const picks = [...invSel], r = ctx.chart.timeScale().getVisibleLogicalRange();
     const a = r ? Math.max(0, Math.ceil(r.from)) : 0, b = r ? Math.min(ctx.N - 1, Math.floor(r.to)) : ctx.N - 1;
-    const va = ctx.dates[a], vb = ctx.dates[b];
+    const va = ctx.dates[a], vb = ctx.endDates[b];          // EXEC-TERMINAL-WM: to the last session of the last candle
     const f = bkDates.findIndex(x => x >= va);
     let t = -1; for(let i = 0; i < BK_DAYS && bkDates[i] <= vb; i++) t = i;
     const none = f < 0 || t < 0 || f > t;
@@ -355,7 +355,7 @@ export function initBroker(ctx: Ctx) {
     invOnCross = d => { const k = d ? bkDates.indexOf(d) : -1; show(k >= f && k <= t ? k - f : null) };
     svg.addEventListener('pointermove', e => {
       const rc = svg.getBoundingClientRect(), i = Math.max(0, Math.min(n-1, Math.round((e.clientX - rc.left) / rc.width * (n-1))));
-      const ci = ctx.idxByTime.get(bkDates[f + i]);
+      const d = bkDates[f + i], ci = ctx.idxByTime.get(ctx.M.barOf ? ctx.M.barOf(d) ?? d : d);   // W/M: the candle holding the day
       if(ci !== undefined) ctx.crosshairAt(ci); else show(i);
     });
     svg.addEventListener('pointerleave', () => { ctx.crosshairAt(null); show(null) });

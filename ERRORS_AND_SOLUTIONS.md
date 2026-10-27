@@ -2463,6 +2463,27 @@ change yet.
   browser.
 - **Status:** RESOLVED.
 
+### EXEC-TERMINAL-WM — timeframe weekly dan monthly (2026-10-27)
+
+- **Go user:** "G1 / K1" (FUTURE_PLAN "Terminal: timeframe weekly dan monthly").
+- **Dibangun (live; fixture tetap harian):** `src/data/timeframe.ts` (minggu Senin–Jumat, bulan kalender; open pertama,
+  high max, low min, close terakhir, volume jumlah; candle berjalan ditampilkan, K1); tombol D/W/M, pilihan diingat
+  (`ml.tf`) dan halaman dimuat ulang (berkas dari cache browser); `worker.ts` `brokerData` menjumlah net per candle;
+  pembanding dan IHSG diselaraskan ke sesi terakhir candle (`alignTo` `ends`); anotasi di candle yang memuat sesi
+  sesudah tanggalnya; Statistics faktor tahunan 252/52/12, satuan sessions/weeks/months, musiman per hari disembunyikan
+  di W/M; label Flow "Latest week/month net", "Avg weekly/monthly net"; default `annualization_periods` indikator
+  mengikuti candle (registry: "252 only proposed for daily equities"); rentang dari chart dan Broker inventory sampai
+  sesi terakhir candle; gambar (G1) dipetakan ke candle yang memuat titiknya saat dimuat (titik masa depan tetap).
+  Broker activity tetap harian.
+- **Bukti:** vitest 678 (`timeframe.test.ts`: kunci minggu/bulan, agregasi, candle berjalan, peta sesi, candle dari
+  tanggal, gambar di candle mingguan). Live check ANTM (`timeframe_live_check.py`): W "Latest week net 19 Oct 2026"
+  (minggu 26 Oct tanpa data broker), "143 weeks", "20-week annualized", musiman per hari tersembunyi, 20 penanda; M
+  "Latest month net 01 Oct 2026", "20-month annualized"; kembali D "Latest day net 23 Oct 2026"; tanpa error. 1:1:
+  derau 1–18 piksel lama tanpa beda markup; edge-bff terminal 20.
+- **Belum / catatan:** indikator Historical volatility yang sudah tersimpan dari harian tetap memakai 252 (nilai yang
+  dipilih pengguna tidak diubah); pengguna bisa menggantinya di pengaturan indikator.
+- **Status:** RESOLVED.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.

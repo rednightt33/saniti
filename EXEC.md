@@ -8363,4 +8363,5 @@ Rencana (berbasis kode, diperiksa 2026-10-27):
    label Flow "Latest week/month net", "Avg weekly/monthly net"; rentang dari chart dan Broker inventory memakai tanggal
    akhir candle; gambar dipetakan ke candle saat dimuat.
 4. Uji: tes agregasi, 1:1 fixture (D saja), live check D/W/M, deploy, dokumen.
+Status 2026-10-27: selesai (ERRORS "EXEC-TERMINAL-WM").
 

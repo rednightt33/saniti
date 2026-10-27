@@ -972,7 +972,7 @@ dan data di RAK?"
 - Berlaku juga untuk dataset lain dengan jadwal sendiri (makro, lintas aset); tidak berlaku untuk events (titik, bukan
   deret yang dijumlah).
 
-## Terminal: timeframe weekly dan monthly (usulan 2026-10-27, menunggu keputusan)
+## Terminal: timeframe weekly dan monthly (usulan 2026-10-27 — disetujui "G1 / K1" dan dikerjakan, EXEC-TERMINAL-WM)
 
 User 2026-10-27: "bisa nggak untuk time frame ditambah weekly dan monthly as well? Coba explore kira-kira bagaimana kita
 bisa display juga candle chart weekly dan monthly".

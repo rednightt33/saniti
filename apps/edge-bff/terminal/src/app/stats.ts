@@ -1,4 +1,5 @@
 /* LEFT PANEL — Statistics (visible-range, collapsible, accordion), reference lines 1400-1655. */
+import { PERIODS_PER_YEAR, UNIT } from '../data/timeframe';
 import type { Ctx } from './context';
 import { $, avgOf, cls, empty, median, pct, row, spin, store } from './context';
 
@@ -78,6 +79,15 @@ export function initStats(ctx: Ctx) {
   });
 
   /* ---- series derived once over the full history ---- */
+  /* EXEC-TERMINAL-WM: weekly and monthly candles annualise with 52 and 12 periods and say weeks / months; the weekday
+     seasonality has no meaning there and is switched off; daily (and the fixture) keep the reference's words */
+  const TF = ctx.M.tf || 'D', U = UNIT[TF], PER = PERIODS_PER_YEAR[TF];
+  if(TF !== 'D'){
+    const small = (sec: string, text: string) => { const el = document.querySelector(`#statsPanel .st[data-sec="${sec}"] .st-head small`); if(el) el.textContent = text };
+    const short = TF === 'W' ? 'W' : 'M', word = TF === 'W' ? 'week' : 'month';
+    small('dist', `${word[0].toUpperCase() + word.slice(1)} returns`); small('vol', `20-${word} annualized`); small('vdist', `Volume / 20${short} average`);
+    const wd = document.querySelector('#seasToggle [data-mode="weekday"]') as HTMLElement | null; if(wd) wd.hidden = true;
+  }
   const dayRet = new Float64Array(N);                 // simple daily return
   const logRet = new Float64Array(N);
   for(let i=1;i<N;i++){ dayRet[i] = closes[i]/closes[i-1]-1; logRet[i] = Math.log(closes[i]/closes[i-1]); }
@@ -85,7 +95,7 @@ export function initStats(ctx: Ctx) {
   for(let i=20;i<N;i++){
     let m=0; for(let k=i-19;k<=i;k++) m+=logRet[k]; m/=20;
     let v=0; for(let k=i-19;k<=i;k++) v+=(logRet[k]-m)**2;
-    vol20[i] = Math.sqrt(v/19*252)*100;
+    vol20[i] = Math.sqrt(v/19*PER)*100;
   }
   const volRatio = new Float64Array(N).fill(NaN);     // volume / trailing 20D average
   for(let i=19;i<N;i++){ let s=0; for(let k=i-19;k<=i;k++) s+=volume[k].value; volRatio[i] = volume[i].value/(s/20); }
@@ -95,7 +105,7 @@ export function initStats(ctx: Ctx) {
 
   /* ---- inline-SVG chart helpers (viewBox is fixed, so they scale with the panel) ---- */
   const SW = 272, SH = 64;
-  const histogram = (vals: number[], bins: number, colorFor: (c: number) => string, fmtEdge: (v: number) => string, unit='sessions', mark?: { v: number; label: string }) => {
+  const histogram = (vals: number[], bins: number, colorFor: (c: number) => string, fmtEdge: (v: number) => string, unit=U.many, mark?: { v: number; label: string }) => {
     // range is clipped to the 2nd–98th percentile so a few extreme sessions don't squash the shape; outliers land in the edge bins
     const sorted = [...vals].sort((x,y)=>x-y), q = (p: number) => sorted[Math.min(sorted.length-1, Math.floor(p*(sorted.length-1)))];
     let lo = q(.02), hi = q(.98);
@@ -214,18 +224,18 @@ export function initStats(ctx: Ctx) {
     if(ws.classList.contains('left-collapsed')) return;
     const [a,b] = visRange();
     // EXEC-TERMINAL-1026C C1 (user 2026-10-26: "date covered ... tanggal berapa sampai tanggal berapa"): live shows the dates
-    $('statsRange').textContent = `${b-a+1} sessions` + (ctx.M.mode === 'live' ? ` · ${shortDate(dates[a])} – ${shortDate(dates[b])}` : '');
+    $('statsRange').textContent = `${b-a+1} ${U.many}` + (ctx.M.mode === 'live' ? ` · ${shortDate(dates[a])} – ${shortDate(ctx.endDates[b])}` : '');
     $('statsRange').title = `Visible range: ${dates[a]} → ${dates[b]}`;
 
     /* 1 · Return distribution */
     const rets: number[] = []; for(let i=Math.max(1,a);i<=b;i++) rets.push(dayRet[i]*100);
     if(rets.length >= 3){
-      const h = histogram(rets, 10, () => 'rgba(23,52,140,.9)', v=>pct(v,2), 'sessions', {v:rets.at(-1)!, label:'Current'});
+      const h = histogram(rets, 10, () => 'rgba(23,52,140,.9)', v=>pct(v,2), U.many, {v:rets.at(-1)!, label:'Current'});
       $('distChart').innerHTML = h.svg;
       $('distAxis').innerHTML = axisLabels(h.lo, h.hi, v=>pct(v,1), 0, {lo:h.clipLo, hi:h.clipHi});
       $('distStats').innerHTML = row('Mean', pct(avgOf(rets)), cls(avgOf(rets)), 'Average session return in the visible range')
         + row('Median', pct(median(rets)), cls(median(rets)), 'Middle session return; less affected by outliers')
-        + row('Positive sessions', (rets.filter(x=>x>0).length/rets.length*100).toFixed(1)+'%', '', 'Share of sessions that closed up')
+        + row(`Positive ${U.many}`, (rets.filter(x=>x>0).length/rets.length*100).toFixed(1)+'%', '', `Share of ${U.many} that closed up`)
         + row('Observations', rets.length, '', 'Number of sessions counted');
     } else { $('distChart').innerHTML = ''; $('distAxis').innerHTML = ''; $('distStats').innerHTML = empty('Not enough sessions in range') }
 
@@ -274,7 +284,7 @@ export function initStats(ctx: Ctx) {
     /* 6 · Volume distribution */
     const vr: number[] = []; for(let i=a;i<=b;i++) if(Number.isFinite(volRatio[i])) vr.push(volRatio[i]);
     if(vr.length >= 3){
-      const h = histogram(vr, 10, () => 'rgba(0,112,243,.72)', v=>v.toFixed(2)+'×', 'sessions', {v:vr.at(-1)!, label:'Current'}), cur = vr.at(-1)!;
+      const h = histogram(vr, 10, () => 'rgba(0,112,243,.72)', v=>v.toFixed(2)+'×', U.many, {v:vr.at(-1)!, label:'Current'}), cur = vr.at(-1)!;
       $('vdChart').innerHTML = h.svg;
       $('vdAxis').innerHTML = axisLabels(h.lo, h.hi, v=>v.toFixed(1)+'×', 1, {lo:h.clipLo, hi:h.clipHi});
       $('vdStats').innerHTML = row('Current', cur.toFixed(2)+'×', '', 'Latest volume ÷ its 20-day average') + row('Median', median(vr).toFixed(2)+'×', '', 'Middle volume ratio in the visible range')
