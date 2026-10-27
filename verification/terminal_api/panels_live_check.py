@@ -102,12 +102,28 @@ try:
         page.mouse.move(box['x'] + box['width'] * .6, box['y'] + box['height'] * .4); page.wait_for_timeout(300)
         page.screenshot(path=str(out / 'rail_crosshair.png'))
         report['rail'] = rail
+        # EXEC-TERMINAL-PANELS-2 B: the Flow legend labels and the Cumulative pill share one middle line
+        report['legend_middles'] = page.evaluate("""() => [document.querySelector('.flow-legend > span'), document.querySelector('.pill-toggle')]
+            .map(e => { const r = e.getBoundingClientRect(); return Math.round(r.top + r.height / 2) })""")
+        # F: the marker of the session under the crosshair grows
+        mk = page.locator('.ev-mk').last.bounding_box()
+        page.mouse.move(mk['x'] + mk['width'] / 2, box['y'] + box['height'] * .4); page.wait_for_timeout(300)
+        report['hot_marker'] = page.evaluate("() => document.querySelectorAll('.ev-mk.hot').length")
+        page.screenshot(path=str(out / 'hot_marker.png'))
+        # E: accumulators and distributors in one table
+        report['paired'] = page.evaluate("() => ({ title: document.getElementById('accTitle').textContent, head: document.querySelector('.pa-head')?.innerText.replace(/\\s+/g, ' '), rows: document.querySelectorAll('.pa-row').length, switch_hidden: document.getElementById('accSide').closest('.rp-ctl').hidden })")
+        # calendar: a Saturday is clickable and maps to the session before it
+        page.click('#bsRange [data-n="custom"]'); page.wait_for_selector('.rc-pop')
+        satday = page.evaluate("() => [...document.querySelectorAll('.rc-day')].map(b => b.dataset.day).find(t => new Date(t + 'T00:00:00Z').getUTCDay() === 6)")
+        page.click(f'.rc-day[data-day="{satday}"]'); page.click(f'.rc-day[data-day="{satday}"]'); page.wait_for_timeout(300)
+        report['saturday'] = {'day': satday, 'hint': page.evaluate("() => document.getElementById('bsHint').textContent"),
+                              'note': page.evaluate("() => document.querySelector('#bsRange .rp-note:not([hidden])')?.textContent || null")}
         # calendar on Broker summary: years offered, pick two days
         page.click('#bsRange [data-n="custom"]')
         page.wait_for_selector('.rc-pop')
-        cal = page.evaluate("() => ({ years: [...document.querySelectorAll('.rc-years button')].map(b => b.textContent), enabled: document.querySelectorAll('.rc-day:not([disabled])').length })")
+        cal = page.evaluate("() => ({ years: [...document.querySelectorAll('.rc-years button')].map(b => b.textContent), enabled: document.querySelectorAll('.rc-day:not([disabled])').length, days: document.querySelectorAll('.rc-day').length })")
         page.screenshot(path=str(out / 'calendar.png'))
-        days = page.locator('.rc-day:not([disabled])')
+        days = page.locator('.rc-day')
         n = days.count()
         days.nth(max(0, n - 6)).click(); days.nth(n - 2).click()
         cal['after_pick'] = page.evaluate(hints)
@@ -122,6 +138,11 @@ try:
         page.mouse.up(); page.wait_for_timeout(500)
         report['chart_range'] = {'hints': page.evaluate(hints), 'layer_gone': page.locator('.rs-layer').count() == 0,
                                  'notes': page.evaluate("() => [...document.querySelectorAll('.rp-note:not([hidden])')].map(n => n.textContent)")}
+        # one day: click, then click the same place
+        page.click('#bsRange [data-n="custom"]'); page.wait_for_selector('.rc-pop'); page.click('.rc-chart'); page.wait_for_selector('.rs-layer')
+        px = box['x'] + box['width'] * .6
+        page.mouse.click(px, y); page.wait_for_timeout(150); page.mouse.click(px, y); page.wait_for_timeout(400)
+        report['one_day'] = {'hints': page.evaluate(hints), 'layer_gone': page.locator('.rs-layer').count() == 0}
         # a range reaching back before the two-year window (zoomed-out chart, from its left edge): clipped, with a note
         page.mouse.move(box['x'] + box['width'] * .5, box['y'] + box['height'] * .5)
         for _ in range(6):                                    # dragging the chart to the right shows older sessions
@@ -138,14 +159,17 @@ try:
         # reorder: drag Top accumulators above Broker summary
         order = "() => [...document.querySelectorAll('#rightScroll > .st')].map(s => s.dataset.sec)"
         before = page.evaluate(order)
-        g = page.locator('#rightScroll .st[data-sec="acc"] .st-grip').bounding_box()
+        g = page.locator('#rightScroll .st[data-sec="acc"] .st-head').bounding_box()
         t = page.locator('#rightScroll .st[data-sec="bs"] .st-head').bounding_box()
-        page.mouse.move(g['x'] + 3, g['y'] + 6); page.mouse.down()
-        page.mouse.move(g['x'] + 3, t['y'] + 2, steps=12); page.mouse.up(); page.wait_for_timeout(300)
+        page.mouse.move(g['x'] + 60, g['y'] + g['height'] / 2); page.mouse.down()          # D: the header itself, no grip
+        page.mouse.move(g['x'] + 60, t['y'] + 2, steps=12); page.mouse.up(); page.wait_for_timeout(300)
         after = page.evaluate(order)
         collapsed = page.evaluate("() => document.querySelector('#rightScroll .st[data-sec=acc]').classList.contains('collapsed')")
-        page.reload(wait_until='load'); page.wait_for_function("() => document.querySelector('#rightScroll .st-grip')", timeout=120000)
-        report['reorder'] = {'before': before, 'after': after, 'after_reload': page.evaluate(order), 'folded_by_drag': collapsed}
+        page.click('#rightScroll .st[data-sec="inv"] .st-head'); page.wait_for_timeout(200)          # a plain click still folds
+        folded = page.evaluate("() => document.querySelector('#rightScroll .st[data-sec=inv]').classList.contains('collapsed')")
+        page.click('#rightScroll .st[data-sec="inv"] .st-head')
+        page.reload(wait_until='load'); page.wait_for_function("() => document.querySelector('#rightScroll .st-head[aria-keyshortcuts]')", timeout=120000)
+        report['reorder'] = {'before': before, 'after': after, 'after_reload': page.evaluate(order), 'folded_by_drag': collapsed, 'click_folds': folded}
         report['errors'] = errors
         ctx.close(); browser.close()
 finally:

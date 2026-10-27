@@ -145,3 +145,12 @@ Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
   every panel (`setDates`, clipped to the panel's dates with a note).
 - `events.ts` (live): with events on, `.chart-wrap.ev-rail` gives the chart 24 px less and the markers sit on the rail.
 - Live check: `verification/terminal_api/panels_live_check.py`.
+
+## 11. EXEC-TERMINAL-PANELS-2 (2026-10-27)
+
+- `reorder.ts`: the `.st-head` itself is the drag handle (press and move 5 px; touch holds 250 ms first); the click that
+  ends a drag is swallowed only within the same task.
+- `broker.ts` `renderAccPaired` (live): accumulators and distributors in one table, rank k beside rank k, one scale.
+- `calendar.ts`: every day is clickable; `setDates` maps a range without sessions to the last session before it.
+- `rangeSelect.ts`: drag, or click the first and the last day (the same day twice = one day); the band spans whole bars.
+- `events.ts` (live): `subscribeCrosshairMove` marks the marker of the session under the crosshair (`.ev-mk.hot`).

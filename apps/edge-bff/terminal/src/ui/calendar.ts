@@ -1,11 +1,12 @@
 /* EXEC-TERMINAL-PANELS D1 (user 2026-10-26: "set melalui kalender satu ... opsi lagi adalah kita draw atau bikin range di
    main chart"): one calendar that picks a range (first click = start, second click = end). Only the days in `dates`
-   (sessions with broker data) can be picked; the others are dimmed. The footer offers "Select on chart". */
+   (sessions with broker data) used to be pickable; since EXEC-TERMINAL-PANELS-2 (user 2026-10-27: "buat saja warnanya
+   normal dan clickable") every day is, and the panel maps it to its sessions. The footer offers "Select on chart". */
 
 export interface RangeCalendar { from: string; to: string }
 export interface CalendarOptions {
   anchor: HTMLElement;
-  dates: string[];                       // pickable days, 'YYYY-MM-DD', ascending
+  dates: string[];                       // the sessions, 'YYYY-MM-DD', ascending (they bound the months shown)
   from: string; to: string;              // the current range
   onPick: (from: string, to: string) => void;
   onChart?: () => void;                  // "Select on chart"
@@ -32,7 +33,7 @@ export function closeRangeCalendar() { open?.close() }
 export function openRangeCalendar(o: CalendarOptions) {
   closeRangeCalendar();
   if (!o.dates.length) return;
-  const have = new Set(o.dates), lo = o.dates[0], hi = o.dates[o.dates.length - 1];
+  const lo = o.dates[0], hi = o.dates[o.dates.length - 1];
   const loY = +lo.slice(0, 4), hiY = +hi.slice(0, 4);
   let y = +o.to.slice(0, 4), m = +o.to.slice(5, 7) - 1;
   let start: string | null = null, hover: string | null = null;
@@ -55,7 +56,7 @@ export function openRangeCalendar(o: CalendarOptions) {
       <div class="rc-grid" role="grid">
         ${['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map(d => `<span class="rc-dow">${d}</span>`).join('')}
         ${monthGrid(y, m).flat().map(t => !t ? '<span></span>'
-          : `<button type="button" data-day="${t}" class="rc-day${t >= a && t <= b ? ' in' : ''}${t === a || t === b ? ' edge' : ''}" ${have.has(t) ? '' : 'disabled'}>${+t.slice(8)}</button>`).join('')}
+          : `<button type="button" data-day="${t}" class="rc-day${t >= a && t <= b ? ' in' : ''}${t === a || t === b ? ' edge' : ''}">${+t.slice(8)}</button>`).join('')}
       </div>
       <div class="rc-foot">
         <span class="rc-note">${start ? `From ${longDay(start)} · pick the last day` : o.from === o.to ? longDay(o.from) : `${longDay(o.from)} – ${longDay(o.to)}`}</span>
@@ -84,7 +85,7 @@ export function openRangeCalendar(o: CalendarOptions) {
     render(); place();
   });
   pop.addEventListener('pointerover', (e: any) => {
-    const day = e.target.closest('[data-day]:not([disabled])');
+    const day = e.target.closest('[data-day]');
     if (start && day && day.dataset.day !== hover) { hover = day.dataset.day; render() }
   });
   const outside = (e: Event) => { if (!pop.contains(e.target as Node) && !o.anchor.contains(e.target as Node)) close() };

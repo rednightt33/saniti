@@ -3,7 +3,7 @@
    type ∈ stocksplit | reversesplit | rightissue | bonus | dividend | rups | tenderoffer | warrant
    Fixture: the reference's mock list. Live: idx_event_annotation's corporate actions (data/live.ts). */
 import type { Ctx } from './context';
-import { $, store } from './context';
+import { $, keyOf, store } from './context';
 import type { MarketEvent } from '../data/types';
 
 export const EVENT_TYPES = [
@@ -79,7 +79,7 @@ export function initEvents(ctx: Ctx) {
     const left = chart.priceScale('left').width(), H = pane ? pane.getHeight() : 0, W = ts.width();
     const rng = ts.getVisibleLogicalRange();
     sig = [left, H, W, $('chart').clientHeight, rng && rng.from.toFixed(2), rng && rng.to.toFixed(2), pref.on, TYPES.map(t => +pref.types[t.id]).join(''), EVENTS.length].join('|');
-    layer.replaceChildren(); tip.hidden = true;
+    layer.replaceChildren(); tip.hidden = true; marks = [];
     if(!pref.on || !H) return;
     const pts = EVENTS.filter(e => pref.types[e.type]).map(e => ({ e, x:ts.timeToCoordinate((e.at || e.date) as any) })).filter(p => p.x != null && p.x >= 0 && p.x <= W).sort((a, b) => (a.x as number) - (b.x as number));
     const groups: { x: number; items: MarketEvent[] }[] = [];
@@ -95,8 +95,15 @@ export function initEvents(ctx: Ctx) {
       el.addEventListener('mouseenter', () => { showTip(el, g.items); ln = document.createElement('div'); ln.className = 'ev-line'; ln.style.left = x + 'px'; ln.style.top = '0'; ln.style.height = (railed ? $('chart').clientHeight - ts.height() : y - 12) + 'px'; layer.appendChild(ln) });
       el.addEventListener('mouseleave', () => { tip.hidden = true; if(ln) ln.remove() });
       layer.appendChild(el);
+      marks.push({ el, times:new Set(g.items.map(i => String(i.at || i.date))) });
     });
+    if(hotTime) hot(hotTime);
   }
+  /* EXEC-TERMINAL-PANELS-2 F (user 2026-10-27: "kalau seandainya crosshair kita hover/ stay ke tanggal yang bermaksud,
+     boleh dikasih efek untuk buletannya"), live: the marker of the session under the crosshair grows and gets a ring */
+  let marks: { el: HTMLElement; times: Set<string> }[] = [], hotTime: string | null = null;
+  function hot(t: string | null) { hotTime = t; marks.forEach(m => m.el.classList.toggle('hot', !!t && m.times.has(t))) }
+  if(railed) chart.subscribeCrosshairMove((p: any) => { const t = p && p.time != null ? keyOf(p.time) : null; if(t !== hotTime) hot(t) });
   let raf = 0;
   function schedule() { if(!raf) raf = requestAnimationFrame(layout) }
   chart.timeScale().subscribeVisibleLogicalRangeChange(schedule);

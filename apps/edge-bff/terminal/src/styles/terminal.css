@@ -796,10 +796,8 @@ html.fit .flow-stat-val{font-size:13px}
 /* EXEC-TERMINAL-PANELS (live only): annotation rail under the dates, panel grips, range calendar, chart range select */
 .chart-wrap.ev-rail #chart{bottom:24px}
 .chart-wrap.ev-rail::after{content:"";position:absolute;left:0;right:0;bottom:0;height:24px;border-top:1px solid var(--border);background:var(--soft);pointer-events:none}
-.st-grip{flex:0 0 auto;width:8px;height:14px;margin:0 -2px 0 -6px;cursor:grab;opacity:.45;background:radial-gradient(circle,var(--text-3) 1px,transparent 1.3px) 0 0/4px 4px;touch-action:none}
-.st-head:hover .st-grip{opacity:.9}
+body.st-dragging,body.st-dragging *{cursor:grabbing!important;user-select:none}
 .st.st-drag{position:relative;z-index:5;background:var(--surface);box-shadow:0 6px 18px rgba(0,0,0,.12);opacity:.96}
-.st.st-drag .st-grip{cursor:grabbing}
 .rp-note{margin:-2px 0 8px;font-size:11px;line-height:1.35;color:var(--text-2)}
 .rc-pop{position:fixed;z-index:200;width:248px;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 0 0 1px rgba(0,0,0,.03),0 8px 16px -4px rgba(0,0,0,.08),0 24px 40px -12px rgba(0,0,0,.1);font-size:12px}
 .rc-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
@@ -814,7 +812,6 @@ html.fit .flow-stat-val{font-size:13px}
 .rc-dow{font-size:10px;color:var(--text-3);text-align:center;padding:2px 0}
 .rc-day{height:28px;border-radius:5px;font-size:11.5px;color:var(--text);font-variant-numeric:tabular-nums}
 .rc-day:hover:not([disabled]){background:var(--hover)}
-.rc-day[disabled]{color:var(--text-3);opacity:.45;cursor:default}
 .rc-day.in{background:var(--sel)}
 .rc-day.edge{background:var(--text);color:#fff}
 .rc-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
@@ -825,4 +822,27 @@ html.fit .flow-stat-val{font-size:13px}
 .rs-band{position:absolute;top:0;bottom:0;background:rgba(0,112,243,.12);border-left:1px solid rgba(0,112,243,.6);border-right:1px solid rgba(0,112,243,.6)}
 .chart-wrap.ev-rail .rs-band{bottom:24px}
 .rs-hint{position:absolute;top:8px;left:50%;transform:translateX(-50%);padding:4px 10px;border-radius:6px;background:var(--text);color:#fff;font-size:11.5px;white-space:nowrap;pointer-events:none}
+/* EXEC-TERMINAL-PANELS-2 E: accumulators and distributors side by side */
+.pa-head,.pa-row{display:grid;grid-template-columns:minmax(34px,auto) minmax(46px,auto) 1fr 1fr minmax(46px,auto) minmax(34px,auto);align-items:center;column-gap:6px}
+.pa-head{padding:0 0 4px;font-size:10.5px;color:var(--text-3);border-bottom:1px solid var(--border);margin-bottom:2px;white-space:nowrap}
+.pa-head .l{grid-column:1/3}
+.pa-head .m{grid-column:3/5;text-align:center}
+.pa-head .r{grid-column:5/7;text-align:right}
+.rp-ctl[hidden]{display:none}
+.pa-row{height:22px;font-size:11.5px}
+.pa-row .v{font-variant-numeric:tabular-nums;white-space:nowrap}
+.pa-row .v.up{text-align:right}
+.pa-row .pa-b{cursor:pointer;border-radius:4px;padding:0 2px}
+.pa-row .pa-b:last-child{text-align:right}
+.pa-row .pa-b.sel{background:var(--sel)}
+.pa-row .trk{position:relative;height:8px;background:#f0f0f0;border-radius:2px;overflow:hidden}
+.pa-row .trk .fill{position:absolute;top:0;bottom:0}
+.pa-row .trk.buy .fill{right:0;background:#089981}
+.pa-row .trk.sell .fill{left:0;background:#f23645}
+
+/* EXEC-TERMINAL-PANELS-2 B (user 2026-10-27: "tidak align antara tulisan Net buy Net sell dengan badge cumulative"): the
+   legend row was aligned to its top (flex-start), so the 14 px labels sat above the middle of the 28 px pill */
+html.fit .flow-wrap .flow-legend{align-items:center;padding-top:4px}
+/* EXEC-TERMINAL-PANELS-2 F: the annotation marker of the session under the crosshair */
+.ev-mk.hot{transform:scale(1.3);box-shadow:0 0 0 3px rgba(23,23,23,.18),0 1px 4px rgba(0,0,0,.3);z-index:2}
 

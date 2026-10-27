@@ -8269,6 +8269,9 @@ kuartalan dicatat di katalog kolom.
 
 ## EXEC-TERMINAL-PANELS-2 — masukan sesudah EXEC-TERMINAL-PANELS (2026-10-27)
 
+Status 2026-10-27: B, D, E, kalender, pilih satu hari di chart dan F selesai (ERRORS "EXEC-TERMINAL-PANELS-2"); A dan C
+menunggu jawaban user.
+
 User 2026-10-27 (dengan tangkapan layar A–E): "A: boleh cek kalau screen 100% pakai laptop 14" maka tampilan yang saya
 kotakin jadi seperti di SS / B: tidak align antara tulisan Net buy Net sell dengan badge cumulative. / C: Buat broker
 inventory boleh perlakuannya sama seperti statistics? Jadi mengikuti apa yang chart kita display + ada Y axis horizontal
