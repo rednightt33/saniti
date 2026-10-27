@@ -11,6 +11,15 @@ import { $, cls, keyOf, nfCompact, rupiah, spin, store } from './context';
     Flow), 'history' = the first session of the data (the line before 2026-10-27). */
 export const FLOW_CUMULATIVE_FROM: 'view' | 'history' = 'view';
 
+/** the running sum of `net` from session `start` (0 before it, so the first value is that session's net); NaN before
+    `start` (EXEC-TERMINAL-CUM) */
+export function cumulativeFrom(net: ArrayLike<number>, start: number): Float64Array<ArrayBuffer> {
+  const out = new Float64Array(net.length).fill(NaN);
+  let run = 0;
+  for(let i = Math.max(0, start); i < net.length; i++){ run += net[i]; out[i] = run }
+  return out;
+}
+
 export function initFlow(ctx: Ctx) {
   const { L, chart, ohlc, volume, dates, N, idxByTime, closes } = ctx;
   const BOARDS = ctx.BOARDS = [{id:'Regular',label:'Regular'},{id:'Nego',label:'Nego'},{id:'Cash',label:'Cash (Tunai)'}];
@@ -177,11 +186,10 @@ export function initFlow(ctx: Ctx) {
   const cumFrom = LIVE && FLOW_CUMULATIVE_FROM === 'view' && new URLSearchParams(location.search).get('cum') !== 'history' ? 'view' : 'history';
   function computeCum() {
     const start = cumFrom === 'view' ? visible()[0] : 0, E = ctx.brokerEnd;
-    flowCumArr = new Float64Array(N).fill(NaN);
-    let run = 0;
-    for(let i = start; i < N; i++){ run += flowNet[i]; flowCumArr[i] = run }
+    flowCumArr = cumulativeFrom(flowNet, start);
     flowCum.setData(ohlc.map((b,i)=> i > E || i < start ? { time:b.time } : { time:b.time, value:Math.round(flowCumArr[i]) }));
   }
+  if(cumFrom === 'view') document.querySelector('.pill-toggle')?.setAttribute('title', 'Cumulative from the first candle visible on the chart (show or hide)');
   let cumRaf = 0;
   if(cumFrom === 'view') chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
     cancelAnimationFrame(cumRaf);

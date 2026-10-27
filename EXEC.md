@@ -8374,4 +8374,7 @@ Rencana: `flow.ts` (live) menghitung kumulatif dari 0 pada candle pertama yang t
 sesi sebelum itu dan sesudah data broker terakhir tidak digambar; tooltip dan label sumbu mengikuti. Fallback: satu
 pengaturan `FLOW_CUMULATIVE_FROM` ('view' atau 'history') di `flow.ts` dan `?cum=history` di alamat halaman untuk
 membandingkan; fixture referensi tetap sejak awal data (1:1).
+Dijeda user 2026-10-27 ("Sebentar, sebelum kamu proceed") untuk membahas metode existing (ERRORS M244); go lagi user
+2026-10-27: "Oke, kalau gitu kita ganti saja dengan metode C1."
+Status 2026-10-27: selesai (ERRORS M244).
 

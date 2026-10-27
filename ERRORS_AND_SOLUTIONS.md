@@ -2514,7 +2514,19 @@ change yet.
   Kita menggunakan acuan papan reguler untuk menyamakan dengan value stock bit": pembanding = Regular; tampilan
   bawaan tetap semua papan. Titik awal F Flow Stockbit di screenshot = 0 pada awal periode (28 Sep 2026), jadi tidak
   perlu saldo awal; data kita: net harian BMRI Feature 05 sejak 2016-01-04, sesi chart sejak 2018-01-02.
-- **Status:** OPEN (titik awal kumulatif, keputusan user); data cocok, tidak ada salah hitung.
+  Metode existing (dikonfirmasi user 2026-10-27): kumulatif mulai 0 di candle chart pertama (BMRI 2 Jan 2018, awal
+  harga; broker 2016–2017 tidak ikut) lalu ditambah net harian; selisihnya terhadap Stockbit konstan −24.952,13B (net
+  Regular 2 Jan 2018–25 Sep 2026). Saldo foreign flow sebelum 4 Jan 2016 tidak ada di database
+  (`Feature_06_Foreign_Domestic.foreign_cumulative_net` juga mulai 0 di 2016: 4 Jan 2016 Regular = 59,71B = net hari
+  itu).
+  Keputusan user 2026-10-27: "Oke, kalau gitu kita ganti saja dengan metode C1." Dibangun (EXEC-TERMINAL-CUM):
+  `flow.ts` `cumulativeFrom` — garis Cumulative (live) mulai dari net candle pertama yang terlihat dan dihitung ulang
+  saat chart bergeser; fallback `FLOW_CUMULATIVE_FROM = 'history'` atau `?cum=history`. Bukti: vitest 680
+  (`flowcum.test.ts`: net Regular BMRI 28 Sep–23 Oct menghasilkan F Flow Stockbit di 16 tanggal); live BMRI: candle
+  pertama yang terlihat 17 Mar 2026 Net = Cumulative = Rp 10,6B, berubah saat digeser, `?cum=history` memberi angka
+  lama (4 Aug 2026 −18,6T vs C1 −10,7T); 1:1 0 piksel; edge-bff terminal 20. Untuk menyamakan angka dengan Stockbit:
+  filter Board = Regular dan chart mulai di tanggal awal periode Stockbit.
+- **Status:** RESOLVED (C1); data cocok, tidak ada salah hitung.
 
 ## Fixed-income selected-date repair — 2026-10-20 status
 

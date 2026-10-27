@@ -180,3 +180,6 @@ Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
   candle holding the next session; the worker sums broker net per candle (`brokerData(docs, dates, groups)`).
 - `ctx.endDates` serves the chart range selection and Broker inventory; `M.barOf` maps drawing points (G1) on load;
   Statistics and Flow labels and the volatility annualisation follow the timeframe.
+- EXEC-TERMINAL-CUM: the Flow's cumulative line (live) is `cumulativeFrom(net, first visible candle)`, recomputed on
+  every range change (Stockbit's F Flow from the start of its period); `FLOW_CUMULATIVE_FROM = 'history'` or
+  `?cum=history` brings back the sum from the first session.
