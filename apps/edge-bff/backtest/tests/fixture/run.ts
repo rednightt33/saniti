@@ -102,7 +102,7 @@ export function runRequest(q: BacktestRequest, session: Session): FixtureRun {
       return { ledger:ledgerOf(r, false), variant_hash:`${id}-y${i}-x${j}` };
     }));
     sensitivity = { condition_id:plan.condition_id, xs:plan.xs, xs_display:plan.xs_display, y_key:plan.y_key, ys:plan.ys, ys_display:plan.ys_display,
-      base_x:plan.base_x, base_y:plan.base_y, cells:cells as CellRun[][] };   // null where the plan refuses the threshold (ledger.ts types cells non-null)
+      base_x:plan.base_x, base_y:plan.base_y, cells };          // null where the plan refuses the threshold
   }
   const result = buildResult({
     request:q, ledger,
@@ -114,7 +114,8 @@ export function runRequest(q: BacktestRequest, session: Session): FixtureRun {
   return { result, R, cellRuns, gridFromReference };
 }
 
-/** The portfolio table's signals before a run: the reference's own loop over the universe (refreshSignals). */
+/** The portfolio table's signals before a run: the reference's own loop over the universe (refreshSignals); every
+    demo ticker has data for every card, so none is left out (no TICKERS_EXCLUDED). */
 export function previewRequest(q: SignalsPreviewRequest): SignalsPreview {
   M.setState(previewStateOf(q));
   const rows = M.universe().map((t: string) => {
@@ -122,5 +123,5 @@ export function previewRequest(q: SignalsPreviewRequest): SignalsPreview {
     for (let i = 0; i < M.N; i++) if (M.inRange(i) && s.entry[i] && !s.entry[i - 1]) { n++; last = M.DAYS[i] }
     return { ticker:t, entry_signals:n, last_signal:last };
   });
-  return { data_version:DATA_VERSION, rows };
+  return { data_version:DATA_VERSION, rows, warnings:[] };
 }

@@ -1,10 +1,10 @@
 /* The page's start (backtest.html's top-level statements, in their order): the palette, the builder width and the
-   panel as the user left them, the catalog and the bars of the shown ticker from the injected BacktestApi, then the
-   reference's listeners and its first render. The reference ends with run(false); this page does not run at load
-   (CONTRACT.md D-no-autorun) and opens in its own "Not run yet" state, unless a test build asks for the reference's
-   start (the fixture's 1:1 check). */
+   panel as the user left them, the catalog (with the API's note on its data in the header) and the bars of the shown
+   ticker from the injected BacktestApi, then the reference's listeners and its first render. The reference ends with
+   run(false); this page does not run at load (CONTRACT.md D-no-autorun) and opens in its own "Not run yet" state,
+   unless a test build asks for the reference's start (the fixture's 1:1 check). */
 import type { BacktestApi } from './api/types.ts';
-import { load, setEnv } from './env.ts';
+import { CAT, load, setEnv } from './env.ts';
 import { $, initColors, setPal, toast } from './format.ts';
 import { needsFlow } from './reg.ts';
 import { applyCatalog, S } from './state.ts';
@@ -29,6 +29,7 @@ export async function boot(api: BacktestApi, opts: BootOptions = {}) {
   runButtons().forEach(b => b.disabled = true);
   try {
     setEnv(api, await api.catalog());
+    $('dataNote').textContent = api.texts.dataNote(CAT);
     applyCatalog();
     await load(S.sigTicker, needsFlow());
   } catch (e) {

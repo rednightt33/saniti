@@ -176,12 +176,12 @@ variable and never its value.
 | `BACKTEST_RETRY_BASE_MS` | required | 500 | backoff `base × 2^k` between retries |
 | `BACKTEST_HTTP_TIMEOUT_MS` | required | 60000 | per HTTP request |
 | `BACKTEST_FILE_ORIGIN` | required | `https://*.t3.storageapi.dev` (the host edge-bff's CSP allows for the same presigned downloads, `app/main.py`) | the origin every file and reference URL must have: scheme, host (a leading `*.` matches subdomains) and port; any other URL is `DATA_INTEGRITY` and never requested |
-| `BACKTEST_MAX_FILE_BYTES` | required | measure in dev | the most bytes one file may inflate to, and the most bytes of a body that is not a data file (a reference file, a terminal-api answer) |
+| `BACKTEST_MAX_FILE_BYTES` | required | 67108864 (the largest published file measured 2026-10-26 is BBRI's broker-archive pack: 2,218,292 bytes gzip, 14,456,717 inflated; the archive grows about 1.8 MB per year) | the most bytes one file may inflate to, and the most bytes of a body that is not a data file (a reference file, a terminal-api answer); over it `DATA_INTEGRITY` |
 | `BACKTEST_MAX_DOWNLOAD_BYTES` | required | 1500000000 | bytes of published files one job or preview may read |
 | `BACKTEST_MAX_BROKER_ROWS` | required | 20000000 | broker rows one job or preview may read |
 | `BACKTEST_TIMEOUT_SECONDS` | required | 900 | longest job, preview, validation or catalog |
-| `BACKTEST_MAX_CONDITIONS` | required | measure in dev | enabled conditions one list (entry, exit signals) may have; reported as `catalog.limits.max_conditions` |
-| `BACKTEST_MAX_RESULT_BYTES` | required | measure in dev; the same value as edge-bff's `BACKTEST_MAX_RESULT_BYTES` | the most JSON a job's result may have |
+| `BACKTEST_MAX_CONDITIONS` | required | 32 | enabled conditions one list (entry, exit signals) may have; reported as `catalog.limits.max_conditions`; more is `LIMIT_EXCEEDED` (`details.limit: max_conditions`) |
+| `BACKTEST_MAX_RESULT_BYTES` | required | set from the dev E2E measurement; edge-bff takes the same value by the Railway reference `${{backtest-worker.BACKTEST_MAX_RESULT_BYTES}}` | the most JSON a job's result may have; over it the job ends `FAILED LIMIT_EXCEEDED` (`details.limit: max_result_bytes`) before the result is packed. Not in the catalog: the page cannot act on it |
 | `BACKTEST_MAX_POSITIONS` | 10 | 10 (default) | ≤ 10, the page's input and `engine.ts` MAX_POSITIONS; may only be lowered |
 | `BACKTEST_MONTE_CARLO_RUNS` | 1000 | 1000 (default) | the page's `monteCarlo(…, runs = 1000)`; a request asks for exactly this or 0 |
 | `BACKTEST_QUEUED_PER_OWNER` | 3 | 3 (default) | reported in the catalog; edge-bff enforces it |
@@ -194,7 +194,10 @@ on, `catalog.flow.data_through` is the date the broker data is published through
 price data, so a run that reads it and ends after that date is refused (`FLOW_DATA_THROUGH`).
 
 **Limits.** The limits have no default in the code. The values above are the lead's initial dev values and must be
-measured again in the dev E2E (K7b), not guessed.
+measured again in the dev E2E (K7b), not guessed. `BACKTEST_MAX_FILE_BYTES` is set from the largest published file
+(above). `BACKTEST_MAX_RESULT_BYTES` gets its value from the results the dev E2E measures; edge-bff reads the
+worker's value through the Railway reference, so both have the same value, and edge-bff stops reading a result past
+it too.
 
 **Timeouts.** edge-bff has its own `BACKTEST_TIMEOUT_SECONDS`, which limits the whole job on its side, polling
 included. At that deadline edge-bff ends the job `TIMEOUT` and sends the worker a cancel.

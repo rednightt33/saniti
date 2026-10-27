@@ -6,6 +6,7 @@ import type { Card } from './api/types.ts';
 import type { PageResult } from './api/adapt.ts';
 import { STOCKS, CAT } from './env.ts';
 import { mkRegWith } from './reg.ts';
+import { currentRequest, publishedThrough } from './api/request.ts';
 
 /** the card the reference's mkCond builds: catalog defaults, then `over`, a random id */
 export function mkCond(type: string, over: Record<string, unknown> = {}): LegacyCard {
@@ -42,15 +43,17 @@ export const S: State = {
 export const edits = { n: 0 };
 
 /** the defaults that come from the published data: the reference's ticker MAPI when it is published (else the first
-    stock), its start 2019-06-03 clipped to the first published day, the end at the last published day, and the
-    first catalog universe when 'all' is not one */
+    stock), its start 2019-06-03 clipped to the first published day, the first catalog universe when 'all' is not
+    one, and the end at the latest day every dataset the default strategy reads is published (the To field's max stays
+    catalog.data_through: a later end for a flow strategy is the server's FLOW_DATA_THROUGH, shown by the toast) */
 export function applyCatalog() {
   const stocks = STOCKS();
   S.ticker = stocks.includes('MAPI') ? 'MAPI' : stocks[0];
   S.sigTicker = S.ticker;
   if (S.from < CAT.first_date) S.from = CAT.first_date;
-  S.to = CAT.data_through;
   if (!CAT.universes.some(u => u.id === S.universe) && CAT.universes.length) S.universe = CAT.universes[0].id;
+  S.to = CAT.data_through;
+  S.to = publishedThrough(currentRequest(), CAT);
 }
 
 /* quick-start templates (configuration in core/catalog.ts): entry templates replace the entry conditions */

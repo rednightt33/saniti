@@ -86,7 +86,7 @@ export const run = async (scroll = true) => {
     if (my !== token) return;
     job = null;
     S.result = R; S.trials = R.trials;
-    document.querySelectorAll('.js-run').forEach((b: Element) => (b as HTMLButtonElement).disabled = false); S.running = false; $('runNote').textContent = `Done in ${R.ms} ms · ${S.trials} variants tried this session`;
+    document.querySelectorAll('.js-run').forEach((b: Element) => (b as HTMLButtonElement).disabled = false); S.running = false; $('runNote').textContent = `Done in ${R.ms} ms · ${S.trials} variants tried ${API.texts.trials}`;
     // a settings change while the job ran leaves the result stale (the reference cannot change settings in its 30 ms)
     S.stale = edits.n !== seq;
     refreshSignals(); renderResults();

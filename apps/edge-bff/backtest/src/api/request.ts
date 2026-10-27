@@ -2,7 +2,8 @@
    mapping in core/catalog.ts, percent fields become fractions, Rp B becomes IDR, the Benchmark select becomes
    single.benchmark. Cards the API cannot calculate (its "Not calculated" pill) are left out, as the reference ignores
    them on Run; a card with an invalid input is refused with the core's ValidationError (shown by the page's toast). */
-import type { BacktestRequest, SignalsPreviewRequest } from '../core/contract.ts';
+import type { BacktestRequest, Catalog, SignalsPreviewRequest } from '../core/contract.ts';
+import { needsFlow } from '../core/catalog.ts';
 import type { Card } from './types.ts';
 import { toWire } from './compute.ts';
 import { S, type State } from '../state.ts';
@@ -55,3 +56,16 @@ export function previewRequest(): SignalsPreviewRequest {
   const safe = (c: Card) => { if (!API.ready(c)) return false; try { toWire(c); return true } catch { return false } };
   return { schema_version: 1, universe: S.universe, period: { from: S.from, to: S.to }, entry: entryOf(S, safe) };
 }
+
+/** whether a request reads the broker files: an enabled flow condition (core/catalog.ts needsFlow) in the entry or exit
+    signals, or a portfolio ranked by foreign net flow (the worker's rule, backtest-worker validate.ts checkRequest) */
+export const readsFlow = (q: BacktestRequest) =>
+  [...q.entry.conditions, ...q.exit.signals.conditions].some(c => c.enabled !== false && needsFlow(c)) || q.portfolio?.rank_by === 'fnet';
+
+/** the latest day at which every dataset a request reads is published: catalog.data_through (IHSG's last bar; later
+    is PERIOD_AFTER_DATA), or the earlier flow.data_through when the request reads the broker files and flow is
+    available (later is FLOW_DATA_THROUGH, backtest-worker run.ts) */
+export const publishedThrough = (q: BacktestRequest, cat: Catalog) => {
+  const f = cat.flow.available && readsFlow(q) ? cat.flow.data_through : null;
+  return f && f < cat.data_through ? f : cat.data_through;
+};

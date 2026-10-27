@@ -1,7 +1,7 @@
 /* The server's BacktestResult (contract.ts) in the shape the reference's renderers read (backtest.html section 10, the
    object `run` stores in S.result): calendar indices into the result's own days, the reference's short names for the
    statistics, Infinity for an infinite profit factor, exit reasons as the page labels them. Pure: no DOM. */
-import type { BacktestRequest, BacktestResult, ExitReason, SeriesStats, SignalTrack, TradeStats } from '../core/contract.ts';
+import type { BacktestRequest, BacktestResultCore, ExitReason, SeriesStats, SignalTrack, TradeStats } from '../core/contract.ts';
 import type { Card } from './types.ts';
 
 export const WHY: Record<ExitReason, string> = {
@@ -24,11 +24,13 @@ export interface PageTrade {
   bars: number; mae: number; mfe: number; why: string; riskPct: number | null;
 }
 export interface GridY { k: 'sl' | 'slAtr' | 'slRR' | 'hold'; lbl: string; u: string; step: number; min: number }
-export interface PageGrid { cond: any; xs: number[]; ys: number[]; yk: GridY; cells: { sharpe: number; cagr: number; pf: number; n: number; mdd: number }[][] }
+export interface PageCell { sharpe: number; cagr: number; pf: number; n: number; mdd: number }
+/** cells[y][x]; null: a cell the condition refuses (its threshold is not a value the condition takes), not run */
+export interface PageGrid { cond: any; xs: number[]; ys: number[]; yk: GridY; cells: (PageCell | null)[][] }
 export interface PageMC { bands: number[][]; mdds: number[]; fin: number[]; n: number; below: number[]; actual: number[] }
 
 export interface PageResult {
-  id: string; raw: BacktestResult;
+  id: string; raw: BacktestResultCore;
   days: string[]; eq: [number, number][]; vals: number[]; bench: number[]; expo: number[]; cap0: number; first: number;
   st: PageStats; bst: PageStats; ins: PageStats | null; oos: PageStats | null; cut: number; cutDay: number | null;
   ts: PageTradeStats; tsIn: PageTradeStats; tsOut: PageTradeStats;
@@ -68,7 +70,7 @@ export const GRID_Y: Record<string, GridY> = {
 };
 
 /** `cards`: the entry cards the run was built from (the sensitivity grid names its condition by the card) */
-export function adaptResult(id: string, res: BacktestResult, request: BacktestRequest, cards: Card[]): PageResult {
+export function adaptResult(id: string, res: BacktestResultCore, request: BacktestRequest, cards: Card[]): PageResult {
   const days = res.dates, at = new Map(days.map((d, k) => [d, k])), ix = (d: string) => at.get(d) ?? -1;
   const trades: PageTrade[] = res.trades.map(t => ({
     id:t.trade_id, tk:t.ticker, sig:ix(t.signal_date), ei:ix(t.entry_date), xi:ix(t.exit_date), entry:t.entry_price, exit:t.exit_price, sh:t.shares,
@@ -79,8 +81,8 @@ export function adaptResult(id: string, res: BacktestResult, request: BacktestRe
     // the heatmap outlines the cell of the current settings by comparing with the card's value (display units)
     cond: c0.type === 'reg' ? { ...c0, val: (c0 as any).rhs.v } : c0,
     xs: s.xs_display, ys: s.ys_display, yk: GRID_Y[s.y_key],
-    // a cell the condition refuses (null, not run) has no numbers
-    cells: s.cells.map(row => row.map(c => c ? { sharpe:c.sharpe, cagr:c.cagr, pf:pf(c.profit_factor), n:c.trades, mdd:c.max_drawdown } : { sharpe:NaN, cagr:NaN, pf:NaN, n:0, mdd:NaN })),
+    // a cell the condition refuses was not run: it stays null (no numbers, no trade count)
+    cells: s.cells.map(row => row.map(c => c ? { sharpe:c.sharpe, cagr:c.cagr, pf:pf(c.profit_factor), n:c.trades, mdd:c.max_drawdown } : null)),
   } : null;
   const m = res.robustness.monte_carlo;
   const mc: PageMC | null = m ? { bands:[m.bands.p05, m.bands.p25, m.bands.p50, m.bands.p75, m.bands.p95], mdds:m.max_drawdowns, fin:m.final_returns,

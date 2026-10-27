@@ -3,7 +3,7 @@
    endpoints of CONTRACT.md section 9). Tests: tests/smoke (a small generated stub) and tests/fixture (the reference's
    synthetic data with its demo formulas and engine, for the 1:1 check). The page modules never compute an indicator, a
    condition or a backtest themselves; they render what this interface returns, as backtest.html renders its own. */
-import type { BacktestRequest, BacktestResult, Catalog, JobStatus, SignalTrack, SignalsPreview, SignalsPreviewRequest } from '../core/contract.ts';
+import type { BacktestRequest, BacktestResultCore, Catalog, JobStatus, SignalsPreview, SignalsPreviewRequest, TickerEvents } from '../core/contract.ts';
 import type { LegacyCard, RegCard } from '../core/catalog.ts';
 
 /** A condition card as the page keeps it in S.conds / S.exitConds (backtest.html mkCond / mkReg). */
@@ -21,17 +21,29 @@ export interface TickerBars {
 export type Outputs = Record<string, Float64Array>;
 
 /** What /events?ticker= returns for one ticker after a run (CONTRACT.md section 9, part events:<ticker>). */
-export interface TickerEvents {
-  conditions: { condition_id: string; ticker: string; track: SignalTrack }[];
-  exits: Record<string, SignalTrack>;
+export type { TickerEvents };
+
+/** The page's words that depend on where its data comes from (lead decision 2026-10-27): each BacktestApi supplies
+    them, so the renderers stay shared, the production page says what its data is, and the fixture keeps the
+    reference's own words (the 1:1 check). Plain text; the page escapes it. */
+export interface SourceTexts {
+  /** the header's note on the data, next to the theme button (the reference: "Synthetic demo data · long-only") */
+  dataNote(catalog: Catalog): string;
+  /** the warning box under the overfitting checks of the Robustness tab, for a result */
+  robustnessWarning(result: BacktestResultCore): string;
+  /** what the trial count counts, after "Variants tried" and "variants tried" (the reference: "this session") */
+  trials: string;
 }
 
 /** An API answer that is an error: shown with the page's toast(). */
 export class ApiFailure extends Error {
   constructor(message: string, readonly code = '', readonly status = 0, readonly field?: string) { super(message) }
 }
+/** Whether a call failed because its caller aborted it (an AbortSignal): nothing to show. */
+export const isAbort = (e: unknown) => (e as { name?: string } | null)?.name === 'AbortError';
 
 export interface BacktestApi {
+  texts: SourceTexts;
   /** What the page may offer: tickers, universes, brokers, dates, limits. */
   catalog(): Promise<Catalog>;
   /** A ticker's bars; with flow also its broker data, so flow cards can be calculated. Once it resolves, the
@@ -47,11 +59,13 @@ export interface BacktestApi {
   /** One card's 0/1 series on a loaded ticker's bars (bar 0 is never true); null = not ready (see ready) or the data
       it needs is not loaded. Invalid inputs give an all-zero series in the preview; a run reports them as an error. */
   conditionSeries(ticker: string, card: Card): Uint8Array | null;
-  /** Entry signals of every ticker of a universe before a run (the portfolio table). */
-  signalsPreview(request: SignalsPreviewRequest): Promise<SignalsPreview>;
+  /** Entry signals of every ticker of a universe before a run (the portfolio table). `signal` aborts the call (newer
+      settings replaced the preview): the answer then never comes, the call rejects with an AbortError (isAbort). */
+  signalsPreview(request: SignalsPreviewRequest, opts?: { signal?: AbortSignal }): Promise<SignalsPreview>;
   submit(request: BacktestRequest): Promise<{ request_id: string }>;
   status(id: string): Promise<JobStatus>;
-  result(id: string): Promise<BacktestResult>;
+  /** The finished run as edge-bff serves it (the part core; a single run with its ticker's events merged back). */
+  result(id: string): Promise<BacktestResultCore>;
   /** The condition and exit tracks of one ticker of a finished run (portfolio: the ticker the chart shows). */
   events(id: string, ticker: string): Promise<TickerEvents>;
   cancel(id: string): Promise<void>;
