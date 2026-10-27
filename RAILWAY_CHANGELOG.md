@@ -4748,3 +4748,40 @@ first (EXEC.md EXEC-TERMINAL-FRESH).
   upload `0b1b5343` SUCCESS with `broker_behind_sessions` and the evening warning; the upload carries `d495854`
   (industry column, another session's upload `82447144`). `cronSchedule "0,30 0,12 * * *"` and `NEVER` read back.
   `.railway/railway.ts` lists the two variables.
+
+## 2026-10-27 — EDGE backtest: worker region and disk cache, limits, edge-bff redeploys after `main` pushes, E2E (dev)
+
+Same approvals as the backtest entry above (N 02:38 UTC "Lanjut di dev"; N 09:08 UTC: merge to `main` by PR once the
+dev E2E passes). Branch `claude/project-thread-k91bfk`; nothing in production.
+
+- **edge-bff redeployed from the branch after `main` replaced it** (ERRORS M244: the service deploys `main` on every push
+  touching `/apps/edge-bff/**`, while the backtest is a CLI upload of the branch): `main` `18de6e8` -> `e09717e2` 08:00
+  UTC, branch merge `0801f38` -> `f50822e8` 08:02; `main` `16bfad3` -> `90532d14` 08:30, branch `507822a` ->
+  `a472d663` 08:52; `main` `704ab0d` -> `e0e6da1f` 09:16, branch merge `785252b` (with `main`'s EXEC-TERMINAL-FRESH,
+  publisher conflict resolved to `main`'s file, publisher tests 26/26) -> `a2669e0f-cd1c-4bee-ae99-257aff533252`
+  SUCCESS 10:03 UTC, `/ready` 200, `/backtest-app/` 200. Each upload is a clean `git archive` of the commit in
+  repository layout. The coordinator was told each time. Rollback: `e0e6da1f` (`main` `704ab0d`).
+- **edge-bff `a2669e0f`** carries ERRORS M246 (`0a2f174`, `915c863`): database failures a retry may mend are retried
+  until the job's deadline and no longer end a computed job `WORKER_LOST`; `RESULT_NOT_STORED`; the lease token alone
+  fences the follower; new log events `backtest_job_store_failed`, `backtest_lease_lost`.
+- **backtest-worker region**: measured in `sin` (next to the bucket) and `sfo` (edge-bff, terminal-api, Postgres);
+  kept in `sfo` (`apps/backtest-worker/README.md`, region paragraph). GraphQL `serviceInstanceUpdate`
+  (`multiRegionConfig`) then `serviceInstanceRedeploy`: `c70f6e8d` 08:10 UTC (`sin`), `3b72a679` 08:13 (removed
+  within 2 minutes, not measured), `a48aa5dc` 08:15 (`sfo`). The deployment manifests' `multiRegionConfig` show the
+  setting one step behind (`f06fd2eb` reads `sin`, `c70f6e8d` `sfo`); the placement above is read from the worker's
+  terminal-api latency (`/bundle` median 55 ms at 07:58, 760 ms at 08:12, 73 ms at 08:17). The project token cannot run
+  `railway scale`.
+- **backtest-worker variables** (values not secret): `BACKTEST_MAX_RESULT_BYTES` 33554432 (32 MiB, was 256 MB; the
+  heaviest valid result measured 3,829,496 bytes of JSON, bound about 22 MB today; edge-bff reads it by reference),
+  `BACKTEST_MAX_BROKER_ROWS` kept 20000000, `BACKTEST_CACHE_DIR` `/tmp/backtest-cache`, `BACKTEST_CACHE_DIR_BYTES`
+  1073741824. Deployed with `590e8ff` (one disk cache directory shared by every thread's client, ERRORS M245):
+  `96d0e990` SUCCESS 08:52 UTC, region `sfo`, same CLI upload of the worker's build context as `f06fd2eb`.
+- **E2E** (`verification/backtest/e2e_dev.py`, real page through edge-bff, job tables, worker, terminal-api,
+  terminal-display): 10:03:36–10:05:06 UTC on `a2669e0f` + `96d0e990`: every step passed (single, repeat identical
+  apart from duration and trial counts, refusal at submit for both codes, 12-stock portfolio, cancel); no
+  `backtest_result_store_failed`, `backtest_job_store_failed` or `backtest_lease_lost` line. The run at 08:54 UTC (on
+  `a472d663`) lost the repeat single to three result stores in a row that lost their database connection (M246). Disk
+  cache evidence (08:54 run, first on `96d0e990`): the previews downloaded 48 files (28.27 MB) and the portfolio job then
+  read those 48 from disk and downloaded 12 small files (0.08 MB); worker time 4.7 s against 7.05–7.23 s cold.
+  Outputs: project folder `backtest/e2e-2026-10-27/` (`report-dev5-1003.json`, `measure-dev5-1003.json`,
+  `measure-dev4-0854-disk-cache.json`, `result-*-dev5.json`).
