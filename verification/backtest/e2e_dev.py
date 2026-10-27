@@ -9,7 +9,9 @@ request twice), events per ticker, a request refused at submit, cancel, the tria
 asked for (per-phase durations, payload sizes, submit -> finished). The portfolio's signals preview passes only when it
 answered 200 and the page's table shows that answer (preview_drawn); no request of the page may fail but the one it
 handles by design, the /bundle 404 of a stock the previews left out with DATA_MISSING (page_clean).
-Credentials (EDGE_LOGIN, EDGE_INITIAL_PASSWORD) are read from Railway into memory; they are never printed or saved.
+Credentials (EDGE_LOGIN, EDGE_INITIAL_PASSWORD) are read from Railway into memory; they are never printed or saved,
+and no error text the report keeps carries a cookie or a presigned query (brief). A status GET that gets no answer at
+all is asked again twice, as the page's own poll does (Api.get; report api_get_retries).
 Every backtest the script runs counts as a trial of its strategy line for the owner (decision K3), as any run does.
 
 Usage:
@@ -652,16 +654,37 @@ def iso_s(a, b):
     return round((datetime.fromisoformat(b) - datetime.fromisoformat(a)).total_seconds(), 3)
 
 
+def brief(e):
+    """an exception as the report keeps it: its class and first line, any URL without its query. Playwright appends a
+    call log to its errors, with the request's headers (the session cookie among them), and a presigned URL's query is
+    a credential: neither is ever written."""
+    first = str(e).split('\n', 1)[0]
+    return f'{type(e).__name__}: {re.sub(r"(https?://[^\s?]+)\?\S*", r"\1?…", first)[:300]}'
+
+
 class Api:
     """The public backtest API with the browser context's session cookie (the same session the page uses). POSTs carry
-    Origin (main.py protections: must equal EDGE_PUBLIC_ORIGIN) and X-CSRF-Token (main.py write)."""
+    Origin (main.py protections: must equal EDGE_PUBLIC_ORIGIN) and X-CSRF-Token (main.py write). A GET that gets no
+    answer at all (a reset or timeout on the way, no HTTP status) is asked again twice, as the page's own status poll
+    does (run.ts status: two retries of a network failure); each retry is kept in `retried`. A POST is never repeated."""
+
+    GET_RETRIES = 2
 
     def __init__(self, ctx, base, csrf, pause):
         self.ctx, self.base, self.csrf, self.pause = ctx, base, csrf, pause
+        self.retried = []
 
     def get(self, path):
         t0 = time.monotonic()
-        r = self.ctx.request.get(self.base + path, timeout=300_000, headers={'Accept-Encoding': 'gzip'})
+        for attempt in range(self.GET_RETRIES + 1):
+            try:
+                r = self.ctx.request.get(self.base + path, timeout=300_000, headers={'Accept-Encoding': 'gzip'})
+                break
+            except Exception as e:
+                if attempt == self.GET_RETRIES:
+                    raise
+                self.retried.append({'path': path.split('?')[0], 'attempt': attempt + 1, 'error': brief(e)})
+                self.pause(1)
         body = r.body()
         wire = r.headers.get('content-length')
         if body[:2] == b'\x1f\x8b':                          # not decoded by the client: the gzip part as stored
@@ -968,7 +991,7 @@ def main():
         if page:
             page.on('requestfinished', on_finished)
             page.on('requestfailed', on_failed)
-            page.on('pageerror', lambda e: errors.append(str(e)[:300]))
+            page.on('pageerror', lambda e: errors.append(brief(e)))
             page.on('console', lambda m: errors.append(f'{m.text[:300]} @ {where(m)}') if m.type == 'error' else None)
             page.on('response', on_response)
 
@@ -985,7 +1008,7 @@ def main():
             except SystemExit:
                 raise
             except Exception as e:
-                steps[name] = {**(steps.get(name) or {}), 'ok': False, 'exception': f'{type(e).__name__}: {str(e)[:400]}'}
+                steps[name] = {**(steps.get(name) or {}), 'ok': False, 'exception': brief(e)}
                 if page:
                     try:
                         page.screenshot(path=os.path.join(a.out, f'error-{name}.png'), full_page=True)
@@ -1292,6 +1315,7 @@ def main():
         # one page, one owner: no request of the page fails (a 409 PREVIEW_REPLACED or any other error the page keeps to
         # itself is still a console error and an HTTP error here), but the one it handles by design (page_clean)
         report['page_clean'] = page_clean(errors, http_errors, calls)
+        report['api_get_retries'] = api.retried                         # GETs asked again after no answer (Api.get)
         report['finished_at'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
         api.post('/api/v1/auth/sign-out', {})
         browser.close()
