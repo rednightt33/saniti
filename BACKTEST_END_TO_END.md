@@ -276,13 +276,14 @@ bucket, checks quotas, writes an audit row, and answers presigned GET URLs. It n
   `terminal_session`), yearly `/files`, a PostgreSQL `/history` for dates before the published years, `/logo` and
   admin routes.
 
-### 6.2 The three routes the backtest uses
+### 6.2 The routes the backtest uses
 
 | Route | Used by | What it does |
 |---|---|---|
 | `POST /api/terminal/v1/bundle {ticker, datasets, packs: true}` | worker and page | see the steps below |
 | `GET /api/terminal/v1/manifest/{T}` | worker only (freshness and coverage checks) | `{ticker, window, generated_at, datasets: {name: {data_through, years: {id: {bytes, rows, first, last, sha256}}}}}`. No object key, no URL, no quota, no audit row. |
 | `GET /api/terminal/v1/reference/{tickers\|brokers}` | worker only (catalog, validation) | one presigned URL of the fixed key, counted against quota (pseudo-ticker `REF`, never an opened ticker), no sha256 |
+| `GET /api/terminal/v1/state` | worker only (EXEC-BACKTEST-LOAD, 2026-10-27) | the publication the files belong to: state.json `finished_at`, `price_through`, `broker_through`, `broker_behind_sessions`, as read for the manifest cache (at most 60 s old). No file, no quota, no audit row. 503 `state_unavailable` while state.json was never readable. |
 
 What `/bundle` does:
 
@@ -382,7 +383,7 @@ src/server.ts`. The loader resolves the Terminal's Vite-style extensionless impo
 
 | Route | What happens |
 |---|---|
-| `GET /v1/catalog` | `buildCatalog` (`src/catalog.ts`): both reference files, an IHSG `/bundle` (calendar `data_through`, `first_date`), with flow on the newest broker `data_through` over every stock's `/manifest` (`load.ts brokerDataThrough`), groupings from the ticker columns, the limits |
+| `GET /v1/catalog` | `buildCatalog` (`src/catalog.ts`): both reference files, an IHSG `/bundle` (calendar `data_through`, `first_date`), with flow on the publication's `broker_through` (terminal-api `/state`; without it, the newest broker `data_through` over every stock's `/manifest`, `load.ts brokerDataThrough`), groupings from the ticker columns, the limits. Kept per publication (`ByPublication`: `/state` asked at most every 60 s, a new `finished_at` builds again); built at start (`warm`). The reference lists for validation, previews and jobs are kept the same way. |
 | `POST /v1/validate {request}` | `checkRequest` (`src/validate.ts`: allow-listed fields, then the core's checks), `canonicalRequest`, then `checkPublished` (`src/run.ts`): manifests only, never `/bundle`: `FLOW_DATA_THROUGH`, IHSG `last_bar` (`PERIOD_AFTER_DATA`). Answers `{ok, lineage_key, variant_hash, tickers}` |
 | `POST /v1/signals` | the preview: FIFO queue, one at a time on the `previews` thread; the deadline covers the queue wait; a caller that leaves is removed or its thread task cancelled (`runSignals`) |
 | `POST /v1/jobs {job_id, request, context}` | `checkJobBody` (`job_id` `bt_` + 32 hex; `context.prior_trials`), the same id again = 202 (idempotent), another job running = 409 `BUSY`, `checkRequest` again (a refusal never becomes a job), then `startJob` on the `jobs` thread with a timeout |
@@ -515,16 +516,23 @@ How a run works (rules in CONTRACT.md sections 4 to 7):
 
 ## 10. Stage 8: the page (`apps/edge-bff/backtest`, outside `src/core`)
 
-1. **Boot** (`src/main.ts`, `src/app.ts`, `src/env.ts`): read the session's CSRF token (`GET /api/v1/auth/session`),
-   then `GET /api/v1/backtests/catalog`; restore the panel; no run at load (the page opens "Not run yet").
+1. **Boot** (`src/main.ts`, `src/app.ts`, `src/env.ts`; EXEC-BACKTEST-LOAD 2026-10-27): `GET /api/v1/backtests/catalog`
+   and the shown ticker's prices are asked at once and the builder and chart are drawn without waiting for them (what
+   answers within 60 ms is used for the first render); until the catalog answers the page runs on `env.ts
+   PROVISIONAL` and the lists it fills say they are loading; Run waits for it (CONTRACT section 10, Loading). The
+   session's CSRF token (`GET /api/v1/auth/session`) is read with the first POST. No run at load (the page opens "Not
+   run yet").
 2. **Build the strategy** (`src/state.ts`, `builder.ts`, `workspace.ts`, `reg.ts withinLimit`): the reference's
    builder; the condition limit is the catalog's `max_conditions`. Portfolio mode: the stock picker (`picker.ts`,
    rules in `picked.ts`): search, sector and industry filters from `catalog.groupings`, at most
    `limits.max_portfolio_tickers` (12).
-3. **Charts and preview data** (`src/api/live.ts`, `api/compute.ts`, `api/cache.ts`): per ticker one `/bundle` per
-   dataset through the proxy, files downloaded from the bucket (`fetchFile`, two retries), `inflateVerified`, kept in
-   IndexedDB `terminal-files` (50 MB, least recently used, shared with the Terminal page). Indicator lines and
-   condition series are computed in the browser with the shared core.
+3. **Charts and preview data** (`src/api/live.ts`, `api/load.ts`, `api/load.worker.ts`, `api/compute.ts`): one
+   `/bundle` per ticker for its prices and, when a flow card will need them, its broker files (reused while the URLs
+   are good); in a Web Worker the files are read from the browser cache or downloaded from the bucket (two retries),
+   checked (`inflateVerified`) and decoded into the price series or the broker flow; the cache and the download are
+   `terminal/src/data/rack.ts`, the module the Terminal uses (IndexedDB `terminal-files`, 50 MB, least recently used).
+   The candles draw once the prices are there; flow lanes and the entry lane say they are loading until the broker
+   data is there. Indicator lines and condition series are computed in the browser with the shared core.
 4. **Signals preview** (`src/preview.ts`, `signals.ts`): `POST /api/v1/backtests/signals` with `client_order`; only the
    latest answer is drawn; `PREVIEW_REPLACED` is not an error.
 5. **Run** (`src/run.ts`, `api/request.ts buildRequest`): submit with a `client_request_id`; poll the status every
@@ -549,6 +557,7 @@ only for the visual and numeric comparison with `backtest.html`, and is checked 
 | Worker memory (per thread) | verified gzip bytes | sha256 | LRU, `BACKTEST_CACHE_BYTES` |
 | Worker disk (shared by threads) | verified gzip bytes | `<sha256>.json.gz` | LRU, `BACKTEST_CACHE_DIR_BYTES`, lost on redeploy |
 | Browser IndexedDB `terminal-files` | verified gzip bytes | sha256 | LRU, 50 MB, shared with the Terminal |
+| Worker process | catalog, reference lists | `/state` `finished_at` | until the next publication (checked at most every 60 s) |
 | edge-bff process | catalog | — | 60 s |
 | edge-bff `backtest_results` | result parts | `(request_id, part)` | 30 days |
 
@@ -666,3 +675,21 @@ Measured (FACT) first, then the openings (INFERENCE unless stated).
 - **Lineage key / variant hash**: the strategy line trials are counted in / one exact variant of it.
 - **Trial**: a distinct variant evaluated on a line; feeds the deflated Sharpe.
 - **WIB**: UTC+7 (the publisher runs at 07:30 and 19:00 WIB = 00:30 and 12:00 UTC).
+
+## 17. EXEC-BACKTEST-LOAD (2026-10-27): the page loads like the Terminal
+
+User 2026-10-27: "Agar waktu loading bisa sama. Seperti bagian terminal." Measured from the sandbox with
+`verification/backtest/page_timing_dev.py` (MAPI, BBRI) before and after, the Terminal measured the same way:
+
+| | Before | After | Terminal |
+|---|---|---|---|
+| first open, until the menus and Run are usable | 8.83 s | 1.37 s | chart 2.28 s |
+| second open | 2.36 s | 1.12 s | chart 1.77 s |
+| catalog (worker `/v1/catalog`) | 3.5–4.0 s on every build | about 0.25 s (kept per publication) | — |
+| longest main-thread block (open; switch to BBRI) | 0.53 s; 0.97 s | none over 50 ms | — |
+
+What changed: terminal-api `GET /state`; the worker's catalog and reference lists per publication (`ByPublication`,
+built at start); the page draws at once (`PROVISIONAL`, loading lines), candles before broker data, one `/bundle` per
+ticker, decoding in `api/load.worker.ts`; one rack module for both pages' cache and downloads
+(`terminal/src/data/rack.ts`); a connection pool in edge-bff (`app/store.py`). Still open: the run itself (5–13 s),
+the publisher's in-place rewrites (M250).

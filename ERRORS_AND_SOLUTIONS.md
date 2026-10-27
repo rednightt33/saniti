@@ -2856,6 +2856,58 @@ change yet.
 - **Pelajaran:** posisi awal beberapa jendela harus dihitung dari satu titik acuan, bukan dari ukuran tiap jendela.
 - **Status:** RESOLVED; live sejak edge-bff `43e5b185` (`main` `fdd00e7`), aset terminal = build (RAILWAY_CHANGELOG).
 
+### EXEC-BACKTEST-LOAD — halaman Backtest lambat tampil (2026-10-27)
+
+- **Symptom:** user 2026-10-27: "di Edge ada kata-kata which is backtest ... proses display ke front end-nya sangat
+  lambat. Kalau bisa disesuaikan agar sama dengan terminal." Ukur read-only (`verification/backtest/page_timing_dev.py`):
+  buka pertama 8,83 s sampai Run aktif (Terminal: chart 2,74 s), layar beku 0,87 s, ganti ke BBRI beku 0,97 s.
+- **Verified cause:** (1) katalog: log backtest-worker `GET /v1/catalog` 3.460–4.021 ms tiap bangun, dibangun ulang tiap
+  60 s (edge-bff `CATALOG_CACHE_SECONDS`) dengan membaca ±845 manifest untuk tanggal flow, padahal rak berubah dua kali
+  sehari; (2) halaman (`app.ts boot`) menunggu katalog lalu harga dan broker sebelum menggambar apa pun; (3) file dibuka
+  di jalur utama halaman (`live.ts inflateVerified`); (4) harga dan broker dua `/bundle` berurutan. Database bukan
+  penyebab (cek sesi 0,03 ms, job read-only `c3fcc86d`).
+- **Class:** setiap halaman yang membaca rak punya cara muat sendiri; turunan rak disimpan dengan umur waktu, bukan
+  dengan versi publikasi.
+- **Solution (EXEC-BACKTEST-LOAD, user "Sesi ini, jalankan"):** terminal-api `GET /state`; worker menyimpan katalog dan
+  daftar referensi per publikasi (`ByPublication`) dan membangunnya saat start; halaman menggambar langsung dengan
+  `PROVISIONAL` dan tulisan "Loading…", candle dulu lalu jalur flow, satu `/bundle` per ticker, pembongkaran di Web
+  Worker; satu modul rak (`terminal/src/data/rack.ts`) untuk cache dan unduhan Terminal dan Backtest (ERRORS M251 ikut
+  tertutup untuk Terminal); pool koneksi edge-bff.
+- **Bukti:** sesudah: buka pertama 1,37 s sampai menu dan Run siap, buka lagi 1,12 s, tanpa long task di atas 50 ms
+  (buka, ganti ke BBRI); katalog ±0,25 s; Terminal tetap jalan (chart 2,28 s / 1,77 s). Tes: terminal-api 31, worker 186,
+  halaman Backtest vitest 88 dan smoke (termasuk katalog lambat dan data broker lambat), Terminal vitest 690, perbandingan
+  piksel fixture lama/baru 0 px pada semua langkah yang sebanding, edge-bff 225 lulus (1 gagal yang sudah ada, M254).
+- **Status:** RESOLVED (deploy di RAILWAY_CHANGELOG).
+- **Lesson for new data:** halaman rak berikutnya (makro, lintas aset) memakai `rack.ts` dan pola yang sama: gambar dulu,
+  muat saat dibutuhkan, bongkar di Web Worker, simpan turunan per publikasi.
+
+### M253 — Halaman Backtest macet setelah harga dimuat: gambar ulang tanpa henti selama data broker belum datang (2026-10-27)
+
+- **Symptom:** sesudah deploy edge-bff `1a2081ce` (`main` `8915046`, 16:30 UTC) halaman Backtest live tidak merespons:
+  hanya satu `/bundle` dan satu file, `page.evaluate` tidak pernah kembali; profil CPU tidak bisa diambil.
+- **Verified cause:** CDP `Debugger.pause` pada salinan lokal dengan data live (source map): `redrawIf → refreshSignals →
+  drawLanes`. `signals.ts prepare` meminta bar dan event lagi walau sudah ada; `refreshSignals` memanggil `prepare` selama
+  data broker ditunggu (`flowWait`), janji yang sudah selesai langsung menggambar ulang, lalu memanggil `prepare` lagi:
+  lingkaran microtask tanpa jeda. Tes smoke tidak menangkapnya karena data broker stub datang dalam 20 ms (sebelum gambar
+  pertama).
+- **Solution:** `prepare` meminta bar dan event hanya selama belum ada (`!prepared(tk)`); smoke baru "slow broker data"
+  (`?flowms=1500`) memeriksa halaman tetap menjawab; dengan kode lama langkah itu macet (diuji). Deploy edge-bff
+  `7e966be9` (`2c1a484`) SUCCESS 17:05 UTC; halaman live menjawab, 6 jalur terisi.
+- **Status:** RESOLVED. Halaman live macet ±35 menit (16:30–17:05 UTC).
+- **Lesson:** setiap keadaan "menunggu data" baru perlu tes dengan data yang benar-benar datang terlambat; uji di halaman
+  live langsung sesudah deploy, sebelum melanjutkan pekerjaan lain.
+
+### M254 — Dua tes Chromium edge-bff gagal tanpa kaitan dengan perubahan (2026-10-27)
+
+- **Symptom:** `tests/test_ui_1015c.py::test_a_short_title_never_wraps_and_a_long_title_folds_within_its_width` gagal
+  (`AssertionError: 1440`, baris 335) juga tanpa perubahan EXEC-BACKTEST-LOAD (`git stash`); `tests/test_composer_layout.py::
+  test_submit_history_and_fixed_headers[mobile]` kadang gagal (1 dari 4 tanpa pool, 3 dari 5 dengan pool): sesudah reload,
+  "Open history" diklik lalu daftar percakapan "not stable" kemudian "not visible".
+- **Suspected cause (belum diverifikasi):** judul tabel: lebar kolom berubah sejak perubahan tampilan lain; riwayat di
+  ponsel: panel riwayat yang dibuka sebelum daftar percakapan selesai dimuat tertutup lagi oleh render daftar (cek: rekam
+  urutan `aria-expanded` panel dan selesainya `/conversations` pada kegagalan).
+- **Status:** OPEN; tidak diubah dalam EXEC-BACKTEST-LOAD.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.

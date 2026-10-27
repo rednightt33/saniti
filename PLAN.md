@@ -895,75 +895,7 @@ sah), penanganan berkas yang berganti sha256 sesudah publikasi, dan daftar refer
 Pertanyaan terbuka: apakah data lama boleh tampil sebelum sesi diperiksa (keamanan: perangkat bersama), dan bentuk tanda
 "memperbarui…".
 
-## BACKTEST-LOAD — halaman Backtest secepat Terminal (disetujui untuk disusun rencananya 2026-10-27; belum "go")
+## BACKTEST-LOAD — halaman Backtest secepat Terminal (selesai 2026-10-27)
 
-**Persetujuan, 2026-10-27 (kata user):** "inspect database seperti biasa. Infrastruktur dan lain sebagainya, dan susun
-rencana. Agar waktu loading bisa sama. Seperti bagian terminal." Sebelumnya: "Sebenarnya kan yang perlu dilakukan adalah
-tinggal load aja kan ... Idealnya sih kalau ini menggunakan satu source ... harusnya ya sama aja sih prosesnya dengan
-terminal." Eksekusi menunggu "go" user atas pertanyaan terbuka di bawah.
-
-**Bukti (2026-10-27, read-only):**
-- Halaman, dari sandbox, saham MAPI (`verification/backtest/page_timing_dev.py`, Terminal diukur dengan cara yang sama):
-  Backtest buka pertama 8,83 s sampai tombol Run aktif, buka lagi 2,36 s; Terminal chart 2,74 s dan 1,60 s. Ganti ke BBRI:
-  layar beku 0,97 s (long task).
-- Katalog: log backtest-worker `GET /v1/catalog` 3.460–4.021 ms tiap bangun (15:15–15:39 UTC); edge-bff menyimpannya 60 s
-  (`apps/edge-bff/app/backtest.py` `CATALOG_CACHE_SECONDS`), jadi hampir setiap buka membangun ulang. Isinya hanya turunan
-  rak (daftar ticker, grup, broker, bar IHSG, `flow.data_through` dari ±845 `/manifest`), yang berubah dua kali sehari.
-- Urutan halaman (`apps/edge-bff/backtest/src/app.ts` `boot`): katalog ditunggu dulu, lalu `load(ticker, needsFlow())`
-  menunggu harga dan broker; chart baru digambar bila `prepared()` (`src/signals.ts`) termasuk broker. Harga dan broker
-  dua `/bundle` berurutan; file dibuka di jalur utama (`src/api/live.ts` `inflateVerified`), tanpa Web Worker.
-- Database (job read-only `c3fcc86d`, log di scratchpad): cek sesi edge-bff 0,03 ms (`edge_bff.sessions`, 26 baris,
-  indeks `token_hash`), tetapi edge-bff membuka koneksi baru tiap permintaan (`Store.connect`; 0 koneksi edge-bff yang
-  menganggur saat diperiksa); `/auth/session` median 240 ms dari sandbox. Kuota terminal-api: agregat `access_log`
-  9,5 ms (3.664 baris sehari untuk akun gateway). Postgres 18.6, `max_connections` 500, 27 terpakai; batas
-  `edge_bff_login` 20. Database bukan penyebab utama.
-- Infrastruktur: edge-bff (GitHub `main`), backtest-worker, terminal-api (CLI upload), terminal-publisher (cron) semua
-  SUCCESS; worker dan terminal-api di `sfo`, bucket di `sin`.
-
-**Kelas masalah:** setiap halaman yang membaca rak (Terminal, Backtest, kelak makro/lintas aset) punya cara muat
-sendiri, dan turunan rak (katalog) dibangun ulang dengan umur waktu, bukan dengan versi publikasi rak.
-
-**Rencana (lapis yang memiliki mekanismenya):**
-1. **Katalog mengikuti versi rak (terminal-api + worker).** terminal-api menjawab `GET /api/terminal/v1/state` (kunci
-   gateway, tanpa kuota, tanpa baris audit): `finished_at`, `price_through`, `broker_through` dari `state.json` yang sudah
-   ia baca untuk cache manifest (`app/bucket.py` `_fresh`). Worker menyimpan katalog per `finished_at` (diperiksa paling
-   sering 60 s, dibangun sekali per publikasi dan saat start), `flow.data_through` = `broker_through` rak. Ini mengubah
-   keputusan **[D-L3]** di CONTRACT.md (pertanyaan K1). Target: katalog < 300 ms setelah bangun pertama.
-2. **Halaman menggambar seperti Terminal (page).** Katalog dan harga ticker tampil diminta bersamaan; candle digambar
-   begitu harga ada; jalur kondisi flow menyusul saat broker selesai, dengan tanda memuat (pertanyaan K2); tombol Run aktif
-   saat katalog ada. Keadaan akhir tetap 1:1 dengan `backtest.html`.
-3. **Satu pemuat rak bersama (Terminal + Backtest).** Satu modul: satu `/bundle` per ticker untuk semua dataset yang
-   perlu, unduh + sha256 + inflate + decode di Web Worker, cache IndexedDB `terminal-files` yang sama, ulang unduh
-   (ERRORS M251 ikut tertutup untuk Terminal), pengukur `?perf=1`. Backtest men-decode dengan `core/datafile.ts` di worker
-   itu; Terminal tetap memakai bentuk datanya sendiri (pertanyaan K3).
-4. **Pool koneksi edge-bff (edge-bff).** `psycopg_pool` untuk `Store` (maksimal kecil, di bawah batas 20 `edge_bff_login`);
-   semua rute EDGE ikut lebih cepat (cek sesi di tiap panggilan, poll status Run tiap detik).
-
-**Mencakup:** buka pertama, buka lagi, ganti saham, layar beku, semua halaman rak berikutnya. **Tidak mencakup:** lama
-hitung Run di worker (1 saham 5,3 s, 12 saham 13,4 s menurut E2E), publisher, dan halaman AI EDGE yang tidak membaca rak.
-
-**Uji dan target:** `page_timing_dev.py` dan pengukuran Terminal yang sama, sebelum dan sesudah: buka pertama ≤ Terminal
-+ 0,5 s, buka lagi ≤ Terminal + 0,3 s, long task terlama saat ganti ke BBRI < 200 ms, katalog p50 < 300 ms. Hasil Run
-tidak berubah: E2E dev (`verification/backtest/e2e_dev.py`, request yang sama memberi angka yang sama), tes worker, tes
-halaman (vitest, smoke, visual 1:1), tes Terminal (vitest, 1:1 0 piksel), tes edge-bff dan terminal-api. Deploy di luar
-jam publisher (00:00–01:00 dan 12:00–13:05 UTC, ERRORS M250).
-
-**Risiko:** kode Backtest milik sesi lain (dua sesi bisa saling menimpa, lihat deploy 2026-10-27); perubahan [D-L3]
-mengubah kontrak; pemuat bersama menyentuh Terminal (dijaga 1:1 dan vitest); pool menahan koneksi tetap.
-
-**Pertanyaan terbuka:**
-- K1: katalog dan tanggal flow memakai versi rak dari `state.json` lewat `GET /state` (disarankan; mengubah [D-L3]),
-  atau hanya umur cache lebih panjang (TEMPORARY, data baru telat sampai umur habis)?
-- K2: saat broker belum selesai, chart sudah tampil dan jalur flow bertanda "memuat data broker"; boleh?
-- K3: pemuat bersama juga dipakai Terminal (disarankan, satu jalur) atau hanya Backtest dulu?
-- K4: siapa yang mengerjakan: sesi ini atau sesi Backtest?
-
-**Arah user 2026-10-27 (kata user):** "Sebenarnya yang paling utama adalah menu-menu itu yang di sebelah kiri dan di tengah
-tidak perlu clickable dan bisa ready langsung ketika user buka. Misalkan, bagian universe. Universe ini kan bisa aja kayak
-user klik dulu ticker, kemudian ada tulisan loading ticker. Atau misalkan entry. Entry kalau user mau nambahin indikator,
-bisa dulu ada tulisan loading indikator. Tidak perlu semuanya di loading all at once pada saat user buka the page."
-Dibaca: langkah 2 menjadi "tampil dulu, muat saat dibutuhkan": panel kiri dan tengah tampil langsung; tiap bagian yang
-butuh data (daftar ticker, daftar broker, grup sektor/industri, tanggal data) memuat saat dibuka, dengan tulisan memuat
-di tempatnya; daftar indikator sudah ada di halaman (`core/backtest-registry.json`), jadi tidak perlu dimuat.
-Rincian isi katalog dan pemakaiannya dijawab ke user 2026-10-27. User: "Sesi ini, jalankan" → EXEC.md
-EXEC-BACKTEST-LOAD.
+Dieksekusi dan selesai: EXEC.md EXEC-BACKTEST-LOAD, ERRORS "EXEC-BACKTEST-LOAD", M253, M254, BACKTEST_END_TO_END.md
+bagian 17.

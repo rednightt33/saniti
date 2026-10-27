@@ -8456,3 +8456,7 @@ Langkah: (1) terminal-api `/state` dan rute proxy edge-bff; (2) worker: katalog 
 dulu, muat saat dibutuhkan, chart harga dulu; (4) pemuat rak bersama + Web Worker; (5) pool koneksi edge-bff; (6) ukur
 sebelum/sesudah dengan `verification/backtest/page_timing_dev.py`, tes semua bagian, deploy di luar jam publisher.
 Infrastruktur diperiksa 2026-10-27 (PLAN.md BACKTEST-LOAD, bukti): semua layanan SUCCESS; database bukan penyebab.
+Status 2026-10-27: selesai. terminal-api `689dc465` (`/state`), backtest-worker `53b3002f` lalu `292f7caa` (katalog per
+publikasi, dibangun saat start), edge-bff `1a2081ce` (halaman: tampil dulu; macet karena M253), `7e966be9` (perbaikan
+M253, pemuat rak bersama, Web Worker), lalu pool koneksi (RAILWAY_CHANGELOG). Ukur: buka pertama 8,83 → 1,37 s, buka lagi
+2,36 → 1,12 s, tanpa layar beku (BACKTEST_END_TO_END.md bagian 17).
