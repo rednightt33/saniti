@@ -7,7 +7,8 @@ while it runs (phase timeline), screenshots the six result tabs at three sizes, 
 the API: shape against contract.ts, finiteness, reconciliation (trades to cash and equity), determinism (the identical
 request twice), events per ticker, a request refused at submit, cancel, the trial count, and the measurements the user
 asked for (per-phase durations, payload sizes, submit -> finished). The portfolio's signals preview passes only when it
-answered 200 and the page's table shows that answer (preview_drawn); no request of the page may fail (page_clean).
+answered 200 and the page's table shows that answer (preview_drawn); no request of the page may fail but the one it
+handles by design, the /bundle 404 of a stock the previews left out with DATA_MISSING (page_clean).
 Credentials (EDGE_LOGIN, EDGE_INITIAL_PASSWORD) are read from Railway into memory; they are never printed or saved.
 Every backtest the script runs counts as a trial of its strategy line for the owner (decision K3), as any run does.
 
@@ -799,6 +800,32 @@ def page_portfolio_setup(page, pick):
     return {'tickers': chips}
 
 
+def page_clean(errors, http_errors, calls):
+    """No request of the page fails (console errors and HTTP answers >= 400 of the page), but the one it handles by
+    design: the /bundle 404 of a picked stock without published files, which the previews left out with DATA_MISSING
+    (CONTRACT.md D-exclude; the page's one toast, and the chart moves to another stock, review PG-1), and the browser's
+    console line for that answer. Which stocks those are is read from the previews' answers, never listed here."""
+    missing = {r.get('ticker') for c in calls if c['url'].endswith('/signals') and c.get('status') == 200
+               for w in (c.get('answer') or {}).get('warnings') or [] if w.get('code') == 'TICKERS_EXCLUDED'
+               for r in w.get('reasons') or [] if r.get('code') == 'DATA_MISSING'}
+    expected = [e for e in http_errors if e['status'] == 404 and e['url'].endswith('/api/terminal/v1/bundle')
+                and e.get('ticker') in missing]
+    unexpected_http = [e for e in http_errors if e not in expected]
+    allowed = {}
+    for e in expected:
+        allowed[e['url']] = allowed.get(e['url'], 0) + 1
+    unexpected_console = []
+    for line in errors:                           # 'Failed to load resource: ... status of 404 () @ <url>'
+        url = line.rpartition(' @ ')[2]
+        if line.startswith('Failed to load resource: the server responded with a status of 404') and allowed.get(url, 0) > 0:
+            allowed[url] -= 1
+        else:
+            unexpected_console.append(line)
+    return {'ok': not unexpected_http and not unexpected_console, 'console_errors': len(errors),
+            'http_errors': len(http_errors), 'expected': expected, 'unexpected_http': unexpected_http[:20],
+            'unexpected_console': unexpected_console[:20]}
+
+
 def preview_drawn(page, answer, used, timeout_s=10):
     """whether the portfolio table (signals.ts portTable, #portSig: a row per picked stock, data-t its ticker, the second
     cell its entry signals) shows the preview's answer: each counted stock's entry signals, '—' for one its
@@ -915,6 +942,19 @@ def main():
                 entry['error'] = type(e).__name__
             calls.append(entry)
 
+        def on_response(r):
+            # every answer >= 400 of the page; a /bundle one with the ticker it asked (page_clean allows the 404 of a
+            # stock the answers left out with DATA_MISSING)
+            if r.status < 400:
+                return
+            entry = {'status': r.status, 'method': r.request.method, 'url': r.url.split('?')[0]}
+            if entry['url'].endswith('/api/terminal/v1/bundle'):
+                try:
+                    entry['ticker'] = (json.loads(r.request.post_data or '{}') or {}).get('ticker')
+                except ValueError:
+                    pass
+            http_errors.append(entry)
+
         def on_failed(req):
             # a preview the page aborted (preview.ts drops the one in flight when the settings change): recorded with
             # its body, so the report shows every preview the page asked and in which order (client_order)
@@ -930,8 +970,7 @@ def main():
             page.on('requestfailed', on_failed)
             page.on('pageerror', lambda e: errors.append(str(e)[:300]))
             page.on('console', lambda m: errors.append(f'{m.text[:300]} @ {where(m)}') if m.type == 'error' else None)
-            page.on('response', lambda r: http_errors.append({'status': r.status, 'method': r.request.method,
-                                                              'url': r.url.split('?')[0]}) if r.status >= 400 else None)
+            page.on('response', on_response)
 
         def toasts():
             try:
@@ -1251,8 +1290,8 @@ def main():
         report['page_errors'] = errors[:20]
         report['page_http_errors'] = http_errors[:20]
         # one page, one owner: no request of the page fails (a 409 PREVIEW_REPLACED or any other error the page keeps to
-        # itself is still a console error and an HTTP error here)
-        report['page_clean'] = {'ok': not errors and not http_errors, 'console_errors': len(errors), 'http_errors': len(http_errors)}
+        # itself is still a console error and an HTTP error here), but the one it handles by design (page_clean)
+        report['page_clean'] = page_clean(errors, http_errors, calls)
         report['finished_at'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
         api.post('/api/v1/auth/sign-out', {})
         browser.close()
