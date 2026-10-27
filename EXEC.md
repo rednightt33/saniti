@@ -8365,3 +8365,13 @@ Rencana (berbasis kode, diperiksa 2026-10-27):
 4. Uji: tes agregasi, 1:1 fixture (D saja), live check D/W/M, deploy, dokumen.
 Status 2026-10-27: selesai (ERRORS "EXEC-TERMINAL-WM").
 
+## EXEC-TERMINAL-CUM — garis Cumulative Flow mulai dari candle pertama yang terlihat (go 2026-10-27)
+
+User 2026-10-27 (ERRORS M244, opsi C1): "Ya wes, coba kita eksekusi dulu C1. Nanti disiapkan opsi untuk fallback ke
+versi existing." Konteks: "goalnya adalah agar data di stock bit dengan data yang kita show sama untuk value foreign
+flow-nya"; "kita menggunakan acuan papan reguler untuk menyamakan dengan value stock bit", tampilan tetap semua papan.
+Rencana: `flow.ts` (live) menghitung kumulatif dari 0 pada candle pertama yang terlihat, ulang saat chart digeser;
+sesi sebelum itu dan sesudah data broker terakhir tidak digambar; tooltip dan label sumbu mengikuti. Fallback: satu
+pengaturan `FLOW_CUMULATIVE_FROM` ('view' atau 'history') di `flow.ts` dan `?cum=history` di alamat halaman untuk
+membandingkan; fixture referensi tetap sejak awal data (1:1).
+
