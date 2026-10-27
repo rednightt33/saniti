@@ -12,16 +12,15 @@ Every backtest the script runs counts as a trial of its strategy line for the ow
 
 Usage:
   RAILWAY_TOKEN=... EDGE_TEST_CHROMIUM=<chrome> python e2e_dev.py OUT_DIR [--skip-page] [--only single|portfolio|cancel]
-                                                     [--tickers "BBRI TLKM ..."] [--universe sector:<name>]
+                                                     [--tickers "BBRI TLKM ..."]
   EDGE_E2E_LOGIN=... EDGE_E2E_PASSWORD=... python e2e_dev.py OUT_DIR --base http://127.0.0.1:PORT   (a local stack)
   python e2e_dev.py --self-test RESULT.json [RESULT.json ...] [--request REQUEST.json]
 Writes OUT_DIR/report.json (every step, its timings, sizes and checks; 'failed' lists the failed checks), the result
 payloads (result-*.json), the page's recorded calls (calls.json) and the screenshots. Exit code 1 when a check failed.
 --self-test runs the payload checks (contract shape, finite_everywhere, reconcile, robustness, strip_run_fields)
 offline on result files; --request gives the request the results were run with (enables the checks that need it).
-Portfolio: the design is changing from universes to an explicit list of 1-12 tickers (coordinator, 2026-10-27);
-page_portfolio_setup() is the one place that gives the page its portfolio and must be changed when the ticker picker
-lands; portfolio_body() takes either request shape (see the section "the portfolio").
+Portfolio: an explicit list of 1-12 tickers (portfolio.tickers, picked in the page's picker); page_portfolio_setup() is
+the one place that gives the page its portfolio (see the section "the portfolio").
 
 Tolerances: none is chosen. A check that repeats one IEEE 754 operation of the engine on the same doubles (the payload
 carries them exactly: ECMAScript Number::toString and Python's float repr both give the shortest round-trip decimal)
@@ -728,66 +727,81 @@ def timings(st, timeline, submit_ms=None):
 # ---------------------------------------------------------------------------------------------------------------------
 # the portfolio: the only part that knows how a portfolio is given its tickers
 # ---------------------------------------------------------------------------------------------------------------------
-# The user changed the design (coordinator, 2026-10-27): a portfolio becomes an explicit list of 1-12 tickers the user
-# picks, replacing the universes ('all' | 'sector:<name>', contract.ts BacktestRequest.portfolio.universe as this
-# script was written). The two functions below handle both shapes where the shape can be read (a request that has
-# portfolio.tickers or portfolio.universe); the page's ticker picker does not exist yet, so page_portfolio_setup must be
-# changed when it lands (it reports the missing Universe select instead of guessing a new DOM).
-# The measurement's worst case: the 12 stocks with the largest broker files (~2.49M broker rows; coordinator).
+# A portfolio is an explicit list of 1-12 tickers the user picks (user N 2026-10-27, CONTRACT.md PF1/PF7:
+# BacktestRequest.portfolio.tickers; the page's picker in step 1). The measurement's worst case: the 12 stocks with the
+# largest broker files (~2.49M broker rows, measured from the manifests).
 WORST_CASE_TICKERS = ('BBRI', 'TLKM', 'BBCA', 'ASII', 'BMRI', 'ANTM', 'ADRO', 'PGAS', 'BBNI', 'BUMI', 'BRPT', 'UNVR')
 
 
+def reads_broker(req):
+    """whether a BacktestRequest reads the broker files (backtest-worker validate.ts checkRequest: portfolio rank_by
+    'fnet', or an enabled condition (enabled !== false) of kind 'flow' in entry.conditions or exit.signals.conditions)"""
+    conds = req['entry']['conditions'] + ((req.get('exit') or {}).get('signals') or {}).get('conditions', [])
+    return ((req.get('portfolio') or {}).get('rank_by') == 'fnet'
+            or any(c.get('kind') == 'flow' and c.get('enabled') is not False for c in conds))
+
+
+def without_broker_read(req):
+    """the request with its flow conditions switched off (enabled false, still validated) and no 'fnet' rank"""
+    body = copy.deepcopy(req)
+    for c in body['entry']['conditions'] + ((body.get('exit') or {}).get('signals') or {}).get('conditions', []):
+        if c.get('kind') == 'flow':
+            c['enabled'] = False
+    if (body.get('portfolio') or {}).get('rank_by') == 'fnet':
+        raise RuntimeError('a portfolio ranked by fnet has no rank without the broker data to switch to')
+    return body
+
+
 def portfolio_pick(args, cat):
-    """what the portfolio step runs on, for either shape: the tickers (--tickers, else WORST_CASE_TICKERS) and the
-    universe (--universe, else the catalog sector with the most tickers that is not 'all')"""
+    """the tickers the portfolio step runs on (--tickers, else WORST_CASE_TICKERS), checked against the catalog and its
+    limits.max_portfolio_tickers"""
     tickers = args.tickers.replace(',', ' ').split() if args.tickers else list(WORST_CASE_TICKERS)
-    universes = cat.get('universes') or []
-    sectors = sorted((u for u in universes if u['id'] != 'all'), key=lambda u: (-u['tickers'], u['id']))
-    universe = args.universe or (sectors[0]['id'] if sectors else None)
-    if universe is not None and universe not in {u['id'] for u in universes}:
-        raise SystemExit(f'universe {universe} is not in the catalog')
     known = {t['ticker'] for t in cat['tickers']}
-    return {'tickers': tickers, 'tickers_from': '--tickers' if args.tickers else 'WORST_CASE_TICKERS',
-            'tickers_not_in_catalog': [t for t in tickers if t not in known], 'tickers_given': bool(args.tickers),
-            'universe': universe, 'universe_from': '--universe' if args.universe else 'the catalog sector with the most tickers',
-            'universe_tickers': next((u['tickers'] for u in universes if u['id'] == universe), None)}
+    unknown = [t for t in tickers if t not in known]
+    if unknown:
+        raise SystemExit(f'not in the catalog: {unknown}')
+    limit = cat['limits']['max_portfolio_tickers']
+    if len(tickers) > limit:
+        raise SystemExit(f'{len(tickers)} tickers, the catalog allows {limit}')
+    return {'tickers': tickers, 'tickers_from': '--tickers' if args.tickers else 'WORST_CASE_TICKERS', 'limit': limit}
 
 
 def portfolio_body(template, pick):
-    """an API request of a portfolio on the pick, in the template's own shape: portfolio.tickers (the ticker-list
-    portfolio) or portfolio.universe (contract.ts as written). Returns (body, what was used)."""
+    """an API request of a portfolio on the pick, from a stored portfolio request. Returns (body, what was used)."""
     body = copy.deepcopy(template)
-    p = body['portfolio']
-    if 'tickers' in p:
-        p['tickers'] = list(pick['tickers'])
-        return body, {'tickers': p['tickers']}
-    if 'universe' in p:
-        p['universe'] = pick['universe']
-        return body, {'universe': p['universe'], **({'not_applied': 'the request has portfolio.universe, no ticker list: '
-                                                                    '--tickers not used'} if pick['tickers_given'] else {})}
-    raise RuntimeError('the portfolio request has neither tickers nor universe: update portfolio_body()')
+    body['portfolio']['tickers'] = list(pick['tickers'])
+    return body, {'tickers': body['portfolio']['tickers']}
 
 
 def page_portfolio_setup(page, pick):
-    """THE ONE PLACE THAT KNOWS HOW THE PAGE IS SWITCHED TO PORTFOLIO AND GIVEN ITS TICKERS. As the page is written
-    (builder.ts): the view tab #viewSeg [data-v="signals"], the summary row #sumbox [data-st="1"] (goStep 1), the mode
-    switch #modeSeg [data-m="portfolio"], then step 1's Universe select [data-k="universe"] (its option values are the
-    catalog universe ids). TO CHANGE when the ticker-list portfolio lands: pick pick['tickers'] in its picker."""
+    """THE ONE PLACE THAT KNOWS HOW THE PAGE IS SWITCHED TO PORTFOLIO AND GIVEN ITS TICKERS (builder.ts, picker.ts):
+    the view tab #viewSeg [data-v="signals"], the summary row #sumbox [data-st="1"] (goStep 1), the mode switch
+    #modeSeg [data-m="portfolio"], then each ticker typed in the search box #pkQ and its option clicked in #pkList (the
+    option whose <b> is exactly the ticker). Checks the count pill #pkN against the pick."""
     page.click('#viewSeg [data-v="signals"]')
     page.click('#sumbox [data-st="1"]')
     page.click('#modeSeg [data-m="portfolio"]')
-    sel = '#builder select[data-k="universe"]'
-    if page.query_selector(sel) is None:
-        raise RuntimeError('the page has no Universe select (the ticker-list portfolio?): update page_portfolio_setup() '
-                           'to pick the --tickers in the new picker')
-    page.select_option(sel, pick['universe'])
-    return {'universe': pick['universe'], **({'not_applied': 'the page has universes only: --tickers not used'}
-                                              if pick['tickers_given'] else {})}
+    page.wait_for_selector('#pkQ', timeout=10_000)
+    for chip in page.query_selector_all('#pkChips [data-pk-del]'):   # the live page starts empty; the fixture does not
+        chip.click()
+    for t in pick['tickers']:
+        page.fill('#pkQ', t)
+        page.wait_for_selector('#pkQ[aria-expanded="true"]', timeout=5_000)
+        option = page.locator('#pkList [role="option"][aria-disabled="false"]').filter(
+            has=page.locator('b', has_text=re.compile(f'^{re.escape(t)}$')))
+        option.first.click()
+    page.keyboard.press('Escape'); page.keyboard.press('Escape')
+    chips = page.eval_on_selector_all('#pkChips [data-pk-del]', 'bs => bs.map(b => b.dataset.pkDel)')
+    count = page.inner_text('#pkN')
+    if chips != list(pick['tickers']) or count != f"{len(pick['tickers'])} / {pick['limit']}":
+        raise RuntimeError(f'the picker holds {chips} ({count}), not {pick["tickers"]}')
+    return {'tickers': chips}
 
 
 def preview_matches(body, used):
-    """whether a signals preview request (SignalsPreviewRequest) is the one of this portfolio"""
-    return all(body.get(k) == v for k, v in used.items() if k in ('universe', 'tickers'))
+    """whether a signals preview request (SignalsPreviewRequest: {schema_version, tickers, period, entry}) is the one of
+    this portfolio (the page sorts nothing: PF3 makes the order irrelevant, so compare as sets)"""
+    return sorted(body.get('tickers') or []) == sorted(used['tickers'])
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -799,10 +813,7 @@ def main():
     ap.add_argument('out', nargs='?')
     ap.add_argument('--skip-page', action='store_true', help='no browser run: the API runs the latest stored requests')
     ap.add_argument('--only', choices=['single', 'portfolio', 'cancel'])
-    ap.add_argument('--tickers', help='portfolio tickers, comma or space separated (default WORST_CASE_TICKERS); '
-                                      'used once the portfolio is a ticker list')
-    ap.add_argument('--universe', help='portfolio universe id while the portfolio is a universe (default: the catalog '
-                                       'sector with the most tickers that is not "all")')
+    ap.add_argument('--tickers', help='portfolio tickers, comma or space separated (default WORST_CASE_TICKERS)')
     ap.add_argument('--base', help='a local stack instead of Railway dev: its origin; credentials from EDGE_E2E_LOGIN '
                                    'and EDGE_E2E_PASSWORD')
     ap.add_argument('--self-test', nargs='+', metavar='RESULT_JSON')
@@ -859,7 +870,7 @@ def main():
         limits = cat['limits']
         pick = portfolio_pick(a, cat)
         report['catalog'] = {'status': status, 'shape_vs_contract': {'ok': not cat_shape, 'problems': cat_shape[:10]},
-                             'tickers': len(cat['tickers']), 'universes': len(cat.get('universes') or []),
+                             'tickers': len(cat['tickers']), 'groupings': {g['key']: len(g['values']) for g in cat.get('groupings') or []},
                              'data_through': cat['data_through'], 'first_date': cat['first_date'],
                              'flow': {k: cat['flow'].get(k) for k in ('available', 'data_through', 'reason')},
                              'engine_version': cat['engine_version'], 'registry_version': cat['registry_version'], 'limits': limits}
@@ -1112,19 +1123,27 @@ def main():
             steps['single_repeat'] = out2
 
         def refused_step():
-            # a request the worker refuses at submit: 422 before queueing, no job made (CONTRACT.md D-L2)
+            # a request the worker refuses at submit: 422 before queueing, no job made (CONTRACT.md D-L2). period.to past
+            # the data is refused by the first check of run.ts checkPublished that applies: FLOW_DATA_THROUGH when the
+            # request reads the broker files, else PERIOD_AFTER_DATA; both are run (the second with no broker read)
             req = state.get('single_request') or stored_request('single')
             if req is None:
                 raise RuntimeError('no single request to refuse')
-            _, before = api.json('/api/v1/backtests?limit=1')
+            out = steps['refused_at_submit'] = {}
             bad = copy.deepcopy(req)
             bad['period']['to'] = '2100-01-01'
-            status, ans, _ = api.submit(bad)
-            _, after = api.json('/api/v1/backtests?limit=1')
-            newest = lambda j: (j.get('items') or [{}])[0].get('request_id')
-            steps['refused_at_submit'] = {'ok': status == 422 and (ans.get('error') or {}).get('code') == 'PERIOD_AFTER_DATA'
-                                          and newest(before) == newest(after), 'status': status, 'error': ans.get('error'),
-                                          'no_job_made': newest(before) == newest(after)}
+            cases = [('as_run', bad)]
+            if reads_broker(bad):
+                cases.append(('no_broker_read', without_broker_read(bad)))
+            for name, body in cases:
+                expected = 'FLOW_DATA_THROUGH' if reads_broker(body) else 'PERIOD_AFTER_DATA'
+                _, before = api.json('/api/v1/backtests?limit=1')
+                status, ans, _ = api.submit(body)
+                _, after = api.json('/api/v1/backtests?limit=1')
+                newest = lambda j: (j.get('items') or [{}])[0].get('request_id')
+                out[name] = {'ok': status == 422 and (ans.get('error') or {}).get('code') == expected and newest(before) == newest(after),
+                             'expected': expected, 'status': status, 'error': ans.get('error'), 'no_job_made': newest(before) == newest(after)}
+            out['ok'] = all(c['ok'] for c in out.values() if isinstance(c, dict))
 
         def portfolio_step():
             if page:
