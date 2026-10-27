@@ -2775,3 +2775,27 @@ User 2026-10-26: "Ok untuk saran kamu. Putaran loading 0.15 detik alright. Jalan
 - Logs: `verification/terminal_api/jobs/migration20261026_100_{dryrun,apply,readback}.log`.
 - Bucket `terminal-display` (not PostgreSQL): 1,656 pack objects, 302 MB (publisher run `dea824dc`), contents equal to
   the yearly files for ANTM, BBCA, IHSG and GOTO.
+
+## 2026-10-27 — EDGE backtest: job, result and trial tables (schema `edge_bff`)
+
+User 2026-10-26: "Jalankan langsung 1-5. Saya setujui untuk step 3,4 dan 5." and 2026-10-27 (decision card): "Lanjut
+di dev". Operational schema `edge_bff` (edge-bff's own, as `sessions` and `jobs`), no market data, no catalog row; not
+in `DATABASE_SCHEMA.md`, which is generated from schema `public` only (decision D2 in
+`apps/edge-bff/backtest/CONTRACT.md` section 12).
+
+- **`20261026_005_edge_bff_backtest.sql`** (sha256 `96c5c366d6f451b9a757fb8f8b6878d0e6a59baac25e7c2d0a2db07e10221e1b`):
+  - `edge_bff.backtest_jobs`: the request as submitted, state, progress and versions; never market data or the
+    result. Indexes `backtest_jobs_claim` (partial, QUEUED/RUNNING) and `backtest_jobs_owner_created`.
+  - `edge_bff.backtest_results`: gzip JSON parts of a finished result per (request_id, part), deleted after 30 days;
+    index `backtest_results_created`.
+  - `edge_bff.backtest_trials`: the K3 trial count, distinct variants per owner and lineage with their daily Sharpe,
+    never reset.
+  - Grants to `edge_bff_runtime` per table: jobs SELECT/INSERT/UPDATE, results SELECT/INSERT/DELETE, trials
+    SELECT/INSERT/UPDATE. The migration's verify block checks every privilege and that PUBLIC has none.
+- DRYRUN (rolled back) then APPLY (job `89375eb2`) on orc-test-runner. `DATABASE_URL` was set only for the run and then
+  removed (VAR_REMOVED). Read back after APPLY:
+  - the three tables are present;
+  - the grants are exactly as listed;
+  - `edge_bff_login` is a member of `edge_bff_runtime`;
+  - the runtime role reads 0 rows from each table.
+- Logs: `verification/backtest/jobs/migration20261026_005_{dryrun,apply}.log`.
