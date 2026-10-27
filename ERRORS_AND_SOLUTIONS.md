@@ -2484,6 +2484,32 @@ change yet.
   dipilih pengguna tidak diubah); pengguna bisa menggantinya di pengaturan indikator.
 - **Status:** RESOLVED.
 
+### M244 — Flow Timeline BMRI berbeda dari Foreign Flow Stockbit: papan dan titik awal kumulatif (2026-10-27)
+
+- **Symptom:** user 2026-10-27 (tangkapan layar Stockbit "Foreign Flow @BMRI", 2–27 Oct 2026): "Flow itu apa
+  maksudnya? Apakah flow dihitung hanya berdasarkan candle ... atau actually fetch from database? ... minta tolong untuk
+  dibandingkan value di front end dengan screenshot terlampir dan juga back end."
+- **Verified (2026-10-27, tiga lapisan):**
+  - Backend: `Feature_05_Foreign_Domestic_Broker_Detail` (dari `IDX_Broker_Summary`, `refresh_feature_05`), BMRI,
+    `investor_type = 'Foreign'`, papan **Regular**: N. Foreign, F Buy, F Sell dan N. Lot sama dengan Stockbit pada
+    semua 16 tanggal 2–23 Oct (mis. 23 Oct buy 374,286,284,000, sell 417,283,206,000, net −42,996,922,000, lot
+    −114,182; Stockbit 374.29B / 417.28B / −43.00B / −114.18K).
+  - Rak: berkas broker BMRI yang diunduh halaman (pack arsip, 2025, 2026; `data_through` 2026-10-23) memberi angka yang
+    sama dengan database.
+  - Frontend: kode halaman sendiri (`worker.ts` `brokerData` + jumlah filter `flow.ts`) atas berkas rak: dengan papan
+    Regular saja angka harian sama dengan Stockbit; F Flow Stockbit = jumlah berjalan sejak **28 Sep 2026** (tanggal
+    pertama daftar Stockbit; −858.17B pada 2 Oct sampai −2.66T pada 23 Oct, sama semua).
+  - Bedanya: (1) Flow bawaan menjumlah **semua papan** (Regular + Nego + Tunai), Stockbit hanya Regular: berbeda pada
+    hari dengan transaksi Nego asing (08 Oct −189.88B vs −190.63B, 21 Oct −226.60B vs −227.42B, 23 Oct −40.71B vs
+    −43.00B, 29 Sep −275.08B vs −276.20B); (2) kumulatif halaman dimulai dari sesi pertama data (2018), Stockbit dari
+    tanggal pertama periode yang ditampilkan: selisih harian sama, levelnya berbeda; (3) 26–27 Oct sudah ada di
+    `IDX_Broker_Summary` tetapi Feature 05 masih sampai 23 Oct (pembaruan sedang berjalan), jadi rak dan halaman juga.
+- **Flow di halaman:** net asing (buy − sell) per sesi dihitung di browser dari baris Feature 05 per broker × jenis
+  investor × papan yang dipublikasikan ke rak, bukan kolom flow jadi di database; tidak bergantung pada candle selain
+  tanggal sesinya.
+- **Solution:** menunggu keputusan user (papan bawaan dan titik awal kumulatif).
+- **Status:** OPEN (keputusan user); data cocok, tidak ada salah hitung.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.
