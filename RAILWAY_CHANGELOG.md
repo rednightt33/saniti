@@ -4707,3 +4707,10 @@ first (EXEC.md EXEC-TERMINAL-FRESH).
   upload `0b1b5343` SUCCESS with `broker_behind_sessions` and the evening warning; the upload carries `d495854`
   (industry column, another session's upload `82447144`). `cronSchedule "0,30 0,12 * * *"` and `NEVER` read back.
   `.railway/railway.ts` lists the two variables.
+
+## 2026-10-27 — edge-bff: yellow labels removed, full-screen button (EXEC-TERMINAL-FULL)
+
+User 2026-10-27: "Minta tolong untuk A dihapus saja. Buat B tambahkan opsi full sceen ...". `main` `2932c87`: edge-bff
+`78b16952` SUCCESS; live terminal `index`, `style`, `worker` assets equal the build (sha256) and EDGE's page carries the
+frame's fullscreen permission. Full edge-bff suite: 171 passed, 1 failed (M232, fails on `main` without this change).
+No variable or other service changed.
