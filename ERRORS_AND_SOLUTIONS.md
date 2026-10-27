@@ -2550,13 +2550,23 @@ change yet.
   `railway up` (unggah CLI). Push Terminal ke main yang menyentuh `apps/edge-bff` (18de6e8 -> deploy e09717e2, 16bfad3 ->
   90532d14) memicu deploy otomatis dari main, yang tidak punya kode backtest, dan menggantikan deploy cabang (5c3c6e69,
   f50822e8). Riwayat deployment Railway menunjukkan urutannya.
+- **Juga ke arah sebaliknya (12:45 UTC):** upload cabang `8c2ecc55` (dibuat 12:45:31, dari cabang yang digabung dengan
+  main `2760476`) menggantikan deploy main `d34c40f2` (`bb24f9c`, jendela panel kanan Terminal, dibuat 12:44:42): main
+  bergerak di antara merge dan upload, jadi jendela itu tidak live sampai 12:56 UTC (RAILWAY_CHANGELOG main). Diperbaiki
+  dengan merge `5e71cc5` lalu `e2c02222` (SUCCESS 12:56 UTC): aset Terminal live sama dengan build tree gabungan, yang
+  folder Terminal-nya sama persis dengan main `28b4cbc`; aset backtest sama dengan `8c2ecc55`.
 - **Class:** setiap layanan yang sumber otomatisnya satu cabang sementara cabang lain dipasang manual ke environment
-  yang sama: deploy terakhir menang, tanpa peringatan. Berlaku juga untuk layanan lain yang nanti dipasang dari cabang
-  kerja (terminal-api, publisher, worker) bila sumber GitHub-nya diaktifkan.
+  yang sama: deploy terakhir menang, tanpa peringatan, ke dua arah (cabang juga menimpa pekerjaan main yang lebih baru).
+  Berlaku juga untuk layanan lain yang nanti dipasang dari cabang kerja (terminal-api, publisher, worker) bila sumber
+  GitHub-nya diaktifkan.
 - **Solution:** sementara (TEMPORARY): gabungkan main ke cabang lalu pasang ulang dari cabang setelah setiap push main
   yang menyentuh `apps/edge-bff` (dilakukan enam kali sampai 11:38 UTC, terakhir edge-bff d4d1d729 menggantikan main
-  7654e6fa; koordinator diberi tahu; RAILWAY_CHANGELOG). Permanen: satu sumber, yaitu kode backtest masuk main lewat PR
-  setelah E2E lulus (keputusan user N 2026-10-27 09:08 UTC).
+  7654e6fa; lalu 12:45 dan 12:56 UTC; koordinator diberi tahu; RAILWAY_CHANGELOG). Sejak 12:56 UTC: main diambil lagi
+  tepat sebelum upload dan sekali lagi setelah SUCCESS; bila main bergerak melewati commit yang digabung, gabung dan
+  upload ulang, lalu bandingkan aset live dengan build tree gabungan. Upload memakai tata letak repo (`git archive`
+  folder app di dalam folder kosong), karena `rootDirectory` layanan `/apps/edge-bff` dicari di dalam arsip: upload
+  folder app sebagai akar gagal di build (`4bcea256`, 12:54 UTC, deploy yang berjalan tidak terganggu). Permanen: satu
+  sumber, yaitu kode backtest masuk main lewat PR setelah E2E lulus (keputusan user N 2026-10-27 09:08 UTC).
 - **Status:** OPEN sampai PR backtest digabung ke main.
 - **Lesson for new data:** sebelum memasang dari cabang ke layanan bersumber GitHub, cek sumber dan watch pattern
   layanan itu; catat di RAILWAY_CHANGELOG bahwa deploy cabang dapat tertimpa.
@@ -2593,6 +2603,46 @@ change yet.
 - **Status:** FIXED di kode; worker dev di-deploy ulang dengan perintah baru (RAILWAY_CHANGELOG).
 - **Lesson for new data:** sumber yang dipakai halaman (Vite) dan layanan Node dimuat dengan aturan yang sama di
   keduanya, dan tes konsumen menjalankan perintah image yang sebenarnya.
+
+### M250 — Backtest gagal `DATA_INTEGRITY` selama publisher berjalan: file ditimpa di kunci yang sama, manifest lama masih dilayani (2026-10-27)
+
+- **Symptom:** E2E dev 2026-10-27 13:00:31 UTC berhenti di langkah pertama: katalog backtest dijawab 424
+  `DATA_INTEGRITY` "IHSG price price has more than the 42106 bytes its manifest says." Diulang 13:07 UTC, setelah
+  publisher selesai: katalog 200.
+- **Verified (FACT):** (1) Log terminal-publisher, run `daily` 2026-10-27: mulai 12:05 UTC; 1663 file tahunan ditulis
+  sampai sekitar 12:44; pack 835 ticker sekitar 12:44–12:55; `done` 13:03:23 (3496,5 s). (2) Kode publisher
+  (`publish`, `put_pack`, `run`): file data dan pack ditulis ulang di kunci tetap (`price/{ticker}/{year}.json.gz`,
+  `pack/{ticker}/price.json.gz`, ...); semua manifest ditulis setelah semua pack; `state.json` (`finished_at`) paling
+  akhir. (3) Kode terminal-api yang live (`bucket.py _fresh`, EXEC-TERMINAL-SPEED, deploy `1c428bb6` 2026-10-26;
+  `apps/terminal-api/app` tidak berubah sejak itu): cache manifest baru dikosongkan saat `state.json finished_at`
+  berubah, dicek paling cepat tiap `manifest_cache_seconds` (60 s). `/bundle` mempresign `key` dari manifest itu
+  (`main.py grant`). (4) Manifest IHSG yang dilayani 13:07 UTC: `generated_at` 12:58:28 UTC, sudah ditulis sebelum
+  13:00:31; yang dilayani 13:00:31 masih manifest lama, karena `finished_at` baru berubah 13:03:23. (5) Pembaca: worker
+  dan halaman backtest memeriksa sha256 dan ukuran tiap file (`core/datafile.ts inflateVerified`), jadi gagal
+  `DATA_INTEGRITY`; halaman Terminal (`data/worker.ts`) tetap memakai byte yang tidak cocok, hanya tidak menyimpannya di
+  cache, jadi chart menampilkan data yang lebih baru dari manifest dan mengunduhnya ulang setiap kali.
+- **Root cause:** objek data berubah di bawah kunci yang sama, sementara metadata yang menyebut isinya (manifest di cache
+  terminal-api sampai run selesai, dan manifest yang baru ditulis di akhir run) lebih tua dari objeknya. Tiap komponen
+  benar menurut asumsinya sendiri ("file sebelum manifest" di publisher, "manifest tetap sampai publikasi berikutnya" di
+  terminal-api), tetapi gabungannya tidak konsisten selama setiap run.
+- **Class:** setiap pasangan "metadata (sha256, ukuran) + URL ke objek yang bisa ditimpa": semua dataset di bucket (harga
+  tahunan, broker tahunan, events, pack harga, arsip broker; juga dataset makro atau lintas aset yang nanti diterbitkan
+  dengan cara yang sama) dan semua pembaca terminal-api (worker backtest: katalog, pratinjau, run; halaman backtest;
+  halaman Terminal; pembaca berikutnya), dua kali sehari selama run publisher (hari ini sekitar 58 menit, 19:05–20:03
+  WIB). Tidak berlaku untuk file referensi (`ref/*`): terminal-api tidak memberi sha256 untuknya.
+- **Solution (PROPOSED, menunggu keputusan user):** di lapisan pemilik mekanisme, tata letak objek publisher: kunci file
+  data dan pack memuat hash isinya (mis. `pack/{ticker}/price.{sha256 16 karakter}.json.gz`), jadi objek tidak pernah
+  berubah. File baru ditulis di kunci baru, manifest memindahkan pembaca, dan objek lama tetap terbaca oleh manifest lama
+  di cache dan URL yang masih hidup. Objek yang tidak lagi dirujuk manifest dihapus pada run berikutnya (jauh di atas
+  cache 60 s dan umur URL `url_ttl_seconds` 120 s); daftarnya diturunkan dari isi bucket dibanding manifest, bukan
+  daftar tetap. terminal-api dan pembaca tidak berubah, karena mereka memakai `key` dan sha256 dari manifest.
+- **Not covered:** jawaban `/bundle` yang dipegang klien lebih dari umur URL-nya tetap 403 (sudah ditangani: worker dan
+  halaman meminta jawaban baru); data di bucket tetap baru setelah publisher menulisnya, jadi pembaca bisa melihat
+  manifest lama sampai run selesai (sesuai desain cache).
+- **Status:** OPEN, menunggu keputusan user. Sementara (TEMPORARY): E2E dan pengukuran backtest dijalankan di luar run
+  publisher. Pengguna yang menjalankan backtest selama run tetap mendapat `DATA_INTEGRITY` untuk ticker yang berubah.
+- **Lesson for new data:** objek yang dirujuk metadata (sha256, ukuran) tidak ditimpa di kunci yang sama; kunci yang
+  memuat hash isinya membuat setiap cache metadata aman.
 
 ### EXEC-TERMINAL-FRESH — alat gambar di Flow, kepala tabel Top brokers (2026-10-27)
 
