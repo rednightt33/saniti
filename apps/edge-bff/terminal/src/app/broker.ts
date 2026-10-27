@@ -3,6 +3,7 @@
 import type { Ctx } from './context';
 import { $, keyOf, nfCompact, pct, row, spin, store } from './context';
 import { closeRangeCalendar, longDay, openRangeCalendar } from '../ui/calendar';
+import { aggregate } from '../data/brokerAgg';
 
 /** four to seven round tick values covering lo..hi (Broker inventory y-axis, EXEC-TERMINAL-PANELS-2 C) */
 export function niceTicks(lo: number, hi: number): number[] {
@@ -21,7 +22,24 @@ export function initBroker(ctx: Ctx) {
   const live = M.mode === 'live';
   const kept: Record<string, { bn: string; f: string; t: string }> = {};      // each panel's period, by date
   const RS = { d:0, inv:'All', board:'All', mode:'net', more:false, accSide:'buy', bdN:5, broker:null, invUnit:'lot', invInv:'All', invBoard:'All' };
-  const invSel = new Set();                                         // brokers drawn in Broker inventory (max INV_MAX)
+  const invSel = new Set<string>();                                 // brokers drawn in Broker inventory (max INV_MAX)
+  const INV_MAX = 5, INV_COLORS = ['#0070f3', '#f5a623', '#7928ca', '#12a594', '#d6409f'];
+  /* EXEC-TERMINAL-POPOUT: the panel and its windows share the inventory brokers and the highlighted broker; a change
+     redraws the panel (when drawn) and every open window */
+  const listeners: (() => void)[] = [];
+  let panelRefresh = () => {};
+  const changed = () => { if(rendered) panelRefresh(); listeners.forEach(fn => fn()) };
+  const brokerCodes = () => { const B = M.broker, s = new Set<string>(); for(let d = 0; d < B.dates.length; d++) for(const r of B.rows(d)) s.add(r[0]); return [...s].sort() };
+  // no broker chosen: the three biggest net accumulators of the last 20 sessions (the panel's first period)
+  const ensureDefaults = () => {
+    const n = M.broker.dates.length;
+    if(invSel.size || !n) return;
+    const top = aggregate(M.broker.rows, Math.max(0, n - 20), n - 1).sort((a,b) => (b.bv-b.sv)-(a.bv-a.sv)).slice(0,3);
+    top.forEach(o => invSel.add(o.b)); RS.broker = top.length ? top[0].b : brokerCodes()[0] ?? null;
+  };
+  ctx.brokerShared = { invSel, max:INV_MAX, colors:INV_COLORS, changed, ensureDefaults, brokers:brokerCodes,
+    pick(b){ RS.broker = b; if(!invSel.has(b)){ if(invSel.size >= INV_MAX) invSel.delete(invSel.values().next().value!); invSel.add(b) } changed() },
+    listen:fn => { listeners.push(fn) }, ready:() => ready, selected:() => RS.broker };
   let applyChartRange = (_f: string, _t: string) => {};
   /* EXEC-TERMINAL-PANELS-2 C: Broker inventory follows the chart (its visible range and its crosshair), live */
   let invFollow: (() => void) | null = null, invOnCross: ((t: string | null) => void) | null = null, invRaf = 0;
@@ -55,7 +73,7 @@ export function initBroker(ctx: Ctx) {
   }
   /* EXEC-TERMINAL-PANELS B1: the panel gets the recent broker years first and the full two years after them; a second
      answer redraws it with the user's choices (periods by date, filters, picked brokers) kept */
-  ctx.setBrokerPanelData = broker => { M.broker = broker; ready = true; rendered = false; renderWhenReady() };
+  ctx.setBrokerPanelData = broker => { M.broker = broker; ready = true; rendered = false; ensureDefaults(); renderWhenReady(); listeners.forEach(fn => fn()) };
   if(M.later){
     $('rpSub').textContent = `${M.broker.label} · loading`;
     // the hidden Bandar section gets no ring: nothing would ever replace it
@@ -137,8 +155,6 @@ export function initBroker(ctx: Ctx) {
 
   /* ---- state ---- */
   RS.d = BK_DAYS-1;
-  const INV_MAX = 5, INV_COLORS = ['#0070f3', '#f5a623', '#7928ca', '#12a594', '#d6409f'];
-  const firstRender = !invSel.size;
   const bkFmtDay = d => { const t = new Date(bkDates[d]+'T00:00:00Z'); return t.toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric',timeZone:'UTC'}) };
   const dayShort = d => new Date(bkDates[d]+'T00:00:00Z').toLocaleDateString('en-GB',{day:'2-digit',month:'short',timeZone:'UTC'});
   const cv = v => nfCompact.format(Math.abs(v));
@@ -299,7 +315,7 @@ export function initBroker(ctx: Ctx) {
   const invRange = makeRange($('invRange'), { key:'inv', presets:[10,20,30], def:20, onChange:() => renderInv() });
   const invFilter = makeFilter($('invFilter'), { title:'Broker', searchable:true, placeholder:'Search broker code…', grid:true, mono:true, max:INV_MAX,
     getOptions:() => bkList.map(b => ({ id:b, label:b })), state:invSel,
-    summary:s => s.size ? [...s].slice(0,3).join(', ') + (s.size > 3 ? ` +${s.size-3}` : '') : 'None', onChange:() => renderInv() });
+    summary:s => s.size ? [...s].slice(0,3).join(', ') + (s.size > 3 ? ` +${s.size-3}` : '') : 'None', onChange:() => changed() });
   /* EXEC-TERMINAL-POPOUT F1 (user 2026-10-27: "broker inventory di filter"), live: investor type and board filters, one
      line per broker as before; the fixture keeps the reference's panel (1:1 check) */
   if(live && !$('invInv')){
@@ -340,7 +356,7 @@ export function initBroker(ctx: Ctx) {
       const p = all[k] ? (i === null ? all[k].at(-1) : all[k][i]) : null, v = p ? p.cum : 0;
       return `<span class="rp-chip" style="--c:${INV_COLORS[k]}"><i></i>${bk}<b class="${v>=0?'up':'down'}">${sgn(v)}</b><button type="button" data-rm="${bk}" aria-label="Remove ${bk}">×</button></span>`;
     }).join('');
-    const wireChips = () => $('invLegend').querySelectorAll('[data-rm]').forEach(x => x.onclick = () => { invSel.delete(x.dataset.rm); invFilter.refresh(); renderInv() });
+    const wireChips = () => $('invLegend').querySelectorAll('[data-rm]').forEach(x => x.onclick = () => { invSel.delete(x.dataset.rm); changed() });
     $('invLegend').innerHTML = chips(); wireChips();
     invOnCross = null;
     if(!picks.length){ $('invBody').innerHTML = `<div class="rp-empty">Pilih 1–${INV_MAX} broker untuk melihat pergerakannya.</div>`; return }
@@ -404,10 +420,7 @@ export function initBroker(ctx: Ctx) {
   $('invUnit').querySelectorAll('button').forEach(b => b.onclick = () => {
     RS.invUnit = b.dataset.unit; $('invUnit').querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b)); renderInv();
   });
-  if(firstRender){ // default: the three biggest net accumulators of the default period
-    const top = bkAggRange(invRange.bf, invRange.bt, 'All', 'All').sort((a,b) => netOf(b)-netOf(a)).slice(0,3);
-    top.forEach(o => invSel.add(o.b)); RS.broker = top.length ? top[0].b : bkList[0];
-  }
+  ensureDefaults();               // the three biggest net accumulators of the default period (shared with the windows)
   invFilter.refresh();
 
   /* ---- Bandar detector ---- */
@@ -442,11 +455,8 @@ export function initBroker(ctx: Ctx) {
   // EXEC-TERMINAL-PANELS C1: a period dragged on the chart applies to every panel (each can change it again)
   applyChartRange = (f, t) => { closeRangeCalendar(); [bsRange, accRange, invRange, bdRange].forEach(r => r.setDates(f, t)) };
   // clicking a broker anywhere highlights it and adds it to the inventory chart (oldest one drops out past 5)
-  function selectBroker(b){
-    RS.broker = b;
-    if(!invSel.has(b)){ if(invSel.size >= INV_MAX) invSel.delete(invSel.values().next().value); invSel.add(b); invFilter.refresh() }
-    renderAll();
-  }
+  panelRefresh = () => { invFilter.refresh(); renderAll() };
+  const selectBroker = b => ctx.brokerShared!.pick(b);
   $('bsInv').onchange = e => { RS.inv = e.target.value; renderBS() };
   $('bsBoard').onchange = e => { RS.board = e.target.value; renderBS() };
   const segWire = (id, attr, fn) => $(id).querySelectorAll('button').forEach(btn => btn.onclick = () => {

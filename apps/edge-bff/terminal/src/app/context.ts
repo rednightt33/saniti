@@ -130,4 +130,17 @@ export interface Ctx {
   /* EXEC-TERMINAL-WM: each candle's last session date (= dates for daily candles); the first view of the timeframe */
   endDates: string[];
   resetRange: () => void;
+  /* EXEC-TERMINAL-POPOUT (broker.ts): what Broker activity shares with its windows (popout.ts), live */
+  brokerShared?: BrokerShared;
+}
+
+export interface BrokerShared {
+  invSel: Set<string>; max: number; colors: string[];   // the brokers drawn in Broker inventory (panel and window)
+  pick(b: string): void;                                // highlight a broker and add it to Broker inventory
+  changed(): void;                                      // after invSel changed: the panel and the windows redraw
+  listen(fn: () => void): void;                         // a window's redraw (also on new broker data)
+  ready(): boolean;                                     // the broker data has arrived
+  brokers(): string[];                                  // every broker code of the data
+  selected(): string | null;
+  ensureDefaults(): void;                               // no broker chosen: the three largest net buyers of the last 20 sessions
 }

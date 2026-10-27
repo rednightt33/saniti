@@ -183,3 +183,20 @@ Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
 - EXEC-TERMINAL-CUM: the Flow's cumulative line (live) is `cumulativeFrom(net, first visible candle)`, recomputed on
   every range change (Stockbit's F Flow from the start of its period); `FLOW_CUMULATIVE_FROM = 'history'` or
   `?cum=history` brings back the sum from the first session.
+
+## 14. Panel windows (EXEC-TERMINAL-POPOUT W1 + I2, 2026-10-27)
+
+- `src/ui/floatwin.ts`: a window over the page (`.fw`, live): moves by its title bar, resizes from its corner, comes to
+  the front when pressed (z 50–58, pinned 59, below the dropdowns and the calendar), stays in the page (`clampBox`);
+  pin, back to panel and close in the title bar; place, size and pin in `ml.win.<id>`.
+- `src/app/popout.ts`: the ⤢ button beside each right-panel header (a sibling of the header button) opens Broker
+  summary, Top brokers or Broker inventory as a window; open windows (`ml.win.open`) and their choices
+  (`ml.winst.<id>`) come back after a reload. Each window draws from `M.broker`; periods 1D/5D/20D, Chart (the
+  visible sessions, redrawn on every range change) or Custom (the range calendar, "Select on chart").
+- `src/data/brokerAgg.ts`: `aggregate` (sums per broker for an investor type and board), `avgPrice` (value ÷ lots ×
+  100), `sessionSpan`, `summaryTable` (sort, Top N as N net buyers + N net sellers, search, total row, % of value),
+  `inventory` (daily net and running sum per broker with its period sums), `invStats`, `toCsv`.
+- `broker.ts` shares `ctx.brokerShared`: the Broker inventory brokers (one set for the panel and the window), `pick`
+  (highlight and add), `changed` (the panel and every window redraw), `ensureDefaults` (three largest net buyers of the
+  last 20 sessions, also when the broker data arrives with the panel closed).
+- No frequency columns: the rack carries no `buy_freq`/`sell_freq` (user 2026-10-27: "tanpa frekuensi dulu.").
