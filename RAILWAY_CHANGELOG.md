@@ -4690,3 +4690,8 @@ variable or other service changed.
 User 2026-10-27 (B, D, E, calendar, one-day chart pick, annotation hover; EXEC.md EXEC-TERMINAL-PANELS-2). `main`
 `18de6e8`: edge-bff `e09717e2` SUCCESS 08:02 UTC; live `index`, `style` and `worker` assets equal the build (sha256). No
 variable or other service changed.
+
+## 2026-10-27 — edge-bff: Broker inventory follows the chart (EXEC-TERMINAL-PANELS-2 C)
+
+User 2026-10-27: "Kita mulai dari C saja dulu / C2 / C3 + ...". `main` `16bfad3`: edge-bff `90532d14` SUCCESS 08:32 UTC;
+live `index`, `style` and `worker` assets equal the build (sha256). No variable or other service changed.
