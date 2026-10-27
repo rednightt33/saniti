@@ -8332,3 +8332,15 @@ hitam terlampir, ketika fullscreen maka tampilan akan seperti screenshot B".
 Infra dicek 2026-10-27 sebelum mulai (edge-bff dan publisher aktif SUCCESS).
 Status 2026-10-27: A dan B selesai (ERRORS "EXEC-TERMINAL-FULL").
 
+## EXEC-TERMINAL-FULL-2 — layar penuh = panel disembunyikan, "IDX" dihapus (2026-10-27)
+
+User 2026-10-27: "Tapi yang saya maksud dengan full screen adalah bukan benar-benar literally full screen. Full screen
+basically hanya meng-hide indikator sebelah kiri, sebelah kanan, dan panel di bawah. Market dan full screen. Box jangan
+melewati border paling kanan. Also, untuk saat ini, ticker di bagian kolom ticker sebelah kiri ada ticker, kemudian ada
+IDX. Saya minta untuk IDX agar bisa di-remove. Also, bisa nggak untuk time frame ditambah weekly dan monthly as well?
+Coba explore ..."
+- Tombol layar penuh tanpa Fullscreen API: hanya Statistics, Broker activity dan Flow Timeline disembunyikan; izin
+  `allow="fullscreen"` di iframe EDGE dicabut lagi; tombol tidak boleh melewati batas kanan bar.
+- "IDX" di tombol simbol dihapus (live; fixture referensi tetap).
+- Weekly/monthly: eksplorasi dan usulan dulu (database hanya menyimpan Daily), menunggu keputusan user.
+
