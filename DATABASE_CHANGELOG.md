@@ -2799,3 +2799,20 @@ in `DATABASE_SCHEMA.md`, which is generated from schema `public` only (decision 
   - `edge_bff_login` is a member of `edge_bff_runtime`;
   - the runtime role reads 0 rows from each table.
 - Logs: `verification/backtest/jobs/migration20261026_005_{dryrun,apply}.log`.
+
+## 2026-10-27 — EDGE backtest: the comment of `edge_bff.backtest_jobs.error` points to the list of codes
+
+Second independent review of the result-store fix (ERRORS M246; user 2026-10-26 "Jalankan langsung 1-5", steps 3-5
+approved, and 2026-10-27 "Lanjut di dev"). The comment `20261026_005` wrote listed the codes edge-bff sets; it went stale
+when edge-bff began to set `RESULT_NOT_STORED` (and never had `WORKER_FAILED`). Only the comment changes: no data,
+table, role or grant.
+
+- **`20261027_005_edge_bff_backtest_error_comment.sql`** (sha256
+  `e570e501c3743c7859e14758db965f3ff132987645d6630a1d904c1dc247910c`): the comment says what the column holds and
+  points to `apps/edge-bff/backtest/CONTRACT.md` section 11, the one list of the codes and who sets each, so a new code
+  needs no migration. A test derives the codes the loop writes from its source and checks each is in that list
+  (`test_each_job_error_code_is_in_the_one_list_the_column_points_to`).
+- DRYRUN (job `3119da7b`, rolled back) then APPLY (job `9862ff6b`) on orc-test-runner, 11:24–11:26 UTC; `DATABASE_URL`
+  set only for each run and removed after (VAR_REMOVED). Read back after APPLY: the new comment; the runtime role
+  reads the 27 dev jobs.
+- Logs: `verification/backtest/jobs/migration20261027_005_{dryrun,apply}.log`.

@@ -93,7 +93,9 @@ heartbeat) that fails so is made again at the next poll or beat until the same d
 `EDGE_LEASE_SECONDS` past it. A database failure is not counted as an unanswered worker call; each one is logged
 (`backtest_result_store_failed`, `backtest_job_store_failed` with its `step`) with the exception's class and its
 SQLSTATE or libpq's text without credentials, names or addresses. The lease token fences the follower; the expiry only
-lets reap end a job its follower left.
+lets reap end a job its follower left. A follower that finds the job no longer its own (reap took it, or a write of its
+own committed although the database's answer was lost) stops and logs `backtest_lease_lost` once, with the job's state
+read then.
 A job is never sent twice: the worker forgetting it (`404 UNKNOWN_JOB`) or no longer keeping its result (`410
 RESULT_GONE`: a newer job started there) is `FAILED WORKER_LOST` at once, not answering three times in a row is `FAILED
 WORKER_LOST` too, as is a job reap took because its lease expired (edge-bff stopped while following it; the worker is

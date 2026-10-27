@@ -2486,11 +2486,26 @@ change yet.
   (teksnya bisa memuat isi baris); untuk error psycopg/libpq sendiri baris pertamanya tanpa password konfigurasi
   (terbaca maupun ejaan URL), nama user/host/database, user info URL, pasangan `password=`, dan alamat IP, disensor
   sebelum dipotong 300 karakter; URL yang tidak terbaca hanya kelas (libpq mengutip bagian rusaknya, mungkin
-  password). CONTRACT.md bagian 9, 11, keputusan B2; README edge-bff. Tes (46/46 backtest): lebih dari
-  `WORKER_RETRIES` kegagalan simpan lalu berhasil = `FINISHED`, satu ambil; tidak pernah berhasil =
-  `RESULT_NOT_STORED` tanpa cancel dan tanpa baris; error permanen = `RESULT_NOT_STORED` seketika dengan SQLSTATE saja;
-  kegagalan serah/baca/progress/heartbeat/end = tetap `FINISHED` atau tetap error worker; lease kedaluwarsa tanpa
-  reap = `FINISHED`, sesudah reap = `WORKER_LOST` dengan log `backtest_lease_lost`; kasus sensor log.
+  password). (5) Review independen kedua (7 temuan, semua ringan, semua diperbaiki): serah job memeriksa batas waktu
+  sebelum membaca job (seperti pengikut), jadi gangguan database yang melewati batas waktu tetap berakhir `TIMEOUT`,
+  bukan dibiarkan `RUNNING` sampai reap menulis `WORKER_LOST`; setiap panggilan berpagar yang tidak menemukan baris
+  (baca job, progress, simpan, end) menghentikan pengikut dan mencatat `backtest_lease_lost` sekali dengan `step`,
+  `result_held`, serta `state`/`code` job yang dibaca saat itu, sehingga reap (`FAILED WORKER_LOST`) bisa dibedakan dari
+  commit pengikut sendiri yang jawabannya hilang (`FINISHED`, hasil tersimpan); heartbeat yang menemukan job hilang tidak
+  lagi membatalkan pengikut diam-diam (pengikut sendiri yang menemukannya dan mencatat), dan error heartbeat yang tidak
+  bisa pulih dicatat (sebelumnya mati tanpa log); komentar kolom `edge_bff.backtest_jobs.error` menunjuk ke daftar kode
+  di CONTRACT bagian 11, bukan daftar sendiri yang basi (migrasi `20261027_005`, DRYRUN dan APPLY dev). Dua temuan
+  dibantah dengan bukti: SQLSTATE 25006 (read-only) tidak bisa terjadi di satu Postgres tanpa standby; hasil yang masih
+  dipegang setelah batas waktu sengaja tidak disimpan lagi (keputusan B2). CONTRACT.md bagian 9, 11, keputusan B2;
+  README edge-bff. Tes (50/50 backtest): lebih dari `WORKER_RETRIES` kegagalan simpan lalu berhasil = `FINISHED`, satu
+  ambil; tidak pernah berhasil = `RESULT_NOT_STORED` tanpa cancel dan tanpa baris; error permanen = `RESULT_NOT_STORED`
+  seketika dengan SQLSTATE saja; kegagalan serah/baca/progress/heartbeat/end = tetap `FINISHED` atau tetap error worker;
+  lease kedaluwarsa tanpa reap diperpanjang heartbeat = `FINISHED`, sesudah reap = `WORKER_LOST` dengan satu log
+  `backtest_lease_lost` baik pengikut maupun heartbeat yang lebih dulu menemukannya; kehilangan job di tiap langkah
+  (serah, simpan, commit yang jawabannya hilang, end, progress) tercatat dengan state yang benar; serah melewati batas
+  waktu saat database gagal = `TIMEOUT`; error heartbeat permanen tercatat; setiap kode error job yang ditulis loop ada
+  di CONTRACT bagian 11; kasus sensor log, dan tes log tidak lagi bergantung pada password database tes. Uji mutasi:
+  mencabut tiap perbaikan membuat tesnya gagal.
 - **Not covered:** penyebab putusnya koneksi; `apps/edge-bff/app/worker.py` (loop Orc) masih mencatat
   `queue_operation_failed` tanpa detail (kelas masalah yang sama, di luar lingkup backtest).
 - **Status:** MITIGATED: edge-bff a2669e0f di dev, E2E 2026-10-27 10:03 UTC lulus semua langkah tanpa satu pun

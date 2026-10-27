@@ -35,6 +35,7 @@ from conftest import FakeOrc
 ORIGIN = {'Origin': 'http://testserver'}
 KEY = 'w' * 40
 MIGRATION = Path(__file__).resolve().parents[3] / 'database/migrations/20261026_005_edge_bff_backtest.sql'
+ERROR_COMMENT = Path(__file__).resolve().parents[3] / 'database/migrations/20261027_005_edge_bff_backtest_error_comment.sql'
 ROLLBACK = '\n'.join(line[3:] for line in MIGRATION.read_text().split('-- Rollback', 1)[1].splitlines()[1:] if line.startswith('-- '))
 
 
@@ -667,11 +668,14 @@ def test_a_failed_store_is_stored_again_until_the_deadline(app, worker, monkeypa
     assert fetches(lost) == 1 and not worker.posted(f'/v1/jobs/{lost}/cancel')
     assert db(c, 'SELECT count(*) AS n FROM edge_bff.backtest_results WHERE request_id=%s', lost)[0]['n'] == 0
     assert db(c, 'SELECT count(*) AS n FROM edge_bff.backtest_trials WHERE request_id=%s', lost)[0]['n'] == 0
-    # each failure is logged with what tells the failures apart, never the credentials
+    # each failure is logged with what tells the failures apart, never the credentials. The detail is failure_of's
+    # for the loop's own database URL (its password is redacted wherever it occurs, so the exact text depends on the
+    # test database's URL; failure_of itself is checked with a fixed URL below)
     found = logged(caplog, 'backtest_result_store_failed')
-    assert found and all(e['error'] == 'psycopg.OperationalError' and e['detail'].startswith('connection to postgresql://')
-                         and 'edge_bff_login' not in e['detail'] for e in found)
-    assert 'secret' not in caplog.text
+    expected = backtest.failure_of(psycopg.OperationalError(LOST_CONNECTION), store.store.url)
+    assert found and all(e == {'event': 'backtest_result_store_failed', 'request_id': e['request_id'], **expected}
+                         for e in found)
+    assert all('edge_bff_login' not in e.get('detail', '') for e in found) and 'secret' not in caplog.text
 
 
 def test_a_store_no_retry_mends_ends_the_job_at_once(app, worker, monkeypatch, caplog):
@@ -738,29 +742,195 @@ def test_a_database_failure_around_a_job_is_tried_again(app, worker, monkeypatch
 
 def test_an_expired_lease_is_its_followers_until_reap_takes_it(app, worker, monkeypatch, caplog):
     """The lease token fences the follower; the expiry decides only when reap may end a job: a lease that expired
-    while the database was away (heartbeats failing) is renewed by its follower and the job finishes; once reap took
-    the job (FAILED WORKER_LOST, the token cleared), the follower is fenced, a result it held is dropped and logged."""
+    while the database was away (heartbeats failing) is renewed by its heartbeat and the job finishes; once reap took
+    the job (FAILED WORKER_LOST, the token cleared), the follower is fenced, and a result it held is dropped and
+    logged once, whether its own job read or its heartbeat finds the job gone first."""
     c = app
     bt = c.app.state.backtests
     store = bt.store
     expire = lambda job_id: db(c, "UPDATE edge_bff.backtest_jobs SET lease_expires_at=now()-interval '1 second' "
                                   "WHERE request_id=%s", job_id)
-    worker.on_poll = lambda job_id, polls: polls == 1 and expire(job_id)
+    renewed = lambda job_id: db(c, 'SELECT lease_expires_at > now() AS ok FROM edge_bff.backtest_jobs '
+                                   'WHERE request_id=%s', job_id)[0]['ok']
+    # the store: a heartbeat renews an expired lease nobody reaped, and is refused once reap took the job
+    held = submit(c, single(), 'expired-heartbeat').json()['request_id']
+    row = store.claim(90)
+    expire(held)
+    assert store.heartbeat(row, 90) and renewed(held)
+    expire(held)
+    assert store.reap() == [held] and not store.heartbeat(row, 90)
+    # the loop: the lease expires while the job runs; its heartbeat renews it before the job finishes
+    seen = []
+    def on_poll(job_id, polls):
+        if polls == 1:
+            expire(job_id)
+        elif polls == 2:
+            until = time.monotonic() + 5
+            while not renewed(job_id) and time.monotonic() < until:
+                time.sleep(0.01)
+            seen.append(renewed(job_id))
+    worker.on_poll = on_poll
     job_id = submit(c, single(), 'expired-not-reaped').json()['request_id']
-    run_next(c)
-    assert c.get(f'/api/v1/backtests/{job_id}').json()['state'] == 'FINISHED'
+    run_next(c, dataclasses.replace(bt.settings, heartbeat_seconds=0.001))
+    assert c.get(f'/api/v1/backtests/{job_id}').json()['state'] == 'FINISHED' and seen == [True]
     worker.on_poll = None
-    # reap takes a job whose store keeps failing: the follower finds its lease gone and stops
+    # reap takes a job whose store keeps failing: the follower finds its lease gone and stops. With a heartbeat far
+    # slower than the polls the follower's job read finds it; with one far faster, the heartbeat does, and the
+    # follower, not cancelled, still finds it at its next poll and logs it. (The lease is made to expire and reaped
+    # while no heartbeat runs: one between the two would renew it, as it should, and reap would find nothing.)
+    between, real_heartbeat, beats = threading.Lock(), store.heartbeat, []
+    def heartbeat(row, seconds):
+        with between:
+            beats.append(real_heartbeat(row, seconds))
+            return beats[-1]
     def reaped(row, split):
-        expire(row['request_id'])
-        assert store.reap() == [row['request_id']]
+        with between:
+            expire(row['request_id'])
+            assert store.reap() == [row['request_id']]
         raise psycopg.OperationalError(LOST_CONNECTION)
+    monkeypatch.setattr(store, 'heartbeat', heartbeat)
     monkeypatch.setattr(store, 'finish', reaped)
-    taken = submit(c, single(), 'reaped').json()['request_id']
+    for name, every, poll in (('reaped', 20, 0.005), ('reaped-beat-first', 0.001, 0.2)):
+        caplog.clear()
+        beats.clear()
+        taken = submit(c, single(), name).json()['request_id']
+        run_next(c, dataclasses.replace(bt.settings, heartbeat_seconds=every, poll_seconds=poll))
+        assert c.get(f'/api/v1/backtests/{taken}').json()['error'] == {'code': 'WORKER_LOST'}
+        assert (False in beats) == (every < poll) and not logged(caplog, 'backtest_job_store_failed'), name
+        assert logged(caplog, 'backtest_lease_lost') == [{'event': 'backtest_lease_lost', 'request_id': taken,
+                                                          'step': 'follow', 'result_held': True, 'state': 'FAILED',
+                                                          'code': 'WORKER_LOST'}], name
+
+
+def test_a_follower_that_no_longer_holds_its_job_logs_why_once(app, worker, monkeypatch, caplog):
+    """Every fenced call of the follower that matches no row (the job read at the hand-over or while following, the
+    progress, the result's store, an end) stops it and logs backtest_lease_lost once, with the step that found it and
+    the job's state and error code read then: reap's FAILED WORKER_LOST, or what an earlier write of this follower
+    committed although the database's answer was lost (FINISHED with the result stored, or the end it made)."""
+    c = app
+    bt = c.app.state.backtests
+    store = bt.store
+    lost_answer = 'consuming input failed: server closed the connection unexpectedly'
+    reaped = []
+    def reap(job_id):
+        """another edge-bff's reap of this job (its lease made to expire first); checked after each case"""
+        db(c, "UPDATE edge_bff.backtest_jobs SET lease_expires_at=now()-interval '1 second' WHERE request_id=%s", job_id)
+        reaped.append(store.reap())
+    def wrap(name, before=None, after=None, times=1):
+        """store.<name>, with `before` run ahead of the real call and `after` (raising) behind it, `times` times"""
+        real, n = getattr(store, name), [0]
+        def call(row, *args):
+            n[0] += 1
+            if n[0] <= times and before:
+                before(row['request_id'])
+            out = real(row, *args)
+            if n[0] <= times and after:
+                after()
+            return out
+        monkeypatch.setattr(store, name, call)
+    def lost_line(job_id):
+        return [e for e in logged(caplog, 'backtest_lease_lost') if e['request_id'] == job_id]
+    def raise_lost():
+        raise psycopg.OperationalError(lost_answer)
+    # reaped while the worker is busy, before the hand-over: the job read at the hand-over finds it
+    worker.busy = 1
+    real_current, reads = store.current, []
+    def current(row):
+        reads.append(row['request_id'])
+        if len(reads) == 2:
+            reap(row['request_id'])
+        return real_current(row)
+    monkeypatch.setattr(store, 'current', current)
+    busy = submit(c, single(), 'lost-at-hand-over').json()['request_id']
     run_next(c)
-    assert c.get(f'/api/v1/backtests/{taken}').json()['error'] == {'code': 'WORKER_LOST'}
-    assert logged(caplog, 'backtest_lease_lost')[-1] == {'event': 'backtest_lease_lost', 'request_id': taken,
-                                                          'result_held': True}
+    monkeypatch.setattr(store, 'current', real_current)
+    assert reaped.pop() == [busy]
+    assert lost_line(busy) == [{'event': 'backtest_lease_lost', 'request_id': busy, 'step': 'dispatch',
+                                'result_held': False, 'state': 'FAILED', 'code': 'WORKER_LOST'}]
+    assert worker.posted('/v1/jobs')[-1]['body']['job_id'] == busy and busy not in worker.jobs
+    # reaped just before the result's store: the store is refused, the fetched result is dropped
+    wrap('finish', before=reap)
+    before_store = submit(c, single(), 'lost-at-store').json()['request_id']
+    run_next(c)
+    assert reaped.pop() == [before_store]
+    assert lost_line(before_store) == [{'event': 'backtest_lease_lost', 'request_id': before_store, 'step': 'finish',
+                                        'result_held': True, 'state': 'FAILED', 'code': 'WORKER_LOST'}]
+    # the store committed, its answer was lost: the job read at the next poll finds the job FINISHED, result stored
+    monkeypatch.undo()
+    wrap('finish', after=raise_lost)
+    committed = submit(c, single(), 'committed-answer-lost').json()['request_id']
+    run_next(c)
+    assert c.get(f'/api/v1/backtests/{committed}').json()['state'] == 'FINISHED'
+    assert c.get(f'/api/v1/backtests/{committed}/result').json() == result_of(committed, single())
+    assert lost_line(committed) == [{'event': 'backtest_lease_lost', 'request_id': committed, 'step': 'follow',
+                                     'result_held': True, 'state': 'FINISHED', 'code': None}]
+    # an end committed, its answer lost: made again, refused by the fence, the job keeps that end
+    monkeypatch.undo()
+    worker.refuse_with = {'code': 'DATA_MISSING', 'message': 'no price file for MAPI'}
+    wrap('end', after=raise_lost)
+    refused = submit(c, single(), 'end-answer-lost').json()['request_id']
+    run_next(c)
+    assert c.get(f'/api/v1/backtests/{refused}').json()['error'] == worker.refuse_with
+    assert lost_line(refused) == [{'event': 'backtest_lease_lost', 'request_id': refused, 'step': 'end',
+                                   'result_held': False, 'state': 'FAILED', 'code': 'DATA_MISSING'}]
+    worker.refuse_with = None
+    # reaped while it runs: the progress write is refused (the job read before it still held)
+    monkeypatch.undo()
+    worker.on_poll = lambda job_id, polls: polls == 1 and reap(job_id)
+    running = submit(c, single(), 'lost-at-progress').json()['request_id']
+    run_next(c)
+    worker.on_poll = None
+    assert reaped == [[running]]
+    assert lost_line(running) == [{'event': 'backtest_lease_lost', 'request_id': running, 'step': 'progress',
+                                   'result_held': False, 'state': 'FAILED', 'code': 'WORKER_LOST'}]
+
+
+def test_a_hand_over_past_its_deadline_ends_timeout_while_the_database_fails(app, worker, monkeypatch, caplog):
+    """The hand-over checks the deadline before its job read, as the follower checks it before its own: a worker busy
+    past BACKTEST_TIMEOUT_SECONDS while every job read fails ends the job FAILED TIMEOUT, its end made again while it
+    fails, never left RUNNING for reap to end WORKER_LOST."""
+    c = app
+    bt = c.app.state.backtests
+    store = bt.store
+    worker.busy = 10 ** 6
+    real_current, real_end, started, ends = store.current, store.end, [], []
+    def current(row):
+        if time.monotonic() - started[0] > 0.2:
+            raise psycopg.OperationalError('consuming input failed: server closed the connection unexpectedly')
+        return real_current(row)
+    def end(row, *args):
+        ends.append(args)
+        if len(ends) == 1:
+            raise psycopg.OperationalError('consuming input failed: server closed the connection unexpectedly')
+        return real_end(row, *args)
+    monkeypatch.setattr(store, 'current', current)
+    monkeypatch.setattr(store, 'end', end)
+    job_id = submit(c, single(), 'busy-past-deadline').json()['request_id']
+    started.append(time.monotonic())
+    run_next(c, dataclasses.replace(bt.settings, backtest_timeout_seconds=0.5))
+    assert c.get(f'/api/v1/backtests/{job_id}').json()['error'] == {'code': 'TIMEOUT'}
+    assert ends == [('FAILED', {'code': 'TIMEOUT'})] * 2 and job_id not in worker.jobs
+    steps = [e['step'] for e in logged(caplog, 'backtest_job_store_failed') if e['request_id'] == job_id]
+    assert 'dispatch' in steps and steps[-1] == 'end' and steps.count('end') == 1
+
+
+def test_a_heartbeat_failure_no_retry_mends_is_logged_and_leaves_the_follower(app, worker, monkeypatch, caplog):
+    """A heartbeat that fails in a way no retry mends (any error but OperationalError) is logged by its SQLSTATE and
+    not made again (the lease is left to expire); the follower goes on, and the job finishes."""
+    c = app
+    bt = c.app.state.backtests
+    calls = []
+    def refused(row, seconds):
+        calls.append(row['request_id'])
+        raise psycopg.errors.InsufficientPrivilege('permission denied for table backtest_jobs')
+    monkeypatch.setattr(bt.store, 'heartbeat', refused)
+    worker.finish_after = 6
+    job_id = submit(c, single(), 'beat-refused').json()['request_id']
+    run_next(c, dataclasses.replace(bt.settings, heartbeat_seconds=0.001))
+    assert c.get(f'/api/v1/backtests/{job_id}').json()['state'] == 'FINISHED' and calls == [job_id]
+    assert logged(caplog, 'backtest_job_store_failed') == [{
+        'event': 'backtest_job_store_failed', 'step': 'heartbeat', 'request_id': job_id,
+        'error': 'psycopg.errors.InsufficientPrivilege', 'sqlstate': '42501'}]
 
 
 def test_a_database_failure_is_logged_without_credentials_or_row_values():
@@ -849,6 +1019,24 @@ def test_provisioned_login_reaches_the_backtest_tables_with_their_migration(back
                 conn.execute('GRANT SELECT, INSERT, UPDATE ON edge_bff.backtest_trials TO edge_bff_runtime')
             conn.execute('DROP OWNED BY edge_bff_login')
             conn.execute('DROP ROLE edge_bff_login')
+
+
+def test_each_job_error_code_is_in_the_one_list_the_column_points_to(backtest_tables):
+    """Every code the loop writes to backtest_jobs.error (found in its own source, and NOT_STORED) is in the list of
+    them, CONTRACT.md section 11; the column's comment (migration 20261027_005) points there and repeats none, so a new
+    code needs no migration (20261026_005's own list went stale when RESULT_NOT_STORED was added)."""
+    import inspect
+    source = inspect.getsource(backtest.BacktestStore) + inspect.getsource(backtest.BacktestLoop)
+    codes = set(re.findall(r"'code': '([A-Z_]+)'", source)) | {backtest.NOT_STORED['code']}
+    contract = (Path(backtest.__file__).resolve().parents[1] / 'backtest/CONTRACT.md').read_text()
+    errors = contract.split('\n## 11. ', 1)[1].split('\n## 12. ', 1)[0]
+    assert {'WORKER_LOST', 'TIMEOUT', 'RESULT_NOT_STORED'} <= codes
+    assert [code for code in sorted(codes) if f'`{code}`' not in errors] == []
+    with psycopg.connect(backtest_tables, autocommit=True) as c:
+        c.execute(ERROR_COMMENT.read_text())       # again: a test above may have taken 20261026_005 out and put it back
+        comment = c.execute("SELECT col_description('edge_bff.backtest_jobs'::regclass, attnum) FROM pg_attribute "
+                            "WHERE attrelid='edge_bff.backtest_jobs'::regclass AND attname='error'").fetchone()[0]
+    assert 'CONTRACT.md section 11' in comment and [code for code in sorted(codes) if code in comment] == []
 
 
 def test_the_migration_refuses_a_runtime_role_with_more_than_the_code_does(backtest_tables):
