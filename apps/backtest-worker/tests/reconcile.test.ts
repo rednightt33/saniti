@@ -89,7 +89,7 @@ function randomRequest(m: MarketData): BacktestRequest {
   return {
     schema_version: 1, mode,
     ...(mode === 'single' ? { single: { ticker: pick(tickers), benchmark: pick(['buy_and_hold', 'ihsg'] as const) } }
-      : { portfolio: { universe: 'all', max_positions: int(1, 5), rank_by: pick(['adx', 'fnet', 'vol', 'rsi'] as const), min_avg_value_20d_idr: pick([0, 0, 1e8, 5e8]) } }),
+      : { portfolio: { tickers: shuffle([...tickers]), max_positions: int(1, 12), rank_by: pick(['adx', 'fnet', 'vol', 'rsi'] as const), min_avg_value_20d_idr: pick([0, 0, 1e8, 5e8]) } }),
     period: { from: ALL[from], to: ALL[to], oos_fraction: 0 },
     entry: { logic: pick(['all', 'any', 'at_least'] as const), at_least: int(1, 3), window_bars: int(1, 5), conditions },
     exit: {
@@ -205,8 +205,9 @@ test('random markets and requests reconcile: cash, equity, pnl, positions and ev
    written out, the numbers of the stop, take-profit and trailing modes that are not chosen, atr_length without an ATR
    mode, at_least outside logic at_least or above the number of enabled entry cards, the exit logic without an enabled
    exit card, the OOS share, the ARA fraction while the rule is off, the allocation of a portfolio, the benchmark, the
-   robustness settings and the key order. (2) Every leaf of the request changed on its own (another number, enum,
-   date, ticker or flag the engine accepts): when the trades or the equity change, the variant hash changes too. */
+   robustness settings, the key order and the order of the picked stocks (PF3). (2) Every leaf of the request changed
+   on its own (another number, enum, date, ticker or flag the engine accepts): when the trades or the equity change, the
+   variant hash changes too. */
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 const trialOf = (l: Ledger) => ({ dates: l.dates, equity: l.equity, exposure: l.exposure, trades: l.trades.map(({ entry_condition_ids: _ids, ...t }) => t) });
 const signalsOf = (l: Ledger) => ({ ...trialOf(l), skipped: l.events.skipped, entries: l.events.entries, exits: l.events.exits, per_ticker: l.per_ticker_signals });
@@ -238,7 +239,7 @@ function unread(q0: BacktestRequest): BacktestRequest {
   if (!x.signals.conditions.some(c => c.enabled !== false)) x.signals.logic = pick(['any', 'all'] as const);
   q.period.oos_fraction = pick([0, 0.2, 0.3, 0.4] as const);
   if (!q.costs.skip_ara_open_gap) q.costs.ara_gap_fraction = pick([0.05, 0.3, 0.5]);
-  if (q.mode === 'portfolio') q.sizing.allocation_fraction = pick([0.1, 0.5, 1]);
+  if (q.mode === 'portfolio') { q.sizing.allocation_fraction = pick([0.1, 0.5, 1]); shuffle(q.portfolio!.tickers) }
   else q.single!.benchmark = pick(['buy_and_hold', 'ihsg'] as const);
   q.robustness = { monte_carlo_runs: pick([0, 1000]), seed: int(0, 99), sensitivity: rnd() < 0.5 };
   return keysReversed(q) as BacktestRequest;

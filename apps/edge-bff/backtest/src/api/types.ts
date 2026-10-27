@@ -44,7 +44,7 @@ export const isAbort = (e: unknown) => (e as { name?: string } | null)?.name ===
 
 export interface BacktestApi {
   texts: SourceTexts;
-  /** What the page may offer: tickers, universes, brokers, dates, limits. */
+  /** What the page may offer: tickers with their groupings, brokers, dates, limits. */
   catalog(): Promise<Catalog>;
   /** A ticker's bars; with flow also its broker data, so flow cards can be calculated. Once it resolves, the
       synchronous calls below work for that ticker (the reference computes everything at once, so the page keeps its
@@ -59,7 +59,7 @@ export interface BacktestApi {
   /** One card's 0/1 series on a loaded ticker's bars (bar 0 is never true); null = not ready (see ready) or the data
       it needs is not loaded. Invalid inputs give an all-zero series in the preview; a run reports them as an error. */
   conditionSeries(ticker: string, card: Card): Uint8Array | null;
-  /** Entry signals of every ticker of a universe before a run (the portfolio table). `signal` aborts the call (newer
+  /** Entry signals of every picked stock of a portfolio before a run (the portfolio table). `signal` aborts the call (newer
       settings replaced the preview): the answer then never comes, the call rejects with an AbortError (isAbort). */
   signalsPreview(request: SignalsPreviewRequest, opts?: { signal?: AbortSignal }): Promise<SignalsPreview>;
   submit(request: BacktestRequest): Promise<{ request_id: string }>;

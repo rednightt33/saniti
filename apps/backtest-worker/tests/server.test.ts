@@ -3,8 +3,9 @@
    published by tests/fake-terminal.mjs in the publisher's format. A job runs on the job thread; its gzip result must be
    the result run.ts computes in this process from the same files (meta.duration_ms aside; JSON writes -0 as 0).
    A small proxy in front of the fake terminal-api delays /bundle answers on demand, so a job can be held in its
-   loading phase (BUSY, cancel, timeout) without a timer inside the worker. Sector and company names of the fake
-   reference list are test labels, not published values. */
+   loading phase (BUSY, cancel, timeout) without a timer inside the worker, and holds /reference answers until the test
+   releases them, so a request can be held while the worker waits for the reference lists (review V1). Sector labels
+   and company names of the fake reference list are test labels, not published values. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import http from 'node:http';
@@ -15,6 +16,7 @@ import { loadFixtures } from '../../edge-bff/terminal/tests/calc/fixtures.mjs';
 import type { BacktestRequest, BacktestResult, Catalog, JobProgress, JobStatus, SignalsPreview } from '../../edge-bff/backtest/src/core/contract.ts';
 import { DEFAULT_ENTRY, LEGACY, legacyCard, legacyToCondition } from '../../edge-bff/backtest/src/core/catalog.ts';
 import type { LegacyCard } from '../../edge-bff/backtest/src/core/catalog.ts';
+import { MAX_PORTFOLIO_TICKERS, MAX_POSITIONS } from '../../edge-bff/backtest/src/core/engine.ts';
 import { lineageKey, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
 import { packResult } from '../src/compute.ts';
 import { FLOW_OFF_REASON, loadConfig } from '../src/config.ts';
@@ -35,6 +37,9 @@ const FX = new Map((loadFixtures() as Fixture[]).map(f => [f.ticker, f]));
 const STOCKS = [...FX.keys()].filter(t => t !== 'IHSG').sort();
 const THROUGH = [...FX.values()].map(f => f.T[f.T.length - 1]).sort().pop()!;
 const SECTOR: Record<string, string> = { BBCA: 'Sector A', UNVR: 'Sector A', GOTO: 'Sector A' };    // test labels
+// test labels of the publisher's industry column; 'Undefined' is the table's value for no classification (PF6)
+const INDUSTRY: Record<string, string> = { BBCA: 'Industry A', UNVR: 'Industry A', GOTO: 'Undefined' };
+const SECTOR_A = ['BBCA', 'GOTO', 'UNVR'];
 // broker manifests (test dates, no file): the publisher wrote its broker data_through into UNVR's manifest last, BBCA's earlier
 const BROKER_THROUGH: Record<string, string> = { UNVR: THROUGH, BBCA: '2026-10-20' };
 // price: the pack the worker reads and the yearly files the publisher writes next to it (the manifest lists those)
@@ -46,7 +51,8 @@ const MARKET = Object.fromEntries([...FX.values()].map(f => [f.ticker, { generat
 } }]));
 const REFS = {
   // LQ45: a test row of an index without a company name (the reference file holds null there)
-  tickers: tickersRef([...[...FX.keys()].sort().map(t => [t, `${t} (test name)`, t === 'IHSG' ? 'index' : 'stock', t === 'IHSG' ? null : SECTOR[t] ?? 'Sector B']), ['LQ45', null, 'index', null]]),
+  tickers: tickersRef([...[...FX.keys()].sort().map(t => [t, `${t} (test name)`, t === 'IHSG' ? 'index' : 'stock', t === 'IHSG' ? null : SECTOR[t] ?? 'Sector B',
+    t === 'IHSG' ? 'Undefined' : INDUSTRY[t] ?? 'Industry B']), ['LQ45', null, 'index', null, null]]),
   brokers: brokersRef([['YU', 'test broker', 'Foreign'], ['ZP', 'test broker 2', 'Local']]),
 };
 
@@ -69,10 +75,11 @@ function pageDefault(ticker: string): BacktestRequest {
     robustness: { monte_carlo_runs: 1000, seed: 7, sensitivity: true },
   };
 }
-function portfolioDefault(universe = 'all'): BacktestRequest {
+/** The page's portfolio defaults (tests/run.test.ts portfolioDefault) on picked stocks, every fixture stock unless named. */
+function portfolioDefault(tickers: string[] = STOCKS): BacktestRequest {
   const q = pageDefault('BBCA');
   delete q.single;
-  return { ...q, mode: 'portfolio', portfolio: { universe, max_positions: 5, rank_by: 'adx', min_avg_value_20d_idr: 5 * 1e9 } };
+  return { ...q, mode: 'portfolio', portfolio: { tickers: [...tickers], max_positions: 5, rank_by: 'adx', min_avg_value_20d_idr: 5 * 1e9 } };
 }
 const noDuration = (r: BacktestResult) => ({ ...r, meta: { ...r.meta, duration_ms: 0 } });
 /** As JSON carries a value: -0 written as 0. */
@@ -91,6 +98,11 @@ const WORKER_KEY = 'server-test-worker-key-'.padEnd(48, 'w');
 const PROXY_KEY = 'server-test-proxy-key-'.padEnd(48, 'p');
 let fake: Awaited<ReturnType<typeof startFakeTerminal>>;
 const slow = { bundleMs: 0 };
+/** While shut, the proxy keeps every /reference request (in arrival order) until release(). */
+const hold = {
+  shut: false, held: 0, waiting: [] as (() => void)[],
+  release() { this.shut = false; for (const go of this.waiting.splice(0)) go() },
+};
 let proxy: http.Server, proxyUrl = '';
 function startProxy(): Promise<void> {
   proxy = http.createServer((req, res) => {
@@ -102,7 +114,8 @@ function startProxy(): Promise<void> {
         out.on('error', () => res.destroy());
         out.end(Buffer.concat(parts));
       };
-      if (req.url === '/api/terminal/v1/bundle' && slow.bundleMs) setTimeout(go, slow.bundleMs); else go();
+      if (hold.shut && req.url?.startsWith('/api/terminal/v1/reference/')) { hold.held++; hold.waiting.push(go) }
+      else if (req.url === '/api/terminal/v1/bundle' && slow.bundleMs) setTimeout(go, slow.bundleMs); else go();
     });
   });
   return new Promise(ok => proxy.listen(0, '127.0.0.1', () => { proxyUrl = `http://127.0.0.1:${(proxy.address() as net.AddressInfo).port}`; ok() }));
@@ -123,7 +136,7 @@ before(async () => {
   await startProxy();
   app = createApp(loadConfig(ENV()));
   base = `http://127.0.0.1:${await app.listen(0, '127.0.0.1')}`;
-  refs = { tickers: await local().reference('tickers'), brokers: await local().reference('brokers') };
+  refs = { tickers: (await local().reference('tickers')).tickers, brokers: await local().reference('brokers') };
 });
 after(async () => { await app.close(); proxy.closeAllConnections(); await new Promise(ok => proxy.close(ok)); await fake.close() });
 
@@ -199,23 +212,24 @@ test('every route but /health needs x-backtest-worker-key', async () => {
   assert.equal((await call('POST', '/health', undefined, { key: null })).status, 405);
 });
 
-test('catalog: the published tickers, universes and brokers, IHSG\'s first and last bar, limits, flow off with its reason', async () => {
+test('catalog: the published tickers with their groups, the groupings, the brokers, IHSG\'s first and last bar, limits, flow off with its reason', async () => {
   const a = await call('GET', '/v1/catalog');
   assert.equal(a.status, 200);
   const c = a.json() as Catalog;
   assert.equal(c.schema_version, 1); assert.equal(c.engine_version, ENGINE_VERSION); assert.equal(c.registry_version, REGISTRY_VERSION);
   assert.equal(c.data_through, FX.get('IHSG')!.T.at(-1)); assert.equal(c.first_date, FX.get('IHSG')!.T[0]);
-  assert.deepEqual(c.tickers, refs.tickers.map(r => ({ ticker: r.ticker, name: r.name, type: r.type, sector: r.sector })));
-  assert.deepEqual(c.tickers.find(t => t.ticker === 'IHSG'), { ticker: 'IHSG', name: 'IHSG (test name)', type: 'index', sector: null });
-  assert.deepEqual(c.tickers.find(t => t.ticker === 'LQ45'), { ticker: 'LQ45', name: null, type: 'index', sector: null });   // as published
-  assert.deepEqual(c.universes, [
-    { id: 'all', label: `All stocks (${STOCKS.length})`, tickers: STOCKS.length },
-    { id: 'sector:Sector A', label: 'Sector A (3)', tickers: 3 },
-    { id: 'sector:Sector B', label: `Sector B (${STOCKS.length - 3})`, tickers: STOCKS.length - 3 },
-  ]);
+  assert.deepEqual(c.tickers, refs.tickers.map(r => ({ ticker: r.ticker, name: r.name, type: r.type, groups: r.groups })));
+  assert.deepEqual(c.tickers.find(t => t.ticker === 'IHSG'), { ticker: 'IHSG', name: 'IHSG (test name)', type: 'index', groups: { sector: null, industry: null } });
+  assert.deepEqual(c.tickers.find(t => t.ticker === 'LQ45'), { ticker: 'LQ45', name: null, type: 'index', groups: { sector: null, industry: null } });   // as published
+  assert.deepEqual(c.tickers.find(t => t.ticker === 'GOTO')!.groups, { sector: 'Sector A', industry: null });   // 'Undefined': unclassified
+  // PF6: the grouping columns of the publisher's reference file, in its order; the stocks only (IHSG and LQ45 are
+  // indices, not counted); GOTO's 'Undefined' industry is counted apart, never a value
+  assert.deepEqual(c.groupings, [{ key: 'sector', values: [{ value: 'Sector A', tickers: 3 }, { value: 'Sector B', tickers: STOCKS.length - 3 }], unclassified: 0 },
+    { key: 'industry', values: [{ value: 'Industry A', tickers: 2 }, { value: 'Industry B', tickers: STOCKS.length - 3 }], unclassified: 1 }]);
+  assert.equal('universes' in c, false);
   assert.deepEqual(c.flow, { available: false, reason: FLOW_OFF_REASON, brokers: ['YU', 'ZP'], data_through: null });
   const manifests = () => fake.requests.filter(r => r.path.startsWith('/api/terminal/v1/manifest/')).length, m0 = manifests();
-  assert.deepEqual(c.limits, { max_positions: 10, window_bars: { min: 1, max: 20 }, monte_carlo_runs: 1000, max_download_bytes: 1e9, max_broker_rows: 1e9, timeout_seconds: 60, queued_per_owner: 3, max_conditions: 20 });
+  assert.deepEqual(c.limits, { max_positions: MAX_POSITIONS, window_bars: { min: 1, max: 20 }, monte_carlo_runs: 1000, max_portfolio_tickers: MAX_PORTFOLIO_TICKERS, max_download_bytes: 1e9, max_broker_rows: 1e9, timeout_seconds: 60, queued_per_owner: 3, max_conditions: 20 });
   assert.equal(manifests(), m0, 'flow off: no manifest is asked');
   // flow on: available, no reason, and the newest broker data_through of every stock's manifest
   const on = createApp(loadConfig(ENV({ BACKTEST_FLOW_ENABLED: '1' })));
@@ -238,9 +252,14 @@ test('validate: the hashes and tickers of a valid request, the field of a refuse
   const a = await call('POST', '/v1/validate', { request: q });
   assert.equal(a.status, 200, a.body.toString());
   assert.deepEqual(a.json(), { ok: true, lineage_key: await lineageKey(q), variant_hash: await variantHash(q), tickers: ['UNVR'] });
-  assert.deepEqual((await call('POST', '/v1/validate', { request: portfolioDefault('sector:Sector A') })).json().tickers, ['BBCA', 'GOTO', 'UNVR']);
+  // three picked stocks, in any order (PF3): the same answer, the hashes of the sorted request
+  const picked = await call('POST', '/v1/validate', { request: portfolioDefault(SECTOR_A) });
+  assert.deepEqual(picked.json(), { ok: true, lineage_key: await lineageKey(portfolioDefault(SECTOR_A)), variant_hash: await variantHash(portfolioDefault(SECTOR_A)), tickers: SECTOR_A });
+  assert.deepEqual((await call('POST', '/v1/validate', { request: portfolioDefault(['UNVR', 'BBCA', 'GOTO']) })).json(), picked.json());
   const refused: [unknown, string, string][] = [
     [{ request: { ...q, single: { ticker: 'IHSG', benchmark: 'buy_and_hold' } } }, 'UNKNOWN_TICKER', 'single.ticker'],
+    [{ request: portfolioDefault(['BBCA', 'IHSG']) }, 'UNKNOWN_TICKER', 'portfolio.tickers[1]'],
+    [{ request: portfolioDefault(Array.from({ length: MAX_PORTFOLIO_TICKERS + 1 }, (_, k) => `S${k}`)) }, 'INVALID_PORTFOLIO', 'portfolio.tickers'],
     [{ request: { ...q, extra: 1 } }, 'UNKNOWN_FIELD', 'extra'],
     [{ request: { ...q, client_request_id: 'c'.repeat(32) } }, 'UNKNOWN_FIELD', 'client_request_id'],   // edge-bff strips it
     [{ request: { ...q, period: { ...q.period, from: '2019-02-30' } } }, 'INVALID_PERIOD', 'period.from'],
@@ -289,8 +308,8 @@ test('validate with flow on: FLOW_DATA_THROUGH on the stocks\' manifests (the ca
     const ok = await asked(flow);
     assert.equal(ok.a.status, 200, ok.a.body.toString());
     assert.deepEqual(ok.manifests, ['UNVR', 'IHSG']);
-    // a sector: its stocks' manifests first (UNVR among them)
-    const sector = await asked({ ...portfolioDefault('sector:Sector A'), entry: flow.entry });
+    // three picked stocks: their manifests first (UNVR among them)
+    const sector = await asked({ ...portfolioDefault(SECTOR_A), entry: flow.entry });
     assert.equal(sector.a.status, 200, sector.a.body.toString());
     assert.deepEqual(sector.manifests.sort(), ['BBCA', 'GOTO', 'IHSG', 'UNVR']);
     // after the broker date: every stock's manifest is asked (none reaches period.to), and the date named is the catalog's
@@ -442,7 +461,8 @@ test('job bodies: the job id, the context and its prior trials are checked; a re
     [jobBody(id, q, [{ variant_hash: 'a'.repeat(64), sharpe_daily: 0, kind: 'run' }]), 'INVALID_CONTEXT', 'context.prior_trials[0]'],
     [{ ...jobBody(id, q), priority: 1 }, 'UNKNOWN_FIELD', 'priority'],
     [jobBody(id, { ...q, robustness: { ...q.robustness, monte_carlo_runs: 10 } }), 'INVALID_ROBUSTNESS', 'robustness.monte_carlo_runs'],
-    [jobBody(id, portfolioDefault('sector:Nope')), 'UNKNOWN_UNIVERSE', 'portfolio.universe'],
+    [jobBody(id, portfolioDefault(['BBCA', 'NOPE'])), 'UNKNOWN_TICKER', 'portfolio.tickers[1]'],
+    [jobBody(id, { ...portfolioDefault(), portfolio: { ...portfolioDefault().portfolio!, universe: 'all' } }), 'UNKNOWN_FIELD', 'portfolio.universe'],
   ];
   for (const [body, code, field] of cases) {
     const a = await call('POST', '/v1/jobs', body);
@@ -490,13 +510,20 @@ test('a result over BACKTEST_MAX_RESULT_BYTES of JSON ends the job FAILED LIMIT_
   assert.deepEqual([packed.json_bytes, JSON.parse(zlib.gunzipSync(packed.gzip).toString()).meta.request_hash], [bytes, r.meta.request_hash]);
   const e = (() => { try { packResult(r, bytes - 1) } catch (x) { return x as { status: number; code: string; details: unknown } } assert.fail('not refused') })();
   assert.deepEqual([e.status, e.code, e.details], [422, 'LIMIT_EXCEEDED', { limit: 'max_result_bytes', allowed: bytes - 1, needed: bytes }]);
-  const t = createApp(loadConfig(ENV({ BACKTEST_MAX_RESULT_BYTES: String(bytes - 1) })));
+  // the job's own result differs from r only in meta.duration_ms, whose digits are its own (review V3): the limit is
+  // the size with a 1-digit duration less a byte, which any duration exceeds; the job's size is that size with its
+  // duration's digits, 1 to 5 (BACKTEST_TIMEOUT_SECONDS is 60 here, so at most 60000 ms)
+  const least = Buffer.byteLength(JSON.stringify(noDuration(r))), maxDigits = String(60 * 1000).length;
+  const t = createApp(loadConfig(ENV({ BACKTEST_MAX_RESULT_BYTES: String(least - 1) })));
   try {
     const at = `http://127.0.0.1:${await t.listen(0, '127.0.0.1')}`, id = newId();
     assert.equal((await call('POST', '/v1/jobs', jobBody(id, pageDefault('UNVR')), { at })).status, 202);
     const { status } = await until(id, at);
     assert.equal(status.state, 'FAILED');
-    assert.deepEqual([status.error!.code, status.error!.details], ['LIMIT_EXCEEDED', { limit: 'max_result_bytes', allowed: bytes - 1, needed: bytes }]);
+    const d = status.error!.details as { limit: string; allowed: number; needed: number };
+    assert.deepEqual([status.error!.code, d.limit, d.allowed], ['LIMIT_EXCEEDED', 'max_result_bytes', least - 1]);
+    const digits = d.needed - (least - 1);
+    assert.ok(Number.isInteger(digits) && digits >= 1 && digits <= maxDigits, `needed ${d.needed}: ${digits} duration digits`);
     assert.equal((await call('GET', `/v1/jobs/${id}/result`, undefined, { at })).json().error.code, 'NOT_FINISHED');
   } finally { await t.close() }
 });
@@ -513,7 +540,7 @@ test('a job over BACKTEST_TIMEOUT_SECONDS ends FAILED TIMEOUT, its thread is sto
     assert.ok(performance.now() - t0 < 1450, 'ended at the deadline, not when the download came back');
     assert.equal(t.threads.jobs.busy, false);
     // a preview over the time: 504 TIMEOUT
-    const p = await call('POST', '/v1/signals', { schema_version: 1, universe: 'all', period: { from: '2019-06-03', to: THROUGH }, entry: pageDefault('UNVR').entry }, { at });
+    const p = await call('POST', '/v1/signals', { schema_version: 1, tickers: STOCKS, period: { from: '2019-06-03', to: THROUGH }, entry: pageDefault('UNVR').entry }, { at });
     assert.equal(p.status, 504); assert.equal(p.json().error.code, 'TIMEOUT');
     slow.bundleMs = 0;
     const next = newId();
@@ -524,7 +551,7 @@ test('a job over BACKTEST_TIMEOUT_SECONDS ends FAILED TIMEOUT, its thread is sto
 
 /* ---- signals preview ------------------------------------------------------------------------------------------------ */
 test('signals preview: the rows run.ts computes, its refusals, and a preview the caller abandoned does not block the next', async () => {
-  const body = { schema_version: 1, universe: 'all', period: { from: '2019-06-03', to: THROUGH }, entry: pageDefault('UNVR').entry };
+  const body = { schema_version: 1, tickers: STOCKS, period: { from: '2019-06-03', to: THROUGH }, entry: pageDefault('UNVR').entry };
   const t0 = performance.now();
   const a = await call('POST', '/v1/signals', body);
   observed.preview_ms = Math.round(performance.now() - t0);
@@ -532,8 +559,8 @@ test('signals preview: the rows run.ts computes, its refusals, and a preview the
   const p = a.json() as SignalsPreview;
   assert.deepEqual(p, await runSignals(body, refs, directEnv()));
   assert.deepEqual(p.rows.map(r => r.ticker), STOCKS);
-  const bad = await call('POST', '/v1/signals', { ...body, universe: 'sector:Nope' });
-  assert.equal(bad.status, 422); assert.deepEqual([bad.json().error.code, bad.json().error.field], ['UNKNOWN_UNIVERSE', 'universe']);
+  const bad = await call('POST', '/v1/signals', { ...body, tickers: ['BBCA', 'NOPE'] });
+  assert.equal(bad.status, 422); assert.deepEqual([bad.json().error.code, bad.json().error.field], ['UNKNOWN_TICKER', 'tickers[1]']);
   // previews run while a job runs (their own thread)
   slow.bundleMs = 300;
   const id = newId();
@@ -548,6 +575,51 @@ test('signals preview: the rows run.ts computes, its refusals, and a preview the
     assert.equal(b.status, 200); assert.deepEqual(b.json(), p);
   } finally { slow.bundleMs = 0 }
   assert.equal((await until(id)).status.state, 'FINISHED');
+});
+
+test('a caller that leaves while the worker waits for the reference lists queues nothing: no preview, no job (review V1)', async () => {
+  // before 2026-10-27 the caller-gone watch was added after that wait, and a 'close' that came during it was never seen:
+  // the abandoned preview ran for nobody and the next preview waited behind it; an abandoned job started
+  const t = createApp(loadConfig(ENV()));
+  const previews: string[][] = [], jobs: string[] = [];
+  const runPreview = t.threads.previews.run.bind(t.threads.previews), runJobTask = t.threads.jobs.run.bind(t.threads.jobs);
+  t.threads.previews.run = (task, p) => { previews.push((task.request as { tickers: string[] }).tickers); return runPreview(task, p) };
+  t.threads.jobs.run = (task, p) => { jobs.push((task.request as BacktestRequest).single!.ticker); return runJobTask(task, p) };
+  const preview = (tickers: string[]) => ({ schema_version: 1, tickers, period: { from: '2019-06-03', to: THROUGH }, entry: pageDefault('UNVR').entry });
+  /** Sends a request held at the reference lists, leaves when both are held, then lets them through. */
+  const leave = async (path: string, body: unknown, at: string) => {
+    hold.shut = true;
+    const held = hold.held, ac = new AbortController();
+    const gone = call('POST', path, body, { at, signal: ac.signal }).catch(e => e);
+    for (const t0 = Date.now(); hold.held < held + 2; await tick(2)) assert.ok(Date.now() - t0 < 10_000, 'the reference lists were never asked');
+    ac.abort();
+    assert.equal((await gone).name, 'AbortError');
+    hold.release();
+  };
+  try {
+    const at = `http://127.0.0.1:${await t.listen(0, '127.0.0.1')}`, b0 = fake.requests.length;
+    await leave('/v1/signals', preview(['BBCA']), at);
+    const next = await call('POST', '/v1/signals', preview(['UNVR']), { at });
+    assert.equal(next.status, 200, next.body.toString());
+    assert.deepEqual(next.json(), await runSignals(preview(['UNVR']), refs, directEnv()));
+    const after = await call('POST', '/v1/signals', preview(['GOTO']), { at });
+    assert.equal(after.status, 200, after.body.toString());
+    assert.deepEqual(previews, [['UNVR'], ['GOTO']], 'the abandoned preview never reached the preview thread, so the next one waited for nothing');
+    // and it loaded no data: the bundles asked since are the two previews' own (a fresh thread: nothing is cached)
+    const bundled = fake.requests.slice(b0).filter(x => x.path === '/api/terminal/v1/bundle').map(x => JSON.parse(x.body).ticker);
+    assert.deepEqual([...new Set(bundled)].sort(), ['GOTO', 'UNVR']);
+    // a job: the abandoned POST /v1/jobs never starts (edge-bff finds the id unknown and posts it again)
+    const left = newId();
+    await leave('/v1/jobs', jobBody(left, pageDefault('BBCA')), at);
+    const id = newId();
+    let a: Answer;
+    for (const t0 = Date.now(); (a = await call('POST', '/v1/jobs', jobBody(id, pageDefault('UNVR')), { at })).status === 409; await tick(5))
+      assert.ok(Date.now() - t0 < 30_000, 'still BUSY');                // BUSY only while the abandoned request still waits
+    assert.equal(a.status, 202, a.body.toString());
+    assert.equal((await until(id, at)).status.state, 'FINISHED');
+    assert.deepEqual(jobs, ['UNVR'], 'the abandoned job was never started');
+    assert.equal((await call('GET', `/v1/jobs/${left}`, undefined, { at })).status, 404);
+  } finally { hold.release(); await t.close() }
 });
 
 /* ---- logs and start-up ---------------------------------------------------------------------------------------------- */

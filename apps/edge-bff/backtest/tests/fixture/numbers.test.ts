@@ -14,6 +14,7 @@ import { buildRequest } from '../../src/api/request.ts';
 import { REG_BY } from '../../src/reg.ts';
 import * as M from './mockup.js';
 import { newSession, runRequest } from './run.ts';
+import { BANKS, DEMO_10 } from './state.ts';
 
 /* ---- the reference's settings ------------------------------------------------------------------------------------ */
 let seq = 0;
@@ -118,8 +119,8 @@ function compare(R: any, res: BacktestResult, trials: number): Miss[] {
   return out;
 }
 
-/** the page's state for the same settings (the page's universe ids) and its request */
-const requestOf = (s: any) => buildRequest({ ...s, universe:s.universe === 'BANK' ? 'sector:Banks' : 'all' }, { ready:c => M.condReady(c), monteCarloRuns:1000 });
+/** the page's state for the same settings (the reference's universe as the page's picked stocks) and its request */
+const requestOf = (s: any) => buildRequest({ ...s, tickers:s.universe === 'BANK' ? BANKS : DEMO_10 }, { ready:c => M.condReady(c), monteCarloRuns:1000 });
 
 describe('fixture: the reference run vs core/result.ts buildResult', () => {
   /* the run's duration (R.ms, meta.duration_ms) is the clock's; frozen like the visual harness, both read 0 */

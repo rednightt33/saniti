@@ -2,11 +2,14 @@
    by POST /v1/validate, POST /v1/jobs (a refused request never becomes a job) and the job itself:
    - every object holds only the fields the page sends (contract.ts); anything else is refused, never ignored;
    - the engine's own checks (engine.ts validateRun: mode, period, sizing, costs, exit modes and their numbers, the
-     price lines) and the signal checks (signals.ts requestConditions: the entry logic, window, at_least, ids);
+     price lines, max_positions 1 to limits.max_positions and the picked stocks' count, against the configured limits
+     so a refusal names the limit the catalog reports, CWP-2) and the signal checks (signals.ts requestConditions: the
+     entry logic, window, at_least, ids);
    - what the engine does not check: schema_version 1, oos_fraction one of the page's 0 / 0.2 / 0.3 / 0.4, Monte Carlo
-     runs exactly limits.monte_carlo_runs or 0 and a whole seed >= 0, max_positions within limits.max_positions, the
-     single ticker a published stock, the universe a catalog universe; the numbers and price lines the chosen modes do
-     not read held to their type (unreadTypes), and no value on a price-action type without a threshold;
+     runs exactly limits.monte_carlo_runs or 0 and a whole seed >= 0, the single ticker a published stock, the picked
+     stocks 1 to limits.max_portfolio_tickers distinct published stocks (pickedStocks, PF2; an index is not tradable);
+     the numbers and price lines the chosen modes do not read held to their type (unreadTypes), and no value on a
+     price-action type without a threshold;
    - every condition, enabled or not, as conditions.ts checks it, on an empty bar set: its kind, the registry
      indicator, its parameters, operator, outputs and value, the price-action parameters and thresholds, the flow
      condition's shape (flowConditionShape). Only INDICATOR_OUTPUT_EMPTY needs the ticker's bars, so it is left to the
@@ -23,9 +26,9 @@
 import type { BacktestRequest, SignalsPreviewRequest } from '../../edge-bff/backtest/src/core/contract.ts';
 import { Calc, PRICE_ACTION, conditionSeries, flowConditionShape } from '../../edge-bff/backtest/src/core/conditions.ts';
 import type { Condition as CoreCondition, FlowCondition } from '../../edge-bff/backtest/src/core/conditions.ts';
-import { lineOf, validateRun } from '../../edge-bff/backtest/src/core/engine.ts';
+import { lineOf, portfolioTickers, validateRun } from '../../edge-bff/backtest/src/core/engine.ts';
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
-import { isIsoDate, requestConditions } from '../../edge-bff/backtest/src/core/signals.ts';
+import { byTicker, isIsoDate, requestConditions } from '../../edge-bff/backtest/src/core/signals.ts';
 import type { ActiveCondition } from '../../edge-bff/backtest/src/core/signals.ts';
 import type { Config } from './config.ts';
 import { invalid } from './errors.ts';
@@ -37,13 +40,12 @@ export const OOS_FRACTIONS = [0, 0.2, 0.3, 0.4];         // the page's Out-of-sa
 export const CONDITION_ID = /^[0-9a-z]{1,6}$/;
 const fail = (code: string, field: string, message: string): never => { throw new ValidationError(code, field, message) };
 const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
-const byTicker = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
 
 /* ---- the fields of each object (contract.ts, as the page's buildRequest and catalog.ts write them) ------------------ */
 const FIELDS: Record<string, string[]> = {
   request: ['schema_version', 'mode', 'single', 'portfolio', 'period', 'entry', 'exit', 'sizing', 'costs', 'robustness'],
   single: ['ticker', 'benchmark'],
-  portfolio: ['universe', 'max_positions', 'rank_by', 'min_avg_value_20d_idr'],
+  portfolio: ['tickers', 'max_positions', 'rank_by', 'min_avg_value_20d_idr'],
   period: ['from', 'to', 'oos_fraction'],
   entry: ['logic', 'at_least', 'window_bars', 'conditions'],
   exit: ['atr_length', 'stop', 'take_profit', 'trailing', 'max_hold_bars', 'signals'],
@@ -58,7 +60,7 @@ const FIELDS: Record<string, string[]> = {
   indicator: ['id', 'enabled', 'kind', 'indicator', 'params', 'lhs', 'op', 'rhs'],
   price_action: ['id', 'enabled', 'kind', 'type', 'params', 'op', 'value'],
   flow: ['id', 'enabled', 'kind', 'type', 'params', 'op', 'value'],
-  preview: ['schema_version', 'universe', 'period', 'entry'],
+  preview: ['schema_version', 'tickers', 'period', 'entry'],
   preview_period: ['from', 'to'],
 };
 const CONDITION_KINDS = ['indicator', 'price_action', 'flow'];
@@ -95,19 +97,19 @@ function entryFields(e: unknown, field: string): void {
 /** terminal-api's reference lists a request is checked against (GET /reference/tickers and /reference/brokers). */
 export interface References { tickers: readonly TickerRef[]; brokers: readonly BrokerRef[] }
 
-/* ---- universes (CONTRACT section 3, D-K6): every published stock, and the stocks of each published sector ------------ */
-export interface Universe { id: string; label: string; tickers: string[] }
+/* ---- the picked stocks of a portfolio (PF1-PF3, user N 2026-10-27) -------------------------------------------------- */
+/** Every published stock (reference type 'stock'), ticker order. */
 export const stocksOf = (refs: readonly TickerRef[]) => refs.filter(r => r.type === 'stock').map(r => r.ticker).sort(byTicker);
-export function universes(refs: readonly TickerRef[]): Universe[] {
-  const stocks = refs.filter(r => r.type === 'stock'), all = stocksOf(refs);
-  const sectors = [...new Set(stocks.map(r => r.sector).filter((s): s is string => typeof s === 'string' && s !== ''))].sort(byTicker);
-  // labels as the page shows them: the name, then the count in parentheses (env.ts universeName drops the parenthesis)
-  return [{ id: 'all', label: `All stocks (${all.length})`, tickers: all },
-    ...sectors.map(s => { const t = stocks.filter(r => r.sector === s).map(r => r.ticker).sort(byTicker); return { id: `sector:${s}`, label: `${s} (${t.length})`, tickers: t } })];
-}
-export function universeMembers(refs: readonly TickerRef[], id: unknown): string[] | null {
-  if (typeof id !== 'string') return null;
-  return universes(refs).find(u => u.id === id)?.tickers ?? null;
+/** A portfolio's picked stocks (portfolio.tickers, a preview's tickers): 1 to limits.max_portfolio_tickers distinct
+    strings (engine.ts portfolioTickers: INVALID_PORTFOLIO at `field`), each a published stock (UNKNOWN_TICKER at
+    `field`[i], single.ticker's code and wording: an index is not tradable), checked before any download; in ticker
+    order, the canonical order the run and its hashes use (PF3). */
+export function pickedStocks(v: unknown, refs: References, max: number, field: string): string[] {
+  const sorted = portfolioTickers(v, max, 'INVALID_PORTFOLIO', field);
+  (v as string[]).forEach((t, k) => {
+    if (!refs.tickers.some(x => x.ticker === t && x.type === 'stock')) fail('UNKNOWN_TICKER', `${field}[${k}]`, `${t} is not a published stock.`);
+  });
+  return sorted;
 }
 
 /* ---- conditions without bars --------------------------------------------------------------------------------------- */
@@ -160,7 +162,7 @@ function unreadTypes(q: BacktestRequest): void {
 }
 
 export interface CheckedRequest {
-  tickers: string[];            // single: [ticker]; portfolio: the universe's stocks, ticker order
+  tickers: string[];            // single: [ticker]; portfolio: the picked stocks, ticker order (PF3)
   broker: boolean;              // the run reads the broker files (a flow condition, or rank_by 'fnet')
 }
 
@@ -184,7 +186,7 @@ export function checkRequest(input: unknown, refs: References, cfg: Pick<Config,
   }
   only(q.sizing, 'sizing', 'sizing'); only(q.costs, 'costs', 'costs'); only(q.robustness, 'robustness', 'robustness');
 
-  validateRun(q);
+  validateRun(q, undefined, cfg.limits);
   if (!OOS_FRACTIONS.includes(q.period.oos_fraction)) fail('INVALID_PERIOD', 'period.oos_fraction', `period.oos_fraction must be one of ${OOS_FRACTIONS.join(', ')}.`);
   const r = q.robustness;
   if (!isObject(r)) fail('INVALID_ROBUSTNESS', 'robustness', 'robustness is required.');
@@ -201,10 +203,7 @@ export function checkRequest(input: unknown, refs: References, cfg: Pick<Config,
     tickers = [t];
   } else {
     const p = q.portfolio!;
-    if (p.max_positions > cfg.limits.max_positions) fail('INVALID_PORTFOLIO', 'portfolio.max_positions', `portfolio.max_positions must be at most ${cfg.limits.max_positions}.`);
-    const members = universeMembers(refs.tickers, p.universe);
-    if (!members) fail('UNKNOWN_UNIVERSE', 'portfolio.universe', `${JSON.stringify(p.universe)} is not a universe of the catalog.`);
-    tickers = members!;
+    tickers = pickedStocks(p.tickers, refs, cfg.limits.max_portfolio_tickers, 'portfolio.tickers');
     if (p.rank_by === 'fnet') {
       if (!cfg.flow.enabled) fail('FLOW_UNAVAILABLE', 'portfolio.rank_by', `Ranking by foreign net flow needs the broker data, which is not available. ${cfg.flow.reason ?? ''}`.trim());
       broker = true;
@@ -227,10 +226,9 @@ export function checkSignalsRequest(input: unknown, refs: References, cfg: Pick<
   if (!isIsoDate(q.period.from)) fail('INVALID_PERIOD', 'period.from', 'period.from must be a date YYYY-MM-DD.');
   if (!isIsoDate(q.period.to)) fail('INVALID_PERIOD', 'period.to', 'period.to must be a date YYYY-MM-DD.');
   if (q.period.from > q.period.to) fail('INVALID_PERIOD', 'period.to', 'period.to must not be before period.from.');
-  const tickers = universeMembers(refs.tickers, q.universe);
-  if (!tickers) fail('UNKNOWN_UNIVERSE', 'universe', `${JSON.stringify(q.universe)} is not a universe of the catalog.`);
+  const tickers = pickedStocks(q.tickers, refs, cfg.limits.max_portfolio_tickers, 'tickers');
   const active = requestConditions({ entry: q.entry });
   entryTypes(q.entry);
   withinConditions([[active.entry, 'entry.conditions']], cfg.limits.max_conditions);
-  return { tickers: tickers!, broker: checkConditions(listed(q.entry.conditions, 'entry.conditions'), cfg.flow, refs.brokers) };
+  return { tickers, broker: checkConditions(listed(q.entry.conditions, 'entry.conditions'), cfg.flow, refs.brokers) };
 }

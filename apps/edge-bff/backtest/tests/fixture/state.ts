@@ -16,7 +16,7 @@ import type { BacktestRequest, Condition, LineRef, SignalsPreviewRequest } from 
 import { DISPLAY } from '../../src/core/catalog.ts';
 import type { Card } from '../../src/api/types.ts';
 import { REG_BY } from '../../src/reg.ts';
-import { regDefaults } from './mockup.js';
+import * as M from './mockup.js';
 
 /** a wire number in the page's display unit (wire = display x scale) */
 const disp = (v: number, scale: number) => +(v / scale).toPrecision(12);
@@ -58,25 +58,34 @@ export function cardOf(c: Condition): Card {
   if (c.indicator === 'I27' && keys(p, ['length', 'std_dev', 'source']) && p.source === 'close' && lhs === 'price' && rhs === 'lower' && (op === 'lt' || op === 'ca'))
     return card('bb', { op:op === 'lt' ? 'blow' : 'bxin', len:p.length, k:p.std_dev });
   return card('reg', {
-    ind:c.indicator, p:{ ...regDefaults(REG_BY[c.indicator]), ...p },
+    ind:c.indicator, p:{ ...M.regDefaults(REG_BY[c.indicator]), ...p },
     lhs:c.lhs.type === 'price' ? { t:'price' } : { t:'out', o:c.lhs.output }, op,
     rhs:c.rhs.type === 'value' ? { t:'val', v:c.rhs.value } : { t:'out', o:c.rhs.output },
   });
 }
 
 const lineOf = (l: LineRef) => ({ id:l.indicator, o:l.output, ...(l.params ? { p:l.params } : {}) });
-/** the reference's universe ids: ALL = Demo 10, BANK = Banks */
-const universeOf = (id: string) => {
-  if (id === 'all') return 'ALL';
-  if (id === 'sector:Banks') return 'BANK';
-  throw new Error(`fixture: universe ${id} is not one of the reference's`);
+/** the reference's "Demo 10" (its ten tickers, universe ALL) and "Banks" (BANK) as picked stocks: the fixture's default
+    portfolio and the set the visual harness picks for the reference's Banks */
+export const DEMO_10: string[] = M.TICKERS.map((t: [string]) => t[0]);
+export const BANKS: string[] = ['BBCA', 'BBRI', 'BMRI'];
+/** the reference's universe for picked stocks: ALL for the Demo 10 set, BANK for the Banks set, in any order, so those
+    two run exactly as the reference runs its universes; any other set as its list, in the reference's ticker order
+    (the order the stocks were picked in does not matter, PF3) */
+export const universeOf = (tickers: readonly string[]) => {
+  const set = new Set(tickers), is = (l: string[]) => l.length === set.size && l.every(t => set.has(t));
+  if (is(DEMO_10)) return 'ALL';
+  if (is(BANKS)) return 'BANK';
+  const unknown = tickers.filter(t => !DEMO_10.includes(t));
+  if (unknown.length) throw new Error(`fixture: ${unknown.join(', ')} is not a ticker of the reference`);
+  return DEMO_10.filter(t => set.has(t));
 };
 
 /** The reference's S for a request; `trials` = its session counter before the run (S.trials). */
 export function stateOf(q: BacktestRequest, trials = 0): any {
   const e = q.exit, pf = q.portfolio;
   return {
-    mode:q.mode, ticker:q.single ? q.single.ticker : 'MAPI', universe:pf ? universeOf(pf.universe) : 'ALL', maxPos:pf ? pf.max_positions : 5, rankBy:pf ? pf.rank_by : 'adx',
+    mode:q.mode, ticker:q.single ? q.single.ticker : 'MAPI', universe:pf ? universeOf(pf.tickers) : 'ALL', maxPos:pf ? pf.max_positions : 5, rankBy:pf ? pf.rank_by : 'adx',
     from:q.period.from, to:q.period.to, oos:Math.round(q.period.oos_fraction * 100),
     logic:q.entry.logic === 'at_least' ? 'n' : q.entry.logic, atLeast:q.entry.at_least, window:q.entry.window_bars,
     conds:q.entry.conditions.map(cardOf),
@@ -94,6 +103,6 @@ export function stateOf(q: BacktestRequest, trials = 0): any {
 
 /** The reference's S for the portfolio table's signal preview (only what signalsFor, inRange and universe read). */
 export function previewStateOf(q: SignalsPreviewRequest): any {
-  return { mode:'portfolio', universe:universeOf(q.universe), from:q.period.from, to:q.period.to,
+  return { mode:'portfolio', universe:universeOf(q.tickers), from:q.period.from, to:q.period.to,
     logic:q.entry.logic === 'at_least' ? 'n' : q.entry.logic, atLeast:q.entry.at_least, window:q.entry.window_bars, conds:q.entry.conditions.map(cardOf), exitConds:[] };
 }

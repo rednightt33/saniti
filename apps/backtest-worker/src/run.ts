@@ -1,12 +1,13 @@
 /* One job (POST /v1/jobs) and one signals preview (POST /v1/signals), from the request to the BacktestResult /
    SignalsPreview, with the shared core doing every calculation:
-   1. loading      the request checked (validate.ts), the tickers resolved (single: the ticker; portfolio: the catalog
-                   universe), the published files read within the limits (load.ts): IHSG's prices, each ticker's
+   1. loading      the request checked (validate.ts) and put in its canonical form (hash.ts canonicalRequest: the
+                   picked stocks in ticker order, PF3), the tickers resolved (single: the ticker; portfolio: the picked
+                   stocks), the published files read within the limits (load.ts): IHSG's prices, each ticker's
                    prices and events, its broker files only when a flow condition or rank_by 'fnet' needs them; the
-                   period checked against what is published (below). A portfolio universe ticker without published
-                   files is left out of the run (load.ts skipUnpublished; engine.ts lists it in TICKERS_EXCLUDED);
+                   period checked against what is published (below). A picked stock without published files is left
+                   out of the run (load.ts skipUnpublished; engine.ts lists it in TICKERS_EXCLUDED);
    2. signals      engine.ts run(): every ticker's conditions and entry events (its progress, first part); a portfolio
-                   leaves out a ticker whose own data cannot serve the strategy (engine.ts EXCLUDED_CODES);
+                   leaves out a stock whose own data cannot serve the strategy (engine.ts EXCLUDED_CODES);
    3. backtest     the same run: the event clock over the result calendar (second part);
    4. sensitivity  robustness.ts sensitivityPlan: one engine run per cell on the same prepared data (the indicator
                    memos are reused); identical cell requests (one variant hash) run once, the cell that equals the run
@@ -16,8 +17,9 @@
    6. finalizing   the result serialised and packed (compute.ts).
    Cancellation: hooks.shouldStop is read between phases, between tickers while loading, inside the engine (per ticker
    and per calendar day) and between sensitivity cells; Cancelled is thrown.
-   Deterministic: the same request on the same published files gives the same result (meta.duration_ms aside); no
-   clock, random number or cache state reaches a number.
+   Deterministic: the same request on the same published files gives the same result (meta.duration_ms aside), and
+   so does the same set of picked stocks in another order (PF3); no clock, random number or cache state reaches a
+   number.
    Checks against the published data (CONTRACT.md sections 2-3); the first two are POST /v1/validate's too
    (checkPublished, lead decision 2026-10-26), with the same code, field and message:
    - PERIOD_AFTER_DATA: period.to after IHSG's last published bar (the engine's rule, checked before the run);
@@ -38,7 +40,7 @@ import { Calc } from '../../edge-bff/backtest/src/core/conditions.ts';
 import { DataError, INDEX_TICKER } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { Cancelled, prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
 import type { MarketData } from '../../edge-bff/backtest/src/core/engine.ts';
-import { lineageKey, requestHash, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
+import { canonicalRequest, lineageKey, requestHash, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
 import type { CellRun, ResultInput } from '../../edge-bff/backtest/src/core/ledger.ts';
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 import { buildResult } from '../../edge-bff/backtest/src/core/result.ts';
@@ -116,9 +118,9 @@ export async function runJob(request: unknown, context: Pick<JobContext, 'prior_
   /* 1. loading */
   report('loading', 0, 0);
   const checked = checkRequest(request, refs, env.config);
-  const q = request as BacktestRequest, single = q.mode === 'single', { from, to } = q.period;
+  const q = canonicalRequest(request as BacktestRequest), single = q.mode === 'single', { from, to } = q.period;
   const datasets: Dataset[] = checked.broker ? ['price', 'events', 'broker'] : ['price', 'events'];
-  const field = single ? 'single.ticker' : 'portfolio.universe';
+  const field = single ? 'single.ticker' : 'portfolio.tickers';
   const loaded = await loadMarket(env.client, [{ tickers: [INDEX_TICKER], datasets: ['price'] }, { tickers: checked.tickers, datasets, skipUnpublished: !single }],
     limits, field, env.config.terminal.concurrency, {
       shouldStop: hooks.shouldStop, progress: (d, t) => report('loading', d, t),
@@ -185,7 +187,7 @@ export async function runJob(request: unknown, context: Pick<JobContext, 'prior_
   return result;
 }
 
-/** The portfolio table's entry signals before a run (no backtest, no trial): each universe ticker's entry events on its
+/** The portfolio table's entry signals before a run (no backtest, no trial): each picked stock's entry events on its
     own bars inside the period, as the backtest counts them (signals.ts previewRow), with the run's checks and
     exclusions (lead decision 2026-10-26: a preview never fails where the matching run succeeds): a ticker without
     published files (load.ts skipUnpublished) or whose own data cannot serve the strategy (signals.ts EXCLUDED_CODES)
@@ -195,7 +197,7 @@ export async function runSignals(request: unknown, refs: Refs, env: RunEnv, hook
   const stop = () => { if (hooks.shouldStop?.()) throw new Cancelled() };
   const checked = checkSignalsRequest(request, refs, env.config);
   const q = request as SignalsPreviewRequest;
-  const loaded = await loadMarket(env.client, [{ tickers: checked.tickers, datasets: checked.broker ? ['price', 'broker'] : ['price'], skipUnpublished: true }], env.config.limits, 'universe',
+  const loaded = await loadMarket(env.client, [{ tickers: checked.tickers, datasets: checked.broker ? ['price', 'broker'] : ['price'], skipUnpublished: true }], env.config.limits, 'tickers',
     env.config.terminal.concurrency, {
       shouldStop: hooks.shouldStop, progress: (d, t) => hooks.progress?.({ phase: 'loading', done: d, total: t }),
       planned: checked.broker ? b => flowThroughOf(b, q.period.to, refs, env, hooks.shouldStop) : undefined,
@@ -212,6 +214,6 @@ export async function runSignals(request: unknown, refs: Refs, env: RunEnv, hook
     }
     hooks.progress?.({ phase: 'signals', done: ++done, total: checked.tickers.length });
   }
-  const left = leftOut(excluded, rows.length, 'universe', 'preview');                        // UNIVERSE_EMPTY when none is left
+  const left = leftOut(excluded, rows.length, 'tickers', 'preview');                        // UNIVERSE_EMPTY when none is left
   return { data_version: loaded.data_version, rows, warnings: left ? [left] : [] };
 }

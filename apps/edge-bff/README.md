@@ -40,17 +40,21 @@ because the signal preview downloads the files `/api/terminal/v1/bundle` presign
 
 | Method/path (session cookie; POST with Origin + `X-CSRF-Token`) | Result |
 | --- | --- |
-| GET `/api/v1/backtests/catalog` | the worker's `Catalog`, kept 60 s (the last one while the worker does not answer) |
-| POST `/api/v1/backtests` | body = `BacktestRequest` + optional `client_request_id`; the worker checks it (`/v1/validate`, its 422/424 relayed as they are), then 202 `{request_id, state, created}`; the same `client_request_id` returns the same job, another request under it 409 `SUBMISSION_CONFLICT`; 429 `QUEUE_FULL` with 3 queued jobs |
+| GET `/api/v1/backtests/catalog` | the worker's `Catalog` as it is (each ticker with its `groups`, the portfolio picker's `groupings`, `limits` with `max_portfolio_tickers`), kept 60 s (the last one while the worker does not answer) |
+| POST `/api/v1/backtests` | body = `BacktestRequest` + optional `client_request_id`; the worker checks it (`/v1/validate`, its 422/424 relayed as they are), then 202 `{request_id, state, created}`; the same `client_request_id` returns the same job (a portfolio's picked stocks in another order are the same request, CONTRACT.md PF3), another request under it 409 `SUBMISSION_CONFLICT`; 429 `QUEUE_FULL` with 3 queued jobs |
 | GET `/api/v1/backtests?limit=` | the latest jobs (30, at most 100), each `JobStatus` + its `request` |
 | GET `/api/v1/backtests/{id}` | `JobStatus` (progress as the worker reports it) |
 | GET `/api/v1/backtests/{id}/result` | the `core` part; in single mode with the ticker's events merged back (= the worker's `BacktestResult`); gzip; 409 `NOT_FINISHED`, 410 `RESULT_EXPIRED` |
 | GET `/api/v1/backtests/{id}/events?ticker=X` | `{conditions, exits}` of one ticker (part `events:X`); 404 `EVENTS_NOT_FOUND` |
 | POST `/api/v1/backtests/{id}/cancel` | 202 `JobStatus`: queued -> `CANCELLED` at once, running -> stopped at the worker by the loop; 409 `NOT_RUNNING` |
-| POST `/api/v1/backtests/signals` | `SignalsPreview` from the worker (no job, no trial); latest wins per owner: 409 `PREVIEW_REPLACED` when a newer preview arrives first |
+| POST `/api/v1/backtests/signals` | `SignalsPreview` of the picked stocks (`tickers`) from the worker (no job, no trial); latest wins per owner: 409 `PREVIEW_REPLACED` when a newer preview arrives first |
 
 Errors are `{"error": {code, field?, message?, details?}}` (CONTRACT.md section 11). A body that is not a JSON object
-(also one nested deeper than the parser takes) is 422 `INVALID_INPUT`. The catalog, the validation at submit and the
+(also one nested deeper than the parser takes, one with a number beyond a double such as `1e400` or an integer of
+400 digits, or one with a string UTF-8 cannot encode, a lone surrogate such as `"\ud800"`) is 422 `INVALID_INPUT`,
+before anything is relayed or a preview replaced. edge-bff checks no field of a request: the worker
+does (for a portfolio 1 to `limits.max_portfolio_tickers` distinct published stocks, `INVALID_PORTFOLIO` /
+`UNKNOWN_TICKER`), and edge-bff relays its refusal. The catalog, the validation at submit and the
 signals preview are relayed calls: the worker's 4xx error is passed on with its status, and its own 504 `TIMEOUT`
 (the call took longer than the worker's `BACKTEST_TIMEOUT_SECONDS`) is passed on as 504 with its error, so edge-bff
 waits for an answer up to `BACKTEST_TIMEOUT_SECONDS` + 30 s (connecting stays limited to 30 s). The worker unreachable
@@ -74,7 +78,9 @@ migration's verify block checks both). No market data.
 
 The loop (`app/backtest.py`, started with the ORC loop when `BACKTEST_WORKER_URL` is set) takes the oldest queued job
 under a lease (`EDGE_LEASE_SECONDS`, heartbeat `EDGE_HEARTBEAT_SECONDS`), reads its line's trials and posts
-`{job_id, request, context: {job_id, prior_trials}}` to the worker (`409 BUSY` = another job there: it waits), reads its
+`{job_id, request, context: {job_id, prior_trials}}` to the worker (`409 BUSY` = another job there: it waits; a post
+left unanswered whose id the worker does not know, as one whose caller left while the worker read its reference lists,
+is posted again, three attempts in all), reads its
 status every `EDGE_POLL_SECONDS` (progress stored, cancellation forwarded; an ended job keeps the worker's final
 progress), and on `FINISHED` fetches the result, stores its parts and its variants and marks the job `FINISHED` with
 the versions in one transaction. The result is unpacked by edge-bff as it arrives and never past

@@ -3,7 +3,9 @@
 Source of the types: `src/core/contract.ts`. This file states the rules the types cannot carry. Decisions taken for
 the user on 2026-10-26 (they approved steps 1–5 and asked me to decide open points and report them) are marked
 **[D-…]**; the list with the alternatives is in section 12, where the decisions the lead took during the review rounds
-are marked (lead).
+are marked (lead). User N's change of 2026-10-27 (a portfolio backtests up to 12 stocks the user picks, by searching or
+by filtering on sector, industry and the other classifications) is recorded as PF1–PF8; its stock picker is the one
+approved departure from the page's 1:1 rule (section 10).
 
 ## 1. Parts and ownership
 
@@ -13,7 +15,7 @@ are marked (lead).
 | Indicator formulas | `apps/edge-bff/terminal/src/calc/indicators.ts` | the 53 functions (Terminal module, K1 = C); never copied |
 | Worker (Node 22, private) | `apps/backtest-worker/` | HTTP service, request checks, terminal-api client, cache, job runner (worker_threads), catalog endpoint |
 | edge-bff (Python) | `apps/edge-bff/app/` | public API `/api/v1/backtests…`, job tables, queue loop, trials, result storage, `/backtest` route |
-| Page (Vite + TS) | `apps/edge-bff/backtest/` | UI 1:1 with `backtest.html`, preview signals, rendering, CSV export |
+| Page (Vite + TS) | `apps/edge-bff/backtest/` | UI 1:1 with `backtest.html` (the portfolio stock picker aside, PF7), preview signals, rendering, CSV export |
 
 The worker has **no** Postgres or bucket credentials. It reads market data only through terminal-api (`/bundle` and
 the presigned file URLs it returns, `/manifest/{ticker}`, `/reference/{tickers|brokers}`). ORC and `Postgres-E8GM` are
@@ -46,11 +48,14 @@ not in the path.
   bucket key, so an answer reused across a publish reads other bytes and fails the run (`DATA_INTEGRITY`); a ticker
   whose new answer is a 404 or lacks a dataset fails the run (`DATA_MISSING`), in a portfolio too;
   `FLOW_DATA_THROUGH` reads the first answers only.
-- Portfolio **[D-exclude]**: a universe ticker without published files (terminal-api 404, or no file of a dataset the
+- Portfolio **[D-exclude]**: a picked stock without published files (terminal-api 404, or no file of a dataset the
   run reads; events aside: the publisher writes an events file only for a ticker with events) is left out with
   `DATA_MISSING` (section 4). This is decided on the manifests, before the limits are summed and before any download,
   so its files count in no limit. In single mode it is the run's `DATA_MISSING`. A file a manifest names that the
-  bucket does not have (404), or that fails its checks, fails the run in either mode.
+  bucket does not have (404), or that fails its checks, fails the run in either mode. The engine runs exactly the
+  picked stocks (`portfolio.tickers`, the set the hashes carry): each is loaded or left out by the loader, once, and
+  `engine.ts` run refuses market data of another set before any signal, as a caller error (`INTERNAL_ERROR`, never a
+  result; CWP-1).
 - Prices are used exactly as published (no adjusted close); a row without its four prices (`o, h, l, c`) is dropped,
   as the Terminal's `priceRows`. Rows must be strictly increasing by date; a duplicate or unsorted date is
   `DATA_INTEGRITY`. `v` may be null (index): volume conditions on such a series give `INDICATOR_OUTPUT_EMPTY`.
@@ -85,9 +90,11 @@ not in the path.
   is left out (section 4) only when its entry can then never switch on: fewer entry conditions with a value than the
   entry needs (every one under `all`, one under `any`, `min(at_least, enabled)` under `at_least`); an exit condition
   never leaves it out (review LA-1). So a ticker's trades up to a day, and the slots they take, never depend on its
-  bars after that day; in single mode these errors fail the run. Known limit: a ticker left out does not reach the
-  calendar (section 4), so a day on which only it has a bar (no bar of IHSG or of a ticker that runs) is a calendar
-  day when it runs and not when it is left out, and can be another ticker's next calendar day (`no_next_bar`).
+  bars after that day; in single mode these errors fail the run. A stock left out this way still reaches the
+  calendar with its bars (section 4, **[D-PF8]**), so whether it is left out changes no calendar day and no other
+  stock's next calendar day (`no_next_bar`). Known limit: a stock the loader leaves out (no published file of a
+  dataset the run reads, a stock without broker files in a run that reads them among them) is left out on the
+  manifests before any download, so none of its bars is read and it adds no day.
 
 ## 3. Request validation (worker `validate.ts`, before any download)
 
@@ -102,8 +109,28 @@ not in the path.
   0.3 or 0.4 (the page's select).
 - Single: `single.ticker` must be a published ticker of type stock (`UNKNOWN_TICKER`); `benchmark`
   `buy_and_hold | ihsg`.
-- Portfolio: `universe` from the catalog (`all`, `sector:<name>`; `UNKNOWN_UNIVERSE`); `max_positions` 1 to
-  `limits.max_positions` (≤ 10); `rank_by` `fnet` needs flow.
+- Portfolio **[D-PF1, PF2, PF3, PF5]**: `tickers`, the picked stocks (`validate.ts pickedStocks` on `engine.ts
+  portfolioTickers`), checked in this order:
+  1. a list of 1 to `limits.max_portfolio_tickers` (`BACKTEST_MAX_PORTFOLIO_TICKERS`, at most `engine.ts`
+     MAX_PORTFOLIO_TICKERS, 12) distinct strings, else `INVALID_PORTFOLIO` at field `portfolio.tickers`: "… must be
+     a list of tickers." (not an array, or an element that is not a string), "… must list at least 1 stock.", "…
+     lists N stocks; a portfolio may have at most M." (M is `limits.max_portfolio_tickers`, the limit the catalog
+     reports: the worker passes its limits to `validateRun`, so the job and the preview name the same M; CWP-2), "…
+     lists X more than once.";
+  2. each a published ticker of type stock, else `UNKNOWN_TICKER` at field `portfolio.tickers[i]`, `i` its position
+     as sent: "X is not a published stock." (single mode's code and wording; an index, any other type, `''` and a
+     lower-case ticker among them: an index is not tradable).
+
+  The order is no part of the request: the worker sorts the stocks (`signals.ts byTicker`, `hash.ts canonicalRequest`)
+  before it hashes, records the lineage or runs, so the same set in any order gives the same `request_hash`,
+  `variant_hash`, `lineage_key` and result (`meta.duration_ms` aside), and `/v1/validate` answers the sorted
+  `tickers` (section 8). `max_positions` 1 to `limits.max_positions` (`BACKTEST_MAX_POSITIONS`, at most `engine.ts`
+  MAX_POSITIONS, 12; `INVALID_PORTFOLIO` at `portfolio.max_positions`, "portfolio.max_positions must be a whole number
+  from 1 to M." with M `limits.max_positions`, CWP-2), more than the stocks picked included: a slot
+  is 1 / `max_positions` of equity whatever the number of stocks (`engine.ts` run, the entries' budget) and an idle
+  slot stays cash. `rank_by` `fnet` needs flow. The catalog universes are gone (PF1): `portfolio.universe` is
+  `UNKNOWN_FIELD`, and `UNKNOWN_UNIVERSE` is no code any more. A signals preview's `tickers` is checked the same way,
+  at fields `tickers` and `tickers[i]` (`validate.ts checkSignalsRequest`).
 - Entry: at least one enabled condition (`NO_ACTIVE_CONDITION`); `window_bars` 1–20; `at_least` a whole number ≥ 1
   when the logic is `at_least`, a number under the other logics (`INVALID_ENTRY`).
 - Conditions: an id has the page's shape, 1 to 6 characters `[0-9a-z]` (`INVALID_CONDITION`), unique across the entry
@@ -138,7 +165,8 @@ not in the path.
   which the job drops, can be refused there after validation let it through, never the other way round.
 
 Limits **[D-K7b]**: worker variables without a code default, set from the dev E2E; `catalog.limits` reports the ones
-the page can act on. The worker's `LIMIT_EXCEEDED` carries `details.limit`, `allowed` and `needed`.
+the page can act on. The worker's `LIMIT_EXCEEDED` carries `details.limit`, `allowed` and `needed`; the download
+limits name the field `single.ticker`, `portfolio.tickers` or, for a preview, `tickers` (`load.ts within`).
 
 | Variable | Bounds | Over it |
 |---|---|---|
@@ -149,33 +177,47 @@ the page can act on. The worker's `LIMIT_EXCEEDED` carries `details.limit`, `all
 | `BACKTEST_MAX_RESULT_BYTES` | JSON bytes of a job's result; edge-bff's variable of the same name has the same value | worker: the job ends `FAILED LIMIT_EXCEEDED` `max_result_bytes` before the result is packed; edge-bff: the unpacked result is read as it arrives and never past it, `FAILED LIMIT_EXCEEDED`, nothing stored |
 | `BACKTEST_TIMEOUT_SECONDS` | a job, a preview, a validation or a catalog (worker); a job, polling included, a result download, and the relayed calls' wait (+ 30 s) (edge-bff); `limits.timeout_seconds` | `TIMEOUT` (section 11) |
 
+`BACKTEST_MAX_PORTFOLIO_TICKERS` and `BACKTEST_MAX_POSITIONS` do have a code default: the core's ceiling
+(`engine.ts` MAX_PORTFOLIO_TICKERS and MAX_POSITIONS, 12 each, **[D-PF2, PF5]**), which they may only lower;
+`limits.max_portfolio_tickers` and `limits.max_positions` report them, and over them is `INVALID_PORTFOLIO` at
+validation. Measured 2026-10-27, the 12 largest broker files (BBRI TLKM BBCA ASII BMRI ANTM ADRO PGAS BBNI BUMI
+BRPT UNVR) hold 2,494,454 rows and 28.4 MB gzip together, far under `BACKTEST_MAX_BROKER_ROWS` (20,000,000 in dev).
+
 ## 4. Calendar
 
-The result calendar `dates` is the sorted union of the published bar dates of IHSG and every run ticker inside
-`[from, to]` **[D-K5c]**. On a day without a bar a ticker cannot trade; its position is marked at its last close
-(`flags.stale_mark` on the trade when that happened while held or at the exit). Signals, "within N bars" windows and
-`bars_held` count the ticker's own bars.
+The result calendar `dates` is the sorted union of the published bar dates of IHSG and of every picked stock whose
+bars were read, left out by the engine or not, inside `[from, to]` **[D-K5c, PF8]**: whether a stock is left out is
+decided on its bars up to `period.to` (section 2), so it changes no calendar day, and no stock's next calendar day
+(`no_next_bar`) depends on it (`engine.ts` run: the calendar of IHSG and every picked stock of `MarketData.tickers`). A
+stock the loader leaves out (no published files, section 2) has no bars read and adds no day. A run with stocks the
+engine left out therefore equals the run without them when those stocks add no day outside IHSG's calendar, and not
+otherwise: a day only a left-out stock has a bar on stays a calendar day (`engine.test.ts`, the two PF8 tests).
+Measured by the lead 2026-10-27: `public."Price_Stock_Indonesia_IDX"` has 0 stock bars on a day without an IHSG bar,
+so on the published data the calendar is IHSG's and PF8 changes no result. On a day without a bar a ticker cannot
+trade; its position is marked at its last close (`flags.stale_mark` on the trade when that happened while held or at
+the exit). Signals, "within N bars" windows and `bars_held` count the ticker's own bars.
 
-What the period and the universe become on the data (`engine.ts` run, after the job was accepted):
+What the period and the picked stocks become on the data (`engine.ts` run, after the job was accepted):
 
 - Single **[D-period_clip]**: when `period.from` is before the ticker's first published bar and that bar is on or
   before `period.to`, the run starts at that bar, so `dates[0]` is that bar and not `period.from`; the warning
   `PERIOD_CLIPPED` names the ticker and both dates. A portfolio keeps `period.from`. The variant hash keeps the
   requested period (section 7).
-- Portfolio **[D-exclude]**: a universe ticker whose own data cannot serve the strategy is left out of the run instead
+- Portfolio **[D-exclude]**: a picked stock whose own data cannot serve the strategy is left out of the run instead
   of failing it: no published files (`DATA_MISSING`, the loader, section 2) or an error of `signals.ts EXCLUDED_CODES`
   (`INDICATOR_OUTPUT_EMPTY`, `FLOW_OUTPUT_EMPTY`: an indicator or flow series the run needs without any value on its
   bars; `FLOW_UNAVAILABLE`: no broker row on its bars), decided on its bars up to `period.to`, and only when its entry
   cannot switch on without that condition (section 2; otherwise the condition is false on every bar and the ticker
   runs). `meta.tickers` lists the tickers that ran; the warning `TICKERS_EXCLUDED` lists the others, sorted by ticker
-  (`count`, `tickers`, and `reasons` with each ticker's `{ticker, code, field, message}`; the message gives the counts
-  by code). A universe ticker without a bar inside the period runs without any event. In single mode these errors
-  fail the run; a request error (a parameter, an indicator, a field) fails it in either mode.
-- Every universe ticker left out **[D-L1]**: the run is refused with `UNIVERSE_EMPTY` (field `portfolio.universe`; the
-  message gives the count, the counts by code and the first ticker's error), never a cash-only result.
-- The calendar is built from IHSG and the tickers that run. A period without any calendar day is `PERIOD_EMPTY`; a
-  primary benchmark (section 7) without a close on or before `dates[0]` is `PERIOD_BEFORE_DATA`, because the
-  benchmark is scaled by its first close (section 7). Both have field `period.from`.
+  (`count`, `tickers`, and `reasons` with each stock's `{ticker, code, field, message}`; the warning's message is a
+  plain sentence: how many stocks were left out and how many the run trades). A picked stock without a bar inside the
+  period runs without any event. In single mode these errors fail the run; a request error (a parameter, an
+  indicator, a field) fails it in either mode.
+- Every picked stock left out **[D-L1]**: the run is refused with `UNIVERSE_EMPTY` (field `portfolio.tickers`; the
+  message gives the count, the counts by code and the first stock's error), never a cash-only result.
+- The calendar is built from IHSG and the picked stocks whose bars were read (above). A period without any calendar
+  day is `PERIOD_EMPTY`; a primary benchmark (section 7) without a close on or before `dates[0]` is
+  `PERIOD_BEFORE_DATA`, because the benchmark is scaled by its first close (section 7). Both have field `period.from`.
 
 ## 5. Signals
 
@@ -186,13 +228,15 @@ What the period and the universe become on the data (`engine.ts` run, after the 
   ticker has no bar that day the event is skipped with `no_next_bar` (no stale fills).
 - Exit signal: `combineExit` of the enabled exit conditions; true on a bar after the entry bar sets a pending sell at
   the ticker's next bar open (that sell waits for the next bar however late; a position is never abandoned).
-- Signals preview (`POST /v1/signals`, no backtest, no trial) **[D-L4]**: each universe ticker's entry events inside
-  `[from, to]` from the run's own code (`signals.ts previewRow` = the run's `periodSignals`), with the run's checks and
-  exclusions: a ticker without published files, or one an error of `EXCLUDED_CODES` leaves out (section 2), is left
-  out and listed in `SignalsPreview.warnings` as the run's `TICKERS_EXCLUDED` (same keys); none left is
-  `UNIVERSE_EMPTY` (field `universe`); a preview that reads broker files is held to `FLOW_DATA_THROUGH` before any
-  download. A preview never fails where the matching run succeeds. Overlapping previews **[D-P8]**: the latest wins
-  (sections 9 and 10).
+- Signals preview (`POST /v1/signals`, no backtest, no trial) **[D-L4, PF1]**: the request is `{schema_version,
+  tickers, period: {from, to}, entry}`, `tickers` the picked stocks checked as a portfolio's (section 3, fields
+  `tickers` and `tickers[i]`); each picked stock's entry events inside `[from, to]` from the run's own code
+  (`signals.ts previewRow` = the run's `periodSignals`), one row per stock in ticker order (`run.ts runSignals`), with
+  the run's checks and exclusions: a stock without published files, or one an error of `EXCLUDED_CODES` leaves out
+  (section 2), is left out and listed in `SignalsPreview.warnings` as the run's `TICKERS_EXCLUDED` (same keys); none
+  left is `UNIVERSE_EMPTY` (field `tickers`); a preview that reads broker files is held to `FLOW_DATA_THROUGH` before
+  any download, and its download limits name the field `tickers`. A preview never fails where the matching run
+  succeeds. Overlapping previews **[D-P8]**: the latest wins (sections 8, 9 and 10).
 
 ## 6. Event clock (per calendar day t) **[D-E2, E3, E4, E5, E6]**
 
@@ -266,23 +310,26 @@ drawdowns, exit reasons, per ticker), so the page shows what `backtest.html` sho
   grid can step past it, volspike 1 → −1) is null, not run and not a trial; every other cell is a trial.
 - Trials **[D-K3]** (`hash.ts`): the **lineage key** (the line trials are counted in) is the hash of the strategy's
   shape: the mode; in single mode the ticker (the same strategy on another stock is another line), in portfolio mode
-  the universe; the entry logic and the shapes of the enabled entry conditions (kind, indicator or type, operator,
-  the output names compared; no numbers or parameters, in any order); the stop, take-profit and trailing modes, with
-  the line's indicator and output for a line mode; and, when an exit condition is enabled, the exit-signal logic and
-  those conditions' shapes. Every number, the parameters, condition ids, the period and OOS share, the benchmark, the
-  ranking and the robustness settings are not in it: changing one is a new variant of the same line. The **variant
-  hash** is the hash of what the engine reads, in a canonical form (`variantOf`): a request that differs only in what
-  no trade or trial Sharpe depends on is the same trial. Left out: `robustness` (Monte Carlo runs, seed, the
-  sensitivity switch), `single.benchmark`, `period.oos_fraction`; condition ids and disabled conditions (each list's
-  enabled conditions are compared as a sorted list, a repeated one stays repeated); `entry.at_least` unless the logic
-  is `at_least`, and then as min(`at_least`, enabled entry conditions), the number `combineEntry` uses (3 with 2
-  enabled is 2); the exit-signal logic without an enabled exit condition; the numbers of the stop, take-profit and
-  trailing modes not chosen, and `exit.atr_length` without an ATR stop or target; `sizing.allocation_fraction` in
-  portfolio mode; `costs.ara_gap_fraction` while `skip_ara_open_gap` is off. The period is kept as requested, so a
-  request that `PERIOD_CLIPPED` starts at the ticker's first bar and the same request with `period.from` on that bar
-  (or a period that starts on a day without a bar) give the same ledger but two variant hashes, two trials: known
-  limit, a canonical start needs the data calendar, which `/v1/validate` does not read, and edge-bff stores the
-  validation's `variant_hash` on the job row.
+  nothing more: the picked stocks are in the variant, not in the line **[D-PF4]** (picking stocks is selection, so
+  another set is another trial of the same line; a single-mode key is the one it was before PF1, a portfolio key is
+  not the one of a former universe); the entry logic and the shapes of the enabled entry conditions (kind, indicator
+  or type, operator, the output names compared; no numbers or parameters, in any order); the stop, take-profit and
+  trailing modes, with the line's indicator and output for a line mode; and, when an exit condition is enabled, the
+  exit-signal logic and those conditions' shapes. Every number, the parameters, condition ids, the period and OOS
+  share, the benchmark, the ranking and the robustness settings are not in it: changing one is a new variant of the
+  same line. The **variant hash** is the hash of what the engine reads, in a canonical form (`variantOf`): a
+  request that differs only in what no trade or trial Sharpe depends on is the same trial. Left out: `robustness`
+  (Monte Carlo runs, seed, the sensitivity switch), `single.benchmark`, `period.oos_fraction`; condition ids and
+  disabled conditions (each list's enabled conditions are compared as a sorted list, a repeated one stays repeated);
+  `entry.at_least` unless the logic is `at_least`, and then as min(`at_least`, enabled entry conditions), the number
+  `combineEntry` uses (3 with 2 enabled is 2); the exit-signal logic without an enabled exit condition; the numbers of
+  the stop, take-profit and trailing modes not chosen, and `exit.atr_length` without an ATR stop or target;
+  `sizing.allocation_fraction` in portfolio mode; `costs.ara_gap_fraction` while `skip_ara_open_gap` is off; the
+  order of the picked stocks (`canonicalRequest`: the set is kept, so another set is another variant, **[D-PF3,
+  PF4]**). The period is kept as requested, so a request that `PERIOD_CLIPPED` starts at the ticker's first bar and
+  the same request with `period.from` on that bar (or a period that starts on a day without a bar) give the same
+  ledger but two variant hashes, two trials: known limit, a canonical start needs the data calendar, which
+  `/v1/validate` does not read, and edge-bff stores the validation's `variant_hash` on the job row.
 - Trial count: edge-bff passes the line's prior trials (per owner and lineage key) in their recorded order
   (`recorded_seq`: runs in the order they finished, each run's variants in its order); the run adds its own variant
   and its run cells, distinct variant hashes only (the run wins over an identical cell). A variant evaluated again
@@ -295,9 +342,11 @@ drawdowns, exit reasons, per ticker), so the page shows what `backtest.html` sho
   hash (`RESULT_INVALID`). DSR uses the trials' Sharpe variance when there are ≥ 2 distinct trials, else 1 / n (n
   daily returns, the page's sample rule; `sharpe_variance_from`); distinct trials with equal Sharpes give variance 0,
   so sr0 = 0 and DSR = PSR(0), as the page's `dsr`.
-- Warnings: `PERIOD_CLIPPED` (single: the run starts at the ticker's first published bar, section 4)
-  **[D-period_clip]**; `TICKERS_EXCLUDED` (portfolio: the universe tickers left out, with `count`, `tickers` and
-  `reasons`, section 4) **[D-exclude]**; `SURVIVORSHIP` (portfolio: today's universe, no delisted tickers) **[D-K6]**;
+- Warnings (each `message` a plain sentence the page shows as it is, without field or code names; the code and the
+  detail fields carry the rest, page review V5): `PERIOD_CLIPPED` (single: the run starts at the ticker's first
+  published bar, section 4) **[D-period_clip]**; `TICKERS_EXCLUDED` (portfolio: the picked stocks left out, with
+  `count`, `tickers` and `reasons`, section 4) **[D-exclude]**; `SURVIVORSHIP` (portfolio: the stocks are picked from
+  today's published list, no delisted stock) **[D-K6]**;
   `ADJUSTED_HISTORY_BOUNDARY` (period crosses 2026-09-12: history before is back-adjusted for splits/bonus/rights,
   after is raw) and per-trade `flags.corporate_actions` **[D-K4]**; `DATA_GAP` (calendar days without a bar for a held
   or signalled ticker; `count` = distinct (ticker, day) pairs, `tickers`); `ARB_NOT_MODELLED` (stops always fill at
@@ -307,16 +356,33 @@ drawdowns, exit reasons, per ticker), so the page shows what `backtest.html` sho
 
 ## 8. Worker private API (shared secret header `x-backtest-worker-key`)
 
-- `GET /health` (no key) · `GET /v1/catalog` → `Catalog`.
-- `POST /v1/validate {request}` → `200 {ok, lineage_key, variant_hash, tickers}`, or the error: `validate.ts`, then
-  `FLOW_DATA_THROUGH` and `PERIOD_AFTER_DATA` (field `period.to`) with the job's code, field and message, from
-  terminal-api's manifests only (no `/bundle`, no file granted); 424 `DATA_MISSING` (field `IHSG.price`) when IHSG has
-  no price file **[D-L2]**.
+- `GET /health` (no key) · `GET /v1/catalog` → `Catalog` (`catalog.ts buildCatalog`) **[D-PF6]**:
+  - `tickers`: every row of terminal-api's reference ticker file, `{ticker, name, type, groups}`; `groups` (in place
+    of the former `sector`) holds the row's value of every grouping by its key, null when it is unclassified: a value
+    that is not a string, `''` or `Undefined` (`terminal.ts classification`; `DATABASE_SCHEMA.md`
+    `IDX_Stock_Universe."Sector"`/`"Industry"`: `Undefined` means the source gives no classification, counted apart,
+    never as a category of its own).
+  - `groupings`: the portfolio picker's filters, one per column of that file other than ticker, name and type, in the
+    file's column order (sector and industry since the publisher writes both); derived from the file, never listed in
+    the code, so a column the file gains becomes a filter. Each is `{key, values: {value, tickers}[], unclassified}`:
+    the values in ticker order (`signals.ts byTicker`) with their number of stocks, and the stocks without a value
+    counted in `unclassified` (`catalog.ts groupingsOf`). Only stocks are counted: an index is not tradable.
+  - The file must have the columns ticker, name and type (`terminal.ts reference`: a missing one is
+    `DATA_INTEGRITY`); sector is no longer required, and a file without a further column gives no grouping.
+  - `limits.max_portfolio_tickers` is new. The catalog universes (`universes`) are gone (PF1).
+- `POST /v1/validate {request}` → `200 {ok, lineage_key, variant_hash, tickers}` (`tickers` the checked ones: single
+  `[ticker]`, a portfolio's picked stocks in ticker order; both hashes of the request in its canonical form, PF3), or
+  the error: `validate.ts`, then `FLOW_DATA_THROUGH` and `PERIOD_AFTER_DATA` (field `period.to`) with the job's code,
+  field and message, from terminal-api's manifests only (no `/bundle`, no file granted); 424 `DATA_MISSING` (field
+  `IHSG.price`) when IHSG has no price file **[D-L2]**.
 - `POST /v1/signals {SignalsPreviewRequest}` → `SignalsPreview`, computed while the caller waits on a second thread:
-  one preview at a time, the others in arrival order; a preview whose caller disconnects is cancelled.
+  one preview at a time, the others in arrival order; a preview whose caller disconnects is cancelled, and one whose
+  caller leaves while the worker still reads the reference lists is never queued (review V1).
 - `POST /v1/jobs {job_id, request, context}` → 202 once `validate.ts` passed (a refused request is 422 and never a
   job); 409 `BUSY` while another job runs; the same `job_id` again is 202 (edge-bff retries a POST whose answer it
-  lost). One job computes at a time in a worker thread; the HTTP thread stays free.
+  lost). A POST whose caller leaves while the worker reads the reference lists starts no job (review V1): edge-bff,
+  which lost the answer, finds the id unknown and hands it over again. One job computes at a time in a worker thread;
+  the HTTP thread stays free.
 - `GET /v1/jobs/{id}` → `JobStatus`; 404 `UNKNOWN_JOB` for any job but the latest (the worker keeps one job, none
   across a restart).
 - `GET /v1/jobs/{id}/result` → 200 gzip JSON (`Content-Encoding: gzip`), as often as it is asked until the next job
@@ -338,12 +404,26 @@ drawdowns, exit reasons, per ticker), so the page shows what `backtest.html` sho
 the worker sees the request; `/v1/validate` first, its 422/424 relayed as they are **[D-L2]**; then 202 `{request_id,
 state, created}`; the same `client_request_id` returns the same job, another request under it 409
 `SUBMISSION_CONFLICT`; 429 `QUEUE_FULL` with `BACKTEST_QUEUED_PER_OWNER` jobs queued) · `GET /api/v1/backtests`
-(the owner's latest jobs, each `JobStatus` + its request) · `GET /api/v1/backtests/{id}` (status) ·
+(the owner's latest jobs, each `JobStatus` + its request as first sent) · `GET /api/v1/backtests/{id}` (status) ·
 `GET /api/v1/backtests/{id}/result` · `GET /api/v1/backtests/{id}/events?ticker=X` · `POST
 /api/v1/backtests/{id}/cancel` · `POST /api/v1/backtests/signals` (preview, no trial; cancelled at the worker when the
-page leaves before the answer). Off when `BACKTEST_WORKER_URL` is empty (`BACKTEST_DISABLED`, 503). The catalog,
-validate and signals calls are relayed on the event loop and wait for the worker's answer up to
-`BACKTEST_TIMEOUT_SECONDS` + 30 s (connecting 30 s).
+page leaves before the answer, never queued there when it leaves while the worker reads the reference lists, review
+V1). Off when `BACKTEST_WORKER_URL` is empty (`BACKTEST_DISABLED`, 503). The catalog, validate and signals calls are
+relayed on the event loop and wait for the worker's answer up to `BACKTEST_TIMEOUT_SECONDS` + 30 s (connecting 30 s).
+
+Of a request edge-bff reads only its mode, `single.ticker` and `portfolio.tickers`, and it checks none of the fields
+the worker checks: the bodies go on as sent. Two rules are its own:
+
+- Submission key **[D-PF3]**: a portfolio's picked stocks are a set, so the same `client_request_id` with the same
+  stocks in another order is the same request and returns the existing job (`backtest.py same_request`, in the route
+  and in `BacktestStore.submit`): the stocks are compared sorted, a stock listed twice stays listed twice, and every
+  other field as sent; another set, or any other changed field, is 409 `SUBMISSION_CONFLICT`. The stored request (and
+  what the worker gets) stays the one first sent.
+- JSON the contract can carry (`backtest.py loads`): a body with NaN or Infinity, a number beyond a double (`1e400`,
+  `-1e999`, which would load as ±inf, or an integer of 400 digits, which the worker's JSON.parse reads as Infinity;
+  review V2a), a string UTF-8 cannot encode (a lone surrogate, `"\ud800"`, or the bytes that would encode it; review
+  V2b), or nesting deeper than the parser takes is 422 `INVALID_INPUT` on both POST routes, before anything is relayed
+  (review V2; it was a 503); such a preview replaces none (below).
 
 Previews **[D-P8]**: at most one per owner is in flight. A newer one ends the one still in flight, whose worker call is
 closed and which answers 409 `PREVIEW_REPLACED` (unless its page aborted it first), and goes to the worker once that
@@ -365,18 +445,20 @@ variant, never reset; `recorded_seq` gives the recorded order). Grants per table
 SELECT/INSERT/DELETE, trials SELECT/INSERT/UPDATE; PUBLIC none. They are documented by the migration (column comments),
 the edge-bff README and this section, not in `DATABASE_SCHEMA.md` **[D-D2]**. No market data in these tables. On
 ingest edge-bff splits the worker's result into the part `core` (everything except `events.conditions` and
-`events.exits`) and one part `events:<ticker>` per ticker (`{conditions, exits}` of that ticker), because a portfolio
-of hundreds of tickers would otherwise send every lane of every ticker to the page. `/result` answers `core` as
-`BacktestResultCore` (contract.ts), with the single ticker's `TickerEvents` merged back in single mode (= the worker's
+`events.exits`) and one part `events:<ticker>` per ticker (`{conditions, exits}` of that ticker), so the page reads
+the lanes of the ticker it shows only (a portfolio has up to `limits.max_portfolio_tickers` stocks; the split predates
+PF2, when a universe could hold hundreds). `/result` answers `core` as `BacktestResultCore` (contract.ts), with the
+single ticker's `TickerEvents` merged back in single mode (= the worker's
 `BacktestResult`); the page asks `/events?ticker=` (`TickerEvents`) for the ticker it shows. 409 `NOT_FINISHED` unless
 the job is `FINISHED`, 410 `RESULT_EXPIRED` once the parts are pruned, 404 `EVENTS_NOT_FOUND` for a ticker the run did
 not have.
 
 ## 10. Page
 
-`/backtest` (EDGE tab "Backtest", iframe) → `/backtest-app/`. Markup and CSS of `backtest.html` verbatim; behaviour
-ported to TS modules. Preview signals in the browser with the shared core on the ticker's published bars (via the
-existing `/api/terminal/v1` proxy); after a run, markers come from the result events only. No run at page load
+`/backtest` (EDGE tab "Backtest", iframe) → `/backtest-app/`. Markup and CSS of `backtest.html` verbatim, the
+portfolio stock picker aside (below, PF7); behaviour ported to TS modules. Preview signals in the browser with the
+shared core on the ticker's published bars (via the existing `/api/terminal/v1` proxy); after a run, markers come from
+the result events only. No run at page load
 **[D-no-autorun]**; the page opens in its own "Not run yet" state. The synthetic generator and the mock-up engine
 exist only in the test fixture build (`?fixture=reference`), checked absent from the production bundle.
 
@@ -388,16 +470,86 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
 - Published files are kept in the Terminal's browser cache **[D-P5]**: IndexedDB `terminal-files` version 1, store
   `files` (keyPath `sha`, index `used`), its least-recently-used limit; only bytes that pass `inflateVerified`; any
   IndexedDB failure means no cache, never a failed page.
-- The portfolio preview aborts a preview newer settings replaced and draws only the latest answer **[D-P8]**.
+- The header has no date: live says "Published data · long-only" (`api/texts.ts` `dataNote`), the lead's short form,
+  because "Published data to <`catalog.data_through`> · long-only" wraps more than the reference's "Synthetic demo
+  data · long-only" (7 lines against 5 at 390 px, 5 against 3 at 480; `api/texts.ts` gives every width measured).
+- Condition limit: adding a condition, loading a template (entry or exit), duplicating one or switching one on is
+  refused when the list would then hold more than `limits.max_conditions` enabled conditions, with the toast "Limit
+  reached: at most N active conditions per list." and nothing changed (`reg.ts withinLimit`, called by `builder.ts`
+  (the add menu, both template lists, the switch) and `workspace.ts` (add, duplicate, the switches)); a change that
+  does not raise the count passes. The worker's `LIMIT_EXCEEDED` `max_conditions` (section 3) stays the rule.
+- Run events: the chart asks `/events?ticker=` only for a ticker of the run (`meta.tickers` and the tickers of
+  `events.entries`, `picked.ts runTickers`; edge-bff answers any other with 404 `EVENTS_NOT_FOUND`); a picked stock
+  the run left out keeps the preview drawing, without a toast (review PAGE-V2).
+- Signals preview, latest wins **[D-P8]** (`preview.ts Previews`): a preview in flight whose settings are no longer
+  the current ones is aborted at the next redraw, also when the current settings are answered from the page's cache
+  of answers or the fresh run's own rows are shown (review PAGE-V4); only the latest answer is drawn. A preview's
+  identity ignores the order of the picked stocks (`previewKey`, PF3). Nothing picked: no preview is asked.
+  - Its warnings are one short toast line (review PAGE-V1; `preview.ts previewNote`): "n stocks left out (see the —
+    rows)" for `TICKERS_EXCLUDED`, any other warning by its message, shown only when it differs from the last one
+    shown; for this note the toast is as wide as its line, up to the window less the page's side padding
+    (`backtest.css .toast.line`; the reference's toast wraps at half the window, two lines on a phone), and every
+    other toast keeps the reference's look. Each left-out stock's row shows "—", and its tooltip the error code and
+    message (`signals.ts portTable`).
+  - 409 `PREVIEW_REPLACED` (another tab of the same owner started a newer preview, section 9) is no error: no toast,
+    the table keeps what it drew (the dashes for settings never answered), and the preview is asked again only after
+    the next pointer or key action on this page (`signals.ts`: `userAction` on `pointerdown` and `keydown`), never by
+    itself, so two tabs never keep replacing each other (review PAGE-V3).
+- Portfolio stock picker **[D-PF7]** (user N 2026-10-27; `picker.ts`, its rules in `picked.ts`): in step 1 "Universe &
+  period", portfolio mode, the field "Stocks" replaces the reference's Universe select. It uses the reference's own
+  styles (`.fld`, `.sel`, `.chips`/`.chip`, `.pill`, `.btn`, a list placed like its add-condition menu); the
+  `backtest.css` `.pk-*` rules only lay them out.
+  - Search: a combobox (`role="combobox"`, `aria-expanded`, `aria-controls` its listbox, `aria-activedescendant`;
+    the focus stays in the box). It lists the stocks whose ticker starts with the text, then those whose name
+    contains it, case-insensitive, each part in catalog order (`searchMatches`); a blank text lists nothing. The list
+    floats under the box, fixed to the window like the reference's add-condition menu, and shows as many matches as
+    fit between the box and the bottom of the window (at least one; one option's height measured), then "N more ·
+    type more of the ticker or name"; no match: "No stock matches “…”.". It follows the box when the page scrolls or
+    the window resizes, and closes on blur or once the box leaves the panel's view. A picked stock is listed with a
+    "Picked" pill, `aria-disabled`, and cannot be added. ArrowDown/ArrowUp move over the stocks that can be added
+    (wrapping), Enter adds the active one, Escape closes the list, then clears the text, then does what it does
+    elsewhere.
+  - Filters: one select per `catalog.groupings` entry, labelled by its key ("Sector", "Industry"): "Any <Grouping>",
+    then each value with its count, then "Unclassified (n)" when n > 0 (null in `groups`). A chosen value lists that
+    group's stocks (ticker, name, an Add button or a "Picked" pill) under the filters, several groupings combined
+    with AND (`groupStocks`), headed "n stocks in this group" with "Add all", which adds the listed stocks in order
+    while room remains (`addTickers`); the list is never taller than the visible part of the panel.
+  - Picked stocks: removable chips (the company name as their title) and the count "n / max" in a pill, max =
+    `limits.max_portfolio_tickers`; none picked: "No stock picked yet. Search for a stock or filter by a group to add
+    one." (the picker and the signal table). A chip removed from the keyboard hands the focus to the next chip, or to
+    the search box.
+  - Limit: a stock past the limit is refused with the toast "Limit reached: at most 12 stocks per portfolio." (the
+    condition limit's wording, the number from the catalog); "Add all" adds what fits and toasts for the rest. Run
+    with no picked stock is refused with the toast "Add at least one stock" before any request (`run.ts`, as the
+    reference's "Add at least one active condition"); the worker's `INVALID_PORTFOLIO` stays the rule. The Max
+    positions input's max is `limits.max_positions` (PF5).
+  - Default: nothing picked in the live page (no published data names a sample set of stocks; `state.ts
+    applyCatalog`). The fixture build picks the reference's "Demo 10" (its ten tickers), and the reference's "Banks"
+    is the picked set BBCA, BBRI, BMRI, so the fixture's numeric checks compare the same runs as before.
+  - Labels, the reference's patterns with the picked stocks where it names its universe: the step summary
+    "BBCA, BBRI, BMRI +2 · max 5 · …" (`picked.ts tickersLabel`: up to three tickers, as the reference's "Banks (BBCA,
+    BBRI, BMRI)", then "+n"; "No stock picked" when empty), the context title "<that> · 5 stocks · max 5 positions",
+    the results header "Portfolio · 5 stocks · max 5 positions · …".
+  - At 390 px the picker is one column (the group selects sit side by side only in the builder opened in the centre),
+    without horizontal scroll.
+  - The signal table keeps the reference's title "Signals across the universe" and lists the picked stocks; the
+    chart always shows one of them (`picked.ts chartTicker`).
 
 ## 11. Errors
 
 `{error:{code, field?, message?, details?}}`.
 
 - Request 422: the worker's validation codes (section 3), `LIMIT_EXCEEDED` (`details.limit`, `allowed`, `needed`;
-  section 3), and edge-bff's `INVALID_INPUT` (a body that is not a JSON object, not JSON, or nested deeper than the
-  parser takes; field `client_request_id` for a bad submission key). 409 `SUBMISSION_CONFLICT`; 409
-  `PREVIEW_REPLACED` (a newer preview of the owner, section 9); 429 `QUEUE_FULL`.
+  section 3), and edge-bff's `INVALID_INPUT` (a body that is not a JSON object, not JSON, with NaN, Infinity, a
+  number beyond a double (an integer too) or a string UTF-8 cannot encode, or nested deeper than the parser takes;
+  field `client_request_id` for a bad submission key; section 9). The picked stocks (PF1, PF2): `INVALID_PORTFOLIO`
+  at field `portfolio.tickers` (a preview: `tickers`)
+  for a list that is not a list of strings, empty, longer than `limits.max_portfolio_tickers` or with a stock twice,
+  and at `portfolio.max_positions` over `limits.max_positions`; `UNKNOWN_TICKER` at `portfolio.tickers[i]` (a preview:
+  `tickers[i]`) for an entry that is not a published stock; `UNIVERSE_EMPTY` at `portfolio.tickers` (`tickers`) when
+  every picked stock is left out (section 4). `UNKNOWN_UNIVERSE` is gone, and `portfolio.universe` (a preview:
+  `universe`) is `UNKNOWN_FIELD`. 409 `SUBMISSION_CONFLICT`; 409 `PREVIEW_REPLACED` (a newer preview of the owner,
+  section 9); 429 `QUEUE_FULL`.
 - Data 424: `DATA_MISSING`, `DATA_INTEGRITY`, `DATA_UNAVAILABLE`.
 - Service: 503 `BACKTEST_DISABLED`, `BACKTEST_UNAVAILABLE` (the worker unreachable or answering outside its API, a 504
   without the worker's `TIMEOUT` error included), `BACKTEST_NOT_READY` (the tables are missing); 504 `TIMEOUT` relayed
@@ -415,7 +567,7 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
   `BACKTEST_MAX_RESULT_BYTES`, with a message), `RESULT_INVALID` (a result outside the contract, section 7),
   `WORKER_FAILED` (the worker reports `FAILED` without an error). Cancel → `CANCELLED`, without an error.
 
-## 12. Decisions taken for the user (2026-10-26)
+## 12. Decisions taken for the user (2026-10-26; PF1–PF8 and LA-1 2026-10-27)
 
 | Id | Question | Options | Chosen | Why |
 |---|---|---|---|---|
@@ -425,13 +577,13 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
 | E4 | Stop and target in one candle | stop / target / skip | stop + flag | conservative, the prompt forbids inventing a rule; this is the page's own order |
 | E5 | Trailing, time exit, MAE/MFE, ranking | page / page with fixes | page rules; ranking on registry I07/I13/I35, a candidate without a score after every scored one (the page's `rankScore` substitutes values instead); MAE/MFE at the raw open for open exits | verified formulas, no look-ahead; a substituted score would rank a candidate on a value it does not have |
 | E6 | Pending exit signal vs same-bar stop/TP | page priority / clock | clock | the page sells at prices from later in the day |
-| K3 | Trial count | browser / per owner + lineage | per owner + lineage, +1 per distinct variant and per run cell, no reset; variant = what the engine reads (section 7); latest Sharpe per variant, recorded order | DSR stays honest across reloads |
+| K3 | Trial count | browser / per owner + lineage | per owner + lineage, +1 per distinct variant and per run cell, no reset; variant = what the engine reads (section 7); latest Sharpe per variant, recorded order; a portfolio's picked set in the variant, not in the lineage (PF4) | DSR stays honest across reloads |
 | K4 | Mixed adjusted/raw history | flag (D3, TEMPORARY) / reload | D3 flags + warning | data fix belongs to the data layer (plan D1) |
 | K5a | ARB/ARA | page ARA rule / dated rule table | page rule (`ara_gap_fraction` 0.2) + `ARB_NOT_MODELLED` warning, TEMPORARY | no sourced rule table exists |
 | K5b | Tick rounding | none / round | none + warning, TEMPORARY | meaningless on back-adjusted prices |
-| K5c | Gaps / suspensions | shared calendar | union calendar, own-bar windows, no fill, flags | real data has holes |
+| K5c | Gaps / suspensions | shared calendar | union calendar (IHSG and every picked stock whose bars were read, left out or not: PF8), own-bar windows, no fill, flags | real data has holes |
 | K5d | Sales tax | in sell fee (page) / separate field | in sell fee | the page has one field |
-| K6 | Portfolio universe | demo lists / all + sectors / wait | all + published sectors + `SURVIVORSHIP` warning | demo lists are synthetic |
+| K6 | Portfolio universe | demo lists / all + sectors / wait | all + published sectors + `SURVIVORSHIP` warning; replaced 2026-10-27 by picked stocks (PF1), the warning kept | demo lists are synthetic |
 | K7b | Limits | — | env-configurable without a code default (section 3 Limits), measured in the dev E2E | — |
 | K9 | Liquidity value | close × volume / Σ broker buy | close × volume | the page's definition, needs no broker data |
 | K10 | fast < slow | require / follow page | follow page | the page and TradingView accept it |
@@ -442,8 +594,8 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
 | no-autorun | Run at page load | yes (mock-up) / no | no | each run is a trial and a job |
 | period_end | Entry on the last day | allow / skip | skip | it would close at the same close |
 | period_clip | Single: `period.from` before the ticker's first published bar | refuse / start at that bar | start at that bar + `PERIOD_CLIPPED` (lead) | the ticker has no bar, and a buy-and-hold benchmark no value, before it |
-| exclude | Portfolio: a universe ticker whose own data cannot serve the strategy | fail the run / leave it out | leave it out + `TICKERS_EXCLUDED`: `DATA_MISSING` and `EXCLUDED_CODES`, decided on its bars up to `period.to` (lead); for `EXCLUDED_CODES` only when its entry cannot switch on without the condition, which is otherwise false on every bar (review LA-1) | one ticker's data never fails the universe's run; bars after the period never decide it, nor bars after a day what it trades up to that day (section 2 states the calendar limit) |
-| L1 | Portfolio: every universe ticker left out | cash-only result / refuse | refuse: `UNIVERSE_EMPTY`, field `portfolio.universe` (preview: `universe`) (lead) | no ticker of the strategy was run, so a cash curve would not be its result |
+| exclude | Portfolio: a picked stock whose own data cannot serve the strategy | fail the run / leave it out | leave it out + `TICKERS_EXCLUDED`: `DATA_MISSING` and `EXCLUDED_CODES`, decided on its bars up to `period.to` (lead); for `EXCLUDED_CODES` only when its entry cannot switch on without the condition, which is otherwise false on every bar (review LA-1) | one stock's data never fails the portfolio's run; bars after the period never decide it, nor bars after a day what it trades up to that day; a left-out stock still reaches the calendar (PF8; section 2 states the loader's limit) |
+| L1 | Portfolio: every picked stock left out | cash-only result / refuse | refuse: `UNIVERSE_EMPTY`, field `portfolio.tickers` (preview: `tickers`; `portfolio.universe` and `universe` before PF1) (lead) | no ticker of the strategy was run, so a cash curve would not be its result |
 | L2 | When `FLOW_DATA_THROUGH` and `PERIOD_AFTER_DATA` are found | at the job (202, then `FAILED`) / at submit | at submit too: `/v1/validate` checks both on terminal-api's manifests, 422 before queueing (lead) | a job that cannot succeed is never queued; `/manifest` grants no file and counts in no quota |
 | L3 | Caching `catalog.flow.data_through` | every call / per publish | per publish if terminal-api's answers mark a publish exactly; none does, so the worker keeps no date and a check stops at the first manifest that reaches its date (lead) | a cache without an exact marker could keep an old date after a publish |
 | L4 | Preview on a ticker whose data cannot serve the rule | fail the preview / the run's exclusions | the run's: same code, `TICKERS_EXCLUDED` in `SignalsPreview.warnings`, `UNIVERSE_EMPTY`, `FLOW_DATA_THROUGH` (lead) | a preview never fails where the matching run succeeds |
@@ -454,3 +606,12 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
 | P5 | Browser cache of published files | the page's own / the Terminal's | the Terminal's: IndexedDB `terminal-files` version 1, store `files` (keyPath `sha`, index `used`), its least-recently-used limit; only bytes that pass `inflateVerified`; any IndexedDB failure means no cache, never a failed page (lead) | one content-addressed copy per browser for both tabs |
 | P8 | Overlapping signals previews | no limit / a cap with an error / latest wins | latest wins: the page aborts a preview newer settings replaced and draws only the latest; edge-bff keeps at most one preview per owner in flight, a newer one ends the older (409 `PREVIEW_REPLACED`) (lead) | pending previews piled up and held the app (review SEC-1); a cap would show errors to a page that types fast |
 | bb bxin | Close back inside lower band | exact page op / crosses above | crosses above I27 lower | equal only when a close equals the band exactly |
+| LA-1 | Portfolio and preview: a condition whose series has no value on the ticker's bars up to `period.to` (`EXCLUDED_CODES`) | (a) the condition is false on every bar, the ticker left out only when its entry can then never switch on / (b) leave the ticker out on any such condition, the rule before | (a) (lead 2026-10-27): fewer entry conditions with a value than the entry needs (`conditions.ts entryNeed`: every one under `all`, one under `any`, min(`at_least`, enabled) under `at_least`) leaves it out; an exit condition never does (`signals.ts tickerSignals`) | under (b) whether a ticker trades up to a day depended on whether bars after that day exist (adversarial check LA-1); a series is false before its first value anyway |
+| PF1 | What a portfolio runs on | keep the catalog universes with a cap / a list of picked stocks | the picked list: `portfolio.tickers` replaces `portfolio.universe` in the request, `tickers` replaces `universe` in the preview, and the catalog's `universes` are gone (`UNKNOWN_UNIVERSE` too) (user N, lead 2026-10-27) | the user picks the stocks, by search or by the groupings' filters; a capped universe would still not be the user's own set |
+| PF2 | How many stocks a portfolio picks | — (user N: at most 12) | 1 to 12 distinct published stocks (`engine.ts` MAX_PORTFOLIO_TICKERS); `BACKTEST_MAX_PORTFOLIO_TICKERS` (default 12) may only lower it, `limits.max_portfolio_tickers` reports it and the page reads it there; checked before any download: `INVALID_PORTFOLIO` at `portfolio.tickers` (not a list of strings, empty, too long, a stock twice), `UNKNOWN_TICKER` at `portfolio.tickers[i]` (not a published stock; an index is not tradable) (user N, lead 2026-10-27) | user N's request; the 12 largest broker files hold 2,494,454 rows and 28.4 MB gzip together, far under the dev `BACKTEST_MAX_BROKER_ROWS` (20,000,000) |
+| PF3 | The order of the picked stocks | part of the request / not | not: the worker sorts them (`signals.ts byTicker`, `hash.ts canonicalRequest`) before it hashes, records the lineage or runs; edge-bff's submission key compares them as a set (section 9) (lead 2026-10-27) | the same set in any order is the same request, variant and result |
+| PF4 | Where the picked stocks count for trials (K3) | the set in the lineage / the set in the variant only | the variant only: the set is in the variant and request hashes, not in the portfolio lineage; single mode keeps its ticker in the lineage, so a single-mode key is unchanged (`hash.ts lineageShape`); a portfolio's key is not the one of a former universe (lead 2026-10-27) | conservative: picking stocks is selection, so another set is another trial of the same strategy line; in the lineage, adding or removing one stock would restart the trial count at 1 |
+| PF5 | Most positions | keep 10 / 12 / tied to the number of stocks picked | 12 (`engine.ts` MAX_POSITIONS; `BACKTEST_MAX_POSITIONS` may only lower it, `limits.max_positions`, the page's input max); `max_positions` may exceed the stocks picked: a slot is 1 / `max_positions` of equity, as the reference's "1/N of equity", and an idle slot stays cash (lead 2026-10-27) | a portfolio of 12 stocks can hold each of them; a limit tied to the number picked would change the slot size with the selection |
+| PF6 | What the picker filters by | an enumerated sector + industry list / groupings derived from the reference file | derived: every column of terminal-api's ticker reference file but ticker, name and type is a grouping (`groups` per ticker, `groupings` in file order, stocks counted, an index not); null, `''` and `Undefined` are unclassified, counted apart and never a value; sector no longer a required column (lead 2026-10-27) | the picker filters by sector and industry (user N), and the publisher writes both (`ref/tickers`); a column the file gains becomes a filter without a code change; `DATABASE_SCHEMA.md`: `Undefined` is no classification |
+| PF7 | The page's portfolio stock picker | the reference's Universe select (1:1) / a picker | the picker (section 10): a search combobox, one select per catalog grouping listing its stocks with an add control (groupings combined with AND), removable chips with "n / max"; the limit toast, Run refused with no stock, nothing picked by default in the live page; the fixture's "Demo 10" and "Banks" as picked sets (user N, lead 2026-10-27) | user N asked for search and group filters; the one approved departure from the 1:1 rule, in the reference's own styles; the server's rule stays authoritative |
+| PF8 | Calendar when a stock is left out | the stocks that run / every requested stock with bars | IHSG and every picked stock whose bars were read, left out by the engine or not (`engine.ts` run); a stock the loader leaves out has no bars read (section 2) (lead 2026-10-27) | which stocks trade can no longer change another stock's next calendar day (the last look-ahead path of the adversarial check, the former known limit of section 2); 0 stock bars on a day without an IHSG bar in `public."Price_Stock_Indonesia_IDX"` (lead, 2026-10-27), so published results do not change |

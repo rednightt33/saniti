@@ -3,27 +3,29 @@
    mock-up engine for a run (run.ts), so the page shows the reference's numbers. Built only into dist-fixture/
    (vite build --mode fixture, tests/fixture/main.ts); never part of dist/.
    Jobs answer like edge-bff: FINISHED at the first status call (the reference computes in one go), /result and
-   /events?ticker= as edge-bff serves them (../served.ts). The texts on the data are the reference's own words. */
+   /events?ticker= as edge-bff serves them (../served.ts). The texts on the data are the reference's own words. The
+   default portfolio is the reference's "Demo 10" (main.ts, state.ts DEMO_10). */
 import type { BacktestRequest, BacktestResult, Catalog, JobStatus } from '../../src/core/contract.ts';
 import { REGISTRY_VERSION } from '../../src/core/registry.ts';
 import type { BacktestApi, Card, SourceTexts, TickerBars } from '../../src/api/types.ts';
 import * as M from './mockup.js';
 import { ENGINE_VERSION, newSession, previewRequest, runRequest } from './run.ts';
+import { BANKS, DEMO_10 } from './state.ts';
+import { MAX_PORTFOLIO_TICKERS, MAX_POSITIONS } from '../../src/core/engine.ts';
 import { servedEvents, servedResult } from '../served.ts';
 
-const BANKS: string[] = ['BBCA', 'BBRI', 'BMRI'];                    // the reference's universe BANK (section 6 universe)
-const STOCKS: string[] = M.TICKERS.map((t: [string]) => t[0]);
-
-/* the reference's choices as a catalog: its tickers in its order, its two universes with its labels, its brokers, its
-   broker data on every day; the reference has no limit on conditions */
+/* the reference's choices as a catalog: its tickers in its order (no names: the reference has none, name null), its
+   universe "Banks" as their one grouping (sector: BBCA, BBRI and BMRI are Banks, the other seven unclassified), its
+   brokers, its broker data on every day; the reference has no limit on conditions; the portfolio limits are the
+   core's (PF2, PF5) */
 export const CATALOG: Catalog = {
   schema_version:1, engine_version:ENGINE_VERSION, registry_version:REGISTRY_VERSION,
   data_through:M.DAYS[M.N - 1], first_date:M.DAYS[0],
-  tickers:[...STOCKS.map(t => ({ ticker:t, name:t, type:'stock', sector:BANKS.includes(t) ? 'Banks' : null })), { ticker:'IHSG', name:'IHSG', type:'index', sector:null }],
-  universes:[{ id:'all', label:'Demo 10 (LQ45 sample)', tickers:STOCKS.length }, { id:'sector:Banks', label:'Banks (BBCA, BBRI, BMRI)', tickers:BANKS.length }],
+  tickers:[...DEMO_10.map(t => ({ ticker:t, name:null, type:'stock', groups:{ sector:BANKS.includes(t) ? 'Banks' : null } })), { ticker:'IHSG', name:'IHSG', type:'index', groups:{ sector:null } }],
+  groupings:[{ key:'sector', values:[{ value:'Banks', tickers:BANKS.length }], unclassified:DEMO_10.length - BANKS.length }],
   flow:{ available:true, reason:null, brokers:M.BROKERS, data_through:M.DAYS[M.N - 1] },
-  limits:{ max_positions:10, window_bars:{ min:1, max:20 }, monte_carlo_runs:1000, max_download_bytes:0, max_broker_rows:0, timeout_seconds:600, queued_per_owner:1,
-           max_conditions:Infinity },
+  limits:{ max_positions:MAX_POSITIONS, window_bars:{ min:1, max:20 }, monte_carlo_runs:1000, max_portfolio_tickers:MAX_PORTFOLIO_TICKERS,
+           max_download_bytes:0, max_broker_rows:0, timeout_seconds:600, queued_per_owner:1, max_conditions:Infinity },
 };
 
 /* the reference's words (backtest.html: the header, the Robustness warning box, "Variants tried this session") */

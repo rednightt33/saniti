@@ -143,7 +143,15 @@ export interface Loaded {
   data_version: string;                          // datafile.ts dataVersion over `files`
 }
 export interface LoadOptions { keepBrokerRows?: boolean }   // false: only the flow is kept (portfolio memory)
-export interface TickerRef { ticker: string; name: string | null; type: string | null; sector: string | null }
+/** A row of terminal-api's ticker reference file. groups: the ticker's value of every other column (the file's
+    classifications, today sector and industry; PF6), null when it has none: a value that is not a string, '', or
+    'Undefined' (DATABASE_SCHEMA.md IDX_Stock_Universe."Sector"/"Industry": the source gives no classification; the
+    publisher stores it as the table has it, so the reader sets it apart). */
+export interface TickerRef { ticker: string; name: string | null; type: string | null; groups: Record<string, string | null> }
+/** The ticker reference file: its rows, and the keys of `groups` in the file's column order (the catalog's groupings). */
+export interface TickerReference { groupings: string[]; tickers: TickerRef[] }
+/** The value of a classification column, null when it is unclassified (TickerRef groups). */
+export const classification = (v: unknown): string | null => typeof v === 'string' && v !== '' && v !== 'Undefined' ? v : null;
 export interface BrokerRef { code: string; name: string | null; type: string | null }
 
 /** The caller's freshness check (CONTRACT.md sections 2-3, FLOW_DATA_CHECK.md): a dataset whose manifest data_through is
@@ -500,10 +508,12 @@ export class TerminalClient {
     return { ticker, data_through, last_bar };
   }
 
-  /** A reference list (terminal-api /reference/{name}): tickers with type and sector, or brokers with name and type. */
-  async reference(name: 'tickers'): Promise<TickerRef[]>;
+  /** A reference list (terminal-api /reference/{name}): the tickers with name, type and every other column as a
+      grouping (TickerReference; ticker, name and type are required, any further column is read by name, PF6), or the
+      brokers with name and type. */
+  async reference(name: 'tickers'): Promise<TickerReference>;
   async reference(name: 'brokers'): Promise<BrokerRef[]>;
-  async reference(name: 'tickers' | 'brokers'): Promise<TickerRef[] | BrokerRef[]> {
+  async reference(name: 'tickers' | 'brokers'): Promise<TickerReference | BrokerRef[]> {
     if (name !== 'tickers' && name !== 'brokers') throw new TypeError('reference: tickers or brokers.');
     const what = `The ${name} reference`, j = await this.api('GET', `/reference/${name}`, undefined, what, name);
     if (typeof j.url !== 'string' || !/^https?:\/\//.test(j.url)) throw new DataError('DATA_INTEGRITY', `${what}: terminal-api answered no URL.`, name);
@@ -513,13 +523,18 @@ export class TerminalClient {
     const a = await this.http(j.url, { method: 'GET' }, what, name, () => ({ bytes: max, error: () => new DataError('DATA_INTEGRITY', `${what} has more than ${max} bytes, the most one file may have.`, name, { max_file_bytes: max }) }));
     if (a.status !== 200) throw new DataError(a.status === 404 ? 'DATA_MISSING' : 'DATA_UNAVAILABLE', `${what}: the bucket answered ${a.status}.`, name, { status: a.status });
     const doc = await decodeColumnar(a.bytes, what, max);
-    const keys = name === 'tickers' ? ['ticker', 'name', 'type', 'sector'] : ['code', 'name', 'type'];
+    const keys = name === 'tickers' ? ['ticker', 'name', 'type'] : ['code', 'name', 'type'];
     for (const k of keys) if (!doc.columns.includes(k)) throw new DataError('DATA_INTEGRITY', `${what}: column ${k} is missing.`, name);
     const c = keys.map(k => doc[k] as unknown[]), str = (v: unknown) => typeof v === 'string' ? v : null;
-    return c[0].map((id, i) => {
+    const groupings = name === 'tickers' ? doc.columns.filter(k => !keys.includes(k)) : [];
+    const rows = c[0].map((id, i) => {
       if (typeof id !== 'string' || !id) throw new DataError('DATA_INTEGRITY', `${what}: row ${i + 1} has no ${keys[0]}.`, name);
-      return name === 'tickers' ? { ticker: id, name: str(c[1][i]), type: str(c[2][i]), sector: str(c[3][i]) } : { code: id, name: str(c[1][i]), type: str(c[2][i]) };
-    }) as TickerRef[] | BrokerRef[];
+      if (name === 'brokers') return { code: id, name: str(c[1][i]), type: str(c[2][i]) };
+      const groups: Record<string, string | null> = {};
+      for (const g of groupings) groups[g] = classification((doc[g] as unknown[])[i]);
+      return { ticker: id, name: str(c[1][i]), type: str(c[2][i]), groups };
+    });
+    return name === 'tickers' ? { groupings, tickers: rows as TickerRef[] } : rows as BrokerRef[];
   }
 }
 

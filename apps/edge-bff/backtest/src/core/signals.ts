@@ -7,7 +7,7 @@
    - per event, the entry conditions true within the window (a trade's entry_condition_ids);
    - the portfolio ranking scores and the liquidity value on a signal bar (section 6, D-E5 ranking, D-K9);
    - the result calendar (section 4, D-K5c), the ticker-bar <-> calendar index maps, and the SignalTracks;
-   - a portfolio universe's tickers whose own data cannot serve the strategy: left out of the run and of the preview
+   - a portfolio's picked stocks whose own data cannot serve the strategy: left out of the run and of the preview
      alike, listed in the same TICKERS_EXCLUDED warning, and UNIVERSE_EMPTY when none is left (lead decisions
      2026-10-26), so a preview never fails where the matching run succeeds.
    Pure module: no DOM and no Node API. */
@@ -186,7 +186,8 @@ export const isIsoDate = (s: unknown): s is string => {
   return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === s;      // 2024-02-30 is not a date
 };
 
-/** The result calendar: the sorted union of the given bar dates inside [from, to] (IHSG and every run ticker). */
+/** The result calendar: the sorted union of the given bar dates inside [from, to] (IHSG and every ticker whose bars
+    the run read, PF8). */
 export function resultCalendar(from: string, to: string, lists: ReadonlyArray<readonly string[]>): string[] {
   const days = new Set<string>();
   for (const l of lists) for (const d of l) if (d >= from && d <= to) days.add(d);
@@ -236,14 +237,14 @@ export function signalSummary(entry: SignalTrack, dates: readonly string[]): { e
 
 /** The signals preview row of one ticker (SignalsPreview, no backtest): entry events on its own bars inside
     [from, to] and the date of the last one, as the backtest counts them (periodSignals, the engine's own reading, as
-    a portfolio run reads it: the preview's rows are a universe's). tickerDates = the bars' dates. An error of
+    a portfolio run reads it: the preview's rows are a portfolio's). tickerDates = the bars' dates. An error of
     EXCLUDED_CODES is the run's too: the caller leaves the ticker out. */
 export function previewRow(calc: Calc, tickerDates: readonly string[], req: SignalRequest, from: string, to: string, active = requestConditions(req)): { entry_signals: number; last_signal: string | null } {
   const on = periodSignals(calc, tickerDates, req, active, from, to, true).events;
   return { entry_signals: on.length, last_signal: on.length ? tickerDates[on[on.length - 1]] : null };
 }
 
-/* ---- a portfolio universe: the tickers left out (lead decisions 2026-10-26) --------------------------------- */
+/* ---- a portfolio's picked stocks: the ones left out (lead decisions 2026-10-26) ----------------------------- */
 
 /** The errors of one ticker's data that leave that ticker out of a portfolio run, and of the signals preview, instead
     of failing it (lead decision 2026-10-26): an indicator or flow series without any value on its bars, no broker data
@@ -252,10 +253,10 @@ export function previewRow(calc: Calc, tickerDates: readonly string[], req: Sign
     mode; in single mode these fail it too. The loader leaves out a ticker without published files the same way
     (DATA_MISSING). */
 export const EXCLUDED_CODES: readonly string[] = ['INDICATOR_OUTPUT_EMPTY', 'FLOW_OUTPUT_EMPTY', 'FLOW_UNAVAILABLE'];
-/** A ticker of a portfolio universe that is left out, with the error its data gave (TICKERS_EXCLUDED reasons). */
+/** A picked stock of a portfolio that is left out, with the error its data gave (TICKERS_EXCLUDED reasons). */
 export interface Exclusion { ticker: string; code: string; field?: string; message: string }
 
-/** work() for one ticker of a universe; null when it throws an error of EXCLUDED_CODES, which leaves the ticker out
+/** work() for one picked stock; null when it throws an error of EXCLUDED_CODES, which leaves the stock out
     (added to excluded). Any other error is thrown. */
 export function unlessLeftOut<T>(ticker: string, excluded: Exclusion[], work: () => T): T | null {
   try { return work() }
@@ -266,22 +267,28 @@ export function unlessLeftOut<T>(ticker: string, excluded: Exclusion[], work: ()
   }
 }
 
-const byTicker = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
-/** The left-out tickers of a universe as the TICKERS_EXCLUDED warning, sorted by ticker (null when none is left out);
-    kept: the tickers that are run. When none is kept the request is refused, UNIVERSE_EMPTY at `field` (lead decision
-    2026-10-26: no cash-only result), with the count and the reasons by code; the preview refuses it the same way,
-    since the matching run is refused. */
+/** Ticker order (UTF-16 code units, Array.prototype.sort's default): the order of a portfolio's stocks everywhere, the
+    picked set's canonical order (hash.ts canonicalRequest, PF3) included. */
+export const byTicker = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
+const stocks = (n: number) => n === 1 ? '1 stock' : `${n} stocks`;
+/** The left-out stocks of a portfolio as the TICKERS_EXCLUDED warning, sorted by ticker (null when none is left out);
+    kept: the stocks that are run. Its message is a plain sentence the page shows as it is (no field or code names,
+    page review V5); count, tickers and reasons (each stock's code, field and message) are the details. When none is
+    kept the request is refused, UNIVERSE_EMPTY at `field` (lead decision 2026-10-26: no cash-only result), with the
+    count and the reasons by code; the preview refuses it the same way, since the matching run is refused. */
 export function leftOut(excluded: readonly Exclusion[], kept: number, field: string, what: 'run' | 'preview'): Warning | null {
   const xs = [...excluded].sort((a, b) => byTicker(a.ticker, b.ticker));
   const codes = new Map<string, number>();
   for (const x of xs) codes.set(x.code, (codes.get(x.code) || 0) + 1);
   const counts = [...codes].map(([c, n]) => `${n} ${c}`).join(', ');
+  const one = xs.length === 1, its = one ? 'its' : 'their';
   if (!kept) throw new ValidationError('UNIVERSE_EMPTY', field, xs.length
-    ? `All ${xs.length} ticker(s) of the universe were left out because their own data cannot serve the strategy (${counts}): no ticker is left to ${what === 'run' ? 'trade' : 'count signals on'}. The first is ${xs[0].ticker}: ${xs[0].message}`
-    : 'The universe has no ticker to run.');
+    ? `${one ? 'The picked stock was' : `All ${xs.length} picked stocks were`} left out because ${its} own data cannot serve the strategy (${counts}): no stock is left to ${what === 'run' ? 'trade' : 'count signals on'}. ${one ? '' : 'The first is '}${xs[0].ticker}: ${xs[0].message}`
+    : 'The portfolio has no stock to run.');
   if (!xs.length) return null;
+  const n = one ? '1 picked stock was' : `${xs.length} picked stocks were`;
   return { code: 'TICKERS_EXCLUDED', count: xs.length, tickers: xs.map(x => x.ticker), reasons: xs.map(x => ({ ...x })),
     message: what === 'run'
-      ? `${xs.length} ticker(s) of the universe were left out of this run because their own data cannot serve the strategy (${counts}); reasons gives the error of each. The run trades the other ${kept}.`
-      : `${xs.length} ticker(s) of the universe were left out of this preview because their own data cannot serve the strategy (${counts}); reasons gives the error of each. The preview counts the signals of the other ${kept}.` };
+      ? `${n} left out of this run because ${its} own data cannot serve the strategy. The run trades the other ${stocks(kept)}.`
+      : `${n} left out of this preview because ${its} own data cannot serve the strategy. The preview counts the signals of the other ${stocks(kept)}.` };
 }

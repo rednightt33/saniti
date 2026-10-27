@@ -124,7 +124,7 @@ function exitReasons(T: readonly LedgerTrade[]): BacktestResult['tables']['exit_
   }));
 }
 
-/* the page's signals table (trades, wins, P&L per ticker; universe order from the engine) plus the P&L-by-stock
+/* the page's signals table (trades, wins, P&L per ticker; ticker order from the engine) plus the P&L-by-stock
    tooltip (average return, share of the total P&L with the page's `|| 1`) */
 function perTicker(L: Ledger): BacktestResult['tables']['per_ticker'] {
   const by = groupBy(L.trades, t => t.ticker), total = sumPnl(L.trades) || 1, known = new Set(L.per_ticker_signals.map(r => r.ticker));

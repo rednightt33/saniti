@@ -3,23 +3,25 @@
    shares or rebalancing; unused cash stays cash without interest. The output is the Ledger (ledger.ts) that
    result.ts turns into statistics, tables and robustness numbers.
 
-   Per calendar day t of the result calendar (the union of IHSG's and the run tickers' bars inside the period):
+   Per calendar day t of the result calendar (the union of IHSG's bars and the bars of every ticker the run read,
+   left out or not, inside the period; PF8):
    before the open the trailing levels move (data up to the previous close only); at the open stops, trailing stops
    and targets that gapped and pending exit-signal sells fill, then entries (sells before buys, same auction); intraday
    stops and targets on the day's range, entry bar included; at the close time exits, new exit signals (sold at the
    next bar's open), the end of the test; then the marks. Cash from an intraday or close sale is usable from the next
    open. Signals, windows and bars_held count the ticker's own bars; a day without a bar of a ticker is not filled in.
 
-   What the period and the universe become on the data (lead decisions 2026-10-26): single mode starts at the ticker's
-   first published bar when period.from is earlier (warning PERIOD_CLIPPED); a portfolio keeps its period and leaves
-   out a ticker whose own data cannot serve the strategy (signals.ts EXCLUDED_CODES, and the loader's
-   MarketData.excluded), listed in the warning TICKERS_EXCLUDED, and is refused when every ticker is left out
-   (UNIVERSE_EMPTY: no cash-only result); the calendar is built from the tickers that run. The primary benchmark must
-   have a close on the first calendar day (PERIOD_BEFORE_DATA).
+   What the period and the picked stocks become on the data (lead decisions 2026-10-26): single mode starts at the
+   ticker's first published bar when period.from is earlier (warning PERIOD_CLIPPED); a portfolio keeps its period and
+   leaves out a stock whose own data cannot serve the strategy (signals.ts EXCLUDED_CODES, and the loader's
+   MarketData.excluded), listed in the warning TICKERS_EXCLUDED, and is refused when every stock is left out
+   (UNIVERSE_EMPTY: no cash-only result). The calendar is built from IHSG and every picked stock of MarketData.tickers,
+   whether it runs or is left out (PF8, 2026-10-27), so which stocks trade never moves another stock's next calendar
+   day. The primary benchmark must have a close on the first calendar day (PERIOD_BEFORE_DATA).
 
    prepare(data) keeps one indicator memo per ticker (conditions.ts Calc), so the sensitivity grid's reruns of
    run(context, request) recompute only the comparisons, not the indicators. Pure module: no DOM and no Node API. */
-import type { BacktestRequest, ExitPhase, ExitReason, SkippedSignal, SignalTrack } from './contract.ts';
+import type { BacktestRequest, ExitPhase, ExitReason, Limits, SkippedSignal, SignalTrack } from './contract.ts';
 import type { CorporateAction, PriceSeries } from './datafile.ts';
 import type { FlowData } from './flow.ts';
 import type { Ledger, LedgerTrade } from './ledger.ts';
@@ -28,7 +30,7 @@ import { isN } from '../../../terminal/src/calc/indicators.ts';
 import display from '../../../terminal/src/data/indRegistry.json' with { type: 'json' };
 import { Calc } from './conditions.ts';
 import { BY_ID, REGISTRY, ValidationError, indicator, resolveParams } from './registry.ts';
-import { RANK_BY, barMap, conditionsWithin, emptyTrack, isIsoDate, leftOut, liquidity, periodSignals, rankScores, requestConditions, resultCalendar, signalSummary, track, unlessLeftOut } from './signals.ts';
+import { RANK_BY, barMap, byTicker, conditionsWithin, emptyTrack, isIsoDate, leftOut, liquidity, periodSignals, rankScores, requestConditions, resultCalendar, signalSummary, track, unlessLeftOut } from './signals.ts';
 import type { BarMap, Exclusion, RankBy, TickerSignals } from './signals.ts';
 export { EXCLUDED_CODES } from './signals.ts';
 export type { Exclusion } from './signals.ts';
@@ -42,9 +44,11 @@ export interface TickerData {
   flow?: FlowData;                         // aligned with prices.bars; absent while catalog.flow.available is false
 }
 /** Everything a run reads. IHSG is always present (calendar, IHSG benchmark). Single mode reads the request's ticker;
-    portfolio mode trades every ticker of `tickers`, so the worker loads exactly the universe the run uses.
-    excluded: universe tickers the loader left out (portfolio: no published files, DATA_MISSING); the run lists them
-    in its TICKERS_EXCLUDED warning with the tickers it leaves out itself. */
+    portfolio mode reads the request's picked stocks (portfolio.tickers, PF1), and every one of them in `tickers`
+    reaches the calendar. excluded: picked stocks the loader left out (portfolio: no published files, DATA_MISSING;
+    none of their bars is read); the run lists them in its TICKERS_EXCLUDED warning with the stocks it leaves out
+    itself. In portfolio mode `tickers` and `excluded` hold each picked stock exactly once and no other ticker (the
+    worker loads exactly the picked stocks); run() refuses other market data (pickedLoaded). */
 export interface MarketData { ihsg: PriceSeries; tickers: Record<string, TickerData>; excluded?: Exclusion[] }
 
 export interface Hooks { progress?(done: number, total: number): void; shouldStop?(): boolean }
@@ -69,7 +73,7 @@ interface Prepared {
 export interface Context {
   data: MarketData;
   tickers: Map<string, Prepared>;          // filled on first use
-  calendars: Map<string, string[]>;        // result calendars by period and run tickers
+  calendars: Map<string, string[]>;        // result calendars by period and calendar tickers
 }
 
 function checkSeries(s: PriceSeries, name: string, ohlc: boolean): void {
@@ -143,8 +147,27 @@ function atrParams(length: unknown, field: string): Params {
   try { return resolveParams(BY_ID.I30, { length, smoothing_type: 'RMA' }, 'atr') }
   catch (e) { if (e instanceof ValidationError) throw new ValidationError(e.code, field, e.message.replace(/^atr\.length/, field)); throw e }
 }
-export const MAX_POSITIONS = 10;          // the page's Max positions input (min 1, max 10), catalog limits.max_positions
+export const MAX_POSITIONS = 12;          // the page's Max positions input (min 1, max this), catalog limits.max_positions (PF5)
+export const MAX_PORTFOLIO_TICKERS = 12;  // stocks one portfolio may pick (user N 2026-10-27, PF2), catalog limits.max_portfolio_tickers
+/** The limits a portfolio is checked against: the worker's limits.max_positions and limits.max_portfolio_tickers
+    (BACKTEST_MAX_POSITIONS, BACKTEST_MAX_PORTFOLIO_TICKERS, which may only lower the ceilings above: config.ts), so a
+    refusal names the limit the catalog reports (CWP-2); run() checks against the ceilings. */
+export type RunLimits = Pick<Limits, 'max_positions' | 'max_portfolio_tickers'>;
+const CEILINGS: RunLimits = { max_positions: MAX_POSITIONS, max_portfolio_tickers: MAX_PORTFOLIO_TICKERS };
 export const ADJUSTED_HISTORY_BOUNDARY = '2026-09-12';
+/** A portfolio's picked stocks (contract.ts portfolio.tickers, PF1-PF3): a list of 1 to `max` distinct strings, else
+    `code` at `field`; the copy in ticker order (the canonical order: the same set in any order is the same request).
+    Whether each is a published stock is the worker's check (validate.ts, UNKNOWN_TICKER at `field`[i]); `max` is
+    the limit in force (validateRun's limits, the worker's limits.max_portfolio_tickers in validate.ts). */
+export function portfolioTickers(v: unknown, max: number, code: string, field: string): string[] {
+  if (!Array.isArray(v) || !v.every(t => typeof t === 'string')) fail(code, field, `${field} must be a list of tickers.`);
+  const list = v as string[];
+  if (!list.length) fail(code, field, `${field} must list at least 1 stock.`);
+  if (list.length > max) fail(code, field, `${field} lists ${list.length} stocks; a portfolio may have at most ${max}.`);
+  const sorted = [...list].sort(byTicker);
+  for (let k = 1; k < sorted.length; k++) if (sorted[k] === sorted[k - 1]) fail(code, field, `${field} lists ${sorted[k]} more than once.`);
+  return sorted;
+}
 const STOP_MODES = ['pct', 'atr', 'rr', 'line', 'none'], TP_MODES = ['pct', 'r', 'atr', 'none'], TRAIL_MODES = ['none', 'pct', 'chandelier', 'line'];
 
 /** The exit settings resolved against the registry: I30 parameters for the ATR stop/target and the chandelier, and
@@ -153,7 +176,7 @@ export interface ExitPlan { atr: Params | null; chandelier: Params | null; stopL
 
 /** Refuses a request the engine cannot run as the page means it (nothing is clamped or rounded). The conditions
     themselves are checked when they are evaluated on the first ticker (conditions.ts). */
-export function validateRun(req: BacktestRequest, ihsgThrough?: string): ExitPlan {
+export function validateRun(req: BacktestRequest, ihsgThrough?: string, limits: RunLimits = CEILINGS): ExitPlan {
   object(req, 'INVALID_REQUEST', 'request');
   oneOf(req.mode, ['single', 'portfolio'], 'INVALID_MODE', 'mode');
   if (req.mode === 'single') {
@@ -163,8 +186,8 @@ export function validateRun(req: BacktestRequest, ihsgThrough?: string): ExitPla
   } else {
     object(req.portfolio, 'INVALID_PORTFOLIO', 'portfolio');
     const p = req.portfolio!;
-    if (typeof p.universe !== 'string' || !p.universe) fail('INVALID_PORTFOLIO', 'portfolio.universe', 'portfolio.universe is required.');
-    whole(p.max_positions, 1, MAX_POSITIONS, 'INVALID_PORTFOLIO', 'portfolio.max_positions');
+    portfolioTickers(p.tickers, limits.max_portfolio_tickers, 'INVALID_PORTFOLIO', 'portfolio.tickers');
+    whole(p.max_positions, 1, limits.max_positions, 'INVALID_PORTFOLIO', 'portfolio.max_positions');
     oneOf(p.rank_by, RANK_BY, 'INVALID_PORTFOLIO', 'portfolio.rank_by');
     if (!finite(p.min_avg_value_20d_idr) || p.min_avg_value_20d_idr < 0) fail('INVALID_PORTFOLIO', 'portfolio.min_avg_value_20d_idr', 'portfolio.min_avg_value_20d_idr must be a number of at least 0.');
   }
@@ -214,6 +237,22 @@ export function validateRun(req: BacktestRequest, ihsgThrough?: string): ExitPla
 
 /* ---- the run ------------------------------------------------------------------------------------------- */
 
+/** A portfolio's stocks with market data: the request's picked stocks (PF1) in ticker order (PF3) that the loader
+    loaded. The request and variant hashes carry the picked set, so the market must be that set: each picked stock in
+    MarketData.tickers or in MarketData.excluded, once, and no other ticker in either (CWP-1). Anything else is the
+    caller's error, never the request's: a plain Error (the worker's INTERNAL_ERROR, logged). */
+function pickedLoaded(data: MarketData, req: BacktestRequest): string[] {
+  const picked = [...req.portfolio!.tickers].sort(byTicker), want = new Set(picked);
+  const loaded = Object.keys(data.tickers), out = (data.excluded ?? []).map(x => x.ticker);
+  for (const t of [...loaded, ...out]) if (!want.has(t)) throw new Error(`engine: the market data holds ${t}, which is not a picked stock.`);
+  for (const t of picked) {
+    const l = loaded.includes(t), n = out.filter(x => x === t).length;
+    if (+l + n !== 1)
+      throw new Error(`engine: the picked stock ${t} is ${l && n ? 'loaded and left out' : n ? 'left out more than once' : 'neither loaded nor left out'}.`);
+  }
+  return picked.filter(t => loaded.includes(t));
+}
+
 interface Run {
   p: Prepared; m: BarMap; sig: TickerSignals | null;
   events: number[];                        // ticker bars of the entry events inside the period
@@ -229,16 +268,15 @@ interface Position {
   pending: boolean; mae: number; mfe: number; stale: boolean; both: boolean; ids: string[];
 }
 const PHASE: Record<ExitPhase, number> = { open: 0, intraday: 1, close: 2 };
-const byTicker = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
 
 export function run(ctx: Context, req: BacktestRequest, hooks: Hooks = {}): Ledger {
   const ihsg = ctx.data.ihsg;
   const plan = validateRun(req, ihsg.dates[ihsg.dates.length - 1]);
   const active = requestConditions(req);
   const single = req.mode === 'single';
-  const universe = single ? [req.single!.ticker] : Object.keys(ctx.data.tickers).sort(byTicker);
-  const tickerField = single ? 'single.ticker' : 'portfolio.universe';
-  const prep = universe.map(t => prepared(ctx, t, tickerField));
+  const tickers = single ? [req.single!.ticker] : pickedLoaded(ctx.data, req);
+  const tickerField = single ? 'single.ticker' : 'portfolio.tickers';
+  const prep = tickers.map(t => prepared(ctx, t, tickerField));
   const warnings: Ledger['warnings'] = [];
   const to = req.period.to;
   let from = req.period.from;
@@ -286,13 +324,16 @@ export function run(ctx: Context, req: BacktestRequest, hooks: Hooks = {}): Ledg
     if (r) signalled.push(r);
     done++;
   }
-  const left = single ? null : leftOut(excluded, signalled.length, 'portfolio.universe', 'run');   // UNIVERSE_EMPTY when none is left
+  const left = single ? null : leftOut(excluded, signalled.length, 'portfolio.tickers', 'run');   // UNIVERSE_EMPTY when none is left
   if (left) warnings.push(left);
 
-  /* ---- the result calendar (IHSG and the run tickers inside the period) and the primary benchmark ---- */
-  const calKey = `${from}|${to}|${signalled.map(r => r.p.ticker).join(',')}`;
+  /* ---- the result calendar and the primary benchmark ---- */
+  // IHSG and every ticker whose bars the run read, run or left out (PF8, 2026-10-27): which tickers run is decided on
+  // their bars up to period.to (signals.ts periodSignals), so a calendar of the run tickers only would let that decision
+  // move another ticker's next calendar day (no_next_bar), a path from later bars into earlier trades
+  const calKey = `${from}|${to}|${prep.map(p => p.ticker).join(',')}`;
   let dates = ctx.calendars.get(calKey);
-  if (!dates) { dates = resultCalendar(from, to, [ihsg.dates, ...signalled.map(r => r.p.data.prices.dates)]); ctx.calendars.set(calKey, dates) }
+  if (!dates) { dates = resultCalendar(from, to, [ihsg.dates, ...prep.map(p => p.data.prices.dates)]); ctx.calendars.set(calKey, dates) }
   const nCal = dates.length, lastDay = nCal - 1;
   if (!nCal) fail('PERIOD_EMPTY', 'period.from', 'The period contains no trading day.');
   total = prep.length + nCal;
@@ -486,13 +527,13 @@ export function run(ctx: Context, req: BacktestRequest, hooks: Hooks = {}): Ledg
   if (gaps.size) {
     const count = gaps.size;
     warnings.push({ code: 'DATA_GAP', count, tickers: [...gapTickers].sort(byTicker),
-      message: `${count} calendar day(s) without a bar for a held or signalled ticker: held positions were marked at their last close (flags.stale_mark) and entry signals before such a day were skipped (no_next_bar).` });
+      message: `A held or signalled stock had no bar on ${count === 1 ? '1 trading day' : `${count} trading days`} (counted per stock): a position held through such a day was valued at its last close, and an entry signal on the day before it was skipped instead of filled at a stale price.` });
   }
   if (from < ADJUSTED_HISTORY_BOUNDARY && to >= ADJUSTED_HISTORY_BOUNDARY)
-    warnings.push({ code: 'ADJUSTED_HISTORY_BOUNDARY', message: `The period crosses ${ADJUSTED_HISTORY_BOUNDARY}: published prices before it are back-adjusted for splits, bonus shares and rights issues, prices after it are raw. Trades holding through a corporate action carry flags.corporate_actions.` });
+    warnings.push({ code: 'ADJUSTED_HISTORY_BOUNDARY', message: `The period crosses ${ADJUSTED_HISTORY_BOUNDARY}: published prices before it are back-adjusted for splits, bonus shares and rights issues, prices after it are raw. Trades held through a corporate action are marked with it.` });
   warnings.push({ code: 'ARB_NOT_MODELLED', message: 'Auto-rejection limits are not modelled: a stop fills at the lower of the open and the stop level, with no lower-limit lock; entries are only skipped when the open gaps up by the ARA gap fraction or more (when that option is on).' });
   warnings.push({ code: 'TICK_NOT_MODELLED', message: 'Fills are not rounded to the IDX tick size.' });
-  if (!single) warnings.push({ code: 'SURVIVORSHIP', message: 'The universe is today\'s list of published tickers: stocks delisted before today are missing, which can flatter past results.' });
+  if (!single) warnings.push({ code: 'SURVIVORSHIP', message: 'The stocks are picked from today\'s list of published tickers: stocks delisted before today cannot be picked, which can flatter past results.' });
 
   return {
     dates: dates.slice(), equity, exposure, benchmark_close,

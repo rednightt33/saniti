@@ -8,11 +8,15 @@
                                   ticker and broker lists, then run.ts checkPublished on terminal-api's manifests:
                                   FLOW_DATA_THROUGH, PERIOD_AFTER_DATA; no /bundle, no file)
    POST /v1/signals               SignalsPreviewRequest -> SignalsPreview, computed on the preview thread while the
-                                  caller waits; one preview at a time, the next ones wait in arrival order
+                                  caller waits; one preview at a time, the next ones wait in arrival order; a preview
+                                  whose caller leaves is dropped from the queue or stopped, and one whose caller left
+                                  while its reference lists were read is never queued (review V1)
    POST /v1/jobs {job_id, request, context}
                                   202 {job_id} once the request passed validate.ts; the job starts at once on the job
                                   thread. 409 BUSY while another job runs; the same job_id again is 202 (edge-bff retries
-                                  a POST whose answer it lost). A refused request is 422 and never becomes a job.
+                                  a POST whose answer it lost). A refused request is 422 and never becomes a job, and
+                                  neither does one whose caller left while its reference lists were read (edge-bff
+                                  finds the job unknown and posts it again, backtest.py dispatch).
    GET  /v1/jobs/{id}             JobStatus; 404 UNKNOWN_JOB for any job but the latest (the worker keeps one job, and
                                   none after a restart)
    GET  /v1/jobs/{id}/result      200 gzip of the BacktestResult JSON (Content-Encoding gzip), as often as it is asked
@@ -29,8 +33,8 @@
 import crypto from 'node:crypto';
 import http from 'node:http';
 import { pathToFileURL } from 'node:url';
-import type { JobState, JobStatus } from '../../edge-bff/backtest/src/core/contract.ts';
-import { lineageKey, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
+import type { BacktestRequest, JobState, JobStatus } from '../../edge-bff/backtest/src/core/contract.ts';
+import { canonicalRequest, lineageKey, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
 import { buildCatalog } from './catalog.ts';
 import { ComputeThread, TaskFailed, ThreadStopped, threadConfig } from './compute.ts';
 import type { Outcome, Task } from './compute.ts';
@@ -80,6 +84,14 @@ const sameKey = (given: string | string[] | undefined, key: Buffer) => {
   const g = Buffer.from(given);
   return g.length === key.length && crypto.timingSafeEqual(g, key);
 };
+/** Whether the caller has left (its connection closed before the answer was sent). Watched from the start of a
+    route that waits for something (the reference lists) before it queues or starts work, so a caller that leaves
+    during that wait queues nothing: the 'close' event is not repeated for a listener added after it (review V1). */
+function callerWatch(res: http.ServerResponse): () => boolean {
+  let left = false;
+  res.once('close', () => { if (!res.writableFinished) left = true });
+  return () => left || res.destroyed;
+}
 /** A promise that rejects with 504 TIMEOUT after `seconds` (and its timer, to clear). */
 function deadline(seconds: number, what: string): { promise: Promise<never>; clear(): void } {
   let t: NodeJS.Timeout;
@@ -101,7 +113,7 @@ export function createApp(cfg: Config): WorkerApp {
 
   const refs = async (): Promise<References> => {
     const [tickers, brokers] = await Promise.all([client.reference('tickers'), client.reference('brokers')]);
-    return { tickers, brokers };
+    return { tickers: tickers.tickers, brokers };
   };
   const within = async <T>(what: string, work: Promise<T>): Promise<T> => {
     const d = deadline(timeout, what);
@@ -231,7 +243,7 @@ export function createApp(cfg: Config): WorkerApp {
       if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(k => k !== 'request')) throw invalid('INVALID_REQUEST', 'body', 'The body must be {request}.');
       const out = await within('The validation', (async () => {
         const list = await refs(), checked = checkRequest(body.request, list, cfg);
-        const q = body.request as Parameters<typeof variantHash>[0];
+        const q = canonicalRequest(body.request as BacktestRequest);        // the picked stocks in ticker order (PF3)
         await checkPublished(q, checked, list, { client, config: cfg });
         const [lineage_key, variant_hash] = await Promise.all([lineageKey(q), variantHash(q)]);
         return { ok: true, lineage_key, variant_hash, tickers: checked.tickers };
@@ -240,8 +252,10 @@ export function createApp(cfg: Config): WorkerApp {
     }
     if (path === '/v1/signals') {
       allow('POST');
-      const body = parseJson(raw);
-      const o = await preview({ kind: 'signals', request: body, refs: await within('The reference list', refs()) }, res);
+      const body = parseJson(raw), left = callerWatch(res);
+      const list = await within('The reference list', refs());
+      if (left()) return;                                                // nobody waits for it: never queued
+      const o = await preview({ kind: 'signals', request: body, refs: list }, res);
       return send(res, 200, o.kind === 'signals' ? o.preview : null);
     }
     if (path === '/v1/jobs') {
@@ -250,9 +264,11 @@ export function createApp(cfg: Config): WorkerApp {
       if (job && job.id === b.job_id) return send(res, 202, { job_id: b.job_id });
       if (starting || (job && running(job))) return fail(res, 409, { code: 'BUSY', message: 'Another backtest is running.' });
       starting = true;
+      const left = callerWatch(res);
       let list: References;
       try { list = await within('The validation', refs()); checkRequest(b.request, list, cfg) }
       finally { starting = false }
+      if (left()) return;                                                // nobody waits for its 202: never started
       if (job && running(job)) return fail(res, 409, { code: 'BUSY', message: 'Another backtest is running.' });
       replaced = job && job.status.state === 'FINISHED' ? job.id : null;
       job = startJob(b.job_id, { kind: 'job', request: b.request, context: { prior_trials: b.prior_trials }, refs: list });   // the previous job and its result are dropped
@@ -283,7 +299,7 @@ export function createApp(cfg: Config): WorkerApp {
   function answerError(e: unknown): { status: number; error: ErrorBody; known: boolean } {
     if (e instanceof TaskFailed) return e.serial;
     if (e instanceof ThreadStopped) return { status: 500, known: true, error: e.code === 'ERR_WORKER_OUT_OF_MEMORY'
-      ? { code: 'OUT_OF_MEMORY', message: 'The computation ran out of memory; choose a smaller universe or period.' }
+      ? { code: 'OUT_OF_MEMORY', message: 'The computation ran out of memory; choose fewer stocks or a shorter period.' }
       : { code: 'INTERNAL_ERROR', message: 'The compute thread stopped; the error is in the worker log.' } };
     return toApiError(e);
   }

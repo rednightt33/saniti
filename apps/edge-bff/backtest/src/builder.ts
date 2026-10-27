@@ -1,17 +1,21 @@
 /* The builder (backtest.html section 5 · BUILDER UI): steps 1-5, condition cards, the add menu, templates, step
    navigation, the strategy summary and the rail; and the two middle views with their view bar. The markup is the
-   reference's; ticker, universe, broker and date options come from the catalog instead of the synthetic lists, so
-   every catalog string goes into the markup through esc(). */
+   reference's; ticker, broker and date options come from the catalog instead of the synthetic lists, so every catalog
+   string goes into the markup through esc(). In portfolio mode step 1 has the stock picker (picker.ts, PF7) where the
+   reference has its Universe select: the picker is a card of its own, the reference's first row keeps its Max positions
+   and its second row (Rank candidates by, Min. avg value) is the reference's (review PG-4). */
 import type { Card } from './api/types.ts';
-import { BROKER_CODES, CAT, STOCKS, universeName } from './env.ts';
+import { BROKER_CODES, CAT, STOCKS } from './env.ts';
 import { $, COLORS, esc, fmtD, fmtMoney, ico, nf, num, OPS, parseMoney, pct, rp, cls, toast } from './format.ts';
 import { CAT_LABEL, CATALOG, catOf, condReady, LEVEL_LINES, opLabel, REG, REG_BY, regReady, sideLbl, switchedOn, withinLimit } from './reg.ts';
 import { edits, EXIT_TEMPLATES, mkCond, S, TEMPLATES } from './state.ts';
-import { drawLanes, getLastSig, inRange, refreshSignals, universe } from './signals.ts';
+import { drawLanes, getLastSig, inRange, refreshSignals } from './signals.ts';
 import { BX, setExpanded, setPanel } from './layout.ts';
 import { renderResults, renderTab } from './results/index.ts';
 import { openWS } from './workspace.ts';
 import { abortRun } from './run.ts';
+import { bindPicker, pickerHtml } from './picker.ts';
+import { stocksText, tickersLabel, titleNames } from './picked.ts';
 
 /* =====================================================================
    5 · BUILDER UI
@@ -26,7 +30,8 @@ export const renderBuilder = () => {
   <div class="bs ${S.step===1?'on':''}" data-step="1"><div class="stephead"><small>Step 1 of 5</small><h3>Universe & period</h3></div>
     <div class="seg" style="width:100%;margin-bottom:10px" id="modeSeg"><button style="flex:1" class="${S.mode==='single'?'on':''}" data-m="single">Single stock</button><button style="flex:1" class="${S.mode==='portfolio'?'on':''}" data-m="portfolio">Portfolio</button></div>
     ${S.mode==='single' ? `<div class="row"><label class="fld"><span>Ticker</span><select class="sel" data-k="ticker">${STOCKS().map(t=>`<option ${t===S.ticker?'selected':''}>${esc(t)}</option>`).join('')}</select></label><label class="fld"><span>Benchmark</span><select class="sel" data-k="bench"><option value="bh" ${S.bench!=='ihsg'?'selected':''}>Buy & hold</option><option value="ihsg" ${S.bench==='ihsg'?'selected':''}>IHSG</option></select></label></div>`
-      : `<div class="row"><label class="fld"><span>Universe</span><select class="sel" data-k="universe">${CAT.universes.map(u=>`<option value="${esc(u.id)}" ${u.id===S.universe?'selected':''}>${esc(u.label)}</option>`).join('')}</select></label><label class="fld"><span>Max positions</span><input class="inp" type="number" min="1" max="10" data-k="maxPos" value="${S.maxPos}"></label></div>
+      : `${pickerHtml()}
+         <div class="row"><label class="fld"><span>Max positions</span><input class="inp" type="number" min="1" max="${CAT.limits.max_positions}" data-k="maxPos" value="${S.maxPos}"></label></div>
          <div class="row"><label class="fld"><span>Rank candidates by</span><select class="sel" data-k="rankBy"><option value="adx" ${S.rankBy==='adx'?'selected':''}>Highest ADX</option><option value="fnet" ${S.rankBy==='fnet'?'selected':''}>Biggest foreign net 5D</option><option value="vol" ${S.rankBy==='vol'?'selected':''}>Highest volume ratio</option><option value="rsi" ${S.rankBy==='rsi'?'selected':''}>Lowest RSI</option></select></label><label class="fld"><span>Min. avg value</span><input class="inp" type="number" data-k="cost.minVal" value="${S.cost.minVal}" title="Rp billion per day, 20-day average"></label></div>`}
     <div class="row three"><label class="fld"><span>From</span><input class="inp" type="date" data-k="from" value="${esc(S.from)}" min="${esc(CAT.first_date)}" max="${esc(CAT.data_through)}"></label><label class="fld"><span>To</span><input class="inp" type="date" data-k="to" value="${esc(S.to)}" min="${esc(CAT.first_date)}" max="${esc(CAT.data_through)}"></label><label class="fld"><span>Out-of-sample</span><select class="sel" data-k="oos">${[0,20,30,40].map(v=>`<option value="${v}" ${S.oos==v?'selected':''}>${v?`last ${v}%`:'none'}</option>`).join('')}</select></label></div>
   </div>
@@ -77,14 +82,16 @@ export const renderBuilder = () => {
   b.querySelectorAll('.bs').forEach((sec: HTMLElement) => { const n = +sec.dataset.step, nav = document.createElement('div'); nav.className = 'stepnav';
     nav.innerHTML = (n>1?`<button class="btn" data-go="${n-1}">← ${STEPS[n-2]}</button>`:'<span></span>') + (n<5?`<button class="btn" data-go="${n+1}">${STEPS[n]} →</button>`:'<span></span>'); sec.appendChild(nav) });
   b.querySelectorAll('[data-go]').forEach((x: HTMLElement) => x.onclick = () => goStep(+x.dataset.go));
-  bindBuilder(); renderNav();
+  bindBuilder(); bindPicker(); renderNav();
 };
 const STEP_META = [['Universe','<path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/><circle cx="12" cy="12" r="9"/>'],['Entry','<path d="M5 12h14M13 6l6 6-6 6"/>'],['Exit','<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>'],['Sizing','<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>'],['Costs','<path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>']];
 export const goStep = (n: number) => { S.step = n; $('builder').querySelectorAll('.bs').forEach((x: HTMLElement) => x.classList.toggle('on', +x.dataset.step===n)); $('builder').scrollTop = 0; renderNav() };
+/** the picked stocks as the step summary names them (picked.ts tickersLabel; the view bar's title: portfolioTitle) */
+const pickedName = () => S.tickers.length ? tickersLabel(S.tickers) : 'No stock picked';
 const stepSummary = (n: number) => {
   const yr = (d: string) => fmtD(d);
-  // a part of the market carries its size, as the reference's "Banks (3)"; the whole list is named alone ("Demo 10")
-  if(n===1) return (S.mode==='single' ? `${S.ticker}` : `${universeName(S.universe)}${S.universe==='all'?'':` (${universe().length})`} · max ${S.maxPos}`) + ` · ${yr(S.from)} → ${yr(S.to)}` + (S.oos?` · OOS ${S.oos}%`:'');
+  // the picked stocks where the reference names its universe ("Demo 10 · max 5")
+  if(n===1) return (S.mode==='single' ? `${S.ticker}` : `${pickedName()} · max ${S.maxPos}`) + ` · ${yr(S.from)} → ${yr(S.to)}` + (S.oos?` · OOS ${S.oos}%`:'');
   if(n===2){ const a = S.conds.filter(c=>c.on&&condReady(c)).length; return a ? `${S.logic==='all'?'ALL':S.logic==='any'?'ANY':'≥ '+Math.min(S.atLeast,a)} of ${a} · within ${S.window} bars` : 'No active condition' }
   if(n===3){ const e = S.exit, p: string[] = [], f = (v: number) => nf(v, v%1?1:0);
     p.push(e.stopMode==='pct'?`SL ${f(e.sl)}%`:e.stopMode==='atr'?`SL ${f(e.slAtr)}×ATR`:e.stopMode==='rr'?`SL at 1:${f(e.slRR)} R:R`:e.stopMode==='line'?`SL on ${REG_BY[e.stopLine.id].key.toUpperCase()}`:'No SL');
@@ -121,10 +128,27 @@ export const updateViewbar = () => {
     ? `<div class="lr-h">${S.stale?'<i class="lr-dot"></i>Out of date':'Last run'}<small>${R.ms} ms · ${S.trials} variants</small></div><div class="lr-g">${stat('Net return',pct(R.st.tot),cls(R.st.tot))}${stat('Sharpe',num(R.st.sharpe))}${stat('Max DD',pct(R.st.mdd),'down')}${stat('Trades',R.trades.length)}</div>`
     : `<div class="lr-h">Not run yet<small>Press Run backtest to see results</small></div>`;
   $('ctxTicker').textContent = S.mode==='single' ? S.ticker : 'PORTFOLIO';
-  $('ctxTitle').textContent = S.mode==='single' ? 'Single-stock backtest' : `${universeName(S.universe)} · ${universe().length} stocks · max ${S.maxPos} positions`;
+  if(S.mode==='single') $('ctxTitle').textContent = 'Single-stock backtest'; else portfolioTitle();
   $('ctxPeriod').innerHTML = `${esc(fmtD(S.from))} – ${esc(fmtD(S.to))}${S.oos?` <i>·</i> out-of-sample: last ${S.oos}%`:''}`;
   $('viewCtx').innerHTML = S.view==='results' && R ? `Net <b class="${cls(R.st.tot)}">${pct(R.st.tot)}</b> <i>·</i> Sharpe <b>${num(R.st.sharpe)}</b> <i>·</i> Max DD <b class="down">${pct(R.st.mdd)}</b>` : '';
   $('staleTag').hidden = !(S.stale && R);
+};
+/* The context title of a portfolio: the reference's "<universe> · n stocks · max m positions" with the picked stocks
+   named where it names its universe, by the most tickers (picked.ts titleNames) whose title takes no more lines than
+   the reference's own title of the same count would take here, with its shorter universe name ("Banks · n stocks ·
+   max m positions"), else the count alone (review PG-3: never more lines than the reference). Measured in place (the
+   title's width depends on its own text), and again when the window's size changes. In Chromium, the visual harness's
+   portfolios: three tickers at 1280 and 1600 px, as before; at 390 px "BBCA +9 · 10 stocks · …" in 5 lines as the
+   reference's "Demo 10 · 10 stocks · …", and "3 stocks · max 5 positions" in 3 against the 4 of "Banks · 3 stocks · …". */
+let refits = false;
+const portfolioTitle = () => {
+  if(!refits){ refits = true; addEventListener('resize', () => { if(S.mode==='portfolio') portfolioTitle() }) }
+  const el = $('ctxTitle'), max = `max ${S.maxPos} positions`;
+  if(!S.tickers.length){ el.textContent = `No stock picked · ${max}`; return }
+  const count = `${stocksText(S.tickers.length)} · ${max}`, height = (t: string) => { el.textContent = t; return Math.round(el.getBoundingClientRect().height) };
+  const ref = height(`Banks · ${count}`);
+  for(const name of titleNames(S.tickers)) if(height(`${name} · ${count}`) <= ref) return;
+  el.textContent = count;
 };
 export const bindViewSeg = () => { $('viewSeg').onclick = (e: MouseEvent) => { const b = (e.target as HTMLElement).closest('[data-v]') as HTMLElement; if(b) setView(b.dataset.v as 'signals' | 'results') } };
 /* a flow card without published broker data: the reference's "not calculated" pill with the catalog's reason */
@@ -151,7 +175,7 @@ const bindBuilder = () => {
     if(k==='oos') v = +v;
     setPath(k, v);
     if(k==='ticker'){ S.sigTicker = v }
-    if(['logic','ticker','universe','maxPos'].includes(k)) renderBuilder();
+    if(['logic','ticker','maxPos'].includes(k)) renderBuilder();
     markStale(); refreshSignals();
   });
   b.querySelector('#modeSeg').onclick = (e: MouseEvent) => { const x = (e.target as HTMLElement).closest('[data-m]') as HTMLElement; if(!x) return; abortRun(); S.mode = x.dataset.m as 'single' | 'portfolio'; if(S.mode==='single') S.sigTicker = S.ticker; renderBuilder(); refreshSignals(); S.result=null; renderResults() };

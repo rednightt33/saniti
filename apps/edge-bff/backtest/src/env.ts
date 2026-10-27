@@ -17,17 +17,6 @@ export const STOCKS = (): string[] => CAT.tickers.filter(t => t.type === 'stock'
 /** brokers of the published broker files (the reference's BROKERS) */
 export const BROKER_CODES = (): string[] => CAT.flow.brokers;
 
-/** the tickers of a catalog universe: 'all' = every stock, 'sector:<name>' = the stocks of that published sector */
-export function members(id: string): string[] {
-  const stocks = CAT.tickers.filter(t => t.type === 'stock');
-  if (id === 'all') return stocks.map(t => t.ticker);
-  if (id.startsWith('sector:')) { const s = id.slice(7); return stocks.filter(t => t.sector === s).map(t => t.ticker) }
-  return [];
-}
-/** the short name of a universe (the reference writes "Demo 10" for "Demo 10 (LQ45 sample)"): its label without a
-    trailing parenthesis */
-export const universeName = (id: string) => { const u = CAT.universes.find(x => x.id === id); return u ? u.label.replace(/\s*\([^)]*\)$/, '') : id };
-
 export const loaded = (tk: string, flow = false) => !!DATA[tk] && (!flow || FLOW.has(tk));
 
 /** load a ticker's bars (and its broker data when a flow card needs it); one request at a time per ticker */

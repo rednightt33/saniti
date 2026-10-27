@@ -10,7 +10,8 @@
      price/{ticker}/{year}, pack/{ticker}/price          dataset price | price-pack       d,o,h,l,c,v (v null: an index)
      broker/{ticker}/{year}, pack/{ticker}/broker-archive dataset broker | broker-archive d,b,i,m,bv,sv,bl,sl; gap
      events/{ticker}/all                                 dataset events                   EVENT_COLUMNS (d, role, family, type, ...)
-     ref/tickers, ref/brokers                            no dataset                       ticker,name,type,sector / code,name,type
+     ref/tickers, ref/brokers                            no dataset                       ticker,name,type, then the groupings
+                                                                                          (sector,industry; PF6) / code,name,type
    Broker units: bv, sv in IDR; bl, sl lots (verification/backtest/FLOW_DATA_CHECK.md). The index is IHSG (the one
    'index' row of IDX_Stock_Universe, verification/terminal_api/INTEGRITY.md; the publisher codes no ticker).
    Pure module: crypto.subtle, DecompressionStream, TextDecoder/TextEncoder and Blob only (Node 22 and browsers). */

@@ -53,21 +53,39 @@ def single(ticker='BBCA', **change):
     return request
 
 
-def portfolio(**change):
-    request = {**single(), 'mode': 'portfolio', 'portfolio': {'universe': 'all', 'max_positions': 3, 'rank_by': 'adx',
+PICKED = ['BMRI', 'BBCA', 'BBRI']     # a portfolio's stocks in the order they were picked, which is not ticker order
+
+
+def portfolio(tickers=PICKED, **change):
+    request = {**single(), 'mode': 'portfolio', 'portfolio': {'tickers': list(tickers), 'max_positions': 3, 'rank_by': 'adx',
                                                               'min_avg_value_20d_idr': 0}}
     del request['single']
     request.update(change)
     return request
 
 
+def preview_of(tickers=('BMRI', 'BBCA'), **change):
+    """A SignalsPreviewRequest (contract.ts) of these picked stocks."""
+    return {'schema_version': 1, 'tickers': list(tickers), 'period': {'from': '2024-01-02', 'to': '2026-10-23'},
+            'entry': single()['entry'], **change}
+
+
+def tickers_of(request):
+    """The run's tickers as the worker gives them: the single ticker, or the picked stocks in ticker order (PF3)."""
+    return [request['single']['ticker']] if request['mode'] == 'single' else sorted(request['portfolio']['tickers'])
+
+
 def lineage_of(request):
-    """The fake worker's strategy line: mode and ticker or universe (the real one is core/hash.ts lineageKey)."""
-    return sha(json.dumps([request['mode'], (request.get('single') or {}).get('ticker'),
-                           (request.get('portfolio') or {}).get('universe')]))
+    """The fake worker's strategy line: the mode and the single ticker; a portfolio's picked stocks are in its variant,
+    not in its line (PF4; the real one is core/hash.ts lineageKey)."""
+    return sha(json.dumps([request['mode'], (request.get('single') or {}).get('ticker')]))
 
 
 def variant_of(request):
+    """The fake worker's variant: the request without robustness, the picked stocks as a set (PF3: their order is no
+    part of the request; the real one is core/hash.ts variantHash)."""
+    if request['mode'] == 'portfolio':
+        request = {**request, 'portfolio': {**request['portfolio'], 'tickers': tickers_of(request)}}
     return sha(json.dumps({k: v for k, v in request.items() if k != 'robustness'}, sort_keys=True))
 
 
@@ -75,7 +93,7 @@ def result_of(job_id, request, sharpe=0.1 + 0.2):
     """A BacktestResult-shaped document for the request: two condition tracks and an exit track per ticker, numbers
     that need exact round trips, the run's variant (daily Sharpe `sharpe`) and two sensitivity cells in meta.trials,
     the cells not in hash order (edge-bff keeps the run's order)."""
-    tickers = [request['single']['ticker']] if request['mode'] == 'single' else ['AAAA', 'BBBB', 'CCCC']
+    tickers = tickers_of(request)
     variant = variant_of(request)
     cells = sorted((sha(f'cell{k}' + variant) for k in (1, 2)), reverse=True)
     return {
@@ -112,6 +130,8 @@ class FakeWorker:
         self.forget = False            # status reads answer 404 UNKNOWN_JOB
         self.busy = 0                  # the next n POST /v1/jobs answer 409 BUSY (another job)
         self.lose_post_answer = False  # POST /v1/jobs takes the job but answers 503 (an answer lost on the way)
+        self.unstarted = 0             # the next n POST /v1/jobs answer 503 and take no job (review V1: their caller left
+                                       # while the worker read the reference lists)
         self.fail_with = None          # jobs end FAILED with this error
         self.garbage = False           # the result is not JSON
         self.result_gone = False       # the result answers 410 RESULT_GONE (a newer job started there and replaced it)
@@ -125,11 +145,20 @@ class FakeWorker:
         self.on_poll = None            # hook(job_id, polls) on each status read
         self.catalog = {'schema_version': 1, 'engine_version': 'engine-test-1', 'registry_version': 'registry-test-1',
                         'data_through': '2026-10-23', 'first_date': '2019-01-02',
-                        'tickers': [{'ticker': 'BBCA', 'name': 'Bank Central Asia', 'type': 'stock', 'sector': 'Finance'}],
-                        'universes': [{'id': 'all', 'label': 'All stocks', 'tickers': 1}],
-                        'flow': {'available': False, 'reason': 'not verified', 'brokers': []},
-                        'limits': {'max_positions': 10, 'window_bars': {'min': 1, 'max': 20}, 'monte_carlo_runs': 1000,
-                                   'max_download_bytes': 1, 'max_broker_rows': 1, 'timeout_seconds': 600, 'queued_per_owner': 3}}
+                        # PF6 (test values): each ticker's groups, the groupings of the reference file's columns
+                        # after ticker, name and type (sector, industry), stocks counted, an index not
+                        'tickers': [{'ticker': 'BBCA', 'name': 'Bank Central Asia', 'type': 'stock',
+                                     'groups': {'sector': 'Finance', 'industry': 'Banks'}},
+                                    {'ticker': 'TLKM', 'name': 'Telkom Indonesia', 'type': 'stock',
+                                     'groups': {'sector': 'Infrastructure', 'industry': None}},
+                                    {'ticker': 'IHSG', 'name': 'Composite', 'type': 'index', 'groups': {'sector': None, 'industry': None}}],
+                        'groupings': [{'key': 'sector', 'values': [{'value': 'Finance', 'tickers': 1}, {'value': 'Infrastructure', 'tickers': 1}],
+                                       'unclassified': 0},
+                                      {'key': 'industry', 'values': [{'value': 'Banks', 'tickers': 1}], 'unclassified': 1}],
+                        'flow': {'available': False, 'reason': 'not verified', 'brokers': [], 'data_through': None},
+                        'limits': {'max_positions': 12, 'window_bars': {'min': 1, 'max': 20}, 'monte_carlo_runs': 1000,
+                                   'max_portfolio_tickers': 12, 'max_download_bytes': 1, 'max_broker_rows': 1,
+                                   'timeout_seconds': 600, 'queued_per_owner': 3, 'max_conditions': 20}}
         worker = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -188,13 +217,18 @@ class FakeWorker:
                         return self.answer(worker.validate_error[0], {'error': worker.validate_error[1]})
                     request = body['request']
                     return self.answer(200, {'ok': True, 'lineage_key': lineage_of(request), 'variant_hash': variant_of(request),
-                                             'tickers': [request['single']['ticker']] if request['mode'] == 'single' else ['AAAA', 'BBBB', 'CCCC']})
+                                             'tickers': tickers_of(request)})
                 if route == ('POST', '/v1/signals'):
-                    if body.get('universe') == 'sector:Nope':
-                        return self.answer(422, {'error': {'code': 'INVALID_UNIVERSE', 'field': 'universe', 'message': 'Unknown universe'}})
+                    for k, t in enumerate(body.get('tickers') or []):
+                        if t == 'NOPE':           # the worker's refusal of a picked stock it does not publish (validate.ts)
+                            return self.answer(422, {'error': {'code': 'UNKNOWN_TICKER', 'field': f'tickers[{k}]',
+                                                               'message': 'NOPE is not a published stock.'}})
                     return self.answer(200, {'data_version': sha('data'), 'rows': [{'ticker': 'BBCA', 'entry_signals': 4, 'last_signal': '2026-10-20'}]})
                 if route == ('POST', '/v1/jobs'):
                     with worker.lock:
+                        if worker.unstarted:
+                            worker.unstarted -= 1
+                            return self.answer(503, {'error': {'code': 'LOST'}})
                         if worker.busy:
                             worker.busy -= 1
                             return self.answer(409, {'error': {'code': 'BUSY'}})
@@ -368,7 +402,8 @@ def test_portfolio_result_is_core_and_events_come_per_ticker(app, worker):
     core = c.get(f'/api/v1/backtests/{job_id}/result').json()
     assert core['events'] == {'entries': expected['events']['entries'], 'skipped': expected['events']['skipped']}
     assert {k: v for k, v in core.items() if k != 'events'} == {k: v for k, v in expected.items() if k != 'events'}
-    for ticker in ('AAAA', 'BBBB', 'CCCC'):
+    assert core['meta']['tickers'] == ['BBCA', 'BBRI', 'BMRI']           # the worker's ticker order, whatever the picked order
+    for ticker in ('BBCA', 'BBRI', 'BMRI'):
         part = c.get(f'/api/v1/backtests/{job_id}/events?ticker={ticker}').json()
         assert part['exits'] == {ticker: expected['events']['exits'][ticker]}
         assert part['conditions'] == [x for x in expected['events']['conditions'] if x['ticker'] == ticker]
@@ -398,6 +433,56 @@ def test_idempotent_resubmit_conflict_and_bad_key(app, worker):
     assert submit(c, single()).json()['request_id'] != submit(c, single()).json()['request_id']
 
 
+def test_the_picked_stocks_in_another_order_are_the_same_submission(app, worker):
+    """PF3: the order of a portfolio's picked stocks is no part of the request (the worker sorts them before it hashes,
+    records the lineage or runs), so the same client_request_id with the same stocks in another order returns the job it
+    made, also when the two arrive together (BacktestStore.submit); another set under it, a stock repeated included, is
+    another request (409 SUBMISSION_CONFLICT). The job keeps the request as it was first sent."""
+    c = app
+    first = submit(c, portfolio(), 'picked')
+    assert first.status_code == 202 and first.json()['created'] is True
+    job_id = first.json()['request_id']
+    for order in (['BBCA', 'BBRI', 'BMRI'], ['BBRI', 'BMRI', 'BBCA']):
+        again = submit(c, portfolio(order), 'picked')
+        assert again.status_code == 202 and again.json() == {'request_id': job_id, 'state': 'QUEUED', 'created': False}, order
+    store = c.app.state.backtests.store
+    row, created = store.submit(c.app.state.backtests.settings.owner, 'picked', portfolio(['BBRI', 'BBCA', 'BMRI']),
+                                lineage_of(portfolio()), variant_of(portfolio()), 3)
+    assert (row['request_id'], created) == (job_id, False)
+    for other in (['BBCA', 'BBRI'], ['BBCA', 'BBRI', 'BMRI', 'TLKM'], ['BBCA', 'BBRI', 'BBRI'], ['BBCA', 'BBRI', 'BMRI', 'BMRI']):
+        r = submit(c, portfolio(other), 'picked')
+        assert r.status_code == 409 and r.json() == {'error': {'code': 'SUBMISSION_CONFLICT'}}, other
+    moved = portfolio(['BBCA', 'BBRI', 'BMRI'])
+    moved['portfolio']['max_positions'] = 4
+    assert submit(c, moved, 'picked').status_code == 409                     # the order aside, another request
+    with pytest.raises(backtest.StoreError, match='SUBMISSION_CONFLICT'):
+        store.submit(c.app.state.backtests.settings.owner, 'picked', portfolio(['BBCA', 'BBRI']), lineage_of(portfolio()),
+                     variant_of(portfolio()), 3)
+    assert len(worker.posted('/v1/validate')) == 1 and len(db(c, 'SELECT 1 FROM edge_bff.backtest_jobs')) == 1
+    run_next(c)
+    assert handed(worker, job_id)['request'] == portfolio()                 # as first sent, the picked order kept
+    assert c.get('/api/v1/backtests').json()['items'][0]['request'] == portfolio()
+
+
+def test_a_resubmission_with_a_stock_utf8_cannot_encode_is_no_service_error(app, worker):
+    """Review PF3-reg: same_request sorted the picked stocks by their UTF-8 JSON, which a lone surrogate has none of, so
+    a resubmission under an existing client_request_id with such a stock answered 503 SERVICE_UNAVAILABLE (409
+    SUBMISSION_CONFLICT before PF3). The body is 422 INVALID_INPUT (loads, review V2b); same_request, in the route and in
+    BacktestStore.submit, compares such a request without raising: another request, SUBMISSION_CONFLICT."""
+    c = app
+    assert submit(c, portfolio(), 'lone').status_code == 202
+    raw = json.dumps({**portfolio(['BBCA', 'BBRI', '\ud800']), 'client_request_id': 'lone'}).encode()   # as "\ud800"
+    r = c.post('/api/v1/backtests', headers={**c.headers_for, 'content-type': 'application/json'}, content=raw)
+    assert (r.status_code, r.json()) == (422, {'error': {'code': 'INVALID_INPUT'}})
+    bt = c.app.state.backtests
+    with pytest.raises(backtest.StoreError, match='SUBMISSION_CONFLICT'):
+        bt.store.submit(bt.settings.owner, 'lone', portfolio(['BBCA', 'BBRI', '\ud800']), lineage_of(portfolio()),
+                        variant_of(portfolio()), 3)
+    assert not backtest.same_request(portfolio(), portfolio(['\ud800', 'BBCA', 'BBRI']))
+    assert backtest.same_request(portfolio(['\ud800', 'BBCA']), portfolio(['BBCA', '\ud800']))   # any order still
+    assert len(worker.posted('/v1/validate')) == 1 and len(db(c, 'SELECT 1 FROM edge_bff.backtest_jobs')) == 1
+
+
 def test_a_body_nested_deeper_than_the_parser_takes_is_invalid_input(app, worker):
     """CONTRACT section 11: a body edge-bff cannot read as JSON is a validation error (422 INVALID_INPUT), also when it
     nests deeper than the parser's recursion limit (RecursionError), within the 128 KiB body limit."""
@@ -410,6 +495,53 @@ def test_a_body_nested_deeper_than_the_parser_takes_is_invalid_input(app, worker
     assert worker.calls == []
     with pytest.raises(ValueError):          # every caller of loads (a worker answer too) refuses it as malformed JSON
         loads(deep)
+
+
+def test_a_number_beyond_a_double_is_invalid_input_and_reaches_no_worker(configured, store, worker):
+    """Review V2, CONTRACT section 11: 1e400 is JSON text but no double, as NaN and Infinity are not. It used to load as
+    inf, which the relay cannot send (httpx's JSON refuses it), so both routes answered 503 SERVICE_UNAVAILABLE; it is
+    422 INVALID_INPUT, as every body edge-bff cannot carry, and reaches no worker. So is an integer beyond a double
+    (review V2a): 1 and 400 zeros loaded as a Python int and went on, and the worker's JSON.parse reads it as Infinity,
+    as it reads 1e400. A double's own extremes pass."""
+    # The least integer that rounds to Infinity, in Python's float() as in JSON.parse: half way between the largest
+    # double (2^1024 - 2^971) and 2^1024, which rounds to the even 2^1024.
+    least = 2 ** 1024 - 2 ** 970
+    with TestClient(create_app(configured, store, FakeOrc()), raise_server_exceptions=False) as c:
+        headers = {**login(c), 'content-type': 'application/json'}
+        for path in ('/api/v1/backtests', '/api/v1/backtests/signals'):
+            for raw in (b'{"tickers":["BBCA"],"x":1e400}', b'{"x":[-1e999]}', b'{"x":{"y":0.5E+309}}',
+                        b'{"tickers":["BBCA"],"x":1' + b'0' * 400 + b'}', b'{"x":[-%d]}' % least,
+                        b'{"portfolio":{"min_avg_value_20d_idr":%d}}' % least):
+                r = c.post(path, headers=headers, content=raw)
+                assert (r.status_code, r.json()) == (422, {'error': {'code': 'INVALID_INPUT'}}), (path, raw)
+        assert worker.calls == []
+        edges = b'{"tickers":["BBCA"],"x":[1.7976931348623157e308,-5e-324,%d,-%d]}' % (least - 1, least - 1)
+        assert c.post('/api/v1/backtests/signals', headers=headers, content=edges).status_code == 200
+        assert worker.posted('/v1/signals')[0]['body'] == loads(edges)
+    for raw in (b'1e400', b'-1e999', b'[1E400]', b'1' + b'0' * 400, b'[-%d]' % least):   # every caller of loads (a
+        with pytest.raises(ValueError):                                                    # worker answer too) refuses it
+            loads(raw)
+
+
+def test_a_string_utf8_cannot_encode_is_invalid_input_and_reaches_no_worker(configured, store, worker):
+    """Review V2b, CONTRACT section 11: a lone UTF-16 surrogate ("\\ud800", or the three bytes that would encode it,
+    which Python's json reads as well) is JSON text but no string UTF-8 can encode, so the relay cannot send it (httpx's
+    JSON refuses it): both routes answered 503 SERVICE_UNAVAILABLE. In a value or a key it is 422 INVALID_INPUT, as
+    every body edge-bff cannot carry, and reaches no worker. A surrogate pair (one character beyond the BMP) passes."""
+    with TestClient(create_app(configured, store, FakeOrc()), raise_server_exceptions=False) as c:
+        headers = {**login(c), 'content-type': 'application/json'}
+        for path in ('/api/v1/backtests', '/api/v1/backtests/signals'):
+            for raw in (rb'{"tickers":["BBCA"],"x":"\ud800"}', rb'{"x":["a\udfffb"]}', rb'{"x":"\ud800\u0041"}',
+                        rb'{"\udbff":1}', b'{"x":"\xed\xa0\x80"}', rb'{"portfolio":{"tickers":["BBCA","\ud800"]}}'):
+                r = c.post(path, headers=headers, content=raw)
+                assert (r.status_code, r.json()) == (422, {'error': {'code': 'INVALID_INPUT'}}), (path, raw)
+        assert worker.calls == []
+        pair = rb'{"tickers":["BBCA"],"x":"\ud83d\ude00"}'
+        assert c.post('/api/v1/backtests/signals', headers=headers, content=pair).status_code == 200
+        assert worker.posted('/v1/signals')[0]['body'] == loads(pair) == {'tickers': ['BBCA'], 'x': '\U0001f600'}
+    for raw in (rb'"\ud800"', rb'["\udc00"]', b'"\xed\xb0\x80"'):   # every caller of loads (a worker answer too) refuses it
+        with pytest.raises(ValueError):
+            loads(raw)
 
 
 def test_queue_limit_one_running_and_three_queued(app, worker):
@@ -463,7 +595,7 @@ def test_a_worker_timeout_of_a_relayed_call_is_its_504(app, worker):
     c = app
     bt = c.app.state.backtests
     bt.settings = dataclasses.replace(bt.settings, backtest_timeout_seconds=0.3)
-    preview = {'schema_version': 1, 'universe': 'all', 'period': {'from': '2024-01-02', 'to': '2026-10-23'}, 'entry': single()['entry']}
+    preview = preview_of()
     calls = {'/v1/catalog': lambda: c.get('/api/v1/backtests/catalog'), '/v1/validate': lambda: submit(c, single(), 'slow'),
              '/v1/signals': lambda: c.post('/api/v1/backtests/signals', headers=c.headers_for, json=preview)}
     worker.timeout_paths, worker.timeout_after = set(calls), 0.6
@@ -810,6 +942,22 @@ def test_busy_worker_and_a_lost_hand_over_answer_never_resubmit(app, worker):
     assert len([x for x in worker.posted('/v1/jobs') if x['body']['job_id'] == lost]) == 1   # found by its id, not sent again
 
 
+def test_a_hand_over_the_worker_did_not_take_is_handed_over_again(app, worker):
+    """CONTRACT section 8, review V1: a POST /v1/jobs whose caller left while the worker read the reference lists
+    starts no job there. Its answer is lost here as any unanswered call's; the worker does not know the id, so the job
+    is handed over again (WORKER_RETRIES attempts in all) and runs once."""
+    c = app
+    worker.unstarted = 2
+    job_id = submit(c, single(), 'unstarted').json()['request_id']
+    run_next(c)
+    assert c.get(f'/api/v1/backtests/{job_id}').json()['state'] == 'FINISHED'
+    assert len(worker.posted('/v1/jobs')) == 3 and list(worker.jobs) == [job_id]
+    worker.unstarted = 3                                  # never taken: WORKER_LOST after the third attempt, as now
+    lost = submit(c, single(), 'never-started').json()['request_id']
+    run_next(c)
+    assert c.get(f'/api/v1/backtests/{lost}').json()['error'] == {'code': 'WORKER_LOST'} and lost not in worker.jobs
+
+
 def test_restart_with_an_expired_lease_fails_worker_lost_without_resubmitting(app, worker):
     c = app
     job_id = submit(c, single(), 'restart').json()['request_id']
@@ -883,12 +1031,13 @@ def test_catalog_is_cached_and_signals_are_proxied_without_a_trial(app, worker):
     c.app.state.backtests.catalog['at'] -= 3600          # stale, and the worker does not answer: the last one is kept
     assert c.get('/api/v1/backtests/catalog').json() == worker.catalog
     worker.down = False
-    preview = {'schema_version': 1, 'universe': 'all', 'period': {'from': '2024-01-02', 'to': '2026-10-23'}, 'entry': single()['entry']}
+    preview = preview_of()
     r = c.post('/api/v1/backtests/signals', headers=c.headers_for, json=preview)
     assert r.status_code == 200 and r.json()['rows'][0] == {'ticker': 'BBCA', 'entry_signals': 4, 'last_signal': '2026-10-20'}
-    assert worker.posted('/v1/signals')[0]['body'] == preview
-    refused = c.post('/api/v1/backtests/signals', headers=c.headers_for, json={**preview, 'universe': 'sector:Nope'})
-    assert refused.status_code == 422 and refused.json()['error']['field'] == 'universe'
+    assert worker.posted('/v1/signals')[0]['body'] == preview               # as sent: the picked order is the worker's to drop
+    refused = c.post('/api/v1/backtests/signals', headers=c.headers_for, json=preview_of(['BBCA', 'NOPE']))
+    assert refused.status_code == 422 and refused.json() == {'error': {'code': 'UNKNOWN_TICKER', 'field': 'tickers[1]',
+                                                                       'message': 'NOPE is not a published stock.'}}
     assert db(c, 'SELECT count(*) AS n FROM edge_bff.backtest_jobs')[0]['n'] == 0
     assert db(c, 'SELECT count(*) AS n FROM edge_bff.backtest_trials')[0]['n'] == 0
 
@@ -1085,9 +1234,9 @@ def test_split_result_refuses_what_the_contract_does_not_carry():
                    variants(run, {**run, 'kind': 'sensitivity'})):            # the variants are distinct
         with pytest.raises(ValueError):
             split_result(broken)
-    for raw in (b'1e400', b'-1e400'):                        # JSON without NaN/Infinity can still overflow a double
+    for beyond in (float('inf'), float('-inf')):            # a result not read through loads (which refuses 1e400) too
         with pytest.raises(ValueError):
-            split_result(variants({**run, 'sharpe_daily': loads(raw)}))
+            split_result(variants({**run, 'sharpe_daily': beyond}))
     assert split_result(variants())['trials'] == []
 
 
@@ -1242,7 +1391,7 @@ def test_a_newer_preview_of_the_owner_ends_the_one_in_flight(configured, store, 
         def preview(body):
             with httpx.Client(base_url=local.origin, timeout=60, cookies=cookies) as p:
                 return p.post('/api/v1/backtests/signals', headers=headers, json=body)
-        older, newer = {'universe': 'all'}, {'universe': 'all', 'period': {'from': '2025-01-02', 'to': '2026-10-23'}}
+        older, newer = preview_of(), preview_of(period={'from': '2025-01-02', 'to': '2026-10-23'})
         with concurrent.futures.ThreadPoolExecutor(2) as pool:
             first = pool.submit(preview, older)
             for _ in range(500):
@@ -1250,8 +1399,12 @@ def test_a_newer_preview_of_the_owner_ends_the_one_in_flight(configured, store, 
                     break
                 time.sleep(0.01)
             with httpx.Client(base_url=local.origin, timeout=60, cookies=cookies) as h:
-                bad = h.post('/api/v1/backtests/signals', headers={**headers, 'content-type': 'application/json'}, content=b'[1]')
-            assert bad.status_code == 422 and bad.json() == {'error': {'code': 'INVALID_INPUT'}} and not first.done()
+                # not an object; a number beyond a double (V2, an integer V2a); a lone surrogate (V2b)
+                for raw in (b'[1]', b'{"tickers":["BBCA"],"x":1e400}', b'{"tickers":["BBCA"],"x":1' + b'0' * 400 + b'}',
+                            rb'{"tickers":["BBCA"],"x":"\ud800"}'):
+                    bad = h.post('/api/v1/backtests/signals', headers={**headers, 'content-type': 'application/json'}, content=raw)
+                    assert bad.status_code == 422 and bad.json() == {'error': {'code': 'INVALID_INPUT'}}, raw
+            assert not first.done()
             arrived = time.monotonic()
             second = pool.submit(preview, newer)
             ended = first.result()
@@ -1279,7 +1432,7 @@ def test_overlapping_previews_of_the_owner_leave_one_in_flight_and_hold_up_nothi
         headers, cookies = sign_in(local)
         def preview(k):
             with httpx.Client(base_url=local.origin, timeout=60, cookies=cookies) as p:
-                return p.post('/api/v1/backtests/signals', headers=headers, json={'universe': 'all', 'k': k})
+                return p.post('/api/v1/backtests/signals', headers=headers, json={**preview_of(), 'k': k})
         with concurrent.futures.ThreadPoolExecutor(threads) as pool:
             pending = [pool.submit(preview, k) for k in range(threads)]
             for _ in range(500):
@@ -1332,11 +1485,11 @@ def test_previews_of_the_owner_in_sequence_are_unaffected(app, worker):
     owner's place, so each preview after it is relayed as before and none is replaced."""
     c = app
     bt = c.app.state.backtests
-    preview = {'schema_version': 1, 'universe': 'all', 'period': {'from': '2024-01-02', 'to': '2026-10-23'}, 'entry': single()['entry']}
-    for body in (preview, {**preview, 'universe': 'sector:Nope'}, preview, {**preview, 'universe': 'sector:Finance'}):
+    preview = preview_of()
+    for body in (preview, preview_of(['NOPE']), preview, preview_of(['TLKM', 'BBCA'])):
         r = c.post('/api/v1/backtests/signals', headers=c.headers_for, json=body)
-        if body['universe'] == 'sector:Nope':
-            assert r.status_code == 422 and r.json()['error']['code'] == 'INVALID_UNIVERSE'
+        if body['tickers'] == ['NOPE']:
+            assert r.status_code == 422 and r.json()['error']['code'] == 'UNKNOWN_TICKER'
         else:
             assert r.status_code == 200 and r.json()['rows'] == ROWS
         assert bt.previews == {}
@@ -1354,7 +1507,7 @@ def test_a_preview_its_caller_left_is_stopped_at_the_worker(configured, store, w
         headers, cookies = sign_in(local)
         with httpx.Client(base_url=local.origin, timeout=60, cookies=cookies) as h:
             with pytest.raises(httpx.ReadTimeout):         # the page gives up on it
-                h.post('/api/v1/backtests/signals', headers=headers, json={'universe': 'all'}, timeout=httpx.Timeout(60, read=0.3))
+                h.post('/api/v1/backtests/signals', headers=headers, json=preview_of(), timeout=httpx.Timeout(60, read=0.3))
         for _ in range(400):
             if worker.abandoned:
                 break
@@ -1362,7 +1515,7 @@ def test_a_preview_its_caller_left_is_stopped_at_the_worker(configured, store, w
         assert worker.abandoned == ['/v1/signals']             # closed by edge-bff before the worker's answer (5 s)
         worker.timeout_paths = set()
         with httpx.Client(base_url=local.origin, timeout=60, cookies=cookies) as h:   # it left its owner's place free
-            assert h.post('/api/v1/backtests/signals', headers=headers, json={'universe': 'all'}).json()['rows'] == ROWS
+            assert h.post('/api/v1/backtests/signals', headers=headers, json=preview_of()).json()['rows'] == ROWS
     finally:
         stop()
 

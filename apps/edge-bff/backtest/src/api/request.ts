@@ -1,7 +1,8 @@
 /* The page state as the wire request (contract.ts BacktestRequest): the cards become wire conditions with the one
    mapping in core/catalog.ts, percent fields become fractions, Rp B becomes IDR, the Benchmark select becomes
-   single.benchmark. Cards the API cannot calculate (its "Not calculated" pill) are left out, as the reference ignores
-   them on Run; a card with an invalid input is refused with the core's ValidationError (shown by the page's toast). */
+   single.benchmark, the picked stocks portfolio.tickers (in the order they were picked: the worker sorts them, PF3).
+   Cards the API cannot calculate (its "Not calculated" pill) are left out, as the reference ignores them on Run; a
+   card with an invalid input is refused with the core's ValidationError (shown by the page's toast). */
 import type { BacktestRequest, Catalog, SignalsPreviewRequest } from '../core/contract.ts';
 import { needsFlow } from '../core/catalog.ts';
 import type { Card } from './types.ts';
@@ -27,7 +28,7 @@ export function buildRequest(s: State, opts: { ready: (c: Card) => boolean; mont
     mode: s.mode,
     ...(s.mode === 'single'
       ? { single: { ticker: s.ticker, benchmark: s.bench === 'ihsg' ? 'ihsg' : 'buy_and_hold' } }
-      : { portfolio: { universe: s.universe, max_positions: s.maxPos, rank_by: s.rankBy, min_avg_value_20d_idr: s.cost.minVal * 1e9 } }),
+      : { portfolio: { tickers: [...s.tickers], max_positions: s.maxPos, rank_by: s.rankBy, min_avg_value_20d_idr: s.cost.minVal * 1e9 } }),
     period: { from: s.from, to: s.to, oos_fraction: s.oos / 100 as BacktestRequest['period']['oos_fraction'] },
     entry: entryOf(s, opts.ready),
     exit: {
@@ -50,11 +51,11 @@ export function buildRequest(s: State, opts: { ready: (c: Card) => boolean; mont
 /** the request of the page's current settings */
 export const currentRequest = () => buildRequest(S, { ready: c => API.ready(c), monteCarloRuns: CAT.limits.monte_carlo_runs });
 
-/** the portfolio table's signal preview of the current settings (cards with an invalid input are left out here: the
-    preview shows what can be calculated, the run reports the error) */
+/** the portfolio table's signal preview of the current settings, on the picked stocks (cards with an invalid input
+    are left out here: the preview shows what can be calculated, the run reports the error) */
 export function previewRequest(): SignalsPreviewRequest {
   const safe = (c: Card) => { if (!API.ready(c)) return false; try { toWire(c); return true } catch { return false } };
-  return { schema_version: 1, universe: S.universe, period: { from: S.from, to: S.to }, entry: entryOf(S, safe) };
+  return { schema_version: 1, tickers: [...S.tickers], period: { from: S.from, to: S.to }, entry: entryOf(S, safe) };
 }
 
 /** whether a request reads the broker files: an enabled flow condition (core/catalog.ts needsFlow) in the entry or exit

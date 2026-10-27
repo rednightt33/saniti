@@ -14,8 +14,12 @@
    BACKTEST_MAX_RESULT_BYTES     the most JSON a job's result may have (validate.ts, compute.ts); the    }
                                  same value as edge-bff's BACKTEST_MAX_RESULT_BYTES, which refuses a     }
                                  larger result anyway: the worker stops before it packs or sends one     }
-   BACKTEST_MAX_POSITIONS        default 10 = the page's Max positions input (max 10) and engine.ts MAX_POSITIONS; may only
-                                 be lowered
+   BACKTEST_MAX_POSITIONS        default engine.ts MAX_POSITIONS = the page's Max positions input (its max is the
+                                 catalog's limits.max_positions); may only be lowered
+   BACKTEST_MAX_PORTFOLIO_TICKERS
+                                 default engine.ts MAX_PORTFOLIO_TICKERS (12, user N 2026-10-27) = the most stocks one
+                                 portfolio or preview may pick (the page reads limits.max_portfolio_tickers); may only be
+                                 lowered
    BACKTEST_MONTE_CARLO_RUNS     default 1000 = the page's monteCarlo(T, cap0, runs = 1000)
    BACKTEST_QUEUED_PER_OWNER     default 3 = edge-bff's BACKTEST_QUEUED_PER_OWNER default (edge-bff enforces it; the
                                  catalog only reports it)
@@ -27,7 +31,7 @@
    The entry window (1-20 bars) is not configurable: it is the page's "within N bars" input, which conditions.ts enforces. */
 import type { Limits } from '../../edge-bff/backtest/src/core/contract.ts';
 import { WINDOW_BARS } from '../../edge-bff/backtest/src/core/conditions.ts';
-import { MAX_POSITIONS } from '../../edge-bff/backtest/src/core/engine.ts';
+import { MAX_PORTFOLIO_TICKERS, MAX_POSITIONS } from '../../edge-bff/backtest/src/core/engine.ts';
 import { optionsFromEnv } from './terminal.ts';
 import type { TerminalOptions } from './terminal.ts';
 
@@ -70,6 +74,7 @@ export function loadConfig(env: Env = process.env): Config {
     max_positions: whole('BACKTEST_MAX_POSITIONS', 1, MAX_POSITIONS, MAX_POSITIONS),
     window_bars: { min: WINDOW_BARS.min, max: WINDOW_BARS.max },
     monte_carlo_runs: whole('BACKTEST_MONTE_CARLO_RUNS', 1, Number.MAX_SAFE_INTEGER, DEFAULT_MONTE_CARLO_RUNS),
+    max_portfolio_tickers: whole('BACKTEST_MAX_PORTFOLIO_TICKERS', 1, MAX_PORTFOLIO_TICKERS, MAX_PORTFOLIO_TICKERS),
     max_download_bytes: whole('BACKTEST_MAX_DOWNLOAD_BYTES', 1),
     max_broker_rows: whole('BACKTEST_MAX_BROKER_ROWS', 0),
     timeout_seconds: whole('BACKTEST_TIMEOUT_SECONDS', 1),

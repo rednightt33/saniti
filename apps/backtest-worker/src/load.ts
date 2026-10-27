@@ -1,6 +1,6 @@
 /* The market data of one job or preview, through terminal.ts (CONTRACT.md section 2), within the limits:
-   1. the /bundle manifest of every ticker first (no file downloaded yet). A group marked skipUnpublished (a portfolio
-      universe) leaves out a ticker that terminal-api does not publish (404) or that has no file of a dataset asked
+   1. the /bundle manifest of every ticker first (no file downloaded yet). A group marked skipUnpublished (a portfolio's
+      picked stocks) leaves out a ticker that terminal-api does not publish (404) or that has no file of a dataset asked
       (events aside: terminal.ts unpublished), listed in Loaded.excluded (lead decision 2026-10-26: no published files,
       DATA_MISSING, leaves the ticker out of a portfolio run); in any other group that is the run's DATA_MISSING. Then
       hooks.planned sees the manifests of the tickers that stay (a check on their data_through before any download),
@@ -10,7 +10,7 @@
    2. then each ticker's files, decoded by terminal.ts loadTicker from that same manifest while its presigned URLs can
       still serve the download (terminal.ts usable: the manifest's age plus BACKTEST_HTTP_TIMEOUT_MS is under the
       URLs' lifetime, expires_in_seconds) or every file it names is cached (terminal.ts cached: no URL is needed),
-      else from a new /bundle answer asked right before the ticker's download: step 1 of a large universe and the
+      else from a new /bundle answer asked right before the ticker's download: step 1 of many tickers and the
       downloads before a ticker's can take longer than the lifetime. A URL that has expired all the same when its
       file is fetched (the bucket answers 403; a cached copy that fails its check is downloaded) is fetched again
       once from a new /bundle answer. So a ticker costs one /bundle answer, or two once its manifest is too old and a
@@ -80,10 +80,10 @@ function totals(files: readonly { dataset: string; bytes: number; rows?: number 
 }
 function within(limits: Pick<Limits, 'max_download_bytes' | 'max_broker_rows'>, t: { bytes: number; rows: number }, field: string, tickers: number): void {
   if (t.bytes > limits.max_download_bytes)
-    throw new WorkerError(422, 'LIMIT_EXCEEDED', `This run would read ${t.bytes} bytes of published files for ${tickers} ticker(s); the limit is ${limits.max_download_bytes}. Choose a smaller universe or switch off the conditions that need broker data.`,
+    throw new WorkerError(422, 'LIMIT_EXCEEDED', `This run would read ${t.bytes} bytes of published files for ${tickers} ticker(s); the limit is ${limits.max_download_bytes}. Choose fewer stocks or switch off the conditions that need broker data.`,
       field, { limit: 'max_download_bytes', allowed: limits.max_download_bytes, needed: t.bytes });
   if (t.rows > limits.max_broker_rows)
-    throw new WorkerError(422, 'LIMIT_EXCEEDED', `This run would read ${t.rows} broker rows for ${tickers} ticker(s); the limit is ${limits.max_broker_rows}. Choose a smaller universe or switch off the conditions that need broker data.`,
+    throw new WorkerError(422, 'LIMIT_EXCEEDED', `This run would read ${t.rows} broker rows for ${tickers} ticker(s); the limit is ${limits.max_broker_rows}. Choose fewer stocks or switch off the conditions that need broker data.`,
       field, { limit: 'max_broker_rows', allowed: limits.max_broker_rows, needed: t.rows });
 }
 

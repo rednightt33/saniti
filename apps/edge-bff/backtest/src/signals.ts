@@ -5,10 +5,9 @@
    bars with the API's condition series (the reference's live preview). After a run the chart shows the run's own
    events: the condition and entry tracks and the trades of the result (CONTRACT.md section 10). */
 import * as L from 'lightweight-charts';
-import type { SignalsPreview, SignalTrack, Warning } from './core/contract.ts';
-import { isAbort, type Card } from './api/types.ts';
-import { warningText } from './api/texts.ts';
-import { API, DATA, load, loaded, members } from './env.ts';
+import type { SignalTrack } from './core/contract.ts';
+import type { Card } from './api/types.ts';
+import { API, DATA, load, loaded } from './env.ts';
 import { $, COLORS, css, esc, nf, OPS, PAL, cls, rp, toast } from './format.ts';
 import { catOf, condReady, evalCond, needsFlow, opLabel, regName } from './reg.ts';
 import { S } from './state.ts';
@@ -16,6 +15,9 @@ import { renderNav, updateViewbar } from './builder.ts';
 import { TT, ttH } from './results/svg.ts';
 import { previewRequest } from './api/request.ts';
 import { renderWSMid } from './workspace.ts';
+import { chartTicker, runTickers } from './picked.ts';
+import { Previews, portRows, previewKey, type Rows } from './preview.ts';
+import { NO_STOCK } from './picker.ts';
 
 export interface Sig { series: { c: Card; s: Uint8Array }[]; entry: Uint8Array; dates: string[] }
 
@@ -38,7 +40,8 @@ export const signalsFor = (tk: string): Sig => {
   }
   return {series, entry, dates: DAYS};
 };
-export const universe = () => S.mode==='single' ? [S.ticker] : members(S.universe);
+/** the stocks the settings run on: the ticker in single mode, the picked stocks in portfolio mode (PF1) */
+export const universe = () => S.mode==='single' ? [S.ticker] : S.tickers;
 
 /* a track of the result calendar on a ticker's own bars: true where the track is true; the bar before the period
    holds what the chart's "switches on" test needs (the track's own `on` decides the period's first bar) */
@@ -62,11 +65,17 @@ const fromEvents = (tk: string): Sig | null => {
   return { series: active.map(c => ({c, s: onBars(conds.get(c.id), R.days, D.dates)})), entry: onBars(R.ev.entries[tk], R.days, D.dates), dates: D.dates };
 };
 const chartSignals = (tk: string): Sig => (fresh() && fromEvents(tk)) || signalsFor(tk);
+/** the tickers of the run the chart shows (none while the settings are not the run's) */
+const ran = () => fresh() ? runTickers(S.result.raw) : [];
 
 /* what the chart of a ticker needs before it can draw: its bars (with the broker data when a flow card is present)
-   and, after a run, the run's events for it */
+   and, after a run, the run's events for it; only a ticker of the run has events (edge-bff answers any other with
+   404 EVENTS_NOT_FOUND): a picked stock the run left out keeps the preview drawing (review PAGE-V2). A ticker whose
+   bars could not be read (a published stock without price files, which a run leaves out with DATA_MISSING, or a
+   failed download) is not drawn: its toast is shown once and the chart shows another stock (review PG-1). */
 const failed = new Set<string>();
-const eventsNeeded = (tk: string) => fresh() && !S.result.ev.cond.has(tk);
+const drawable = (tk: string) => !failed.has(tk + '|bars');
+const eventsNeeded = (tk: string) => ran().includes(tk) && !S.result.ev.cond.has(tk);
 const prepared = (tk: string) => loaded(tk) && (!needsFlow() || loaded(tk, true) || failed.has(tk + '|flow')) && (!eventsNeeded(tk) || failed.has(tk + '|events'));
 const preparing = new Set<string>();
 function prepare(tk: string) {
@@ -80,42 +89,21 @@ function prepare(tk: string) {
   Promise.all([bars, ev]).then(() => {
     preparing.delete(key);
     if (S.sigTicker === tk && prepared(tk)) { refreshSignals(); if (!$('ews').hidden) renderWSMid() }
-  }, e => { preparing.delete(key); toast(e.message) });
+  }, e => { preparing.delete(key); failed.add(tk + '|bars'); toast(e.message); if (S.sigTicker === tk) refreshSignals() });
 }
 
-/* the portfolio table's entry signals: the run's own (fresh result) or the server's preview of the current settings.
-   A preview that newer settings replaced is aborted, so edge-bff closes its worker call, and only the latest preview's
-   answer is drawn (CONTRACT.md P8). A ticker the run or the preview left out (TICKERS_EXCLUDED) has no count: the
-   table's '—' with the error its data gave in the page's tooltip; the preview's warning itself is the page's toast,
-   when an answer brings one the previous answer did not. */
-interface PortRow { n: number | null; last: string | null; left?: { code: string; message: string } }
-const portRows = (rows: SignalsPreview['rows'], warnings: readonly Warning[]) => {
-  const got = new Map(rows.map(r => [r.ticker, { n: r.entry_signals, last: r.last_signal }]));
-  const left = new Map(warnings.filter(w => w.code === 'TICKERS_EXCLUDED').flatMap(w => w.reasons || []).map(r => [r.ticker, r]));
-  return (t: string): PortRow => got.get(t) ?? (left.has(t) ? { n: null, last: null, left: left.get(t) } : { n: 0, last: null });
-};
-const preview = new Map<string, (t: string) => PortRow>();
-let pending: { key: string; ctl: AbortController } | null = null, shownNote = '';
-const dropPreview = () => { pending?.ctl.abort(); pending = null };
-function portSig(): (t: string) => PortRow {
-  if (fresh()) return portRows(S.result.raw.tables.per_ticker, S.result.raw.meta.warnings);
-  const req = previewRequest(), key = JSON.stringify(req), got = preview.get(key);
-  if (got) return got;
-  if (pending?.key !== key) {
-    dropPreview();
-    const mine = pending = { key, ctl: new AbortController() };
-    API.signalsPreview(req, { signal: mine.ctl.signal }).then(p => {
-      if (mine.ctl.signal.aborted) return;          // an API that answers anyway is not drawn either
-      preview.set(key, portRows(p.rows, p.warnings));
-      if (S.mode !== 'portfolio' || JSON.stringify(previewRequest()) !== key) return;
-      const note = p.warnings.map(warningText).join(' ');
-      if (note && note !== shownNote) toast(note);
-      shownNote = note;
-      refreshSignals();
-    }, e => { if (!isAbort(e)) toast(e.message) }).finally(() => { if (pending === mine) pending = null });
-  }
-  return () => ({ n: null, last: null });
-}
+/* the portfolio table's entry signals: the run's own (fresh result) or the server's preview of the current settings
+   (preview.ts: the latest wins, CONTRACT.md P8). A stock the run or the preview left out (TICKERS_EXCLUDED, or every
+   one of them: UNIVERSE_EMPTY) has no count: the table's '—' with the error its data gave in the page's tooltip; the
+   preview's warnings are one short line in the page's toast, when an answer brings one the previous answer did not. */
+const previews = new Previews({
+  ask: (q, o) => API.signalsPreview(q, o),
+  current: () => S.mode === 'portfolio' && S.tickers.length ? previewKey(previewRequest()) : null,
+  answered: note => { if (note) toast(note, true); refreshSignals() },
+  failed: message => toast(message),
+});
+const portSig = (): Rows => previews.rows(S.tickers.length ? previewRequest() : null,
+  fresh() ? portRows(S.result.raw.tables.per_ticker, S.result.raw.meta.warnings) : null);
 
 /* =====================================================================
    7 · SIGNAL CHART — candles + small arrows per condition + lanes
@@ -141,7 +129,12 @@ export const themeChart = () => {
 let lastSig: Sig | null = null;
 export const getLastSig = () => lastSig;
 export const refreshSignals = () => {
-  const tk = S.sigTicker;
+  // the chart shows one of the stocks the settings run on, on every change of mode, picked stocks and run (review: a
+  // ticker left over from single mode was asked from the run's events)
+  const U = universe(), shown = U.filter(drawable), tk = S.sigTicker = chartTicker(S.sigTicker, shown, ran());
+  // the ticker select and the portfolio table (which asks the preview) do not wait for the chart's bars (review PG-1)
+  tickerSelect(shown, tk); portTable(U, tk);
+  if(!tk){ noChart(); return }
   if(!prepared(tk)){ prepare(tk); return }
   const D = DATA[tk], DAYS = D.dates, N = DAYS.length, sig = chartSignals(tk); lastSig = sig;
   const idx: number[] = []; for(let i=0;i<N;i++) if(inRange(DAYS, i)) idx.push(i);
@@ -168,13 +161,22 @@ export const refreshSignals = () => {
   $('sigChips').innerHTML = cols.map(([l,xs],k) => `<div class="lg-col ${l==='Strategy'?'out':''}"><em>${l}</em><div class="lg-items">${xs.join('')}</div></div>`).join('');
   $('sigChips').querySelectorAll('[data-h]').forEach((ch: HTMLElement) => ch.onclick = () => { S.hidden[ch.dataset.h] = !S.hidden[ch.dataset.h]; refreshSignals() });
   const rw = pc.priceScale('right').width(); if(rw) $('chartTools').style.right = (rw + 10) + 'px';
-  // ticker selector & portfolio signal table
-  const U = universe(); $('sigTicker').innerHTML = U.map(t=>`<option ${t===tk?'selected':''}>${esc(t)}</option>`).join(''); $('sigTicker').style.display = U.length>1 ? '' : 'none';
-  if(S.mode==='portfolio'){ const P = portSig(); const rows = U.map(t => { const {n, last, left} = P(t); const tr = S.result ? S.result.trades.filter(x=>x.tk===t) : []; const w = tr.filter(x=>x.ret>0).length;
+  applyZoom(); drawLanes(); renderNav(); updateViewbar();
+};
+const tickerSelect = (U: string[], tk: string) => { $('sigTicker').innerHTML = U.map(t=>`<option ${t===tk?'selected':''}>${esc(t)}</option>`).join(''); $('sigTicker').style.display = U.length>1 ? '' : 'none' };
+/* the portfolio signal table (the reference's), on the picked stocks; nothing picked: the step's empty note */
+const portTable = (U: string[], tk: string) => {
+  if(S.mode!=='portfolio'){ $('portSig').hidden = true; previews.drop(); return }
+  const P = portSig(); const rows = U.map(t => { const {n, last, left} = P(t); const tr = S.result ? S.result.trades.filter(x=>x.tk===t) : []; const w = tr.filter(x=>x.ret>0).length;
       return `<tr class="${t===tk?'on':''}" data-t="${esc(t)}"><td><b>${esc(t)}</b></td><td ${left?TT(ttH(`${esc(t)} left out`, [['Error', esc(left.code)]], esc(left.message))):''}>${n ?? '—'}</td><td>${esc(last||'—')}</td><td>${S.result?tr.length:'—'}</td><td>${S.result&&tr.length?nf(w/tr.length*100,0)+'%':'—'}</td><td class="${S.result?cls(tr.reduce((s,x)=>s+x.pnl,0)):''}">${S.result?rp(tr.reduce((s,x)=>s+x.pnl,0)):'—'}</td></tr>` }).join('');
-    $('portSig').hidden = false; $('portSig').innerHTML = `<div style="font-size:12px;font-weight:600;margin-bottom:6px">Signals across the universe <span style="color:var(--text-3);font-weight:400">— click a row to show it on the chart</span></div><table class="sigtbl"><thead><tr><th>Ticker</th><th>Entry signals</th><th>Last signal</th><th>Trades</th><th>Win rate</th><th>P&L</th></tr></thead><tbody>${rows}</tbody></table>`;
-    $('portSig').querySelectorAll('[data-t]').forEach((r: HTMLElement) => r.onclick = () => { S.sigTicker = r.dataset.t; refreshSignals() });
-  } else { $('portSig').hidden = true; dropPreview() }
+  $('portSig').hidden = false; $('portSig').innerHTML = `<div style="font-size:12px;font-weight:600;margin-bottom:6px">Signals across the universe <span style="color:var(--text-3);font-weight:400">— click a row to show it on the chart</span></div>${U.length ? `<table class="sigtbl"><thead><tr><th>Ticker</th><th>Entry signals</th><th>Last signal</th><th>Trades</th><th>Win rate</th><th>P&L</th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="exempty">${NO_STOCK}</div>`}`;
+  $('portSig').querySelectorAll('[data-t]').forEach((r: HTMLElement) => r.onclick = () => { if(!drawable(r.dataset.t)) return; S.sigTicker = r.dataset.t; refreshSignals() });
+};
+/* no stock the chart can show (none picked, or none whose bars could be read): the chart, its legend and lanes are
+   empty; the table shows the empty note or the picked stocks */
+const noChart = () => {
+  lastSig = null; candle.setData([]); markers.setMarkers([]); laneState = { sig:{ series:[], entry:new Uint8Array(0), dates:[] }, idx:[] };
+  $('sigChips').innerHTML = '';
   applyZoom(); drawLanes(); renderNav(); updateViewbar();
 };
 const applyZoom = () => { const n = laneState ? laneState.idx.length : 0; if(!zoomN || zoomN>=n) pc.timeScale().fitContent(); else pc.timeScale().setVisibleLogicalRange({from:n-zoomN, to:n+3}) };
@@ -201,6 +203,8 @@ export const drawLanes = () => {
 };
 /** the chart's own listeners (the reference wires them at start: zoom buttons, ticker select) */
 export const bindSignals = () => {
+  // a user action on this page lets a preview another tab replaced be asked again (preview.ts)
+  for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, () => previews.userAction(), true);
   $('zoomSeg').onclick = (e: MouseEvent) => { const b = (e.target as HTMLElement).closest('[data-z]') as HTMLElement; if(!b) return; zoomN = +b.dataset.z; $('zoomSeg').querySelectorAll('button').forEach((x: HTMLElement)=>x.classList.toggle('on',x===b)); refreshSignals() };
 };
 export const bindTicker = () => { $('sigTicker').onchange = (e: Event) => { S.sigTicker = (e.target as HTMLSelectElement).value; refreshSignals() } };

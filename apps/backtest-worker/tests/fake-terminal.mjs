@@ -66,8 +66,11 @@ export const eventsDoc = (ticker, rows) => ({
   means: { d: 'annotation date; its meaning is in role (EX_DATE, MEETING_DATE, TRANSACTION_DATE, ...)' },
   columns: EVENT_COLUMNS, ...columnar(rows, EVENT_COLUMNS),
 });
-/** rows: [ticker, name, type, sector] */
-export const tickersRef = rows => ({ schema_version: SCHEMA_VERSION, columns: ['ticker', 'name', 'type', 'sector'], ...columnar(rows, ['ticker', 'name', 'type', 'sector']) });
+/** rows: one value per column, by default the publisher's [ticker, name, type, sector, industry] (publisher.py
+    publish_refs; 'Undefined' as the table has it for no classification; readers take columns by name); a row without
+    the last values has null there */
+export const TICKER_COLUMNS = ['ticker', 'name', 'type', 'sector', 'industry'];
+export const tickersRef = (rows, columns = TICKER_COLUMNS) => ({ schema_version: SCHEMA_VERSION, columns, ...columnar(rows, columns) });
 /** rows: [code, name, type] */
 export const brokersRef = rows => ({ schema_version: SCHEMA_VERSION, columns: ['code', 'name', 'type'],
   type_means: 'broker domicile (label only; the Foreign figures use investor type)', ...columnar(rows, ['code', 'name', 'type']) });

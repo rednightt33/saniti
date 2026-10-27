@@ -20,6 +20,6 @@ export const warningText = (w: Warning) => {
 export const PUBLISHED_TEXTS: SourceTexts = {
   dataNote: () => 'Published data · long-only',
   robustnessWarning: (result: BacktestResultCore) => ['⚠︎ Single market path: history happened once.', ...result.meta.warnings.map(warningText),
-    'Before trusting a result: keep the out-of-sample untouched while tuning, and re-check the liquidity of every fill.'].join(' '),
+    'Before trusting a result: keep the out-of-sample untouched while tuning, and re-check liquidity of every fill.'].join(' '),
   trials: 'for this strategy',
 };

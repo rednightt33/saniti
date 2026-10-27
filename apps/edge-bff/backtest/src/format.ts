@@ -11,7 +11,8 @@ const hexRgb = (h: string) => { const x = h.replace('#',''); return [0,2,4].map(
 export const setPal = () => { PAL.up = css('--up'); PAL.dn = css('--dn'); PAL.navy = css('--navy-c'); PAL.bm = css('--bench'); PAL.upRgb = hexRgb(PAL.up); PAL.dnRgb = hexRgb(PAL.dn); PAL.navyRgb = hexRgb(PAL.navy) };
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
-export const toast = (m: string) => { const t=$('toast'); t.textContent=m; t.hidden=false; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.hidden=true,2200) };
+/** the reference's toast; line: a short note kept on one line (backtest.css .toast.line; the preview's warnings) */
+export const toast = (m: string, line = false) => { const t=$('toast'); t.textContent=m; t.classList.toggle('line', line); t.hidden=false; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.hidden=true,2200) };
 
 // Display numbers in Indonesian format: 1.236 · 0,15% · Rp 4,57 M (miliar) · Rp 100,0 jt (juta)
 export const nf = (v: number, d=0) => (+v).toLocaleString('id-ID',{minimumFractionDigits:d,maximumFractionDigits:d});

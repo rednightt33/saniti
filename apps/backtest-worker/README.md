@@ -20,10 +20,10 @@ Private HTTP service that computes the EDGE backtests. It is part of the backtes
 | `src/server.ts` | `node:http` API: authentication, routes, the job record, the preview queue, timeouts, start-up checks |
 | `src/compute.ts` | the two long-lived `worker_threads` threads, one for jobs and one for signals previews; progress and results are sent as messages, cancellation uses a shared flag, `kill()` handles a run over its time |
 | `src/run.ts` | one job end to end (`runJob`) and one signals preview (`runSignals`) |
-| `src/validate.ts` | request checks before any download (unknown fields, page options, universes, flow availability, broker codes against the broker list, the core's own validation) |
+| `src/validate.ts` | request checks before any download (unknown fields, page options, a portfolio's picked stocks, flow availability, broker codes against the broker list, the core's own validation) |
 | `src/load.ts` | reads the files of a run within the limits: every manifest first, a portfolio's tickers without published files left out, the limits checked, then each ticker's downloads from its manifest while its URLs can still serve them or every file it names is cached, else from a new one; a URL that expired all the same is fetched again once; the date the broker data is published through (`brokerDataThrough`) |
 | `src/terminal.ts` | the terminal-api client: `/bundle`, `/manifest`, the reference files, presigned files, sha256 and size checks, the cache (memory, optionally disk) |
-| `src/catalog.ts` | `GET /v1/catalog` from the reference files, IHSG's published bars, the limits, the flow switch and the broker data's date |
+| `src/catalog.ts` | `GET /v1/catalog` from the reference files (the tickers with their groups, the groupings the portfolio picker filters by), IHSG's published bars, the limits, the flow switch and the broker data's date |
 | `src/config.ts` | environment variables, their defaults and their checks |
 | `src/version.ts` | `engine_version`, `registry_version`, the start-up registry check |
 | `src/errors.ts`, `src/log.ts` | the error shape and statuses; JSON log lines |
@@ -37,8 +37,8 @@ worker answers `401 {"error":{"code":"UNAUTHORIZED"}}`.
 | Route | Answer |
 |---|---|
 | `GET /health` | `{ok: true, engine_version, registry_version}` |
-| `GET /v1/catalog` | `Catalog` (contract.ts) |
-| `POST /v1/validate {request}` | `200 {ok: true, lineage_key, variant_hash, tickers}`, or `422` with the error: the request checks (`validate.ts`), then `FLOW_DATA_THROUGH` and `PERIOD_AFTER_DATA` with the code, field and message the job would fail with, read from terminal-api's manifests only (no `/bundle`, no file); `424 DATA_MISSING` (field `IHSG.price`) when IHSG has no price file |
+| `GET /v1/catalog` | `Catalog` (contract.ts): every reference ticker with its `groups`, the `groupings` the portfolio picker filters by (every column of the reference ticker file other than ticker, name and type, in file order, stocks counted; null, `''` and `Undefined` unclassified), the limits with `max_portfolio_tickers` (CONTRACT.md section 8, PF6) |
+| `POST /v1/validate {request}` | `200 {ok: true, lineage_key, variant_hash, tickers}` (a portfolio's picked stocks in ticker order, the hashes of that canonical form), or `422` with the error: the request checks (`validate.ts`), then `FLOW_DATA_THROUGH` and `PERIOD_AFTER_DATA` with the code, field and message the job would fail with, read from terminal-api's manifests only (no `/bundle`, no file); `424 DATA_MISSING` (field `IHSG.price`) when IHSG has no price file |
 | `POST /v1/signals` | the body is a `SignalsPreviewRequest`; the answer is a `SignalsPreview` |
 | `POST /v1/jobs {job_id, request, context}` | `202 {job_id}`, `409 BUSY` or `422` |
 | `GET /v1/jobs/{id}` | `JobStatus`, or `404 UNKNOWN_JOB` |
@@ -49,19 +49,22 @@ worker answers `401 {"error":{"code":"UNAUTHORIZED"}}`.
 
 - Previews run on the preview thread while the caller waits.
 - One preview computes at a time; the others wait in arrival order.
-- When the caller disconnects, its preview is cancelled.
+- When the caller disconnects, its preview is cancelled. A caller that leaves while the worker still reads the
+  reference lists queues nothing, so the next preview never waits behind one computed for nobody (review V1).
+- A preview reads the picked stocks `tickers`, checked as a portfolio's (below; field `tickers`, `tickers[i]`).
 - A preview leaves out the tickers the run leaves out, with the run's shared code (`signals.ts`): a ticker without
   published files, or whose own data cannot serve the entry rule. They are listed in `warnings` as the result's
-  `TICKERS_EXCLUDED` (`count`, `tickers`, `reasons`). When none is left the preview is refused with `UNIVERSE_EMPTY`, as
-  the run is, and a preview that reads broker files is held to `FLOW_DATA_THROUGH`. A preview never fails where the
-  matching run succeeds (lead decision 2026-10-26).
+  `TICKERS_EXCLUDED` (`count`, `tickers`, `reasons`). When none is left the preview is refused with `UNIVERSE_EMPTY`
+  (field `tickers`), as the run is, and a preview that reads broker files is held to `FLOW_DATA_THROUGH`. A preview
+  never fails where the matching run succeeds (lead decision 2026-10-26).
 
 ### Jobs
 
 - **One job at a time.** While a job runs, a job with another id gets `409 BUSY`. A POST with the current job's id
   answers `202` again, because edge-bff retries a POST whose answer it lost.
 - **Checked before it is accepted.** The request is checked before the `202`. A refused request is a `422` and never
-  becomes a job.
+  becomes a job. A POST whose caller leaves while the worker reads the reference lists starts no job (review V1):
+  edge-bff, which lost the answer, finds the id unknown and posts it again.
 - **Only the latest job is kept.** The worker forgets the previous job when a new one starts, and keeps none across a
   restart. edge-bff turns the resulting 404 into `WORKER_LOST`.
 - **The result is kept until the next job starts** (lead decision 2026-10-26). A caller that lost an answer can fetch
@@ -85,7 +88,7 @@ Errors have the shape `{"error": {code, field?, message?, details?}}`.
 
 | Status | Codes |
 |---|---|
-| 422 | validation errors (among them `UNKNOWN_FIELD`, `INVALID_CONDITION`, `UNKNOWN_BROKER`, `FLOW_UNAVAILABLE`, `FLOW_OUTPUT_EMPTY`, `INDICATOR_OUTPUT_EMPTY`, `PERIOD_AFTER_DATA`, `PERIOD_BEFORE_DATA`, `FLOW_DATA_THROUGH`, `UNIVERSE_EMPTY`), `LIMIT_EXCEEDED` (`details.limit`: `max_download_bytes`, `max_broker_rows`, `max_conditions`, `max_result_bytes`), `INVALID_JSON`, `INVALID_JOB_ID`, `INVALID_CONTEXT` |
+| 422 | validation errors (among them `UNKNOWN_FIELD`, `INVALID_PORTFOLIO`, `UNKNOWN_TICKER`, `INVALID_CONDITION`, `UNKNOWN_BROKER`, `FLOW_UNAVAILABLE`, `FLOW_OUTPUT_EMPTY`, `INDICATOR_OUTPUT_EMPTY`, `PERIOD_AFTER_DATA`, `PERIOD_BEFORE_DATA`, `FLOW_DATA_THROUGH`, `UNIVERSE_EMPTY`), `LIMIT_EXCEEDED` (`details.limit`: `max_download_bytes`, `max_broker_rows`, `max_conditions`, `max_result_bytes`), `INVALID_JSON`, `INVALID_JOB_ID`, `INVALID_CONTEXT` |
 | 424 | data errors: `DATA_MISSING`, `DATA_INTEGRITY`, `DATA_UNAVAILABLE` |
 | 409 | `BUSY`, `NOT_FINISHED` |
 | 404 | `UNKNOWN_JOB`, `NOT_FOUND` |
@@ -109,17 +112,33 @@ A job's error is the same object, carried in `JobStatus.error`.
    `value`.
 2. **Resolve the tickers.**
    - Single mode: the one ticker, which must be of type `stock`.
-   - Portfolio mode: universe `all` is every stock of terminal-api's reference ticker list; `sector:<name>` is the
-     stocks of that sector. The publisher writes that list from `IDX_Stock_Universe`, the same list it publishes the
-     tickers' files from.
+   - Portfolio mode (user N 2026-10-27, PF1-PF5): the picked stocks `portfolio.tickers`, 1 to
+     `BACKTEST_MAX_PORTFOLIO_TICKERS` (at most `engine.ts` MAX_PORTFOLIO_TICKERS, 12) distinct
+     stocks of terminal-api's reference ticker list. The publisher writes that list from `IDX_Stock_Universe`, the
+     same list it publishes the tickers' files from. An empty, too long or duplicated list is `INVALID_PORTFOLIO`
+     (field `portfolio.tickers`); a ticker that is not a published stock, an index among them (an index is not
+     tradable), is `UNKNOWN_TICKER` (field `portfolio.tickers[i]`). The page picks them by search or by the catalog's
+     groupings: every column of the reference file other than ticker, name and type (sector and industry today; a
+     value of null, `''` or `Undefined` is unclassified).
+   - The order is not part of the request: the worker sorts the picked stocks (`signals.ts` byTicker) before it
+     hashes, records the lineage or runs (`hash.ts` canonicalRequest), so the same set in any order gives the same
+     `request_hash`, `variant_hash`, `lineage_key` and result bytes (PF3). The set is part of the variant, not of the
+     lineage: another set of stocks with the same rules is another trial of the same line (PF4).
+   - `portfolio.max_positions` is 1 to `BACKTEST_MAX_POSITIONS` (at most `engine.ts` MAX_POSITIONS, 12) and may exceed
+     the number of stocks picked: a slot is `1 / max_positions` of equity whatever the number of stocks, and an idle
+     slot stays cash (PF5).
 3. **Load the data** (`load.ts`).
    - IHSG prices, and each ticker's prices and corporate actions.
-   - Broker files only when a flow condition or `rank_by: 'fnet'` needs them.
+   - Broker files only when a flow condition or `rank_by: 'fnet'` needs them. Measured 2026-10-27, the 12 largest
+     broker files (BBRI TLKM BBCA ASII BMRI ANTM ADRO PGAS BBNI BUMI BRPT UNVR) hold 2,494,454 rows and 28.4 MB gzip
+     together, far under `BACKTEST_MAX_BROKER_ROWS` (20,000,000 in dev): a full portfolio of picked stocks fits.
    - Every manifest is read first. A portfolio leaves out a stock terminal-api does not publish (404) or that has no
      file of a dataset the run reads (`DATA_MISSING`, listed in the warning `TICKERS_EXCLUDED`); in single mode that is
      the run's `DATA_MISSING`. The run is refused with `LIMIT_EXCEEDED`, before any download, when the manifest sizes
      exceed `BACKTEST_MAX_DOWNLOAD_BYTES` or the broker rows exceed `BACKTEST_MAX_BROKER_ROWS`. Cached files count
-     too, so the same request gets the same answer whatever the cache holds.
+     too, so the same request gets the same answer whatever the cache holds. The engine runs exactly the picked
+     stocks: each is loaded or left out, once, and `engine.ts` run refuses market data of another set
+     (`INTERNAL_ERROR`, a loader error and never a result).
    - Then each ticker's files, from its manifest while that manifest's age plus `BACKTEST_HTTP_TIMEOUT_MS` is under
      its URLs' lifetime (`expires_in_seconds`) or while every file it names is in the memory or disk cache (no URL is
      needed), else from a new `/bundle` answer asked right before the ticker's downloads. A ticker whose file the
@@ -147,10 +166,15 @@ A job's error is the same object, carried in `JobStatus.error`.
    cannot switch on without that condition; otherwise the condition is false on every bar and the ticker runs, so
    what it trades up to a day never depends on its bars after that day (CONTRACT.md section 2). The warning
    `TICKERS_EXCLUDED` lists every left-out ticker with its error (`count`, `tickers`, `reasons`); `meta.tickers` holds
-   the tickers the run ran on. A request error still fails the run, and in single mode these data errors do too. A broker without any row on a
-   ticker's bars has a net of 0 there. When every ticker of the universe is left out the run is refused with
-   `UNIVERSE_EMPTY` (field `portfolio.universe`; the message gives the count and the reasons by code), never a
-   cash-only result (lead decision 2026-10-26).
+   the tickers the run ran on. A request error still fails the run, and in single mode these data errors do too. A
+   broker without any row on a ticker's bars has a net of 0 there. When every picked stock is left out the run is
+   refused with `UNIVERSE_EMPTY` (field `portfolio.tickers`; the message gives the count and the reasons by code),
+   never a cash-only result (lead decision 2026-10-26). The result calendar is IHSG's bar dates and those of every
+   picked stock whose bars were loaded, left out by the engine or not (PF8, CONTRACT.md section 4): whether a stock
+   is left out is decided on its bars up to `period.to`, so the dates of the run, and the entries they allow, never
+   depend on it. A stock the loader left out (no published file) has no bars read and adds no date. Measured by the
+   lead 2026-10-27, the published prices have no stock bar on a day without an IHSG bar, so on them the calendar is
+   IHSG's and PF8 changes no result.
 6. **Sensitivity:** 25 reruns from `sensitivityPlan` (`robustness.ts`) on the same prepared data. Identical cells run
    once.
 7. **Build the result:** `buildResult` (`result.ts`), which computes the statistics, tables, trials and the Monte
@@ -196,7 +220,8 @@ variable and never its value.
 | `BACKTEST_TIMEOUT_SECONDS` | required | 900 | longest job, preview, validation or catalog |
 | `BACKTEST_MAX_CONDITIONS` | required | 32 | enabled conditions one list (entry, exit signals) may have; reported as `catalog.limits.max_conditions`; more is `LIMIT_EXCEEDED` (`details.limit: max_conditions`) |
 | `BACKTEST_MAX_RESULT_BYTES` | required | set from the dev E2E measurement; edge-bff takes the same value by the Railway reference `${{backtest-worker.BACKTEST_MAX_RESULT_BYTES}}` | the most JSON a job's result may have; over it the job ends `FAILED LIMIT_EXCEEDED` (`details.limit: max_result_bytes`) before the result is packed. Not in the catalog: the page cannot act on it |
-| `BACKTEST_MAX_POSITIONS` | 10 | 10 (default) | ≤ 10, the page's input and `engine.ts` MAX_POSITIONS; may only be lowered |
+| `BACKTEST_MAX_POSITIONS` | 12 (`engine.ts` MAX_POSITIONS) | 12 (default) | the most positions a portfolio may hold; reported as `catalog.limits.max_positions`; may only be lowered |
+| `BACKTEST_MAX_PORTFOLIO_TICKERS` | 12 (`engine.ts` MAX_PORTFOLIO_TICKERS) | 12 (default) | the most stocks a portfolio or preview may pick; reported as `catalog.limits.max_portfolio_tickers`; may only be lowered |
 | `BACKTEST_MONTE_CARLO_RUNS` | 1000 | 1000 (default) | the page's `monteCarlo(…, runs = 1000)`; a request asks for exactly this or 0 |
 | `BACKTEST_QUEUED_PER_OWNER` | 3 | 3 (default) | reported in the catalog; edge-bff enforces it |
 | `BACKTEST_FLOW_ENABLED` | off | 1 | `1` turns on the flow and broker conditions and `rank_by: 'fnet'` |
@@ -234,7 +259,7 @@ decoded on the HTTP thread, are bounded the same way. A `TERMINAL_URL` with a us
 start, and the start log names its origin only.
 
 **Presigned URLs.** How many step-1 manifests are used for their downloads depends on their lifetime minus
-`BACKTEST_HTTP_TIMEOUT_MS`: a large universe whose loading outlasts that margin asks a new `/bundle` answer for each
+`BACKTEST_HTTP_TIMEOUT_MS`: a portfolio whose loading outlasts that margin asks a new `/bundle` answer for each
 later ticker (job step 3). The margin also covers a request that waits for a free slot; one that waits longer can
 still find its URL expired, and the one retry on 403 then loads it. A download in flight is shared only by callers of
 the same file and URL; a file already verified is served from the cache by sha256 whatever its URL. Known limits:
@@ -291,9 +316,11 @@ Run `npm test` (`node --experimental-strip-types --test tests/*.test.ts`). It ne
 Terminal parity fixtures (real stored bars of 7 stocks and IHSG) in the publisher's format. The tests cover:
 
 - the page's default request; each result must equal what the core computes directly from the same bars;
-- portfolio and sector universes;
-- determinism, with a cold and a warm cache;
-- 29 refusals, none of which reads any market data;
+- portfolios of picked stocks, three of them, and more positions than stocks (PF5);
+- determinism, with a cold and a warm cache; the same picked stocks in three orders give the same hashes, result
+  bytes and preview (PF3), another set another variant on the same lineage (PF4);
+- 34 refusals, none of which reads any market data, among them an index or an unpublished stock picked, a stock
+  picked twice, one stock or one position more than the limits, and the former `universe` field;
 - the period and data checks, `PERIOD_CLIPPED` with either benchmark;
 - a portfolio that leaves out a stock without published files and a stock with too short a history (`TICKERS_EXCLUDED`)
   when its entry cannot switch on without the long condition, and runs that stock with the condition false when it
@@ -311,13 +338,16 @@ card and operator, the templates, every registry indicator, every price line), a
 of them field for field; `client_request_id` and any other extra key are refused; broker codes are checked; condition
 ids, the enabled-condition limit and disabled conditions are checked; a number or price line the chosen modes do not
 read is held to its type (and a cleared or out-of-range value there is accepted), and a price-action condition holds
-only what its type reads.
+only what its type reads. A portfolio picks 1 to `limits.max_portfolio_tickers` distinct published stocks (12
+accepted, 13 refused; an index or another type is no stock, PF2), the same stocks in any order come back as one list
+in ticker order (PF3), and `max_positions` goes up to `limits.max_positions`, more than the stocks picked included
+(PF5).
 
 **`tests/server.test.ts`** drives the HTTP API the way edge-bff does. It covers:
 
-- authentication on every route; health and the catalog;
-- validation and its errors; `PERIOD_AFTER_DATA` and `FLOW_DATA_THROUGH` from the manifests only (no `/bundle`, no
-  file), with the job's code, field and message;
+- authentication on every route; health and the catalog with each ticker's groups, the groupings and the limits;
+- validation and its errors, the picked stocks in any order giving one answer; `PERIOD_AFTER_DATA` and
+  `FLOW_DATA_THROUGH` from the manifests only (no `/bundle`, no file), with the job's code, field and message;
 - single, portfolio and identical-request jobs through the gzip result, which must equal `runJob` in the test process;
 - `BUSY`, the same id again, `UNKNOWN_JOB`, `NOT_FINISHED`; a result fetched again, then `RESULT_GONE` once a newer job
   started;
@@ -326,22 +356,27 @@ only what its type reads.
 - a data error after the hand-over;
 - invalid job bodies, and a 4000-deep object in a field the chosen mode does not read (422 at validation and at the
   hand-over, never a 500);
-- previews, including one the caller abandons;
+- previews, including one the caller abandons; a preview or job hand-over whose caller leaves while the reference
+  lists are held queues nothing and loads no data, and the next preview does not wait behind it (review V1);
+- a result over `BACKTEST_MAX_RESULT_BYTES`, its sizes checked whatever the digits of the job's own duration (review
+  V3);
 - log lines without secrets;
 - start-up as the image runs it, including exit 1 on a bad configuration.
 
 **`tests/load.test.ts`** runs `load.ts` against the fake terminal-api, whose bucket refuses a URL after its lifetime
-with S3's 403: a step-1 manifest that is still usable serves its ticker (one `/bundle` per ticker); a slow universe
-loads without any URL reaching the bucket after its lifetime, at most two `/bundle` answers per ticker; a publish
-between the two steps gives the new files' `data_version`, and a limit at the step-1 total refuses the new files
-before they are downloaded; a ticker whose every file is cached is loaded from its step-1 answer however old (one
-`/bundle` per ticker), and a damaged cached copy is downloaded with the step-1 URL, then from a new answer once that
-URL has expired.
+with S3's 403: a step-1 manifest that is still usable serves its ticker (one `/bundle` per ticker); a slow load of
+many tickers succeeds without any URL reaching the bucket after its lifetime, at most two `/bundle` answers per
+ticker; a publish between the two steps gives the new files' `data_version`, and a limit at the step-1 total refuses
+the new files before they are downloaded; a ticker whose every file is cached is loaded from its step-1 answer however
+old (one `/bundle` per ticker), and a damaged cached copy is downloaded with the step-1 URL, then from a new answer
+once that URL has expired.
 
-**`tests/terminal.test.ts`** covers the terminal-api client: loads, data errors, retries, the cache, concurrency, when
-a `/bundle` answer is usable, a download in flight shared only by callers of its URL, a file downloaded from two URLs
-at once counted once in the disk cache, the manifest and the broker date scan, secrets kept out of messages and logs,
-the bucket origin, the body and inflate caps, and no Postgres client anywhere in the worker.
+**`tests/terminal.test.ts`** covers the terminal-api client: the reference ticker file (every column but ticker, name
+and type a grouping, in file order; null, `''` and `Undefined` unclassified), the two portfolio limits, loads, data
+errors, retries, the cache, concurrency, when a `/bundle` answer is usable, a download in flight shared only by
+callers of its URL, a file downloaded from two URLs at once counted once in the disk cache, the manifest and the
+broker date scan, secrets kept out of messages and logs, the bucket origin, the body and inflate caps, and no Postgres
+client anywhere in the worker.
 
 ## Durations observed
 
@@ -352,9 +387,9 @@ observations, not limits.
 |---|---|---|---|---|---|
 | Single, UNVR, page defaults, cold | ≈ 265 ms | 46 ms | 23 ms | 124 ms | 71 ms |
 | Single, UNVR, page defaults, warm | ≈ 190 ms | 30 ms | 7 ms | 82 ms | 73 ms |
-| Portfolio `all`, 7 tickers, warm | ≈ 155 ms | 46 ms | 14 ms | 61 ms | 34 ms |
-| Portfolio, 70 tickers (copies of the fixtures), warm | ≈ 1.0 s | 356 ms | 125 ms | 423 ms | 71 ms |
-| Portfolio, 280 tickers (copies of the fixtures), warm | ≈ 3.2 s | 1.25 s | 0.46 s | 1.33 s | 0.11 s |
+| Portfolio, the 7 fixture stocks, warm | ≈ 155 ms | 46 ms | 14 ms | 61 ms | 34 ms |
+| Portfolio, 70 tickers (copies of the fixtures, before the 12-stock limit), warm | ≈ 1.0 s | 356 ms | 125 ms | 423 ms | 71 ms |
+| Portfolio, 280 tickers (copies of the fixtures, before the 12-stock limit), warm | ≈ 3.2 s | 1.25 s | 0.46 s | 1.33 s | 0.11 s |
 
 Other observations:
 

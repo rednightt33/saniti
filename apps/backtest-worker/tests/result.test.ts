@@ -9,7 +9,7 @@ import type { BacktestRequest, Condition } from '../../edge-bff/backtest/src/cor
 import type { Ledger, LedgerTrade, ResultInput } from '../../edge-bff/backtest/src/core/ledger.ts';
 import { assertFiniteJson, buildResult } from '../../edge-bff/backtest/src/core/result.ts';
 import { cellStats, monteCarlo, sensitivityPlan } from '../../edge-bff/backtest/src/core/robustness.ts';
-import { canonicalJson, lineageKey, requestHash, sha256Hex, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
+import { canonicalJson, canonicalRequest, lineageKey, requestHash, sha256Hex, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
 import * as S from '../../edge-bff/backtest/src/core/stats.ts';
 import * as O from './stats-oracle.mjs';
 
@@ -24,12 +24,12 @@ const noNegZero = (v: unknown): unknown => typeof v === 'number' ? (Object.is(v,
 
 /* ---- fixtures ------------------------------------------------------------------------------------------------- */
 const RSI30: Condition = { id: 'c1', kind: 'indicator', indicator: 'I13', params: { length: 14, source: 'close' }, lhs: { type: 'output', output: 'rsi' }, op: 'lt', rhs: { type: 'value', value: 30 } };
-function request(over: { conditions?: Condition[]; stop?: Partial<BacktestRequest['exit']['stop']>; hold?: number; oos?: 0 | 0.2 | 0.3 | 0.4; sensitivity?: boolean; seed?: number; runs?: number; mode?: 'single' | 'portfolio'; ticker?: string; capital?: number } = {}): BacktestRequest {
+function request(over: { conditions?: Condition[]; stop?: Partial<BacktestRequest['exit']['stop']>; hold?: number; oos?: 0 | 0.2 | 0.3 | 0.4; sensitivity?: boolean; seed?: number; runs?: number; mode?: 'single' | 'portfolio'; ticker?: string; tickers?: string[]; capital?: number } = {}): BacktestRequest {
   const line = { indicator: 'I01', output: 'sma', params: { length: 20 } };
   return {
     schema_version: 1, mode: over.mode ?? 'single',
     ...(over.mode === 'portfolio'
-      ? { portfolio: { universe: 'all', max_positions: 4, rank_by: 'adx' as const, min_avg_value_20d_idr: 1e9 } }
+      ? { portfolio: { tickers: over.tickers ?? ['AAAA', 'BBBB', 'CCCC'], max_positions: 4, rank_by: 'adx' as const, min_avg_value_20d_idr: 1e9 } }
       : { single: { ticker: over.ticker ?? 'AAAA', benchmark: 'buy_and_hold' as const } }),
     period: { from: '2019-01-02', to: '2026-10-23', oos_fraction: over.oos ?? 0 },
     entry: { logic: 'all', at_least: 1, window_bars: 3, conditions: over.conditions ?? [RSI30] },
@@ -391,6 +391,35 @@ test('hashes: canonical JSON, sha256, variant (no robustness, no benchmark), lin
   assert.equal(await requestHash(reordered, VERSIONS), H0);
   assert.notEqual(await requestHash(request({ seed: 8 }), VERSIONS), H0);
   assert.notEqual(await requestHash(q, { ...VERSIONS, data_version: 'other' }), H0);
+  // a single-mode line keeps the key it had before the picked stocks replaced the universes (PF1, PF4): computed on the
+  // hash.ts of e08a420, so the trials recorded for it keep counting
+  assert.equal(L0, '185aab382b973b2ec54ed9e174f63d4f5d791ad398b9288dc6633cc49ff5a255');
+});
+
+test('picked stocks: their order is no part of any hash; the set is in the variant and the request hash, never in the lineage (PF3, PF4)', async () => {
+  const p = (tickers: string[], f?: (q: BacktestRequest) => void) => { const q = request({ mode: 'portfolio', tickers }); f?.(q); return q };
+  const q = p(['AAAA', 'BBBB', 'CCCC']), V0 = await variantHash(q), L0 = await lineageKey(q), H0 = await requestHash(q, VERSIONS);
+  for (const order of [['CCCC', 'AAAA', 'BBBB'], ['BBBB', 'CCCC', 'AAAA'], ['CCCC', 'BBBB', 'AAAA']]) {
+    const o = p(order);
+    assert.deepEqual([await variantHash(o), await lineageKey(o), await requestHash(o, VERSIONS)], [V0, L0, H0], order.join(','));
+    assert.deepEqual(canonicalRequest(o), q, 'the canonical form is the request in ticker order');
+    assert.deepEqual(o.portfolio!.tickers, order, 'the request itself is left as it was');
+  }
+  // another set: another variant (a trial) of the same line, whichever stock is added, removed or swapped
+  for (const set of [['AAAA', 'BBBB'], ['AAAA', 'BBBB', 'CCCC', 'DDDD'], ['AAAA', 'BBBB', 'DDDD'], ['DDDD']]) {
+    const o = p(set);
+    assert.notEqual(await variantHash(o), V0, set.join(','));
+    assert.notEqual(await requestHash(o, VERSIONS), H0, set.join(','));
+    assert.equal(await lineageKey(o), L0, set.join(','));
+  }
+  // the line is still the strategy's shape: another condition is another line, a number another variant
+  assert.notEqual(await lineageKey(p(['AAAA'], o => { o.entry.conditions = [{ ...RSI30, op: 'gt' }] })), L0);
+  assert.equal(await lineageKey(p(['AAAA'], o => { o.portfolio!.max_positions = 12 })), L0);
+  assert.notEqual(await variantHash(p(['AAAA', 'BBBB', 'CCCC'], o => { o.portfolio!.max_positions = 12 })), V0);
+  // single mode keeps its ticker in the line (K3)
+  assert.notEqual(await lineageKey(request({ ticker: 'AAAA' })), await lineageKey(request({ ticker: 'BBBB' })));
+  const single = request();
+  assert.equal(canonicalRequest(single), single, 'a single request is its own canonical form');
 });
 
 test('variant hash: only what the engine reads; ids, order, disabled cards, the OOS share and unused numbers are not new trials', async () => {

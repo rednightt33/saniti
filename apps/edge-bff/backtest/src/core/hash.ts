@@ -4,6 +4,7 @@
    Pure module: crypto.subtle and TextEncoder only (Node 22 and browsers). */
 import type { BacktestRequest, Condition, LineRef } from './contract.ts';
 import { PRICE_ACTION } from './conditions.ts';
+import { byTicker } from './signals.ts';
 
 /** JSON with the keys of every object sorted (UTF-16 order, Array.prototype.sort default) and no whitespace; keys
     whose value is undefined are left out as JSON.stringify does. A value JSON cannot carry exactly (NaN, ±Infinity,
@@ -29,6 +30,16 @@ export async function sha256Hex(text: string): Promise<string> {
   return s;
 }
 
+/** The request in its canonical form (PF3, 2026-10-27): a portfolio's picked stocks in ticker order (signals.ts
+    byTicker), because the order the user picked them in does not matter: the same set in any order is the same
+    request, variant and result. The worker runs and hashes this form; every hash below takes it too, so a request
+    in another order hashes the same wherever it is hashed. Anything else is kept as it is (a copy where it changes). */
+export function canonicalRequest(q: BacktestRequest): BacktestRequest {
+  const p = q.portfolio;
+  if (!p || !Array.isArray(p.tickers)) return q;
+  return { ...q, portfolio: { ...p, tickers: [...p.tickers].sort(byTicker) } };
+}
+
 /** The part of a request that decides the trades and the equity curve: what the engine reads, in a canonical form.
     Left out, because no trade and no trial Sharpe (the full run's, robustness.ts trialSharpe) depends on it:
     - `robustness` (Monte Carlo runs and seed reshuffle the same trades; the sensitivity switch adds cells that are
@@ -44,10 +55,11 @@ export async function sha256Hex(text: string): Promise<string> {
       atr_mult, reward_risk_x, r_multiple), the chandelier's length and multiple, a line mode's line, and atr_length
       only with an ATR stop or target (engine.ts validateRun reads exactly these);
     - `sizing.allocation_fraction` in portfolio mode (a slot is 1 / max_positions of equity); `costs.ara_gap_fraction`
-      while skip_ara_open_gap is off.
+      while skip_ara_open_gap is off;
+    - the order of the picked stocks (canonicalRequest): the set is kept, so another set is another variant (PF4).
     Rerunning a request that differs only there is not a new trial. */
-export function variantOf(q: BacktestRequest): Record<string, unknown> {
-  const x = q.exit, single = q.mode === 'single';
+export function variantOf(request: BacktestRequest): Record<string, unknown> {
+  const q = canonicalRequest(request), x = q.exit, single = q.mode === 'single';
   const content = (cs: readonly Condition[]) => cs.filter(c => c.enabled !== false).map(c => { const { id: _i, enabled: _e, ...rest } = c; return canonicalJson(rest) }).sort();
   const entryConditions = content(q.entry.conditions), exitConditions = content(x.signals.conditions);
   const s = x.stop, t = x.take_profit, tr = x.trailing;
@@ -88,18 +100,21 @@ const shapes = (cs: readonly Condition[]) => cs.filter(c => c.enabled !== false)
 const lineShape = (l: LineRef) => ({ indicator: l.indicator, output: l.output });
 
 /** The lineage's shape: mode; the single ticker (another stock is another test of the strategy, so its trials are
-    counted apart) or the portfolio universe; entry logic and condition shapes; stop, take-profit and trailing modes
-    (with the line's indicator and output for a line mode); exit-signal logic (only when an exit condition is enabled)
-    and condition shapes. Not in it: every number (thresholds, lengths, multiples, percentages, window, at_least,
-    max hold, sizing, costs, max positions, liquidity), parameters, condition ids, the period and OOS share, the
-    benchmark, the portfolio ranking and the robustness settings: changing any of those is a new variant (a trial)
-    of the same line. */
+    counted apart); entry logic and condition shapes; stop, take-profit and trailing modes (with the line's indicator
+    and output for a line mode); exit-signal logic (only when an exit condition is enabled) and condition shapes. Not
+    in it: every number (thresholds, lengths, multiples, percentages, window, at_least, max hold, sizing, costs, max
+    positions, liquidity), parameters, condition ids, the period and OOS share, the benchmark, the portfolio ranking,
+    the robustness settings, and a portfolio's picked stocks: changing any of those is a new variant (a trial) of the
+    same line. The picked stocks are in the variant, not in the line (PF4, lead 2026-10-27): picking stocks is
+    selection, so adding or removing one is another trial of the same strategy, never a line whose count restarts at
+    1. `universe` stays in the shape as null (the portfolio universes it held are gone, PF1), so a single-mode line
+    keeps the key it had. */
 export function lineageShape(q: BacktestRequest): unknown {
   const x = q.exit, exitConds = shapes(x.signals.conditions);
   return {
     lineage: 1, mode: q.mode,
     ticker: q.mode === 'single' ? q.single?.ticker ?? null : null,
-    universe: q.mode === 'portfolio' ? q.portfolio?.universe ?? null : null,
+    universe: null,
     entry: { logic: q.entry.logic, conditions: shapes(q.entry.conditions) },
     exit: {
       stop: x.stop.mode === 'line' ? { mode: 'line', line: lineShape(x.stop.line) } : { mode: x.stop.mode },
@@ -111,7 +126,7 @@ export function lineageShape(q: BacktestRequest): unknown {
 }
 export const lineageKey = (q: BacktestRequest): Promise<string> => sha256Hex(canonicalJson(lineageShape(q)));
 
-/** Hash of everything that can change a number of the result: the whole request (robustness included: the seed moves
-    the Monte Carlo) and the engine, registry and data versions. */
+/** Hash of everything that can change a number of the result: the whole request in its canonical form (robustness
+    included: the seed moves the Monte Carlo) and the engine, registry and data versions. */
 export const requestHash = (q: BacktestRequest, v: { engine_version: string; registry_version: string; data_version: string }): Promise<string> =>
-  sha256Hex(canonicalJson({ request: q, engine_version: v.engine_version, registry_version: v.registry_version, data_version: v.data_version }));
+  sha256Hex(canonicalJson({ request: canonicalRequest(q), engine_version: v.engine_version, registry_version: v.registry_version, data_version: v.data_version }));

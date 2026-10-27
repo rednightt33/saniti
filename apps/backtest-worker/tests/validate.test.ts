@@ -11,17 +11,17 @@ import { DEFAULT_ENTRY, ENTRY_TEMPLATES, EXIT_TEMPLATES, LEGACY, legacyCard, leg
 import type { LegacyCard, LegacyType, RegCard } from '../../edge-bff/backtest/src/core/catalog.ts';
 import { BY_ID } from '../../edge-bff/backtest/src/core/registry.ts';
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
-import { LEVEL_LINES } from '../../edge-bff/backtest/src/core/engine.ts';
+import { LEVEL_LINES, MAX_PORTFOLIO_TICKERS, MAX_POSITIONS } from '../../edge-bff/backtest/src/core/engine.ts';
 import type { Config } from '../src/config.ts';
 import { checkRequest, checkSignalsRequest } from '../src/validate.ts';
 import type { References } from '../src/validate.ts';
 
 const REFS: References = {
-  tickers: [{ ticker: 'BBCA', name: 'BBCA (test name)', type: 'stock', sector: 'Sector A' }, { ticker: 'IHSG', name: 'IHSG (test name)', type: 'index', sector: null }],
+  tickers: [{ ticker: 'BBCA', name: 'BBCA (test name)', type: 'stock', groups: { sector: 'Sector A' } }, { ticker: 'IHSG', name: 'IHSG (test name)', type: 'index', groups: { sector: null } }],
   brokers: [{ code: 'YU', name: 'test broker', type: 'Foreign' }],
 };
 const CFG: Pick<Config, 'limits' | 'flow'> = {
-  limits: { max_positions: 10, window_bars: { min: 1, max: 20 }, monte_carlo_runs: 1000, max_download_bytes: 1e9, max_broker_rows: 1e9, timeout_seconds: 600, queued_per_owner: 3, max_conditions: 20 },
+  limits: { max_positions: MAX_POSITIONS, window_bars: { min: 1, max: 20 }, monte_carlo_runs: 1000, max_portfolio_tickers: MAX_PORTFOLIO_TICKERS, max_download_bytes: 1e9, max_broker_rows: 1e9, timeout_seconds: 600, queued_per_owner: 3, max_conditions: 20 },
   flow: { enabled: true, reason: null },
 };
 const codeOf = (f: () => unknown) => { try { f() } catch (e) { if (e instanceof ValidationError) return [e.code, e.field]; throw e } return null };
@@ -43,7 +43,7 @@ const legacy = ([t, over]: [LegacyType, Partial<LegacyCard>], k: number) => lega
 function pageRequest(entry: Condition[], exit: Condition[] = [], mode: 'single' | 'portfolio' = 'single'): BacktestRequest {
   return {
     schema_version: 1, mode,
-    ...(mode === 'single' ? { single: { ticker: 'BBCA', benchmark: 'buy_and_hold' as const } } : { portfolio: { universe: 'all', max_positions: 5, rank_by: 'adx' as const, min_avg_value_20d_idr: 5 * 1e9 } }),
+    ...(mode === 'single' ? { single: { ticker: 'BBCA', benchmark: 'buy_and_hold' as const } } : { portfolio: { tickers: ['BBCA'], max_positions: 5, rank_by: 'adx' as const, min_avg_value_20d_idr: 5 * 1e9 } }),
     period: { from: '2019-06-03', to: '2026-10-23', oos_fraction: 30 / 100 as 0.3 },
     entry: { logic: 'at_least', at_least: 3, window_bars: 5, conditions: entry },
     exit: {
@@ -75,7 +75,7 @@ test('every card the page can make passes the worker\'s checks: no field the wor
   for (const [label, conditions] of sets) for (const mode of ['single', 'portfolio'] as const) {
     const q = pageRequest(conditions, exits, mode);
     assert.equal(codeOf(() => checkRequest(q, REFS, CFG)), null, `${label} (${mode})`);
-    assert.equal(codeOf(() => checkSignalsRequest({ schema_version: 1, universe: 'all', period: { from: q.period.from, to: q.period.to }, entry: q.entry }, REFS, CFG)), null, `${label} (preview)`);
+    assert.equal(codeOf(() => checkSignalsRequest({ schema_version: 1, tickers: ['BBCA'], period: { from: q.period.from, to: q.period.to }, entry: q.entry }, REFS, CFG)), null, `${label} (preview)`);
   }
   // every price line the page offers for a stop or a trailing stop, with and without its parameters
   for (const l of LEVEL_LINES) for (const params of [undefined, regCard(l.indicator).p]) {
@@ -90,7 +90,7 @@ test('a key the page does not send is refused, never ignored: client_request_id 
   const q = pageRequest(DEFAULT_ENTRY.map(legacy));
   assert.deepEqual(codeOf(() => checkRequest({ ...q, client_request_id: 'c'.repeat(32) }, REFS, CFG)), ['UNKNOWN_FIELD', 'client_request_id']);
   assert.deepEqual(codeOf(() => checkRequest({ ...q, period: { ...q.period, client_request_id: 'x' } }, REFS, CFG)), ['UNKNOWN_FIELD', 'period.client_request_id']);
-  assert.deepEqual(codeOf(() => checkSignalsRequest({ schema_version: 1, universe: 'all', period: { from: q.period.from, to: q.period.to }, entry: q.entry, client_request_id: 'x' }, REFS, CFG)), ['UNKNOWN_FIELD', 'client_request_id']);
+  assert.deepEqual(codeOf(() => checkSignalsRequest({ schema_version: 1, tickers: ['BBCA'], period: { from: q.period.from, to: q.period.to }, entry: q.entry, client_request_id: 'x' }, REFS, CFG)), ['UNKNOWN_FIELD', 'client_request_id']);
 });
 
 test('a broker condition names a broker of the published broker list (UNKNOWN_BROKER), in the entry, the exit and the preview', () => {
@@ -99,7 +99,7 @@ test('a broker condition names a broker of the published broker list (UNKNOWN_BR
   assert.equal(codeOf(() => checkRequest(q, REFS, CFG)), null);
   assert.deepEqual(codeOf(() => checkRequest(pageRequest([card('XX')]), REFS, CFG)), ['UNKNOWN_BROKER', 'entry.conditions[0].params.broker']);
   assert.deepEqual(codeOf(() => checkRequest(pageRequest(DEFAULT_ENTRY.map(legacy), [{ ...card('yu'), id: 'x1' }]), REFS, CFG)), ['UNKNOWN_BROKER', 'exit.signals.conditions[0].params.broker']);
-  assert.deepEqual(codeOf(() => checkSignalsRequest({ schema_version: 1, universe: 'all', period: { from: q.period.from, to: q.period.to }, entry: pageRequest([card('XX')]).entry }, REFS, CFG)), ['UNKNOWN_BROKER', 'entry.conditions[0].params.broker']);
+  assert.deepEqual(codeOf(() => checkSignalsRequest({ schema_version: 1, tickers: ['BBCA'], period: { from: q.period.from, to: q.period.to }, entry: pageRequest([card('XX')]).entry }, REFS, CFG)), ['UNKNOWN_BROKER', 'entry.conditions[0].params.broker']);
   // a disabled card is not checked (the run does not read it); with flow off every flow card is FLOW_UNAVAILABLE first
   assert.equal(codeOf(() => checkRequest(pageRequest([...DEFAULT_ENTRY.map(legacy), { ...card('XX'), id: 'b2', enabled: false }]), REFS, CFG)), null);
   assert.deepEqual(codeOf(() => checkRequest(pageRequest([card('XX')]), REFS, { ...CFG, flow: { enabled: false, reason: 'off in this test' } })), ['FLOW_UNAVAILABLE', 'entry.conditions[0]']);
@@ -107,7 +107,7 @@ test('a broker condition names a broker of the published broker list (UNKNOWN_BR
 
 /** A refusal's code, field and details: validate.ts raises LIMIT_EXCEEDED as a WorkerError (422 with details). */
 const refusalOf = (f: () => unknown) => { try { f() } catch (e) { const x = e as { code?: string; field?: string; details?: unknown }; return [x.code, x.field, x.details ?? null] } return null };
-const preview = (entry: BacktestRequest['entry']) => ({ schema_version: 1, universe: 'all', period: { from: '2019-06-03', to: '2026-10-23' }, entry });
+const preview = (entry: BacktestRequest['entry']) => ({ schema_version: 1, tickers: ['BBCA'], period: { from: '2019-06-03', to: '2026-10-23' }, entry });
 
 test('a condition id has the page\'s shape (1 to 6 base-36 digits), on every card of every list, enabled or not', () => {
   const card = (id: string, enabled = true) => ({ ...legacy(['volspike', {}], 0), id, enabled });
@@ -179,7 +179,7 @@ test('a number or price line the chosen modes do not read is held to its type al
     ['trailing.chandelier_mult null (trailing none)', q => { (q.exit.trailing as any).chandelier_mult = null }, 'INVALID_EXIT', 'exit.trailing.chandelier_mult'],
     ['exit.atr_length a string (no ATR mode)', q => { (q.exit as any).atr_length = '14' }, 'INVALID_EXIT', 'exit.atr_length'],
     ['entry.at_least an array (logic all)', q => { q.entry.logic = 'all'; (q.entry as any).at_least = [1, 2] }, 'INVALID_ENTRY', 'entry.at_least'],
-    ['sizing.allocation_fraction a string (portfolio)', q => { q.mode = 'portfolio'; delete q.single; q.portfolio = { universe: 'all', max_positions: 3, rank_by: 'adx', min_avg_value_20d_idr: 0 }; (q.sizing as any).allocation_fraction = 'x' }, 'INVALID_SIZING', 'sizing.allocation_fraction'],
+    ['sizing.allocation_fraction a string (portfolio)', q => { q.mode = 'portfolio'; delete q.single; q.portfolio = { tickers: ['BBCA'], max_positions: 3, rank_by: 'adx', min_avg_value_20d_idr: 0 }; (q.sizing as any).allocation_fraction = 'x' }, 'INVALID_SIZING', 'sizing.allocation_fraction'],
   ];
   for (const [label, f, code, field] of bad) { const q = pageRequest(DEFAULT_ENTRY.map(legacy)); f(q); assert.deepEqual(codeOf(() => checkRequest(q, REFS, CFG)), [code, field], label) }
   assert.deepEqual(codeOf(() => checkSignalsRequest(preview({ ...pageRequest(DEFAULT_ENTRY.map(legacy)).entry, logic: 'any', at_least: deep as any }), REFS, CFG)), ['INVALID_ENTRY', 'entry.at_least'], 'preview');
@@ -190,7 +190,7 @@ test('a number or price line the chosen modes do not read is held to its type al
     ['negative and fractional numbers', q => { q.exit.stop.atr_mult = -2; q.exit.atr_length = -5; q.exit.trailing.chandelier_length = 2.5 }],
     ['at_least 0 under ALL', q => { q.entry.logic = 'all'; q.entry.at_least = 0 }],
     ['at_least 2.5 under ANY', q => { q.entry.logic = 'any'; q.entry.at_least = 2.5 }],
-    ['allocation 0 in a portfolio', q => { q.mode = 'portfolio'; delete q.single; q.portfolio = { universe: 'all', max_positions: 3, rank_by: 'adx', min_avg_value_20d_idr: 0 }; q.sizing.allocation_fraction = 0 }],
+    ['allocation 0 in a portfolio', q => { q.mode = 'portfolio'; delete q.single; q.portfolio = { tickers: ['BBCA'], max_positions: 3, rank_by: 'adx', min_avg_value_20d_idr: 0 }; q.sizing.allocation_fraction = 0 }],
   ];
   for (const [label, f] of kept) { const q = pageRequest(DEFAULT_ENTRY.map(legacy)); f(q); assert.equal(codeOf(() => checkRequest(q, REFS, CFG)), null, label) }
 });
@@ -215,4 +215,87 @@ test('a price-action condition holds only what its type reads: no value without 
   const { op: _op, ...noOp } = breakout as { op?: string };
   for (const c of [breakout, macd, dip, legacy(['volspike', {}], 0), noOp as Condition, { ...dip, params: {} } as Condition])
     assert.equal(codeOf(() => checkRequest(pageRequest([{ ...c, id: 'c1' } as Condition]), REFS, CFG)), null, JSON.stringify(c));
+});
+
+/* ---- the picked stocks of a portfolio (PF1-PF3, PF5; user N 2026-10-27) ------------------------------------------- */
+/** Thirteen published stocks (S01..S13: test rows), an index and a stock-like row of another type, for the counts. */
+const MANY: References = {
+  tickers: [...Array.from({ length: 13 }, (_, k) => ({ ticker: `S${String(k + 1).padStart(2, '0')}`, name: null, type: 'stock', groups: {} })),
+    { ticker: 'IHSG', name: 'IHSG (test name)', type: 'index', groups: {} }, { ticker: 'WARR', name: null, type: 'warrant', groups: {} }],
+  brokers: REFS.brokers,
+};
+const picked = (n: number) => MANY.tickers.slice(0, n).map(t => t.ticker);
+const portfolioRequest = (tickers: unknown, max_positions = 5): BacktestRequest => {
+  const q = pageRequest(DEFAULT_ENTRY.map(legacy), [], 'portfolio');
+  q.portfolio = { ...q.portfolio!, tickers: tickers as string[], max_positions };
+  return q;
+};
+const previewOf = (tickers: unknown) => ({ ...preview(pageRequest(DEFAULT_ENTRY.map(legacy)).entry), tickers });
+
+test('a portfolio picks 1 to limits.max_portfolio_tickers distinct published stocks: 12 accepted, 13 refused; an index or another type is no stock (PF2)', () => {
+  assert.equal(MAX_PORTFOLIO_TICKERS, 12);
+  assert.deepEqual(checkRequest(portfolioRequest(picked(12)), MANY, CFG).tickers, picked(12));
+  assert.deepEqual(checkSignalsRequest(previewOf(picked(12)), MANY, CFG).tickers, picked(12));
+  assert.deepEqual(checkRequest(portfolioRequest(['S01']), MANY, CFG).tickers, ['S01'], 'one stock is a portfolio');
+  const refused: [string, unknown, string, string][] = [
+    ['13 stocks', picked(13), 'INVALID_PORTFOLIO', ''],
+    ['no stock', [], 'INVALID_PORTFOLIO', ''],
+    ['a stock twice', ['S01', 'S02', 'S01'], 'INVALID_PORTFOLIO', ''],
+    ['not a list', 'S01', 'INVALID_PORTFOLIO', ''],
+    ['missing', undefined, 'INVALID_PORTFOLIO', ''],
+    ['null', null, 'INVALID_PORTFOLIO', ''],
+    ['a number in the list', ['S01', 7], 'INVALID_PORTFOLIO', ''],
+    ['an object in the list', ['S01', { ticker: 'S02' }], 'INVALID_PORTFOLIO', ''],
+    ['an unknown ticker', ['S01', 'NOPE'], 'UNKNOWN_TICKER', '[1]'],
+    ['the index', ['IHSG'], 'UNKNOWN_TICKER', '[0]'],
+    ['a ticker of another type', ['S02', 'S01', 'WARR'], 'UNKNOWN_TICKER', '[2]'],
+    ['an empty ticker', [''], 'UNKNOWN_TICKER', '[0]'],
+    ['a ticker in another case', ['s01'], 'UNKNOWN_TICKER', '[0]'],
+  ];
+  for (const [label, tickers, code, at] of refused) {
+    assert.deepEqual(codeOf(() => checkRequest(portfolioRequest(tickers), MANY, CFG)), [code, `portfolio.tickers${at}`], label);
+    assert.deepEqual(codeOf(() => checkSignalsRequest(previewOf(tickers), MANY, CFG)), [code, `tickers${at}`], `${label} (preview)`);
+  }
+  // the wording of the single ticker's refusal (UNKNOWN_TICKER), and of the list's
+  const msg = (f: () => unknown) => { try { f() } catch (e) { return (e as Error).message } return null };
+  assert.equal(msg(() => checkRequest(portfolioRequest(['S01', 'IHSG']), MANY, CFG)), 'IHSG is not a published stock.');
+  assert.equal(msg(() => checkRequest(portfolioRequest(picked(13)), MANY, CFG)), 'portfolio.tickers lists 13 stocks; a portfolio may have at most 12.');
+  assert.equal(msg(() => checkSignalsRequest(previewOf(['S02', 'S01', 'S02']), MANY, CFG)), 'tickers lists S02 more than once.');
+  // a configuration below the core's 12 lowers it, for the run and the preview alike
+  const five = { ...CFG, limits: { ...CFG.limits, max_portfolio_tickers: 5 } };
+  assert.equal(codeOf(() => checkRequest(portfolioRequest(picked(5)), MANY, five)), null);
+  assert.deepEqual(codeOf(() => checkRequest(portfolioRequest(picked(6)), MANY, five)), ['INVALID_PORTFOLIO', 'portfolio.tickers']);
+  assert.deepEqual(codeOf(() => checkSignalsRequest(previewOf(picked(6)), MANY, five)), ['INVALID_PORTFOLIO', 'tickers']);
+  // the catalog universes are gone (PF1): their fields are no fields of the request
+  assert.deepEqual(codeOf(() => checkRequest({ ...portfolioRequest(['S01']), portfolio: { ...portfolioRequest(['S01']).portfolio!, universe: 'all' } }, MANY, CFG)), ['UNKNOWN_FIELD', 'portfolio.universe']);
+  assert.deepEqual(codeOf(() => checkSignalsRequest({ ...previewOf(['S01']), universe: 'all' }, MANY, CFG)), ['UNKNOWN_FIELD', 'universe']);
+});
+
+test('the picked stocks in any order are one set: the checked tickers come back in ticker order (PF3)', () => {
+  const shuffled = ['S07', 'S01', 'S12', 'S03'];
+  assert.deepEqual(checkRequest(portfolioRequest(shuffled), MANY, CFG).tickers, ['S01', 'S03', 'S07', 'S12']);
+  assert.deepEqual(checkSignalsRequest(previewOf(shuffled), MANY, CFG).tickers, ['S01', 'S03', 'S07', 'S12']);
+});
+
+test('max_positions is 1 to limits.max_positions (12, engine.ts MAX_POSITIONS), more than the stocks picked included (PF5)', () => {
+  assert.equal(MAX_POSITIONS, 12);
+  assert.equal(codeOf(() => checkRequest(portfolioRequest(picked(12), 12), MANY, CFG)), null);
+  assert.equal(codeOf(() => checkRequest(portfolioRequest(['S01'], 12), MANY, CFG)), null, 'idle slots stay cash');
+  for (const n of [13, 0, 2.5]) assert.deepEqual(codeOf(() => checkRequest(portfolioRequest(['S01'], n), MANY, CFG)), ['INVALID_PORTFOLIO', 'portfolio.max_positions'], String(n));
+  const five = { ...CFG, limits: { ...CFG.limits, max_positions: 5 } };
+  assert.deepEqual(codeOf(() => checkRequest(portfolioRequest(['S01'], 6), MANY, five)), ['INVALID_PORTFOLIO', 'portfolio.max_positions']);
+});
+
+test('a lowered limit is the one every refusal names, over the core\'s ceiling too: the job and the preview say the same (CWP-2)', () => {
+  // BACKTEST_MAX_PORTFOLIO_TICKERS and BACKTEST_MAX_POSITIONS 5: the catalog reports 5, so 6 and 13 are refused as over 5
+  const five = { ...CFG, limits: { ...CFG.limits, max_portfolio_tickers: 5, max_positions: 5 } };
+  const msg = (f: () => unknown) => { try { f() } catch (e) { return [(e as ValidationError).code, (e as ValidationError).field, (e as Error).message] } return null };
+  for (const n of [6, 13]) {
+    assert.deepEqual(msg(() => checkRequest(portfolioRequest(picked(n)), MANY, five)), ['INVALID_PORTFOLIO', 'portfolio.tickers', `portfolio.tickers lists ${n} stocks; a portfolio may have at most 5.`], String(n));
+    assert.deepEqual(msg(() => checkSignalsRequest(previewOf(picked(n)), MANY, five)), ['INVALID_PORTFOLIO', 'tickers', `tickers lists ${n} stocks; a portfolio may have at most 5.`], `${n} (preview)`);
+    assert.deepEqual(msg(() => checkRequest(portfolioRequest(['S01'], n), MANY, five)), ['INVALID_PORTFOLIO', 'portfolio.max_positions', 'portfolio.max_positions must be a whole number from 1 to 5.'], `max_positions ${n}`);
+  }
+  // the default limits are the core's ceilings (12): the same wording
+  assert.deepEqual(msg(() => checkRequest(portfolioRequest(['S01'], 13), MANY, CFG)), ['INVALID_PORTFOLIO', 'portfolio.max_positions', 'portfolio.max_positions must be a whole number from 1 to 12.']);
+  assert.equal(msg(() => checkRequest(portfolioRequest(picked(5), 5), MANY, five)), null);
 });

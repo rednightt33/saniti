@@ -7,8 +7,9 @@
    section 6 (SIGNALS), 484-498, 501-507 and 516-594 section 8 (ENGINE, without its UI lists), 599-647 section 9
    (STATISTICS), 27 and 29 (primaryBench, closeOf) and 656-672 of section 10 (RUN, the body of its setTimeout).
    Only additions: the module wrapper (the page state S is set by setState, as the reference's global S), the trade
-   record also keeps cost, proceeds, stop and target (the ledger needs them; no number changes), and run keeps each
-   sensitivity cell's backtest (cellRuns). REG_BY is the page's registry (src/reg.ts: the reference's REG, the same
+   record also keeps cost, proceeds, stop and target (the ledger needs them; no number changes), run keeps each
+   sensitivity cell's backtest (cellRuns), and universe() takes a list of tickers as S.universe (a portfolio's picked
+   stocks other than the reference's two universes, PF7; state.ts universeOf). REG_BY is the page's registry (src/reg.ts: the reference's REG, the same
    53 indicators and 126 parameters). Plain JavaScript on purpose: typing it would change the reference's text. */
 import { REG_BY } from '../../src/reg.ts';
 
@@ -153,7 +154,7 @@ const signalsFor = tk => {
   }
   return {series, entry};
 };
-const universe = () => S.mode==='single' ? [S.ticker] : (S.universe==='BANK' ? ['BBCA','BBRI','BMRI'] : TICKERS.map(t=>t[0]));
+const universe = () => S.mode==='single' ? [S.ticker] : (S.universe==='BANK' ? ['BBCA','BBRI','BMRI'] : Array.isArray(S.universe) ? S.universe : TICKERS.map(t=>t[0]));
 
 /* ---- 8 · ENGINE ---- */
 const atrS = (D, n) => { const tr = Float64Array.from(D.c, (c,i) => i ? Math.max(D.h[i]-D.l[i], Math.abs(D.h[i]-D.c[i-1]), Math.abs(D.l[i]-D.c[i-1])) : D.h[i]-D.l[i]);

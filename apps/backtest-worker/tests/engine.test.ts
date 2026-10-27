@@ -7,12 +7,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { F } from '../../edge-bff/terminal/src/calc/indicators.ts';
-import { Cancelled, LEVEL_LINES, prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
-import { previewRow } from '../../edge-bff/backtest/src/core/signals.ts';
+import { Cancelled, LEVEL_LINES, MAX_PORTFOLIO_TICKERS, MAX_POSITIONS, prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
+import { leftOut, previewRow } from '../../edge-bff/backtest/src/core/signals.ts';
 import type { MarketData } from '../../edge-bff/backtest/src/core/engine.ts';
 import type { BacktestRequest, Condition } from '../../edge-bff/backtest/src/core/contract.ts';
 import type { Ledger } from '../../edge-bff/backtest/src/core/ledger.ts';
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
+import { toApiError } from '../src/errors.ts';
 
 /* ---- fixtures -------------------------------------------------------------------------------------------- */
 const weekdays = (n: number, start: string) => {
@@ -61,11 +62,15 @@ function request(to: number, f?: (r: BacktestRequest) => void, from = 0): Backte
   f?.(r);
   return r;
 }
+/** Portfolio mode; go() and picking() pick the stocks of the test's market, loaded or left out by the loader, as the
+    worker loads exactly the picked stocks (the engine refuses a market of another set: CWP-1). */
 const portfolio = (r: BacktestRequest, max = 2, rank: 'adx' | 'fnet' | 'vol' | 'rsi' = 'vol', min = 0) => {
   r.mode = 'portfolio'; delete r.single;
-  r.portfolio = { universe: 'all', max_positions: max, rank_by: rank, min_avg_value_20d_idr: min };
+  r.portfolio = { tickers: ['AAA'], max_positions: max, rank_by: rank, min_avg_value_20d_idr: min };
 };
-const go = (m: MarketData, r: BacktestRequest): Ledger => run(prepare(m), r);
+const picking = (m: MarketData, r: BacktestRequest): BacktestRequest => r.mode !== 'portfolio' ? r
+  : { ...r, portfolio: { ...r.portfolio!, tickers: [...Object.keys(m.tickers), ...(m.excluded ?? []).map(x => x.ticker)] } };
+const go = (m: MarketData, r: BacktestRequest): Ledger => run(prepare(m), picking(m, r));
 const only = (l: Ledger) => { assert.equal(l.trades.length, 1, JSON.stringify(l.trades.map(t => [t.ticker, t.entry_bar, t.exit_bar, t.exit_reason]))); return l.trades[0] };
 const refused = (f: () => unknown) => { try { f() } catch (e) { assert.ok(e instanceof ValidationError, String(e)); return [(e as ValidationError).code, (e as ValidationError).field] } assert.fail('not refused') };
 
@@ -401,7 +406,7 @@ test('corporate actions with ex-date in (entry, exit] are flagged; warnings for 
   assert.deepEqual(p.benchmark_close, Array(10).fill(7000));
 });
 
-/* ---- what the period and the universe become on the data (lead decisions 2026-10-26) ------------------------- */
+/* ---- what the period and the picked stocks become on the data (lead decisions 2026-10-26) --------------------- */
 
 const SMA20: Condition = { id: 's', kind: 'indicator', indicator: 'I01', params: { length: 20 }, lhs: { type: 'price' }, op: 'gt', rhs: { type: 'output', output: 'sma' } };
 const FNET10: Condition = { id: 'f', kind: 'flow', type: 'fnet', params: { length: 10 }, op: 'gt', value: 0 };
@@ -434,11 +439,11 @@ test('single mode: a period that starts before the ticker\'s first bar starts th
 });
 
 test('portfolio: a ticker whose own data cannot serve the strategy is left out (TICKERS_EXCLUDED); single mode still refuses', () => {
-  // IHSG and BBB have no bar on DAYS[10]; AAA (10 bars: the 20-bar volume SMA has no value, so ALL of the two can never
-  // be true) has one, which must not reach the calendar; BBB's volume spike on its bar 24 is above both
+  // IHSG and BBB have no bar on DAYS[10]; AAA (10 bars on days IHSG has: the 20-bar volume SMA has no value, so ALL of
+  // the two can never be true) is left out; BBB's volume spike on its bar 24 is above both
   const days = DAYS.slice(0, 30).filter((_, i) => i !== 10), long = flat(29); put(long, 24, { v: 2000 });
   const shortBars = flat(10); put(shortBars, 3, { v: 2000 });
-  const m = market({ AAA: { bars: shortBars, dates: DAYS.slice(5, 15) }, BBB: { bars: long, dates: days } }, days);
+  const m = market({ AAA: { bars: shortBars, dates: days.slice(5, 15) }, BBB: { bars: long, dates: days } }, days);
   m.excluded = [{ ticker: 'CCC', code: 'DATA_MISSING', field: 'CCC.price', message: 'No price file is published for CCC.' }];   // the loader's
   const VSMA20: Condition = { id: 'a', kind: 'indicator', indicator: 'I35', params: { length: 20 }, lhs: { type: 'price' }, op: 'gt', rhs: { type: 'output', output: 'volume_sma' } };
   const r = request(29, q => { portfolio(q, 1); q.entry = { logic: 'all', at_least: 1, window_bars: 1, conditions: [VOL(), VSMA20] } }, 0);
@@ -451,8 +456,10 @@ test('portfolio: a ticker whose own data cannot serve the strategy is left out (
   assert.deepEqual([w.code, w.count, w.tickers], ['TICKERS_EXCLUDED', 2, ['AAA', 'CCC']]);
   assert.deepEqual(w.reasons!.map(x => [x.ticker, x.code, x.field]), [['AAA', 'INDICATOR_OUTPUT_EMPTY', 'entry.conditions[1].rhs'], ['CCC', 'DATA_MISSING', 'CCC.price']]);
   assert.match(w.reasons![0].message, /entry\.conditions\[1\]/);
-  assert.equal(w.message, '2 ticker(s) of the universe were left out of this run because their own data cannot serve the strategy (1 INDICATOR_OUTPUT_EMPTY, 1 DATA_MISSING); reasons gives the error of each. The run trades the other 1.');
-  // the same run without the left-out tickers gives the same ledger, the warning aside
+  // a plain sentence the page shows as it is (page review V5): the codes and fields are in reasons
+  assert.equal(w.message, '2 picked stocks were left out of this run because their own data cannot serve the strategy. The run trades the other 1 stock.');
+  // the same run without the left-out tickers gives the same ledger, the warning aside: AAA adds no day outside IHSG's
+  // calendar (PF8: a left-out ticker's bars reach the calendar, the next test)
   const alone = go(market({ BBB: { bars: long, dates: days } }, days), r);
   assert.deepEqual({ ...l, warnings: l.warnings.slice(1) }, alone);
   // flow: a window longer than the bars with broker data (FLOW_OUTPUT_EMPTY), no broker row at all (FLOW_UNAVAILABLE)
@@ -469,15 +476,81 @@ test('portfolio: a ticker whose own data cannot serve the strategy is left out (
   // every ticker left out, by the run, by the loader or by both: refused, UNIVERSE_EMPTY (lead decision 2026-10-26: no
   // cash-only result), the message with the count and the reasons by code
   const empty = (mk: MarketData) => { try { go(mk, r) } catch (e) { assert.ok(e instanceof ValidationError, String(e)); return [e.code, e.field, e.message] } assert.fail('not refused') };
-  const onlyAaa = market({ AAA: { bars: shortBars, dates: DAYS.slice(5, 15) } }, days);
+  const onlyAaa = market({ AAA: { bars: shortBars, dates: days.slice(5, 15) } }, days);
   const [code, field, message] = empty(onlyAaa);
-  assert.deepEqual([code, field], ['UNIVERSE_EMPTY', 'portfolio.universe']);
-  assert.match(message, /^All 1 ticker\(s\) of the universe were left out because their own data cannot serve the strategy \(1 INDICATOR_OUTPUT_EMPTY\): no ticker is left to trade\. The first is AAA: entry\.conditions\[1\]/);
+  assert.deepEqual([code, field], ['UNIVERSE_EMPTY', 'portfolio.tickers']);
+  assert.match(message, /^The picked stock was left out because its own data cannot serve the strategy \(1 INDICATOR_OUTPUT_EMPTY\): no stock is left to trade\. AAA: entry\.conditions\[1\]/);
   onlyAaa.excluded = m.excluded;
-  assert.match(empty(onlyAaa)[2], /^All 2 ticker\(s\) .* \(1 INDICATOR_OUTPUT_EMPTY, 1 DATA_MISSING\)/);
+  assert.match(empty(onlyAaa)[2], /^All 2 picked stocks were left out because their own data .* \(1 INDICATOR_OUTPUT_EMPTY, 1 DATA_MISSING\): no stock is left to trade\. The first is AAA: /);
   const loaderOnly = market({}, days); loaderOnly.excluded = m.excluded;
-  assert.deepEqual(empty(loaderOnly).slice(0, 2), ['UNIVERSE_EMPTY', 'portfolio.universe']);
-  assert.deepEqual(empty(market({}, days)), ['UNIVERSE_EMPTY', 'portfolio.universe', 'The universe has no ticker to run.']);
+  assert.deepEqual(empty(loaderOnly).slice(0, 2), ['UNIVERSE_EMPTY', 'portfolio.tickers']);
+  // no stock at all: a run cannot get there (a picked stock is loaded or left out, CWP-1), signals.ts leftOut still says it
+  try { leftOut([], 0, 'portfolio.tickers', 'run'); assert.fail('not refused') }
+  catch (e) { assert.ok(e instanceof ValidationError); assert.deepEqual([e.code, e.field, e.message], ['UNIVERSE_EMPTY', 'portfolio.tickers', 'The portfolio has no stock to run.']) }
+});
+
+test('the calendar is IHSG and every ticker the run read, run or left out: a left-out ticker\'s later bars never move another\'s next day (PF8)', () => {
+  // D = DAYS[25]: IHSG and AAA have no bar there, XXX has one. AAA's volume spike on its bar of DAYS[24] (20-bar volume
+  // SMA defined) orders a buy for the next calendar day. XXX never signals; with all its bars (DAYS[0..39]) it runs,
+  // cut to DAYS[20..29] its volume SMA has no value up to period.to and it is left out (core fix report, open issue 1:
+  // before PF8 the cut moved AAA's buy from no_next_bar to DAYS[26], a path from XXX's later bars into AAA's trades)
+  const D = DAYS[25], days = DAYS.slice(0, 40).filter(d => d !== D), a = put(flat(39), 24, { v: 2000 });
+  const VSMA20: Condition = { id: 'a', kind: 'indicator', indicator: 'I35', params: { length: 20 }, lhs: { type: 'price' }, op: 'gt', rhs: { type: 'output', output: 'volume_sma' } };
+  const r = request(39, q => { portfolio(q, 2); q.entry = { logic: 'all', at_least: 1, window_bars: 1, conditions: [VOL(), VSMA20] } }, 0);
+  r.period = { from: DAYS[0], to: DAYS[39], oos_fraction: 0 };
+  const mk = (x: string[]) => market({ AAA: { bars: a, dates: days }, XXX: { bars: flat(x.length), dates: x } }, days);
+  const runs = go(mk(DAYS.slice(0, 40)), r), cut = go(mk(DAYS.slice(20, 30)), r);
+  assert.deepEqual(cut.warnings[0].reasons!.map(x => [x.ticker, x.code]), [['XXX', 'INDICATOR_OUTPUT_EMPTY']]);
+  assert.ok(!runs.warnings.some(w => w.code === 'TICKERS_EXCLUDED'));
+  for (const l of [runs, cut]) {
+    assert.deepEqual([l.dates.length, l.dates.includes(D)], [40, true]);
+    assert.deepEqual(l.trades, []);
+    assert.deepEqual(l.events.skipped, [{ ticker: 'AAA', signal_date: DAYS[24], signal_event: 0, reason: 'no_next_bar' }]);
+  }
+  assert.deepEqual([cut.equity, cut.exposure, cut.benchmark_close], [runs.equity, runs.exposure, runs.benchmark_close]);
+  assert.deepEqual(cut.events.entries.AAA, runs.events.entries.AAA);
+  // without XXX the day is no calendar day: AAA buys on DAYS[26]; the property "the same run without its left-out
+  // tickers" holds only for a left-out ticker without a day outside IHSG's calendar (the test above)
+  const alone = go(market({ AAA: { bars: a, dates: days } }, days), r);
+  assert.deepEqual([alone.dates.includes(D), alone.trades.map(t => [t.ticker, alone.dates[t.entry_bar]])], [false, [['AAA', DAYS[26]]]]);
+});
+
+test('a portfolio runs its picked stocks: market data of another set is a caller error, never a result (CWP-1)', () => {
+  // AAA and BBB loaded, both signal on bar 3; the request and variant hashes carry portfolio.tickers, so the market
+  // must hold each picked stock once, loaded or left out by the loader (MarketData.excluded), and no other ticker
+  const m = (...out: string[]) => {
+    const x = market({ AAA: { bars: put(flat(10), 3, { v: 2000 }) }, BBB: { bars: put(flat(10), 3, { v: 2000 }) } });
+    if (out.length) x.excluded = out.map(t => ({ ticker: t, code: 'DATA_MISSING', field: `${t}.price`, message: `No price file is published for ${t}.` }));
+    return x;
+  };
+  const pick = (...tickers: string[]) => request(9, q => { portfolio(q, 2); q.portfolio!.tickers = tickers });
+  const ran = (l: Ledger) => [l.per_ticker_signals.map(t => t.ticker), l.trades.map(t => t.ticker)];
+  // the run's stocks are the picked ones, in ticker order whatever the order picked (PF3)
+  assert.deepEqual(ran(run(prepare(m()), pick('BBB', 'AAA'))), [['AAA', 'BBB'], ['AAA', 'BBB']]);
+  assert.deepEqual(run(prepare(m()), pick('BBB', 'AAA')), run(prepare(m()), pick('AAA', 'BBB')));
+  const l = run(prepare(m('CCC')), pick('CCC', 'AAA', 'BBB'));
+  assert.deepEqual([...ran(l), l.warnings[0].tickers], [['AAA', 'BBB'], ['AAA', 'BBB'], ['CCC']]);
+  // anything else is refused before any signal: the worker's INTERNAL_ERROR (500, logged), not a request error
+  const internal = (f: () => unknown) => {
+    try { f() } catch (e) { assert.deepEqual([toApiError(e).status, toApiError(e).error.code, toApiError(e).known], [500, 'INTERNAL_ERROR', false]); return (e as Error).message }
+    assert.fail('not refused');
+  };
+  assert.equal(internal(() => run(prepare(m()), pick('AAA'))), 'engine: the market data holds BBB, which is not a picked stock.');
+  assert.equal(internal(() => run(prepare(m('CCC')), pick('AAA', 'BBB'))), 'engine: the market data holds CCC, which is not a picked stock.');
+  assert.equal(internal(() => run(prepare(m()), pick('AAA', 'BBB', 'CCC'))), 'engine: the picked stock CCC is neither loaded nor left out.');
+  assert.equal(internal(() => run(prepare(m('BBB')), pick('AAA', 'BBB'))), 'engine: the picked stock BBB is loaded and left out.');
+  assert.equal(internal(() => run(prepare(m('CCC', 'CCC')), pick('AAA', 'BBB', 'CCC'))), 'engine: the picked stock CCC is left out more than once.');
+  assert.equal(internal(() => run(prepare(market({}, DAYS.slice(0, 10))), pick('AAA'))), 'engine: the picked stock AAA is neither loaded nor left out.');
+  // single mode reads its ticker only, as before: other tickers of the market are not read
+  assert.deepEqual(ran(run(prepare(m()), request(9))), [['AAA'], ['AAA']]);
+});
+
+test('max_positions above the stocks picked: a slot is still 1 / max_positions of equity, the idle slots stay cash (PF5)', () => {
+  // 1,200,000 rupiah over 12 slots: 100,000 a slot, 1,000 shares at 100; AAA and BBB signal on bar 3
+  const m = market({ AAA: { bars: put(flat(10), 3, { v: 2000 }) }, BBB: { bars: put(flat(10), 3, { v: 2000 }) } });
+  const l = go(m, request(9, q => { portfolio(q, MAX_POSITIONS); q.sizing.capital_idr = 1_200_000 }));
+  assert.deepEqual(l.trades.map(t => [t.ticker, t.entry_bar, t.shares, t.cost_idr]), [['AAA', 4, 1000, 100_000], ['BBB', 4, 1000, 100_000]]);
+  assert.deepEqual([l.equity[4], l.exposure[4]], [1_200_000, 200_000 / 1_200_000]);
 });
 
 /* ---- initial levels and checks ------------------------------------------------------------------------------ */
@@ -509,7 +582,7 @@ test('price lines are the outputs of the overlay indicators without direction (t
 
 test('requests outside the page controls are refused with the field that is wrong', () => {
   const m = market({ AAA: { bars: put(flat(10), 3, { v: 2000 }) } });
-  const no = (f: (q: BacktestRequest) => void) => refused(() => go(m, request(9, f)));
+  const no = (f: (q: BacktestRequest) => void) => refused(() => run(prepare(m), request(9, f)));   // the picked stocks as written
   assert.deepEqual(no(q => { q.exit.take_profit.mode = 'r' }), ['INVALID_EXIT', 'exit.take_profit.mode']);
   assert.deepEqual(no(q => { q.exit.stop.mode = 'rr' }), ['INVALID_EXIT', 'exit.stop.mode']);
   assert.deepEqual(no(q => { q.exit.stop.mode = 'pct'; q.exit.stop.pct = 0 }), ['INVALID_EXIT', 'exit.stop.pct']);
@@ -521,7 +594,11 @@ test('requests outside the page controls are refused with the field that is wron
   assert.deepEqual(no(q => { q.costs.slippage = 0.1 }), ['INVALID_COSTS', 'costs.slippage']);
   assert.deepEqual(no(q => { q.costs.ara_gap_fraction = 0 }), ['INVALID_COSTS', 'costs.ara_gap_fraction']);
   assert.deepEqual(no(q => { q.sizing.allocation_fraction = 1.5 }), ['INVALID_SIZING', 'sizing.allocation_fraction']);
-  assert.deepEqual(no(q => { portfolio(q, 11) }), ['INVALID_PORTFOLIO', 'portfolio.max_positions']);
+  assert.deepEqual(no(q => { portfolio(q, MAX_POSITIONS + 1) }), ['INVALID_PORTFOLIO', 'portfolio.max_positions']);
+  assert.deepEqual(no(q => { portfolio(q, 1); q.portfolio!.tickers = Array.from({ length: MAX_PORTFOLIO_TICKERS + 1 }, (_, k) => `T${k}`) }), ['INVALID_PORTFOLIO', 'portfolio.tickers']);
+  assert.deepEqual(no(q => { portfolio(q, 1); q.portfolio!.tickers = [] }), ['INVALID_PORTFOLIO', 'portfolio.tickers']);
+  assert.deepEqual(no(q => { portfolio(q, 1); q.portfolio!.tickers = ['AAA', 'AAA'] }), ['INVALID_PORTFOLIO', 'portfolio.tickers']);
+  assert.deepEqual(no(q => { portfolio(q, 1); delete (q.portfolio as Partial<NonNullable<BacktestRequest['portfolio']>>).tickers }), ['INVALID_PORTFOLIO', 'portfolio.tickers']);
   assert.deepEqual(no(q => { q.period.to = DAYS[40] }), ['PERIOD_AFTER_DATA', 'period.to']);
   assert.deepEqual(no(q => { q.period.from = '2024-02-30' }), ['INVALID_PERIOD', 'period.from']);
   assert.deepEqual(no(q => { q.period.from = '2024-13-01' }), ['INVALID_PERIOD', 'period.from']);
@@ -549,7 +626,7 @@ test('the signals preview counts the same entry events as the backtest (portfoli
   const r = request(69, q => { portfolio(q, 2); q.entry = { logic: 'at_least', at_least: 2, window_bars: 4, conditions: [
     { id: 'rsi', kind: 'indicator', indicator: 'I13', lhs: { type: 'output', output: 'rsi' }, op: 'lt', rhs: { type: 'value', value: 50 } },
     { id: 'dip', kind: 'price_action', type: 'dip', op: 'lte', value: -0.01 }, VOL('v', 9e5)] } }, 25);
-  const ctx = prepare(m), l = run(ctx, r);
+  const ctx = prepare(m), l = run(ctx, picking(m, r));
   assert.ok(l.per_ticker_signals.some(x => x.entry_signals > 1));
   for (const row of l.per_ticker_signals) {
     const p = ctx.tickers.get(row.ticker)!;
@@ -615,7 +692,7 @@ test('no look-ahead inside the period: what a portfolio ticker trades up to a da
   const until = (l: Ledger) => l.trades.filter(t => l.dates[t.exit_bar] <= cut).map(t => [t.ticker, l.dates[t.entry_bar], l.dates[t.exit_bar], t.exit_reason]);
   const left = (l: Ledger) => l.warnings.find(w => w.code === 'TICKERS_EXCLUDED')?.reasons?.map(x => [x.ticker, x.code, x.field]) ?? [];
   const both = (r: BacktestRequest, flow?: [ReturnType<typeof flowOf>, ReturnType<typeof flowOf>]) => {
-    const full = prepare(mk(D[119], flow)), short = prepare(mk(cut, flow)), a = run(full, r), b = run(short, r);
+    const full = prepare(mk(D[119], flow)), short = prepare(mk(cut, flow)), a = run(full, picking(full.data, r)), b = run(short, picking(short.data, r));
     const row = (ctx: ReturnType<typeof prepare>) => { const p = ctx.tickers.get('BBB')!; return previewRow(p.calc, p.data.prices.dates, { entry: r.entry }, r.period.from, r.period.to) };
     return { a, b, rows: () => [row(full), row(short)] };
   };

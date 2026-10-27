@@ -6,6 +6,7 @@ import type { Card } from './api/types.ts';
 import type { PageResult } from './api/adapt.ts';
 import { STOCKS, CAT } from './env.ts';
 import { mkRegWith } from './reg.ts';
+import type { Filters } from './picked.ts';
 import { currentRequest, publishedThrough } from './api/request.ts';
 
 /** the card the reference's mkCond builds: catalog defaults, then `over`, a random id */
@@ -14,7 +15,9 @@ export function mkCond(type: string, over: Record<string, unknown> = {}): Legacy
 }
 
 export interface State {
-  mode: 'single' | 'portfolio'; ticker: string; universe: string; maxPos: number; rankBy: 'adx' | 'fnet' | 'vol' | 'rsi';
+  mode: 'single' | 'portfolio'; ticker: string; tickers: string[]; maxPos: number; rankBy: 'adx' | 'fnet' | 'vol' | 'rsi';
+  /** the portfolio picker's own state (not sent): the search text and the chosen value of each grouping */
+  pick: { q: string; f: Filters };
   from: string; to: string; oos: number;
   logic: 'all' | 'any' | 'n'; atLeast: number; window: number;
   conds: Card[];
@@ -29,7 +32,7 @@ export interface State {
 }
 
 export const S: State = {
-  mode:'single', ticker:'MAPI', universe:'all', maxPos:5, rankBy:'adx',
+  mode:'single', ticker:'MAPI', tickers:[], pick:{ q:'', f:{} }, maxPos:5, rankBy:'adx',
   from:'2019-06-03', to:'2026-10-23', oos:30,
   logic:'n', atLeast:3, window:5,
   conds:DEFAULT_ENTRY.map(([t, over]) => mkCond(t, over as Record<string, unknown>)),
@@ -43,15 +46,16 @@ export const S: State = {
 export const edits = { n: 0 };
 
 /** the defaults that come from the published data: the reference's ticker MAPI when it is published (else the first
-    stock), its start 2019-06-03 clipped to the first published day, the first catalog universe when 'all' is not
-    one, and the end at the latest day every dataset the default strategy reads is published (the To field's max stays
-    catalog.data_through: a later end for a flow strategy is the server's FLOW_DATA_THROUGH, shown by the toast) */
-export function applyCatalog() {
+    stock), its start 2019-06-03 clipped to the first published day, the end at the latest day every dataset the
+    default strategy reads is published (the To field's max stays catalog.data_through: a later end for a flow strategy
+    is the server's FLOW_DATA_THROUGH, shown by the toast), and the picked stocks: none (PF7: no published data names
+    a sample set of stocks), or the published ones of `picked` (a test build's default portfolio, tests/fixture) */
+export function applyCatalog(picked: readonly string[] = []) {
   const stocks = STOCKS();
   S.ticker = stocks.includes('MAPI') ? 'MAPI' : stocks[0];
   S.sigTicker = S.ticker;
   if (S.from < CAT.first_date) S.from = CAT.first_date;
-  if (!CAT.universes.some(u => u.id === S.universe) && CAT.universes.length) S.universe = CAT.universes[0].id;
+  S.tickers = picked.filter(t => stocks.includes(t)).slice(0, CAT.limits.max_portfolio_tickers);
   S.to = CAT.data_through;
   S.to = publishedThrough(currentRequest(), CAT);
 }

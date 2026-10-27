@@ -14,7 +14,7 @@ import { access, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { serve } from './serve.mjs';
-import { SCENARIOS } from './scenarios.mjs';
+import { SCENARIOS, TS_ONLY } from './scenarios.mjs';
 
 /* the reference page is the user's backtest.html, which is not kept in the repository */
 const reference = process.env.BACKTEST_REFERENCE_HTML;
@@ -64,7 +64,8 @@ try {
       for (const [name, steps] of Object.entries(SCENARIOS)) {
         if (only && name !== only) continue;
         if (w < 600 && name.startsWith('d-')) continue;           // desktop-only steps
-        try { await steps(page) }
+        if (side === 'ref' && TS_ONLY.has(name)) continue;        // the picker's own steps (no reference to compare)
+        try { await steps(page, side) }
         catch (e) { errors.push(`${side} ${w}x${h} ${name}: ${e.message.split('\n')[0]}`); continue }
         await snap(page, dir, name);
       }

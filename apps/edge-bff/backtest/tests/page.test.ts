@@ -35,11 +35,13 @@ describe('request (api/request.ts)', () => {
     expect(q.robustness).toEqual({ monte_carlo_runs:1000, seed:MC_SEED, sensitivity:true });
   });
   it('portfolio, IHSG benchmark and the chandelier trail', () => {
-    const s = clone(); s.mode = 'portfolio'; s.universe = 'sector:Finance'; s.maxPos = 3; s.rankBy = 'rsi'; s.cost.minVal = 2.5;
+    const s = clone(); s.mode = 'portfolio'; s.tickers = ['BBRI', 'BBCA']; s.maxPos = 3; s.rankBy = 'rsi'; s.cost.minVal = 2.5;
     s.exit.trailMode = 'chand'; s.logic = 'any'; s.bench = 'ihsg';
     const q = buildRequest(s, { ready, monteCarloRuns:0 });
     expect(q.single).toBeUndefined();
-    expect(q.portfolio).toEqual({ universe:'sector:Finance', max_positions:3, rank_by:'rsi', min_avg_value_20d_idr:2.5e9 });
+    // the picked stocks in the order they were picked (PF1; the worker sorts them, PF3), never a universe
+    expect(q.portfolio).toEqual({ tickers:['BBRI', 'BBCA'], max_positions:3, rank_by:'rsi', min_avg_value_20d_idr:2.5e9 });
+    expect(q.portfolio!.tickers).not.toBe(s.tickers);
     expect(q.exit.trailing.mode).toBe('chandelier');
     expect(q.entry.logic).toBe('any');
     const s2 = clone(); s2.bench = 'ihsg';

@@ -19,6 +19,8 @@ import { bindRun, run } from './run.ts';
 export interface BootOptions {
   /** run once after the first render, as the reference does (test builds only) */
   autorun?: boolean;
+  /** the portfolio's picked stocks at load (test builds only: the fixture's reference portfolio); none otherwise */
+  portfolio?: string[];
 }
 
 export async function boot(api: BacktestApi, opts: BootOptions = {}) {
@@ -30,7 +32,7 @@ export async function boot(api: BacktestApi, opts: BootOptions = {}) {
   try {
     setEnv(api, await api.catalog());
     $('dataNote').textContent = api.texts.dataNote(CAT);
-    applyCatalog();
+    applyCatalog(opts.portfolio);
     await load(S.sigTicker, needsFlow());
   } catch (e) {
     const msg = (e as Error).message || 'The backtest service could not be reached.';

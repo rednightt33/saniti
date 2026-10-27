@@ -45,7 +45,7 @@ const bundles = (fake: Fake) => {
 test('a step-1 manifest whose URLs can still serve the download is used for it: one /bundle per ticker', async () => {
   const fake = await startFakeTerminal({ key: KEY, tickers: market() });           // ttl 120 s, terminal-api's answer in dev
   try {
-    const l = await loadMarket(client(fake, 5000), [GROUP], LIMITS, 'universe', 2);
+    const l = await loadMarket(client(fake, 5000), [GROUP], LIMITS, 'portfolio.tickers', 2);
     assert.deepEqual([...l.tickers.keys()].sort(), TICKERS);
     assert.equal(l.data_version, await versionOf(DOCS));
     assert.deepEqual([...bundles(fake)].sort(), TICKERS.map(t => [t, 1]), 'no ticker asked twice');
@@ -53,13 +53,13 @@ test('a step-1 manifest whose URLs can still serve the download is used for it: 
   } finally { await fake.close() }
 });
 
-test('a universe whose later tickers would be downloaded after their URLs expire loads: those are asked again right before the download', async () => {
+test('a load whose later tickers would be downloaded after their URLs expire succeeds: those are asked again right before the download', async () => {
   // URLs live 1 s and a file takes 100 ms: two at a time, the 16 tickers (32 files) take about 1.6 s after their
   // step-1 manifests, which all come in the first few tens of milliseconds. With a 500 ms HTTP timeout a manifest
   // is usable while it is younger than 500 ms: the first tickers use theirs, the later ones are asked again.
   const fake = await startFakeTerminal({ key: KEY, tickers: market(), ttl: 1, fileDelayMs: 100 });
   try {
-    const l = await loadMarket(client(fake, 500), [GROUP], LIMITS, 'universe', 2);
+    const l = await loadMarket(client(fake, 500), [GROUP], LIMITS, 'portfolio.tickers', 2);
     assert.deepEqual([...l.tickers.keys()].sort(), TICKERS);
     assert.deepEqual(l.excluded, []);
     assert.equal(l.data_version, await versionOf(DOCS));
@@ -78,7 +78,7 @@ test('a manifest asked again from a later publish is the run\'s data: data_versi
   const republish = (fake: Fake) => () => { fake.publish('S05', stock(later)) };
   const fake = await startFakeTerminal({ key: KEY, tickers: market(), ttl: 1 });
   try {
-    const l = await loadMarket(client(fake, 1000), [GROUP], LIMITS, 'universe', 2, { planned: republish(fake) });
+    const l = await loadMarket(client(fake, 1000), [GROUP], LIMITS, 'portfolio.tickers', 2, { planned: republish(fake) });
     const read = new Map(DOCS).set('S05', later);
     assert.equal(l.data_version, await versionOf(read));
     assert.notEqual(l.data_version, await versionOf(DOCS));
@@ -90,8 +90,8 @@ test('a manifest asked again from a later publish is the run\'s data: data_versi
   const tight = await startFakeTerminal({ key: KEY, tickers: market(), ttl: 1 });
   try {
     const limit = bytesOf(DOCS), r0 = tight.requests.length;
-    const e = await loadMarket(client(tight, 1000), [GROUP], { ...LIMITS, max_download_bytes: limit }, 'universe', 2, { planned: republish(tight) }).catch(x => x);
-    assert.ok(e instanceof WorkerError && e.code === 'LIMIT_EXCEEDED' && e.status === 422 && e.field === 'universe', String(e));
+    const e = await loadMarket(client(tight, 1000), [GROUP], { ...LIMITS, max_download_bytes: limit }, 'portfolio.tickers', 2, { planned: republish(tight) }).catch(x => x);
+    assert.ok(e instanceof WorkerError && e.code === 'LIMIT_EXCEEDED' && e.status === 422 && e.field === 'portfolio.tickers', String(e));
     assert.deepEqual(e.details, { limit: 'max_download_bytes', allowed: limit, needed: limit - encode(DOCS.get('S05')!.pack).body.length + encode(later.pack).body.length });
     assert.ok(!tight.requests.slice(r0).some(r => r.path.startsWith('/bucket/') && r.path.includes('/S05/')), 'S05 downloaded nothing');
   } finally { await tight.close() }
@@ -102,10 +102,10 @@ test('a ticker whose every file is cached is loaded from its step-1 answer howev
   const fake = await startFakeTerminal({ key: KEY, tickers: market(), ttl: 1 });
   try {
     const c = client(fake, 1000);
-    await loadMarket(c, [GROUP], LIMITS, 'universe', 2);
+    await loadMarket(c, [GROUP], LIMITS, 'portfolio.tickers', 2);
     assert.deepEqual([...bundles(fake)].sort(), TICKERS.map(t => [t, 2]), 'cold: each ticker asked again before its downloads');
     const r0 = fake.requests.length;
-    const l = await loadMarket(c, [GROUP], LIMITS, 'universe', 2);
+    const l = await loadMarket(c, [GROUP], LIMITS, 'portfolio.tickers', 2);
     const second = fake.requests.slice(r0);
     assert.equal(second.filter(r => r.path === '/api/terminal/v1/bundle').length, TICKERS.length, 'warm: one answer per ticker, its URLs unused');
     assert.equal(second.filter(r => r.path.startsWith('/bucket/')).length, 0);
@@ -122,11 +122,11 @@ test('a cached copy that fails its check is downloaded with the step-1 URL; once
   try {
     const c = new PlannedClient({ url: fake.url, proxyKey: KEY, cacheBytes: 0, cacheDir: dir, cacheDirBytes: 50_000_000, concurrency: 2, retries: 0, retryBaseMs: 0,
       timeoutMs: 1000, fileOrigin: fake.url, maxFileBytes: 10_000_000 });
-    await loadMarket(c, [GROUP], LIMITS, 'universe', 2);
+    await loadMarket(c, [GROUP], LIMITS, 'portfolio.tickers', 2);
     const sha = encode(DOCS.get('S03')!.pack).sha256;
     await writeFile(path.join(dir, `${sha}.json.gz`), new Uint8Array(encode(DOCS.get('S03')!.pack).body.length));
     const r0 = fake.requests.length, expired0 = fake.expired;
-    const l = await loadMarket(c, [GROUP], LIMITS, 'universe', 2, { planned: () => new Promise(ok => setTimeout(ok, 1100)) });
+    const l = await loadMarket(c, [GROUP], LIMITS, 'portfolio.tickers', 2, { planned: () => new Promise(ok => setTimeout(ok, 1100)) });
     const n = new Map<string, number>();
     for (const r of fake.requests.slice(r0)) if (r.path === '/api/terminal/v1/bundle') { const t = JSON.parse(r.body).ticker; n.set(t, (n.get(t) ?? 0) + 1) }
     assert.deepEqual([...n].sort(), TICKERS.map(t => [t, t === 'S03' ? 2 : 1]));

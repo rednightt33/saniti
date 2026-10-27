@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { DataError, brokerGaps, brokerRows, corporateActions, dataVersion, priceSeries } from '../../edge-bff/backtest/src/core/datafile.ts';
 import type { Columnar } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { flowData } from '../../edge-bff/backtest/src/core/flow.ts';
+import { MAX_PORTFOLIO_TICKERS, MAX_POSITIONS } from '../../edge-bff/backtest/src/core/engine.ts';
 import http from 'node:http';
 import type net from 'node:net';
 import { describeConfig, loadConfig } from '../src/config.ts';
@@ -58,7 +59,7 @@ const MARKET = {
   DENY: { datasets: { price: price('DENY', P2026, { status: 403 }) } },
   ...Object.fromEntries(['T1', 'T2', 'T3', 'T4', 'T5', 'T6'].map(t => [t, { datasets: { price: price(t, P2026) } }])),
 };
-const REFS = { tickers: tickersRef([['BBCA', 'Bank Central Asia', 'stock', 'Finance'], ['IHSG', 'Composite', 'index', null]]), brokers: brokersRef([['AK', 'UBS', 'Foreign'], ['YP', 'Mirae', 'Domestic']]) };
+const REFS = { tickers: tickersRef([['BBCA', 'Bank Central Asia', 'stock', 'Finance', 'Banks'], ['IHSG', 'Composite', 'index', null, 'Undefined']]), brokers: brokersRef([['AK', 'UBS', 'Foreign'], ['YP', 'Mirae', 'Domestic']]) };
 
 let fake: Awaited<ReturnType<typeof startFakeTerminal>>;
 const logs: unknown[] = [];
@@ -272,10 +273,35 @@ test('one file downloaded twice at once from two /bundle answers\' URLs takes it
   } finally { fs.rmSync(dir, { recursive: true, force: true }) }
 });
 
-test('reference lists: tickers with type and sector, brokers with name and type', async () => {
+test('reference lists: tickers with name, type and their groupings, brokers with name and type', async () => {
   const c = new TerminalClient(options());
-  assert.deepEqual(await c.reference('tickers'), [{ ticker: 'BBCA', name: 'Bank Central Asia', type: 'stock', sector: 'Finance' }, { ticker: 'IHSG', name: 'Composite', type: 'index', sector: null }]);
+  // the publisher's columns (ticker, name, type, sector, industry): sector and industry are the groupings
+  assert.deepEqual(await c.reference('tickers'), { groupings: ['sector', 'industry'], tickers: [{ ticker: 'BBCA', name: 'Bank Central Asia', type: 'stock', groups: { sector: 'Finance', industry: 'Banks' } }, { ticker: 'IHSG', name: 'Composite', type: 'index', groups: { sector: null, industry: null } }] });
   assert.deepEqual(await c.reference('brokers'), [{ code: 'AK', name: 'UBS', type: 'Foreign' }, { code: 'YP', name: 'Mirae', type: 'Domestic' }]);
+});
+
+test('every column of the ticker reference but ticker, name and type is a grouping, in the file\'s order; null, \'\' and \'Undefined\' are unclassified (PF6)', async () => {
+  // the publisher's file (publisher.py publish_refs: ticker, name, type, sector, industry) with a further column a later
+  // publisher may add: each is read by name, none is listed in the worker; sector is no longer required
+  const cols = ['ticker', 'type', 'industry', 'name', 'sector', 'board'];
+  const rows = [['BBCA', 'stock', 'Banks', 'Bank Central Asia', 'Finance', 'Main'], ['BBRI', 'stock', 'Undefined', 'Bank Rakyat', 'Finance', null],
+    ['ZZZZ', 'stock', '', null, 'Undefined', 7], ['IHSG', 'index', 'Undefined', 'Composite', 'Undefined', 'Undefined']];
+  const groups = (doc: object) => startFakeTerminal({ key: KEY, refs: { tickers: doc } });
+  const f = await groups(tickersRef(rows, cols)), g = await groups(tickersRef([['BBCA', 'Bank Central Asia', 'stock']], ['ticker', 'name', 'type']));
+  try {
+    const read = (u: string) => new TerminalClient(options({ url: u, fileOrigin: u })).reference('tickers');
+    assert.deepEqual(await read(f.url), { groupings: ['industry', 'sector', 'board'], tickers: [
+      { ticker: 'BBCA', name: 'Bank Central Asia', type: 'stock', groups: { industry: 'Banks', sector: 'Finance', board: 'Main' } },
+      { ticker: 'BBRI', name: 'Bank Rakyat', type: 'stock', groups: { industry: null, sector: 'Finance', board: null } },
+      { ticker: 'ZZZZ', name: null, type: 'stock', groups: { industry: null, sector: null, board: null } },   // a number is no classification
+      { ticker: 'IHSG', name: 'Composite', type: 'index', groups: { industry: null, sector: null, board: null } }] });
+    assert.deepEqual(await read(g.url), { groupings: [], tickers: [{ ticker: 'BBCA', name: 'Bank Central Asia', type: 'stock', groups: {} }] });
+  } finally { await f.close(); await g.close() }
+  for (const missing of ['ticker', 'name', 'type']) {
+    const h = await groups(tickersRef([['BBCA', 'x', 'stock', 'Finance']], ['ticker', 'name', 'type', 'sector'].map(k => k === missing ? 'other' : k)));
+    try { await assert.rejects(new TerminalClient(options({ url: h.url, fileOrigin: h.url })).reference('tickers'), (e: unknown) => code('DATA_INTEGRITY', 'tickers')(e) && (e as Error).message.includes(`column ${missing} is missing`), missing) }
+    finally { await h.close() }
+  }
 });
 
 test('a manifest grants nothing: data_through per dataset, the newest price row (last_bar); the broker date scan stops once it reaches `until`', async () => {
@@ -341,6 +367,19 @@ test('TERMINAL_URL with a user name or password is refused without its value; th
   // whatever a URL holds, the log has its origin: no user name, password, path or query
   const text = JSON.stringify(describeConfig({ ...cfg, terminal: { ...cfg.terminal, url: 'http://user:s3cretpass@terminal-api.railway.internal:8080' } }));
   assert.ok(!text.includes('s3cretpass') && !text.includes('user@') && !text.includes(KEY), text);
+});
+
+test('BACKTEST_MAX_POSITIONS and BACKTEST_MAX_PORTFOLIO_TICKERS default to the core\'s 12 and may only lower it (PF2, PF5)', () => {
+  const base = { ...ENV_ALL, BACKTEST_WORKER_KEY: 'w'.repeat(32), BACKTEST_MAX_DOWNLOAD_BYTES: '1', BACKTEST_MAX_BROKER_ROWS: '1', BACKTEST_TIMEOUT_SECONDS: '1', BACKTEST_MAX_CONDITIONS: '1', BACKTEST_MAX_RESULT_BYTES: '1' };
+  const limits = (env: Record<string, string> = {}) => loadConfig({ ...base, ...env }).limits;
+  assert.deepEqual([MAX_POSITIONS, MAX_PORTFOLIO_TICKERS], [12, 12]);
+  assert.deepEqual([limits().max_positions, limits().max_portfolio_tickers], [MAX_POSITIONS, MAX_PORTFOLIO_TICKERS]);
+  assert.deepEqual([limits({ BACKTEST_MAX_POSITIONS: '5', BACKTEST_MAX_PORTFOLIO_TICKERS: '3' }).max_positions, limits({ BACKTEST_MAX_PORTFOLIO_TICKERS: '3' }).max_portfolio_tickers], [5, 3]);
+  assert.deepEqual([limits({ BACKTEST_MAX_POSITIONS: '12' }).max_positions, limits({ BACKTEST_MAX_PORTFOLIO_TICKERS: '12' }).max_portfolio_tickers], [12, 12]);
+  for (const v of ['13', '0', '2.5', 'x']) {
+    assert.throws(() => limits({ BACKTEST_MAX_POSITIONS: v }), /BACKTEST_MAX_POSITIONS must be a whole number from 1 to 12/, v);
+    assert.throws(() => limits({ BACKTEST_MAX_PORTFOLIO_TICKERS: v }), /BACKTEST_MAX_PORTFOLIO_TICKERS must be a whole number from 1 to 12/, v);
+  }
 });
 
 test('fileOriginOf: scheme, host and port as a CSP host-source; every other URL is off the bucket origin (SEC-8)', () => {
@@ -423,7 +462,7 @@ test('a reference file or a data file inflates to at most maxFileBytes, a refere
     await assert.rejects(client(refGz - 1).reference('tickers'), err({ max_file_bytes: refGz - 1 }));
     // the download within the cap, the inflated document over it: inflating stops there
     await assert.rejects(client(refGz).reference('tickers'), err({ max_inflated_bytes: refGz }));
-    assert.equal((await client(refJson).reference('tickers')).length, 3000);
+    assert.equal((await client(refJson).reference('tickers')).tickers.length, 3000);
     // a data file (its download is capped by its manifest bytes): the inflated document at most maxFileBytes
     await assert.rejects(client(fileJson - 1).loadTicker('BIGP', ['price']), (e: unknown) => err({ max_inflated_bytes: fileJson - 1 })(e) && (e as DataError).field === 'BIGP.price');
     assert.equal((await client(fileJson).loadTicker('BIGP', ['price'])).prices!.dates.length, 3000);

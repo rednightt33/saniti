@@ -55,6 +55,7 @@ let idleNote = '';
 
 export const run = async (scroll = true) => {
   if(!S.conds.some(c=>c.on)){ toast('Add at least one active condition'); return }
+  if(S.mode==='portfolio' && !S.tickers.length){ toast('Add at least one stock'); return }     // the server refuses it too (INVALID_PORTFOLIO)
   if (S.running) return;
   idleNote = $('runNote').textContent;
   document.querySelectorAll('.js-run').forEach((b: Element) => (b as HTMLButtonElement).disabled = true); $('runNote').textContent = 'Running…'; S.running = true; updateViewbar();

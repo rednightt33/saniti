@@ -2,7 +2,7 @@
    demo formulas): the legacy cards are core/catalog.ts LEGACY (equal to the reference's CATALOG without `eval`), the
    registry is the Terminal's indRegistry.json (the reference's REG: 53 indicators, 126 parameters, the same values under
    the Terminal's field names, mapped here to the names the page reads). Every series comes from the BacktestApi. */
-import IND_REG from '../../terminal/src/data/indRegistry.json';
+import IND_REG from '../../terminal/src/data/indRegistry.json' with { type: 'json' };
 import { EXTRA_GROUPS as CORE_EXTRA, LEGACY, type LegacySpec, type RegCard } from './core/catalog.ts';
 import type { Card } from './api/types.ts';
 import { API, CAT, DATA } from './env.ts';

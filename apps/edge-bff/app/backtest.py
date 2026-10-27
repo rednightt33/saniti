@@ -1,7 +1,8 @@
 """EDGE backtest in edge-bff (apps/edge-bff/backtest/CONTRACT.md sections 8, 9 and 11): the public /api/v1/backtests
 routes, the job tables of migration 20261026_005, the client of the private backtest worker and the queue loop that
 hands one job at a time to it. edge-bff stores the request and the result as JSON and reads only the fields the
-contract names for it (result meta versions and trials, events.conditions / events.exits per ticker)."""
+contract names for it (result meta versions and trials, events.conditions / events.exits per ticker; of the request
+its mode, single.ticker and portfolio.tickers)."""
 import asyncio
 from contextlib import contextmanager
 import gzip
@@ -65,19 +66,56 @@ def _reject(value):
     raise ValueError(f'{value} is not JSON')   # NaN / Infinity: the contract never sends them (contract.ts units)
 
 
+def _double(text):
+    """A JSON number with a fraction or an exponent as the double it is; one beyond a double (1e400, -1e999 would load
+    as inf) is refused as NaN and Infinity are (review V2): the relay could not send it (httpx's JSON refuses inf)."""
+    value = float(text)
+    if not math.isfinite(value):
+        _reject(text)
+    return value
+
+
+def _whole(text):
+    """A JSON integer as the int it is; one beyond a double (1 and 400 zeros) is refused as _double refuses 1e400, by
+    the double it rounds to (review V2a): the relay would send its digits, and the worker's JSON.parse reads them as
+    Infinity, as it reads 1e400."""
+    if not math.isfinite(float(text)):
+        _reject(text)
+    return int(text)
+
+
 def loads(raw):
-    """JSON that the contract can carry. Input nested deeper than the parser's recursion limit is no such JSON either:
-    its RecursionError is a ValueError here, so every caller refuses it as it refuses malformed JSON (a request
-    body 422 INVALID_INPUT, a worker answer outside its API)."""
+    """JSON that the contract can carry: no NaN or Infinity, no number beyond a double, no string UTF-8 cannot encode
+    (a lone surrogate, the escape "\\ud800" or the bytes that would encode it, which json reads too; review V2b). Input
+    nested deeper than the parser's recursion limit is no such JSON either: its RecursionError is a ValueError here.
+    Every caller refuses these as it refuses malformed JSON (a request body 422 INVALID_INPUT before anything is
+    relayed, a worker answer outside its API)."""
     try:
-        return json.loads(raw, parse_constant=_reject)
+        value = json.loads(raw, parse_constant=_reject, parse_float=_double, parse_int=_whole)
+        dumps(value)    # UTF-8, as the relay sends it: UnicodeEncodeError (a ValueError) on a lone surrogate
     except RecursionError as e:
         raise ValueError('JSON nested deeper than the parser takes') from e
+    return value
+
+
+def same_request(stored, sent):
+    """Whether a submission is the request its client_request_id already made. A portfolio's picked stocks are a set
+    (PF3: the worker sorts them before it hashes, records the lineage or runs), so their order is no part of it; the
+    rest is compared as sent. The stored request stays as it was first sent: this is only the comparison."""
+    def unordered(request):
+        p = request.get('portfolio') if isinstance(request, dict) else None
+        if not isinstance(p, dict) or not isinstance(p.get('tickers'), list):
+            return request
+        # any order of the same values, by a key every value has: ASCII JSON (dumps raises on a lone surrogate, which
+        # no body read through loads has, but BacktestStore.submit compares whatever it is given; review PF3-reg)
+        key = lambda v: json.dumps(v, sort_keys=True)
+        return {**request, 'portfolio': {**p, 'tickers': sorted(p['tickers'], key=key)}}
+    return unordered(stored) == unordered(sent)
 
 
 def finite(value):
-    """A JSON number that is a finite double: not a bool, and not an integer beyond a double (1e400 already loads as
-    inf)."""
+    """A JSON number that is a finite double: not a bool, and not an integer beyond a double (loads refuses both 1e400
+    and an integer of 400 digits, but a value not read through it, as split_result's, may be one)."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return False
     try:
@@ -346,15 +384,15 @@ class BacktestStore:
                              (owner, key)).fetchone()
 
     def submit(self, owner, key, request, lineage_key, variant_hash, queued_limit):
-        """A new QUEUED job, or the job this submission key already made (same request; another request under the same
-        key is SUBMISSION_CONFLICT). At most queued_limit queued jobs per owner (QUEUE_FULL); one owner's submissions
-        are serialised by an advisory lock, as edge_bff.jobs submissions (store.submit)."""
+        """A new QUEUED job, or the job this submission key already made (same request, same_request; another request
+        under the same key is SUBMISSION_CONFLICT). At most queued_limit queued jobs per owner (QUEUE_FULL); one owner's
+        submissions are serialised by an advisory lock, as edge_bff.jobs submissions (store.submit)."""
         with self.connect() as c:
             c.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', ('backtest:' + owner,))
             row = c.execute('SELECT * FROM edge_bff.backtest_jobs WHERE owner_key=%s AND submission_key=%s',
                             (owner, key)).fetchone()
             if row:
-                if row['request'] != request:
+                if not same_request(row['request'], request):
                     raise StoreError('SUBMISSION_CONFLICT')
                 return row, False
             queued = c.execute("SELECT count(*) AS n FROM edge_bff.backtest_jobs WHERE owner_key=%s AND state='QUEUED'",
@@ -858,9 +896,9 @@ class Backtests:
 
         @app.post('/api/v1/backtests/signals')
         async def signals(request: Request, _=Depends(write)):
-            """SignalsPreview of a universe before a run (no job, no trial), computed by the worker while we wait; stopped
-            there when the page leaves before it answers or a newer preview of the owner replaces it (latest_preview). A
-            body refused here (422 INVALID_INPUT) is no preview and replaces none."""
+            """SignalsPreview of the picked stocks before a run (no job, no trial), computed by the worker while we wait;
+            stopped there when the page leaves before it answers or a newer preview of the owner replaces it
+            (latest_preview). A body refused here (422 INVALID_INPUT) is no preview and replaces none."""
             await self.guard()
             body = await self.json_object(request)
             try:
@@ -871,8 +909,9 @@ class Backtests:
         @app.post('/api/v1/backtests', status_code=202)
         async def submit(request: Request, _=Depends(write)):
             """202 {request_id}: the request checked by the worker (its 422 relayed as it is) and queued; the same
-            client_request_id returns the same job. client_request_id is edge-bff's submission key: it is taken out
-            here, so neither /v1/validate nor /v1/jobs (the stored request) gets it; every other key goes on as sent."""
+            client_request_id returns the same job (the picked stocks in any order, same_request). client_request_id is
+            edge-bff's submission key: it is taken out here, so neither /v1/validate nor /v1/jobs (the stored request)
+            gets it; every other key goes on as sent."""
             await self.guard()
             body = await self.json_object(request)
             key = body.pop('client_request_id', None)
@@ -890,7 +929,7 @@ class Backtests:
                     raise BacktestError(503, {'code': 'BACKTEST_UNAVAILABLE'})   # an answer outside the worker's API
                 row, created = await asyncio.to_thread(self.store.submit, owner, key, body, lineage, variant,
                                                        settings.backtest_queued_per_owner)
-            elif row['request'] != body:
+            elif not same_request(row['request'], body):
                 raise StoreError('SUBMISSION_CONFLICT')
             return JSONResponse(status_code=202, content={'request_id': row['request_id'], 'state': row['state'],
                                                           'created': created})

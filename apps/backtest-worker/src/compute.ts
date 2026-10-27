@@ -52,7 +52,7 @@ export class ThreadStopped extends Error {
 export function packResult(result: BacktestResult, maxBytes: number): { gzip: Uint8Array; json_bytes: number } {
   const text = JSON.stringify(result), json_bytes = Buffer.byteLength(text);
   if (json_bytes > maxBytes)
-    throw new WorkerError(422, 'LIMIT_EXCEEDED', `The backtest result has ${json_bytes} bytes of JSON; the limit is ${maxBytes} (BACKTEST_MAX_RESULT_BYTES). Choose a smaller universe, a shorter period or fewer conditions.`,
+    throw new WorkerError(422, 'LIMIT_EXCEEDED', `The backtest result has ${json_bytes} bytes of JSON; the limit is ${maxBytes} (BACKTEST_MAX_RESULT_BYTES). Choose fewer stocks, a shorter period or fewer conditions.`,
       undefined, { limit: 'max_result_bytes', allowed: maxBytes, needed: json_bytes });
   const packed = zlib.gzipSync(text), gzip = new Uint8Array(packed.byteLength);
   gzip.set(packed);

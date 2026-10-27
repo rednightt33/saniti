@@ -62,8 +62,11 @@ export interface BacktestRequest {
     benchmark: 'buy_and_hold' | 'ihsg';                // the page's Benchmark select (S.bench 'bh' | 'ihsg')
   };
   portfolio?: {
-    universe: string;                                  // a catalog universe id: 'all' or 'sector:<published sector name>'
-    max_positions: number;                             // whole number 1-10
+    tickers: string[];                                 // the picked stocks: 1 to limits.max_portfolio_tickers (engine.ts
+                                                       // MAX_PORTFOLIO_TICKERS) distinct published stocks, in any order: the worker
+                                                       // sorts them before it hashes and runs (the same set is the same request)
+    max_positions: number;                             // whole number 1 to limits.max_positions (engine.ts MAX_POSITIONS); may exceed
+                                                       // the stocks picked: a slot is still 1 / max_positions of equity, an idle one cash
     rank_by: 'adx' | 'fnet' | 'vol' | 'rsi';           // highest ADX(14) | biggest foreign net 5D | highest volume ratio | lowest RSI(14)
     min_avg_value_20d_idr: number;                     // >= 0; 20-day average of close x volume on the signal day
   };
@@ -200,7 +203,8 @@ export interface Sensitivity {
 }
 
 /** A note on how the run was made (meta.warnings). count and tickers where it concerns tickers; reasons only in
-    TICKERS_EXCLUDED: why each left-out ticker of a portfolio universe could not be run (the error it gave). */
+    TICKERS_EXCLUDED: why each left-out stock of a portfolio could not be run (the error it gave). message is a plain
+    sentence the page shows as it is (no field names); code, count, tickers and reasons are the details. */
 export interface Warning {
   code: string; message: string; count?: number; tickers?: string[];
   reasons?: { ticker: string; code: string; field?: string; message: string }[];
@@ -215,7 +219,7 @@ export interface BacktestResult {
     lineage_key: string;             // the strategy line for trial counting (K3)
     seed: number; duration_ms: number;
     mode: 'single' | 'portfolio';
-    tickers: string[];               // single: [ticker]; portfolio: the universe's tickers the run ran on (TICKERS_EXCLUDED lists the others)
+    tickers: string[];               // single: [ticker]; portfolio: the picked stocks the run ran on, ticker order (TICKERS_EXCLUDED lists the others)
     benchmark: { kind: 'buy_and_hold' | 'ihsg'; ticker: string };
     data_through: string;            // the latest published bar the run could see
     warnings: Warning[];             // PERIOD_CLIPPED, TICKERS_EXCLUDED, DATA_GAP, ADJUSTED_HISTORY_BOUNDARY, ARB_NOT_MODELLED, TICK_NOT_MODELLED, SURVIVORSHIP
@@ -295,16 +299,17 @@ export interface JobStatus {
 /** Error body, edge-bff convention: {"error": {"code": ...}} plus field and message where they help. */
 export interface ApiError { error: { code: string; field?: string; message?: string; details?: Record<string, unknown> } }
 
-/** Signals preview for the portfolio table (no backtest, no trial). */
+/** Signals preview for the portfolio table (no backtest, no trial). tickers: the picked stocks, held to the rules of
+    BacktestRequest.portfolio.tickers (fields tickers and tickers[i]). */
 export interface SignalsPreviewRequest {
-  schema_version: 1; universe: string; period: { from: string; to: string };
+  schema_version: 1; tickers: string[]; period: { from: string; to: string };
   entry: BacktestRequest['entry'];
 }
 export interface SignalsPreview {
   data_version: string;
-  rows: { ticker: string; entry_signals: number; last_signal: string | null }[];   // the universe's tickers that are counted, ticker order
-  warnings: Warning[];             // TICKERS_EXCLUDED, as the run's: the tickers left out (no published files, or their own
-                                   // data cannot serve the entry rule); every ticker left out is UNIVERSE_EMPTY, not a preview
+  rows: { ticker: string; entry_signals: number; last_signal: string | null }[];   // the picked stocks that are counted, ticker order
+  warnings: Warning[];             // TICKERS_EXCLUDED, as the run's: the stocks left out (no published files, or their own
+                                   // data cannot serve the entry rule); every stock left out is UNIVERSE_EMPTY, not a preview
 }
 
 /** GET catalog: what the page may offer (built by the worker from its registry, catalog.ts and the published data). */
@@ -312,8 +317,10 @@ export interface Catalog {
   schema_version: 1; engine_version: string; registry_version: string;
   data_through: string;                                  // IHSG's latest published bar
   first_date: string;                                    // IHSG's first published bar
-  tickers: { ticker: string; name: string | null; type: string; sector: string | null }[];   // name null: the source has none
-  universes: { id: string; label: string; tickers: number }[];
+  tickers: { ticker: string; name: string | null; type: string; groups: Record<string, string | null> }[];   // name null: the
+                                                         // source has none; groups: the ticker's value of each grouping (by key),
+                                                         // null when unclassified
+  groupings: Grouping[];                                 // the portfolio picker's filters, in the reference file's column order
   flow: {
     available: boolean; reason: string | null; brokers: string[];
     data_through: string | null;                         // the newest broker data_through of the stocks' manifests: the last day a
@@ -321,8 +328,15 @@ export interface Catalog {
   };
   limits: Limits;
 }
+/** A classification the portfolio picker filters by: a column of terminal-api's ticker reference file other than
+    ticker, name and type (today sector and industry; derived from the file, never listed here). values: each value
+    with its number of published stocks, in value order; unclassified: the published stocks without one (null, '' or
+    'Undefined' in the file: DATABASE_SCHEMA.md IDX_Stock_Universe, 'Undefined' means no classification), never a value
+    of its own. Index tickers are not counted (an index is not tradable). */
+export interface Grouping { key: string; values: { value: string; tickers: number }[]; unclassified: number }
 export interface Limits {
   max_positions: number; window_bars: { min: number; max: number }; monte_carlo_runs: number;
+  max_portfolio_tickers: number;                         // stocks one portfolio may pick (engine.ts MAX_PORTFOLIO_TICKERS)
   max_download_bytes: number; max_broker_rows: number; timeout_seconds: number; queued_per_owner: number;
   max_conditions: number;                                // enabled conditions one list may have (entry.conditions,
                                                          // exit.signals.conditions); more is LIMIT_EXCEEDED

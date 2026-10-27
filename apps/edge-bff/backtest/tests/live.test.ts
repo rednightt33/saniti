@@ -87,7 +87,7 @@ describe('the production words on the data (texts.ts)', () => {
     expect(box).toBe(['⚠︎ Single market path: history happened once.', 'MAPI has no published bar before 2019-06-03.',
       '2 ticker(s) of the universe were left out of this run. Tickers: AAAA (DATA_MISSING), BBBB (INDICATOR_OUTPUT_EMPTY).',
       '3 calendar day(s) without a bar. Tickers: CCCC.', 'The universe is today\'s list.',
-      'Before trusting a result: keep the out-of-sample untouched while tuning, and re-check the liquidity of every fill.'].join(' '));
+      'Before trusting a result: keep the out-of-sample untouched while tuning, and re-check liquidity of every fill.'].join(' '));
     expect(warningText(W[3])).toBe('The universe is today\'s list.');
   });
   it('the trial count is the server\'s, per strategy line', () => {
