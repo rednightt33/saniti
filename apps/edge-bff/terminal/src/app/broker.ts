@@ -176,7 +176,9 @@ export function initBroker(ctx: Ctx) {
     const setDates = (fd, td) => {
       if(td < bkDates[0] || fd > bkDates[last]) { note(`${longDay(fd)} – ${longDay(td)} is outside the panels' two years (${longDay(bkDates[0])} – ${longDay(bkDates[last])}); nothing changed.`); return }
       const f = idxOnOrAfter(fd), t = idxOnOrBefore(td);
-      setIdx(Math.min(f, t), Math.max(f, t), fd < bkDates[0] ? `Starts ${longDay(bkDates[0])}: the panels cover the last two years.` : '');
+      // no session inside the chosen days (a weekend or a holiday): the last session before them, with a note
+      if(f > t) return setIdx(t, t, `No trading session in ${fd === td ? longDay(fd) : `${longDay(fd)} – ${longDay(td)}`}; showing ${longDay(bkDates[t])}.`);
+      setIdx(f, t, fd < bkDates[0] ? `Starts ${longDay(bkDates[0])}: the panels cover the last two years.` : '');
     };
     root.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
       if(live && b.dataset.n === 'custom'){
@@ -239,7 +241,32 @@ export function initBroker(ctx: Ctx) {
 
   /* ---- Top accumulators / distributors ---- */
   const accRange = makeRange($('accRange'), { key:'acc', presets:[1,5,20], def:5, onChange:() => renderAcc() });
+  /* EXEC-TERMINAL-PANELS-2 E (user 2026-10-27: "top accumulators dan distributors digabung saja tidak usah pakai
+     switcher ... Top accumulators|Value|Bar Buy (ke kiri)|Bar Sell (ke kanan)|Sell|Top Distributors"), live: one table,
+     rank k pairs the k-th accumulator with the k-th distributor; both bars share one scale. The fixture keeps the
+     reference's Buy/Sell switch (1:1 check). */
+  if(live){
+    $('accTitle').textContent = 'Top brokers';
+    ($('accSide').closest('.rp-ctl') as HTMLElement).hidden = true;
+  }
+  function renderAccPaired(){
+    const all = bkAggRange(accRange.bf, accRange.bt, 'All', 'All').map(o => ({ b:o.b, net:netOf(o), lot:netLotOf(o) }));
+    const buy = all.filter(x => x.net > 0).sort((a,b) => b.net-a.net).slice(0,8);
+    const sell = all.filter(x => x.net < 0).sort((a,b) => a.net-b.net).slice(0,8);
+    const mx = Math.max(1, ...buy.map(x => x.net), ...sell.map(x => -x.net));
+    const cell = (x, side) => x ? `<span class="pa-b" data-b="${x.b}" data-tip="${x.b}|${accRange.text()} net ${sgn(x.net)} · ${sgn(x.lot)} lot">${bkTag(x.b)}</span>` : '<span class="pa-b"></span>';
+    const val = (x, side) => `<span class="v ${side==='buy'?'up':'down'}">${x ? sgn(x.net) : ''}</span>`;
+    const bar = (x, side) => `<div class="trk ${side}">${x ? `<div class="fill" style="width:${(Math.abs(x.net)/mx*100).toFixed(1)}%"></div>` : ''}</div>`;
+    const n = Math.max(buy.length, sell.length);
+    $('accBody').innerHTML = n ? `<div class="pa-head"><span class="l">Top accumulators</span><span class="m">Net buy ← → Net sell</span><span class="r">Top distributors</span></div>`
+      + Array.from({ length:n }, (_, k) => { const b = buy[k], s = sell[k];
+        return `<div class="pa-row">${cell(b,'buy')}${val(b,'buy')}${bar(b,'buy')}${bar(s,'sell')}${val(s,'sell')}${cell(s,'sell')}</div>` }).join('')
+      : `<div class="rp-empty">Tidak ada data</div>`;
+    $('accBody').querySelectorAll('.pa-b[data-b]').forEach(el => { el.classList.toggle('sel', el.dataset.b === RS.broker); el.onclick = () => selectBroker(el.dataset.b) });
+    $('accHint').textContent = `${accRange.text()} · net`;
+  }
   function renderAcc(){
+    if(live) return renderAccPaired();
     const buy = RS.accSide === 'buy';
     const l = bkAggRange(accRange.bf, accRange.bt, 'All', 'All').map(o => ({ b:o.b, net:netOf(o), lot:netLotOf(o) }))
       .filter(x => buy ? x.net > 0 : x.net < 0).sort((a,b) => buy ? b.net-a.net : a.net-b.net).slice(0,8);

@@ -2357,6 +2357,28 @@ change yet.
 - **Lesson for new data:** angka yang ditandai sumber sebagai tidak ada disimpan NULL; aturan diambil dari penanda sumber
   ("-"), bukan dari nilai 0, karena 0 bisa sah (misalnya hibah tanpa harga).
 
+### EXEC-TERMINAL-PANELS-2 — legenda Flow tidak sejajar; masukan panel, kalender, pilih di chart, anotasi (2026-10-27)
+
+- **Symptom (B):** user 2026-10-27: "tidak align antara tulisan Net buy Net sell dengan badge cumulative."
+- **Verified cause (B):** `terminal.css`:369 `.flow-wrap .flow-legend{...align-items:flex-start}`: label 14 px menempel
+  di atas, tombol Cumulative 28 px; tengah keduanya berbeda ±10 px. **Solution:** `html.fit .flow-wrap .flow-legend
+  {align-items:center}` (live; fixture referensi tetap). Live check: tengah keduanya sama (766 px).
+- **Dikerjakan juga (user, kata-kata di EXEC-TERMINAL-PANELS-2):** D judul bagian panel = pegangan (tekan dan seret;
+  sentuh: tahan 250 ms; klik tetap melipat; tanpa titik); E Top accumulators dan distributors dalam satu tabel
+  berpasangan (judul "Top brokers"; pengalih Buy/Sell disembunyikan di live); kalender: semua hari normal dan bisa
+  diklik, hari tanpa sesi bursa dialihkan ke sesi terakhir sebelumnya dengan catatan; pilih di chart: seret, atau klik
+  hari pertama lalu hari terakhir (klik dua kali di hari yang sama = satu hari); F penanda anotasi membesar dengan
+  cincin saat crosshair di sesinya.
+- **Cacat ditemukan saat uji, sebelum deploy:** (1) pengaman klik sesudah seret aktif 400 ms, klik biasa berikutnya ikut
+  tertelan (panel tidak terlipat); kini dilepas di tugas yang sama dengan pointerup. (2) atribut `hidden` pada `.rp-ctl`
+  kalah oleh `display:flex`, pengalih Buy/Sell tetap tampil; ditambah `.rp-ctl[hidden]{display:none}`.
+- **Bukti:** vitest 669, edge-bff terminal 20, 1:1 0 piksel (dua run; dua run sebelumnya 1–18 piksel derau di skenario
+  berbeda, tanpa beda markup/teks). Live check ANTM (`panels_live_check.py`): rel, legenda sejajar, penanda "hot" 1,
+  tabel 8 baris, Sabtu 03 Oct 2026 → 02 Oct 2026 dengan catatan, satu hari 16 Jul dari dua klik, seret urutan bertahan
+  sesudah reload, klik masih melipat, tanpa error.
+- **Belum (menunggu user):** A (judul Flow dua baris di 1270×618 skala 1,5: judul 89 px, grafik Flow 90 px) dan C.
+- **Status:** B RESOLVED; A dan C OPEN (keputusan user).
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.
