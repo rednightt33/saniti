@@ -152,6 +152,12 @@ class FakeBucket:
             m = self.manifests['BBCA']
         return m
 
+    state_doc = {'finished_at': '2026-10-27T13:03:17Z', 'price_through': '2026-10-27', 'broker_through': '2026-10-27',
+                 'broker_behind_sessions': 0}
+
+    def state(self):
+        return self.state_doc
+
     def presign(self, key, ttl):
         return f'https://bucket.example/{key}?X-Amz-Expires={ttl}&sig=x'
 
@@ -476,4 +482,52 @@ def test_manifest_cache_holds_until_the_publisher_finishes_a_run(monkeypatch):
     b.manifest('BBCA'); assert reads[-1] == 'v1/state.json'               # same run: no manifest read
     clock[0] += 61; state['finished_at'] = 'run-2'
     assert b.manifest('BBCA')['run'] == 'run-2' and reads[-1] == 'v1/manifest/BBCA.json'
+
+
+def test_state_names_the_publication_without_quota_or_audit(gateway):
+    """EXEC-BACKTEST-LOAD K1: the publication the files belong to; no file granted, so no access row."""
+    client, store = gateway
+    h = {'x-terminal-proxy-key': PROXY_KEY}
+    rows = len(store.access)
+    r = client.get(f'{API}/state', headers=h)
+    assert r.status_code == 200 and r.json()['finished_at'] == '2026-10-27T13:03:17Z' and r.json()['broker_through'] == '2026-10-27'
+    assert len(store.access) == rows
+    assert client.get(f'{API}/state').status_code == 401                     # no gateway key, no session
+
+
+def test_state_unreadable_is_503():
+    store, bucket = FakeStore(), FakeBucket()
+    bucket.state_doc = None
+    settings = Settings(**{**SETTINGS.__dict__, 'proxy_key': PROXY_KEY, 'proxy_subscriber': 'sub@example.com'})
+    client = TestClient(create_app(settings, store, bucket))
+    client.post(f'{API}/admin/subscribers', headers={**ADMIN, 'origin': ORIGIN}, json={
+        'email': 'sub@example.com', 'display_name': 'Owner', 'password': 'correct horse battery',
+        'expires_at': (NOW + dt.timedelta(days=30)).isoformat()})
+    r = client.get(f'{API}/state', headers={'x-terminal-proxy-key': PROXY_KEY})
+    assert r.status_code == 503 and r.json()['error'] == 'state_unavailable'
+
+
+def test_bucket_state_keeps_the_last_read_publication(monkeypatch):
+    import io
+    from app import bucket as bucket_mod
+    state = {'finished_at': 'run-1', 'price_through': '2026-10-26', 'broker_through': '2026-10-23', 'broker_behind_sessions': 1,
+             'window': {'first_year': 2021}}
+
+    class S3:
+        class exceptions:
+            NoSuchKey = KeyError
+        def get_object(self, Bucket, Key):
+            if not Key.endswith('state.json'):
+                raise KeyError(Key)
+            return {'Body': io.BytesIO(json.dumps(state).encode())}
+    b = object.__new__(bucket_mod.Bucket)
+    b.name, b.s3, b.cache_seconds, b._cache, b._version, b._checked, b._state = 'x', S3(), 60, {}, None, None, None
+    clock = [1000.0]
+    monkeypatch.setattr(bucket_mod.time, 'monotonic', lambda: clock[0])
+    assert b.state() == {'finished_at': 'run-1', 'price_through': '2026-10-26', 'broker_through': '2026-10-23',
+                         'broker_behind_sessions': 1}                       # only the publication fields
+    state.update(finished_at='run-2', broker_through='2026-10-27')
+    assert b.state()['finished_at'] == 'run-1'                              # within the check interval
+    clock[0] += 61
+    assert b.state()['finished_at'] == 'run-2' and b.state()['broker_through'] == '2026-10-27'
 

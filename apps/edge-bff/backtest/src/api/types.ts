@@ -49,7 +49,7 @@ export interface BacktestApi {
   /** A ticker's bars; with flow also its broker data, so flow cards can be calculated. Once it resolves, the
       synchronous calls below work for that ticker (the reference computes everything at once, so the page keeps its
       synchronous renderers and only waits here). */
-  bars(ticker: string, opts?: { flow?: boolean }): Promise<TickerBars>;
+  bars(ticker: string, opts?: { flow?: boolean; soon?: boolean }): Promise<TickerBars>;   // soon: the broker data will be asked next (one /bundle)
   /** Whether a card can be calculated at all (the reference's condReady / regReady): false shows the page's
       "Not calculated" pill and the card is left out of a run. */
   ready(card: Card): boolean;

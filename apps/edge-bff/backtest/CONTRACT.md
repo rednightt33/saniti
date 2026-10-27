@@ -74,10 +74,13 @@ not in the path.
   `period.to` is after it, on the manifests before any download: the request's own tickers' manifests first, then the
   other stocks' until one reaches `period.to`, so it is refused exactly when the catalog's date is before `period.to`.
   This replaces the earlier `DATA_UNAVAILABLE` check on the loaded tickers' broker `data_through`. Caching
-  **[D-L3]**: the worker keeps no date, because no terminal-api answer marks a publish exactly (`load.ts
-  brokerDataThrough` gives the reasons); each catalog build asks every stock's manifest, `BACKTEST_DOWNLOAD_CONCURRENCY`
-  at a time. terminal-api keeps manifests until the publisher's next run (state.json `finished_at`); edge-bff keeps
-  the catalog 60 s.
+  **[D-L3]** (replaced 2026-10-27, EXEC-BACKTEST-LOAD K1, user: "Sesi ini, jalankan"): the catalog and the reference
+  lists are kept per publication. terminal-api `GET /state` names it (state.json `finished_at`, `price_through`,
+  `broker_through`; no file granted, no quota, no audit row); the worker (`catalog.ts ByPublication`) asks it at most
+  every 60 s and builds again only when `finished_at` changed, and `catalog.flow.data_through` is the publication's
+  `broker_through` (the newest Feature 05 date of the run, the date that run wrote into the manifests it touched).
+  Without `/state` (an older terminal-api, state.json unreadable) nothing is kept and every build asks every stock's
+  manifest, as before. The worker builds the catalog at start; edge-bff keeps it 60 s.
 - Cache: by file sha256 (content-addressed: the worker's memory and optional disk caches, the page's browser cache
   **[D-P5]**), so a cached file can never belong to another data version; it is checked against its manifest again
   each time it is used, and a damaged copy is never used (the file is downloaded again).
@@ -499,6 +502,25 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
 - Published files are kept in the Terminal's browser cache **[D-P5]**: IndexedDB `terminal-files` version 1, store
   `files` (keyPath `sha`, index `used`), its least-recently-used limit; only bytes that pass `inflateVerified`; any
   IndexedDB failure means no cache, never a failed page.
+- Loading (EXEC-BACKTEST-LOAD, user 2026-10-27: "menu-menu itu yang di sebelah kiri dan di tengah ... bisa ready langsung
+  ketika user buka ... Tidak perlu semuanya di loading all at once"): the page asks the catalog and the shown ticker's
+  prices at once and draws the builder and the chart without waiting (`app.ts boot`; what answers within 60 ms is used
+  for the first render, so the fixture starts as before). Until the catalog answers the page runs on `env.ts
+  PROVISIONAL` (no stock, broker, grouping or date; the core's ceilings as limits; flow taken as available): the Ticker
+  and broker selects show the current choice and "Loading tickers…" / "Loading brokers…", the picker "Loading stocks…"
+  and "Loading sectors and industries…", and Run waits for the catalog. When it answers, its defaults are taken if no
+  setting was changed yet, and the builder draws again once no builder field has the focus. The chart draws the candles
+  as soon as the prices are there; a flow card's lanes and the entry lane say "· loading" (no entry marker, the count
+  "…") until its broker data is there (`signals.ts prepare`, `flowWait`). One `/bundle` per ticker asks its prices and,
+  when a flow card will need them, its broker files (`live.ts bundles`, reused while its URLs are good). Downloads, the
+  manifest checks and the decoding run in a Web Worker (`api/load.worker.ts`, `api/load.ts`); the file cache and the
+  download with retries are the module the Terminal uses too (`terminal/src/data/rack.ts`, K3).
+- Loading ring (EXEC-BACKTEST-SPIN, user 2026-10-27: "S1 dan S2 yes sesuai yang kamu sarankan / S3 - OK ya"): the
+  Terminal's ring (`terminal/src/styles/spin.css`, `terminal/src/ui/spin.ts`: one turn in 0.15 s, 1.6 s with reduced
+  motion). Until the shown ticker's prices are there the chart is emptied (no candles of another stock under the new
+  name) and `#chartLoading` shows the ring with "Loading <TICKER>"; a lane waiting for broker data has a small ring
+  before its label; the run note shows the ring with "Loading…" (waiting for the catalog), "Running…" and the job's
+  phase. These exist only while the page loads or runs: the settled page is the reference's.
 - A file download that gets no answer, whose body is cut off on the way, or that the storage host answers 5xx is asked
   again twice (0.5 s, then 1 s), as the worker does (`terminal.ts http`); after that it is `DATA_UNAVAILABLE` "A data
   file could not be downloaded." A refusal (403: the link expired, 404) is answered at once. A whole file that is not

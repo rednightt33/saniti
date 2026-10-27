@@ -4902,3 +4902,26 @@ The other session's work reached `main` (EDGE backtest, merge `fdd00e7`, #39) an
 `fdd00e7`) reached SUCCESS 13:58 UTC (ERRORS M252). `apps/edge-bff/terminal` is unchanged between `bb24f9c` and `main`
 `cfa05ba`; live terminal `index-BwPhz-tP.js`, `style-CEs0cb7F.css` and `worker-Cvg2XSvx.js` equal the W1 + I2 build
 (sha256), checked 2026-10-27 after 14:27 UTC. No variable changed.
+
+## 2026-10-27 — EXEC-BACKTEST-LOAD: terminal-api, backtest-worker, edge-bff
+
+User 2026-10-27: "Sesi ini, jalankan" (PLAN BACKTEST-LOAD; EXEC.md EXEC-BACKTEST-LOAD). No variable changed.
+- **terminal-api `689dc465`** (CLI upload of `apps/terminal-api`, `main` `6f318ea`): `GET /api/terminal/v1/state`. SUCCESS
+  15:58 UTC. Rollback: `1c428bb6`.
+- **backtest-worker `53b3002f`** (CLI upload of the Dockerfile's build context, `6f318ea`): catalog and reference lists per
+  publication; SUCCESS 15:59 UTC; first catalog 2.2 s, then 0.24–0.29 s through edge-bff, `flow.data_through` 2026-10-27.
+  **`292f7caa`** (`48137a2`): the catalog is built at start; SUCCESS 16:30 UTC. Rollback: `97dd49ce`.
+- **edge-bff `1a2081ce`** (`main` `8915046`, page draws at once): SUCCESS 16:30 UTC, but the live Backtest page froze once
+  its prices loaded (ERRORS M253). **`7e966be9`** (`2c1a484`: the M253 fix, the shared rack module, the Web Worker):
+  SUCCESS 17:05 UTC; live Backtest and Terminal assets equal the builds (sha256); the page answers, 6 lanes drawn.
+  **`2930a8fd`** (`1bf0d21`: connection pool): SUCCESS 17:38 UTC; `/api/v1/auth/session` median 221 ms against 217 ms for
+  a static file from the sandbox (before: 240 ms against about 130 ms).
+- Measured (BACKTEST_END_TO_END.md section 17): first open 8.83 → 1.37 s, second open 2.36 → 1.12 s, no long task over
+  50 ms; Terminal chart 2.28 s / 1.77 s.
+
+## 2026-10-27 — edge-bff: loading ring on the Backtest page (EXEC-BACKTEST-SPIN)
+
+User 2026-10-27: "S1 dan S2 yes sesuai yang kamu sarankan / S3 - OK ya", "Go". `main` `eaa1590`: edge-bff `63cd3a6a` SUCCESS
+18:22 UTC; live Backtest and Terminal assets equal the builds (sha256). Live check: `#chartLoading` "Loading MAPI", one
+turn 0.15s, gone when the candles are drawn (3.9 s from the sandbox), three lane rings while the broker data loads, no
+page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: `d2e3aa1f` SUCCESS 18:23 UTC. No variable changed.

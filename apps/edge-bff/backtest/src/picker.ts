@@ -5,7 +5,7 @@
    select, chip, pill, button and menu styles (backtest.css, the picker block beside them). The rules are picked.ts;
    every catalog string goes into the markup through esc(). */
 import type { Grouping } from './core/contract.ts';
-import { CAT } from './env.ts';
+import { CAT, catalogReady } from './env.ts';
 import { $, esc, ico, toast } from './format.ts';
 import { S } from './state.ts';
 import { addTickers, filtering, groupLabel, groupStocks, limitText, searchMatches, stocksOf, stocksText, type Stock } from './picked.ts';
@@ -35,7 +35,7 @@ export const pickerHtml = () => `<div class="row pk" id="pk">
         <input class="inp" id="pkQ" type="text" role="combobox" aria-labelledby="pkLbl" aria-describedby="pkN" aria-autocomplete="list" aria-expanded="false" aria-controls="pkList" autocomplete="off" spellcheck="false" placeholder="Search ticker or name" value="${esc(S.pick.q)}">
         <div class="pk-list" id="pkList" role="listbox" aria-label="Matching stocks" hidden></div></div>
       <div class="chips pk-chips" id="pkChips" role="list" aria-label="Picked stocks"></div>
-      ${CAT.groupings.length ? `<div class="pk-f">${CAT.groupings.map((g,k) => `<label class="fld"><span>${esc(groupLabel(g.key))}</span><select class="sel" data-g="${k}">${optionsOf(g)}</select></label>`).join('')}</div><div class="pk-g" id="pkG"></div>` : ''}
+      ${!catalogReady() ? '<div class="exempty">Loading sectors and industries…</div>' : CAT.groupings.length ? `<div class="pk-f">${CAT.groupings.map((g,k) => `<label class="fld"><span>${esc(groupLabel(g.key))}</span><select class="sel" data-g="${k}">${optionsOf(g)}</select></label>`).join('')}</div><div class="pk-g" id="pkG"></div>` : ''}
     </div>`;
 
 /* ---- what the picked stocks show: the count, the chips, the group list, the search's marks ---- */
@@ -104,7 +104,8 @@ const openList = (keepTicker: string | null = null) => {
   }
   shown = all.shown.slice(0, n);
   box.innerHTML = shown.map(option).join('') + (all.total > n ? `<div class="pk-more">${all.total - n} more · type more of the ticker or name</div>` : '')
-    + (all.total ? '' : `<div class="pk-more">No stock matches “${esc(S.pick.q.trim())}”.</div>`);
+    + (all.total ? '' : catalogReady() ? `<div class="pk-more">No stock matches “${esc(S.pick.q.trim())}”.</div>`
+      : '<div class="pk-more">Loading stocks…</div>');   // EXEC-BACKTEST-LOAD: before the catalog answers
   // the active option: the first stock that can be added, from the one that was active (just added) on
   const from = Math.max(0, keepTicker ? shown.findIndex(s => s.ticker === keepTicker) : 0), n2 = shown.length;
   setActive(Array.from({ length:n2 }, (_, j) => (from + j) % n2).find(addable) ?? -1);

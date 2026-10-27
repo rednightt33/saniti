@@ -37,7 +37,8 @@ export class Compute {
     if (card.type === 'reg') { const r = BY_ID[(card as RegCard).ind]; return !!r && r.available_for_backtest }
     const spec = LEGACY[card.type];
     if (!spec) return false;
-    return spec.group !== 'flow' || !!this.catalog()?.flow.available;
+    // EXEC-BACKTEST-LOAD: before the catalog answers, a flow card counts as ready (its series waits for the broker data)
+    return spec.group !== 'flow' || (this.catalog()?.flow.available ?? true);
   }
 
   indicatorOutputs(ticker: string, id: string, params: Record<string, unknown>): Outputs | null {

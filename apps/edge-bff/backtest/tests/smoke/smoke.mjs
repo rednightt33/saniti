@@ -519,6 +519,79 @@ await at('flow: FLOW_DATA_THROUGH on a phone', async () => {
   await noSideScroll('error toast');
 });
 
+/* ---- EXEC-BACKTEST-LOAD (user 2026-10-27: "menu-menu itu ... bisa ready langsung ketika user buka"): a catalog that
+   answers late. The builder and the chart are drawn before it; the ticker list says it is loading; a Run clicked before
+   it waits for it and finishes; once it answers the list holds the stocks ---- */
+await page.close(); await openPage();
+await at('slow catalog: the page is ready before it, the lists say they are loading', async () => {
+  const t0 = Date.now();
+  await page.goto(`${origin}/backtest-app/?slowcat=2500`);
+  await page.waitForSelector('#builder .bs.on', { timeout:2000 });
+  expect(Date.now() - t0 < 2000, 'the builder waited for the catalog');
+  await page.waitForFunction(() => document.querySelectorAll('#laneLabels span').length > 0, null, { timeout:2000 });
+  const opts = await page.locator('#builder [data-k="ticker"] option').allInnerTexts();
+  expect(opts.length === 2 && opts[1] === 'Loading tickers…', `the ticker list before the catalog: ${JSON.stringify(opts)}`);
+  expect(!(await page.locator('#runTop').isDisabled()), 'Run is disabled before the catalog');
+  await page.click('#runTop');
+  await page.waitForFunction(() => /^Done in /.test(document.getElementById('runNote').textContent), null, { timeout:15000 });
+  const after = await page.locator('#builder [data-k="ticker"] option').allInnerTexts();
+  expect(after.length > 2 && !after.some(x => /Loading/.test(x)), `the ticker list after the catalog: ${after.length} options`);
+});
+
+/* EXEC-BACKTEST-LOAD: broker data that arrives late. The chart draws the prices, the flow lanes and the entry lane say
+   they are loading, the page keeps answering (a redraw loop froze it once: ERRORS, EXEC-BACKTEST-LOAD), and the lanes
+   fill when the broker data is there */
+await page.close(); await openPage();
+await at('slow broker data: prices first, the page answers, the flow lanes fill later', async () => {
+  await page.goto(`${origin}/backtest-app/?flow=1&flowms=1500`);
+  await page.waitForFunction(() => /loading/.test(document.getElementById('laneLabels').textContent), null, { timeout:1400 });
+  expect(await page.locator('#laneLabels .ml-spin').count() >= 2, 'no loading ring on the waiting lanes (a flow lane and Entry)');
+  const t0 = Date.now(); await page.evaluate(() => 1);
+  expect(Date.now() - t0 < 500, `the page took ${Date.now() - t0} ms to answer while the broker data loads`);
+  await page.waitForFunction(() => document.querySelectorAll('#laneLabels span').length > 1 && !/loading/.test(document.getElementById('laneLabels').textContent), null, { timeout:5000 });
+});
+
+/* EXEC-BACKTEST-SPIN (user 2026-10-27: S1 "yes", S2 "yes", S3 "OK"): prices that arrive late. The chart is empty and
+   shows the shared loading ring with the ticker, one turn in 0.15 s (1.6 s with reduced motion); a ticker switch empties
+   the chart (no candles of the other stock) and names the new ticker; the run note shows the ring while it waits */
+const ring = async () => page.evaluate(() => {
+  const el = document.getElementById('chartLoading'), r = el && el.querySelector('.ml-spin');
+  return el ? { shown: !el.hidden, text: el.textContent, turn: r ? getComputedStyle(r).animationDuration : null } : null;
+});
+await page.close(); await openPage();
+await at('slow prices: the chart shows the loading ring with the ticker, one turn in 0.15 s', async () => {
+  await page.goto(`${origin}/backtest-app/?barsms=1500`);
+  await page.waitForSelector('#builder .bs.on', { timeout:2000 });
+  const r = await ring();
+  expect(r && r.shown && r.text === 'Loading MAPI' && r.turn === '0.15s', `the ring while the prices load: ${JSON.stringify(r)}`);
+  await page.waitForFunction(() => document.getElementById('chartLoading').hidden && document.querySelectorAll('#laneLabels span').length > 1, null, { timeout:5000 });
+});
+await at('slow prices: a ticker switch empties the chart and names the new ticker', async () => {
+  const other = await page.locator('#builder [data-k="ticker"] option').evaluateAll(os => os.map(o => o.textContent).find(t => t !== 'MAPI'));
+  await page.click('#sumbox [data-st="1"]');                         // step 1 holds the Ticker field
+  await page.selectOption('#builder [data-k="ticker"]', other);
+  await page.waitForFunction(() => !document.getElementById('chartLoading').hidden, null, { timeout:1000 });
+  const r = await ring(), chips = await text('#sigChips');
+  expect(r.text === `Loading ${other}` && chips === '', `after the switch: ${JSON.stringify(r)}, chips "${chips.slice(0, 60)}"`);
+  await page.waitForFunction(() => document.getElementById('chartLoading').hidden, null, { timeout:5000 });
+});
+await at('reduced motion: the ring turns slower (1.6 s), it does not stop', async () => {
+  await page.emulateMedia({ reducedMotion:'reduce' });
+  await page.goto(`${origin}/backtest-app/?barsms=1500`);
+  await page.waitForSelector('#builder .bs.on', { timeout:2000 });
+  const r = await ring();
+  expect(r && r.shown && r.turn === '1.6s', `the ring with reduced motion: ${JSON.stringify(r)}`);
+  await page.emulateMedia({ reducedMotion:'no-preference' });
+});
+await at('a run shows the loading ring in its note while it waits', async () => {
+  await page.goto(`${origin}/backtest-app/?slowcat=1500`);
+  await page.waitForSelector('#builder .bs.on', { timeout:2000 });
+  await page.click('#runTop');
+  expect(await page.locator('#runNote .ml-spin').count() === 1, `the run note while the run waits: "${await text('#runNote')}"`);
+  await page.waitForFunction(() => /^Done in /.test(document.getElementById('runNote').textContent), null, { timeout:15000 });
+  expect(await page.locator('#runNote .ml-spin').count() === 0, 'the ring stays after the run');
+});
+
 await browser.close(); server.close();
 console.log(steps.join('\n'));
 if (errors.length) { console.error(`\n${errors.length} error(s):\n` + errors.join('\n')); process.exit(1) }

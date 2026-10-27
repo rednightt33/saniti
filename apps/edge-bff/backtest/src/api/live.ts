@@ -5,8 +5,9 @@
    shared core (compute.ts). Verified files are kept in the browser cache the Terminal uses (cache.ts). Backtest jobs:
    the edge-bff endpoints of CONTRACT.md section 9. The texts on the data are the published data's (texts.ts). */
 import type { BacktestRequest, BacktestResultCore, Catalog, JobStatus, SignalsPreview, SignalsPreviewRequest } from '../core/contract.ts';
-import { asOf, brokerGaps, brokerRows, DataError, inflateVerified, priceSeries, type FileEntry, type PriceSeries } from '../core/datafile.ts';
-import { flowData } from '../core/flow.ts';
+import { asOf, DataError, type FileEntry, type PriceSeries } from '../core/datafile.ts';
+import type { FlowData } from '../core/flow.ts';
+import { loadFlow, loadPrice, type LoadAnswer, type LoadJob } from './load.ts';
 import { ApiFailure, isAbort, type BacktestApi, type Card, type TickerBars, type TickerEvents } from './types.ts';
 import { Compute } from './compute.ts';
 import { fileCache, type FileCache } from './cache.ts';
@@ -58,46 +59,59 @@ async function call<T>(base: string, path: string, body?: unknown, service = 'ba
 
 /* ---- published market data ---------------------------------------------------------------------------------- */
 type Dataset = 'price' | 'broker';
+export { FILE_RETRIES, FILE_RETRY_MS } from '../../../terminal/src/data/rack.ts';
 
-async function files(ticker: string, dataset: Dataset): Promise<FileEntry[]> {
-  const answer: any = await call(TERMINAL, '/bundle', { ticker, datasets:[dataset], packs:true }, 'market data service');
+/* EXEC-BACKTEST-LOAD (K3, "Seperti bagian terminal"): one /bundle per ticker for what it is about to need (its prices,
+   and its broker files when a flow card will ask for them), reused for the other dataset while its URLs are still
+   good (terminal-api's links live 120 s; URL_LIFE_MS keeps a margin) */
+const URL_LIFE_MS = 90_000;
+function bundles() {
+  const kept = new Map<string, { at: number; datasets: Dataset[]; p: Promise<any> }>();
+  return (ticker: string, need: Dataset[]) => {
+    const k = kept.get(ticker);
+    if (k && Date.now() - k.at < URL_LIFE_MS && need.every(d => k.datasets.includes(d))) return k.p;
+    const p = call(TERMINAL, '/bundle', { ticker, datasets:need, packs:true }, 'market data service');
+    kept.set(ticker, { at:Date.now(), datasets:need, p });
+    p.catch(() => { if (kept.get(ticker)?.p === p) kept.delete(ticker) });
+    return p;
+  };
+}
+const filesOf = (answer: any, ticker: string, dataset: Dataset): FileEntry[] => {
   const list = answer?.datasets?.[dataset]?.files;
   if (!Array.isArray(list) || !list.length) throw new ApiFailure(`No ${dataset} data is published for ${ticker}.`, 'DATA_MISSING');
   return list.map((f: any) => ({ url:f.url, sha256:f.sha256, bytes:f.bytes }));
-}
-/* the presigned file's bytes (no cookies to the storage host). A download that gets no answer, whose body is cut off on
-   the way, or that the storage host answers 5xx is asked again FILE_RETRIES times, as the page's status poll (run.ts)
-   and the worker (terminal.ts http) do; a refusal (4xx: 403 an expired link, 404) is answered at once. */
-export const FILE_RETRIES = 2, FILE_RETRY_MS = 500;
-async function fetchFile(url: string): Promise<Uint8Array> {
-  let status = 0;
-  for (let k = 0; ; k++) {
+};
+
+/* the loading worker (load.worker.ts) when the browser has Web Workers; the same work on the page otherwise (tests) */
+function loader(cache: FileCache, offThread: boolean) {
+  let worker: Worker | null = null, n = 0;
+  const waiting = new Map<number, [(v: any) => void, (e: unknown) => void]>();
+  const start = () => {
+    if (worker || !offThread) return worker;
     try {
-      const res = await fetch(url, { credentials:'omit' });
-      status = res.status;
-      if (res.ok) return new Uint8Array(await res.arrayBuffer());   // a body cut off on the way rejects here
-      if (status < 500) break;
-    } catch { status = 0 }
-    if (k >= FILE_RETRIES) break;
-    await new Promise(ok => setTimeout(ok, FILE_RETRY_MS * (k + 1)));
-  }
-  throw new ApiFailure(status ? `A data file could not be downloaded (${status}).` : 'A data file could not be downloaded.', 'DATA_UNAVAILABLE', status);
+      worker = new Worker(new URL('./load.worker.ts', import.meta.url));
+      worker.onmessage = (e: MessageEvent<LoadAnswer>) => {
+        const a = e.data, w = waiting.get(a.id); if (!w) return;
+        waiting.delete(a.id);
+        if (a.ok === true) w[0](a.out);
+        else w[1](new ApiFailure(a.error.message, a.error.code, a.error.status, a.error.field));
+      };
+      worker.onerror = () => { for (const [, w] of waiting) w[1](new ApiFailure('The data could not be read.', 'DATA_UNAVAILABLE')); waiting.clear(); worker = null; offThread = false };
+    } catch { worker = null; offThread = false }
+    return worker;
+  };
+  type Job = { kind: 'price'; ticker: string; files: FileEntry[] } | { kind: 'flow'; ticker: string; files: FileEntry[]; dates: string[] };
+  const ask = <T>(job: Job): Promise<T> => {
+    const w = start();
+    if (!w) return (job.kind === 'price' ? loadPrice(job.ticker, job.files, cache) : loadFlow(job.ticker, job.files, job.dates, cache)) as Promise<T>;
+    const id = ++n;
+    return new Promise<T>((ok, no) => { waiting.set(id, [ok, no]); w.postMessage({ ...job, id } satisfies LoadJob) });
+  };
+  return {
+    price: (ticker: string, files: FileEntry[]) => ask<PriceSeries>({ kind:'price', ticker, files }),
+    flow: (ticker: string, files: FileEntry[], dates: string[]) => ask<FlowData>({ kind:'flow', ticker, files, dates }),
+  };
 }
-/* a file from the browser cache when its bytes still match the manifest entry, else the presigned file, checked against
-   its manifest entry and inflated; a complete file that is not what its manifest says is DATA_INTEGRITY and is not asked
-   again (inflateVerified); only bytes that pass are stored (cache.ts) */
-async function download(f: FileEntry, what: string, cache: FileCache) {
-  const sha = String(f.sha256).toLowerCase(), hit = await cache.get(sha);
-  if (hit) {
-    try { return await inflateVerified(hit, f, what) }
-    catch { /* a stored file that does not match its manifest entry is not used: it is downloaded (and replaced) */ }
-  }
-  const raw = await fetchFile(f.url), doc = await inflateVerified(raw, f, what);
-  cache.put(sha, raw);                                         // inflateVerified: these bytes hash to sha
-  return doc;
-}
-const readAll = async (ticker: string, dataset: Dataset, cache: FileCache) =>
-  Promise.all((await files(ticker, dataset)).map((f, k) => download(f, `${ticker} ${dataset} file ${k + 1}`, cache)));
 
 /** the page's TickerBars of a decoded price series */
 const tickerBars = (p: PriceSeries): TickerBars => ({ ticker:p.ticker, dates:p.dates as string[], o:p.bars.O as number[], h:p.bars.H as number[], l:p.bars.L as number[], c:p.bars.C as number[], v:p.bars.V as (number | null)[] });
@@ -109,6 +123,8 @@ const dataFailure = (e: unknown, ticker: string) => e instanceof ApiFailure ? e
 /** `cache`: the browser's file cache of this page load (a test passes its own) */
 export function liveApi(opts: { cache?: FileCache } = {}): BacktestApi {
   const cache = opts.cache ?? fileCache();
+  // a test passes its own cache and reads on the page; the browser reads off the page's main thread
+  const load = loader(cache, !opts.cache && typeof Worker !== 'undefined'), bundle = bundles();
   let catalog: Catalog | null = null;
   const compute = new Compute(() => catalog);
   const prices = new Map<string, Promise<PriceSeries>>();
@@ -119,10 +135,11 @@ export function liveApi(opts: { cache?: FileCache } = {}): BacktestApi {
   const page = newId();
   let previews = 0;
 
-  const priceOf = (ticker: string) => {
+  const priceOf = (ticker: string, soon = false) => {
     let p = prices.get(ticker);
     if (!p) {
-      p = readAll(ticker, 'price', cache).then(docs => priceSeries(ticker, docs)).catch(e => { prices.delete(ticker); throw dataFailure(e, ticker) });
+      p = bundle(ticker, soon ? ['price', 'broker'] : ['price']).then(a => load.price(ticker, filesOf(a, ticker, 'price')))
+        .catch(e => { prices.delete(ticker); throw dataFailure(e, ticker) });
       prices.set(ticker, p);
     }
     return p;
@@ -130,7 +147,8 @@ export function liveApi(opts: { cache?: FileCache } = {}): BacktestApi {
   const flowOf = (ticker: string, series: PriceSeries) => {
     let p = flows.get(ticker);
     if (!p) {
-      p = readAll(ticker, 'broker', cache).then(docs => { compute.put(tickerBars(series), flowData(brokerRows(docs), series.dates, brokerGaps(docs)), series.bars) })
+      p = bundle(ticker, ['broker']).then(a => load.flow(ticker, filesOf(a, ticker, 'broker'), series.dates as string[]))
+        .then(flow => { compute.put(tickerBars(series), flow, series.bars) })
         .catch(e => { flows.delete(ticker); throw dataFailure(e, ticker) });
       flows.set(ticker, p);
     }
@@ -142,9 +160,10 @@ export function liveApi(opts: { cache?: FileCache } = {}): BacktestApi {
     async catalog() { catalog = await call<Catalog>(BACKTESTS, '/catalog'); return catalog },
 
     async bars(ticker, opts = {}) {
-      const series = await priceOf(ticker);
+      const series = await priceOf(ticker, !!(opts.flow || opts.soon));
       if (!compute.has(ticker)) compute.put(tickerBars(series), undefined, series.bars);
-      if (opts.flow && catalog?.flow.available && !compute.has(ticker, true)) await flowOf(ticker, series);
+      // EXEC-BACKTEST-LOAD: the broker files load before the catalog answers too (flow off is only known from it)
+      if (opts.flow && catalog?.flow.available !== false && !compute.has(ticker, true)) await flowOf(ticker, series);
       return compute.get(ticker)!;
     },
 

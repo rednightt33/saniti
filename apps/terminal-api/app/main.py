@@ -294,6 +294,16 @@ def create_app(settings: Settings | None = None, store=None, bucket=None):
             'Cache-Control': f'private, max-age={LOGO_CACHE_SECONDS}', 'ETag': f'"{sha[:32]}"',
             'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox"})
 
+    @app.get(f'{API}/state')
+    def publication(who=Depends(subscriber)):
+        """EXEC-BACKTEST-LOAD (user 2026-10-27, K1): the publication the files belong to (state.json, read for the manifest
+        cache, at most manifest_cache_seconds old). No file is granted: no quota, no audit row. A reader keeps what it
+        derives from the files (the backtest catalog) until finished_at changes."""
+        state = bucket.state()
+        if not state:
+            error(503, 'state_unavailable', 'The publication state could not be read; try again shortly.')
+        return state
+
     @app.get(f'{API}/manifest/{{ticker}}')
     def manifest(ticker: str, who=Depends(subscriber)):
         m = ticker_manifest(ticker)

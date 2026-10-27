@@ -6,6 +6,7 @@ from contextlib import contextmanager
 
 import psycopg
 from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
 from psycopg.types.json import Jsonb
 
 TERMINAL = {'FINISHED', 'FAILED', 'INTERRUPTED'}
@@ -18,13 +19,34 @@ class StoreError(Exception):
         super().__init__(code)
 
 
+# EXEC-BACKTEST-LOAD step 4 (user 2026-10-27: "Agar waktu loading bisa sama. Seperti bagian terminal."): connections are
+# kept open and reused instead of one new connection per request (every page call checks the session first; the
+# inspection of 2026-10-27 found the query itself at 0.03 ms and no edge-bff connection kept). At most POOL_MAX, well
+# under the edge_bff_login limit of 20; each is checked before use (a connection the server dropped is replaced, ERRORS
+# M246), and a transaction still ends with its block: commit, or rollback on an error, as with psycopg.connect.
+POOL_MIN, POOL_MAX, POOL_IDLE_SECONDS = 1, 6, 300
+
+
 class Store:
     def __init__(self, url):
         self.url = url
+        self._pool = None
+
+    def pool(self):
+        if self._pool is None:
+            self._pool = ConnectionPool(self.url, min_size=POOL_MIN, max_size=POOL_MAX, max_idle=POOL_IDLE_SECONDS, timeout=10,
+                                        kwargs={'connect_timeout': 5, 'row_factory': dict_row}, check=ConnectionPool.check_connection,
+                                        open=True, name='edge-bff')
+        return self._pool
+
+    def close(self):
+        if self._pool is not None:
+            self._pool.close()
+            self._pool = None
 
     @contextmanager
     def connect(self):
-        with psycopg.connect(self.url, connect_timeout=5, row_factory=dict_row) as c:
+        with self.pool().connection() as c:
             c.execute("SET LOCAL statement_timeout = '5s'")
             yield c
 

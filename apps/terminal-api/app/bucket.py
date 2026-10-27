@@ -5,6 +5,7 @@ import json
 import time
 
 PREFIX = 'v1'
+STATE_FIELDS = ('finished_at', 'price_through', 'broker_through', 'broker_behind_sessions')
 MAX_CACHED = 4000   # manifests (a few KB each) and the logo index: a few MB at most
 
 
@@ -21,6 +22,7 @@ class Bucket:
         self.cache_seconds = settings.manifest_cache_seconds
         self._cache = {}
         self._version, self._checked = None, None
+        self._state = None                                  # the last state.json read (state())
 
     def _fresh(self):
         """EXEC-TERMINAL-SPEED step 4: the cache holds until the publisher finishes a run (state.json `finished_at`),
@@ -31,12 +33,24 @@ class Bucket:
             return
         self._checked = now
         try:
-            version = json.loads(self.s3.get_object(Bucket=self.name, Key=f'{PREFIX}/state.json')['Body'].read()).get('finished_at')
+            state = json.loads(self.s3.get_object(Bucket=self.name, Key=f'{PREFIX}/state.json')['Body'].read())
+            version = state.get('finished_at')
         except Exception:  # noqa: BLE001 - unreadable state: keep what is cached rather than fail every request
             return
+        self._state = state
         if version != self._version or len(self._cache) > MAX_CACHED:
             self._version = version
             self._cache.clear()
+
+    def state(self):
+        """EXEC-BACKTEST-LOAD (user 2026-10-27, K1): the publisher's last finished run, as read for the manifest cache
+        (at most cache_seconds old): which publication the files belong to and the newest date of each dataset. None
+        while state.json was never readable."""
+        self._fresh()
+        s = self._state
+        if not isinstance(s, dict):
+            return None
+        return {k: s.get(k) for k in STATE_FIELDS}
 
     def manifest(self, ticker):
         self._fresh()
