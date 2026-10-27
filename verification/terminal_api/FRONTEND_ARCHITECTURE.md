@@ -154,3 +154,6 @@ Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
 - `calendar.ts`: every day is clickable; `setDates` maps a range without sessions to the last session before it.
 - `rangeSelect.ts`: drag, or click the first and the last day (the same day twice = one day); the band spans whole bars.
 - `events.ts` (live): `subscribeCrosshairMove` marks the marker of the session under the crosshair (`.ev-mk.hot`).
+- Broker inventory (live, C): `renderInvLive` reads the chart's visible logical range (re-run on every range change,
+  one per frame), draws `niceTicks` on a y-axis and a crosshair line; `chart.subscribeCrosshairMove` moves the line, a
+  hover on the inventory calls `ctx.crosshairAt(i)` (flow.ts), which sets the main and Flow crosshairs.

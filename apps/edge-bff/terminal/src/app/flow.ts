@@ -184,6 +184,15 @@ export function initFlow(ctx: Ctx) {
       else { flowChart.setCrosshairPosition(flowNet[i], p.time as any, flowBars); showTip(i) }
     } finally { xhLock = false }
   });
+  /* EXEC-TERMINAL-PANELS-2 C3 (user 2026-10-27: "kalau kita hover di broker inventory, crosshair di main chart kalau bisa
+     juga boleh gerak"): put both charts' crosshair on session i (null clears it), as a hover on the Flow chart does */
+  ctx.crosshairAt = (i: number | null) => {
+    xhLock = true;
+    try{
+      if(i === null || i < 0 || i >= N){ chart.clearCrosshairPosition(); flowChart.clearCrosshairPosition(); showTip(N-1) }
+      else { const [s,v] = mainRef(i); chart.setCrosshairPosition(v, dates[i] as any, s); flowChart.setCrosshairPosition(flowNet[i], dates[i] as any, flowBars); showTip(i) }
+    } finally { xhLock = false }
+  };
   flowChart.subscribeCrosshairMove(p => {
     if(xhLock) return;
     xhLock = true;

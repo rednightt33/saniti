@@ -2376,8 +2376,35 @@ change yet.
   berbeda, tanpa beda markup/teks). Live check ANTM (`panels_live_check.py`): rel, legenda sejajar, penanda "hot" 1,
   tabel 8 baris, Sabtu 03 Oct 2026 → 02 Oct 2026 dengan catatan, satu hari 16 Jul dari dua klik, seret urutan bertahan
   sesudah reload, klik masih melipat, tanpa error.
-- **Belum (menunggu user):** A (judul Flow dua baris di 1270×618 skala 1,5: judul 89 px, grafik Flow 90 px) dan C.
-- **Status:** B RESOLVED; A dan C OPEN (keputusan user).
+- **Belum (menunggu user):** A (judul Flow dua baris di 1270×618 skala 1,5: judul 89 px, grafik Flow 90 px).
+- **C (user 2026-10-27: "Kita mulai dari C saja dulu / C2 / C3 + begitupun kalau kita hover di broker inventory,
+  crosshair di main chart kalau bisa juga boleh gerak"):** Broker inventory (live) mengikuti rentang yang tampil di
+  chart (dibatasi 2 tahun data broker, tanpa 10D/20D/30D/Custom), sumbu Y bertitik (`niceTicks`), garis crosshair di
+  tanggal crosshair chart utama dengan nilai tiap broker di chip, dan hover di inventory menggerakkan crosshair chart
+  utama dan Flow (`ctx.crosshairAt`). Live check ANTM: rentang 23 Jan – 23 Oct lalu 11 Jul 2025 – 09 Apr 2026 sesudah
+  chart digeser; garis muncul dari chart utama (15 Jun 2026); hover inventory → tooltip chart 20 Apr 2026; tanpa error.
+  vitest 670 (`niceTicks`), 1:1 0 piksel.
+- **Status:** B dan C RESOLVED; A OPEN (keputusan user).
+
+### M243 — Hari tanpa data broker tampil sebagai net Rp 0 di Flow; data broker tertinggal tampak terbaru (2026-10-27)
+
+- **Symptom:** user 2026-10-27: "saat ini data broker kemungkinan tidak terupdate sama seperti data harga. Misalkan data
+  broker saat ini stale, tapi terlihat seolah2 update.. How we should handle this visually dan data di RAK?" Tangkapan
+  layar INDY: crosshair 26 Oct 2026 "Net Rp 0 · Cumulative Rp 113.3B".
+- **Verified cause:** (1) data: 2026-10-27 15:19 WIB `IDX_Broker_Summary` dan Feature 05 sampai 2026-10-23, harga
+  Daily final sampai 2026-10-26 (pgweb read-only); broker dimuat oleh `stockbit-updater` hanya saat token Stockbit baru
+  dipasang (`UPDATE_TABLE.md` bagian 0), harga otomatis, jadi broker bisa tertinggal beberapa sesi. (2) halaman:
+  `worker.ts` `brokerData` mengisi net 0 untuk setiap sesi harga tanpa baris broker (`Float64Array(N)`), dan `flow.ts`
+  :118-119 menggambar batang dan garis kumulatif untuk semua sesi, :141 menulis "Net Rp 0" — "belum ada data" dan "net
+  nol" tidak dibedakan. Manifest sudah membawa `data_through` per dataset (publisher) tetapi halaman hanya memakainya
+  untuk ringkasan "Latest day net".
+- **Class:** dataset dengan `data_through` sendiri yang digambar di sumbu waktu bersama (broker, kelak makro/lintas aset
+  dengan jadwal rilis berbeda): sesi sesudah `data_through` dibaca sebagai nol.
+- **Solution (usulan, menunggu keputusan user):** lihat jawaban 2026-10-27 dan FUTURE_PLAN "Terminal: data broker
+  tertinggal dari harga".
+- **Status:** OPEN.
+- **Lesson for new data:** setiap dataset deret waktu membawa `data_through`-nya sendiri dan tampilan membedakan "belum
+  ada" dari "nol"; nol hanya untuk sesi yang datanya ada dan nilainya nol.
 
 ## Fixed-income selected-date repair — 2026-10-20 status
 

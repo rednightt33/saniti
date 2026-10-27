@@ -115,4 +115,5 @@ export interface Ctx {
   refreshFlowIndicators: () => void;
   /* EXEC-TERMINAL-PANELS: drag a period on the main chart (rangeSelect.ts) */
   selectRangeOnChart: (done: (from: string, to: string) => void) => void;
+  crosshairAt: (i: number | null) => void;           // flow.ts: both charts' crosshair on session i
 }

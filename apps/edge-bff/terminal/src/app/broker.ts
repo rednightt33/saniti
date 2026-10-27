@@ -1,8 +1,17 @@
 /* RIGHT PANEL — Broker activity (reference lines 3685-3985). The fixture is the reference's dummy history built around
    a real BBCA day; live data is the published broker summary of the ticker (the last sessions in its files). */
 import type { Ctx } from './context';
-import { $, nfCompact, pct, row, spin, store } from './context';
+import { $, keyOf, nfCompact, pct, row, spin, store } from './context';
 import { closeRangeCalendar, longDay, openRangeCalendar } from '../ui/calendar';
+
+/** four to seven round tick values covering lo..hi (Broker inventory y-axis, EXEC-TERMINAL-PANELS-2 C) */
+export function niceTicks(lo: number, hi: number): number[] {
+  const span = (hi - lo) || 1, raw = span / 6, mag = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(x => x >= raw)!;
+  const out: number[] = [];
+  for(let k = Math.ceil(lo / step); k * step <= hi + step * 1e-9; k++) out.push(k === 0 ? 0 : k * step);
+  return out;
+}
 
 export function initBroker(ctx: Ctx) {
   const { M, ws, showStTip, hideStTip, tipHtml, makeFilter } = ctx;
@@ -14,6 +23,12 @@ export function initBroker(ctx: Ctx) {
   const RS = { d:0, inv:'All', board:'All', mode:'net', more:false, accSide:'buy', bdN:5, broker:null, invUnit:'lot' };
   const invSel = new Set();                                         // brokers drawn in Broker inventory (max INV_MAX)
   let applyChartRange = (_f: string, _t: string) => {};
+  /* EXEC-TERMINAL-PANELS-2 C: Broker inventory follows the chart (its visible range and its crosshair), live */
+  let invFollow: (() => void) | null = null, invOnCross: ((t: string | null) => void) | null = null, invRaf = 0;
+  if(live){
+    ctx.chart.timeScale().subscribeVisibleLogicalRangeChange(() => { if(!invRaf) invRaf = requestAnimationFrame(() => { invRaf = 0; invFollow?.() }) });
+    ctx.chart.subscribeCrosshairMove((p: any) => invOnCross?.(p && p.time != null && p.point && p.point.x >= 0 ? keyOf(p.time) : null));
+  }
   const RIGHT_MIN = 260, RIGHT_MAX = 520;
   let rightW = parseInt(store.get('ml.broker.w'),10) || 0;
   const clampR = w => Math.max(RIGHT_MIN, Math.min(RIGHT_MAX, Math.round((ws.clientWidth||1400)*.4), w));
@@ -293,7 +308,61 @@ export function initBroker(ctx: Ctx) {
     }
     return out;
   };
+  /* EXEC-TERMINAL-PANELS-2 C (user 2026-10-27: "C2", "C3 + begitupun kalau kita hover di broker inventory, crosshair di
+     main chart ... boleh gerak"), live: the period is the chart's visible sessions inside the broker window (no presets);
+     the chart has a y-axis with ticks and a vertical line at the crosshair session, both ways with the main chart */
+  if(live) ($('invRange') as HTMLElement).hidden = true;
+  function renderInvLive(){
+    const picks = [...invSel], r = ctx.chart.timeScale().getVisibleLogicalRange();
+    const a = r ? Math.max(0, Math.ceil(r.from)) : 0, b = r ? Math.min(ctx.N - 1, Math.floor(r.to)) : ctx.N - 1;
+    const va = ctx.dates[a], vb = ctx.dates[b];
+    const f = bkDates.findIndex(x => x >= va);
+    let t = -1; for(let i = 0; i < BK_DAYS && bkDates[i] <= vb; i++) t = i;
+    const none = f < 0 || t < 0 || f > t;
+    if(!none){ invRange.bf = f; invRange.bt = t }                    // invSeries reads the period from invRange
+    const n = none ? 0 : t - f + 1, all = none ? [] : picks.map(invSeries);
+    $('invHint').textContent = `${picks.length}/${INV_MAX} · ${none ? 'no broker data in view' : invRange.text()}`;
+    const chips = (i = null) => picks.map((bk, k) => {
+      const p = all[k] ? (i === null ? all[k].at(-1) : all[k][i]) : null, v = p ? p.cum : 0;
+      return `<span class="rp-chip" style="--c:${INV_COLORS[k]}"><i></i>${bk}<b class="${v>=0?'up':'down'}">${sgn(v)}</b><button type="button" data-rm="${bk}" aria-label="Remove ${bk}">×</button></span>`;
+    }).join('');
+    const wireChips = () => $('invLegend').querySelectorAll('[data-rm]').forEach(x => x.onclick = () => { invSel.delete(x.dataset.rm); invFilter.refresh(); renderInv() });
+    $('invLegend').innerHTML = chips(); wireChips();
+    invOnCross = null;
+    if(!picks.length){ $('invBody').innerHTML = `<div class="rp-empty">Pilih 1–${INV_MAX} broker untuk melihat pergerakannya.</div>`; return }
+    if(none){ $('invBody').innerHTML = `<div class="rp-empty">The chart shows ${longDay(va)} – ${longDay(vb)}; broker data covers ${longDay(bkDates[0])} – ${longDay(bkDates[BK_DAYS-1])} (the last two years).</div>`; return }
+    if(n < 2){ $('invBody').innerHTML = `<div class="rp-empty">Zoom the chart out to at least 2 sessions with broker data.</div>`; return }
+    const W = 272, H = 120;
+    const flat = all.flatMap(s => s.map(p => p.cum)), lo = Math.min(0, ...flat), hi = Math.max(0, ...flat), sp = (hi-lo) || 1;
+    const x = i => i/(n-1)*W, y = v => H-6-(v-lo)/sp*(H-12);
+    const ticks = niceTicks(lo, hi);
+    const lines = all.map((s, k) => `<path d="${s.map((p,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(p.cum).toFixed(1)).join('')}" fill="none" stroke="${INV_COLORS[k]}" stroke-width="1.6" vector-effect="non-scaling-stroke"/>`).join('');
+    const grid = ticks.map(v => `<line x1="0" x2="${W}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="${v === 0 ? '#d4d4d4' : '#f0f0f0'}"${v === 0 ? ' stroke-dasharray="3 3"' : ''} vector-effect="non-scaling-stroke"/>`).join('');
+    $('invBody').innerHTML = `
+      <div class="rp-invwrap live"><div class="rp-yax">${ticks.map(v => `<span style="top:${(y(v)/H*100).toFixed(2)}%">${v === 0 ? '0' : sgn(v)}</span>`).join('')}</div>
+        <svg class="rp-inv" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="height:${H}px">${grid}${lines}
+          <line class="inv-xh" x1="0" x2="0" y1="0" y2="${H}" stroke="#9ca3af" stroke-dasharray="3 3" vector-effect="non-scaling-stroke" visibility="hidden"/></svg>
+        <span class="rp-invdate" hidden></span></div>
+      <div class="axis"><span class="l">${bkDates[f].slice(5)}</span><span class="r">${bkDates[t].slice(5)}</span></div>`;
+    const svg = $('invBody').querySelector('svg'), xh = svg.querySelector('.inv-xh'), lab = $('invBody').querySelector('.rp-invdate');
+    const show = i => {
+      if(i === null){ xh.setAttribute('visibility', 'hidden'); lab.hidden = true; $('invLegend').innerHTML = chips(); wireChips(); return }
+      xh.setAttribute('x1', x(i).toFixed(1)); xh.setAttribute('x2', x(i).toFixed(1)); xh.setAttribute('visibility', 'visible');
+      lab.hidden = false; lab.textContent = longDay(bkDates[f + i]); lab.style.left = (svg.getBoundingClientRect().left - svg.parentElement.getBoundingClientRect().left + i/(n-1)*svg.clientWidth).toFixed(1) + 'px';
+      $('invLegend').innerHTML = chips(i); wireChips();
+    };
+    // the main chart's crosshair (also when it follows the Flow chart or this panel)
+    invOnCross = d => { const k = d ? bkDates.indexOf(d) : -1; show(k >= f && k <= t ? k - f : null) };
+    svg.addEventListener('pointermove', e => {
+      const rc = svg.getBoundingClientRect(), i = Math.max(0, Math.min(n-1, Math.round((e.clientX - rc.left) / rc.width * (n-1))));
+      const ci = ctx.idxByTime.get(bkDates[f + i]);
+      if(ci !== undefined) ctx.crosshairAt(ci); else show(i);
+    });
+    svg.addEventListener('pointerleave', () => { ctx.crosshairAt(null); show(null) });
+  }
+  invFollow = live ? () => { if(rendered) renderInvLive() } : null;
   function renderInv(){
+    if(live) return renderInvLive();
     const picks = [...invSel], n = invRange.days();
     $('invHint').textContent = `${picks.length}/${INV_MAX} · ${invRange.text()}`;
     $('invLegend').innerHTML = picks.map((b, k) => {

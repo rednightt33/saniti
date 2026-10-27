@@ -118,6 +118,27 @@ try:
         page.click(f'.rc-day[data-day="{satday}"]'); page.click(f'.rc-day[data-day="{satday}"]'); page.wait_for_timeout(300)
         report['saturday'] = {'day': satday, 'hint': page.evaluate("() => document.getElementById('bsHint').textContent"),
                               'note': page.evaluate("() => document.querySelector('#bsRange .rp-note:not([hidden])')?.textContent || null")}
+        # EXEC-TERMINAL-PANELS-2 C: Broker inventory follows the chart's visible range and the crosshair both ways
+        page.locator('#rightScroll .st[data-sec="inv"]').scroll_into_view_if_needed()
+        inv = {'hint': page.evaluate("() => document.getElementById('invHint').textContent"),
+               'presets_hidden': page.evaluate("() => document.getElementById('invRange').hidden"),
+               'yticks': page.evaluate("() => [...document.querySelectorAll('.rp-yax span')].map(s => s.textContent)")}
+        cbox = page.locator('#chart').bounding_box()
+        page.mouse.move(cbox['x'] + cbox['width'] * .5, cbox['y'] + cbox['height'] * .4); page.wait_for_timeout(300)
+        inv['line_from_main'] = page.evaluate("() => document.querySelector('.inv-xh')?.getAttribute('visibility')")
+        inv['date_from_main'] = page.evaluate("() => document.querySelector('.rp-invdate')?.textContent")
+        sv = page.locator('#invBody svg').bounding_box()
+        page.mouse.move(sv['x'] + sv['width'] * .3, sv['y'] + sv['height'] / 2); page.wait_for_timeout(300)
+        inv['main_tip_from_inventory'] = page.evaluate("() => document.getElementById('flowTip').innerText.split('  ')[0]")
+        inv['date_from_inventory'] = page.evaluate("() => document.querySelector('.rp-invdate')?.textContent")
+        page.screenshot(path=str(out / 'inventory_crosshair.png'))
+        page.mouse.move(2, 2)
+        for _ in range(2):                                     # pan the chart: the period follows
+            page.mouse.move(cbox['x'] + cbox['width'] * .3, cbox['y'] + cbox['height'] * .3); page.mouse.down()
+            page.mouse.move(cbox['x'] + cbox['width'] * .7, cbox['y'] + cbox['height'] * .3, steps=8); page.mouse.up()
+        page.wait_for_timeout(400)
+        inv['hint_after_pan'] = page.evaluate("() => document.getElementById('invHint').textContent")
+        report['inventory'] = inv
         # calendar on Broker summary: years offered, pick two days
         page.click('#bsRange [data-n="custom"]')
         page.wait_for_selector('.rc-pop')

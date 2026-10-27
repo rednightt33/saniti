@@ -956,3 +956,18 @@ ditambah. Panggilan 1, 5, 10 tanpa cache sama sekali (USD 0,0090 + 0,0137 + 0,02
 3. **Iterasi tambahan:** dua SCRIPT_ERROR (merge_asof pada tanggal object; tabel hilang setelah error) dan buang kembar
    (M241). Usulan: petunjuk error terarah seperti `IN_PERIOD_HINT` (`apps/market-python-sandbox/app/sessions.py`) untuk
    galat kunci merge bertipe object, yang menyebut `saniti.join` (AS_OF) atau `pd.to_datetime`.
+
+## Terminal: data broker tertinggal dari harga (ERRORS M243; usulan 2026-10-27, menunggu keputusan)
+
+User 2026-10-27: "Misalkan data broker saat ini stale, tapi terlihat seolah2 update.. How we should handle this visually
+dan data di RAK?"
+- Data (rak): tidak perlu kolom baru; manifest per ticker dan `state.json` sudah membawa `data_through` per dataset.
+  Publisher menambah satu fakta turunan: berapa sesi harga sesudah `data_through` broker (`behind_sessions`), dan
+  mengirim satu peringatan Telegram bila broker tertinggal ≥ 1 sesi sesudah putaran 19:00 WIB (pengingat memasang token
+  Stockbit).
+- Tampilan: sesi sesudah `data_through` broker tidak bernilai 0 — batang Flow dan garis kumulatif berhenti, daerahnya
+  diarsir dengan tulisan "Broker data not yet loaded"; tooltip di sesi itu "No broker data yet (through Fri 23 Oct)";
+  label kuning di judul Flow dan Broker activity "Broker through 23 Oct · price 26 Oct" saat tertinggal; Net Buy Flow
+  di chart utama dan indikator yang memakai flow mengikuti aturan yang sama.
+- Berlaku juga untuk dataset lain dengan jadwal sendiri (makro, lintas aset); tidak berlaku untuk events (titik, bukan
+  deret yang dijumlah).

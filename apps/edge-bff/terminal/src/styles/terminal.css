@@ -845,4 +845,11 @@ body.st-dragging,body.st-dragging *{cursor:grabbing!important;user-select:none}
 html.fit .flow-wrap .flow-legend{align-items:center;padding-top:4px}
 /* EXEC-TERMINAL-PANELS-2 F: the annotation marker of the session under the crosshair */
 .ev-mk.hot{transform:scale(1.3);box-shadow:0 0 0 3px rgba(23,23,23,.18),0 1px 4px rgba(0,0,0,.3);z-index:2}
+/* EXEC-TERMINAL-PANELS-2 C: Broker inventory y-axis and crosshair date (live) */
+.rp-invwrap.live{padding-left:44px}
+.rp-invwrap.live .rp-inv{cursor:crosshair}
+.rp-yax{position:absolute;left:0;top:4px;bottom:0;width:42px;pointer-events:none}
+.rp-yax span{position:absolute;right:4px;transform:translateY(-50%);font:10px var(--mono);color:var(--text-3);white-space:nowrap}
+.rp-invdate{position:absolute;bottom:-2px;transform:translate(-50%,100%);padding:1px 5px;border-radius:4px;background:var(--text);color:#fff;font-size:10px;white-space:nowrap;pointer-events:none;z-index:2}
+.rp-invwrap.live + .axis{padding-left:44px}
 
