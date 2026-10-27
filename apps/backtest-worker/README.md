@@ -312,8 +312,10 @@ docker build -f apps/backtest-worker/Dockerfile -t backtest-worker .
 The image:
 
 - uses `node:22-slim` and runs as the user `node`;
-- runs `node --experimental-strip-types src/server.ts`;
-- copies only the worker's `package.json`, `src` and `scripts`, the shared core, `terminal/src/calc` and
+- runs `node --experimental-strip-types --import ./loader/register.mjs src/server.ts` (the loader gives the Terminal's
+  sources, written for Vite, the resolution Vite gives them: a relative import without an extension is tried as `.ts`
+  where Node finds nothing, `loader/resolve.mjs`, ERRORS M249);
+- copies only the worker's `package.json`, `src`, `scripts` and `loader`, the shared core, `terminal/src/calc` and
   `terminal/src/data/indRegistry.json`, in the repository layout under `/app`.
 
 To run it locally:
@@ -326,7 +328,7 @@ cd apps/backtest-worker && npm start
 
 ## Tests
 
-Run `npm test` (`node --experimental-strip-types --test tests/*.test.ts`). It needs no dependency and no network.
+Run `npm test` (`node --experimental-strip-types --import ./loader/register.mjs --test tests/*.test.ts`). It needs no dependency and no network.
 
 **`tests/run.test.ts`** runs jobs and previews through `run.ts` against `tests/fake-terminal.mjs`. The fake serves the
 Terminal parity fixtures (real stored bars of 7 stocks and IHSG) in the publisher's format. The tests cover:

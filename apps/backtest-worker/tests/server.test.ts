@@ -8,6 +8,7 @@
    and company names of the fake reference list are test labels, not published values. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
 import http from 'node:http';
 import net from 'node:net';
 import { after, before, test } from 'node:test';
@@ -30,6 +31,8 @@ import { ENGINE_VERSION, REGISTRY_VERSION, checkRegistry } from '../src/version.
 import { brokersRef, pricePack, priceYears, startFakeTerminal, tickersRef } from './fake-terminal.mjs';
 
 const WORKER_DIR = new URL('..', import.meta.url).pathname;
+/** the image's command (Dockerfile CMD, exec form): the start-up test runs exactly it, with this test's node */
+const IMAGE_CMD: string[] = JSON.parse(fs.readFileSync(new URL('../Dockerfile', import.meta.url), 'utf8').match(/^CMD (\[.*\])$/m)![1]);
 
 /* ---- the published market (as tests/run.test.ts) -------------------------------------------------------------------- */
 interface Fixture { ticker: string; T: string[]; O: number[]; H: number[]; L: number[]; C: number[]; V: (number | null)[] }
@@ -638,10 +641,11 @@ test('logs: one JSON object per line, no key, no presigned URL, no request body'
 });
 
 test('start-up: the registry artifact matches; a bad configuration exits 1 naming the variable, never a value', async () => {
+  assert.equal(IMAGE_CMD[0], 'node');
   const reg = await checkRegistry();
   assert.equal(reg.ok, true, JSON.stringify(reg));
   const run = (env: Record<string, string>, until?: (out: string) => boolean) => new Promise<{ code: number | null; out: string; child: ReturnType<typeof spawn> }>(ok => {
-    const child = spawn(process.execPath, ['--experimental-strip-types', 'src/server.ts'], { cwd: WORKER_DIR, env: { PATH: process.env.PATH ?? '', ...env } });
+    const child = spawn(process.execPath, IMAGE_CMD.slice(1), { cwd: WORKER_DIR, env: { PATH: process.env.PATH ?? '', ...env } });
     let out = '';
     child.stdout.on('data', c => { out += c; if (until?.(out)) ok({ code: null, out, child }) });
     child.stderr.on('data', c => { out += c });

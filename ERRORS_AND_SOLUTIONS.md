@@ -2561,6 +2561,39 @@ change yet.
 - **Lesson for new data:** sebelum memasang dari cabang ke layanan bersumber GitHub, cek sumber dan watch pattern
   layanan itu; catat di RAILWAY_CHANGELOG bahwa deploy cabang dapat tertimpa.
 
+### M249 — Tes worker backtest gagal dimuat sejak perubahan Terminal: impor tanpa ekstensi tidak terbaca Node (2026-10-27)
+
+- **Symptom:** `npm test` worker 2026-10-27 12:22 UTC: dua file tes gagal dimuat (`datafile.test.ts`, `flow.test.ts`:
+  `ERR_MODULE_NOT_FOUND .../terminal/src/data/timeframe`), 160/162 lulus; sebelumnya 177/177.
+- **Verified (FACT):** (1) Tes paritas worker mengimpor kode baca data Terminal sendiri (`edge-bff/terminal/src/data/
+  worker.ts` `priceRows`, `brokerData`) supaya chart dan backtest membaca bar yang sama. (2) Commit main `712e258`
+  (EXEC-TERMINAL-WM, 11:03 UTC, masuk cabang lewat merge `83b8f1a`) menambah `import { buckets, ... } from
+  './timeframe'` di file itu: tanpa ekstensi, gaya biasa Terminal (67 impor relatif tanpa ekstensi,
+  `moduleResolution: Bundler`, tanpa `allowImportingTsExtensions`). Vite menerimanya; Node
+  (`--experimental-strip-types`) hanya mencari nama persis. (3) Runtime worker tetap jalan: saat jalan yang dimuat
+  dari Terminal hanya `terminal/src/calc/indicators.ts` (tanpa impor) dan `indRegistry.json`, dan image hanya menyalin
+  itu. (4) Tidak ada CI yang menjalankan tes worker (hanya `database-schema-docs.yml`), jadi perubahan Terminal tidak
+  melihat kegagalan ini.
+- **Root cause:** satu sumber dengan dua aturan resolusi modul: Terminal ditulis untuk Vite (impor tanpa ekstensi),
+  sedangkan worker dan tesnya memuat sumber yang sama dengan Node (impor harus persis).
+- **Class:** setiap modul Terminal yang dimuat Node oleh backtest: saat jalan (rumus indikator lewat core; bila `calc/`
+  kelak punya impor tanpa ekstensi, worker gagal start pada deploy berikutnya), di skrip registry (`build-registry.mjs`
+  memuat `indicators.ts`) dan di tes (pembaca data, registry, fixture).
+- **Solution:** loader modul worker (`apps/backtest-worker/loader/`): hanya bila Node tidak menemukan specifier relatif
+  tanpa ekstensi, dicoba seperti Vite mencoba TypeScript (`<spec>.ts`, lalu `<spec>/index.ts`); yang Node temukan
+  sendiri tetap sama, dan selebihnya tetap error Node sendiri. Dipasang di perintah image (Dockerfile CMD) dan di semua
+  skrip npm yang menjalankan TypeScript worker (`start`, `registry`, `registry:check`, `test`). Tes start-up server kini
+  menjalankan perintah image yang dibaca dari Dockerfile, bukan salinan flag. Tes baru `loader.test.ts` (4): `resolve`
+  sendiri; setiap entri Node membawa loader; dengan flag image (dan tidak tanpa) Node memuat modul bergaya Terminal dan
+  pembaca data Terminal. Worker 181/181. Uji mutasi: 2, tertangkap. `engine_version` tetap `beb81eb55a13293f` (loader
+  di luar `src`).
+- **Not covered:** impor Terminal yang bukan relatif (alias path) atau sintaks TypeScript yang tidak bisa dibuang Node
+  (enum, parameter property) tetap gagal di Node; tidak ada pemeriksaan di sisi Terminal saat Terminal berubah (butuh
+  CI yang menjalankan tes worker, di luar lingkup ini).
+- **Status:** FIXED di kode; worker dev di-deploy ulang dengan perintah baru (RAILWAY_CHANGELOG).
+- **Lesson for new data:** sumber yang dipakai halaman (Vite) dan layanan Node dimuat dengan aturan yang sama di
+  keduanya, dan tes konsumen menjalankan perintah image yang sebenarnya.
+
 ### EXEC-TERMINAL-FRESH — alat gambar di Flow, kepala tabel Top brokers (2026-10-27)
 
 - **Go user 2026-10-27:** "... di Flow hanya kelompok Lines yang tersedia (Trend line, Horizontal line, Horizontal ray,
