@@ -7,6 +7,10 @@ import { UNIT } from '../data/timeframe';
 import type { Ctx, FilterApi } from './context';
 import { $, cls, keyOf, nfCompact, rupiah, spin, store } from './context';
 
+/** EXEC-TERMINAL-CUM: where the Flow's cumulative line starts, live: 'view' = the first visible candle (Stockbit's F
+    Flow), 'history' = the first session of the data (the line before 2026-10-27). */
+export const FLOW_CUMULATIVE_FROM: 'view' | 'history' = 'view';
+
 export function initFlow(ctx: Ctx) {
   const { L, chart, ohlc, volume, dates, N, idxByTime, closes } = ctx;
   const BOARDS = ctx.BOARDS = [{id:'Regular',label:'Regular'},{id:'Nego',label:'Nego'},{id:'Cash',label:'Cash (Tunai)'}];
@@ -149,12 +153,10 @@ export function initFlow(ctx: Ctx) {
       if(!flt.brokers.has(c.broker) || !flt.boards.has(c.board) || !flt.investors.has(c.investor)) return;
       used++; for(let i=0;i<N;i++) flowNet[i] += c.net[i];
     });
-    let run = 0; flowCumArr = new Float64Array(N);
-    for(let i=0;i<N;i++){ run += flowNet[i]; flowCumArr[i] = run }
     // EXEC-TERMINAL-FRESH: a session after the broker data's last date is left empty (no bar, the line stops), not zero
     const E = ctx.brokerEnd;
     flowBars.setData(ohlc.map((b,i)=> i > E ? { time:b.time } : { time:b.time, value:Math.round(flowNet[i]), color: flowNet[i]>=0 ? 'rgba(8,153,129,.9)' : 'rgba(242,54,69,.9)' }));
-    flowCum.setData(ohlc.map((b,i)=> i > E ? { time:b.time } : { time:b.time, value:Math.round(flowCumArr[i]) }));
+    computeCum();
     schedulePlace();
     flowSummary();
     const note = $('flowNote');
@@ -164,6 +166,27 @@ export function initFlow(ctx: Ctx) {
     else note.textContent = used===0 ? 'No flow matches the current filters' : 'All brokers, boards and investor types net to zero by definition';
     showTip(ctx.lastTipIdx);
   };
+
+  /* ---- cumulative line ----
+     EXEC-TERMINAL-CUM (user 2026-10-27, ERRORS M244 C1: "goalnya adalah agar data di stock bit dengan data yang kita
+     show sama untuk value foreign flow-nya"; "coba kita eksekusi dulu C1. Nanti disiapkan opsi untuk fallback ke versi
+     existing"), live: the line starts at 0 on the first candle visible on the chart and is summed again whenever the
+     chart moves, like Stockbit's F Flow from the first day of its period (with Board = Regular the figures are
+     Stockbit's). Sessions before the first visible candle and after the broker data are not drawn. Fallback: 'history'
+     here (or /terminal-app/?cum=history) sums from the first session of the data, as before; the fixture keeps it. */
+  const cumFrom = LIVE && FLOW_CUMULATIVE_FROM === 'view' && new URLSearchParams(location.search).get('cum') !== 'history' ? 'view' : 'history';
+  function computeCum() {
+    const start = cumFrom === 'view' ? visible()[0] : 0, E = ctx.brokerEnd;
+    flowCumArr = new Float64Array(N).fill(NaN);
+    let run = 0;
+    for(let i = start; i < N; i++){ run += flowNet[i]; flowCumArr[i] = run }
+    flowCum.setData(ohlc.map((b,i)=> i > E || i < start ? { time:b.time } : { time:b.time, value:Math.round(flowCumArr[i]) }));
+  }
+  let cumRaf = 0;
+  if(cumFrom === 'view') chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+    cancelAnimationFrame(cumRaf);
+    cumRaf = requestAnimationFrame(() => { computeCum(); showTip(ctx.lastTipIdx) });
+  });
 
   /* ---- hover read-out ---- */
   ctx.lastTipIdx = N-1;
@@ -179,11 +202,12 @@ export function initFlow(ctx: Ctx) {
       $('flowTip').innerHTML = `<b>${fmtDMY(i)}</b> &nbsp; <span class="flow-nodata-tip">No broker data yet (through ${brokerThroughText()})</span>`;
       return;
     }
-    badgeVals.clear(); badgeVals.add(Math.round(flowCumArr[i])); badgeVals.add(Math.round(flowNet[i]));
-    cumBadge.applyOptions({ price: Math.round(flowCumArr[i]), axisLabelVisible: cumOn });
+    const hasCum = Number.isFinite(flowCumArr[i]);                 // CUM: no value before the first visible candle
+    badgeVals.clear(); if(hasCum) badgeVals.add(Math.round(flowCumArr[i])); badgeVals.add(Math.round(flowNet[i]));
+    cumBadge.applyOptions(hasCum ? { price: Math.round(flowCumArr[i]), axisLabelVisible: cumOn } : { axisLabelVisible:false });
     netBadge.applyOptions({ price: Math.round(flowNet[i]), axisLabelVisible:true, axisLabelColor: flowNet[i] >= 0 ? '#089981' : '#f23645' });
     $('flowTip').innerHTML = `<b>${fmtDMY(i)}</b> &nbsp; Net <b class="${cls(flowNet[i])}">${rupiah(flowNet[i])}</b>`
-      + (cumOn ? ` &nbsp; Cumulative <b>${rupiah(flowCumArr[i])}</b>` : '');
+      + (cumOn && hasCum ? ` &nbsp; Cumulative <b>${rupiah(flowCumArr[i])}</b>` : '');
   };
 
   /* ---- keep the two charts locked: time range, price-scale widths, crosshair ---- */
