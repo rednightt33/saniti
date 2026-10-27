@@ -957,3 +957,24 @@ mengubah kontrak; pemuat bersama menyentuh Terminal (dijaga 1:1 dan vitest); poo
 - K2: saat broker belum selesai, chart sudah tampil dan jalur flow bertanda "memuat data broker"; boleh?
 - K3: pemuat bersama juga dipakai Terminal (disarankan, satu jalur) atau hanya Backtest dulu?
 - K4: siapa yang mengerjakan: sesi ini atau sesi Backtest?
+
+## SCREENER — EDGE Screener dari prototipe `screener EDGE layout.html` (disetujui untuk audit dan rencana 2026-10-27; belum "go")
+
+**Persetujuan, 2026-10-27 (kata user):** "Goalnya adalah kita akan membangun sesuatu, which is semacam screener. Menggunakan
+logik yang mirip-mirip." Lalu brief "EDGE SCREENER — IMPLEMENTATION BRIEF": "You are responsible for turning the attached
+`screener EDGE layout.html` prototype into a fully operational EDGE Screener using the existing EDGE backend
+architecture ... APPROVAL GATE: Before database schema mutation or Railway deployment, report: 1. existing architecture
+... 16. risks and unresolved product decisions." Lalu: "Yes, oke. Opsi nomor 1, saya kasih izin. Untuk push ke branch
+dulu. One thing to note adalah Excel saat ini hanya berisi indikator technical. Sedangkan di HTML itu banyak
+preset-preset yang juga mungkin indikator fundamental, flow, dan lain sebagainya. Indikator flow, feel free untuk
+benchmark dan come up with your own screener lah ya. Retaining existing screener juga tidak apa. Tidak perlu terlalu
+memperhatikan backtesting karena nanti indikator di backtesting bisa kita tambahkan apabila ternyata indikator di
+screener ini lebih banyak. Gas."
+
+- **Izin yang diberikan:** audit read-only (kode, Railway, database lewat pgweb dengan kredensial yang dibaca dari variabel
+  Railway ke memori; role `pgweb`, `default_transaction_read_only on`); push ke branch kerja sesi, belum ke `main`.
+- **Belum diizinkan:** perubahan skema/data, perubahan Feature 04, deploy Railway. Semuanya menunggu laporan approval gate
+  dan "go" user.
+- **Input:** prototipe `screener EDGE layout.html` dan `Technical_Indicators_53_Frontend_Display_Spec.xlsx` (unggahan user,
+  tidak di-commit).
+- **Laporan audit:** `verification/screener/AUDIT.md` (dibuat pada tugas ini).
