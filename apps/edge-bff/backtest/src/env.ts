@@ -41,12 +41,12 @@ export const BROKER_CODES = (): string[] => CAT.flow.brokers;
 export const loaded = (tk: string, flow = false) => !!DATA[tk] && (!flow || FLOW.has(tk));
 
 /** load a ticker's bars (and its broker data when a flow card needs it); one request at a time per ticker */
-export function load(tk: string, flow = false): Promise<void> {
+export function load(tk: string, flow = false, soon = false): Promise<void> {   // soon: the broker data follows (one /bundle)
   if (loaded(tk, flow)) return Promise.resolve();
   const key = tk + (flow ? '|flow' : '');
   let p = PENDING.get(key);
   if (!p) {
-    p = API.bars(tk, { flow }).then(b => { DATA[tk] = b; if (flow) FLOW.add(tk) }).finally(() => PENDING.delete(key));
+    p = API.bars(tk, { flow, soon }).then(b => { DATA[tk] = b; if (flow) FLOW.add(tk) }).finally(() => PENDING.delete(key));
     PENDING.set(key, p);
   }
   return p;

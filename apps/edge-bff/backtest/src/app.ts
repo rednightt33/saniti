@@ -51,7 +51,7 @@ export async function boot(api: BacktestApi, opts: BootOptions = {}) {
   if (early) { setEnv(api, early); $('dataNote').textContent = api.texts.dataNote(CAT); applyCatalog(opts.portfolio) }
   // the shown ticker's prices (and its broker data when a flow card needs it) start now; the first render waits for
   // them only QUICK_MS, so the page is drawn at once and the chart fills in (signals.ts prepare)
-  const tk = S.sigTicker, bars = load(tk).then(() => needsFlow() ? load(tk, true) : undefined);
+  const tk = S.sigTicker, bars = load(tk, false, needsFlow()).then(() => needsFlow() ? load(tk, true) : undefined);
   bars.catch(() => {});                                    // a failed load is shown by the chart's own prepare
   await within(bars.catch(() => {}), QUICK_MS);
   bindLayout(); bindFocusEscape(); bindViewSeg(); bindMenuClose(); bindSignals(); bindTicker(); bindRun(); bindHover(); bindTheme(); bindWS();

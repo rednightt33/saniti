@@ -7,6 +7,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import TERMINAL_WORKER from '../../terminal/src/data/worker.ts?raw';
 import { sha256Bytes } from '../src/core/datafile.ts';
 import { CACHE_DB, CACHE_LIMIT, CACHE_STORE, CACHE_VERSION, fileCache } from '../src/api/cache.ts';
+import { fileCache as rackCache } from '../../terminal/src/data/rack.ts';
 import { FILE_RETRIES, liveApi } from '../src/api/live.ts';
 import { ApiFailure } from '../src/api/types.ts';
 
@@ -43,13 +44,12 @@ async function until(test: () => Promise<boolean>) {
   throw new Error('timed out');
 }
 
-describe('the database is the Terminal\'s (apps/edge-bff/terminal/src/data/worker.ts)', () => {
+describe('the database is the Terminal\'s (one module since EXEC-BACKTEST-LOAD: terminal/src/data/rack.ts)', () => {
   const terminal: string = TERMINAL_WORKER;
-  it('has its name, version, store, key, index and limit', () => {
-    const m = terminal.match(/const CACHE_DB = '([^']+)', CACHE_STORE = '([^']+)', CACHE_LIMIT = ([\d_]+);/)!;
-    expect([CACHE_DB, CACHE_STORE, CACHE_LIMIT]).toEqual([m[1], m[2], +m[3].replace(/_/g, '')]);
-    expect(terminal).toContain(`indexedDB.open(CACHE_DB, ${CACHE_VERSION})`);
-    expect(terminal).toContain(`createObjectStore(CACHE_STORE, { keyPath:'sha' }).createIndex('used', 'used')`);
+  it('is the module the Terminal\'s worker reads its files through, with its name, version, store and limit', () => {
+    expect(terminal).toMatch(/import \{[^}]*\bfileCache\b[^}]*\} from '\.\/rack'/);
+    expect(fileCache).toBe(rackCache);
+    expect([CACHE_DB, CACHE_VERSION, CACHE_STORE, CACHE_LIMIT]).toEqual(['terminal-files', 1, 'files', 50_000_000]);
   });
   it('stores the Terminal\'s record: {sha, bytes (an ArrayBuffer), size, used}', async () => {
     const factory = new IDBFactory(), bytes = new Uint8Array([1, 2, 3]);

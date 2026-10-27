@@ -86,12 +86,14 @@ const preparing = new Set<string>();
 const redrawIf = (tk: string) => { if (S.sigTicker === tk && prepared(tk)) { refreshSignals(); if (!$('ews').hidden) renderWSMid() } };
 function prepare(tk: string) {
   const key = `${tk}|${eventsNeeded(tk)}`;
-  if (!preparing.has(key)) {
+  // the bars and events only while they are missing: a redraw that waits for the broker data calls prepare again, and
+  // asking (and redrawing on) bars it already has would never stop
+  if (!prepared(tk) && !preparing.has(key)) {
     preparing.add(key);
     const R = S.result;
     const ev = eventsNeeded(tk) ? API.events(R.id, tk).then(e => { R.ev.cond.set(tk, new Map(e.conditions.filter(x => x.ticker === tk).map(x => [x.condition_id, x.track]))) },
       e => { failed.add(tk + '|events'); toastError(e.message) }) : Promise.resolve();
-    Promise.all([load(tk), ev]).then(() => { preparing.delete(key); redrawIf(tk) },
+    Promise.all([load(tk, false, needsFlow()), ev]).then(() => { preparing.delete(key); redrawIf(tk) },
       e => { preparing.delete(key); failed.add(tk + '|bars'); toastError(e.message); if (S.sigTicker === tk) refreshSignals() });
   }
   if (needsFlow() && !loaded(tk, true) && !preparing.has(tk + '|flow')) {
