@@ -86,16 +86,19 @@ progress), and on `FINISHED` fetches the result, stores its parts and its varian
 the versions in one transaction. The result is unpacked by edge-bff as it arrives and never past
 `BACKTEST_MAX_RESULT_BYTES` of JSON (over it: `FAILED LIMIT_EXCEEDED`, nothing stored). The worker keeps a finished
 result until its next job starts, so a result that could not be fetched is fetched again at the next poll; one that
-was fetched but could not be stored is kept and stored again at every poll until `BACKTEST_TIMEOUT_SECONDS`, then
-`FAILED RESULT_NOT_STORED`. Any other database call around a job (the hand-over, the follower, the heartbeat) that
-fails is made again at the next poll or beat until the same deadline. A database failure is not counted as an
-unanswered worker call; each one is logged (`backtest_result_store_failed`, `backtest_job_store_failed` with its
-`step`) with the exception's class and its SQLSTATE or libpq's text without credentials.
+was fetched but could not be stored because the database failed in a way a retry may mend (`OperationalError`) is
+kept and stored again at every poll until `BACKTEST_TIMEOUT_SECONDS`, then `FAILED RESULT_NOT_STORED`; any other store
+failure is `FAILED RESULT_NOT_STORED` at once. Any other database call around a job (the hand-over, the follower, the
+heartbeat) that fails so is made again at the next poll or beat until the same deadline, an end until
+`EDGE_LEASE_SECONDS` past it. A database failure is not counted as an unanswered worker call; each one is logged
+(`backtest_result_store_failed`, `backtest_job_store_failed` with its `step`) with the exception's class and its
+SQLSTATE or libpq's text without credentials, names or addresses. The lease token fences the follower; the expiry only
+lets reap end a job its follower left.
 A job is never sent twice: the worker forgetting it (`404 UNKNOWN_JOB`) or no longer keeping its result (`410
 RESULT_GONE`: a newer job started there) is `FAILED WORKER_LOST` at once, not answering three times in a row is `FAILED
-WORKER_LOST` too, as is a lease that expired (edge-bff stopped while following it; the worker is told to cancel it),
-and a job running longer than `BACKTEST_TIMEOUT_SECONDS` is cancelled and `FAILED TIMEOUT`. Expired result parts are
-deleted when the loop starts and then once an hour.
+WORKER_LOST` too, as is a job reap took because its lease expired (edge-bff stopped while following it; the worker is
+told to cancel it), and a job running longer than `BACKTEST_TIMEOUT_SECONDS` is cancelled and `FAILED TIMEOUT`.
+Expired result parts are deleted when the loop starts and then once an hour.
 
 "Required" variables have no default in the code: with `BACKTEST_WORKER_URL` set, edge-bff does not start without
 them. The Railway dev column holds the dev values (the limits are initial values, re-measured in the dev E2E, K7b).

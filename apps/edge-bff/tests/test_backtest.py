@@ -133,6 +133,7 @@ class FakeWorker:
         self.unstarted = 0             # the next n POST /v1/jobs answer 503 and take no job (review V1: their caller left
                                        # while the worker read the reference lists)
         self.fail_with = None          # jobs end FAILED with this error
+        self.refuse_with = None        # POST /v1/jobs answers 422 with this error (a refusal at hand-over)
         self.garbage = False           # the result is not JSON
         self.result_gone = False       # the result answers 410 RESULT_GONE (a newer job started there and replaced it)
         self.validate_error = None     # (status, error) for /v1/validate
@@ -232,6 +233,8 @@ class FakeWorker:
                         if worker.busy:
                             worker.busy -= 1
                             return self.answer(409, {'error': {'code': 'BUSY'}})
+                        if worker.refuse_with:
+                            return self.answer(422, {'error': worker.refuse_with})
                         worker.jobs[body['job_id']] = {'request': body['request'], 'context': body['context'], 'polls': 0,
                                                        'cancelled': False}
                     if worker.lose_post_answer:
@@ -621,21 +624,28 @@ def test_a_worker_timeout_of_a_relayed_call_is_its_504(app, worker):
     assert len(worker.posted('/v1/jobs')) == 3
 
 
+LOST_CONNECTION = 'connection to postgresql://edge_bff_login:secret@db lost'
+
+
+def logged(caplog, event):
+    return [json.loads(r.getMessage()) for r in caplog.records if f'"{event}"' in r.getMessage()]
+
+
 def test_a_failed_store_is_stored_again_until_the_deadline(app, worker, monkeypatch, caplog):
-    """A store that failed (one transaction, nothing kept) keeps the fetched result and stores it again at every poll
-    until the job's deadline (BACKTEST_TIMEOUT_SECONDS): a database failure is no unanswered worker call, so it is not
-    counted in WORKER_RETRIES, and the result is fetched once. Past the deadline the job ends FAILED RESULT_NOT_STORED
-    (the dev E2E 2026-10-27: three store failures in a row ended a computed job WORKER_LOST in 4 s)."""
+    """A store that failed in a way a retry may mend (OperationalError: one transaction, nothing kept) keeps the
+    fetched result and stores it again at every poll until the job's deadline (BACKTEST_TIMEOUT_SECONDS): a database
+    failure is no unanswered worker call, so it is not counted in WORKER_RETRIES, and the result is fetched once.
+    Past the deadline the job ends FAILED RESULT_NOT_STORED (the dev E2E 2026-10-27: three store failures in a row
+    ended a computed job WORKER_LOST in 4 s)."""
     c = app
     bt = c.app.state.backtests
     store = bt.store
     real, failed = store.finish, []
-    lost_connection = psycopg.OperationalError('connection to postgresql://edge_bff_login:secret@db lost')
     def failing(times):
         def finish(row, split):
             if len(failed) < times:
                 failed.append(row['request_id'])
-                raise lost_connection
+                raise psycopg.OperationalError(LOST_CONNECTION)
             return real(row, split)
         return finish
     fetches = lambda job_id: len([x for x in worker.calls if x['path'] == f'/v1/jobs/{job_id}/result'])
@@ -648,66 +658,135 @@ def test_a_failed_store_is_stored_again_until_the_deadline(app, worker, monkeypa
     assert c.get(f'/api/v1/backtests/{job_id}/result').json() == result_of(job_id, single())
     # a store that never works: RESULT_NOT_STORED at the deadline, nothing stored, the finished job not cancelled
     def never(row, split):
-        raise lost_connection
+        raise psycopg.OperationalError(LOST_CONNECTION)
     monkeypatch.setattr(store, 'finish', never)
     lost = submit(c, single(), 'store-never').json()['request_id']
-    run_next(c, dataclasses.replace(bt.settings, backtest_timeout_seconds=0.3))
+    run_next(c, dataclasses.replace(bt.settings, backtest_timeout_seconds=2))
     status = c.get(f'/api/v1/backtests/{lost}').json()
-    assert status['state'] == 'FAILED' and status['error']['code'] == 'RESULT_NOT_STORED' and status['error']['message']
+    assert status['state'] == 'FAILED' and status['error'] == backtest.NOT_STORED
     assert fetches(lost) == 1 and not worker.posted(f'/v1/jobs/{lost}/cancel')
     assert db(c, 'SELECT count(*) AS n FROM edge_bff.backtest_results WHERE request_id=%s', lost)[0]['n'] == 0
     assert db(c, 'SELECT count(*) AS n FROM edge_bff.backtest_trials WHERE request_id=%s', lost)[0]['n'] == 0
     # each failure is logged with what tells the failures apart, never the credentials
-    logged = [json.loads(r.getMessage()) for r in caplog.records if 'backtest_result_store_failed' in r.getMessage()]
-    assert logged and all(e['error'] == 'psycopg.OperationalError' and e['detail'] == 'connection to postgresql://[redacted]@db lost'
-                          for e in logged)
+    found = logged(caplog, 'backtest_result_store_failed')
+    assert found and all(e['error'] == 'psycopg.OperationalError' and e['detail'].startswith('connection to postgresql://')
+                         and 'edge_bff_login' not in e['detail'] for e in found)
     assert 'secret' not in caplog.text
 
 
-def test_a_database_failure_while_following_a_job_is_tried_again(app, worker, monkeypatch, caplog):
-    """Every database call of the loop around a job, not only the result's store (the hand-over's job read and prior
-    trials, the follower's job read and progress, the heartbeat), that fails is made again at the next poll or beat
-    and not counted as an unanswered worker call: more failures than WORKER_RETRIES and the job still finishes,
-    handed over once."""
+def test_a_store_no_retry_mends_ends_the_job_at_once(app, worker, monkeypatch, caplog):
+    """A store that failed in a way no retry mends (any error but OperationalError: the data, an integrity or schema
+    error, a bug) ends the job FAILED RESULT_NOT_STORED at the first failure, well before the deadline, and logs a
+    server error by its SQLSTATE only (its text carries the row)."""
+    c = app
+    store = c.app.state.backtests.store
+    calls = []
+    def broken(row, split):
+        calls.append(row['request_id'])
+        raise psycopg.errors.CheckViolation('new row violates check constraint\nDETAIL:  Failing row contains (owner-7)')
+    monkeypatch.setattr(store, 'finish', broken)
+    job_id = submit(c, single(), 'store-broken').json()['request_id']
+    started = time.monotonic()
+    run_next(c, dataclasses.replace(c.app.state.backtests.settings, backtest_timeout_seconds=30))
+    assert time.monotonic() - started < 10 and calls == [job_id]
+    assert c.get(f'/api/v1/backtests/{job_id}').json()['error'] == backtest.NOT_STORED
+    assert logged(caplog, 'backtest_result_store_failed')[-1] == {
+        'event': 'backtest_result_store_failed', 'request_id': job_id, 'error': 'psycopg.errors.CheckViolation',
+        'sqlstate': '23514'}
+    assert 'owner-7' not in caplog.text
+
+
+def test_a_database_failure_around_a_job_is_tried_again(app, worker, monkeypatch, caplog):
+    """Every database call of the loop around a job, not only the result's store, that fails in a way a retry may
+    mend is made again at the next poll or beat and not counted as an unanswered worker call: the hand-over's job read
+    and prior trials, the follower's job read and progress, the heartbeat, more failures of each than WORKER_RETRIES,
+    and the job still finishes, handed over once; the end after a worker's refusal is made again the same way, so the
+    job keeps the worker's error."""
     c = app
     bt = c.app.state.backtests
     store = bt.store
+    many = backtest.WORKER_RETRIES + 1
     def flaky(name, times):
-        real, left = getattr(store, name), [times]
+        """the first `times` calls fail before the worker has the job (the hand-over), and again after (the follower)"""
+        real, n = getattr(store, name), {'dispatch': 0, 'follow': 0}
         def call(*args):
-            if left[0]:
-                left[0] -= 1
+            phase = 'follow' if worker.jobs else 'dispatch'
+            n[phase] += 1
+            if n[phase] <= times:
                 raise psycopg.OperationalError('consuming input failed: server closed the connection unexpectedly')
             return real(*args)
         monkeypatch.setattr(store, name, call)
     for name in ('current', 'prior_trials', 'progress', 'heartbeat'):
-        flaky(name, backtest.WORKER_RETRIES + 1)
+        flaky(name, many)
+    worker.finish_after = 3 * many
     job_id = submit(c, single(), 'db-flaky').json()['request_id']
     run_next(c, dataclasses.replace(bt.settings, heartbeat_seconds=0.001))
     assert c.get(f'/api/v1/backtests/{job_id}').json()['state'] == 'FINISHED'
     assert len([x for x in worker.posted('/v1/jobs') if x['body']['job_id'] == job_id]) == 1
-    logged = [json.loads(r.getMessage()) for r in caplog.records if 'backtest_job_store_failed' in r.getMessage()]
-    assert {e['step'] for e in logged} == {'dispatch', 'follow', 'heartbeat'}
-    assert all(e['error'] == 'psycopg.OperationalError' and e['request_id'] == job_id for e in logged)
+    found = logged(caplog, 'backtest_job_store_failed')
+    assert {e['step'] for e in found} == {'dispatch', 'follow', 'heartbeat'}
+    assert all(e['error'] == 'psycopg.OperationalError' and e['request_id'] == job_id for e in found)
+    # the worker refuses the job and the end fails twice: the job ends with the worker's error, not WORKER_LOST
+    worker.refuse_with = {'code': 'DATA_MISSING', 'message': 'no price file for MAPI'}
+    worker.jobs.clear()
+    flaky('end', 2)
+    refused = submit(c, single(), 'db-refused').json()['request_id']
+    run_next(c)
+    assert c.get(f'/api/v1/backtests/{refused}').json()['error'] == worker.refuse_with
+    assert [e['step'] for e in logged(caplog, 'backtest_job_store_failed') if e['request_id'] == refused] == ['end', 'end']
+
+
+def test_an_expired_lease_is_its_followers_until_reap_takes_it(app, worker, monkeypatch, caplog):
+    """The lease token fences the follower; the expiry decides only when reap may end a job: a lease that expired
+    while the database was away (heartbeats failing) is renewed by its follower and the job finishes; once reap took
+    the job (FAILED WORKER_LOST, the token cleared), the follower is fenced, a result it held is dropped and logged."""
+    c = app
+    bt = c.app.state.backtests
+    store = bt.store
+    expire = lambda job_id: db(c, "UPDATE edge_bff.backtest_jobs SET lease_expires_at=now()-interval '1 second' "
+                                  "WHERE request_id=%s", job_id)
+    worker.on_poll = lambda job_id, polls: polls == 1 and expire(job_id)
+    job_id = submit(c, single(), 'expired-not-reaped').json()['request_id']
+    run_next(c)
+    assert c.get(f'/api/v1/backtests/{job_id}').json()['state'] == 'FINISHED'
+    worker.on_poll = None
+    # reap takes a job whose store keeps failing: the follower finds its lease gone and stops
+    def reaped(row, split):
+        expire(row['request_id'])
+        assert store.reap() == [row['request_id']]
+        raise psycopg.OperationalError(LOST_CONNECTION)
+    monkeypatch.setattr(store, 'finish', reaped)
+    taken = submit(c, single(), 'reaped').json()['request_id']
+    run_next(c)
+    assert c.get(f'/api/v1/backtests/{taken}').json()['error'] == {'code': 'WORKER_LOST'}
+    assert logged(caplog, 'backtest_lease_lost')[-1] == {'event': 'backtest_lease_lost', 'request_id': taken,
+                                                          'result_held': True}
 
 
 def test_a_database_failure_is_logged_without_credentials_or_row_values():
     """failure_of: the class always; a server error by its SQLSTATE only (its text can carry row values); an error of
-    psycopg or libpq itself by its first line without the configured password, URL user info, password= pairs or
-    internal addresses; any other exception by its class only."""
+    psycopg or libpq itself by its first line without the configured password (decoded or as the URL spells it), its
+    user, host and database names, URL user info, password= pairs or IP addresses, redacted before it is cut; a
+    connection string conninfo_to_dict cannot read and any other exception: the class only."""
     url = 'postgresql://edge_bff_login:s3cr%40t@postgres.railway.internal:5432/railway'
     server = psycopg.errors.CheckViolation('new row violates check constraint\nDETAIL:  Failing row contains (owner-7, 42)')
-    server.sqlstate = '23514'
     assert backtest.failure_of(server, url) == {'error': 'psycopg.errors.CheckViolation', 'sqlstate': '23514'}
-    client = psycopg.OperationalError('consuming input failed: SSL error: bad length (s3cr@t)\n\tmore lines')
+    client = psycopg.OperationalError('consuming input failed: SSL error: bad length (s3cr@t, s3cr%40t)\n\tmore lines')
     assert backtest.failure_of(client, url) == {'error': 'psycopg.OperationalError',
-                                                 'detail': 'consuming input failed: SSL error: bad length ([redacted])'}
-    reach = psycopg.OperationalError('connection to server at "postgres.railway.internal" (fd12::1), port 5432 failed: '
-                                     'password=s3cr@t user=x')
-    detail = backtest.failure_of(reach, url)['detail']
-    assert 's3cr' not in detail and 'railway.internal' not in detail and 'password=[redacted]' in detail
+                                                 'detail': 'consuming input failed: SSL error: bad length ([redacted], [redacted])'}
+    reach = psycopg.OperationalError('connection to server at "postgres.railway.internal" (fd12:3456::1a), port 5432 '
+                                     'failed: FATAL: role "edge_bff_login" does not exist; db railway; 10.250.1.7')
+    assert backtest.failure_of(reach, url)['detail'] == ('connection to server at "[redacted]" ([address]), port 5432 '
+                                                        'failed: FATAL: role "[redacted]" does not exist; db [redacted]; [address]')
+    pair = psycopg.OperationalError("options password='a b c' and password=other")
+    assert backtest.failure_of(pair, url)['detail'] == 'options password=[redacted] and password=[redacted]'
+    long = psycopg.OperationalError('x' * 295 + 's3cr@t' + 'y' * 50)
+    detail = backtest.failure_of(long, url)['detail']
+    assert 's3cr' not in detail and len(detail) == 300
     assert backtest.failure_of(ValueError('owner-7 row'), url) == {'error': 'builtins.ValueError'}
-    assert backtest.failure_of(client, 'not a conninfo ===')['error'] == 'psycopg.OperationalError'
+    unreadable = psycopg.ProgrammingError('invalid percent-encoded token: "p%zzsecret"')
+    assert backtest.failure_of(unreadable, 'postgresql://edge:p%zzsecret@db/railway') == {'error': 'psycopg.ProgrammingError'}
+    assert backtest.failure_of(client, 'host=db password=se cret') == {'error': 'psycopg.OperationalError'}
 
 
 def test_provisioned_login_reaches_the_backtest_tables_with_their_migration(backtest_tables, monkeypatch):
@@ -1025,7 +1104,6 @@ def test_restart_with_an_expired_lease_fails_worker_lost_without_resubmitting(ap
     row = bt.store.claim(90)
     worker.jobs[job_id] = {'request': single(), 'context': {}, 'polls': 0, 'cancelled': False}   # handed over before the stop
     db(c, "UPDATE edge_bff.backtest_jobs SET lease_expires_at=now()-interval '1 second' WHERE request_id=%s", job_id)
-    assert not bt.store.heartbeat(row, 90) and bt.store.end(row, 'FAILED', {'code': 'TIMEOUT'}) is None   # the old holder is fenced
     loop = BacktestLoop(bt.settings, bt.store, bt.worker)
 
     async def one_turn():
@@ -1040,6 +1118,8 @@ def test_restart_with_an_expired_lease_fails_worker_lost_without_resubmitting(ap
     status = c.get(f'/api/v1/backtests/{job_id}').json()
     assert status['state'] == 'FAILED' and status['error'] == {'code': 'WORKER_LOST'}
     assert worker.jobs[job_id]['cancelled'] and worker.posted('/v1/jobs') == []
+    # reap cleared the lease token: the old holder is fenced
+    assert not bt.store.heartbeat(row, 90) and bt.store.end(row, 'FAILED', {'code': 'TIMEOUT'}) is None
 
 
 def test_timeout_cancels_at_the_worker(app, worker):

@@ -434,15 +434,21 @@ The loop takes one job at a time (the oldest queued job of an owner with nothing
 the line's prior trials and follows it every poll; it never resubmits. A finished job's result is fetched and split,
 then stored in one transaction (a failure stores nothing). The worker answering 404 `UNKNOWN_JOB` or 410
 `RESULT_GONE` for the result ends the job `FAILED WORKER_LOST` at once **[D-B1]**, and 3 polls in a row without an
-answer end it `WORKER_LOST`. A store that fails keeps the fetched result and stores it again at every poll until the
-job's `BACKTEST_TIMEOUT_SECONDS`, then ends it `FAILED RESULT_NOT_STORED` **[D-B2]**: a database failure is no
-unanswered worker call, so it is not one of the 3 (the result is fetched once; the worker keeps it until its next
-job, which the loop hands over only after this one ended). Every other database call of the loop around a job (the
-hand-over's job read and prior trials, the follower's job read, progress and end, the heartbeat) that fails is made
-again at the next poll or beat, until the same deadline, and is not counted either. Each failure is logged
-(`backtest_result_store_failed`; `backtest_job_store_failed` with its `step`) with the exception's class and, by
-`failure_of`, a server error's SQLSTATE or the first line of an error of psycopg or libpq itself without credentials
-or internal addresses (a server error's text can carry row values). The result is read as it arrives and never past `BACKTEST_MAX_RESULT_BYTES` of JSON
+answer end it `WORKER_LOST`. A database failure a retry may mend (psycopg's `OperationalError`: a lost connection, a
+timeout, a restart) is no unanswered worker call, so it is not one of the 3 **[D-B2]**: a store that fails so keeps
+the fetched result and stores it again at every poll until the job's `BACKTEST_TIMEOUT_SECONDS`, then ends it
+`FAILED RESULT_NOT_STORED` (the result is fetched once; the worker keeps it until its next job, which the loop hands
+over only after this one ended); every other database call of the loop around a job (the hand-over's job read and
+prior trials, the follower's job read and progress, the heartbeat) is made again at the next poll or beat until the
+same deadline; and an end is made again after each poll until `EDGE_LEASE_SECONDS` past the deadline (then the
+follower gives up and reap ends the job). A store failure no retry mends (any other error: the data, an integrity or
+schema error) ends the job `FAILED RESULT_NOT_STORED` at once. The lease token fences the follower; the lease's expiry
+only lets reap end a job its follower left, so an expired lease reap has not taken yet is still renewed by its
+follower, and a follower that finds its job reaped stops (`backtest_lease_lost`, with whether it held a result).
+Each failure is logged (`backtest_result_store_failed`; `backtest_job_store_failed` with its `step`) with the
+exception's class and, by `failure_of`, a server error's SQLSTATE only (its text can carry row values) or the first
+line of an error of psycopg or libpq itself without the configured password, user, host and database names, URL user
+info, `password=` pairs and IP addresses; a connection string that cannot be read logs the class only. The result is read as it arrives and never past `BACKTEST_MAX_RESULT_BYTES` of JSON
 (`FAILED LIMIT_EXCEEDED`, nothing stored); a result outside the contract is `FAILED RESULT_INVALID`. An ended job
 keeps the worker's final progress (`FINISHED`: `finalizing` 1/1).
 
@@ -592,7 +598,7 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
   `LIMIT_EXCEEDED` `max_download_bytes`, `max_broker_rows`, `max_result_bytes`; `TIMEOUT` over the worker's
   `BACKTEST_TIMEOUT_SECONDS`; `OUT_OF_MEMORY`, `INTERNAL_ERROR`), or edge-bff's own: `WORKER_LOST` (the worker answers
   404 for the job, 404 or 410 `RESULT_GONE` for its result **[D-B1]**, or no answer 3 times in a row at the hand-over
-  or the polls; or edge-bff's lease on the job expired), `TIMEOUT` (over `BACKTEST_TIMEOUT_SECONDS` on edge-bff's
+  or the polls; or reap took the job, whose lease had expired), `TIMEOUT` (over `BACKTEST_TIMEOUT_SECONDS` on edge-bff's
   side; the worker is sent a cancel when it has the job), `LIMIT_EXCEEDED` (the result over
   `BACKTEST_MAX_RESULT_BYTES`, with a message), `RESULT_INVALID` (a result outside the contract, section 7),
   `RESULT_NOT_STORED` (the worker finished, but its result could not be stored before `BACKTEST_TIMEOUT_SECONDS`,
@@ -634,7 +640,7 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
 | L5 | A trial without a finite Sharpe, or a repeated variant | skip and log / refuse | finite by construction (0 without volatility); otherwise `RESULT_INVALID` (lead) | a skipped trial would undercount the line's trials and flatter the DSR |
 | D2 | Where the edge_bff backtest tables are documented | `DATABASE_SCHEMA.md` by hand / migration + READMEs | the migration's column comments, the edge-bff README and section 9; `DATABASE_SCHEMA.md` not hand-edited (lead) | it is generated from schema `public` by `scripts/sync_database_schema.py` and rewritten daily by `.github/workflows/database-schema-docs.yml`, which would erase a hand-written section |
 | B1 | The worker answers 410 `RESULT_GONE` for a result edge-bff has not stored | retry / end the job | `FAILED WORKER_LOST` at the first such answer, as 404 (lead) | the worker keeps one result until its next job; no later fetch can get it |
-| B2 | edge-bff cannot store a result the worker finished (dev E2E 2026-10-27: the database connection lost mid-write 3 times in a row, the job ended `WORKER_LOST` in 4 s) | (a) as before: a failed store counts as an unanswered worker call, 3 then `WORKER_LOST` / (b) keep the fetched result and store it again each poll until `BACKTEST_TIMEOUT_SECONDS`, then `RESULT_NOT_STORED` / (c) (b) and write the parts without psycopg's pipeline mode | (b), for every database call of the loop around a job (hand-over, follower, heartbeat), with the failure's class and SQLSTATE or libpq text logged (`failure_of`) (lead 2026-10-27) | the worker still holds the result and gets no next job while this one runs, so the job's own deadline bounds the retries; `WORKER_LOST` named the wrong part. (c) answers a suspected cause the logs cannot confirm yet: the new log line is the check |
+| B2 | edge-bff cannot store a result the worker finished (dev E2E 2026-10-27: the database connection lost mid-write 3 times in a row, the job ended `WORKER_LOST` in 4 s) | (a) as before: a failed store counts as an unanswered worker call, 3 then `WORKER_LOST` / (b) keep the fetched result and store it again each poll until `BACKTEST_TIMEOUT_SECONDS`, then `RESULT_NOT_STORED` / (c) (b) and write the parts without psycopg's pipeline mode | (b), for every database call of the loop around a job (hand-over, follower, heartbeat, ends) and only for failures a retry may mend (`OperationalError`; any other store failure ends `RESULT_NOT_STORED` at once); the lease token alone fences the follower, so a lease that expired during the outage is renewed unless reap took the job; the failure's class and SQLSTATE or redacted libpq text logged (`failure_of`) (lead 2026-10-27, after an independent review) | the worker still holds the result and gets no next job while this one runs, so the job's own deadline bounds the retries; `WORKER_LOST` named the wrong part. (c) answers a suspected cause the logs cannot confirm yet: the new log line is the check |
 | P4 | Wording that depends on the data source (header, robustness warning, trial label) | in the renderers / in the API layer | the API layer (`BacktestApi`): live and fixture each supply theirs, the renderers stay shared (lead) | the fixture keeps the reference's strings for the pixel harness; live names published data, the run's warnings and the per-strategy trial count |
 | P5 | Browser cache of published files | the page's own / the Terminal's | the Terminal's: IndexedDB `terminal-files` version 1, store `files` (keyPath `sha`, index `used`), its least-recently-used limit; only bytes that pass `inflateVerified`; any IndexedDB failure means no cache, never a failed page (lead) | one content-addressed copy per browser for both tabs |
 | P8 | Overlapping signals previews | no limit / a cap with an error / latest wins | latest wins: the page aborts a preview newer settings replaced and draws only the latest; edge-bff keeps at most one preview per owner in flight, a newer one ends the older (409 `PREVIEW_REPLACED`) (lead) | pending previews piled up and held the app (review SEC-1); a cap would show errors to a page that types fast |

@@ -14,6 +14,7 @@ import re
 import secrets
 import time
 import zlib
+from urllib.parse import urlsplit
 
 import anyio
 import httpx
@@ -41,6 +42,8 @@ CONTROL_TIMEOUT = 30       # seconds for one control call to the worker (the ter
 # Not derivable from the code or the data: the catalog changes when the publisher publishes (daily) or the worker is
 # deployed, so one minute bounds how long a new catalog waits; the last one is kept while the worker cannot answer.
 CATALOG_CACHE_SECONDS = 60
+# the job's error when a finished result could not be stored (CONTRACT.md section 9, D-B2): the logs hold why
+NOT_STORED = {'code': 'RESULT_NOT_STORED', 'message': 'The backtest finished, but edge-bff could not store its result.'}
 
 
 class BacktestError(Exception):
@@ -131,24 +134,33 @@ def dumps(value):
 def failure_of(e, url=''):
     """A database exception as a log line may carry it (EDGE_DATABASE_URL holds a password, and a server error's text
     can hold row values, as its DETAIL 'Failing row contains ...'): its class; a server error by its SQLSTATE; an
-    error psycopg or libpq raised itself (no SQLSTATE: a lost connection, an SSL or socket error, a value that could
-    not be sent) by its first line, without the configured password, any URL user info or password= pair and the
-    internal addresses (client.public_data). Any other exception: its class only."""
+    error psycopg or libpq raised itself (no SQLSTATE: a lost connection, an SSL or socket error) by its first line
+    without the configured password (as conninfo_to_dict reads it and as the URL spells it) and user, host and
+    database names, URL user info, password= pairs, IP addresses and internal host names
+    (client.public_data); redacted before it is cut to 300 characters. A connection string conninfo_to_dict cannot
+    read (libpq then quotes the unreadable part, the password perhaps) and any other exception: the class only."""
     out = {'error': f'{type(e).__module__}.{type(e).__qualname__}'}
     if not isinstance(e, psycopg.Error):
         return out
     if e.sqlstate:
         return {**out, 'sqlstate': e.sqlstate}
-    text = (str(e).splitlines() or [''])[0][:300]
     try:
-        password = psycopg.conninfo.conninfo_to_dict(url).get('password') if url else None
+        info = psycopg.conninfo.conninfo_to_dict(url) if url else {}
     except psycopg.Error:
-        password = None
-    if password:
-        text = text.replace(password, '[redacted]')
+        return out
+    # the password wherever it appears; the names (user, hosts, database) as whole names
+    passwords = {p for p in (info.get('password'), urlsplit(url).password if '://' in url else None) if p}
+    names = {n for k in ('user', 'host', 'hostaddr', 'dbname') for n in str(info.get(k) or '').split(',') if n}
+    text = (str(e).splitlines() or [''])[0]
+    for secret in sorted(passwords, key=len, reverse=True):
+        text = text.replace(secret, '[redacted]')
+    for name in sorted(names, key=len, reverse=True):
+        text = re.sub(r'(?<![\w.-])' + re.escape(name) + r'(?![\w.-])', '[redacted]', text)
     text = re.sub(r'://[^\s/@]*@', '://[redacted]@', text)
-    text = re.sub(r'(?i)(password\s*=\s*)\S+', r'\1[redacted]', text)
-    return {**out, 'detail': public_data(text)}
+    text = re.sub(r"(?i)(password\s*=\s*)('(?:[^'\\]|\\.)*'?|\S+)", r'\1[redacted]', text)
+    text = re.sub(r'\b\d{1,3}(?:\.\d{1,3}){3}\b', '[address]', text)
+    text = re.sub(r'(?i)(?<![\w:])(?:[0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4}(?![\w:])', '[address]', text)
+    return {**out, 'detail': public_data(text)[:300]}
 
 
 def packed(value):
@@ -497,7 +509,11 @@ class BacktestStore:
                 WHERE request_id=(SELECT request_id FROM next) RETURNING *''',
                 (secrets.token_hex(16), seconds)).fetchone()
 
-    _FENCE = 'request_id=%s AND lease_token=%s AND lease_expires_at>now() AND state=\'RUNNING\''
+    # The lease token fences every call of the job's follower: only the follower holds it, and only the job's end or
+    # reap (a lease that expired) clears it, each in an UPDATE that locks the row, so one of them wins. An expired
+    # lease nobody reaped yet is still its follower's to renew: a database outage longer than EDGE_LEASE_SECONDS does
+    # not lose the job by itself (ERRORS M246); the expiry decides only when reap may end a job its follower left.
+    _FENCE = 'request_id=%s AND lease_token=%s AND state=\'RUNNING\''
 
     def heartbeat(self, row, seconds):
         with self.connect() as c:
@@ -505,7 +521,7 @@ class BacktestStore:
                 WHERE {self._FENCE}''', (seconds, row['request_id'], row['lease_token'])).rowcount)
 
     def current(self, row):
-        """The job while this lease holds it (None once it is lost or the job ended)."""
+        """The job while this lease holds it (None once reap took it or the job ended)."""
         with self.connect() as c:
             return c.execute(f'SELECT * FROM edge_bff.backtest_jobs WHERE {self._FENCE}',
                              (row['request_id'], row['lease_token'])).fetchone()
@@ -619,24 +635,45 @@ class BacktestLoop:
         return failure_of(e, getattr(getattr(self.store, 'store', None), 'url', None) or '')
 
     async def _heartbeat(self, row, task):
+        wait = self.settings.heartbeat_seconds
         while not task.done() and not self.stopping.is_set():
-            await self.sleep(self.settings.heartbeat_seconds)
+            await self.sleep(wait)
             if task.done():
                 return
             try:
                 held = await self.call(self.store.heartbeat, row, self.settings.lease_seconds)
-            except psycopg.Error as e:
-                # the next beat tries again (EDGE_LEASE_SECONDS is at least two beats): only an expired lease ends it
+            except psycopg.OperationalError as e:
+                # tried again after a poll, so the lease is renewed soon after the database is back (the token fence
+                # keeps an expired lease renewable until reap takes it)
                 self.store_failed('heartbeat', row['request_id'], e)
+                wait = min(self.settings.poll_seconds, self.settings.heartbeat_seconds)
                 continue
+            wait = self.settings.heartbeat_seconds
             if not held:
-                task.cancel()   # fenced: the lease is gone, every later write of this follower would be refused
+                task.cancel()   # fenced: reap took the job, every later call of this follower would be refused
                 return
 
     def store_failed(self, step, job_id, e):
         """A database call of the loop that failed while it followed a job, logged by failure_of."""
         logger.error(json.dumps({'event': 'backtest_job_store_failed', 'step': step, 'request_id': job_id,
                                  **self.failure(e)}))
+
+    def lease_lost(self, job_id, held=False):
+        """The follower's job read found the lease gone: reap ended the job (its lease had expired)."""
+        logger.warning(json.dumps({'event': 'backtest_lease_lost', 'request_id': job_id, 'result_held': held}))
+
+    async def end_job(self, row, deadline, *args):
+        """store.end(row, *args), made again after a poll while the database fails in a way a retry may mend
+        (OperationalError), until EDGE_LEASE_SECONDS past the job's deadline; then it raises: the follower gives up,
+        its lease expires and reap ends the job WORKER_LOST."""
+        while True:
+            try:
+                return await self.call(self.store.end, row, *args)
+            except psycopg.OperationalError as e:
+                if self.stopping.is_set() or time.monotonic() >= deadline + self.settings.lease_seconds:
+                    raise
+                self.store_failed('end', row['request_id'], e)
+                await self.sleep(self.settings.poll_seconds)
 
     async def process(self, row):
         task = asyncio.create_task(self.execute(row))
@@ -668,22 +705,24 @@ class BacktestLoop:
 
     async def dispatch(self, row, deadline):
         """POST /v1/jobs until the worker has the job; False when the job ended here instead (cancelled before it was
-        handed over, refused by the worker, timeout, or the worker unreachable WORKER_RETRIES times in a row)."""
+        handed over, refused by the worker, timeout, or the worker unreachable WORKER_RETRIES times in a row). A
+        database failure a retry may mend (OperationalError) is no unanswered worker call: the read is made again
+        after a poll until the deadline, and every end is made again by end_job."""
         job_id, failures = row['request_id'], 0
         while not self.stopping.is_set():
             try:
                 current = await self.call(self.store.current, row)
                 if current is None:
+                    self.lease_lost(job_id)
                     return False
                 if current['cancel_requested']:
-                    await self.call(self.store.end, row, 'CANCELLED')
+                    await self.end_job(row, deadline, 'CANCELLED')
                     return False
                 if time.monotonic() >= deadline:
-                    await self.call(self.store.end, row, 'FAILED', {'code': 'TIMEOUT'})
+                    await self.end_job(row, deadline, 'FAILED', {'code': 'TIMEOUT'})
                     return False
                 prior = await self.call(self.store.prior_trials, row['owner_key'], row['lineage_key'])
-            except psycopg.Error as e:
-                # the database, not the worker: tried again after a poll until the deadline, then it ends the hand-over
+            except psycopg.OperationalError as e:
                 if time.monotonic() >= deadline:
                     raise
                 self.store_failed('dispatch', job_id, e)
@@ -705,7 +744,7 @@ class BacktestLoop:
                     await self.sleep(self.settings.poll_seconds)
                     continue
                 # the worker refused the job (validation or data error at hand-over): its error, as it gave it
-                await self.call(self.store.end, row, 'FAILED', found)
+                await self.end_job(row, deadline, 'FAILED', found)
                 return False
             except WorkerUnavailable:
                 failures += 1
@@ -715,7 +754,7 @@ class BacktestLoop:
                 except WorkerUnavailable:
                     pass
                 if failures >= WORKER_RETRIES:
-                    await self.call(self.store.end, row, 'FAILED', {'code': 'WORKER_LOST'})
+                    await self.end_job(row, deadline, 'FAILED', {'code': 'WORKER_LOST'})
                     return False
                 await self.sleep(self.settings.poll_seconds)
         return False
@@ -723,9 +762,10 @@ class BacktestLoop:
     async def follow(self, row, deadline):
         """GET /v1/jobs/{id} every poll: progress while it runs, the cancellation once asked, the result when it is
         FINISHED, the worker's error or cancellation as the job's end; TIMEOUT after BACKTEST_TIMEOUT_SECONDS. A
-        database failure is no unanswered worker call, so it is not counted in WORKER_RETRIES: the poll is made again
-        at the next one until the same deadline, and a result whose store failed is kept here and stored again at
-        every poll (RESULT_NOT_STORED at the deadline)."""
+        database failure a retry may mend (OperationalError) is no unanswered worker call, so it is not counted in
+        WORKER_RETRIES: the poll is made again at the next one until the same deadline, a result whose store failed so
+        is kept here and stored again at every poll (RESULT_NOT_STORED at the deadline), and every end is made again
+        by end_job."""
         job_id, failures, cancel_sent, shown, held = row['request_id'], 0, False, row['progress'], None
         while not self.stopping.is_set():
             await self.sleep(self.settings.poll_seconds)
@@ -733,18 +773,18 @@ class BacktestLoop:
                 return
             if time.monotonic() >= deadline:
                 if held is not None:
-                    await self.call(self.store.end, row, 'FAILED', {'code': 'RESULT_NOT_STORED', 'message': 'The '
-                        'backtest finished, but edge-bff could not store its result before BACKTEST_TIMEOUT_SECONDS.'})
+                    await self.end_job(row, deadline, 'FAILED', NOT_STORED)
                     return
                 await self.cancel_quietly(job_id)
-                await self.call(self.store.end, row, 'FAILED', {'code': 'TIMEOUT'})
+                await self.end_job(row, deadline, 'FAILED', {'code': 'TIMEOUT'})
                 return
             try:
                 current = await self.call(self.store.current, row)
                 if current is None:
+                    self.lease_lost(job_id, held is not None)
                     return
                 if held is not None:
-                    if await self.keep(row, held):
+                    if await self.keep(row, held, deadline):
                         return
                     continue
                 if current['cancel_requested'] and not cancel_sent:
@@ -754,7 +794,7 @@ class BacktestLoop:
                 except WorkerUnavailable:
                     code, data = None, None
                 if code == 404:
-                    await self.call(self.store.end, row, 'FAILED', {'code': 'WORKER_LOST'})
+                    await self.end_job(row, deadline, 'FAILED', {'code': 'WORKER_LOST'})
                     return
                 state = data.get('state') if code == 200 and isinstance(data, dict) else None
                 ended = None
@@ -772,27 +812,25 @@ class BacktestLoop:
                 reported = data.get('duration_ms') if state else None
                 duration = int(reported) if finite(reported) and reported >= 0 else None
                 if state == 'FINISHED':
-                    ended = await self.ingest(row)
+                    ended = await self.ingest(row, deadline)
                     if isinstance(ended, dict):          # fetched and split, its store failed: stored again next poll
                         held = ended
                         continue
                 elif state == 'FAILED':
-                    ended = await self.call(self.store.end, row, 'FAILED', error_of(data) or {'code': 'WORKER_FAILED'},
-                                            duration) or True
+                    ended = await self.end_job(row, deadline, 'FAILED', error_of(data) or {'code': 'WORKER_FAILED'},
+                                               duration) or True
                 elif state == 'CANCELLED':
-                    ended = await self.call(self.store.end, row, 'CANCELLED', None, duration) or True
+                    ended = await self.end_job(row, deadline, 'CANCELLED', None, duration) or True
                 if ended:
                     return
                 failures += 1     # no answer, an answer outside the API, or a result that could not be fetched yet
                 if failures >= WORKER_RETRIES:
-                    await self.call(self.store.end, row, 'FAILED', {'code': 'WORKER_LOST'})
+                    await self.end_job(row, deadline, 'FAILED', {'code': 'WORKER_LOST'})
                     return
-            except psycopg.Error as e:
-                # the database, not the worker: not counted in WORKER_RETRIES; the poll is made again at the next one,
-                # until the deadline (where a failure ends the follower, the lease expires and reap ends the job)
+            except psycopg.OperationalError as e:
                 self.store_failed('follow', job_id, e)
 
-    async def ingest(self, row):
+    async def ingest(self, row, deadline):
         """Fetch, split and store the finished result. True when the job ended (FINISHED, or FAILED RESULT_INVALID /
         LIMIT_EXCEEDED / WORKER_LOST), None to fetch again at the next poll (no answer yet; follow bounds these
         attempts), the split result when its store failed (follow keeps it and stores it again; the result is fetched
@@ -804,11 +842,11 @@ class BacktestLoop:
             return None
         except ResultTooLarge:
             limit = self.settings.backtest_max_result_bytes
-            await self.call(self.store.end, row, 'FAILED', {'code': 'LIMIT_EXCEEDED', 'message':
+            await self.end_job(row, deadline, 'FAILED', {'code': 'LIMIT_EXCEEDED', 'message':
                 f'The backtest result is larger than {limit} bytes of JSON, the most edge-bff stores (BACKTEST_MAX_RESULT_BYTES).'})
             return True
         if code in (404, 410):
-            await self.call(self.store.end, row, 'FAILED', {'code': 'WORKER_LOST'})
+            await self.end_job(row, deadline, 'FAILED', {'code': 'WORKER_LOST'})
             return True
         if code != 200:
             return None
@@ -816,22 +854,26 @@ class BacktestLoop:
         try:
             split = await self.call(lambda: split_result(loads(raw), (single or {}).get('ticker')))
         except (ValueError, TypeError, AttributeError):
-            await self.call(self.store.end, row, 'FAILED', {'code': 'RESULT_INVALID'})
+            await self.end_job(row, deadline, 'FAILED', {'code': 'RESULT_INVALID'})
             return True
         if split['lineage_key'] != row['lineage_key']:
             logger.warning(json.dumps({'event': 'backtest_lineage_differs', 'request_id': row['request_id']}))
-        return True if await self.keep(row, split) else split
+        return True if await self.keep(row, split, deadline) else split
 
-    async def keep(self, row, split):
-        """Store a split result in one transaction (a failure stores nothing): True when it is stored or the lease was
-        lost (nothing more to do), False when the store failed, logged by failure_of (never the exception's text as
-        it is: it can carry credentials or row values)."""
+    async def keep(self, row, split, deadline):
+        """Store a split result in one transaction (a failure stores nothing), each failure logged by failure_of
+        (never the exception's text as it is: it can carry credentials or row values). True when nothing more is to
+        be done: stored, reap took the job, or a failure no retry mends (any other than OperationalError: the data,
+        an integrity or schema error, a bug), which ends the job FAILED RESULT_NOT_STORED at once; False when the
+        database failed in a way a retry may mend (a lost connection, a timeout, a restart)."""
         try:
             await self.call(self.store.finish, row, split)
         except Exception as e:
             logger.error(json.dumps({'event': 'backtest_result_store_failed', 'request_id': row['request_id'],
                                      **self.failure(e)}))
-            return False
+            if isinstance(e, psycopg.OperationalError):
+                return False
+            await self.end_job(row, deadline, 'FAILED', NOT_STORED)
         return True
 
     def stop(self):

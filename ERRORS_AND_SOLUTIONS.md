@@ -2461,17 +2461,23 @@ change yet.
 - **Class:** kegagalan database sementara saat menyimpan (putus koneksi, restart/failover Postgres, statement timeout,
   kunci) dihitung sebagai kegagalan worker, sehingga job yang sudah dihitung hilang dengan kode yang salah; dan setiap
   log kegagalan database di loop backtest tidak bisa didiagnosis.
-- **Solution:** edge-bff `app/backtest.py`: hasil yang sudah diambil disimpan di memori dan disimpan ulang setiap poll
-  sampai batas waktu job (`BACKTEST_TIMEOUT_SECONDS`), tidak dihitung dalam `WORKER_RETRIES`, diambil dari worker sekali;
-  lewat batas: `FAILED RESULT_NOT_STORED` dengan pesan (CONTRACT.md bagian 9, 11, keputusan B2). `failure_of`: log
-  mencatat kelas exception, SQLSTATE untuk error server (teksnya bisa memuat isi baris), atau baris pertama teks
-  psycopg/libpq tanpa password konfigurasi, user info URL, pasangan password= dan alamat internal; dipakai juga untuk
-  `backtest_queue_operation_failed`. Kelas yang sama ditutup untuk setiap panggilan database lain di sekitar job (baca
-  job dan prior trials saat serah, baca job/progress/akhir saat mengikuti, heartbeat): diulang di poll atau beat
-  berikutnya sampai batas waktu, tidak dihitung, dicatat `backtest_job_store_failed` dengan `step`. Tes: lebih dari
-  `WORKER_RETRIES` kegagalan simpan lalu berhasil = `FINISHED` dengan satu ambil; tidak pernah berhasil =
-  `RESULT_NOT_STORED`, tanpa cancel, tanpa baris; kegagalan baca/progress/heartbeat/serah lebih dari `WORKER_RETRIES`
-  kali = tetap `FINISHED`, diserahkan sekali; redaksi log.
+- **Solution:** edge-bff `app/backtest.py` (review independen 14 temuan, semua diperbaiki): (1) kegagalan database
+  yang bisa pulih (psycopg `OperationalError`: koneksi putus, timeout, restart) tidak dihitung dalam `WORKER_RETRIES`;
+  hasil yang sudah diambil disimpan di memori dan disimpan ulang setiap poll sampai `BACKTEST_TIMEOUT_SECONDS`, diambil
+  dari worker sekali, lalu `FAILED RESULT_NOT_STORED`; kegagalan lain (data, integritas, skema) langsung
+  `RESULT_NOT_STORED`. (2) Panggilan database lain di sekitar job (baca job dan prior trials saat serah, baca job dan
+  progress saat mengikuti, heartbeat) diulang di poll/beat berikutnya sampai batas waktu; setiap `end` diulang sampai
+  `EDGE_LEASE_SECONDS` sesudah batas waktu. (3) Lease: token saja yang memagari pengikut job; kedaluwarsa hanya
+  mengizinkan reap. Sebelumnya gangguan database sekitar 70 s (lease 90 s, heartbeat 20 s) membuat lease habis dan job
+  tetap `WORKER_LOST` walau batas waktunya 900 s. (4) `failure_of`: kelas exception; SQLSTATE untuk error server
+  (teksnya bisa memuat isi baris); untuk error psycopg/libpq sendiri baris pertamanya tanpa password konfigurasi
+  (terbaca maupun ejaan URL), nama user/host/database, user info URL, pasangan `password=`, dan alamat IP, disensor
+  sebelum dipotong 300 karakter; URL yang tidak terbaca hanya kelas (libpq mengutip bagian rusaknya, mungkin
+  password). CONTRACT.md bagian 9, 11, keputusan B2; README edge-bff. Tes (46/46 backtest): lebih dari
+  `WORKER_RETRIES` kegagalan simpan lalu berhasil = `FINISHED`, satu ambil; tidak pernah berhasil =
+  `RESULT_NOT_STORED` tanpa cancel dan tanpa baris; error permanen = `RESULT_NOT_STORED` seketika dengan SQLSTATE saja;
+  kegagalan serah/baca/progress/heartbeat/end = tetap `FINISHED` atau tetap error worker; lease kedaluwarsa tanpa
+  reap = `FINISHED`, sesudah reap = `WORKER_LOST` dengan log `backtest_lease_lost`; kasus sensor log.
 - **Not covered:** penyebab putusnya koneksi; `apps/edge-bff/app/worker.py` (loop Orc) masih mencatat
   `queue_operation_failed` tanpa detail (kelas masalah yang sama, di luar lingkup backtest).
 - **Status:** MITIGATED; root cause OPEN sampai log baru menangkap kegagalan berikutnya.
