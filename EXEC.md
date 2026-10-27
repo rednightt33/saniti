@@ -8390,4 +8390,5 @@ ditambahkan fungsi-fungsi lain yang lebih detail. + W1 + I2".
 - W1 + I2 (rancangan dulu, mockup untuk disetujui user sebelum kode): setiap panel kanan bisa dibuka sebagai jendela
   mengambang di dalam halaman (geser, ubah ukuran, beberapa sekaligus, tetap terhubung dengan chart), isinya lebih
   besar dan lebih rinci.
+Status 2026-10-27: F1 selesai (ERRORS "EXEC-TERMINAL-POPOUT F1"); W1 + I2 menunggu persetujuan mockup.
 

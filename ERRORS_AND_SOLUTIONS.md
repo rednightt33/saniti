@@ -2528,6 +2528,15 @@ change yet.
   filter Board = Regular dan chart mulai di tanggal awal periode Stockbit.
 - **Status:** RESOLVED (C1); data cocok, tidak ada salah hitung.
 
+### EXEC-TERMINAL-POPOUT F1 — filter jenis investor dan papan di Broker inventory (2026-10-27)
+
+- **User:** "broker inventory di filter" (F1, satu garis per broker).
+- **Dibangun (live):** dua pilihan di Broker inventory: All investors/Foreign/Domestic dan All boards/Regular/Nego/Cash;
+  garis, chip dan crosshair memakai `bkAgg(d, investor, board)`; judul kecil menyebut filter yang aktif.
+- **Bukti:** live BMRI 17 Mar–23 Oct, Foreign + Regular: chip NI +34.7K, XL +4.2K, YU +2.5M; Feature 05 (pgweb
+  read-only) NI 34.722, XL 4.241, YU 2.491.018 lot. vitest 680, 1:1 0 piksel, edge-bff terminal 20.
+- **Status:** RESOLVED.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.
