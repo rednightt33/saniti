@@ -957,3 +957,12 @@ mengubah kontrak; pemuat bersama menyentuh Terminal (dijaga 1:1 dan vitest); poo
 - K2: saat broker belum selesai, chart sudah tampil dan jalur flow bertanda "memuat data broker"; boleh?
 - K3: pemuat bersama juga dipakai Terminal (disarankan, satu jalur) atau hanya Backtest dulu?
 - K4: siapa yang mengerjakan: sesi ini atau sesi Backtest?
+
+**Arah user 2026-10-27 (kata user):** "Sebenarnya yang paling utama adalah menu-menu itu yang di sebelah kiri dan di tengah
+tidak perlu clickable dan bisa ready langsung ketika user buka. Misalkan, bagian universe. Universe ini kan bisa aja kayak
+user klik dulu ticker, kemudian ada tulisan loading ticker. Atau misalkan entry. Entry kalau user mau nambahin indikator,
+bisa dulu ada tulisan loading indikator. Tidak perlu semuanya di loading all at once pada saat user buka the page."
+Dibaca: langkah 2 menjadi "tampil dulu, muat saat dibutuhkan": panel kiri dan tengah tampil langsung; tiap bagian yang
+butuh data (daftar ticker, daftar broker, grup sektor/industri, tanggal data) memuat saat dibuka, dengan tulisan memuat
+di tempatnya; daftar indikator sudah ada di halaman (`core/backtest-registry.json`), jadi tidak perlu dimuat.
+Rincian isi katalog dan pemakaiannya dijawab ke user 2026-10-27; menunggu konfirmasi.
