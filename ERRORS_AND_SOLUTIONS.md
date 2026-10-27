@@ -2448,7 +2448,9 @@ change yet.
 - **Solution:** direktori menjadi sumber kebenaran: `has`/`get` membaca file, `put` menulis lewat file sementara lalu
   rename, eviction LRU berdasarkan mtime dengan satu anggaran untuk seluruh direktori (590e8ff, 10 tes baru, worker
   177/177). Dev: `BACKTEST_CACHE_DIR=/tmp/backtest-cache`, `BACKTEST_CACHE_DIR_BYTES=1073741824`; worker 96d0e990.
-- **Status:** FIXED di kode dan dev; bukti E2E (job membaca file preview dari disk) dicatat di RAILWAY_CHANGELOG.
+- **Status:** FIXED di kode dan dev. Bukti E2E 2026-10-27 08:54 UTC (run pertama di worker 96d0e990): preview
+  mengunduh 48 file (28,27 MB), job portofolio lalu membaca 48 file itu dari disk dan hanya mengunduh 12 file kecil
+  (0,08 MB); waktu worker 4,7 s, sebelumnya 7,05–7,23 s dingin (RAILWAY_CHANGELOG 2026-10-27).
 - **Lesson for new data:** cache bersama menyimpan indeksnya di tempat yang sama dengan isinya.
 
 ### M246 — Backtest yang sudah selesai dihitung berakhir `FAILED WORKER_LOST` karena hasilnya gagal disimpan (2026-10-27)
@@ -2491,7 +2493,9 @@ change yet.
   reap = `FINISHED`, sesudah reap = `WORKER_LOST` dengan log `backtest_lease_lost`; kasus sensor log.
 - **Not covered:** penyebab putusnya koneksi; `apps/edge-bff/app/worker.py` (loop Orc) masih mencatat
   `queue_operation_failed` tanpa detail (kelas masalah yang sama, di luar lingkup backtest).
-- **Status:** MITIGATED; root cause OPEN sampai log baru menangkap kegagalan berikutnya.
+- **Status:** MITIGATED: edge-bff a2669e0f di dev, E2E 2026-10-27 10:03 UTC lulus semua langkah tanpa satu pun
+  baris `backtest_result_store_failed`/`backtest_job_store_failed`. Root cause OPEN sampai log baru menangkap
+  kegagalan berikutnya.
 - **Lesson for new data:** penulisan hasil besar ke database dibatasi waktu job, bukan anggaran retry layanan lain, dan
   setiap log kegagalan database membawa kelas serta SQLSTATE agar bisa didiagnosis tanpa membocorkan kredensial.
 
