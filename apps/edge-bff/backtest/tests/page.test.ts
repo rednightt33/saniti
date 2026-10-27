@@ -110,7 +110,11 @@ describe('preview calculations (api/compute.ts)', () => {
   });
   it('does not need the page state', () => {
     const c = new Compute(() => null);
-    expect(c.ready(legacyCard('broker', 'b1'))).toBe(false);
+    // EXEC-BACKTEST-LOAD: before the catalog answers a flow card counts as ready (its series waits for the broker data);
+    // a catalog that turns flow off makes it not ready
+    expect(c.ready(legacyCard('broker', 'b1'))).toBe(true);
     expect(c.ready(legacyCard('adx', 'a1'))).toBe(true);
+    const off = new Compute(() => ({ flow: { available: false } }) as any);
+    expect(off.ready(legacyCard('broker', 'b1'))).toBe(false);
   });
 });

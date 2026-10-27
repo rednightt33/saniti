@@ -144,7 +144,8 @@ export function liveApi(opts: { cache?: FileCache } = {}): BacktestApi {
     async bars(ticker, opts = {}) {
       const series = await priceOf(ticker);
       if (!compute.has(ticker)) compute.put(tickerBars(series), undefined, series.bars);
-      if (opts.flow && catalog?.flow.available && !compute.has(ticker, true)) await flowOf(ticker, series);
+      // EXEC-BACKTEST-LOAD: the broker files load before the catalog answers too (flow off is only known from it)
+      if (opts.flow && catalog?.flow.available !== false && !compute.has(ticker, true)) await flowOf(ticker, series);
       return compute.get(ticker)!;
     },
 

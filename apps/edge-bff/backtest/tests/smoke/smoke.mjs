@@ -519,6 +519,25 @@ await at('flow: FLOW_DATA_THROUGH on a phone', async () => {
   await noSideScroll('error toast');
 });
 
+/* ---- EXEC-BACKTEST-LOAD (user 2026-10-27: "menu-menu itu ... bisa ready langsung ketika user buka"): a catalog that
+   answers late. The builder and the chart are drawn before it; the ticker list says it is loading; a Run clicked before
+   it waits for it and finishes; once it answers the list holds the stocks ---- */
+await page.close(); await openPage();
+await at('slow catalog: the page is ready before it, the lists say they are loading', async () => {
+  const t0 = Date.now();
+  await page.goto(`${origin}/backtest-app/?slowcat=2500`);
+  await page.waitForSelector('#builder .bs.on', { timeout:2000 });
+  expect(Date.now() - t0 < 2000, 'the builder waited for the catalog');
+  await page.waitForFunction(() => document.querySelectorAll('#laneLabels span').length > 0, null, { timeout:2000 });
+  const opts = await page.locator('#builder [data-k="ticker"] option').allInnerTexts();
+  expect(opts.length === 2 && opts[1] === 'Loading tickers…', `the ticker list before the catalog: ${JSON.stringify(opts)}`);
+  expect(!(await page.locator('#runTop').isDisabled()), 'Run is disabled before the catalog');
+  await page.click('#runTop');
+  await page.waitForFunction(() => /^Done in /.test(document.getElementById('runNote').textContent), null, { timeout:15000 });
+  const after = await page.locator('#builder [data-k="ticker"] option').allInnerTexts();
+  expect(after.length > 2 && !after.some(x => /Loading/.test(x)), `the ticker list after the catalog: ${after.length} options`);
+});
+
 await browser.close(); server.close();
 console.log(steps.join('\n'));
 if (errors.length) { console.error(`\n${errors.length} error(s):\n` + errors.join('\n')); process.exit(1) }

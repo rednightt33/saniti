@@ -7,7 +7,7 @@ import type { JobStatus } from './core/contract.ts';
 import { ApiFailure } from './api/types.ts';
 import { adaptResult } from './api/adapt.ts';
 import { currentRequest } from './api/request.ts';
-import { API } from './env.ts';
+import { API, catalogReady, whenCatalog } from './env.ts';
 import { $, toast, toastError } from './format.ts';
 import { edits, S } from './state.ts';
 import { refreshSignals } from './signals.ts';
@@ -58,6 +58,12 @@ export const run = async (scroll = true) => {
   if(!S.conds.some(c=>c.on)){ toast('Add at least one active condition'); return }
   if(S.mode==='portfolio' && !S.tickers.length){ toast('Add at least one stock'); return }     // the server refuses it too (INVALID_PORTFOLIO)
   if (S.running) return;
+  // EXEC-BACKTEST-LOAD: the request needs the catalog's limits and dates; a Run before it answers waits for it
+  if (!catalogReady()) {
+    $('runNote').textContent = 'Loading…';
+    try { await whenCatalog() } catch (e) { const m = (e as Error).message || 'The backtest service could not be reached.'; toastError(m); $('runNote').textContent = m; return }
+    if (S.running) return;
+  }
   if (!failedNote) idleNote = $('runNote').textContent;
   failedNote = false;
   document.querySelectorAll('.js-run').forEach((b: Element) => (b as HTMLButtonElement).disabled = true); $('runNote').textContent = 'Running…'; S.running = true; updateViewbar();

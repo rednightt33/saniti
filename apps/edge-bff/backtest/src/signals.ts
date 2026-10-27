@@ -76,20 +76,29 @@ const ran = () => fresh() ? runTickers(S.result.raw) : [];
 const failed = new Set<string>();
 const drawable = (tk: string) => !failed.has(tk + '|bars');
 const eventsNeeded = (tk: string) => ran().includes(tk) && !S.result.ev.cond.has(tk);
-const prepared = (tk: string) => loaded(tk) && (!needsFlow() || loaded(tk, true) || failed.has(tk + '|flow')) && (!eventsNeeded(tk) || failed.has(tk + '|events'));
+/* EXEC-BACKTEST-LOAD (user 2026-10-27: "Hanya loading chart, kemudian loading indicator yang di bawah"; "Seperti bagian
+   terminal"): the chart draws once the ticker's prices (and a run's events) are there; the broker data of a flow card
+   follows, and until it is there its lanes and the entry signal say they are loading (flowWait) instead of drawing a
+   preview that leaves the flow card out */
+const prepared = (tk: string) => loaded(tk) && (!eventsNeeded(tk) || failed.has(tk + '|events'));
+const flowWait = (tk: string) => needsFlow() && !loaded(tk, true) && !failed.has(tk + '|flow') && !(fresh() && S.result.ev.cond.has(tk));
 const preparing = new Set<string>();
+const redrawIf = (tk: string) => { if (S.sigTicker === tk && prepared(tk)) { refreshSignals(); if (!$('ews').hidden) renderWSMid() } };
 function prepare(tk: string) {
-  const flow = needsFlow(), key = `${tk}|${flow}|${eventsNeeded(tk)}`;
-  if (preparing.has(key)) return;
-  preparing.add(key);
-  const R = S.result;
-  const ev = eventsNeeded(tk) ? API.events(R.id, tk).then(e => { R.ev.cond.set(tk, new Map(e.conditions.filter(x => x.ticker === tk).map(x => [x.condition_id, x.track]))) },
-    e => { failed.add(tk + '|events'); toastError(e.message) }) : Promise.resolve();
-  const bars = load(tk).then(() => flow ? load(tk, true).catch(e => { failed.add(tk + '|flow'); toastError(e.message) }) : undefined);
-  Promise.all([bars, ev]).then(() => {
-    preparing.delete(key);
-    if (S.sigTicker === tk && prepared(tk)) { refreshSignals(); if (!$('ews').hidden) renderWSMid() }
-  }, e => { preparing.delete(key); failed.add(tk + '|bars'); toastError(e.message); if (S.sigTicker === tk) refreshSignals() });
+  const key = `${tk}|${eventsNeeded(tk)}`;
+  if (!preparing.has(key)) {
+    preparing.add(key);
+    const R = S.result;
+    const ev = eventsNeeded(tk) ? API.events(R.id, tk).then(e => { R.ev.cond.set(tk, new Map(e.conditions.filter(x => x.ticker === tk).map(x => [x.condition_id, x.track]))) },
+      e => { failed.add(tk + '|events'); toastError(e.message) }) : Promise.resolve();
+    Promise.all([load(tk), ev]).then(() => { preparing.delete(key); redrawIf(tk) },
+      e => { preparing.delete(key); failed.add(tk + '|bars'); toastError(e.message); if (S.sigTicker === tk) refreshSignals() });
+  }
+  if (needsFlow() && !loaded(tk, true) && !preparing.has(tk + '|flow')) {
+    preparing.add(tk + '|flow');
+    load(tk).then(() => load(tk, true)).then(() => { preparing.delete(tk + '|flow'); redrawIf(tk) },
+      e => { preparing.delete(tk + '|flow'); if (loaded(tk)) { failed.add(tk + '|flow'); toastError(e.message); redrawIf(tk) } });
+  }
 }
 
 /* the portfolio table's entry signals: the run's own (fresh result) or the server's preview of the current settings
@@ -108,7 +117,7 @@ const portSig = (): Rows => previews.rows(S.tickers.length ? previewRequest() : 
 /* =====================================================================
    7 · SIGNAL CHART — candles + small arrows per condition + lanes
    ===================================================================== */
-let pc: L.IChartApi, candle: L.ISeriesApi<'Candlestick'>, markers: L.ISeriesMarkersPluginApi<L.Time>, laneState: { sig: Sig; idx: number[] } | null = null, crossX: number | null = null, zoomN = 252;
+let pc: L.IChartApi, candle: L.ISeriesApi<'Candlestick'>, markers: L.ISeriesMarkersPluginApi<L.Time>, laneState: { sig: Sig; idx: number[]; wait?: boolean } | null = null, crossX: number | null = null, zoomN = 252;
 const LANE_GUTTER = 136;
 export const initPriceChart = () => {
   const el = $('priceChart');
@@ -136,27 +145,31 @@ export const refreshSignals = () => {
   tickerSelect(shown, tk); portTable(U, tk);
   if(!tk){ noChart(); return }
   if(!prepared(tk)){ prepare(tk); return }
-  const D = DATA[tk], DAYS = D.dates, N = DAYS.length, sig = chartSignals(tk); lastSig = sig;
+  const wait = flowWait(tk); if (wait) prepare(tk);
+  const D = DATA[tk], DAYS = D.dates, N = DAYS.length, sig = chartSignals(tk); lastSig = wait ? null : sig;   // the signal count waits too
+  const pending = (c: Card) => wait && catOf(c).group === 'flow';
   const idx: number[] = []; for(let i=0;i<N;i++) if(inRange(DAYS, i)) idx.push(i);
   candle.setData(idx.map(i=>({time:DAYS[i], open:D.o[i], high:D.h[i], low:D.l[i], close:D.c[i]})));
-  laneState = {sig, idx};
+  laneState = {sig, idx, wait};
   // markers: a small arrow on the day each condition switches on; a bold arrow for the entry signal; exits after a run
   const mk: L.SeriesMarker<L.Time>[] = [];
-  sig.series.forEach(x => { if(S.hidden[x.c.id]) return; const col = COLORS[S.conds.indexOf(x.c) % COLORS.length]; for(const i of idx){ if(x.s[i] && !x.s[i-1]) mk.push({time:DAYS[i], position:'belowBar', color:col, shape:'arrowUp', size:0.5}) } });
-  if(!S.hidden.__entry){ for(const i of idx){ if(sig.entry[i] && !sig.entry[i-1]) mk.push({time:DAYS[i], position:'belowBar', color:css('--text'), shape:'arrowUp', size:1.4, text:''}) } }
+  sig.series.forEach(x => { if(S.hidden[x.c.id] || pending(x.c)) return; const col = COLORS[S.conds.indexOf(x.c) % COLORS.length]; for(const i of idx){ if(x.s[i] && !x.s[i-1]) mk.push({time:DAYS[i], position:'belowBar', color:col, shape:'arrowUp', size:0.5}) } });
+  if(!S.hidden.__entry && !wait){ for(const i of idx){ if(sig.entry[i] && !sig.entry[i-1]) mk.push({time:DAYS[i], position:'belowBar', color:css('--text'), shape:'arrowUp', size:1.4, text:''}) } }
   const R = S.result; if(R && !S.hidden.__trades){ R.trades.filter(t=>t.tk===tk).forEach(t => { mk.push({time:R.days[t.ei], position:'belowBar', color:PAL.up, shape:'circle', size:0.8}); mk.push({time:R.days[t.xi], position:'aboveBar', color:t.ret>=0?PAL.up:PAL.dn, shape:'arrowDown', size:1, text:zoomN&&zoomN<=252?(t.ret>=0?'+':'')+nf(t.ret*100,1)+'%':''}) }) }
   mk.sort((a,b)=>a.time<b.time?-1:a.time>b.time?1:0);
   markers.setMarkers(mk);
   // chips with counts (how often each condition is true inside the period)
   const span = idx.length;
   // chips are grouped by what they are: technical indicators, flow data, price action, and the strategy's own output
-  const chipOf = (x: Sig['series'][number]) => { const col = COLORS[S.conds.indexOf(x.c) % COLORS.length]; let n=0, on=0; for(const i of idx){ if(x.s[i]){ n++; if(!x.s[i-1]) on++ } }
+  const chipOf = (x: Sig['series'][number]) => { const col = COLORS[S.conds.indexOf(x.c) % COLORS.length]; let n=0, on=0;
+      if(pending(x.c)) return `<span class="chip" ${TT(ttH(esc(condName(x.c)), [], 'Loading broker data…'))}><i style="background:${col}"></i><span class="cn">${esc(condName(x.c).replace(/\s*\([^)]*\)/,''))}</span><b>…</b></span>`; for(const i of idx){ if(x.s[i]){ n++; if(!x.s[i-1]) on++ } }
       const ce = $('cf-'+x.c.id); if(ce) ce.innerHTML = `true on <b>${n}</b> days (${nf(n/span*100,1)}%)`;
       return `<span class="chip ${S.hidden[x.c.id]?'off':''}" data-h="${x.c.id}" ${TT(ttH(esc(condName(x.c)), [['Switches on', on+'×'], ['True on', `${n} days (${nf(n/span*100,1)}%)`]], 'Click to hide or show on the chart.'))}><i style="background:${col}"></i><span class="cn">${esc(condName(x.c).replace(/\s*\([^)]*\)/,''))}</span><b>${on}×</b></span>` };
   const GROUPS = [['tech','Technical'],['flow','Flow'],['price','Price action']];
   let nEntry = 0; for(const i of idx) if(sig.entry[i] && !sig.entry[i-1]) nEntry++;
+  const entryN = wait ? '…' : String(nEntry), entryTip = wait ? 'Waits for the broker data of the flow conditions.' : 'Black arrow on the chart. Click to hide or show.';
   const cols: [string, string[]][] = GROUPS.map(([g,l]) => [l, sig.series.filter(x => catOf(x.c).group===g).map(chipOf)] as [string, string[]]).filter(([,xs]) => xs.length);
-  cols.push(['Strategy', [`<span class="chip entry ${S.hidden.__entry?'off':''}" data-h="__entry" ${TT(ttH('Entry signal', [['Signals', nEntry+'×']], 'Black arrow on the chart. Click to hide or show.'))}><i></i><span class="cn">Entry signal</span><b>${nEntry}×</b></span>`,
+  cols.push(['Strategy', [`<span class="chip entry ${S.hidden.__entry?'off':''}" data-h="__entry" ${TT(ttH('Entry signal', [['Signals', wait ? 'loading' : nEntry+'×']], entryTip))}><i></i><span class="cn">Entry signal</span><b>${wait ? entryN : entryN+'×'}</b></span>`,
     ...(S.result ? [`<span class="chip ${S.hidden.__trades?'off':''}" data-h="__trades" ${TT(ttH('Trades', [['On this stock', S.result.trades.filter(t=>t.tk===tk).length]], 'Dot = entry, arrow = exit with its return. Click to hide or show.'))}><i style="background:${PAL.up};border-radius:50%"></i><span class="cn">Trades</span><b>${S.result.trades.filter(t=>t.tk===tk).length}</b></span>`] : [])]]);
   $('sigChips').innerHTML = cols.map(([l,xs],k) => `<div class="lg-col ${l==='Strategy'?'out':''}"><em>${l}</em><div class="lg-items">${xs.join('')}</div></div>`).join('');
   $('sigChips').querySelectorAll('[data-h]').forEach((ch: HTMLElement) => ch.onclick = () => { S.hidden[ch.dataset.h] = !S.hidden[ch.dataset.h]; refreshSignals() });
@@ -184,7 +197,9 @@ const applyZoom = () => { const n = laneState ? laneState.idx.length : 0; if(!zo
 const LANE_H = 18;
 export const drawLanes = () => {
   if(!laneState) return; const {sig, idx} = laneState, cv = $('laneCv') as HTMLCanvasElement;
-  const rows = [...sig.series.map(x=>({lbl:catOf(x.c).label, col:COLORS[S.conds.indexOf(x.c)%COLORS.length], s:x.s, off:S.hidden[x.c.id], bold:false})), {lbl:'Entry', col:css('--text'), s:sig.entry, off:S.hidden.__entry, bold:true}];
+  // EXEC-BACKTEST-LOAD: a flow lane and the entry lane wait for the broker data (laneState.wait): labelled, not filled
+  const w = !!laneState.wait, lw = (c: Card) => w && catOf(c).group === 'flow';
+  const rows = [...sig.series.map(x=>({lbl:catOf(x.c).label + (lw(x.c) ? ' · loading' : ''), col:COLORS[S.conds.indexOf(x.c)%COLORS.length], s:x.s, off:S.hidden[x.c.id] || lw(x.c), bold:false})), {lbl:'Entry' + (w ? ' · loading' : ''), col:css('--text'), s:sig.entry, off:S.hidden.__entry || w, bold:true}];
   const H = rows.length*LANE_H+10, W = cv.parentElement.clientWidth, dpr = devicePixelRatio||1;
   cv.style.height = H+'px'; cv.width = W*dpr; cv.height = H*dpr; const g = cv.getContext('2d'); g.scale(dpr,dpr); g.clearRect(0,0,W,H);
   const ts = pc.timeScale(), plotW = ts.width(), bs = Math.max(1, ts.options().barSpacing), LW = pc.priceScale('left').width() || LANE_GUTTER;

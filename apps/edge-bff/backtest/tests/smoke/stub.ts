@@ -185,7 +185,7 @@ export function resultOf(q: BacktestRequest, runs: number, mk: Market = PLAIN): 
   return buildResult(input);
 }
 
-export function stubApi(opts: { hostile?: boolean; flow?: boolean; wide?: boolean } = {}): BacktestApi {
+export function stubApi(opts: { hostile?: boolean; flow?: boolean; wide?: boolean; catalogMs?: number } = {}): BacktestApi {
   const mk = opts.hostile ? HOSTILE : opts.flow ? FLOW : opts.wide ? WIDE : PLAIN, { all:ALL, catalog:CATALOG, calcOf } = mk;
   const compute = new Compute(() => CATALOG);
   const jobs = new Map<string, { polls: number; request: BacktestRequest; result?: BacktestResult; cancelled?: boolean }>();
@@ -202,7 +202,7 @@ export function stubApi(opts: { hostile?: boolean; flow?: boolean; wide?: boolea
     ({ request_id:id, state, progress, error:null, created_at:'2026-10-26T00:00:00Z', started_at:null, finished_at:null, duration_ms:null, result_bytes:null });
   return {
     texts: PUBLISHED_TEXTS,
-    catalog: () => later(() => CATALOG),
+    catalog: () => later(() => CATALOG, opts.catalogMs ?? 20),   // catalogMs: a catalog that answers late (EXEC-BACKTEST-LOAD)
     bars: (t: string) => later(() => { if (!ALL[t]) throw new ApiFailure(`No price data is published for ${t}.`, 'DATA_MISSING'); if (!compute.has(t)) compute.put(ALL[t]); return compute.get(t)! }),
     ready: c => compute.ready(c),
     indicatorOutputs: (t, id, p) => compute.indicatorOutputs(t, id, p),

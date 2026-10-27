@@ -5,7 +5,7 @@
    reference has its Universe select: the picker is a card of its own, the reference's first row keeps its Max positions
    and its second row (Rank candidates by, Min. avg value) is the reference's (review PG-4). */
 import type { Card } from './api/types.ts';
-import { BROKER_CODES, CAT, STOCKS } from './env.ts';
+import { BROKER_CODES, CAT, STOCKS, catalogReady } from './env.ts';
 import { $, COLORS, esc, fmtD, fmtMoney, ico, nf, num, OPS, parseMoney, pct, rp, cls, toast } from './format.ts';
 import { CAT_LABEL, CATALOG, catOf, condReady, LEVEL_LINES, opLabel, REG, REG_BY, regReady, sideLbl, switchedOn, withinLimit } from './reg.ts';
 import { edits, EXIT_TEMPLATES, mkCond, S, TEMPLATES } from './state.ts';
@@ -29,7 +29,7 @@ export const renderBuilder = () => {
   b.innerHTML = `
   <div class="bs ${S.step===1?'on':''}" data-step="1"><div class="stephead"><small>Step 1 of 5</small><h3>Universe & period</h3></div>
     <div class="seg" style="width:100%;margin-bottom:10px" id="modeSeg"><button style="flex:1" class="${S.mode==='single'?'on':''}" data-m="single">Single stock</button><button style="flex:1" class="${S.mode==='portfolio'?'on':''}" data-m="portfolio">Portfolio</button></div>
-    ${S.mode==='single' ? `<div class="row"><label class="fld"><span>Ticker</span><select class="sel" data-k="ticker">${STOCKS().map(t=>`<option ${t===S.ticker?'selected':''}>${esc(t)}</option>`).join('')}</select></label><label class="fld"><span>Benchmark</span><select class="sel" data-k="bench"><option value="bh" ${S.bench!=='ihsg'?'selected':''}>Buy & hold</option><option value="ihsg" ${S.bench==='ihsg'?'selected':''}>IHSG</option></select></label></div>`
+    ${S.mode==='single' ? `<div class="row"><label class="fld"><span>Ticker</span><select class="sel" data-k="ticker">${tickerOptions()}</select></label><label class="fld"><span>Benchmark</span><select class="sel" data-k="bench"><option value="bh" ${S.bench!=='ihsg'?'selected':''}>Buy & hold</option><option value="ihsg" ${S.bench==='ihsg'?'selected':''}>IHSG</option></select></label></div>`
       : `${pickerHtml()}
          <div class="row"><label class="fld"><span>Max positions</span><input class="inp" type="number" min="1" max="${CAT.limits.max_positions}" data-k="maxPos" value="${S.maxPos}"></label></div>
          <div class="row"><label class="fld"><span>Rank candidates by</span><select class="sel" data-k="rankBy"><option value="adx" ${S.rankBy==='adx'?'selected':''}>Highest ADX</option><option value="fnet" ${S.rankBy==='fnet'?'selected':''}>Biggest foreign net 5D</option><option value="vol" ${S.rankBy==='vol'?'selected':''}>Highest volume ratio</option><option value="rsi" ${S.rankBy==='rsi'?'selected':''}>Lowest RSI</option></select></label><label class="fld"><span>Min. avg value</span><input class="inp" type="number" data-k="cost.minVal" value="${S.cost.minVal}" title="Rp billion per day, 20-day average"></label></div>`}
@@ -159,12 +159,19 @@ export const condCard = (c: Card, i: number) => {
     <div class="cond-b"><div class="regrule">${esc(sideLbl(REG_BY[c.ind],c.lhs))} <b>${OPS[c.op]}</b> ${esc(sideLbl(REG_BY[c.ind],c.rhs))}</div><div class="regpar">${REG_BY[c.ind].p.filter(x=>x.t!=='fixed').map(x=>`<span>${esc(x.l)} <b>${esc(String(c.p[x.k]))}</b></span>`).join('')}</div>
     <div class="cond-f"><span>${regReady(c.ind)?esc(C.desc):'<span class="pill warn">Not calculated in this mock-up</span> ignored on Run'}</span><button class="btn sm" data-ws="${c.id}">Edit in workspace</button></div><span class="cf-stat" id="cf-${c.id}" hidden></span></div></div>`;
   const lc = c as any;
-  const params = C.params.map(([k,l]) => k==='broker' ? `<label class="fld"><span>${l}</span><select class="sel inp sm" data-c="${c.id}" data-p="${k}">${BROKER_CODES().map(b=>`<option ${b===lc[k]?'selected':''}>${esc(b)}</option>`).join('')}</select></label>` : `<label class="fld"><span>${l}</span><input class="inp sm" type="number" step="${k==='k'?0.5:1}" data-c="${c.id}" data-p="${k}" value="${lc[k]}"></label>`).join('');
+  const params = C.params.map(([k,l]) => k==='broker' ? `<label class="fld"><span>${l}</span><select class="sel inp sm" data-c="${c.id}" data-p="${k}">${brokerOptions(lc[k])}</select></label>` : `<label class="fld"><span>${l}</span><input class="inp sm" type="number" step="${k==='k'?0.5:1}" data-c="${c.id}" data-p="${k}" value="${lc[k]}"></label>`).join('');
   const op = `<label class="fld op"><span>Condition</span><select class="sel inp sm" data-c="${c.id}" data-p="op">${C.ops.map(o=>`<option value="${o}" ${o===lc.op?'selected':''}>${opLabel(c,o)}</option>`).join('')}</select></label>`;
   const val = C.noVal ? '' : `<label class="fld"><span>Value${C.unit?` (${C.unit})`:''}</span><input class="inp sm" type="number" step="${C.unit==='×'?0.1:1}" data-c="${c.id}" data-p="val" value="${lc.val}"></label>`;
   return `<div class="cond ${c.on?'':'off'}" data-id="${c.id}"><div class="cond-h"><span class="dot" style="background:${col}"></span><b>${C.label}</b><span class="tag ${C.group}">${C.group==='tech'?'Technical':C.group==='flow'?'Flow':'Price'}</span><label class="sw" title="Enable / disable"><input type="checkbox" data-c="${c.id}" data-p="on" ${c.on?'checked':''}><span></span></label><button class="x" data-del="${c.id}" title="Remove">${ico('<path d="M6 6l12 12M18 6 6 18"/>')}</button></div>
     <div class="cond-b">${C.params.length?`<div class="cg cg-p">${params}</div>`:''}<div class="cg cg-op ${C.noVal?'nv':''}">${op}${val}</div><div class="cond-f"><span>${condReady(c)?C.desc:flowNote(c)}</span><span class="cf-stat" id="cf-${c.id}"></span></div></div></div>`;
 };
+/* EXEC-BACKTEST-LOAD (user 2026-10-27: "user klik dulu ticker, kemudian ada tulisan loading ticker"): before the catalog
+   answers, a list the catalog fills shows the current choice and a line saying it is loading */
+const LOADING = (what: string) => `<option disabled>Loading ${what}…</option>`;
+const tickerOptions = () => catalogReady() ? STOCKS().map(t=>`<option ${t===S.ticker?'selected':''}>${esc(t)}</option>`).join('')
+  : `<option selected>${esc(S.ticker)}</option>${LOADING('tickers')}`;
+const brokerOptions = (cur: string) => catalogReady() ? BROKER_CODES().map(b=>`<option ${b===cur?'selected':''}>${esc(b)}</option>`).join('')
+  : `<option selected>${esc(cur)}</option>${LOADING('brokers')}`;
 const setPath = (path: string, v: unknown) => { const ks = path.split('.'); let o: any = S; ks.slice(0,-1).forEach(k=>o=o[k]); o[ks.at(-1)] = v };
 const bindBuilder = () => {
   const b = $('builder');
