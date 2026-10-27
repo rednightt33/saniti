@@ -102,6 +102,31 @@ try:
         page.mouse.move(box['x'] + box['width'] * .6, box['y'] + box['height'] * .4); page.wait_for_timeout(300)
         page.screenshot(path=str(out / 'rail_crosshair.png'))
         report['rail'] = rail
+        # EXEC-TERMINAL-FRESH: broker data older than the prices is shown as such, not as zero
+        fresh = page.evaluate("""() => ({ flow_badge: document.querySelector('#flowHead .stale-badge')?.textContent || null,
+            panel_badge: document.querySelector('#brokerPanel .side-title .stale-badge')?.textContent || null,
+            hatch_visible: !!document.querySelector('.flow-nodata:not([hidden])'),
+            hatch_text: document.querySelector('.flow-nodata:not([hidden])')?.innerText || null,
+            tip_at_rest: document.getElementById('flowTip').innerText })""")
+        fb = page.locator('#flowChart').bounding_box()
+        page.mouse.move(fb['x'] + fb['width'] * .985, fb['y'] + fb['height'] * .5); page.wait_for_timeout(300)
+        fresh['tip_last_session'] = page.evaluate("() => document.getElementById('flowTip').innerText")
+        page.screenshot(path=str(out / 'fresh_flow.png'))
+        report['fresh'] = fresh
+        # EXEC-TERMINAL-FRESH 3: a trend line dragged on the Flow chart is kept per ticker and undone with Ctrl+Z
+        cb0 = page.locator('#chart').bounding_box()
+        page.mouse.move(cb0['x'] + cb0['width'] * .5, cb0['y'] + cb0['height'] * .5); page.keyboard.press('Alt+t')
+        page.mouse.move(fb['x'] + fb['width'] * .40, fb['y'] + fb['height'] * .45); page.mouse.down()
+        page.mouse.move(fb['x'] + fb['width'] * .60, fb['y'] + fb['height'] * .30, steps=8); page.mouse.up(); page.wait_for_timeout(400)
+        saved = "() => JSON.parse(localStorage.getItem('ml.drawings.flow.' + document.getElementById('symText').textContent.trim()) || '[]').length"
+        draw = {'saved_after_drag': page.evaluate(saved),
+                'main_chart_drawings': page.evaluate("() => window.marketLabDrawings.manager.drawings().length")}
+        page.screenshot(path=str(out / 'flow_drawing.png'))
+        page.keyboard.press('Control+z'); page.wait_for_timeout(300)
+        draw['saved_after_undo'] = page.evaluate(saved)
+        page.keyboard.press('Control+Shift+z'); page.wait_for_timeout(300)
+        draw['saved_after_redo'] = page.evaluate(saved)
+        report['flow_drawing'] = draw
         # EXEC-TERMINAL-PANELS-2 B: the Flow legend labels and the Cumulative pill share one middle line
         report['legend_middles'] = page.evaluate("""() => [document.querySelector('.flow-legend > span'), document.querySelector('.pill-toggle')]
             .map(e => { const r = e.getBoundingClientRect(); return Math.round(r.top + r.height / 2) })""")
@@ -190,6 +215,7 @@ try:
         folded = page.evaluate("() => document.querySelector('#rightScroll .st[data-sec=inv]').classList.contains('collapsed')")
         page.click('#rightScroll .st[data-sec="inv"] .st-head')
         page.reload(wait_until='load'); page.wait_for_function("() => document.querySelector('#rightScroll .st-head[aria-keyshortcuts]')", timeout=120000)
+        report['flow_drawing']['after_reload'] = page.evaluate(saved)
         report['reorder'] = {'before': before, 'after': after, 'after_reload': page.evaluate(order), 'folded_by_drag': collapsed, 'click_folds': folded}
         report['errors'] = errors
         ctx.close(); browser.close()

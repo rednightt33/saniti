@@ -8315,3 +8315,28 @@ dev" dan "Ya, upload setelah dites"; 09:08 UTC "Ya, lewat PR setelah E2E lulus".
 - Masalah yang ditemukan: ERRORS M244 (dua sumber deploy edge-bff), M245 (unduhan ganda preview lalu run, FIXED),
   M246 (hasil gagal disimpan, MITIGATED, penyebab OPEN).
 - Sisa: E2E ulang sesudah perbaikan M246, lalu PR ke main (pilihan N); produksi tidak disentuh.
+
+## EXEC-TERMINAL-FRESH — broker tertinggal tampil jujur, alat gambar di Flow, kepala tabel Top brokers (go 2026-10-27)
+
+User 2026-10-27, atas usulan di jawaban sebelumnya: "Untuk merapikannya: di Flow hanya kelompok Lines yang tersedia
+(Trend line, Horizontal line, Horizontal ray, Ray, Vertical line), gambar disimpan per ticker, bisa di-undo, dan garis
+bisa ditarik. ... --> GO"; "Opsi A — Lengkap (disarankan). Batang Flow berhenti dengan arsiran, tooltip “No broker data
+yet”, label kuning di judul, dan peringatan Telegram. --> GO"; usulan data di RAK (`data_through`, jumlah sesi broker
+tertinggal, peringatan Telegram sesudah putaran 19:00 WIB) dan tampilan ("Broker data not yet loaded", "No broker data
+yet (through Fri 23 Oct)", label "Broker through 23 Oct · price 26 Oct") "--> OK untuk usulan ini. Go."; "Untuk bagian
+yang saya SS dan kotakin boleh di rapihkan lagi" (kepala tabel Top brokers).
+
+Rencana:
+1. Publisher: `behind_sessions` (sesi harga sesudah `data_through` broker) di `state.json` dan manifest; sesudah putaran
+   19:00 WIB yang selesai dengan broker tertinggal ≥ 1 sesi, satu peringatan Telegram lewat `telegram-monitor` (cara
+   `stockbit-updater`). Upload publisher membawa juga `d495854` (kolom industri, sesi lain; sudah live sejak 02:40 UTC).
+2. Halaman: sesi sesudah `data_through` broker tidak bernilai 0 (Flow, kumulatif, Net Buy Flow, tooltip, panel); arsiran
+   dan label kuning; ERRORS M243.
+3. Flow: alat gambar kelompok Lines saja, disimpan per ticker, undo, tarik-lepas (menggantikan prototipe `?drawpanes=1`
+   untuk Flow).
+4. Kepala tabel Top brokers dirapikan.
+Infra dicek 2026-10-27 sebelum mulai: edge-bff aktif `90532d14`, terminal-api `1c428bb6`, publisher `82447144` (upload
+sesi lain `d495854`) cron "0,30 0,12 * * *" NEVER.
+Status 2026-10-27: langkah 1–4 dibangun dan diuji (ERRORS M243 dan "EXEC-TERMINAL-FRESH"); peringatan Telegram
+dibuktikan pada putaran 19:00 WIB.
+

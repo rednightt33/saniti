@@ -957,7 +957,7 @@ ditambah. Panggilan 1, 5, 10 tanpa cache sama sekali (USD 0,0090 + 0,0137 + 0,02
    (M241). Usulan: petunjuk error terarah seperti `IN_PERIOD_HINT` (`apps/market-python-sandbox/app/sessions.py`) untuk
    galat kunci merge bertipe object, yang menyebut `saniti.join` (AS_OF) atau `pd.to_datetime`.
 
-## Terminal: data broker tertinggal dari harga (ERRORS M243; usulan 2026-10-27, menunggu keputusan)
+## Terminal: data broker tertinggal dari harga (ERRORS M243; usulan 2026-10-27 — disetujui dan dikerjakan, EXEC-TERMINAL-FRESH)
 
 User 2026-10-27: "Misalkan data broker saat ini stale, tapi terlihat seolah2 update.. How we should handle this visually
 dan data di RAK?"

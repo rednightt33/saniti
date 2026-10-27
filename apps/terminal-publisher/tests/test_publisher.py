@@ -63,6 +63,8 @@ class FakeConn:
             return [(t, len(v), max(x[1] for x in v), 'ing') for t, v in out.items()]
         if 'max(ingestion_time)' in sql and 'idx_event_annotation' in sql:
             return [('2026-10-25 17:04:28+00',)]
+        if sql == pub.BEHIND_SQL:
+            return [(len({r[1] for r in self.prices if r[1] > params[0]}),)]
         if sql.startswith('SELECT count(*), min(annotation_date)'):
             r = [e for e in self.events if e[0] == params[0]]
             return [(len(r), min(e[1] for e in r), max(e[1] for e in r), sum(e[16] or 0 for e in r))]
@@ -363,4 +365,21 @@ def test_packs_mode_builds_missing_packs_without_rewriting_existing_ones():
     p3 = pub.Publisher(conn, bucket, today=TODAY)
     p3.run('packs')
     assert 'pack/BBCA/price.json.gz' in bucket.objects and p3.written == 1
+
+
+def test_state_counts_the_price_sessions_without_broker_data():
+    """EXEC-TERMINAL-FRESH (user 2026-10-27): state.json says how many final price sessions have no broker data yet."""
+    prices = PRICES + [('BBCA', '2026-01-05', 102.0, 103.0, 100.0, 101.0, 800.0),
+                       ('BBCA', '2026-01-06', 101.0, 104.0, 100.0, 103.0, 700.0)]
+    conn = FakeConn(prices, BROKERS, UNIVERSE); bucket = FakeBucket()
+    p = pub.Publisher(conn, bucket, today=TODAY); p.run('daily')
+    assert p.broker_behind == 2 and bucket.get_json('state.json')['broker_behind_sessions'] == 2
+
+
+def test_the_evening_warning_time_is_the_listed_wib_time_with_slack(monkeypatch):
+    calls = []
+    monkeypatch.setattr(pub, 'notify_broker_behind', lambda day: calls.append(day))
+    times = pub.run_times('19:00')
+    assert pub.near_time(times, dt.datetime(2026, 10, 27, 12, 5, tzinfo=dt.timezone.utc))          # 19:05 WIB
+    assert not pub.near_time(times, dt.datetime(2026, 10, 27, 0, 35, tzinfo=dt.timezone.utc))      # 07:35 WIB
 

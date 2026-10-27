@@ -9,7 +9,7 @@ import { fixtureData } from './data/fixture';
 import { liveData, TerminalError } from './data/live';
 import type { MarketData, Point } from './data/types';
 import type { Ctx } from './app/context';
-import { $, setLogos, spin, store } from './app/context';
+import { $, brokerEnd, setLogos, spin, store } from './app/context';
 import { mark } from './app/perf';
 import { initChart } from './app/chart';
 import { initStats } from './app/stats';
@@ -36,6 +36,7 @@ function start(M: MarketData, rawSeries: Record<string, Point[]>) {
     closes:ohlc.map(b => b.close), N:ohlc.length, idxByTime:new Map(ohlc.map((b, i) => [b.time, i])),
     active:new Map(), catalog:M.catalog, rawSeries, IND_REG
   } as unknown as Ctx;
+  ctx.brokerEnd = brokerEnd(ctx.dates, M.through?.broker);
 
   setLogos(M.logos);                                       // live only: the fixture has no logos (1:1 check)
   initChart(ctx);

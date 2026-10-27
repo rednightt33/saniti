@@ -25,6 +25,11 @@ export function initBroker(ctx: Ctx) {
   let applyChartRange = (_f: string, _t: string) => {};
   /* EXEC-TERMINAL-PANELS-2 C: Broker inventory follows the chart (its visible range and its crosshair), live */
   let invFollow: (() => void) | null = null, invOnCross: ((t: string | null) => void) | null = null, invRaf = 0;
+  if(live && ctx.staleLabel()){                                  // EXEC-TERMINAL-FRESH: the same label as the Flow title
+    const b = document.createElement('span'); b.className = 'stale-badge'; b.textContent = ctx.staleLabel();
+    b.title = 'The broker data is older than the price data; the later sessions have no broker data yet.';
+    rpAside.querySelector('.side-title')!.appendChild(b);
+  }
   if(live){
     ctx.chart.timeScale().subscribeVisibleLogicalRangeChange(() => { if(!invRaf) invRaf = requestAnimationFrame(() => { invRaf = 0; invFollow?.() }) });
     ctx.chart.subscribeCrosshairMove((p: any) => invOnCross?.(p && p.time != null && p.point && p.point.x >= 0 ? keyOf(p.time) : null));
@@ -273,7 +278,7 @@ export function initBroker(ctx: Ctx) {
     const val = (x, side) => `<span class="v ${side==='buy'?'up':'down'}">${x ? sgn(x.net) : ''}</span>`;
     const bar = (x, side) => `<div class="trk ${side}">${x ? `<div class="fill" style="width:${(Math.abs(x.net)/mx*100).toFixed(1)}%"></div>` : ''}</div>`;
     const n = Math.max(buy.length, sell.length);
-    $('accBody').innerHTML = n ? `<div class="pa-head"><span class="l">Top accumulators</span><span class="m">Net buy ← → Net sell</span><span class="r">Top distributors</span></div>`
+    $('accBody').innerHTML = n ? `<div class="pa-head"><span class="l"><i class="up"></i>Top accumulators</span><span class="r">Top distributors<i class="down"></i></span></div>`
       + Array.from({ length:n }, (_, k) => { const b = buy[k], s = sell[k];
         return `<div class="pa-row">${cell(b,'buy')}${val(b,'buy')}${bar(b,'buy')}${bar(s,'sell')}${val(s,'sell')}${cell(s,'sell')}</div>` }).join('')
       : `<div class="rp-empty">Tidak ada data</div>`;

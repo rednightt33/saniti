@@ -82,7 +82,9 @@ async function bundle(ticker: string, datasets: Dataset[], csrf: string) {
   const answer = await api('/bundle', csrf, { ticker, datasets, packs:true });
   const refs = (name: Dataset): FileRef[] => (answer.datasets?.[name]?.files || []).map((f: any) =>
     ({ url:f.url, sha:f.sha256, name:`${name}/${f.pack || f.year || 'all'}` }));
-  return { price:refs('price'), broker:refs('broker'), events:refs('events') };
+  // EXEC-TERMINAL-FRESH: each dataset's own last date (a session after the broker's has no broker data yet, not zero)
+  const through = { price:answer.datasets?.price?.data_through ?? undefined, broker:answer.datasets?.broker?.data_through ?? undefined };
+  return { price:refs('price'), broker:refs('broker'), events:refs('events'), through };
 }
 
 /* U7: the files are downloaded, inflated and parsed by one Web Worker (worker.ts); its answers arrive in stages.
@@ -158,7 +160,8 @@ export async function liveData(stored: string | null): Promise<MarketData> {
   const known = new Set(tickers.map(t => t.ticker));
   const instruments: Instrument[] = tickers.map(t => [t.ticker, t.name || t.ticker, t.sector || (t.type === 'index' ? 'Index' : 'Other'), 0]);
   const SYMBOL = stored && known.has(stored) ? stored : known.has('MAPI') ? 'MAPI' : tickers[0].ticker;
-  const job = run(SYMBOL === guess ? await guessP : await bundle(SYMBOL, ['price', 'broker', 'events'], csrf));
+  const files = SYMBOL === guess ? await guessP : await bundle(SYMBOL, ['price', 'broker', 'events'], csrf);
+  const job = run(files);
 
   mark('ticker list and bundle');
   const rows = await job.price;
@@ -215,6 +218,7 @@ export async function liveData(stored: string | null): Promise<MarketData> {
     combos:[], flowSource:'real', flowFrom:N,
     broker: { dates:[], rows:() => [], label:SYMBOL, category:() => 'L' },
     later: { broker, brokerAll },
+    through: files.through,
     loadEvents,
     hide: { brokerGauge:true, bandar:true }
   };

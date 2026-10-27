@@ -32,6 +32,8 @@ export function initDrawings(ctx: Ctx) {
   });
   const dm = new LibAny.DrawingManager(chart, candle, { magnet: prefs.magnet ? 'weak' : 'off', stayInDrawingMode: false });
   const listeners: ((json: string) => void)[] = [];
+  let fdm: any = null;                                        // live: the Flow chart's drawings (EXEC-TERMINAL-FRESH)
+  const fwrapEl = document.getElementById('flowChart')!.parentElement as HTMLElement;
 
   /* ---- history: one snapshot per finished gesture / command ---- */
   let base = dm.exportJSON(), pressed = false, timer: any = 0;
@@ -48,21 +50,25 @@ export function initDrawings(ctx: Ctx) {
   container.addEventListener('pointerdown', () => { pressed = true }, true);
   window.addEventListener('pointerup', () => { pressed = false; queueSettle() });
 
-  /* ---- drag-release finishes a 2-point tool (the library places a point on press only) ---- */
+  /* ---- drag-release finishes a 2-point tool (the library places a point on press only); used by the price chart and,
+          live, by the Flow chart (EXEC-TERMINAL-FRESH) ---- */
   const isTwoPoint = (kind: string | null) => { const s = kind && LibAny.OVERLAY_SPECS[kind]; return !!s && s.pointCount === 2 && !s.variableLength && !s.freehand };
-  let press: { x: number; y: number; count: number; synthetic: boolean } | null = null;
-  container.addEventListener('pointerdown', (e: any) => {
-    const kind = dm.tool();
-    press = (e.button === 0 && isTwoPoint(kind)) ? { x:e.clientX, y:e.clientY, count:dm.drawings().length, synthetic:!!e.__synthetic } : null;
-  }, true);
-  window.addEventListener('pointerup', (e: any) => {
-    const p = press; press = null;
-    if(!p || e.__synthetic || !isTwoPoint(dm.tool()) || dm.drawings().length !== p.count) return;   // first point not pending any more
-    if(Math.hypot(e.clientX - p.x, e.clientY - p.y) < 6) return;                                       // a plain click: wait for the 2nd click
-    const target = document.elementFromPoint(e.clientX, e.clientY) || container;
-    const fire = (type: string) => { const ev: any = new PointerEvent(type, { bubbles:true, cancelable:true, composed:true, clientX:e.clientX, clientY:e.clientY, button:0, buttons:type === 'pointerdown' ? 1 : 0, pointerId:1, isPrimary:true, pointerType:e.pointerType }); ev.__synthetic = true; target.dispatchEvent(ev) };
-    fire('pointerdown'); fire('pointerup');
-  });
+  function dragFinish(m: any, el: HTMLElement) {
+    let press: { x: number; y: number; count: number; synthetic: boolean } | null = null;
+    el.addEventListener('pointerdown', (e: any) => {
+      const kind = m.tool();
+      press = (e.button === 0 && isTwoPoint(kind)) ? { x:e.clientX, y:e.clientY, count:m.drawings().length, synthetic:!!e.__synthetic } : null;
+    }, true);
+    window.addEventListener('pointerup', (e: any) => {
+      const p = press; press = null;
+      if(!p || e.__synthetic || !isTwoPoint(m.tool()) || m.drawings().length !== p.count) return;   // first point not pending any more
+      if(Math.hypot(e.clientX - p.x, e.clientY - p.y) < 6) return;                                     // a plain click: wait for the 2nd click
+      const target = document.elementFromPoint(e.clientX, e.clientY) || el;
+      const fire = (type: string) => { const ev: any = new PointerEvent(type, { bubbles:true, cancelable:true, composed:true, clientX:e.clientX, clientY:e.clientY, button:0, buttons:type === 'pointerdown' ? 1 : 0, pointerId:1, isPrimary:true, pointerType:e.pointerType }); ev.__synthetic = true; target.dispatchEvent(ev) };
+      fire('pointerdown'); fire('pointerup');
+    });
+  }
+  dragFinish(dm, container);
 
   /* ---- text editor ---- */
   const input = document.createElement('input');
@@ -106,7 +112,10 @@ export function initDrawings(ctx: Ctx) {
   const magnet = button('Magnet', svg('<path d="M9 7v7a5 5 0 0 0 10 0V7"/><path d="M9 7h3.5v7a1.5 1.5 0 0 0 3 0V7H19"/>'), () => { prefs.magnet = !prefs.magnet; store.set('ml.draw.magnet', prefs.magnet ? '1' : '0'); syncMagnet() });
   separator();
   const rm = button('Remove drawings', svg('<path d="M8.5 10h11M12 10V8h4v2M10 10l.8 10h6.4l.8-10"/>'), () => {
-    const sel = dm.selection(); sel.length ? sel.forEach((id: string) => dm.remove(id)) : dm.clear();
+    const fsel = fdm ? fdm.selection() : [], sel = dm.selection();
+    if(fsel.length) fsel.forEach((id: string) => fdm.remove(id));
+    else if(sel.length) sel.forEach((id: string) => dm.remove(id));
+    else { dm.clear(); if(fdm) fdm.clear() }
   });
   wrap.appendChild(bar);
 
@@ -115,6 +124,7 @@ export function initDrawings(ctx: Ctx) {
     const inGroup = (id: string | undefined) => id === 'trend-line' && LINES.some(l => l.id === kind);
     bar.querySelectorAll<HTMLElement>('.dr-btn[data-tool]').forEach(b => { const on = b.dataset.tool === (kind || '') || inGroup(b.dataset.tool); b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)) });
     wrap.classList.toggle('dr-tool', !!kind);
+    if(fdm) fwrapEl.classList.toggle('dr-tool', !!kind && LINES.some(l => l.id === kind));   // the Flow takes the line tools only
     applyCursor();
   }
   function syncMagnet() {
@@ -123,7 +133,7 @@ export function initDrawings(ctx: Ctx) {
     magnet.dataset.label = prefs.magnet ? 'Magnet on (snaps to candles)' : 'Magnet off';
   }
   function syncRemove() {
-    const sel = dm.selection().length > 0, any = dm.drawings().length > 0;
+    const sel = dm.selection().length > 0 || (!!fdm && fdm.selection().length > 0), any = dm.drawings().length > 0 || (!!fdm && fdm.drawings().length > 0);
     rm.disabled = !sel && !any;
     rm.dataset.label = sel ? 'Remove selected drawing' : 'Remove all drawings'; rm.setAttribute('aria-label', rm.dataset.label);
   }
@@ -258,6 +268,42 @@ export function initDrawings(ctx: Ctx) {
   }
   /* the reference subscribes these after its menus exist; events before then cannot happen (no tool is armed yet) */
   dm.on('tool', syncTool); dm.on('selection', syncRemove); dm.on('change', syncRemove);
+
+  /* EXEC-TERMINAL-FRESH 3 (user 2026-10-27, "GO": "di Flow hanya kelompok Lines yang tersedia (Trend line, Horizontal line,
+     Horizontal ray, Ray, Vertical line), gambar disimpan per ticker, bisa di-undo, dan garis bisa ditarik"), live: the Flow
+     Timeline has its own drawing manager. A press on the Flow chart while a line tool is armed moves that tool to it (other
+     tools stay on the price chart); its drawings are kept per ticker under their own key, share the undo history and
+     finish a 2-point line on drag-release like the price chart. Replaces the C4 prototype for the Flow chart. */
+  if(ctx.M.mode === 'live') {
+    const fEl = document.getElementById('flowChart') as HTMLElement, fkey = `flow.${SYMBOL}`;
+    const FLOW_TOOLS = new Set(LINES.map(l => l.id));
+    fdm = new LibAny.DrawingManager(ctx.flowChart, (ctx as any).flowSeries, { magnet:'off', stayInDrawingMode:false });
+    let fbase = fdm.exportJSON(), fpressed = false, ftimer: any = 0;
+    const fset = (json: string) => { fdm.importJSON(json); fbase = fdm.exportJSON(); repo.save(fkey, fbase); syncRemove() };
+    const fsettle = () => {
+      const now = fdm.exportJSON();
+      if(now === fbase) return;
+      const before = fbase; fbase = now;
+      Hist.push({ undo:() => fset(before), redo:() => fset(now) });
+      repo.save(fkey, now); syncRemove();
+    };
+    const fqueue = () => { clearTimeout(ftimer); ftimer = setTimeout(fsettle, 0) };
+    fdm.on('change', () => { if(!fpressed) fqueue() });
+    fEl.addEventListener('pointerdown', () => { fpressed = true }, true);
+    window.addEventListener('pointerup', () => { if(fpressed){ fpressed = false; fqueue() } });
+    dragFinish(fdm, fEl);
+    fdm.on('tool', (k: any) => { if(!k && !dm.tool()) syncTool(null) });
+    fdm.on('selection', syncRemove);
+    fwrapEl.addEventListener('pointerdown', (e: PointerEvent) => {
+      const kind = dm.tool();
+      if(e.button === 0 && kind && FLOW_TOOLS.has(kind)){ dm.setTool(null); fdm.setTool(kind); syncTool(kind) }
+    }, true);
+    container.addEventListener('pointerdown', (e: PointerEvent) => {        // and back to the price chart
+      const kind = fdm.tool();
+      if(e.button === 0 && kind){ fdm.setTool(null); dm.setTool(kind); syncTool(kind) }
+    }, true);
+    repo.load(fkey).then(json => { fdm.importJSON(json); fbase = fdm.exportJSON(); syncRemove() });
+  }
   let lastPtr: { x: number; y: number; t: number } | null = null;
   document.addEventListener('keydown', (e: any) => {
     if(!e.altKey || e.ctrlKey || e.metaKey || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
@@ -379,8 +425,15 @@ export function initDrawings(ctx: Ctx) {
     fwrap.addEventListener('contextmenu', (e: any) => {
       if(e.target.closest('.dr-menu')) return;
       e.preventDefault(); closeCtx(); menus.forEach(m => m.close(false));
+      if(fdm && fdm.tool()){ fdm.setTool(null); syncTool(null); return }      // C5 on the Flow chart too
       const el = menu();
       el.innerHTML = ''; ctxItem(iconReset, 'Reset chart view', '', true, resetFlow, el);
+      if(fdm){                                                // EXEC-TERMINAL-FRESH: the Flow chart's own drawings
+        const sel = fdm.selection().length, n = sel || fdm.drawings().length;
+        el.appendChild(Object.assign(document.createElement('i'), { className:'dr-msep' }));
+        ctxItem(iconTrash, n ? `Remove ${n} drawing${n > 1 ? 's' : ''}` : 'Remove drawings', '', n > 0,
+          () => { sel ? fdm.selection().forEach((id: string) => fdm.remove(id)) : fdm.clear() }, el);
+      }
       el.hidden = false;
       const r = fwrap.getBoundingClientRect();
       el.style.left = Math.max(4, Math.min(e.clientX - r.left, fwrap.clientWidth - el.offsetWidth - 4)) + 'px';
@@ -422,11 +475,10 @@ export function initDrawings(ctx: Ctx) {
       }
       route(dm);
     }, true);
-    const fwrapEl = document.getElementById('flowChart')!.parentElement as HTMLElement;
-    fwrapEl.addEventListener('pointerdown', (e: PointerEvent) => { if(e.button === 0 && armed()) route(managerFor(ctx.flowChart, (ctx as any).flowSeries)) }, true);
+    // (the Flow chart has its own manager since EXEC-TERMINAL-FRESH)
     // C5 for these panes too: a right-click while any tool is armed drops the drawing in progress
     const cancel = (e: Event) => { if(!armed()) return; e.preventDefault(); e.stopImmediatePropagation(); all().forEach(m => m.tool() && m.setTool(null)); syncTool(null) };
-    wrap.addEventListener('contextmenu', cancel, true); fwrapEl.addEventListener('contextmenu', cancel, true);
+    wrap.addEventListener('contextmenu', cancel, true);
   }
 
   syncTool(null); syncMagnet(); syncRemove(); syncLineButton(); applyCursor();

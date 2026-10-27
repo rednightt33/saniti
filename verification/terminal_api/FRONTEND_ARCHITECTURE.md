@@ -157,3 +157,12 @@ Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
 - Broker inventory (live, C): `renderInvLive` reads the chart's visible logical range (re-run on every range change,
   one per frame), draws `niceTicks` on a y-axis and a crosshair line; `chart.subscribeCrosshairMove` moves the line, a
   hover on the inventory calls `ctx.crosshairAt(i)` (flow.ts), which sets the main and Flow crosshairs.
+
+## 12. EXEC-TERMINAL-FRESH (2026-10-27)
+
+- `live.ts` `bundle` keeps each dataset's `data_through`; `ctx.brokerEnd` (`context.ts` `brokerEnd`) is the last session on
+  or before the broker date. Flow bars and the cumulative line are whitespace after it, the summary stops there, the
+  tooltip says "No broker data yet", `.flow-nodata` hatches the sessions after it and `.stale-badge` sits in the Flow
+  and Broker activity titles; Net Buy Flow indicators are null after it.
+- `drawings.ts`: a second DrawingManager on the Flow chart for the Lines group (key `ml.drawings.flow.{TICKER}`, shared
+  undo, `dragFinish`, right-click cancel, its own Remove drawings).

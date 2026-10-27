@@ -15,6 +15,9 @@ from telegram_monitor import (
     fetch_fixed_income_summary,
     StockbitUpdateSummary,
     build_stockbit_messages,
+    BrokerFreshnessSummary,
+    TelegramMonitor,
+    build_freshness_message,
 )
 
 
@@ -195,6 +198,37 @@ class TelegramMonitorTests(unittest.TestCase):
         text = build_stockbit_messages(value)[0]
         self.assertIn("FAILED", text)
         self.assertIn("Error: RuntimeError: Token Stockbit kedaluwarsa", text)
+
+
+class BrokerFreshnessTests(unittest.TestCase):
+    """EXEC-TERMINAL-FRESH (user 2026-10-27): the evening warning when broker data lags the prices."""
+
+    def test_message_names_both_dates_the_gap_and_the_way_to_load(self):
+        text = build_freshness_message(BrokerFreshnessSummary("terminal-2026-10-27", date(2026, 10, 23), date(2026, 10, 27), 2))
+        self.assertIn("tertinggal 2 sesi", text)
+        self.assertIn("Broker sampai Fri 23 Oct 2026", text)
+        self.assertIn("harga sampai Tue 27 Oct 2026", text)
+        self.assertIn("stockbit-updater", text)
+
+    def test_nothing_is_sent_or_logged_when_broker_is_current(self):
+        import telegram_monitor as tm
+        sent = []
+
+        class Conn:
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+
+        monitor = TelegramMonitor.__new__(TelegramMonitor)
+        monitor.database_url, monitor.token, monitor.chat_id = "postgresql://unused", "t", "c"
+        monitor.send_message = lambda *a, **k: sent.append(a) or 1
+        original_connect, original_fetch = tm.psycopg.connect, tm.fetch_broker_freshness
+        tm.psycopg.connect = lambda *a, **k: Conn()
+        tm.fetch_broker_freshness = lambda c, e: BrokerFreshnessSummary(e, date(2026, 10, 27), date(2026, 10, 27), 0)
+        try:
+            self.assertEqual(monitor.notify("Terminal_Broker_Freshness", "terminal-2026-10-27"), ("not_needed", 0))
+        finally:
+            tm.psycopg.connect, tm.fetch_broker_freshness = original_connect, original_fetch
+        self.assertEqual(sent, [])
 
 
 if __name__ == "__main__":

@@ -22,6 +22,11 @@ the Feature04 worker dispatches its durable outbox only after that gate is set.
 The gate includes `source_monitor_table`, so independent equity and fixed-income cron
 executions cannot acknowledge each other accidentally.
 
+`Terminal_Broker_Freshness` (EXEC-TERMINAL-FRESH, user 2026-10-27) is asked by terminal-publisher after its
+evening run (19:00 WIB) when broker data lags the prices. The service reads the gap itself from the tables
+(Feature 05 last `trade_date`, final daily price dates after it), not from the request; nothing is sent or
+logged when nothing lags, and the `execution_id` `terminal-YYYY-MM-DD` keeps it to one message a day.
+
 ## Required Railway variables
 
 - `DATABASE_URL`

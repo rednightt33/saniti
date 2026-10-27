@@ -101,7 +101,7 @@ export default defineRailway(() => {
   const terminalPublisher = service("terminal-publisher", {
     replicas: { "sfo": 1 },
     deploy: { restartPolicyType: "NEVER" },
-    env: { TERMINAL_BUCKET_ACCESS_KEY_ID: preserve(), TERMINAL_BUCKET_ENDPOINT: preserve(), TERMINAL_BUCKET_NAME: preserve(), TERMINAL_BUCKET_REGION: preserve(), TERMINAL_BUCKET_SECRET_ACCESS_KEY: preserve(), TERMINAL_PUBLISHER_DATABASE_URL: preserve(), TERMINAL_PUBLISHER_DB_PASSWORD: preserve(), TERMINAL_PUBLISH_MODE: preserve(), TERMINAL_YEARS: preserve() },
+    env: { TERMINAL_BUCKET_ACCESS_KEY_ID: preserve(), TERMINAL_BUCKET_ENDPOINT: preserve(), TERMINAL_BUCKET_NAME: preserve(), TERMINAL_BUCKET_REGION: preserve(), TERMINAL_BUCKET_SECRET_ACCESS_KEY: preserve(), TERMINAL_PUBLISHER_DATABASE_URL: preserve(), TERMINAL_PUBLISHER_DB_PASSWORD: preserve(), TERMINAL_PUBLISH_MODE: preserve(), TERMINAL_YEARS: preserve(), TELEGRAM_NOTIFY_SECRET: preserve(), TELEGRAM_NOTIFY_URL: preserve() },
   });
   const telegramTrigger = service("telegram-trigger", {
     source: github("rednightt33/saniti", { checkSuites: false, rootDirectory: "/apps/telegram-trigger" }),

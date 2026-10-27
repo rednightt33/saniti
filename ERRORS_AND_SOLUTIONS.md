@@ -2400,9 +2400,20 @@ change yet.
   untuk ringkasan "Latest day net".
 - **Class:** dataset dengan `data_through` sendiri yang digambar di sumbu waktu bersama (broker, kelak makro/lintas aset
   dengan jadwal rilis berbeda): sesi sesudah `data_through` dibaca sebagai nol.
-- **Solution (usulan, menunggu keputusan user):** lihat jawaban 2026-10-27 dan FUTURE_PLAN "Terminal: data broker
-  tertinggal dari harga".
-- **Status:** OPEN.
+- **Solution (go user 2026-10-27, Opsi A, EXEC-TERMINAL-FRESH):** (1) halaman: `/bundle` `data_through` broker →
+  `ctx.brokerEnd` (sesi terakhir ≤ tanggal itu); sesudahnya batang Flow, garis kumulatif, Net Buy Flow dan Net Buy Flow
+  (Line) kosong (bukan 0), ringkasan berhenti di sesi itu, tooltip "No broker data yet (through Fri 23 Oct)", arsiran
+  "Broker data not yet loaded" dan label kuning "Broker through 23 Oct · price 26 Oct" di judul Flow dan Broker
+  activity. (2) rak: `state.json` `broker_behind_sessions` (publisher, `BEHIND_SQL`). (3) Telegram: sesudah putaran
+  19:00 WIB yang tertinggal ≥ 1 sesi, publisher meminta `telegram-monitor` sumber `Terminal_Broker_Freshness`, yang
+  menghitung sendiri dari tabel dan mengirim satu pesan sehari.
+  Cacat saat uji: `timeScale().logicalToCoordinate` LWC 5.2 menjawab 0 untuk posisi pecahan (2122,5), arsiran menutup
+  seluruh Flow; kini tengah sesi bulat + setengah jarak batang. Elemen arsiran juga tampil di fixture karena `display:
+  flex` mengalahkan `hidden`; kini hanya dibuat di live dan `[hidden]{display:none}`.
+- **Bukti:** vitest 672 (`brokerEnd`), publisher 26 (`broker_behind_sessions`, waktu peringatan), telegram-monitor 14
+  (pesan, tidak kirim bila tidak tertinggal), 1:1 0 piksel. Live check ANTM (broker 23 Oct, harga 26 Oct): label di
+  dua judul, arsiran hanya sesudah 23 Oct, tooltip 26 Oct "No broker data yet (through Fri 23 Oct)", tanpa error.
+- **Status:** RESOLVED di halaman dan rak; peringatan Telegram dibuktikan pada putaran 19:00 WIB berikutnya.
 - **Lesson for new data:** setiap dataset deret waktu membawa `data_through`-nya sendiri dan tampilan membedakan "belum
   ada" dari "nol"; nol hanya untuk sesi yang datanya ada dan nilainya nol.
 
@@ -2483,6 +2494,22 @@ change yet.
 - **Status:** MITIGATED; root cause OPEN sampai log baru menangkap kegagalan berikutnya.
 - **Lesson for new data:** penulisan hasil besar ke database dibatasi waktu job, bukan anggaran retry layanan lain, dan
   setiap log kegagalan database membawa kelas serta SQLSTATE agar bisa didiagnosis tanpa membocorkan kredensial.
+
+### EXEC-TERMINAL-FRESH — alat gambar di Flow, kepala tabel Top brokers (2026-10-27)
+
+- **Go user 2026-10-27:** "... di Flow hanya kelompok Lines yang tersedia (Trend line, Horizontal line, Horizontal ray,
+  Ray, Vertical line), gambar disimpan per ticker, bisa di-undo, dan garis bisa ditarik. ... --> GO"; "Untuk bagian
+  yang saya SS dan kotakin boleh di rapihkan lagi" (kepala tabel Top brokers).
+- **Flow:** `drawings.ts` (live) DrawingManager kedua di chart Flow; tekan di Flow saat alat garis aktif memindahkan
+  alat ke Flow (alat lain tetap di chart harga), kunci `ml.drawings.flow.{TICKER}`, riwayat undo bersama, tarik-lepas
+  (`dragFinish` untuk kedua chart), klik kanan membatalkan garis yang sedang ditarik, menu Flow "Remove drawings".
+  Prototipe `?drawpanes=1` tetap hanya untuk panel indikator. Live check: trend line ditarik di Flow tersimpan (1),
+  undo 0, redo 1, sesudah reload 1, chart harga 0 gambar.
+- **Top brokers:** kepala "Top accumulators" (kotak hijau) kiri, "Top distributors" (kotak merah) kanan, tanpa teks
+  panah tengah.
+- **Ikut terbawa:** commit sesi lain `d495854` (kolom industri di `ref/tickers`, live sejak 2026-10-27 02:40 UTC
+  deployment `82447144`, belum di `main`) di-cherry-pick supaya upload publisher dari cabang ini tidak menghapusnya.
+- **Status:** RESOLVED.
 
 ## Fixed-income selected-date repair — 2026-10-20 status
 

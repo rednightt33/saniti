@@ -90,6 +90,9 @@ EVENT_COLUMNS = ['d', 'role', 'family', 'type', 'action', 'holder', 'holder_role
 EVENTS_FORMAT = 2
 EVENT_STAMPS_SQL = ('SELECT ticker, count(*), max(annotation_date)::text, max(ingestion_time)::text '
                     'FROM public.idx_event_annotation GROUP BY ticker')
+# EXEC-TERMINAL-FRESH (user 2026-10-27): final daily price sessions that have no broker data yet
+BEHIND_SQL = ('SELECT count(DISTINCT date) FROM public."Price_Stock_Indonesia_IDX" '
+              "WHERE timeframe = 'Daily' AND is_final AND date > %s")
 UNIVERSE_SQL = ('SELECT "Ticker", "Company Name", "Security Type", "Sector", "Industry" FROM public."IDX_Stock_Universe" '
                 "WHERE \"Security Type\" IN ('stock', 'index') ORDER BY 1")
 
@@ -323,6 +326,7 @@ class Publisher:
         self.manifests = {}
         self.changed = set()                                      # (dataset, ticker, year) written or removed this run
         self.written = 0
+        self.broker_behind = None                          # final price sessions after the broker data (run())
         self.bytes = 0
 
     # ---- manifests -------------------------------------------------------------------------------------------
@@ -541,13 +545,15 @@ class Publisher:
         if mode == 'logos' or (mode == 'daily' and self.logos_stale()):
             self.publish_logos(universe)
         broker_through = through['broker'] if mode in ('backfill', 'daily') else state.get('broker_through')
+        self.broker_behind = self.conn.execute(BEHIND_SQL, (through['broker'],)).fetchone()[0] if through['broker'] else None
         self.bucket.put('state.json', json.dumps({
             'schema_version': SCHEMA_VERSION, 'price_through': through['price'], 'broker_through': broker_through,
+            'broker_behind_sessions': self.broker_behind,
             'window': [self.first_year, self.last_year], 'price_first_year': self.price_first_year,
             'broker_first_year': self.broker_first_year, 'last_mode': mode,
             'finished_at': dt.datetime.now(dt.timezone.utc).isoformat()}).encode(), 'application/json')
         log('done', mode=mode, files_planned=len(todo), files_written=self.written, mb=round(self.bytes / 1e6, 2),
-            tickers=len(touched), seconds=round(time.monotonic() - started, 1))
+            tickers=len(touched), seconds=round(time.monotonic() - started, 1), broker_behind_sessions=self.broker_behind)
 
     def changed_events(self, kind, force=False):
         """Tickers whose event rows changed (count, last date, last ingestion), or every ticker with events."""
@@ -650,6 +656,31 @@ def cron_for(times):
     return f"{','.join(map(str, minutes))} {','.join(map(str, hours))} * * *"
 
 
+def near_time(times, now=None, slack_minutes=20):
+    """True when `now` (WIB) is at most slack_minutes after one of the listed WIB times."""
+    now = (now or dt.datetime.now(dt.timezone.utc)).astimezone(WIB)
+    mins = now.hour * 60 + now.minute
+    return any(0 <= (mins - (h * 60 + m)) % 1440 <= slack_minutes for h, m in times)
+
+
+def notify_broker_behind(run_day):
+    """EXEC-TERMINAL-FRESH (user 2026-10-27: "peringatan Telegram kalau broker masih tertinggal setelah putaran 19:00
+    WIB"): ask telegram-monitor once per day; it reads the gap from the tables itself and sends only when one exists."""
+    url, secret = os.environ.get('TELEGRAM_NOTIFY_URL', '').strip(), os.environ.get('TELEGRAM_NOTIFY_SECRET', '').strip()
+    if not url or not secret:
+        log('broker_behind_notify_skipped', reason='not_configured'); return
+    body = json.dumps({'source_table': 'Terminal_Broker_Freshness', 'execution_id': f'terminal-{run_day}'}).encode()
+    for attempt in range(1, 4):
+        try:
+            req = urllib.request.Request(url, data=body, method='POST',
+                                         headers={'Content-Type': 'application/json', 'X-Notify-Secret': secret})
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                log('broker_behind_notify', status=json.loads(resp.read() or b'{}').get('status'), attempt=attempt); return
+        except Exception as e:                                   # the URL and secret are never printed
+            log('broker_behind_notify_failed', attempt=attempt, error=type(e).__name__)
+            time.sleep(2 ** attempt)
+
+
 def should_run(times, now=None, slack_minutes=20):
     """T7 (user 2026-10-26: "jadwal publisher ... jam 19.00 dan jam 7.30"): a run near a cron tick that is not a listed
     time exits at once; a run near a listed time, or away from every tick (a deploy or manual run), goes ahead."""
@@ -677,7 +708,12 @@ def main(argv):
         if mode == 'verify':
             return 1 if verify(conn, bucket) else 0
         only = [t.strip().upper() for t in os.environ.get('TERMINAL_TICKERS', '').split(',') if t.strip()] or None
-        Publisher(conn, bucket).run(mode, os.environ.get('TERMINAL_FROM'), os.environ.get('TERMINAL_TO'), only)
+        started = dt.datetime.now(dt.timezone.utc)
+        pub = Publisher(conn, bucket)
+        pub.run(mode, os.environ.get('TERMINAL_FROM'), os.environ.get('TERMINAL_TO'), only)
+    # the evening run (TERMINAL_STALE_ALERT_WIB, default 19:00) warns when broker data lags the prices
+    if mode == 'daily' and (pub.broker_behind or 0) >= 1 and near_time(run_times(os.environ.get('TERMINAL_STALE_ALERT_WIB', '19:00')), started):
+        notify_broker_behind(started.astimezone(WIB).date().isoformat())
     return 0
 
 

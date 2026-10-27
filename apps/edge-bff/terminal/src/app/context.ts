@@ -16,6 +16,15 @@ export const rupiah = (n: number) => (n<0?'-':'')+'Rp '+nfCompact.format(Math.ab
 export const keyOf = (t: any): string | null => typeof t === 'string' ? t
   : (t && typeof t === 'object' ? `${t.year}-${String(t.month).padStart(2,'0')}-${String(t.day).padStart(2,'0')}` : null);
 
+/** EXEC-TERMINAL-FRESH (user 2026-10-27): the last session on or before the broker data's last date; every session
+    when that date is unknown (the fixture) */
+export function brokerEnd(dates: string[], through?: string) {
+  if(!through) return dates.length - 1;
+  let i = dates.length - 1;
+  while(i >= 0 && dates[i] > through) i--;
+  return i;
+}
+
 /* tiny maths / formatting */
 export const median = (a: number[]) => { const s=[...a].sort((x,y)=>x-y), m=s.length>>1; return s.length%2 ? s[m] : (s[m-1]+s[m])/2 };
 export const avgOf = (a: number[]) => a.reduce((s,x)=>s+x,0)/a.length;
@@ -116,4 +125,7 @@ export interface Ctx {
   /* EXEC-TERMINAL-PANELS: drag a period on the main chart (rangeSelect.ts) */
   selectRangeOnChart: (done: (from: string, to: string) => void) => void;
   crosshairAt: (i: number | null) => void;           // flow.ts: both charts' crosshair on session i
+  /* EXEC-TERMINAL-FRESH: the last session with broker data (N - 1 when none is missing); later sessions are no data */
+  brokerEnd: number;
+  staleLabel: () => string;                          // flow.ts: "Broker through … · price …", or '' when current
 }
