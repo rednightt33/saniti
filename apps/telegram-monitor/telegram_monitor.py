@@ -24,7 +24,10 @@ MONITORING_TABLE = 'public."Monitoring_Price_ALL"'
 LOG_TABLE = 'public."Telegram_Notification_Log"'
 PRICE_MONITORING_SOURCES = {"Monitoring_Price_ALL", "Monitoring_Fixed_Income"}
 STOCKBIT_SOURCE = "Monitoring_Stockbit_Update"
-SUPPORTED_SOURCES = PRICE_MONITORING_SOURCES | {"Monitoring_Feature04", STOCKBIT_SOURCE}
+# EXEC-TERMINAL-FRESH (user 2026-10-27): terminal-publisher asks after its evening run; the numbers are read here from
+# the tables themselves, not taken from the request
+FRESHNESS_SOURCE = "Terminal_Broker_Freshness"
+SUPPORTED_SOURCES = PRICE_MONITORING_SOURCES | {"Monitoring_Feature04", STOCKBIT_SOURCE, FRESHNESS_SOURCE}
 MAX_REQUEST_BYTES = 16_384
 MAX_TELEGRAM_TEXT = 4_000
 JAKARTA_TZ = ZoneInfo("Asia/Jakarta")
@@ -217,6 +220,38 @@ def fetch_stockbit_update_summary(
         index_result=row[8] or {}, events=row[9] or {}, verify=(row[10] or {}).get("verify") or {},
         last_error=row[11],
     )
+
+
+@dataclass(frozen=True)
+class BrokerFreshnessSummary:
+    execution_id: str
+    broker_through: date | None
+    price_through: date | None
+    behind_sessions: int
+
+
+def fetch_broker_freshness(connection: psycopg.Connection, execution_id: str) -> BrokerFreshnessSummary:
+    """The broker data (Feature 05, what the terminal publishes) against the final daily prices: how many price sessions
+    have no broker data yet."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """SELECT b.through, p.through,
+                      (SELECT count(DISTINCT date) FROM public."Price_Stock_Indonesia_IDX"
+                        WHERE timeframe = 'Daily' AND is_final AND date > b.through)
+               FROM (SELECT max(trade_date) AS through FROM public."Feature_05_Foreign_Domestic_Broker_Detail") b,
+                    (SELECT max(date) AS through FROM public."Price_Stock_Indonesia_IDX"
+                      WHERE timeframe = 'Daily' AND is_final) p"""
+        )
+        broker, price, behind = cursor.fetchone()
+    return BrokerFreshnessSummary(execution_id, broker, price, int(behind or 0))
+
+
+def build_freshness_message(summary: BrokerFreshnessSummary) -> str:
+    day = lambda d: d.strftime("%a %d %b %Y") if d else "-"
+    return (f"⚠️ Terminal: data broker tertinggal {summary.behind_sessions} sesi dari harga\n"
+            f"Broker sampai {day(summary.broker_through)} • harga sampai {day(summary.price_through)}\n"
+            "Flow dan Broker activity menandai sesi itu \"No broker data yet\". Untuk memuat: pasang token Stockbit "
+            "baru di service stockbit-updater (UPDATE_TABLE.md bagian 0).")
 
 
 def build_stockbit_messages(summary: StockbitUpdateSummary, max_length: int = MAX_TELEGRAM_TEXT) -> list[str]:
@@ -692,6 +727,10 @@ class TelegramMonitor:
                 summary = fetch_fixed_income_summary(connection, execution_id)
             elif source_table == STOCKBIT_SOURCE:
                 summary = fetch_stockbit_update_summary(connection, execution_id)
+            elif source_table == FRESHNESS_SOURCE:
+                summary = fetch_broker_freshness(connection, execution_id)
+                if summary.behind_sessions < 1:
+                    return "not_needed", 0                         # nothing behind: nothing sent, nothing logged
             else:
                 summary = fetch_feature04_summary(connection, execution_id)
             if summary is None:
@@ -722,7 +761,9 @@ class TelegramMonitor:
 
             message_ids: list[int] = []
             try:
-                if isinstance(summary, StockbitUpdateSummary):
+                if isinstance(summary, BrokerFreshnessSummary):
+                    message_ids.append(self.send_message(self.token, self.chat_id, build_freshness_message(summary)))
+                elif isinstance(summary, StockbitUpdateSummary):
                     # every round is reported, success included (EXEC-STOCKBIT-UPDATER, decision K5)
                     for message in build_stockbit_messages(summary):
                         message_ids.append(self.send_message(self.token, self.chat_id, message))

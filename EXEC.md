@@ -8316,4 +8316,6 @@ Rencana:
 4. Kepala tabel Top brokers dirapikan.
 Infra dicek 2026-10-27 sebelum mulai: edge-bff aktif `90532d14`, terminal-api `1c428bb6`, publisher `82447144` (upload
 sesi lain `d495854`) cron "0,30 0,12 * * *" NEVER.
+Status 2026-10-27: langkah 1–4 dibangun dan diuji (ERRORS M243 dan "EXEC-TERMINAL-FRESH"); peringatan Telegram
+dibuktikan pada putaran 19:00 WIB.
 

@@ -126,6 +126,7 @@ export function initIndicators(ctx: Ctx) {
     ctx.COMBOS.forEach(c => { if((br && !br.has(c.broker)) || !bd.has(c.board) || !iv.has(c.investor)) return; for(let i = 0; i < N; i++) net[i] += c.net[i] });
     const out = new Array(N).fill(null); let sum = 0;
     for(let i = 0; i < N; i++) { sum += net[i]; if(i >= p.length) sum -= net[i - p.length]; if(i >= p.length - 1) out[i] = sum }
+    for(let i = ctx.brokerEnd + 1; i < N; i++) out[i] = null;      // EXEC-TERMINAL-FRESH: no broker data yet, not zero
     return out;
   }
   const flowDef = {
@@ -161,6 +162,7 @@ export function initIndicators(ctx: Ctx) {
         sum += net[i];
         if(p.mode === 'Rolling') { if(i >= p.length) sum -= net[i - p.length]; if(i >= p.length - 1) vals[i] = sum } else vals[i] = sum;
       }
+      for(let i = ctx.brokerEnd + 1; i < N; i++) vals[i] = null;   // EXEC-TERMINAL-FRESH
       return { id:code, vals };
     });
   }

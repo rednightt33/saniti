@@ -89,9 +89,9 @@ export function initFlow(ctx: Ctx) {
     /* EXEC-TERMINAL-1026C C2 (user 2026-10-26: "kalau negatif ya di show saja huruf merah. Dengan minus"): live, the latest
        day is the last session with broker rows (the newest price session may not have them yet) and carries its date;
        a negative figure is red with its minus, zero is neutral */
-    const [a, b0] = LIVE ? visible() : [0, N-1], b = LIVE ? Math.min(b0, flowTo) : b0, from = Math.max(a, flowFrom);
+    const [a, b0] = LIVE ? visible() : [0, N-1], b = LIVE ? Math.min(b0, flowTo, ctx.brokerEnd) : b0, from = Math.max(a, flowFrom);
     let total = 0; for(let i=from;i<=b;i++) total += flowNet[i];
-    const lastI = LIVE ? flowTo : N-1, last = lastI >= 0 ? flowNet[lastI] : 0, avg = total/(b - from + 1 > 0 ? b - from + 1 : 1);
+    const lastI = LIVE ? Math.min(flowTo, ctx.brokerEnd) : N-1, last = lastI >= 0 ? flowNet[lastI] : 0, avg = total/(b - from + 1 > 0 ? b - from + 1 : 1);
     const tone = (v: number) => LIVE ? (v > 0 ? 'up' : v < 0 ? 'down' : 'flat') : (v>=0?'up':'down');
     const day = (l: string) => LIVE && l === 'Latest day net' && lastI >= 0 && lastI < N ? ` <span class="flow-stat-day">${fmtDMY(lastI)}</span>` : '';
     const stat = (l: string, v: number) => `<div class="flow-stat"><span class="flow-stat-label">${l}${day(l)}${LIVE ? info(l) : ''}</span><span class="flow-stat-val ${tone(v)}">${rupiah(v)}</span></div>`;
@@ -106,6 +106,42 @@ export function initFlow(ctx: Ctx) {
     host.addEventListener('focusin', (e: any) => { const t = e.target.closest('.flow-info'); if(t){ const r = t.getBoundingClientRect(); tip(t, r.left, r.bottom) } });
     host.addEventListener('focusout', () => ctx.hideStTip());
   }
+  /* ---- EXEC-TERMINAL-FRESH (user 2026-10-27: Opsi A "Batang Flow berhenti dengan arsiran, tooltip “No broker data yet”,
+          label kuning di judul"): the sessions after the broker data's last date are hatched on the Flow chart, and the
+          Flow title carries "Broker through … · price …" while they exist ---- */
+  const weekdayDay = (t: string) => new Date(t + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short', timeZone:'UTC' }).replace(',', '');
+  const dayMonth = (t: string) => new Date(t + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'2-digit', month:'short', timeZone:'UTC' });
+  const through = ctx.M.through?.broker;                  // the broker data's own last date (the manifest)
+  const brokerThroughText = () => through ? weekdayDay(through) : 'unknown';
+  ctx.staleLabel = () => through && ctx.brokerEnd < N - 1 ? `Broker through ${dayMonth(through)} · price ${dayMonth(dates[N - 1])}` : '';
+  const noData = document.createElement('div'); noData.className = 'flow-nodata'; noData.hidden = true;
+  noData.innerHTML = '<span>Broker data not yet loaded</span>';
+  if(LIVE) ($('flowChart').parentElement as HTMLElement).appendChild(noData);     // the fixture's markup stays the reference's
+  function placeNoData() {
+    if(!LIVE || ctx.brokerEnd >= N - 1 || flowLoading){ noData.hidden = true; return }
+    // the right edge of the last session with broker data: its centre plus half a bar (logicalToCoordinate answers 0 for a
+    // fractional position in lightweight-charts 5.2, so the centre of the whole session is read)
+    const ts = flowChart.timeScale(), c = ts.logicalToCoordinate(ctx.brokerEnd as any), w = ts.width();
+    const x = c === null ? null : c + ts.options().barSpacing / 2;
+    if(x === null || x >= w){ noData.hidden = true; return }
+    const left = flowChart.priceScale('left').width(), from = Math.max(0, x);
+    noData.hidden = false; noData.style.left = (left + from) + 'px'; noData.style.width = (w - from) + 'px';
+    noData.style.height = (($('flowChart') as HTMLElement).clientHeight - ts.height()) + 'px';
+    noData.classList.toggle('narrow', w - from < 150);
+  }
+  // placed after the chart has drawn its new data or range (a coordinate read right after setData is the old one)
+  let placeRaf = 0;
+  function schedulePlace() { cancelAnimationFrame(placeRaf); placeRaf = requestAnimationFrame(() => { placeRaf = requestAnimationFrame(placeNoData) }) }
+  if(LIVE){
+    flowChart.timeScale().subscribeVisibleLogicalRangeChange(schedulePlace);
+    chart.timeScale().subscribeVisibleLogicalRangeChange(schedulePlace);
+    new ResizeObserver(schedulePlace).observe($('flowChart'));
+    const label = ctx.staleLabel();
+    if(label){ const b = document.createElement('span'); b.className = 'stale-badge'; b.textContent = label;
+      b.title = 'The broker data is older than the price data; the later sessions have no broker data yet.';
+      document.querySelector('#flowHead .flow-title')!.appendChild(b) }
+  }
+
   const recomputeFlow = () => {
     flowNet = new Float64Array(N);
     let used = 0;
@@ -115,8 +151,11 @@ export function initFlow(ctx: Ctx) {
     });
     let run = 0; flowCumArr = new Float64Array(N);
     for(let i=0;i<N;i++){ run += flowNet[i]; flowCumArr[i] = run }
-    flowBars.setData(ohlc.map((b,i)=>({ time:b.time, value:Math.round(flowNet[i]), color: flowNet[i]>=0 ? 'rgba(8,153,129,.9)' : 'rgba(242,54,69,.9)' })));
-    flowCum.setData(ohlc.map((b,i)=>({ time:b.time, value:Math.round(flowCumArr[i]) })));
+    // EXEC-TERMINAL-FRESH: a session after the broker data's last date is left empty (no bar, the line stops), not zero
+    const E = ctx.brokerEnd;
+    flowBars.setData(ohlc.map((b,i)=> i > E ? { time:b.time } : { time:b.time, value:Math.round(flowNet[i]), color: flowNet[i]>=0 ? 'rgba(8,153,129,.9)' : 'rgba(242,54,69,.9)' }));
+    flowCum.setData(ohlc.map((b,i)=> i > E ? { time:b.time } : { time:b.time, value:Math.round(flowCumArr[i]) }));
+    schedulePlace();
     flowSummary();
     const note = $('flowNote');
     const everything = flt.brokers.size===allBrokers().length && flt.boards.size===BOARDS.length && flt.investors.size===INVESTORS.length;
@@ -135,9 +174,14 @@ export function initFlow(ctx: Ctx) {
     ctx.lastTipIdx = i;
     ctx.tipHooks.forEach(fn => fn(i));
     const vb = $('volVal'); if(vb){ vb.textContent = nfCompact.format(volume[i].value); vb.className = ohlc[i].close >= ohlc[i].open ? 'up' : 'down' }
+    if(i > ctx.brokerEnd){                                   // EXEC-TERMINAL-FRESH: no broker data yet on this session
+      badgeVals.clear(); cumBadge.applyOptions({ axisLabelVisible:false }); netBadge.applyOptions({ axisLabelVisible:false });
+      $('flowTip').innerHTML = `<b>${fmtDMY(i)}</b> &nbsp; <span class="flow-nodata-tip">No broker data yet (through ${brokerThroughText()})</span>`;
+      return;
+    }
     badgeVals.clear(); badgeVals.add(Math.round(flowCumArr[i])); badgeVals.add(Math.round(flowNet[i]));
     cumBadge.applyOptions({ price: Math.round(flowCumArr[i]), axisLabelVisible: cumOn });
-    netBadge.applyOptions({ price: Math.round(flowNet[i]), axisLabelColor: flowNet[i] >= 0 ? '#089981' : '#f23645' });
+    netBadge.applyOptions({ price: Math.round(flowNet[i]), axisLabelVisible:true, axisLabelColor: flowNet[i] >= 0 ? '#089981' : '#f23645' });
     $('flowTip').innerHTML = `<b>${fmtDMY(i)}</b> &nbsp; Net <b class="${cls(flowNet[i])}">${rupiah(flowNet[i])}</b>`
       + (cumOn ? ` &nbsp; Cumulative <b>${rupiah(flowCumArr[i])}</b>` : '');
   };

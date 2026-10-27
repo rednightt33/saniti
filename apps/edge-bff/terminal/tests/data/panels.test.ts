@@ -5,6 +5,7 @@ import { monthGrid } from '../../src/ui/calendar';
 import { sessionsBetween } from '../../src/app/rangeSelect';
 import { orderedKeys } from '../../src/ui/reorder';
 import { niceTicks } from '../../src/app/broker';
+import { brokerEnd } from '../../src/app/context';
 
 const doc = (d: string[]) => ({ columns:['d', 'b', 'i', 'm', 'bv', 'sv', 'bl', 'sl'], d, b:d.map(() => 'YP'),
   i:d.map(() => 'Domestic'), m:d.map(() => 'RG'), bv:d.map(() => 10), sv:d.map(() => 4), bl:d.map(() => 1), sl:d.map(() => 1) });
@@ -66,5 +67,18 @@ describe('Broker inventory y-axis ticks (C3)', () => {
     expect(niceTicks(-900000, 1700000)).toEqual([-500000, 0, 500000, 1000000, 1500000]);
     const t = niceTicks(0, 1);
     expect(t[0]).toBe(0); expect(t.at(-1)).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('broker data older than the prices (EXEC-TERMINAL-FRESH)', () => {
+  const dates = ['2026-10-21', '2026-10-22', '2026-10-23', '2026-10-26', '2026-10-27'];
+  it('ends on the last session on or before the broker date', () => {
+    expect(brokerEnd(dates, '2026-10-23')).toBe(2);
+    expect(brokerEnd(dates, '2026-10-24')).toBe(2);                    // a weekend date: the Friday before
+    expect(brokerEnd(dates, '2026-10-27')).toBe(4);                    // current: nothing is masked
+  });
+  it('masks nothing when the date is unknown (the fixture) and everything when it is older than the chart', () => {
+    expect(brokerEnd(dates, undefined)).toBe(4);
+    expect(brokerEnd(dates, '2026-01-02')).toBe(-1);
   });
 });
