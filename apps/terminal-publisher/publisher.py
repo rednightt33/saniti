@@ -90,7 +90,7 @@ EVENT_COLUMNS = ['d', 'role', 'family', 'type', 'action', 'holder', 'holder_role
 EVENTS_FORMAT = 2
 EVENT_STAMPS_SQL = ('SELECT ticker, count(*), max(annotation_date)::text, max(ingestion_time)::text '
                     'FROM public.idx_event_annotation GROUP BY ticker')
-UNIVERSE_SQL = ('SELECT "Ticker", "Company Name", "Security Type", "Sector" FROM public."IDX_Stock_Universe" '
+UNIVERSE_SQL = ('SELECT "Ticker", "Company Name", "Security Type", "Sector", "Industry" FROM public."IDX_Stock_Universe" '
                 "WHERE \"Security Type\" IN ('stock', 'index') ORDER BY 1")
 
 
@@ -412,8 +412,11 @@ class Publisher:
         return self.conn.execute(UNIVERSE_SQL).fetchall()
 
     def publish_refs(self, universe):
-        tickers = {'schema_version': SCHEMA_VERSION, 'columns': ['ticker', 'name', 'type', 'sector'],
-                   **columnar(universe, ['ticker', 'name', 'type', 'sector'])}
+        # every column after ticker, name and type is a classification the backtest offers as a portfolio filter
+        # (backtest CONTRACT.md, decision PF6; user 2026-10-27); readers take columns by name, so one can be added.
+        # Values are stored as the table has them: 'Undefined' (no classification) is the readers' to set apart.
+        names = ['ticker', 'name', 'type', 'sector', 'industry']
+        tickers = {'schema_version': SCHEMA_VERSION, 'columns': names, **columnar(universe, names)}
         brokers = self.conn.execute('SELECT broker_code, broker_name, broker_type FROM public."IDX_Broker_Profile" '
                                     'ORDER BY 1').fetchall()
         brokers_doc = {'schema_version': SCHEMA_VERSION, 'columns': ['code', 'name', 'type'],
@@ -483,7 +486,7 @@ class Publisher:
     def run(self, mode, start_from=None, end_to=None, only=None):
         started = time.monotonic()
         universe = self.universe()
-        kind = {t: typ for t, _, typ, _ in universe}
+        kind = {t: typ for t, _, typ, *_ in universe}
         through = self.data_through()
         self.resolve_price_first_year()
         state = self.bucket.get_json('state.json') or {}
@@ -584,7 +587,7 @@ def verify(conn, bucket):
     first_year, last_year = window()
     universe = conn.execute(UNIVERSE_SQL).fetchall()
     checked = bad = 0
-    for ticker, _, typ, _ in universe:
+    for ticker, _, typ, *_ in universe:
         m = bucket.get_json(f'manifest/{ticker}.json')
         if not m:
             log('verify_missing_manifest', ticker=ticker)
