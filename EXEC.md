@@ -8441,3 +8441,18 @@ W1 + I2) begitu perubahan sesi lain masuk ke `main` dan edge-bff dideploy dari s
   Selesai 2026-10-27: edge-bff `43e5b185` dari `main` `fdd00e7` SUCCESS; aset terminal live = build W1 + I2
   (RAILWAY_CHANGELOG).
 
+## EXEC-BACKTEST-LOAD — halaman Backtest tampil seperti Terminal (2026-10-27)
+
+User 2026-10-27, atas rencana PLAN.md BACKTEST-LOAD dan rincian katalog: "Sesi ini, jalankan". Pertanyaan K1 dan K3
+tidak dijawab terpisah; dijalankan dengan pilihan yang disarankan di pertanyaan itu, dan disebutkan ke user:
+- K1 A: katalog dan tanggal flow mengikuti versi rak (`state.json` `finished_at`, `broker_through`) lewat terminal-api
+  `GET /api/terminal/v1/state`; mengubah keputusan [D-L3] di `apps/edge-bff/backtest/CONTRACT.md`.
+- K2 (arah user 2026-10-27): menu kiri dan tengah tampil langsung; bagian yang butuh data memuat saat dibuka, dengan
+  tulisan memuat di tempatnya; chart harga dulu, flow menyusul.
+- K3 A: satu pemuat rak untuk Backtest dan Terminal (unduh, sha256, cache IndexedDB yang sama, ulang unduh), pembongkaran
+  file di Web Worker.
+- K4: sesi ini.
+Langkah: (1) terminal-api `/state` dan rute proxy edge-bff; (2) worker: katalog per versi rak; (3) halaman Backtest: tampil
+dulu, muat saat dibutuhkan, chart harga dulu; (4) pemuat rak bersama + Web Worker; (5) pool koneksi edge-bff; (6) ukur
+sebelum/sesudah dengan `verification/backtest/page_timing_dev.py`, tes semua bagian, deploy di luar jam publisher.
+Infrastruktur diperiksa 2026-10-27 (PLAN.md BACKTEST-LOAD, bukti): semua layanan SUCCESS; database bukan penyebab.

@@ -965,4 +965,5 @@ bisa dulu ada tulisan loading indikator. Tidak perlu semuanya di loading all at 
 Dibaca: langkah 2 menjadi "tampil dulu, muat saat dibutuhkan": panel kiri dan tengah tampil langsung; tiap bagian yang
 butuh data (daftar ticker, daftar broker, grup sektor/industri, tanggal data) memuat saat dibuka, dengan tulisan memuat
 di tempatnya; daftar indikator sudah ada di halaman (`core/backtest-registry.json`), jadi tidak perlu dimuat.
-Rincian isi katalog dan pemakaiannya dijawab ke user 2026-10-27; menunggu konfirmasi.
+Rincian isi katalog dan pemakaiannya dijawab ke user 2026-10-27. User: "Sesi ini, jalankan" → EXEC.md
+EXEC-BACKTEST-LOAD.
