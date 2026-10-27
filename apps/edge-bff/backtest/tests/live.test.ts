@@ -1,8 +1,8 @@
 /* The page on live data outside the DOM: the default period end from the catalog (state.ts applyCatalog, request.ts
-   publishedThrough), the live BacktestApi's answers for a refused request and an aborted preview (live.ts), and the
-   production words on the data (texts.ts). */
+   publishedThrough), the live BacktestApi's answers for a refused request and an aborted preview and the order it gives
+   its previews (live.ts), and the production words on the data (texts.ts). */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { BacktestResultCore, Catalog, Warning } from '../src/core/contract.ts';
+import type { BacktestResultCore, Catalog, SignalsPreviewRequest, Warning } from '../src/core/contract.ts';
 import { legacyCard } from '../src/core/catalog.ts';
 import { Compute } from '../src/api/compute.ts';
 import { buildRequest, publishedThrough } from '../src/api/request.ts';
@@ -68,6 +68,24 @@ describe('the live BacktestApi (live.ts)', () => {
     await vi.waitFor(() => expect(seen).toBe(ctl.signal));
     ctl.abort();
     expect(isAbort(await p)).toBe(true);
+  });
+  it('numbers its previews in the order they are asked, one page per client (client_order, CONTRACT.md P8, ERRORS M247)', async () => {
+    const sent: { tickers: string[]; client_order: { page: string; seq: number } }[] = [];
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      if (url === '/api/v1/auth/session') return Response.json({ csrf_token:'t' });
+      sent.push(JSON.parse(String(init?.body)));
+      return Response.json({ data_version:'v', rows:[], warnings:[] });
+    });
+    const cache = { get:async () => null, put:async () => {} };
+    const page = liveApi({ cache }), other = liveApi({ cache });
+    const q: SignalsPreviewRequest = { schema_version:1, tickers:['BBCA'], period:{ from:'2019-06-03', to:'2022-12-30' }, entry:{} as SignalsPreviewRequest['entry'] };
+    await Promise.all([page.signalsPreview(q), page.signalsPreview({ ...q, tickers:['BBRI'] }), other.signalsPreview(q)]);
+    const [a, b, c] = sent;
+    expect(sent.map(({ client_order, ...rest }) => rest)).toEqual([q, { ...q, tickers:['BBRI'] }, q]);   // the request as given
+    expect([a.client_order.seq, b.client_order.seq, c.client_order.seq]).toEqual([1, 2, 1]);
+    expect(a.client_order.page).toBe(b.client_order.page);
+    expect(c.client_order.page).not.toBe(a.client_order.page);
+    for (const s of sent) expect(s.client_order.page).toMatch(/^[A-Za-z0-9._:-]{1,100}$/);   // edge-bff's SUBMISSION rule
   });
 });
 

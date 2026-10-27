@@ -4754,7 +4754,7 @@ first (EXEC.md EXEC-TERMINAL-FRESH).
 Same approvals as the backtest entry above (N 02:38 UTC "Lanjut di dev"; N 09:08 UTC: merge to `main` by PR once the
 dev E2E passes). Branch `claude/project-thread-k91bfk`; nothing in production.
 
-- **edge-bff redeployed from the branch after `main` replaced it** (ERRORS M244: the service deploys `main` on every push
+- **edge-bff redeployed from the branch after `main` replaced it** (ERRORS M248, first numbered M244: the service deploys `main` on every push
   touching `/apps/edge-bff/**`, while the backtest is a CLI upload of the branch): `main` `18de6e8` -> `e09717e2` 08:00
   UTC, branch merge `0801f38` -> `f50822e8` 08:02; `main` `16bfad3` -> `90532d14` 08:30, branch `507822a` ->
   `a472d663` 08:52; `main` `704ab0d` -> `e0e6da1f` 09:16, branch merge `785252b` (with `main`'s EXEC-TERMINAL-FRESH,

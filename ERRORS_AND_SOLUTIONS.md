@@ -2417,25 +2417,6 @@ change yet.
 - **Lesson for new data:** setiap dataset deret waktu membawa `data_through`-nya sendiri dan tampilan membedakan "belum
   ada" dari "nol"; nol hanya untuk sesi yang datanya ada dan nilainya nol.
 
-### M244 — Satu layanan dengan dua sumber deploy: push main ke `apps/edge-bff` menimpa deploy cabang backtest di dev (2026-10-27)
-
-- **Symptom:** di tengah uji E2E backtest di dev, semua route `/api/v1/backtests/*` menjawab 404 dua kali: 08:00 UTC
-  dan 08:30 UTC.
-- **Verified cause:** layanan Railway `edge-bff` bersumber GitHub `main` (rootDirectory `/apps/edge-bff`, watch
-  `/apps/edge-bff/**`), sedangkan kode backtest hanya ada di cabang `claude/project-thread-k91bfk` dan dipasang dengan
-  `railway up` (unggah CLI). Push Terminal ke main yang menyentuh `apps/edge-bff` (18de6e8 -> deploy e09717e2, 16bfad3 ->
-  90532d14) memicu deploy otomatis dari main, yang tidak punya kode backtest, dan menggantikan deploy cabang (5c3c6e69,
-  f50822e8). Riwayat deployment Railway menunjukkan urutannya.
-- **Class:** setiap layanan yang sumber otomatisnya satu cabang sementara cabang lain dipasang manual ke environment
-  yang sama: deploy terakhir menang, tanpa peringatan. Berlaku juga untuk layanan lain yang nanti dipasang dari cabang
-  kerja (terminal-api, publisher, worker) bila sumber GitHub-nya diaktifkan.
-- **Solution:** sementara (TEMPORARY): gabungkan main ke cabang lalu pasang ulang dari cabang setelah setiap push main
-  yang menyentuh `apps/edge-bff` (dilakukan 08:02 dan 08:52 UTC; koordinator diberi tahu). Permanen: satu sumber,
-  yaitu kode backtest masuk main lewat PR setelah E2E lulus (keputusan user N 2026-10-27 09:08 UTC).
-- **Status:** OPEN sampai PR backtest digabung ke main.
-- **Lesson for new data:** sebelum memasang dari cabang ke layanan bersumber GitHub, cek sumber dan watch pattern
-  layanan itu; catat di RAILWAY_CHANGELOG bahwa deploy cabang dapat tertimpa.
-
 ### M245 — Preview sinyal lalu run backtest mengunduh file pasar yang sama dua kali (2026-10-27)
 
 - **Symptom:** pengukuran dev 2026-10-27: run portofolio 12 saham setelah preview tabel sinyal mengunduh lagi file yang
@@ -2513,6 +2494,72 @@ change yet.
   kegagalan berikutnya.
 - **Lesson for new data:** penulisan hasil besar ke database dibatasi waktu job, bukan anggaran retry layanan lain, dan
   setiap log kegagalan database membawa kelas serta SQLSTATE agar bisa didiagnosis tanpa membocorkan kredensial.
+
+### M247 — Tabel sinyal portofolio tetap "—": pratinjau lama menyalip pratinjau terbaru di edge-bff (2026-10-27)
+
+- **Symptom:** E2E dev 2026-10-27 11:39 UTC (edge-bff d4d1d729, worker 96d0e990): setelah 12 saham dipilih,
+  pratinjau sinyal terakhir (12 saham) dijawab 409 `PREVIEW_REPLACED` dalam 198 ms. Halaman tidak meminta lagi, jadi
+  tabel sinyal portofolio menampilkan "—" untuk semua saham sampai run. E2E menunggu 1020 s lalu lanjut, dan tetap
+  melaporkan lulus karena pratinjau hanya dicatat, tidak diperiksa.
+- **Verified (FACT):** (1) `calls.json` E2E: satu-satunya pratinjau yang selesai di halaman adalah 409 itu; 11
+  pratinjau sebelumnya dibatalkan halaman sendiri (`preview.ts` membatalkan yang berjalan saat pilihan berubah, sesuai
+  desain). (2) Kode `latest_preview` (`app/backtest.py`): 409 `PREVIEW_REPLACED` hanya muncul bila pratinjau lain dari
+  owner yang sama masuk `latest_preview` sesudahnya. Selama E2E hanya satu halaman yang mengirim pratinjau, dan yang 12
+  saham dikirim paling akhir, jadi salah satu pratinjau lama yang sudah dibatalkan halaman masuk sesudahnya dan
+  menggantikannya. (3) Kode: "terbaru" adalah urutan tiba di `latest_preview`, padahal tiap permintaan lebih dulu
+  menunggu cek sesi di thread pool (`main.py session`: `asyncio.to_thread(store.session)`), dan proxy Railway juga bisa
+  menukar urutan; permintaan tidak membawa urutan kirimnya. (4) Worker menjawab 12 `/v1/signals` 200 dalam milidetik
+  (cache disk, M245), jadi pratinjau tumpang tindih lebih rapat; E2E 10:03 UTC (5,7 s per pratinjau) tidak
+  mengalaminya. (5) Log HTTP Railway edge-bff mencatat satu POST `/signals` 499 pada 11:39:52 (klien sudah pergi):
+  pratinjau lama tetap diproses setelah halaman membatalkannya.
+- **Root cause:** edge-bff memilih "pratinjau terbaru" dari urutan tiba, bukan urutan kirim halaman. Langkah mana yang
+  menukar urutan pada run ini (cek sesi atau proxy) UNKNOWN; keduanya mungkin menurut kode, dan perbaikannya tidak
+  bergantung pada yang mana.
+- **Class:** server yang memutuskan "yang terbaru menang" di antara permintaan satu klien dari urutan tiba, sementara
+  urutan klien tidak dikirim: jitter apa pun (thread pool, koneksi upstream proxy, retry) bisa membuat permintaan basi
+  menang, dan klien menganggap kalah itu final. Di sistem ini hanya pratinjau sinyal backtest yang memakai aturan itu
+  (Terminal tidak membatalkan atau mengganti permintaan); berlaku juga untuk pratinjau atau validasi "saat mengetik"
+  berikutnya yang memakai `latest_preview`.
+- **Solution:** (1) Kontrak halaman–edge-bff: body pratinjau membawa `client_order {page, seq}` (`live.ts
+  signalsPreview`: satu id per muat halaman, `seq` naik per pratinjau saat diminta); edge-bff mengeluarkannya sebelum
+  ke worker, dan `client_order` rusak = 422 `INVALID_INPUT` field `client_order`. (2) edge-bff `latest_preview`:
+  menyimpan `seq` tertinggi yang tiba per halaman (64 halaman terakhir per owner); pratinjau di bawahnya langsung 409,
+  tidak mengganti apa pun dan tidak sampai ke worker; `seq` sama (retry) diterima; antarhalaman dan tanpa
+  `client_order` tetap urutan tiba. (3) E2E: langkah portofolio lulus hanya bila pratinjau saham terpilih dijawab 200
+  dan tabel halaman menampilkan jawaban itu (`preview_drawn`); tunggu berhenti pada jawaban pertama apa pun statusnya;
+  pratinjau yang dibatalkan dan urutannya ikut dicatat; `page_clean`: tidak boleh ada error konsol atau HTTP di
+  halaman. Dicek offline pada laporan 11:39: kedua cek baru menandainya gagal. CONTRACT bagian 9, 10, 11 dan P8;
+  README edge-bff. Tes: edge-bff 3 baru (pratinjau lama tiba saat yang baru berjalan; antarhalaman; urutan disimpan
+  setelah dijawab, retry, batas 64 halaman), halaman 1 baru (`live.ts`). Uji mutasi: 5 mutasi, semua tertangkap.
+- **Not covered:** dua tab yang sama-sama aktif tetap saling mengganti (desain PAGE-V3: tidak ada urutan bersama), dan
+  tab yang kalah menampilkan "—" sampai aksi pengguna lalu redraw; pratinjau basi dari halaman yang sudah dimuat ulang
+  yang tiba setelah pratinjau pertama halaman baru (butuh keterlambatan detik).
+- **Status:** FIXED di kode; bukti dev menunggu E2E setelah deploy (di luar jam publisher).
+- **Lesson for new data:** "yang terbaru menang" diputuskan dari urutan yang dikirim klien, bukan urutan tiba; dan E2E
+  memeriksa apa yang tampil di layar, tidak hanya mencatatnya.
+
+### M248 — Satu layanan dengan dua sumber deploy: push main ke `apps/edge-bff` menimpa deploy cabang backtest di dev (2026-10-27)
+
+- **Nomor:** ditulis sebagai M244 di cabang backtest pukul 09:21 UTC; main memakai M244 untuk entri lain (Flow
+  Timeline BMRI, 11:33 UTC, dirujuk kode Terminal), jadi entri ini menjadi M248 sebelum cabang digabung. "M244" di
+  pesan sesi backtest sebelum 2026-10-27 12:30 UTC berarti entri ini.
+- **Symptom:** di tengah uji E2E backtest di dev, semua route `/api/v1/backtests/*` menjawab 404 dua kali: 08:00 UTC
+  dan 08:30 UTC.
+- **Verified cause:** layanan Railway `edge-bff` bersumber GitHub `main` (rootDirectory `/apps/edge-bff`, watch
+  `/apps/edge-bff/**`), sedangkan kode backtest hanya ada di cabang `claude/project-thread-k91bfk` dan dipasang dengan
+  `railway up` (unggah CLI). Push Terminal ke main yang menyentuh `apps/edge-bff` (18de6e8 -> deploy e09717e2, 16bfad3 ->
+  90532d14) memicu deploy otomatis dari main, yang tidak punya kode backtest, dan menggantikan deploy cabang (5c3c6e69,
+  f50822e8). Riwayat deployment Railway menunjukkan urutannya.
+- **Class:** setiap layanan yang sumber otomatisnya satu cabang sementara cabang lain dipasang manual ke environment
+  yang sama: deploy terakhir menang, tanpa peringatan. Berlaku juga untuk layanan lain yang nanti dipasang dari cabang
+  kerja (terminal-api, publisher, worker) bila sumber GitHub-nya diaktifkan.
+- **Solution:** sementara (TEMPORARY): gabungkan main ke cabang lalu pasang ulang dari cabang setelah setiap push main
+  yang menyentuh `apps/edge-bff` (dilakukan enam kali sampai 11:38 UTC, terakhir edge-bff d4d1d729 menggantikan main
+  7654e6fa; koordinator diberi tahu; RAILWAY_CHANGELOG). Permanen: satu sumber, yaitu kode backtest masuk main lewat PR
+  setelah E2E lulus (keputusan user N 2026-10-27 09:08 UTC).
+- **Status:** OPEN sampai PR backtest digabung ke main.
+- **Lesson for new data:** sebelum memasang dari cabang ke layanan bersumber GitHub, cek sumber dan watch pattern
+  layanan itu; catat di RAILWAY_CHANGELOG bahwa deploy cabang dapat tertimpa.
 
 ### EXEC-TERMINAL-FRESH — alat gambar di Flow, kepala tabel Top brokers (2026-10-27)
 

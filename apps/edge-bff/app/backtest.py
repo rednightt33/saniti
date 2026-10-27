@@ -42,6 +42,10 @@ CONTROL_TIMEOUT = 30       # seconds for one control call to the worker (the ter
 # Not derivable from the code or the data: the catalog changes when the publisher publishes (daily) or the worker is
 # deployed, so one minute bounds how long a new catalog waits; the last one is kept while the worker cannot answer.
 CATALOG_CACHE_SECONDS = 60
+# Not derivable either: the pages of an owner whose latest preview order is kept (latest_preview). A preview overtaken
+# by its page's next one arrives within a request's time, so only pages loaded since then matter; past this many, the
+# oldest page is forgotten and arrival order decides for it, as for a client that sends no order.
+PREVIEW_PAGES = 64
 # the job's error when a finished result could not be stored (CONTRACT.md section 9, D-B2): the logs hold why
 NOT_STORED = {'code': 'RESULT_NOT_STORED', 'message': 'The backtest finished, but edge-bff could not store its result.'}
 
@@ -258,10 +262,22 @@ class CallerGone(Exception):
 
 
 class PreviewReplaced(BacktestError):
-    """409 PREVIEW_REPLACED: a newer signals preview of the same owner arrived before this one answered
-    (Backtests.latest_preview, CONTRACT.md P8)."""
+    """409 PREVIEW_REPLACED: a newer signals preview of the same owner arrived before this one answered, or its own page
+    had sent a newer one already (Backtests.latest_preview, CONTRACT.md P8)."""
     def __init__(self):
         super().__init__(409, {'code': 'PREVIEW_REPLACED', 'message': 'A newer signals preview replaced this one.'})
+
+
+def preview_order(value):
+    """The preview's place in its page's own order, the body's client_order {page, seq} (live.ts signalsPreview): the
+    page that sent it (an id of the submission key's form) and its count of the previews it sent. (page, seq), or None
+    when the body has none (any other client); anything else is 422 INVALID_INPUT."""
+    if value is None:
+        return None
+    if (isinstance(value, dict) and set(value) == {'page', 'seq'} and isinstance(value['page'], str)
+            and SUBMISSION.fullmatch(value['page']) and type(value['seq']) is int and 0 <= value['seq'] <= 2**53 - 1):
+        return value['page'], value['seq']
+    raise BacktestError(422, {'code': 'INVALID_INPUT', 'field': 'client_order'})
 
 
 class ResultTooLarge(Exception):
@@ -917,6 +933,7 @@ class Backtests:
         self.ready = False
         self.catalog = {'at': None, 'data': None}
         self.previews = {}     # owner -> its signals preview in flight (latest_preview)
+        self.preview_pages = {}  # owner -> {page: the highest seq of its previews that arrived}, PREVIEW_PAGES at most
 
     async def aclose(self):
         if self.worker:
@@ -982,12 +999,27 @@ class Backtests:
             raise CallerGone()
         return task.result()
 
-    async def latest_preview(self, owner, request, body):
+    async def latest_preview(self, owner, request, body, order=None):
         """The owner's signals preview, latest wins (CONTRACT.md P8): at most one preview per owner is in flight. A new
         one ends the one still in flight, whose worker call is closed and which answers 409 PREVIEW_REPLACED (unless
         its page's abort closed it already), and is sent to the worker once that one has ended. Pending previews so
         never pile up at the worker, which computes them one at a time, nor here; one that answered, failed or whose
-        caller left frees its owner's place, so previews in sequence are unaffected."""
+        caller left frees its owner's place, so previews in sequence are unaffected.
+        Latest is the page's own order where the preview carries it (order: preview_order), not the order of arrival:
+        two previews a page sent close together can arrive here swapped (each waits for its session check in the
+        thread pool, main.py session, and the network can swap them too; ERRORS M247). A preview whose page sent a
+        newer one that arrived first is one that page dropped already: it answers 409 PREVIEW_REPLACED at once,
+        replaces none and never reaches the worker. The same seq again (a retry of the request) is no older one.
+        Between pages, and for a preview without an order, arrival order decides as before."""
+        if order is not None:
+            page, seq = order
+            pages = self.preview_pages.setdefault(owner, {})
+            if seq < pages.get(page, seq):
+                raise PreviewReplaced()
+            pages.pop(page, None)
+            pages[page] = seq                    # the dict's order: the page whose preview arrived last is last
+            while len(pages) > PREVIEW_PAGES:
+                del pages[next(iter(pages))]
         mine = {'replaced': asyncio.Event(), 'ended': asyncio.Event()}
         older = self.previews.get(owner)
         self.previews[owner] = mine
@@ -1040,11 +1072,13 @@ class Backtests:
         async def signals(request: Request, _=Depends(write)):
             """SignalsPreview of the picked stocks before a run (no job, no trial), computed by the worker while we wait;
             stopped there when the page leaves before it answers or a newer preview of the owner replaces it
-            (latest_preview). A body refused here (422 INVALID_INPUT) is no preview and replaces none."""
+            (latest_preview). client_order is edge-bff's order of a page's previews: it is taken out here, so the
+            worker never gets it. A body refused here (422 INVALID_INPUT) is no preview and replaces none."""
             await self.guard()
             body = await self.json_object(request)
+            order = preview_order(body.pop('client_order', None))
             try:
-                return JSONResponse(await self.latest_preview(owner, request, body))
+                return JSONResponse(await self.latest_preview(owner, request, body, order))
             except CallerGone:
                 return Response(status_code=204)    # never sent: uvicorn drops an answer to a closed connection
 

@@ -95,6 +95,11 @@ export function liveApi(opts: { cache?: FileCache } = {}): BacktestApi {
   const compute = new Compute(() => catalog);
   const prices = new Map<string, Promise<PriceSeries>>();
   const flows = new Map<string, Promise<void>>();
+  // this page's order of its previews, client_order (CONTRACT.md P8): edge-bff lets a newer one end an older one, and
+  // two sent close together can reach it swapped (ERRORS M247); the count is taken as the preview is asked, so it is
+  // the order preview.ts asked them in
+  const page = newId();
+  let previews = 0;
 
   const priceOf = (ticker: string) => {
     let p = prices.get(ticker);
@@ -129,7 +134,8 @@ export function liveApi(opts: { cache?: FileCache } = {}): BacktestApi {
     indicatorOutputs: (ticker, id, params) => compute.indicatorOutputs(ticker, id, params),
     conditionSeries: (ticker, card) => compute.conditionSeries(ticker, card),
 
-    signalsPreview: (req: SignalsPreviewRequest, o = {}) => call<SignalsPreview>(BACKTESTS, '/signals', req, undefined, o.signal),
+    signalsPreview: (req: SignalsPreviewRequest, o = {}) =>
+      call<SignalsPreview>(BACKTESTS, '/signals', { ...req, client_order:{ page, seq:++previews } }, undefined, o.signal),
     submit: (req: BacktestRequest) => call<{ request_id: string }>(BACKTESTS, '', { ...req, client_request_id:newId() }),
     status: (id: string) => call<JobStatus>(BACKTESTS, `/${encodeURIComponent(id)}`),
     result: (id: string) => call<BacktestResultCore>(BACKTESTS, `/${encodeURIComponent(id)}/result`),

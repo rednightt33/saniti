@@ -406,9 +406,10 @@ state, created}`; the same `client_request_id` returns the same job, another req
 `SUBMISSION_CONFLICT`; 429 `QUEUE_FULL` with `BACKTEST_QUEUED_PER_OWNER` jobs queued) · `GET /api/v1/backtests`
 (the owner's latest jobs, each `JobStatus` + its request as first sent) · `GET /api/v1/backtests/{id}` (status) ·
 `GET /api/v1/backtests/{id}/result` · `GET /api/v1/backtests/{id}/events?ticker=X` · `POST
-/api/v1/backtests/{id}/cancel` · `POST /api/v1/backtests/signals` (preview, no trial; cancelled at the worker when the
-page leaves before the answer, never queued there when it leaves while the worker reads the reference lists, review
-V1). Off when `BACKTEST_WORKER_URL` is empty (`BACKTEST_DISABLED`, 503). The catalog, validate and signals calls are
+/api/v1/backtests/{id}/cancel` · `POST /api/v1/backtests/signals` (preview, no trial; body = `SignalsPreviewRequest` +
+optional `client_order {page, seq}`, the page's order of its previews, taken out before the worker sees the request;
+cancelled at the worker when the page leaves before the answer, never queued there when it leaves while the worker
+reads the reference lists, review V1). Off when `BACKTEST_WORKER_URL` is empty (`BACKTEST_DISABLED`, 503). The catalog, validate and signals calls are
 relayed on the event loop and wait for the worker's answer up to `BACKTEST_TIMEOUT_SECONDS` + 30 s (connecting 30 s).
 
 Of a request edge-bff reads only its mode, `single.ticker` and `portfolio.tickers`, and it checks none of the fields
@@ -429,6 +430,16 @@ Previews **[D-P8]**: at most one per owner is in flight. A newer one ends the on
 closed and which answers 409 `PREVIEW_REPLACED` (unless its page aborted it first), and goes to the worker once that
 one has ended; a preview that answered, failed or whose page left frees its owner's place. A body refused with 422
 `INVALID_INPUT` is no preview and replaces none.
+Newer is the page's own order where the preview carries it, not the order of arrival (ERRORS M247): two previews a
+page sends close together can reach edge-bff swapped (each waits for its session check in the thread pool, and the
+network can swap them too), and the older one, which the page had dropped already, ended the newer one, the page's
+current settings. `client_order` is `{page, seq}`: `page` an id of the submission key's form, one per page load,
+`seq` an integer from 0 to 2^53 - 1 that the page counts up per preview (`live.ts signalsPreview`); anything else is
+422 `INVALID_INPUT` at field `client_order`. edge-bff keeps per owner the highest `seq` that arrived of each of the
+`PREVIEW_PAGES` (64) pages whose previews arrived last: a preview below it answers 409 `PREVIEW_REPLACED` at once,
+replaces none and never reaches the worker; the same `seq` again (a retry) is no older one. Between pages, which share
+no order, and for a preview without `client_order`, arrival order decides as before (a page forgotten past the 64 is
+such a page).
 
 The loop takes one job at a time (the oldest queued job of an owner with nothing running), hands it to the worker with
 the line's prior trials and follows it every poll; it never resubmits. A finished job's result is fetched and split,
@@ -502,7 +513,9 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
 - Signals preview, latest wins **[D-P8]** (`preview.ts Previews`): a preview in flight whose settings are no longer
   the current ones is aborted at the next redraw, also when the current settings are answered from the page's cache
   of answers or the fresh run's own rows are shown (review PAGE-V4); only the latest answer is drawn. A preview's
-  identity ignores the order of the picked stocks (`previewKey`, PF3). Nothing picked: no preview is asked.
+  identity ignores the order of the picked stocks (`previewKey`, PF3). Nothing picked: no preview is asked. The live
+  API numbers the previews it sends (`client_order`, `live.ts signalsPreview`), so a preview the page dropped never
+  ends its newer one at edge-bff (section 9, ERRORS M247).
   - Its warnings are one short toast line (review PAGE-V1; `preview.ts previewNote`): "n stocks left out (see the —
     rows)" for `TICKERS_EXCLUDED`, any other warning by its message, shown only when it differs from the last one
     shown; for this note the toast is as wide as its line, up to the window less the page's side padding
@@ -589,8 +602,8 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
   and at `portfolio.max_positions` over `limits.max_positions`; `UNKNOWN_TICKER` at `portfolio.tickers[i]` (a preview:
   `tickers[i]`) for an entry that is not a published stock; `UNIVERSE_EMPTY` at `portfolio.tickers` (`tickers`) when
   every picked stock is left out (section 4). `UNKNOWN_UNIVERSE` is gone, and `portfolio.universe` (a preview:
-  `universe`) is `UNKNOWN_FIELD`. 409 `SUBMISSION_CONFLICT`; 409 `PREVIEW_REPLACED` (a newer preview of the owner,
-  section 9); 429 `QUEUE_FULL`.
+  `universe`) is `UNKNOWN_FIELD`; field `client_order` for a bad preview order (section 9). 409 `SUBMISSION_CONFLICT`;
+  409 `PREVIEW_REPLACED` (a newer preview of the owner, or of its own page, section 9); 429 `QUEUE_FULL`.
 - Data 424: `DATA_MISSING`, `DATA_INTEGRITY`, `DATA_UNAVAILABLE`.
 - Service: 503 `BACKTEST_DISABLED`, `BACKTEST_UNAVAILABLE` (the worker unreachable or answering outside its API, a 504
   without the worker's `TIMEOUT` error included), `BACKTEST_NOT_READY` (the tables are missing); 504 `TIMEOUT` relayed
@@ -649,7 +662,7 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
 | B2 | edge-bff cannot store a result the worker finished (dev E2E 2026-10-27: the database connection lost mid-write 3 times in a row, the job ended `WORKER_LOST` in 4 s) | (a) as before: a failed store counts as an unanswered worker call, 3 then `WORKER_LOST` / (b) keep the fetched result and store it again each poll until `BACKTEST_TIMEOUT_SECONDS`, then `RESULT_NOT_STORED` / (c) (b) and write the parts without psycopg's pipeline mode | (b), for every database call of the loop around a job (hand-over, follower, heartbeat, ends) and only for failures a retry may mend (`OperationalError`; any other store failure ends `RESULT_NOT_STORED` at once); the lease token alone fences the follower, so a lease that expired during the outage is renewed unless reap took the job; the failure's class and SQLSTATE or redacted libpq text logged (`failure_of`); a follower that no longer holds its job logs why once, with the job's state read then (lead 2026-10-27, after two independent reviews) | the worker still holds the result and gets no next job while this one runs, so the job's own deadline bounds the retries; `WORKER_LOST` named the wrong part. (c) answers a suspected cause the logs cannot confirm yet: the new log line is the check |
 | P4 | Wording that depends on the data source (header, robustness warning, trial label) | in the renderers / in the API layer | the API layer (`BacktestApi`): live and fixture each supply theirs, the renderers stay shared (lead) | the fixture keeps the reference's strings for the pixel harness; live names published data, the run's warnings and the per-strategy trial count |
 | P5 | Browser cache of published files | the page's own / the Terminal's | the Terminal's: IndexedDB `terminal-files` version 1, store `files` (keyPath `sha`, index `used`), its least-recently-used limit; only bytes that pass `inflateVerified`; any IndexedDB failure means no cache, never a failed page (lead) | one content-addressed copy per browser for both tabs |
-| P8 | Overlapping signals previews | no limit / a cap with an error / latest wins | latest wins: the page aborts a preview newer settings replaced and draws only the latest; edge-bff keeps at most one preview per owner in flight, a newer one ends the older (409 `PREVIEW_REPLACED`) (lead) | pending previews piled up and held the app (review SEC-1); a cap would show errors to a page that types fast |
+| P8 | Overlapping signals previews | no limit / a cap with an error / latest wins | latest wins: the page aborts a preview newer settings replaced and draws only the latest; edge-bff keeps at most one preview per owner in flight, a newer one ends the older (409 `PREVIEW_REPLACED`); newer in the page's own order (`client_order`), arrival order between pages (lead; the order after the dev E2E of 2026-10-27, ERRORS M247) | pending previews piled up and held the app (review SEC-1); a cap would show errors to a page that types fast; by arrival, a preview the page had dropped could end its current one |
 | bb bxin | Close back inside lower band | exact page op / crosses above | crosses above I27 lower | equal only when a close equals the band exactly |
 | LA-1 | Portfolio and preview: a condition whose series has no value on the ticker's bars up to `period.to` (`EXCLUDED_CODES`) | (a) the condition is false on every bar, the ticker left out only when its entry can then never switch on / (b) leave the ticker out on any such condition, the rule before | (a) (lead 2026-10-27): fewer entry conditions with a value than the entry needs (`conditions.ts entryNeed`: every one under `all`, one under `any`, min(`at_least`, enabled) under `at_least`) leaves it out; an exit condition never does (`signals.ts tickerSignals`) | under (b) whether a ticker trades up to a day depended on whether bars after that day exist (adversarial check LA-1); a series is false before its first value anyway |
 | PF1 | What a portfolio runs on | keep the catalog universes with a cap / a list of picked stocks | the picked list: `portfolio.tickers` replaces `portfolio.universe` in the request, `tickers` replaces `universe` in the preview, and the catalog's `universes` are gone (`UNKNOWN_UNIVERSE` too) (user N, lead 2026-10-27) | the user picks the stocks, by search or by the groupings' filters; a capped universe would still not be the user's own set |

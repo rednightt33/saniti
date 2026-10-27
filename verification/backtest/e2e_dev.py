@@ -6,7 +6,8 @@ edge-bff (result parts) -> page. The script records every backtest API call the 
 while it runs (phase timeline), screenshots the six result tabs at three sizes, then checks the stored results through
 the API: shape against contract.ts, finiteness, reconciliation (trades to cash and equity), determinism (the identical
 request twice), events per ticker, a request refused at submit, cancel, the trial count, and the measurements the user
-asked for (per-phase durations, payload sizes, submit -> finished).
+asked for (per-phase durations, payload sizes, submit -> finished). The portfolio's signals preview passes only when it
+answered 200 and the page's table shows that answer (preview_drawn); no request of the page may fail (page_clean).
 Credentials (EDGE_LOGIN, EDGE_INITIAL_PASSWORD) are read from Railway into memory; they are never printed or saved.
 Every backtest the script runs counts as a trial of its strategy line for the owner (decision K3), as any run does.
 
@@ -798,6 +799,22 @@ def page_portfolio_setup(page, pick):
     return {'tickers': chips}
 
 
+def preview_drawn(page, answer, used, timeout_s=10):
+    """whether the portfolio table (signals.ts portTable, #portSig: a row per picked stock, data-t its ticker, the second
+    cell its entry signals) shows the preview's answer: each counted stock's entry signals, '—' for one its
+    TICKERS_EXCLUDED warnings left out (preview.ts portRows). Every picked stock must be one of the two (contract.ts
+    SignalsPreview). Waits up to timeout_s for the page to draw it."""
+    left = {r['ticker'] for w in answer.get('warnings') or [] if w.get('code') == 'TICKERS_EXCLUDED' for r in w.get('reasons') or []}
+    counted = {r['ticker']: str(r['entry_signals']) for r in answer.get('rows') or []}
+    want = {t: counted.get(t, '\u2014' if t in left else None) for t in used['tickers']}
+    end = time.monotonic() + timeout_s
+    while True:
+        shown = dict(page.eval_on_selector_all('#portSig tbody tr', 'rs => rs.map(r => [r.dataset.t, r.cells[1].innerText.trim()])'))
+        if shown == want or time.monotonic() > end:
+            return {'ok': shown == want, 'shown': shown, 'answer': want}
+        page.wait_for_timeout(250)
+
+
 def preview_matches(body, used):
     """whether a signals preview request (SignalsPreviewRequest: {schema_version, tickers, period, entry}) is the one of
     this portfolio (the page sorts nothing: PF3 makes the order irrelevant, so compare as sets)"""
@@ -893,15 +910,24 @@ def main():
                     entry['json_bytes'] = len(resp.body())
                     if req.method == 'POST' and (u.endswith('/api/v1/backtests') or u.endswith('/signals')):
                         entry['body'] = json.loads(req.post_data or '{}')
-                        entry['answer'] = resp.json() if u.endswith('/api/v1/backtests') else None
+                        entry['answer'] = resp.json()
             except Exception as e:
                 entry['error'] = type(e).__name__
             calls.append(entry)
+
+        def on_failed(req):
+            # a preview the page aborted (preview.ts drops the one in flight when the settings change): recorded with
+            # its body, so the report shows every preview the page asked and in which order (client_order)
+            u = req.url.split('?')[0]
+            if req.method == 'POST' and u.endswith('/api/v1/backtests/signals'):
+                calls.append({'t': round(time.monotonic(), 3), 'method': req.method, 'url': u, 'status': None,
+                              'failure': req.failure, 'body': json.loads(req.post_data or '{}')})
         errors, http_errors = [], []
         # where a console error came from, and every answer >= 400 of any URL (never a query: presigned links)
         where = lambda m: ((m.location or {}).get('url') or '').split('?')[0]
         if page:
             page.on('requestfinished', on_finished)
+            page.on('requestfailed', on_failed)
             page.on('pageerror', lambda e: errors.append(str(e)[:300]))
             page.on('console', lambda m: errors.append(f'{m.text[:300]} @ {where(m)}') if m.type == 'error' else None)
             page.on('response', lambda r: http_errors.append({'status': r.status, 'method': r.request.method,
@@ -1152,15 +1178,24 @@ def main():
                 t0 = time.monotonic()
                 used = page_portfolio_setup(page, pick)
                 steps['portfolio']['pick_used'] = used
-                # the page's signals preview of this portfolio (the latest wins, D-P8: earlier ones end 409 or aborted)
+                # the page's signals preview of this portfolio, the last it asks (D-P8: it aborts the earlier ones, of
+                # fewer stocks): the first answer to a preview of these stocks ends the wait, whatever its status. The
+                # page shows none but an answer of 200 (a 409 PREVIEW_REPLACED leaves its dashes, ERRORS M247), so
+                # only that passes, and only when the table shows it.
                 prev = None
                 while time.monotonic() - t0 < wait_limit and prev is None:
-                    prev = next((c for c in calls[n0:] if c['url'].endswith('/signals') and c.get('status') == 200
+                    prev = next((c for c in calls[n0:] if c['url'].endswith('/signals') and c.get('status') is not None
                                  and preview_matches(c.get('body') or {}, used)), None)
                     page.wait_for_timeout(250)
-                steps['portfolio']['preview'] = {'status': prev and prev['status'], 'ms': prev and prev['ms'],
-                                                 'json_bytes': prev and prev.get('json_bytes'), 'wire_bytes': prev and prev.get('wire_bytes'),
-                                                 'seen_s': round(time.monotonic() - t0, 1)}
+                asked = [c for c in calls[n0:] if c['url'].endswith('/signals')]
+                drawn = preview_drawn(page, prev['answer'], used) if prev and prev['status'] == 200 else None
+                steps['portfolio']['preview'] = {'ok': bool(drawn and drawn['ok']), 'status': prev and prev['status'],
+                                                 'error': prev and prev['status'] != 200 and (prev.get('answer') or {}).get('error'),
+                                                 'ms': prev and prev['ms'], 'json_bytes': prev and prev.get('json_bytes'),
+                                                 'wire_bytes': prev and prev.get('wire_bytes'), 'seen_s': round(time.monotonic() - t0, 1),
+                                                 'asked': len(asked), 'aborted': sum(1 for c in asked if c.get('failure')),
+                                                 'order': [((c.get('body') or {}).get('client_order') or {}).get('seq') for c in asked],
+                                                 'table': drawn}
                 page.screenshot(path=os.path.join(a.out, 'portfolio-signals-1600x1000.png'), full_page=True)
                 out, req, _ = page_job('portfolio')
                 steps['portfolio'].update(out)
@@ -1215,13 +1250,17 @@ def main():
 
         report['page_errors'] = errors[:20]
         report['page_http_errors'] = http_errors[:20]
+        # one page, one owner: no request of the page fails (a 409 PREVIEW_REPLACED or any other error the page keeps to
+        # itself is still a console error and an HTTP error here)
+        report['page_clean'] = {'ok': not errors and not http_errors, 'console_errors': len(errors), 'http_errors': len(http_errors)}
         report['finished_at'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
         api.post('/api/v1/auth/sign-out', {})
         browser.close()
 
     with open(os.path.join(a.out, 'calls.json'), 'w') as f:
         json.dump(calls, f, indent=1)
-    report['failed'] = failures(steps, '.steps') + failures(report['catalog'], '.catalog')
+    report['failed'] = (failures(steps, '.steps') + failures(report['catalog'], '.catalog')
+                        + failures(report.get('page_clean') or {}, '.page_clean'))
     with open(os.path.join(a.out, 'report.json'), 'w') as f:
         json.dump(report, f, indent=1, default=str)
     # a step's 'status' is the JobStatus (a dict) for a job, the HTTP status (an int) for refused_at_submit

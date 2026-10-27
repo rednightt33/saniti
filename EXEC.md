@@ -8312,7 +8312,7 @@ dev" dan "Ya, upload setelah dites"; 09:08 UTC "Ya, lewat PR setelah E2E lulus".
 - Dev (RAILWAY_CHANGELOG 2026-10-27): migrasi 005 APPLIED, layanan `backtest-worker` (sfo, privat), publisher dengan
   kolom industri, edge-bff dari cabang. Uji E2E dan pengukuran: `verification/backtest/e2e_dev.py`,
   `measure_dev.py`; hasil di folder proyek `backtest/e2e-2026-10-27/`; angka di `apps/backtest-worker/README.md`.
-- Masalah yang ditemukan: ERRORS M244 (dua sumber deploy edge-bff), M245 (unduhan ganda preview lalu run, FIXED),
+- Masalah yang ditemukan: ERRORS M248 (dua sumber deploy edge-bff; semula M244), M245 (unduhan ganda preview lalu run, FIXED),
   M246 (hasil gagal disimpan, MITIGATED, penyebab OPEN).
 - Sisa: E2E ulang sesudah perbaikan M246, lalu PR ke main (pilihan N); produksi tidak disentuh.
 

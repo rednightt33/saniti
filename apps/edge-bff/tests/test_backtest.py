@@ -1826,6 +1826,110 @@ def test_previews_of_the_owner_in_sequence_are_unaffected(app, worker):
     assert len(worker.posted('/v1/signals')) == 5 and worker.abandoned == [] and bt.previews == {}
 
 
+def ordered(page, seq, body=None):
+    """A preview as the page sends it (live.ts signalsPreview): the request and its place in the page's order."""
+    return {**(body or preview_of()), 'client_order': {'page': page, 'seq': seq}}
+
+
+def test_a_preview_its_page_sent_before_a_newer_one_that_arrived_first_replaces_none(configured, store, worker, monkeypatch):
+    """ERRORS M247 (dev E2E 2026-10-27): two previews a page sends close together can reach latest_preview swapped (the
+    session check of each waits in the thread pool, and the network can swap them too). The older one, which the page
+    dropped already, used to end the newer one, the page's current settings, with 409 PREVIEW_REPLACED, and the page
+    showed dashes until the user acted. Latest is now the page's own order (client_order): the older one answers 409 at
+    once, never reaches the worker and leaves the newer one to answer. A malformed order is 422 and replaces none."""
+    seen = at_the_worker(monkeypatch)
+    wait = 2.0
+    worker.delay = {'/v1/signals': wait}
+    local, stop = serve(configured, store)
+    try:
+        headers, cookies = sign_in(local)
+        def preview(body):
+            with httpx.Client(base_url=local.origin, timeout=60, cookies=cookies) as p:
+                return p.post('/api/v1/backtests/signals', headers=headers, json=body)
+        older, newer = preview_of(period={'from': '2025-01-02', 'to': '2026-10-23'}), preview_of()
+        with concurrent.futures.ThreadPoolExecutor(1) as pool:
+            current = pool.submit(preview, ordered('page-1', 2, newer))
+            for _ in range(500):
+                if worker.posted('/v1/signals'):
+                    break
+                time.sleep(0.01)
+            for bad in ({'page': 'page-1'}, {'page': 'page-1', 'seq': -1}, {'page': 'page-1', 'seq': 1.5},
+                        {'page': 'page-1', 'seq': True}, {'page': 'page-1', 'seq': 2**53}, {'page': '', 'seq': 3},
+                        {'page': 'a page', 'seq': 3}, {'page': 'page-1', 'seq': 3, 'x': 1}, 'page-1:3', [3]):
+                refused = preview({**older, 'client_order': bad})
+                assert refused.status_code == 422, bad
+                assert refused.json() == {'error': {'code': 'INVALID_INPUT', 'field': 'client_order'}}, bad
+            arrived = time.monotonic()
+            late = preview(ordered('page-1', 1, older))
+            assert time.monotonic() - arrived < wait / 2                     # at once, not when the worker would answer
+            assert late.status_code == 409 and late.json() == REPLACED
+            assert not current.done()
+            answered = current.result()
+            assert answered.status_code == 200 and answered.json()['rows'] == ROWS
+        assert [c['body'] for c in worker.posted('/v1/signals')] == [newer]   # without client_order: edge-bff's own
+        assert worker.abandoned == [] and seen == {'open': 0, 'most': 1}
+    finally:
+        stop()
+
+
+def test_between_pages_arrival_decides_and_a_late_preview_ends_no_other_page(configured, store, worker, monkeypatch):
+    """Two pages of the owner have no common order: the preview that arrives last wins between them, as without an
+    order (review PAGE-V3). A preview of page A that arrives after A's newer one (here: after page B replaced it) ends
+    nothing, so B's preview, the one in flight, still answers."""
+    seen = at_the_worker(monkeypatch)
+    wait = 2.0
+    worker.delay = {'/v1/signals': wait}
+    local, stop = serve(configured, store)
+    try:
+        headers, cookies = sign_in(local)
+        def preview(body):
+            with httpx.Client(base_url=local.origin, timeout=60, cookies=cookies) as p:
+                return p.post('/api/v1/backtests/signals', headers=headers, json=body)
+        a2, b1, a1 = preview_of(), preview_of(['TLKM']), preview_of(['BBRI'])
+        with concurrent.futures.ThreadPoolExecutor(2) as pool:
+            first = pool.submit(preview, ordered('page-a', 2, a2))
+            for _ in range(500):
+                if worker.posted('/v1/signals'):
+                    break
+                time.sleep(0.01)
+            second = pool.submit(preview, ordered('page-b', 1, b1))
+            ended = first.result()
+            assert ended.status_code == 409 and ended.json() == REPLACED       # page B's arrived last
+            late = preview(ordered('page-a', 1, a1))
+            assert late.status_code == 409 and late.json() == REPLACED
+            assert not second.done()
+            answered = second.result()
+            assert answered.status_code == 200 and answered.json()['rows'] == ROWS
+        assert [c['body'] for c in worker.posted('/v1/signals')] == [a2, b1]
+        assert worker.abandoned == ['/v1/signals'] and seen == {'open': 0, 'most': 1}   # page A's call, closed by edge-bff
+    finally:
+        stop()
+
+
+def test_a_page_order_is_kept_after_its_preview_answered_and_for_the_latest_pages(app, worker, monkeypatch):
+    """The highest seq of a page that arrived is kept after its preview answered: an older one of that page arriving
+    then is refused at once (no worker call for a preview its page dropped). The same seq again (a retry of the request)
+    and a preview without an order are relayed as before. Only the PREVIEW_PAGES pages whose previews arrived last are
+    kept: an older preview of a page forgotten before it is relayed, as one without an order."""
+    c = app
+    bt = c.app.state.backtests
+    post = lambda body: c.post('/api/v1/backtests/signals', headers=c.headers_for, json=body)
+    assert post(ordered('page-1', 2)).status_code == 200
+    late = post(ordered('page-1', 1))
+    assert late.status_code == 409 and late.json() == REPLACED
+    assert [post(ordered('page-1', 2)).status_code, post(ordered('page-1', 3)).status_code, post(preview_of()).status_code] == [200] * 3
+    assert len(worker.posted('/v1/signals')) == 4
+    assert all('client_order' not in x['body'] for x in worker.posted('/v1/signals')) and bt.previews == {}
+    monkeypatch.setattr(backtest, 'PREVIEW_PAGES', 2)
+    assert post(ordered('page-2', 5)).status_code == 200                  # kept: page-1 (seq 3), page-2
+    assert post(ordered('page-1', 4)).status_code == 200                  # page-1 arrived last: page-2, page-1
+    assert post(ordered('page-3', 1)).status_code == 200                  # page-2 is forgotten: page-1, page-3
+    assert bt.preview_pages[bt.settings.owner] == {'page-1': 4, 'page-3': 1}
+    assert post(ordered('page-2', 1)).status_code == 200                  # relayed: its order is not known any more
+    assert post(ordered('page-3', 0)).status_code == 409                  # kept: page-3, page-2 (page-1 forgotten)
+    assert len(worker.posted('/v1/signals')) == 8
+
+
 def test_a_preview_its_caller_left_is_stopped_at_the_worker(configured, store, worker):
     """A preview whose caller went away before the worker answered (the page dropped it for newer settings) is
     cancelled here, which closes its connection to the worker, so the worker stops computing it."""
