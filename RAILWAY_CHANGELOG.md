@@ -4685,6 +4685,47 @@ dahulu as usual." Infra checked first (EXEC.md EXEC-TERMINAL-PANELS). `main` `45
 merged): edge-bff `b78ff0a6` SUCCESS 18:34 UTC; live `index`, `style` and `worker` assets equal the build (sha256). No
 variable or other service changed.
 
+## 2026-10-27 — EDGE backtest: backtest-worker service, migration 005, publisher industry column, edge-bff (dev)
+
+User 2026-10-26: "Jalankan langsung 1-5. Saya setujui untuk step 3,4 dan 5." User N 2026-10-27 02:38 UTC on the
+decision cards: "Lanjut di dev" (migration, worker and edge-bff deploys, then E2E) and "Ya, upload setelah dites"
+(terminal-publisher with the industry column). Branch `claude/project-thread-k91bfk` (not merged to `main`).
+
+- **New service `backtest-worker`** (`9156a5c3-c8a4-49b8-9172-ea6eb95157d2`, created 02:20 UTC): region `sfo`, 1
+  replica, restart `ON_FAILURE` (10), no domain (private network only). It holds no Postgres or bucket credential.
+  Variables (names; values are the measurement-phase limits in `apps/backtest-worker/README.md`):
+  `BACKTEST_WORKER_KEY` (random 64 characters, never printed), `TERMINAL_URL`
+  (`http://terminal-api.railway.internal:8080`), `TERMINAL_PROXY_KEY` (`${{terminal-api.TERMINAL_PROXY_KEY}}`),
+  `BACKTEST_CACHE_BYTES`, `BACKTEST_DOWNLOAD_CONCURRENCY`, `BACKTEST_DOWNLOAD_RETRIES`, `BACKTEST_RETRY_BASE_MS`,
+  `BACKTEST_HTTP_TIMEOUT_MS`, `BACKTEST_FILE_ORIGIN`, `BACKTEST_MAX_FILE_BYTES`, `BACKTEST_MAX_DOWNLOAD_BYTES`,
+  `BACKTEST_MAX_BROKER_ROWS`, `BACKTEST_TIMEOUT_SECONDS`, `BACKTEST_MAX_CONDITIONS`, `BACKTEST_MAX_RESULT_BYTES`,
+  `BACKTEST_FLOW_ENABLED`. Deployed 07:48 UTC by CLI upload of a clean `git archive` of `40673b6` holding only the
+  worker's build context (the paths its `Dockerfile` copies, with the `Dockerfile` at the upload root; `--path-as-root`
+  is right here because the service has no root directory or watch path): `f06fd2eb-1231-4387-af00-197ddd045942`
+  SUCCESS, builder `DOCKERFILE`; start log `event=start` on port 8080, `engine_version` `f90df68947560923` (equal to
+  the repository's), `registry_version` `b6a8dc0ba206ed65`. Its JSON log lines carry no `message` key, so Railway
+  shows an empty message with the fields as attributes.
+- **Migration** `20261026_005_edge_bff_backtest.sql`: DRYRUN then APPLY (job `89375eb2`) on orc-test-runner,
+  `DATABASE_URL` removed after (VAR_REMOVED); `DATABASE_CHANGELOG.md` 2026-10-27.
+- **terminal-publisher** `82447144-cc2e-4043-9621-99b5b599e57b` SUCCESS 02:40 UTC: CLI upload of `d495854` (`main`'s
+  publisher plus the `industry` column in `ref/tickers.json.gz`), outside the 00:00–01:00 and 12:00–13:00 UTC
+  windows. The upload does not run the job (ERRORS M229): the column is published by the 12:00 UTC run. Rollback:
+  `4a4124a8`. The 00:31 UTC run before it crashed on a botocore `RequestCanceled` (manifest GetObject at 00:36:14)
+  while a local load test ran; no file was lost (the manifests were from 2026-10-26 17:37–17:44).
+- **edge-bff** variables (`skipDeploys`, then deployed with the upload): `BACKTEST_WORKER_URL`
+  (`http://backtest-worker.railway.internal:8080`), `BACKTEST_WORKER_KEY` (`${{backtest-worker.BACKTEST_WORKER_KEY}}`),
+  `BACKTEST_TIMEOUT_SECONDS` (`${{backtest-worker.BACKTEST_TIMEOUT_SECONDS}}`), `BACKTEST_MAX_RESULT_BYTES`
+  (`${{backtest-worker.BACKTEST_MAX_RESULT_BYTES}}`); the references keep both sides equal. Deployed 07:52 UTC by CLI
+  upload of a clean `git archive` of `40673b6` with its repository layout (`apps/edge-bff/...`, so the service root
+  directory `/apps/edge-bff` and its watch path apply; R23): `5c3c6e69-f458-420c-b545-7b75f48d582f` SUCCESS, `/ready`
+  200, `/backtest-app/` serves the same `index` and `style` assets as the local build. The branch holds all of `main`
+  up to `25a3bbb`, so nothing of `main` was rolled back. Rollback: `b78ff0a6` (`main` `4544983`).
+  - A later push of `main` that touches `/apps/edge-bff/**` redeploys `main`'s edge-bff over this upload (watch path)
+    and removes the backtest from dev until the branch is merged; the coordinator was told.
+- `.railway/railway.ts`: the `backtest-worker` service and the four edge-bff variable names added by hand as
+  `preserve()`. A full `railway config pull --force --variables=managed` would also rewrite every other service
+  (branch fields, functions, the Postgres memory comment) and own every variable, so it was not kept.
+
 ## 2026-10-27 — edge-bff: EXEC-TERMINAL-PANELS-2
 
 User 2026-10-27 (B, D, E, calendar, one-day chart pick, annotation hover; EXEC.md EXEC-TERMINAL-PANELS-2). `main`
@@ -4707,6 +4748,43 @@ first (EXEC.md EXEC-TERMINAL-FRESH).
   upload `0b1b5343` SUCCESS with `broker_behind_sessions` and the evening warning; the upload carries `d495854`
   (industry column, another session's upload `82447144`). `cronSchedule "0,30 0,12 * * *"` and `NEVER` read back.
   `.railway/railway.ts` lists the two variables.
+
+## 2026-10-27 — EDGE backtest: worker region and disk cache, limits, edge-bff redeploys after `main` pushes, E2E (dev)
+
+Same approvals as the backtest entry above (N 02:38 UTC "Lanjut di dev"; N 09:08 UTC: merge to `main` by PR once the
+dev E2E passes). Branch `claude/project-thread-k91bfk`; nothing in production.
+
+- **edge-bff redeployed from the branch after `main` replaced it** (ERRORS M248, first numbered M244: the service deploys `main` on every push
+  touching `/apps/edge-bff/**`, while the backtest is a CLI upload of the branch): `main` `18de6e8` -> `e09717e2` 08:00
+  UTC, branch merge `0801f38` -> `f50822e8` 08:02; `main` `16bfad3` -> `90532d14` 08:30, branch `507822a` ->
+  `a472d663` 08:52; `main` `704ab0d` -> `e0e6da1f` 09:16, branch merge `785252b` (with `main`'s EXEC-TERMINAL-FRESH,
+  publisher conflict resolved to `main`'s file, publisher tests 26/26) -> `a2669e0f-cd1c-4bee-ae99-257aff533252`
+  SUCCESS 10:03 UTC, `/ready` 200, `/backtest-app/` 200. Each upload is a clean `git archive` of the commit in
+  repository layout. The coordinator was told each time. Rollback: `e0e6da1f` (`main` `704ab0d`).
+- **edge-bff `a2669e0f`** carries ERRORS M246 (`0a2f174`, `915c863`): database failures a retry may mend are retried
+  until the job's deadline and no longer end a computed job `WORKER_LOST`; `RESULT_NOT_STORED`; the lease token alone
+  fences the follower; new log events `backtest_job_store_failed`, `backtest_lease_lost`.
+- **backtest-worker region**: measured in `sin` (next to the bucket) and `sfo` (edge-bff, terminal-api, Postgres);
+  kept in `sfo` (`apps/backtest-worker/README.md`, region paragraph). GraphQL `serviceInstanceUpdate`
+  (`multiRegionConfig`) then `serviceInstanceRedeploy`: `c70f6e8d` 08:10 UTC (`sin`), `3b72a679` 08:13 (removed
+  within 2 minutes, not measured), `a48aa5dc` 08:15 (`sfo`). The deployment manifests' `multiRegionConfig` show the
+  setting one step behind (`f06fd2eb` reads `sin`, `c70f6e8d` `sfo`); the placement above is read from the worker's
+  terminal-api latency (`/bundle` median 55 ms at 07:58, 760 ms at 08:12, 73 ms at 08:17). The project token cannot run
+  `railway scale`.
+- **backtest-worker variables** (values not secret): `BACKTEST_MAX_RESULT_BYTES` 33554432 (32 MiB, was 256 MB; the
+  heaviest valid result measured 3,829,496 bytes of JSON, bound about 22 MB today; edge-bff reads it by reference),
+  `BACKTEST_MAX_BROKER_ROWS` kept 20000000, `BACKTEST_CACHE_DIR` `/tmp/backtest-cache`, `BACKTEST_CACHE_DIR_BYTES`
+  1073741824. Deployed with `590e8ff` (one disk cache directory shared by every thread's client, ERRORS M245):
+  `96d0e990` SUCCESS 08:52 UTC, region `sfo`, same CLI upload of the worker's build context as `f06fd2eb`.
+- **E2E** (`verification/backtest/e2e_dev.py`, real page through edge-bff, job tables, worker, terminal-api,
+  terminal-display): 10:03:36–10:05:06 UTC on `a2669e0f` + `96d0e990`: every step passed (single, repeat identical
+  apart from duration and trial counts, refusal at submit for both codes, 12-stock portfolio, cancel); no
+  `backtest_result_store_failed`, `backtest_job_store_failed` or `backtest_lease_lost` line. The run at 08:54 UTC (on
+  `a472d663`) lost the repeat single to three result stores in a row that lost their database connection (M246). Disk
+  cache evidence (08:54 run, first on `96d0e990`): the previews downloaded 48 files (28.27 MB) and the portfolio job then
+  read those 48 from disk and downloaded 12 small files (0.08 MB); worker time 4.7 s against 7.05–7.23 s cold.
+  Outputs: project folder `backtest/e2e-2026-10-27/` (`report-dev5-1003.json`, `measure-dev5-1003.json`,
+  `measure-dev4-0854-disk-cache.json`, `result-*-dev5.json`).
 
 ## 2026-10-27 — edge-bff: yellow labels removed, full-screen button (EXEC-TERMINAL-FULL)
 
@@ -4749,3 +4827,59 @@ another session's work; waiting for the user's decision. No variable changed.
 Daily run of the 12:00 UTC tick: `event="done"` 13:03 UTC, 2,492 files, 64.4 MB, 835 tickers, 3,496.5 s,
 `broker_behind_sessions=0`; `v1/state.json` price and broker through 2026-10-27, `broker_behind_sessions` 0. Nothing
 behind, so no Telegram request was made (as designed). No variable or deployment changed.
+
+## 2026-10-27 — EDGE backtest: preview order (ERRORS M247), worker module loader (M249), page downloads (M251), redeploys over `main`, E2E (dev)
+
+Same approvals as the backtest entries above (N 02:38 UTC "Lanjut di dev"; N 09:08 UTC: merge to `main` by PR once the
+dev E2E passes). Branch `claude/project-thread-k91bfk`; nothing in production.
+
+- **Migration `20261027_005`** (the comment of `edge_bff.backtest_jobs.error`, ERRORS M246): DRYRUN job `3119da7b`
+  (rolled back), APPLY job `9862ff6b`, on orc-test-runner 11:24–11:26 UTC; its `DATABASE_URL` set only for each run and
+  removed after (VAR_REMOVED). Detail in DATABASE_CHANGELOG.
+- **edge-bff after `main` replaced the branch again** (ERRORS M248): `main` `2932c87` -> `78b16952` 10:23 UTC, `736f99a`
+  -> `81ae2893` 10:46, `712e258` -> `7654e6fa` 11:06; branch merge `83b8f1a` -> `d4d1d729` (created 11:37); `main`
+  `ddb8497` -> `e9868143` 11:56 and `2760476` -> `567fcf45` 12:11 replaced it; branch `997f941` (merge `57e27c8`, M247
+  `fe11180`, M249) -> `8c2ecc55` (created 12:45:31).
+- **The branch upload replaced `main`'s newer work once:** `main` `bb24f9c` -> `d34c40f2` (created 12:44:42); `8c2ecc55`,
+  built from the branch merged with `main` `2760476`, replaced it, so `main`'s Terminal windows were not live 12:45–12:56
+  UTC (the POPOUT W1 + I2 entry above). Branch merge `5e71cc5` (`main` `28b4cbc`) -> `4bcea256` FAILED 12:54 (the app
+  folder uploaded as the archive's root; the service's `rootDirectory` `/apps/edge-bff` is looked up inside the archive;
+  the running deployment was not affected) -> `e2c02222-ba11-4430-b471-70d2b56d2032` SUCCESS 12:56 UTC in repository
+  layout: `/ready`, `/backtest-app/`, `/terminal-app/` 200; the live terminal `index`, `style`, `worker` and backtest
+  `index`, `style` assets equal the build of `5e71cc5` (sha256), whose `apps/edge-bff/terminal` equals `main` `28b4cbc`.
+  The windows have been live again since then (and in `390eca4b` below); the user's later choice in
+  EXEC-TERMINAL-POPOUT (B, wait; `main` `85e952f`) needs no redeploy: edge-bff goes back to `main`'s own build once
+  this branch is merged to `main`. Procedure since: fetch `main` right before an upload and again after SUCCESS.
+- **edge-bff `390eca4b-3177-43d0-85f3-fb561c94b206`** (branch `69e9f9f`, ERRORS M251: the page asks a file download cut
+  off on the way again): SUCCESS 13:26 UTC; `main` unchanged before and after the upload; live terminal and backtest
+  assets equal the local builds (sha256). Rollback: `e2c02222`; `main`'s own build: `d34c40f2` (`bb24f9c`, without the
+  backtest). Branch merge `106387b` (`main` `85e952f`, documents only) needed no upload: nothing under
+  `apps/edge-bff` changed.
+- **backtest-worker `97dd49ce-509a-43fb-bfce-5c3c649d5c19`** (ERRORS M249: the image's command loads the Terminal's
+  sources as Vite resolves them; `loader/` copied into the image): CLI upload of the build context the Dockerfile's
+  COPY lines name, SUCCESS 12:44 UTC, region `sfo`; start log `engine_version` `beb81eb55a13293f`, registry
+  `b6a8dc0ba206ed65`, flow enabled. Its build inputs did not change after `997f941`. Rollback: `96d0e990`.
+- **E2E** (`verification/backtest/e2e_dev.py`):
+  - 11:39–11:57 UTC on `d4d1d729` + `96d0e990`: every job ended as expected, but the portfolio's signals preview
+    answered 409 (ERRORS M247; the script did not check it then).
+  - 13:00:31 UTC on `e2c02222` + `97dd49ce`: stopped at the catalog, 424 `DATA_INTEGRITY` (IHSG's price pack larger than
+    its manifest says) while the publisher's 12:00 UTC run was still writing (`done` 13:03:23): ERRORS M250. The user
+    chose (13:27 UTC) a separate publisher PR after this one; until then a dev E2E runs outside the publisher's
+    runs (TEMPORARY).
+  - 13:08 UTC: the portfolio preview answered 200 and the table showed it (12 asked in order 1–12, 11 aborted by the
+    page), page clean, single, repeat, refusal and cancel passed; the portfolio job FINISHED (13:10:13, 12.8 s in the
+    worker, cold cache after the publish) but the script's own status poll lost one request to a tunnel the container's
+    egress proxy closed at 13:10:13 (proxy status). The script now asks such a GET again twice, as the page does.
+  - 13:13 UTC: every job passed; the page's download of BBRI's broker archive was cut off (ERR_CONTENT_LENGTH_MISMATCH)
+    and the page did not ask it again (ERRORS M251).
+  - 13:27:10–13:28:54 UTC on `390eca4b` + `97dd49ce`: every step passed (`failed` empty, exit 0); the page clean (no
+    console or HTTP error, no download asked again) and no status GET asked again. Catalog 845 tickers, data through
+    2026-10-27. Single (MAPI) 5.31 s from submit to end, 966 ms in the worker, 95,446 B stored, 67 trades; the
+    repeat equal (determinism). Both refusals 422 without a job. Portfolio preview 200 in 10.4 s (12 asked in order
+    1–12, 11 aborted by the page; the table equals the answer); portfolio of 12 tickers 13.38 s, 10,344 ms in the
+    worker, 279,777 B, 559 trades; every reconcile and robustness check passed. Cancel: CANCELLED 8.03 s after the
+    cancel. edge-bff logs since the deploy: start-up only. The worker's 183 published-file reads of the run all came
+    from its memory cache.
+- Outputs: project folder `backtest/e2e-2026-10-27/`: `dev9-1327/` (report, calls, the three results and 38
+  screenshots of the 13:27 run) and `runs-1300-1315-summary.json` (the 13:00, 13:08 and 13:13 runs, chosen fields
+  only: the 13:08 report's exception text carried request headers, so that report is not copied).

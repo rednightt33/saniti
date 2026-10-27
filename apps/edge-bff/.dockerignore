@@ -1,9 +1,14 @@
-__pycache__
-*.pyc
-.pytest_cache
+# a pattern matches from the context root only: '**/' for what can appear in any folder (app/__pycache__ etc.)
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
 tests
-.env*
+**/.env*
 preview
 terminal/node_modules
 terminal/tests
 static/terminal-app
+backtest/node_modules
+backtest/tests
+backtest/dist*
+static/backtest-app

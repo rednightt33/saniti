@@ -1,0 +1,8 @@
+Starting Container
+MIG DRYRUN 20261026_005_edge_bff_backtest.sql sha256=96c5c366d6f451b9a757fb8f8b6878d0e6a59baac25e7c2d0a2db07e10221e1b
+MIG DRYRUN_BODY_OK 20261026_005_edge_bff_backtest.sql
+OUT {"q": "edge_bff_tables", "ms": 3, "part": 0, "rows": [["backtest_jobs"], ["backtest_results"], ["backtest_trials"], ["conversation_ui"], ["jobs"], ["sessions"]]}
+OUT {"q": "runtime_grants", "ms": 6, "part": 0, "rows": [["backtest_jobs", "INSERT,SELECT,UPDATE"], ["backtest_results", "DELETE,INSERT,SELECT"], ["backtest_trials", "INSERT,SELECT,UPDATE"]]}
+OUT {"q": "as_runtime_reads", "ms": 2, "part": 0, "rows": [[0, 0, 0]]}
+JOB_DONE MIGRATION DRYRUN
+OUT {"q": "runtime_members", "ms": 7, "part": 0, "rows": [["edge_bff_login"]]}

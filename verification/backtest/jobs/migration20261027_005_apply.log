@@ -1,0 +1,5 @@
+Starting Container
+MIG APPLY 20261027_005_edge_bff_backtest_error_comment.sql sha256=e570e501c3743c7859e14758db965f3ff132987645d6630a1d904c1dc247910c
+OUT {"q": "error_comment", "ms": 3, "part": 0, "rows": [["ApiError.error of a FAILED job ({code, message?, field?, details?}): the worker's error as it gave it, or one edge-bff set. Every code and who sets it: apps/edge-bff/backtest/CONTRACT.md section 11."]]}
+OUT {"q": "as_runtime_reads", "ms": 4, "part": 0, "rows": [[27]]}
+JOB_DONE MIGRATION APPLY

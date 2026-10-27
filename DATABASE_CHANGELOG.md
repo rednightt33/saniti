@@ -2775,3 +2775,44 @@ User 2026-10-26: "Ok untuk saran kamu. Putaran loading 0.15 detik alright. Jalan
 - Logs: `verification/terminal_api/jobs/migration20261026_100_{dryrun,apply,readback}.log`.
 - Bucket `terminal-display` (not PostgreSQL): 1,656 pack objects, 302 MB (publisher run `dea824dc`), contents equal to
   the yearly files for ANTM, BBCA, IHSG and GOTO.
+
+## 2026-10-27 — EDGE backtest: job, result and trial tables (schema `edge_bff`)
+
+User 2026-10-26: "Jalankan langsung 1-5. Saya setujui untuk step 3,4 dan 5." and 2026-10-27 (decision card): "Lanjut
+di dev". Operational schema `edge_bff` (edge-bff's own, as `sessions` and `jobs`), no market data, no catalog row; not
+in `DATABASE_SCHEMA.md`, which is generated from schema `public` only (decision D2 in
+`apps/edge-bff/backtest/CONTRACT.md` section 12).
+
+- **`20261026_005_edge_bff_backtest.sql`** (sha256 `96c5c366d6f451b9a757fb8f8b6878d0e6a59baac25e7c2d0a2db07e10221e1b`):
+  - `edge_bff.backtest_jobs`: the request as submitted, state, progress and versions; never market data or the
+    result. Indexes `backtest_jobs_claim` (partial, QUEUED/RUNNING) and `backtest_jobs_owner_created`.
+  - `edge_bff.backtest_results`: gzip JSON parts of a finished result per (request_id, part), deleted after 30 days;
+    index `backtest_results_created`.
+  - `edge_bff.backtest_trials`: the K3 trial count, distinct variants per owner and lineage with their daily Sharpe,
+    never reset.
+  - Grants to `edge_bff_runtime` per table: jobs SELECT/INSERT/UPDATE, results SELECT/INSERT/DELETE, trials
+    SELECT/INSERT/UPDATE. The migration's verify block checks every privilege and that PUBLIC has none.
+- DRYRUN (rolled back) then APPLY (job `89375eb2`) on orc-test-runner. `DATABASE_URL` was set only for the run and then
+  removed (VAR_REMOVED). Read back after APPLY:
+  - the three tables are present;
+  - the grants are exactly as listed;
+  - `edge_bff_login` is a member of `edge_bff_runtime`;
+  - the runtime role reads 0 rows from each table.
+- Logs: `verification/backtest/jobs/migration20261026_005_{dryrun,apply}.log`.
+
+## 2026-10-27 — EDGE backtest: the comment of `edge_bff.backtest_jobs.error` points to the list of codes
+
+Second independent review of the result-store fix (ERRORS M246; user 2026-10-26 "Jalankan langsung 1-5", steps 3-5
+approved, and 2026-10-27 "Lanjut di dev"). The comment `20261026_005` wrote listed the codes edge-bff sets; it went stale
+when edge-bff began to set `RESULT_NOT_STORED` (and never had `WORKER_FAILED`). Only the comment changes: no data,
+table, role or grant.
+
+- **`20261027_005_edge_bff_backtest_error_comment.sql`** (sha256
+  `e570e501c3743c7859e14758db965f3ff132987645d6630a1d904c1dc247910c`): the comment says what the column holds and
+  points to `apps/edge-bff/backtest/CONTRACT.md` section 11, the one list of the codes and who sets each, so a new code
+  needs no migration. A test derives the codes the loop writes from its source and checks each is in that list
+  (`test_each_job_error_code_is_in_the_one_list_the_column_points_to`).
+- DRYRUN (job `3119da7b`, rolled back) then APPLY (job `9862ff6b`) on orc-test-runner, 11:24–11:26 UTC; `DATABASE_URL`
+  set only for each run and removed after (VAR_REMOVED). Read back after APPLY: the new comment; the runtime role
+  reads the 27 dev jobs.
+- Logs: `verification/backtest/jobs/migration20261027_005_{dryrun,apply}.log`.

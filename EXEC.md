@@ -8295,6 +8295,34 @@ yang sama), efek penanda anotasi saat crosshair di tanggalnya (F). Live saja; fi
 Menunggu jawaban user: A (cara memperbaiki: direproduksi di 1270×618 skala 1,5 — judul Flow dua baris 89 px, grafik
 Flow 90 px) dan C (arti "Y axis horizontal" dan nasib 10D/20D/Custom bila mengikuti chart).
 
+
+## EXEC-BACKTEST — backend dan halaman backtest EDGE (go 2026-10-26; dev 2026-10-27)
+
+User 2026-10-26: "Jalankan langsung 1-5. Saya setujui untuk step 3,4 dan 5. ... Apabila ada keputusan yang memerlukan
+saya, maka kamu ambil dulu. But please ensure nanti kasih tau saya, keputusan apa yang kamu ambil di antara alternatif
+yang ada. ... Yang paling penting adalah front end harus 1:1 dngan HTML saya tadi." User N 2026-10-27: portofolio
+maksimal 12 saham lewat cari atau filter sektor/industri ("Sesuaikan UI-nya"); kartu keputusan 02:38 UTC "Lanjut di
+dev" dan "Ya, upload setelah dites"; 09:08 UTC "Ya, lewat PR setelah E2E lulus"; 13:27 UTC atas ERRORS M250 (publisher
+menimpa file) pilihan "Ya, PR terpisah setelah PR backtest"; 13:37 UTC: "Once this done, please create a MD di Git,
+documenting from end to end how the backtest feature works. Goal adalah AI yang baca akan tahu how that works, sehingga
+untuk future improvement/ efisiensi akan lebih mudah. Dari awal data, sampai load ke FE. End to end."
+
+- Kode: cabang `claude/project-thread-k91bfk`: inti bersama `apps/edge-bff/backtest/src/core`, worker
+  `apps/backtest-worker` (tanpa kredensial Postgres atau bucket), API dan tabel job di edge-bff (migrasi
+  `20261026_005_edge_bff_backtest.sql`), halaman `apps/edge-bff/backtest` (port 1:1 dari backtest.html).
+  Aturan dan keputusan teknis: `apps/edge-bff/backtest/CONTRACT.md` bagian 12; keputusan untuk user (bahasa
+  Indonesia, bagian A–G): folder proyek `backtest/keputusan-backtest-2026-10-26.md`.
+- Dev (RAILWAY_CHANGELOG 2026-10-27): migrasi 005 APPLIED, layanan `backtest-worker` (sfo, privat), publisher dengan
+  kolom industri, edge-bff dari cabang. Uji E2E dan pengukuran: `verification/backtest/e2e_dev.py`,
+  `measure_dev.py`; hasil di folder proyek `backtest/e2e-2026-10-27/`; angka di `apps/backtest-worker/README.md`.
+- Masalah yang ditemukan: ERRORS M248 (dua sumber deploy edge-bff; semula M244), M245 (unduhan ganda preview lalu run, FIXED),
+  M246 (hasil gagal disimpan, MITIGATED, penyebab OPEN), M247 (pratinjau lama menyalip yang baru, RESOLVED di dev),
+  M249 (worker tidak memuat sumber Terminal tanpa ekstensi, RESOLVED di dev), M250 (publisher menimpa file di kunci
+  yang sama, OPEN: PR terpisah), M251 (unduhan halaman yang terpotong tidak diulang, FIXED).
+- E2E dev 2026-10-27 13:27 UTC (edge-bff `390eca4b`, worker `97dd49ce`) lulus semua langkah (RAILWAY_CHANGELOG).
+- Sisa: PR ke main (pilihan N), lalu dokumen end-to-end (permintaan N 13:37 UTC) dan PR publisher M250 (pilihan N
+  13:27 UTC); produksi tidak disentuh.
+
 ## EXEC-TERMINAL-FRESH — broker tertinggal tampil jujur, alat gambar di Flow, kepala tabel Top brokers (go 2026-10-27)
 
 User 2026-10-27, atas usulan di jawaban sebelumnya: "Untuk merapikannya: di Flow hanya kelompok Lines yang tersedia

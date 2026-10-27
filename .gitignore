@@ -6,3 +6,10 @@ railway-plan.json
 
 # EXEC-TERMINAL-API T5: built by the edge-bff Dockerfile from apps/edge-bff/terminal
 apps/edge-bff/static/terminal-app/
+
+# EDGE backtest (CONTRACT.md section 10): built by the edge-bff Dockerfile from apps/edge-bff/backtest; its packages
+# and its build outputs are not kept in git
+apps/edge-bff/static/backtest-app/
+apps/edge-bff/backtest/node_modules/
+apps/edge-bff/backtest/dist/
+apps/edge-bff/backtest/dist-fixture/

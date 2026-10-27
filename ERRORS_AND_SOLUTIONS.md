@@ -2421,6 +2421,270 @@ change yet.
 - **Lesson for new data:** setiap dataset deret waktu membawa `data_through`-nya sendiri dan tampilan membedakan "belum
   ada" dari "nol"; nol hanya untuk sesi yang datanya ada dan nilainya nol.
 
+### M245 — Preview sinyal lalu run backtest mengunduh file pasar yang sama dua kali (2026-10-27)
+
+- **Symptom:** pengukuran dev 2026-10-27: run portofolio 12 saham setelah preview tabel sinyal mengunduh lagi file yang
+  baru saja diunduh preview (60 file, 28,35 MB, sekitar 6 s pada 4,7 MB/s).
+- **Verified cause:** `apps/backtest-worker/src/terminal.ts` `DiskCache` membangun indeks direktori sekali per objek,
+  dan preview serta job memakai objek klien yang berbeda (satu per thread kerja), jadi file yang ditulis satu klien tidak
+  dikenali klien lain; selain itu dev belum memakai cache disk.
+- **Class:** cache yang indeksnya disimpan di memori per pemakai sementara isinya dipakai bersama (direktori yang sama):
+  setiap pemakai baru mengulang unduhan. Berlaku untuk setiap data pasar yang dibaca worker (harga, broker, kelak makro).
+- **Solution:** direktori menjadi sumber kebenaran: `has`/`get` membaca file, `put` menulis lewat file sementara lalu
+  rename, eviction LRU berdasarkan mtime dengan satu anggaran untuk seluruh direktori (590e8ff, 10 tes baru, worker
+  177/177). Dev: `BACKTEST_CACHE_DIR=/tmp/backtest-cache`, `BACKTEST_CACHE_DIR_BYTES=1073741824`; worker 96d0e990.
+- **Status:** FIXED di kode dan dev. Bukti E2E 2026-10-27 08:54 UTC (run pertama di worker 96d0e990): preview
+  mengunduh 48 file (28,27 MB), job portofolio lalu membaca 48 file itu dari disk dan hanya mengunduh 12 file kecil
+  (0,08 MB); waktu worker 4,7 s, sebelumnya 7,05–7,23 s dingin (RAILWAY_CHANGELOG 2026-10-27).
+- **Lesson for new data:** cache bersama menyimpan indeksnya di tempat yang sama dengan isinya.
+
+### M246 — Backtest yang sudah selesai dihitung berakhir `FAILED WORKER_LOST` karena hasilnya gagal disimpan (2026-10-27)
+
+- **Symptom:** E2E dev 2026-10-27 08:54 UTC: run ulang single (bt_da4cfb83…) `FAILED WORKER_LOST`; worker sudah
+  selesai (473 ms) dan menjawab `/result` 200 tiga kali. Portofolio (bt_76b8b419…) gagal simpan sekali lalu `FINISHED`.
+- **Verified (FACT):** (1) edge-bff mencatat `backtest_result_store_failed` 4 kali, dengan psycopg "error ignored
+  terminating <psycopg.Pipeline [BAD]>: the connection is lost": koneksi putus di dalam `executemany` (mode pipeline)
+  `BacktestStore.finish`. (2) Postgres mencatat pada detik yang sama "SSL error: unexpected eof while reading", "could
+  not receive data from client: Connection reset by peer", "incomplete message from client": sisi edge-bff memutus di
+  tengah pesan. "incomplete message" hanya muncul 4 kali sepanjang log Postgres, tepat 4 kegagalan ini. (3) Kode server
+  edge-bff sama dengan deploy sebelumnya (git diff 0801f38..507822a kosong untuk `apps/edge-bff/app`), yang menyimpan
+  semua hasil tanpa gagal. (4) Lokal: `BacktestStore.finish` dengan hasil nyata yang sama (93 KB + 2 KB gzip, 25 varian,
+  jalur ON CONFLICT) lulus 10/10 lewat TLS dan 15/15 lewat jaringan lambat buatan (psycopg 3.2.10, libpq 17.5).
+  (5) `follow` menghitung kegagalan simpan sebagai panggilan worker tak terjawab: 3 berturut-turut = `WORKER_LOST`
+  dalam 4 s, padahal worker masih menyimpan hasilnya. (6) Log hanya mencatat nama event, jadi kelas exception tidak
+  diketahui.
+- **Root cause:** UNKNOWN untuk putusnya koneksi. Dua dugaan, belum terbukti: gangguan jaringan privat Railway, atau
+  kegagalan tulis SSL non-blocking libpq di mode pipeline. Cek yang membedakan: baris log baru (di bawah) membawa teks
+  libpq ("SSL error: ..." vs "server closed the connection unexpectedly").
+- **Class:** kegagalan database sementara saat menyimpan (putus koneksi, restart/failover Postgres, statement timeout,
+  kunci) dihitung sebagai kegagalan worker, sehingga job yang sudah dihitung hilang dengan kode yang salah; dan setiap
+  log kegagalan database di loop backtest tidak bisa didiagnosis.
+- **Solution:** edge-bff `app/backtest.py` (review independen 14 temuan, semua diperbaiki): (1) kegagalan database
+  yang bisa pulih (psycopg `OperationalError`: koneksi putus, timeout, restart) tidak dihitung dalam `WORKER_RETRIES`;
+  hasil yang sudah diambil disimpan di memori dan disimpan ulang setiap poll sampai `BACKTEST_TIMEOUT_SECONDS`, diambil
+  dari worker sekali, lalu `FAILED RESULT_NOT_STORED`; kegagalan lain (data, integritas, skema) langsung
+  `RESULT_NOT_STORED`. (2) Panggilan database lain di sekitar job (baca job dan prior trials saat serah, baca job dan
+  progress saat mengikuti, heartbeat) diulang di poll/beat berikutnya sampai batas waktu; setiap `end` diulang sampai
+  `EDGE_LEASE_SECONDS` sesudah batas waktu. (3) Lease: token saja yang memagari pengikut job; kedaluwarsa hanya
+  mengizinkan reap. Sebelumnya gangguan database sekitar 70 s (lease 90 s, heartbeat 20 s) membuat lease habis dan job
+  tetap `WORKER_LOST` walau batas waktunya 900 s. (4) `failure_of`: kelas exception; SQLSTATE untuk error server
+  (teksnya bisa memuat isi baris); untuk error psycopg/libpq sendiri baris pertamanya tanpa password konfigurasi
+  (terbaca maupun ejaan URL), nama user/host/database, user info URL, pasangan `password=`, dan alamat IP, disensor
+  sebelum dipotong 300 karakter; URL yang tidak terbaca hanya kelas (libpq mengutip bagian rusaknya, mungkin
+  password). (5) Review independen kedua (7 temuan, semua ringan, semua diperbaiki): serah job memeriksa batas waktu
+  sebelum membaca job (seperti pengikut), jadi gangguan database yang melewati batas waktu tetap berakhir `TIMEOUT`,
+  bukan dibiarkan `RUNNING` sampai reap menulis `WORKER_LOST`; setiap panggilan berpagar yang tidak menemukan baris
+  (baca job, progress, simpan, end) menghentikan pengikut dan mencatat `backtest_lease_lost` sekali dengan `step`,
+  `result_held`, serta `state`/`code` job yang dibaca saat itu, sehingga reap (`FAILED WORKER_LOST`) bisa dibedakan dari
+  commit pengikut sendiri yang jawabannya hilang (`FINISHED`, hasil tersimpan); heartbeat yang menemukan job hilang tidak
+  lagi membatalkan pengikut diam-diam (pengikut sendiri yang menemukannya dan mencatat), dan error heartbeat yang tidak
+  bisa pulih dicatat (sebelumnya mati tanpa log); komentar kolom `edge_bff.backtest_jobs.error` menunjuk ke daftar kode
+  di CONTRACT bagian 11, bukan daftar sendiri yang basi (migrasi `20261027_005`, DRYRUN dan APPLY dev). Dua temuan
+  dibantah dengan bukti: SQLSTATE 25006 (read-only) tidak bisa terjadi di satu Postgres tanpa standby; hasil yang masih
+  dipegang setelah batas waktu sengaja tidak disimpan lagi (keputusan B2). CONTRACT.md bagian 9, 11, keputusan B2;
+  README edge-bff. Tes (50/50 backtest): lebih dari `WORKER_RETRIES` kegagalan simpan lalu berhasil = `FINISHED`, satu
+  ambil; tidak pernah berhasil = `RESULT_NOT_STORED` tanpa cancel dan tanpa baris; error permanen = `RESULT_NOT_STORED`
+  seketika dengan SQLSTATE saja; kegagalan serah/baca/progress/heartbeat/end = tetap `FINISHED` atau tetap error worker;
+  lease kedaluwarsa tanpa reap diperpanjang heartbeat = `FINISHED`, sesudah reap = `WORKER_LOST` dengan satu log
+  `backtest_lease_lost` baik pengikut maupun heartbeat yang lebih dulu menemukannya; kehilangan job di tiap langkah
+  (serah, simpan, commit yang jawabannya hilang, end, progress) tercatat dengan state yang benar; serah melewati batas
+  waktu saat database gagal = `TIMEOUT`; error heartbeat permanen tercatat; setiap kode error job yang ditulis loop ada
+  di CONTRACT bagian 11; kasus sensor log, dan tes log tidak lagi bergantung pada password database tes. Uji mutasi:
+  mencabut tiap perbaikan membuat tesnya gagal.
+- **Not covered:** penyebab putusnya koneksi; `apps/edge-bff/app/worker.py` (loop Orc) masih mencatat
+  `queue_operation_failed` tanpa detail (kelas masalah yang sama, di luar lingkup backtest).
+- **Status:** MITIGATED: edge-bff a2669e0f di dev, E2E 2026-10-27 10:03 UTC lulus semua langkah tanpa satu pun
+  baris `backtest_result_store_failed`/`backtest_job_store_failed`. Root cause OPEN sampai log baru menangkap
+  kegagalan berikutnya.
+- **Lesson for new data:** penulisan hasil besar ke database dibatasi waktu job, bukan anggaran retry layanan lain, dan
+  setiap log kegagalan database membawa kelas serta SQLSTATE agar bisa didiagnosis tanpa membocorkan kredensial.
+
+### M247 — Tabel sinyal portofolio tetap "—": pratinjau lama menyalip pratinjau terbaru di edge-bff (2026-10-27)
+
+- **Symptom:** E2E dev 2026-10-27 11:39 UTC (edge-bff d4d1d729, worker 96d0e990): setelah 12 saham dipilih,
+  pratinjau sinyal terakhir (12 saham) dijawab 409 `PREVIEW_REPLACED` dalam 198 ms. Halaman tidak meminta lagi, jadi
+  tabel sinyal portofolio menampilkan "—" untuk semua saham sampai run. E2E menunggu 1020 s lalu lanjut, dan tetap
+  melaporkan lulus karena pratinjau hanya dicatat, tidak diperiksa.
+- **Verified (FACT):** (1) `calls.json` E2E: satu-satunya pratinjau yang selesai di halaman adalah 409 itu; 11
+  pratinjau sebelumnya dibatalkan halaman sendiri (`preview.ts` membatalkan yang berjalan saat pilihan berubah, sesuai
+  desain). (2) Kode `latest_preview` (`app/backtest.py`): 409 `PREVIEW_REPLACED` hanya muncul bila pratinjau lain dari
+  owner yang sama masuk `latest_preview` sesudahnya. Selama E2E hanya satu halaman yang mengirim pratinjau, dan yang 12
+  saham dikirim paling akhir, jadi salah satu pratinjau lama yang sudah dibatalkan halaman masuk sesudahnya dan
+  menggantikannya. (3) Kode: "terbaru" adalah urutan tiba di `latest_preview`, padahal tiap permintaan lebih dulu
+  menunggu cek sesi di thread pool (`main.py session`: `asyncio.to_thread(store.session)`), dan proxy Railway juga bisa
+  menukar urutan; permintaan tidak membawa urutan kirimnya. (4) Worker menjawab 12 `/v1/signals` 200 dalam milidetik
+  (cache disk, M245), jadi pratinjau tumpang tindih lebih rapat; E2E 10:03 UTC (5,7 s per pratinjau) tidak
+  mengalaminya. (5) Log HTTP Railway edge-bff mencatat satu POST `/signals` 499 pada 11:39:52 (klien sudah pergi):
+  pratinjau lama tetap diproses setelah halaman membatalkannya.
+- **Root cause:** edge-bff memilih "pratinjau terbaru" dari urutan tiba, bukan urutan kirim halaman. Langkah mana yang
+  menukar urutan pada run ini (cek sesi atau proxy) UNKNOWN; keduanya mungkin menurut kode, dan perbaikannya tidak
+  bergantung pada yang mana.
+- **Class:** server yang memutuskan "yang terbaru menang" di antara permintaan satu klien dari urutan tiba, sementara
+  urutan klien tidak dikirim: jitter apa pun (thread pool, koneksi upstream proxy, retry) bisa membuat permintaan basi
+  menang, dan klien menganggap kalah itu final. Di sistem ini hanya pratinjau sinyal backtest yang memakai aturan itu
+  (Terminal tidak membatalkan atau mengganti permintaan); berlaku juga untuk pratinjau atau validasi "saat mengetik"
+  berikutnya yang memakai `latest_preview`.
+- **Solution:** (1) Kontrak halaman–edge-bff: body pratinjau membawa `client_order {page, seq}` (`live.ts
+  signalsPreview`: satu id per muat halaman, `seq` naik per pratinjau saat diminta); edge-bff mengeluarkannya sebelum
+  ke worker, dan `client_order` rusak = 422 `INVALID_INPUT` field `client_order`. (2) edge-bff `latest_preview`:
+  menyimpan `seq` tertinggi yang tiba per halaman (64 halaman terakhir per owner); pratinjau di bawahnya langsung 409,
+  tidak mengganti apa pun dan tidak sampai ke worker; `seq` sama (retry) diterima; antarhalaman dan tanpa
+  `client_order` tetap urutan tiba. (3) E2E: langkah portofolio lulus hanya bila pratinjau saham terpilih dijawab 200
+  dan tabel halaman menampilkan jawaban itu (`preview_drawn`); tunggu berhenti pada jawaban pertama apa pun statusnya;
+  pratinjau yang dibatalkan dan urutannya ikut dicatat; `page_clean`: tidak boleh ada error konsol atau HTTP di
+  halaman. Dicek offline pada laporan 11:39: kedua cek baru menandainya gagal. CONTRACT bagian 9, 10, 11 dan P8;
+  README edge-bff. Tes: edge-bff 3 baru (pratinjau lama tiba saat yang baru berjalan; antarhalaman; urutan disimpan
+  setelah dijawab, retry, batas 64 halaman), halaman 1 baru (`live.ts`). Uji mutasi: 5 mutasi, semua tertangkap.
+- **Not covered:** dua tab yang sama-sama aktif tetap saling mengganti (desain PAGE-V3: tidak ada urutan bersama), dan
+  tab yang kalah menampilkan "—" sampai aksi pengguna lalu redraw; pratinjau basi dari halaman yang sudah dimuat ulang
+  yang tiba setelah pratinjau pertama halaman baru (butuh keterlambatan detik).
+- **Status:** RESOLVED di dev. E2E 13:08 dan 13:27 UTC (edge-bff `e2c02222` lalu `390eca4b`): pratinjau portofolio 200
+  dan tabelnya sama dengan jawaban (12 diminta berurutan 1–12, 11 dibatalkan halaman). Masuk `main` lewat PR backtest.
+- **Lesson for new data:** "yang terbaru menang" diputuskan dari urutan yang dikirim klien, bukan urutan tiba; dan E2E
+  memeriksa apa yang tampil di layar, tidak hanya mencatatnya.
+
+### M248 — Satu layanan dengan dua sumber deploy: push main ke `apps/edge-bff` menimpa deploy cabang backtest di dev (2026-10-27)
+
+- **Nomor:** ditulis sebagai M244 di cabang backtest pukul 09:21 UTC; main memakai M244 untuk entri lain (Flow
+  Timeline BMRI, 11:33 UTC, dirujuk kode Terminal), jadi entri ini menjadi M248 sebelum cabang digabung. "M244" di
+  pesan sesi backtest sebelum 2026-10-27 12:30 UTC berarti entri ini.
+- **Symptom:** di tengah uji E2E backtest di dev, semua route `/api/v1/backtests/*` menjawab 404 dua kali: 08:00 UTC
+  dan 08:30 UTC.
+- **Verified cause:** layanan Railway `edge-bff` bersumber GitHub `main` (rootDirectory `/apps/edge-bff`, watch
+  `/apps/edge-bff/**`), sedangkan kode backtest hanya ada di cabang `claude/project-thread-k91bfk` dan dipasang dengan
+  `railway up` (unggah CLI). Push Terminal ke main yang menyentuh `apps/edge-bff` (18de6e8 -> deploy e09717e2, 16bfad3 ->
+  90532d14) memicu deploy otomatis dari main, yang tidak punya kode backtest, dan menggantikan deploy cabang (5c3c6e69,
+  f50822e8). Riwayat deployment Railway menunjukkan urutannya.
+- **Juga ke arah sebaliknya (12:45 UTC):** upload cabang `8c2ecc55` (dibuat 12:45:31, dari cabang yang digabung dengan
+  main `2760476`) menggantikan deploy main `d34c40f2` (`bb24f9c`, jendela panel kanan Terminal, dibuat 12:44:42): main
+  bergerak di antara merge dan upload, jadi jendela itu tidak live sampai 12:56 UTC (RAILWAY_CHANGELOG main). Diperbaiki
+  dengan merge `5e71cc5` lalu `e2c02222` (SUCCESS 12:56 UTC): aset Terminal live sama dengan build tree gabungan, yang
+  folder Terminal-nya sama persis dengan main `28b4cbc`; aset backtest sama dengan `8c2ecc55`.
+- **Class:** setiap layanan yang sumber otomatisnya satu cabang sementara cabang lain dipasang manual ke environment
+  yang sama: deploy terakhir menang, tanpa peringatan, ke dua arah (cabang juga menimpa pekerjaan main yang lebih baru).
+  Berlaku juga untuk layanan lain yang nanti dipasang dari cabang kerja (terminal-api, publisher, worker) bila sumber
+  GitHub-nya diaktifkan.
+- **Solution:** sementara (TEMPORARY): gabungkan main ke cabang lalu pasang ulang dari cabang setelah setiap push main
+  yang menyentuh `apps/edge-bff` (dilakukan enam kali sampai 11:38 UTC, terakhir edge-bff d4d1d729 menggantikan main
+  7654e6fa; lalu 12:45 dan 12:56 UTC; koordinator diberi tahu; RAILWAY_CHANGELOG). Sejak 12:56 UTC: main diambil lagi
+  tepat sebelum upload dan sekali lagi setelah SUCCESS; bila main bergerak melewati commit yang digabung, gabung dan
+  upload ulang, lalu bandingkan aset live dengan build tree gabungan. Upload memakai tata letak repo (`git archive`
+  folder app di dalam folder kosong), karena `rootDirectory` layanan `/apps/edge-bff` dicari di dalam arsip: upload
+  folder app sebagai akar gagal di build (`4bcea256`, 12:54 UTC, deploy yang berjalan tidak terganggu). Permanen: satu
+  sumber, yaitu kode backtest masuk main lewat PR setelah E2E lulus (keputusan user N 2026-10-27 09:08 UTC).
+- **Status:** OPEN sampai PR backtest digabung ke main.
+- **Lesson for new data:** sebelum memasang dari cabang ke layanan bersumber GitHub, cek sumber dan watch pattern
+  layanan itu; catat di RAILWAY_CHANGELOG bahwa deploy cabang dapat tertimpa.
+
+### M249 — Tes worker backtest gagal dimuat sejak perubahan Terminal: impor tanpa ekstensi tidak terbaca Node (2026-10-27)
+
+- **Symptom:** `npm test` worker 2026-10-27 12:22 UTC: dua file tes gagal dimuat (`datafile.test.ts`, `flow.test.ts`:
+  `ERR_MODULE_NOT_FOUND .../terminal/src/data/timeframe`), 160/162 lulus; sebelumnya 177/177.
+- **Verified (FACT):** (1) Tes paritas worker mengimpor kode baca data Terminal sendiri (`edge-bff/terminal/src/data/
+  worker.ts` `priceRows`, `brokerData`) supaya chart dan backtest membaca bar yang sama. (2) Commit main `712e258`
+  (EXEC-TERMINAL-WM, 11:03 UTC, masuk cabang lewat merge `83b8f1a`) menambah `import { buckets, ... } from
+  './timeframe'` di file itu: tanpa ekstensi, gaya biasa Terminal (67 impor relatif tanpa ekstensi,
+  `moduleResolution: Bundler`, tanpa `allowImportingTsExtensions`). Vite menerimanya; Node
+  (`--experimental-strip-types`) hanya mencari nama persis. (3) Runtime worker tetap jalan: saat jalan yang dimuat
+  dari Terminal hanya `terminal/src/calc/indicators.ts` (tanpa impor) dan `indRegistry.json`, dan image hanya menyalin
+  itu. (4) Tidak ada CI yang menjalankan tes worker (hanya `database-schema-docs.yml`), jadi perubahan Terminal tidak
+  melihat kegagalan ini.
+- **Root cause:** satu sumber dengan dua aturan resolusi modul: Terminal ditulis untuk Vite (impor tanpa ekstensi),
+  sedangkan worker dan tesnya memuat sumber yang sama dengan Node (impor harus persis).
+- **Class:** setiap modul Terminal yang dimuat Node oleh backtest: saat jalan (rumus indikator lewat core; bila `calc/`
+  kelak punya impor tanpa ekstensi, worker gagal start pada deploy berikutnya), di skrip registry (`build-registry.mjs`
+  memuat `indicators.ts`) dan di tes (pembaca data, registry, fixture).
+- **Solution:** loader modul worker (`apps/backtest-worker/loader/`): hanya bila Node tidak menemukan specifier relatif
+  tanpa ekstensi, dicoba seperti Vite mencoba TypeScript (`<spec>.ts`, lalu `<spec>/index.ts`); yang Node temukan
+  sendiri tetap sama, dan selebihnya tetap error Node sendiri. Dipasang di perintah image (Dockerfile CMD) dan di semua
+  skrip npm yang menjalankan TypeScript worker (`start`, `registry`, `registry:check`, `test`). Tes start-up server kini
+  menjalankan perintah image yang dibaca dari Dockerfile, bukan salinan flag. Tes baru `loader.test.ts` (4): `resolve`
+  sendiri; setiap entri Node membawa loader; dengan flag image (dan tidak tanpa) Node memuat modul bergaya Terminal dan
+  pembaca data Terminal. Worker 181/181. Uji mutasi: 2, tertangkap. `engine_version` tetap `beb81eb55a13293f` (loader
+  di luar `src`).
+- **Not covered:** impor Terminal yang bukan relatif (alias path) atau sintaks TypeScript yang tidak bisa dibuang Node
+  (enum, parameter property) tetap gagal di Node; tidak ada pemeriksaan di sisi Terminal saat Terminal berubah (butuh
+  CI yang menjalankan tes worker, di luar lingkup ini).
+- **Status:** RESOLVED di dev: backtest-worker `97dd49ce` (SUCCESS 12:44 UTC) berjalan dengan perintah baru;
+  `engine_version` `beb81eb55a13293f`; E2E 13:27 UTC lulus (RAILWAY_CHANGELOG).
+- **Lesson for new data:** sumber yang dipakai halaman (Vite) dan layanan Node dimuat dengan aturan yang sama di
+  keduanya, dan tes konsumen menjalankan perintah image yang sebenarnya.
+
+### M250 — Backtest gagal `DATA_INTEGRITY` selama publisher berjalan: file ditimpa di kunci yang sama, manifest lama masih dilayani (2026-10-27)
+
+- **Symptom:** E2E dev 2026-10-27 13:00:31 UTC berhenti di langkah pertama: katalog backtest dijawab 424
+  `DATA_INTEGRITY` "IHSG price price has more than the 42106 bytes its manifest says." Diulang 13:07 UTC, setelah
+  publisher selesai: katalog 200.
+- **Verified (FACT):** (1) Log terminal-publisher, run `daily` 2026-10-27: mulai 12:05 UTC; 1663 file tahunan ditulis
+  sampai sekitar 12:44; pack 835 ticker sekitar 12:44–12:55; `done` 13:03:23 (3496,5 s). (2) Kode publisher
+  (`publish`, `put_pack`, `run`): file data dan pack ditulis ulang di kunci tetap (`price/{ticker}/{year}.json.gz`,
+  `pack/{ticker}/price.json.gz`, ...); semua manifest ditulis setelah semua pack; `state.json` (`finished_at`) paling
+  akhir. (3) Kode terminal-api yang live (`bucket.py _fresh`, EXEC-TERMINAL-SPEED, deploy `1c428bb6` 2026-10-26;
+  `apps/terminal-api/app` tidak berubah sejak itu): cache manifest baru dikosongkan saat `state.json finished_at`
+  berubah, dicek paling cepat tiap `manifest_cache_seconds` (60 s). `/bundle` mempresign `key` dari manifest itu
+  (`main.py grant`). (4) Manifest IHSG yang dilayani 13:07 UTC: `generated_at` 12:58:28 UTC, sudah ditulis sebelum
+  13:00:31; yang dilayani 13:00:31 masih manifest lama, karena `finished_at` baru berubah 13:03:23. (5) Pembaca: worker
+  dan halaman backtest memeriksa sha256 dan ukuran tiap file (`core/datafile.ts inflateVerified`), jadi gagal
+  `DATA_INTEGRITY`; halaman Terminal (`data/worker.ts`) tetap memakai byte yang tidak cocok, hanya tidak menyimpannya di
+  cache, jadi chart menampilkan data yang lebih baru dari manifest dan mengunduhnya ulang setiap kali.
+- **Root cause:** objek data berubah di bawah kunci yang sama, sementara metadata yang menyebut isinya (manifest di cache
+  terminal-api sampai run selesai, dan manifest yang baru ditulis di akhir run) lebih tua dari objeknya. Tiap komponen
+  benar menurut asumsinya sendiri ("file sebelum manifest" di publisher, "manifest tetap sampai publikasi berikutnya" di
+  terminal-api), tetapi gabungannya tidak konsisten selama setiap run.
+- **Class:** setiap pasangan "metadata (sha256, ukuran) + URL ke objek yang bisa ditimpa": semua dataset di bucket (harga
+  tahunan, broker tahunan, events, pack harga, arsip broker; juga dataset makro atau lintas aset yang nanti diterbitkan
+  dengan cara yang sama) dan semua pembaca terminal-api (worker backtest: katalog, pratinjau, run; halaman backtest;
+  halaman Terminal; pembaca berikutnya), dua kali sehari selama run publisher (hari ini sekitar 58 menit, 19:05–20:03
+  WIB). Tidak berlaku untuk file referensi (`ref/*`): terminal-api tidak memberi sha256 untuknya.
+- **Solution (PROPOSED, menunggu keputusan user):** di lapisan pemilik mekanisme, tata letak objek publisher: kunci file
+  data dan pack memuat hash isinya (mis. `pack/{ticker}/price.{sha256 16 karakter}.json.gz`), jadi objek tidak pernah
+  berubah. File baru ditulis di kunci baru, manifest memindahkan pembaca, dan objek lama tetap terbaca oleh manifest lama
+  di cache dan URL yang masih hidup. Objek yang tidak lagi dirujuk manifest dihapus pada run berikutnya (jauh di atas
+  cache 60 s dan umur URL `url_ttl_seconds` 120 s); daftarnya diturunkan dari isi bucket dibanding manifest, bukan
+  daftar tetap. terminal-api dan pembaca tidak berubah, karena mereka memakai `key` dan sha256 dari manifest.
+- **Not covered:** jawaban `/bundle` yang dipegang klien lebih dari umur URL-nya tetap 403 (sudah ditangani: worker dan
+  halaman meminta jawaban baru); data di bucket tetap baru setelah publisher menulisnya, jadi pembaca bisa melihat
+  manifest lama sampai run selesai (sesuai desain cache).
+- **Status:** OPEN. User 2026-10-27 13:27 UTC memilih A dari 3 pilihan: "Ya, PR terpisah setelah PR backtest" (kunci
+  berisi hash isi, file lama tidak ditimpa, file basi dihapus pada run berikutnya; diuji di dev pada run 07:30 WIB).
+  Sementara (TEMPORARY): E2E dan pengukuran backtest dijalankan di luar run publisher. Pengguna yang menjalankan
+  backtest selama run tetap mendapat `DATA_INTEGRITY` untuk ticker yang berubah, sampai PR publisher masuk.
+- **Lesson for new data:** objek yang dirujuk metadata (sha256, ukuran) tidak ditimpa di kunci yang sama; kunci yang
+  memuat hash isinya membuat setiap cache metadata aman.
+
+### M251 — Halaman backtest: unduhan file yang terpotong di jalan dilaporkan `DATA_INTEGRITY` dan tidak diulang (2026-10-27)
+
+- **Symptom:** E2E dev 2026-10-27 13:13 UTC: semua job lulus, tetapi `page_clean` gagal: browser mencatat "Failed to
+  load resource: net::ERR_CONTENT_LENGTH_MISMATCH" untuk `v1/pack/BBRI/broker-archive.json.gz` (koneksi tertutup
+  sebelum seluruh isi file sampai). Satu run sebelumnya (13:08) kehilangan satu GET status skrip uji karena reset di
+  proxy keluar container ini (status proxy: tunnel ke edge-bff ditutup 13:10:13); untuk unduhan 13:13 proxy tidak
+  mencatat apa pun, jadi hop yang memotongnya UNKNOWN.
+- **Verified (FACT):** kode halaman `api/live.ts download`: hanya `fetch()` (sampai header) yang ditangkap sebagai
+  kegagalan jaringan; isi file dibaca (`res.arrayBuffer()`) di luar penanganan itu, jadi isi yang terpotong melempar
+  error mentah yang `dataFailure` beri kode `DATA_INTEGRITY` ("could not be read"), dan unduhan tidak pernah diulang.
+  Hal yang sama untuk jawaban JSON edge-bff (`call`: `res.json()` di luar penanganan), sehingga poll status
+  (`run.ts`, mengulang hanya kegagalan jaringan) tidak mengulangnya. Worker sudah benar: isi dibaca di dalam percobaan
+  dan diulang (`terminal.ts http`).
+- **Root cause:** pembaca data di halaman memperlakukan putusnya transfer sebagai data rusak, bukan gangguan jaringan.
+- **Class:** setiap unduhan dan jawaban yang dibaca halaman backtest (file harga, broker, pack, arsip broker; jawaban
+  status, katalog, pratinjau) di jaringan apa pun yang bisa memutus transfer (seluler, proxy, host storage): pengguna
+  melihat error yang salah label dan harus mengulang sendiri. Tidak berlaku untuk worker (sudah mengulang).
+- **Solution:** `live.ts fetchFile`: unduhan tanpa jawaban, yang isinya terpotong, atau dijawab 5xx diulang 2 kali
+  (0,5 s lalu 1 s), seperti worker; setelah itu `DATA_UNAVAILABLE` "A data file could not be downloaded."; penolakan
+  4xx (403 tautan kedaluwarsa, 404) langsung dijawab; file utuh yang tidak sesuai manifest tetap `DATA_INTEGRITY` dan
+  tidak diulang. `call`: jawaban yang isinya terpotong = `NETWORK` tanpa status, yang diulang poll status. E2E
+  `page_clean` mengizinkan baris konsol unduhan yang gagal hanya bila halaman lalu mendapat file yang sama utuh
+  (dibaca dari permintaan halaman sendiri). CONTRACT bagian 10. Tes halaman 4 baru (terpotong lalu utuh, 5xx lalu
+  utuh, terpotong terus, 403 dan file tidak sesuai manifest; jawaban status terpotong), 88/88; uji mutasi 4,
+  tertangkap.
+- **Not covered:** halaman Terminal (`terminal/src/data/worker.ts download`) punya pola yang sama (isi dibaca tanpa
+  ulang); milik pekerjaan Terminal, dicatat di sini.
+- **Status:** FIXED di kode, deploy dev edge-bff `390eca4b` (SUCCESS 13:26 UTC). E2E 13:27 UTC lulus dengan halaman
+  bersih (tidak ada unduhan yang perlu diulang pada run itu, jadi jalur ulang dibuktikan oleh tes halaman, bukan oleh
+  E2E). Masuk `main` lewat PR backtest.
+- **Lesson for new data:** transfer yang putus adalah gangguan jaringan (diulang), file utuh yang tidak cocok adalah data
+  rusak (tidak diulang); pembaca membedakan keduanya di tempat isi dibaca.
+
 ### EXEC-TERMINAL-FRESH — alat gambar di Flow, kepala tabel Top brokers (2026-10-27)
 
 - **Go user 2026-10-27:** "... di Flow hanya kelompok Lines yang tersedia (Trend line, Horizontal line, Horizontal ray,

@@ -29,6 +29,93 @@ Build and checks, from `terminal/`: `npm ci`, `npm run build` (typecheck + build
 `python3 tests/visual/diff.py <out>` (must report 0 differing pixels). `/terminal-app/?fixture=reference` runs the
 page on the reference's synthetic data.
 
+## Backtest tab (EDGE backtest, 2026-10-26)
+
+Rules and decisions: `backtest/CONTRACT.md`; wire types: `backtest/src/core/contract.ts`. The page `backtest/`
+(TypeScript + Vite) is built by the Dockerfile's `backtest` stage into `static/backtest-app/` (not kept in git) and
+shown under the EDGE top bar in a frame at `/backtest` (Backtest tab, next to Terminal). `/backtest-app/` has the
+terminal page's CSP (its own scripts only, inline style attributes, Google Fonts, and `connect-src` to the bucket
+because the signal preview downloads the files `/api/terminal/v1/bundle` presigns). The computation runs in the private
+`backtest-worker` (Node); edge-bff queues the jobs, keeps the results and counts the trials.
+
+| Method/path (session cookie; POST with Origin + `X-CSRF-Token`) | Result |
+| --- | --- |
+| GET `/api/v1/backtests/catalog` | the worker's `Catalog` as it is (each ticker with its `groups`, the portfolio picker's `groupings`, `limits` with `max_portfolio_tickers`), kept 60 s (the last one while the worker does not answer) |
+| POST `/api/v1/backtests` | body = `BacktestRequest` + optional `client_request_id`; the worker checks it (`/v1/validate`, its 422/424 relayed as they are), then 202 `{request_id, state, created}`; the same `client_request_id` returns the same job (a portfolio's picked stocks in another order are the same request, CONTRACT.md PF3), another request under it 409 `SUBMISSION_CONFLICT`; 429 `QUEUE_FULL` with 3 queued jobs |
+| GET `/api/v1/backtests?limit=` | the latest jobs (30, at most 100), each `JobStatus` + its `request` |
+| GET `/api/v1/backtests/{id}` | `JobStatus` (progress as the worker reports it) |
+| GET `/api/v1/backtests/{id}/result` | the `core` part; in single mode with the ticker's events merged back (= the worker's `BacktestResult`); gzip; 409 `NOT_FINISHED`, 410 `RESULT_EXPIRED` |
+| GET `/api/v1/backtests/{id}/events?ticker=X` | `{conditions, exits}` of one ticker (part `events:X`); 404 `EVENTS_NOT_FOUND` |
+| POST `/api/v1/backtests/{id}/cancel` | 202 `JobStatus`: queued -> `CANCELLED` at once, running -> stopped at the worker by the loop; 409 `NOT_RUNNING` |
+| POST `/api/v1/backtests/signals` | `SignalsPreview` of the picked stocks (`tickers`) from the worker (no job, no trial); latest wins per owner: 409 `PREVIEW_REPLACED` when a newer preview arrives first; newer is the page's own order where the body carries `client_order {page, seq}` (taken out before the worker; a preview its page had already sent a newer one of answers 409 at once and never reaches the worker, CONTRACT.md section 9, ERRORS M247) |
+
+Errors are `{"error": {code, field?, message?, details?}}` (CONTRACT.md section 11). A body that is not a JSON object
+(also one nested deeper than the parser takes, one with a number beyond a double such as `1e400` or an integer of
+400 digits, or one with a string UTF-8 cannot encode, a lone surrogate such as `"\ud800"`) is 422 `INVALID_INPUT`,
+before anything is relayed or a preview replaced. edge-bff checks no field of a request: the worker
+does (for a portfolio 1 to `limits.max_portfolio_tickers` distinct published stocks, `INVALID_PORTFOLIO` /
+`UNKNOWN_TICKER`), and edge-bff relays its refusal. The catalog, the validation at submit and the
+signals preview are relayed calls: the worker's 4xx error is passed on with its status, and its own 504 `TIMEOUT`
+(the call took longer than the worker's `BACKTEST_TIMEOUT_SECONDS`) is passed on as 504 with its error, so edge-bff
+waits for an answer up to `BACKTEST_TIMEOUT_SECONDS` + 30 s (connecting stays limited to 30 s). The worker unreachable
+or answering outside its API (a 504 without the worker's `TIMEOUT` error too) is 503 `BACKTEST_UNAVAILABLE`, the feature
+off (no `BACKTEST_WORKER_URL`) 503 `BACKTEST_DISABLED`, the tables missing 503 `BACKTEST_NOT_READY` (`/ready` does not
+read them). The relayed calls are awaited on the event loop, not in a thread, and a preview whose page went away is
+cancelled, which closes its connection to the worker. Previews are latest wins (CONTRACT.md P8): a preview that arrives
+while an older one of the same owner is still in flight ends that one (its worker call is closed, it answers 409
+`PREVIEW_REPLACED`) and is sent to the worker once that call has ended, so at most one preview per owner is in flight.
+
+Tables (migration `database/migrations/20261026_005_edge_bff_backtest.sql`): `edge_bff.backtest_jobs` (request,
+lineage and variant hash from the worker, state QUEUED/RUNNING/FINISHED/FAILED/CANCELLED, progress, lease, error,
+versions, sizes; one RUNNING job per owner), `edge_bff.backtest_results` (gzip JSON per `(request_id, part)`: `core`
+and `events:<ticker>`, with bytes and sha256; deleted after 30 days) and `edge_bff.backtest_trials` (K3: one row per
+owner, lineage and distinct variant of the finished runs' `meta.trials.variants`; never reset). A trial row holds the
+daily Sharpe, kind and request of the latest run that reported the variant; its `recorded_seq` (identity) keeps the
+place where it was first recorded. The loop passes a line's trials to the worker as `prior_trials` in `recorded_seq`
+order: runs in the order they finished, each run's variants in its order. The runtime role gets only what the code
+does: jobs SELECT/INSERT/UPDATE, results SELECT/INSERT/DELETE, trials SELECT/INSERT/UPDATE; PUBLIC gets nothing (the
+migration's verify block checks both). No market data.
+
+The loop (`app/backtest.py`, started with the ORC loop when `BACKTEST_WORKER_URL` is set) takes the oldest queued job
+under a lease (`EDGE_LEASE_SECONDS`, heartbeat `EDGE_HEARTBEAT_SECONDS`), reads its line's trials and posts
+`{job_id, request, context: {job_id, prior_trials}}` to the worker (`409 BUSY` = another job there: it waits; a post
+left unanswered whose id the worker does not know, as one whose caller left while the worker read its reference lists,
+is posted again, three attempts in all), reads its
+status every `EDGE_POLL_SECONDS` (progress stored, cancellation forwarded; an ended job keeps the worker's final
+progress), and on `FINISHED` fetches the result, stores its parts and its variants and marks the job `FINISHED` with
+the versions in one transaction. The result is unpacked by edge-bff as it arrives and never past
+`BACKTEST_MAX_RESULT_BYTES` of JSON (over it: `FAILED LIMIT_EXCEEDED`, nothing stored). The worker keeps a finished
+result until its next job starts, so a result that could not be fetched is fetched again at the next poll; one that
+was fetched but could not be stored because the database failed in a way a retry may mend (`OperationalError`) is
+kept and stored again at every poll until `BACKTEST_TIMEOUT_SECONDS`, then `FAILED RESULT_NOT_STORED`; any other store
+failure is `FAILED RESULT_NOT_STORED` at once. Any other database call around a job (the hand-over, the follower, the
+heartbeat) that fails so is made again at the next poll or beat until the same deadline, an end until
+`EDGE_LEASE_SECONDS` past it. A database failure is not counted as an unanswered worker call; each one is logged
+(`backtest_result_store_failed`, `backtest_job_store_failed` with its `step`) with the exception's class and its
+SQLSTATE or libpq's text without credentials, names or addresses. The lease token fences the follower; the expiry only
+lets reap end a job its follower left. A follower that finds the job no longer its own (reap took it, or a write of its
+own committed although the database's answer was lost) stops and logs `backtest_lease_lost` once, with the job's state
+read then.
+A job is never sent twice: the worker forgetting it (`404 UNKNOWN_JOB`) or no longer keeping its result (`410
+RESULT_GONE`: a newer job started there) is `FAILED WORKER_LOST` at once, not answering three times in a row is `FAILED
+WORKER_LOST` too, as is a job reap took because its lease expired (edge-bff stopped while following it; the worker is
+told to cancel it), and a job running longer than `BACKTEST_TIMEOUT_SECONDS` is cancelled and `FAILED TIMEOUT`.
+Expired result parts are deleted when the loop starts and then once an hour.
+
+"Required" variables have no default in the code: with `BACKTEST_WORKER_URL` set, edge-bff does not start without
+them. The Railway dev column holds the dev values (the limits are initial values, re-measured in the dev E2E, K7b).
+
+| Variable | Default | Railway dev | Meaning |
+| --- | --- | --- | --- |
+| BACKTEST_WORKER_URL | empty = feature off | `http://backtest-worker.railway.internal:8080` | the worker's private Railway endpoint (`http`, host `backtest-worker.railway.internal`; anything else is refused outside `EDGE_ENVIRONMENT=local`) |
+| BACKTEST_WORKER_KEY | empty | `${{backtest-worker.BACKTEST_WORKER_KEY}}` (Railway reference; never a value here) | sent as `x-backtest-worker-key`; at least 32 characters; set together with the URL |
+| BACKTEST_TIMEOUT_SECONDS | required | 900 (the worker's value) | longest job on edge-bff's side; the relayed calls wait this + 30 s for the worker's answer |
+| BACKTEST_MAX_RESULT_BYTES | required | `${{backtest-worker.BACKTEST_MAX_RESULT_BYTES}}` (Railway reference) | the most JSON a result may unpack to; the same value as the worker's, which refuses a larger result before sending it |
+| BACKTEST_QUEUED_PER_OWNER | 3 | 3 (default; not set) | queued jobs per owner (`429 QUEUE_FULL` above it); the worker's catalog reports its own value, default 3 |
+
+Tests: `tests/test_backtest.py` (fake worker as a local HTTP server, disposable Postgres, one Chromium check of the
+tab, and the image's build context: `.dockerignore` matched as Docker matches it, against the Dockerfile's COPY lines).
+
 ## Front-end structure: editing the page without touching the API (EXEC-X, 2026-10-08)
 
 The page is edited as one HTML file and its API wiring is not locked to the view. Four layers, each with one job:
@@ -147,11 +234,14 @@ Limitations written out (Word has no folded sections) and the footer. Tests: `te
 ## Persistence and ownership
 
 Orc owns history, answers, methodology, evidence, usage and exports. BFF accesses them only through authenticated
-Orc endpoints, not SQL. Its dedicated restricted schema holds three operational tables: sessions, jobs and UI
-metadata. Jobs retain original inputs for deterministic replay, not answers. Pins/bookmarks do not extend Orc's
-retention (code default 30 days, actual configuration must be checked before rollout). Expired history returns 410.
-There is currently no automatic purge of terminal job inputs/UI metadata: define an operational retention policy
-before long-term use. Sessions are cleaned hourly.
+Orc endpoints, not SQL. Its dedicated restricted schema holds its operational tables: sessions, jobs and UI metadata,
+and, with migration `20261026_005`, the three backtest tables (backtest jobs, result parts and trials; see Backtest
+tab), which hold no market data. Jobs retain original inputs for deterministic replay, not answers. Pins/bookmarks do
+not extend Orc's retention (code default 30 days, actual configuration must be checked before rollout). Expired
+history returns 410.
+There is currently no automatic purge of terminal job inputs/UI metadata or of backtest jobs: define an operational
+retention policy before long-term use. Backtest result parts are deleted after 30 days; the backtest trials are never
+reset (K3). Sessions are cleaned when the loop starts and then hourly.
 
 Deployment configuration rejects an administrative database username; it requires `edge_bff_login`.
 The server sets `X-Saniti-Owner`; a browser cannot choose an owner. One active job per owner is intentional for this

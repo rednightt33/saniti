@@ -1,0 +1,1207 @@
+{
+ "tickers": {
+  "BBCA": {
+   "files": {
+    "price": [
+     {
+      "year": null,
+      "pack": "price",
+      "rows": 2124,
+      "bytes": 26638
+     }
+    ],
+    "broker": [
+     {
+      "year": null,
+      "pack": "broker-archive",
+      "rows": 179233,
+      "bytes": 1876485
+     },
+     {
+      "year": 2025,
+      "pack": null,
+      "rows": 24286,
+      "bytes": 270346
+     },
+     {
+      "year": 2026,
+      "pack": null,
+      "rows": 20107,
+      "bytes": 228406
+     }
+    ]
+   },
+   "data_through": {
+    "price": "2026-10-26",
+    "broker": "2026-10-23"
+   },
+   "sorted_unique": true,
+   "rows_file": 223626,
+   "investors": [
+    "Domestic",
+    "Foreign"
+   ],
+   "boards": [
+    "Nego",
+    "Regular",
+    "Tunai"
+   ],
+   "download_s": 6.4,
+   "years": {
+    "2016": {
+     "ok": true,
+     "rows": 16258
+    },
+    "2017": {
+     "ok": true,
+     "rows": 15284
+    },
+    "2018": {
+     "ok": true,
+     "rows": 18190
+    },
+    "2019": {
+     "ok": true,
+     "rows": 18353
+    },
+    "2020": {
+     "ok": true,
+     "rows": 22678
+    },
+    "2021": {
+     "ok": true,
+     "rows": 21741
+    },
+    "2022": {
+     "ok": true,
+     "rows": 23588
+    },
+    "2023": {
+     "ok": true,
+     "rows": 21586
+    },
+    "2024": {
+     "ok": true,
+     "rows": 21555
+    },
+    "2025": {
+     "ok": true,
+     "rows": 24286
+    },
+    "2026": {
+     "ok": true,
+     "rows": 20107
+    }
+   },
+   "units": {
+    "days": 2123,
+    "value_ratio_p05_p50_p95": [
+     0.9890463405990789,
+     1.1096542580311972,
+     1.7033221521429511
+    ],
+    "lots_ratio_p05_p50_p95": [
+     0.9973637999672793,
+     1.1097792086473608,
+     1.6925843073330327
+    ],
+    "price_days_without_broker_rows": 0,
+    "broker_days_without_price": 476
+   },
+   "ok": true
+  },
+  "MAPI": {
+   "files": {
+    "price": [
+     {
+      "year": null,
+      "pack": "price",
+      "rows": 2124,
+      "bytes": 24715
+     }
+    ],
+    "broker": [
+     {
+      "year": null,
+      "pack": "broker-archive",
+      "rows": 98564,
+      "bytes": 954502
+     },
+     {
+      "year": 2025,
+      "pack": null,
+      "rows": 12431,
+      "bytes": 133840
+     },
+     {
+      "year": 2026,
+      "pack": null,
+      "rows": 9086,
+      "bytes": 95633
+     }
+    ]
+   },
+   "data_through": {
+    "price": "2026-10-26",
+    "broker": "2026-10-23"
+   },
+   "sorted_unique": true,
+   "rows_file": 120081,
+   "investors": [
+    "Domestic",
+    "Foreign"
+   ],
+   "boards": [
+    "Nego",
+    "Regular",
+    "Tunai"
+   ],
+   "download_s": 7.3,
+   "years": {
+    "2016": {
+     "ok": true,
+     "rows": 7422
+    },
+    "2017": {
+     "ok": true,
+     "rows": 7890
+    },
+    "2018": {
+     "ok": true,
+     "rows": 9830
+    },
+    "2019": {
+     "ok": true,
+     "rows": 11704
+    },
+    "2020": {
+     "ok": true,
+     "rows": 12049
+    },
+    "2021": {
+     "ok": true,
+     "rows": 11819
+    },
+    "2022": {
+     "ok": true,
+     "rows": 12102
+    },
+    "2023": {
+     "ok": true,
+     "rows": 13139
+    },
+    "2024": {
+     "ok": true,
+     "rows": 12609
+    },
+    "2025": {
+     "ok": true,
+     "rows": 12431
+    },
+    "2026": {
+     "ok": true,
+     "rows": 9086
+    }
+   },
+   "units": {
+    "days": 2123,
+    "value_ratio_p05_p50_p95": [
+     0.962806640368091,
+     1.042700767978555,
+     2.8583214157902956
+    ],
+    "lots_ratio_p05_p50_p95": [
+     0.9723357197955839,
+     1.0446406909602601,
+     2.849895656394079
+    ],
+    "price_days_without_broker_rows": 0,
+    "broker_days_without_price": 476
+   },
+   "ok": true
+  },
+  "GOTO": {
+   "files": {
+    "price": [
+     {
+      "year": null,
+      "pack": "price",
+      "rows": 1083,
+      "bytes": 12573
+     }
+    ],
+    "broker": [
+     {
+      "year": null,
+      "pack": "broker-archive",
+      "rows": 62684,
+      "bytes": 788190
+     },
+     {
+      "year": 2025,
+      "pack": null,
+      "rows": 21452,
+      "bytes": 269634
+     },
+     {
+      "year": 2026,
+      "pack": null,
+      "rows": 14966,
+      "bytes": 164074
+     }
+    ]
+   },
+   "data_through": {
+    "price": "2026-10-26",
+    "broker": "2026-10-23"
+   },
+   "sorted_unique": true,
+   "rows_file": 99102,
+   "investors": [
+    "Domestic",
+    "Foreign"
+   ],
+   "boards": [
+    "Nego",
+    "Regular",
+    "Tunai"
+   ],
+   "download_s": 5.6,
+   "years": {
+    "2022": {
+     "ok": true,
+     "rows": 17632
+    },
+    "2023": {
+     "ok": true,
+     "rows": 23756
+    },
+    "2024": {
+     "ok": true,
+     "rows": 21296
+    },
+    "2025": {
+     "ok": true,
+     "rows": 21452
+    },
+    "2026": {
+     "ok": true,
+     "rows": 14966
+    }
+   },
+   "units": {
+    "days": 1082,
+    "value_ratio_p05_p50_p95": [
+     0.9845212381101789,
+     1.0145387351644855,
+     8.932434456928839
+    ],
+    "lots_ratio_p05_p50_p95": [
+     1.0000770677870965,
+     1.0217821828100266,
+     10.390064179651265
+    ],
+    "price_days_without_broker_rows": 0,
+    "broker_days_without_price": 2
+   },
+   "ok": true
+  },
+  "BREN": {
+   "files": {
+    "price": [
+     {
+      "year": null,
+      "pack": "price",
+      "rows": 719,
+      "bytes": 9549
+     }
+    ],
+    "broker": [
+     {
+      "year": null,
+      "pack": "broker-archive",
+      "rows": 20562,
+      "bytes": 222576
+     },
+     {
+      "year": 2025,
+      "pack": null,
+      "rows": 16879,
+      "bytes": 183721
+     },
+     {
+      "year": 2026,
+      "pack": null,
+      "rows": 12363,
+      "bytes": 133664
+     }
+    ]
+   },
+   "data_through": {
+    "price": "2026-10-26",
+    "broker": "2026-10-23"
+   },
+   "sorted_unique": true,
+   "rows_file": 49804,
+   "investors": [
+    "Domestic",
+    "Foreign"
+   ],
+   "boards": [
+    "Nego",
+    "Regular",
+    "Tunai"
+   ],
+   "download_s": 4.9,
+   "years": {
+    "2023": {
+     "ok": true,
+     "rows": 4465
+    },
+    "2024": {
+     "ok": true,
+     "rows": 16097
+    },
+    "2025": {
+     "ok": true,
+     "rows": 16879
+    },
+    "2026": {
+     "ok": true,
+     "rows": 12363
+    }
+   },
+   "units": {
+    "days": 718,
+    "value_ratio_p05_p50_p95": [
+     0.9720733462576112,
+     1.0042336971108663,
+     1.2496717753178959
+    ],
+    "lots_ratio_p05_p50_p95": [
+     1.0,
+     1.0000036085822397,
+     1.2911693586713389
+    ],
+    "price_days_without_broker_rows": 0,
+    "broker_days_without_price": 3
+   },
+   "ok": true
+  },
+  "ANTM": {
+   "files": {
+    "price": [
+     {
+      "year": null,
+      "pack": "price",
+      "rows": 2124,
+      "bytes": 26687
+     }
+    ],
+    "broker": [
+     {
+      "year": null,
+      "pack": "broker-archive",
+      "rows": 174075,
+      "bytes": 1893385
+     },
+     {
+      "year": 2025,
+      "pack": null,
+      "rows": 19508,
+      "bytes": 224886
+     },
+     {
+      "year": 2026,
+      "pack": null,
+      "rows": 16475,
+      "bytes": 191020
+     }
+    ]
+   },
+   "data_through": {
+    "price": "2026-10-26",
+    "broker": "2026-10-23"
+   },
+   "sorted_unique": true,
+   "rows_file": 210058,
+   "investors": [
+    "Domestic",
+    "Foreign"
+   ],
+   "boards": [
+    "Nego",
+    "Regular",
+    "Tunai"
+   ],
+   "download_s": 7.0,
+   "years": {
+    "2016": {
+     "ok": true,
+     "rows": 19685
+    },
+    "2017": {
+     "ok": true,
+     "rows": 15837
+    },
+    "2018": {
+     "ok": true,
+     "rows": 18224
+    },
+    "2019": {
+     "ok": true,
+     "rows": 20054
+    },
+    "2020": {
+     "ok": true,
+     "rows": 19980
+    },
+    "2021": {
+     "ok": true,
+     "rows": 22675
+    },
+    "2022": {
+     "ok": true,
+     "rows": 22225
+    },
+    "2023": {
+     "ok": true,
+     "rows": 18005
+    },
+    "2024": {
+     "ok": true,
+     "rows": 17390
+    },
+    "2025": {
+     "ok": true,
+     "rows": 19508
+    },
+    "2026": {
+     "ok": true,
+     "rows": 16475
+    }
+   },
+   "units": {
+    "days": 2123,
+    "value_ratio_p05_p50_p95": [
+     0.927302663706283,
+     1.0060527507480546,
+     1.2012416647382689
+    ],
+    "lots_ratio_p05_p50_p95": [
+     0.9287820093944732,
+     1.0003764872422591,
+     1.1769205144334716
+    ],
+    "price_days_without_broker_rows": 0,
+    "broker_days_without_price": 476
+   },
+   "ok": true
+  },
+  "TLKM": {
+   "files": {
+    "price": [
+     {
+      "year": null,
+      "pack": "price",
+      "rows": 2124,
+      "bytes": 25721
+     }
+    ],
+    "broker": [
+     {
+      "year": null,
+      "pack": "broker-archive",
+      "rows": 198255,
+      "bytes": 2165183
+     },
+     {
+      "year": 2025,
+      "pack": null,
+      "rows": 19750,
+      "bytes": 220761
+     },
+     {
+      "year": 2026,
+      "pack": null,
+      "rows": 16056,
+      "bytes": 181695
+     }
+    ]
+   },
+   "data_through": {
+    "price": "2026-10-26",
+    "broker": "2026-10-23"
+   },
+   "sorted_unique": true,
+   "rows_file": 234061,
+   "investors": [
+    "Domestic",
+    "Foreign"
+   ],
+   "boards": [
+    "Nego",
+    "Regular",
+    "Tunai"
+   ],
+   "download_s": 6.5,
+   "years": {
+    "2016": {
+     "ok": true,
+     "rows": 22019
+    },
+    "2017": {
+     "ok": true,
+     "rows": 19836
+    },
+    "2018": {
+     "ok": true,
+     "rows": 23432
+    },
+    "2019": {
+     "ok": true,
+     "rows": 22027
+    },
+    "2020": {
+     "ok": true,
+     "rows": 24908
+    },
+    "2021": {
+     "ok": true,
+     "rows": 22333
+    },
+    "2022": {
+     "ok": true,
+     "rows": 21985
+    },
+    "2023": {
+     "ok": true,
+     "rows": 20581
+    },
+    "2024": {
+     "ok": true,
+     "rows": 21134
+    },
+    "2025": {
+     "ok": true,
+     "rows": 19750
+    },
+    "2026": {
+     "ok": true,
+     "rows": 16056
+    }
+   },
+   "units": {
+    "days": 2123,
+    "value_ratio_p05_p50_p95": [
+     0.9538411232472837,
+     1.10045573171269,
+     1.651155705860821
+    ],
+    "lots_ratio_p05_p50_p95": [
+     0.9551275763144327,
+     1.101840300643892,
+     1.6563100122918362
+    ],
+    "price_days_without_broker_rows": 0,
+    "broker_days_without_price": 476
+   },
+   "ok": true
+  },
+  "BINA": {
+   "files": {
+    "price": [
+     {
+      "year": null,
+      "pack": "price",
+      "rows": 2103,
+      "bytes": 21009
+     }
+    ],
+    "broker": [
+     {
+      "year": null,
+      "pack": "broker-archive",
+      "rows": 39762,
+      "bytes": 324111
+     },
+     {
+      "year": 2025,
+      "pack": null,
+      "rows": 1872,
+      "bytes": 13705
+     },
+     {
+      "year": 2026,
+      "pack": null,
+      "rows": 3017,
+      "bytes": 25319
+     }
+    ]
+   },
+   "data_through": {
+    "price": "2026-10-26",
+    "broker": "2026-10-23"
+   },
+   "sorted_unique": true,
+   "rows_file": 44651,
+   "investors": [
+    "Domestic",
+    "Foreign"
+   ],
+   "boards": [
+    "Nego",
+    "Regular",
+    "Tunai"
+   ],
+   "download_s": 4.3,
+   "years": {
+    "2016": {
+     "ok": true,
+     "rows": 440
+    },
+    "2017": {
+     "ok": true,
+     "rows": 5475
+    },
+    "2018": {
+     "ok": true,
+     "rows": 5479
+    },
+    "2019": {
+     "ok": true,
+     "rows": 2765
+    },
+    "2020": {
+     "ok": true,
+     "rows": 3190
+    },
+    "2021": {
+     "ok": true,
+     "rows": 9907
+    },
+    "2022": {
+     "ok": true,
+     "rows": 6864
+    },
+    "2023": {
+     "ok": true,
+     "rows": 3204
+    },
+    "2024": {
+     "ok": true,
+     "rows": 2438
+    },
+    "2025": {
+     "ok": true,
+     "rows": 1872
+    },
+    "2026": {
+     "ok": true,
+     "rows": 3017
+    }
+   },
+   "units": {
+    "days": 2102,
+    "value_ratio_p05_p50_p95": [
+     0.9400509700764261,
+     0.9994613264045121,
+     6.596476013258453
+    ],
+    "lots_ratio_p05_p50_p95": [
+     0.9560975609756097,
+     1.0,
+     6.790223065970574
+    ],
+    "price_days_without_broker_rows": 0,
+    "broker_days_without_price": 354
+   },
+   "ok": true
+  },
+  "WGSH": {
+   "files": {
+    "price": [
+     {
+      "year": null,
+      "pack": "price",
+      "rows": 1168,
+      "bytes": 12225
+     }
+    ],
+    "broker": [
+     {
+      "year": null,
+      "pack": "broker-archive",
+      "rows": 15215,
+      "bytes": 138205
+     },
+     {
+      "year": 2025,
+      "pack": null,
+      "rows": 4118,
+      "bytes": 37081
+     },
+     {
+      "year": 2026,
+      "pack": null,
+      "rows": 4491,
+      "bytes": 45540
+     }
+    ]
+   },
+   "data_through": {
+    "price": "2026-10-26",
+    "broker": "2026-10-23"
+   },
+   "sorted_unique": true,
+   "rows_file": 23824,
+   "investors": [
+    "Domestic",
+    "Foreign"
+   ],
+   "boards": [
+    "Nego",
+    "Regular",
+    "Tunai"
+   ],
+   "download_s": 4.9,
+   "years": {
+    "2021": {
+     "ok": true,
+     "rows": 799
+    },
+    "2022": {
+     "ok": true,
+     "rows": 7169
+    },
+    "2023": {
+     "ok": true,
+     "rows": 4187
+    },
+    "2024": {
+     "ok": true,
+     "rows": 3060
+    },
+    "2025": {
+     "ok": true,
+     "rows": 4118
+    },
+    "2026": {
+     "ok": true,
+     "rows": 4491
+    }
+   },
+   "units": {
+    "days": 1167,
+    "value_ratio_p05_p50_p95": [
+     0.9652003293863759,
+     0.9995020880642163,
+     1.8766214566092008
+    ],
+    "lots_ratio_p05_p50_p95": [
+     1.0,
+     1.0,
+     1.9321401938851603
+    ],
+    "price_days_without_broker_rows": 0,
+    "broker_days_without_price": 2
+   },
+   "ok": true
+  },
+  "DGIK": {
+   "files": {
+    "price": [
+     {
+      "year": null,
+      "pack": "price",
+      "rows": 1977,
+      "bytes": 17729
+     }
+    ],
+    "broker": [
+     {
+      "year": null,
+      "pack": "broker-archive",
+      "rows": 60646,
+      "bytes": 607691
+     },
+     {
+      "year": 2025,
+      "pack": null,
+      "rows": 7275,
+      "bytes": 69123
+     },
+     {
+      "year": 2026,
+      "pack": null,
+      "rows": 5495,
+      "bytes": 53449
+     }
+    ]
+   },
+   "data_through": {
+    "price": "2026-10-26",
+    "broker": "2026-10-23"
+   },
+   "sorted_unique": true,
+   "rows_file": 73416,
+   "investors": [
+    "Domestic",
+    "Foreign"
+   ],
+   "boards": [
+    "Nego",
+    "Regular",
+    "Tunai"
+   ],
+   "download_s": 6.6,
+   "years": {
+    "2016": {
+     "ok": true,
+     "rows": 7366
+    },
+    "2017": {
+     "ok": true,
+     "rows": 9798
+    },
+    "2018": {
+     "ok": true,
+     "rows": 5972
+    },
+    "2019": {
+     "ok": true,
+     "rows": 626
+    },
+    "2020": {
+     "ok": true,
+     "rows": 532
+    },
+    "2021": {
+     "ok": true,
+     "rows": 8459
+    },
+    "2022": {
+     "ok": true,
+     "rows": 11002
+    },
+    "2023": {
+     "ok": true,
+     "rows": 9790
+    },
+    "2024": {
+     "ok": true,
+     "rows": 7101
+    },
+    "2025": {
+     "ok": true,
+     "rows": 7275
+    },
+    "2026": {
+     "ok": true,
+     "rows": 5495
+    }
+   },
+   "units": {
+    "days": 1973,
+    "value_ratio_p05_p50_p95": [
+     0.9705753454148438,
+     1.0,
+     1.054739811683984
+    ],
+    "lots_ratio_p05_p50_p95": [
+     0.9985437169830037,
+     1.0,
+     1.0359174785740208
+    ],
+    "price_days_without_broker_rows": 3,
+    "broker_days_without_price": 490
+   },
+   "ok": true
+  },
+  "SEMA": {
+   "files": {
+    "price": [
+     {
+      "year": null,
+      "pack": "price",
+      "rows": 1139,
+      "bytes": 11776
+     }
+    ],
+    "broker": [
+     {
+      "year": null,
+      "pack": "broker-archive",
+      "rows": 20034,
+      "bytes": 193414
+     },
+     {
+      "year": 2025,
+      "pack": null,
+      "rows": 4516,
+      "bytes": 41543
+     },
+     {
+      "year": 2026,
+      "pack": null,
+      "rows": 4321,
+      "bytes": 44459
+     }
+    ]
+   },
+   "data_through": {
+    "price": "2026-10-26",
+    "broker": "2026-10-23"
+   },
+   "sorted_unique": true,
+   "rows_file": 28871,
+   "investors": [
+    "Domestic",
+    "Foreign"
+   ],
+   "boards": [
+    "Nego",
+    "Regular",
+    "Tunai"
+   ],
+   "download_s": 5.6,
+   "years": {
+    "2022": {
+     "ok": true,
+     "rows": 8582
+    },
+    "2023": {
+     "ok": true,
+     "rows": 7332
+    },
+    "2024": {
+     "ok": true,
+     "rows": 4120
+    },
+    "2025": {
+     "ok": true,
+     "rows": 4516
+    },
+    "2026": {
+     "ok": true,
+     "rows": 4321
+    }
+   },
+   "units": {
+    "days": 1138,
+    "value_ratio_p05_p50_p95": [
+     0.9773565471067467,
+     1.0012669713905509,
+     5.708675780636182
+    ],
+    "lots_ratio_p05_p50_p95": [
+     1.0,
+     1.0,
+     5.520795660036167
+    ],
+    "price_days_without_broker_rows": 0,
+    "broker_days_without_price": 2
+   },
+   "ok": true
+  },
+  "BMSR": {
+   "files": {
+    "price": [
+     {
+      "year": null,
+      "pack": "price",
+      "rows": 2074,
+      "bytes": 20274
+     }
+    ],
+    "broker": [
+     {
+      "year": null,
+      "pack": "broker-archive",
+      "rows": 25164,
+      "bytes": 211036
+     },
+     {
+      "year": 2025,
+      "pack": null,
+      "rows": 2949,
+      "bytes": 23133
+     },
+     {
+      "year": 2026,
+      "pack": null,
+      "rows": 2288,
+      "bytes": 18704
+     }
+    ]
+   },
+   "data_through": {
+    "price": "2026-10-26",
+    "broker": "2026-10-23"
+   },
+   "sorted_unique": true,
+   "rows_file": 30401,
+   "investors": [
+    "Domestic",
+    "Foreign"
+   ],
+   "boards": [
+    "Nego",
+    "Regular",
+    "Tunai"
+   ],
+   "download_s": 4.3,
+   "years": {
+    "2016": {
+     "ok": true,
+     "rows": 236
+    },
+    "2017": {
+     "ok": true,
+     "rows": 1062
+    },
+    "2018": {
+     "ok": true,
+     "rows": 1637
+    },
+    "2019": {
+     "ok": true,
+     "rows": 2103
+    },
+    "2020": {
+     "ok": true,
+     "rows": 2258
+    },
+    "2021": {
+     "ok": true,
+     "rows": 5494
+    },
+    "2022": {
+     "ok": true,
+     "rows": 5283
+    },
+    "2023": {
+     "ok": true,
+     "rows": 4150
+    },
+    "2024": {
+     "ok": true,
+     "rows": 2941
+    },
+    "2025": {
+     "ok": true,
+     "rows": 2949
+    },
+    "2026": {
+     "ok": true,
+     "rows": 2288
+    }
+   },
+   "units": {
+    "days": 2072,
+    "value_ratio_p05_p50_p95": [
+     0.9440298507462687,
+     1.0,
+     1.0666666666666667
+    ],
+    "lots_ratio_p05_p50_p95": [
+     0.9789671529580238,
+     1.0,
+     1.0
+    ],
+    "price_days_without_broker_rows": 1,
+    "broker_days_without_price": 247
+   },
+   "ok": true
+  },
+  "ZATA": {
+   "files": {
+    "price": [
+     {
+      "year": null,
+      "pack": "price",
+      "rows": 914,
+      "bytes": 8092
+     }
+    ],
+    "broker": [
+     {
+      "year": null,
+      "pack": "broker-archive",
+      "rows": 10156,
+      "bytes": 96072
+     },
+     {
+      "year": 2025,
+      "pack": null,
+      "rows": 6276,
+      "bytes": 61939
+     },
+     {
+      "year": 2026,
+      "pack": null,
+      "rows": 7686,
+      "bytes": 91617
+     }
+    ]
+   },
+   "data_through": {
+    "price": "2026-10-26",
+    "broker": "2026-10-23"
+   },
+   "sorted_unique": true,
+   "rows_file": 24118,
+   "investors": [
+    "Domestic",
+    "Foreign"
+   ],
+   "boards": [
+    "Nego",
+    "Regular",
+    "Tunai"
+   ],
+   "download_s": 4.8,
+   "years": {
+    "2022": {
+     "ok": true,
+     "rows": 1980
+    },
+    "2023": {
+     "ok": true,
+     "rows": 4813
+    },
+    "2024": {
+     "ok": true,
+     "rows": 3363
+    },
+    "2025": {
+     "ok": true,
+     "rows": 6276
+    },
+    "2026": {
+     "ok": true,
+     "rows": 7686
+    }
+   },
+   "units": {
+    "days": 913,
+    "value_ratio_p05_p50_p95": [
+     0.9311453505365569,
+     1.0,
+     2.054958039043997
+    ],
+    "lots_ratio_p05_p50_p95": [
+     1.0,
+     1.0,
+     2.3750524238736603
+    ],
+    "price_days_without_broker_rows": 0,
+    "broker_days_without_price": 15
+   },
+   "ok": true
+  }
+ },
+ "tolerance": "sum(|x|) * 2**-53 per sum; counts and dates exact",
+ "sql_max_trade_date": "2026-10-23",
+ "all_ok": true
+}

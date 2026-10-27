@@ -1,0 +1,14 @@
+{
+  "name": "edge-backtest-worker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "EDGE backtest worker: private HTTP service that runs backtests with the shared core (edge-bff/backtest/src/core) on the Terminal's published data and the Terminal's own indicator module (user decision K1 = C, 2026-10-26).",
+  "engines": { "node": ">=22.6" },
+  "scripts": {
+    "start": "node --experimental-strip-types --import ./loader/register.mjs src/server.ts",
+    "registry": "node --experimental-strip-types --import ./loader/register.mjs scripts/build-registry.mjs",
+    "registry:check": "node --experimental-strip-types --import ./loader/register.mjs scripts/build-registry.mjs --check",
+    "test": "node --experimental-strip-types --import ./loader/register.mjs --test tests/*.test.ts"
+  }
+}

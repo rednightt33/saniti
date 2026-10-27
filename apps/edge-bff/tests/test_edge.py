@@ -350,3 +350,18 @@ def test_an_attached_selection_reaches_orc_and_a_bad_one_is_refused(settings,sto
         orc.PROGRESS={id:{'status':'RUNNING','elapsed_ms':5,'steps':[],'earlier_steps':0}}
         assert c.get('/api/v1/runs/'+id+'/progress').json()['status']=='RUNNING'
         assert c.get('/api/v1/runs/edge_unknown/progress').status_code==404
+
+def test_sessions_are_cleaned_when_the_loop_starts_whatever_the_clock_reads(settings,monkeypatch):
+    # time.monotonic() counts from an unspecified point (on Linux the host's boot): on a host up for 5 s the loop still
+    # cleans the sessions at its start, then once an hour (3600 s after that cleanup), not on every turn
+    import types
+    from app import worker as worker_module
+    now={'t':5.0};calls=[]
+    class Store:
+        def cleanup_sessions(self):calls.append('cleanup')
+        def claim(self,lease):
+            calls.append('claim');n=calls.count('claim');now['t']+={1:1.0,2:3600.0}.get(n,0.0)
+            if n==3:loop.stop()
+    monkeypatch.setattr(worker_module,'time',types.SimpleNamespace(monotonic=lambda:now['t']))
+    loop=Worker(settings,Store(),FakeOrc());asyncio.run(loop.run())
+    assert calls==['cleanup','claim','claim','cleanup','claim']

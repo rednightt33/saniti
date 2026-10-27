@@ -30,10 +30,12 @@ class Worker:
             pass
 
     async def run(self):
-        cleaned_at = 0
+        # None: not cleaned yet, so at the start. Never 0: time.monotonic() counts from an unspecified point (on Linux the
+        # host's boot), so on a host up for less than an hour a 0 would skip the start's cleanup.
+        cleaned_at = None
         while not self.stopping.is_set():
             try:
-                if time.monotonic() - cleaned_at > 3600:
+                if cleaned_at is None or time.monotonic() - cleaned_at > 3600:
                     await self.call(self.store.cleanup_sessions)
                     cleaned_at = time.monotonic()
                 row = await self.call(self.store.claim, self.settings.lease_seconds)
