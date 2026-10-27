@@ -35,15 +35,17 @@ not in the path.
 - Presigned URLs: a `/bundle` answer's URLs live `expires_in_seconds` (terminal-api `url_ttl_seconds`). The worker
   first asks every ticker's `/bundle` (the manifests decide the exclusions, the limits and `FLOW_DATA_THROUGH`; no file
   is downloaded), then loads each ticker from that answer while its age plus `BACKTEST_HTTP_TIMEOUT_MS` is under the
-  lifetime (an answer without a lifetime is never reused), else from a new answer asked right before the ticker's
-  downloads; a ticker whose file the bucket still refuses with 403 (the URL expired) is loaded once more from a new
-  answer. A new answer is the run's data, from a later publish too: its files are the ones read (`data_version`) and
-  take the place of the ticker's first ones in the limits (section 3). Every answer counts its files in terminal-api's
-  quota and writes an audit row, so a ticker costs one answer, two once its first one is too old, three with a 403. A
-  download in flight is shared only by callers of the same file and URL. Known limits: the publisher rewrites a changed
-  file under the same bucket key, so an answer reused across a publish reads other bytes and fails the run
-  (`DATA_INTEGRITY`); a ticker whose new answer is a 404 or lacks a dataset fails the run (`DATA_MISSING`), in a
-  portfolio too; `FLOW_DATA_THROUGH` reads the first answers only.
+  lifetime (an answer without a lifetime is too old at once) or while every file it names is in the worker's memory or
+  disk cache (no URL is needed; a cached copy that fails its check is downloaded with that answer's URL), else from a
+  new answer asked right before the ticker's downloads; a ticker whose file the bucket still refuses with 403 (the URL
+  expired) is loaded once more from a new answer. A new answer is the run's data, from a later publish too: its files
+  are the ones read (`data_version`) and take the place of the ticker's first ones in the limits (section 3). Every
+  answer counts its files in terminal-api's quota and writes an audit row, so a ticker costs one answer, two once its
+  first one is too old and a file of it is not cached, three with a 403 (review COST-1). A download in flight is
+  shared only by callers of the same file and URL. Known limits: the publisher rewrites a changed file under the same
+  bucket key, so an answer reused across a publish reads other bytes and fails the run (`DATA_INTEGRITY`); a ticker
+  whose new answer is a 404 or lacks a dataset fails the run (`DATA_MISSING`), in a portfolio too;
+  `FLOW_DATA_THROUGH` reads the first answers only.
 - Portfolio **[D-exclude]**: a universe ticker without published files (terminal-api 404, or no file of a dataset the
   run reads; events aside: the publisher writes an events file only for a ticker with events) is left out with
   `DATA_MISSING` (section 4). This is decided on the manifests, before the limits are summed and before any download,
@@ -78,7 +80,14 @@ not in the path.
 - Indicators and conditions run on the ticker's **full published history** (warm-up before `period.from` uses real
   bars), and the ticker's own bars (no filling). Trading happens only inside the period. Whether a condition's series
   has any value at all (`INDICATOR_OUTPUT_EMPTY`, `FLOW_OUTPUT_EMPTY`, `FLOW_UNAVAILABLE`) is decided on the ticker's
-  bars up to `period.to` only, so bars published after the period never decide it (no look-ahead).
+  bars up to `period.to` only, so bars published after the period never decide it (no look-ahead). In a portfolio and
+  the signals preview such a condition is false on every bar, as a series is before its first value, and the ticker
+  is left out (section 4) only when its entry can then never switch on: fewer entry conditions with a value than the
+  entry needs (every one under `all`, one under `any`, `min(at_least, enabled)` under `at_least`); an exit condition
+  never leaves it out (review LA-1). So a ticker's trades up to a day, and the slots they take, never depend on its
+  bars after that day; in single mode these errors fail the run. Known limit: a ticker left out does not reach the
+  calendar (section 4), so a day on which only it has a bar (no bar of IHSG or of a ticker that runs) is a calendar
+  day when it runs and not when it is left out, and can be another ticker's next calendar day (`no_next_bar`).
 
 ## 3. Request validation (worker `validate.ts`, before any download)
 
@@ -96,30 +105,37 @@ not in the path.
 - Portfolio: `universe` from the catalog (`all`, `sector:<name>`; `UNKNOWN_UNIVERSE`); `max_positions` 1 to
   `limits.max_positions` (≤ 10); `rank_by` `fnet` needs flow.
 - Entry: at least one enabled condition (`NO_ACTIVE_CONDITION`); `window_bars` 1–20; `at_least` a whole number ≥ 1
-  when the logic is `at_least`.
+  when the logic is `at_least`, a number under the other logics (`INVALID_ENTRY`).
 - Conditions: an id has the page's shape, 1 to 6 characters `[0-9a-z]` (`INVALID_CONDITION`), unique across the entry
   and exit lists (`DUPLICATE_CONDITION_ID`); each list has at most `limits.max_conditions` enabled conditions
   (`LIMIT_EXCEEDED`, `details.limit: max_conditions`). Every condition, enabled or not, is checked for its kind,
   fields, indicator, parameters, operator, outputs and threshold: a disabled one is stored with the job, so it is held
   to the same shape, but it is not evaluated. Price-action thresholds: dip above −1 (a one-day return), volspike at
-  least 0 (a volume ratio; `VALUE_OUT_OF_RANGE`).
+  least 0 (a volume ratio; `VALUE_OUT_OF_RANGE`); the other price-action types have no `value` (`UNKNOWN_FIELD`), a
+  price-action `params` is an object (`INVALID_PARAMS`) and an `op`, when given, one of the type's operators
+  (`INVALID_CONDITION`).
 - Exit: `take_profit.mode = 'r'` needs `stop.mode` `pct | atr | line` (an R target from an R:R stop is circular,
   `INVALID_EXIT`); `stop.mode = 'rr'` needs `take_profit.mode` `pct | atr`. Numbers must be finite and > 0 where the
-  mode uses them; `max_hold_bars` whole ≥ 0.
+  mode uses them; `max_hold_bars` whole ≥ 0. A field the chosen modes do not read is stored with the job and hashed
+  into `request_hash` all the same, so it is held to its type, not to the range its mode would check (the page keeps
+  what was typed into a field it no longer shows, a cleared input as 0): `exit.atr_length` without an ATR stop or
+  target and the numbers of the stop, take-profit and trailing modes not chosen are numbers (`INVALID_EXIT`), and both
+  price lines are checked as a line mode checks its line (a registry overlay indicator, an output other than
+  `direction`, the registry's parameters) whichever mode is chosen (review VAL-1).
 - Flow: enabled flow conditions and `rank_by = 'fnet'` are refused with `FLOW_UNAVAILABLE` while
   `catalog.flow.available` is false. An enabled broker condition's code must be in terminal-api's broker reference list
   (`UNKNOWN_BROKER`, field `….params.broker`). A request reads the broker files when an enabled flow condition (entry
   or exit signals) or `rank_by = 'fnet'` needs them; it is then held to `FLOW_DATA_THROUGH` (section 2), at validation
   too.
 - Costs: fractions in [0, 0.1); `ara_gap_fraction` in (0, 1). Sizing: `capital_idr` ≥ 1; in single mode
-  `allocation_fraction` (0, 1].
+  `allocation_fraction` (0, 1], in portfolio mode a number (`INVALID_SIZING`).
 - Monte Carlo runs: exactly `limits.monte_carlo_runs` (1000) or 0 (off); `seed` a whole number ≥ 0.
 - Found only on the data, after the job was accepted (it ends `FAILED` with the error, section 11):
-  `INDICATOR_OUTPUT_EMPTY`, `FLOW_OUTPUT_EMPTY`, `FLOW_UNAVAILABLE` (in single mode; a portfolio leaves the ticker out,
-  section 4), `UNIVERSE_EMPTY`, `PERIOD_EMPTY`, `PERIOD_BEFORE_DATA`, single mode's `DATA_MISSING` (no bar of the
-  ticker inside the period), the download limits and the data errors of section 2. The job checks `PERIOD_AFTER_DATA`
-  again on the bars it reads: a last IHSG row without its four prices, which the job drops, can be refused there after
-  validation let it through, never the other way round.
+  `INDICATOR_OUTPUT_EMPTY`, `FLOW_OUTPUT_EMPTY`, `FLOW_UNAVAILABLE` (in single mode; a portfolio reads the condition
+  as false or leaves the ticker out, section 2), `UNIVERSE_EMPTY`, `PERIOD_EMPTY`, `PERIOD_BEFORE_DATA`, single
+  mode's `DATA_MISSING` (no bar of the ticker inside the period), the download limits and the data errors of
+  section 2. The job checks `PERIOD_AFTER_DATA` again on the bars it reads: a last IHSG row without its four prices,
+  which the job drops, can be refused there after validation let it through, never the other way round.
 
 Limits **[D-K7b]**: worker variables without a code default, set from the dev E2E; `catalog.limits` reports the ones
 the page can act on. The worker's `LIMIT_EXCEEDED` carries `details.limit`, `allowed` and `needed`.
@@ -149,11 +165,12 @@ What the period and the universe become on the data (`engine.ts` run, after the 
 - Portfolio **[D-exclude]**: a universe ticker whose own data cannot serve the strategy is left out of the run instead
   of failing it: no published files (`DATA_MISSING`, the loader, section 2) or an error of `signals.ts EXCLUDED_CODES`
   (`INDICATOR_OUTPUT_EMPTY`, `FLOW_OUTPUT_EMPTY`: an indicator or flow series the run needs without any value on its
-  bars; `FLOW_UNAVAILABLE`: no broker row on its bars), decided on its bars up to `period.to`. `meta.tickers` lists the
-  tickers that ran; the warning `TICKERS_EXCLUDED` lists the others, sorted by ticker (`count`, `tickers`, and
-  `reasons` with each ticker's `{ticker, code, field, message}`; the message gives the counts by code). A universe
-  ticker without a bar inside the period runs without any event. In single mode these errors fail the run; a request
-  error (a parameter, an indicator, a field) fails it in either mode.
+  bars; `FLOW_UNAVAILABLE`: no broker row on its bars), decided on its bars up to `period.to`, and only when its entry
+  cannot switch on without that condition (section 2; otherwise the condition is false on every bar and the ticker
+  runs). `meta.tickers` lists the tickers that ran; the warning `TICKERS_EXCLUDED` lists the others, sorted by ticker
+  (`count`, `tickers`, and `reasons` with each ticker's `{ticker, code, field, message}`; the message gives the counts
+  by code). A universe ticker without a bar inside the period runs without any event. In single mode these errors
+  fail the run; a request error (a parameter, an indicator, a field) fails it in either mode.
 - Every universe ticker left out **[D-L1]**: the run is refused with `UNIVERSE_EMPTY` (field `portfolio.universe`; the
   message gives the count, the counts by code and the first ticker's error), never a cash-only result.
 - The calendar is built from IHSG and the tickers that run. A period without any calendar day is `PERIOD_EMPTY`; a
@@ -171,10 +188,11 @@ What the period and the universe become on the data (`engine.ts` run, after the 
   the ticker's next bar open (that sell waits for the next bar however late; a position is never abandoned).
 - Signals preview (`POST /v1/signals`, no backtest, no trial) **[D-L4]**: each universe ticker's entry events inside
   `[from, to]` from the run's own code (`signals.ts previewRow` = the run's `periodSignals`), with the run's checks and
-  exclusions: a ticker without published files or with an error of `EXCLUDED_CODES` is left out and listed in
-  `SignalsPreview.warnings` as the run's `TICKERS_EXCLUDED` (same keys); none left is `UNIVERSE_EMPTY` (field
-  `universe`); a preview that reads broker files is held to `FLOW_DATA_THROUGH` before any download. A preview never
-  fails where the matching run succeeds. Overlapping previews **[D-P8]**: the latest wins (sections 9 and 10).
+  exclusions: a ticker without published files, or one an error of `EXCLUDED_CODES` leaves out (section 2), is left
+  out and listed in `SignalsPreview.warnings` as the run's `TICKERS_EXCLUDED` (same keys); none left is
+  `UNIVERSE_EMPTY` (field `universe`); a preview that reads broker files is held to `FLOW_DATA_THROUGH` before any
+  download. A preview never fails where the matching run succeeds. Overlapping previews **[D-P8]**: the latest wins
+  (sections 9 and 10).
 
 ## 6. Event clock (per calendar day t) **[D-E2, E3, E4, E5, E6]**
 
@@ -424,7 +442,7 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
 | no-autorun | Run at page load | yes (mock-up) / no | no | each run is a trial and a job |
 | period_end | Entry on the last day | allow / skip | skip | it would close at the same close |
 | period_clip | Single: `period.from` before the ticker's first published bar | refuse / start at that bar | start at that bar + `PERIOD_CLIPPED` (lead) | the ticker has no bar, and a buy-and-hold benchmark no value, before it |
-| exclude | Portfolio: a universe ticker whose own data cannot serve the strategy | fail the run / leave it out | leave it out + `TICKERS_EXCLUDED`: `DATA_MISSING` and `EXCLUDED_CODES`, decided on its bars up to `period.to` (lead) | one ticker's data never fails the universe's run; bars after the period never decide it |
+| exclude | Portfolio: a universe ticker whose own data cannot serve the strategy | fail the run / leave it out | leave it out + `TICKERS_EXCLUDED`: `DATA_MISSING` and `EXCLUDED_CODES`, decided on its bars up to `period.to` (lead); for `EXCLUDED_CODES` only when its entry cannot switch on without the condition, which is otherwise false on every bar (review LA-1) | one ticker's data never fails the universe's run; bars after the period never decide it, nor bars after a day what it trades up to that day (section 2 states the calendar limit) |
 | L1 | Portfolio: every universe ticker left out | cash-only result / refuse | refuse: `UNIVERSE_EMPTY`, field `portfolio.universe` (preview: `universe`) (lead) | no ticker of the strategy was run, so a cash curve would not be its result |
 | L2 | When `FLOW_DATA_THROUGH` and `PERIOD_AFTER_DATA` are found | at the job (202, then `FAILED`) / at submit | at submit too: `/v1/validate` checks both on terminal-api's manifests, 422 before queueing (lead) | a job that cannot succeed is never queued; `/manifest` grants no file and counts in no quota |
 | L3 | Caching `catalog.flow.data_through` | every call / per publish | per publish if terminal-api's answers mark a publish exactly; none does, so the worker keeps no date and a check stops at the first manifest that reaches its date (lead) | a cache without an exact marker could keep an old date after a publish |

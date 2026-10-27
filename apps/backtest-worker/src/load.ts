@@ -9,10 +9,12 @@
       of the broker files) is refused before any download: LIMIT_EXCEEDED, 422;
    2. then each ticker's files, decoded by terminal.ts loadTicker from that same manifest while its presigned URLs can
       still serve the download (terminal.ts usable: the manifest's age plus BACKTEST_HTTP_TIMEOUT_MS is under the
-      URLs' lifetime, expires_in_seconds), else from a new /bundle answer asked right before the ticker's download:
-      step 1 of a large universe and the downloads before a ticker's can take longer than the lifetime. A URL that
-      has expired all the same when its file is fetched (the bucket answers 403) is fetched again once from a new
-      /bundle answer. So a ticker costs one /bundle answer, or two once its manifest is too old, three with a 403.
+      URLs' lifetime, expires_in_seconds) or every file it names is cached (terminal.ts cached: no URL is needed),
+      else from a new /bundle answer asked right before the ticker's download: step 1 of a large universe and the
+      downloads before a ticker's can take longer than the lifetime. A URL that has expired all the same when its
+      file is fetched (the bucket answers 403; a cached copy that fails its check is downloaded) is fetched again
+      once from a new /bundle answer. So a ticker costs one /bundle answer, or two once its manifest is too old and a
+      file of it is not cached, three with a 403.
       A new answer is the run's data, from a later publish too: its files are the ones read (data_version), they take
       the place of the ticker's step-1 files in the totals, which are checked before its download, and the totals
       are checked again on the files actually read.
@@ -141,7 +143,8 @@ export async function loadMarket(client: PlannedClient, groups: readonly LoadGro
       b = n;
     };
     const load = () => { client.plan(b, j.datasets); return client.loadTicker(j.ticker, j.datasets, { keepBrokerRows: false }) };
-    if (!client.usable(b)) await again();
+    // a ticker whose every file is cached needs no URL: its step-1 answer serves it however old (review COST-1)
+    if (!client.usable(b) && !(await client.cached(b))) await again();
     let t: LoadedTicker;
     try { t = await load() }
     catch (e) {

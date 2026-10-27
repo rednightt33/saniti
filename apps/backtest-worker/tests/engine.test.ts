@@ -434,12 +434,14 @@ test('single mode: a period that starts before the ticker\'s first bar starts th
 });
 
 test('portfolio: a ticker whose own data cannot serve the strategy is left out (TICKERS_EXCLUDED); single mode still refuses', () => {
-  // IHSG and BBB have no bar on DAYS[10]; AAA (10 bars: SMA(20) has no value) has one, which must not reach the calendar
+  // IHSG and BBB have no bar on DAYS[10]; AAA (10 bars: the 20-bar volume SMA has no value, so ALL of the two can never
+  // be true) has one, which must not reach the calendar; BBB's volume spike on its bar 24 is above both
   const days = DAYS.slice(0, 30).filter((_, i) => i !== 10), long = flat(29); put(long, 24, { v: 2000 });
   const shortBars = flat(10); put(shortBars, 3, { v: 2000 });
   const m = market({ AAA: { bars: shortBars, dates: DAYS.slice(5, 15) }, BBB: { bars: long, dates: days } }, days);
   m.excluded = [{ ticker: 'CCC', code: 'DATA_MISSING', field: 'CCC.price', message: 'No price file is published for CCC.' }];   // the loader's
-  const r = request(29, q => { portfolio(q, 1); q.entry = { logic: 'any', at_least: 1, window_bars: 1, conditions: [VOL(), SMA20] } }, 0);
+  const VSMA20: Condition = { id: 'a', kind: 'indicator', indicator: 'I35', params: { length: 20 }, lhs: { type: 'price' }, op: 'gt', rhs: { type: 'output', output: 'volume_sma' } };
+  const r = request(29, q => { portfolio(q, 1); q.entry = { logic: 'all', at_least: 1, window_bars: 1, conditions: [VOL(), VSMA20] } }, 0);
   const l = go(m, r);
   assert.deepEqual(l.trades.map(t => t.ticker), ['BBB']);
   assert.deepEqual(l.per_ticker_signals.map(t => t.ticker), ['BBB']);
@@ -558,8 +560,9 @@ test('the signals preview counts the same entry events as the backtest (portfoli
 /* ---- review findings 2026-10-26 ------------------------------------------------------------------------------- */
 
 test('no look-ahead through the data checks: a result inside the period never depends on bars after period.to', () => {
-  // BBB lists on DAYS[60]: 20 bars inside a period ending DAYS[79]; ANY of volume above 1,500 (true on BBB's bar 5)
-  // and close above SMA(30), which has no value on BBB before its bar 29 (DAYS[89], after period.to)
+  // BBB lists on DAYS[60]: 20 bars inside a period ending DAYS[79]; ALL of volume above 1,500 (true on BBB's bar 5)
+  // and close above SMA(30), which has no value on BBB before its bar 29 (DAYS[89], after period.to), so its entry
+  // cannot switch on inside the period (with ANY it runs: the next test)
   const D = weekdays(110, '2024-01-01'), sma30: Condition = { id: 's', kind: 'indicator', indicator: 'I01', params: { length: 30 }, lhs: { type: 'price' }, op: 'gt', rhs: { type: 'output', output: 'sma' } };
   const all = D.slice(60), bb = put(flat(all.length), 5, { v: 2000 });
   const mk = (bDates: string[]) => {
@@ -567,7 +570,7 @@ test('no look-ahead through the data checks: a result inside the period never de
     return m;
   };
   const r = (single: boolean) => {
-    const q = request(0, x => { if (!single) portfolio(x, 2); else x.single!.ticker = 'BBB'; x.entry = { logic: 'any', at_least: 1, window_bars: 1, conditions: [VOL(), sma30] } }, 0);
+    const q = request(0, x => { if (!single) portfolio(x, 2); else x.single!.ticker = 'BBB'; x.entry = { logic: 'all', at_least: 1, window_bars: 1, conditions: [VOL(), sma30] } }, 0);
     q.period = { from: D[single ? 60 : 40], to: D[79], oos_fraction: 0 };
     return q;
   };
@@ -581,7 +584,7 @@ test('no look-ahead through the data checks: a result inside the period never de
   assert.deepEqual(refused(() => go(later, r(true))), ['INDICATOR_OUTPUT_EMPTY', 'entry.conditions[1].rhs']);
   assert.deepEqual(refused(() => go(asOfTo, r(true))), ['INDICATOR_OUTPUT_EMPTY', 'entry.conditions[1].rhs']);
   // flow: broker rows only after period.to (FLOW_UNAVAILABLE), or a window that has a value only after it (FLOW_OUTPUT_EMPTY)
-  const fr = (to: number) => request(to, q => { portfolio(q, 1); q.entry = { logic: 'any', at_least: 1, window_bars: 1, conditions: [VOL(), FNET10] } }, 0);
+  const fr = (to: number) => request(to, q => { portfolio(q, 1); q.entry = { logic: 'all', at_least: 1, window_bars: 1, conditions: [VOL(), FNET10] } }, 0);
   const fm = (flow: ReturnType<typeof flowOf>, n = 40) => market({ AAA: { bars: put(flat(n), 24, { v: 2000 }), flow: flowOf(n, 0, n - 1) as any }, DDD: { bars: put(flat(n), 24, { v: 2000 }), flow: flow as any } });
   const codes = (l: Ledger) => l.warnings[0].reasons!.map(x => [x.ticker, x.code]);
   assert.deepEqual(codes(go(fm(flowOf(40, 32, 39)), fr(29))), [['DDD', 'FLOW_UNAVAILABLE']]);
@@ -590,6 +593,60 @@ test('no look-ahead through the data checks: a result inside the period never de
   assert.deepEqual(go(fm(flowOf(40, 25, 39)), fr(29)), go(fm(flowOf(30, 25, 29), 30), fr(29)));
   // a series with a value up to period.to is evaluated as before
   assert.deepEqual(go(fm(flowOf(40, 15, 39)), fr(29)).trades.map(t => t.ticker), ['AAA']);
+});
+
+test('no look-ahead inside the period: what a portfolio ticker trades up to a day never depends on its bars after it', () => {
+  // review LA-1. Period D[40]..D[119]; BBB lists on D[60], its volume spike on its bar 5 (D[65]) buys D[66] and the
+  // 5-bar time exit sells D[70]; AAA's spike on D[67] wants the one slot BBB holds. SMA(30) has its first value on
+  // BBB's bar 29 (D[89]). Cut: BBB has no bar after D[80] (a suspension or a delisting), its bars up to D[80] the same.
+  const D = weekdays(130, '2024-01-01'), cut = D[80], bDates = D.slice(60, 120);
+  const sma30 = (id: string, op: 'gt' | 'lt' = 'gt'): Condition => ({ id, kind: 'indicator', indicator: 'I01', params: { length: 30 }, lhs: { type: 'price' }, op, rhs: { type: 'output', output: 'sma' } });
+  const aa = put(flat(120), 67, { v: 2000 }), bb = put(flat(bDates.length), 5, { v: 2000 });
+  const mk = (to: string, bFlow?: [ReturnType<typeof flowOf>, ReturnType<typeof flowOf>]) => {
+    const n = bDates.filter(d => d <= to).length;
+    return market({ AAA: { bars: aa, dates: D.slice(0, 120), ...(bFlow ? { flow: flowOf(120, 0, 119) as any } : {}) },
+      BBB: { bars: bb.slice(0, n), dates: bDates.slice(0, n), ...(bFlow ? { flow: bFlow[n === bDates.length ? 0 : 1] as any } : {}) } }, D.slice(0, 120));
+  };
+  const q = (entry: BacktestRequest['entry'], exit: Condition[] = []) => {
+    const r = request(0, x => { portfolio(x, 1); x.entry = entry; x.exit.max_hold_bars = 5; x.exit.signals = { logic: 'all', conditions: exit } });
+    r.period = { from: D[40], to: D[119], oos_fraction: 0 };
+    return r;
+  };
+  const until = (l: Ledger) => l.trades.filter(t => l.dates[t.exit_bar] <= cut).map(t => [t.ticker, l.dates[t.entry_bar], l.dates[t.exit_bar], t.exit_reason]);
+  const left = (l: Ledger) => l.warnings.find(w => w.code === 'TICKERS_EXCLUDED')?.reasons?.map(x => [x.ticker, x.code, x.field]) ?? [];
+  const both = (r: BacktestRequest, flow?: [ReturnType<typeof flowOf>, ReturnType<typeof flowOf>]) => {
+    const full = prepare(mk(D[119], flow)), short = prepare(mk(cut, flow)), a = run(full, r), b = run(short, r);
+    const row = (ctx: ReturnType<typeof prepare>) => { const p = ctx.tickers.get('BBB')!; return previewRow(p.calc, p.data.prices.dates, { entry: r.entry }, r.period.from, r.period.to) };
+    return { a, b, rows: () => [row(full), row(short)] };
+  };
+  // a condition without any value on BBB's bars up to the cut is false there, as before its first value on the full
+  // bars: BBB runs on both, with the same trades up to the cut, and the preview counts the same events up to it
+  const FNET_LT: Condition = { ...FNET10, op: 'lt' };                                     // never true on these flows
+  const cases: [string, BacktestRequest, [ReturnType<typeof flowOf>, ReturnType<typeof flowOf>]?][] = [
+    ['ANY', q({ logic: 'any', at_least: 1, window_bars: 1, conditions: [VOL(), sma30('s')] })],
+    ['AT LEAST 2 of 3', q({ logic: 'at_least', at_least: 2, window_bars: 1, conditions: [VOL(), VOL('w', 1800), sma30('s')] })],
+    ['an exit condition', q({ logic: 'all', at_least: 1, window_bars: 1, conditions: [VOL()] }, [sma30('x', 'lt')])],
+    ['ANY, broker rows only after the cut (FLOW_UNAVAILABLE on the cut bars)', q({ logic: 'any', at_least: 1, window_bars: 1, conditions: [VOL(), FNET_LT] }), [flowOf(60, 25, 59), flowOf(21, 21, -1)]],
+    ['ANY, too few broker rows up to the cut (FLOW_OUTPUT_EMPTY on the cut bars)', q({ logic: 'any', at_least: 1, window_bars: 1, conditions: [VOL(), FNET_LT] }), [flowOf(60, 15, 59), flowOf(21, 15, 20)]],
+  ];
+  for (const [label, r, flow] of cases) {
+    const { a, b, rows } = both(r, flow);
+    assert.deepEqual(until(a), [['BBB', D[66], D[70], 'time_exit']], label);
+    assert.deepEqual(until(b), until(a), label);
+    assert.deepEqual([left(a), left(b)], [[], []], label);
+    if (!label.startsWith('an exit')) assert.deepEqual(rows(), [{ entry_signals: 1, last_signal: D[65] }, { entry_signals: 1, last_signal: D[65] }], label);
+  }
+  // ALL: the entry cannot switch on before SMA(30) has a value, so BBB is left out on the cut bars and trades nothing
+  // up to the cut on the full ones (nor does AAA, whose flat closes are never above their SMA)
+  const all = q({ logic: 'all', at_least: 1, window_bars: 1, conditions: [VOL(), sma30('s')] }), { a, b } = both(all);
+  assert.deepEqual([until(a), until(b)], [[], []]);
+  assert.deepEqual([left(a), left(b)], [[], [['BBB', 'INDICATOR_OUTPUT_EMPTY', 'entry.conditions[1].rhs']]]);
+  // AT LEAST 2 of 3 with two of them without a value: left out the same way; single mode still refuses
+  assert.deepEqual(left(both(q({ logic: 'at_least', at_least: 2, window_bars: 1, conditions: [VOL(), sma30('s'), { ...sma30('t'), params: { length: 40 } }] })).b),
+    [['BBB', 'INDICATOR_OUTPUT_EMPTY', 'entry.conditions[1].rhs']]);
+  const one = q({ logic: 'any', at_least: 1, window_bars: 1, conditions: [VOL(), sma30('s')] });
+  one.mode = 'single'; delete one.portfolio; one.single = { ticker: 'BBB', benchmark: 'ihsg' };
+  assert.deepEqual(refused(() => go(mk(cut), one)), ['INDICATOR_OUTPUT_EMPTY', 'entry.conditions[1].rhs']);
 });
 
 test('DATA_GAP counts each (ticker, calendar day) once: a missing day after an event while the ticker is held', () => {

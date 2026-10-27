@@ -21,7 +21,7 @@ Private HTTP service that computes the EDGE backtests. It is part of the backtes
 | `src/compute.ts` | the two long-lived `worker_threads` threads, one for jobs and one for signals previews; progress and results are sent as messages, cancellation uses a shared flag, `kill()` handles a run over its time |
 | `src/run.ts` | one job end to end (`runJob`) and one signals preview (`runSignals`) |
 | `src/validate.ts` | request checks before any download (unknown fields, page options, universes, flow availability, broker codes against the broker list, the core's own validation) |
-| `src/load.ts` | reads the files of a run within the limits: every manifest first, a portfolio's tickers without published files left out, the limits checked, then each ticker's downloads from its manifest while its URLs can still serve them, else from a new one; a URL that expired all the same is fetched again once; the date the broker data is published through (`brokerDataThrough`) |
+| `src/load.ts` | reads the files of a run within the limits: every manifest first, a portfolio's tickers without published files left out, the limits checked, then each ticker's downloads from its manifest while its URLs can still serve them or every file it names is cached, else from a new one; a URL that expired all the same is fetched again once; the date the broker data is published through (`brokerDataThrough`) |
 | `src/terminal.ts` | the terminal-api client: `/bundle`, `/manifest`, the reference files, presigned files, sha256 and size checks, the cache (memory, optionally disk) |
 | `src/catalog.ts` | `GET /v1/catalog` from the reference files, IHSG's published bars, the limits, the flow switch and the broker data's date |
 | `src/config.ts` | environment variables, their defaults and their checks |
@@ -104,6 +104,9 @@ A job's error is the same object, carried in `JobStatus.error`.
    code must be in terminal-api's broker reference list (`UNKNOWN_BROKER`). A condition id has the page's shape (1 to 6
    base-36 digits, `INVALID_CONDITION`), a list has at most `BACKTEST_MAX_CONDITIONS` enabled conditions
    (`LIMIT_EXCEEDED`), and a disabled condition is held to the same shape as an enabled one (it is stored with the job).
+   A number or price line the chosen modes do not read is held to its type all the same (a number; a price line as a
+   line mode takes it), not to the range its mode would check, and a price-action type without a threshold has no
+   `value`.
 2. **Resolve the tickers.**
    - Single mode: the one ticker, which must be of type `stock`.
    - Portfolio mode: universe `all` is every stock of terminal-api's reference ticker list; `sector:<name>` is the
@@ -118,12 +121,13 @@ A job's error is the same object, carried in `JobStatus.error`.
      exceed `BACKTEST_MAX_DOWNLOAD_BYTES` or the broker rows exceed `BACKTEST_MAX_BROKER_ROWS`. Cached files count
      too, so the same request gets the same answer whatever the cache holds.
    - Then each ticker's files, from its manifest while that manifest's age plus `BACKTEST_HTTP_TIMEOUT_MS` is under
-     its URLs' lifetime (`expires_in_seconds`), else from a new `/bundle` answer asked right before the ticker's
-     downloads. A ticker whose file the bucket still refuses with 403 (an expired URL) is loaded once more from a new
-     answer. A new answer's files are the ones read (`data_version`); they replace the ticker's first files in the
-     totals, which are checked again before its downloads and on the files read. Each answer counts its files in
-     terminal-api's quota and writes an audit row: a ticker costs one answer, two once its manifest is too old, three
-     with a 403.
+     its URLs' lifetime (`expires_in_seconds`) or while every file it names is in the memory or disk cache (no URL is
+     needed), else from a new `/bundle` answer asked right before the ticker's downloads. A ticker whose file the
+     bucket still refuses with 403 (an expired URL; a cached copy that fails its check is downloaded) is loaded once
+     more from a new answer. A new answer's files are the ones read (`data_version`); they replace the ticker's first
+     files in the totals, which are checked again before its downloads and on the files read. Each answer counts its
+     files in terminal-api's quota and writes an audit row: a ticker costs one answer, two once its manifest is too
+     old and a file of it is not cached, three with a 403.
 4. **Check the period against the data.**
    - `FLOW_DATA_THROUGH` (`period.to`), before any download: a run that uses broker data, when `period.to` is after
      the date the broker data is published through. That date is the newest broker `data_through` of the stocks'
@@ -138,10 +142,12 @@ A job's error is the same object, carried in `JobStatus.error`.
    - `PERIOD_BEFORE_DATA` (engine): the primary benchmark has no close on or before the first day of the result
      calendar.
 5. **Run the engine:** `prepare`, then `run` (`engine.ts`). A portfolio leaves out a ticker whose own data cannot
-   serve the strategy: an indicator or flow series without any value on its bars (`INDICATOR_OUTPUT_EMPTY`,
-   `FLOW_OUTPUT_EMPTY`) or no broker row on its bars (`FLOW_UNAVAILABLE`). The warning `TICKERS_EXCLUDED` lists every
-   left-out ticker with its error (`count`, `tickers`, `reasons`); `meta.tickers` holds the tickers the run ran on. A
-   request error still fails the run, and in single mode these data errors do too. A broker without any row on a
+   serve the strategy: an indicator or flow series without any value on its bars up to `period.to`
+   (`INDICATOR_OUTPUT_EMPTY`, `FLOW_OUTPUT_EMPTY`) or no broker row on them (`FLOW_UNAVAILABLE`), when its entry
+   cannot switch on without that condition; otherwise the condition is false on every bar and the ticker runs, so
+   what it trades up to a day never depends on its bars after that day (CONTRACT.md section 2). The warning
+   `TICKERS_EXCLUDED` lists every left-out ticker with its error (`count`, `tickers`, `reasons`); `meta.tickers` holds
+   the tickers the run ran on. A request error still fails the run, and in single mode these data errors do too. A broker without any row on a
    ticker's bars has a net of 0 there. When every ticker of the universe is left out the run is refused with
    `UNIVERSE_EMPTY` (field `portfolio.universe`; the message gives the count and the reasons by code), never a
    cash-only result (lead decision 2026-10-26).
@@ -289,11 +295,13 @@ Terminal parity fixtures (real stored bars of 7 stocks and IHSG) in the publishe
 - determinism, with a cold and a warm cache;
 - 29 refusals, none of which reads any market data;
 - the period and data checks, `PERIOD_CLIPPED` with either benchmark;
-- a portfolio that leaves out a stock without published files and a stock with too short a history (`TICKERS_EXCLUDED`),
-  and `UNIVERSE_EMPTY` when every ticker is left out;
+- a portfolio that leaves out a stock without published files and a stock with too short a history (`TICKERS_EXCLUDED`)
+  when its entry cannot switch on without the long condition, and runs that stock with the condition false when it
+  can; `UNIVERSE_EMPTY` when every ticker is left out;
 - the limits, refused before any download;
 - flow and broker files: `FLOW_DATA_THROUGH` before any download, the manifest scan, `UNKNOWN_BROKER`, a listed
-  broker without rows, a portfolio that leaves out stocks without broker data; corporate actions;
+  broker without rows, a portfolio that leaves out a stock without a broker file, and a stock without broker rows only
+  when its entry needs its flow conditions; corporate actions;
 - cancellation in every phase;
 - an expired presigned URL;
 - previews: the run's exclusions in the run's warning, `UNIVERSE_EMPTY`, `FLOW_DATA_THROUGH`, the run's signal counts.
@@ -301,7 +309,9 @@ Terminal parity fixtures (real stored bars of 7 stocks and IHSG) in the publishe
 **`tests/validate.test.ts`** builds requests the way the page does, with every card the page can make (every legacy
 card and operator, the templates, every registry indicator, every price line), and checks that the worker accepts each
 of them field for field; `client_request_id` and any other extra key are refused; broker codes are checked; condition
-ids, the enabled-condition limit and disabled conditions are checked.
+ids, the enabled-condition limit and disabled conditions are checked; a number or price line the chosen modes do not
+read is held to its type (and a cleared or out-of-range value there is accepted), and a price-action condition holds
+only what its type reads.
 
 **`tests/server.test.ts`** drives the HTTP API the way edge-bff does. It covers:
 
@@ -314,7 +324,8 @@ ids, the enabled-condition limit and disabled conditions are checked.
 - the catalog's `flow.data_through` and a ticker name of null; the broker list reaching the validation;
 - cancellation and the timeout;
 - a data error after the hand-over;
-- invalid job bodies;
+- invalid job bodies, and a 4000-deep object in a field the chosen mode does not read (422 at validation and at the
+  hand-over, never a 500);
 - previews, including one the caller abandons;
 - log lines without secrets;
 - start-up as the image runs it, including exit 1 on a bad configuration.
@@ -323,7 +334,9 @@ ids, the enabled-condition limit and disabled conditions are checked.
 with S3's 403: a step-1 manifest that is still usable serves its ticker (one `/bundle` per ticker); a slow universe
 loads without any URL reaching the bucket after its lifetime, at most two `/bundle` answers per ticker; a publish
 between the two steps gives the new files' `data_version`, and a limit at the step-1 total refuses the new files
-before they are downloaded.
+before they are downloaded; a ticker whose every file is cached is loaded from its step-1 answer however old (one
+`/bundle` per ticker), and a damaged cached copy is downloaded with the step-1 URL, then from a new answer once that
+URL has expired.
 
 **`tests/terminal.test.ts`** covers the terminal-api client: loads, data errors, retries, the cache, concurrency, when
 a `/bundle` answer is usable, a download in flight shared only by callers of its URL, a file downloaded from two URLs

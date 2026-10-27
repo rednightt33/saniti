@@ -157,3 +157,62 @@ test('a disabled condition is held to the same shape as an enabled one: kind, fi
     assert.deepEqual(codeOf(() => checkSignalsRequest(preview(pageRequest([ok, cond]).entry), REFS, CFG)), [code, `entry.conditions[1].${sub}`], `${what} preview`);
   }
 });
+
+test('a number or price line the chosen modes do not read is held to its type all the same (review VAL-1)', () => {
+  // contract.ts types every one of these fields; they are stored with the job and hashed into request_hash, so any other
+  // JSON there was kept unchecked (a 4000-deep object in exit.stop.line under stop pct passed /v1/validate, then failed
+  // POST /v1/jobs with 500 when the job was handed to its thread: server.test.ts)
+  const deep: Record<string, unknown> = {}; let at = deep; for (let k = 0; k < 300; k++) { at.d = {}; at = at.d as Record<string, unknown> }
+  const bad: [string, (q: BacktestRequest) => void, string, string][] = [
+    ['stop.atr_mult a string (stop pct)', q => { (q.exit.stop as any).atr_mult = 'x' }, 'INVALID_EXIT', 'exit.stop.atr_mult'],
+    ['stop.reward_risk_x null (stop pct)', q => { (q.exit.stop as any).reward_risk_x = null }, 'INVALID_EXIT', 'exit.stop.reward_risk_x'],
+    ['stop.pct missing (stop atr)', q => { q.exit.stop.mode = 'atr'; delete (q.exit.stop as any).pct }, 'INVALID_EXIT', 'exit.stop.pct'],
+    ['stop.line a number (stop pct)', q => { (q.exit.stop as any).line = 12345 }, 'INVALID_EXIT', 'exit.stop.line'],
+    ['stop.line an unknown indicator (stop pct)', q => { q.exit.stop.line = { indicator: 'I999', output: 'nope', params: { deep } as any } }, 'UNKNOWN_INDICATOR', 'exit.stop.line.indicator'],
+    ['stop.line params nested (stop pct)', q => { q.exit.stop.line = { indicator: 'I09', output: 'supertrend', params: { deep } as any } }, 'PARAM_NOT_ACCEPTED', 'exit.stop.line.params.deep'],
+    ['trailing.line params nested (trailing none)', q => { q.exit.trailing.line = { indicator: 'I01', output: 'sma', params: { length: deep } as any } }, 'INVALID_PARAM', 'exit.trailing.line.params.length'],
+    ['trailing.line not a price line (trailing none)', q => { q.exit.trailing.line = { indicator: 'I13', output: 'rsi' } }, 'INVALID_LINE', 'exit.trailing.line.indicator'],
+    ['take_profit.r_multiple an object (tp pct)', q => { (q.exit.take_profit as any).r_multiple = { a: [1, 2, 3] } }, 'INVALID_EXIT', 'exit.take_profit.r_multiple'],
+    ['take_profit.atr_mult a string (tp pct)', q => { (q.exit.take_profit as any).atr_mult = '3' }, 'INVALID_EXIT', 'exit.take_profit.atr_mult'],
+    ['trailing.pct a list (trailing none)', q => { (q.exit.trailing as any).pct = [0.05] }, 'INVALID_EXIT', 'exit.trailing.pct'],
+    ['trailing.chandelier_length a string (trailing none)', q => { (q.exit.trailing as any).chandelier_length = '22' }, 'INVALID_EXIT', 'exit.trailing.chandelier_length'],
+    ['trailing.chandelier_mult null (trailing none)', q => { (q.exit.trailing as any).chandelier_mult = null }, 'INVALID_EXIT', 'exit.trailing.chandelier_mult'],
+    ['exit.atr_length a string (no ATR mode)', q => { (q.exit as any).atr_length = '14' }, 'INVALID_EXIT', 'exit.atr_length'],
+    ['entry.at_least an array (logic all)', q => { q.entry.logic = 'all'; (q.entry as any).at_least = [1, 2] }, 'INVALID_ENTRY', 'entry.at_least'],
+    ['sizing.allocation_fraction a string (portfolio)', q => { q.mode = 'portfolio'; delete q.single; q.portfolio = { universe: 'all', max_positions: 3, rank_by: 'adx', min_avg_value_20d_idr: 0 }; (q.sizing as any).allocation_fraction = 'x' }, 'INVALID_SIZING', 'sizing.allocation_fraction'],
+  ];
+  for (const [label, f, code, field] of bad) { const q = pageRequest(DEFAULT_ENTRY.map(legacy)); f(q); assert.deepEqual(codeOf(() => checkRequest(q, REFS, CFG)), [code, field], label) }
+  assert.deepEqual(codeOf(() => checkSignalsRequest(preview({ ...pageRequest(DEFAULT_ENTRY.map(legacy)).entry, logic: 'any', at_least: deep as any }), REFS, CFG)), ['INVALID_ENTRY', 'entry.at_least'], 'preview');
+  // what the page can send for a field it no longer shows is a number (builder.ts: +input, a cleared input is 0): only
+  // the type is held, never the range the mode would check (engine.ts validateRun)
+  const kept: [string, (q: BacktestRequest) => void][] = [
+    ['cleared inputs', q => { q.exit.stop.atr_mult = 0; q.exit.stop.reward_risk_x = 0; q.exit.take_profit.r_multiple = 0; q.exit.take_profit.atr_mult = 0; q.exit.trailing.pct = 0; q.exit.trailing.chandelier_length = 0; q.exit.trailing.chandelier_mult = 0; q.exit.atr_length = 0 }],
+    ['negative and fractional numbers', q => { q.exit.stop.atr_mult = -2; q.exit.atr_length = -5; q.exit.trailing.chandelier_length = 2.5 }],
+    ['at_least 0 under ALL', q => { q.entry.logic = 'all'; q.entry.at_least = 0 }],
+    ['at_least 2.5 under ANY', q => { q.entry.logic = 'any'; q.entry.at_least = 2.5 }],
+    ['allocation 0 in a portfolio', q => { q.mode = 'portfolio'; delete q.single; q.portfolio = { universe: 'all', max_positions: 3, rank_by: 'adx', min_avg_value_20d_idr: 0 }; q.sizing.allocation_fraction = 0 }],
+  ];
+  for (const [label, f] of kept) { const q = pageRequest(DEFAULT_ENTRY.map(legacy)); f(q); assert.equal(codeOf(() => checkRequest(q, REFS, CFG)), null, label) }
+});
+
+test('a price-action condition holds only what its type reads: no value without a threshold, params an object, op a string (review VAL-1)', () => {
+  const deep: Record<string, unknown> = {}; let at = deep; for (let k = 0; k < 300; k++) { at.d = {}; at = at.d as Record<string, unknown> }
+  const breakout = legacy(['breakout', {}], 0), macd = legacy(['macd', {}], 0), dip = legacy(['dip', {}], 0);
+  const bad: [string, Record<string, unknown>, string, string][] = [
+    ['a value on breakout', { ...breakout, value: deep }, 'UNKNOWN_FIELD', 'value'],
+    ['a value on macd', { ...macd, value: 1 }, 'UNKNOWN_FIELD', 'value'],
+    ['params a number', { ...breakout, params: 5 }, 'INVALID_PARAMS', 'params'],
+    ['params null', { ...breakout, params: null }, 'INVALID_PARAMS', 'params'],
+    ['params a list', { ...dip, params: [] }, 'INVALID_PARAMS', 'params'],
+    ['op null', { ...breakout, op: null }, 'INVALID_CONDITION', 'op'],
+  ];
+  for (const [label, c, code, sub] of bad) for (const enabled of [true, false]) {
+    const cond = { ...c, enabled } as unknown as Condition, what = `${label} (${enabled ? 'enabled' : 'disabled'})`;
+    assert.deepEqual(codeOf(() => checkRequest(pageRequest([dip, { ...cond, id: 'c9' } as Condition]), REFS, CFG)), [code, `entry.conditions[1].${sub}`], what);
+    assert.deepEqual(codeOf(() => checkSignalsRequest(preview(pageRequest([dip, { ...cond, id: 'c9' } as Condition]).entry), REFS, CFG)), [code, `entry.conditions[1].${sub}`], `${what} preview`);
+  }
+  // the page's own cards: a threshold on dip and volspike only, no op means the type's one, no params on dip
+  const { op: _op, ...noOp } = breakout as { op?: string };
+  for (const c of [breakout, macd, dip, legacy(['volspike', {}], 0), noOp as Condition, { ...dip, params: {} } as Condition])
+    assert.equal(codeOf(() => checkRequest(pageRequest([{ ...c, id: 'c1' } as Condition]), REFS, CFG)), null, JSON.stringify(c));
+});

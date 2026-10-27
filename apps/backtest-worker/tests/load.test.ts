@@ -3,6 +3,9 @@
    used for its download while its URLs can still serve it (terminal.ts usable), otherwise it is asked again right
    before the download; a new answer from a later publish is the run's data (data_version, limits). */
 import assert from 'node:assert/strict';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { test } from 'node:test';
 import { dataVersion } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { WorkerError } from '../src/errors.ts';
@@ -92,4 +95,43 @@ test('a manifest asked again from a later publish is the run\'s data: data_versi
     assert.deepEqual(e.details, { limit: 'max_download_bytes', allowed: limit, needed: limit - encode(DOCS.get('S05')!.pack).body.length + encode(later.pack).body.length });
     assert.ok(!tight.requests.slice(r0).some(r => r.path.startsWith('/bucket/') && r.path.includes('/S05/')), 'S05 downloaded nothing');
   } finally { await tight.close() }
+});
+
+test('a ticker whose every file is cached is loaded from its step-1 answer however old: one /bundle per ticker (review COST-1)', async () => {
+  // a 1 s lifetime under a 1 s HTTP timeout: no step-1 answer is ever usable; the first load fills the cache
+  const fake = await startFakeTerminal({ key: KEY, tickers: market(), ttl: 1 });
+  try {
+    const c = client(fake, 1000);
+    await loadMarket(c, [GROUP], LIMITS, 'universe', 2);
+    assert.deepEqual([...bundles(fake)].sort(), TICKERS.map(t => [t, 2]), 'cold: each ticker asked again before its downloads');
+    const r0 = fake.requests.length;
+    const l = await loadMarket(c, [GROUP], LIMITS, 'universe', 2);
+    const second = fake.requests.slice(r0);
+    assert.equal(second.filter(r => r.path === '/api/terminal/v1/bundle').length, TICKERS.length, 'warm: one answer per ticker, its URLs unused');
+    assert.equal(second.filter(r => r.path.startsWith('/bucket/')).length, 0);
+    assert.ok(l.files.every(f => f.cached));
+    assert.equal(l.data_version, await versionOf(DOCS));
+  } finally { await fake.close() }
+});
+
+test('a cached copy that fails its check is downloaded with the step-1 URL; once that has expired, from a new answer', async () => {
+  // disk cache only (no memory cache); S03's price pack is damaged on disk after the first load; the second load
+  // waits past the URLs' 1 s lifetime after step 1 (hooks.planned), so S03's download with its step-1 URL is refused
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'bt-load-test-'));
+  const fake = await startFakeTerminal({ key: KEY, tickers: market(), ttl: 1 });
+  try {
+    const c = new PlannedClient({ url: fake.url, proxyKey: KEY, cacheBytes: 0, cacheDir: dir, cacheDirBytes: 50_000_000, concurrency: 2, retries: 0, retryBaseMs: 0,
+      timeoutMs: 1000, fileOrigin: fake.url, maxFileBytes: 10_000_000 });
+    await loadMarket(c, [GROUP], LIMITS, 'universe', 2);
+    const sha = encode(DOCS.get('S03')!.pack).sha256;
+    await writeFile(path.join(dir, `${sha}.json.gz`), new Uint8Array(encode(DOCS.get('S03')!.pack).body.length));
+    const r0 = fake.requests.length, expired0 = fake.expired;
+    const l = await loadMarket(c, [GROUP], LIMITS, 'universe', 2, { planned: () => new Promise(ok => setTimeout(ok, 1100)) });
+    const n = new Map<string, number>();
+    for (const r of fake.requests.slice(r0)) if (r.path === '/api/terminal/v1/bundle') { const t = JSON.parse(r.body).ticker; n.set(t, (n.get(t) ?? 0) + 1) }
+    assert.deepEqual([...n].sort(), TICKERS.map(t => [t, t === 'S03' ? 2 : 1]));
+    assert.equal(fake.expired - expired0, 1, 'S03\'s step-1 URL was refused once');
+    assert.deepEqual(l.files.filter(f => !f.cached).map(f => [f.ticker, f.dataset]), [['S03', 'price']]);
+    assert.equal(l.data_version, await versionOf(DOCS));
+  } finally { await fake.close(); await rm(dir, { recursive: true, force: true }) }
 });

@@ -5,7 +5,8 @@
      price lines) and the signal checks (signals.ts requestConditions: the entry logic, window, at_least, ids);
    - what the engine does not check: schema_version 1, oos_fraction one of the page's 0 / 0.2 / 0.3 / 0.4, Monte Carlo
      runs exactly limits.monte_carlo_runs or 0 and a whole seed >= 0, max_positions within limits.max_positions, the
-     single ticker a published stock, the universe a catalog universe;
+     single ticker a published stock, the universe a catalog universe; the numbers and price lines the chosen modes do
+     not read held to their type (unreadTypes), and no value on a price-action type without a threshold;
    - every condition, enabled or not, as conditions.ts checks it, on an empty bar set: its kind, the registry
      indicator, its parameters, operator, outputs and value, the price-action parameters and thresholds, the flow
      condition's shape (flowConditionShape). Only INDICATOR_OUTPUT_EMPTY needs the ticker's bars, so it is left to the
@@ -20,9 +21,9 @@
    (run.ts checkPublished, at /v1/validate, and the run again); the other data-dependent errors are the run's: they need
    the published files. */
 import type { BacktestRequest, SignalsPreviewRequest } from '../../edge-bff/backtest/src/core/contract.ts';
-import { Calc, conditionSeries, flowConditionShape } from '../../edge-bff/backtest/src/core/conditions.ts';
+import { Calc, PRICE_ACTION, conditionSeries, flowConditionShape } from '../../edge-bff/backtest/src/core/conditions.ts';
 import type { Condition as CoreCondition, FlowCondition } from '../../edge-bff/backtest/src/core/conditions.ts';
-import { validateRun } from '../../edge-bff/backtest/src/core/engine.ts';
+import { lineOf, validateRun } from '../../edge-bff/backtest/src/core/engine.ts';
 import { ValidationError } from '../../edge-bff/backtest/src/core/registry.ts';
 import { isIsoDate, requestConditions } from '../../edge-bff/backtest/src/core/signals.ts';
 import type { ActiveCondition } from '../../edge-bff/backtest/src/core/signals.ts';
@@ -75,6 +76,10 @@ function conditionFields(list: unknown, field: string): void {
     const f = `${field}[${k}]`;
     if (!isObject(c) || typeof c.kind !== 'string' || !CONDITION_KINDS.includes(c.kind)) return;   // conditions.ts refuses the kind itself
     only(c, c.kind, f);
+    // a price-action type without a threshold (conditions.ts PRICE_ACTION value false) has no value: contract.ts
+    // "dip (fraction) and volspike (ratio) only", and the page's cards send none (catalog.ts legacyToCondition)
+    if (c.kind === 'price_action' && 'value' in c && typeof c.type === 'string' && Object.prototype.hasOwnProperty.call(PRICE_ACTION, c.type) && PRICE_ACTION[c.type].value === false)
+      fail('UNKNOWN_FIELD', `${f}.value`, `${f}.value is not a field of a ${c.type} condition: it has no threshold.`);
     if (c.kind === 'indicator') for (const s of ['lhs', 'rhs'] as const) {
       const side = c[s];
       if (isObject(side) && typeof side.type === 'string' && SIDE[side.type])
@@ -135,6 +140,25 @@ function checkConditions(list: readonly Listed[], flow: Config['flow'], brokers:
   return needsBroker;
 }
 
+/* ---- the fields the chosen modes do not read ----------------------------------------------------------------------- */
+/* engine.ts validateRun checks a number or a price line where the chosen mode reads it (its range there too), and
+   combineEntry checks at_least under logic at_least only. The others are stored with the job and hashed into
+   request_hash all the same, so each is held to its contract.ts type: a finite number, a price line as a line mode
+   takes it (engine.ts lineOf). Only the type: the page keeps what was typed into a field it no longer shows (builder.ts
+   reads a cleared number input as 0), so a range there would refuse a request whose run does not depend on it. */
+const UNREAD_NUMBERS = { stop: ['pct', 'atr_mult', 'reward_risk_x'], take_profit: ['pct', 'r_multiple', 'atr_mult'], trailing: ['pct', 'chandelier_length', 'chandelier_mult'] } as const;
+const number = (v: unknown, code: string, field: string) => { if (typeof v !== 'number' || !Number.isFinite(v)) fail(code, field, `${field} must be a number.`) };
+const entryTypes = (e: BacktestRequest['entry']) => number(e.at_least, 'INVALID_ENTRY', 'entry.at_least');
+function unreadTypes(q: BacktestRequest): void {
+  entryTypes(q.entry);
+  number(q.exit.atr_length, 'INVALID_EXIT', 'exit.atr_length');
+  for (const [part, keys] of Object.entries(UNREAD_NUMBERS) as [keyof typeof UNREAD_NUMBERS, readonly string[]][])
+    for (const k of keys) number((q.exit[part] as unknown as Record<string, unknown>)[k], 'INVALID_EXIT', `exit.${part}.${k}`);
+  lineOf(q.exit.stop.line, 'exit.stop.line');
+  lineOf(q.exit.trailing.line, 'exit.trailing.line');
+  number(q.sizing.allocation_fraction, 'INVALID_SIZING', 'sizing.allocation_fraction');
+}
+
 export interface CheckedRequest {
   tickers: string[];            // single: [ticker]; portfolio: the universe's stocks, ticker order
   broker: boolean;              // the run reads the broker files (a flow condition, or rank_by 'fnet')
@@ -187,6 +211,7 @@ export function checkRequest(input: unknown, refs: References, cfg: Pick<Config,
     }
   }
   const active = requestConditions(q);
+  unreadTypes(q);
   withinConditions([[active.entry, 'entry.conditions'], [active.exit, 'exit.signals.conditions']], cfg.limits.max_conditions);
   if (checkConditions([...listed(q.entry.conditions, 'entry.conditions'), ...listed(q.exit.signals.conditions, 'exit.signals.conditions')], cfg.flow, refs.brokers)) broker = true;
   return { tickers, broker };
@@ -205,6 +230,7 @@ export function checkSignalsRequest(input: unknown, refs: References, cfg: Pick<
   const tickers = universeMembers(refs.tickers, q.universe);
   if (!tickers) fail('UNKNOWN_UNIVERSE', 'universe', `${JSON.stringify(q.universe)} is not a universe of the catalog.`);
   const active = requestConditions({ entry: q.entry });
+  entryTypes(q.entry);
   withinConditions([[active.entry, 'entry.conditions']], cfg.limits.max_conditions);
   return { tickers: tickers!, broker: checkConditions(listed(q.entry.conditions, 'entry.conditions'), cfg.flow, refs.brokers) };
 }

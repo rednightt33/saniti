@@ -112,7 +112,10 @@ export const LEVEL_LINES: { indicator: string; output: string }[] = REGISTRY.ind
   .flatMap(r => r.outputs.filter(o => o !== 'direction').map(output => ({ indicator: r.id, output })));
 
 export interface Line { key: string; params: Params; output: string }
-function lineOf(ref: unknown, field: string): Line {
+/** A price line as the page sends it (contract.ts LineRef): a registry overlay indicator, one of its outputs other
+    than direction, its parameters as the registry takes them. The worker's validate.ts holds the line of a stop or
+    trailing mode that is not chosen to it too. */
+export function lineOf(ref: unknown, field: string): Line {
   if (!ref || typeof ref !== 'object' || Array.isArray(ref)) throw new ValidationError('INVALID_EXIT', field, `${field} must name an indicator line.`);
   const { indicator: id, output, params } = ref as { indicator?: unknown; output?: unknown; params?: unknown };
   const r = indicator(id, `${field}.indicator`);
@@ -261,8 +264,9 @@ export function run(ctx: Context, req: BacktestRequest, hooks: Hooks = {}): Ledg
     tick();
     const signals = (): Omit<Run, 'm'> => {
       // a ticker without a bar inside the period cannot trade and has no event there; whether its conditions have any
-      // value is decided on its bars up to period.to: bars after the period never leave it out (signals.ts periodSignals)
-      const { sig, events } = periodSignals(p.calc, p.data.prices.dates, req, active, from, to);
+      // value is decided on its bars up to period.to: bars after the period never leave it out, and in a portfolio a
+      // condition without one is false unless the entry cannot switch on without it (signals.ts periodSignals)
+      const { sig, events } = periodSignals(p.calc, p.data.prices.dates, req, active, from, to, !single);
       const r: Omit<Run, 'm'> = { p, sig, events, atr: null, chandelier: null, stopLine: null, trailLine: null, score: null, liq: null };
       if (sig && events.length) {
         const c = p.calc;

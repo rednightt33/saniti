@@ -452,6 +452,23 @@ test('job bodies: the job id, the context and its prior trials are checked; a re
   assert.equal((await call('GET', `/v1/jobs/${id}`)).status, 404, 'no job was made');
 });
 
+test('a field the chosen mode does not read is checked before the hand-over: a 4000-deep object is 422, never a 500 (review VAL-1)', async () => {
+  // exit.stop.line under stop mode pct, its params 4000 objects deep (25 KB, under edge-bff's 128 KiB body limit): it
+  // passed /v1/validate, then failed POST /v1/jobs with 500 INTERNAL_ERROR (RangeError in Worker.postMessage), which
+  // edge-bff retries and ends WORKER_LOST
+  const depth = 4000, id = newId(), errors0 = lines.filter(l => /"level":"error"/.test(l)).length;
+  const text = JSON.stringify(pageDefault('UNVR')).replace('"line":{"indicator":"I09","output":"supertrend"}',
+    `"line":{"indicator":"I09","output":"supertrend","params":${'{"a":'.repeat(depth)}1${'}'.repeat(depth)}}`);
+  assert.ok(text.length > 25_000 && text.length < 128 * 1024, String(text.length));
+  for (const [path, raw] of [['/v1/validate', `{"request":${text}}`], ['/v1/jobs', `{"job_id":"${id}","request":${text},"context":{"job_id":"${id}","prior_trials":[]}}`]]) {
+    const a = await call('POST', path, undefined, { raw });
+    assert.equal(a.status, 422, `${path}: ${a.body.toString().slice(0, 200)}`);
+    assert.deepEqual([a.json().error.code, a.json().error.field], ['PARAM_NOT_ACCEPTED', 'exit.stop.line.params.a'], path);
+  }
+  assert.equal((await call('GET', `/v1/jobs/${id}`)).status, 404, 'no job was made');
+  assert.equal(lines.filter(l => /"level":"error"/.test(l)).length, errors0, 'no error was logged');
+});
+
 test('a data error after the hand-over ends the job FAILED with the error the core gave', async () => {
   const q = pageDefault('ISEA'), id = newId();
   q.period = { from: '2019-06-03', to: '2023-12-29', oos_fraction: 0 };     // ISEA has no bar before 2024-07-08

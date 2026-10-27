@@ -303,12 +303,13 @@ test('checks against the published data: PERIOD_AFTER_DATA, PERIOD_CLIPPED, no b
 });
 
 test('portfolio: a ticker without published files and a ticker with too short a history are left out (TICKERS_EXCLUDED)', async () => {
-  // an entry condition whose window is longer than ISEA's history (and shorter than every other stock's)
+  // an entry condition whose window is longer than ISEA's history (and shorter than every other stock's); with ALL of
+  // the conditions ISEA's entry can never switch on, so it is left out (with ANY it runs: below)
   const isea = FX.get('ISEA')!.T.length;
   assert.ok(STOCKS.every(t => t === 'ISEA' || FX.get(t)!.T.length > isea + 30));
   const q = portfolioDefault();
   q.entry.conditions.push({ id: 'long', kind: 'indicator', indicator: 'I01', params: { length: isea + 1 }, lhs: { type: 'price' }, op: 'gt', rhs: { type: 'output', output: 'sma' } });
-  q.entry.logic = 'any';
+  q.entry.logic = 'all';
   const b0 = fake.requests.length;
   const r = await runJob(q, { prior_trials: [] }, withNopx(), env());
   // NOPX: no /bundle answer (404), nothing downloaded for it; ISEA: loaded, then left out by the engine
@@ -335,6 +336,14 @@ test('portfolio: a ticker without published files and a ticker with too short a 
   // single mode still refuses what a portfolio leaves out
   const one = pageDefault('ISEA'); one.entry.conditions.push(q.entry.conditions[3]);
   assert.deepEqual(await refusal(runJob(one, { prior_trials: [] }, refs, env())), ['INDICATOR_OUTPUT_EMPTY', 'entry.conditions[3].rhs']);
+  // with ANY, ISEA's entry can switch on without 'long': ISEA runs, 'long' false on every one of its bars (review LA-1:
+  // whether a ticker trades never depends on a value that comes later), as the core computes it on the same bars
+  const any = { ...clone(q), entry: { ...q.entry, logic: 'any' as const } };
+  const ra = await runJob(any, { prior_trials: [] }, withNopx(), env());
+  assert.deepEqual(ra.meta.tickers, STOCKS);
+  assert.deepEqual(ra.meta.warnings[0].reasons!.map(x => [x.ticker, x.code]), [['NOPX', 'DATA_MISSING']]);
+  assert.deepEqual(ra.events.conditions.find(c => c.ticker === 'ISEA' && c.condition_id === 'long')!.track, { on: [], runs: [] });
+  assert.deepStrictEqual(noDuration(ra), noDuration(await direct(any, STOCKS, [priceFile('IHSG'), ...STOCKS.map(priceFile)], [], [nopx])));
 });
 
 test('limits: LIMIT_EXCEEDED before any file is downloaded; exactly at the limit runs', async () => {
@@ -387,11 +396,18 @@ test('flow on: broker files only when a flow condition needs them, counted again
     // GOTO has no broker file: DATA_MISSING in single mode
     const goto = pageDefault('GOTO', true); goto.period.from = days[0]; goto.single!.benchmark = 'ihsg';
     assert.deepEqual(await refusal(runJob(goto, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }))), ['DATA_MISSING', 'GOTO.broker']);
-    // a portfolio leaves both out: GOTO (no broker file, DATA_MISSING) and BBCA (no broker row on its bars, FLOW_UNAVAILABLE)
+    // a portfolio leaves GOTO out (no broker file, DATA_MISSING, on its manifest); BBCA (no broker row on its bars) runs
+    // with its two flow conditions false on every bar, because AT LEAST 3 of the 5 can switch on without them (review
+    // LA-1), and is left out with FLOW_UNAVAILABLE when the entry needs 4 of them
     const sector = portfolioDefault('sector:Sector A'); sector.entry = q.entry; sector.period.from = days[0];
     const ps = await runJob(sector, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }));
-    assert.deepEqual(ps.meta.tickers, ['UNVR']);
-    assert.deepEqual(ps.meta.warnings[0].reasons!.map(x => [x.ticker, x.code, x.field]), [['BBCA', 'FLOW_UNAVAILABLE', 'entry.conditions[3]'], ['GOTO', 'DATA_MISSING', 'GOTO.broker']]);
+    assert.deepEqual(ps.meta.tickers, ['BBCA', 'UNVR']);
+    assert.deepEqual(ps.meta.warnings[0].reasons!.map(x => [x.ticker, x.code, x.field]), [['GOTO', 'DATA_MISSING', 'GOTO.broker']]);
+    assert.deepEqual(ps.events.conditions.filter(c => c.ticker === 'BBCA' && ['c4', 'c5'].includes(c.condition_id)).map(c => c.track), [{ on: [], runs: [] }, { on: [], runs: [] }]);
+    const four = { ...clone(sector), entry: { ...sector.entry, at_least: 4 } };
+    const p4 = await runJob(four, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }));
+    assert.deepEqual(p4.meta.tickers, ['UNVR']);
+    assert.deepEqual(p4.meta.warnings[0].reasons!.map(x => [x.ticker, x.code, x.field]), [['BBCA', 'FLOW_UNAVAILABLE', 'entry.conditions[3]'], ['GOTO', 'DATA_MISSING', 'GOTO.broker']]);
     // a broker code is checked against the published broker list (UNKNOWN_BROKER, before any download); a listed
     // broker without any row on UNVR's bars (ZP) has a net of 0 there: its condition runs and never switches on
     const broker = (code: string) => { const b = clone(q); b.entry.conditions.push(legacyToCondition(legacyCard('broker', 'b9', { broker: code, len: 5, val: 0 }))); return b };
@@ -492,10 +508,11 @@ test('signals preview: each universe ticker as previewRow on its own bars, data_
 test('signals preview: the run\'s exclusions in the run\'s warning, UNIVERSE_EMPTY, FLOW_DATA_THROUGH: it never fails where the run succeeds', async () => {
   // lead decision 2026-10-26: the run's per-ticker exclusion (signals.ts unlessLeftOut, leftOut), reported as the
   // result's TICKERS_EXCLUDED; NOPX has no published file, ISEA's history is shorter than the 'long' condition's window
+  // (ALL of the conditions: ISEA's entry can never switch on)
   const isea = FX.get('ISEA')!.T.length;
   const q = portfolioDefault();
   q.entry.conditions.push({ id: 'long', kind: 'indicator', indicator: 'I01', params: { length: isea + 1 }, lhs: { type: 'price' }, op: 'gt', rhs: { type: 'output', output: 'sma' } });
-  q.entry.logic = 'any';
+  q.entry.logic = 'all';
   const preview = (universe: string, entry = q.entry, period = { from: q.period.from, to: q.period.to }) => ({ schema_version: 1, universe, period, entry });
   const p = await runSignals(preview('all'), withNopx(), env()), r = await runJob(q, { prior_trials: [] }, withNopx(), env());
   const run = r.meta.warnings.find(w => w.code === 'TICKERS_EXCLUDED')!;
@@ -508,6 +525,12 @@ test('signals preview: the run\'s exclusions in the run\'s warning, UNIVERSE_EMP
   // the rows are the tickers the run ran on, with the run's signal counts
   assert.deepEqual(p.rows.map(x => x.ticker), r.meta.tickers);
   assert.deepEqual(p.rows.map(x => [x.ticker, x.entry_signals, x.last_signal]), r.tables.per_ticker.map(x => [x.ticker, x.entry_signals, x.last_signal]));
+  // with ANY, ISEA's entry can switch on without 'long': counted in the preview as it runs in the run (review LA-1)
+  const anyEntry = { ...q.entry, logic: 'any' as const };
+  const pa = await runSignals(preview('all', anyEntry), withNopx(), env()), ra = await runJob({ ...clone(q), entry: anyEntry }, { prior_trials: [] }, withNopx(), env());
+  assert.deepEqual(pa.rows.map(x => [x.ticker, x.entry_signals, x.last_signal]), ra.tables.per_ticker.map(x => [x.ticker, x.entry_signals, x.last_signal]));
+  assert.deepEqual(pa.rows.map(x => x.ticker), STOCKS);
+  assert.deepEqual(pa.warnings[0].reasons, ra.meta.warnings.find(x => x.code === 'TICKERS_EXCLUDED')!.reasons);
   assert.deepEqual((await runSignals(preview('all', pageDefault('UNVR').entry), refs, env())).warnings, [], 'nothing left out: no warning');
   // every ticker left out: refused as the run is (UNIVERSE_EMPTY), never an empty preview
   assert.deepEqual(await refusal(runSignals(preview('sector:Sector C'), withNopx(), env())), ['UNIVERSE_EMPTY', 'universe']);

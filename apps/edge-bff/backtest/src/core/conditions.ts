@@ -82,7 +82,10 @@ function anyValue(s: ArrayLike<Num | undefined>, last: number, ok: (v: Num | und
 /* `last`: the last bar the caller can see (a backtest: the ticker's last bar inside the period; not given: every bar).
    Whether a series has any value at all (INDICATOR_OUTPUT_EMPTY, FLOW_OUTPUT_EMPTY, FLOW_UNAVAILABLE) is decided on
    the bars up to it, so bars published after a backtest's period never decide whether its conditions can run, nor
-   the error's message (no look-ahead); the series themselves are computed on every bar and are causal. */
+   the error's message (no look-ahead); the series themselves are computed on every bar and are causal. A portfolio
+   and the signals preview read such a condition as false on every bar instead, as a series is before its first
+   value, unless the entry cannot switch on without it (signals.ts tickerSignals): what a ticker trades up to a day
+   then never depends on its bars after that day either. */
 const upTo = (last: number | undefined) => last === undefined ? '' : ' up to the end of the period';
 
 export function indicatorCondition(c: Calc, cond: IndicatorCondition, field = 'condition', last?: number): Signal {
@@ -154,9 +157,10 @@ export function bullishDivergence(low: Series, line: Series, look = 40, k = 3): 
 export function priceActionCondition(c: Calc, cond: PriceActionCondition, field = 'condition'): Signal {
   const spec = PRICE_ACTION[cond.type];
   if (!spec) throw new ValidationError('UNKNOWN_CONDITION', `${field}.type`, `${field}.type must be one of ${Object.keys(PRICE_ACTION).join(', ')}.`);
-  const op = cond.op ?? spec.ops[0];
+  const op = cond.op === undefined ? spec.ops[0] : cond.op;             // absent: the type's operator (contract.ts op?)
   if (!spec.ops.includes(op)) throw new ValidationError('INVALID_CONDITION', `${field}.op`, `${field}.op must be one of ${spec.ops.join(', ')}.`);
-  const p = cond.params || {}, f = `${field}.params`;
+  const p = cond.params === undefined ? {} : cond.params, f = `${field}.params`;
+  if (p === null || typeof p !== 'object' || Array.isArray(p)) throw new ValidationError('INVALID_PARAMS', f, `${f} must be an object.`);
   for (const key of Object.keys(p)) if (!(key in spec.params)) throw new ValidationError('PARAM_NOT_ACCEPTED', `${f}.${key}`, `${cond.type} does not accept ${key}.`);
   const { C, H, L, V } = c.bars, n = c.n, r = new Uint8Array(n);
   const at = (s: Series, i: number) => isN(s[i]) ? s[i] as number : NaN;
@@ -254,6 +258,11 @@ export type EntryLogic = 'all' | 'any' | 'at_least';
 
 export const WINDOW_BARS = { min: 1, max: 20 };                  // the page's "within N bars" input (min 1, max 20)
 
+/** How many of `count` active entry conditions combineEntry needs true within the window: all of them, one, or
+    at_least (above the count: all of them, as on the page). */
+export const entryNeed = (logic: EntryLogic, atLeast: number | undefined, count: number): number =>
+  logic === 'all' ? count : logic === 'any' ? 1 : Math.min(atLeast as number, count);
+
 /** The combined entry state (page `signalsFor`). Inputs outside the page's controls are refused, never adjusted:
     logic all/any/at_least, a whole window of 1-20 bars, and at_least a whole number of at least 1. As on the page, an
     at_least above the number of active conditions means all of them (a condition switched off keeps the rule usable). */
@@ -265,7 +274,7 @@ export function combineEntry(series: Signal[], logic: EntryLogic, atLeast: numbe
     throw new ValidationError('INVALID_ENTRY', 'entry.at_least', 'entry.at_least must be a whole number of at least 1.');
   const entry = new Uint8Array(n);
   if (!series.length) return entry;
-  const need = logic === 'all' ? series.length : logic === 'any' ? 1 : Math.min(atLeast as number, series.length);
+  const need = entryNeed(logic, atLeast, series.length);
   const W = windowBars, recent = series.map(() => -1e9);
   for (let i = 0; i < n; i++) {
     let met = 0;

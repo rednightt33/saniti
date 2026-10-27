@@ -15,7 +15,7 @@ import type { BacktestRequest, Condition, SignalTrack, Warning } from './contrac
 import type { FlowData } from './flow.ts';
 import type { Num } from '../../../terminal/src/calc/indicators.ts';
 import { isN, sma } from '../../../terminal/src/calc/indicators.ts';
-import { combineEntry, combineExit, conditionSeries, switchOns } from './conditions.ts';
+import { combineEntry, combineExit, conditionSeries, entryNeed, switchOns } from './conditions.ts';
 import type { Calc, Signal } from './conditions.ts';
 import { BY_ID, ValidationError, resolveParams } from './registry.ts';
 
@@ -80,12 +80,26 @@ export interface TickerSignals {
 
 /** Every enabled condition of the request on the ticker's bars (full history: warm-up uses real bars). `last`: the
     last bar the caller can see (the backtest: the ticker's last bar inside the period); whether a condition's series
-    has any value at all is decided on the bars up to it (conditions.ts), so later bars never decide it. */
-export function tickerSignals(calc: Calc, req: SignalRequest, active = requestConditions(req), last?: number): TickerSignals {
-  const n = calc.n;
+    has any value at all is decided on the bars up to it (conditions.ts), so later bars never decide it.
+    `portfolio` (a portfolio run and the signals preview): a condition whose series has no value on those bars (an
+    error of EXCLUDED_CODES) is false on every bar, as a series is before its first value, and the ticker is left out
+    (that error is thrown) only when its entry can then never switch on: fewer entry conditions with a value than the
+    entry needs (conditions.ts entryNeed); an exit condition never leaves it out. A condition that has its first value
+    on a later bar has none on the bars before it, where it is false all the same, so whether the ticker trades up to
+    a day never depends on its bars after that day (no look-ahead). Without it (single mode) the error is thrown. */
+export function tickerSignals(calc: Calc, req: SignalRequest, active = requestConditions(req), last?: number, portfolio = false): TickerSignals {
+  const n = calc.n, empty: ValidationError[] = [];
   // conditions.ts names its own Condition union (page shapes); the wire conditions of contract.ts are the same objects
-  const series = (list: ActiveCondition[]) => list.map(a => ({ id: a.id, s: conditionSeries(calc, a.cond as Parameters<typeof conditionSeries>[1], a.field, last) }));
-  const entryConditions = series(active.entry), exitConditions = series(active.exit);
+  const series = (list: ActiveCondition[], entry: boolean) => list.map(a => {
+    try { return { id: a.id, s: conditionSeries(calc, a.cond as Parameters<typeof conditionSeries>[1], a.field, last) } }
+    catch (e) {
+      if (!portfolio || !(e instanceof ValidationError) || !EXCLUDED_CODES.includes(e.code)) throw e;
+      if (entry) empty.push(e);
+      return { id: a.id, s: new Uint8Array(n) };
+    }
+  });
+  const entryConditions = series(active.entry, true), exitConditions = series(active.exit, false);
+  if (empty.length && entryConditions.length - empty.length < entryNeed(req.entry.logic, req.entry.at_least, entryConditions.length)) throw empty[0];
   return {
     entryConditions, exitConditions,
     entry: combineEntry(entryConditions.map(x => x.s), req.entry.logic, req.entry.at_least, req.entry.window_bars, n),
@@ -104,11 +118,13 @@ function upperBound(a: readonly string[], d: string): number { let lo = 0, hi = 
 /** A ticker's signals for a period [from, to], as the backtest and the preview both read them: its bars inside the
     period (first..last; first > last: none), its signals (null without a bar inside the period: it cannot trade and
     has no event there) and its entry events inside the period. Whether a condition's series has any value is decided
-    on its bars up to period.to (tickerSignals `last`), so bars after the period never decide it (no look-ahead). */
-export function periodSignals(calc: Calc, tickerDates: readonly string[], req: SignalRequest, active: ReturnType<typeof requestConditions>, from: string, to: string):
-  { first: number; last: number; sig: TickerSignals | null; events: number[] } {
+    on its bars up to period.to (tickerSignals `last`), so bars after the period never decide it; in a portfolio
+    (`portfolio`) a series without one leaves the ticker out only when its entry cannot switch on without it, so
+    bars inside the period after a day never decide what it trades up to that day either (no look-ahead). */
+export function periodSignals(calc: Calc, tickerDates: readonly string[], req: SignalRequest, active: ReturnType<typeof requestConditions>, from: string, to: string,
+  portfolio = false): { first: number; last: number; sig: TickerSignals | null; events: number[] } {
   const first = lowerBound(tickerDates, from), last = upperBound(tickerDates, to) - 1;
-  const sig = first <= last ? tickerSignals(calc, req, active, last) : null;
+  const sig = first <= last ? tickerSignals(calc, req, active, last, portfolio) : null;
   return { first, last, sig, events: sig ? entryEvents(sig, first, last) : [] };
 }
 
@@ -219,10 +235,11 @@ export function signalSummary(entry: SignalTrack, dates: readonly string[]): { e
 }
 
 /** The signals preview row of one ticker (SignalsPreview, no backtest): entry events on its own bars inside
-    [from, to] and the date of the last one, as the backtest counts them (periodSignals, the engine's own reading).
-    tickerDates = the bars' dates. An error of EXCLUDED_CODES is the run's too: the caller leaves the ticker out. */
+    [from, to] and the date of the last one, as the backtest counts them (periodSignals, the engine's own reading, as
+    a portfolio run reads it: the preview's rows are a universe's). tickerDates = the bars' dates. An error of
+    EXCLUDED_CODES is the run's too: the caller leaves the ticker out. */
 export function previewRow(calc: Calc, tickerDates: readonly string[], req: SignalRequest, from: string, to: string, active = requestConditions(req)): { entry_signals: number; last_signal: string | null } {
-  const on = periodSignals(calc, tickerDates, req, active, from, to).events;
+  const on = periodSignals(calc, tickerDates, req, active, from, to, true).events;
   return { entry_signals: on.length, last_signal: on.length ? tickerDates[on[on.length - 1]] : null };
 }
 
@@ -230,8 +247,10 @@ export function previewRow(calc: Calc, tickerDates: readonly string[], req: Sign
 
 /** The errors of one ticker's data that leave that ticker out of a portfolio run, and of the signals preview, instead
     of failing it (lead decision 2026-10-26): an indicator or flow series without any value on its bars, no broker data
-    on its bars. A request error (a parameter, an indicator, a field) fails the run in either mode; in single mode these
-    fail it too. The loader leaves out a ticker without published files the same way (DATA_MISSING). */
+    on its bars, when its entry cannot switch on without that condition (tickerSignals `portfolio`; otherwise the
+    condition is false on every bar). A request error (a parameter, an indicator, a field) fails the run in either
+    mode; in single mode these fail it too. The loader leaves out a ticker without published files the same way
+    (DATA_MISSING). */
 export const EXCLUDED_CODES: readonly string[] = ['INDICATOR_OUTPUT_EMPTY', 'FLOW_OUTPUT_EMPTY', 'FLOW_UNAVAILABLE'];
 /** A ticker of a portfolio universe that is left out, with the error its data gave (TICKERS_EXCLUDED reasons). */
 export interface Exclusion { ticker: string; code: string; field?: string; message: string }

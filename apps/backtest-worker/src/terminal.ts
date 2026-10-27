@@ -188,6 +188,7 @@ class MemoryCache {
     if (v) { this.map.delete(sha); this.map.set(sha, v) }          // most recently used last
     return v;
   }
+  has(sha: string): boolean { return this.map.has(sha) }            // no use: the order is kept
   set(sha: string, v: Uint8Array): void {
     if (v.byteLength > this.budget) return;
     this.delete(sha);
@@ -215,6 +216,7 @@ class DiskCache {
       for (const [sha, bytes] of found.sort((a, b) => a[2] - b[2])) { this.index.set(sha, bytes); this.size += bytes }
     })();
   }
+  async has(sha: string): Promise<boolean> { await this.init(); return this.index.has(sha) }
   async get(sha: string): Promise<Uint8Array | null> {
     await this.init();
     if (!this.index.has(sha)) return null;
@@ -371,6 +373,15 @@ export class TerminalClient {
       which load.ts asks a new answer once). */
   usable(b: Bundle): boolean {
     return b.expires_in_seconds !== null && performance.now() - b.granted_at + this.o.timeoutMs < b.expires_in_seconds * 1000;
+  }
+
+  /** Whether every file b names is in the memory or the disk cache, so loading b needs none of its URLs: file()
+      checks each copy again when it is used, and one that fails its check (or was dropped meanwhile) is downloaded
+      from its URL, whose 403 once expired load.ts answers with a new /bundle. */
+  async cached(b: Bundle): Promise<boolean> {
+    for (const ds of Object.values(b.datasets)) for (const f of (ds as BundleDataset).files)
+      if (!this.mem.has(f.sha256) && !(this.disk && await this.disk.has(f.sha256))) return false;
+    return true;
   }
 
   /** One file: from the cache (checked again) or downloaded from its presigned URL without credentials, then checked
