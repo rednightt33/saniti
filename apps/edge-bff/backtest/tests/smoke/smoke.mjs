@@ -538,6 +538,18 @@ await at('slow catalog: the page is ready before it, the lists say they are load
   expect(after.length > 2 && !after.some(x => /Loading/.test(x)), `the ticker list after the catalog: ${after.length} options`);
 });
 
+/* EXEC-BACKTEST-LOAD: broker data that arrives late. The chart draws the prices, the flow lanes and the entry lane say
+   they are loading, the page keeps answering (a redraw loop froze it once: ERRORS, EXEC-BACKTEST-LOAD), and the lanes
+   fill when the broker data is there */
+await page.close(); await openPage();
+await at('slow broker data: prices first, the page answers, the flow lanes fill later', async () => {
+  await page.goto(`${origin}/backtest-app/?flow=1&flowms=1500`);
+  await page.waitForFunction(() => /loading/.test(document.getElementById('laneLabels').textContent), null, { timeout:1400 });
+  const t0 = Date.now(); await page.evaluate(() => 1);
+  expect(Date.now() - t0 < 500, `the page took ${Date.now() - t0} ms to answer while the broker data loads`);
+  await page.waitForFunction(() => document.querySelectorAll('#laneLabels span').length > 1 && !/loading/.test(document.getElementById('laneLabels').textContent), null, { timeout:5000 });
+});
+
 await browser.close(); server.close();
 console.log(steps.join('\n'));
 if (errors.length) { console.error(`\n${errors.length} error(s):\n` + errors.join('\n')); process.exit(1) }

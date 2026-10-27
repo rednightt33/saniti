@@ -8,4 +8,4 @@ import { stubApi } from './stub.ts';
 
 const q = new URLSearchParams(location.search);
 boot(stubApi({ hostile: q.get('hostile') === '1', flow: q.get('flow') === '1', wide: q.get('wide') === '1',
-  ...(q.get('slowcat') ? { catalogMs: +q.get('slowcat')! } : {}) }));   // ?slowcat=ms: the catalog answers that late
+  ...(q.get('slowcat') ? { catalogMs: +q.get('slowcat')! } : {}), ...(q.get('flowms') ? { flowMs: +q.get('flowms')! } : {}) }));   // ?flowms=ms: broker data that late   // ?slowcat=ms: the catalog answers that late

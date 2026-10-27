@@ -191,6 +191,8 @@ def create_app(settings=None, store=None, orc=None):
                 await asyncio.gather(running, return_exceptions=True)
         orc.close()
         await backtests.aclose()
+        if hasattr(store, 'close'):                          # EXEC-BACKTEST-LOAD: the connection pool
+            await asyncio.to_thread(store.close)
         if terminal_http['client'] is not None and hasattr(terminal_http['client'], 'aclose'):
             await terminal_http['client'].aclose()
 
