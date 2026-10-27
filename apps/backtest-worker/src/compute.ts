@@ -1,7 +1,9 @@
 /* The compute threads (worker_threads, CONTRACT.md section 8): every job and every signals preview runs off the HTTP
    thread, so status, cancel and health stay answered while a backtest computes. Each thread is long-lived and keeps its
    own terminal-api client, so its memory cache (BACKTEST_CACHE_BYTES per thread) serves the next run of the same
-   tickers; the server runs one task at a time per thread (one job thread, one preview thread).
+   tickers; the disk cache (BACKTEST_CACHE_DIR), when set, is one directory every thread's client shares under one
+   budget (terminal.ts DiskCache), so the files a preview downloaded serve the run after it on the job thread. The
+   server runs one task at a time per thread (one job thread, one preview thread).
 
    main thread  ComputeThread.run(task, onProgress) -> { seq, done }  (done resolves with the outcome or rejects with
                 TaskFailed / ThreadStopped); cancel(seq) sets the shared flag (SharedArrayBuffer) to that task's number,

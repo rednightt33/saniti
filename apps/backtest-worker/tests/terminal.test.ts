@@ -13,6 +13,7 @@ import type { Columnar } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { flowData } from '../../edge-bff/backtest/src/core/flow.ts';
 import { MAX_PORTFOLIO_TICKERS, MAX_POSITIONS } from '../../edge-bff/backtest/src/core/engine.ts';
 import http from 'node:http';
+import { createRequire, syncBuiltinESMExports } from 'node:module';
 import type net from 'node:net';
 import { describeConfig, loadConfig } from '../src/config.ts';
 import { brokerDataThrough } from '../src/load.ts';
@@ -272,6 +273,171 @@ test('one file downloaded twice at once from two /bundle answers\' URLs takes it
     assert.deepEqual(fs.readdirSync(dir).sort(), [`${t1.sha256}.json.gz`, `${t2.sha256}.json.gz`].sort(), 'both fit: T1 is counted once');
   } finally { fs.rmSync(dir, { recursive: true, force: true }) }
 });
+
+/* ---- one disk cache directory, several clients: the job, preview and HTTP threads each have one, a thread killed by
+   kill() is replaced by a new one, another replica may share the volume (README "Memory"). Measured on Railway dev
+   2026-10-27: the run after a preview of 12 stocks downloaded the preview's 48 files again. No memory cache here
+   (cacheBytes 0), so the directory is the only thing the clients can share. ------------------------------------------ */
+const shared = (dir: string, cacheDirBytes: number, extra: Partial<TerminalOptions> = {}) => new TerminalClient(options({ cacheBytes: 0, cacheDir: dir, cacheDirBytes, ...extra }));
+const withDir = async (f: (dir: string) => Promise<void>) => { const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'terminal-cache-')); try { await f(dir) } finally { fs.rmSync(dir, { recursive: true, force: true }) } };
+const cachedFiles = (dir: string) => fs.readdirSync(dir).filter(f => /^[0-9a-f]{64}\.json\.gz$/.test(f)).sort();
+const cachedBytes = (dir: string) => cachedFiles(dir).reduce((n, f) => n + fs.statSync(path.join(dir, f)).size, 0);
+const named = (...files: { sha256: string }[]) => files.map(f => `${f.sha256}.json.gz`).sort();
+const priceFile = async (t: string) => (await new TerminalClient(options()).bundle(t, ['price'])).datasets.price!.files[0];
+
+test('clients on one disk cache directory share its files: a file another client downloaded after this one read the directory is read from disk', () => withDir(async dir => {
+  const seen: Record<string, unknown>[] = [];
+  const job = shared(dir, 10_000_000, { log: (event, fields) => { seen.push({ event, ...fields }) } }), preview = shared(dir, 10_000_000);
+  await job.loadTicker('T1', ['price']);                                            // the job's client has read the directory
+  await preview.loadTicker('T2', ['price']);                                        // then the preview downloads T2
+  const n = fake.requests.length;
+  assert.ok(await job.cached(await job.bundle('T2', ['price'])), 'every file of T2 is on disk: its URLs are not needed');
+  const t2 = await job.loadTicker('T2', ['price']);
+  assert.equal(bucketGets(n).length, 0, 'the run after the preview downloads nothing');
+  assert.ok(t2.files.every(f => f.cached));
+  assert.deepEqual([job.stats.downloads, preview.stats.downloads], [1, 1]);
+  assert.deepEqual(seen.filter(e => e.event === 'terminal_file').map(e => [e.what, e.cached]), [['T1 price 2026', false], ['T2 price 2026', 'disk']]);
+}));
+
+test('the disk cache budget is the directory\'s: after every put of either client its files fit cacheDirBytes, the file just put kept', () => withDir(async dir => {
+  const files = await Promise.all(['T1', 'T2', 'T3', 'T4'].map(priceFile)), sizes = files.map(f => f.bytes);
+  assert.ok(3 * Math.min(...sizes) > 2 * Math.max(...sizes), 'two files fit, three do not');
+  const budget = 2 * Math.max(...sizes), a = shared(dir, budget), b = shared(dir, budget);
+  // another client's write in flight: neither counted nor removed
+  const tmp = path.join(dir, `${'f'.repeat(64)}.json.gz.1.x.tmp`);
+  fs.writeFileSync(tmp, new Uint8Array(budget));
+  for (const [c, t] of [[b, 'T1'], [a, 'T2'], [b, 'T3'], [a, 'T4'], [b, 'T1'], [a, 'T2']] as const) {
+    await c.loadTicker(t, ['price']);
+    const total = cachedBytes(dir);
+    assert.ok(total <= budget, `after ${t}: ${total} bytes on disk, budget ${budget}`);
+    assert.ok(cachedFiles(dir).includes(`${files[+t[1] - 1].sha256}.json.gz`), `${t}, just put, is kept`);
+  }
+  assert.equal(cachedFiles(dir).length, 2);
+  assert.ok(fs.existsSync(tmp), 'a *.tmp file is never removed');
+}));
+
+test('least recently used is the directory\'s: a file another client read lately outlives an older one nobody read', () => withDir(async dir => {
+  const [t1, t2, t3] = await Promise.all(['T1', 'T2', 'T3'].map(priceFile)), budget = 2 * Math.max(t1.bytes, t2.bytes, t3.bytes);
+  const job = shared(dir, budget), preview = shared(dir, budget), at = (f: { sha256: string }) => path.join(dir, `${f.sha256}.json.gz`);
+  await job.loadTicker('T1', ['price']); await job.loadTicker('T2', ['price']);
+  fs.utimesSync(at(t1), 1000, 1000); fs.utimesSync(at(t2), 2000, 2000);            // T1 written first, T2 after it, both long ago
+  const n = fake.requests.length;
+  await preview.loadTicker('T1', ['price']);                                        // the preview reads T1 now
+  assert.equal(bucketGets(n).length, 0);
+  assert.ok(fs.statSync(at(t1)).mtimeMs > 2000_000, 'a read refreshes the file\'s time');
+  await job.loadTicker('T3', ['price']);                                             // over the budget: the job's client evicts
+  assert.deepEqual(cachedFiles(dir), named(t1, t3), 'T2, unread since it was written, goes; T1, read by the preview, stays');
+}));
+
+test('a file another client evicted is a miss for this one: downloaded again, never an error', () => withDir(async dir => {
+  const [t1, t2] = await Promise.all(['T1', 'T2'].map(priceFile)), budget = Math.max(t1.bytes, t2.bytes) + 1;   // room for one file
+  const job = shared(dir, budget), preview = shared(dir, budget);
+  await job.loadTicker('T1', ['price']);
+  await preview.loadTicker('T1', ['price']);                                         // from disk: the preview's client knows T1
+  assert.equal(preview.stats.downloads, 0);
+  await job.loadTicker('T2', ['price']);                                             // T1 evicted to make room
+  assert.deepEqual(cachedFiles(dir), named(t2));
+  const n = fake.requests.length;
+  assert.equal(await preview.cached(await preview.bundle('T1', ['price'])), false, 'gone from the directory: not cached');
+  const again = await preview.loadTicker('T1', ['price']);
+  assert.deepEqual([bucketGets(n).length, preview.stats.downloads, again.files[0].cached], [1, 1, false]);
+  assert.deepEqual(cachedFiles(dir), named(t1), 'its new copy is kept and T2 made room for it');
+}));
+
+test('a damaged file another client left in the directory is dropped and downloaded again (inflateVerified)', () => withDir(async dir => {
+  const t2 = await priceFile('T2'), job = shared(dir, 10_000_000);
+  await job.loadTicker('T1', ['price']);                                             // the job's client has read the directory
+  fs.writeFileSync(path.join(dir, `${t2.sha256}.json.gz`), new Uint8Array(t2.bytes));   // the manifest's size, not its sha256
+  let n = fake.requests.length;
+  const r = await job.loadTicker('T2', ['price']);
+  assert.deepEqual([bucketGets(n).length, r.files[0].cached], [1, false]);
+  assert.deepEqual(r.prices, (await new TerminalClient(options()).loadTicker('T2', ['price'])).prices);
+  n = fake.requests.length;
+  assert.ok((await shared(dir, 10_000_000).loadTicker('T2', ['price'])).files[0].cached, 'the copy on disk is now the verified one');
+  assert.equal(bucketGets(n).length, 0);
+}));
+
+/* Races between clients, made to happen at a set point: one node:fs/promises function terminal.ts imports is replaced
+   for the length of f (syncBuiltinESMExports carries the replacement to its named imports) and put back after it. */
+const fsp = createRequire(import.meta.url)('node:fs/promises');
+const hooked = async <T>(name: string, wrap: (real: (...a: any[]) => Promise<any>) => (...a: any[]) => Promise<any>, f: () => Promise<T>): Promise<T> => {
+  const real = fsp[name]; fsp[name] = wrap(real); syncBuiltinESMExports();
+  try { return await f() } finally { fsp[name] = real; syncBuiltinESMExports() }
+};
+const mtime = (at: string, ms: number) => fs.utimesSync(at, ms / 1000, ms / 1000);
+
+test('a file one client keeps serving from memory is used on disk too: another client\'s put evicts an older unread file instead', () => withDir(async dir => {
+  const [t1, t2, t3] = await Promise.all(['T1', 'T2', 'T3'].map(priceFile)), budget = 2 * Math.max(t1.bytes, t2.bytes, t3.bytes);
+  const job = shared(dir, budget, { cacheBytes: 10_000_000 }), preview = shared(dir, budget), at = (f: { sha256: string }) => path.join(dir, `${f.sha256}.json.gz`);
+  await job.loadTicker('T1', ['price']); await preview.loadTicker('T2', ['price']);
+  mtime(at(t1), 1000_000); mtime(at(t2), 2000_000);                               // T1 written first, T2 after it, both long ago
+  const n = fake.requests.length;
+  assert.equal((await job.loadTicker('T1', ['price'])).files[0].cached, true);     // from the job's memory
+  assert.equal(bucketGets(n).length, 0);
+  assert.ok(fs.statSync(at(t1)).mtimeMs > 2000_000, 'a memory hit refreshes the file\'s time');
+  await preview.loadTicker('T3', ['price']);                                        // over the budget: the preview's client evicts
+  assert.deepEqual(cachedFiles(dir), named(t1, t3), 'T2, unread since it was written, goes; T1, read from the job\'s memory, stays');
+}));
+
+test('a file this client uses from memory while its own put evicts is not evicted for being old: fit compares the time it queued', async () => {
+  const files = await Promise.all(['T1', 'T2', 'T3', 'T4'].map(priceFile)), sizes = files.map(f => f.bytes), budget = 3 * Math.max(...sizes);
+  assert.ok(4 * Math.min(...sizes) > budget, 'three files fit, four do not');
+  // the fault (touch wrote the new time into the entry fit had queued) showed only when stat gave back the very
+  // millisecond touch wrote, about one time in two: 8 rounds
+  for (let round = 0; round < 8; round++) await withDir(async dir => {
+    const job = shared(dir, budget, { cacheBytes: 10_000_000 }), other = shared(dir, budget), at = (t: string) => path.join(dir, `${files[+t[1] - 1].sha256}.json.gz`);
+    await job.loadTicker('T2', ['price']);                                          // in the job's memory, queued with the time of its put
+    const put = Date.now();
+    await other.loadTicker('T1', ['price']); await other.loadTicker('T3', ['price']);
+    mtime(at('T1'), put + 1); mtime(at('T3'), put + 2);                              // both used after T2's put
+    while (Date.now() <= put + 3) await new Promise(r => setTimeout(r, 1));
+    let used = false;
+    await hooked('stat', real => async (p: string, ...rest: unknown[]) => {
+      if (p === at('T2') && !used) { used = true; await job.loadTicker('T2', ['price']) }   // a memory hit while the put of T4 checks T2
+      return real(p, ...rest);
+    }, () => job.loadTicker('T4', ['price']));
+    assert.ok(used, 'T2 was the first candidate');
+    assert.deepEqual(cachedFiles(dir), named(files[1], files[2], files[3]), `round ${round}: T1, the least recently used, goes; T2, used during the put, stays`);
+  });
+});
+
+test('two clients that put at once never remove each other\'s file: one stays, and the next put brings the directory within the budget', () => withDir(async dir => {
+  const [t1, t2, t3] = await Promise.all(['T1', 'T2', 'T3'].map(priceFile)), budget = Math.max(t1.bytes, t2.bytes, t3.bytes) + 1;   // room for one file
+  const job = shared(dir, budget), preview = shared(dir, budget);
+  // both renames are done before either put lists the directory to evict: each put finds the other's file there
+  let renamed = 0, both = () => {};
+  const met = new Promise<void>(ok => { both = ok; setTimeout(ok, 2000).unref() });
+  await hooked('rename', real => async (from: string, to: string) => {
+    await real(from, to);
+    if (path.dirname(to) === dir) { if (++renamed === 2) both(); await met }
+  }, () => Promise.all([job.loadTicker('T1', ['price']), preview.loadTicker('T2', ['price'])]));
+  assert.equal(renamed, 2);
+  const left = cachedFiles(dir);
+  assert.ok(left.length >= 1 && left.every(f => named(t1, t2).includes(f)), `the two puts left ${left.length} of their files`);
+  await job.loadTicker('T3', ['price']);
+  assert.deepEqual(cachedFiles(dir), named(t3), 'the next put evicts what the two left over the budget');
+}));
+
+test('a *.tmp a cut-off write left (kill() before its rename) is removed once an hour old; a fresh one and files the cache never writes are left alone', () => withDir(async dir => {
+  const tmp = (c: string) => path.join(dir, `${c.repeat(64)}.json.gz.7.k2x.tmp`), stale = tmp('e'), fresh = tmp('f'), other = path.join(dir, 'notes.txt');
+  for (const f of [stale, fresh, other]) fs.writeFileSync(f, 'x');
+  mtime(stale, Date.now() - 2 * 3600_000); mtime(other, Date.now() - 2 * 3600_000);
+  await shared(dir, 10_000_000).loadTicker('T1', ['price']);
+  assert.deepEqual([stale, fresh, other].map(f => fs.existsSync(f)), [false, true, true]);
+}));
+
+test('a disk cache directory that cannot be created is no disk cache: loads download and go on, the put is logged, a later call tries again', () => withDir(async root => {
+  const volume = path.join(root, 'volume'), dir = path.join(volume, 'cache'), seen: Record<string, unknown>[] = [];
+  fs.writeFileSync(volume, '');                                                    // a file where the directory's parent should be
+  const c = shared(dir, 10_000_000, { log: (event, fields) => { seen.push({ event, ...fields }) } });
+  assert.equal((await c.loadTicker('T1', ['price'])).files[0].cached, false);
+  assert.equal(await c.cached(await c.bundle('T1', ['price'])), false, 'a miss, not an error');
+  assert.deepEqual(seen.filter(e => e.event === 'terminal_cache_error').map(e => e.error), ['ENOTDIR']);
+  fs.rmSync(volume);                                                               // the volume is there now
+  await c.loadTicker('T2', ['price']);
+  assert.deepEqual(cachedFiles(dir), named(await priceFile('T2')));
+  assert.ok(await c.cached(await c.bundle('T2', ['price'])));
+}));
 
 test('reference lists: tickers with name, type and their groupings, brokers with name and type', async () => {
   const c = new TerminalClient(options());

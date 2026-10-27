@@ -208,7 +208,7 @@ variable and never its value.
 | `TERMINAL_URL` | required | terminal-api's private origin, e.g. `http://terminal-api.railway.internal:8080` | terminal-api origin: http(s), no path, no user name or password |
 | `TERMINAL_PROXY_KEY` | required | `${{terminal-api.TERMINAL_PROXY_KEY}}` | terminal-api gateway key (D-U1), ≥ 32 characters, never logged |
 | `BACKTEST_CACHE_BYTES` | required | 1500000000 | memory cache budget per thread (gzip bytes); 0 = none |
-| `BACKTEST_CACHE_DIR`, `BACKTEST_CACHE_DIR_BYTES` | off | not set | optional disk cache and its budget; the directory must be writable by uid 1000 |
+| `BACKTEST_CACHE_DIR`, `BACKTEST_CACHE_DIR_BYTES` | off | `/tmp/backtest-cache`, 1073741824 (the container's own disk, one replica; about three times the whole published data set: the publisher's packs were 302 MB on 2026-10-26) | optional disk cache and its budget. Every thread (and every replica on the same volume) shares the directory, under one budget: the directory's total, least recently used by any of them removed first. The directory must be one uid 1000 can create or write; one it cannot is no disk cache (each download logs `terminal_cache_error`). The budget must leave room on the volume |
 | `BACKTEST_DOWNLOAD_CONCURRENCY` | required | 16 | HTTP requests in flight per thread |
 | `BACKTEST_DOWNLOAD_RETRIES` | required | 3 | retries of a network error or 5xx answer |
 | `BACKTEST_RETRY_BASE_MS` | required | 500 | backoff `base × 2^k` between retries |
@@ -216,10 +216,10 @@ variable and never its value.
 | `BACKTEST_FILE_ORIGIN` | required | `https://*.t3.storageapi.dev` (the host edge-bff's CSP allows for the same presigned downloads, `app/main.py`) | the origin every file and reference URL must have: scheme, host (a leading `*.` matches subdomains) and port; any other URL is `DATA_INTEGRITY` and never requested |
 | `BACKTEST_MAX_FILE_BYTES` | required | 67108864 (the largest published file measured 2026-10-26 is BBRI's broker-archive pack: 2,218,292 bytes gzip, 14,456,717 inflated; the archive grows about 1.8 MB per year) | the most bytes one file may inflate to, and the most bytes of a body that is not a data file (a reference file, a terminal-api answer, a bucket error answer); over it `DATA_INTEGRITY` (a terminal-api or bucket error answer: `DATA_UNAVAILABLE`) |
 | `BACKTEST_MAX_DOWNLOAD_BYTES` | required | 1500000000 | bytes of published files one job or preview may read |
-| `BACKTEST_MAX_BROKER_ROWS` | required | 20000000 | broker rows one job or preview may read |
+| `BACKTEST_MAX_BROKER_ROWS` | required | 20000000 (the 12 stocks with the most broker rows hold 2,494,454 in all, measured from the manifests 2026-10-27, so no valid request reaches it today; it guards memory as the broker history grows: the worst-case 12-stock run peaked at 1.31 GB on Railway) | broker rows one job or preview may read |
 | `BACKTEST_TIMEOUT_SECONDS` | required | 900 | longest job, preview, validation or catalog |
 | `BACKTEST_MAX_CONDITIONS` | required | 32 | enabled conditions one list (entry, exit signals) may have; reported as `catalog.limits.max_conditions`; more is `LIMIT_EXCEEDED` (`details.limit: max_conditions`) |
-| `BACKTEST_MAX_RESULT_BYTES` | required | set from the dev E2E measurement; edge-bff takes the same value by the Railway reference `${{backtest-worker.BACKTEST_MAX_RESULT_BYTES}}` | the most JSON a job's result may have; over it the job ends `FAILED LIMIT_EXCEEDED` (`details.limit: max_result_bytes`) before the result is packed. Not in the catalog: the page cannot act on it |
+| `BACKTEST_MAX_RESULT_BYTES` | required | 33554432, from the dev E2E (2026-10-27): the largest result a valid request can make is about 12 positions × every trading day of the published period as trades; measured 3,829,496 bytes of JSON for 4,176 trades (12 stocks, 12 positions, an entry true about every other bar, exit after one bar, 2018-01-02 to 2026-10-26), about 860 bytes a trade, so the bound (12 × about 2,150 days) is about 22 MB today. edge-bff takes the same value by the Railway reference `${{backtest-worker.BACKTEST_MAX_RESULT_BYTES}}` | the most JSON a job's result may have; over it the job ends `FAILED LIMIT_EXCEEDED` (`details.limit: max_result_bytes`) before the result is packed. Not in the catalog: the page cannot act on it |
 | `BACKTEST_MAX_POSITIONS` | 12 (`engine.ts` MAX_POSITIONS) | 12 (default) | the most positions a portfolio may hold; reported as `catalog.limits.max_positions`; may only be lowered |
 | `BACKTEST_MAX_PORTFOLIO_TICKERS` | 12 (`engine.ts` MAX_PORTFOLIO_TICKERS) | 12 (default) | the most stocks a portfolio or preview may pick; reported as `catalog.limits.max_portfolio_tickers`; may only be lowered |
 | `BACKTEST_MONTE_CARLO_RUNS` | 1000 | 1000 (default) | the page's `monteCarlo(…, runs = 1000)`; a request asks for exactly this or 0 |
@@ -241,8 +241,24 @@ it too.
 **Timeouts.** edge-bff has its own `BACKTEST_TIMEOUT_SECONDS`, which limits the whole job on its side, polling
 included. At that deadline edge-bff ends the job `TIMEOUT` and sends the worker a cancel.
 
-**Memory.** Each compute thread has its own client and cache. Memory is therefore up to 2 × `BACKTEST_CACHE_BYTES`,
-plus the HTTP thread's IHSG files for the catalog.
+**Memory.** Each compute thread has its own client and memory cache. Memory is therefore up to 2 ×
+`BACKTEST_CACHE_BYTES`, plus the HTTP thread's IHSG files for the catalog. The disk cache (`BACKTEST_CACHE_DIR`) is
+one for all of them. Every thread's client reads and writes the same directory, and so do a thread started again
+after `kill()` and another replica on the same volume. A file one of them put is read from disk by the others. After
+every put the cached files are brought within `BACKTEST_CACHE_DIR_BYTES` in all, the file least recently used by any
+of them removed first. Two things are on top of the budget for a while: a file being put, until its put has evicted
+(it is written as a `*.tmp` and then renamed), and, when clients put more at once than the budget holds, the files
+put at once, until the next put (a put never removes a file another client put meanwhile). A `*.tmp` that `kill()`
+cut off before its rename is removed once it is an hour old. This matters because a signals preview and the run
+after it are on two threads and read the same files. Without the disk cache the run downloads every file of the
+preview again. Measured on Railway dev 2026-10-27: a preview of 12 stocks downloaded 48 files (28.27 MB), and the
+run after it the same 48 again plus 12 events files. Every download costs bucket egress. A ticker whose step-1
+answer is too old asks a second `/bundle` answer (quota, audit row) only when a file of it is not cached. Each
+cached copy is still checked when it is used, so a file another client damaged or removed is downloaded again, never
+an error. Railway dev sets `/tmp/backtest-cache` (Configuration): the container's own disk, which serves the threads
+of its one replica and starts empty at each deploy; replicas would share files only on a common volume. The budget
+must leave room on the volume: a full volume fails every put (`terminal_cache_error` `ENOSPC`), which evicting
+within the budget cannot fix.
 
 **Catalog cost with flow on.** `catalog.flow.data_through` asks terminal-api for the manifest of every published stock
 (`/manifest`, no file granted, no quota), `BACKTEST_DOWNLOAD_CONCURRENCY` at a time, on every catalog build.
@@ -374,9 +390,13 @@ once that URL has expired.
 **`tests/terminal.test.ts`** covers the terminal-api client: the reference ticker file (every column but ticker, name
 and type a grouping, in file order; null, `''` and `Undefined` unclassified), the two portfolio limits, loads, data
 errors, retries, the cache, concurrency, when a `/bundle` answer is usable, a download in flight shared only by
-callers of its URL, a file downloaded from two URLs at once counted once in the disk cache, the manifest and the
-broker date scan, secrets kept out of messages and logs, the bucket origin, the body and inflate caps, and no Postgres
-client anywhere in the worker.
+callers of its URL, a file downloaded from two URLs at once counted once in the disk cache, one disk cache directory
+shared by several clients (a file another client put is read from disk; one budget for the directory; least recently
+used by any client, a memory hit included; a file another client removed is a miss and one it damaged is downloaded
+again; a file used while its client evicts is kept; two clients that put at once never remove each other's file; a
+stale `*.tmp` removed; a directory that cannot be created is no disk cache), the manifest and the broker date scan,
+secrets kept out of messages and logs, the bucket origin, the body and inflate caps, and no Postgres client anywhere
+in the worker.
 
 ## Durations observed
 
@@ -397,3 +417,22 @@ Other observations:
   and the status polling.
 - **Result size.** A single result is about 250 KB of JSON, or 52 KB gzip. A 280-ticker result is about 0.9 MB of JSON.
 - **Heap.** The 280-ticker run used up to about 380 MB of heap.
+
+On Railway dev (2026-10-27, region `sfo`, the bucket in `sin`; the jobs through edge-bff, submit to the end of the job
+including edge-bff's polling every 2 s; `verification/backtest/e2e_dev.py` and `measure_dev.py`, outputs in the
+project folder `backtest/e2e-2026-10-27/`):
+
+| Run | Worker | Submit to end | Downloaded | Result JSON (gzip) |
+|---|---|---|---|---|
+| Single, MAPI, page defaults with flow, cold | 1.31 s | 4.99 s | 6 files, 1.25 MB | 357 KB (95 KB) |
+| Single, the same, warm | 0.45–0.58 s | 5.5–5.9 s | none | 357 KB (95 KB) |
+| Portfolio, the 12 stocks with the most broker rows, flow, max 5, cold | 7.05 s | 12.42 s | 60 files, 28.35 MB in 6.1 s (4.7 MB/s) | 944 KB (274 KB) |
+| Portfolio, the same, warm | 5.5 s | 10.8 s | none | 944 KB (274 KB) |
+| Cancel of that portfolio while loading | ended 1.0 s after the cancel reached the worker | 4.2 s after the cancel call | | |
+
+- **Region.** The same cold sequence with the worker in `sin` (next to the bucket): single 1.81 s (submit to end
+  6.95 s), portfolio 7.34 s (16.21 s), catalog 22.3 s against 2.3 s: a file downloads faster (median 448 ms against
+  2,268 ms) but the largest files take as long, and every terminal-api call crosses to `sfo` (`/bundle` median 892 ms
+  against 166 ms). The worker stays in `sfo`.
+- **Memory.** Railway's one-minute peak was 1.31 GB while a 12-stock preview, its run and a cancel ran within the
+  minute; 0.32 GB for the cold API sequence alone. CPU peaked at 0.43 vCPU (one-minute average).

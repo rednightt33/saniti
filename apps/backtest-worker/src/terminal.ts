@@ -23,10 +23,12 @@
    (temporary credentials in their query) are not logged either.
 
    Cache: files by sha256 (content addressed, so a cached file can never belong to another data version), the verified
-   gzip bytes in memory (LRU, byte budget) and optionally on disk (LRU, byte budget); a cached file is checked again
-   (sha256, size) every time it is used, a damaged disk copy is dropped and downloaded again. A download in flight is
-   shared by the callers of the same file and URL only: another /bundle answer's URL for the file can have expired, and
-   its 403 must never reach a caller whose own URL is valid (load.ts asks a new answer on a 403).
+   gzip bytes in memory (this client's, LRU, byte budget) and optionally on disk (one directory every client on it
+   shares, the other threads' and replicas' too, with one byte budget for the directory and least recently used by any
+   of them; DiskCache); a cached file is checked again (sha256, size) every time it is used, a damaged disk copy is
+   dropped and downloaded again. A download in flight is shared by the callers of the same file and URL only: another
+   /bundle answer's URL for the file can have expired, and its 403 must never reach a caller whose own URL is valid
+   (load.ts asks a new answer on a 403).
 
    What the client accepts from terminal-api and the bucket (a wrong or compromised answer must not turn the worker into
    a client of anything else, nor fill its memory):
@@ -42,7 +44,7 @@
    edge-bff require), BACKTEST_CACHE_BYTES, BACKTEST_DOWNLOAD_CONCURRENCY (HTTP requests in flight),
    BACKTEST_DOWNLOAD_RETRIES (retries after the first try), BACKTEST_RETRY_BASE_MS, BACKTEST_HTTP_TIMEOUT_MS (per
    request), BACKTEST_FILE_ORIGIN, BACKTEST_MAX_FILE_BYTES, optional BACKTEST_CACHE_DIR with BACKTEST_CACHE_DIR_BYTES. */
-import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, stat, unlink, utimes, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   DataError, brokerGaps, brokerRows, corporateActions, dataVersion, decodeColumnar, inflateVerified, priceSeries,
@@ -206,48 +208,124 @@ class MemoryCache {
   delete(sha: string): void { const v = this.map.get(sha); if (v) { this.map.delete(sha); this.size -= v.byteLength } }
 }
 
-/** Files <sha256>.json.gz in one directory, least recently used dropped first (recency: write time at start, then use). */
+/** Files <sha256>.json.gz in one directory that every client on it shares: the job, preview and HTTP threads (each has
+    its own client), a thread started again after kill(), another replica on the same volume. A preview and the run
+    after it read the same files on two threads, so a file one of them downloaded must serve the other (no second
+    download, no second /bundle answer for it). The directory is therefore the truth and this instance's index
+    (sha256 -> bytes and last use, as this instance last saw them) only a hint:
+    - has and get look at the file itself: one another client put is adopted, one another client removed is forgotten
+      and a miss (ENOENT is never an error);
+    - the budget is the directory's total, not this instance's: after every put the directory is listed (one readdir;
+      a name not seen before is stat'ed once), since files other clients put since this instance last looked are in
+      no view of its own, and while the total is over the budget the least recently used files are removed;
+    - a put never removes the file it put, nor one another download (another client's or this one's) put while it was
+      writing (a name the listing taken before its rename did not have): two clients that put at once would otherwise
+      each remove the other's file and leave neither, when the two together are over the budget. The directory can
+      then be over the budget until the next put, by the files put at once;
+    - a *.tmp is a write in flight, neither counted nor removed, unless it was not written for STALE_TMP_MS: a live
+      write changes its time with every chunk and renames it at once, so such a file is one that kill() (a timeout, a
+      preview whose caller left, shutdown) cut off before its rename, and nothing else would ever remove it;
+    - recency is a file's modification time, which its write sets and every use refreshes (touch, a memory hit too), so
+      least recently used means by any client; a candidate's time is checked (stat) against the time it was queued
+      with before it is removed, because another client, or this one, may have used it since, and one used meanwhile
+      takes its new place in the order;
+    - a directory that cannot be created (EACCES, ENOTDIR, a volume not mounted) is no disk cache, as cacheBytes 0 is
+      no memory cache, never a failed load: has and get answer a miss, put fails (fetchFile logs terminal_cache_error
+      and the load goes on), and the next call tries to create it again.
+    A file appears only by the rename of a whole one (a reader never sees half a file) and every copy is checked when it
+    is used (fetchFile: inflateVerified), so a race between clients can cost a download, never an error or a wrong file. */
+const CACHED = /^([0-9a-f]{64})\.json\.gz$/, WRITING = /^[0-9a-f]{64}\.json\.gz\.\d+\.[0-9a-z]*\.tmp$/;   // put's names
+const STALE_TMP_MS = 60 * 60 * 1000;            // a *.tmp not written for this long was cut off by kill() (above)
+const gone = (e: unknown) => (e as { code?: string })?.code === 'ENOENT';
+type Seen = { bytes: number; used: number };      // used: the file's modification time (ms), as last seen
 class DiskCache {
-  private index = new Map<string, number>(); private size = 0; private ready: Promise<void> | null = null;
+  private index = new Map<string, Seen>(); private ready: Promise<void> | null = null; private fitting: Promise<void> = Promise.resolve();
   private dir: string; private budget: number;
   constructor(dir: string, budget: number) { this.dir = dir; this.budget = budget }
   private file = (sha: string) => path.join(this.dir, `${sha}.json.gz`);
-  private init(): Promise<void> {
-    return this.ready ||= (async () => {
-      await mkdir(this.dir, { recursive: true });
-      const found: [string, number, number][] = [];
-      for (const name of await readdir(this.dir)) {
-        const m = /^([0-9a-f]{64})\.json\.gz$/.exec(name);
-        if (!m) continue;
-        try { const s = await stat(path.join(this.dir, name)); found.push([m[1], s.size, s.mtimeMs]) } catch { /* removed meanwhile */ }
-      }
-      for (const [sha, bytes] of found.sort((a, b) => a[2] - b[2])) { this.index.set(sha, bytes); this.size += bytes }
-    })();
+  /** The directory, created once; a failure is not kept, so the next call tries again. */
+  private init(): Promise<void> { return this.ready ||= mkdir(this.dir, { recursive: true }).then(() => {}, e => { this.ready = null; throw e }) }
+  /** The directory's cached files (sha256) and the *.tmp of put's writes. */
+  private async list(): Promise<{ cached: Set<string>; writing: string[] }> {
+    const cached = new Set<string>(), writing: string[] = [];
+    for (const name of await readdir(this.dir)) { const m = CACHED.exec(name); if (m) cached.add(m[1]); else if (WRITING.test(name)) writing.push(name) }
+    return { cached, writing };
   }
-  async has(sha: string): Promise<boolean> { await this.init(); return this.index.has(sha) }
+  async has(sha: string): Promise<boolean> {
+    try { await this.init(); const s = await stat(this.file(sha)); this.index.set(sha, { bytes: s.size, used: s.mtimeMs }); return true }
+    catch { this.index.delete(sha); return false }                     // never put, removed by another client, no directory: a miss
+  }
   async get(sha: string): Promise<Uint8Array | null> {
-    await this.init();
-    if (!this.index.has(sha)) return null;
-    try {
-      const b = new Uint8Array(await readFile(this.file(sha)));
-      const n = this.index.get(sha) as number; this.index.delete(sha); this.index.set(sha, n);
-      return b;
-    } catch { await this.drop(sha); return null }
+    try { await this.init() } catch { return null }                    // no directory: a miss
+    let b: Uint8Array;
+    try { b = new Uint8Array(await readFile(this.file(sha))) }
+    catch (e) { if (gone(e)) this.index.delete(sha); else await this.drop(sha); return null }
+    this.index.set(sha, { bytes: b.byteLength, used: Date.now() });
+    await this.touch(sha);
+    return b;
+  }
+  /** The file was used now (read from disk or from a memory cache): every client's least recently used sees it. The
+      index entry is replaced, never changed in place: fit compares a candidate's time with the one it queued. */
+  async touch(sha: string): Promise<void> {
+    const now = new Date();
+    try { await utimes(this.file(sha), now, now); const s = this.index.get(sha); if (s) this.index.set(sha, { bytes: s.bytes, used: now.getTime() }) }
+    catch (e) { if (gone(e)) this.index.delete(sha) }                  // removed meanwhile: its next use is a miss
   }
   async put(sha: string, bytes: Uint8Array): Promise<void> {
-    await this.init();
-    if (bytes.byteLength > this.budget || this.index.has(sha)) return;
+    await this.init();                                                  // no directory: the put fails, the load goes on
+    if (bytes.byteLength > this.budget) return;
     const tmp = `${this.file(sha)}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`;
-    await writeFile(tmp, bytes);
-    await rename(tmp, this.file(sha));                                  // a reader never sees half a file
-    if (this.index.has(sha)) return;                                    // put meanwhile by its download from another URL (file): counted once
-    this.index.set(sha, bytes.byteLength); this.size += bytes.byteLength;
-    for (const old of [...this.index.keys()]) { if (this.size <= this.budget) break; if (old !== sha) await this.drop(old) }
+    // the files there before the rename, listed while the file is written: any other is put meanwhile and this put keeps it
+    const listed = this.list(); listed.catch(() => {});
+    let before: Set<string>;
+    try { await writeFile(tmp, bytes); before = (await listed).cached; await rename(tmp, this.file(sha)) }   // a reader never sees half a file
+    catch (e) { await unlink(tmp).catch(() => {}); throw e }           // no *.tmp left behind: no budget counts one
+    // a file put meanwhile by another download (another URL, another client) is one name in the listing: counted once
+    this.index.set(sha, { bytes: bytes.byteLength, used: Date.now() });
+    const fit = this.fitting.then(() => this.fit(sha, before));        // one at a time: each lists the puts before it
+    this.fitting = fit.catch(() => {});
+    await fit;
+  }
+  /** The directory's files brought within the budget, least recently used removed first; `kept` (just put) and a file
+      that is not in `before` (put by another client while `kept` was written) never. */
+  private async fit(kept: string, before: Set<string>): Promise<void> {
+    const { cached: names, writing } = await this.list(), stale = Date.now() - STALE_TMP_MS;
+    await Promise.all(writing.map(async name => {                       // a write kill() cut off: removed once stale
+      const at = path.join(this.dir, name), s = await stat(at).catch(() => null);
+      if (s && s.mtimeMs < stale) await unlink(at).catch(() => {});
+    }));
+    for (const sha of [...this.index.keys()]) if (!names.has(sha)) this.index.delete(sha);   // removed by another client
+    await Promise.all([...names].filter(sha => !this.index.has(sha)).map(async sha => {      // put by another client
+      try { const s = await stat(this.file(sha)); this.index.set(sha, { bytes: s.size, used: s.mtimeMs }) } catch { /* removed meanwhile */ }
+    }));
+    let total = 0;
+    for (const s of this.index.values()) total += s.bytes;
+    if (total <= this.budget) return;
+    // [sha, bytes, used] as they are now: a use while this runs (touch) replaces the index entry, never these
+    type Queued = [string, number, number];
+    const queue = [...this.index].filter(([sha]) => sha !== kept && before.has(sha)).map(([sha, s]): Queued => [sha, s.bytes, s.used]).sort((a, b) => a[2] - b[2]);
+    const checked = new Set<string>();
+    while (total > this.budget && queue.length) {
+      let [sha, bytes, used] = queue.shift() as Queued;
+      if (!checked.has(sha)) {                                          // its time as the directory has it now, once
+        checked.add(sha);
+        const s = await stat(this.file(sha)).catch(() => null);
+        if (!s) { this.index.delete(sha); total -= bytes; continue }    // removed meanwhile
+        total += s.size - bytes; bytes = s.size;
+        this.index.set(sha, { bytes, used: s.mtimeMs });
+        if (s.mtimeMs !== used) {                                       // used (or put again) since: its new place in the order
+          let lo = 0, hi = queue.length;
+          while (lo < hi) { const mid = (lo + hi) >> 1; if (queue[mid][2] <= s.mtimeMs) lo = mid + 1; else hi = mid }
+          queue.splice(lo, 0, [sha, bytes, s.mtimeMs]);
+          continue;
+        }
+      }
+      await this.drop(sha); total -= bytes;
+    }
   }
   async drop(sha: string): Promise<void> {
-    const n = this.index.get(sha);
-    if (n !== undefined) { this.index.delete(sha); this.size -= n }
-    await unlink(this.file(sha)).catch(() => {});
+    this.index.delete(sha);
+    await unlink(this.file(sha)).catch(() => {});                       // removed already (another client): the same
   }
 }
 
@@ -410,7 +488,7 @@ export class TerminalClient {
       if (!bytes) continue;
       try {
         const doc = await inflateVerified(bytes, f, what, this.o.maxFileBytes);
-        if (where === 'disk') this.mem.set(f.sha256, bytes);
+        if (where === 'disk') this.mem.set(f.sha256, bytes); else await this.disk?.touch(f.sha256);   // a use: every client's recency
         this.stats.cache_hits++;
         this.log('terminal_file', { what, bytes: f.bytes, cached: where });
         return { doc, cached: true };
