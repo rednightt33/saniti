@@ -4918,3 +4918,10 @@ User 2026-10-27: "Sesi ini, jalankan" (PLAN BACKTEST-LOAD; EXEC.md EXEC-BACKTEST
   a static file from the sandbox (before: 240 ms against about 130 ms).
 - Measured (BACKTEST_END_TO_END.md section 17): first open 8.83 → 1.37 s, second open 2.36 → 1.12 s, no long task over
   50 ms; Terminal chart 2.28 s / 1.77 s.
+
+## 2026-10-27 — edge-bff: loading ring on the Backtest page (EXEC-BACKTEST-SPIN)
+
+User 2026-10-27: "S1 dan S2 yes sesuai yang kamu sarankan / S3 - OK ya", "Go". `main` `eaa1590`: edge-bff `63cd3a6a` SUCCESS
+18:22 UTC; live Backtest and Terminal assets equal the builds (sha256). Live check: `#chartLoading` "Loading MAPI", one
+turn 0.15s, gone when the candles are drawn (3.9 s from the sandbox), three lane rings while the broker data loads, no
+page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: `d2e3aa1f` SUCCESS 18:23 UTC. No variable changed.
