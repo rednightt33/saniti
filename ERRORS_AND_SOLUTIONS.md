@@ -2572,7 +2572,9 @@ change yet.
   folder app di dalam folder kosong), karena `rootDirectory` layanan `/apps/edge-bff` dicari di dalam arsip: upload
   folder app sebagai akar gagal di build (`4bcea256`, 12:54 UTC, deploy yang berjalan tidak terganggu). Permanen: satu
   sumber, yaitu kode backtest masuk main lewat PR setelah E2E lulus (keputusan user N 2026-10-27 09:08 UTC).
-- **Status:** OPEN sampai PR backtest digabung ke main.
+- **Status:** RESOLVED. PR #39 digabung ke main 2026-10-27 13:55 UTC (`fdd00e7`); edge-bff dev berjalan dari main
+  (`43e5b185`, SUCCESS 14:00 UTC, aset live sama dengan build `fdd00e7`). Deploy otomatis merge itu sendiri dilewati
+  Railway (M252), jadi commit main itu dideploy manual.
 - **Lesson for new data:** sebelum memasang dari cabang ke layanan bersumber GitHub, cek sumber dan watch pattern
   layanan itu; catat di RAILWAY_CHANGELOG bahwa deploy cabang dapat tertimpa.
 
@@ -2684,6 +2686,33 @@ change yet.
   E2E). Masuk `main` lewat PR backtest.
 - **Lesson for new data:** transfer yang putus adalah gangguan jaringan (diulang), file utuh yang tidak cocok adalah data
   rusak (tidak diulang); pembaca membedakan keduanya di tempat isi dibaca.
+
+### M252 — Merge PR ke main tidak memicu deploy edge-bff: Railway melewati deploy "No changes to watched files" (2026-10-27)
+
+- **Symptom:** setelah PR #39 digabung ke main (merge commit `fdd00e7`, 13:55:19 UTC), deployment edge-bff `75dae88b`
+  untuk commit itu berstatus `SKIPPED`, `skippedReason` "No changes to watched files" (meta deployment Railway, dibaca
+  13:57 UTC). edge-bff tetap menjalankan upload CLI `390eca4b`.
+- **Verified cause (sebagian):** FACT: `git diff --name-only 85e952f fdd00e7` berisi 84 file di `apps/edge-bff/`, yang
+  cocok dengan watch `/apps/edge-bff/**`; API commit GitHub untuk `fdd00e7` juga mendaftar file yang berubah terhadap
+  parent pertama. FACT: push main berupa commit biasa memicu deploy edge-bff enam kali hari ini (M248). INFERENCE, belum
+  terbukti: Railway membaca daftar file dari event push GitHub, dan untuk merge commit PR yang commit cabangnya sudah
+  di-push lebih dulu, daftar itu tidak memuat file yang berubah. Cek yang memastikan: merge PR kecil berikutnya yang
+  menyentuh watch path, lalu baca `skippedReason` deployment-nya.
+- **Class:** setiap layanan Railway bersumber GitHub dengan watch pattern (17 layanan di dev, antara lain edge-bff,
+  market-ai-orc, feature-01-worker, idx-price-cron) bisa melewati deploy perubahan yang masuk lewat merge commit PR,
+  tanpa peringatan. Layanan yang dipasang lewat CLI (backtest-worker, terminal-api, terminal-publisher) tidak terdampak
+  karena tidak deploy saat push.
+- **Solution:** sementara (TEMPORARY): setelah merge PR, baca deployment setiap layanan yang watch path-nya cocok dengan
+  diff merge; bila `SKIPPED`, deploy commit main itu dengan `serviceInstanceDeployV2(serviceId, environmentId,
+  commitSha)`. Dilakukan untuk edge-bff: `43e5b185` dari `fdd00e7`, SUCCESS 14:00 UTC; `/ready`, `/backtest-app/`,
+  `/terminal-app/` 200; aset Terminal dan backtest live sama dengan build lokal tree `fdd00e7` (sha256); katalog
+  backtest 200 (845 ticker). PROPOSED permanen: skrip yang menurunkan layanan terdampak dari watch pattern live dan
+  `git diff` merge (bukan daftar tetap), melaporkan status deployment tiap layanan untuk commit itu, dan men-deploy yang
+  `SKIPPED`; menunggu keputusan user.
+- **Not covered:** penyebab pasti di sisi Railway (INFERENCE di atas); merge yang dilakukan di luar sesi ini.
+- **Status:** MITIGATED (edge-bff dideploy manual dari main). Penyebab OPEN.
+- **Lesson for new data:** push yang cocok dengan watch path belum tentu menghasilkan deploy; setelah merge, cek
+  deployment per layanan untuk commit itu.
 
 ### EXEC-TERMINAL-FRESH — alat gambar di Flow, kepala tabel Top brokers (2026-10-27)
 

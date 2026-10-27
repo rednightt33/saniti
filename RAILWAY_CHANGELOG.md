@@ -4883,3 +4883,15 @@ dev E2E passes). Branch `claude/project-thread-k91bfk`; nothing in production.
 - Outputs: project folder `backtest/e2e-2026-10-27/`: `dev9-1327/` (report, calls, the three results and 38
   screenshots of the 13:27 run) and `runs-1300-1315-summary.json` (the 13:00, 13:08 and 13:13 runs, chosen fields
   only: the 13:08 report's exception text carried request headers, so that report is not copied).
+
+## 2026-10-27 — edge-bff: deployed from `main` after the backtest PR merge (ERRORS M248, M252)
+
+User N 2026-10-27 09:08 UTC: merge the backtest to `main` by PR once the dev E2E passes. PR #39 merged 13:55:19 UTC
+(merge commit `fdd00e7`). Railway created edge-bff deployment `75dae88b` for it and SKIPPED it ("No changes to watched
+files", ERRORS M252), so `390eca4b` (CLI upload of the branch at `69e9f9f`, whose `apps/edge-bff` equals `fdd00e7`'s)
+kept running. `serviceInstanceDeployV2` with commit `fdd00e7` -> `43e5b185-8a4f-4f46-aa84-17697fff8b76` SUCCESS 14:00
+UTC (branch `main`): `/ready`, `/backtest-app/`, `/terminal-app/` 200; the live terminal `index`, `style`, `worker` and
+backtest `index`, `style` assets equal the local build of `fdd00e7` (sha256); the backtest catalog answers 200 (845
+tickers, data through 2026-10-27, flow available); logs: start-up only. edge-bff runs `main`'s own build again, with
+the backtest and the EXEC-TERMINAL-POPOUT windows (`main` `bb24f9c`), so a later `main` push touching
+`/apps/edge-bff/**` keeps both (ERRORS M248 resolved). Rollback: `390eca4b`. No variable or other service changed.
