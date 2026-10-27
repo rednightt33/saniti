@@ -996,7 +996,7 @@ bisa display juga candle chart weekly dan monthly".
 - Broker yang dipilih di Broker inventory (panel dan jendela) belum diingat setelah reload; setelah reload kembali ke
   tiga net buyer terbesar 20 sesi terakhir (perilaku panel sejak awal).
 
-## EDGE Backtest: halaman lambat tampil (ukuran 2026-10-27; usulan menunggu keputusan user)
+## EDGE Backtest: halaman lambat tampil (ukuran 2026-10-27; pindah ke PLAN.md BACKTEST-LOAD 2026-10-27)
 
 User 2026-10-27: "di Edge ada kata-kata which is backtest ... proses display ke front end-nya sangat lambat. Kalau bisa
 disesuaikan agar sama dengan terminal. Coba baca read dulu aja."; atas pilihan ukur dulu atau langsung rencana: "1".
