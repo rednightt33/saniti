@@ -8438,4 +8438,6 @@ Status 2026-10-27: W1 + I2 dibangun dan diuji (ERRORS "EXEC-TERMINAL-POPOUT W1 +
 `d34c40f2` SUCCESS lalu tergantikan oleh upload CLI `8c2ecc55` dari sesi lain (RAILWAY_CHANGELOG). User 2026-10-27 atas
 pilihan deploy ulang sekarang (A) atau menunggu (B): "B". Tidak deploy ulang; edge-bff kembali memakai `main` (dengan
 W1 + I2) begitu perubahan sesi lain masuk ke `main` dan edge-bff dideploy dari sana.
+  Selesai 2026-10-27: edge-bff `43e5b185` dari `main` `fdd00e7` SUCCESS; aset terminal live = build W1 + I2
+  (RAILWAY_CHANGELOG).
 

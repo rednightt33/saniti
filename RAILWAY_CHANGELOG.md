@@ -4895,3 +4895,10 @@ backtest `index`, `style` assets equal the local build of `fdd00e7` (sha256); th
 tickers, data through 2026-10-27, flow available); logs: start-up only. edge-bff runs `main`'s own build again, with
 the backtest and the EXEC-TERMINAL-POPOUT windows (`main` `bb24f9c`), so a later `main` push touching
 `/apps/edge-bff/**` keeps both (ERRORS M248 resolved). Rollback: `390eca4b`. No variable or other service changed.
+
+## 2026-10-27 — edge-bff: right-panel windows live again (EXEC-TERMINAL-POPOUT W1 + I2)
+
+The other session's work reached `main` (EDGE backtest, merge `fdd00e7`, #39) and edge-bff `43e5b185` (from `main`
+`fdd00e7`) reached SUCCESS 13:58 UTC (ERRORS M252). `apps/edge-bff/terminal` is unchanged between `bb24f9c` and `main`
+`cfa05ba`; live terminal `index-BwPhz-tP.js`, `style-CEs0cb7F.css` and `worker-Cvg2XSvx.js` equal the W1 + I2 build
+(sha256), checked 2026-10-27 after 14:27 UTC. No variable changed.

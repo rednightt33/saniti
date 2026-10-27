@@ -2854,7 +2854,7 @@ change yet.
   beli 5.100.175.092.460, 82 broker. Inventory jendela = panel dengan filter Foreign + Regular; crosshair dua arah;
   posisi sama setelah reload; mingguan ikut. Tanpa error halaman. vitest 690, edge-bff terminal 20.
 - **Pelajaran:** posisi awal beberapa jendela harus dihitung dari satu titik acuan, bukan dari ukuran tiap jendela.
-- **Status:** RESOLVED setelah deploy edge-bff (lihat RAILWAY_CHANGELOG).
+- **Status:** RESOLVED; live sejak edge-bff `43e5b185` (`main` `fdd00e7`), aset terminal = build (RAILWAY_CHANGELOG).
 
 ## Fixed-income selected-date repair — 2026-10-20 status
 
