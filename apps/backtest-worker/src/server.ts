@@ -63,6 +63,8 @@ export interface WorkerApp {
   server: http.Server;
   listen(port?: number, host?: string): Promise<number>;
   close(): Promise<void>;
+  /** EXEC-BACKTEST-LOAD: build the catalog now (at start), so the first page that asks does not wait for it */
+  warm(): void;
   /** for tests: the threads and the current job */
   threads: { jobs: ComputeThread; previews: ComputeThread };
 }
@@ -328,6 +330,7 @@ export function createApp(cfg: Config): WorkerApp {
 
   return {
     server, threads,
+    warm: () => { catalog.get().catch(e => log('warn', 'catalog_warm_failed', { error: (e as Error)?.name, code: (e as { code?: string })?.code })) },
     listen: (port = cfg.port, host = '0.0.0.0') => new Promise((ok, no) => {
       server.once('error', no);
       server.listen(port, host, () => { server.off('error', no); ok((server.address() as { port: number }).port) });
@@ -347,6 +350,7 @@ async function main(): Promise<void> {
   const app = createApp(cfg);
   const port = await app.listen();
   log('info', 'start', { ...describeConfig(cfg), port, engine_version: ENGINE_VERSION, registry_version: REGISTRY_VERSION, node: process.version });
+  app.warm();
   const stop = (signal: string) => { log('info', 'stop', { signal }); app.close().finally(() => process.exit(0)) };
   process.once('SIGTERM', () => stop('SIGTERM'));
   process.once('SIGINT', () => stop('SIGINT'));
