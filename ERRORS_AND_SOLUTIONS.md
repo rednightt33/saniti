@@ -2414,6 +2414,10 @@ change yet.
   (pesan, tidak kirim bila tidak tertinggal), 1:1 0 piksel. Live check ANTM (broker 23 Oct, harga 26 Oct): label di
   dua judul, arsiran hanya sesudah 23 Oct, tooltip 26 Oct "No broker data yet (through Fri 23 Oct)", tanpa error.
 - **Status:** RESOLVED di halaman dan rak; peringatan Telegram dibuktikan pada putaran 19:00 WIB berikutnya.
+  Check-in 2026-10-27 (putaran 12:00 UTC = 19:00 WIB): `event="done"` 13:03 UTC, `broker_behind_sessions=0` (broker
+  dan harga sama-sama sampai 2026-10-27); `state.json` `price_through` = `broker_through` = 2026-10-27,
+  `broker_behind_sessions` 0. Karena tidak tertinggal, publisher tidak meminta `telegram-monitor` (tidak ada log
+  `broker_behind_notify`), sesuai aturan. Jalur kirim Telegram belum terbukti di hari yang tertinggal; tetap terbuka.
 - **Lesson for new data:** setiap dataset deret waktu membawa `data_through`-nya sendiri dan tampilan membedakan "belum
   ada" dari "nol"; nol hanya untuk sesi yang datanya ada dan nilainya nol.
 
