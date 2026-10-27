@@ -1,5 +1,5 @@
 /* ---- Returns & distribution (backtest.html section 11) ---- */
-import { cls, fmtD, nf, num, PAL, pct, pctu, rp } from '../format.ts';
+import { cls, esc, fmtD, nf, num, PAL, pct, pctu, rp } from '../format.ts';
 import { S } from '../state.ts';
 import { DAYS, histogram, labelsFor, lineChart, bars, mean, quant, sd, skew, ttH } from './svg.ts';
 
@@ -12,7 +12,7 @@ export const tabReturns = (el: HTMLElement) => {
       <div class="legend"><span>Mean <b>${pct(mean(tr),2)}</b></span><span>Median <b>${pct(quant(tr,.5),2)}</b></span><span>Std dev <b>${pctu(sd(tr),2)}</b></span><span>Skew <b>${T.length>3?num(skew(tr)):'—'}</b></span><span>Best <b class="up">${pct(ts.best)}</b></span><span>Worst <b class="down">${pct(ts.worst)}</b></span></div></div>
     <div class="panel"><h4>Daily returns vs normal</h4><div class="sub">Dashed curve = normal distribution with the same mean and volatility; fat tails show up outside it</div>${histogram(st.r.filter(x=>x!==0),{bins:40,normal:true,unit:'Days',fmt:v=>nf(v*100,1)+'%',marks:[[st.var95,'VaR 95%',PAL.dn]]})}
       <div class="legend"><span>Skew <b>${num(st.skew)}</b></span><span>Kurtosis <b>${num(st.kurt)}</b></span><span>VaR 95% <b class="down">${pct(st.var95,2)}</b></span><span>CVaR 95% <b class="down">${pct(st.cvar95,2)}</b></span><span>Positive days <b>${pctu(st.pos,0)}</b></span></div></div></div>
-    <div class="grid2" style="margin-top:16px"><div class="panel"><h4>Rolling Sharpe (6 months)</h4><div class="sub">Is the edge stable over time, or concentrated in one period?</div>${lineChart([{v:roll,c:PAL.navy}],{fmt:v=>nf(v,1),labels:labelsFor(R.eq.slice(1)), tip:k => { const v = roll[k], d = fmtD(DAYS[R.eq[k+1][0]]); if(!isFinite(v)) return ttH(d, [], 'Not enough history yet — needs 126 trading days.');
+    <div class="grid2" style="margin-top:16px"><div class="panel"><h4>Rolling Sharpe (6 months)</h4><div class="sub">Is the edge stable over time, or concentrated in one period?</div>${lineChart([{v:roll,c:PAL.navy}],{fmt:v=>nf(v,1),labels:labelsFor(R.eq.slice(1)), tip:k => { const v = roll[k], d = esc(fmtD(DAYS[R.eq[k+1][0]])); if(!isFinite(v)) return ttH(d, [], 'Not enough history yet — needs 126 trading days.');
         const win = st.r.slice(Math.max(0,k-126),k), ret = win.reduce((p,x)=>p*(1+x),1)-1; return ttH(d, [['6-month Sharpe', nf(v,2), v>=1?'up':v<0?'down':''], ['6-month return', pct(ret,1), cls(ret)], ['Share of time above 1', pctu(roll.filter(x=>x>=1).length/roll.filter(isFinite).length,0)]], v>=1?'Strong period for the strategy.':v<0?'Losing period — the edge was absent here.':'Weak but positive.') }})}</div>
     <div class="panel"><h4>Average return by weekday</h4><div class="sub">Mean daily strategy return</div>${bars(dow,{fmt:v=>nf(v*100,2)+'%', series:[['v','sign']]})}</div></div>`;
 };

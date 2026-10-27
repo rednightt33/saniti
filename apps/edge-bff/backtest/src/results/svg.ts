@@ -16,6 +16,7 @@ export const quant = (a: number[], q: number) => { const s=[...a].sort((x,y)=>x-
 /* ---- svg helpers ---- */
 export const svgW = 640;
 /* ---- hover layer: one tooltip for every chart; content is built per chart from what that chart is for ---- */
+/* ttH's title, labels and values are markup (the tooltip shows them as HTML): a caller passes a server string through esc() */
 export const ttH = (title: string, rows: [string, string | number, string?][] = [], foot='') => `<div class="tt-t">${title}</div>${rows.map(([l,v,c])=>`<div class="tt-r"><span>${l}</span><b class="${c||''}">${v}</b></div>`).join('')}${foot?`<div class="tt-f">${foot}</div>`:''}`;
 export const TT = (h: string) => `data-tt="${esc(h)}"`;
 const LC = new Map<string, any>(); let lcSeq = 0;
@@ -55,10 +56,10 @@ export const bars = (items: any[], {W=svgW, H=220, fmt=(v: number)=>nf(v*100,0)+
   const pad = {l:40,r:10,t:10,b:24}, vals = items.flatMap(it=>series.map(([k])=>it[k]||0)), lo = Math.min(0,...vals), hi = Math.max(0,...vals), y = (v: number) => pad.t+(1-(v-lo)/((hi-lo)||1))*(H-pad.t-pad.b);
   const gw = (W-pad.l-pad.r)/items.length, bw = gw*.7/series.length;
   let g = axisY(lo,hi,H,pad,fmt,4,W);
-  items.forEach((it,i) => { const html = it.tt || ttH(it.l, series.map(([k],j)=>[names?names[j]:'Value', fmt(it[k]||0), (it[k]||0)>=0?'up':'down'] as [string, string | number, string]));
+  items.forEach((it,i) => { const html = it.tt || ttH(esc(it.l), series.map(([k],j)=>[names?names[j]:'Value', fmt(it[k]||0), (it[k]||0)>=0?'up':'down'] as [string, string | number, string]));
     g += `<g class="bgrp" ${TT(html)}><rect class="bhit" x="${pad.l+i*gw}" y="${pad.t}" width="${gw}" height="${H-pad.t-pad.b}"/>`;
     series.forEach(([k,col],j) => { const v = it[k]||0, x0 = pad.l+i*gw+gw*.15+j*bw; g += `<rect class="bbar" x="${x0}" y="${Math.min(y(0),y(v))}" width="${bw-2}" height="${Math.abs(y(v)-y(0))}" rx="2" fill="${col==='sign'?(v>=0?PAL.up:PAL.dn):col}"/>` });
-    g += `</g><text x="${pad.l+i*gw+gw/2}" y="${H-6}" text-anchor="middle" font-size="11" fill="var(--text-3)" pointer-events="none">${it.l}</text>` });
+    g += `</g><text x="${pad.l+i*gw+gw/2}" y="${H-6}" text-anchor="middle" font-size="11" fill="var(--text-3)" pointer-events="none">${esc(it.l)}</text>` });
   return `<svg class="ch" viewBox="0 0 ${W} ${H}">${g}</svg>` };
 /* line chart: crosshair snaps to the nearest point, dots mark each series, tooltip from opts.tip(k) */
 export const lineChart = (lines: { v: number[]; c: string; w?: number; dash?: boolean }[], {W=svgW, H=200, fmt=(v: number)=>nf(v,2), zero=true, labels=null as [number, string][] | null, area=null as [number[], number[], string] | null, tip=null as null | ((k: number) => string)}={}) => {
@@ -67,7 +68,7 @@ export const lineChart = (lines: { v: number[]; c: string; w?: number; dash?: bo
   let g = axisY(lo,hi,H,pad,fmt,4,W);
   if(area){ const [a,b,col] = area; let d = ''; a.forEach((v,k)=> d += (k?'L':'M')+x(k).toFixed(1)+' '+y(v).toFixed(1)); for(let k=b.length-1;k>=0;k--) d += 'L'+x(k).toFixed(1)+' '+y(b[k]).toFixed(1); g += `<path d="${d}Z" fill="${col}"/>` }
   lines.forEach(l => { let d = ''; l.v.forEach((v,k) => { if(isFinite(v)) d += (d?'L':'M')+x(k).toFixed(1)+' '+y(v).toFixed(1) }); g += `<path d="${d}" fill="none" stroke="${l.c}" stroke-width="${l.w||1.6}" ${l.dash?'stroke-dasharray="4 3"':''}/>` });
-  if(labels) labels.forEach(([k,t]) => g += `<text x="${x(k)}" y="${H-5}" text-anchor="middle" font-size="11" fill="var(--text-3)">${t}</text>`);
+  if(labels) labels.forEach(([k,t]) => g += `<text x="${x(k)}" y="${H-5}" text-anchor="middle" font-size="11" fill="var(--text-3)">${esc(t)}</text>`);
   let hov = '';
   if(tip){ const id = 'lc'+(++lcSeq); LC.set(id, {n, W, pad, tip, ys:lines.map(l=>l.v.map(v=>isFinite(v)?y(v):null)), cols:lines.map(l=>l.c), x});
     hov = `<g class="lc-ui" data-for="${id}" style="display:none" pointer-events="none"><line class="lc-x" y1="${pad.t}" y2="${H-pad.b}" stroke="var(--text-3)" stroke-dasharray="3 3"/>${lines.map(l=>`<circle r="4" fill="${l.c}" stroke="var(--surface)" stroke-width="2"/>`).join('')}</g><rect class="lc-hit" data-lc="${id}" x="${pad.l}" y="${pad.t}" width="${W-pad.l-pad.r}" height="${H-pad.t-pad.b}" fill="transparent"/>` }
@@ -90,5 +91,5 @@ export const bindHover = () => {
   document.addEventListener('scroll', tipHide, true);
 };
 /* shared trade tooltip (used by every trade-level chart) */
-export const tradeTT = (t: any, extra: [string, string | number, string?][] = []) => ttH(`${esc(t.tk)} · ${fmtD(DAYS[t.ei])} → ${fmtD(DAYS[t.xi])}`, [['Return', pct(t.ret,2), cls(t.ret)], ['P&L', rp(t.pnl), cls(t.pnl)], ['Worst move against (MAE)', pct(t.mae,1), 'down'], ['Best move in favour (MFE)', pct(t.mfe,1), 'up'], ...extra, ['Days held', t.bars], ['Exit', esc(t.why)]]);
+export const tradeTT = (t: any, extra: [string, string | number, string?][] = []) => ttH(`${esc(t.tk)} · ${esc(fmtD(DAYS[t.ei]))} → ${esc(fmtD(DAYS[t.xi]))}`, [['Return', pct(t.ret,2), cls(t.ret)], ['P&L', rp(t.pnl), cls(t.pnl)], ['Worst move against (MAE)', pct(t.mae,1), 'down'], ['Best move in favour (MFE)', pct(t.mfe,1), 'up'], ...extra, ['Days held', t.bars], ['Exit', esc(t.why)]]);
 export const labelsFor = (eq: [number, number][]) => { const out: [number, string][] = []; let last = ''; eq.forEach(([i],k) => { const y = DAYS[i].slice(0,4); if(y!==last){ last = y; out.push([k, y]) } }); return out };

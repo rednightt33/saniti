@@ -21,7 +21,7 @@ Private HTTP service that computes the EDGE backtests. It is part of the backtes
 | `src/compute.ts` | the two long-lived `worker_threads` threads, one for jobs and one for signals previews; progress and results are sent as messages, cancellation uses a shared flag, `kill()` handles a run over its time |
 | `src/run.ts` | one job end to end (`runJob`) and one signals preview (`runSignals`) |
 | `src/validate.ts` | request checks before any download (unknown fields, page options, universes, flow availability, broker codes against the broker list, the core's own validation) |
-| `src/load.ts` | reads the files of a run within the limits: every manifest first, a portfolio's tickers without published files left out, the limits checked, then the downloads; a URL that expired is fetched again; the date the broker data is published through (`brokerDataThrough`) |
+| `src/load.ts` | reads the files of a run within the limits: every manifest first, a portfolio's tickers without published files left out, the limits checked, then each ticker's downloads from its manifest while its URLs can still serve them, else from a new one; a URL that expired all the same is fetched again once; the date the broker data is published through (`brokerDataThrough`) |
 | `src/terminal.ts` | the terminal-api client: `/bundle`, `/manifest`, the reference files, presigned files, sha256 and size checks, the cache (memory, optionally disk) |
 | `src/catalog.ts` | `GET /v1/catalog` from the reference files, IHSG's published bars, the limits, the flow switch and the broker data's date |
 | `src/config.ts` | environment variables, their defaults and their checks |
@@ -38,7 +38,7 @@ worker answers `401 {"error":{"code":"UNAUTHORIZED"}}`.
 |---|---|
 | `GET /health` | `{ok: true, engine_version, registry_version}` |
 | `GET /v1/catalog` | `Catalog` (contract.ts) |
-| `POST /v1/validate {request}` | `200 {ok: true, lineage_key, variant_hash, tickers}`, or `422` with the error: the request checks (`validate.ts`), then `FLOW_DATA_THROUGH` and `PERIOD_AFTER_DATA` with the code, field and message the job would fail with, read from terminal-api's manifests only (no `/bundle`, no file) |
+| `POST /v1/validate {request}` | `200 {ok: true, lineage_key, variant_hash, tickers}`, or `422` with the error: the request checks (`validate.ts`), then `FLOW_DATA_THROUGH` and `PERIOD_AFTER_DATA` with the code, field and message the job would fail with, read from terminal-api's manifests only (no `/bundle`, no file); `424 DATA_MISSING` (field `IHSG.price`) when IHSG has no price file |
 | `POST /v1/signals` | the body is a `SignalsPreviewRequest`; the answer is a `SignalsPreview` |
 | `POST /v1/jobs {job_id, request, context}` | `202 {job_id}`, `409 BUSY` or `422` |
 | `GET /v1/jobs/{id}` | `JobStatus`, or `404 UNKNOWN_JOB` |
@@ -76,7 +76,8 @@ worker answers `401 {"error":{"code":"UNAUTHORIZED"}}`.
 ### Synchronous calls
 
 Validation, the catalog and a preview each get `BACKTEST_TIMEOUT_SECONDS`. Over that time they answer
-`504 TIMEOUT`, and a preview over its time has its thread terminated.
+`504 TIMEOUT`, and a preview over its time has its thread terminated. A preview and a job hand-over first read the
+reference lists under a limit of their own (`504 TIMEOUT` as well).
 
 ### Errors
 
@@ -116,6 +117,13 @@ A job's error is the same object, carried in `JobStatus.error`.
      the run's `DATA_MISSING`. The run is refused with `LIMIT_EXCEEDED`, before any download, when the manifest sizes
      exceed `BACKTEST_MAX_DOWNLOAD_BYTES` or the broker rows exceed `BACKTEST_MAX_BROKER_ROWS`. Cached files count
      too, so the same request gets the same answer whatever the cache holds.
+   - Then each ticker's files, from its manifest while that manifest's age plus `BACKTEST_HTTP_TIMEOUT_MS` is under
+     its URLs' lifetime (`expires_in_seconds`), else from a new `/bundle` answer asked right before the ticker's
+     downloads. A ticker whose file the bucket still refuses with 403 (an expired URL) is loaded once more from a new
+     answer. A new answer's files are the ones read (`data_version`); they replace the ticker's first files in the
+     totals, which are checked again before its downloads and on the files read. Each answer counts its files in
+     terminal-api's quota and writes an audit row: a ticker costs one answer, two once its manifest is too old, three
+     with a 403.
 4. **Check the period against the data.**
    - `FLOW_DATA_THROUGH` (`period.to`), before any download: a run that uses broker data, when `period.to` is after
      the date the broker data is published through. That date is the newest broker `data_through` of the stocks'
@@ -167,16 +175,16 @@ variable and never its value.
 |---|---|---|---|
 | `PORT` | 8080 | 8080 (default) | HTTP port (`0.0.0.0`) |
 | `BACKTEST_WORKER_KEY` | required | the secret shared with edge-bff | shared secret with edge-bff, ≥ 32 characters, never logged |
-| `TERMINAL_URL` | required | terminal-api's private origin, e.g. `http://terminal-api.railway.internal:8080` | terminal-api origin |
+| `TERMINAL_URL` | required | terminal-api's private origin, e.g. `http://terminal-api.railway.internal:8080` | terminal-api origin: http(s), no path, no user name or password |
 | `TERMINAL_PROXY_KEY` | required | `${{terminal-api.TERMINAL_PROXY_KEY}}` | terminal-api gateway key (D-U1), ≥ 32 characters, never logged |
 | `BACKTEST_CACHE_BYTES` | required | 1500000000 | memory cache budget per thread (gzip bytes); 0 = none |
 | `BACKTEST_CACHE_DIR`, `BACKTEST_CACHE_DIR_BYTES` | off | not set | optional disk cache and its budget; the directory must be writable by uid 1000 |
 | `BACKTEST_DOWNLOAD_CONCURRENCY` | required | 16 | HTTP requests in flight per thread |
 | `BACKTEST_DOWNLOAD_RETRIES` | required | 3 | retries of a network error or 5xx answer |
 | `BACKTEST_RETRY_BASE_MS` | required | 500 | backoff `base × 2^k` between retries |
-| `BACKTEST_HTTP_TIMEOUT_MS` | required | 60000 | per HTTP request |
+| `BACKTEST_HTTP_TIMEOUT_MS` | required | 60000 | per HTTP request, body included; also the margin a `/bundle` answer's URLs must have left to be used for a download (its age plus this under `expires_in_seconds`), so a shorter value asks fewer new answers |
 | `BACKTEST_FILE_ORIGIN` | required | `https://*.t3.storageapi.dev` (the host edge-bff's CSP allows for the same presigned downloads, `app/main.py`) | the origin every file and reference URL must have: scheme, host (a leading `*.` matches subdomains) and port; any other URL is `DATA_INTEGRITY` and never requested |
-| `BACKTEST_MAX_FILE_BYTES` | required | 67108864 (the largest published file measured 2026-10-26 is BBRI's broker-archive pack: 2,218,292 bytes gzip, 14,456,717 inflated; the archive grows about 1.8 MB per year) | the most bytes one file may inflate to, and the most bytes of a body that is not a data file (a reference file, a terminal-api answer); over it `DATA_INTEGRITY` |
+| `BACKTEST_MAX_FILE_BYTES` | required | 67108864 (the largest published file measured 2026-10-26 is BBRI's broker-archive pack: 2,218,292 bytes gzip, 14,456,717 inflated; the archive grows about 1.8 MB per year) | the most bytes one file may inflate to, and the most bytes of a body that is not a data file (a reference file, a terminal-api answer, a bucket error answer); over it `DATA_INTEGRITY` (a terminal-api or bucket error answer: `DATA_UNAVAILABLE`) |
 | `BACKTEST_MAX_DOWNLOAD_BYTES` | required | 1500000000 | bytes of published files one job or preview may read |
 | `BACKTEST_MAX_BROKER_ROWS` | required | 20000000 | broker rows one job or preview may read |
 | `BACKTEST_TIMEOUT_SECONDS` | required | 900 | longest job, preview, validation or catalog |
@@ -218,6 +226,17 @@ data file at its manifest `bytes` (`DATA_INTEGRITY`), anything else at `BACKTEST
 inflates past `BACKTEST_MAX_FILE_BYTES` (`DATA_INTEGRITY`); the reference files, which have no manifest and are
 decoded on the HTTP thread, are bounded the same way. A `TERMINAL_URL` with a user name or password is refused at
 start, and the start log names its origin only.
+
+**Presigned URLs.** How many step-1 manifests are used for their downloads depends on their lifetime minus
+`BACKTEST_HTTP_TIMEOUT_MS`: a large universe whose loading outlasts that margin asks a new `/bundle` answer for each
+later ticker (job step 3). The margin also covers a request that waits for a free slot; one that waits longer can
+still find its URL expired, and the one retry on 403 then loads it. A download in flight is shared only by callers of
+the same file and URL; a file already verified is served from the cache by sha256 whatever its URL. Known limits:
+the publisher rewrites a changed file under the same bucket key (`apps/terminal-publisher/publisher.py` `publish`,
+`put_pack`), so a manifest used across a publish reads other bytes and fails the run with `DATA_INTEGRITY`; a ticker
+whose new answer is a 404 or lacks a dataset fails the run with `DATA_MISSING`, in a portfolio too; `FLOW_DATA_THROUGH`
+reads the step-1 manifests only; a ticker whose files are all cached is still asked again once its manifest is too
+old.
 
 ## Logs
 
@@ -300,9 +319,16 @@ ids, the enabled-condition limit and disabled conditions are checked.
 - log lines without secrets;
 - start-up as the image runs it, including exit 1 on a bad configuration.
 
-**`tests/terminal.test.ts`** covers the terminal-api client: loads, data errors, retries, the cache, concurrency, the
-manifest and the broker date scan, secrets kept out of messages and logs, the bucket origin, the body and inflate caps,
-and no Postgres client anywhere in the worker.
+**`tests/load.test.ts`** runs `load.ts` against the fake terminal-api, whose bucket refuses a URL after its lifetime
+with S3's 403: a step-1 manifest that is still usable serves its ticker (one `/bundle` per ticker); a slow universe
+loads without any URL reaching the bucket after its lifetime, at most two `/bundle` answers per ticker; a publish
+between the two steps gives the new files' `data_version`, and a limit at the step-1 total refuses the new files
+before they are downloaded.
+
+**`tests/terminal.test.ts`** covers the terminal-api client: loads, data errors, retries, the cache, concurrency, when
+a `/bundle` answer is usable, a download in flight shared only by callers of its URL, a file downloaded from two URLs
+at once counted once in the disk cache, the manifest and the broker date scan, secrets kept out of messages and logs,
+the bucket origin, the body and inflate caps, and no Postgres client anywhere in the worker.
 
 ## Durations observed
 

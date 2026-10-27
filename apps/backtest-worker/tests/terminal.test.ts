@@ -197,6 +197,81 @@ test('at most `concurrency` requests are in flight', async () => {
   } finally { await slow.close() }
 });
 
+test('a /bundle answer is usable for a download while its age plus the HTTP timeout is under its URLs\' lifetime', async () => {
+  const short = await startFakeTerminal({ key: KEY, tickers: MARKET, ttl: 1 });
+  try {
+    const at = { url: short.url, fileOrigin: short.url }, c = new TerminalClient(options({ ...at, timeoutMs: 400 }));
+    const b = await c.bundle('T1', ['price']);
+    assert.equal(b.expires_in_seconds, 1);
+    assert.ok(c.usable(b), 'just granted: 400 ms of timeout fit in its 1 s');
+    assert.ok(!c.usable({ ...b, granted_at: b.granted_at - 600 }), '600 ms old: a download may outlive the URL');
+    assert.ok(!c.usable({ ...b, expires_in_seconds: null }), 'no lifetime: never taken to last');
+    assert.ok(!new TerminalClient(options({ ...at, timeoutMs: 1000 })).usable(b), 'a timeout as long as the lifetime: never');
+    // an answer without expires_in_seconds has no lifetime
+    const strip: typeof fetch = async (u, init) => {
+      const r = await fetch(u, init);
+      if (!String(u).endsWith('/bundle')) return r;
+      const j = await r.json(); delete j.expires_in_seconds;
+      return new Response(JSON.stringify(j), { status: r.status, headers: { 'content-type': 'application/json' } });
+    };
+    assert.equal((await new TerminalClient(options({ ...at, fetch: strip })).bundle('T1', ['price'])).expires_in_seconds, null);
+  } finally { await short.close() }
+});
+
+test('a download in flight is shared only with callers of its URL: a new answer\'s URL never gets an expired URL\'s 403', async () => {
+  // the URL lives 1 s; the bucket decides when a request arrives and answers 300 ms later
+  const slow = await startFakeTerminal({ key: KEY, tickers: MARKET, ttl: 1, fileDelayMs: 300 });
+  try {
+    const c = new TerminalClient(options({ url: slow.url, fileOrigin: slow.url })), file = (b: Awaited<ReturnType<TerminalClient['bundle']>>) => b.datasets.price!.files[0];
+    const old = await c.bundle('T1', ['price']);
+    await new Promise(r => setTimeout(r, 1100));
+    const stale = c.file(file(old), 'T1 price 2026', 'T1.price');                  // expired: 403 in 300 ms
+    const fresh = await c.bundle('T1', ['price']);                                   // as load.ts asks on a 403
+    assert.equal(file(fresh).sha256, file(old).sha256);
+    const again = c.file(file(fresh), 'T1 price 2026', 'T1.price');
+    await assert.rejects(stale, (e: unknown) => code('DATA_UNAVAILABLE', 'T1.price')(e) && (e as DataError).details?.status === 403);
+    assert.equal((await again).cached, false, 'its own download, from its own URL');
+    assert.equal(slow.expired, 1);
+    // callers of one URL share its download; a verified file is shared by sha256 whatever the URL
+    const g0 = slow.requests.length, newer = file(await c.bundle('T2', ['price']));
+    const [x, y] = await Promise.all([c.file(newer, 'T2 price 2026'), c.file(newer, 'T2 price 2026')]);
+    assert.equal(x, y);
+    assert.equal(slow.requests.slice(g0).filter(r => r.path.startsWith('/bucket/')).length, 1);
+    assert.equal((await c.file(file(await c.bundle('T1', ['price'])), 'T1 price 2026')).cached, true);
+  } finally { await slow.close() }
+});
+
+test('one file downloaded twice at once from two /bundle answers\' URLs takes its size once in the disk cache budget', async () => {
+  // a file asked again from a new answer (load.ts on a 403) while its first download is in flight is downloaded again
+  // (file: one download per URL), and both copies reach the disk cache
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'terminal-cache-'));
+  try {
+    const one = (b: Awaited<ReturnType<TerminalClient['bundle']>>) => b.datasets.price!.files[0];
+    let pair = false, held: (() => void)[] = [];
+    const release = () => { held.forEach(f => f()); held = [] };
+    const together: typeof fetch = async (u, init) => {                             // the two bucket answers come back at once
+      const r = await fetch(u, init);
+      if (!pair || !String(u).includes('/bucket/')) return r;
+      const body = await r.arrayBuffer();
+      await new Promise<void>(ok => { held.push(ok); if (held.length === 2) release(); else setTimeout(release, 1000).unref() });
+      return new Response(body, { status: r.status, headers: r.headers });
+    };
+    const probe = new TerminalClient(options()), t1 = one(await probe.bundle('T1', ['price'])), t2 = one(await probe.bundle('T2', ['price']));
+    const c = new TerminalClient(options({ cacheBytes: 0, cacheDir: dir, cacheDirBytes: t1.bytes + t2.bytes, fetch: together }));   // room for these two
+    const x = one(await c.bundle('T1', ['price']));
+    await new Promise(r => setTimeout(r, 2));                                         // another grant time, another URL
+    const y = one(await c.bundle('T1', ['price']));
+    assert.notEqual(x.url, y.url);
+    const n = fake.requests.length;
+    pair = true;
+    await Promise.all([c.file(x, 'T1 price 2026'), c.file(y, 'T1 price 2026')]);
+    pair = false;
+    assert.equal(bucketGets(n).length, 2, 'one download per URL');
+    await c.file(one(await c.bundle('T2', ['price'])), 'T2 price 2026');
+    assert.deepEqual(fs.readdirSync(dir).sort(), [`${t1.sha256}.json.gz`, `${t2.sha256}.json.gz`].sort(), 'both fit: T1 is counted once');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }) }
+});
+
 test('reference lists: tickers with type and sector, brokers with name and type', async () => {
   const c = new TerminalClient(options());
   assert.deepEqual(await c.reference('tickers'), [{ ticker: 'BBCA', name: 'Bank Central Asia', type: 'stock', sector: 'Finance' }, { ticker: 'IHSG', name: 'Composite', type: 'index', sector: null }]);

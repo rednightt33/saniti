@@ -14,6 +14,7 @@ import secrets
 import time
 import zlib
 
+import anyio
 import httpx
 import psycopg
 from fastapi import Depends, Query, Request, Response
@@ -181,6 +182,13 @@ def split_result(result, single_ticker=None):
 
 class CallerGone(Exception):
     """The client closed its connection before the relayed call answered (Backtests.unless_gone)."""
+
+
+class PreviewReplaced(BacktestError):
+    """409 PREVIEW_REPLACED: a newer signals preview of the same owner arrived before this one answered
+    (Backtests.latest_preview, CONTRACT.md P8)."""
+    def __init__(self):
+        super().__init__(409, {'code': 'PREVIEW_REPLACED', 'message': 'A newer signals preview replaced this one.'})
 
 
 class ResultTooLarge(Exception):
@@ -728,6 +736,7 @@ class Backtests:
         self.loop = BacktestLoop(settings, self.store, self.worker) if self.worker else None
         self.ready = False
         self.catalog = {'at': None, 'data': None}
+        self.previews = {}     # owner -> its signals preview in flight (latest_preview)
 
     async def aclose(self):
         if self.worker:
@@ -762,25 +771,58 @@ class Backtests:
         raise BacktestError(503, {'code': 'BACKTEST_UNAVAILABLE'})
 
     @staticmethod
-    async def unless_gone(request, work):
+    async def unless_gone(request, work, replaced=None):
         """The result of work, or CallerGone once the caller went away first (FastAPI does not cancel a route whose
-        client left). The call is then cancelled, which closes its connection to the worker, and the worker stops a
-        preview whose caller is gone (its server.ts preview): a preview the page dropped no longer keeps the worker's
-        one preview thread from the next one."""
-        task = asyncio.ensure_future(work)
+        client left), or PreviewReplaced once `replaced` is set first (latest_preview). The call is then cancelled,
+        which closes its connection to the worker, and the worker stops a preview whose caller is gone (its server.ts
+        preview): a preview the page dropped no longer keeps the worker's one preview thread from the next one.
+        It is cancelled through an anyio cancel scope, as httpx's own calls are: the scope delivers its cancellation
+        until the call has left it, and no anyio scope inside takes it for its own. A single task.cancel() could be
+        lost when it landed as one of those scopes cancelled itself (anyio connect_tcp's, once connected): the call
+        then went on to the worker's answer."""
+        scope = anyio.CancelScope()
+        async def call():
+            with scope:
+                return await work
+        task = asyncio.ensure_future(call())
         async def gone():
             while (await request.receive())['type'] != 'http.disconnect':   # the body is read: only the disconnect is left
                 pass
-        watch = asyncio.ensure_future(gone())
+        stops = [asyncio.ensure_future(gone())] + ([asyncio.ensure_future(replaced.wait())] if replaced else [])
         try:
-            await asyncio.wait((task, watch), return_when=asyncio.FIRST_COMPLETED)
+            await asyncio.wait((task, *stops), return_when=asyncio.FIRST_COMPLETED)
         finally:
-            watch.cancel()
-            task.cancel()
-            await asyncio.gather(watch, task, return_exceptions=True)
-        if task.cancelled():
+            for waiting in stops:
+                waiting.cancel()
+            scope.cancel()
+            await asyncio.gather(*stops, task, return_exceptions=True)
+        if scope.cancelled_caught:
+            if replaced is not None and replaced.is_set():
+                raise PreviewReplaced()
             raise CallerGone()
         return task.result()
+
+    async def latest_preview(self, owner, request, body):
+        """The owner's signals preview, latest wins (CONTRACT.md P8): at most one preview per owner is in flight. A new
+        one ends the one still in flight, whose worker call is closed and which answers 409 PREVIEW_REPLACED (unless
+        its page's abort closed it already), and is sent to the worker once that one has ended. Pending previews so
+        never pile up at the worker, which computes them one at a time, nor here; one that answered, failed or whose
+        caller left frees its owner's place, so previews in sequence are unaffected."""
+        mine = {'replaced': asyncio.Event(), 'ended': asyncio.Event()}
+        older = self.previews.get(owner)
+        self.previews[owner] = mine
+        if older:
+            older['replaced'].set()
+        async def relay():
+            if older:
+                await older['ended'].wait()      # its worker call is closed (unless_gone gathered it)
+            return await self.ask('POST', '/v1/signals', body)
+        try:
+            return await self.unless_gone(request, relay(), mine['replaced'])
+        finally:
+            mine['ended'].set()
+            if self.previews.get(owner) is mine:
+                del self.previews[owner]
 
     @staticmethod
     async def json_object(request):
@@ -817,11 +859,12 @@ class Backtests:
         @app.post('/api/v1/backtests/signals')
         async def signals(request: Request, _=Depends(write)):
             """SignalsPreview of a universe before a run (no job, no trial), computed by the worker while we wait; stopped
-            there when the page leaves before it answers."""
+            there when the page leaves before it answers or a newer preview of the owner replaces it (latest_preview). A
+            body refused here (422 INVALID_INPUT) is no preview and replaces none."""
             await self.guard()
             body = await self.json_object(request)
             try:
-                return JSONResponse(await self.unless_gone(request, self.ask('POST', '/v1/signals', body)))
+                return JSONResponse(await self.latest_preview(owner, request, body))
             except CallerGone:
                 return Response(status_code=204)    # never sent: uvicorn drops an answer to a closed connection
 

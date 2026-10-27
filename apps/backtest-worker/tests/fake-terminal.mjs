@@ -3,8 +3,8 @@
    files are built in the publisher's format (apps/terminal-publisher/publisher.py price_doc, broker_doc, events_doc,
    the packs and the reference files; `encode`: compact JSON as Python's json.dumps writes it, gzip level 9, mtime 0).
 
-   startFakeTerminal({ key, tickers, refs, ttl, delayMs }) -> { url, close(), requests, fault(match, statuses),
-   inflight: { max } }:
+   startFakeTerminal({ key, tickers, refs, ttl, delayMs, fileDelayMs }) -> { url, close(), requests, fault(match,
+   statuses), publish(ticker, t), inflight: { max }, expired }:
      key      the proxy key terminal-api accepts (x-terminal-proxy-key); a wrong one answers 401 proxy_key_rejected
      tickers  { TICKER: { generated_at?, window?, datasets: { price|broker|events: { data_through, first_year?,
               files: [{ doc | body, year?, pack?, sha256?, bytes?, missing?, status?, url? }] } } } }
@@ -12,13 +12,18 @@
               sha256 / bytes: what the manifest claims instead of the truth; missing: the bucket answers 404;
               status: the bucket answers that status; url: what /bundle names instead of the presigned URL)
      refs     { tickers?: doc, brokers?: doc } for GET /reference/{name}
+     ttl      the presigned URLs' lifetime in seconds (expires_in_seconds; main.py grant: url_ttl_seconds): the bucket
+              refuses a URL that reaches it later than that after its grant with S3's 403 (AccessDenied, Request has
+              expired), decided when the request arrives; `expired` counts these refusals
+     delayMs  every answer waits this long; fileDelayMs: a bucket answer waits this much longer (a slow download)
      GET /manifest/{ticker} answers the manifest per dataset as main.py does: data_through and the yearly files (events:
      'all'; the packs are not listed there) with bytes, rows, first, last and sha256; no URL.
      /bundle with packs: true answers the price pack instead of the yearly price files, and the broker archive plus the
      yearly broker files after its last year, as main.py does.
-   requests: every request seen ({ method, path, headers }); fault(match, statuses): the next requests whose path starts
-   with `match` (or for which match(req) is true) are answered with these statuses in turn ('reset' drops the
-   connection) before the normal answer. */
+   requests: every request seen ({ method, path, headers, body }); fault(match, statuses): the next requests whose path
+   starts with `match` (or for which match(req) is true) are answered with these statuses in turn ('reset' drops the
+   connection) before the normal answer; publish(ticker, t): the ticker's files published again in the `tickers` shape
+   (a publisher run: the same keys, new bytes and manifest). */
 import crypto from 'node:crypto';
 import http from 'node:http';
 import zlib from 'node:zlib';
@@ -102,11 +107,13 @@ const send = (res, status, body, type = 'application/json') => {
 };
 const readBody = req => new Promise((ok, no) => { const parts = []; req.on('data', c => parts.push(c)); req.on('end', () => ok(Buffer.concat(parts))); req.on('error', no) });
 
-/** @param {{ key: string, tickers?: Record<string, any>, refs?: Record<string, any>, ttl?: number, delayMs?: number }} options */
-export async function startFakeTerminal({ key, tickers = {}, refs = {}, ttl = 120, delayMs = 0 }) {
+/** @param {{ key: string, tickers?: Record<string, any>, refs?: Record<string, any>, ttl?: number, delayMs?: number, fileDelayMs?: number }} options */
+export async function startFakeTerminal({ key, tickers: initial = {}, refs = {}, ttl = 120, delayMs = 0, fileDelayMs = 0 }) {
+  const tickers = {};                            // what is published now (publish replaces a ticker)
   const objects = new Map();                     // bucket key -> { body, status? , missing? }
   const answers = {};                            // ticker -> dataset -> [{ key, entry, file }]
-  for (const [ticker, t] of Object.entries(tickers)) {
+  function put(ticker, t) {
+    tickers[ticker] = t;
     answers[ticker] = {};
     for (const [name, ds] of Object.entries(t.datasets || {})) {
       answers[ticker][name] = (ds.files || []).map((f, k) => {
@@ -118,11 +125,14 @@ export async function startFakeTerminal({ key, tickers = {}, refs = {}, ttl = 12
       });
     }
   }
+  for (const [ticker, t] of Object.entries(initial)) put(ticker, t);
   for (const [name, doc] of Object.entries(refs)) objects.set(`ref/${name}.json.gz`, { body: encode(doc).body });
 
   const requests = [], faults = [], inflight = { now: 0, max: 0 };
-  let base = '';
-  const presign = key => `${base}/bucket/v1/${key}?X-Amz-Expires=${ttl}&X-Amz-Signature=${crypto.createHash('sha256').update(key).digest('hex')}`;
+  let base = '', expired = 0;
+  // X-Amz-Date: the grant time (the fake's, in milliseconds); a URL without one never expires
+  const presign = key => `${base}/bucket/v1/${key}?X-Amz-Date=${Date.now()}&X-Amz-Expires=${ttl}&X-Amz-Signature=${crypto.createHash('sha256').update(key).digest('hex')}`;
+  const lapsed = u => { const at = Number(u.searchParams.get('X-Amz-Date')), s = Number(u.searchParams.get('X-Amz-Expires')); return Number.isFinite(at) && at > 0 && Date.now() > at + s * 1000 };
 
   function bundle(body) {
     const extra = Object.keys(body).filter(k => !['ticker', 'datasets', 'packs'].includes(k));
@@ -165,22 +175,26 @@ export async function startFakeTerminal({ key, tickers = {}, refs = {}, ttl = 12
   }
 
   const server = http.createServer(async (req, res) => {
-    const u = new URL(req.url, 'http://fake'), entry = { method: req.method, path: u.pathname, headers: { ...req.headers } };
+    const u = new URL(req.url, 'http://fake'), entry = { method: req.method, path: u.pathname, headers: { ...req.headers }, body: '' };
+    const bucket = u.pathname.startsWith('/bucket/v1/'), late = bucket && lapsed(u);
     requests.push(entry);
     inflight.now++; inflight.max = Math.max(inflight.max, inflight.now);
     res.on('close', () => { inflight.now-- });
     try {
       const body = await readBody(req);
+      entry.body = body.toString();
       const fault = faults.find(f => f.queue.length && (typeof f.match === 'function' ? f.match(entry) : u.pathname.startsWith(f.match)));
       if (fault) {
         const status = fault.queue.shift();
         if (status === 'reset') { req.socket.destroy(); return }
         return send(res, status, { error: status === 429 ? 'quota_exceeded' : 'fault', message: `fake fault ${status}` });
       }
-      if (delayMs) await new Promise(r => setTimeout(r, delayMs));
-      if (u.pathname.startsWith('/bucket/v1/')) {
+      const wait = delayMs + (bucket ? fileDelayMs : 0);
+      if (wait) await new Promise(r => setTimeout(r, wait));
+      if (bucket) {
         // a presigned URL is the only credential: S3 refuses a second auth mechanism, and the worker must send none
         if (req.headers.authorization || req.headers.cookie || req.headers['x-terminal-proxy-key']) return send(res, 400, '<Error><Code>InvalidArgument</Code></Error>', 'application/xml');
+        if (late) { expired++; return send(res, 403, '<Error><Code>AccessDenied</Code><Message>Request has expired</Message></Error>', 'application/xml') }
         const o = objects.get(u.pathname.slice('/bucket/v1/'.length));
         if (!o || o.missing) return send(res, 404, '<Error><Code>NoSuchKey</Code></Error>', 'application/xml');
         if (o.status) return send(res, o.status, '<Error><Code>Fault</Code></Error>', 'application/xml');
@@ -212,8 +226,9 @@ export async function startFakeTerminal({ key, tickers = {}, refs = {}, ttl = 12
   await new Promise(ok => server.listen(0, '127.0.0.1', ok));
   base = `http://127.0.0.1:${server.address().port}`;
   return {
-    url: base, requests, inflight,
+    url: base, requests, inflight, get expired() { return expired },
     fault(match, statuses) { faults.push({ match, queue: [...statuses] }) },
+    publish: put,
     close: () => new Promise(ok => { server.closeAllConnections?.(); server.close(() => ok()) }),
   };
 }

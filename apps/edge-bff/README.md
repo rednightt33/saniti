@@ -47,7 +47,7 @@ because the signal preview downloads the files `/api/terminal/v1/bundle` presign
 | GET `/api/v1/backtests/{id}/result` | the `core` part; in single mode with the ticker's events merged back (= the worker's `BacktestResult`); gzip; 409 `NOT_FINISHED`, 410 `RESULT_EXPIRED` |
 | GET `/api/v1/backtests/{id}/events?ticker=X` | `{conditions, exits}` of one ticker (part `events:X`); 404 `EVENTS_NOT_FOUND` |
 | POST `/api/v1/backtests/{id}/cancel` | 202 `JobStatus`: queued -> `CANCELLED` at once, running -> stopped at the worker by the loop; 409 `NOT_RUNNING` |
-| POST `/api/v1/backtests/signals` | `SignalsPreview` from the worker (no job, no trial) |
+| POST `/api/v1/backtests/signals` | `SignalsPreview` from the worker (no job, no trial); latest wins per owner: 409 `PREVIEW_REPLACED` when a newer preview arrives first |
 
 Errors are `{"error": {code, field?, message?, details?}}` (CONTRACT.md section 11). A body that is not a JSON object
 (also one nested deeper than the parser takes) is 422 `INVALID_INPUT`. The catalog, the validation at submit and the
@@ -57,7 +57,9 @@ waits for an answer up to `BACKTEST_TIMEOUT_SECONDS` + 30 s (connecting stays li
 or answering outside its API (a 504 without the worker's `TIMEOUT` error too) is 503 `BACKTEST_UNAVAILABLE`, the feature
 off (no `BACKTEST_WORKER_URL`) 503 `BACKTEST_DISABLED`, the tables missing 503 `BACKTEST_NOT_READY` (`/ready` does not
 read them). The relayed calls are awaited on the event loop, not in a thread, and a preview whose page went away is
-cancelled, which closes its connection to the worker.
+cancelled, which closes its connection to the worker. Previews are latest wins (CONTRACT.md P8): a preview that arrives
+while an older one of the same owner is still in flight ends that one (its worker call is closed, it answers 409
+`PREVIEW_REPLACED`) and is sent to the worker once that call has ended, so at most one preview per owner is in flight.
 
 Tables (migration `database/migrations/20261026_005_edge_bff_backtest.sql`): `edge_bff.backtest_jobs` (request,
 lineage and variant hash from the worker, state QUEUED/RUNNING/FINISHED/FAILED/CANCELLED, progress, lease, error,

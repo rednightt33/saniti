@@ -5,9 +5,10 @@
    POST {TERMINAL_URL}/api/terminal/v1/bundle {ticker, datasets, packs: true} with header x-terminal-proxy-key =
    TERMINAL_PROXY_KEY (the gateway key, D-U1: terminal-api counts the requests against its TERMINAL_PROXY_SUBSCRIBER
    account) answers, per dataset, data_through, first_year and every published file (oldest first; packs: the price
-   pack, the broker archive plus the yearly broker files after it) as {year, url, sha256, bytes, rows, pack?}. The
-   files are downloaded from their presigned URLs without any credential, checked against that sha256 and size,
-   inflated and decoded by the shared core (datafile.ts), so the worker reads the bars the Terminal draws.
+   pack, the broker archive plus the yearly broker files after it) as {year, url, sha256, bytes, rows, pack?}, and
+   expires_in_seconds, the URLs' lifetime (main.py grant: the subscriber's url_ttl_seconds). The files are downloaded
+   from their presigned URLs without any credential, checked against that sha256 and size, inflated and decoded by the
+   shared core (datafile.ts), so the worker reads the bars the Terminal draws.
    terminal-api answers errors as {error: code, message} (400 invalid_request also lists fields): 404 unknown_ticker,
    401 proxy_key_rejected / session_ended, 429 quota_exceeded; GET /reference/{tickers|brokers} answers {url} only
    (no sha256: a reference file cannot be checked against a manifest); GET /manifest/{ticker} answers the ticker's
@@ -23,7 +24,9 @@
 
    Cache: files by sha256 (content addressed, so a cached file can never belong to another data version), the verified
    gzip bytes in memory (LRU, byte budget) and optionally on disk (LRU, byte budget); a cached file is checked again
-   (sha256, size) every time it is used, a damaged disk copy is dropped and downloaded again.
+   (sha256, size) every time it is used, a damaged disk copy is dropped and downloaded again. A download in flight is
+   shared by the callers of the same file and URL only: another /bundle answer's URL for the file can have expired, and
+   its 403 must never reach a caller whose own URL is valid (load.ts asks a new answer on a 403).
 
    What the client accepts from terminal-api and the bucket (a wrong or compromised answer must not turn the worker into
    a client of anything else, nor fill its memory):
@@ -227,6 +230,7 @@ class DiskCache {
     const tmp = `${this.file(sha)}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`;
     await writeFile(tmp, bytes);
     await rename(tmp, this.file(sha));                                  // a reader never sees half a file
+    if (this.index.has(sha)) return;                                    // put meanwhile by its download from another URL (file): counted once
     this.index.set(sha, bytes.byteLength); this.size += bytes.byteLength;
     for (const old of [...this.index.keys()]) { if (this.size <= this.budget) break; if (old !== sha) await this.drop(old) }
   }
@@ -240,7 +244,10 @@ class DiskCache {
 interface Answer { status: number; bytes: Uint8Array }
 interface BundleFile extends FileEntry { rows?: number; year?: number; pack?: string }
 interface BundleDataset { data_through: string | null; first_year: number | null; files: BundleFile[] }
-interface Bundle { ticker: string; generated_at: string | null; expires_in_seconds: number; datasets: Partial<Record<Dataset, BundleDataset>> }
+/** granted_at: the client's monotonic clock (performance.now(), ms) when the /bundle request was sent; terminal-api
+    presigns the URLs after it, so an age counted from it is never less than theirs. expires_in_seconds: the URLs'
+    lifetime as answered, null when the answer has none (usable is then false). */
+interface Bundle { ticker: string; generated_at: string | null; granted_at: number; expires_in_seconds: number | null; datasets: Partial<Record<Dataset, BundleDataset>> }
 
 const json = (b: Uint8Array): any => { try { return JSON.parse(new TextDecoder().decode(b)) } catch { return null } };
 /** The most bytes a body may have by its status, and the error when it has more (http reads no further). */
@@ -271,7 +278,7 @@ const upstream = (b: Uint8Array) => {
 /* ---- the client ------------------------------------------------------------------------------------------------ */
 export class TerminalClient {
   private o: TerminalOptions; private gate: Gate; private mem: MemoryCache; private disk: DiskCache | null;
-  private fetch: typeof fetch; private inflight = new Map<string, Promise<{ doc: Columnar; cached: boolean }>>();
+  private fetch: typeof fetch; private inflight = new Map<string, Promise<{ doc: Columnar; cached: boolean }>>();   // sha256 + URL
   private onBucket: (url: string) => boolean;
   stats = { bundles: 0, downloads: 0, download_bytes: 0, cache_hits: 0, retries: 0 };
 
@@ -332,13 +339,15 @@ export class TerminalClient {
     if (typeof ticker !== 'string' || !TICKER.test(ticker)) throw new DataError('DATA_MISSING', `${JSON.stringify(ticker)} is not a ticker terminal-api publishes.`, 'ticker');
     const asked = [...new Set(datasets)];
     if (!asked.length || asked.some(d => !DATASETS.includes(d))) throw new TypeError(`bundle: datasets must be some of ${DATASETS.join(', ')}.`);
-    const t0 = Date.now();
+    const t0 = Date.now(), granted_at = performance.now();
     this.stats.bundles++;
     const b = await this.api('POST', '/bundle', { ticker, datasets: asked, packs: true }, `The data of ${ticker}`, ticker);
     const bad = (why: string) => new DataError('DATA_INTEGRITY', `terminal-api /bundle for ${ticker}: ${why}.`, ticker);
     if (b.ticker !== ticker) throw bad(`answered for ${JSON.stringify(b.ticker)}`);
     if (!b.datasets || typeof b.datasets !== 'object') throw bad('no datasets');
-    const out: Bundle = { ticker, generated_at: typeof b.generated_at === 'string' ? b.generated_at : null, expires_in_seconds: b.expires_in_seconds, datasets: {} };
+    const ttl = b.expires_in_seconds;
+    const out: Bundle = { ticker, generated_at: typeof b.generated_at === 'string' ? b.generated_at : null, granted_at,
+      expires_in_seconds: typeof ttl === 'number' && Number.isFinite(ttl) && ttl >= 0 ? ttl : null, datasets: {} };
     for (const name of asked) {
       const ds = b.datasets[name];
       if (!ds || !Array.isArray(ds.files)) throw bad(`no ${name} entry`);
@@ -355,13 +364,24 @@ export class TerminalClient {
     return out;
   }
 
+  /** Whether b's presigned URLs can still serve a download started now: b's age plus the longest one HTTP request may
+      take (timeoutMs, BACKTEST_HTTP_TIMEOUT_MS, body included) is under their lifetime. The bucket checks a URL when
+      the request reaches it, so the timeout is also the margin for a request that waits for a free slot
+      (concurrency); one that waits longer, or a retry of it, can still find its URL expired (the bucket's 403, on
+      which load.ts asks a new answer once). */
+  usable(b: Bundle): boolean {
+    return b.expires_in_seconds !== null && performance.now() - b.granted_at + this.o.timeoutMs < b.expires_in_seconds * 1000;
+  }
+
   /** One file: from the cache (checked again) or downloaded from its presigned URL without credentials, then checked
-      against its sha256 and size (inflateVerified) and kept in the cache. */
+      against its sha256 and size (inflateVerified) and kept in the cache. A download in flight is joined only by a
+      caller of the same URL (the header: Cache). */
   async file(f: FileEntry, what: string, field?: string): Promise<{ doc: Columnar; cached: boolean }> {
-    let p = this.inflight.get(f.sha256);
+    const k = `${f.sha256} ${f.url}`;
+    let p = this.inflight.get(k);
     if (!p) {
-      p = this.fetchFile(f, what, field).finally(() => this.inflight.delete(f.sha256));
-      this.inflight.set(f.sha256, p);
+      p = this.fetchFile(f, what, field).finally(() => this.inflight.delete(k));
+      this.inflight.set(k, p);
     }
     return p;
   }

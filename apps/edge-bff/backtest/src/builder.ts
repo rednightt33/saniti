@@ -1,10 +1,11 @@
 /* The builder (backtest.html section 5 · BUILDER UI): steps 1-5, condition cards, the add menu, templates, step
    navigation, the strategy summary and the rail; and the two middle views with their view bar. The markup is the
-   reference's; ticker, universe, broker and date options come from the catalog instead of the synthetic lists. */
+   reference's; ticker, universe, broker and date options come from the catalog instead of the synthetic lists, so
+   every catalog string goes into the markup through esc(). */
 import type { Card } from './api/types.ts';
 import { BROKER_CODES, CAT, STOCKS, universeName } from './env.ts';
 import { $, COLORS, esc, fmtD, fmtMoney, ico, nf, num, OPS, parseMoney, pct, rp, cls, toast } from './format.ts';
-import { CAT_LABEL, CATALOG, catOf, condReady, LEVEL_LINES, opLabel, REG, REG_BY, regReady, sideLbl } from './reg.ts';
+import { CAT_LABEL, CATALOG, catOf, condReady, LEVEL_LINES, opLabel, REG, REG_BY, regReady, sideLbl, switchedOn, withinLimit } from './reg.ts';
 import { edits, EXIT_TEMPLATES, mkCond, S, TEMPLATES } from './state.ts';
 import { drawLanes, getLastSig, inRange, refreshSignals, universe } from './signals.ts';
 import { BX, setExpanded, setPanel } from './layout.ts';
@@ -24,10 +25,10 @@ export const renderBuilder = () => {
   b.innerHTML = `
   <div class="bs ${S.step===1?'on':''}" data-step="1"><div class="stephead"><small>Step 1 of 5</small><h3>Universe & period</h3></div>
     <div class="seg" style="width:100%;margin-bottom:10px" id="modeSeg"><button style="flex:1" class="${S.mode==='single'?'on':''}" data-m="single">Single stock</button><button style="flex:1" class="${S.mode==='portfolio'?'on':''}" data-m="portfolio">Portfolio</button></div>
-    ${S.mode==='single' ? `<div class="row"><label class="fld"><span>Ticker</span><select class="sel" data-k="ticker">${STOCKS().map(t=>`<option ${t===S.ticker?'selected':''}>${t}</option>`).join('')}</select></label><label class="fld"><span>Benchmark</span><select class="sel" data-k="bench"><option value="bh" ${S.bench!=='ihsg'?'selected':''}>Buy & hold</option><option value="ihsg" ${S.bench==='ihsg'?'selected':''}>IHSG</option></select></label></div>`
+    ${S.mode==='single' ? `<div class="row"><label class="fld"><span>Ticker</span><select class="sel" data-k="ticker">${STOCKS().map(t=>`<option ${t===S.ticker?'selected':''}>${esc(t)}</option>`).join('')}</select></label><label class="fld"><span>Benchmark</span><select class="sel" data-k="bench"><option value="bh" ${S.bench!=='ihsg'?'selected':''}>Buy & hold</option><option value="ihsg" ${S.bench==='ihsg'?'selected':''}>IHSG</option></select></label></div>`
       : `<div class="row"><label class="fld"><span>Universe</span><select class="sel" data-k="universe">${CAT.universes.map(u=>`<option value="${esc(u.id)}" ${u.id===S.universe?'selected':''}>${esc(u.label)}</option>`).join('')}</select></label><label class="fld"><span>Max positions</span><input class="inp" type="number" min="1" max="10" data-k="maxPos" value="${S.maxPos}"></label></div>
          <div class="row"><label class="fld"><span>Rank candidates by</span><select class="sel" data-k="rankBy"><option value="adx" ${S.rankBy==='adx'?'selected':''}>Highest ADX</option><option value="fnet" ${S.rankBy==='fnet'?'selected':''}>Biggest foreign net 5D</option><option value="vol" ${S.rankBy==='vol'?'selected':''}>Highest volume ratio</option><option value="rsi" ${S.rankBy==='rsi'?'selected':''}>Lowest RSI</option></select></label><label class="fld"><span>Min. avg value</span><input class="inp" type="number" data-k="cost.minVal" value="${S.cost.minVal}" title="Rp billion per day, 20-day average"></label></div>`}
-    <div class="row three"><label class="fld"><span>From</span><input class="inp" type="date" data-k="from" value="${S.from}" min="${CAT.first_date}" max="${CAT.data_through}"></label><label class="fld"><span>To</span><input class="inp" type="date" data-k="to" value="${S.to}" min="${CAT.first_date}" max="${CAT.data_through}"></label><label class="fld"><span>Out-of-sample</span><select class="sel" data-k="oos">${[0,20,30,40].map(v=>`<option value="${v}" ${S.oos==v?'selected':''}>${v?`last ${v}%`:'none'}</option>`).join('')}</select></label></div>
+    <div class="row three"><label class="fld"><span>From</span><input class="inp" type="date" data-k="from" value="${esc(S.from)}" min="${esc(CAT.first_date)}" max="${esc(CAT.data_through)}"></label><label class="fld"><span>To</span><input class="inp" type="date" data-k="to" value="${esc(S.to)}" min="${esc(CAT.first_date)}" max="${esc(CAT.data_through)}"></label><label class="fld"><span>Out-of-sample</span><select class="sel" data-k="oos">${[0,20,30,40].map(v=>`<option value="${v}" ${S.oos==v?'selected':''}>${v?`last ${v}%`:'none'}</option>`).join('')}</select></label></div>
   </div>
   <div class="bs ${S.step===2?'on':''}" data-step="2"><div class="stephead"><small>Step 2 of 5</small><h3>Entry conditions <span class="rt">${S.conds.filter(c=>c.on).length} active</span></h3></div>
     <button class="wslaunch" id="wsOpen">${ico('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/>')}<span><b>Open entry workspace</b><small>${REG.length} indicators · search by name or input</small></span>${ico('<path d="m9 6 6 6-6 6"/>')}</button>
@@ -121,7 +122,7 @@ export const updateViewbar = () => {
     : `<div class="lr-h">Not run yet<small>Press Run backtest to see results</small></div>`;
   $('ctxTicker').textContent = S.mode==='single' ? S.ticker : 'PORTFOLIO';
   $('ctxTitle').textContent = S.mode==='single' ? 'Single-stock backtest' : `${universeName(S.universe)} · ${universe().length} stocks · max ${S.maxPos} positions`;
-  $('ctxPeriod').innerHTML = `${fmtD(S.from)} – ${fmtD(S.to)}${S.oos?` <i>·</i> out-of-sample: last ${S.oos}%`:''}`;
+  $('ctxPeriod').innerHTML = `${esc(fmtD(S.from))} – ${esc(fmtD(S.to))}${S.oos?` <i>·</i> out-of-sample: last ${S.oos}%`:''}`;
   $('viewCtx').innerHTML = S.view==='results' && R ? `Net <b class="${cls(R.st.tot)}">${pct(R.st.tot)}</b> <i>·</i> Sharpe <b>${num(R.st.sharpe)}</b> <i>·</i> Max DD <b class="down">${pct(R.st.mdd)}</b>` : '';
   $('staleTag').hidden = !(S.stale && R);
 };
@@ -134,7 +135,7 @@ export const condCard = (c: Card, i: number) => {
     <div class="cond-b"><div class="regrule">${esc(sideLbl(REG_BY[c.ind],c.lhs))} <b>${OPS[c.op]}</b> ${esc(sideLbl(REG_BY[c.ind],c.rhs))}</div><div class="regpar">${REG_BY[c.ind].p.filter(x=>x.t!=='fixed').map(x=>`<span>${esc(x.l)} <b>${esc(String(c.p[x.k]))}</b></span>`).join('')}</div>
     <div class="cond-f"><span>${regReady(c.ind)?esc(C.desc):'<span class="pill warn">Not calculated in this mock-up</span> ignored on Run'}</span><button class="btn sm" data-ws="${c.id}">Edit in workspace</button></div><span class="cf-stat" id="cf-${c.id}" hidden></span></div></div>`;
   const lc = c as any;
-  const params = C.params.map(([k,l]) => k==='broker' ? `<label class="fld"><span>${l}</span><select class="sel inp sm" data-c="${c.id}" data-p="${k}">${BROKER_CODES().map(b=>`<option ${b===lc[k]?'selected':''}>${b}</option>`).join('')}</select></label>` : `<label class="fld"><span>${l}</span><input class="inp sm" type="number" step="${k==='k'?0.5:1}" data-c="${c.id}" data-p="${k}" value="${lc[k]}"></label>`).join('');
+  const params = C.params.map(([k,l]) => k==='broker' ? `<label class="fld"><span>${l}</span><select class="sel inp sm" data-c="${c.id}" data-p="${k}">${BROKER_CODES().map(b=>`<option ${b===lc[k]?'selected':''}>${esc(b)}</option>`).join('')}</select></label>` : `<label class="fld"><span>${l}</span><input class="inp sm" type="number" step="${k==='k'?0.5:1}" data-c="${c.id}" data-p="${k}" value="${lc[k]}"></label>`).join('');
   const op = `<label class="fld op"><span>Condition</span><select class="sel inp sm" data-c="${c.id}" data-p="op">${C.ops.map(o=>`<option value="${o}" ${o===lc.op?'selected':''}>${opLabel(c,o)}</option>`).join('')}</select></label>`;
   const val = C.noVal ? '' : `<label class="fld"><span>Value${C.unit?` (${C.unit})`:''}</span><input class="inp sm" type="number" step="${C.unit==='×'?0.1:1}" data-c="${c.id}" data-p="val" value="${lc.val}"></label>`;
   return `<div class="cond ${c.on?'':'off'}" data-id="${c.id}"><div class="cond-h"><span class="dot" style="background:${col}"></span><b>${C.label}</b><span class="tag ${C.group}">${C.group==='tech'?'Technical':C.group==='flow'?'Flow':'Price'}</span><label class="sw" title="Enable / disable"><input type="checkbox" data-c="${c.id}" data-p="on" ${c.on?'checked':''}><span></span></label><button class="x" data-del="${c.id}" title="Remove">${ico('<path d="M6 6l12 12M18 6 6 18"/>')}</button></div>
@@ -156,17 +157,18 @@ const bindBuilder = () => {
   b.querySelector('#modeSeg').onclick = (e: MouseEvent) => { const x = (e.target as HTMLElement).closest('[data-m]') as HTMLElement; if(!x) return; abortRun(); S.mode = x.dataset.m as 'single' | 'portfolio'; if(S.mode==='single') S.sigTicker = S.ticker; renderBuilder(); refreshSignals(); S.result=null; renderResults() };
   b.querySelectorAll('[data-mode]').forEach((sg: HTMLElement) => sg.onclick = (e: MouseEvent) => { const x = (e.target as HTMLElement).closest('[data-v]') as HTMLElement; if(!x) return; setPath(sg.dataset.mode, x.dataset.v); markStale(); renderBuilder(); refreshSignals() });
   b.querySelectorAll('[data-line]').forEach((el: HTMLSelectElement) => el.onchange = () => { const [id,o] = el.value.split(':'); setPath(el.dataset.line, {id, o}); markStale(); refreshSignals(); renderNav() });
-  b.querySelectorAll('[data-xtpl]').forEach((x: HTMLElement) => x.onclick = () => { S.exitConds.push(...EXIT_TEMPLATES[x.dataset.xtpl]()); markStale(); renderBuilder(); refreshSignals(); toast(`Exit signal “${x.dataset.xtpl}” added`) });
+  b.querySelectorAll('[data-xtpl]').forEach((x: HTMLElement) => x.onclick = () => { const add = EXIT_TEMPLATES[x.dataset.xtpl](); if(!withinLimit(S.exitConds, [...S.exitConds, ...add])) return; S.exitConds.push(...add); markStale(); renderBuilder(); refreshSignals(); toast(`Exit signal “${x.dataset.xtpl}” added`) });
   const ax = b.querySelector('#addExit'); if(ax) ax.onclick = () => openWS(null, 'exit');
   b.querySelectorAll('[data-c]').forEach((el: HTMLInputElement) => el.onchange = () => { const c: any = [...S.conds, ...S.exitConds].find(x=>x.id===el.dataset.c), p = el.dataset.p;
+    if(p==='on' && el.checked){ const list = S.conds.includes(c) ? S.conds : S.exitConds; if(!withinLimit(list, switchedOn(list, c))){ el.checked = false; return } }
     c[p] = p==='on' ? el.checked : (p==='op'||p==='broker') ? el.value : +el.value; if(p==='on') el.closest('.cond').classList.toggle('off', !el.checked); markStale(); refreshSignals() });
   $('wsOpen').onclick = () => openWS(null, 'entry');
   b.querySelectorAll('[data-ws]').forEach((x: HTMLElement) => x.onclick = () => openWS({kind:'cond', id:x.dataset.ws}, S.exitConds.some(c=>c.id===x.dataset.ws)?'exit':'entry'));
   b.querySelectorAll('[data-del]').forEach((x: HTMLElement) => x.onclick = () => { S.exitConds = S.exitConds.filter(c=>c.id!==x.dataset.del); S.conds = S.conds.filter(c=>c.id!==x.dataset.del); markStale(); renderBuilder(); refreshSignals() });
-  b.querySelectorAll('[data-tpl]').forEach((x: HTMLElement) => x.onclick = () => { S.conds = TEMPLATES[x.dataset.tpl](); markStale(); renderBuilder(); refreshSignals(); toast(`Template “${x.dataset.tpl}” loaded`) });
+  b.querySelectorAll('[data-tpl]').forEach((x: HTMLElement) => x.onclick = () => { const cards = TEMPLATES[x.dataset.tpl](); if(!withinLimit(S.conds, cards)) return; S.conds = cards; markStale(); renderBuilder(); refreshSignals(); toast(`Template “${x.dataset.tpl}” loaded`) });
   $('addCond').onclick = (e: MouseEvent) => { const m = $('menu'), r = (e.currentTarget as HTMLElement).getBoundingClientRect(); const groups = [['tech','Technical'],['flow','Flow & bandarmology'],['price','Price action']];
     m.innerHTML = groups.map(([g,l])=>`<div class="hd">${l}</div>`+Object.entries(CATALOG).filter(([,c])=>c.group===g).map(([k,c])=>`<button data-add="${k}">${c.label}<small>${c.desc}</small></button>`).join('')).join('');
     m.hidden = false; m.style.left = r.left+'px'; m.style.top = Math.max(8, Math.min(innerHeight-430, r.bottom+6))+'px';
-    m.onclick = (ev: MouseEvent) => { const a = (ev.target as HTMLElement).closest('[data-add]') as HTMLElement; if(!a) return; m.hidden = true; S.conds.push(mkCond(a.dataset.add)); markStale(); renderBuilder(); refreshSignals(); $('builder').scrollTop = $('builder').scrollHeight } };
+    m.onclick = (ev: MouseEvent) => { const a = (ev.target as HTMLElement).closest('[data-add]') as HTMLElement; if(!a) return; m.hidden = true; const c = mkCond(a.dataset.add); if(!withinLimit(S.conds, [...S.conds, c])) return; S.conds.push(c); markStale(); renderBuilder(); refreshSignals(); $('builder').scrollTop = $('builder').scrollHeight } };
 };
 export const bindMenuClose = () => document.addEventListener('pointerdown', e => { const t = e.target as HTMLElement; if(!t.closest('#menu') && !t.closest('#addCond')) $('menu').hidden = true });

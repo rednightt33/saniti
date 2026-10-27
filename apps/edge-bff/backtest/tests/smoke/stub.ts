@@ -6,7 +6,11 @@
    data are the production page's (src/api/texts.ts).
    stubApi({ hostile: true }) (smoke.mjs, ?hostile=1) is the same market with markup in every string the server, the
    catalog or an error gives the page: a ticker, its name, a sector (so a universe label), a broker, the flow reason,
-   the result's and the preview's warnings, job ids and error messages (CONTRACT.md: the page escapes all of them). */
+   the result's and the preview's warnings (the preview leaves the markup ticker out, with a markup reason), job ids
+   and an error message (the events of ACES); the page escapes all of them.
+   stubApi({ flow: true }) (?flow=1) has flow available, its broker data published through 20 bars before the last
+   price bar, and refuses a run that reads the broker files past that day as the worker does (FLOW_DATA_THROUGH, its
+   code, field and message); it runs nothing else that reads them (the stub has no broker data). */
 import type { BacktestRequest, BacktestResult, Catalog, JobStatus, SignalsPreviewRequest, Warning } from '../../src/core/contract.ts';
 import type { Ledger, LedgerTrade, ResultInput } from '../../src/core/ledger.ts';
 import { Calc } from '../../src/core/conditions.ts';
@@ -16,7 +20,8 @@ import { sensitivityPlan } from '../../src/core/robustness.ts';
 import { barMap, conditionsWithin, leftOut, previewRow, requestConditions, resultCalendar, signalSummary, tickerSignals, track, unlessLeftOut, type Exclusion } from '../../src/core/signals.ts';
 import { Compute, toBars } from '../../src/api/compute.ts';
 import { PUBLISHED_TEXTS } from '../../src/api/texts.ts';
-import type { BacktestApi, TickerBars } from '../../src/api/types.ts';
+import { ApiFailure, type BacktestApi, type TickerBars } from '../../src/api/types.ts';
+import { readsFlow } from '../../src/api/request.ts';
 import { servedEvents, servedResult } from '../served.ts';
 
 const STOCKS: [string, string, string][] = [
@@ -48,9 +53,9 @@ function bars(ticker: string, k: number): TickerBars {
   }
   return { ticker, dates:DATES, o, h, l, c, v };
 }
-/* one market of stocks: its bars, its catalog (flow off; at most 4 enabled conditions per list, so the smoke run meets
-   the limit), its universes and a Calc per ticker */
-function market(stocks: [string, string, string][], hostile: boolean) {
+/* one market of stocks: its bars, its catalog (flow off unless `flow`; at most 4 enabled conditions per list, so the
+   smoke run meets the limit), its universes and a Calc per ticker */
+function market(stocks: [string, string, string][], hostile: boolean, flow = false) {
   const all: Record<string, TickerBars> = Object.fromEntries([...stocks.map(([t], k) => [t, bars(t, k)]), ['IHSG', bars('IHSG', 7)]]);
   const catalog: Catalog = {
     schema_version:1, engine_version:'stub', registry_version:REGISTRY_VERSION,
@@ -58,7 +63,8 @@ function market(stocks: [string, string, string][], hostile: boolean) {
     tickers:[...stocks.map(([ticker, name, sector]) => ({ ticker, name, type:'stock', sector })), { ticker:'IHSG', name:hostile ? null : 'Composite Index', type:'index', sector:null }],
     universes:[{ id:'all', label:`All stocks (${stocks.length})`, tickers:stocks.length },
       ...[...new Set(stocks.map(s => s[2]))].map(s => ({ id:`sector:${s}`, label:`${s} (${stocks.filter(x => x[2] === s).length})`, tickers:stocks.filter(x => x[2] === s).length }))],
-    flow:{ available:false, reason:hostile ? XSS('flow reason') : 'Broker data not verified yet', brokers:['YU', 'CC', 'PD', ...(hostile ? [XSS('broker')] : ['AK'])], data_through:null },
+    flow:flow ? { available:true, reason:null, brokers:['YU', 'CC', 'PD', 'AK'], data_through:DATES[DATES.length - 21] }
+      : { available:false, reason:hostile ? XSS('flow reason') : 'Broker data not verified yet', brokers:['YU', 'CC', 'PD', ...(hostile ? [XSS('broker')] : ['AK'])], data_through:null },
     limits:{ max_positions:10, window_bars:{ min:1, max:20 }, monte_carlo_runs:1000, max_download_bytes:5e8, max_broker_rows:5e6, timeout_seconds:600, queued_per_owner:2,
              max_conditions:4 },
   };
@@ -67,7 +73,7 @@ function market(stocks: [string, string, string][], hostile: boolean) {
            calcOf:(t: string) => { let c = calcs.get(t); if (!c) calcs.set(t, c = new Calc(toBars(all[t]))); return c } };
 }
 type Market = ReturnType<typeof market>;
-const PLAIN = market(STOCKS, false), HOSTILE = market(HOSTILE_STOCKS, true);
+const PLAIN = market(STOCKS, false), HOSTILE = market(HOSTILE_STOCKS, true), FLOW = market(STOCKS, false, true);
 export const CATALOG = PLAIN.catalog;
 const asOf = (dates: readonly string[], vals: ArrayLike<number>, cal: readonly string[]) => { const m = barMap(dates, cal); return Array.from(m.asof, j => j >= 0 ? vals[j] : null) };
 
@@ -138,15 +144,17 @@ export function resultOf(q: BacktestRequest, runs: number, mk: Market = PLAIN): 
   return buildResult(input);
 }
 
-export function stubApi(opts: { hostile?: boolean } = {}): BacktestApi {
-  const mk = opts.hostile ? HOSTILE : PLAIN, { all:ALL, catalog:CATALOG, members, calcOf } = mk;
+export function stubApi(opts: { hostile?: boolean; flow?: boolean } = {}): BacktestApi {
+  const mk = opts.hostile ? HOSTILE : opts.flow ? FLOW : PLAIN, { all:ALL, catalog:CATALOG, members, calcOf } = mk;
   const compute = new Compute(() => CATALOG);
   const jobs = new Map<string, { polls: number; request: BacktestRequest; result?: BacktestResult; cancelled?: boolean }>();
   let runs = 0;
-  /* an answer after `ms`, as the network's; an aborted call rejects with the AbortError fetch gives */
+  /* an answer after `ms`, as the network's; an aborted call rejects with the AbortError fetch gives. The smoke run reads
+     how many calls were aborted (globalThis.__aborted) and how many previews were answered (__previewAnswers). */
+  const probe = globalThis as { __aborted?: number; __previewAnswers?: number };
   const later = <T>(v: () => T, ms = 20, signal?: AbortSignal) => new Promise<T>((ok, no) => {
     const t = setTimeout(() => { try { ok(v()) } catch (e) { no(e) } }, ms);
-    signal?.addEventListener('abort', () => { clearTimeout(t); no(new DOMException('The operation was aborted.', 'AbortError')) }, { once:true });
+    signal?.addEventListener('abort', () => { clearTimeout(t); probe.__aborted = (probe.__aborted || 0) + 1; no(new DOMException('The operation was aborted.', 'AbortError')) }, { once:true });
   });
   const status = (id: string, state: JobStatus['state'], progress: JobStatus['progress']): JobStatus =>
     ({ request_id:id, state, progress, error:null, created_at:'2026-10-26T00:00:00Z', started_at:null, finished_at:null, duration_ms:null, result_bytes:null });
@@ -161,13 +169,18 @@ export function stubApi(opts: { hostile?: boolean } = {}): BacktestApi {
     signalsPreview: (req: SignalsPreviewRequest, o = {}) => later(() => {
       const active = requestConditions(req), excluded: Exclusion[] = [], rows = [];
       for (const t of members(req.universe)) {
+        if (mk.hostile && t === XSS('ticker')) { excluded.push({ ticker:t, code:XSS('preview reason code'), message:XSS('preview reason') }); continue }
         const row = unlessLeftOut(t, excluded, () => previewRow(calcOf(t), ALL[t].dates, req, req.period.from, req.period.to, active));
         if (row) rows.push({ ticker:t, ...row });
       }
       const left = leftOut(excluded, rows.length, 'universe', 'preview');
+      probe.__previewAnswers = (probe.__previewAnswers || 0) + 1;
       return { data_version:'stub', rows, warnings:[...(left ? [left] : []), ...(mk.hostile ? [hostileWarning('preview')] : [])] };
     }, 20, o.signal),
     submit: req => later(() => {
+      const f = CATALOG.flow;
+      if (f.available && readsFlow(req) && req.period.to > f.data_through!)
+        throw new ApiFailure(`The broker data is published through ${f.data_through}: a run with flow conditions or ranked by foreign net flow must end on or before it (period.to is ${req.period.to}).`, 'FLOW_DATA_THROUGH', 422, 'period.to');
       const id = `${mk.hostile ? XSS('job id') : 'stub'}-${++runs}`;
       jobs.set(id, { polls:0, request:JSON.parse(JSON.stringify(req)) });
       return { request_id:id };
@@ -182,7 +195,7 @@ export function stubApi(opts: { hostile?: boolean } = {}): BacktestApi {
       const r = j.result ||= resultOf(j.request, runs, mk);
       return servedResult(r, j.request.single?.ticker ?? null);
     }),
-    events: (id, t) => later(() => servedEvents(jobs.get(id)!.result!, t)),
+    events: (id, t) => later(() => { if (mk.hostile && t === 'ACES') throw new ApiFailure(XSS('error message'), 'EVENTS_NOT_FOUND', 404); return servedEvents(jobs.get(id)!.result!, t) }),
     cancel: id => later(() => { const j = jobs.get(id); if (j) j.cancelled = true }),
     closes: (t, cal) => later(() => asOf(ALL[t].dates, ALL[t].c, cal)),
   };

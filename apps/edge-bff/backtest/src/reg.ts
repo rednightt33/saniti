@@ -6,7 +6,7 @@ import IND_REG from '../../terminal/src/data/indRegistry.json';
 import { EXTRA_GROUPS as CORE_EXTRA, LEGACY, type LegacySpec, type RegCard } from './core/catalog.ts';
 import type { Card } from './api/types.ts';
 import { API, CAT, DATA } from './env.ts';
-import { nf, OPS } from './format.ts';
+import { nf, OPS, toast } from './format.ts';
 import { S } from './state.ts';
 
 /* ---- INDICATOR REGISTRY (the reference's REG) ---- */
@@ -55,6 +55,15 @@ export const evalCond = (tk: string, c: Card): Uint8Array => API.conditionSeries
 /* price-level lines a stop can sit on = overlay outputs of the registry (derived, not listed by hand) */
 export const LEVEL_LINES = () => REG.filter(r => r.zone==='overlay').flatMap(r => r.out.filter(o => o!=='direction').map(o => ({id:r.id, o, label:`${r.name} · ${OUT_LABEL(o)}`, ready:regReady(r.id)})));
 export const mkRegWith = (id: string, over: Record<string, any>) => { const c = mkReg(id); const {p, ...rest} = over; Object.assign(c, rest); if(p) c.p = {...c.p, ...p}; return c };
+
+/** whether a change from `before` to `after` keeps a condition list within limits.max_conditions: the worker counts the
+    enabled conditions of each list of a request (LIMIT_EXCEEDED max_conditions) and the page sends the enabled cards it
+    can calculate (condReady). A change that brings a list above the limit is refused with the page's toast; one that
+    does not add an active card (removing, switching off, a card that is not calculated) is always made. */
+export const withinLimit = (before: Card[], after: Card[]) => { const max = CAT.limits.max_conditions, n = (l: Card[]) => l.filter(c=>c.on&&condReady(c)).length, k = n(after);
+  if(k <= max || k <= n(before)) return true; toast(`Limit reached: at most ${max} active conditions per list.`); return false };
+/** a list with one card switched on (the change withinLimit checks before the switch) */
+export const switchedOn = (list: Card[], c: Card) => list.map(x => x===c ? {...x, on:true} as Card : x);
 
 /** whether any active card needs the broker data (flow cards; the reference's rank by foreign net is the server's) */
 export const needsFlow = () => !!CAT?.flow.available && [...S.conds, ...S.exitConds].some(c => c.type!=='reg' && CATALOG[c.type].group==='flow');

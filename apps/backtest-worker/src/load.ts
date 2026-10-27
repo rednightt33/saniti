@@ -7,9 +7,15 @@
       and a run that would read more than limits.max_download_bytes (the manifest sizes of every file it reads, cached
       or not, so the answer does not depend on the cache) or more than limits.max_broker_rows (the manifest row counts
       of the broker files) is refused before any download: LIMIT_EXCEEDED, 422;
-   2. then each ticker's files, decoded by terminal.ts loadTicker from that same manifest (one /bundle call per
-      ticker). A presigned URL that has expired by the time its file is fetched (the bucket answers 403) is fetched
-      again once from a new /bundle answer; the totals are checked again on the files actually read.
+   2. then each ticker's files, decoded by terminal.ts loadTicker from that same manifest while its presigned URLs can
+      still serve the download (terminal.ts usable: the manifest's age plus BACKTEST_HTTP_TIMEOUT_MS is under the
+      URLs' lifetime, expires_in_seconds), else from a new /bundle answer asked right before the ticker's download:
+      step 1 of a large universe and the downloads before a ticker's can take longer than the lifetime. A URL that
+      has expired all the same when its file is fetched (the bucket answers 403) is fetched again once from a new
+      /bundle answer. So a ticker costs one /bundle answer, or two once its manifest is too old, three with a 403.
+      A new answer is the run's data, from a later publish too: its files are the ones read (data_version), they take
+      the place of the ticker's step-1 files in the totals, which are checked before its download, and the totals
+      are checked again on the files actually read.
    Cancellation is checked between tickers; progress counts tickers (a left-out ticker counts as done once its
    manifest is read). data_version is datafile.ts dataVersion over every file read (CONTRACT section 2). */
 import { DataError, dataVersion } from '../../edge-bff/backtest/src/core/datafile.ts';
@@ -22,8 +28,9 @@ import { WorkerError } from './errors.ts';
 
 export type Bundle = Awaited<ReturnType<TerminalClient['bundle']>>;
 
-/** A TerminalClient whose loadTicker can start from a /bundle answer already fetched (step 1), so a ticker's manifest
-    is asked for once. Any other bundle() call goes to terminal-api as usual. */
+/** A TerminalClient whose loadTicker can start from a /bundle answer already fetched, so a ticker's manifest is not
+    asked for twice: loadMarket plans, right before a ticker's load, its step-1 answer while that is usable, else the
+    new one it asked. Any other bundle() call goes to terminal-api as usual. */
 export class PlannedClient extends TerminalClient {
   private planned = new Map<string, Bundle>();
   constructor(o: TerminalOptions) { super(o) }
@@ -55,6 +62,9 @@ export interface LoadHooks {
   planned?(bundles: ReadonlyMap<string, Bundle>): void | Promise<void>;
 }
 
+/** The files a /bundle answer names, as totals() counts them. */
+const filesOf = (b: Bundle) => (Object.entries(b.datasets) as [Dataset, { files: { bytes: number; rows?: number }[] }][])
+  .flatMap(([dataset, ds]) => ds.files.map(f => ({ dataset, bytes: f.bytes, rows: f.rows ?? null })));
 function totals(files: readonly { dataset: string; bytes: number; rows?: number | null }[], what: string) {
   let bytes = 0, rows = 0;
   for (const f of files) {
@@ -117,21 +127,29 @@ export async function loadMarket(client: PlannedClient, groups: readonly LoadGro
   if (done) hooks.progress?.(done, total);
   const kept = jobs.map((j, k) => ({ ...j, bundle: bundles[k] })).filter((j): j is typeof j & { bundle: Bundle } => j.bundle !== null);
   await hooks.planned?.(new Map(kept.map(j => [j.ticker, j.bundle])));
-  const planned = kept.flatMap(({ bundle: b }) => (Object.entries(b.datasets) as [Dataset, { files: { bytes: number; rows?: number }[] }][])
-    .flatMap(([dataset, ds]) => ds.files.map(f => ({ dataset, bytes: f.bytes, rows: f.rows ?? null }))));
-  within(limits, totals(planned, field), field, kept.length);
-  // 2. the files, decoded
+  let reading = totals(kept.flatMap(j => filesOf(j.bundle)), field);
+  within(limits, reading, field, kept.length);
+  // 2. the files, decoded, from the step-1 manifest while it is usable, else from a new one
   const out = new Map<string, LoadedTicker>();
   await lanes(kept, concurrency, async j => {
     stop();
-    client.plan(j.bundle, j.datasets);
+    let b = j.bundle;
+    const again = async () => {                  // a new manifest; its files replace the ticker's in the totals
+      const n = await client.bundle(j.ticker, j.datasets), was = totals(filesOf(b), field), now = totals(filesOf(n), field);
+      reading = { bytes: reading.bytes - was.bytes + now.bytes, rows: reading.rows - was.rows + now.rows };
+      within(limits, reading, field, kept.length);
+      b = n;
+    };
+    const load = () => { client.plan(b, j.datasets); return client.loadTicker(j.ticker, j.datasets, { keepBrokerRows: false }) };
+    if (!client.usable(b)) await again();
     let t: LoadedTicker;
-    try { t = await client.loadTicker(j.ticker, j.datasets, { keepBrokerRows: false }) }
+    try { t = await load() }
     catch (e) {
-      // a presigned URL that expired while the run waited for it: once more from a new manifest
+      // a URL that expired all the same (its request waited for a slot or was retried): once more from a new manifest
       if (!(e instanceof DataError && e.code === 'DATA_UNAVAILABLE' && e.details?.status === 403)) throw e;
       stop();
-      t = await client.loadTicker(j.ticker, j.datasets, { keepBrokerRows: false });
+      await again();
+      t = await load();
     }
     out.set(j.ticker, t);
     hooks.progress?.(++done, total);

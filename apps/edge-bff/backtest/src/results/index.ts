@@ -1,6 +1,6 @@
 /* RESULTS UI (backtest.html section 11): the results card (KPIs, tabs) and the definitions shown on hover. The numbers
    are the server's (the result adapter maps them to the reference's names); the renderers are the reference's. */
-import { $, cls, fmtD, ico, nf, num, pct, pctu, rp } from '../format.ts';
+import { $, cls, esc, fmtD, ico, nf, num, pct, pctu, rp } from '../format.ts';
 import { S } from '../state.ts';
 import { universe } from '../signals.ts';
 import { DAYS, mean, setDays } from './svg.ts';
@@ -25,7 +25,7 @@ export const renderResults = () => {
   setDays(R.days);
   const st = R.st, ts = R.ts, bst = R.bst;
   const kpi = (l: string, v: string, sub: string, c='') => `<div class="kpi"><span>${l}</span><b class="${c}">${v}</b><small>${sub||''}</small></div>`;
-  el.innerHTML = `<div class="card-h"><h2>Backtest results</h2><span class="sub">${S.mode==='single'?S.ticker:`Portfolio · ${universe().length} stocks · max ${S.maxPos} positions`} · ${fmtD(DAYS[R.eq[0][0]])} – ${fmtD(DAYS[R.eq.at(-1)[0]])} · ${ts.n} trades</span><span class="sp"></span><button class="btn" id="csvBtn">${ico('<path d="M12 4v12M6 11l6 6 6-6M4 20h16"/>')}Export trades (CSV)</button></div>
+  el.innerHTML = `<div class="card-h"><h2>Backtest results</h2><span class="sub">${S.mode==='single'?esc(S.ticker):`Portfolio · ${universe().length} stocks · max ${S.maxPos} positions`} · ${esc(fmtD(DAYS[R.eq[0][0]]))} – ${esc(fmtD(DAYS[R.eq.at(-1)[0]]))} · ${ts.n} trades</span><span class="sp"></span><button class="btn" id="csvBtn">${ico('<path d="M12 4v12M6 11l6 6 6-6M4 20h16"/>')}Export trades (CSV)</button></div>
   <div class="kpis">${kpi('Net return', pct(st.tot), `Benchmark ${pct(bst.tot)}`, cls(st.tot))}${kpi('CAGR', pct(st.cagr), `Benchmark ${pct(bst.cagr)}`, cls(st.cagr))}${kpi('Max drawdown', pct(st.mdd), `Benchmark ${pct(bst.mdd)}`, 'down')}${kpi('Sharpe', num(st.sharpe), `Benchmark ${num(bst.sharpe)}`)}${kpi('Win rate', pctu(ts.wr,0), `${ts.wins} W · ${ts.losses} L`)}${kpi('Profit factor', ts.pf===Infinity?'∞':num(ts.pf), `Payoff ${num(ts.payoff)}`)}${kpi('Expectancy', pct(ts.exp,2), `per trade · ${rp(ts.expRp)}`, cls(ts.exp))}${kpi('Exposure', pctu(mean(R.expo),0), `Avg hold ${nf(ts.hold,1)} d`)}</div>
   <div class="tabs" id="rtabs">${[['overview','Overview'],['returns','Returns & distribution'],['trades','Trade analysis'],['risk','Risk & ratios'],['robust','Robustness'],['list','Trade list']].map(([k,l])=>`<button class="${S.tab===k?'on':''}" data-tab="${k}">${l}</button>`).join('')}</div>
   <div class="card-b" id="rbody"></div>`;

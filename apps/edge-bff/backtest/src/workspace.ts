@@ -6,7 +6,7 @@ import type { Card } from './api/types.ts';
 import type { RegCard } from './core/catalog.ts';
 import { DATA } from './env.ts';
 import { $, COLORS, esc, ico, nf, OPS, toast } from './format.ts';
-import { CAT_LABEL, CATALOG, catOf, condReady, evalCond, EV_LABEL, EXTRA_GROUPS, mkReg, opLabel, OUT_LABEL, priceLbl, REG, REG_BY, regDefaults, regReady, sideLbl, ZONE_LABEL, type RegParam, type RegRow } from './reg.ts';
+import { CAT_LABEL, CATALOG, catOf, condReady, evalCond, EV_LABEL, EXTRA_GROUPS, mkReg, opLabel, OUT_LABEL, priceLbl, REG, REG_BY, regDefaults, regReady, sideLbl, switchedOn, withinLimit, ZONE_LABEL, type RegParam, type RegRow } from './reg.ts';
 import { mkCond, S } from './state.ts';
 import { exitSeries, getLastSig, inRange, refreshSignals } from './signals.ts';
 import { condCard, markStale, renderBuilder } from './builder.ts';
@@ -52,7 +52,7 @@ const renderWSCat = () => {
   $('wsList').querySelectorAll('[data-wi]').forEach((el: HTMLElement) => { const go = () => { const [k,id] = el.dataset.wi.split(':'); WS.sel = {kind:k, id}; renderWSCat(); renderWSDet() }; el.onclick = e => { if(!(e.target as HTMLElement).closest('[data-wadd]')) go() }; el.onkeydown = e => { if(e.key==='Enter') go() } });
   $('wsList').querySelectorAll('[data-wadd]').forEach((b: HTMLElement) => b.onclick = () => { const [k, id] = b.dataset.wadd.split(':'); wsAdd(k, id) });
 };
-const wsAdd = (kind: string, id: string) => { const c = kind==='reg' ? mkReg(id) : mkCond(id); WL().push(c); WS.sel = {kind:'cond', id:c.id}; afterCondChange(); toast(`${kind==='reg'?REG_BY[id].name:CATALOG[id].label} added`) };
+const wsAdd = (kind: string, id: string) => { const c = kind==='reg' ? mkReg(id) : mkCond(id); if(!withinLimit(WL(), [...WL(), c])) return; WL().push(c); WS.sel = {kind:'cond', id:c.id}; afterCondChange(); toast(`${kind==='reg'?REG_BY[id].name:CATALOG[id].label} added`) };
 export const renderWSMid = () => {
   $('wsCount').textContent = `${WS.side==='entry'?'Entry':'Exit'} · ${WL().length} condition${WL().length===1?'':'s'}`;
   $('wsTable').innerHTML = WL().length ? `<table class="wst"><thead><tr><th></th><th>Indicator</th><th>Rule</th><th>Inputs</th><th>True on</th><th>On</th><th></th></tr></thead><tbody>${WL().map((c,i) => { const C = catOf(c), st = condStats(c), r = c.type==='reg' ? REG_BY[c.ind] : null, lc = c as any;
@@ -63,9 +63,9 @@ export const renderWSMid = () => {
     : `<div class="empty">No conditions yet. Pick an indicator on the left and press <b>Add</b>.</div>`;
   const T = $('wsTable');
   T.querySelectorAll('[data-wsel]').forEach((tr: HTMLElement) => tr.onclick = e => { if((e.target as HTMLElement).closest('button,label,input')) return; WS.sel = {kind:'cond', id:tr.dataset.wsel}; renderWSMid(); renderWSDet() });
-  T.querySelectorAll('[data-won]').forEach((x: HTMLInputElement) => x.onchange = () => { WL().find(c=>c.id===x.dataset.won).on = x.checked; afterCondChange() });
+  T.querySelectorAll('[data-won]').forEach((x: HTMLInputElement) => x.onchange = () => { const c = WL().find(c=>c.id===x.dataset.won); if(x.checked && !withinLimit(WL(), switchedOn(WL(), c))){ x.checked = false; return } c.on = x.checked; afterCondChange() });
   T.querySelectorAll('[data-wdel]').forEach((x: HTMLElement) => x.onclick = () => { setWL(WL().filter(c=>c.id!==x.dataset.wdel)); if(WS.sel?.id===x.dataset.wdel) WS.sel = null; afterCondChange() });
-  T.querySelectorAll('[data-wdup]').forEach((x: HTMLElement) => x.onclick = () => { const c = WL().find(c=>c.id===x.dataset.wdup), d = JSON.parse(JSON.stringify(c)); d.id = Math.random().toString(36).slice(2,8); WL().splice(WL().indexOf(c)+1, 0, d); WS.sel = {kind:'cond', id:d.id}; afterCondChange() });
+  T.querySelectorAll('[data-wdup]').forEach((x: HTMLElement) => x.onclick = () => { const c = WL().find(c=>c.id===x.dataset.wdup), d = JSON.parse(JSON.stringify(c)); if(!withinLimit(WL(), [...WL(), d])) return; d.id = Math.random().toString(36).slice(2,8); WL().splice(WL().indexOf(c)+1, 0, d); WS.sel = {kind:'cond', id:d.id}; afterCondChange() });
   renderWSHead();
 };
 /* one form, generated from 02_PARAMETERS: integer/number → bounded number, enum → select, boolean → switch, fixed → read-only */
@@ -86,7 +86,7 @@ const renderWSDet = () => {
   if(sel.kind==='cond' && !c){ WS.sel = null; return renderWSDet() }
   if(c && c.type!=='reg'){ const i = WL().indexOf(c), C = CATALOG[c.type], lc = c as any;
     el.innerHTML = `<div class="wd-h"><span class="pill neu">${C.group==='flow'?'Flow':C.group==='price'?'Price action':'Technical'}</span><h3>${esc(C.label)}</h3><p>${esc(C.desc)}</p></div><div class="wd-sec">Inputs & condition</div>${condCard(c,i)}`;
-    el.querySelectorAll('[data-c]').forEach((x: HTMLInputElement) => x.onchange = () => { const p = x.dataset.p; lc[p] = p==='on' ? x.checked : (p==='op'||p==='broker') ? x.value : +x.value; afterCondChange() });
+    el.querySelectorAll('[data-c]').forEach((x: HTMLInputElement) => x.onchange = () => { const p = x.dataset.p; if(p==='on' && x.checked && !withinLimit(WL(), switchedOn(WL(), c))){ x.checked = false; return } lc[p] = p==='on' ? x.checked : (p==='op'||p==='broker') ? x.value : +x.value; afterCondChange() });
     el.querySelectorAll('[data-del]').forEach((x: HTMLElement) => x.onclick = () => { setWL(WL().filter(k=>k!==c)); WS.sel = null; afterCondChange() });
     return }
   if(sel.kind==='legacy'){ const C = CATALOG[sel.id];
@@ -106,7 +106,7 @@ const renderWSDet = () => {
   el.querySelectorAll('[data-wside]').forEach((x: HTMLSelectElement) => x.onchange = () => { const v = x.value; tgt[x.dataset.wside] = v==='price' ? {t:'price'} : v==='val' ? {t:'val', v:0} : {t:'out', o:v.slice(4)}; if(!rc) WS.draft = tgt; apply() });
   (el.querySelector('[data-wop]') as HTMLSelectElement).onchange = e => { tgt.op = (e.target as HTMLSelectElement).value; if(!rc) WS.draft = tgt; if(rc) afterCondChange(false) };
   const vi = el.querySelector('[data-wval]') as HTMLInputElement; if(vi) vi.onchange = () => { tgt.rhs.v = +vi.value; if(!rc) WS.draft = tgt; if(rc) afterCondChange(false) };
-  const add = $('wdAdd'); if(add) add.onclick = () => { const d = (WS.draft && WS.draft.ind===r.id) ? WS.draft : tgt; WS.draft = null; d.id = Math.random().toString(36).slice(2,8); WL().push(d); WS.sel = {kind:'cond', id:d.id}; afterCondChange(); toast(`${r.name} added`) };
+  const add = $('wdAdd'); if(add) add.onclick = () => { const d = (WS.draft && WS.draft.ind===r.id) ? WS.draft : tgt; if(!withinLimit(WL(), [...WL(), d])) return; WS.draft = null; d.id = Math.random().toString(36).slice(2,8); WL().push(d); WS.sel = {kind:'cond', id:d.id}; afterCondChange(); toast(`${r.name} added`) };
   if(!rc && !(WS.draft && WS.draft.ind===r.id)) WS.draft = draft; else if(!rc) Object.assign(draft, WS.draft);
 };
 /** the workspace's own listeners (the reference wires them at start) */

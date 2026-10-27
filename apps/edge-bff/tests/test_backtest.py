@@ -100,7 +100,7 @@ def result_of(job_id, request, sharpe=0.1 + 0.2):
 
 class FakeWorker:
     """The backtest worker's private API (CONTRACT.md section 8, the lead's route list) on 127.0.0.1. Jobs finish after
-    `finish_after` status reads; switches make it refuse, forget, hang, fail, time out or stop answering. A finished
+    `finish_after` status reads; switches make it refuse, forget, hang, fail, wait, time out or stop answering. A finished
     job's result is served as often as it is asked for (the worker keeps it until its next job starts)."""
 
     def __init__(self):
@@ -119,6 +119,7 @@ class FakeWorker:
         self.timeout_paths = set()     # these routes answer the worker's 504 TIMEOUT ...
         self.timeout_after = 0.0       # ... after this many seconds
         self.timeout_error = True      # False: that 504 carries no error body (not the worker's own answer)
+        self.delay = {}                # path -> seconds the route waits before its usual answer
         self.abandoned = []            # routes whose caller closed the connection while they waited (then not answered)
         self.run_sharpe = 0.1 + 0.2    # the daily Sharpe of the run's own variant in the results
         self.on_poll = None            # hook(job_id, polls) on each status read
@@ -147,6 +148,18 @@ class FakeWorker:
                 self.end_headers()
                 self.wfile.write(data)
 
+            def held(self, seconds):
+                """Waits, and stops when the caller closes its connection first (the worker's preview does that):
+                False then, the route not answered."""
+                end = time.monotonic() + seconds
+                while (left := end - time.monotonic()) > 0:
+                    ready, _, _ = select.select([self.connection], [], [], min(left, 0.02))
+                    if ready and self.connection.recv(1, socket.MSG_PEEK) == b'':
+                        with worker.lock:
+                            worker.abandoned.append(self.path)
+                        return False
+                return True
+
             def handle_one(self, method):
                 length = int(self.headers.get('content-length') or 0)
                 body = json.loads(self.rfile.read(length)) if length else None
@@ -159,15 +172,11 @@ class FakeWorker:
                     return self.answer(401, {'error': {'code': 'UNAUTHORIZED'}})
                 if worker.down:
                     return self.answer(503, {'error': {'code': 'UNAVAILABLE'}})
+                if self.path in worker.delay and not self.held(worker.delay[self.path]):
+                    return
                 if self.path in worker.timeout_paths:
-                    # waits, and stops when the caller closes its connection first (the worker's preview does that)
-                    end = time.monotonic() + worker.timeout_after
-                    while (left := end - time.monotonic()) > 0:
-                        ready, _, _ = select.select([self.connection], [], [], min(left, 0.02))
-                        if ready and self.connection.recv(1, socket.MSG_PEEK) == b'':
-                            with worker.lock:
-                                worker.abandoned.append(self.path)
-                            return
+                    if not self.held(worker.timeout_after):
+                        return
                     if not worker.timeout_error:
                         return self.answer(504, raw=b'<html>Gateway Timeout</html>')
                     return self.answer(504, {'error': {'code': 'TIMEOUT', 'message': f'{self.path} took longer than 600 s.'}})
@@ -1191,35 +1200,149 @@ def serve(settings, store):
     return local, stop
 
 
-def test_pending_previews_hold_no_thread_the_session_checks_need(configured, store, worker):
-    """A signals preview waits for the worker on the event loop (WorkerClient.acall), never in a thread: with as many
-    previews pending at the worker as asyncio's default thread pool has threads (where every session check runs,
-    main.py session), the owner's other requests are answered while every one of them is still waiting."""
-    threads = min(32, (getattr(os, 'process_cpu_count', os.cpu_count)() or 1) + 4)   # ThreadPoolExecutor's default size
-    worker.timeout_paths, worker.timeout_after = {'/v1/signals'}, 5.0
+def sign_in(local):
+    """(headers, cookies) of the owner's session on a served app."""
+    with httpx.Client(base_url=local.origin, timeout=60) as h:
+        r = h.post('/api/v1/auth/sign-in', headers={'Origin': local.origin}, json={'login': 'owner', 'password': 'local-test-password'})
+        return {'Origin': local.origin, 'X-CSRF-Token': r.json()['csrf_token']}, dict(h.cookies)
+
+
+def at_the_worker(monkeypatch):
+    """How many signals calls edge-bff has open to the worker: now, and the most at any time. A call is open from its
+    start until it answered or its cancellation closed its connection (WorkerClient.acall returned)."""
+    seen, real = {'open': 0, 'most': 0}, WorkerClient.acall
+    async def counted(self, method, path, body=None, timeout=None):
+        if path != '/v1/signals':
+            return await real(self, method, path, body, timeout)
+        seen['open'] += 1
+        seen['most'] = max(seen['most'], seen['open'])
+        try:
+            return await real(self, method, path, body, timeout)
+        finally:
+            seen['open'] -= 1
+    monkeypatch.setattr(WorkerClient, 'acall', counted)
+    return seen
+
+
+REPLACED = {'error': {'code': 'PREVIEW_REPLACED', 'message': 'A newer signals preview replaced this one.'}}
+ROWS = [{'ticker': 'BBCA', 'entry_signals': 4, 'last_signal': '2026-10-20'}]     # the fake worker's preview
+
+
+def test_a_newer_preview_of_the_owner_ends_the_one_in_flight(configured, store, worker, monkeypatch):
+    """CONTRACT.md P8, latest wins: a preview of the owner that arrives while an older one still waits at the worker ends
+    that one early (its worker call is closed, so the worker stops it, and it answers 409 PREVIEW_REPLACED) and is sent
+    once that call has ended, then answers as usual: never two previews of the owner at the worker. A body edge-bff
+    refuses itself (422 INVALID_INPUT) is no preview and replaces none."""
+    seen = at_the_worker(monkeypatch)
+    wait = 2.0
+    worker.delay = {'/v1/signals': wait}
     local, stop = serve(configured, store)
     try:
-        with httpx.Client(base_url=local.origin, timeout=60) as h:
-            r = h.post('/api/v1/auth/sign-in', headers={'Origin': local.origin}, json={'login': 'owner', 'password': 'local-test-password'})
-            headers, cookies = {'Origin': local.origin, 'X-CSRF-Token': r.json()['csrf_token']}, dict(h.cookies)
-        def preview(_):
+        headers, cookies = sign_in(local)
+        def preview(body):
             with httpx.Client(base_url=local.origin, timeout=60, cookies=cookies) as p:
-                return p.post('/api/v1/backtests/signals', headers=headers, json={'universe': 'all'}).status_code
+                return p.post('/api/v1/backtests/signals', headers=headers, json=body)
+        older, newer = {'universe': 'all'}, {'universe': 'all', 'period': {'from': '2025-01-02', 'to': '2026-10-23'}}
+        with concurrent.futures.ThreadPoolExecutor(2) as pool:
+            first = pool.submit(preview, older)
+            for _ in range(500):
+                if worker.posted('/v1/signals'):
+                    break
+                time.sleep(0.01)
+            with httpx.Client(base_url=local.origin, timeout=60, cookies=cookies) as h:
+                bad = h.post('/api/v1/backtests/signals', headers={**headers, 'content-type': 'application/json'}, content=b'[1]')
+            assert bad.status_code == 422 and bad.json() == {'error': {'code': 'INVALID_INPUT'}} and not first.done()
+            arrived = time.monotonic()
+            second = pool.submit(preview, newer)
+            ended = first.result()
+            assert time.monotonic() - arrived < wait / 2                     # early, not when the worker would answer
+            assert ended.status_code == 409 and ended.json() == REPLACED
+            answered = second.result()
+            assert answered.status_code == 200 and answered.json()['rows'] == ROWS
+        assert [c['body'] for c in worker.posted('/v1/signals')] == [older, newer]
+        assert worker.abandoned == ['/v1/signals']                           # the older one's call, closed by edge-bff
+        assert seen == {'open': 0, 'most': 1}
+    finally:
+        stop()
+
+
+def test_overlapping_previews_of_the_owner_leave_one_in_flight_and_hold_up_nothing(configured, store, worker, monkeypatch):
+    """SEC-1 and P8: as many previews of the owner at once as asyncio's default thread pool has threads (where every
+    session check runs, main.py session; they all used to wait at the worker) leave one in flight, the latest to
+    arrive: every other one answers 409 PREVIEW_REPLACED at once, and those that had reached the worker are stopped
+    there. While the one left waits (on the event loop, WorkerClient.acall), the owner's other requests are answered."""
+    seen = at_the_worker(monkeypatch)
+    threads = min(32, (getattr(os, 'process_cpu_count', os.cpu_count)() or 1) + 4)   # ThreadPoolExecutor's default size
+    worker.delay = {'/v1/signals': 3.0}
+    local, stop = serve(configured, store)
+    try:
+        headers, cookies = sign_in(local)
+        def preview(k):
+            with httpx.Client(base_url=local.origin, timeout=60, cookies=cookies) as p:
+                return p.post('/api/v1/backtests/signals', headers=headers, json={'universe': 'all', 'k': k})
         with concurrent.futures.ThreadPoolExecutor(threads) as pool:
             pending = [pool.submit(preview, k) for k in range(threads)]
             for _ in range(500):
-                if len(worker.posted('/v1/signals')) == threads:
+                if sum(f.done() for f in pending) == threads - 1:
                     break
                 time.sleep(0.01)
-            assert len(worker.posted('/v1/signals')) == threads             # every preview waits at the worker
+            replaced = [f.result() for f in pending if f.done()]
+            assert len(replaced) == threads - 1 and all(r.status_code == 409 and r.json() == REPLACED for r in replaced)
             with httpx.Client(base_url=local.origin, timeout=60, cookies=cookies) as h:
                 listed = h.get('/api/v1/backtests')
                 catalog = h.get('/api/v1/backtests/catalog')
             assert listed.status_code == 200 and catalog.status_code == 200
-            assert not any(f.done() for f in pending)
-            assert [f.result() for f in pending] == [504] * threads          # the worker's TIMEOUT, relayed
+            [latest] = [k for k, f in enumerate(pending) if not f.done()]
+            assert seen['open'] == 1 and pending[latest].result().json()['rows'] == ROWS
+        sent = [x['body']['k'] for x in worker.posted('/v1/signals')]
+        assert latest in sent and len(worker.abandoned) == len(sent) - 1 and seen == {'open': 0, 'most': 1}
     finally:
         stop()
+
+
+def test_a_stopped_call_ends_even_when_a_cancellation_is_absorbed_inside_it():
+    """unless_gone stops the call through an anyio cancel scope, which delivers its cancellation until the call has left
+    it. A single task.cancel() can be lost: when it lands as one of httpx's own anyio scopes cancels itself (anyio
+    connect_tcp's, once connected), that scope takes it for its own, and the replaced preview went on to the worker's
+    answer while the newer one waited for it. Modelled by a call that absorbs the first cancellation it gets."""
+    class Staying:                                   # a caller that does not leave
+        async def receive(self):
+            await asyncio.Event().wait()
+
+    async def scenario():
+        replaced, absorbed = asyncio.Event(), []
+        async def call():
+            try:
+                await asyncio.sleep(30)
+            except asyncio.CancelledError:
+                absorbed.append(True)                # taken for its own, as such an inner scope does
+            await asyncio.sleep(30)                  # the rest of the call: the worker's answer
+            return 'answered'
+        asyncio.get_running_loop().call_later(0.05, replaced.set)
+        started = time.monotonic()
+        with pytest.raises(backtest.PreviewReplaced):
+            await asyncio.wait_for(backtest.Backtests.unless_gone(Staying(), call(), replaced), 5)
+        return absorbed, time.monotonic() - started
+    absorbed, took = asyncio.run(scenario())
+    assert absorbed == [True] and took < 1
+
+
+def test_previews_of_the_owner_in_sequence_are_unaffected(app, worker):
+    """Latest wins only among previews in flight: one that answered, was refused by the worker or by edge-bff frees its
+    owner's place, so each preview after it is relayed as before and none is replaced."""
+    c = app
+    bt = c.app.state.backtests
+    preview = {'schema_version': 1, 'universe': 'all', 'period': {'from': '2024-01-02', 'to': '2026-10-23'}, 'entry': single()['entry']}
+    for body in (preview, {**preview, 'universe': 'sector:Nope'}, preview, {**preview, 'universe': 'sector:Finance'}):
+        r = c.post('/api/v1/backtests/signals', headers=c.headers_for, json=body)
+        if body['universe'] == 'sector:Nope':
+            assert r.status_code == 422 and r.json()['error']['code'] == 'INVALID_UNIVERSE'
+        else:
+            assert r.status_code == 200 and r.json()['rows'] == ROWS
+        assert bt.previews == {}
+    assert c.post('/api/v1/backtests/signals', headers=c.headers_for, content=b'not json').status_code == 422
+    assert c.post('/api/v1/backtests/signals', headers=c.headers_for, json=preview).status_code == 200
+    assert len(worker.posted('/v1/signals')) == 5 and worker.abandoned == [] and bt.previews == {}
 
 
 def test_a_preview_its_caller_left_is_stopped_at_the_worker(configured, store, worker):
@@ -1228,9 +1351,8 @@ def test_a_preview_its_caller_left_is_stopped_at_the_worker(configured, store, w
     worker.timeout_paths, worker.timeout_after = {'/v1/signals'}, 5.0
     local, stop = serve(configured, store)
     try:
-        with httpx.Client(base_url=local.origin, timeout=60) as h:
-            r = h.post('/api/v1/auth/sign-in', headers={'Origin': local.origin}, json={'login': 'owner', 'password': 'local-test-password'})
-            headers = {'Origin': local.origin, 'X-CSRF-Token': r.json()['csrf_token']}
+        headers, cookies = sign_in(local)
+        with httpx.Client(base_url=local.origin, timeout=60, cookies=cookies) as h:
             with pytest.raises(httpx.ReadTimeout):         # the page gives up on it
                 h.post('/api/v1/backtests/signals', headers=headers, json={'universe': 'all'}, timeout=httpx.Timeout(60, read=0.3))
         for _ in range(400):
@@ -1238,6 +1360,9 @@ def test_a_preview_its_caller_left_is_stopped_at_the_worker(configured, store, w
                 break
             time.sleep(0.01)
         assert worker.abandoned == ['/v1/signals']             # closed by edge-bff before the worker's answer (5 s)
+        worker.timeout_paths = set()
+        with httpx.Client(base_url=local.origin, timeout=60, cookies=cookies) as h:   # it left its owner's place free
+            assert h.post('/api/v1/backtests/signals', headers=headers, json={'universe': 'all'}).json()['rows'] == ROWS
     finally:
         stop()
 

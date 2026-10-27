@@ -5,8 +5,9 @@
    bars with the API's condition series (the reference's live preview). After a run the chart shows the run's own
    events: the condition and entry tracks and the trades of the result (CONTRACT.md section 10). */
 import * as L from 'lightweight-charts';
-import type { SignalTrack } from './core/contract.ts';
-import type { Card } from './api/types.ts';
+import type { SignalsPreview, SignalTrack, Warning } from './core/contract.ts';
+import { isAbort, type Card } from './api/types.ts';
+import { warningText } from './api/texts.ts';
 import { API, DATA, load, loaded, members } from './env.ts';
 import { $, COLORS, css, esc, nf, OPS, PAL, cls, rp, toast } from './format.ts';
 import { catOf, condReady, evalCond, needsFlow, opLabel, regName } from './reg.ts';
@@ -82,22 +83,36 @@ function prepare(tk: string) {
   }, e => { preparing.delete(key); toast(e.message) });
 }
 
-/* the portfolio table's entry signals: the run's own (fresh result) or the server's preview of the current settings */
-const preview = new Map<string, Map<string, { n: number; last: string | null }>>();
-const previewing = new Set<string>();
-function portSig(): (t: string) => { n: number | null; last: string | null } {
-  if (fresh()) {
-    const rows = new Map(S.result.raw.tables.per_ticker.map(r => [r.ticker, r]));
-    return t => { const r = rows.get(t); return { n: r ? r.entry_signals : 0, last: r ? r.last_signal : null } };
-  }
+/* the portfolio table's entry signals: the run's own (fresh result) or the server's preview of the current settings.
+   A preview that newer settings replaced is aborted, so edge-bff closes its worker call, and only the latest preview's
+   answer is drawn (CONTRACT.md P8). A ticker the run or the preview left out (TICKERS_EXCLUDED) has no count: the
+   table's '—' with the error its data gave in the page's tooltip; the preview's warning itself is the page's toast,
+   when an answer brings one the previous answer did not. */
+interface PortRow { n: number | null; last: string | null; left?: { code: string; message: string } }
+const portRows = (rows: SignalsPreview['rows'], warnings: readonly Warning[]) => {
+  const got = new Map(rows.map(r => [r.ticker, { n: r.entry_signals, last: r.last_signal }]));
+  const left = new Map(warnings.filter(w => w.code === 'TICKERS_EXCLUDED').flatMap(w => w.reasons || []).map(r => [r.ticker, r]));
+  return (t: string): PortRow => got.get(t) ?? (left.has(t) ? { n: null, last: null, left: left.get(t) } : { n: 0, last: null });
+};
+const preview = new Map<string, (t: string) => PortRow>();
+let pending: { key: string; ctl: AbortController } | null = null, shownNote = '';
+const dropPreview = () => { pending?.ctl.abort(); pending = null };
+function portSig(): (t: string) => PortRow {
+  if (fresh()) return portRows(S.result.raw.tables.per_ticker, S.result.raw.meta.warnings);
   const req = previewRequest(), key = JSON.stringify(req), got = preview.get(key);
-  if (got) return t => got.get(t) ?? { n: 0, last: null };
-  if (!previewing.has(key)) {
-    previewing.add(key);
-    API.signalsPreview(req).then(p => {
-      preview.set(key, new Map(p.rows.map(r => [r.ticker, { n: r.entry_signals, last: r.last_signal }])));
-      if (S.mode === 'portfolio' && JSON.stringify(previewRequest()) === key) refreshSignals();
-    }, e => toast(e.message)).finally(() => previewing.delete(key));
+  if (got) return got;
+  if (pending?.key !== key) {
+    dropPreview();
+    const mine = pending = { key, ctl: new AbortController() };
+    API.signalsPreview(req, { signal: mine.ctl.signal }).then(p => {
+      if (mine.ctl.signal.aborted) return;          // an API that answers anyway is not drawn either
+      preview.set(key, portRows(p.rows, p.warnings));
+      if (S.mode !== 'portfolio' || JSON.stringify(previewRequest()) !== key) return;
+      const note = p.warnings.map(warningText).join(' ');
+      if (note && note !== shownNote) toast(note);
+      shownNote = note;
+      refreshSignals();
+    }, e => { if (!isAbort(e)) toast(e.message) }).finally(() => { if (pending === mine) pending = null });
   }
   return () => ({ n: null, last: null });
 }
@@ -154,12 +169,12 @@ export const refreshSignals = () => {
   $('sigChips').querySelectorAll('[data-h]').forEach((ch: HTMLElement) => ch.onclick = () => { S.hidden[ch.dataset.h] = !S.hidden[ch.dataset.h]; refreshSignals() });
   const rw = pc.priceScale('right').width(); if(rw) $('chartTools').style.right = (rw + 10) + 'px';
   // ticker selector & portfolio signal table
-  const U = universe(); $('sigTicker').innerHTML = U.map(t=>`<option ${t===tk?'selected':''}>${t}</option>`).join(''); $('sigTicker').style.display = U.length>1 ? '' : 'none';
-  if(S.mode==='portfolio'){ const P = portSig(); const rows = U.map(t => { const {n, last} = P(t); const tr = S.result ? S.result.trades.filter(x=>x.tk===t) : []; const w = tr.filter(x=>x.ret>0).length;
-      return `<tr class="${t===tk?'on':''}" data-t="${t}"><td><b>${t}</b></td><td>${n ?? '—'}</td><td>${last||'—'}</td><td>${S.result?tr.length:'—'}</td><td>${S.result&&tr.length?nf(w/tr.length*100,0)+'%':'—'}</td><td class="${S.result?cls(tr.reduce((s,x)=>s+x.pnl,0)):''}">${S.result?rp(tr.reduce((s,x)=>s+x.pnl,0)):'—'}</td></tr>` }).join('');
+  const U = universe(); $('sigTicker').innerHTML = U.map(t=>`<option ${t===tk?'selected':''}>${esc(t)}</option>`).join(''); $('sigTicker').style.display = U.length>1 ? '' : 'none';
+  if(S.mode==='portfolio'){ const P = portSig(); const rows = U.map(t => { const {n, last, left} = P(t); const tr = S.result ? S.result.trades.filter(x=>x.tk===t) : []; const w = tr.filter(x=>x.ret>0).length;
+      return `<tr class="${t===tk?'on':''}" data-t="${esc(t)}"><td><b>${esc(t)}</b></td><td ${left?TT(ttH(`${esc(t)} left out`, [['Error', esc(left.code)]], esc(left.message))):''}>${n ?? '—'}</td><td>${esc(last||'—')}</td><td>${S.result?tr.length:'—'}</td><td>${S.result&&tr.length?nf(w/tr.length*100,0)+'%':'—'}</td><td class="${S.result?cls(tr.reduce((s,x)=>s+x.pnl,0)):''}">${S.result?rp(tr.reduce((s,x)=>s+x.pnl,0)):'—'}</td></tr>` }).join('');
     $('portSig').hidden = false; $('portSig').innerHTML = `<div style="font-size:12px;font-weight:600;margin-bottom:6px">Signals across the universe <span style="color:var(--text-3);font-weight:400">— click a row to show it on the chart</span></div><table class="sigtbl"><thead><tr><th>Ticker</th><th>Entry signals</th><th>Last signal</th><th>Trades</th><th>Win rate</th><th>P&L</th></tr></thead><tbody>${rows}</tbody></table>`;
     $('portSig').querySelectorAll('[data-t]').forEach((r: HTMLElement) => r.onclick = () => { S.sigTicker = r.dataset.t; refreshSignals() });
-  } else $('portSig').hidden = true;
+  } else { $('portSig').hidden = true; dropPreview() }
   applyZoom(); drawLanes(); renderNav(); updateViewbar();
 };
 const applyZoom = () => { const n = laneState ? laneState.idx.length : 0; if(!zoomN || zoomN>=n) pc.timeScale().fitContent(); else pc.timeScale().setVisibleLogicalRange({from:n-zoomN, to:n+3}) };

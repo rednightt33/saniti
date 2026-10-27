@@ -25,25 +25,40 @@ not in the path.
   `POST /api/terminal/v1/bundle {ticker, datasets, packs: true}` (header `x-terminal-proxy-key`; the gateway account
   `TERMINAL_PROXY_SUBSCRIBER`, quota unlimited for now **[D-U1]**). Every file is checked against its manifest
   `sha256` and `bytes` before use; a mismatch, a missing file, or a missing dataset is an explicit error
-  (`DATA_INTEGRITY`, `DATA_MISSING`), never a fallback.
+  (`DATA_INTEGRITY`, `DATA_MISSING`), never a fallback (a portfolio leaves out a ticker without published files, below).
 - What the worker accepts from terminal-api and the bucket: a file or reference URL on `BACKTEST_FILE_ORIGIN` only
   (scheme, host, port; a leading `*.` matches subdomains, as the pages' CSP `https://*.t3.storageapi.dev`), redirects
   refused; any other URL is `DATA_INTEGRITY` and never requested. Bodies are read as streams and dropped at their size:
   a data file at its manifest `bytes` (`DATA_INTEGRITY`), any other body at `BACKTEST_MAX_FILE_BYTES` (a reference file
-  `DATA_INTEGRITY`, a terminal-api answer `DATA_UNAVAILABLE`). A file never inflates past `BACKTEST_MAX_FILE_BYTES`
-  (`DATA_INTEGRITY`; inflating stops there, so a gzip bomb never fills the memory).
+  `DATA_INTEGRITY`; a terminal-api answer or a bucket error answer `DATA_UNAVAILABLE`). A file never inflates past
+  `BACKTEST_MAX_FILE_BYTES` (`DATA_INTEGRITY`; inflating stops there, so a gzip bomb never fills the memory).
+- Presigned URLs: a `/bundle` answer's URLs live `expires_in_seconds` (terminal-api `url_ttl_seconds`). The worker
+  first asks every ticker's `/bundle` (the manifests decide the exclusions, the limits and `FLOW_DATA_THROUGH`; no file
+  is downloaded), then loads each ticker from that answer while its age plus `BACKTEST_HTTP_TIMEOUT_MS` is under the
+  lifetime (an answer without a lifetime is never reused), else from a new answer asked right before the ticker's
+  downloads; a ticker whose file the bucket still refuses with 403 (the URL expired) is loaded once more from a new
+  answer. A new answer is the run's data, from a later publish too: its files are the ones read (`data_version`) and
+  take the place of the ticker's first ones in the limits (section 3). Every answer counts its files in terminal-api's
+  quota and writes an audit row, so a ticker costs one answer, two once its first one is too old, three with a 403. A
+  download in flight is shared only by callers of the same file and URL. Known limits: the publisher rewrites a changed
+  file under the same bucket key, so an answer reused across a publish reads other bytes and fails the run
+  (`DATA_INTEGRITY`); a ticker whose new answer is a 404 or lacks a dataset fails the run (`DATA_MISSING`), in a
+  portfolio too; `FLOW_DATA_THROUGH` reads the first answers only.
 - Portfolio **[D-exclude]**: a universe ticker without published files (terminal-api 404, or no file of a dataset the
   run reads; events aside: the publisher writes an events file only for a ticker with events) is left out with
   `DATA_MISSING` (section 4). This is decided on the manifests, before the limits are summed and before any download,
   so its files count in no limit. In single mode it is the run's `DATA_MISSING`. A file a manifest names that the
   bucket does not have (404), or that fails its checks, fails the run in either mode.
-- Prices are used exactly as published (no adjusted close). Rows must be strictly increasing by date; a duplicate or
-  unsorted date is `DATA_INTEGRITY`. `v` may be null (index): volume conditions on such a series give
-  `INDICATOR_OUTPUT_EMPTY`.
+- Prices are used exactly as published (no adjusted close); a row without its four prices (`o, h, l, c`) is dropped,
+  as the Terminal's `priceRows`. Rows must be strictly increasing by date; a duplicate or unsorted date is
+  `DATA_INTEGRITY`. `v` may be null (index): volume conditions on such a series give `INDICATOR_OUTPUT_EMPTY`.
 - Broker flow (`flow.ts`, the Terminal's definitions): a ticker's broker coverage runs from its first to its last price
-  bar with a broker row. Inside it every flow series has a value: a session without rows counts 0, and a broker
-  without any row on the ticker's bars (it did not trade the ticker) has a net of 0 (`brokerNet`). Outside it every
-  flow series is NaN, so no condition or ranking reads a value there. Whether a code is a broker at all is the request
+  bar with a broker row. Inside it the daily foreign and broker nets have a value: a session without rows counts 0, and
+  a broker without any row on the ticker's bars (it did not trade the ticker) has a net of 0 (`brokerNet`); an n-bar
+  sum has one once its window lies inside it (top5 one bar later, the page's rule). Outside it every flow series is
+  NaN, so no condition or ranking reads a value there. A flow condition without any value on the ticker's bars up to
+  `period.to` (a window longer than the coverage) is `FLOW_OUTPUT_EMPTY` (field `….params.length`); a ticker without
+  any broker row on those bars is `FLOW_UNAVAILABLE` (section 4). Whether a code is a broker at all is the request
   check `UNKNOWN_BROKER` (section 3), not the ticker's rows.
 - `catalog.flow.data_through`: the newest broker `data_through` of every stock's manifest (terminal-api `/manifest`:
   no file granted, no quota, no audit row); null while flow is off. The publisher writes its date only into the
@@ -56,7 +71,9 @@ not in the path.
   brokerDataThrough` gives the reasons); each catalog build asks every stock's manifest, `BACKTEST_DOWNLOAD_CONCURRENCY`
   at a time. terminal-api keeps manifests until the publisher's next run (state.json `finished_at`); edge-bff keeps
   the catalog 60 s.
-- Cache: by file sha256 (content-addressed), so a cached file can never belong to another data version.
+- Cache: by file sha256 (content-addressed: the worker's memory and optional disk caches, the page's browser cache
+  **[D-P5]**), so a cached file can never belong to another data version; it is checked against its manifest again
+  each time it is used, and a damaged copy is never used (the file is downloaded again).
 - `data_version` = sha256 over the sorted lines `ticker \t dataset \t file sha256` of every file the run read.
 - Indicators and conditions run on the ticker's **full published history** (warm-up before `period.from` uses real
   bars), and the ticker's own bars (no filling). Trading happens only inside the period. Whether a condition's series
@@ -72,12 +89,14 @@ not in the path.
   rounded or silently dropped (registry rule). Every object holds only the fields the page sends (`UNKNOWN_FIELD` with
   the path); edge-bff takes its `client_request_id` out first.
 - `period.from <= period.to`, both ISO dates; `to` later than IHSG's last published bar is refused
-  (`PERIOD_AFTER_DATA`; at validation from IHSG's manifest, the newest row of its price files).
+  (`PERIOD_AFTER_DATA`; at validation from IHSG's manifest, the newest row of its price files); `oos_fraction` 0, 0.2,
+  0.3 or 0.4 (the page's select).
 - Single: `single.ticker` must be a published ticker of type stock (`UNKNOWN_TICKER`); `benchmark`
   `buy_and_hold | ihsg`.
 - Portfolio: `universe` from the catalog (`all`, `sector:<name>`; `UNKNOWN_UNIVERSE`); `max_positions` 1 to
   `limits.max_positions` (≤ 10); `rank_by` `fnet` needs flow.
-- Entry: at least one enabled condition (`NO_ACTIVE_CONDITION`); `window_bars` 1–20; `at_least` ≥ 1.
+- Entry: at least one enabled condition (`NO_ACTIVE_CONDITION`); `window_bars` 1–20; `at_least` a whole number ≥ 1
+  when the logic is `at_least`.
 - Conditions: an id has the page's shape, 1 to 6 characters `[0-9a-z]` (`INVALID_CONDITION`), unique across the entry
   and exit lists (`DUPLICATE_CONDITION_ID`); each list has at most `limits.max_conditions` enabled conditions
   (`LIMIT_EXCEEDED`, `details.limit: max_conditions`). Every condition, enabled or not, is checked for its kind,
@@ -89,9 +108,11 @@ not in the path.
   mode uses them; `max_hold_bars` whole ≥ 0.
 - Flow: enabled flow conditions and `rank_by = 'fnet'` are refused with `FLOW_UNAVAILABLE` while
   `catalog.flow.available` is false. An enabled broker condition's code must be in terminal-api's broker reference list
-  (`UNKNOWN_BROKER`, field `….params.broker`). A request that reads broker files is held to `FLOW_DATA_THROUGH`
-  (section 2), at validation too.
-- Costs: fractions in [0, 0.1); `ara_gap_fraction` in (0, 1). Sizing: `capital_idr` ≥ 1, `allocation_fraction` (0, 1].
+  (`UNKNOWN_BROKER`, field `….params.broker`). A request reads the broker files when an enabled flow condition (entry
+  or exit signals) or `rank_by = 'fnet'` needs them; it is then held to `FLOW_DATA_THROUGH` (section 2), at validation
+  too.
+- Costs: fractions in [0, 0.1); `ara_gap_fraction` in (0, 1). Sizing: `capital_idr` ≥ 1; in single mode
+  `allocation_fraction` (0, 1].
 - Monte Carlo runs: exactly `limits.monte_carlo_runs` (1000) or 0 (off); `seed` a whole number ≥ 0.
 - Found only on the data, after the job was accepted (it ends `FAILED` with the error, section 11):
   `INDICATOR_OUTPUT_EMPTY`, `FLOW_OUTPUT_EMPTY`, `FLOW_UNAVAILABLE` (in single mode; a portfolio leaves the ticker out,
@@ -105,12 +126,12 @@ the page can act on. The worker's `LIMIT_EXCEEDED` carries `details.limit`, `all
 
 | Variable | Bounds | Over it |
 |---|---|---|
-| `BACKTEST_MAX_DOWNLOAD_BYTES` | manifest bytes of every file a job or preview reads, cached or not (the answer does not depend on the cache); `limits.max_download_bytes` | `LIMIT_EXCEEDED` `max_download_bytes`, before any download |
-| `BACKTEST_MAX_BROKER_ROWS` | manifest rows of the broker files read; `limits.max_broker_rows` | `LIMIT_EXCEEDED` `max_broker_rows`, before any download |
+| `BACKTEST_MAX_DOWNLOAD_BYTES` | manifest bytes of every file a job or preview reads, cached or not (the answer does not depend on the cache); `limits.max_download_bytes` | `LIMIT_EXCEEDED` `max_download_bytes`, on the manifests before any download; again before the downloads of a ticker whose answer is asked again (section 2), and on the files read |
+| `BACKTEST_MAX_BROKER_ROWS` | manifest rows of the broker files read; `limits.max_broker_rows` | `LIMIT_EXCEEDED` `max_broker_rows`, when and as `max_download_bytes` |
 | `BACKTEST_MAX_CONDITIONS` | enabled conditions per list; `limits.max_conditions` | `LIMIT_EXCEEDED` `max_conditions`, at validation |
-| `BACKTEST_MAX_FILE_BYTES` | what one file inflates to; a body that is not a data file | `DATA_INTEGRITY` (section 2) |
+| `BACKTEST_MAX_FILE_BYTES` | what one file inflates to; a body that is not a data file | `DATA_INTEGRITY`; a terminal-api or bucket error answer `DATA_UNAVAILABLE` (section 2) |
 | `BACKTEST_MAX_RESULT_BYTES` | JSON bytes of a job's result; edge-bff's variable of the same name has the same value | worker: the job ends `FAILED LIMIT_EXCEEDED` `max_result_bytes` before the result is packed; edge-bff: the unpacked result is read as it arrives and never past it, `FAILED LIMIT_EXCEEDED`, nothing stored |
-| `BACKTEST_TIMEOUT_SECONDS` | a job, a preview, a validation or a catalog (worker); a job, polling included (edge-bff); `limits.timeout_seconds` | `TIMEOUT` (section 11) |
+| `BACKTEST_TIMEOUT_SECONDS` | a job, a preview, a validation or a catalog (worker); a job, polling included, a result download, and the relayed calls' wait (+ 30 s) (edge-bff); `limits.timeout_seconds` | `TIMEOUT` (section 11) |
 
 ## 4. Calendar
 
@@ -137,7 +158,7 @@ What the period and the universe become on the data (`engine.ts` run, after the 
   message gives the count, the counts by code and the first ticker's error), never a cash-only result.
 - The calendar is built from IHSG and the tickers that run. A period without any calendar day is `PERIOD_EMPTY`; a
   primary benchmark (section 7) without a close on or before `dates[0]` is `PERIOD_BEFORE_DATA`, because the
-  benchmark is scaled by its first close (section 11).
+  benchmark is scaled by its first close (section 7). Both have field `period.from`.
 
 ## 5. Signals
 
@@ -153,7 +174,7 @@ What the period and the universe become on the data (`engine.ts` run, after the 
   exclusions: a ticker without published files or with an error of `EXCLUDED_CODES` is left out and listed in
   `SignalsPreview.warnings` as the run's `TICKERS_EXCLUDED` (same keys); none left is `UNIVERSE_EMPTY` (field
   `universe`); a preview that reads broker files is held to `FLOW_DATA_THROUGH` before any download. A preview never
-  fails where the matching run succeeds.
+  fails where the matching run succeeds. Overlapping previews **[D-P8]**: the latest wins (sections 9 and 10).
 
 ## 6. Event clock (per calendar day t) **[D-E2, E3, E4, E5, E6]**
 
@@ -165,7 +186,8 @@ value at `i − 1`; a level not below the previous close is inactive (−1); the
 1. **Open.** For every held position with a bar today, in ticker order:
    `lvl = max(stop, trail)`; if `lvl > 0` and `open ≤ lvl` → sell at `open`, reason `stop_loss` when `lvl = stop`
    else `trailing_stop`; else if `open ≥ target` → `take_profit` at `open`; else if a sell is pending → `exit_signal`
-   at `open`. Phase `open`. Proceeds are cash immediately (same auction, sells before buys).
+   at `open`. A gap exit fills at the raw open, not at the level (the fill rule below). Phase `open`. Proceeds are cash
+   immediately (same auction, sells before buys).
    Then **entries**: candidates = tickers with an entry event on their previous bar (whose date is inside the period),
    not held (`already_held`), not on the last calendar day of the period (`period_end`). Portfolio: liquidity filter
    `SMA20(close × volume)` on the signal bar ≥ `min_avg_value_20d_idr` (`below_min_value`) **[D-K9]**; rank by score
@@ -182,10 +204,10 @@ value at `i − 1`; a level not below the previous close is inactive (−1); the
    buy_fee) > budget` (the formula in exact arithmetic: the rounded division can give a lot one ulp over the budget);
    below 100 → `insufficient_cash`; cost = `fill × shares × (1 + buy_fee)`; cash −= cost. No leverage, shorting,
    fractional shares or rebalancing; unused cash stays cash without interest.
-   Initial levels (page `exitLevels`, signal bar `s`): stop pct = fill × (1 − pct); atr = fill − mult × ATR(atr_length)[s]
-   (I30, RMA); line = line value at `s` if finite and below fill, else none; target pct = fill × (1 + pct); atr = fill +
-   mult × ATR[s]; stop rr = fill − (target − fill) / x; risk = fill − stop; target r = fill + r × risk (none without a
-   valid stop). ATR is the registry I30 with `smoothing_type: 'RMA'`.
+   Initial levels (page `exitLevels`, signal bar `s`): stop pct = fill × (1 − pct); atr = fill − mult ×
+   ATR(atr_length)[s] (I30, RMA); line = line value at `s` if finite and below fill, else none; target pct = fill ×
+   (1 + pct); atr = fill + mult × ATR[s]; stop rr = fill − (target − fill) / x; risk = fill − stop; target r = fill +
+   r × risk (none without a valid stop). ATR is the registry I30 with `smoothing_type: 'RMA'`.
 2. **Intraday** (every position still held with a bar today, including the ones bought this open **[D-E3]**):
    `lvl` as above; if `lvl > 0` and `low ≤ lvl` → sell at `min(open, lvl)`; else if `high ≥ target` → sell at
    `max(open, target)`. Both touched in one candle: the stop is taken and `flags.stop_and_target_same_bar` is set
@@ -248,13 +270,13 @@ drawdowns, exit reasons, per ticker), so the page shows what `backtest.html` sho
   and its run cells, distinct variant hashes only (the run wins over an identical cell). A variant evaluated again
   takes the latest run's Sharpe (current data): the worker's trial set uses this run's value (`robustness.ts
   trialSet`), and `edge_bff.backtest_trials` stores it with the kind and request_id and keeps the variant's
-  `recorded_seq`. `meta.trials`: `prior` = distinct prior variants,
-  `this_run` = this run's new ones, `total` = all distinct trials; `variants` = this run's distinct variants, which
-  edge-bff records. A trial's Sharpe is the full run's daily Sharpe (annualised ÷ √252), finite by construction (0
-  without volatility) **[D-L5]**; edge-bff refuses a result whose `meta.trials.variants` has a missing or non-finite
-  Sharpe, a hash that is not sha256 hex, or a repeated hash (`RESULT_INVALID`). DSR uses the trials' Sharpe variance
-  when there are ≥ 2 distinct trials, else the sample variance (`sharpe_variance_from`); distinct trials with equal
-  Sharpes give variance 0, so sr0 = 0 and DSR = PSR(0), as the page's `dsr`.
+  `recorded_seq`. `meta.trials`: `prior` = distinct prior variants, `this_run` = this run's new ones, `total` = all
+  distinct trials; `variants` = this run's distinct variants, which edge-bff records. A trial's Sharpe is the full
+  run's daily Sharpe (annualised ÷ √252), finite by construction (0 without volatility) **[D-L5]**; edge-bff refuses a
+  result whose `meta.trials.variants` has a missing or non-finite Sharpe, a hash that is not sha256 hex, or a repeated
+  hash (`RESULT_INVALID`). DSR uses the trials' Sharpe variance when there are ≥ 2 distinct trials, else 1 / n (n
+  daily returns, the page's sample rule; `sharpe_variance_from`); distinct trials with equal Sharpes give variance 0,
+  so sr0 = 0 and DSR = PSR(0), as the page's `dsr`.
 - Warnings: `PERIOD_CLIPPED` (single: the run starts at the ticker's first published bar, section 4)
   **[D-period_clip]**; `TICKERS_EXCLUDED` (portfolio: the universe tickers left out, with `count`, `tickers` and
   `reasons`, section 4) **[D-exclude]**; `SURVIVORSHIP` (portfolio: today's universe, no delisted tickers) **[D-K6]**;
@@ -281,11 +303,15 @@ drawdowns, exit reasons, per ticker), so the page shows what `backtest.html` sho
   across a restart).
 - `GET /v1/jobs/{id}/result` → 200 gzip JSON (`Content-Encoding: gzip`), as often as it is asked until the next job
   starts; then 410 `RESULT_GONE` for the finished job that newer job replaced, 404 `UNKNOWN_JOB` for any other id;
-  409 `NOT_FINISHED` before the end.
+  409 `NOT_FINISHED` for the latest job unless it is `FINISHED` (a failed or cancelled one too).
 - `POST /v1/jobs/{id}/cancel` → 202 `JobStatus`; a running job stops at its next check and ends `CANCELLED` (a result
-  that completes after the cancel is dropped).
-- A job, a preview, a validation and the catalog each get `BACKTEST_TIMEOUT_SECONDS`: a job over it ends `FAILED
-  TIMEOUT`, a synchronous call answers 504 `TIMEOUT`; a job or preview over it has its thread terminated.
+  that completes after the cancel is dropped); an ended job is left as it is.
+- The catalog, a validation, a preview and a job hand-over each read terminal-api's two reference lists
+  (`/reference`: one granted file each, counted in the quota, with an audit row); a job and a preview read their data
+  as section 2.
+- A job, a preview, a validation and the catalog each get `BACKTEST_TIMEOUT_SECONDS` (a preview's and a job
+  hand-over's reference lists are read under a limit of their own first): a job over it ends `FAILED TIMEOUT`, a
+  synchronous call answers 504 `TIMEOUT`; a job or preview over it has its thread terminated.
 
 ## 9. edge-bff public API (session cookie; POST needs CSRF like `/api/v1/runs`)
 
@@ -301,13 +327,19 @@ page leaves before the answer). Off when `BACKTEST_WORKER_URL` is empty (`BACKTE
 validate and signals calls are relayed on the event loop and wait for the worker's answer up to
 `BACKTEST_TIMEOUT_SECONDS` + 30 s (connecting 30 s).
 
+Previews **[D-P8]**: at most one per owner is in flight. A newer one ends the one still in flight, whose worker call is
+closed and which answers 409 `PREVIEW_REPLACED` (unless its page aborted it first), and goes to the worker once that
+one has ended; a preview that answered, failed or whose page left frees its owner's place. A body refused with 422
+`INVALID_INPUT` is no preview and replaces none.
+
 The loop takes one job at a time (the oldest queued job of an owner with nothing running), hands it to the worker with
 the line's prior trials and follows it every poll; it never resubmits. A finished job's result is fetched and split,
-then stored in one transaction (a failure stores nothing). The worker answering 404 `UNKNOWN_JOB` or 410 `RESULT_GONE` for the result ends the job
-`FAILED WORKER_LOST` at once **[D-B1]**; a store that fails fetches the result again at the next poll (the worker keeps
-it until its next job), and 3 polls in a row without an answer or a stored result end it `WORKER_LOST`. The result is
-read as it arrives and never past `BACKTEST_MAX_RESULT_BYTES` of JSON (`FAILED LIMIT_EXCEEDED`, nothing stored); a
-result outside the contract is `FAILED RESULT_INVALID`.
+then stored in one transaction (a failure stores nothing). The worker answering 404 `UNKNOWN_JOB` or 410
+`RESULT_GONE` for the result ends the job `FAILED WORKER_LOST` at once **[D-B1]**; a store that fails fetches the
+result again at the next poll (the worker keeps it until its next job), and 3 polls in a row without an answer or a
+stored result end it `WORKER_LOST`. The result is read as it arrives and never past `BACKTEST_MAX_RESULT_BYTES` of JSON
+(`FAILED LIMIT_EXCEEDED`, nothing stored); a result outside the contract is `FAILED RESULT_INVALID`. An ended job
+keeps the worker's final progress (`FINISHED`: `finalizing` 1/1).
 
 Tables (migration `20261026_005_edge_bff_backtest.sql`): `edge_bff.backtest_jobs`, `edge_bff.backtest_results` (gzip
 JSON bytea per `(request_id, part)`, kept 30 days), `edge_bff.backtest_trials` (one row per owner, lineage and
@@ -318,8 +350,9 @@ ingest edge-bff splits the worker's result into the part `core` (everything exce
 `events.exits`) and one part `events:<ticker>` per ticker (`{conditions, exits}` of that ticker), because a portfolio
 of hundreds of tickers would otherwise send every lane of every ticker to the page. `/result` answers `core` as
 `BacktestResultCore` (contract.ts), with the single ticker's `TickerEvents` merged back in single mode (= the worker's
-`BacktestResult`); the page asks `/events?ticker=` (`TickerEvents`) for the ticker it shows. 409 `NOT_FINISHED` before
-the end, 410 `RESULT_EXPIRED` once the parts are pruned, 404 `EVENTS_NOT_FOUND` for a ticker the run did not have.
+`BacktestResult`); the page asks `/events?ticker=` (`TickerEvents`) for the ticker it shows. 409 `NOT_FINISHED` unless
+the job is `FINISHED`, 410 `RESULT_EXPIRED` once the parts are pruned, 404 `EVENTS_NOT_FOUND` for a ticker the run did
+not have.
 
 ## 10. Page
 
@@ -329,13 +362,24 @@ existing `/api/terminal/v1` proxy); after a run, markers come from the result ev
 **[D-no-autorun]**; the page opens in its own "Not run yet" state. The synthetic generator and the mock-up engine
 exist only in the test fixture build (`?fixture=reference`), checked absent from the production bundle.
 
+- The default period ends on the last day every dataset the request reads is published: `catalog.data_through`, or
+  the earlier `catalog.flow.data_through` for a request that reads broker files while flow is available.
+- Wording that depends on the data source (header, robustness warning, trial label) is the API layer's
+  (`BacktestApi`), the renderers are shared **[D-P4]**: live names the published data, the run's `meta.warnings` and
+  the per-strategy trial count; the fixture keeps the reference's strings.
+- Published files are kept in the Terminal's browser cache **[D-P5]**: IndexedDB `terminal-files` version 1, store
+  `files` (keyPath `sha`, index `used`), its least-recently-used limit; only bytes that pass `inflateVerified`; any
+  IndexedDB failure means no cache, never a failed page.
+- The portfolio preview aborts a preview newer settings replaced and draws only the latest answer **[D-P8]**.
+
 ## 11. Errors
 
 `{error:{code, field?, message?, details?}}`.
 
 - Request 422: the worker's validation codes (section 3), `LIMIT_EXCEEDED` (`details.limit`, `allowed`, `needed`;
   section 3), and edge-bff's `INVALID_INPUT` (a body that is not a JSON object, not JSON, or nested deeper than the
-  parser takes; field `client_request_id` for a bad submission key). 409 `SUBMISSION_CONFLICT`; 429 `QUEUE_FULL`.
+  parser takes; field `client_request_id` for a bad submission key). 409 `SUBMISSION_CONFLICT`; 409
+  `PREVIEW_REPLACED` (a newer preview of the owner, section 9); 429 `QUEUE_FULL`.
 - Data 424: `DATA_MISSING`, `DATA_INTEGRITY`, `DATA_UNAVAILABLE`.
 - Service: 503 `BACKTEST_DISABLED`, `BACKTEST_UNAVAILABLE` (the worker unreachable or answering outside its API, a 504
   without the worker's `TIMEOUT` error included), `BACKTEST_NOT_READY` (the tables are missing); 504 `TIMEOUT` relayed
@@ -345,10 +389,11 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
   sha256).
 - A job ends `FAILED` with `JobStatus.error`: the worker's error as it gave it, at the hand-over or while it ran (the
   errors found on the data, section 3; `PERIOD_EMPTY` and `PERIOD_BEFORE_DATA` with field `period.from`, section 4;
-  `LIMIT_EXCEEDED` `max_download_bytes`, `max_broker_rows`, `max_result_bytes`; `OUT_OF_MEMORY`, `INTERNAL_ERROR`), or
-  edge-bff's own: `WORKER_LOST` (the worker answers 404 for the job, 404 or 410 `RESULT_GONE` for its result
-  **[D-B1]**, or no answer 3 times in a row at the hand-over or the polls; or edge-bff's lease on the job expired),
-  `TIMEOUT` (over `BACKTEST_TIMEOUT_SECONDS` on edge-bff's side; the worker is sent a cancel when it has the job), `LIMIT_EXCEEDED` (the result over
+  `LIMIT_EXCEEDED` `max_download_bytes`, `max_broker_rows`, `max_result_bytes`; `TIMEOUT` over the worker's
+  `BACKTEST_TIMEOUT_SECONDS`; `OUT_OF_MEMORY`, `INTERNAL_ERROR`), or edge-bff's own: `WORKER_LOST` (the worker answers
+  404 for the job, 404 or 410 `RESULT_GONE` for its result **[D-B1]**, or no answer 3 times in a row at the hand-over
+  or the polls; or edge-bff's lease on the job expired), `TIMEOUT` (over `BACKTEST_TIMEOUT_SECONDS` on edge-bff's
+  side; the worker is sent a cancel when it has the job), `LIMIT_EXCEEDED` (the result over
   `BACKTEST_MAX_RESULT_BYTES`, with a message), `RESULT_INVALID` (a result outside the contract, section 7),
   `WORKER_FAILED` (the worker reports `FAILED` without an error). Cancel → `CANCELLED`, without an error.
 
@@ -389,5 +434,5 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
 | B1 | The worker answers 410 `RESULT_GONE` for a result edge-bff has not stored | retry / end the job | `FAILED WORKER_LOST` at the first such answer, as 404 (lead) | the worker keeps one result until its next job; no later fetch can get it |
 | P4 | Wording that depends on the data source (header, robustness warning, trial label) | in the renderers / in the API layer | the API layer (`BacktestApi`): live and fixture each supply theirs, the renderers stay shared (lead) | the fixture keeps the reference's strings for the pixel harness; live names published data, the run's warnings and the per-strategy trial count |
 | P5 | Browser cache of published files | the page's own / the Terminal's | the Terminal's: IndexedDB `terminal-files` version 1, store `files` (keyPath `sha`, index `used`), its least-recently-used limit; only bytes that pass `inflateVerified`; any IndexedDB failure means no cache, never a failed page (lead) | one content-addressed copy per browser for both tabs |
-| P8 | Overlapping signals previews | no limit / a cap with an error / latest wins | latest wins: the page aborts a preview newer settings replaced and renders only the latest; edge-bff keeps at most one preview per owner in flight (lead) | pending previews piled up and held the app (review SEC-1); a cap would show errors to a page that types fast |
+| P8 | Overlapping signals previews | no limit / a cap with an error / latest wins | latest wins: the page aborts a preview newer settings replaced and draws only the latest; edge-bff keeps at most one preview per owner in flight, a newer one ends the older (409 `PREVIEW_REPLACED`) (lead) | pending previews piled up and held the app (review SEC-1); a cap would show errors to a page that types fast |
 | bb bxin | Close back inside lower band | exact page op / crosses above | crosses above I27 lower | equal only when a close equals the band exactly |
