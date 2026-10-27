@@ -899,3 +899,48 @@ Pertanyaan terbuka: apakah data lama boleh tampil sebelum sesi diperiksa (keaman
 
 Dieksekusi dan selesai: EXEC.md EXEC-BACKTEST-LOAD, ERRORS "EXEC-BACKTEST-LOAD", M253, M254, BACKTEST_END_TO_END.md
 bagian 17.
+
+## BACKTEST-SPIN — putaran loading di halaman Backtest (disetujui untuk disusun rencananya 2026-10-27; belum "go")
+
+**Persetujuan, 2026-10-27 (kata user):** "Okay, seperti biasa, inspect arsitektur dan buat implementation plan ya." atas
+usulan "saya tambahkan putaran yang sama (0,15 detik per putaran) di tengah area chart Backtest selama harga dimuat ...
+kondisi flow yang menunggu data broker juga diberi putaran kecil". Sebelumnya user: "kalau kita buka chart, let's say itu
+ada putaran loading kan ... Loading kalau tidak salah kita sepakati 0,15 detik."
+
+**Inspeksi (kode `main` `fa2aae2`):**
+- Terminal: `.ml-spin` satu putaran 0,15 s, 1,6 s bila pengguna minta gerak dikurangi (`terminal/src/styles/terminal.css`,
+  EXEC-TERMINAL-SPIN, EXEC-TERMINAL-SPEED); `spin(msg)` di `terminal/src/app/context.ts`; overlay chart `.ml-boot`
+  (`terminal/src/main.ts`).
+- Backtest: tidak ada putaran sama sekali (`backtest/src/styles/backtest.css`). Selama harga belum ada, `signals.ts
+  refreshSignals` berhenti di `if(!prepared(tk)){ prepare(tk); return }`: area chart kosong saat buka pertama, dan saat
+  ganti saham candle saham **sebelumnya** tetap tampil sampai data baru datang (pilihan sudah menunjuk saham baru). Jalur
+  flow yang menunggu broker hanya diberi teks "· loading" di kanvas (`drawLanes`). Daftar Ticker/Broker yang menunggu
+  katalog adalah `<option>` bawaan browser (tidak bisa berisi animasi). Run sudah punya teks "Running…" (`run.ts`).
+- Ukur live 2026-10-27: buka pertama chart 2,6–2,9 s, jalur flow 4,9–5,3 s; buka lagi chart 0,7–1,0 s.
+- Aturan halaman: markup dan CSS 1:1 dengan `backtest.html` (CONTRACT section 10); tambahan hanya untuk keadaan memuat,
+  keadaan akhir tidak berubah.
+
+**Rencana:**
+1. **Satu putaran untuk semua halaman rak.** Pindahkan `.ml-loading/.ml-spin` dan `@keyframes` ke
+   `terminal/src/styles/spin.css` dan `spin()` ke `terminal/src/ui/spin.ts`; Terminal mengimpor keduanya (tampilan tidak
+   berubah, 1:1 Terminal tetap 0 px), Backtest juga. Kecepatan 0,15 s dan 1,6 s untuk gerak dikurangi tetap satu nilai.
+2. **Chart Backtest:** selama harga ticker yang dipilih belum ada, overlay di tengah `#priceChart` dengan putaran dan
+   "Loading MAPI" (gaya `.ml-boot` Terminal). Saat ganti saham, candle saham lama disembunyikan (chart dikosongkan)
+   supaya tidak tampil data saham yang salah di bawah nama saham baru.
+3. **Jalur flow:** label jalur flow dan jalur Entry yang menunggu data broker diberi putaran kecil di label (HTML
+   `#laneLabels`, bukan kanvas); teks "· loading" tetap.
+4. **Daftar yang menunggu katalog:** tetap teks "Loading tickers…" di dalam pilihan (elemen bawaan browser tidak bisa
+   diberi animasi).
+5. **Uji:** smoke dengan katalog lambat, harga lambat (opsi stub baru `?barsms=`) dan broker lambat: overlay tampil lalu
+   hilang, `animation-duration` 0,15 s (dan 1,6 s dengan reduced motion), candle lama tidak tampil saat ganti saham;
+   vitest halaman dan Terminal; perbandingan piksel fixture lama/baru Backtest dan 1:1 Terminal (keduanya harus 0 px);
+   ukur live sesudah deploy.
+
+**Mencakup:** Backtest dan Terminal (satu komponen putaran), kelak halaman rak lain. **Tidak mencakup:** waktu muat itu
+sendiri (tidak berubah), daftar `<option>`.
+
+**Pertanyaan terbuka:**
+- S1: saat ganti saham, candle lama dikosongkan lalu putaran (disarankan), atau candle lama tetap tampil redup dengan
+  putaran di atasnya?
+- S2: tulisan di samping putaran "Loading MAPI" (sama dengan Terminal) atau tanpa tulisan?
+- S3: teks "Running…" saat Run juga diberi putaran yang sama?
