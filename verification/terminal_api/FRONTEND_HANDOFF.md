@@ -125,3 +125,10 @@ Auth and admin routes are not forwarded. The presigned downloads go straight fro
 - `?perf=1` shows the time of each loading stage and each file (size, ms, from cache or not) in a small overlay.
 - terminal-api keeps each manifest in memory until the next publication (`state.json` `finished_at`, checked at most
   every cache period); `terminal.access_log` keeps 90 days (pruned by terminal-api at most every 6 hours per worker).
+
+## 11. Since 2026-10-27 (EXEC-TERMINAL-POPOUT)
+
+- Broker inventory has investor type and board filters (F1).
+- Each right-panel section (Broker summary, Top brokers, Broker inventory) has a ⤢ button that opens it as a window
+  over the page (`src/ui/floatwin.ts`, `src/app/popout.ts`, sums in `src/data/brokerAgg.ts`; FRONTEND_ARCHITECTURE.md
+  section 14). Windows are client-side only: they read the same broker files as the panel, no new API call.

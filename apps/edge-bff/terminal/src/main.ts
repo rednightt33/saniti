@@ -26,6 +26,7 @@ import { initBroker } from './app/broker';
 import { initRangeSelect } from './app/rangeSelect';
 import { initReorder } from './ui/reorder';
 import { initFullscreen } from './ui/fullscreen';
+import { initPopout } from './app/popout';
 import { asTimeframe, PERIODS_PER_YEAR, type Timeframe } from './data/timeframe';
 
 /* EXEC-TERMINAL-WM (user 2026-10-27: "time frame ditambah weekly dan monthly"), live: D, W and M. The page's sections
@@ -78,6 +79,7 @@ function start(M: MarketData, rawSeries: Record<string, Point[]>) {
   initRangeSelect(ctx);
   if (M.mode === 'live') initReorder();                    // EXEC-TERMINAL-PANELS A1; the fixture keeps the reference order
   if (M.mode === 'live') initFullscreen();                 // EXEC-TERMINAL-FULL; the fixture's top bar stays the reference's
+  if (M.mode === 'live') initPopout(ctx);                  // EXEC-TERMINAL-POPOUT: the right panel's windows
   if (M.mode === 'live') document.querySelector('#symbolPill .exchange')?.remove();   // EXEC-TERMINAL-FULL-2: no "IDX" label
   if (M.mode === 'live') liveCtx = ctx;                     // the timeframe buttons reset the view through it
   return ctx;

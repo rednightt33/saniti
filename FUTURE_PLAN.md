@@ -986,3 +986,12 @@ bisa display juga candle chart weekly dan monthly".
   dipetakan ke candle yang memuat titiknya (keputusan).
 - Pertanyaan terbuka: gambar per timeframe atau bersama; candle minggu/bulan berjalan (belum selesai) ditampilkan atau
   tidak.
+
+## Terminal: jendela panel — sisa yang belum dibuat (EXEC-TERMINAL-POPOUT, 2026-10-27; menunggu keputusan user)
+
+- Kolom frekuensi beli/jual di jendela Broker summary: user 2026-10-27 "tanpa frekuensi dulu." Untuk menambahkannya,
+  publisher harus ikut mengirim `buy_freq`/`sell_freq` dari Feature 05 (file broker sedikit lebih besar, satu kali kirim
+  ulang semua tahun). Tanggal yang frekuensinya kosong di sumber (loader di Git tidak menulisnya, `UPDATE_TABLE.md`)
+  tampil "–", bukan 0.
+- Broker yang dipilih di Broker inventory (panel dan jendela) belum diingat setelah reload; setelah reload kembali ke
+  tiga net buyer terbesar 20 sesi terakhir (perilaku panel sejak awal).

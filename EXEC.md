@@ -8412,4 +8412,16 @@ ditambahkan fungsi-fungsi lain yang lebih detail. + W1 + I2".
   mengambang di dalam halaman (geser, ubah ukuran, beberapa sekaligus, tetap terhubung dengan chart), isinya lebih
   besar dan lebih rinci.
 Status 2026-10-27: F1 selesai (ERRORS "EXEC-TERMINAL-POPOUT F1"); W1 + I2 menunggu persetujuan mockup.
+- Mockup (Broker summary dan Broker inventory sebagai jendela; tombol ⤢ di judul tiap panel kanan) dikirim 2026-10-27
+  dengan satu pertanyaan: kolom frekuensi (A: publisher ikut mengirim `buy_freq`/`sell_freq`; B: tanpa frekuensi dulu).
+  User 2026-10-27: "tanpa frekuensi dulu." Jawaban ini dibaca sebagai persetujuan mockup dengan opsi B: jendela dibuat
+  tanpa kolom frekuensi, tanpa perubahan publisher; frekuensi tetap di FUTURE_PLAN.
+  Isi yang dibangun: (1) jendela mengambang di dalam halaman, live saja: geser, ubah ukuran, beberapa sekaligus, posisi,
+  ukuran dan jendela yang terbuka diingat, disematkan (tidak bisa tergeser, di atas jendela lain), kembali ke panel,
+  tutup; (2) Broker summary: periode 1D/5D/20D/Chart (ikut rentang chart)/Custom, investor, papan, Net/Gross, Top
+  10/Top 20/All, cari broker, kolom beli/jual lot, nilai, rata-rata, net nilai, net lot, % nilai, urut per kolom, baris
+  total, salin CSV, klik broker menambahkannya ke Broker inventory; (3) Top brokers: periode yang sama, investor, papan,
+  Top 10/Top 20, Value/Lot; (4) Broker inventory: broker (sama dengan panel), investor, papan, Lot/Value, Kumulatif/
+  Harian, ikut rentang dan crosshair chart, grafik besar dengan sumbu, tabel per broker. Kolom "Awal" di mockup selalu
+  0 pada mode kumulatif, jadi diganti total beli dan total jual.
 

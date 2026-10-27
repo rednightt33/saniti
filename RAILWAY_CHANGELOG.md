@@ -4813,3 +4813,11 @@ live terminal assets equal the build (sha256). No variable or other service chan
 
 User 2026-10-27: "broker inventory di filter". `main` `2760476`: edge-bff `567fcf45` SUCCESS; live terminal `index`,
 `style` and `worker` assets equal the build (sha256). No variable or other service changed.
+
+## 2026-10-27 — edge-bff: right-panel windows (EXEC-TERMINAL-POPOUT W1 + I2), then replaced by a CLI upload
+
+User 2026-10-27: "tanpa frekuensi dulu." `main` `bb24f9c`: edge-bff `d34c40f2` SUCCESS 12:44 UTC; live terminal
+`index`, `style` and `worker` assets equalled the build (sha256). At 12:45 UTC deployment `8c2ecc55` (a `railway up`
+from another Claude Code CLI session, no commit) reached SUCCESS and replaced it; its terminal page is the F1 build
+(`index-Bu0yXUxm.js`, `style-B6hlEqxk.css`), so the windows are not live. Not redeployed: that upload may carry
+another session's work; waiting for the user's decision. No variable changed.

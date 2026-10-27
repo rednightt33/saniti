@@ -2714,6 +2714,28 @@ change yet.
   read-only) NI 34.722, XL 4.241, YU 2.491.018 lot. vitest 680, 1:1 0 piksel, edge-bff terminal 20.
 - **Status:** RESOLVED.
 
+### EXEC-TERMINAL-POPOUT W1 + I2 — panel kanan sebagai jendela di dalam halaman (2026-10-27)
+
+- **User:** "Jendela di dalam halaman terminal. Yes, diperbesar dan ditambahkan fungsi-fungsi lain yang lebih detail. +
+  W1 + I2"; atas mockup: "tanpa frekuensi dulu."
+- **Dibangun (live):** tombol ⤢ di Broker summary, Top brokers dan Broker inventory membuka jendela (geser, ubah ukuran,
+  beberapa sekaligus, sematkan, kembali ke panel, tutup; tempat, ukuran, jendela terbuka dan pilihannya diingat).
+  Broker summary: semua broker, kolom beli/jual lot, nilai, rata-rata, net, % nilai, urut per kolom, Top 10/20/All,
+  cari, baris total, salin CSV. Top brokers: Top 10/20, Value/Lot, rata-rata harga. Broker inventory: grafik besar
+  dengan sumbu, Kumulatif/Harian, investor dan papan, tabel End/High/Low/Bought/Sold/Avg. Periode 1D/5D/20D/Chart/
+  Custom. Tanpa kolom frekuensi (rack tidak memuatnya; FUTURE_PLAN).
+- **Masalah ditemukan saat uji:** jendela yang dibuka bertumpuk dengan jarak 28 px dan berbeda lebar, sehingga jendela
+  yang lebih sempit tertutup penuh oleh Broker summary. Akar: posisi awal dihitung dari lebar masing-masing jendela.
+  Solusi: semua posisi awal dihitung dari tempat jendela terlebar, bergeser 36 px ke kiri dan ke bawah, sehingga sebagian
+  tiap jendela tetap terlihat untuk diklik.
+- **Bukti:** live lokal BMRI (`verification/terminal_api/popout_live_check.py`): 5D 21–27 Okt NI buy 2M lot, 781.5B,
+  rata-rata 3,862, net +706.7B; CC +223.5B; total 5.1T, 82 broker; Top brokers ZP −375.2B; Feature 05 (pgweb read-only)
+  NI 2.023.686 lot, 781.461.352.000, 3.861,57, net 706.739.012.000; CC net 223.532.249.000; ZP −375.234.476.000; total
+  beli 5.100.175.092.460, 82 broker. Inventory jendela = panel dengan filter Foreign + Regular; crosshair dua arah;
+  posisi sama setelah reload; mingguan ikut. Tanpa error halaman. vitest 690, edge-bff terminal 20.
+- **Pelajaran:** posisi awal beberapa jendela harus dihitung dari satu titik acuan, bukan dari ukuran tiap jendela.
+- **Status:** RESOLVED setelah deploy edge-bff (lihat RAILWAY_CHANGELOG).
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.
