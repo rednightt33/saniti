@@ -2406,6 +2406,78 @@ change yet.
 - **Lesson for new data:** setiap dataset deret waktu membawa `data_through`-nya sendiri dan tampilan membedakan "belum
   ada" dari "nol"; nol hanya untuk sesi yang datanya ada dan nilainya nol.
 
+### M244 — Satu layanan dengan dua sumber deploy: push main ke `apps/edge-bff` menimpa deploy cabang backtest di dev (2026-10-27)
+
+- **Symptom:** di tengah uji E2E backtest di dev, semua route `/api/v1/backtests/*` menjawab 404 dua kali: 08:00 UTC
+  dan 08:30 UTC.
+- **Verified cause:** layanan Railway `edge-bff` bersumber GitHub `main` (rootDirectory `/apps/edge-bff`, watch
+  `/apps/edge-bff/**`), sedangkan kode backtest hanya ada di cabang `claude/project-thread-k91bfk` dan dipasang dengan
+  `railway up` (unggah CLI). Push Terminal ke main yang menyentuh `apps/edge-bff` (18de6e8 -> deploy e09717e2, 16bfad3 ->
+  90532d14) memicu deploy otomatis dari main, yang tidak punya kode backtest, dan menggantikan deploy cabang (5c3c6e69,
+  f50822e8). Riwayat deployment Railway menunjukkan urutannya.
+- **Class:** setiap layanan yang sumber otomatisnya satu cabang sementara cabang lain dipasang manual ke environment
+  yang sama: deploy terakhir menang, tanpa peringatan. Berlaku juga untuk layanan lain yang nanti dipasang dari cabang
+  kerja (terminal-api, publisher, worker) bila sumber GitHub-nya diaktifkan.
+- **Solution:** sementara (TEMPORARY): gabungkan main ke cabang lalu pasang ulang dari cabang setelah setiap push main
+  yang menyentuh `apps/edge-bff` (dilakukan 08:02 dan 08:52 UTC; koordinator diberi tahu). Permanen: satu sumber,
+  yaitu kode backtest masuk main lewat PR setelah E2E lulus (keputusan user N 2026-10-27 09:08 UTC).
+- **Status:** OPEN sampai PR backtest digabung ke main.
+- **Lesson for new data:** sebelum memasang dari cabang ke layanan bersumber GitHub, cek sumber dan watch pattern
+  layanan itu; catat di RAILWAY_CHANGELOG bahwa deploy cabang dapat tertimpa.
+
+### M245 — Preview sinyal lalu run backtest mengunduh file pasar yang sama dua kali (2026-10-27)
+
+- **Symptom:** pengukuran dev 2026-10-27: run portofolio 12 saham setelah preview tabel sinyal mengunduh lagi file yang
+  baru saja diunduh preview (60 file, 28,35 MB, sekitar 6 s pada 4,7 MB/s).
+- **Verified cause:** `apps/backtest-worker/src/terminal.ts` `DiskCache` membangun indeks direktori sekali per objek,
+  dan preview serta job memakai objek klien yang berbeda (satu per thread kerja), jadi file yang ditulis satu klien tidak
+  dikenali klien lain; selain itu dev belum memakai cache disk.
+- **Class:** cache yang indeksnya disimpan di memori per pemakai sementara isinya dipakai bersama (direktori yang sama):
+  setiap pemakai baru mengulang unduhan. Berlaku untuk setiap data pasar yang dibaca worker (harga, broker, kelak makro).
+- **Solution:** direktori menjadi sumber kebenaran: `has`/`get` membaca file, `put` menulis lewat file sementara lalu
+  rename, eviction LRU berdasarkan mtime dengan satu anggaran untuk seluruh direktori (590e8ff, 10 tes baru, worker
+  177/177). Dev: `BACKTEST_CACHE_DIR=/tmp/backtest-cache`, `BACKTEST_CACHE_DIR_BYTES=1073741824`; worker 96d0e990.
+- **Status:** FIXED di kode dan dev; bukti E2E (job membaca file preview dari disk) dicatat di RAILWAY_CHANGELOG.
+- **Lesson for new data:** cache bersama menyimpan indeksnya di tempat yang sama dengan isinya.
+
+### M246 — Backtest yang sudah selesai dihitung berakhir `FAILED WORKER_LOST` karena hasilnya gagal disimpan (2026-10-27)
+
+- **Symptom:** E2E dev 2026-10-27 08:54 UTC: run ulang single (bt_da4cfb83…) `FAILED WORKER_LOST`; worker sudah
+  selesai (473 ms) dan menjawab `/result` 200 tiga kali. Portofolio (bt_76b8b419…) gagal simpan sekali lalu `FINISHED`.
+- **Verified (FACT):** (1) edge-bff mencatat `backtest_result_store_failed` 4 kali, dengan psycopg "error ignored
+  terminating <psycopg.Pipeline [BAD]>: the connection is lost": koneksi putus di dalam `executemany` (mode pipeline)
+  `BacktestStore.finish`. (2) Postgres mencatat pada detik yang sama "SSL error: unexpected eof while reading", "could
+  not receive data from client: Connection reset by peer", "incomplete message from client": sisi edge-bff memutus di
+  tengah pesan. "incomplete message" hanya muncul 4 kali sepanjang log Postgres, tepat 4 kegagalan ini. (3) Kode server
+  edge-bff sama dengan deploy sebelumnya (git diff 0801f38..507822a kosong untuk `apps/edge-bff/app`), yang menyimpan
+  semua hasil tanpa gagal. (4) Lokal: `BacktestStore.finish` dengan hasil nyata yang sama (93 KB + 2 KB gzip, 25 varian,
+  jalur ON CONFLICT) lulus 10/10 lewat TLS dan 15/15 lewat jaringan lambat buatan (psycopg 3.2.10, libpq 17.5).
+  (5) `follow` menghitung kegagalan simpan sebagai panggilan worker tak terjawab: 3 berturut-turut = `WORKER_LOST`
+  dalam 4 s, padahal worker masih menyimpan hasilnya. (6) Log hanya mencatat nama event, jadi kelas exception tidak
+  diketahui.
+- **Root cause:** UNKNOWN untuk putusnya koneksi. Dua dugaan, belum terbukti: gangguan jaringan privat Railway, atau
+  kegagalan tulis SSL non-blocking libpq di mode pipeline. Cek yang membedakan: baris log baru (di bawah) membawa teks
+  libpq ("SSL error: ..." vs "server closed the connection unexpectedly").
+- **Class:** kegagalan database sementara saat menyimpan (putus koneksi, restart/failover Postgres, statement timeout,
+  kunci) dihitung sebagai kegagalan worker, sehingga job yang sudah dihitung hilang dengan kode yang salah; dan setiap
+  log kegagalan database di loop backtest tidak bisa didiagnosis.
+- **Solution:** edge-bff `app/backtest.py`: hasil yang sudah diambil disimpan di memori dan disimpan ulang setiap poll
+  sampai batas waktu job (`BACKTEST_TIMEOUT_SECONDS`), tidak dihitung dalam `WORKER_RETRIES`, diambil dari worker sekali;
+  lewat batas: `FAILED RESULT_NOT_STORED` dengan pesan (CONTRACT.md bagian 9, 11, keputusan B2). `failure_of`: log
+  mencatat kelas exception, SQLSTATE untuk error server (teksnya bisa memuat isi baris), atau baris pertama teks
+  psycopg/libpq tanpa password konfigurasi, user info URL, pasangan password= dan alamat internal; dipakai juga untuk
+  `backtest_queue_operation_failed`. Kelas yang sama ditutup untuk setiap panggilan database lain di sekitar job (baca
+  job dan prior trials saat serah, baca job/progress/akhir saat mengikuti, heartbeat): diulang di poll atau beat
+  berikutnya sampai batas waktu, tidak dihitung, dicatat `backtest_job_store_failed` dengan `step`. Tes: lebih dari
+  `WORKER_RETRIES` kegagalan simpan lalu berhasil = `FINISHED` dengan satu ambil; tidak pernah berhasil =
+  `RESULT_NOT_STORED`, tanpa cancel, tanpa baris; kegagalan baca/progress/heartbeat/serah lebih dari `WORKER_RETRIES`
+  kali = tetap `FINISHED`, diserahkan sekali; redaksi log.
+- **Not covered:** penyebab putusnya koneksi; `apps/edge-bff/app/worker.py` (loop Orc) masih mencatat
+  `queue_operation_failed` tanpa detail (kelas masalah yang sama, di luar lingkup backtest).
+- **Status:** MITIGATED; root cause OPEN sampai log baru menangkap kegagalan berikutnya.
+- **Lesson for new data:** penulisan hasil besar ke database dibatasi waktu job, bukan anggaran retry layanan lain, dan
+  setiap log kegagalan database membawa kelas serta SQLSTATE agar bisa didiagnosis tanpa membocorkan kredensial.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.

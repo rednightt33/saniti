@@ -128,6 +128,29 @@ def dumps(value):
     return json.dumps(value, separators=(',', ':'), ensure_ascii=False, allow_nan=False).encode()
 
 
+def failure_of(e, url=''):
+    """A database exception as a log line may carry it (EDGE_DATABASE_URL holds a password, and a server error's text
+    can hold row values, as its DETAIL 'Failing row contains ...'): its class; a server error by its SQLSTATE; an
+    error psycopg or libpq raised itself (no SQLSTATE: a lost connection, an SSL or socket error, a value that could
+    not be sent) by its first line, without the configured password, any URL user info or password= pair and the
+    internal addresses (client.public_data). Any other exception: its class only."""
+    out = {'error': f'{type(e).__module__}.{type(e).__qualname__}'}
+    if not isinstance(e, psycopg.Error):
+        return out
+    if e.sqlstate:
+        return {**out, 'sqlstate': e.sqlstate}
+    text = (str(e).splitlines() or [''])[0][:300]
+    try:
+        password = psycopg.conninfo.conninfo_to_dict(url).get('password') if url else None
+    except psycopg.Error:
+        password = None
+    if password:
+        text = text.replace(password, '[redacted]')
+    text = re.sub(r'://[^\s/@]*@', '://[redacted]@', text)
+    text = re.sub(r'(?i)(password\s*=\s*)\S+', r'\1[redacted]', text)
+    return {**out, 'detail': public_data(text)}
+
+
 def packed(value):
     """Gzip JSON of one stored part; mtime 0 so the same part always gives the same bytes and sha256."""
     return gzip.compress(dumps(value), mtime=0)
@@ -586,17 +609,34 @@ class BacktestLoop:
                     logger.error('backtest_tables_missing')
                 not_ready = e.code == 'BACKTEST_NOT_READY'
                 await self.sleep(self.settings.poll_seconds)
-            except Exception:
-                # Database/client exceptions can contain credentials. No raw traceback/body in service logs.
-                logger.error('backtest_queue_operation_failed')
+            except Exception as e:
+                # Database/client exceptions can contain credentials. No raw traceback/body in service logs: failure_of.
+                logger.error(json.dumps({'event': 'backtest_queue_operation_failed', **self.failure(e)}))
                 await self.sleep(self.settings.poll_seconds)
+
+    def failure(self, e):
+        """failure_of for this loop's database (the password of its URL is what a log line must not carry)."""
+        return failure_of(e, getattr(getattr(self.store, 'store', None), 'url', None) or '')
 
     async def _heartbeat(self, row, task):
         while not task.done() and not self.stopping.is_set():
             await self.sleep(self.settings.heartbeat_seconds)
-            if not task.done() and not await self.call(self.store.heartbeat, row, self.settings.lease_seconds):
+            if task.done():
+                return
+            try:
+                held = await self.call(self.store.heartbeat, row, self.settings.lease_seconds)
+            except psycopg.Error as e:
+                # the next beat tries again (EDGE_LEASE_SECONDS is at least two beats): only an expired lease ends it
+                self.store_failed('heartbeat', row['request_id'], e)
+                continue
+            if not held:
                 task.cancel()   # fenced: the lease is gone, every later write of this follower would be refused
                 return
+
+    def store_failed(self, step, job_id, e):
+        """A database call of the loop that failed while it followed a job, logged by failure_of."""
+        logger.error(json.dumps({'event': 'backtest_job_store_failed', 'step': step, 'request_id': job_id,
+                                 **self.failure(e)}))
 
     async def process(self, row):
         task = asyncio.create_task(self.execute(row))
@@ -631,16 +671,24 @@ class BacktestLoop:
         handed over, refused by the worker, timeout, or the worker unreachable WORKER_RETRIES times in a row)."""
         job_id, failures = row['request_id'], 0
         while not self.stopping.is_set():
-            current = await self.call(self.store.current, row)
-            if current is None:
-                return False
-            if current['cancel_requested']:
-                await self.call(self.store.end, row, 'CANCELLED')
-                return False
-            if time.monotonic() >= deadline:
-                await self.call(self.store.end, row, 'FAILED', {'code': 'TIMEOUT'})
-                return False
-            prior = await self.call(self.store.prior_trials, row['owner_key'], row['lineage_key'])
+            try:
+                current = await self.call(self.store.current, row)
+                if current is None:
+                    return False
+                if current['cancel_requested']:
+                    await self.call(self.store.end, row, 'CANCELLED')
+                    return False
+                if time.monotonic() >= deadline:
+                    await self.call(self.store.end, row, 'FAILED', {'code': 'TIMEOUT'})
+                    return False
+                prior = await self.call(self.store.prior_trials, row['owner_key'], row['lineage_key'])
+            except psycopg.Error as e:
+                # the database, not the worker: tried again after a poll until the deadline, then it ends the hand-over
+                if time.monotonic() >= deadline:
+                    raise
+                self.store_failed('dispatch', job_id, e)
+                await self.sleep(self.settings.poll_seconds)
+                continue
             body = {'job_id': job_id, 'request': row['request'], 'context': {'job_id': job_id, 'prior_trials': prior}}
             try:
                 code, data = await self.call(self.worker.call, 'POST', '/v1/jobs', body)
@@ -674,62 +722,82 @@ class BacktestLoop:
 
     async def follow(self, row, deadline):
         """GET /v1/jobs/{id} every poll: progress while it runs, the cancellation once asked, the result when it is
-        FINISHED, the worker's error or cancellation as the job's end; TIMEOUT after BACKTEST_TIMEOUT_SECONDS."""
-        job_id, failures, cancel_sent, shown = row['request_id'], 0, False, row['progress']
+        FINISHED, the worker's error or cancellation as the job's end; TIMEOUT after BACKTEST_TIMEOUT_SECONDS. A
+        database failure is no unanswered worker call, so it is not counted in WORKER_RETRIES: the poll is made again
+        at the next one until the same deadline, and a result whose store failed is kept here and stored again at
+        every poll (RESULT_NOT_STORED at the deadline)."""
+        job_id, failures, cancel_sent, shown, held = row['request_id'], 0, False, row['progress'], None
         while not self.stopping.is_set():
             await self.sleep(self.settings.poll_seconds)
             if self.stopping.is_set():
                 return
             if time.monotonic() >= deadline:
+                if held is not None:
+                    await self.call(self.store.end, row, 'FAILED', {'code': 'RESULT_NOT_STORED', 'message': 'The '
+                        'backtest finished, but edge-bff could not store its result before BACKTEST_TIMEOUT_SECONDS.'})
+                    return
                 await self.cancel_quietly(job_id)
                 await self.call(self.store.end, row, 'FAILED', {'code': 'TIMEOUT'})
                 return
-            current = await self.call(self.store.current, row)
-            if current is None:
-                return
-            if current['cancel_requested'] and not cancel_sent:
-                cancel_sent = await self.cancel_quietly(job_id)
             try:
-                code, data = await self.call(self.worker.call, 'GET', f'/v1/jobs/{job_id}')
-            except WorkerUnavailable:
-                code, data = None, None
-            if code == 404:
-                await self.call(self.store.end, row, 'FAILED', {'code': 'WORKER_LOST'})
-                return
-            state = data.get('state') if code == 200 and isinstance(data, dict) else None
-            ended = None
-            if state in ('QUEUED', 'RUNNING', *ENDED):
-                # the worker's progress; once the job ended there, its final one (FINISHED: finalizing 1/1), which the
-                # last poll while it ran did not see. Stored before the end, so the ended job reports it.
-                progress = data.get('progress') if isinstance(data.get('progress'), dict) else None
-                if progress != shown:
-                    if not await self.call(self.store.progress, row, progress):
+                current = await self.call(self.store.current, row)
+                if current is None:
+                    return
+                if held is not None:
+                    if await self.keep(row, held):
                         return
-                    shown = progress
-            if state in ('QUEUED', 'RUNNING'):
-                failures = 0
-                continue
-            reported = data.get('duration_ms') if state else None
-            duration = int(reported) if finite(reported) and reported >= 0 else None
-            if state == 'FINISHED':
-                ended = await self.ingest(row)
-            elif state == 'FAILED':
-                ended = await self.call(self.store.end, row, 'FAILED', error_of(data) or {'code': 'WORKER_FAILED'}, duration) or True
-            elif state == 'CANCELLED':
-                ended = await self.call(self.store.end, row, 'CANCELLED', None, duration) or True
-            if ended:
-                return
-            failures += 1     # no answer, an answer outside the API, or a result that could not be fetched or stored yet
-            if failures >= WORKER_RETRIES:
-                await self.call(self.store.end, row, 'FAILED', {'code': 'WORKER_LOST'})
-                return
+                    continue
+                if current['cancel_requested'] and not cancel_sent:
+                    cancel_sent = await self.cancel_quietly(job_id)
+                try:
+                    code, data = await self.call(self.worker.call, 'GET', f'/v1/jobs/{job_id}')
+                except WorkerUnavailable:
+                    code, data = None, None
+                if code == 404:
+                    await self.call(self.store.end, row, 'FAILED', {'code': 'WORKER_LOST'})
+                    return
+                state = data.get('state') if code == 200 and isinstance(data, dict) else None
+                ended = None
+                if state in ('QUEUED', 'RUNNING', *ENDED):
+                    # the worker's progress; once the job ended there, its final one (FINISHED: finalizing 1/1),
+                    # which the last poll while it ran did not see. Stored before the end, so the ended job reports it.
+                    progress = data.get('progress') if isinstance(data.get('progress'), dict) else None
+                    if progress != shown:
+                        if not await self.call(self.store.progress, row, progress):
+                            return
+                        shown = progress
+                if state in ('QUEUED', 'RUNNING'):
+                    failures = 0
+                    continue
+                reported = data.get('duration_ms') if state else None
+                duration = int(reported) if finite(reported) and reported >= 0 else None
+                if state == 'FINISHED':
+                    ended = await self.ingest(row)
+                    if isinstance(ended, dict):          # fetched and split, its store failed: stored again next poll
+                        held = ended
+                        continue
+                elif state == 'FAILED':
+                    ended = await self.call(self.store.end, row, 'FAILED', error_of(data) or {'code': 'WORKER_FAILED'},
+                                            duration) or True
+                elif state == 'CANCELLED':
+                    ended = await self.call(self.store.end, row, 'CANCELLED', None, duration) or True
+                if ended:
+                    return
+                failures += 1     # no answer, an answer outside the API, or a result that could not be fetched yet
+                if failures >= WORKER_RETRIES:
+                    await self.call(self.store.end, row, 'FAILED', {'code': 'WORKER_LOST'})
+                    return
+            except psycopg.Error as e:
+                # the database, not the worker: not counted in WORKER_RETRIES; the poll is made again at the next one,
+                # until the deadline (where a failure ends the follower, the lease expires and reap ends the job)
+                self.store_failed('follow', job_id, e)
 
     async def ingest(self, row):
         """Fetch, split and store the finished result. True when the job ended (FINISHED, or FAILED RESULT_INVALID /
-        LIMIT_EXCEEDED / WORKER_LOST), None to try again at the next poll (no answer yet, or the store failed: the
-        worker keeps the result until its next job, so it is fetched again; follow bounds the attempts). The worker
-        answering that it does not have the result, 404 UNKNOWN_JOB or 410 RESULT_GONE (a newer job started there and
-        replaced it), ends the job WORKER_LOST at once: no later fetch can get it."""
+        LIMIT_EXCEEDED / WORKER_LOST), None to fetch again at the next poll (no answer yet; follow bounds these
+        attempts), the split result when its store failed (follow keeps it and stores it again; the result is fetched
+        once). The worker answering that it does not have the result, 404 UNKNOWN_JOB or 410 RESULT_GONE (a newer job
+        started there and replaced it), ends the job WORKER_LOST at once: no later fetch can get it."""
         try:
             code, raw = await self.call(self.worker.result, row['request_id'])
         except WorkerUnavailable:
@@ -752,12 +820,18 @@ class BacktestLoop:
             return True
         if split['lineage_key'] != row['lineage_key']:
             logger.warning(json.dumps({'event': 'backtest_lineage_differs', 'request_id': row['request_id']}))
+        return True if await self.keep(row, split) else split
+
+    async def keep(self, row, split):
+        """Store a split result in one transaction (a failure stores nothing): True when it is stored or the lease was
+        lost (nothing more to do), False when the store failed, logged by failure_of (never the exception's text as
+        it is: it can carry credentials or row values)."""
         try:
-            await self.call(self.store.finish, row, split)   # one transaction: a failure stores nothing
-        except Exception:
-            # Database exceptions can contain credentials: the event only.
-            logger.error(json.dumps({'event': 'backtest_result_store_failed', 'request_id': row['request_id']}))
-            return None
+            await self.call(self.store.finish, row, split)
+        except Exception as e:
+            logger.error(json.dumps({'event': 'backtest_result_store_failed', 'request_id': row['request_id'],
+                                     **self.failure(e)}))
+            return False
         return True
 
     def stop(self):

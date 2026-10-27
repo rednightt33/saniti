@@ -85,7 +85,12 @@ status every `EDGE_POLL_SECONDS` (progress stored, cancellation forwarded; an en
 progress), and on `FINISHED` fetches the result, stores its parts and its variants and marks the job `FINISHED` with
 the versions in one transaction. The result is unpacked by edge-bff as it arrives and never past
 `BACKTEST_MAX_RESULT_BYTES` of JSON (over it: `FAILED LIMIT_EXCEEDED`, nothing stored). The worker keeps a finished
-result until its next job starts, so a result that could not be fetched or stored is fetched again at the next poll.
+result until its next job starts, so a result that could not be fetched is fetched again at the next poll; one that
+was fetched but could not be stored is kept and stored again at every poll until `BACKTEST_TIMEOUT_SECONDS`, then
+`FAILED RESULT_NOT_STORED`. Any other database call around a job (the hand-over, the follower, the heartbeat) that
+fails is made again at the next poll or beat until the same deadline. A database failure is not counted as an
+unanswered worker call; each one is logged (`backtest_result_store_failed`, `backtest_job_store_failed` with its
+`step`) with the exception's class and its SQLSTATE or libpq's text without credentials.
 A job is never sent twice: the worker forgetting it (`404 UNKNOWN_JOB`) or no longer keeping its result (`410
 RESULT_GONE`: a newer job started there) is `FAILED WORKER_LOST` at once, not answering three times in a row is `FAILED
 WORKER_LOST` too, as is a lease that expired (edge-bff stopped while following it; the worker is told to cancel it),
