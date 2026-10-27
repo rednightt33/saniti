@@ -4895,3 +4895,15 @@ backtest `index`, `style` assets equal the local build of `fdd00e7` (sha256); th
 tickers, data through 2026-10-27, flow available); logs: start-up only. edge-bff runs `main`'s own build again, with
 the backtest and the EXEC-TERMINAL-POPOUT windows (`main` `bb24f9c`), so a later `main` push touching
 `/apps/edge-bff/**` keeps both (ERRORS M248 resolved). Rollback: `390eca4b`. No variable or other service changed.
+
+## 2026-10-27 — terminal-publisher: content keys and next-run cleanup (ERRORS M250, dev)
+
+User 2026-10-27 13:27 UTC: option A of 3 ("Ya, PR terpisah setelah PR backtest"); 14:40 UTC: "Diuji dev pada run 7.30
+besok". CLI upload of a clean `git archive` of `6051f4d` (`apps/terminal-publisher`, `--path-as-root`, outside the
+00:00–01:00 and 12:00–13:05 UTC windows): `4c2c3823-fc67-48f5-92a4-93017332c821` SUCCESS 14:44 UTC; cronSchedule
+`0,30 0,12 * * *` unchanged; no variable changed. The upload does not run the job (ERRORS M229): the first run with
+the new code is the 00:30 UTC tick of 2026-10-28. Rollback: `0b1b5343` (main `704ab0d` publisher).
+- A read-only listing of the dev bucket started 14:34 UTC ran more than 6 minutes without finishing and was stopped
+  at the user's word; nothing was written or deleted. So the listing time and the delete permission are verified by
+  the scheduled run: its `gc`, `gc_skipped` or `gc_failed` line (the cleanup is bounded by `GC_LIST_SECONDS`, 900 s,
+  and never stops the run).
