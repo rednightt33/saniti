@@ -8,7 +8,7 @@ import * as L from 'lightweight-charts';
 import type { SignalTrack } from './core/contract.ts';
 import type { Card } from './api/types.ts';
 import { API, DATA, load, loaded } from './env.ts';
-import { $, COLORS, css, esc, nf, OPS, PAL, cls, rp, toast } from './format.ts';
+import { $, COLORS, css, esc, nf, OPS, PAL, cls, rp, toast, toastError } from './format.ts';
 import { catOf, condReady, evalCond, needsFlow, opLabel, regName } from './reg.ts';
 import { S } from './state.ts';
 import { renderNav, updateViewbar } from './builder.ts';
@@ -84,12 +84,12 @@ function prepare(tk: string) {
   preparing.add(key);
   const R = S.result;
   const ev = eventsNeeded(tk) ? API.events(R.id, tk).then(e => { R.ev.cond.set(tk, new Map(e.conditions.filter(x => x.ticker === tk).map(x => [x.condition_id, x.track]))) },
-    e => { failed.add(tk + '|events'); toast(e.message) }) : Promise.resolve();
-  const bars = load(tk).then(() => flow ? load(tk, true).catch(e => { failed.add(tk + '|flow'); toast(e.message) }) : undefined);
+    e => { failed.add(tk + '|events'); toastError(e.message) }) : Promise.resolve();
+  const bars = load(tk).then(() => flow ? load(tk, true).catch(e => { failed.add(tk + '|flow'); toastError(e.message) }) : undefined);
   Promise.all([bars, ev]).then(() => {
     preparing.delete(key);
     if (S.sigTicker === tk && prepared(tk)) { refreshSignals(); if (!$('ews').hidden) renderWSMid() }
-  }, e => { preparing.delete(key); failed.add(tk + '|bars'); toast(e.message); if (S.sigTicker === tk) refreshSignals() });
+  }, e => { preparing.delete(key); failed.add(tk + '|bars'); toastError(e.message); if (S.sigTicker === tk) refreshSignals() });
 }
 
 /* the portfolio table's entry signals: the run's own (fresh result) or the server's preview of the current settings
@@ -100,7 +100,7 @@ const previews = new Previews({
   ask: (q, o) => API.signalsPreview(q, o),
   current: () => S.mode === 'portfolio' && S.tickers.length ? previewKey(previewRequest()) : null,
   answered: note => { if (note) toast(note, true); refreshSignals() },
-  failed: message => toast(message),
+  failed: message => toastError(message),
 });
 const portSig = (): Rows => previews.rows(S.tickers.length ? previewRequest() : null,
   fresh() ? portRows(S.result.raw.tables.per_ticker, S.result.raw.meta.warnings) : null);

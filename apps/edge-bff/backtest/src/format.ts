@@ -11,8 +11,12 @@ const hexRgb = (h: string) => { const x = h.replace('#',''); return [0,2,4].map(
 export const setPal = () => { PAL.up = css('--up'); PAL.dn = css('--dn'); PAL.navy = css('--navy-c'); PAL.bm = css('--bench'); PAL.upRgb = hexRgb(PAL.up); PAL.dnRgb = hexRgb(PAL.dn); PAL.navyRgb = hexRgb(PAL.navy) };
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
-/** the reference's toast; line: a short note kept on one line (backtest.css .toast.line; the preview's warnings) */
+/** the reference's toast; line: as wide as its text up to the window (backtest.css .toast.line), for the preview's
+    one-line warnings and for every text the page did not write (toastError) */
 export const toast = (m: string, line = false) => { const t=$('toast'); t.textContent=m; t.classList.toggle('line', line); t.hidden=false; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.hidden=true,2200) };
+/** a message the page did not write (the server's error, a network failure): any length, so it takes the window's
+    width instead of the reference's half (review PG-6). The page's own toasts keep the reference's look. */
+export const toastError = (m: string) => toast(m, true);
 
 // Display numbers in Indonesian format: 1.236 · 0,15% · Rp 4,57 M (miliar) · Rp 100,0 jt (juta)
 export const nf = (v: number, d=0) => (+v).toLocaleString('id-ID',{minimumFractionDigits:d,maximumFractionDigits:d});

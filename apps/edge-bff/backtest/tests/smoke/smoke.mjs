@@ -6,7 +6,7 @@
    scripts runs, in every view and tooltip), the market with stocks every preview and run leaves out (?wide=1, on a
    phone's width: the limit of 12 stocks, the preview's one-line toast, the view bar's title, a left-out row asks no
    events, a stock without price data picked first, every picked stock left out) and the market with flow (?flow=1:
-   the default end and the server's FLOW_DATA_THROUGH in the toast). Fails on any console error or page error.
+   the default end and the server's FLOW_DATA_THROUGH in the toast, the run note and a phone's width). Fails on any console error or page error.
    Usage: npm run smoke (builds dist-smoke first); SMOKE_DEBUG=1 prints each failure's whole message (Playwright's call
    log). Uses the preinstalled Playwright; installs no browser. */
 import { createRequire } from 'node:module';
@@ -505,6 +505,18 @@ await at('flow: default end and FLOW_DATA_THROUGH', async () => {
   const msg = await toastText(/^The broker data is published through/);
   expect(msg.startsWith(`The broker data is published through ${value}:`), `the toast does not name the default end ${value}: ${msg}`);
   expect(!/^Done in /.test(await text('#runNote')), 'the refused run finished');
+  // review PG-6: the error stays in the run note after its 2.2 s toast
+  await page.waitForFunction(() => document.getElementById('toast').hidden, null, { timeout:5000 });
+  expect(await text('#runNote') === msg, `the run note after the toast: ${await text('#runNote')}`);
+});
+/* review PG-6: the server's message takes the phone's width (the reference's pill alone wraps at half the window) */
+await at('flow: FLOW_DATA_THROUGH on a phone', async () => {
+  await page.setViewportSize({ width:390, height:844 });
+  await page.click('#runTop');
+  const msg = await toastText(/^The broker data is published through/);
+  const box = await page.evaluate(() => { const b = document.getElementById('toast').getBoundingClientRect(); return { left:b.left, right:b.right, w:b.width } });
+  expect(box.left >= 0 && box.right <= 390 && box.w > 195, `the toast ${JSON.stringify(box)} (${msg.length} characters)`);
+  await noSideScroll('error toast');
 });
 
 await browser.close(); server.close();

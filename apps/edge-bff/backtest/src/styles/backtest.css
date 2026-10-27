@@ -207,9 +207,10 @@ svg.ch text{font-family:var(--sans)}
 .tip[hidden]{display:none}
 .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:99;background:var(--text);color:var(--surface);border-radius:999px;padding:8px 14px;font-size:13px}
 .toast[hidden]{display:none}
-/* the preview's warning note (review PAGE-V1): as wide as its line, up to the window less the page's side padding
-   (.wrap, 22px a side); the reference's toast alone (left:50%) wraps at half the window, two lines on a phone. Every
-   other toast keeps the reference's look. */
+/* the preview's warning note (review PAGE-V1) and every text the page did not write, such as a server error (review
+   PG-6, format.ts toastError): as wide as its line, up to the window less the page's side padding (.wrap, 22px a side);
+   the reference's toast alone (left:50%) wraps at half the window, many lines on a phone. The page's own toasts keep
+   the reference's look. */
 .toast.line{width:max-content;max-width:calc(100vw - 44px)}
 .note{font-size:12px;color:var(--text-3);margin-top:8px}
 .warnbox{display:flex;gap:8px;align-items:flex-start;background:var(--amber-bg);color:var(--text);border-radius:8px;padding:8px 10px;font-size:12px;margin-top:10px}

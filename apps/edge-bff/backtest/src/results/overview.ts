@@ -2,7 +2,7 @@
    (backtest.html section 11). The comparison lines (S.cmp, up to 2) are display only: the published closes of those
    tickers as of each day of the result (BacktestApi.closes, CONTRACT.md D-X2); KPIs stay against the primary benchmark. */
 import * as L from 'lightweight-charts';
-import { $, CMP_COLORS, cls, css, esc, fmtD, ico, MONTHS, nf, PAL, pct, pctu, rp, toast } from '../format.ts';
+import { $, CMP_COLORS, cls, css, esc, fmtD, ico, MONTHS, nf, PAL, pct, pctu, rp, toastError } from '../format.ts';
 import { API, STOCKS } from '../env.ts';
 import { S } from '../state.ts';
 import type { PageResult } from '../api/adapt.ts';
@@ -39,7 +39,7 @@ export const tabOverview = (el: HTMLElement) => {
   $('cmpBox').innerHTML = S.cmp.map((k,j)=>`<span class="cmpchip"><i style="background:${CMP_COLORS[j]}"></i>${esc(k)}<button data-cdel="${esc(k)}" title="Remove ${esc(k)}">${ico('<path d="M6 6l12 12M18 6 6 18"/>')}</button></span>`).join('')
     + (S.cmp.length<2 ? `<select class="sel cmpadd" id="cmpAdd" title="Compare with up to 2 more tickers"><option value="">+ Compare with…</option>${opts.map(k=>`<option value="${esc(k)}">${esc(k)}</option>`).join('')}</select>` : `<span class="cmpmax">Max 2</span>`);
   const reTab = () => { if(S.result!==R || S.tab!=='overview') return; tabOverview(el); bindTips() };
-  const ca = $('cmpAdd'); if(ca) ca.onchange = () => { if(ca.value){ S.cmp.push(ca.value); ensureCmp(R, S.cmp).then(reTab, e => { toast(e.message); S.cmp = S.cmp.filter(k => R.cmp.has(k)); reTab() }) } };
+  const ca = $('cmpAdd'); if(ca) ca.onchange = () => { if(ca.value){ S.cmp.push(ca.value); ensureCmp(R, S.cmp).then(reTab, e => { toastError(e.message); S.cmp = S.cmp.filter(k => R.cmp.has(k)); reTab() }) } };
   $('cmpBox').querySelectorAll('[data-cdel]').forEach((b: HTMLElement) => b.onclick = () => { S.cmp = S.cmp.filter(k=>k!==b.dataset.cdel); reTab() });
   // equity chart
   if(eqc){ eqc.remove(); eqc = null }

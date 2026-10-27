@@ -5,7 +5,7 @@
    unless a test build asks for the reference's start (the fixture's 1:1 check). */
 import type { BacktestApi } from './api/types.ts';
 import { CAT, load, setEnv } from './env.ts';
-import { $, initColors, setPal, toast } from './format.ts';
+import { $, initColors, setPal, toastError } from './format.ts';
 import { needsFlow } from './reg.ts';
 import { applyCatalog, S } from './state.ts';
 import { bindFocusEscape, bindLayout, bindTheme, initResize, restorePanel } from './layout.ts';
@@ -36,7 +36,7 @@ export async function boot(api: BacktestApi, opts: BootOptions = {}) {
     await load(S.sigTicker, needsFlow());
   } catch (e) {
     const msg = (e as Error).message || 'The backtest service could not be reached.';
-    toast(msg); $('runNote').textContent = msg;
+    toastError(msg); $('runNote').textContent = msg;
     return;
   }
   bindLayout(); bindFocusEscape(); bindViewSeg(); bindMenuClose(); bindSignals(); bindTicker(); bindRun(); bindHover(); bindTheme(); bindWS();

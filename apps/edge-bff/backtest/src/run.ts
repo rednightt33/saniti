@@ -1,13 +1,14 @@
 /* Run (backtest.html section 10 · RUN): the reference computes the backtest in the page; here the page sends the
    settings as a BacktestRequest (api/request.ts), polls the job about once a second while it shows the reference's
    own running state, and renders the server's result through the adapter (api/adapt.ts). The texts are the
-   reference's; #runNote also names the job phase and its progress while the job runs. Errors are shown with toast(). */
+   reference's; #runNote also names the job phase and its progress while the job runs. An error is shown with
+   toastError() and stays in #runNote until the next run (review PG-6: the toast lasts 2.2 s). */
 import type { JobStatus } from './core/contract.ts';
 import { ApiFailure } from './api/types.ts';
 import { adaptResult } from './api/adapt.ts';
 import { currentRequest } from './api/request.ts';
 import { API } from './env.ts';
-import { $, toast } from './format.ts';
+import { $, toast, toastError } from './format.ts';
 import { edits, S } from './state.ts';
 import { refreshSignals } from './signals.ts';
 import { renderResults } from './results/index.ts';
@@ -51,13 +52,14 @@ export function abortRun() {
   if (id) API.cancel(id).catch(() => {});
   buttons(true); S.running = false; $('runNote').textContent = idleNote; updateViewbar();
 }
-let idleNote = '';
+let idleNote = '', failedNote = false;   // failedNote: #runNote holds the last run's error, not an idle note
 
 export const run = async (scroll = true) => {
   if(!S.conds.some(c=>c.on)){ toast('Add at least one active condition'); return }
   if(S.mode==='portfolio' && !S.tickers.length){ toast('Add at least one stock'); return }     // the server refuses it too (INVALID_PORTFOLIO)
   if (S.running) return;
-  idleNote = $('runNote').textContent;
+  if (!failedNote) idleNote = $('runNote').textContent;
+  failedNote = false;
   document.querySelectorAll('.js-run').forEach((b: Element) => (b as HTMLButtonElement).disabled = true); $('runNote').textContent = 'Running…'; S.running = true; updateViewbar();
   const my = ++token;
   await sleep(30);
@@ -83,7 +85,7 @@ export const run = async (scroll = true) => {
     if (my !== token) return;
     const R = adaptResult(request_id, res, request, cards);
     // the comparison lines of the overview are drawn on the new result's days
-    await ensureCmp(R, S.cmp).catch(e => toast(e.message));
+    await ensureCmp(R, S.cmp).catch(e => toastError(e.message));
     if (my !== token) return;
     job = null;
     S.result = R; S.trials = R.trials;
@@ -95,8 +97,9 @@ export const run = async (scroll = true) => {
   } catch (e) {
     if (my !== token) return;
     job = null;
-    buttons(true); S.running = false; $('runNote').textContent = idleNote; updateViewbar();
-    toast((e as Error).message || 'The backtest failed.');
+    const msg = (e as Error).message || 'The backtest failed.';
+    buttons(true); S.running = false; $('runNote').textContent = msg; failedNote = true; updateViewbar();
+    toastError(msg);
   }
 };
 

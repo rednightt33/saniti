@@ -534,6 +534,29 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
     without horizontal scroll.
   - The signal table keeps the reference's title "Signals across the universe" and lists the picked stocks; the
     chart always shows one of them (`picked.ts chartTicker`).
+  - A picked stock whose bars could not be read (a published stock without price files, which a run leaves out with
+    `DATA_MISSING`, or a failed download) is not drawn: its toast is shown once, never on a redraw, and the chart
+    shows another picked stock; the chart's ticker select lists only stocks it can draw, the signal table lists every
+    picked stock (review PG-1; `signals.ts`). The select and the table do not wait for the chart's bars.
+  - A preview that leaves every picked stock out (422 `UNIVERSE_EMPTY`) is the answer of its settings: the one short
+    toast line and every row "—" with that error in its tooltip. Any other preview failure is its message in the
+    toast once, and the same settings are not asked again until they change; a redraw (a zoom button, a legend chip)
+    never asks or toasts (review PG-2; `preview.ts`).
+  - The context title never takes more lines than the reference's own title of the same count at the same width
+    (with its universe name "Banks"): it names the picked stocks by three, two or one ticker and "+n", the longest
+    that fits, else the count alone, measured in place and again on resize (review PG-3; `builder.ts`,
+    `picked.ts titleNames`). At 390 px: "BBCA +9 · 10 stocks · …" and "3 stocks · max 5 positions".
+  - Step 1 in portfolio mode: the picker card, then the reference's first row with its Max positions alone (its
+    Universe select is the picker), then the reference's second row (Rank candidates by, Min. avg value) verbatim
+    (review PG-4).
+  - The limit toast counts in the core's words: "1 stock" when `BACKTEST_MAX_PORTFOLIO_TICKERS` is 1, else "n stocks"
+    (review PG-5; `picked.ts limitText`).
+- Toasts: the page's own texts keep the reference's toast (a pill centred at `left:50%`, so it wraps at half the
+  window). A text the page did not write (an error message from the server or the network, any length) goes through
+  `format.ts toastError`: as wide as its line up to the window less the page's side padding (`.toast.line`, as the
+  preview's note). A failed run also keeps its message in `#runNote` until the next run, since a toast lasts 2.2 s
+  (review PG-6; `run.ts`; the catalog's failure at page load already did, `app.ts`). `tests/toasts.test.mjs` checks
+  that no error text reaches the plain `toast()`.
 
 ## 11. Errors
 
