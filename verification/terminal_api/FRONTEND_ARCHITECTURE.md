@@ -169,3 +169,5 @@ Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
 - EXEC-TERMINAL-FULL: the yellow labels are gone; `src/ui/fullscreen.ts` (live) folds the three panels through their own
   buttons, hides the Flow bar and footer (`html.ml-full`), asks the Fullscreen API (EDGE's frame has `allow="fullscreen"`)
   and puts the panels and their stored choices back on leaving.
+- EXEC-TERMINAL-FULL-2: the full-screen button only folds the panels (no Fullscreen API; Esc leaves); the symbol pill
+  has no "IDX" label in live mode.

@@ -1,9 +1,10 @@
 /* EXEC-TERMINAL-FULL (user 2026-10-27: "tambahkan opsi full screen di kotak hitam terlampir, ketika fullscreen maka
-   tampilan akan seperti screenshot B"), live: a button right of Search markets. Full screen folds Statistics, Broker
-   activity and the Flow Timeline (their own buttons do it, so widths, renders and the shared time range follow) and asks
-   the browser for full screen; leaving (the button, Esc, the browser) opens again what was open. The folding is not
-   remembered: the stored panel choices are put back as they were. When the browser refuses full screen (a frame
-   without permission), the panels still fold and the button still brings them back. */
+   tampilan akan seperti screenshot B"; EXEC-TERMINAL-FULL-2: "bukan benar-benar literally full screen. Full screen
+   basically hanya meng-hide indikator sebelah kiri, sebelah kanan, dan panel di bawah"), live: a button right of Search
+   markets. Full screen folds Statistics, Broker activity and the Flow Timeline (their own buttons do it, so widths,
+   renders and the shared time range follow) and hides the folded Flow bar and the footer; the browser window stays as
+   it is. Leaving (the button or Esc) opens again what was open. The folding is not remembered: the stored panel choices
+   are put back as they were. */
 import { $, store } from '../app/context';
 
 const KEYS = ['ml.stats.collapsed', 'ml.broker.collapsed', 'ml.flow.collapsed'];
@@ -33,8 +34,6 @@ export function initFullscreen() {
     if (was.flow) $('flowCollapse').click();
     try { keepStored() } catch { /* storage off: nothing was stored either */ }
     document.documentElement.classList.add('ml-full');
-    const root = document.documentElement as any;
-    if (!document.fullscreenElement && root.requestFullscreen) root.requestFullscreen().catch(() => { /* a frame without permission */ });
     paint();
   }
   function leave() {
@@ -45,11 +44,13 @@ export function initFullscreen() {
     if (was?.flow) $('flowCollapse').click();
     try { keepStored() } catch { /* as above */ }
     document.documentElement.classList.remove('ml-full');
-    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
     paint();
   }
   btn.addEventListener('click', () => on ? leave() : enter());
-  // Esc or the browser's own control ends full screen: the panels come back too
-  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && on) leave() });
+  // Esc leaves it too, unless something else on the page (a menu, a dialog, a text field) is using the key
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && on && !e.defaultPrevented && !/^(INPUT|SELECT|TEXTAREA)$/.test((e.target as HTMLElement).tagName)
+        && !document.querySelector('.dr-menu:not([hidden]),.rc-pop,.rs-layer,[role=dialog]:not([hidden])')) leave();
+  });
   paint();
 }

@@ -56,6 +56,7 @@ function start(M: MarketData, rawSeries: Record<string, Point[]>) {
   initRangeSelect(ctx);
   if (M.mode === 'live') initReorder();                    // EXEC-TERMINAL-PANELS A1; the fixture keeps the reference order
   if (M.mode === 'live') initFullscreen();                 // EXEC-TERMINAL-FULL; the fixture's top bar stays the reference's
+  if (M.mode === 'live') document.querySelector('#symbolPill .exchange')?.remove();   // EXEC-TERMINAL-FULL-2: no "IDX" label
   return ctx;
 }
 

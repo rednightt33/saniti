@@ -2447,6 +2447,22 @@ change yet.
   error. 1:1 0 piksel; edge-bff terminal 20.
 - **Status:** RESOLVED.
 
+### EXEC-TERMINAL-FULL-2 — layar penuh tanpa Fullscreen API, "IDX" dihapus (2026-10-27)
+
+- **User:** "yang saya maksud dengan full screen adalah bukan benar-benar literally full screen. Full screen basically
+  hanya meng-hide indikator sebelah kiri, sebelah kanan, dan panel di bawah ... Box jangan melewati border paling
+  kanan ... untuk IDX agar bisa di-remove".
+- **Cause:** EXEC-TERMINAL-FULL membaca "full screen" sebagai Fullscreen API browser; yang dimaksud hanya
+  menyembunyikan panel. **Solution:** `fullscreen.ts` tanpa `requestFullscreen`; Esc ikut mengembalikan panel (kecuali
+  menu, kalender, pilih di chart atau kolom isian sedang memakainya); izin `allow="fullscreen"` di iframe EDGE dicabut;
+  "IDX" di tombol simbol dihapus (live).
+- **Bukti:** 1270×618 skala 1,5 dan 1600×900: tombol berakhir 10 px di dalam tepi kanan bar (tanpa gulir), panel
+  kiri/kanan/Flow tersembunyi, `document.fullscreenElement` kosong, Esc mengembalikan; vitest 672, 1:1 0 piksel,
+  edge-bff terminal 20.
+- **Lesson:** istilah tampilan yang punya arti teknis lain (full screen) dikonfirmasi bentuknya sebelum memakai API
+  browser.
+- **Status:** RESOLVED.
+
 ## Fixed-income selected-date repair — 2026-10-20 status
 
 Symptom: selected October ID price/yield dates absent while US dates exist. Existing session-anchor audit identified incorrect ID observation-date mapping; provider metadata must be verified independently of economic close/finality clocks. Fix prepared: guarded provider-session migration, strict metadata validation and explicit-date repair with prevalidated replacements, atomic rollback and consistent downstream recursive state. Status: FIXED for the six authorized dates; live provider coverage288/288, migration011 applied,312 affected Feature rows checked /174 changed,24 queues DONE and1,224 column statuses SUCCESS. Other historical source dates were not repaired. PR37 main release e3f7dfd and all four bonds cron deployments verified SUCCESS on2026-10-20 after explicit owner approval. Scope and evidence: `verification/fixed_income_session_repair/README.md`.

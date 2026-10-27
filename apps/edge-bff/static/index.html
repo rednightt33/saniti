@@ -10795,8 +10795,7 @@ const conversationGroup = (iso) => { const days = Math.floor((Date.now() - new D
 function TerminalPage({ go }) {
     return element(Shell, { route: "terminal", go: go, chart: true },
         element("main", { className: "terminal-page" },
-            // EXEC-TERMINAL-FULL (user 2026-10-27): the terminal's full-screen button needs the frame's permission
-            element("iframe", { className: "terminal-frame", src: "/terminal-app/", title: EdgeLabels.terminal.frameTitle, allow: "fullscreen", allowFullScreen: true })));
+            element("iframe", { className: "terminal-frame", src: "/terminal-app/", title: EdgeLabels.terminal.frameTitle })));
 }
 function Monitor({ go }) {
     const viewRecord = currentView;

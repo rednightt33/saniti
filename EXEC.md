@@ -8343,4 +8343,6 @@ Coba explore ..."
   `allow="fullscreen"` di iframe EDGE dicabut lagi; tombol tidak boleh melewati batas kanan bar.
 - "IDX" di tombol simbol dihapus (live; fixture referensi tetap).
 - Weekly/monthly: eksplorasi dan usulan dulu (database hanya menyimpan Daily), menunggu keputusan user.
+Status 2026-10-27: layar penuh versi panel dan "IDX" selesai (ERRORS "EXEC-TERMINAL-FULL-2"); weekly/monthly di
+FUTURE_PLAN "Terminal: timeframe weekly dan monthly".
 
