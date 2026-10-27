@@ -4714,3 +4714,9 @@ User 2026-10-27: "Minta tolong untuk A dihapus saja. Buat B tambahkan opsi full 
 `78b16952` SUCCESS; live terminal `index`, `style`, `worker` assets equal the build (sha256) and EDGE's page carries the
 frame's fullscreen permission. Full edge-bff suite: 171 passed, 1 failed (M232, fails on `main` without this change).
 No variable or other service changed.
+
+## 2026-10-27 — edge-bff: panel-only full screen, no IDX label (EXEC-TERMINAL-FULL-2)
+
+User 2026-10-27: "bukan benar-benar literally full screen ... IDX agar bisa di-remove". `main` `736f99a`: edge-bff
+`81ae2893` SUCCESS; live terminal assets equal the build (sha256); EDGE's frame no longer carries the fullscreen
+permission. No variable or other service changed.
