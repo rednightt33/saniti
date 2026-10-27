@@ -8330,4 +8330,5 @@ hitam terlampir, ketika fullscreen maka tampilan akan seperti screenshot B".
   tangkapan layar B; keluar (tombol, Esc) mengembalikan panel seperti sebelumnya. Bila browser menolak layar penuh,
   panel tetap dilipat (chart maksimal di dalam bingkai).
 Infra dicek 2026-10-27 sebelum mulai (edge-bff dan publisher aktif SUCCESS).
+Status 2026-10-27: A dan B selesai (ERRORS "EXEC-TERMINAL-FULL").
 

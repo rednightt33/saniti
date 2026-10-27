@@ -854,8 +854,6 @@ html.fit .flow-wrap .flow-legend{align-items:center;padding-top:4px}
 .rp-invdate{position:absolute;bottom:-2px;transform:translate(-50%,100%);padding:1px 5px;border-radius:4px;background:var(--text);color:#fff;font-size:10px;white-space:nowrap;pointer-events:none;z-index:2}
 .rp-invwrap.live + .axis{padding-left:44px}
 /* EXEC-TERMINAL-FRESH: broker data older than the prices */
-.stale-badge{display:inline-flex;align-items:center;height:20px;padding:0 7px;margin-left:8px;border-radius:999px;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;font-size:10.5px;font-weight:500;white-space:nowrap;cursor:default}
-.side-title .stale-badge{margin:4px 0 0;width:max-content}
 .flow-nodata{position:absolute;top:0;z-index:4;pointer-events:none;display:flex;align-items:center;justify-content:center;
   background:repeating-linear-gradient(135deg,rgba(146,64,14,.07) 0 6px,transparent 6px 12px);border-left:1px dashed #f59e0b}
 .flow-nodata span{padding:2px 8px;border-radius:4px;background:rgba(254,243,199,.95);color:#92400e;font-size:11px;white-space:nowrap}
@@ -864,4 +862,10 @@ html.fit .flow-wrap .flow-legend{align-items:center;padding-top:4px}
 .flow-nodata-tip{color:#92400e}
 /* EXEC-TERMINAL-FRESH 3: a line tool armed over the Flow chart */
 .flow-wrap.dr-tool #flowChart *{cursor:crosshair!important}
+/* EXEC-TERMINAL-FULL: full-screen button right of Search markets */
+.ml-full-btn{flex:0 0 auto;width:32px;min-width:32px;height:32px;margin-left:6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text-2);font-size:0}
+.ml-full-btn:hover{background:var(--hover);color:var(--text)}
+.ml-full-btn[aria-pressed="true"]{background:var(--sel);color:var(--text)}
 
+/* full screen (screenshot B): the folded Flow Timeline bar and the footer leave the chart the whole height */
+html.ml-full #flowPanel,html.ml-full .foot{display:none}

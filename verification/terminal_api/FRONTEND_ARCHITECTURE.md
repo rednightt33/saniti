@@ -166,3 +166,6 @@ Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
   and Broker activity titles; Net Buy Flow indicators are null after it.
 - `drawings.ts`: a second DrawingManager on the Flow chart for the Lines group (key `ml.drawings.flow.{TICKER}`, shared
   undo, `dragFinish`, right-click cancel, its own Remove drawings).
+- EXEC-TERMINAL-FULL: the yellow labels are gone; `src/ui/fullscreen.ts` (live) folds the three panels through their own
+  buttons, hides the Flow bar and footer (`html.ml-full`), asks the Fullscreen API (EDGE's frame has `allow="fullscreen"`)
+  and puts the panels and their stored choices back on leaving.

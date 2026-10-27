@@ -127,5 +127,4 @@ export interface Ctx {
   crosshairAt: (i: number | null) => void;           // flow.ts: both charts' crosshair on session i
   /* EXEC-TERMINAL-FRESH: the last session with broker data (N - 1 when none is missing); later sessions are no data */
   brokerEnd: number;
-  staleLabel: () => string;                          // flow.ts: "Broker through … · price …", or '' when current
 }

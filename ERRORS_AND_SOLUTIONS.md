@@ -2404,7 +2404,7 @@ change yet.
   `ctx.brokerEnd` (sesi terakhir ≤ tanggal itu); sesudahnya batang Flow, garis kumulatif, Net Buy Flow dan Net Buy Flow
   (Line) kosong (bukan 0), ringkasan berhenti di sesi itu, tooltip "No broker data yet (through Fri 23 Oct)", arsiran
   "Broker data not yet loaded" dan label kuning "Broker through 23 Oct · price 26 Oct" di judul Flow dan Broker
-  activity. (2) rak: `state.json` `broker_behind_sessions` (publisher, `BEHIND_SQL`). (3) Telegram: sesudah putaran
+  activity (label dihapus 2026-10-27 atas permintaan user, EXEC-TERMINAL-FULL). (2) rak: `state.json` `broker_behind_sessions` (publisher, `BEHIND_SQL`). (3) Telegram: sesudah putaran
   19:00 WIB yang tertinggal ≥ 1 sesi, publisher meminta `telegram-monitor` sumber `Terminal_Broker_Freshness`, yang
   menghitung sendiri dari tabel dan mengirim satu pesan sehari.
   Cacat saat uji: `timeScale().logicalToCoordinate` LWC 5.2 menjawab 0 untuk posisi pecahan (2122,5), arsiran menutup
@@ -2431,6 +2431,20 @@ change yet.
   panah tengah.
 - **Ikut terbawa:** commit sesi lain `d495854` (kolom industri di `ref/tickers`, live sejak 2026-10-27 02:40 UTC
   deployment `82447144`, belum di `main`) di-cherry-pick supaya upload publisher dari cabang ini tidak menghapusnya.
+- **Status:** RESOLVED.
+
+### EXEC-TERMINAL-FULL — label kuning dihapus, tombol layar penuh (2026-10-27)
+
+- **User:** "Minta tolong untuk A dihapus saja. Buat B tambahkan opsi full sceen di kotak hitam terlampir, ketika
+  fullscreen maka tampilan akan seperti screenshot B".
+- **A:** label "Broker through … · price …" di judul Flow dan Broker activity dihapus; arsiran dan tooltip tetap
+  (ERRORS M243).
+- **B:** `src/ui/fullscreen.ts` (live): tombol di kanan Search markets; masuk melipat Statistics, Broker activity dan
+  Flow lewat tombolnya sendiri, menyembunyikan bar Flow dan footer (`html.ml-full`) dan meminta Fullscreen API; keluar
+  (tombol, Esc, browser) membuka lagi panel yang tadinya terbuka; pilihan panel yang tersimpan dikembalikan apa adanya.
+  iframe EDGE (`static/index.html` `TerminalPage`) diberi `allow="fullscreen"`. Live check ANTM: masuk → tiga panel
+  terlipat, `document.fullscreenElement` ada; keluar → kembali seperti semula; nilai tersimpan tidak berubah; tanpa
+  error. 1:1 0 piksel; edge-bff terminal 20.
 - **Status:** RESOLVED.
 
 ## Fixed-income selected-date repair — 2026-10-20 status

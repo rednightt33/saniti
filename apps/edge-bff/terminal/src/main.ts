@@ -25,6 +25,7 @@ import { initSelect } from './ui/select';
 import { initBroker } from './app/broker';
 import { initRangeSelect } from './app/rangeSelect';
 import { initReorder } from './ui/reorder';
+import { initFullscreen } from './ui/fullscreen';
 
 function start(M: MarketData, rawSeries: Record<string, Point[]>) {
   const container = $('chart');
@@ -54,6 +55,7 @@ function start(M: MarketData, rawSeries: Record<string, Point[]>) {
   initBroker(ctx);
   initRangeSelect(ctx);
   if (M.mode === 'live') initReorder();                    // EXEC-TERMINAL-PANELS A1; the fixture keeps the reference order
+  if (M.mode === 'live') initFullscreen();                 // EXEC-TERMINAL-FULL; the fixture's top bar stays the reference's
   return ctx;
 }
 
