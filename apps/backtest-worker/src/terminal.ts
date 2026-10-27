@@ -155,6 +155,9 @@ export interface TickerReference { groupings: string[]; tickers: TickerRef[] }
 /** The value of a classification column, null when it is unclassified (TickerRef groups). */
 export const classification = (v: unknown): string | null => typeof v === 'string' && v !== '' && v !== 'Undefined' ? v : null;
 export interface BrokerRef { code: string; name: string | null; type: string | null }
+/** EXEC-BACKTEST-LOAD (user 2026-10-27, K1): the publisher run the published files belong to (terminal-api GET /state:
+    state.json, written last by each run) and the newest price and broker dates of the whole tables at that run. */
+export interface Publication { finished_at: string; price_through: string | null; broker_through: string | null }
 
 /** The caller's freshness check (CONTRACT.md sections 2-3, FLOW_DATA_CHECK.md): a dataset whose manifest data_through is
     before `to` (or has none) cannot serve a period that ends on `to`. */
@@ -584,6 +587,18 @@ export class TerminalClient {
       if (last_bar === null || f.last > last_bar) last_bar = f.last;
     }
     return { ticker, data_through, last_bar };
+  }
+
+  /** The publication the files belong to (terminal-api GET /state; no file granted, no quota). null when terminal-api
+      cannot say (an older terminal-api without the route, or state.json unreadable): a caller then keeps nothing it
+      derives. */
+  async publication(): Promise<Publication | null> {
+    let j: any;
+    try { j = await this.api('GET', '/state', undefined, 'The publication state') }
+    catch (e) { if (e instanceof DataError) return null; throw e }
+    if (!j || typeof j.finished_at !== 'string' || !j.finished_at) return null;
+    const day = (v: unknown) => typeof v === 'string' && isIsoDate(v) ? v : null;
+    return { finished_at: j.finished_at, price_through: day(j.price_through), broker_through: day(j.broker_through) };
   }
 
   /** A reference list (terminal-api /reference/{name}): the tickers with name, type and every other column as a

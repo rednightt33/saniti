@@ -35,7 +35,7 @@ import http from 'node:http';
 import { pathToFileURL } from 'node:url';
 import type { BacktestRequest, JobState, JobStatus } from '../../edge-bff/backtest/src/core/contract.ts';
 import { canonicalRequest, lineageKey, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
-import { buildCatalog } from './catalog.ts';
+import { buildCatalog, ByPublication } from './catalog.ts';
 import { ComputeThread, TaskFailed, ThreadStopped, threadConfig } from './compute.ts';
 import type { Outcome, Task } from './compute.ts';
 import { describeConfig, loadConfig } from './config.ts';
@@ -111,10 +111,13 @@ export function createApp(cfg: Config): WorkerApp {
   let job: Job | null = null, starting = false;
   let replaced: string | null = null;                   // the FINISHED job the current one replaced: its result is gone
 
-  const refs = async (): Promise<References> => {
+  // EXEC-BACKTEST-LOAD (K1): the reference lists and the catalog are kept per publication (catalog.ts ByPublication)
+  const refsKept = new ByPublication<References>(client, async () => {
     const [tickers, brokers] = await Promise.all([client.reference('tickers'), client.reference('brokers')]);
     return { tickers: tickers.tickers, brokers };
-  };
+  });
+  const refs = () => refsKept.get();
+  const catalog = new ByPublication(client, p => buildCatalog(client, cfg, versions, p));
   const within = async <T>(what: string, work: Promise<T>): Promise<T> => {
     const d = deadline(timeout, what);
     try { return await Promise.race([work, d.promise]) } finally { d.clear() }
@@ -236,7 +239,7 @@ export function createApp(cfg: Config): WorkerApp {
     if (path === '/health') { allow('GET'); return send(res, 200, { ok: true, ...versions }) }
     if (!sameKey(req.headers[KEY_HEADER], key)) return fail(res, 401, { code: 'UNAUTHORIZED' });
 
-    if (path === '/v1/catalog') { allow('GET'); return send(res, 200, await within('The catalog', buildCatalog(client, cfg, versions))) }
+    if (path === '/v1/catalog') { allow('GET'); return send(res, 200, await within('The catalog', catalog.get())) }
     if (path === '/v1/validate') {
       allow('POST');
       const body = parseJson(raw) as { request?: unknown } | null;

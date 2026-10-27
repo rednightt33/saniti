@@ -12,6 +12,8 @@
               sha256 / bytes: what the manifest claims instead of the truth; missing: the bucket answers 404;
               status: the bucket answers that status; url: what /bundle names instead of the presigned URL)
      refs     { tickers?: doc, brokers?: doc } for GET /reference/{name}
+     state    GET /state's answer (the publication: finished_at, price_through, broker_through), settable as .state; null
+              answers 404, as a terminal-api without the route
      ttl      the presigned URLs' lifetime in seconds (expires_in_seconds; main.py grant: url_ttl_seconds): the bucket
               refuses a URL that reaches it later than that after its grant with S3's 403 (AccessDenied, Request has
               expired), decided when the request arrives; `expired` counts these refusals
@@ -111,7 +113,8 @@ const send = (res, status, body, type = 'application/json') => {
 const readBody = req => new Promise((ok, no) => { const parts = []; req.on('data', c => parts.push(c)); req.on('end', () => ok(Buffer.concat(parts))); req.on('error', no) });
 
 /** @param {{ key: string, tickers?: Record<string, any>, refs?: Record<string, any>, ttl?: number, delayMs?: number, fileDelayMs?: number }} options */
-export async function startFakeTerminal({ key, tickers: initial = {}, refs = {}, ttl = 120, delayMs = 0, fileDelayMs = 0 }) {
+export async function startFakeTerminal({ key, tickers: initial = {}, refs = {}, ttl = 120, delayMs = 0, fileDelayMs = 0, state = null }) {
+  let publication = state;                       // GET /state (EXEC-BACKTEST-LOAD); null: 404, as an older terminal-api
   const tickers = {};                            // what is published now (publish replaces a ticker)
   const objects = new Map();                     // bucket key -> { body, status? , missing? }
   const answers = {};                            // ticker -> dataset -> [{ key, entry, file }]
@@ -213,6 +216,7 @@ export async function startFakeTerminal({ key, tickers: initial = {}, refs = {},
         const [status, answer] = bundle(parsed);
         return send(res, status, answer);
       }
+      if (req.method === 'GET' && u.pathname === '/api/terminal/v1/state') return publication ? send(res, 200, publication) : send(res, 404, { detail: 'Not Found' });
       const man = /^\/api\/terminal\/v1\/manifest\/([^/]+)$/.exec(u.pathname);
       if (req.method === 'GET' && man) {
         const [status, answer] = manifest(decodeURIComponent(man[1]));
@@ -230,6 +234,7 @@ export async function startFakeTerminal({ key, tickers: initial = {}, refs = {},
   base = `http://127.0.0.1:${server.address().port}`;
   return {
     url: base, requests, inflight, get expired() { return expired },
+    get state() { return publication }, set state(v) { publication = v },
     fault(match, statuses) { faults.push({ match, queue: [...statuses] }) },
     publish: put,
     close: () => new Promise(ok => { server.closeAllConnections?.(); server.close(() => ok()) }),

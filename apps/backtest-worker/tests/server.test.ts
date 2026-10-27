@@ -250,6 +250,26 @@ test('catalog: the published tickers with their groups, the groupings, the broke
   } finally { await on.close() }
 });
 
+test('catalog per publication (EXEC-BACKTEST-LOAD K1): built once per /state finished_at, flow date = its broker_through, no stock manifest asked', async () => {
+  fake.state = { finished_at: '2026-10-27T13:03:17Z', price_through: FX.get('IHSG')!.T.at(-1), broker_through: '2026-10-20', broker_behind_sessions: 0 };
+  const on = createApp(loadConfig(ENV({ BACKTEST_FLOW_ENABLED: '1' })));
+  try {
+    const at = `http://127.0.0.1:${await on.listen(0, '127.0.0.1')}`, r0 = fake.requests.length;
+    const [a, b] = await Promise.all([call('GET', '/v1/catalog', undefined, { at }), call('GET', '/v1/catalog', undefined, { at })]);
+    assert.equal(a.status, 200); assert.deepEqual(a.json(), b.json());
+    assert.equal(a.json().flow.data_through, '2026-10-20');
+    const seen = () => fake.requests.slice(r0).map(x => x.path);
+    assert.equal(seen().filter(x => x.startsWith('/api/terminal/v1/manifest/') && x !== '/api/terminal/v1/manifest/IHSG').length, 0, 'no stock manifest');
+    assert.equal(seen().filter(x => x === '/api/terminal/v1/reference/tickers').length, 1, 'one build for both callers');
+    const r1 = fake.requests.length;
+    assert.deepEqual((await call('GET', '/v1/catalog', undefined, { at })).json(), a.json());
+    assert.equal(fake.requests.length, r1, 'within the check interval: nothing asked');
+    const v = await call('POST', '/v1/validate', { request: pageDefault('UNVR') }, { at });
+    assert.equal(v.status, 200);
+    assert.equal(fake.requests.slice(r1).filter(x => x.path.startsWith('/api/terminal/v1/reference/')).length, 2, 'the validation keeps its own lists, once');
+  } finally { await on.close(); fake.state = null }
+});
+
 test('validate: the hashes and tickers of a valid request, the field of a refused one, nothing started', async () => {
   const q = pageDefault('UNVR');
   const a = await call('POST', '/v1/validate', { request: q });
@@ -287,7 +307,8 @@ test('validate: the hashes and tickers of a valid request, the field of a refuse
     const after = await call('POST', '/v1/validate', { request: late });
     const seen = fake.requests.slice(r0).map(x => x.path);
     assert.equal(after.status, 422, after.body.toString());
-    assert.deepEqual(seen.filter(x => x.startsWith('/api/terminal/v1/')).sort(), ['/api/terminal/v1/manifest/IHSG', '/api/terminal/v1/reference/brokers', '/api/terminal/v1/reference/tickers']);
+    // EXEC-BACKTEST-LOAD: /state names the publication (no file, no quota); this fake has none, so nothing is kept
+    assert.deepEqual(seen.filter(x => x.startsWith('/api/terminal/v1/')).sort(), ['/api/terminal/v1/manifest/IHSG', '/api/terminal/v1/reference/brokers', '/api/terminal/v1/reference/tickers', '/api/terminal/v1/state']);
     assert.deepEqual(seen.filter(x => x.startsWith('/bucket/v1/')).sort(), ['/bucket/v1/ref/brokers.json.gz', '/bucket/v1/ref/tickers.json.gz']);
     const job = await runJob(late, { prior_trials: [] }, refs, directEnv()).catch(e => e);
     assert.deepEqual([after.json().error.code, after.json().error.field, after.json().error.message], ['PERIOD_AFTER_DATA', 'period.to', job.message]);
