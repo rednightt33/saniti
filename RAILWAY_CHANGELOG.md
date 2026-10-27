@@ -4803,3 +4803,13 @@ permission. No variable or other service changed.
 
 User 2026-10-27: "G1 / K1". `main` `712e258`: edge-bff `7654e6fa` SUCCESS; live terminal `index`, `style` and `worker`
 assets equal the build (sha256). No variable or other service changed.
+
+## 2026-10-27 — edge-bff: Flow cumulative from the first visible candle (EXEC-TERMINAL-CUM)
+
+User 2026-10-27: "Oke, kalau gitu kita ganti saja dengan metode C1." `main` `ddb8497`: edge-bff `e9868143` SUCCESS;
+live terminal assets equal the build (sha256). No variable or other service changed.
+
+## 2026-10-27 — edge-bff: investor type and board filters in Broker inventory (EXEC-TERMINAL-POPOUT F1)
+
+User 2026-10-27: "broker inventory di filter". `main` `2760476`: edge-bff `567fcf45` SUCCESS; live terminal `index`,
+`style` and `worker` assets equal the build (sha256). No variable or other service changed.

@@ -2651,8 +2651,35 @@ change yet.
 - **Flow di halaman:** net asing (buy − sell) per sesi dihitung di browser dari baris Feature 05 per broker × jenis
   investor × papan yang dipublikasikan ke rak, bukan kolom flow jadi di database; tidak bergantung pada candle selain
   tanggal sesinya.
-- **Solution:** menunggu keputusan user (papan bawaan dan titik awal kumulatif).
-- **Status:** OPEN (keputusan user); data cocok, tidak ada salah hitung.
+- **Solution:** keputusan user 2026-10-27: "Untuk papan bawaan, kita tetap semua papan" (tidak diubah). Titik awal
+  kumulatif: menunggu keputusan. Level kumulatif halaman BMRI 23 Oct (semua papan, Foreign, sejak sesi chart pertama
+  2018-01-02, harga mulai 2018): −22.54T; Stockbit (Regular, sejak 28 Sep 2026): −2.66T.
+  User 2026-10-27: "kita bicara hanya papan reguler saja sekarang. Tapi yang di display tetap nego dan tunai juga ...
+  Kita menggunakan acuan papan reguler untuk menyamakan dengan value stock bit": pembanding = Regular; tampilan
+  bawaan tetap semua papan. Titik awal F Flow Stockbit di screenshot = 0 pada awal periode (28 Sep 2026), jadi tidak
+  perlu saldo awal; data kita: net harian BMRI Feature 05 sejak 2016-01-04, sesi chart sejak 2018-01-02.
+  Metode existing (dikonfirmasi user 2026-10-27): kumulatif mulai 0 di candle chart pertama (BMRI 2 Jan 2018, awal
+  harga; broker 2016–2017 tidak ikut) lalu ditambah net harian; selisihnya terhadap Stockbit konstan −24.952,13B (net
+  Regular 2 Jan 2018–25 Sep 2026). Saldo foreign flow sebelum 4 Jan 2016 tidak ada di database
+  (`Feature_06_Foreign_Domestic.foreign_cumulative_net` juga mulai 0 di 2016: 4 Jan 2016 Regular = 59,71B = net hari
+  itu).
+  Keputusan user 2026-10-27: "Oke, kalau gitu kita ganti saja dengan metode C1." Dibangun (EXEC-TERMINAL-CUM):
+  `flow.ts` `cumulativeFrom` — garis Cumulative (live) mulai dari net candle pertama yang terlihat dan dihitung ulang
+  saat chart bergeser; fallback `FLOW_CUMULATIVE_FROM = 'history'` atau `?cum=history`. Bukti: vitest 680
+  (`flowcum.test.ts`: net Regular BMRI 28 Sep–23 Oct menghasilkan F Flow Stockbit di 16 tanggal); live BMRI: candle
+  pertama yang terlihat 17 Mar 2026 Net = Cumulative = Rp 10,6B, berubah saat digeser, `?cum=history` memberi angka
+  lama (4 Aug 2026 −18,6T vs C1 −10,7T); 1:1 0 piksel; edge-bff terminal 20. Untuk menyamakan angka dengan Stockbit:
+  filter Board = Regular dan chart mulai di tanggal awal periode Stockbit.
+- **Status:** RESOLVED (C1); data cocok, tidak ada salah hitung.
+
+### EXEC-TERMINAL-POPOUT F1 — filter jenis investor dan papan di Broker inventory (2026-10-27)
+
+- **User:** "broker inventory di filter" (F1, satu garis per broker).
+- **Dibangun (live):** dua pilihan di Broker inventory: All investors/Foreign/Domestic dan All boards/Regular/Nego/Cash;
+  garis, chip dan crosshair memakai `bkAgg(d, investor, board)`; judul kecil menyebut filter yang aktif.
+- **Bukti:** live BMRI 17 Mar–23 Oct, Foreign + Regular: chip NI +34.7K, XL +4.2K, YU +2.5M; Feature 05 (pgweb
+  read-only) NI 34.722, XL 4.241, YU 2.491.018 lot. vitest 680, 1:1 0 piksel, edge-bff terminal 20.
+- **Status:** RESOLVED.
 
 ## Fixed-income selected-date repair — 2026-10-20 status
 

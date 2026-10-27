@@ -8386,3 +8386,30 @@ Rencana (berbasis kode, diperiksa 2026-10-27):
 4. Uji: tes agregasi, 1:1 fixture (D saja), live check D/W/M, deploy, dokumen.
 Status 2026-10-27: selesai (ERRORS "EXEC-TERMINAL-WM").
 
+## EXEC-TERMINAL-CUM — garis Cumulative Flow mulai dari candle pertama yang terlihat (go 2026-10-27)
+
+User 2026-10-27 (ERRORS M244, opsi C1): "Ya wes, coba kita eksekusi dulu C1. Nanti disiapkan opsi untuk fallback ke
+versi existing." Konteks: "goalnya adalah agar data di stock bit dengan data yang kita show sama untuk value foreign
+flow-nya"; "kita menggunakan acuan papan reguler untuk menyamakan dengan value stock bit", tampilan tetap semua papan.
+Rencana: `flow.ts` (live) menghitung kumulatif dari 0 pada candle pertama yang terlihat, ulang saat chart digeser;
+sesi sebelum itu dan sesudah data broker terakhir tidak digambar; tooltip dan label sumbu mengikuti. Fallback: satu
+pengaturan `FLOW_CUMULATIVE_FROM` ('view' atau 'history') di `flow.ts` dan `?cum=history` di alamat halaman untuk
+membandingkan; fixture referensi tetap sejak awal data (1:1).
+Dijeda user 2026-10-27 ("Sebentar, sebelum kamu proceed") untuk membahas metode existing (ERRORS M244); go lagi user
+2026-10-27: "Oke, kalau gitu kita ganti saja dengan metode C1."
+Status 2026-10-27: selesai (ERRORS M244).
+
+## EXEC-TERMINAL-POPOUT — filter Broker inventory; jendela panel kanan yang bisa diperbesar (2026-10-27)
+
+User 2026-10-27: "untuk panel broker inventory juga mesti dibuatkan filter group by market board dan investor type.
+Setelah ini saya minta untuk didesain. A pop-up menu, which is setiap panel di sebelah kanan harus bisa di-expand ...
+ada window terpisah di dalam browsernya, yang goalnya adalah panel dynamic agar bisa melihat data tersebut dengan lebih
+besar." Jawaban atas pilihan: "broker inventory di filter. Jendela di dalam halaman terminal. Yes, diperbesar dan
+ditambahkan fungsi-fungsi lain yang lebih detail. + W1 + I2".
+- F1 (dikerjakan): Broker inventory mendapat filter jenis investor (All/Foreign/Domestic) dan papan (All/Regular/Nego/
+  Cash); garis tetap satu per broker.
+- W1 + I2 (rancangan dulu, mockup untuk disetujui user sebelum kode): setiap panel kanan bisa dibuka sebagai jendela
+  mengambang di dalam halaman (geser, ubah ukuran, beberapa sekaligus, tetap terhubung dengan chart), isinya lebih
+  besar dan lebih rinci.
+Status 2026-10-27: F1 selesai (ERRORS "EXEC-TERMINAL-POPOUT F1"); W1 + I2 menunggu persetujuan mockup.
+

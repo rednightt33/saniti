@@ -20,7 +20,7 @@ export function initBroker(ctx: Ctx) {
   // panel state kept across redraws (declared before the first draw below can run)
   const live = M.mode === 'live';
   const kept: Record<string, { bn: string; f: string; t: string }> = {};      // each panel's period, by date
-  const RS = { d:0, inv:'All', board:'All', mode:'net', more:false, accSide:'buy', bdN:5, broker:null, invUnit:'lot' };
+  const RS = { d:0, inv:'All', board:'All', mode:'net', more:false, accSide:'buy', bdN:5, broker:null, invUnit:'lot', invInv:'All', invBoard:'All' };
   const invSel = new Set();                                         // brokers drawn in Broker inventory (max INV_MAX)
   let applyChartRange = (_f: string, _t: string) => {};
   /* EXEC-TERMINAL-PANELS-2 C: Broker inventory follows the chart (its visible range and its crosshair), live */
@@ -300,10 +300,23 @@ export function initBroker(ctx: Ctx) {
   const invFilter = makeFilter($('invFilter'), { title:'Broker', searchable:true, placeholder:'Search broker code…', grid:true, mono:true, max:INV_MAX,
     getOptions:() => bkList.map(b => ({ id:b, label:b })), state:invSel,
     summary:s => s.size ? [...s].slice(0,3).join(', ') + (s.size > 3 ? ` +${s.size-3}` : '') : 'None', onChange:() => renderInv() });
+  /* EXEC-TERMINAL-POPOUT F1 (user 2026-10-27: "broker inventory di filter"), live: investor type and board filters, one
+     line per broker as before; the fixture keeps the reference's panel (1:1 check) */
+  if(live && !$('invInv')){
+    const row = document.createElement('div'); row.className = 'rp-ctl';
+    row.innerHTML = '<select class="rp-sel" id="invInv" aria-label="Investor type"><option value="All">All investors</option><option value="Foreign">Foreign</option><option value="Domestic">Domestic</option></select>'
+      + '<select class="rp-sel" id="invBoard" aria-label="Board"><option value="All">All boards</option><option value="Regular">Regular</option><option value="Nego">Nego</option><option value="Cash">Cash</option></select>';
+    $('invFilter').closest('.rp-ctl').after(row);
+  }
+  if(live){
+    $('invInv').value = RS.invInv; $('invBoard').value = RS.invBoard;
+    $('invInv').onchange = e => { RS.invInv = e.target.value; renderInv() };
+    $('invBoard').onchange = e => { RS.invBoard = e.target.value; renderInv() };
+  }
   const invSeries = b => {
     const out = []; let cum = 0;
     for(let d = invRange.bf; d <= invRange.bt; d++){
-      const o = bkAgg(d).find(x => x.b === b), v = o ? (RS.invUnit === 'lot' ? netLotOf(o) : netOf(o)) : 0;
+      const o = bkAgg(d, RS.invInv, RS.invBoard).find(x => x.b === b), v = o ? (RS.invUnit === 'lot' ? netLotOf(o) : netOf(o)) : 0;
       cum += v; out.push({ d, v, cum });
     }
     return out;
@@ -321,7 +334,8 @@ export function initBroker(ctx: Ctx) {
     const none = f < 0 || t < 0 || f > t;
     if(!none){ invRange.bf = f; invRange.bt = t }                    // invSeries reads the period from invRange
     const n = none ? 0 : t - f + 1, all = none ? [] : picks.map(invSeries);
-    $('invHint').textContent = `${picks.length}/${INV_MAX} · ${none ? 'no broker data in view' : invRange.text()}`;
+    const scope = [RS.invInv, RS.invBoard].filter(v => v !== 'All').join(' · ');      // F1: the filters in force
+    $('invHint').textContent = `${picks.length}/${INV_MAX}${scope ? ' · ' + scope : ''} · ${none ? 'no broker data in view' : invRange.text()}`;
     const chips = (i = null) => picks.map((bk, k) => {
       const p = all[k] ? (i === null ? all[k].at(-1) : all[k][i]) : null, v = p ? p.cum : 0;
       return `<span class="rp-chip" style="--c:${INV_COLORS[k]}"><i></i>${bk}<b class="${v>=0?'up':'down'}">${sgn(v)}</b><button type="button" data-rm="${bk}" aria-label="Remove ${bk}">×</button></span>`;
