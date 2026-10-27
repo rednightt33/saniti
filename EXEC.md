@@ -8225,3 +8225,44 @@ ingest yang sama (satu transaksi dengan harga), dengan aturan tanggal dari data 
 Mencakup: semua saham yang punya data di TradingView, mulai hari pertama. Tidak mencakup: 24 saham tanpa data, riwayat
 sebelum hari pertama (perlu sumber jumlah saham historis plus aksi korporasi, terpisah), IHSG. Risiko: lisensi di atas;
 TradingView mengubah nama field (tes dan monitoring akan menunjukkan 0 terisi). Permanen.
+
+### EXEC-MCAP bagian B — market cap historis dari riwayat jumlah saham (cek 2026-10-27, menunggu go)
+
+User (N) 2026-10-27: "Coba cek apakah data share outstanding yg dipakai bisa ditarik historical? Kalau iya berarti kita
+bisa hitung marketcap historis juga right."
+
+Pengecekan (read-only, sesi kutipan websocket yang sama; job baca `a10b9092` dan satu job split, keduanya DRYRUN):
+- Riwayat ada, tetapi per kuartal dan per tahun, bukan harian: `total_shares_outstanding_fq_h` (jumlah saham akhir
+  kuartal, sampai 32 kuartal, tanggal dari `fiscal_period_end_fq_h`) dan `total_shares_outstanding_fy_h` (sampai 20
+  tahun). Jumlah saham harian yang dipakai market cap hari ini (`total_shares_outstanding_calculated`) tidak punya riwayat.
+- Bukan angka yang sama persis: BBCA kuartal 2026-Q2 122.841.751.300 (tanpa saham treasuri) vs harian 123.275.046.875.
+  Selisih 0,35 %; di hari peralihan dari historis ke harian akan ada lompatan kecil.
+- Cakupan 844 saham: 779 punya riwayat kuartal, 65 tidak (41 di antaranya punya market cap harian). Kuartal tertua
+  2018-Q3 untuk 520 saham; harga mulai 2018 untuk 498 saham, jadi semester I 2018 diisi dari angka tahunan FY2017
+  (tersedia untuk 462 dari 466 saham yang perlu). 61 seri punya kuartal kosong.
+- Dasar split: riwayat jumlah saham TradingView disesuaikan ke basis hari ini (RAJA split 1:5 Juli 2026: 2026-Q2 sudah
+  21,06 miliar; PBSA split 1:2 Okt 2026: 2025 sudah 6 miliar). Harga tersimpan juga disesuaikan (BBCA 2018-01-02 4.380 =
+  21.900 / 5), kecuali split sesudah backfill: dari 140 split/bonus 2018–2026, PBSA (14 Okt 2026) tersimpan mentah
+  (845 → 384). Harga mentah × saham yang disesuaikan memberi market cap 2× terlalu besar sebelum split itu.
+
+Kelas: dua angka (harga, jumlah saham) dari sumber yang menyesuaikan ulang riwayat setiap ada split, dikalikan padahal
+tabel harga tidak ditulis ulang sesudah split (cron harian hanya menulis candle terbaru). Kena setiap split atau saham
+bonus berikutnya, dan setiap ukuran turunan per saham (nilai per lembar, valuasi) yang nanti dihitung dari riwayat.
+
+Rencana (setelah go; perbaikan di lapisan job, bukan daftar ticker):
+1. Market cap historis dihitung dari dua tarikan TradingView pada saat yang sama: harga harian yang disesuaikan split
+   (chart session yang sudah dipakai, `adjustment: splits`) × jumlah saham akhir kuartal (atau akhir tahun bila kuartal
+   kosong), berlaku dari tanggal akhir periode sampai periode berikutnya. Jadi dasar penyesuaian selalu sama, tidak
+   bergantung pada harga tersimpan.
+2. Disimpan ke kolom yang sama dengan bagian A (`market_cap`, `shares_outstanding`) dengan `market_cap_source`
+   `TV_FQ_HISTORY` (vs `TV_DAILY`), hanya untuk tanggal sebelum hari pertama ingest harian; nilai harian tidak ditimpa.
+   Satu UPDATE per tahun per saham dalam batch kecil; trigger Feature 01 mengantre ulang baris yang di-UPDATE, jadi
+   batch dijalankan seperti backfill harga (lihat beban antrean dulu) atau trigger dilewati untuk kolom ini (keputusan
+   di migrasi, dengan bukti dari `enqueue_feature_01_price_row`).
+3. Pemeriksaan: untuk saham tanpa split sejak backfill, harga TradingView yang disesuaikan = `close` tersimpan; saham
+   yang berbeda (mis. PBSA) dilaporkan sebagai bukti ketidaksesuaian dasar harga, dicatat di ERRORS, bukan diperbaiki
+   diam-diam.
+Mencakup: 779 saham, kira-kira 2018 sampai hari ini. Tidak mencakup: 65 saham tanpa riwayat, ketepatan harian
+(perubahan di tengah kuartal seperti right issue atau IPO tercatat terlambat sampai satu kuartal), dan harga tersimpan
+yang mentah (ketidaksesuaian itu masalah tabel harga sendiri, perlu rencana terpisah). Permanen untuk riwayat; batas
+kuartalan dicatat di katalog kolom.
