@@ -4695,3 +4695,15 @@ variable or other service changed.
 
 User 2026-10-27: "Kita mulai dari C saja dulu / C2 / C3 + ...". `main` `16bfad3`: edge-bff `90532d14` SUCCESS 08:32 UTC;
 live `index`, `style` and `worker` assets equal the build (sha256). No variable or other service changed.
+
+## 2026-10-27 — terminal: stale broker data shown as such, evening warning, Flow drawing tools (EXEC-TERMINAL-FRESH)
+
+User 2026-10-27: "... --> GO" (Flow line tools), "Opsi A — Lengkap ... --> GO", "OK untuk usulan ini. Go." Infra checked
+first (EXEC.md EXEC-TERMINAL-FRESH).
+- `main` `704ab0d`: edge-bff `e0e6da1f` SUCCESS (live `index`, `style`, `worker` assets equal the build, sha256) and
+  telegram-monitor `26ebe202` SUCCESS (source `Terminal_Broker_Freshness`).
+- terminal-publisher: variables `TELEGRAM_NOTIFY_SECRET` and `TELEGRAM_NOTIFY_URL` set as references to telegram-monitor
+  (`--skip-deploys`; values not printed; URL host `telegram-monitor.railway.internal:8080/notify` read back), then CLI
+  upload `0b1b5343` SUCCESS with `broker_behind_sessions` and the evening warning; the upload carries `d495854`
+  (industry column, another session's upload `82447144`). `cronSchedule "0,30 0,12 * * *"` and `NEVER` read back.
+  `.railway/railway.ts` lists the two variables.
