@@ -113,6 +113,17 @@ try:
         fresh['tip_last_session'] = page.evaluate("() => document.getElementById('flowTip').innerText")
         page.screenshot(path=str(out / 'fresh_flow.png'))
         report['fresh'] = fresh
+        # EXEC-TERMINAL-FULL: the full-screen button folds the panels and brings them back; stored choices unchanged
+        state = """() => ({ left: document.getElementById('workspace').classList.contains('left-collapsed'),
+            right: document.getElementById('workspace').classList.contains('right-collapsed'),
+            flow: document.querySelector('.main-col').classList.contains('flow-collapsed'),
+            full: document.documentElement.classList.contains('ml-full'), browser_full: !!document.fullscreenElement,
+            stored: ['ml.stats.collapsed','ml.broker.collapsed','ml.flow.collapsed'].map(k => localStorage.getItem(k)) })"""
+        full = {'before': page.evaluate(state)}
+        page.click('#fullBtn'); page.wait_for_timeout(600); full['in'] = page.evaluate(state)
+        page.screenshot(path=str(out / 'fullscreen.png'))
+        page.click('#fullBtn'); page.wait_for_timeout(600); full['out'] = page.evaluate(state)
+        report['fullscreen'] = full
         # EXEC-TERMINAL-FRESH 3: a trend line dragged on the Flow chart is kept per ticker and undone with Ctrl+Z
         cb0 = page.locator('#chart').bounding_box()
         page.mouse.move(cb0['x'] + cb0['width'] * .5, cb0['y'] + cb0['height'] * .5); page.keyboard.press('Alt+t')

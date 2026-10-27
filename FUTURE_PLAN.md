@@ -971,3 +971,18 @@ dan data di RAK?"
   di chart utama dan indikator yang memakai flow mengikuti aturan yang sama.
 - Berlaku juga untuk dataset lain dengan jadwal sendiri (makro, lintas aset); tidak berlaku untuk events (titik, bukan
   deret yang dijumlah).
+
+## Terminal: timeframe weekly dan monthly (usulan 2026-10-27 — disetujui "G1 / K1" dan dikerjakan, EXEC-TERMINAL-WM)
+
+User 2026-10-27: "bisa nggak untuk time frame ditambah weekly dan monthly as well? Coba explore kira-kira bagaimana kita
+bisa display juga candle chart weekly dan monthly".
+- Fakta: `Price_Stock_Indonesia_IDX` hanya menyimpan `timeframe = 'Daily'` (BBCA 2.125 baris final, 2018-01-02 ..
+  2026-10-27; pgweb 2026-10-27). Halaman sudah memegang semua harian ticker (pack harga).
+- Usulan: candle W/M disusun di browser dari harian yang sudah dimuat (tanpa unduhan dan biaya server): open = open
+  sesi pertama, high = max, low = min, close = close sesi terakhir, volume = jumlah; minggu Senin–Jumat (tanggal candle
+  = sesi pertama minggu itu), bulan kalender. Flow: net broker dijumlah per minggu/bulan; kumulatif tetap. Indikator
+  dihitung ulang di atas candle W/M (panjang = jumlah candle). Penanda anotasi di candle yang memuat tanggalnya.
+  Statistics mengikuti candle yang tampil. Broker activity tetap harian. Gambar: tersimpan per timeframe atau
+  dipetakan ke candle yang memuat titiknya (keputusan).
+- Pertanyaan terbuka: gambar per timeframe atau bersama; candle minggu/bulan berjalan (belum selesai) ditampilkan atau
+  tidak.

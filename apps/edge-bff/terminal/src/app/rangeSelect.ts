@@ -37,6 +37,8 @@ export function initRangeSelect(ctx: Ctx) {
     hint.textContent = HINT;
     let x0: number | null = null, pressed = false, firstClick = false;
     const sessions = (a: number, b: number) => sessionsBetween(ctx.dates, logical(Math.min(a, b)) ?? NaN, logical(Math.max(a, b)) ?? NaN);
+    // EXEC-TERMINAL-WM: a weekly or monthly candle's period runs to its last session
+    const endOf = (start: string) => ctx.endDates[ctx.idxByTime.get(start) ?? -1] ?? start;
     const paint = (x1: number) => {
       const s = sessions(x0!, x1);
       // the band spans whole sessions: from the left edge of the first to the right edge of the last
@@ -44,7 +46,8 @@ export function initRangeSelect(ctx: Ctx) {
       const xa = s ? ts.timeToCoordinate(s[0] as any) : null, xb = s ? ts.timeToCoordinate(s[1] as any) : null;
       const a = xa != null ? xa - w / 2 : Math.min(x0!, x1), b = xb != null ? xb + w / 2 : Math.max(x0!, x1);
       band.hidden = false; band.style.left = left() + a + 'px'; band.style.width = Math.max(1, b - a) + 'px';
-      hint.textContent = s ? (s[0] === s[1] ? longDay(s[0]) : `${longDay(s[0])} – ${longDay(s[1])}`) + (firstClick ? ' · click the last day' : '') : HINT;
+      const e = s ? endOf(s[1]) : '';
+      hint.textContent = s ? (s[0] === e ? longDay(s[0]) : `${longDay(s[0])} – ${longDay(e)}`) + (firstClick ? ' · click the last day' : '') : HINT;
     };
     const down = (e: PointerEvent) => {
       if (e.button !== 0) return;
@@ -58,7 +61,7 @@ export function initRangeSelect(ctx: Ctx) {
       const x1 = xOf(e);
       if (!firstClick && Math.abs(x1 - x0) < 3) { firstClick = true; paint(x1); return }   // the first click: wait for the second
       const s = sessions(x0, x1);
-      stop(); if (s) done(s[0], s[1]);
+      stop(); if (s) done(s[0], endOf(s[1]));
     };
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') stop() };
     function stop() {

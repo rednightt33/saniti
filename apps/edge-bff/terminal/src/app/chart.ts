@@ -259,5 +259,8 @@ export function initChart(ctx: Ctx) {
 
 
   updateMainDisplay();
-  chart.timeScale().setVisibleLogicalRange({ from:Math.max(0, dates.length - 252), to:dates.length + 3 });
+  // EXEC-TERMINAL-WM: about a year of daily candles, two years of weekly, ten years of monthly
+  const firstBars = ({ D:252, W:104, M:120 } as Record<string, number>)[ctx.M.tf || 'D'];
+  chart.timeScale().setVisibleLogicalRange({ from:Math.max(0, dates.length - firstBars), to:dates.length + 3 });
+  ctx.resetRange = () => chart.timeScale().setVisibleLogicalRange({ from:Math.max(0, dates.length - firstBars), to:dates.length + 3 });
 }

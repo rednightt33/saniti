@@ -166,3 +166,17 @@ Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
   and Broker activity titles; Net Buy Flow indicators are null after it.
 - `drawings.ts`: a second DrawingManager on the Flow chart for the Lines group (key `ml.drawings.flow.{TICKER}`, shared
   undo, `dragFinish`, right-click cancel, its own Remove drawings).
+- EXEC-TERMINAL-FULL: the yellow labels are gone; `src/ui/fullscreen.ts` (live) folds the three panels through their own
+  buttons, hides the Flow bar and footer (`html.ml-full`), asks the Fullscreen API (EDGE's frame has `allow="fullscreen"`)
+  and puts the panels and their stored choices back on leaving.
+- EXEC-TERMINAL-FULL-2: the full-screen button only folds the panels (no Fullscreen API; Esc leaves); the symbol pill
+  has no "IDX" label in live mode.
+
+## 13. Weekly and monthly candles (EXEC-TERMINAL-WM, 2026-10-27)
+
+- `src/data/timeframe.ts` builds W/M candles from the daily sessions (`aggregateRows`, `buckets`, `candleOf`); `ml.tf`
+  holds the choice and a different button reloads the page (sections take their data once at start).
+- `live.ts`: candles for the chart, `ends` (each candle's last session) for compare/IHSG alignment, events on the
+  candle holding the next session; the worker sums broker net per candle (`brokerData(docs, dates, groups)`).
+- `ctx.endDates` serves the chart range selection and Broker inventory; `M.barOf` maps drawing points (G1) on load;
+  Statistics and Flow labels and the volatility annualisation follow the timeframe.

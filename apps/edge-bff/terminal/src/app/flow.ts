@@ -3,6 +3,7 @@
      { broker, investor:'Foreign'|'Domestic', board:'Regular'|'Nego'|'Cash', net: Float64Array(N) }
    Fixture: the reference's synthetic series. Live: the published broker files (bv − sv per session); sessions before
    the first broker date have no rows and count as 0, as in the reference's setBroksumRows. */
+import { UNIT } from '../data/timeframe';
 import type { Ctx, FilterApi } from './context';
 import { $, cls, keyOf, nfCompact, rupiah, spin, store } from './context';
 
@@ -78,10 +79,14 @@ export function initFlow(ctx: Ctx) {
     const r = chart.timeScale().getVisibleLogicalRange();
     return r ? [Math.max(0, Math.ceil(r.from)), Math.min(N-1, Math.floor(r.to))] : [0, N-1];
   };
+  // EXEC-TERMINAL-WM: the labels follow the candles (day / week / month); daily keeps the reference's words
+  const U = UNIT[ctx.M.tf || 'D'], LATEST = `Latest ${U.one} net`, AVG = `Avg ${U.adj} net`;
   const FLOW_INFO: Record<string, string> = {
-    'Latest day net': 'Net value (buy − sell) on the latest session, for the selected brokers, boards and investor type.',
-    'Period net total': 'Sum of the daily net value (buy − sell) over the sessions visible on the chart, for the selected filters.',
-    'Avg daily net': 'Period net total divided by the number of visible sessions that have broker data.'
+    [LATEST]: ctx.M.tf && ctx.M.tf !== 'D'
+      ? `Net value (buy − sell) of the latest ${U.one} with broker data (its sessions summed), for the selected brokers, boards and investor type.`
+      : 'Net value (buy − sell) on the latest session, for the selected brokers, boards and investor type.',
+    'Period net total': `Sum of the ${U.adj} net value (buy − sell) over the ${U.many} visible on the chart, for the selected filters.`,
+    [AVG]: `Period net total divided by the number of visible ${U.many} that have broker data.`
   };
   const info = (l: string) => `<span class="flow-info" tabindex="0" role="img" aria-label="${FLOW_INFO[l]}" data-tip="${l}|${FLOW_INFO[l]}"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.6v4.2"/><circle cx="8" cy="11.2" r=".5"/></svg></span>`;
   const LIVE = ctx.M.mode === 'live';                      // the fixture keeps the reference's whole-series figures (1:1 check)
@@ -93,9 +98,9 @@ export function initFlow(ctx: Ctx) {
     let total = 0; for(let i=from;i<=b;i++) total += flowNet[i];
     const lastI = LIVE ? Math.min(flowTo, ctx.brokerEnd) : N-1, last = lastI >= 0 ? flowNet[lastI] : 0, avg = total/(b - from + 1 > 0 ? b - from + 1 : 1);
     const tone = (v: number) => LIVE ? (v > 0 ? 'up' : v < 0 ? 'down' : 'flat') : (v>=0?'up':'down');
-    const day = (l: string) => LIVE && l === 'Latest day net' && lastI >= 0 && lastI < N ? ` <span class="flow-stat-day">${fmtDMY(lastI)}</span>` : '';
+    const day = (l: string) => LIVE && l === LATEST && lastI >= 0 && lastI < N ? ` <span class="flow-stat-day">${fmtDMY(lastI)}</span>` : '';
     const stat = (l: string, v: number) => `<div class="flow-stat"><span class="flow-stat-label">${l}${day(l)}${LIVE ? info(l) : ''}</span><span class="flow-stat-val ${tone(v)}">${rupiah(v)}</span></div>`;
-    $('flowSummary').innerHTML = stat('Latest day net', last) + stat('Period net total', total) + stat('Avg daily net', avg);
+    $('flowSummary').innerHTML = stat(LATEST, last) + stat('Period net total', total) + stat(AVG, avg);
   };
   let summaryRaf = 0;
   if(LIVE) chart.timeScale().subscribeVisibleLogicalRangeChange(() => { cancelAnimationFrame(summaryRaf); summaryRaf = requestAnimationFrame(flowSummary) });
@@ -108,12 +113,11 @@ export function initFlow(ctx: Ctx) {
   }
   /* ---- EXEC-TERMINAL-FRESH (user 2026-10-27: Opsi A "Batang Flow berhenti dengan arsiran, tooltip “No broker data yet”,
           label kuning di judul"): the sessions after the broker data's last date are hatched on the Flow chart, and the
-          Flow title carries "Broker through … · price …" while they exist ---- */
+          Flow title carried "Broker through … · price …" until EXEC-TERMINAL-FULL (user 2026-10-27: "untuk A dihapus
+          saja") ---- */
   const weekdayDay = (t: string) => new Date(t + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short', timeZone:'UTC' }).replace(',', '');
-  const dayMonth = (t: string) => new Date(t + 'T00:00:00Z').toLocaleDateString('en-GB', { day:'2-digit', month:'short', timeZone:'UTC' });
   const through = ctx.M.through?.broker;                  // the broker data's own last date (the manifest)
   const brokerThroughText = () => through ? weekdayDay(through) : 'unknown';
-  ctx.staleLabel = () => through && ctx.brokerEnd < N - 1 ? `Broker through ${dayMonth(through)} · price ${dayMonth(dates[N - 1])}` : '';
   const noData = document.createElement('div'); noData.className = 'flow-nodata'; noData.hidden = true;
   noData.innerHTML = '<span>Broker data not yet loaded</span>';
   if(LIVE) ($('flowChart').parentElement as HTMLElement).appendChild(noData);     // the fixture's markup stays the reference's
@@ -136,10 +140,6 @@ export function initFlow(ctx: Ctx) {
     flowChart.timeScale().subscribeVisibleLogicalRangeChange(schedulePlace);
     chart.timeScale().subscribeVisibleLogicalRangeChange(schedulePlace);
     new ResizeObserver(schedulePlace).observe($('flowChart'));
-    const label = ctx.staleLabel();
-    if(label){ const b = document.createElement('span'); b.className = 'stale-badge'; b.textContent = label;
-      b.title = 'The broker data is older than the price data; the later sessions have no broker data yet.';
-      document.querySelector('#flowHead .flow-title')!.appendChild(b) }
   }
 
   const recomputeFlow = () => {

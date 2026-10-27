@@ -25,6 +25,25 @@ import { initSelect } from './ui/select';
 import { initBroker } from './app/broker';
 import { initRangeSelect } from './app/rangeSelect';
 import { initReorder } from './ui/reorder';
+import { initFullscreen } from './ui/fullscreen';
+import { asTimeframe, PERIODS_PER_YEAR, type Timeframe } from './data/timeframe';
+
+/* EXEC-TERMINAL-WM (user 2026-10-27: "time frame ditambah weekly dan monthly"), live: D, W and M. The page's sections
+   take the candles once when they start, so another timeframe is remembered and the page loads again (its files come
+   from the browser cache); the same button again brings back the first view of the timeframe. */
+let liveCtx: Ctx | null = null;
+function timeframeButtons(): Timeframe {
+  const tf = asTimeframe(store.get('ml.tf')), group = $('timeframeGroup') as HTMLElement;
+  const label: Record<Timeframe, string> = { D:'Daily', W:'Weekly', M:'Monthly' };
+  group.innerHTML = (['D', 'W', 'M'] as Timeframe[]).map(t => `<button type="button" data-timeframe="${t}" title="${label[t]}" aria-label="${label[t]}" aria-pressed="${t === tf}" class="${t === tf ? 'active' : ''}">${t}</button>`).join('');
+  group.addEventListener('click', (e: any) => {
+    const b = e.target.closest('button'); if (!b) return;
+    e.stopImmediatePropagation();                           // the reference's handler only zooms
+    if (b.dataset.timeframe === tf) { liveCtx?.resetRange(); return }
+    store.set('ml.tf', b.dataset.timeframe); location.reload();
+  }, true);
+  return tf;
+}
 
 function start(M: MarketData, rawSeries: Record<string, Point[]>) {
   const container = $('chart');
@@ -37,6 +56,10 @@ function start(M: MarketData, rawSeries: Record<string, Point[]>) {
     active:new Map(), catalog:M.catalog, rawSeries, IND_REG
   } as unknown as Ctx;
   ctx.brokerEnd = brokerEnd(ctx.dates, M.through?.broker);
+  ctx.endDates = M.endDates || ctx.dates;
+  // EXEC-TERMINAL-WM: an annualising input's default follows the candles (registry: "252 only proposed for daily")
+  if (M.tf && M.tf !== 'D') for (const ind of IND_REG as any[]) for (const inp of ind.params || [])
+    if (inp.k === 'annualization_periods') inp.def = PERIODS_PER_YEAR[M.tf];
 
   setLogos(M.logos);                                       // live only: the fixture has no logos (1:1 check)
   initChart(ctx);
@@ -54,6 +77,9 @@ function start(M: MarketData, rawSeries: Record<string, Point[]>) {
   initBroker(ctx);
   initRangeSelect(ctx);
   if (M.mode === 'live') initReorder();                    // EXEC-TERMINAL-PANELS A1; the fixture keeps the reference order
+  if (M.mode === 'live') initFullscreen();                 // EXEC-TERMINAL-FULL; the fixture's top bar stays the reference's
+  if (M.mode === 'live') document.querySelector('#symbolPill .exchange')?.remove();   // EXEC-TERMINAL-FULL-2: no "IDX" label
+  if (M.mode === 'live') liveCtx = ctx;                     // the timeframe buttons reset the view through it
   return ctx;
 }
 
@@ -111,7 +137,8 @@ function boot() {
   loading.className = 'ml-boot'; loading.innerHTML = spin(`Loading ${stored || 'MAPI'}`);
   ($('chart')?.parentElement || document.body).appendChild(loading);
   mark('page script');
-  liveData(stored).then(M => { loading.remove(); const ctx = start(M, {}); mark('chart drawn'); if (ctx) later(ctx, M) }, e => { loading.remove();
+  const tf = timeframeButtons();
+  liveData(stored, tf).then(M => { loading.remove(); const ctx = start(M, {}); mark('chart drawn'); if (ctx) later(ctx, M) }, e => { loading.remove();
     fail(e instanceof TerminalError ? e.message : 'The terminal could not load its data. Reload the page to try again.') });
 }
 

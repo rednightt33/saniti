@@ -10,15 +10,40 @@ import * as Lib from 'lightweight-charts-drawing';
 import type { Ctx } from './context';
 import { store } from './context';
 
+/** EXEC-TERMINAL-WM G1 (user 2026-10-27): one set of drawings for every timeframe; on weekly or monthly candles each point
+    sits on the candle that holds its date. Points after the last session (drawn into the future) keep their time. */
+export function onCandles(json: string, barOf: (d: string) => string | null, lastSession: string): string {
+  let doc: unknown;
+  try { doc = JSON.parse(json) } catch { return json }
+  const day = (t: any): string | null => typeof t === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(t) ? t
+    : t && typeof t === 'object' && 'year' in t ? `${t.year}-${String(t.month).padStart(2, '0')}-${String(t.day).padStart(2, '0')}`
+    : typeof t === 'number' ? new Date(t * 1000).toISOString().slice(0, 10) : null;
+  const walk = (v: any): void => {
+    if (Array.isArray(v)) { v.forEach(walk); return }
+    if (!v || typeof v !== 'object') return;
+    if ('time' in v && 'price' in v) {
+      const d = day(v.time), bar = d && d <= lastSession ? barOf(d) : null;
+      if (bar) v.time = bar;
+    }
+    Object.values(v).forEach(walk);
+  };
+  walk(doc);
+  return JSON.stringify(doc);
+}
+
 export function initDrawings(ctx: Ctx) {
   const { chart, candle, container, SYMBOL, dates, Hist, volCtl, Ind } = ctx;
   const LibAny = Lib as any;
   const wrap = container.parentElement as HTMLElement;
 
   /* ---- persistence adapter (backend: replace the bodies with fetch calls) ---- */
+  const tf = ctx.M.tf || 'D', barOf = ctx.M.barOf, lastSession = (ctx.endDates || dates)[dates.length - 1];
   const repo = {
     key: (symbol: string) => `ml.drawings.${symbol}`,
-    load: (symbol: string) => Promise.resolve(store.get(repo.key(symbol)) || '[]'),
+    load: (symbol: string) => {
+      const json = store.get(repo.key(symbol)) || '[]';
+      return Promise.resolve(tf !== 'D' && barOf ? onCandles(json, barOf, lastSession) : json);
+    },
     save: (symbol: string, json: string) => { store.set(repo.key(symbol), json); return Promise.resolve() }
   };
 

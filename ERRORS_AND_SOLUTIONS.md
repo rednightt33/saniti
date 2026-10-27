@@ -2404,7 +2404,7 @@ change yet.
   `ctx.brokerEnd` (sesi terakhir ≤ tanggal itu); sesudahnya batang Flow, garis kumulatif, Net Buy Flow dan Net Buy Flow
   (Line) kosong (bukan 0), ringkasan berhenti di sesi itu, tooltip "No broker data yet (through Fri 23 Oct)", arsiran
   "Broker data not yet loaded" dan label kuning "Broker through 23 Oct · price 26 Oct" di judul Flow dan Broker
-  activity. (2) rak: `state.json` `broker_behind_sessions` (publisher, `BEHIND_SQL`). (3) Telegram: sesudah putaran
+  activity (label dihapus 2026-10-27 atas permintaan user, EXEC-TERMINAL-FULL). (2) rak: `state.json` `broker_behind_sessions` (publisher, `BEHIND_SQL`). (3) Telegram: sesudah putaran
   19:00 WIB yang tertinggal ≥ 1 sesi, publisher meminta `telegram-monitor` sumber `Terminal_Broker_Freshness`, yang
   menghitung sendiri dari tabel dan mengirim satu pesan sehari.
   Cacat saat uji: `timeScale().logicalToCoordinate` LWC 5.2 menjawab 0 untuk posisi pecahan (2122,5), arsiran menutup
@@ -2529,6 +2529,83 @@ change yet.
 - **Ikut terbawa:** commit sesi lain `d495854` (kolom industri di `ref/tickers`, live sejak 2026-10-27 02:40 UTC
   deployment `82447144`, belum di `main`) di-cherry-pick supaya upload publisher dari cabang ini tidak menghapusnya.
 - **Status:** RESOLVED.
+
+### EXEC-TERMINAL-FULL — label kuning dihapus, tombol layar penuh (2026-10-27)
+
+- **User:** "Minta tolong untuk A dihapus saja. Buat B tambahkan opsi full sceen di kotak hitam terlampir, ketika
+  fullscreen maka tampilan akan seperti screenshot B".
+- **A:** label "Broker through … · price …" di judul Flow dan Broker activity dihapus; arsiran dan tooltip tetap
+  (ERRORS M243).
+- **B:** `src/ui/fullscreen.ts` (live): tombol di kanan Search markets; masuk melipat Statistics, Broker activity dan
+  Flow lewat tombolnya sendiri, menyembunyikan bar Flow dan footer (`html.ml-full`) dan meminta Fullscreen API; keluar
+  (tombol, Esc, browser) membuka lagi panel yang tadinya terbuka; pilihan panel yang tersimpan dikembalikan apa adanya.
+  iframe EDGE (`static/index.html` `TerminalPage`) diberi `allow="fullscreen"`. Live check ANTM: masuk → tiga panel
+  terlipat, `document.fullscreenElement` ada; keluar → kembali seperti semula; nilai tersimpan tidak berubah; tanpa
+  error. 1:1 0 piksel; edge-bff terminal 20.
+- **Status:** RESOLVED.
+
+### EXEC-TERMINAL-FULL-2 — layar penuh tanpa Fullscreen API, "IDX" dihapus (2026-10-27)
+
+- **User:** "yang saya maksud dengan full screen adalah bukan benar-benar literally full screen. Full screen basically
+  hanya meng-hide indikator sebelah kiri, sebelah kanan, dan panel di bawah ... Box jangan melewati border paling
+  kanan ... untuk IDX agar bisa di-remove".
+- **Cause:** EXEC-TERMINAL-FULL membaca "full screen" sebagai Fullscreen API browser; yang dimaksud hanya
+  menyembunyikan panel. **Solution:** `fullscreen.ts` tanpa `requestFullscreen`; Esc ikut mengembalikan panel (kecuali
+  menu, kalender, pilih di chart atau kolom isian sedang memakainya); izin `allow="fullscreen"` di iframe EDGE dicabut;
+  "IDX" di tombol simbol dihapus (live).
+- **Bukti:** 1270×618 skala 1,5 dan 1600×900: tombol berakhir 10 px di dalam tepi kanan bar (tanpa gulir), panel
+  kiri/kanan/Flow tersembunyi, `document.fullscreenElement` kosong, Esc mengembalikan; vitest 672, 1:1 0 piksel,
+  edge-bff terminal 20.
+- **Lesson:** istilah tampilan yang punya arti teknis lain (full screen) dikonfirmasi bentuknya sebelum memakai API
+  browser.
+- **Status:** RESOLVED.
+
+### EXEC-TERMINAL-WM — timeframe weekly dan monthly (2026-10-27)
+
+- **Go user:** "G1 / K1" (FUTURE_PLAN "Terminal: timeframe weekly dan monthly").
+- **Dibangun (live; fixture tetap harian):** `src/data/timeframe.ts` (minggu Senin–Jumat, bulan kalender; open pertama,
+  high max, low min, close terakhir, volume jumlah; candle berjalan ditampilkan, K1); tombol D/W/M, pilihan diingat
+  (`ml.tf`) dan halaman dimuat ulang (berkas dari cache browser); `worker.ts` `brokerData` menjumlah net per candle;
+  pembanding dan IHSG diselaraskan ke sesi terakhir candle (`alignTo` `ends`); anotasi di candle yang memuat sesi
+  sesudah tanggalnya; Statistics faktor tahunan 252/52/12, satuan sessions/weeks/months, musiman per hari disembunyikan
+  di W/M; label Flow "Latest week/month net", "Avg weekly/monthly net"; default `annualization_periods` indikator
+  mengikuti candle (registry: "252 only proposed for daily equities"); rentang dari chart dan Broker inventory sampai
+  sesi terakhir candle; gambar (G1) dipetakan ke candle yang memuat titiknya saat dimuat (titik masa depan tetap).
+  Broker activity tetap harian.
+- **Bukti:** vitest 678 (`timeframe.test.ts`: kunci minggu/bulan, agregasi, candle berjalan, peta sesi, candle dari
+  tanggal, gambar di candle mingguan). Live check ANTM (`timeframe_live_check.py`): W "Latest week net 19 Oct 2026"
+  (minggu 26 Oct tanpa data broker), "143 weeks", "20-week annualized", musiman per hari tersembunyi, 20 penanda; M
+  "Latest month net 01 Oct 2026", "20-month annualized"; kembali D "Latest day net 23 Oct 2026"; tanpa error. 1:1:
+  derau 1–18 piksel lama tanpa beda markup; edge-bff terminal 20.
+- **Belum / catatan:** indikator Historical volatility yang sudah tersimpan dari harian tetap memakai 252 (nilai yang
+  dipilih pengguna tidak diubah); pengguna bisa menggantinya di pengaturan indikator.
+- **Status:** RESOLVED.
+
+### M244 — Flow Timeline BMRI berbeda dari Foreign Flow Stockbit: papan dan titik awal kumulatif (2026-10-27)
+
+- **Symptom:** user 2026-10-27 (tangkapan layar Stockbit "Foreign Flow @BMRI", 2–27 Oct 2026): "Flow itu apa
+  maksudnya? Apakah flow dihitung hanya berdasarkan candle ... atau actually fetch from database? ... minta tolong untuk
+  dibandingkan value di front end dengan screenshot terlampir dan juga back end."
+- **Verified (2026-10-27, tiga lapisan):**
+  - Backend: `Feature_05_Foreign_Domestic_Broker_Detail` (dari `IDX_Broker_Summary`, `refresh_feature_05`), BMRI,
+    `investor_type = 'Foreign'`, papan **Regular**: N. Foreign, F Buy, F Sell dan N. Lot sama dengan Stockbit pada
+    semua 16 tanggal 2–23 Oct (mis. 23 Oct buy 374,286,284,000, sell 417,283,206,000, net −42,996,922,000, lot
+    −114,182; Stockbit 374.29B / 417.28B / −43.00B / −114.18K).
+  - Rak: berkas broker BMRI yang diunduh halaman (pack arsip, 2025, 2026; `data_through` 2026-10-23) memberi angka yang
+    sama dengan database.
+  - Frontend: kode halaman sendiri (`worker.ts` `brokerData` + jumlah filter `flow.ts`) atas berkas rak: dengan papan
+    Regular saja angka harian sama dengan Stockbit; F Flow Stockbit = jumlah berjalan sejak **28 Sep 2026** (tanggal
+    pertama daftar Stockbit; −858.17B pada 2 Oct sampai −2.66T pada 23 Oct, sama semua).
+  - Bedanya: (1) Flow bawaan menjumlah **semua papan** (Regular + Nego + Tunai), Stockbit hanya Regular: berbeda pada
+    hari dengan transaksi Nego asing (08 Oct −189.88B vs −190.63B, 21 Oct −226.60B vs −227.42B, 23 Oct −40.71B vs
+    −43.00B, 29 Sep −275.08B vs −276.20B); (2) kumulatif halaman dimulai dari sesi pertama data (2018), Stockbit dari
+    tanggal pertama periode yang ditampilkan: selisih harian sama, levelnya berbeda; (3) 26–27 Oct sudah ada di
+    `IDX_Broker_Summary` tetapi Feature 05 masih sampai 23 Oct (pembaruan sedang berjalan), jadi rak dan halaman juga.
+- **Flow di halaman:** net asing (buy − sell) per sesi dihitung di browser dari baris Feature 05 per broker × jenis
+  investor × papan yang dipublikasikan ke rak, bukan kolom flow jadi di database; tidak bergantung pada candle selain
+  tanggal sesinya.
+- **Solution:** menunggu keputusan user (papan bawaan dan titik awal kumulatif).
+- **Status:** OPEN (keputusan user); data cocok, tidak ada salah hitung.
 
 ## Fixed-income selected-date repair — 2026-10-20 status
 

@@ -8340,3 +8340,49 @@ sesi lain `d495854`) cron "0,30 0,12 * * *" NEVER.
 Status 2026-10-27: langkah 1–4 dibangun dan diuji (ERRORS M243 dan "EXEC-TERMINAL-FRESH"); peringatan Telegram
 dibuktikan pada putaran 19:00 WIB.
 
+## EXEC-TERMINAL-FULL — label kuning dihapus, tombol layar penuh (2026-10-27)
+
+User 2026-10-27 (tangkapan layar A dan B): "Minta tolong untuk A dihapus saja. Buat B tambahkan opsi full sceen di kotak
+hitam terlampir, ketika fullscreen maka tampilan akan seperti screenshot B".
+- A: label "Broker through … · price …" di judul Flow dan Broker activity dihapus (arsiran dan tooltip "No broker data
+  yet" tetap, EXEC-TERMINAL-FRESH).
+- B: tombol layar penuh di kanan kotak Search markets (live). Layar penuh: halaman terminal memakai Fullscreen API
+  (iframe EDGE diberi `allow="fullscreen"`), panel Statistics, Broker activity dan Flow Timeline dilipat seperti
+  tangkapan layar B; keluar (tombol, Esc) mengembalikan panel seperti sebelumnya. Bila browser menolak layar penuh,
+  panel tetap dilipat (chart maksimal di dalam bingkai).
+Infra dicek 2026-10-27 sebelum mulai (edge-bff dan publisher aktif SUCCESS).
+Status 2026-10-27: A dan B selesai (ERRORS "EXEC-TERMINAL-FULL").
+
+## EXEC-TERMINAL-FULL-2 — layar penuh = panel disembunyikan, "IDX" dihapus (2026-10-27)
+
+User 2026-10-27: "Tapi yang saya maksud dengan full screen adalah bukan benar-benar literally full screen. Full screen
+basically hanya meng-hide indikator sebelah kiri, sebelah kanan, dan panel di bawah. Market dan full screen. Box jangan
+melewati border paling kanan. Also, untuk saat ini, ticker di bagian kolom ticker sebelah kiri ada ticker, kemudian ada
+IDX. Saya minta untuk IDX agar bisa di-remove. Also, bisa nggak untuk time frame ditambah weekly dan monthly as well?
+Coba explore ..."
+- Tombol layar penuh tanpa Fullscreen API: hanya Statistics, Broker activity dan Flow Timeline disembunyikan; izin
+  `allow="fullscreen"` di iframe EDGE dicabut lagi; tombol tidak boleh melewati batas kanan bar.
+- "IDX" di tombol simbol dihapus (live; fixture referensi tetap).
+- Weekly/monthly: eksplorasi dan usulan dulu (database hanya menyimpan Daily), menunggu keputusan user.
+Status 2026-10-27: layar penuh versi panel dan "IDX" selesai (ERRORS "EXEC-TERMINAL-FULL-2"); weekly/monthly di
+FUTURE_PLAN "Terminal: timeframe weekly dan monthly".
+
+## EXEC-TERMINAL-WM — timeframe weekly dan monthly (go 2026-10-27)
+
+User 2026-10-27, atas usulan FUTURE_PLAN "Terminal: timeframe weekly dan monthly" ("Untuk gambar pilih G1 atau G2, untuk
+candle berjalan pilih K1 atau K2, lalu go?"): "G1 / K1".
+Keputusan: G1 satu set gambar untuk semua timeframe, titik gambar ditempel di candle yang memuatnya; K1 candle minggu/
+bulan berjalan ditampilkan.
+Rencana (berbasis kode, diperiksa 2026-10-27):
+1. `src/data/timeframe.ts`: minggu Senin–Jumat (kunci = Senin), bulan kalender; candle = open sesi pertama, high max,
+   low min, close sesi terakhir, volume jumlah; tanggal candle = sesi pertama, tanggal akhir = sesi terakhir.
+2. `live.ts`/`worker.ts`: harga harian disusun menjadi candle; net broker Flow dijumlah per candle (`brokerData` dengan
+   peta sesi → candle); pembanding dan IHSG diselaraskan ke tanggal akhir candle; anotasi ke candle yang memuat sesi
+   sesudah tanggalnya; Broker activity tetap harian.
+3. Halaman: tombol D/W/M (live), pilihan diingat browser dan halaman dimuat ulang (modul mengunci data saat mulai);
+   Statistics memakai faktor tahunan 252/52/12 dan satuan sessions/weeks/months, musiman per hari dimatikan di W/M;
+   label Flow "Latest week/month net", "Avg weekly/monthly net"; rentang dari chart dan Broker inventory memakai tanggal
+   akhir candle; gambar dipetakan ke candle saat dimuat.
+4. Uji: tes agregasi, 1:1 fixture (D saja), live check D/W/M, deploy, dokumen.
+Status 2026-10-27: selesai (ERRORS "EXEC-TERMINAL-WM").
+

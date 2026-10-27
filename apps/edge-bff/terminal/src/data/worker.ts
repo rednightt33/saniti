@@ -4,10 +4,11 @@
    as soon as the price files are read, then `broker`, then `events`. Every download starts at once (the URLs live
    120 s). The shapes match what live.ts built before on the main thread. */
 import type { BrokerRow } from './types';
+import { buckets, type Buckets, type Timeframe } from './timeframe';
 
 /** one file to read: its presigned URL and, from /bundle, the sha256 of its bytes (the browser cache key) */
 export interface FileRef { url: string; sha?: string; name?: string }
-export interface WorkerJob { id: number; price: FileRef[]; broker: FileRef[]; events: FileRef[] }
+export interface WorkerJob { id: number; price: FileRef[]; broker: FileRef[]; events: FileRef[]; tf?: Timeframe }
 /** EXEC-TERMINAL-SPEED step 1: what each download cost, for ?perf=1 */
 export interface FileStat { name: string; ms: number; bytes: number; cached: boolean }
 export interface PriceRow { d: string; o: number; h: number; l: number; c: number; v: number | null }
@@ -101,8 +102,9 @@ export const panelStart = (latest: string) => `${+latest.slice(0, 4) - PANEL_YEA
 
 /* Flow Timeline: net value (buy − sell) per broker × investor type × board on each session of the chart; Broker
    activity: the summary rows of the broker dates after panelStart */
-export function brokerData(docs: Columnar[], dates: string[]) {
-  const N = dates.length, idx = new Map(dates.map((t, i) => [t, i]));
+export function brokerData(docs: Columnar[], dates: string[], groups: Buckets | null = null) {
+  // EXEC-TERMINAL-WM: with groups, a session's net goes to its weekly or monthly candle (`groups.of`)
+  const N = groups ? groups.starts.length : dates.length, idx = new Map(dates.map((t, i) => [t, groups ? groups.of[i] : i]));
   const combos = new Map<string, WorkerCombo>(), byDate = new Map<string, BrokerRow[]>();
   let flowFrom = N, flowTo = -1;                      // first and last session with broker rows
   for (const doc of docs) {
@@ -134,7 +136,7 @@ export const rowsOf = (doc: Columnar) => {
 const scope = globalThis as any;
 if (typeof scope.WorkerGlobalScope !== 'undefined' && scope instanceof scope.WorkerGlobalScope) {
   scope.onmessage = async (e: MessageEvent<WorkerJob>) => {
-    const { id, price, broker, events } = e.data;
+    const { id, price, broker, events, tf } = e.data;
     const post = (answer: WorkerAnswer, transfer: Transferable[] = []) => scope.postMessage(answer, transfer);
     const fail = (err: any) => post({ id, type:'error', message:err?.message || 'The terminal could not read its data.', status:err?.status || 0 });
     /* EXEC-TERMINAL-1026B F5 (user 2026-10-26: "dimuat di awal tahun, tapi setelah terload maka sistem akan otomatis meload
@@ -149,16 +151,16 @@ if (typeof scope.WorkerGlobalScope !== 'undefined' && scope instanceof scope.Wor
     let rows: PriceRow[];
     try { rows = priceRows(await Promise.all(price.map(download))) } catch (err) { return fail(err) }
     post({ id, type:'price', rows });
-    const dates = rows.map(r => r.d);
+    const dates = rows.map(r => r.d), groups = tf && tf !== 'D' ? buckets(dates, tf) : null;
     let latest: Columnar[];
     try {
       latest = await recentDocs;
-      const b = brokerData(latest, dates);
+      const b = brokerData(latest, dates, groups);
       post({ id, type:'broker', ...b }, b.combos.map(c => c.net.buffer));
     } catch (err) { return fail(err) }
     try { post({ id, type:'events', rows:(await eventDocs).flatMap(rowsOf) }) } catch (err) { fail(err) }
     try {
-      const all = brokerData([...await Promise.all(older.map(download)), ...latest], dates);
+      const all = brokerData([...await Promise.all(older.map(download)), ...latest], dates, groups);
       post({ id, type:'brokerAll', ...all }, all.combos.map(c => c.net.buffer));
     } catch (err) { fail(err) }
     post({ id, type:'stats', files:stats.splice(0) });

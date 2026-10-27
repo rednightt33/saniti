@@ -4785,3 +4785,21 @@ dev E2E passes). Branch `claude/project-thread-k91bfk`; nothing in production.
   read those 48 from disk and downloaded 12 small files (0.08 MB); worker time 4.7 s against 7.05–7.23 s cold.
   Outputs: project folder `backtest/e2e-2026-10-27/` (`report-dev5-1003.json`, `measure-dev5-1003.json`,
   `measure-dev4-0854-disk-cache.json`, `result-*-dev5.json`).
+
+## 2026-10-27 — edge-bff: yellow labels removed, full-screen button (EXEC-TERMINAL-FULL)
+
+User 2026-10-27: "Minta tolong untuk A dihapus saja. Buat B tambahkan opsi full sceen ...". `main` `2932c87`: edge-bff
+`78b16952` SUCCESS; live terminal `index`, `style`, `worker` assets equal the build (sha256) and EDGE's page carries the
+frame's fullscreen permission. Full edge-bff suite: 171 passed, 1 failed (M232, fails on `main` without this change).
+No variable or other service changed.
+
+## 2026-10-27 — edge-bff: panel-only full screen, no IDX label (EXEC-TERMINAL-FULL-2)
+
+User 2026-10-27: "bukan benar-benar literally full screen ... IDX agar bisa di-remove". `main` `736f99a`: edge-bff
+`81ae2893` SUCCESS; live terminal assets equal the build (sha256); EDGE's frame no longer carries the fullscreen
+permission. No variable or other service changed.
+
+## 2026-10-27 — edge-bff: weekly and monthly candles (EXEC-TERMINAL-WM)
+
+User 2026-10-27: "G1 / K1". `main` `712e258`: edge-bff `7654e6fa` SUCCESS; live terminal `index`, `style` and `worker`
+assets equal the build (sha256). No variable or other service changed.
