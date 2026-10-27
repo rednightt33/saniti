@@ -157,8 +157,10 @@ Facts that matter downstream:
    - upload only when the sha256 differs from the manifest entry;
    - update the entry in memory.
 
-   A year that has no rows any more loses its manifest entry. The object is left in the bucket, because the publisher
-   never deletes anything.
+   A year that has no rows any more loses its manifest entry; the next daily run's cleanup deletes its object.
+   Each data file is written under a **content key**, `{family}/{T}/{name}.{sha256}.json.gz` (`content_key`, `store`):
+   a changed file is a new object, and an object is never written again with other bytes (ERRORS M250). An entry whose
+   sha256 is unchanged keeps the key it has, including a fixed key from before content keys.
 4. **Packs (`publish_packs`, `put_pack`).**
    - `pack/{T}/price` holds every price year. It is rebuilt when a price year changed or the pack is missing.
    - For stocks, `pack/{T}/broker-archive` holds the broker years up to `last_year - 2`. It is rebuilt when an archived
@@ -167,10 +169,11 @@ Facts that matter downstream:
    - Packs cut a stock from 21 objects to 5 for a reader (ERRORS M240: about 0.8 s per object over HTTP/1.1).
 5. **Manifests.** `save_manifest` writes the manifest of every touched ticker: `window`, per dataset `data_through` and
    `first_year`, and `generated_at`.
-6. **The rest.** `publish_refs` rewrites `ref/tickers.json.gz` and `ref/brokers.json.gz` on every run. Logos are
+6. **Cleanup (`collect_garbage`, daily mode only, before the first write).** See section 4.3.
+7. **The rest.** `publish_refs` rewrites `ref/tickers.json.gz` and `ref/brokers.json.gz` on every run. Logos are
    refreshed in mode `logos`, or in `daily` when the logo index is more than 7 days old. **`state.json` is written
    last**, with `finished_at`. terminal-api's manifest cache keys on that field (section 6.3).
-7. After the evening run, when broker data trails prices (`broker_behind_sessions` ≥ 1), `notify_broker_behind` asks
+8. After the evening run, when broker data trails prices (`broker_behind_sessions` ≥ 1), `notify_broker_behind` asks
    telegram-monitor to send an alert (ERRORS M243).
 
 Modes (`TERMINAL_PUBLISH_MODE` or `argv[1]`):
@@ -194,12 +197,18 @@ Modes (`TERMINAL_PUBLISH_MODE` or `argv[1]`):
 - **Write order.** Data files, then packs, then manifests, then reference files, then `state.json`. A manifest
   therefore never names a new key that is not there yet.
 - **Not atomic.** A crash leaves the run half done. Restart is `NEVER`, so the next run is up to 12 hours later.
-- **OPEN: files overwritten in place (ERRORS M250).** A changed file is written again under its fixed key while
-  terminal-api still serves the old cached manifest until `state.json` changes at the very end of the run. During each
-  run, about 58 minutes twice a day, sha256-checking readers fail with `DATA_INTEGRITY` for the tickers that changed.
-  - The user chose the fix on 2026-10-27, in a separate publisher PR: content-addressed keys, with unreferenced files
-    deleted on a later run.
-  - TEMPORARY until then: dev end-to-end runs avoid 00:00–01:00 and 12:00–13:05 UTC.
+- **Objects never change (ERRORS M250).** Before content keys, a changed file was written again under its fixed key
+  while terminal-api still served the previous run's cached manifest, so sha256-checking readers failed
+  `DATA_INTEGRITY` during each run. Now a reader holding any manifest of the last finished run downloads exactly the
+  bytes it names, during the whole run. Manifests, `ref/*`, logos and `state.json` keep fixed keys: readers open them
+  by name and no reader checks their bytes against a manifest.
+- **Cleanup (`collect_garbage`).** A daily run lists the bucket before it writes and deletes a data file or pack only
+  when all of these hold: its key is `<family>/<ticker>/<file>` with a family some manifest names (derived from the
+  manifests, so a new dataset is covered); the ticker's manifest names at least one file but not this one; that
+  manifest and the object are no newer than `state.json` (the last finished run; anything newer may belong to a run
+  that did not finish); and that run finished at least `GC_GRACE_SECONDS` (3600) ago, which exceeds the manifest cache
+  check (60 s), the URL lifetime (120 s) and a download. A listing longer than `GC_LIST_SECONDS` (900) is abandoned. A
+  failure is logged (`gc_failed`, class only) and the run goes on: cleanup never stops a publication. Its log line `gc` gives `deleted`, `not_deleted`, `mb`, `kept_newer_than_last_run`, `tickers_skipped`.
 - **Recorded sizes and times** (`RAILWAY_CHANGELOG.md`):
 
   | Run | Duration | Written |
@@ -217,11 +226,11 @@ Bucket `terminal-display` is a Railway S3-compatible bucket in region `sin`. Its
 
 | Key under `v1/` | Content | Headers |
 |---|---|---|
-| `price/{T}/{Y}.json.gz` | `{schema_version: 1, dataset: 'price', ticker, year, units, columns: [d,o,h,l,c,v], d: [...], o: [...], ...}` (columnar; `v` null for an index) | `application/gzip`, `private, max-age=31536000` |
-| `broker/{T}/{Y}.json.gz` (stocks) | columns `d, b, i, m, bv, sv, bl, sl` (date, broker, investor type, board, buy and sell value in IDR, buy and sell lots) plus `gap: [[date, board], …]` | same |
-| `events/{T}/all.json.gz` | 19 columns, `d, role, family, type, action, …, title, detail`; `format: 2` | same |
-| `pack/{T}/price.json.gz` | every price year in one `price_doc` (`dataset: 'price-pack'`) | same |
-| `pack/{T}/broker-archive.json.gz` (stocks) | broker years `[broker_first_year, last_year - 2]` (`dataset: 'broker-archive'`, `years: [a, b]`) | same |
+| `price/{T}/{Y}.{sha256}.json.gz` | `{schema_version: 1, dataset: 'price', ticker, year, units, columns: [d,o,h,l,c,v], d: [...], o: [...], ...}` (columnar; `v` null for an index) | `application/gzip`, `private, max-age=31536000` |
+| `broker/{T}/{Y}.{sha256}.json.gz` (stocks) | columns `d, b, i, m, bv, sv, bl, sl` (date, broker, investor type, board, buy and sell value in IDR, buy and sell lots) plus `gap: [[date, board], …]` | same |
+| `events/{T}/all.{sha256}.json.gz` | 19 columns, `d, role, family, type, action, …, title, detail`; `format: 2` | same |
+| `pack/{T}/price.{sha256}.json.gz` | every price year in one `price_doc` (`dataset: 'price-pack'`) | same |
+| `pack/{T}/broker-archive.{sha256}.json.gz` (stocks) | broker years `[broker_first_year, last_year - 2]` (`dataset: 'broker-archive'`, `years: [a, b]`) | same |
 | `manifest/{T}.json` | the ticker's index of files (below) | `application/json`, `private, max-age=0` |
 | `ref/tickers.json.gz` | columns `ticker, name, type, sector, industry`. Readers take columns by name; every column after `type` becomes a portfolio filter (CONTRACT decision PF6). | gzip |
 | `ref/brokers.json.gz` | columns `code, name, type` | gzip |
@@ -233,7 +242,7 @@ The manifest:
 ```
 { "schema_version": 1, "ticker": "BBCA",
   "datasets": {
-    "price":  { "files": { "2018": {"key": "v1/price/BBCA/2018.json.gz", "sha256": "<64 hex of the gzip bytes>",
+    "price":  { "files": { "2018": {"key": "v1/price/BBCA/2018.<sha256>.json.gz", "sha256": "<64 hex of the gzip bytes>",
                                     "bytes": N, "rows": N, "first": "YYYY-MM-DD", "last": "YYYY-MM-DD", "stamp": "…"}, … },
                 "data_through": "<newest final daily date of the whole table>", "first_year": 2018 },
     "broker": { "files": { … }, "data_through": "<newest Feature 05 date of the whole table>", "first_year": 2016 },
@@ -252,8 +261,10 @@ The manifest:
   page. Both cache files by sha256 (sections 7.3 and 10).
 - **Reference files carry no sha256.** They are downloaded again on each use.
 - **Cache-Control is not used.** The `max-age` of a year has no effect today: every presigned URL is new, and readers
-  keep their own sha256-keyed caches. INFERENCE: with content-addressed keys (the M250 fix) a long max-age would also
-  be correct.
+  keep their own sha256-keyed caches. With content keys a long max-age is also correct.
+- **Keys are never built by a reader.** Every reader takes `key` from the manifest (terminal-api presigns it verbatim),
+  so the key format can change without a reader change. A file from before content keys keeps its fixed key
+  (`price/{T}/{Y}.json.gz`) until its bytes change.
 
 ## 6. Stage 4: terminal-api, the only gate to the files
 
@@ -306,8 +317,8 @@ A client never names an object key. Only manifest keys and the fixed `REF_FILES`
   than `MAX_CACHED` (4000) entries. An unreadable `state.json` keeps the cache.
 - **Consequences:**
   - After a publisher run, every process serves new manifests within about 60 s.
-  - During a run, terminal-api keeps serving the manifests of the previous run. That is why overwriting a file in
-    place breaks readers (M250).
+  - During a run, terminal-api keeps serving the manifests of the previous run. Content keys keep the bytes those
+    manifests name readable (M250); the publisher's cleanup waits an hour after the last finished run.
   - A ticker first published after its "not found" was cached stays 404 until the next `finished_at`.
 
 ### 6.4 The page's route: browser, edge-bff proxy, terminal-api (`apps/edge-bff/app/main.py`)
@@ -610,7 +621,7 @@ in the worker, class names only in the publisher).
 
 | Item | Status | Where |
 |---|---|---|
-| Files overwritten in place during publisher runs → `DATA_INTEGRITY` | OPEN; fix chosen (content-addressed keys, separate publisher PR); TEMPORARY: no E2E during runs | ERRORS M250 |
+| Files overwritten in place during publisher runs → `DATA_INTEGRITY` | FIXED in code (content keys + cleanup); verified in dev on the first scheduled run, see ERRORS M250 | ERRORS M250 |
 | Database connection lost mid-write in edge-bff | cause UNKNOWN; retried until the deadline | ERRORS M246 |
 | Merge deploy skipped by Railway | MITIGATED by hand; automatic check PROPOSED | ERRORS M252 |
 | Terminal page download has no retry | not covered (the backtest page has it) | ERRORS M251 |

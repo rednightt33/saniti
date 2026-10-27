@@ -5,7 +5,8 @@ terminal-display. Browsers download them through presigned URLs issued by termin
 
 Modes (TERMINAL_PUBLISH_MODE, or the first argument):
   daily         price: every ticker-year whose source stamp changed; broker: the ticker-years of trading dates newer
-                than the published data_through. Reference files are refreshed. Run after the price cron.
+                than the published data_through. Reference files are refreshed. Run after the price cron. Before it
+                writes, the files no manifest names any more are deleted (collect_garbage, ERRORS M250).
   backfill      every ticker-year of the window (initial load or a schema change).
   broker-range  TERMINAL_FROM, TERMINAL_TO [, TERMINAL_TICKERS=A,B]: republish broker files after a manual
                 refresh_feature_05 of that range (the same arguments).
@@ -21,21 +22,26 @@ service with a cronSchedule does not run when deployed: for a manual run clear t
 cronSchedule back after the run.
 Price and broker are published from their first stored year (broker: T8, user 2026-10-26).
 
-Objects (all under v1/):
-  price/{ticker}/{year}.json.gz    columns d,o,h,l,c,v (v null for an index without volume)
-  broker/{ticker}/{year}.json.gz   columns d,b,i,m,bv,sv,bl,sl; gap = [[date, board], ...] (ERRORS M157)
-  events/{ticker}/all.json.gz      corporate actions and insider transactions of idx_event_annotation, all dates
+Objects (all under v1/; <sha> is the sha256 of the object's gzip bytes, ERRORS M250):
+  price/{ticker}/{year}.<sha>.json.gz    columns d,o,h,l,c,v (v null for an index without volume)
+  broker/{ticker}/{year}.<sha>.json.gz   columns d,b,i,m,bv,sv,bl,sl; gap = [[date, board], ...] (ERRORS M157)
+  events/{ticker}/all.<sha>.json.gz      corporate actions and insider transactions of idx_event_annotation, all dates
                                    (one file per ticker, file id "all"); republished when the ticker's rows change
   manifest/{ticker}.json           per dataset: data_through and, per year, key, sha256, bytes, rows, first, last, stamp
   ref/tickers.json.gz, ref/brokers.json.gz, state.json
   logo/{ticker}.png|svg            the ticker's logo: Stockbit's PNG, else TradingView's SVG (scanner `logoid`)
   ref/logos.json.gz                columns ticker, file, sha256, source, fetched_at (tickers without a logo are absent)
-  pack/{ticker}/price.json.gz      every price year in one file (the chart's only download)
-  pack/{ticker}/broker-archive.json.gz   broker rows of every year before the last two (the last two stay yearly files)
+  pack/{ticker}/price.<sha>.json.gz      every price year in one file (the chart's only download)
+  pack/{ticker}/broker-archive.<sha>.json.gz   broker rows of every year before the last two (the last two stay yearly)
 EXEC-TERMINAL-SPEED (user 2026-10-26): a ticker is five objects for the page instead of 21 (ERRORS M240: the bucket's
 cost is per object, ~0.8 s each, HTTP/1.1); the packs are listed in manifest `packs` with their sha256.
 Data files are written before the manifest that names them, so a reader never sees a manifest pointing at a file that
-is not there yet. The universe and the changes are derived from the database at run time; no ticker list is coded.
+is not there yet. A changed data file or pack is a new object (its key carries its sha256) and an object is never
+written again with other bytes, so the bytes a manifest that terminal-api still serves names stay readable during a run
+(ERRORS M250, user 2026-10-27). Files written before content keys keep their fixed key until their bytes change. A
+daily run deletes, before it writes anything, the data files no manifest names any more once no reader can still use
+them (collect_garbage). Manifests, reference files, logos and state.json keep fixed keys: readers open them by name.
+The universe and the changes are derived from the database at run time; no ticker list is coded.
 """
 import datetime as dt
 import gzip
@@ -103,6 +109,13 @@ TRADINGVIEW_SCAN = 'https://scanner.tradingview.com/indonesia/scan'
 TRADINGVIEW_LOGO = 'https://s3-symbol-logos.tradingview.com/{logoid}--big.svg'
 LOGO_MAX_AGE_DAYS = 7
 LOGO_MAX_BYTES = 200_000
+# ERRORS M250: how long after the last finished run (state.json) collect_garbage waits before it deletes. It must exceed
+# terminal-api's manifest cache check (manifest_cache_seconds, 60 s), the presigned URL lifetime (terminal.quota
+# url_ttl_seconds, 120 s) and a download started on such a URL; scheduled runs are about 12 hours apart.
+GC_GRACE_SECONDS = 3600
+# collect_garbage's bucket listing gives up after this long, and the run publishes without cleaning (listing the dev
+# bucket took more than 6 minutes on 2026-10-27; a listing that never ends must not hold the publication).
+GC_LIST_SECONDS = 900
 
 
 def fetch(url, data=None, timeout=30):
@@ -154,6 +167,18 @@ def encode(doc):
     raw = json.dumps(doc, separators=(',', ':'), allow_nan=False).encode()
     body = gzip.compress(raw, compresslevel=9, mtime=0)
     return body, hashlib.sha256(body).hexdigest()
+
+
+def content_key(family, ticker, name, sha):
+    """`price/BBCA/2026.<sha256>.json.gz`: the file's name, then the sha256 of its gzip bytes (ERRORS M250)."""
+    return f'{family}/{ticker}/{name}.{sha}.json.gz'
+
+
+def named_keys(manifest):
+    """Every object key (without v1/) a manifest names: its dataset files and its packs."""
+    entries = [f for ds in (manifest or {}).get('datasets', {}).values() for f in ds.get('files', {}).values()]
+    entries += list((manifest or {}).get('packs', {}).values())
+    return {e['key'][len(PREFIX) + 1:] for e in entries if str(e.get('key', '')).startswith(f'{PREFIX}/')}
 
 
 def price_doc(ticker, year, rows):
@@ -301,6 +326,27 @@ class Bucket:
         self.s3.put_object(Bucket=self.name, Key=f'{PREFIX}/{key}', Body=body, ContentType=content_type,
                            CacheControl='private, max-age=0' if key.endswith('.json') else 'private, max-age=31536000')
 
+    def list(self, deadline=None):
+        """Every object under v1/: {key without the prefix: (last modified, bytes)}; TimeoutError past `deadline`
+        (time.monotonic())."""
+        out = {}
+        for page in self.s3.get_paginator('list_objects_v2').paginate(Bucket=self.name, Prefix=f'{PREFIX}/'):
+            if deadline is not None and time.monotonic() > deadline:
+                raise TimeoutError('bucket listing took too long')
+            for o in page.get('Contents', []):
+                out[o['Key'][len(PREFIX) + 1:]] = (o['LastModified'], o['Size'])
+        return out
+
+    def delete(self, keys):
+        """Delete keys (without the prefix), 1000 per request; returns the keys the bucket did not delete."""
+        failed = []
+        for i in range(0, len(keys), 1000):
+            batch = keys[i:i + 1000]
+            answer = self.s3.delete_objects(Bucket=self.name, Delete={
+                'Objects': [{'Key': f'{PREFIX}/{k}'} for k in batch], 'Quiet': True})
+            failed += [e['Key'][len(PREFIX) + 1:] for e in answer.get('Errors', [])]
+        return failed
+
     def get_raw(self, key):
         try:
             return self.s3.get_object(Bucket=self.name, Key=f'{PREFIX}/{key}')['Body'].read()
@@ -315,9 +361,10 @@ class Bucket:
 
 
 class Publisher:
-    def __init__(self, conn, bucket, today=None, get=None):
+    def __init__(self, conn, bucket, today=None, get=None, clock=None):
         self.conn, self.bucket = conn, bucket
         self.get = get or fetch                                  # HTTP for the logo sources (tests pass a fake)
+        self.clock = clock or (lambda: dt.datetime.now(dt.timezone.utc))   # collect_garbage's grace (tests pass a fake)
         # first_year/last_year: the broker window (TERMINAL_YEARS). Price is small (~2 KB per ticker-year) and is
         # published from its first stored year, so browser indicators start where Feature 04 does (user 2026-10-25).
         self.first_year, self.last_year = window(today)
@@ -350,6 +397,18 @@ class Publisher:
         self.bucket.put(f'manifest/{ticker}.json', json.dumps(m, separators=(',', ':')).encode(), 'application/json')
 
     # ---- one file --------------------------------------------------------------------------------------------
+    def store(self, entry, family, ticker, name, body, sha):
+        """Upload a data file or pack under its content key unless its manifest entry already names these bytes; returns
+        the new key (with v1/), or None when the entry's object stays (an object is never written with other bytes,
+        ERRORS M250)."""
+        if entry.get('sha256') == sha and entry.get('key'):
+            return None
+        key = content_key(family, ticker, name, sha)
+        self.bucket.put(key, body, 'application/gzip')
+        self.written += 1
+        self.bytes += len(body)
+        return f'{PREFIX}/{key}'
+
     def publish(self, dataset, ticker, year, stamp=None):
         if dataset == 'events':
             rows = event_rows(self.conn.execute(EVENTS_SQL, (ticker,)).fetchall())
@@ -364,13 +423,10 @@ class Publisher:
         doc = (price_doc(ticker, year, rows) if dataset == 'price' else broker_doc(ticker, year, rows)
                if dataset == 'broker' else events_doc(ticker, rows))
         body, sha = encode(doc)
-        key = f'{dataset}/{ticker}/{year}.json.gz'
-        if files.get(str(year), {}).get('sha256') != sha:
-            self.bucket.put(key, body, 'application/gzip')
-            self.written += 1
-            self.bytes += len(body)
+        key = self.store(files.get(str(year), {}), dataset, ticker, year, body, sha)
+        if key:
             self.changed.add((dataset, ticker, year))
-        files[str(year)] = {'key': f'{PREFIX}/{key}', 'sha256': sha, 'bytes': len(body), 'rows': len(rows),
+        files[str(year)] = {'key': key or files[str(year)]['key'], 'sha256': sha, 'bytes': len(body), 'rows': len(rows),
                             'first': rows[0][0], 'last': rows[-1][0],
                             'stamp': stamp or f'rows={len(rows)};last={rows[-1][0]}'}
         return rows[-1][0]
@@ -383,13 +439,10 @@ class Publisher:
                 self.changed.add(('pack', ticker, name))
             return
         body, sha = encode(doc)
-        key = f'pack/{ticker}/{name}.json.gz'
-        if packs.get(name, {}).get('sha256') != sha:
-            self.bucket.put(key, body, 'application/gzip')
-            self.written += 1
-            self.bytes += len(body)
+        key = self.store(packs.get(name, {}), 'pack', ticker, name, body, sha)
+        if key:
             self.changed.add(('pack', ticker, name))
-        packs[name] = {'key': f'{PREFIX}/{key}', 'sha256': sha, 'bytes': len(body), 'rows': len(rows),
+        packs[name] = {'key': key or packs[name]['key'], 'sha256': sha, 'bytes': len(body), 'rows': len(rows),
                        'first': rows[0][0], 'last': rows[-1][0], **(extra or {})}
 
     def publish_packs(self, ticker, typ, force=False):
@@ -521,6 +574,8 @@ class Publisher:
             raise SystemExit(f'unknown mode {mode}')
         log('plan', mode=mode, files=len(todo), window=[self.first_year, self.last_year],
             price_first_year=self.price_first_year, broker_first_year=self.broker_first_year, data_through=through)
+        if mode == 'daily':
+            self.collect_garbage()                                # before the first write of this run (ERRORS M250)
         touched = set()
         for n, (dataset, ticker, year, stamp) in enumerate(todo, 1):
             self.publish(dataset, ticker, year, stamp)
@@ -554,6 +609,59 @@ class Publisher:
             'finished_at': dt.datetime.now(dt.timezone.utc).isoformat()}).encode(), 'application/json')
         log('done', mode=mode, files_planned=len(todo), files_written=self.written, mb=round(self.bytes / 1e6, 2),
             tickers=len(touched), seconds=round(time.monotonic() - started, 1), broker_behind_sessions=self.broker_behind)
+
+    def collect_garbage(self):
+        """ERRORS M250 (user 2026-10-27, option A of 3): delete the data files and packs no manifest names any more, once
+        no reader can still use them. It runs in a daily run before the run writes anything, so the manifests it reads
+        are the ones terminal-api serves (its cache follows state.json finished_at, bucket.py _fresh). An object is
+        deleted only when all of these hold:
+          - its key is <family>/<ticker>/<file>, the family being one that the manifests name (derived from them, so a
+            new dataset is covered), and the ticker has a manifest that names at least one file but not this one;
+          - that manifest and the object were written no later than state.json, the last finished run: a manifest
+            written after it comes from a run that did not finish, and terminal-api may still serve the one before it;
+            an object written after it may belong to such a run;
+          - the last finished run ended at least GC_GRACE_SECONDS ago.
+        A listing longer than GC_LIST_SECONDS is abandoned and nothing is deleted.
+        Manifests, reference files, logos and state.json are never deleted. A failure is logged; the run goes on."""
+        try:
+            started = time.monotonic()
+            listing = self.bucket.list(deadline=started + GC_LIST_SECONDS)
+            finished = (listing.get('state.json') or (None,))[0]
+            if finished is None:
+                log('gc_skipped', reason='no finished run (state.json)'); return 0
+            age = (self.clock() - finished).total_seconds()
+            if age < GC_GRACE_SECONDS:
+                log('gc_skipped', reason='the last run finished too recently', seconds=round(age), grace=GC_GRACE_SECONDS)
+                return 0
+            named, skipped = {}, 0
+            for key, (at, _) in listing.items():
+                if not (key.startswith('manifest/') and key.endswith('.json')):
+                    continue
+                ticker = key[len('manifest/'):-len('.json')]
+                keys = named_keys(self.manifests.get(ticker) or self.bucket.get_json(key))
+                if not keys or at > finished:
+                    skipped += 1                                  # unread, empty, or written by a run that did not finish
+                    continue
+                named[ticker] = keys
+            families = {k.split('/', 1)[0] for keys in named.values() for k in keys}
+            doomed, freed, newer = [], 0, 0
+            for key, (at, size) in listing.items():
+                parts = key.split('/')
+                if len(parts) != 3 or parts[0] not in families or parts[1] not in named or key in named[parts[1]]:
+                    continue
+                if at > finished:
+                    newer += 1
+                    continue
+                doomed.append(key)
+                freed += size
+            failed = self.bucket.delete(sorted(doomed)) if doomed else []
+            log('gc', deleted=len(doomed) - len(failed), not_deleted=len(failed), mb=round(freed / 1e6, 1),
+                kept_newer_than_last_run=newer, tickers_skipped=skipped, families=sorted(families),
+                objects_listed=len(listing), last_run_finished=finished, seconds=round(time.monotonic() - started, 1))
+            return len(doomed) - len(failed)
+        except Exception as e:  # noqa: BLE001 - the cleanup never stops a publication; the class only, no detail
+            log('gc_failed', error=type(e).__name__)
+            return 0
 
     def changed_events(self, kind, force=False):
         """Tickers whose event rows changed (count, last date, last ingestion), or every ticker with events."""
