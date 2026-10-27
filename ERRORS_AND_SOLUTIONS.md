@@ -2657,19 +2657,42 @@ change yet.
   dengan cara yang sama) dan semua pembaca terminal-api (worker backtest: katalog, pratinjau, run; halaman backtest;
   halaman Terminal; pembaca berikutnya), dua kali sehari selama run publisher (hari ini sekitar 58 menit, 19:05–20:03
   WIB). Tidak berlaku untuk file referensi (`ref/*`): terminal-api tidak memberi sha256 untuknya.
-- **Solution (PROPOSED, menunggu keputusan user):** di lapisan pemilik mekanisme, tata letak objek publisher: kunci file
-  data dan pack memuat hash isinya (mis. `pack/{ticker}/price.{sha256 16 karakter}.json.gz`), jadi objek tidak pernah
-  berubah. File baru ditulis di kunci baru, manifest memindahkan pembaca, dan objek lama tetap terbaca oleh manifest lama
-  di cache dan URL yang masih hidup. Objek yang tidak lagi dirujuk manifest dihapus pada run berikutnya (jauh di atas
-  cache 60 s dan umur URL `url_ttl_seconds` 120 s); daftarnya diturunkan dari isi bucket dibanding manifest, bukan
-  daftar tetap. terminal-api dan pembaca tidak berubah, karena mereka memakai `key` dan sha256 dari manifest.
-- **Not covered:** jawaban `/bundle` yang dipegang klien lebih dari umur URL-nya tetap 403 (sudah ditangani: worker dan
-  halaman meminta jawaban baru); data di bucket tetap baru setelah publisher menulisnya, jadi pembaca bisa melihat
-  manifest lama sampai run selesai (sesuai desain cache).
-- **Status:** OPEN. User 2026-10-27 13:27 UTC memilih A dari 3 pilihan: "Ya, PR terpisah setelah PR backtest" (kunci
-  berisi hash isi, file lama tidak ditimpa, file basi dihapus pada run berikutnya; diuji di dev pada run 07:30 WIB).
-  Sementara (TEMPORARY): E2E dan pengukuran backtest dijalankan di luar run publisher. Pengguna yang menjalankan
-  backtest selama run tetap mendapat `DATA_INTEGRITY` untuk ticker yang berubah, sampai PR publisher masuk.
+- **Solution (IMPLEMENTED 2026-10-27, user pilihan A dari 3):** di lapisan pemilik mekanisme, tata letak objek
+  publisher (`apps/terminal-publisher/publisher.py`). (1) `content_key` / `store`: file data dan pack ditulis di
+  `{family}/{ticker}/{name}.{sha256 penuh}.json.gz`; file yang berubah adalah objek baru, objek tidak pernah ditulis
+  ulang dengan byte lain. Entri yang sha256-nya tidak berubah memakai kunci yang sudah ada (termasuk kunci tetap lama),
+  jadi tidak ada upload ulang massal. (2) `collect_garbage`, hanya mode `daily`, sebelum tulis pertama: daftar isi
+  bucket dibanding kunci yang dinamai manifest; dihapus hanya objek `<family>/<ticker>/<file>` dengan family yang
+  dinamai manifest (diturunkan, jadi dataset baru tercakup), ticker punya manifest yang menamai file tetapi tidak
+  objek ini, manifest dan objek tidak lebih baru dari `state.json` (run selesai terakhir), dan run itu selesai minimal
+  `GC_GRACE_SECONDS` (3600 s; > cache 60 s + URL 120 s + unduhan). Listing > `GC_LIST_SECONDS` (900 s) dibatalkan;
+  kegagalan dicatat `gc_failed` (kelas saja) dan run tetap jalan. terminal-api dan pembaca tidak berubah: mereka memakai
+  `key` dan sha256 dari manifest (dicek: tidak ada pembaca yang menyusun kunci sendiri; `verification/terminal_api/
+  integrity_check.py` diubah membaca kunci dari manifest).
+- **Covers:** semua dataset dan pack, dataset baru dengan pola manifest yang sama, semua pembaca terminal-api (worker,
+  halaman backtest, halaman Terminal). Tes: `tests/test_publisher.py` (format kunci = sha256 byte; byte yang dinamai
+  manifest lama tidak berubah selama run berikutnya untuk tiap family; kunci tetap lama dipertahankan lalu dipensiunkan;
+  grace; manifest lebih baru dari state; objek lebih baru; ticker tanpa manifest; logo/ref/family lain tidak disentuh;
+  family dari manifest; hanya mode daily; hapus gagal; listing kelewat batas). Cabang Screener (EXEC-SCREENER, user
+  2026-10-28 memilih A: commit PR #41 di-cherry-pick ke cabang Screener): file lintas-saham `xsection/` memakai
+  mekanisme yang sama, bukan mekanisme kedua: `content_key('xsection', None, name, sha)` =
+  `xsection/<name>.<16 hex pertama sha256>.json.gz` (bentuk yang diterima `xsection_index` terminal-api), `store`
+  (dengan listing `xsection/` sesudah cleanup: objek yang diindeks tetapi hilang ditulis lagi dengan byte yang sama), dan
+  `collect_garbage` dengan indeks `xsection` di `state.json` sebagai manifestnya (dihapus hanya kunci berbentuk itu yang
+  tidak dinamai indeks run selesai terakhir, indeks itu menamai minimal satu file, objek tidak lebih baru dari
+  `state.json`, grace sama). Pack harga yang diperbaiki dari irisan `price` juga lewat `store`, jadi tidak lagi ditimpa
+  di kunci tetap. Pruning xsection sesudah `state.json` (rancangan awal Screener) dihapus: tidak ada tulis atau hapus
+  sesudah `state.json`. Tes tambahan: grace untuk dua run berdekatan, objek xsection lebih baru/kunci lain/tanpa indeks
+  tidak dihapus, isi yang kembali ke objek yang baru dihapus ditulis lagi.
+- **Not covered:** logo (`logo/{ticker}.*`) dan `ref/*` tetap kunci tetap: tidak ada pembaca yang mencocokkan byte-nya
+  dengan manifest, jadi bukan kelas ini. Jawaban `/bundle` yang dipegang klien lebih dari umur URL-nya tetap 403 (sudah
+  ditangani pembaca). Dua run publisher bersamaan tidak dikunci (sudah begitu sebelumnya); cleanup aman karena objek
+  dan manifest yang lebih baru dari `state.json` tidak disentuh. Izin hapus bucket dan lama listing di dev belum diukur
+  (uji dihentikan atas permintaan user; listing > 6 menit belum selesai): diverifikasi oleh run terjadwal pertama.
+- **Status:** FIXED in code, VERIFY PENDING. User 2026-10-27 14:40 UTC: "Diuji dev pada run 7.30 besok". Cek pada run
+  00:30 UTC 2026-10-28: log `gc` atau `gc_skipped`/`gc_failed`, objek baru berkunci sha256, tidak ada `DATA_INTEGRITY`.
+  Run pertama hanya menulis kunci baru untuk file yang berubah; file lama berkunci tetap dihapus pada run daily
+  berikutnya setelah grace. TEMPORARY sampai terverifikasi: E2E dan pengukuran backtest tetap di luar run publisher.
 - **Lesson for new data:** objek yang dirujuk metadata (sha256, ukuran) tidak ditimpa di kunci yang sama; kunci yang
   memuat hash isinya membuat setiap cache metadata aman.
 

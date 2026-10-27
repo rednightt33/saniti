@@ -5,7 +5,9 @@ terminal-display. Browsers download them through presigned URLs issued by termin
 
 Modes (TERMINAL_PUBLISH_MODE, or the first argument):
   daily         price: every ticker-year whose source stamp changed; broker: the ticker-years of trading dates newer
-                than the published data_through. Reference files are refreshed. Run after the price cron.
+                than the published data_through. Reference files are refreshed. Run after the price cron. Before it
+                writes, the files no manifest or state.json index names any more are deleted (collect_garbage,
+                ERRORS M250).
   backfill      every ticker-year of the window (initial load or a schema change).
   broker-range  TERMINAL_FROM, TERMINAL_TO [, TERMINAL_TICKERS=A,B]: republish broker files after a manual
                 refresh_feature_05 of that range (the same arguments).
@@ -23,31 +25,35 @@ service with a cronSchedule does not run when deployed: for a manual run clear t
 cronSchedule back after the run.
 Price and broker are published from their first stored year (broker: T8, user 2026-10-26).
 
-Objects (all under v1/):
-  price/{ticker}/{year}.json.gz    columns d,o,h,l,c,v (v null for an index without volume)
-  broker/{ticker}/{year}.json.gz   columns d,b,i,m,bv,sv,bl,sl; gap = [[date, board], ...] (ERRORS M157)
-  events/{ticker}/all.json.gz      corporate actions and insider transactions of idx_event_annotation, all dates
+Objects (all under v1/; <sha> is the sha256 of the object's gzip bytes, ERRORS M250):
+  price/{ticker}/{year}.<sha>.json.gz    columns d,o,h,l,c,v (v null for an index without volume)
+  broker/{ticker}/{year}.<sha>.json.gz   columns d,b,i,m,bv,sv,bl,sl; gap = [[date, board], ...] (ERRORS M157)
+  events/{ticker}/all.<sha>.json.gz      corporate actions and insider transactions of idx_event_annotation, all dates
                                    (one file per ticker, file id "all"); republished when the ticker's rows change
   manifest/{ticker}.json           per dataset: data_through and, per year, key, sha256, bytes, rows, first, last, stamp
   ref/tickers.json.gz, ref/brokers.json.gz, state.json
   logo/{ticker}.png|svg            the ticker's logo: Stockbit's PNG, else TradingView's SVG (scanner `logoid`)
   ref/logos.json.gz                columns ticker, file, sha256, source, fetched_at (tickers without a logo are absent)
-  pack/{ticker}/price.json.gz      every price year in one file (the chart's only download)
-  pack/{ticker}/broker-archive.json.gz   broker rows of every year before the last two (the last two stay yearly files)
-  xsection/{name}.{sha16}.json.gz   cross-sectional files for the screener-worker (EXEC-SCREENER, P1 a, user
+  pack/{ticker}/price.<sha>.json.gz      every price year in one file (the chart's only download)
+  pack/{ticker}/broker-archive.<sha>.json.gz   broker rows of every year before the last two (the last two stay yearly)
+  xsection/{name}.<sha16>.json.gz  cross-sectional files for the screener-worker (EXEC-SCREENER, P1 a, user
                                    2026-10-28): `price` (every published ticker's final daily rows from its first year,
                                    one columnar file; each ticker's slice equals its price pack) and `actions` (the
-                                   corporate actions on their ex dates: share-count changes and cash dividends). The
-                                   key carries the first 16 hex of the file's sha256, so an object is never overwritten
-                                   (ERRORS M250, fix A); state.json `xsection` = {name: {key, sha256, bytes, rows, as_of}}
+                                   corporate actions on their ex dates: share-count changes and cash dividends). <sha16>
+                                   is the first 16 hex of the sha256 (the form terminal-api accepts); state.json
+                                   `xsection` = {name: {key, sha256, bytes, rows, as_of}} is their manifest
 EXEC-TERMINAL-SPEED (user 2026-10-26): a ticker is five objects for the page instead of 21 (ERRORS M240: the bucket's
 cost is per object, ~0.8 s each, HTTP/1.1); the packs are listed in manifest `packs` with their sha256.
-Data files are written before the manifest that names them, so a reader never sees a manifest pointing at a file that
-is not there yet; the xsection files are written before the state.json that indexes them, and an xsection object is
-deleted only when neither the new index nor the previous one names it (a reader holding the previous index keeps its
-files until the run after the next one). A failed xsection file keeps its previous index entry, the rest of the run
-(the Terminal's and the Backtest's files, state.json) goes on, and the run exits 3. The universe and the changes are
-derived from the database at run time; no ticker list is coded.
+Data files are written before the manifest that names them, and the xsection files before the state.json that indexes
+them, so a reader never sees a manifest or an index pointing at a file that is not there yet. A changed data file, pack
+or xsection file is a new object (its key carries its sha256) and an object is never written again with other bytes,
+so the bytes a manifest or index that terminal-api still serves names stay readable during a run (ERRORS M250, user
+2026-10-27; content_key, store). Files written before content keys keep their fixed key until their bytes change. A
+daily run deletes, before it writes anything, the data files no manifest names any more and the xsection files the
+state.json index no longer names, once no reader can still use them (collect_garbage). Manifests, reference files,
+logos and state.json keep fixed keys: readers open them by name. A failed xsection file keeps its previous index entry,
+the rest of the run (the Terminal's and the Backtest's files, state.json) goes on, and the run exits 3. The universe
+and the changes are derived from the database at run time; no ticker list is coded.
 """
 import datetime as dt
 import gzip
@@ -144,6 +150,13 @@ TRADINGVIEW_SCAN = 'https://scanner.tradingview.com/indonesia/scan'
 TRADINGVIEW_LOGO = 'https://s3-symbol-logos.tradingview.com/{logoid}--big.svg'
 LOGO_MAX_AGE_DAYS = 7
 LOGO_MAX_BYTES = 200_000
+# ERRORS M250: how long after the last finished run (state.json) collect_garbage waits before it deletes. It must exceed
+# terminal-api's manifest cache check (manifest_cache_seconds, 60 s), the presigned URL lifetime (terminal.quota
+# url_ttl_seconds, 120 s) and a download started on such a URL; scheduled runs are about 12 hours apart.
+GC_GRACE_SECONDS = 3600
+# collect_garbage's bucket listing gives up after this long, and the run publishes without cleaning (listing the dev
+# bucket took more than 6 minutes on 2026-10-27; a listing that never ends must not hold the publication).
+GC_LIST_SECONDS = 900
 
 
 def fetch(url, data=None, timeout=30):
@@ -195,6 +208,22 @@ def encode(doc):
     raw = json.dumps(doc, separators=(',', ':'), allow_nan=False).encode()
     body = gzip.compress(raw, compresslevel=9, mtime=0)
     return body, hashlib.sha256(body).hexdigest()
+
+
+def content_key(family, ticker, name, sha):
+    """`price/BBCA/2026.<sha256>.json.gz`: the file's name, then the sha256 of its gzip bytes (ERRORS M250). A family
+    without tickers (ticker None: xsection, EXEC-SCREENER) is `xsection/price.<first 16 hex>.json.gz`, the form
+    terminal-api's xsection_index accepts (XSECTION_KEY); its state.json index entry carries the whole sha256."""
+    if ticker is None:
+        return f'{family}/{name}.{sha[:16]}.json.gz'
+    return f'{family}/{ticker}/{name}.{sha}.json.gz'
+
+
+def named_keys(manifest):
+    """Every object key (without v1/) a manifest names: its dataset files and its packs."""
+    entries = [f for ds in (manifest or {}).get('datasets', {}).values() for f in ds.get('files', {}).values()]
+    entries += list((manifest or {}).get('packs', {}).values())
+    return {e['key'][len(PREFIX) + 1:] for e in entries if str(e.get('key', '')).startswith(f'{PREFIX}/')}
 
 
 def price_doc(ticker, year, rows):
@@ -348,7 +377,7 @@ def xsection_price_doc(columns, tickers):
             'means': {'t': 'ticker; rows ordered by ticker (code point order), then date',
                       'v': 'null for an index without volume',
                       'tickers': '[{t, pack_sha256, first, last, rows}] in file order: a ticker\'s slice is the rows of '
-                                 'its price pack (pack/{t}/price.json.gz), whose sha256 is pack_sha256'},
+                                 'its price pack (manifest packs.price), whose sha256 is pack_sha256'},
             'columns': PRICE_XSECTION_COLUMNS, **columns, 'tickers': tickers}
 
 
@@ -401,9 +430,9 @@ def _count(v, least):
 def xsection_entries(raw):
     """The usable entries of a state.json `xsection` index: {name: {key, sha256, bytes, rows, as_of}} whose key is the
     xsection object of that name named by the first 16 hex of its sha256 (64 lowercase hex), with whole bytes >= 1 and
-    rows >= 0. This is exactly what terminal-api's xsection_index serves (a test holds the two equal), so the previous
-    index the pruning protects is the one terminal-api may still serve. Anything else is dropped: neither carried
-    forward nor protected."""
+    rows >= 0. This is exactly what terminal-api's xsection_index serves (a test holds the two equal), so the index
+    collect_garbage protects is the one terminal-api serves. Anything else is dropped: neither carried forward nor
+    protected."""
     out = {}
     for name, e in (raw.items() if isinstance(raw, dict) else ()):
         key = e.get('key') if isinstance(e, dict) else None
@@ -433,6 +462,27 @@ class Bucket:
         self.s3.put_object(Bucket=self.name, Key=f'{PREFIX}/{key}', Body=body, ContentType=content_type,
                            CacheControl='private, max-age=0' if key.endswith('.json') else 'private, max-age=31536000')
 
+    def list(self, deadline=None, prefix=''):
+        """Every object under v1/{prefix}: {key without v1/: (last modified, bytes)}; TimeoutError past `deadline`
+        (time.monotonic())."""
+        out = {}
+        for page in self.s3.get_paginator('list_objects_v2').paginate(Bucket=self.name, Prefix=f'{PREFIX}/{prefix}'):
+            if deadline is not None and time.monotonic() > deadline:
+                raise TimeoutError('bucket listing took too long')
+            for o in page.get('Contents', []):
+                out[o['Key'][len(PREFIX) + 1:]] = (o['LastModified'], o['Size'])
+        return out
+
+    def delete(self, keys):
+        """Delete keys (without the prefix), 1000 per request; returns the keys the bucket did not delete."""
+        failed = []
+        for i in range(0, len(keys), 1000):
+            batch = keys[i:i + 1000]
+            answer = self.s3.delete_objects(Bucket=self.name, Delete={
+                'Objects': [{'Key': f'{PREFIX}/{k}'} for k in batch], 'Quiet': True})
+            failed += [e['Key'][len(PREFIX) + 1:] for e in answer.get('Errors', [])]
+        return failed
+
     def get_raw(self, key):
         try:
             return self.s3.get_object(Bucket=self.name, Key=f'{PREFIX}/{key}')['Body'].read()
@@ -445,24 +495,12 @@ class Bucket:
             return None
         return json.loads(gzip.decompress(body) if key.endswith('.gz') else body)
 
-    def keys(self, prefix):
-        """Every key under v1/{prefix}, without v1/ (EXEC-SCREENER: the xsection objects pruning looks at)."""
-        out, kw = [], {'Bucket': self.name, 'Prefix': f'{PREFIX}/{prefix}'}
-        while True:
-            page = self.s3.list_objects_v2(**kw)
-            out += [o['Key'][len(PREFIX) + 1:] for o in page.get('Contents', [])]
-            if not page.get('IsTruncated'):
-                return out
-            kw['ContinuationToken'] = page['NextContinuationToken']
-
-    def delete(self, key):
-        self.s3.delete_object(Bucket=self.name, Key=f'{PREFIX}/{key}')
-
 
 class Publisher:
-    def __init__(self, conn, bucket, today=None, get=None):
+    def __init__(self, conn, bucket, today=None, get=None, clock=None):
         self.conn, self.bucket = conn, bucket
         self.get = get or fetch                                  # HTTP for the logo sources (tests pass a fake)
+        self.clock = clock or (lambda: dt.datetime.now(dt.timezone.utc))   # collect_garbage's grace (tests pass a fake)
         # first_year/last_year: the broker window (TERMINAL_YEARS). Price is small (~2 KB per ticker-year) and is
         # published from its first stored year, so browser indicators start where Feature 04 does (user 2026-10-25).
         self.first_year, self.last_year = window(today)
@@ -497,6 +535,22 @@ class Publisher:
         self.bucket.put(f'manifest/{ticker}.json', json.dumps(m, separators=(',', ':')).encode(), 'application/json')
 
     # ---- one file --------------------------------------------------------------------------------------------
+    def store(self, entry, family, ticker, name, body, sha, present=None):
+        """Upload a data file, pack or xsection file under its content key unless its manifest entry (xsection: its
+        state.json index entry) already names these bytes. -> (key with v1/, uploaded). An object is never written with
+        other bytes (ERRORS M250). `present` (xsection: the keys a listing of the bucket holds) also puts an object its
+        entry names but the bucket lacks again, with the same bytes, and does not put a key the bucket already holds."""
+        named = entry.get('key') if entry.get('sha256') == sha else None
+        if named and (present is None or named[len(PREFIX) + 1:] in present):
+            return named, False
+        key = content_key(family, ticker, name, sha)
+        if present is not None and key in present:
+            return f'{PREFIX}/{key}', False
+        self.bucket.put(key, body, 'application/gzip')
+        self.written += 1
+        self.bytes += len(body)
+        return f'{PREFIX}/{key}', True
+
     def publish(self, dataset, ticker, year, stamp=None):
         if dataset == 'events':
             rows = event_rows(self.conn.execute(EVENTS_SQL, (ticker,)).fetchall())
@@ -511,13 +565,10 @@ class Publisher:
         doc = (price_doc(ticker, year, rows) if dataset == 'price' else broker_doc(ticker, year, rows)
                if dataset == 'broker' else events_doc(ticker, rows))
         body, sha = encode(doc)
-        key = f'{dataset}/{ticker}/{year}.json.gz'
-        if files.get(str(year), {}).get('sha256') != sha:
-            self.bucket.put(key, body, 'application/gzip')
-            self.written += 1
-            self.bytes += len(body)
+        key, uploaded = self.store(files.get(str(year), {}), dataset, ticker, year, body, sha)
+        if uploaded:
             self.changed.add((dataset, ticker, year))
-        files[str(year)] = {'key': f'{PREFIX}/{key}', 'sha256': sha, 'bytes': len(body), 'rows': len(rows),
+        files[str(year)] = {'key': key, 'sha256': sha, 'bytes': len(body), 'rows': len(rows),
                             'first': rows[0][0], 'last': rows[-1][0],
                             'stamp': stamp or f'rows={len(rows)};last={rows[-1][0]}'}
         return rows[-1][0]
@@ -530,13 +581,10 @@ class Publisher:
                 self.changed.add(('pack', ticker, name))
             return
         body, sha = encoded or encode(doc)
-        key = f'pack/{ticker}/{name}.json.gz'
-        if packs.get(name, {}).get('sha256') != sha:
-            self.bucket.put(key, body, 'application/gzip')
-            self.written += 1
-            self.bytes += len(body)
+        key, uploaded = self.store(packs.get(name, {}), 'pack', ticker, name, body, sha)
+        if uploaded:
             self.changed.add(('pack', ticker, name))
-        packs[name] = {'key': f'{PREFIX}/{key}', 'sha256': sha, 'bytes': len(body), 'rows': len(rows),
+        packs[name] = {'key': key, 'sha256': sha, 'bytes': len(body), 'rows': len(rows),
                        'first': rows[0][0], 'last': rows[-1][0], **(extra or {})}
 
     def publish_packs(self, ticker, typ, force=False):
@@ -599,9 +647,9 @@ class Publisher:
         rows, outside = read_actions(self.conn, kind, self.price_first_year)
         return xsection_actions_doc(rows), len(rows), events_through, {'outside_universe': outside}
 
-    def publish_xsection(self, name, kind, through, touched, present):
-        """Build one xsection file and upload it under its content-addressed key unless an object of that key is
-        already there (same key, same bytes: never overwritten). -> its index entry."""
+    def publish_xsection(self, name, kind, through, touched, previous, present):
+        """Build one xsection file and store it under its content key (`store`, as every data file and pack: an object
+        is never written with other bytes, ERRORS M250). -> its index entry."""
         started = time.monotonic()
         if name == 'price':
             doc, rows, as_of, info = self.xsection_price(kind, touched)
@@ -609,40 +657,19 @@ class Publisher:
             doc, rows, as_of, info = self.xsection_actions(kind, through['events'])
         body, sha = encode(doc)
         del doc
-        key = f'xsection/{name}.{sha[:16]}.json.gz'
-        uploaded = key not in present
-        if uploaded:
-            self.bucket.put(key, body, 'application/gzip')
-            self.written += 1
-            self.bytes += len(body)
-        log('xsection', name=name, key=f'{PREFIX}/{key}', rows=rows, bytes=len(body), uploaded=uploaded, as_of=as_of,
+        key, uploaded = self.store(previous.get(name, {}), 'xsection', None, name, body, sha, present)
+        log('xsection', name=name, key=key, rows=rows, bytes=len(body), uploaded=uploaded, as_of=as_of,
             seconds=round(time.monotonic() - started, 1), **info)
-        return {'key': f'{PREFIX}/{key}', 'sha256': sha, 'bytes': len(body), 'rows': rows, 'as_of': as_of}
+        return {'key': key, 'sha256': sha, 'bytes': len(body), 'rows': rows, 'as_of': as_of}
 
-    def xsection_listing(self):
-        """The keys under xsection/, or None when the bucket cannot list them (nothing is pruned then)."""
+    def xsection_present(self, previous):
+        """The keys under xsection/ (one listing, taken after collect_garbage), or, when the bucket cannot list them,
+        the keys of the previous index (`store` then trusts the index, as it trusts a manifest)."""
         try:
-            return set(self.bucket.keys('xsection/'))
-        except Exception as e:  # noqa: BLE001 - housekeeping only: the files are still written and indexed
+            return set(self.bucket.list(prefix='xsection/'))
+        except Exception as e:  # noqa: BLE001 - the files are still written and indexed; the class only
             log('xsection_list_failed', error=type(e).__name__)
-            return None
-
-    def prune_xsection(self, listing, index, previous):
-        """Delete the xsection objects that neither this run's index nor the previous one names (report 6.5): an object
-        goes on the run after the one that stopped naming it, so a reader holding the previous index keeps its file.
-        Only keys of the content-addressed form are deleted; anything else under xsection/ is left and logged."""
-        keep = {e['key'][len(PREFIX) + 1:] for e in (*index.values(), *previous.values())}
-        stale = sorted(k for k in listing - keep if XSECTION_KEY.fullmatch(k))
-        other = sorted(k for k in listing - keep if not XSECTION_KEY.fullmatch(k))
-        deleted = 0
-        try:
-            for key in stale:
-                self.bucket.delete(key)
-                deleted += 1
-        except Exception as e:  # noqa: BLE001 - the next run that rebuilds a file tries again
-            log('xsection_prune_failed', error=type(e).__name__, deleted=deleted, left=len(stale) - deleted)
-            return
-        log('xsection_pruned', deleted=deleted, kept=sorted(keep), not_xsection_files=other[:20])
+            return {x['key'][len(PREFIX) + 1:] for x in previous.values()}
 
     # ---- reference files and universe ------------------------------------------------------------------------
     def universe(self):
@@ -754,6 +781,9 @@ class Publisher:
             raise SystemExit(f'unknown mode {mode}')
         log('plan', mode=mode, files=len(todo), window=[self.first_year, self.last_year],
             price_first_year=self.price_first_year, broker_first_year=self.broker_first_year, data_through=through)
+        previous = xsection_entries(state.get('xsection'))        # the index terminal-api serves (EXEC-SCREENER)
+        if mode == 'daily':
+            self.collect_garbage(previous)                        # before the first write of this run (ERRORS M250)
         touched = set()
         for n, (dataset, ticker, year, stamp) in enumerate(todo, 1):
             self.publish(dataset, ticker, year, stamp)
@@ -770,16 +800,14 @@ class Publisher:
         # EXEC-SCREENER: the xsection files after the files and packs (a pack the price file finds stale is republished
         # here, so its manifest is saved below) and before state.json, which indexes them. A file whose rebuild fails
         # keeps its previous entry; the Terminal's and the Backtest's publication goes on.
-        previous = xsection_entries(state.get('xsection'))
         self.xsection, self.xsection_failed = dict(previous), []
         rebuilt = [name for name, modes in XSECTION_REBUILT_BY.items() if mode in modes]
-        listing = self.xsection_listing() if rebuilt else None
-        # a key is not put again when the bucket holds it; an indexed object the listing lacks (deleted by hand) is put
-        # again, the same bytes. Without a listing the previous index stands in for it.
-        present = listing if listing is not None else {e['key'][len(PREFIX) + 1:] for e in previous.values()}
+        # a key the bucket holds is not put again; an indexed object the listing lacks (deleted by hand) is put again,
+        # the same bytes. The listing comes after collect_garbage, so it never names an object this run deleted.
+        present = self.xsection_present(previous) if rebuilt else None
         for name in rebuilt:
             try:
-                self.xsection[name] = self.publish_xsection(name, kind, through, touched, present)
+                self.xsection[name] = self.publish_xsection(name, kind, through, touched, previous, present)
             except Exception as e:  # noqa: BLE001 - the class only: a driver error may carry connection details
                 self.xsection_failed.append(name)
                 log('xsection_failed', name=name, error=type(e).__name__, kept=self.xsection.get(name, {}).get('key'))
@@ -801,11 +829,74 @@ class Publisher:
             'window': [self.first_year, self.last_year], 'price_first_year': self.price_first_year,
             'broker_first_year': self.broker_first_year, 'last_mode': mode, 'xsection': self.xsection,
             'finished_at': dt.datetime.now(dt.timezone.utc).isoformat()}).encode(), 'application/json')
-        if rebuilt and listing is not None:
-            self.prune_xsection(listing, self.xsection, previous)
         log('done', mode=mode, files_planned=len(todo), files_written=self.written, mb=round(self.bytes / 1e6, 2),
             tickers=len(touched), seconds=round(time.monotonic() - started, 1), broker_behind_sessions=self.broker_behind,
             xsection=sorted(self.xsection), xsection_failed=self.xsection_failed)
+
+    def collect_garbage(self, index=None):
+        """ERRORS M250 (user 2026-10-27, option A of 3): delete the data files and packs no manifest names any more, and
+        the xsection files the state.json index no longer names (EXEC-SCREENER: that index is their manifest), once no
+        reader can still use them. It runs in a daily run before the run writes anything, so the manifests and the
+        index it reads are the ones terminal-api serves (its cache follows state.json finished_at, bucket.py _fresh). An
+        object is deleted only when all of these hold:
+          - its key is <family>/<ticker>/<file>, the family being one that the manifests name (derived from them, so a
+            new dataset is covered), and the ticker has a manifest that names at least one file but not this one;
+            or its key is an xsection object (XSECTION_KEY: `xsection/<name>.<16 hex>.json.gz`, nothing else under
+            xsection/) and the xsection index of state.json names at least one file but not this one (`index`: that
+            index as xsection_entries keeps it, read from the bucket when not given; terminal-api presigns only what
+            it names; a state.json without an index, from a publisher before the xsection writer, deletes none);
+          - that manifest and the object were written no later than state.json, the last finished run: a manifest
+            written after it comes from a run that did not finish, and terminal-api may still serve the one before it;
+            an object written after it may belong to such a run;
+          - the last finished run ended at least GC_GRACE_SECONDS ago.
+        A listing longer than GC_LIST_SECONDS is abandoned and nothing is deleted.
+        Manifests, reference files, logos and state.json are never deleted. A failure is logged; the run goes on."""
+        try:
+            started = time.monotonic()
+            listing = self.bucket.list(deadline=started + GC_LIST_SECONDS)
+            finished = (listing.get('state.json') or (None,))[0]
+            if finished is None:
+                log('gc_skipped', reason='no finished run (state.json)'); return 0
+            age = (self.clock() - finished).total_seconds()
+            if age < GC_GRACE_SECONDS:
+                log('gc_skipped', reason='the last run finished too recently', seconds=round(age), grace=GC_GRACE_SECONDS)
+                return 0
+            named, skipped = {}, 0
+            for key, (at, _) in listing.items():
+                if not (key.startswith('manifest/') and key.endswith('.json')):
+                    continue
+                ticker = key[len('manifest/'):-len('.json')]
+                keys = named_keys(self.manifests.get(ticker) or self.bucket.get_json(key))
+                if not keys or at > finished:
+                    skipped += 1                                  # unread, empty, or written by a run that did not finish
+                    continue
+                named[ticker] = keys
+            families = {k.split('/', 1)[0] for keys in named.values() for k in keys}
+            if index is None:
+                index = xsection_entries((self.bucket.get_json('state.json') or {}).get('xsection'))
+            indexed = {e['key'][len(PREFIX) + 1:] for e in index.values()}
+            doomed, freed, newer = [], 0, 0
+            for key, (at, size) in listing.items():
+                parts = key.split('/')
+                if XSECTION_KEY.fullmatch(key):
+                    if not indexed or key in indexed:
+                        continue
+                elif len(parts) != 3 or parts[0] not in families or parts[1] not in named or key in named[parts[1]]:
+                    continue
+                if at > finished:
+                    newer += 1
+                    continue
+                doomed.append(key)
+                freed += size
+            failed = self.bucket.delete(sorted(doomed)) if doomed else []
+            log('gc', deleted=len(doomed) - len(failed), not_deleted=len(failed), mb=round(freed / 1e6, 1),
+                kept_newer_than_last_run=newer, tickers_skipped=skipped, families=sorted(families),
+                xsection_named=len(indexed), objects_listed=len(listing), last_run_finished=finished,
+                seconds=round(time.monotonic() - started, 1))
+            return len(doomed) - len(failed)
+        except Exception as e:  # noqa: BLE001 - the cleanup never stops a publication; the class only, no detail
+            log('gc_failed', error=type(e).__name__)
+            return 0
 
     def changed_events(self, kind, force=False):
         """Tickers whose event rows changed (count, last date, last ingestion), or every ticker with events."""

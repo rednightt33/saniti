@@ -231,8 +231,16 @@ def do_compare(work):
     # bucket keys vs manifests
     expected = {f['key'] for m in F['manifests'].values() for d in m['datasets'].values() for f in d['files'].values()}
     expected |= {f'{PREFIX}/manifest/{t}.json' for t in F['manifests']}
-    expected |= {f'{PREFIX}/ref/tickers.json.gz', f'{PREFIX}/ref/brokers.json.gz', f'{PREFIX}/state.json'}
-    cov += [['bucket_key_unreferenced', k] for k in sorted(set(F['bucket_keys']) - expected)]
+    expected |= {p['key'] for m in F['manifests'].values() for p in m.get('packs', {}).values()}
+    expected |= {f'{PREFIX}/ref/tickers.json.gz', f'{PREFIX}/ref/brokers.json.gz', f'{PREFIX}/ref/logos.json.gz',
+                 f'{PREFIX}/state.json'}
+    # EXEC-SCREENER: the cross-sectional files are named by the state.json `xsection` index, not by a manifest
+    expected |= {e['key'] for e in (F['state'].get('xsection') or {}).values() if isinstance(e, dict) and e.get('key')}
+    # logos are named by ref/logos.json.gz; a data file a newer manifest (or an xsection file a newer index) replaced
+    # stays until the publisher's next daily run deletes it (collect_garbage, ERRORS M250), so a few unreferenced keys
+    # right after a run are expected
+    cov += [['bucket_key_unreferenced', k] for k in sorted(set(F['bucket_keys']) - expected)
+            if not k.startswith(f'{PREFIX}/logo/')]
     cov += [['manifest_key_absent_in_bucket', k] for k in sorted(expected - set(F['bucket_keys']))]
     # aggregates
     nrows = {'price': 0, 'broker': 0}
@@ -336,7 +344,8 @@ def do_rows(work):
     res = {'broker': [], 'price': [], 'mismatches': [], 'rows_compared': 0}
 
     def fetch(ds, t, y):
-        body = s3.get_object(Bucket=name, Key=f'{PREFIX}/{ds}/{t}/{y}.json.gz')['Body'].read()
+        key = F['manifests'][t]['datasets'][ds]['files'][str(y)]['key']    # content keys (ERRORS M250): never built
+        body = s3.get_object(Bucket=name, Key=key)['Body'].read()
         return json.loads(gzip.decompress(body))
     t0 = time.time()
     for ds in ('price', 'broker'):

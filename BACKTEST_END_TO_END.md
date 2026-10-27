@@ -141,7 +141,8 @@ Facts that matter downstream:
 
 1. `universe()` reads the universe and builds `kind`, mapping each ticker to stock or index. `data_through()` gives the
    global newest date per dataset. `resolve_price_first_year()` derives the first stored year per dataset, today 2018
-   for price and 2016 for broker. `state.json` is read for `broker_through`.
+   for price and 2016 for broker. `state.json` is read for `broker_through` and its `xsection` index (the files of the
+   last finished run, `xsection_entries`).
 2. **Plan (mode `daily`).**
    - `changed_prices`: one `PRICE_STAMPS_SQL` row per ticker-year gives a stamp
      (`rows=…;last=…;ing=<max ingestion_time>;sum=<sum(close)>`). It is compared with the manifest entry's `stamp`.
@@ -149,7 +150,10 @@ Facts that matter downstream:
      of planning".
    - `changed_events`: the same idea per ticker, with `format=2;rows;last;ing`.
    - Broker: the ticker-years of trading dates newer than `state.json` `broker_through`.
-3. **One file (`publish`).** The steps are:
+3. **Cleanup (`collect_garbage`, mode `daily` only, before the first write).** The data files and packs no manifest
+   names any more, and the xsection files the `state.json` index no longer names, are deleted once the last finished
+   run is an hour old. One mechanism for every family; see section 4.3.
+4. **One file (`publish`).** The steps are:
    - SQL for the ticker-year;
    - build the document (`price_doc`, `broker_doc` or `events_doc`);
    - `encode`: compact JSON with `allow_nan=False`, then gzip level 9 with `mtime=0`. Equal rows give equal bytes,
@@ -157,15 +161,18 @@ Facts that matter downstream:
    - upload only when the sha256 differs from the manifest entry;
    - update the entry in memory.
 
-   A year that has no rows any more loses its manifest entry. The object is left in the bucket, because the publisher
-   never deletes a per-ticker file (it deletes only xsection objects no index names, step 8).
-4. **Packs (`publish_packs`, `put_pack`).**
+   A year that has no rows any more loses its manifest entry; the next daily run's cleanup deletes its object.
+   Each data file is written under a **content key**, `{family}/{T}/{name}.{sha256}.json.gz` (`content_key`, `store`):
+   a changed file is a new object, and an object is never written again with other bytes (ERRORS M250). An entry whose
+   sha256 is unchanged keeps the key it has, including a fixed key from before content keys. Packs (step 5) and the
+   xsection files (step 6) are stored through the same `store`.
+5. **Packs (`publish_packs`, `put_pack`).**
    - `pack/{T}/price` holds every price year. It is rebuilt when a price year changed or the pack is missing.
    - For stocks, `pack/{T}/broker-archive` holds the broker years up to `last_year - 2`. It is rebuilt when an archived
      year changed, the pack is missing, or its `years` span moved (year rollover). INFERENCE: the first run of a new
      year rebuilds every archive, about 300 MB.
    - Packs cut a stock from 21 objects to 5 for a reader (ERRORS M240: about 0.8 s per object over HTTP/1.1).
-5. **Cross-sectional files (`publish_xsection`; EXEC-SCREENER, P1 a, user 2026-10-28).** Whole-universe files for the
+6. **Cross-sectional files (`publish_xsection`; EXEC-SCREENER, P1 a, user 2026-10-28).** Whole-universe files for the
    screener-worker, one read per publication instead of one grant per ticker (`XSECTION_REBUILT_BY`: `daily`,
    `backfill` and `packs` rebuild both, `events` rebuilds `actions`, every other mode carries the previous
    `state.json` entries forward unchanged).
@@ -183,27 +190,24 @@ Facts that matter downstream:
      are left out (counted as `outside_universe`); a term of 0 (the source's "unknown") is published as null. Readers
      apply their own rules and windows: the screener's price-break rule takes `ADJUSTED_HISTORY_BOUNDARY` from the
      core.
-   - The key is `xsection/<name>.<first 16 hex of the sha256>.json.gz`. `encode` is deterministic, so unchanged rows
-     give the same key, and a key the bucket listing already holds is not put again: an object is never overwritten
-     (an indexed object missing from the listing is put again with the same bytes; without a listing the previous
-     index stands in for it).
+   - The file is stored through `store` like every data file and pack, under `content_key('xsection', None, name,
+     sha)` = `xsection/<name>.<first 16 hex of the sha256>.json.gz` (the form terminal-api's `xsection_index`
+     accepts; the index entry carries the whole sha256). `encode` is deterministic, so unchanged rows give the same key,
+     and a changed file is a new object: an object is never written again with other bytes (ERRORS M250). A listing of
+     `xsection/` (`xsection_present`, taken after the cleanup of step 3, so it never names an object this run deleted)
+     decides what is there: a key it holds is not put again, an indexed object it lacks (deleted by hand) is put again
+     with the same bytes, and without a listing the previous index stands in for it.
    - A file whose build fails (`xsection_failed`, the error class only) keeps its previous index entry; the rest of the
      run goes on, and the process exits 3 after `state.json`, so the Terminal and the Backtest are never held back by it.
    - Measured locally (PostgreSQL 16, 1.32 M synthetic rows, 845 tickers): `price` about 31 s per run (8 s for the 845
      pack encodes, 18 s for the gzip of its 72 MB of JSON), peak memory 361 MB for the whole daily run; `actions` under
      0.1 s. The dev numbers come with the first dev run (benchmark S15).
-6. **Manifests.** `save_manifest` writes the manifest of every touched ticker: `window`, per dataset `data_through` and
+7. **Manifests.** `save_manifest` writes the manifest of every touched ticker: `window`, per dataset `data_through` and
    `first_year`, and `generated_at`.
-7. **The rest.** `publish_refs` rewrites `ref/tickers.json.gz` and `ref/brokers.json.gz` on every run. Logos are
+8. **The rest.** `publish_refs` rewrites `ref/tickers.json.gz` and `ref/brokers.json.gz` on every run. Logos are
    refreshed in mode `logos`, or in `daily` when the logo index is more than 7 days old. **`state.json` is written
-   last**, with `finished_at` and the `xsection` index. terminal-api's manifest cache keys on that field (section 6.3).
-8. **Pruning** (`prune_xsection`, only in a run that rebuilt an xsection file, after `state.json`): the keys under
-   `xsection/` that neither the new index nor the previous one (the `state.json` the run started from) names are
-   deleted, so an object goes on the run after the one that stopped naming it, and a reader holding the previous index
-   keeps its files. Only keys of the content-addressed form are deleted; nothing else in the bucket is. A run that
-   cannot list the bucket deletes nothing (`xsection_list_failed`). Two runs minutes apart (a manual run right after a
-   scheduled one) shorten that grace to the time between them; a screener-worker refresh that then misses a file fails,
-   keeps its snapshot and retries on the new index.
+   last**, with `finished_at` and the `xsection` index; nothing is written or deleted after it. terminal-api's manifest
+   cache keys on `finished_at` (section 6.3).
 9. After the evening run, when broker data trails prices (`broker_behind_sessions` ≥ 1), `notify_broker_behind` asks
    telegram-monitor to send an alert (ERRORS M243).
 
@@ -223,24 +227,38 @@ Modes (`TERMINAL_PUBLISH_MODE` or `argv[1]`):
 
 - **Read-only.** Every statement is a SELECT, and the login is read-only. The two xsection statements are bounded
   (the published years; the corporate-action family, role and types) and were planned with EXPLAIN (ANALYZE, BUFFERS)
-  on dev (step 5).
+  on dev (step 6).
 - **No coded ticker list.** The universe comes from the database at run time, and so do the first years.
 - **Bytes are deterministic.** A daily run right after a backfill uploads nothing
   (`apps/terminal-publisher/tests/test_publisher.py`).
-- **Write order.** Data files, then packs, then the xsection files, then manifests, then reference files, then
-  `state.json`, then the pruning of xsection objects. A manifest therefore never names a new key that is not there yet,
-  and neither does the `state.json` xsection index.
-- **Not atomic.** A crash leaves the run half done. Restart is `NEVER`, so the next run is up to 12 hours later. An
-  xsection object written before a crash is named by no index until a run indexes the same content (same key, not put
-  again) or deletes it (step 8).
-- **OPEN: files overwritten in place (ERRORS M250).** A changed file is written again under its fixed key while
-  terminal-api still serves the old cached manifest until `state.json` changes at the very end of the run. During each
-  run, about 58 minutes twice a day, sha256-checking readers fail with `DATA_INTEGRITY` for the tickers that changed.
-  - The user chose the fix on 2026-10-27, in a separate publisher PR: content-addressed keys, with unreferenced files
-    deleted on a later run.
-  - The xsection files (step 5, EXEC-SCREENER) are the first files under that fix: their keys name their content and
-    are never overwritten, and the per-ticker files and packs above still are.
-  - TEMPORARY until then: dev end-to-end runs avoid 00:00–01:00 and 12:00–13:05 UTC.
+- **Write order.** In a daily run the cleanup first; then data files, packs, the xsection files, manifests, reference
+  files and `state.json`. A manifest therefore never names a new key that is not there yet, and neither does the
+  `state.json` xsection index; nothing is written or deleted after `state.json`.
+- **Not atomic.** A crash leaves the run half done. Restart is `NEVER`, so the next run is up to 12 hours later. The
+  objects a crashed run wrote are newer than `state.json`, so the cleanup keeps them until a later run finishes; then
+  it deletes those no manifest or index names (an xsection file whose content a later run indexes keeps its key).
+- **Objects never change (ERRORS M250).** Before content keys, a changed file was written again under its fixed key
+  while terminal-api still served the previous run's cached manifest, so sha256-checking readers failed
+  `DATA_INTEGRITY` during each run. Now a reader holding any manifest or `state.json` xsection index of the last
+  finished run downloads exactly the bytes it names, during the whole run: data files, packs (the price pack a slice of
+  the xsection `price` file repairs included) and xsection files all go through `content_key` and `store`. Manifests,
+  `ref/*`, logos and `state.json` keep fixed keys: readers open them by name and no reader checks their bytes against
+  a manifest.
+- **Cleanup (`collect_garbage`).** A daily run lists the bucket before it writes and deletes an object only when all
+  of these hold: its key is `<family>/<ticker>/<file>` with a family some manifest names (derived from the manifests,
+  so a new dataset is covered) and the ticker's manifest names at least one file but not this one, or its key is an
+  xsection object (`xsection/<name>.<16 hex>.json.gz`; nothing else under `xsection/`) and the `state.json` xsection
+  index names at least one file but not this one (that index, as `xsection_entries` reads it, is exactly what
+  terminal-api serves, `bucket.py xsection_index`; a `state.json` without one, from a publisher before the xsection
+  writer, deletes no xsection object); that manifest and the object are no newer than `state.json` (the last finished
+  run; anything newer may belong to a run that did not finish); and that run finished at least `GC_GRACE_SECONDS`
+  (3600) ago, which exceeds the manifest cache check (60 s), the URL lifetime (120 s) and a download. So an object
+  goes in the first daily run that starts an hour or more after the run that stopped naming it: a reader holding the
+  previous manifest or index keeps its files, and two runs minutes apart (a manual run right after a scheduled one)
+  delete nothing. What a `backfill`, `packs` or `events` run replaces goes in the next daily run. A listing longer than
+  `GC_LIST_SECONDS` (900) is abandoned. A failure is logged (`gc_failed`, class only) and the run goes on: cleanup
+  never stops a publication. Its log line `gc` gives `deleted`, `not_deleted`, `mb`, `kept_newer_than_last_run`,
+  `tickers_skipped`, `families`, `xsection_named`.
 - **Recorded sizes and times** (`RAILWAY_CHANGELOG.md`):
 
   | Run | Duration | Written |
@@ -258,11 +276,11 @@ Bucket `terminal-display` is a Railway S3-compatible bucket in region `sin`. Its
 
 | Key under `v1/` | Content | Headers |
 |---|---|---|
-| `price/{T}/{Y}.json.gz` | `{schema_version: 1, dataset: 'price', ticker, year, units, columns: [d,o,h,l,c,v], d: [...], o: [...], ...}` (columnar; `v` null for an index) | `application/gzip`, `private, max-age=31536000` |
-| `broker/{T}/{Y}.json.gz` (stocks) | columns `d, b, i, m, bv, sv, bl, sl` (date, broker, investor type, board, buy and sell value in IDR, buy and sell lots) plus `gap: [[date, board], …]` | same |
-| `events/{T}/all.json.gz` | 19 columns, `d, role, family, type, action, …, title, detail`; `format: 2` | same |
-| `pack/{T}/price.json.gz` | every price year in one `price_doc` (`dataset: 'price-pack'`) | same |
-| `pack/{T}/broker-archive.json.gz` (stocks) | broker years `[broker_first_year, last_year - 2]` (`dataset: 'broker-archive'`, `years: [a, b]`) | same |
+| `price/{T}/{Y}.{sha256}.json.gz` | `{schema_version: 1, dataset: 'price', ticker, year, units, columns: [d,o,h,l,c,v], d: [...], o: [...], ...}` (columnar; `v` null for an index) | `application/gzip`, `private, max-age=31536000` |
+| `broker/{T}/{Y}.{sha256}.json.gz` (stocks) | columns `d, b, i, m, bv, sv, bl, sl` (date, broker, investor type, board, buy and sell value in IDR, buy and sell lots) plus `gap: [[date, board], …]` | same |
+| `events/{T}/all.{sha256}.json.gz` | 19 columns, `d, role, family, type, action, …, title, detail`; `format: 2` | same |
+| `pack/{T}/price.{sha256}.json.gz` | every price year in one `price_doc` (`dataset: 'price-pack'`) | same |
+| `pack/{T}/broker-archive.{sha256}.json.gz` (stocks) | broker years `[broker_first_year, last_year - 2]` (`dataset: 'broker-archive'`, `years: [a, b]`) | same |
 | `manifest/{T}.json` | the ticker's index of files (below) | `application/json`, `private, max-age=0` |
 | `ref/tickers.json.gz` | columns `ticker, name, type, sector, industry`. Readers take columns by name; every column after `type` becomes a portfolio filter (CONTRACT decision PF6). | gzip |
 | `ref/brokers.json.gz` | columns `code, name, type` | gzip |
@@ -276,7 +294,7 @@ The manifest:
 ```
 { "schema_version": 1, "ticker": "BBCA",
   "datasets": {
-    "price":  { "files": { "2018": {"key": "v1/price/BBCA/2018.json.gz", "sha256": "<64 hex of the gzip bytes>",
+    "price":  { "files": { "2018": {"key": "v1/price/BBCA/2018.<sha256>.json.gz", "sha256": "<64 hex of the gzip bytes>",
                                     "bytes": N, "rows": N, "first": "YYYY-MM-DD", "last": "YYYY-MM-DD", "stamp": "…"}, … },
                 "data_through": "<newest final daily date of the whole table>", "first_year": 2018 },
     "broker": { "files": { … }, "data_through": "<newest Feature 05 date of the whole table>", "first_year": 2016 },
@@ -297,11 +315,13 @@ The manifest:
   `ref/tickers.json.gz` for names, types, sectors and industries; it is not copied into them.
 - **xsection objects are immutable.** `<sha16>` is the first 16 hex of the file's sha256, so a key names one content and
   is written once; readers check bytes and sha256 against the `state.json` index (terminal-api `/state`, `/xsection`).
-  The bucket holds the objects of the current index and, until the next run that rebuilds a file, of the previous one
-  (section 4.2, step 8). Their long `max-age` is correct for that reason.
+  The bucket holds the objects of the current index and, until the first daily run an hour or more after the run that
+  replaced them, those of the previous one (section 4.3, Cleanup). Their long `max-age` is correct for that reason.
 - **Cache-Control is not used.** The `max-age` of a year has no effect today: every presigned URL is new, and readers
-  keep their own sha256-keyed caches. INFERENCE: with content-addressed keys (the M250 fix) a long max-age would also
-  be correct.
+  keep their own sha256-keyed caches. With content keys a long max-age is also correct.
+- **Keys are never built by a reader.** Every reader takes `key` from the manifest (terminal-api presigns it verbatim),
+  so the key format can change without a reader change. A file from before content keys keeps its fixed key
+  (`price/{T}/{Y}.json.gz`) until its bytes change.
 
 ## 6. Stage 4: terminal-api, the only gate to the files
 
@@ -333,7 +353,7 @@ bucket, checks quotas, writes an audit row, and answers presigned GET URLs. It n
 | `POST /api/terminal/v1/bundle {ticker, datasets, packs: true}` | worker and page | see the steps below |
 | `GET /api/terminal/v1/manifest/{T}` | worker only (freshness and coverage checks) | `{ticker, window, generated_at, datasets: {name: {data_through, years: {id: {bytes, rows, first, last, sha256}}}}}`. No object key, no URL, no quota, no audit row. |
 | `GET /api/terminal/v1/reference/{tickers\|brokers}` | worker only (catalog, validation) | one presigned URL of the fixed key, counted against quota (pseudo-ticker `REF`, never an opened ticker), no sha256 |
-| `GET /api/terminal/v1/state` | the backtest worker (EXEC-BACKTEST-LOAD, 2026-10-27) and the screener-worker (EXEC-SCREENER). The code admits any subscriber (`Depends(subscriber)`: the gateway key or a session cookie), since it grants nothing; edge-bff does not forward it | the publication the files belong to: state.json `finished_at`, `price_through`, `broker_through`, `broker_behind_sessions`, as read for the manifest cache (at most 60 s old), and `xsection`, the run's cross-sectional file index `{name: {key, sha256, bytes, rows, as_of}}` (`bucket.py xsection_index`: only well-formed entries, a key `v1/xsection/<name>.<16 hex>.json.gz` whose 16 hex are the first 16 of its `sha256`, each with these five fields; null when the run wrote none; the publisher carries forward and protects from pruning exactly these entries, `publisher.py xsection_entries`). No file, no quota, no audit row. 503 `state_unavailable` while state.json was never readable. |
+| `GET /api/terminal/v1/state` | the backtest worker (EXEC-BACKTEST-LOAD, 2026-10-27) and the screener-worker (EXEC-SCREENER). The code admits any subscriber (`Depends(subscriber)`: the gateway key or a session cookie), since it grants nothing; edge-bff does not forward it | the publication the files belong to: state.json `finished_at`, `price_through`, `broker_through`, `broker_behind_sessions`, as read for the manifest cache (at most 60 s old), and `xsection`, the run's cross-sectional file index `{name: {key, sha256, bytes, rows, as_of}}` (`bucket.py xsection_index`: only well-formed entries, a key `v1/xsection/<name>.<16 hex>.json.gz` whose 16 hex are the first 16 of its `sha256`, each with these five fields; null when the run wrote none; the publisher carries forward and protects from its cleanup exactly these entries, `publisher.py xsection_entries`). No file, no quota, no audit row. 503 `state_unavailable` while state.json was never readable. |
 | `POST /api/terminal/v1/xsection {names}` | the screener-worker only, not the backtest: the gateway key; a request without it, a subscriber session included, is 403 `gateway_only` (`main.py gateway`); edge-bff does not forward it | presigned URLs for files of the `/state` index, named by their index names: `{finished_at, expires_in_seconds, encoding, files: [{name, url, sha256, bytes, rows, as_of}]}`. 1 to 16 names (a repeated name counts once); a name not in the index is 404 `xsection_not_published` with the indexed names. One file per name and their bytes count against the quota under the pseudo-ticker `REF` (never an opened ticker), with one `terminal.access_log` row (dataset `xsection`) listing every key; 429 `quota_exceeded` refuses every name. |
 
 What `/bundle` does:
@@ -359,8 +379,8 @@ xsection index are presigned.
   than `MAX_CACHED` (4000) entries. An unreadable `state.json` keeps the cache.
 - **Consequences:**
   - After a publisher run, every process serves new manifests within about 60 s.
-  - During a run, terminal-api keeps serving the manifests of the previous run. That is why overwriting a file in
-    place breaks readers (M250).
+  - During a run, terminal-api keeps serving the manifests of the previous run. Content keys keep the bytes those
+    manifests name readable (M250); the publisher's cleanup waits an hour after the last finished run.
   - A ticker first published after its "not found" was cached stays 404 until the next `finished_at`.
 - **The publication.** `/state` and the xsection index `/xsection` grants from come from the same read of `state.json`
   (`Bucket.state`), so both are at most 60 s old. For up to 60 s after a run one of the two processes can answer the
@@ -610,6 +630,7 @@ only for the visual and numeric comparison with `backtest.html`, and is checked 
 
 | Where | What | Key | Lifetime |
 |---|---|---|---|
+| Bucket (publisher) | data files, packs, xsection files | key with the content's sha256 (`content_key`; xsection: its first 16 hex) | never rewritten; deleted by the first daily run an hour or more after the last run that named it (`collect_garbage`, section 4.3) |
 | terminal-api process | manifests, "not found" too | ticker | until `state.json` `finished_at` changes (checked every 60 s) |
 | terminal-api process | `state.json`: the `/state` answer and the xsection index `/xsection` grants from | — | read again at most every 60 s; an unreadable `state.json` keeps the last one |
 | Presigned URL | access to one key | — | 120 s |
@@ -620,8 +641,9 @@ only for the visual and numeric comparison with `backtest.html`, and is checked 
 | edge-bff process | catalog | — | 60 s |
 | edge-bff `backtest_results` | result parts | `(request_id, part)` | 30 days |
 
-Every byte cache is keyed by content (sha256), so a republished file never serves stale bytes; caches hold gzip bytes,
-so a warm run still pays sha256, inflate and decode.
+Every byte cache is keyed by content (sha256), so a republished file never serves stale bytes, and the bucket key of
+every data file, pack and xsection file carries its content too (ERRORS M250); caches hold gzip bytes, so a warm run
+still pays sha256, inflate and decode.
 
 ### 11.2 Errors, from where they start
 
@@ -678,7 +700,7 @@ in the worker, class names only in the publisher).
 
 | Item | Status | Where |
 |---|---|---|
-| Files overwritten in place during publisher runs → `DATA_INTEGRITY` | OPEN; fix chosen (content-addressed keys, separate publisher PR); TEMPORARY: no E2E during runs | ERRORS M250 |
+| Files overwritten in place during publisher runs → `DATA_INTEGRITY` | FIXED in code (content keys + cleanup); verified in dev on the first scheduled run, see ERRORS M250 | ERRORS M250 |
 | Database connection lost mid-write in edge-bff | cause UNKNOWN; retried until the deadline | ERRORS M246 |
 | Merge deploy skipped by Railway | MITIGATED by hand; automatic check PROPOSED | ERRORS M252 |
 | Terminal page download has no retry | not covered (the backtest page has it) | ERRORS M251 |

@@ -49,10 +49,11 @@ data files, manifests, packs, reference files, logos and `state.json`:
   `key` is `v1/xsection/<name>.<first 16 hex of sha256>.json.gz`; `as_of` is the newest date of the `price` file and the
   newest `ingestion_time` of `idx_event_annotation` for `actions`. A mode that does not rebuild a file (`logos`,
   `broker-range`; `events` for `price`) carries its entry forward unchanged.
-- **Keys under `v1/xsection/`**: the objects the current index names, plus those the previous index named until the
-  next run that rebuilds a file; the publisher deletes any other key of that form there (never another key), so at most
-  two objects per name are expected, and an object of that form no index names is an orphan of a crashed run until the
-  next rebuild. Each object's bytes and sha256 equal its index entry.
+- **Keys under `v1/xsection/`**: the objects the current index names, plus those an earlier index named until the
+  first daily run an hour or more after the run that replaced them: the publisher's `collect_garbage` (ERRORS M250, the
+  same cleanup as for data files and packs) deletes a key of that form that the `state.json` index does not name, never
+  another key, and nothing newer than `state.json` (an orphan of a crashed run stays until a later run finishes).
+  `integrity_check.py` counts the indexed keys as referenced. Each object's bytes and sha256 equal its index entry.
 - **Content checks**: the publisher's `verify` mode checks each indexed xsection file: bytes and sha256; each ticker's
   slice of `price` encodes to the ticker's published price pack (manifest `packs.price.sha256`) and has the rows,
   first and last date and sum of closes of SQL, and every published ticker with final daily rows is in it; the
