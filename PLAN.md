@@ -946,4 +946,4 @@ sendiri (tidak berubah), daftar `<option>`.
 - S3: teks "Running…" saat Run juga diberi putaran yang sama?
 
 **Jawaban user 2026-10-27:** "S1 dan S2 yes sesuai yang kamu sarankan / S3 - OK ya": S1 A (candle lama dikosongkan lalu
-putaran), S2 A ("Loading MAPI"), S3 ya (putaran juga di teks "Running…"). Menunggu "go" untuk eksekusi.
+putaran), S2 A ("Loading MAPI"), S3 ya (putaran juga di teks "Running…"). User: "Go" → EXEC.md EXEC-BACKTEST-SPIN.

@@ -8460,3 +8460,14 @@ Status 2026-10-27: selesai. terminal-api `689dc465` (`/state`), backtest-worker 
 publikasi, dibangun saat start), edge-bff `1a2081ce` (halaman: tampil dulu; macet karena M253), `7e966be9` (perbaikan
 M253, pemuat rak bersama, Web Worker), lalu pool koneksi (RAILWAY_CHANGELOG). Ukur: buka pertama 8,83 → 1,37 s, buka lagi
 2,36 → 1,12 s, tanpa layar beku (BACKTEST_END_TO_END.md bagian 17).
+
+## EXEC-BACKTEST-SPIN — putaran loading di halaman Backtest (2026-10-27)
+
+User 2026-10-27, atas PLAN.md BACKTEST-SPIN: "S1 dan S2 yes sesuai yang kamu sarankan / S3 - OK ya", lalu "Go".
+- Satu komponen putaran untuk halaman rak (`terminal/src/styles/spin.css`, `terminal/src/ui/spin.ts`): 0,15 s per putaran,
+  1,6 s bila gerak dikurangi; Terminal tidak berubah tampilannya.
+- S1 A: saat harga ticker yang dipilih belum ada, chart dikosongkan dan putaran di tengah chart; S2 A: tulisan
+  "Loading <TICKER>"; label jalur flow yang menunggu broker diberi putaran kecil; S3: "Running…" (dan "Loading…" saat Run
+  menunggu katalog) dengan putaran.
+- Uji: smoke dengan harga, katalog dan broker lambat, kecepatan putaran, gerak dikurangi; vitest; piksel fixture
+  Backtest lama/baru dan 1:1 Terminal 0 px; ukur live.
