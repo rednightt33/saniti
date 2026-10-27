@@ -515,6 +515,12 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
   when a flow card will need them, its broker files (`live.ts bundles`, reused while its URLs are good). Downloads, the
   manifest checks and the decoding run in a Web Worker (`api/load.worker.ts`, `api/load.ts`); the file cache and the
   download with retries are the module the Terminal uses too (`terminal/src/data/rack.ts`, K3).
+- Loading ring (EXEC-BACKTEST-SPIN, user 2026-10-27: "S1 dan S2 yes sesuai yang kamu sarankan / S3 - OK ya"): the
+  Terminal's ring (`terminal/src/styles/spin.css`, `terminal/src/ui/spin.ts`: one turn in 0.15 s, 1.6 s with reduced
+  motion). Until the shown ticker's prices are there the chart is emptied (no candles of another stock under the new
+  name) and `#chartLoading` shows the ring with "Loading <TICKER>"; a lane waiting for broker data has a small ring
+  before its label; the run note shows the ring with "Loading…" (waiting for the catalog), "Running…" and the job's
+  phase. These exist only while the page loads or runs: the settled page is the reference's.
 - A file download that gets no answer, whose body is cut off on the way, or that the storage host answers 5xx is asked
   again twice (0.5 s, then 1 s), as the worker does (`terminal.ts http`); after that it is `DATA_UNAVAILABLE` "A data
   file could not be downloaded." A refusal (403: the link expired, 404) is answered at once. A whole file that is not

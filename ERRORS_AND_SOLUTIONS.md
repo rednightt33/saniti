@@ -2881,6 +2881,22 @@ change yet.
 - **Lesson for new data:** halaman rak berikutnya (makro, lintas aset) memakai `rack.ts` dan pola yang sama: gambar dulu,
   muat saat dibutuhkan, bongkar di Web Worker, simpan turunan per publikasi.
 
+### EXEC-BACKTEST-SPIN — halaman Backtest tanpa putaran loading; candle saham lama saat ganti saham (2026-10-27)
+
+- **Symptom:** user 2026-10-27: "kalau kita buka chart, let's say itu ada putaran loading kan ... Loading kalau tidak
+  salah kita sepakati 0,15 detik." Inspeksi: Backtest tidak punya putaran; area chart kosong selama harga dimuat, dan
+  saat ganti saham candle saham sebelumnya tetap tampil di bawah nama saham baru (`signals.ts refreshSignals` berhenti
+  di `if(!prepared(tk))` tanpa mengosongkan chart).
+- **Class:** keadaan memuat yang tidak terlihat atau menampilkan data lama di halaman rak.
+- **Solution (EXEC-BACKTEST-SPIN):** putaran Terminal menjadi satu komponen (`terminal/src/styles/spin.css`,
+  `terminal/src/ui/spin.ts`); Backtest: chart dikosongkan dengan putaran "Loading <TICKER>", putaran kecil di jalur flow
+  yang menunggu broker, putaran di catatan Run. Ikut diperbaiki: catatan Run sebelum menunggu katalog kini disimpan
+  sebelum diganti "Loading…" (sebelumnya pembatalan bisa mengembalikan "Loading…").
+- **Bukti:** smoke (harga lambat: putaran, "Loading MAPI", 0.15s; ganti saham: chart kosong, nama saham baru; gerak
+  dikurangi 1.6s; catatan Run; putaran jalur), vitest Backtest 88 dan Terminal 690, piksel fixture Backtest lama/baru 0 px
+  pada semua langkah yang sebanding, 1:1 Terminal 0 px.
+- **Status:** RESOLVED (deploy di RAILWAY_CHANGELOG).
+
 ### M253 — Halaman Backtest macet setelah harga dimuat: gambar ulang tanpa henti selama data broker belum datang (2026-10-27)
 
 - **Symptom:** sesudah deploy edge-bff `1a2081ce` (`main` `8915046`, 16:30 UTC) halaman Backtest live tidak merespons:

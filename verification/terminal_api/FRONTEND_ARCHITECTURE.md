@@ -207,3 +207,5 @@ Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
   the presigned download with retries (ERRORS M251), used by the Terminal's worker and the Backtest page's loading
   worker (`apps/edge-bff/backtest/src/api/load.worker.ts`). The Terminal still uses a file whose sha256 differs (it
   only does not store it); the Backtest page refuses it (`inflateVerified`, CONTRACT).
+- EXEC-BACKTEST-SPIN: the loading ring is `src/styles/spin.css` and `src/ui/spin.ts` (`context.ts` re-exports `spin`),
+  imported by the Terminal and the Backtest page; one speed (0.15 s, 1.6 s with reduced motion).
