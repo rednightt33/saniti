@@ -8148,3 +8148,142 @@ untuk panel Statistics kiri (mekanisme yang sama). Fixture referensi (`?fixture=
 Infra dicek 2026-10-26 sebelum mulai: edge-bff `39c29b9d` SUCCESS (push dokumen sesudahnya SKIPPED), terminal-api
 `1c428bb6`, publisher `4a4124a8` cron "0,30 0,12 * * *" NEVER; `main` = cabang.
 
+
+## EXEC-MCAP — market cap harian dari TradingView ke `Price_Stock_Indonesia_IDX` (rencana 2026-10-27, menunggu go)
+
+User (N) 2026-10-27: "Bisa minta orc untuk melakukan pengecekan dengan API trading view yang saat ini yg kita gunakan
+untuk tarik harga asset. apakah data market cap available di trading view dan bisa ditarik menggunakan metode API yang
+sama. Goalnya adalah data market cap ini juga akan kita ingest setiap daily-nya, gabung ke table price stock IDX. Coba cek
+untuk ticker price stock idx apakah ada semua".
+
+### Pengecekan (read-only, 2026-10-27 ±02:40–03:00 UTC, pasar sedang buka)
+
+- Jalur sekarang (dari kode, bukan ingatan): `apps/idx-price-cron/price_update.py` membuka websocket
+  `wss://data.tradingview.com/socket.io/websocket` dengan `set_auth_token unauthorized_user_token` (tanpa akun), lalu
+  `chart_create_session` + `resolve_symbol` + `create_series` 1D per simbol dari `IDX_Stock_Universe."TradingView Symbol"`.
+  Layanan `idx-price-cron` `0 10 * * *` UTC (17:00 WIB, `--mode daily`) dan `idx-price-recovery-cron` `0 23 * * *` UTC
+  (06:00 WIB, `--mode recovery`, `.railway/railway.ts`). Seri chart hanya membawa OHLCV.
+- Socket, token dan cara bingkai yang sama juga punya sesi kutipan (`quote_create_session`, `quote_set_fields`,
+  `quote_add_symbols`). Field yang tersedia tanpa akun: `market_cap_calc`, `market_cap_basic`,
+  `total_shares_outstanding_calculated`, `total_shares_outstanding`, `float_shares_outstanding`, `regular_close`,
+  `regular_close_time`, `currency_code`, `fundamental_currency_code`.
+- Arti field, dihitung ulang dari angkanya: `market_cap_calc` = harga terakhir (`lp`) × jumlah saham TradingView
+  (`total_shares_outstanding_calculated`, atau `total_shares_outstanding` bila yang pertama kosong: 38 saham, mis. ADHI).
+  BBCA: 4.970 × 123.275.046.875 = 612.676.982.968.750 (sama persis). `market_cap_basic` tertinggal: BBCA = 5.025 (tutup
+  23 Okt) × saham yang sama, padahal tutup terakhir 26 Okt 4.940. Jadi yang dipakai `market_cap_calc`, bukan `_basic`.
+  `regular_close` BBCA 4.940 = `close` 2026-10-26 di tabel harga. Jumlah saham BBCA versi lain
+  (`total_shares_outstanding` 122.841.701.300) tidak menghitung saham treasuri; TradingView memakai jumlah tercatat.
+- Cakupan, semua 845 simbol `IDX_Stock_Universe` (= 845 ticker `Price_Stock_Indonesia_IDX`, tidak ada ticker harga di
+  luar universe; job baca `d8b0ce00`, 844 saham + IHSG) dalam satu koneksi, 17 kelompok @50, 30 detik:
+  - 820 dari 844 saham punya market cap; 0 bernilai nol; semua IDR (`currency_code` dan `fundamental_currency_code`).
+  - 24 saham tanpa market cap dan tanpa jumlah saham di TradingView: AEGS, BAIK, BATR, BRRC, EMMI, GRPH, HBAT, JELI,
+    KAQI, KKES, KLIN, LMAX, LOPI, MSIE, NINE, PIPA, PJHB, PPRI, SICO, SPRE, TGUK, TOOL, WBSA, XCIS (kebanyakan tercatat
+    2022–2026; harga mereka lengkap sampai 2026-10-26).
+  - IHSG (indeks) tidak punya market cap (memang bukan saham).
+  - 21 saham: `market_cap_calc` ≠ `lp` × saham, selisih 1–2 tick harga (mis. ADRO 2.510 vs 2.500): nilai dihitung TradingView sedikit
+    lebih lambat dari harga berjalan. Sesudah tutup pasar harga tidak bergerak, jadi seharusnya sama; diverifikasi di
+    langkah 1.
+  - 16 saham dengan `regular_close_time` sebelum 26 Okt (suspensi, mis. ADHI 21 Agu, PTPP 2 Okt): tanggal ini sama dengan
+    tanggal harga terakhir di tabel kecuali INPS dan XSPI (beda 1 dan 4 hari). Market cap mereka memakai harga lama.
+- Riwayat: sesi kutipan hanya memberi nilai saat ini. Market cap masa lalu tidak bisa ditarik dengan cara ini; ingest
+  mulai dari hari pertama berjalan.
+- Lisensi dan batas: harga juga ditarik tanpa akun lewat endpoint tidak resmi; TradingView tidak memberi izin tertulis
+  untuk pengambilan otomatis dan data fundamentalnya berasal dari pemasok pihak ketiga. Risiko lisensi sama dengan harga
+  sekarang, ditambah bila market cap ditampilkan ke pengguna EDGE. Beban: 845 simbol per hari, satu koneksi, ±30 detik
+  (jauh lebih ringan dari tarikan harga per simbol). `update_mode` `delayed_streaming_600` (tunda 10 menit) tidak
+  berpengaruh sesudah tutup.
+
+### Kelas masalah dan lapisan
+
+Kelas: nilai per emiten per hari yang hanya tersedia sebagai snapshot "saat ini" di sumber (market cap, jumlah saham,
+free float; nanti valuasi atau data lintas-aset sejenis). Snapshot tidak bisa diambil ulang untuk tanggal lalu, jadi
+harus ditulis pada hari yang sama dan hanya untuk tanggal yang cocok dengan sesi yang dirujuk sumbernya. Lapisan: job
+ingest yang sama (satu transaksi dengan harga), dengan aturan tanggal dari data (`regular_close_time`), bukan daftar.
+
+### Rencana (setelah go)
+
+1. Verifikasi sesudah tutup (read-only, tanpa kode): ulangi pengecekan sesudah 17:00 WIB; syarat lanjut:
+   `market_cap_calc` = `regular_close` × saham untuk semua saham bertanggal hari itu, dan `regular_close` = `close` di
+   tabel.
+2. Migrasi (forward-only): tambah ke `Price_Stock_Indonesia_IDX` kolom `market_cap numeric` (IDR),
+   `shares_outstanding numeric` (jumlah saham yang dipakai TradingView), `market_cap_source text`; kosong untuk baris lama
+   dan untuk saham tanpa data. Baris `Column_Catalog` dan `AI_column_catalog` (MEASURE, satuan IDR). Peran yang boleh
+   membaca `close` per kolom ikut diberi SELECT kolom baru, diturunkan dari katalog saat migrasi (pola `20261026_003`).
+3. `price_update.py`: sesudah candle diterima, satu sesi kutipan untuk semua simbol (socket yang sama). Nilai disimpan
+   hanya bila tanggal `regular_close_time` (Asia/Jakarta) = tanggal target dan `regular_close` = `close` candle (aturan
+   yang sama dengan candle: tidak ada nilai lama yang diberi label hari ini). Bila tidak cocok atau kosong: NULL dan
+   tercatat di monitoring. Ditulis dalam upsert yang sama dengan harga, dengan
+   `market_cap = COALESCE(EXCLUDED.market_cap, tabel.market_cap)` supaya run recovery untuk sesi lama tidak menghapus
+   nilai yang sudah ada. Satu UPDATE terpisah tidak dipakai: trigger Feature 01 berjalan pada setiap UPDATE baris
+   (`enqueue_feature_01_price_row`), jadi UPDATE kedua akan mengantre ulang 845 baris setiap hari. Trigger Feature 04
+   hanya membaca OHLCV, tidak terpengaruh.
+4. Monitoring: jumlah saham dengan market cap per run di `Monitoring_Price_ALL` (pesan Telegram ikut menyebut yang
+   kosong); daftar 24 di atas tidak ditulis di kode, dibaca dari hasil run.
+5. Tes: unit (aturan tanggal, nilai kosong, recovery tidak menimpa) dan satu run manual di jendela harian, dibandingkan
+   dengan pengecekan langkah 1.
+
+Mencakup: semua saham yang punya data di TradingView, mulai hari pertama. Tidak mencakup: 24 saham tanpa data, riwayat
+sebelum hari pertama (perlu sumber jumlah saham historis plus aksi korporasi, terpisah), IHSG. Risiko: lisensi di atas;
+TradingView mengubah nama field (tes dan monitoring akan menunjukkan 0 terisi). Permanen.
+
+### EXEC-MCAP bagian B — market cap historis dari riwayat jumlah saham (cek 2026-10-27, menunggu go)
+
+User (N) 2026-10-27: "Coba cek apakah data share outstanding yg dipakai bisa ditarik historical? Kalau iya berarti kita
+bisa hitung marketcap historis juga right."
+
+Pengecekan (read-only, sesi kutipan websocket yang sama; job baca `a10b9092` dan satu job split, keduanya DRYRUN):
+- Riwayat ada, tetapi per kuartal dan per tahun, bukan harian: `total_shares_outstanding_fq_h` (jumlah saham akhir
+  kuartal, sampai 32 kuartal, tanggal dari `fiscal_period_end_fq_h`) dan `total_shares_outstanding_fy_h` (sampai 20
+  tahun). Jumlah saham harian yang dipakai market cap hari ini (`total_shares_outstanding_calculated`) tidak punya riwayat.
+- Bukan angka yang sama persis: BBCA kuartal 2026-Q2 122.841.751.300 (tanpa saham treasuri) vs harian 123.275.046.875.
+  Selisih 0,35 %; di hari peralihan dari historis ke harian akan ada lompatan kecil.
+- Cakupan 844 saham: 779 punya riwayat kuartal, 65 tidak (41 di antaranya punya market cap harian). Kuartal tertua
+  2018-Q3 untuk 520 saham; harga mulai 2018 untuk 498 saham, jadi semester I 2018 diisi dari angka tahunan FY2017
+  (tersedia untuk 462 dari 466 saham yang perlu). 61 seri punya kuartal kosong.
+- Dasar split: riwayat jumlah saham TradingView disesuaikan ke basis hari ini (RAJA split 1:5 Juli 2026: 2026-Q2 sudah
+  21,06 miliar; PBSA split 1:2 Okt 2026: 2025 sudah 6 miliar). Harga tersimpan juga disesuaikan (BBCA 2018-01-02 4.380 =
+  21.900 / 5), kecuali split sesudah backfill: dari 140 split/bonus 2018–2026, PBSA (14 Okt 2026) tersimpan mentah
+  (845 → 384). Harga mentah × saham yang disesuaikan memberi market cap 2× terlalu besar sebelum split itu.
+
+Kelas: dua angka (harga, jumlah saham) dari sumber yang menyesuaikan ulang riwayat setiap ada split, dikalikan padahal
+tabel harga tidak ditulis ulang sesudah split (cron harian hanya menulis candle terbaru). Kena setiap split atau saham
+bonus berikutnya, dan setiap ukuran turunan per saham (nilai per lembar, valuasi) yang nanti dihitung dari riwayat.
+
+Rencana (setelah go; perbaikan di lapisan job, bukan daftar ticker):
+1. Market cap historis dihitung dari dua tarikan TradingView pada saat yang sama: harga harian yang disesuaikan split
+   (chart session yang sudah dipakai, `adjustment: splits`) × jumlah saham akhir kuartal (atau akhir tahun bila kuartal
+   kosong), berlaku dari tanggal akhir periode sampai periode berikutnya. Jadi dasar penyesuaian selalu sama, tidak
+   bergantung pada harga tersimpan.
+2. Disimpan ke kolom yang sama dengan bagian A (`market_cap`, `shares_outstanding`) dengan `market_cap_source`
+   `TV_FQ_HISTORY` (vs `TV_DAILY`), hanya untuk tanggal sebelum hari pertama ingest harian; nilai harian tidak ditimpa.
+   Satu UPDATE per tahun per saham dalam batch kecil; trigger Feature 01 mengantre ulang baris yang di-UPDATE, jadi
+   batch dijalankan seperti backfill harga (lihat beban antrean dulu) atau trigger dilewati untuk kolom ini (keputusan
+   di migrasi, dengan bukti dari `enqueue_feature_01_price_row`).
+3. Pemeriksaan: untuk saham tanpa split sejak backfill, harga TradingView yang disesuaikan = `close` tersimpan; saham
+   yang berbeda (mis. PBSA) dilaporkan sebagai bukti ketidaksesuaian dasar harga, dicatat di ERRORS, bukan diperbaiki
+   diam-diam.
+Mencakup: 779 saham, kira-kira 2018 sampai hari ini. Tidak mencakup: 65 saham tanpa riwayat, ketepatan harian
+(perubahan di tengah kuartal seperti right issue atau IPO tercatat terlambat sampai satu kuartal), dan harga tersimpan
+yang mentah (ketidaksesuaian itu masalah tabel harga sendiri, perlu rencana terpisah). Permanen untuk riwayat; batas
+kuartalan dicatat di katalog kolom.
+
+## EXEC-TERMINAL-PANELS-2 — masukan sesudah EXEC-TERMINAL-PANELS (2026-10-27)
+
+User 2026-10-27 (dengan tangkapan layar A–E): "A: boleh cek kalau screen 100% pakai laptop 14" maka tampilan yang saya
+kotakin jadi seperti di SS / B: tidak align antara tulisan Net buy Net sell dengan badge cumulative. / C: Buat broker
+inventory boleh perlakuannya sama seperti statistics? Jadi mengikuti apa yang chart kita display + ada Y axis horizontal
+sesuai dengan cross hair yang ada di main chart. hilangkan opsi 30D / D: ... boleh dibuat tidak perlu klik titik" di
+pojok kiri? Dibuat kalau kita klik dan hold di column header saja maka bisa menaikan/ menurunkan. / E: bisa buat kalau
+top accumulators dan distributoors digabung saja tidak usah pakai switcher. Jadi dibuat kira2 seperti: Top
+accumulators|Value|Bar Buy (ke kiri)|Bar Sell (ke kanan)|Sell|Top Distributors / F: boleh buat untuk annotations / Untuk
+semua calendar pada custom mode saat ini kalau tidak ada trading days maka warna akan digyered out: we do not need that
+buat saja warnananya normal dan clickable. / Untuk select on chart saat ini harus 2 data point berbeda, buat juga bisa
+hanya 1 tanggal saja.. jadi ketika di click "select on chart" maka tinggal click sekali dan click sekali lagi pada
+tanggal yang sama. / Untuk annotations saat ini kalau seandainya crosshair kita hover/ stay ke tanggal yang bermaksud,
+boleh dikasih efek untuk buletannya?"
+
+Dikerjakan langsung (permintaan jelas): B, D, E, kalender tanpa hari redup, pilih di chart dengan dua klik (boleh tanggal
+yang sama), efek penanda anotasi saat crosshair di tanggalnya (F). Live saja; fixture referensi tetap 1:1.
+Menunggu jawaban user: A (cara memperbaiki: direproduksi di 1270×618 skala 1,5 — judul Flow dua baris 89 px, grafik
+Flow 90 px) dan C (arti "Y axis horizontal" dan nasib 10D/20D/Custom bila mengikuti chart).
+
