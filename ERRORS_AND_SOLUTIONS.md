@@ -2507,8 +2507,10 @@ change yet.
 - **Flow di halaman:** net asing (buy − sell) per sesi dihitung di browser dari baris Feature 05 per broker × jenis
   investor × papan yang dipublikasikan ke rak, bukan kolom flow jadi di database; tidak bergantung pada candle selain
   tanggal sesinya.
-- **Solution:** menunggu keputusan user (papan bawaan dan titik awal kumulatif).
-- **Status:** OPEN (keputusan user); data cocok, tidak ada salah hitung.
+- **Solution:** keputusan user 2026-10-27: "Untuk papan bawaan, kita tetap semua papan" (tidak diubah). Titik awal
+  kumulatif: menunggu keputusan. Level kumulatif halaman BMRI 23 Oct (semua papan, Foreign, sejak sesi chart pertama
+  2018-01-02, harga mulai 2018): −22.54T; Stockbit (Regular, sejak 28 Sep 2026): −2.66T.
+- **Status:** OPEN (titik awal kumulatif, keputusan user); data cocok, tidak ada salah hitung.
 
 ## Fixed-income selected-date repair — 2026-10-20 status
 
