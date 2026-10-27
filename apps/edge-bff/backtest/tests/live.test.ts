@@ -69,6 +69,14 @@ describe('the live BacktestApi (live.ts)', () => {
     ctl.abort();
     expect(isAbort(await p)).toBe(true);
   });
+  it('gives an answer whose body is cut off on the way as NETWORK without a status, which the status poll asks again (run.ts)', async () => {
+    vi.stubGlobal('fetch', async (url: string) => url === '/api/v1/auth/session' ? Response.json({ csrf_token:'t' })
+      : new Response(new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode('{"state":"RUN')); c.error(new TypeError('network error')) } }),
+                     { headers:{ 'Content-Type':'application/json' } }));
+    const err = await liveApi({ cache:{ get:async () => null, put:async () => {} } }).status('bt_1').catch(e => e);
+    expect(err).toBeInstanceOf(ApiFailure);
+    expect([err.code, err.status]).toEqual(['NETWORK', 0]);
+  });
   it('numbers its previews in the order they are asked, one page per client (client_order, CONTRACT.md P8, ERRORS M247)', async () => {
     const sent: { tickers: string[]; client_order: { page: string; seq: number } }[] = [];
     vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {

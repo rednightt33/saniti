@@ -1,12 +1,13 @@
 /* The browser file cache shared with the Terminal (src/api/cache.ts) and the live BacktestApi's use of it (live.ts
    download), on fake-indexeddb, with fetch answered here: the session, /api/terminal/v1/bundle and the presigned file
-   of one ticker's price data. One IDBFactory is one browser; a new liveApi on it is the next page load. */
+   of one ticker's price data. One IDBFactory is one browser; a new liveApi on it is the next page load. Then a download
+   that fails on the way (live.ts fetchFile): asked again, or answered at once, by what failed. */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { IDBFactory } from 'fake-indexeddb';
 import TERMINAL_WORKER from '../../terminal/src/data/worker.ts?raw';
 import { sha256Bytes } from '../src/core/datafile.ts';
 import { CACHE_DB, CACHE_LIMIT, CACHE_STORE, CACHE_VERSION, fileCache } from '../src/api/cache.ts';
-import { liveApi } from '../src/api/live.ts';
+import { FILE_RETRIES, liveApi } from '../src/api/live.ts';
 import { ApiFailure } from '../src/api/types.ts';
 
 const gz = async (doc: unknown) => new Uint8Array(await new Response(new Blob([JSON.stringify(doc)]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
@@ -121,5 +122,51 @@ describe('fileCache (cache.ts)', () => {
     await cache.put('c', four(3));                                            // 12 bytes > 10: b goes
     expect(await record(factory, 'b')).toBeNull();
     expect(await record(factory, 'a')).not.toBeNull(); expect(await record(factory, 'c')).not.toBeNull();
+  });
+});
+
+describe('a download that fails on the way (live.ts fetchFile)', () => {
+  const none = { get:async () => null, put:async () => {} };
+  /* the presigned file answered in turn by `answers` (the last one again once they run out); the session and /bundle as
+     network() */
+  function storage(...answers: (() => Response)[]) {
+    const seen = { downloads:0 };
+    vi.stubGlobal('fetch', async (url: string) => {
+      if (url === '/api/v1/auth/session') return Response.json({ csrf_token:'t' });
+      if (url === '/api/terminal/v1/bundle') return Response.json({ datasets:{ price:{ files:[{ url:FILE_URL, sha256:FILE_SHA, bytes:FILE.byteLength }] } } });
+      if (url === FILE_URL) return answers[Math.min(seen.downloads++, answers.length - 1)]();
+      return new Response('', { status:404 });
+    });
+    return seen;
+  }
+  // a body that stops after ten bytes, as a connection closed on the way (Chromium: ERR_CONTENT_LENGTH_MISMATCH)
+  const cut = () => new Response(new ReadableStream({ start(c) { c.enqueue(FILE.slice(0, 10)); c.error(new TypeError('network error')) } }));
+  const whole = () => new Response(FILE.slice());
+
+  it('asks a file again when its body is cut off on the way or the storage host answers 5xx, and uses the whole one', async () => {
+    let seen = storage(cut, whole);
+    expect((await liveApi({ cache:none }).bars('MAPI')).dates).toHaveLength(4);
+    expect(seen.downloads).toBe(2);
+    seen = storage(() => new Response('', { status:503 }), whole);
+    expect((await liveApi({ cache:none }).bars('MAPI')).dates).toHaveLength(4);
+    expect(seen.downloads).toBe(2);
+  });
+  it('a file cut off at every try is DATA_UNAVAILABLE after FILE_RETRIES more tries, never DATA_INTEGRITY', async () => {
+    const seen = storage(cut);
+    const err = await liveApi({ cache:none }).bars('MAPI').catch(e => e);
+    expect(err).toBeInstanceOf(ApiFailure);
+    expect([err.code, err.status, err.message]).toEqual(['DATA_UNAVAILABLE', 0, 'A data file could not be downloaded.']);
+    expect(seen.downloads).toBe(FILE_RETRIES + 1);
+  });
+  it('a refusal (403: the link expired) is answered at once, and a whole file unlike its manifest entry is DATA_INTEGRITY, asked once', async () => {
+    let seen = storage(() => new Response('', { status:403 }), whole);
+    let err = await liveApi({ cache:none }).bars('MAPI').catch(e => e);
+    expect([err.code, err.status]).toEqual(['DATA_UNAVAILABLE', 403]);
+    expect(seen.downloads).toBe(1);
+    const other = await price([1, 2, 3, 4]);
+    seen = storage(() => new Response(other.slice()));
+    err = await liveApi({ cache:none }).bars('MAPI').catch(e => e);
+    expect(err.code).toBe('DATA_INTEGRITY');
+    expect(seen.downloads).toBe(1);
   });
 });

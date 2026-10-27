@@ -2648,6 +2648,37 @@ change yet.
 - **Lesson for new data:** objek yang dirujuk metadata (sha256, ukuran) tidak ditimpa di kunci yang sama; kunci yang
   memuat hash isinya membuat setiap cache metadata aman.
 
+### M251 — Halaman backtest: unduhan file yang terpotong di jalan dilaporkan `DATA_INTEGRITY` dan tidak diulang (2026-10-27)
+
+- **Symptom:** E2E dev 2026-10-27 13:13 UTC: semua job lulus, tetapi `page_clean` gagal: browser mencatat "Failed to
+  load resource: net::ERR_CONTENT_LENGTH_MISMATCH" untuk `v1/pack/BBRI/broker-archive.json.gz` (koneksi tertutup
+  sebelum seluruh isi file sampai). Satu run sebelumnya (13:08) kehilangan satu GET status skrip uji karena reset di
+  proxy keluar container ini (status proxy: tunnel ke edge-bff ditutup 13:10:13); untuk unduhan 13:13 proxy tidak
+  mencatat apa pun, jadi hop yang memotongnya UNKNOWN.
+- **Verified (FACT):** kode halaman `api/live.ts download`: hanya `fetch()` (sampai header) yang ditangkap sebagai
+  kegagalan jaringan; isi file dibaca (`res.arrayBuffer()`) di luar penanganan itu, jadi isi yang terpotong melempar
+  error mentah yang `dataFailure` beri kode `DATA_INTEGRITY` ("could not be read"), dan unduhan tidak pernah diulang.
+  Hal yang sama untuk jawaban JSON edge-bff (`call`: `res.json()` di luar penanganan), sehingga poll status
+  (`run.ts`, mengulang hanya kegagalan jaringan) tidak mengulangnya. Worker sudah benar: isi dibaca di dalam percobaan
+  dan diulang (`terminal.ts http`).
+- **Root cause:** pembaca data di halaman memperlakukan putusnya transfer sebagai data rusak, bukan gangguan jaringan.
+- **Class:** setiap unduhan dan jawaban yang dibaca halaman backtest (file harga, broker, pack, arsip broker; jawaban
+  status, katalog, pratinjau) di jaringan apa pun yang bisa memutus transfer (seluler, proxy, host storage): pengguna
+  melihat error yang salah label dan harus mengulang sendiri. Tidak berlaku untuk worker (sudah mengulang).
+- **Solution:** `live.ts fetchFile`: unduhan tanpa jawaban, yang isinya terpotong, atau dijawab 5xx diulang 2 kali
+  (0,5 s lalu 1 s), seperti worker; setelah itu `DATA_UNAVAILABLE` "A data file could not be downloaded."; penolakan
+  4xx (403 tautan kedaluwarsa, 404) langsung dijawab; file utuh yang tidak sesuai manifest tetap `DATA_INTEGRITY` dan
+  tidak diulang. `call`: jawaban yang isinya terpotong = `NETWORK` tanpa status, yang diulang poll status. E2E
+  `page_clean` mengizinkan baris konsol unduhan yang gagal hanya bila halaman lalu mendapat file yang sama utuh
+  (dibaca dari permintaan halaman sendiri). CONTRACT bagian 10. Tes halaman 4 baru (terpotong lalu utuh, 5xx lalu
+  utuh, terpotong terus, 403 dan file tidak sesuai manifest; jawaban status terpotong), 88/88; uji mutasi 4,
+  tertangkap.
+- **Not covered:** halaman Terminal (`terminal/src/data/worker.ts download`) punya pola yang sama (isi dibaca tanpa
+  ulang); milik pekerjaan Terminal, dicatat di sini.
+- **Status:** FIXED di kode; bukti dev menunggu deploy dan E2E berikutnya.
+- **Lesson for new data:** transfer yang putus adalah gangguan jaringan (diulang), file utuh yang tidak cocok adalah data
+  rusak (tidak diulang); pembaca membedakan keduanya di tempat isi dibaca.
+
 ### EXEC-TERMINAL-FRESH — alat gambar di Flow, kepala tabel Top brokers (2026-10-27)
 
 - **Go user 2026-10-27:** "... di Flow hanya kelompok Lines yang tersedia (Trend line, Horizontal line, Horizontal ray,

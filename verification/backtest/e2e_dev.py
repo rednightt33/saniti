@@ -824,10 +824,13 @@ def page_portfolio_setup(page, pick):
 
 
 def page_clean(errors, http_errors, calls):
-    """No request of the page fails (console errors and HTTP answers >= 400 of the page), but the one it handles by
-    design: the /bundle 404 of a picked stock without published files, which the previews left out with DATA_MISSING
-    (CONTRACT.md D-exclude; the page's one toast, and the chart moves to another stock, review PG-1), and the browser's
-    console line for that answer. Which stocks those are is read from the previews' answers, never listed here."""
+    """No request of the page fails (console errors and HTTP answers >= 400 of the page), but the ones it handles by
+    design, each with the browser's console line for it:
+    - the /bundle 404 of a picked stock without published files, which the previews left out with DATA_MISSING
+      (CONTRACT.md D-exclude; the page's one toast, and the chart moves to another stock, review PG-1). Which stocks
+      those are is read from the previews' answers, never listed here;
+    - a storage download that failed on the way (no answer, or its body cut off) and that the page then asked again and
+      got whole (live.ts fetchFile, ERRORS M251), read from the page's own requests."""
     missing = {r.get('ticker') for c in calls if c['url'].endswith('/signals') and c.get('status') == 200
                for w in (c.get('answer') or {}).get('warnings') or [] if w.get('code') == 'TICKERS_EXCLUDED'
                for r in w.get('reasons') or [] if r.get('code') == 'DATA_MISSING'}
@@ -837,16 +840,25 @@ def page_clean(errors, http_errors, calls):
     allowed = {}
     for e in expected:
         allowed[e['url']] = allowed.get(e['url'], 0) + 1
+    got = [c for c in calls if c.get('file') and c.get('status') == 200]
+    recovered = [c for c in calls if c.get('file') and c.get('failure')
+                 and any(o['file'] == c['file'] and o['t'] > c['t'] for o in got)]
+    asked_again = {}
+    for c in recovered:
+        asked_again[c['file']] = asked_again.get(c['file'], 0) + 1
     unexpected_console = []
     for line in errors:                           # 'Failed to load resource: ... status of 404 () @ <url>'
         url = line.rpartition(' @ ')[2]
         if line.startswith('Failed to load resource: the server responded with a status of 404') and allowed.get(url, 0) > 0:
             allowed[url] -= 1
+        elif line.startswith('Failed to load resource: net::') and asked_again.get(url, 0) > 0:
+            asked_again[url] -= 1                 # 'Failed to load resource: net::ERR_CONTENT_LENGTH_MISMATCH @ <url>'
         else:
             unexpected_console.append(line)
     return {'ok': not unexpected_http and not unexpected_console, 'console_errors': len(errors),
-            'http_errors': len(http_errors), 'expected': expected, 'unexpected_http': unexpected_http[:20],
-            'unexpected_console': unexpected_console[:20]}
+            'http_errors': len(http_errors), 'expected': expected,
+            'recovered_downloads': [{'file': c['file'], 'failure': c['failure']} for c in recovered][:20],
+            'unexpected_http': unexpected_http[:20], 'unexpected_console': unexpected_console[:20]}
 
 
 def preview_drawn(page, answer, used, timeout_s=10):
@@ -949,6 +961,7 @@ def main():
             if not ('/api/v1/backtests' in u or '/api/terminal/v1/bundle' in u or 'storageapi.dev' in u):
                 return
             entry = {'t': round(time.monotonic(), 3), 'method': req.method, 'url': 'storage file' if 'storageapi.dev' in u else u,
+                     **({'file': u} if 'storageapi.dev' in u else {}),   # the object's URL without its query
                      'query': req.url.partition('?')[2] if u.endswith('/events') else None}   # never a presigned query
             try:
                 resp = req.response()
@@ -980,11 +993,15 @@ def main():
 
         def on_failed(req):
             # a preview the page aborted (preview.ts drops the one in flight when the settings change): recorded with
-            # its body, so the report shows every preview the page asked and in which order (client_order)
+            # its body, so the report shows every preview the page asked and in which order (client_order); and a
+            # storage download that failed on the way (page_clean: allowed once the page got it whole after)
             u = req.url.split('?')[0]
             if req.method == 'POST' and u.endswith('/api/v1/backtests/signals'):
                 calls.append({'t': round(time.monotonic(), 3), 'method': req.method, 'url': u, 'status': None,
                               'failure': req.failure, 'body': json.loads(req.post_data or '{}')})
+            elif 'storageapi.dev' in u:
+                calls.append({'t': round(time.monotonic(), 3), 'method': req.method, 'url': 'storage file', 'file': u,
+                              'status': None, 'failure': req.failure})
         errors, http_errors = [], []
         # where a console error came from, and every answer >= 400 of any URL (never a query: presigned links)
         where = lambda m: ((m.location or {}).get('url') or '').split('?')[0]

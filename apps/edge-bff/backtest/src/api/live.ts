@@ -50,7 +50,10 @@ async function call<T>(base: string, path: string, body?: unknown, service = 'ba
     if (res.status === 401 || res.status === 403) csrfP = null;      // a new session or token is read on the next call
     throw await failure(res, service);
   }
-  return res.status === 204 ? (undefined as T) : res.json();
+  if (res.status === 204) return undefined as T;
+  // an answer whose body is cut off on the way is no answer: NETWORK, which the status poll asks again (run.ts status)
+  try { return await res.json() }
+  catch (e) { if (isAbort(e)) throw e; throw new ApiFailure(`The ${service} could not be reached.`, 'NETWORK') }
 }
 
 /* ---- published market data ---------------------------------------------------------------------------------- */
@@ -62,19 +65,34 @@ async function files(ticker: string, dataset: Dataset): Promise<FileEntry[]> {
   if (!Array.isArray(list) || !list.length) throw new ApiFailure(`No ${dataset} data is published for ${ticker}.`, 'DATA_MISSING');
   return list.map((f: any) => ({ url:f.url, sha256:f.sha256, bytes:f.bytes }));
 }
-/* a file from the browser cache when its bytes still match the manifest entry, else the presigned file (no cookies to
-   the storage host), checked against its manifest entry and inflated; only bytes that pass are stored (cache.ts) */
+/* the presigned file's bytes (no cookies to the storage host). A download that gets no answer, whose body is cut off on
+   the way, or that the storage host answers 5xx is asked again FILE_RETRIES times, as the page's status poll (run.ts)
+   and the worker (terminal.ts http) do; a refusal (4xx: 403 an expired link, 404) is answered at once. */
+export const FILE_RETRIES = 2, FILE_RETRY_MS = 500;
+async function fetchFile(url: string): Promise<Uint8Array> {
+  let status = 0;
+  for (let k = 0; ; k++) {
+    try {
+      const res = await fetch(url, { credentials:'omit' });
+      status = res.status;
+      if (res.ok) return new Uint8Array(await res.arrayBuffer());   // a body cut off on the way rejects here
+      if (status < 500) break;
+    } catch { status = 0 }
+    if (k >= FILE_RETRIES) break;
+    await new Promise(ok => setTimeout(ok, FILE_RETRY_MS * (k + 1)));
+  }
+  throw new ApiFailure(status ? `A data file could not be downloaded (${status}).` : 'A data file could not be downloaded.', 'DATA_UNAVAILABLE', status);
+}
+/* a file from the browser cache when its bytes still match the manifest entry, else the presigned file, checked against
+   its manifest entry and inflated; a complete file that is not what its manifest says is DATA_INTEGRITY and is not asked
+   again (inflateVerified); only bytes that pass are stored (cache.ts) */
 async function download(f: FileEntry, what: string, cache: FileCache) {
   const sha = String(f.sha256).toLowerCase(), hit = await cache.get(sha);
   if (hit) {
     try { return await inflateVerified(hit, f, what) }
     catch { /* a stored file that does not match its manifest entry is not used: it is downloaded (and replaced) */ }
   }
-  let res: Response;
-  try { res = await fetch(f.url, { credentials:'omit' }) }
-  catch { throw new ApiFailure('A data file could not be downloaded.', 'DATA_UNAVAILABLE') }
-  if (!res.ok) throw new ApiFailure(`A data file could not be downloaded (${res.status}).`, 'DATA_UNAVAILABLE', res.status);
-  const raw = new Uint8Array(await res.arrayBuffer()), doc = await inflateVerified(raw, f, what);
+  const raw = await fetchFile(f.url), doc = await inflateVerified(raw, f, what);
   cache.put(sha, raw);                                         // inflateVerified: these bytes hash to sha
   return doc;
 }

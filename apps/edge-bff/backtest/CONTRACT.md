@@ -499,6 +499,11 @@ exist only in the test fixture build (`?fixture=reference`), checked absent from
 - Published files are kept in the Terminal's browser cache **[D-P5]**: IndexedDB `terminal-files` version 1, store
   `files` (keyPath `sha`, index `used`), its least-recently-used limit; only bytes that pass `inflateVerified`; any
   IndexedDB failure means no cache, never a failed page.
+- A file download that gets no answer, whose body is cut off on the way, or that the storage host answers 5xx is asked
+  again twice (0.5 s, then 1 s), as the worker does (`terminal.ts http`); after that it is `DATA_UNAVAILABLE` "A data
+  file could not be downloaded." A refusal (403: the link expired, 404) is answered at once. A whole file that is not
+  what its manifest entry says is `DATA_INTEGRITY` and is not asked again (`live.ts fetchFile`, ERRORS M251). An edge-bff
+  answer whose body is cut off is `NETWORK` without a status, which the job's status poll asks again (`run.ts`).
 - The header has no date: live says "Published data · long-only" (`api/texts.ts` `dataNote`), the lead's short form,
   because "Published data to <`catalog.data_through`> · long-only" wraps more than the reference's "Synthetic demo
   data · long-only" (7 lines against 5 at 390 px, 5 against 3 at 480; `api/texts.ts` gives every width measured).
