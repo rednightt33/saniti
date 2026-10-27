@@ -995,3 +995,29 @@ bisa display juga candle chart weekly dan monthly".
   tampil "–", bukan 0.
 - Broker yang dipilih di Broker inventory (panel dan jendela) belum diingat setelah reload; setelah reload kembali ke
   tiga net buyer terbesar 20 sesi terakhir (perilaku panel sejak awal).
+
+## EDGE Backtest: halaman lambat tampil (ukuran 2026-10-27; usulan menunggu keputusan user)
+
+User 2026-10-27: "di Edge ada kata-kata which is backtest ... proses display ke front end-nya sangat lambat. Kalau bisa
+disesuaikan agar sama dengan terminal. Coba baca read dulu aja."; atas pilihan ukur dulu atau langsung rencana: "1".
+Ukuran read-only di dev (`verification/backtest/page_timing_dev.py`, tanpa Run; dari sandbox, bukan dari Indonesia):
+
+| Langkah | Waktu |
+|---|---|
+| Buka pertama (cache kosong), sampai tombol Run aktif | 8,83 s; katalog sendiri 3,66 s (cache 60 s di edge-bff habis), halaman menunggu katalog lalu harga dan broker MAPI (strategi bawaan memakai flow) |
+| Buka lagi (file di cache browser, katalog masih di cache) | 2,36 s; tidak ada unduhan file |
+| Ganti saham ke BBRI | 2,4 s jaringan; layar beku 0,97 s (arsip broker 2,2 MB gzip dibuka di jalur utama halaman) |
+| Layar beku saat buka halaman | 0,83–0,87 s total, terlama 0,53 s |
+| `/auth/session` per panggilan | median 240 ms (cek sesi membuka koneksi database baru) |
+| Hasil backtest yang sudah ada (`/result`, 283 KB) | 343 ms |
+
+Akar (dari kode, dikonfirmasi ukuran): (1) halaman menunggu katalog (dibangun worker dari ±845 manifest, disimpan
+hanya 60 s) sebelum menggambar apa pun (`backtest/src/app.ts` `boot`); (2) halaman menunggu semua file saham yang
+tampil, termasuk broker, sebelum tombol aktif; (3) file dibuka dan dicek di jalur utama halaman, bukan di pekerja latar
+seperti Terminal (`src/api/live.ts`); (4) harga dan broker diminta berurutan, satu `/bundle` per jenis data.
+Kelas: setiap halaman yang membaca rak (Terminal, Backtest, kelak makro/lintas aset) punya cara muat sendiri, dan
+katalog dibangun ulang dari rak tiap 60 s padahal rak hanya berubah dua kali sehari.
+Usulan (belum disetujui): (a) katalog berlaku sampai `state.json` `finished_at` berubah, cakupan flow ditulis publisher
+di `state.json`; (b) satu pemuat data bersama Terminal dan Backtest (satu `/bundle` per saham, pekerja latar, harga
+dulu lalu broker, cache yang sama, pengukur `?perf=1`); (c) pool koneksi database untuk cek sesi edge-bff. Lama Run
+di worker (1 saham 5,3 s, 12 saham 13,4 s menurut uji E2E sesi backtest) di luar usulan ini.
