@@ -4720,3 +4720,8 @@ No variable or other service changed.
 User 2026-10-27: "bukan benar-benar literally full screen ... IDX agar bisa di-remove". `main` `736f99a`: edge-bff
 `81ae2893` SUCCESS; live terminal assets equal the build (sha256); EDGE's frame no longer carries the fullscreen
 permission. No variable or other service changed.
+
+## 2026-10-27 — edge-bff: weekly and monthly candles (EXEC-TERMINAL-WM)
+
+User 2026-10-27: "G1 / K1". `main` `712e258`: edge-bff `7654e6fa` SUCCESS; live terminal `index`, `style` and `worker`
+assets equal the build (sha256). No variable or other service changed.
