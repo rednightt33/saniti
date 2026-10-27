@@ -8346,3 +8346,21 @@ Coba explore ..."
 Status 2026-10-27: layar penuh versi panel dan "IDX" selesai (ERRORS "EXEC-TERMINAL-FULL-2"); weekly/monthly di
 FUTURE_PLAN "Terminal: timeframe weekly dan monthly".
 
+## EXEC-TERMINAL-WM — timeframe weekly dan monthly (go 2026-10-27)
+
+User 2026-10-27, atas usulan FUTURE_PLAN "Terminal: timeframe weekly dan monthly" ("Untuk gambar pilih G1 atau G2, untuk
+candle berjalan pilih K1 atau K2, lalu go?"): "G1 / K1".
+Keputusan: G1 satu set gambar untuk semua timeframe, titik gambar ditempel di candle yang memuatnya; K1 candle minggu/
+bulan berjalan ditampilkan.
+Rencana (berbasis kode, diperiksa 2026-10-27):
+1. `src/data/timeframe.ts`: minggu Senin–Jumat (kunci = Senin), bulan kalender; candle = open sesi pertama, high max,
+   low min, close sesi terakhir, volume jumlah; tanggal candle = sesi pertama, tanggal akhir = sesi terakhir.
+2. `live.ts`/`worker.ts`: harga harian disusun menjadi candle; net broker Flow dijumlah per candle (`brokerData` dengan
+   peta sesi → candle); pembanding dan IHSG diselaraskan ke tanggal akhir candle; anotasi ke candle yang memuat sesi
+   sesudah tanggalnya; Broker activity tetap harian.
+3. Halaman: tombol D/W/M (live), pilihan diingat browser dan halaman dimuat ulang (modul mengunci data saat mulai);
+   Statistics memakai faktor tahunan 252/52/12 dan satuan sessions/weeks/months, musiman per hari dimatikan di W/M;
+   label Flow "Latest week/month net", "Avg weekly/monthly net"; rentang dari chart dan Broker inventory memakai tanggal
+   akhir candle; gambar dipetakan ke candle saat dimuat.
+4. Uji: tes agregasi, 1:1 fixture (D saja), live check D/W/M, deploy, dokumen.
+
