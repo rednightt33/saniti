@@ -8319,3 +8319,15 @@ sesi lain `d495854`) cron "0,30 0,12 * * *" NEVER.
 Status 2026-10-27: langkah 1–4 dibangun dan diuji (ERRORS M243 dan "EXEC-TERMINAL-FRESH"); peringatan Telegram
 dibuktikan pada putaran 19:00 WIB.
 
+## EXEC-TERMINAL-FULL — label kuning dihapus, tombol layar penuh (2026-10-27)
+
+User 2026-10-27 (tangkapan layar A dan B): "Minta tolong untuk A dihapus saja. Buat B tambahkan opsi full sceen di kotak
+hitam terlampir, ketika fullscreen maka tampilan akan seperti screenshot B".
+- A: label "Broker through … · price …" di judul Flow dan Broker activity dihapus (arsiran dan tooltip "No broker data
+  yet" tetap, EXEC-TERMINAL-FRESH).
+- B: tombol layar penuh di kanan kotak Search markets (live). Layar penuh: halaman terminal memakai Fullscreen API
+  (iframe EDGE diberi `allow="fullscreen"`), panel Statistics, Broker activity dan Flow Timeline dilipat seperti
+  tangkapan layar B; keluar (tombol, Esc) mengembalikan panel seperti sebelumnya. Bila browser menolak layar penuh,
+  panel tetap dilipat (chart maksimal di dalam bingkai).
+Infra dicek 2026-10-27 sebelum mulai (edge-bff dan publisher aktif SUCCESS).
+
