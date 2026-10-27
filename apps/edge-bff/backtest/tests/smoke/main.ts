@@ -3,9 +3,11 @@
    more stocks that every preview and run leaves out and one without price files (stub.ts stubApi); ?slowcat=ms a
    catalog that answers that late (EXEC-BACKTEST-LOAD: the page draws at once, the lists say they are loading). */
 import '../../src/styles/backtest.css';
+import '../../../terminal/src/styles/spin.css';
 import { boot } from '../../src/app.ts';
 import { stubApi } from './stub.ts';
 
 const q = new URLSearchParams(location.search);
 boot(stubApi({ hostile: q.get('hostile') === '1', flow: q.get('flow') === '1', wide: q.get('wide') === '1',
-  ...(q.get('slowcat') ? { catalogMs: +q.get('slowcat')! } : {}), ...(q.get('flowms') ? { flowMs: +q.get('flowms')! } : {}) }));   // ?flowms=ms: broker data that late   // ?slowcat=ms: the catalog answers that late
+  ...(q.get('slowcat') ? { catalogMs: +q.get('slowcat')! } : {}), ...(q.get('flowms') ? { flowMs: +q.get('flowms')! } : {}),
+  ...(q.get('barsms') ? { barsMs: +q.get('barsms')! } : {}) }));   // ?barsms=ms: prices that late   // ?flowms=ms: broker data that late   // ?slowcat=ms: the catalog answers that late

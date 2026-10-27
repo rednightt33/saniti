@@ -8,7 +8,8 @@ import { ApiFailure } from './api/types.ts';
 import { adaptResult } from './api/adapt.ts';
 import { currentRequest } from './api/request.ts';
 import { API, catalogReady, whenCatalog } from './env.ts';
-import { $, toast, toastError } from './format.ts';
+import { $, esc, toast, toastError } from './format.ts';
+import { spin } from '../../terminal/src/ui/spin.ts';
 import { edits, S } from './state.ts';
 import { refreshSignals } from './signals.ts';
 import { renderResults } from './results/index.ts';
@@ -52,21 +53,23 @@ export function abortRun() {
   if (id) API.cancel(id).catch(() => {});
   buttons(true); S.running = false; $('runNote').textContent = idleNote; updateViewbar();
 }
+/* EXEC-BACKTEST-SPIN (user 2026-10-27, S3): the run note while the page waits shows the shared loading ring */
+const busy = (text: string) => { $('runNote').innerHTML = spin(esc(text)) };
 let idleNote = '', failedNote = false;   // failedNote: #runNote holds the last run's error, not an idle note
 
 export const run = async (scroll = true) => {
   if(!S.conds.some(c=>c.on)){ toast('Add at least one active condition'); return }
   if(S.mode==='portfolio' && !S.tickers.length){ toast('Add at least one stock'); return }     // the server refuses it too (INVALID_PORTFOLIO)
   if (S.running) return;
+  if (!failedNote) idleNote = $('runNote').textContent;
   // EXEC-BACKTEST-LOAD: the request needs the catalog's limits and dates; a Run before it answers waits for it
   if (!catalogReady()) {
-    $('runNote').textContent = 'Loading…';
+    busy('Loading…');
     try { await whenCatalog() } catch (e) { const m = (e as Error).message || 'The backtest service could not be reached.'; toastError(m); $('runNote').textContent = m; return }
     if (S.running) return;
   }
-  if (!failedNote) idleNote = $('runNote').textContent;
   failedNote = false;
-  document.querySelectorAll('.js-run').forEach((b: Element) => (b as HTMLButtonElement).disabled = true); $('runNote').textContent = 'Running…'; S.running = true; updateViewbar();
+  document.querySelectorAll('.js-run').forEach((b: Element) => (b as HTMLButtonElement).disabled = true); busy('Running…'); S.running = true; updateViewbar();
   const my = ++token;
   await sleep(30);
   if (my !== token) return;
@@ -80,7 +83,7 @@ export const run = async (scroll = true) => {
     let st = await statusOf(request_id);
     while (st.state === 'QUEUED' || st.state === 'RUNNING') {
       if (my !== token) return;
-      $('runNote').textContent = progressNote(st);
+      busy(progressNote(st));
       await sleep(POLL_MS);
       if (my !== token) return;
       st = await statusOf(request_id);

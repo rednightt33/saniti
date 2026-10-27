@@ -3,6 +3,7 @@
    sequence. /terminal-app/?fixture=reference runs on the reference's synthetic data for the 1:1 check; otherwise the
    page reads the published files of the rack through EDGE. */
 import './styles/terminal.css';
+import './styles/spin.css';                                  // EXEC-BACKTEST-SPIN: the shared loading ring
 import * as L from 'lightweight-charts';
 import IND_REG from './data/indRegistry.json';
 import { fixtureData } from './data/fixture';

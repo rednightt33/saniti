@@ -15,6 +15,7 @@ import { renderNav, updateViewbar } from './builder.ts';
 import { TT, ttH } from './results/svg.ts';
 import { previewRequest } from './api/request.ts';
 import { renderWSMid } from './workspace.ts';
+import { spin } from '../../terminal/src/ui/spin.ts';
 import { chartTicker, runTickers } from './picked.ts';
 import { Previews, portRows, previewKey, type Rows } from './preview.ts';
 import { NO_STOCK } from './picker.ts';
@@ -145,8 +146,11 @@ export const refreshSignals = () => {
   const U = universe(), shown = U.filter(drawable), tk = S.sigTicker = chartTicker(S.sigTicker, shown, ran());
   // the ticker select and the portfolio table (which asks the preview) do not wait for the chart's bars (review PG-1)
   tickerSelect(shown, tk); portTable(U, tk);
-  if(!tk){ noChart(); return }
-  if(!prepared(tk)){ prepare(tk); return }
+  if(!tk){ chartLoading(null); noChart(); return }
+  // EXEC-BACKTEST-SPIN S1 (user 2026-10-27): until the ticker's prices are there the chart is emptied (no candles of
+  // another stock under this one's name) and shows the loading ring with the ticker (S2)
+  if(!prepared(tk)){ if (chartLoading(tk)) noChart(); prepare(tk); return }
+  chartLoading(null);
   const wait = flowWait(tk); if (wait) prepare(tk);
   const D = DATA[tk], DAYS = D.dates, N = DAYS.length, sig = chartSignals(tk); lastSig = wait ? null : sig;   // the signal count waits too
   const pending = (c: Card) => wait && catOf(c).group === 'flow';
@@ -178,6 +182,15 @@ export const refreshSignals = () => {
   const rw = pc.priceScale('right').width(); if(rw) $('chartTools').style.right = (rw + 10) + 'px';
   applyZoom(); drawLanes(); renderNav(); updateViewbar();
 };
+/** the loading ring over the chart for `tk` (null: none); true when it was not already shown for that ticker */
+let loadingFor: string | null = null;
+const chartLoading = (tk: string | null) => {
+  let el = $('chartLoading') as HTMLElement | null;
+  if (!el && tk) { el = document.createElement('div'); el.id = 'chartLoading'; el.className = 'ml-boot'; $('priceChart').parentElement.appendChild(el) }
+  const changed = tk !== loadingFor; loadingFor = tk;
+  if (el) { el.hidden = !tk; if (tk && changed) el.innerHTML = spin(`Loading ${esc(tk)}`) }
+  return !!tk && changed;
+};
 const tickerSelect = (U: string[], tk: string) => { $('sigTicker').innerHTML = U.map(t=>`<option ${t===tk?'selected':''}>${esc(t)}</option>`).join(''); $('sigTicker').style.display = U.length>1 ? '' : 'none' };
 /* the portfolio signal table (the reference's), on the picked stocks; nothing picked: the step's empty note */
 const portTable = (U: string[], tk: string) => {
@@ -201,7 +214,7 @@ export const drawLanes = () => {
   if(!laneState) return; const {sig, idx} = laneState, cv = $('laneCv') as HTMLCanvasElement;
   // EXEC-BACKTEST-LOAD: a flow lane and the entry lane wait for the broker data (laneState.wait): labelled, not filled
   const w = !!laneState.wait, lw = (c: Card) => w && catOf(c).group === 'flow';
-  const rows = [...sig.series.map(x=>({lbl:catOf(x.c).label + (lw(x.c) ? ' · loading' : ''), col:COLORS[S.conds.indexOf(x.c)%COLORS.length], s:x.s, off:S.hidden[x.c.id] || lw(x.c), bold:false})), {lbl:'Entry' + (w ? ' · loading' : ''), col:css('--text'), s:sig.entry, off:S.hidden.__entry || w, bold:true}];
+  const rows = [...sig.series.map(x=>({lbl:catOf(x.c).label + (lw(x.c) ? ' · loading' : ''), col:COLORS[S.conds.indexOf(x.c)%COLORS.length], s:x.s, off:S.hidden[x.c.id] || lw(x.c), bold:false, wait:lw(x.c)})), {lbl:'Entry' + (w ? ' · loading' : ''), col:css('--text'), s:sig.entry, off:S.hidden.__entry || w, bold:true, wait:w}];
   const H = rows.length*LANE_H+10, W = cv.parentElement.clientWidth, dpr = devicePixelRatio||1;
   cv.style.height = H+'px'; cv.width = W*dpr; cv.height = H*dpr; const g = cv.getContext('2d'); g.scale(dpr,dpr); g.clearRect(0,0,W,H);
   const ts = pc.timeScale(), plotW = ts.width(), bs = Math.max(1, ts.options().barSpacing), LW = pc.priceScale('left').width() || LANE_GUTTER;
@@ -216,7 +229,8 @@ export const drawLanes = () => {
   g.restore();
   g.fillStyle = css('--border'); g.fillRect(LW-1, 0, 1, H); g.fillRect(LW+plotW, 0, 1, H);
   $('laneLabels').style.width = (LW-1)+'px';
-  $('laneLabels').innerHTML = rows.map((r,k)=>`<span class="${r.off?'off':''}" style="top:${5+k*LANE_H}px;height:${LANE_H}px"><i style="background:${r.col}"></i>${esc(r.lbl)}</span>`).join('');
+  // EXEC-BACKTEST-SPIN: a lane that waits for the broker data has the small loading ring before its label
+  $('laneLabels').innerHTML = rows.map((r,k)=>`<span class="${r.off?'off':''}" style="top:${5+k*LANE_H}px;height:${LANE_H}px">${r.wait ? '<b class="ml-spin sm" aria-hidden="true"></b>' : `<i style="background:${r.col}"></i>`}${esc(r.lbl)}</span>`).join('');
 };
 /** the chart's own listeners (the reference wires them at start: zoom buttons, ticker select) */
 export const bindSignals = () => {

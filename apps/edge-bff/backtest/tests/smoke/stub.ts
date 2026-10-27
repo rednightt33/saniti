@@ -185,7 +185,7 @@ export function resultOf(q: BacktestRequest, runs: number, mk: Market = PLAIN): 
   return buildResult(input);
 }
 
-export function stubApi(opts: { hostile?: boolean; flow?: boolean; wide?: boolean; catalogMs?: number; flowMs?: number } = {}): BacktestApi {
+export function stubApi(opts: { hostile?: boolean; flow?: boolean; wide?: boolean; catalogMs?: number; flowMs?: number; barsMs?: number } = {}): BacktestApi {
   const mk = opts.hostile ? HOSTILE : opts.flow ? FLOW : opts.wide ? WIDE : PLAIN, { all:ALL, catalog:CATALOG, calcOf } = mk;
   const compute = new Compute(() => CATALOG);
   const jobs = new Map<string, { polls: number; request: BacktestRequest; result?: BacktestResult; cancelled?: boolean }>();
@@ -204,7 +204,7 @@ export function stubApi(opts: { hostile?: boolean; flow?: boolean; wide?: boolea
     texts: PUBLISHED_TEXTS,
     catalog: () => later(() => CATALOG, opts.catalogMs ?? 20),   // catalogMs: a catalog that answers late (EXEC-BACKTEST-LOAD)
     // flowMs: the broker data of a flow card arrives that late (EXEC-BACKTEST-LOAD: the chart draws the prices first)
-    bars: (t: string, o: { flow?: boolean } = {}) => later(() => { if (!ALL[t]) throw new ApiFailure(`No price data is published for ${t}.`, 'DATA_MISSING'); if (!compute.has(t)) compute.put(ALL[t]); return compute.get(t)! }, o.flow ? opts.flowMs ?? 20 : 20),
+    bars: (t: string, o: { flow?: boolean } = {}) => later(() => { if (!ALL[t]) throw new ApiFailure(`No price data is published for ${t}.`, 'DATA_MISSING'); if (!compute.has(t)) compute.put(ALL[t]); return compute.get(t)! }, o.flow ? opts.flowMs ?? 20 : opts.barsMs ?? 20),   // barsMs: prices that late (EXEC-BACKTEST-SPIN)
     ready: c => compute.ready(c),
     indicatorOutputs: (t, id, p) => compute.indicatorOutputs(t, id, p),
     conditionSeries: (t, c) => compute.conditionSeries(t, c),

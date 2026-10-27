@@ -1,0 +1,12 @@
+/* EXEC-TERMINAL-SPIN: the loading ring (one turn in 0.15 s since EXEC-TERMINAL-SPEED, user "0.15 detik alright"; slower,
+   not stopped, when the user asks for less motion). EXEC-BACKTEST-SPIN (user 2026-10-27: "Loading kalau tidak salah kita
+   sepakati 0,15 detik"): one ring for every page that reads the rack (the Terminal, the Backtest page), so the speed is
+   one value. Colours are the page's own --border, --text and --text-2. */
+.ml-loading{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--text-2);white-space:nowrap}
+.ml-spin{width:14px;height:14px;box-sizing:border-box;border:2px solid var(--border);border-top-color:var(--text);border-radius:50%;animation:ml-spin .15s linear infinite;flex-shrink:0}
+.ml-boot{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);z-index:20;pointer-events:none}
+.ml-boot .ml-spin{width:22px;height:22px;border-width:2.5px}
+.ml-boot .ml-loading{font-size:13px;gap:10px}
+.ml-spin.sm{display:inline-block;width:10px;height:10px;border-width:1.5px;flex:0 0 10px}
+@keyframes ml-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.ml-spin{animation-duration:1.6s}}
