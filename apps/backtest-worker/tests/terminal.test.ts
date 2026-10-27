@@ -1,4 +1,4 @@
-/* The worker's terminal-api client (src/terminal.ts) against tests/fake-terminal.mjs (terminal-api /bundle and
+/* The worker's terminal-api client (src/terminal.ts) against tests/fake-terminal.mjs (terminal-api /bundle, /manifest and
    /reference with main.py's answers and errors, and a presigned bucket), with files in the publisher's format:
    what a load returns, the explicit data errors, the retry rule, the sha256 cache, bounded concurrency, the key kept out
    of every message and log line, and no Postgres anywhere in the worker. */
@@ -14,6 +14,7 @@ import { flowData } from '../../edge-bff/backtest/src/core/flow.ts';
 import http from 'node:http';
 import type net from 'node:net';
 import { describeConfig, loadConfig } from '../src/config.ts';
+import { brokerDataThrough } from '../src/load.ts';
 import { TerminalClient, checkDataThrough, checkPriceRange, fileOriginOf, optionsFromEnv } from '../src/terminal.ts';
 import type { TerminalOptions } from '../src/terminal.ts';
 import { EVENT_COLUMNS, brokerArchive, brokerDoc, brokersRef, encode, eventsDoc, priceDoc, pricePack, pyJson, startFakeTerminal, tickersRef } from './fake-terminal.mjs';
@@ -200,6 +201,28 @@ test('reference lists: tickers with type and sector, brokers with name and type'
   const c = new TerminalClient(options());
   assert.deepEqual(await c.reference('tickers'), [{ ticker: 'BBCA', name: 'Bank Central Asia', type: 'stock', sector: 'Finance' }, { ticker: 'IHSG', name: 'Composite', type: 'index', sector: null }]);
   assert.deepEqual(await c.reference('brokers'), [{ code: 'AK', name: 'UBS', type: 'Foreign' }, { code: 'YP', name: 'Mirae', type: 'Domestic' }]);
+});
+
+test('a manifest grants nothing: data_through per dataset, the newest price row (last_bar); the broker date scan stops once it reaches `until`', async () => {
+  const c = new TerminalClient(options()), r0 = fake.requests.length;
+  assert.deepEqual(await c.manifest('BBCA'), { ticker: 'BBCA', data_through: { price: '2026-01-06', broker: '2026-01-05', events: '2026-10-25 17:04:28+00' }, last_bar: '2026-01-06' });
+  assert.deepEqual(await c.manifest('IHSG'), { ticker: 'IHSG', data_through: { price: '2026-01-02' }, last_bar: null });   // a pack without yearly files
+  await assert.rejects(c.manifest('NOPE'), code('DATA_MISSING', 'NOPE'));
+  assert.deepEqual(fake.requests.slice(r0).map(x => x.path), ['/api/terminal/v1/manifest/BBCA', '/api/terminal/v1/manifest/IHSG', '/api/terminal/v1/manifest/NOPE']);
+  // a price year without the date of its last row is not a manifest the worker can read
+  const odd = await startFakeTerminal({ key: KEY, tickers: { ODD: { datasets: { price: { data_through: '2026-01-06', files: [{ year: 2026, body: 'not gzip' }] } } } } });
+  try { await assert.rejects(new TerminalClient(options({ url: odd.url, fileOrigin: odd.url })).manifest('ODD'), code('DATA_INTEGRITY', 'ODD')) }
+  finally { await odd.close() }
+  // load.ts brokerDataThrough, one manifest at a time: without `until` every stock; with it, none after the first that
+  // reaches it; a date before `until` is the newest of all (every stock was asked); a stock without broker data has none
+  const stocks = ['T1', 'T2', 'BBCA', 'T3', 'NOPE'], asked = async (until?: string) => {
+    const r1 = fake.requests.length, d = await brokerDataThrough(c, stocks, 1, undefined, until);
+    return [d, fake.requests.slice(r1).map(x => x.path.split('/').pop())];
+  };
+  assert.deepEqual(await asked(), ['2026-01-05', stocks]);
+  assert.deepEqual(await asked('2026-01-05'), ['2026-01-05', ['T1', 'T2', 'BBCA']]);
+  assert.deepEqual(await asked('2026-01-06'), ['2026-01-05', stocks]);
+  assert.deepEqual(await brokerDataThrough(c, ['T1', 'NOPE'], 2), null);
 });
 
 test('the proxy key and the presigned URLs never appear in an error message, its details or a log line', async () => {

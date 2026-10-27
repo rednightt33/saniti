@@ -67,7 +67,8 @@ owner, lineage and distinct variant of the finished runs' `meta.trials.variants`
 daily Sharpe, kind and request of the latest run that reported the variant; its `recorded_seq` (identity) keeps the
 place where it was first recorded. The loop passes a line's trials to the worker as `prior_trials` in `recorded_seq`
 order: runs in the order they finished, each run's variants in its order. The runtime role gets only what the code
-does: jobs SELECT/INSERT/UPDATE, results SELECT/INSERT/DELETE, trials SELECT/INSERT/UPDATE. No market data.
+does: jobs SELECT/INSERT/UPDATE, results SELECT/INSERT/DELETE, trials SELECT/INSERT/UPDATE; PUBLIC gets nothing (the
+migration's verify block checks both). No market data.
 
 The loop (`app/backtest.py`, started with the ORC loop when `BACKTEST_WORKER_URL` is set) takes the oldest queued job
 under a lease (`EDGE_LEASE_SECONDS`, heartbeat `EDGE_HEARTBEAT_SECONDS`), reads its line's trials and posts
@@ -95,7 +96,7 @@ them. The Railway dev column holds the dev values (the limits are initial values
 | BACKTEST_QUEUED_PER_OWNER | 3 | 3 (default; not set) | queued jobs per owner (`429 QUEUE_FULL` above it); the worker's catalog reports its own value, default 3 |
 
 Tests: `tests/test_backtest.py` (fake worker as a local HTTP server, disposable Postgres, one Chromium check of the
-tab).
+tab, and the image's build context: `.dockerignore` matched as Docker matches it, against the Dockerfile's COPY lines).
 
 ## Front-end structure: editing the page without touching the API (EXEC-X, 2026-10-08)
 

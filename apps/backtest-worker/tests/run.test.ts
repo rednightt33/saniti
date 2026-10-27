@@ -323,9 +323,15 @@ test('portfolio: a ticker without published files and a ticker with too short a 
   assert.deepEqual(w.reasons![1], nopx);
   // the core on the same bars with the loader's exclusion; every file read counts in data_version (ISEA's too)
   assert.deepStrictEqual(noDuration(r), noDuration(await direct(q, STOCKS, [priceFile('IHSG'), ...STOCKS.map(priceFile)], [], [nopx])));
-  // a universe of NOPX alone runs on no ticker: cash only, the warning says so
-  const c = await runJob(portfolioDefault('sector:Sector C'), { prior_trials: [] }, withNopx(), env());
-  assert.deepEqual([c.meta.tickers, c.trades.length, c.meta.warnings[0].tickers], [[], 0, ['NOPX']]);
+  // a universe whose every ticker is left out is refused (lead decision 2026-10-26: no cash-only result), with the count
+  // and the reasons; NOPX alone (Sector C), and NOPX with ISEA, which the engine leaves out
+  const c = await runJob(portfolioDefault('sector:Sector C'), { prior_trials: [] }, withNopx(), env()).catch(x => x);
+  assert.ok(c instanceof ValidationError && c.code === 'UNIVERSE_EMPTY' && c.field === 'portfolio.universe', String(c));
+  assert.equal(c.message, `All 1 ticker(s) of the universe were left out because their own data cannot serve the strategy (1 DATA_MISSING): no ticker is left to trade. The first is NOPX: ${nopx.message}`);
+  const both = { ...withNopx(), tickers: [...refs.tickers.map(t => t.ticker === 'ISEA' ? { ...t, sector: 'Sector C' } : t), NOPX] };
+  const e = await runJob({ ...clone(q), portfolio: { ...q.portfolio!, universe: 'sector:Sector C' } }, { prior_trials: [] }, both, env()).catch(x => x);
+  assert.ok(e instanceof ValidationError && e.code === 'UNIVERSE_EMPTY', String(e));
+  assert.match(e.message, /^All 2 ticker\(s\) of the universe were left out because their own data cannot serve the strategy \(1 INDICATOR_OUTPUT_EMPTY, 1 DATA_MISSING\): no ticker is left to trade\. The first is ISEA: /);
   // single mode still refuses what a portfolio leaves out
   const one = pageDefault('ISEA'); one.entry.conditions.push(q.entry.conditions[3]);
   assert.deepEqual(await refusal(runJob(one, { prior_trials: [] }, refs, env())), ['INDICATOR_OUTPUT_EMPTY', 'entry.conditions[3].rhs']);
@@ -374,9 +380,10 @@ test('flow on: broker files only when a flow condition needs them, counted again
     const m0 = manifests();
     const bbca = pageDefault('BBCA', true); bbca.period.from = days[0];
     assert.deepEqual(await refusal(runJob(bbca, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }))), ['FLOW_UNAVAILABLE', 'entry.conditions[3]']);
-    assert.equal(manifests() - m0, STOCKS.length, 'every stock\'s manifest was asked once');
+    // BBCA's date is its /bundle answer's; the other stocks' manifests are asked until one reaches period.to (UNVR, the last)
+    assert.equal(manifests() - m0, STOCKS.length - 1, 'every other stock\'s manifest was asked once');
     await runJob(q, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }));
-    assert.equal(manifests() - m0, STOCKS.length, 'UNVR\'s own manifest reaches period.to: no other manifest is asked');
+    assert.equal(manifests() - m0, STOCKS.length - 1, 'UNVR\'s own manifest reaches period.to: no other manifest is asked');
     // GOTO has no broker file: DATA_MISSING in single mode
     const goto = pageDefault('GOTO', true); goto.period.from = days[0]; goto.single!.benchmark = 'ihsg';
     assert.deepEqual(await refusal(runJob(goto, { prior_trials: [] }, refs, env({ url: flowFake.url, flow: on }))), ['DATA_MISSING', 'GOTO.broker']);
@@ -480,4 +487,51 @@ test('signals preview: each universe ticker as previewRow on its own bars, data_
     [{ schema_version: 1, universe: 'all', period, entry, exit: {} }, 'UNKNOWN_FIELD', 'exit'],
   ];
   for (const [req, code, field] of bad) assert.deepEqual(await refusal(runSignals(req, refs, env())), [code, field], JSON.stringify(req).slice(0, 80));
+});
+
+test('signals preview: the run\'s exclusions in the run\'s warning, UNIVERSE_EMPTY, FLOW_DATA_THROUGH: it never fails where the run succeeds', async () => {
+  // lead decision 2026-10-26: the run's per-ticker exclusion (signals.ts unlessLeftOut, leftOut), reported as the
+  // result's TICKERS_EXCLUDED; NOPX has no published file, ISEA's history is shorter than the 'long' condition's window
+  const isea = FX.get('ISEA')!.T.length;
+  const q = portfolioDefault();
+  q.entry.conditions.push({ id: 'long', kind: 'indicator', indicator: 'I01', params: { length: isea + 1 }, lhs: { type: 'price' }, op: 'gt', rhs: { type: 'output', output: 'sma' } });
+  q.entry.logic = 'any';
+  const preview = (universe: string, entry = q.entry, period = { from: q.period.from, to: q.period.to }) => ({ schema_version: 1, universe, period, entry });
+  const p = await runSignals(preview('all'), withNopx(), env()), r = await runJob(q, { prior_trials: [] }, withNopx(), env());
+  const run = r.meta.warnings.find(w => w.code === 'TICKERS_EXCLUDED')!;
+  assert.equal(p.warnings.length, 1);
+  const w = p.warnings[0];
+  assert.deepEqual(Object.keys(w).sort(), Object.keys(run).sort());
+  assert.deepEqual([w.code, w.count, w.tickers, w.reasons], [run.code, run.count, run.tickers, run.reasons]);
+  assert.deepEqual(w.tickers, ['ISEA', 'NOPX']);
+  assert.match(w.message, /^2 ticker\(s\) of the universe were left out of this preview because their own data cannot serve the strategy \(1 INDICATOR_OUTPUT_EMPTY, 1 DATA_MISSING\)/);
+  // the rows are the tickers the run ran on, with the run's signal counts
+  assert.deepEqual(p.rows.map(x => x.ticker), r.meta.tickers);
+  assert.deepEqual(p.rows.map(x => [x.ticker, x.entry_signals, x.last_signal]), r.tables.per_ticker.map(x => [x.ticker, x.entry_signals, x.last_signal]));
+  assert.deepEqual((await runSignals(preview('all', pageDefault('UNVR').entry), refs, env())).warnings, [], 'nothing left out: no warning');
+  // every ticker left out: refused as the run is (UNIVERSE_EMPTY), never an empty preview
+  assert.deepEqual(await refusal(runSignals(preview('sector:Sector C'), withNopx(), env())), ['UNIVERSE_EMPTY', 'universe']);
+  assert.deepEqual(await refusal(runJob(portfolioDefault('sector:Sector C'), { prior_trials: [] }, withNopx(), env())), ['UNIVERSE_EMPTY', 'portfolio.universe']);
+
+  // flow: UNVR's broker data is published through days[25] (test rows), no other stock has broker files
+  const days = FX.get('UNVR')!.T.slice(-30);
+  const rows = days.map(d => [d, 'YU', 'Foreign', 'Regular', 1e9, 5e8, 1e4, 5e3, false]);
+  const stale = await startFakeTerminal({ key: KEY, tickers: market({ UNVR: { broker: { data_through: days[25], doc: brokerArchive('UNVR', rows, [2026, 2026]) } } }), refs: REFS });
+  try {
+    const on: Config['flow'] = { enabled: true, reason: null }, flowEnv = () => env({ url: stale.url, flow: on });
+    const entry = pageDefault('UNVR', true).entry, job = portfolioDefault('sector:Sector A');
+    job.entry = entry; job.period.from = days[0];
+    // period.to after the broker data: FLOW_DATA_THROUGH, the run's code, field and message, before any download
+    const e = await runSignals(preview('sector:Sector A', entry, { from: days[0], to: THROUGH }), refs, flowEnv()).catch(x => x);
+    const je = await runJob(job, { prior_trials: [] }, refs, flowEnv()).catch(x => x);
+    assert.ok(e instanceof ValidationError && e.code === 'FLOW_DATA_THROUGH' && e.field === 'period.to', String(e));
+    assert.deepEqual([e.code, e.field, e.message], [je.code, je.field, je.message]);
+    assert.equal(stale.requests.filter(x => x.path.startsWith('/bucket/')).length, 0, 'nothing was downloaded');
+    // ending on it: BBCA and GOTO (no broker file) left out of both, UNVR counted
+    const ok = await runSignals(preview('sector:Sector A', entry, { from: days[0], to: days[25] }), refs, flowEnv());
+    const jr = await runJob({ ...job, period: { ...job.period, to: days[25] } }, { prior_trials: [] }, refs, flowEnv());
+    assert.deepEqual(ok.rows.map(x => x.ticker), jr.meta.tickers);
+    assert.deepEqual(ok.warnings[0].reasons, jr.meta.warnings.find(x => x.code === 'TICKERS_EXCLUDED')!.reasons);
+    assert.deepEqual(ok.warnings[0].reasons!.map(x => [x.ticker, x.code, x.field]), [['BBCA', 'DATA_MISSING', 'BBCA.broker'], ['GOTO', 'DATA_MISSING', 'GOTO.broker']]);
+  } finally { await stale.close() }
 });

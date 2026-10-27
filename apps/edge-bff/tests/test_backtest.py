@@ -13,6 +13,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
+import posixpath
+import re
 import select
 import socket
 import threading
@@ -594,6 +596,38 @@ def test_the_migration_refuses_a_runtime_role_with_more_than_the_code_does(backt
             conn.execute(MIGRATION.read_text())
 
 
+def test_the_migration_refuses_public_with_any_privilege_on_the_backtest_tables(backtest_tables):
+    """The verify block also holds PUBLIC (every role) to nothing on all three tables, not only to no SELECT on the jobs.
+    The migration revokes PUBLIC's grants just before it, so it is run here without that REVOKE, the verify block being
+    the guard, with the schema's default privileges granting PUBLIC one privilege at a time on the new tables. A
+    privilege edge_bff_runtime would then hold beyond its grants is refused by the runtime check first; SELECT and
+    INSERT, which it holds anyway, by the PUBLIC check."""
+    revoke = 'REVOKE ALL ON edge_bff.backtest_jobs, edge_bff.backtest_results, edge_bff.backtest_trials FROM PUBLIC;\n'
+    assert MIGRATION.read_text().count(revoke) == 1
+    unguarded = MIGRATION.read_text().replace(revoke, '')
+    privileges = ('SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER')
+    with psycopg.connect(backtest_tables, autocommit=True) as conn:
+        conn.execute(ROLLBACK)
+        try:
+            conn.execute(unguarded)                         # without any default privilege PUBLIC has nothing: applied
+            conn.execute(ROLLBACK)
+            for privilege in privileges:
+                conn.execute(f'ALTER DEFAULT PRIVILEGES IN SCHEMA edge_bff GRANT {privilege} ON TABLES TO PUBLIC')
+                message = 'PUBLIC can use the backtest tables' if privilege in ('SELECT', 'INSERT') else 'more than the backtest tables need'
+                with pytest.raises(psycopg.errors.RaiseException, match=message):
+                    conn.execute(unguarded)
+                conn.execute('ROLLBACK')
+                assert conn.execute("SELECT to_regclass('edge_bff.backtest_jobs')").fetchone()[0] is None, privilege
+                conn.execute(f'ALTER DEFAULT PRIVILEGES IN SCHEMA edge_bff REVOKE {privilege} ON TABLES FROM PUBLIC')
+        finally:
+            conn.execute('ROLLBACK')
+            for privilege in privileges:
+                conn.execute(f'ALTER DEFAULT PRIVILEGES IN SCHEMA edge_bff REVOKE {privilege} ON TABLES FROM PUBLIC')
+            if conn.execute("SELECT to_regclass('edge_bff.backtest_jobs')").fetchone()[0] is not None:
+                conn.execute(ROLLBACK)
+            conn.execute(MIGRATION.read_text())
+
+
 def handed(worker, job_id):
     return [x for x in worker.posted('/v1/jobs') if x['body']['job_id'] == job_id][0]['body']
 
@@ -936,6 +970,71 @@ def test_backtest_tab_page_and_its_frame_csp(app, monkeypatch, tmp_path):
     assert c.get('/backtest-app/assets/missing.js').status_code == 404
     monkeypatch.setattr(main, 'BACKTEST_APP', tmp_path / 'not-built')
     assert c.get('/backtest-app/').status_code == 404
+
+
+def docker_ignored(patterns, path):
+    """Whether the Docker build leaves `path` (relative to the context, '/'-separated) out of the context: moby/patternmatcher
+    MatchesOrParentMatches, which the Docker CLI and BuildKit apply to .dockerignore. Each pattern is matched from the
+    context root ('*' and '?' stop at '/', '**/' spans any folders), against the path and each of its parent folders;
+    the last pattern that matches decides, a '!' exception keeping the path."""
+    parents = path.split('/')[:-1]
+    left_out = False
+    for exception, rx in patterns:
+        if exception != left_out:
+            continue
+        if rx.fullmatch(path) or any(rx.fullmatch('/'.join(parents[:k + 1])) for k in range(len(parents))):
+            left_out = not exception
+    return left_out
+
+
+def dockerignore(text):
+    patterns = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith('#'):
+            continue
+        exception = line.startswith('!')
+        line = posixpath.normpath(line.lstrip('!').strip()).lstrip('/')
+        assert not set('[\\') & set(line), line         # classes and escapes: not in the file, not in this matcher
+        rx, i = '', 0
+        while i < len(line):
+            if line.startswith('**', i):
+                i += 2 + (line[i + 2:i + 3] == '/')
+                rx += '.*' if i >= len(line) else '(.*/)?'
+                continue
+            rx += {'*': '[^/]*', '?': '[^/]'}.get(line[i], re.escape(line[i]))
+            i += 1
+        patterns.append((exception, re.compile(rx)))
+    return patterns
+
+
+def test_the_image_context_leaves_out_caches_tests_and_build_output_at_any_depth():
+    """apps/edge-bff/.dockerignore: a pattern matches from the context root only, so caches that appear in any folder
+    need '**/' (a bare '__pycache__' left app/__pycache__ in the image). Local builds, dependencies and tests of the
+    two pages stay out (the Dockerfile installs and builds them itself); every file its COPY lines take is kept."""
+    root = Path(__file__).resolve().parents[1]
+    patterns = dockerignore((root / '.dockerignore').read_text())
+    for path in ('app/__pycache__/main.cpython-312.pyc', 'app/x.pyc', 'tests/__pycache__/conftest.cpython-312.pyc',
+                 'backtest/tests/visual/__pycache__/diff.cpython-312.pyc', 'terminal/src/__pycache__/x.pyc',
+                 '.pytest_cache/v/cache', 'app/.pytest_cache/v/cache', '.env', 'app/.env.local', 'backtest/.env',
+                 'tests/test_backtest.py', 'preview/edge_preview.py', 'terminal/node_modules/vite/package.json',
+                 'terminal/tests/calc.test.ts', 'static/terminal-app/index.html', 'backtest/node_modules/vite/package.json',
+                 'backtest/tests/fixture/api.ts', 'backtest/dist/index.html', 'backtest/dist-smoke/index.html',
+                 'backtest/dist-fixture/index.html', 'static/backtest-app/index.html'):
+        assert docker_ignored(patterns, path), path
+    copied = [source for line in (root / 'Dockerfile').read_text().splitlines() if line.startswith('COPY ') and '--from' not in line
+              for source in line.split()[1:-1]]
+    assert copied == ['terminal/package.json', 'terminal/package-lock.json', 'terminal/', 'backtest/package.json',
+                      'backtest/package-lock.json', 'terminal/src', 'backtest/', 'requirements.txt', 'app', 'static']
+    # the copied sources, the files at the top of each copied folder (configuration, package files, index.html, the app's
+    # modules, the static files) and the two pages' sources
+    top = [f'{folder}/{p.name}' for folder in ('app', 'static', 'terminal', 'backtest') for p in (root / folder).iterdir()
+           if p.is_file() and not p.name.startswith('.env') and p.suffix != '.pyc']
+    sources = [p.relative_to(root).as_posix() for folder in ('terminal/src', 'backtest/src') for p in (root / folder).rglob('*')
+               if p.is_file() and '__pycache__' not in p.parts]
+    needed = [*copied, *top, *sources]
+    assert 'backtest/src/core/engine.ts' in needed and 'backtest/vite.config.ts' in needed and 'app/backtest.py' in needed
+    assert [p for p in needed if docker_ignored(patterns, p.rstrip('/'))] == []
 
 
 def test_backtest_settings_are_paired_strong_private_and_bounded(settings):

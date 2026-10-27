@@ -5,8 +5,8 @@
    GET  /health                   {ok: true, engine_version, registry_version}
    GET  /v1/catalog               Catalog (catalog.ts)
    POST /v1/validate {request}    200 {ok: true, lineage_key, variant_hash, tickers} | 422 (validate.ts on the reference
-                                  ticker and broker lists, then run.ts checkPublished on the catalog's dates:
-                                  FLOW_DATA_THROUGH, PERIOD_AFTER_DATA; no file of the request's tickers is read)
+                                  ticker and broker lists, then run.ts checkPublished on terminal-api's manifests:
+                                  FLOW_DATA_THROUGH, PERIOD_AFTER_DATA; no /bundle, no file)
    POST /v1/signals               SignalsPreviewRequest -> SignalsPreview, computed on the preview thread while the
                                   caller waits; one preview at a time, the next ones wait in arrival order
    POST /v1/jobs {job_id, request, context}

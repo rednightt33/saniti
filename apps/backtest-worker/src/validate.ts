@@ -16,8 +16,9 @@
      has a net of 0 there, flow.ts brokerNet);
    - a condition id has the page's shape (CONDITION_ID) and a list has at most limits.max_conditions enabled
      conditions (LIMIT_EXCEEDED): the result repeats the ids per ticker track and per trade.
-   PERIOD_AFTER_DATA (IHSG's last bar), FLOW_DATA_THROUGH (the broker data's date) and the data-dependent errors are
-   the run's: they need the published manifests or files. */
+   PERIOD_AFTER_DATA (IHSG's last bar) and FLOW_DATA_THROUGH (the broker data's date) need terminal-api's manifests
+   (run.ts checkPublished, at /v1/validate, and the run again); the other data-dependent errors are the run's: they need
+   the published files. */
 import type { BacktestRequest, SignalsPreviewRequest } from '../../edge-bff/backtest/src/core/contract.ts';
 import { Calc, conditionSeries, flowConditionShape } from '../../edge-bff/backtest/src/core/conditions.ts';
 import type { Condition as CoreCondition, FlowCondition } from '../../edge-bff/backtest/src/core/conditions.ts';

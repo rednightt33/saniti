@@ -75,11 +75,12 @@ function within(limits: Pick<Limits, 'max_download_bytes' | 'max_broker_rows'>, 
       field, { limit: 'max_broker_rows', allowed: limits.max_broker_rows, needed: t.rows });
 }
 
-/** At most n tasks at a time over the items, in order; the first error stops new tasks and is thrown. */
-async function lanes<T>(items: readonly T[], n: number, task: (item: T, k: number) => Promise<void>): Promise<void> {
+/** At most n tasks at a time over the items, in order; the first error stops new tasks and is thrown, and so does
+    enough() answering true (the tasks in flight finish). */
+async function lanes<T>(items: readonly T[], n: number, task: (item: T, k: number) => Promise<void>, enough?: () => boolean): Promise<void> {
   let next = 0, failed: unknown = null;
   const lane = async () => {
-    while (!failed && next < items.length) {
+    while (!failed && next < items.length && !enough?.()) {
       const k = next++;
       try { await task(items[k], k) } catch (e) { failed ||= e }
     }
@@ -142,10 +143,28 @@ export async function loadMarket(client: PlannedClient, groups: readonly LoadGro
 }
 
 /** The date the broker data is published through: the newest broker data_through among the stocks' manifests
-    (terminal-api /manifest, no file granted). The publisher writes its broker data_through into the manifest of every
-    stock whose files it changes, so a stock without new files (a suspended one) keeps an older date and only the
-    newest is the broker data's date. A stock terminal-api does not publish (404) has none; null when no stock has one. */
-export async function brokerDataThrough(client: TerminalClient, stocks: readonly string[], concurrency: number, shouldStop?: () => boolean): Promise<string | null> {
+    (terminal-api /manifest, no file granted, no quota: main.py manifest). The publisher writes its broker data_through
+    into the manifest of every stock whose files it changes, so a stock without new files (a suspended one) keeps an
+    older date and only the newest is the broker data's date. A stock terminal-api does not publish (404) has none;
+    null when no stock has one. `until`: a check needs only whether the data reaches that date, so no further manifest
+    is asked once one reaches it (the answer is then at least `until`); an answer before `until` is exact, since every
+    stock was asked.
+    Not cached (lead decision 2026-10-26: cache it per publish if a publish marker in terminal-api's answers is exact;
+    none is). The value changes only when the publisher rewrites a stock's manifest, and a run rewrites only the
+    manifests of the tickers it touched (publisher.py run: the tickers of the files it planned and of the packs it
+    rebuilt), each with that run's broker data_through. What terminal-api answers that could mark a publish:
+    - a manifest's generated_at (/manifest, /bundle) changes with that ticker's manifest only. IHSG's is rewritten only
+      by a run that touches IHSG (one of its files planned, or its packs rebuilt): not by a broker-range run (stocks
+      only), an events run without an IHSG event, or a daily run that publishes new broker rows without a new IHSG
+      price (the morning run after the evening one), and each of these can write a newer broker data_through into the
+      stocks it touches; no other ticker is touched by every run that changes the broker data either;
+    - /reference answers a presigned URL only. The reference files are rewritten by every run (publish_refs) but with
+      the same bytes for the same universe (encode: gzip mtime 0), and their Last-Modified is the bucket's header, not
+      terminal-api's answer; a run that fails after its manifests and before publish_refs leaves them as they were;
+    - state.json finished_at, which terminal-api's own manifest cache follows (bucket.py _fresh), is not served.
+    A cache keyed on any of them could keep an old date after a publish, so the catalog asks every stock's manifest
+    each time (edge-bff keeps the catalog for a minute) and a check stops at the first manifest that reaches its date. */
+export async function brokerDataThrough(client: TerminalClient, stocks: readonly string[], concurrency: number, shouldStop?: () => boolean, until?: string): Promise<string | null> {
   let newest: string | null = null;
   await lanes(stocks, concurrency, async t => {
     if (shouldStop?.()) throw new Cancelled();
@@ -153,6 +172,6 @@ export async function brokerDataThrough(client: TerminalClient, stocks: readonly
     try { d = (await client.manifest(t)).data_through.broker }
     catch (e) { if (e instanceof DataError && e.code === 'DATA_MISSING') return; throw e }
     if (typeof d === 'string' && (newest === null || d > newest)) newest = d;
-  });
+  }, () => until !== undefined && newest !== null && newest >= until);
   return newest;
 }

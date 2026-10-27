@@ -19,27 +19,23 @@
    Deterministic: the same request on the same published files gives the same result (meta.duration_ms aside); no
    clock, random number or cache state reaches a number.
    Checks against the published data (CONTRACT.md sections 2-3); the first two are POST /v1/validate's too
-   (checkPublished, lead decision 2026-10-26), with the same code, field and message, on the catalog's dates:
+   (checkPublished, lead decision 2026-10-26), with the same code, field and message:
    - PERIOD_AFTER_DATA: period.to after IHSG's last published bar (the engine's rule, checked before the run);
    - FLOW_DATA_THROUGH (a run or a preview that reads the broker files): period.to after the date the broker data is
      published through, the catalog's flow.data_through (load.ts brokerDataThrough: the newest broker data_through of
      the stocks' manifests), checked on the manifests before any download. The publisher writes its broker
      data_through into the manifest of each stock whose files changed, so a stock without new files keeps an older
-     date: when no loaded ticker's manifest reaches period.to, every stock's manifest is asked (the catalog's value),
-     so a run is refused exactly when the catalog's date is before period.to; the per-ticker price data_through is not
-     used (a suspended stock would refuse a run that misses nothing); IHSG's last bar is the price check.
-     The scan is not cached: no answer of terminal-api carries an exact marker of a publish. The broker data_through
-     is written only into the touched stocks' manifests (IHSG's own manifest is not rewritten by a run that does not
-     touch IHSG), the reference files are rewritten on every publish but their Last-Modified is the bucket's header
-     and not part of terminal-api's answer, and terminal-api's own manifest cache follows the publisher's state file,
-     which the worker cannot read; a cache keyed on any of them could keep an old date after a publish;
+     date: the run's own manifests are read first, then the other stocks' until one reaches period.to, so a run is
+     refused exactly when the catalog's date is before period.to (load.ts brokerDataThrough says why that scan is not
+     cached); the per-ticker price data_through is not used (a suspended stock would refuse a run that misses
+     nothing); IHSG's last bar is the price check;
    - single mode: the ticker has a published bar inside the period (DATA_MISSING otherwise, terminal.ts
      checkPriceRange); a period.from before its first bar starts the run there (engine.ts PERIOD_CLIPPED);
    - PERIOD_BEFORE_DATA (engine.ts): the primary benchmark has no close on or before the first day of the result
      calendar (result.ts cannot scale a benchmark without a first close). */
 import type { BacktestRequest, BacktestResult, JobContext, JobProgress, SignalsPreview, SignalsPreviewRequest } from '../../edge-bff/backtest/src/core/contract.ts';
 import { Calc } from '../../edge-bff/backtest/src/core/conditions.ts';
-import { INDEX_TICKER } from '../../edge-bff/backtest/src/core/datafile.ts';
+import { DataError, INDEX_TICKER } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { Cancelled, prepare, run } from '../../edge-bff/backtest/src/core/engine.ts';
 import type { MarketData } from '../../edge-bff/backtest/src/core/engine.ts';
 import { lineageKey, requestHash, variantHash } from '../../edge-bff/backtest/src/core/hash.ts';
@@ -71,28 +67,44 @@ export type Refs = References;
 
 /** What the published-data checks need: a terminal client and the manifest concurrency. */
 type CheckEnv = { client: TerminalClient; config: { terminal: Pick<Config['terminal'], 'concurrency'> } };
+const newestOf = (ds: readonly (string | null | undefined)[]) => ds.reduce<string | null>((n, d) => typeof d === 'string' && (n === null || d > n) ? d : n, null);
 
-/** FLOW_DATA_THROUGH before any download (load.ts hooks.planned): the loaded stocks' manifests, else every stock's. */
-async function checkFlowThrough(bundles: ReadonlyMap<string, Bundle>, to: string, refs: Refs, env: CheckEnv, shouldStop?: () => boolean): Promise<void> {
-  const own = [...bundles.values()].map(b => b.datasets.broker?.data_through).filter((d): d is string => typeof d === 'string').sort();
-  if (own.length && lastOf(own) >= to) return;
-  const through = await brokerDataThrough(env.client, stocksOf(refs.tickers), env.config.terminal.concurrency, shouldStop);
-  if (through === null || through < to)
-    throw new ValidationError('FLOW_DATA_THROUGH', 'period.to', `The broker data is published through ${through ?? 'no date'}: a run with flow conditions or ranked by foreign net flow must end on or before it (period.to is ${to}).`);
+/** FLOW_DATA_THROUGH: `known` holds the broker data_through of manifests already read (a job's /bundle answers); then
+    the stocks of each group are asked in turn (load.ts brokerDataThrough with `until`), and nothing more once a date
+    reaches period.to. Refused when none does, every stock having been asked: the date named is the catalog's. */
+async function checkFlowThrough(known: readonly (string | null | undefined)[], groups: readonly (readonly string[])[], to: string, env: CheckEnv, shouldStop?: () => boolean): Promise<void> {
+  let newest = newestOf(known);
+  for (const g of groups) {
+    if (newest !== null && newest >= to) return;
+    newest = newestOf([newest, await brokerDataThrough(env.client, g, env.config.terminal.concurrency, shouldStop, to)]);
+  }
+  if (newest === null || newest < to)
+    throw new ValidationError('FLOW_DATA_THROUGH', 'period.to', `The broker data is published through ${newest ?? 'no date'}: a run with flow conditions or ranked by foreign net flow must end on or before it (period.to is ${to}).`);
 }
+/** The job's FLOW_DATA_THROUGH before any download (load.ts hooks.planned): the loaded stocks' /bundle answers, then
+    the other stocks' manifests. */
+const flowThroughOf = (bundles: ReadonlyMap<string, Bundle>, to: string, refs: Refs, env: CheckEnv, shouldStop?: () => boolean) =>
+  checkFlowThrough([...bundles.values()].map(b => b.datasets.broker?.data_through), [stocksOf(refs.tickers).filter(t => !bundles.has(t))], to, env, shouldStop);
 /** PERIOD_AFTER_DATA: period.to after IHSG's last published bar. */
-function checkAfterData(ihsgDates: readonly string[], to: string): void {
-  const last = lastOf(ihsgDates);
+function checkAfterData(last: string, to: string): void {
   if (to > last) throw new ValidationError('PERIOD_AFTER_DATA', 'period.to', `period.to is after the latest published bar (${last}).`);
 }
 
 /** POST /v1/validate's checks against the published data (lead decision 2026-10-26), in the job's order and with its
-    codes, fields and messages, on the catalog's dates and no file of the request's tickers: FLOW_DATA_THROUGH on every
-    stock's manifest (the catalog's flow.data_through) when the request reads the broker files, then PERIOD_AFTER_DATA
-    on IHSG's price files (the catalog's data_through). The job checks both again on the data it reads. */
+    codes, fields and messages, on terminal-api's manifests only: /bundle grants files (terminal-api counts them in the
+    subscriber's quota and writes an audit row) and is never asked here, and no file is read. FLOW_DATA_THROUGH when
+    the request reads the broker files: the request's tickers' manifests, then the other stocks' until one reaches
+    period.to (the job's rule on the catalog's flow.data_through). PERIOD_AFTER_DATA on IHSG's manifest: the newest
+    row of its price files (terminal.ts manifest last_bar), the bar the job reads last from the same rows, unless the
+    publisher wrote a last row without its four prices, which the job drops (datafile.ts priceSeries): then the job,
+    which checks both again on the data it reads, refuses what this check let through, never the other way round. */
 export async function checkPublished(request: BacktestRequest, checked: CheckedRequest, refs: Refs, env: CheckEnv): Promise<void> {
-  if (checked.broker) await checkFlowThrough(new Map(), request.period.to, refs, env);
-  checkAfterData((await env.client.loadTicker(INDEX_TICKER, ['price'])).prices!.dates, request.period.to);
+  const to = request.period.to;
+  const own = new Set(checked.tickers);
+  if (checked.broker) await checkFlowThrough([], [checked.tickers, stocksOf(refs.tickers).filter(t => !own.has(t))], to, env);
+  const last = (await env.client.manifest(INDEX_TICKER)).last_bar;
+  if (last === null) throw new DataError('DATA_MISSING', `No price file is published for ${INDEX_TICKER}.`, `${INDEX_TICKER}.price`);
+  checkAfterData(last, to);
 }
 
 export async function runJob(request: unknown, context: Pick<JobContext, 'prior_trials'>, refs: Refs, env: RunEnv, hooks: RunHooks = {}): Promise<BacktestResult> {
@@ -110,11 +122,11 @@ export async function runJob(request: unknown, context: Pick<JobContext, 'prior_
   const loaded = await loadMarket(env.client, [{ tickers: [INDEX_TICKER], datasets: ['price'] }, { tickers: checked.tickers, datasets, skipUnpublished: !single }],
     limits, field, env.config.terminal.concurrency, {
       shouldStop: hooks.shouldStop, progress: (d, t) => report('loading', d, t),
-      planned: checked.broker ? b => checkFlowThrough(new Map([...b].filter(([t]) => t !== INDEX_TICKER)), to, refs, env, hooks.shouldStop) : undefined,
+      planned: checked.broker ? b => flowThroughOf(new Map([...b].filter(([t]) => t !== INDEX_TICKER)), to, refs, env, hooks.shouldStop) : undefined,
     });
   const ihsg = (loaded.tickers.get(INDEX_TICKER) as LoadedTicker).prices!;
   const ihsgLast = lastOf(ihsg.dates);
-  checkAfterData(ihsg.dates, to);
+  checkAfterData(ihsgLast, to);
   const stocks = checked.tickers.filter(t => loaded.tickers.has(t)).map(t => loaded.tickers.get(t) as LoadedTicker);
   if (single) checkPriceRange(stocks[0], from, to);
   const market: MarketData = { ihsg, tickers: {}, excluded: loaded.excluded };
@@ -186,7 +198,7 @@ export async function runSignals(request: unknown, refs: Refs, env: RunEnv, hook
   const loaded = await loadMarket(env.client, [{ tickers: checked.tickers, datasets: checked.broker ? ['price', 'broker'] : ['price'], skipUnpublished: true }], env.config.limits, 'universe',
     env.config.terminal.concurrency, {
       shouldStop: hooks.shouldStop, progress: (d, t) => hooks.progress?.({ phase: 'loading', done: d, total: t }),
-      planned: checked.broker ? b => checkFlowThrough(b, q.period.to, refs, env, hooks.shouldStop) : undefined,
+      planned: checked.broker ? b => flowThroughOf(b, q.period.to, refs, env, hooks.shouldStop) : undefined,
     });
   const req = { entry: q.entry }, active = requestConditions(req), rows: SignalsPreview['rows'] = [], excluded = [...loaded.excluded];
   let done = 0;

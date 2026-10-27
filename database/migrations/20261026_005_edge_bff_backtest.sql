@@ -124,8 +124,10 @@ BEGIN
        OR has_table_privilege('edge_bff_runtime', 'edge_bff.backtest_trials', 'DELETE, TRUNCATE, REFERENCES, TRIGGER') THEN
         RAISE EXCEPTION 'edge_bff_runtime has more than the backtest tables need';
     END IF;
-    IF has_table_privilege('public', 'edge_bff.backtest_jobs', 'SELECT') THEN
-        RAISE EXCEPTION 'PUBLIC can read edge_bff.backtest_jobs';
+    -- and PUBLIC (every role) nothing on any of them (a list: true when any one is held)
+    IF EXISTS (SELECT 1 FROM unnest(ARRAY['backtest_jobs', 'backtest_results', 'backtest_trials']) AS t(tbl)
+               WHERE has_table_privilege('public', 'edge_bff.' || tbl, 'SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')) THEN
+        RAISE EXCEPTION 'PUBLIC can use the backtest tables';
     END IF;
 END $verify$;
 COMMIT;

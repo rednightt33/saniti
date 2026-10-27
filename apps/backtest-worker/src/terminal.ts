@@ -11,7 +11,9 @@
    terminal-api answers errors as {error: code, message} (400 invalid_request also lists fields): 404 unknown_ticker,
    401 proxy_key_rejected / session_ended, 429 quota_exceeded; GET /reference/{tickers|brokers} answers {url} only
    (no sha256: a reference file cannot be checked against a manifest); GET /manifest/{ticker} answers the ticker's
-   manifest per dataset (data_through, the years' sha256, bytes and rows) without granting a file (no quota, no URL).
+   manifest per dataset (data_through, the years' sha256, bytes, rows and first and last row dates) without granting a
+   file (no quota, no audit row, no URL); /bundle and /reference count every file they grant in the subscriber's quota
+   and write an audit row (main.py grant, reference).
 
    Errors are DataError (datafile.ts): a ticker, dataset or file that is not published is DATA_MISSING; a file that is
    not what the manifest says is DATA_INTEGRITY; terminal-api or the bucket refusing or failing (4xx other than 404,
@@ -45,6 +47,7 @@ import {
 import type { BrokerGap, BrokerRow, Columnar, CorporateAction, FileEntry, PriceSeries } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { flowData } from '../../edge-bff/backtest/src/core/flow.ts';
 import type { FlowData } from '../../edge-bff/backtest/src/core/flow.ts';
+import { isIsoDate } from '../../edge-bff/backtest/src/core/signals.ts';
 
 export const API = '/api/terminal/v1';
 export const PROXY_HEADER = 'x-terminal-proxy-key';
@@ -444,15 +447,26 @@ export class TerminalClient {
     return { tickers: Object.fromEntries(loaded.map(t => [t.ticker, t])), files, data_version: await dataVersion(files) };
   }
 
-  /** One ticker's manifest (terminal-api GET /manifest/{ticker}): data_through per dataset, as /bundle reports it, without
-      granting any file. A ticker terminal-api does not publish is DATA_MISSING (its 404). */
-  async manifest(ticker: string): Promise<{ ticker: string; data_through: Partial<Record<Dataset, string | null>> }> {
+  /** One ticker's manifest (terminal-api GET /manifest/{ticker}) without granting any file: data_through per dataset, as
+      /bundle reports it, and last_bar, the date of the newest row of its yearly price files (the newest `last` of the
+      price years: publisher.py publish writes each file's last row date; the price pack /bundle hands out holds the
+      same rows, publish_packs), null without a price file. A ticker terminal-api does not publish is DATA_MISSING
+      (its 404). */
+  async manifest(ticker: string): Promise<{ ticker: string; data_through: Partial<Record<Dataset, string | null>>; last_bar: string | null }> {
     if (typeof ticker !== 'string' || !TICKER.test(ticker)) throw new DataError('DATA_MISSING', `${JSON.stringify(ticker)} is not a ticker terminal-api publishes.`, 'ticker');
     const m = await this.api('GET', `/manifest/${ticker}`, undefined, `The manifest of ${ticker}`, ticker);
-    if (m.ticker !== ticker || !m.datasets || typeof m.datasets !== 'object') throw new DataError('DATA_INTEGRITY', `terminal-api /manifest for ${ticker}: not the manifest of ${ticker}.`, ticker);
+    const bad = (why: string) => new DataError('DATA_INTEGRITY', `terminal-api /manifest for ${ticker}: ${why}.`, ticker);
+    if (m.ticker !== ticker || !m.datasets || typeof m.datasets !== 'object') throw bad(`not the manifest of ${ticker}`);
     const data_through: Partial<Record<Dataset, string | null>> = {};
     for (const name of DATASETS) if (m.datasets[name]) data_through[name] = typeof m.datasets[name].data_through === 'string' ? m.datasets[name].data_through : null;
-    return { ticker, data_through };
+    const years = m.datasets.price?.years ?? {};
+    if (!years || typeof years !== 'object' || Array.isArray(years)) throw bad('the price years are not a list of files');
+    let last_bar: string | null = null;
+    for (const [y, f] of Object.entries(years as Record<string, { last?: unknown }>)) {
+      if (!f || typeof f.last !== 'string' || !isIsoDate(f.last)) throw bad(`the price file of ${y} has no last date`);
+      if (last_bar === null || f.last > last_bar) last_bar = f.last;
+    }
+    return { ticker, data_through, last_bar };
   }
 
   /** A reference list (terminal-api /reference/{name}): tickers with type and sector, or brokers with name and type. */

@@ -25,7 +25,7 @@ import { createApp } from '../src/server.ts';
 import type { WorkerApp } from '../src/server.ts';
 import type { References } from '../src/validate.ts';
 import { ENGINE_VERSION, REGISTRY_VERSION, checkRegistry } from '../src/version.ts';
-import { brokersRef, pricePack, startFakeTerminal, tickersRef } from './fake-terminal.mjs';
+import { brokersRef, pricePack, priceYears, startFakeTerminal, tickersRef } from './fake-terminal.mjs';
 
 const WORKER_DIR = new URL('..', import.meta.url).pathname;
 
@@ -37,8 +37,10 @@ const THROUGH = [...FX.values()].map(f => f.T[f.T.length - 1]).sort().pop()!;
 const SECTOR: Record<string, string> = { BBCA: 'Sector A', UNVR: 'Sector A', GOTO: 'Sector A' };    // test labels
 // broker manifests (test dates, no file): the publisher wrote its broker data_through into UNVR's manifest last, BBCA's earlier
 const BROKER_THROUGH: Record<string, string> = { UNVR: THROUGH, BBCA: '2026-10-20' };
+// price: the pack the worker reads and the yearly files the publisher writes next to it (the manifest lists those)
+const rowsOf = (f: Fixture) => f.T.map((d, i) => [d, f.O[i], f.H[i], f.L[i], f.C[i], f.V[i]]);
 const MARKET = Object.fromEntries([...FX.values()].map(f => [f.ticker, { generated_at: '2026-10-25T18:20:00+00:00', datasets: {
-  price: { data_through: THROUGH, first_year: +f.T[0].slice(0, 4), files: [{ pack: 'price', doc: pricePack(f.ticker, f.T.map((d, i) => [d, f.O[i], f.H[i], f.L[i], f.C[i], f.V[i]])) }] },
+  price: { data_through: THROUGH, first_year: +f.T[0].slice(0, 4), files: [{ pack: 'price', doc: pricePack(f.ticker, rowsOf(f)) }, ...priceYears(f.ticker, rowsOf(f))] },
   ...(f.ticker === 'IHSG' ? {} : { events: { data_through: null, files: [] } }),
   ...(BROKER_THROUGH[f.ticker] ? { broker: { data_through: BROKER_THROUGH[f.ticker], first_year: 2016, files: [] } } : {}),
 } }]));
@@ -255,35 +257,52 @@ test('validate: the hashes and tickers of a valid request, the field of a refuse
   }
   const bad = await call('POST', '/v1/validate', undefined, { raw: '{"request":' });
   assert.equal(bad.status, 422); assert.equal(bad.json().error.code, 'INVALID_JSON');
-  // the published data on the catalog's dates (lead decision 2026-10-26): PERIOD_AFTER_DATA with the job's code, field
-  // and message; IHSG's price files are all it reads (no manifest or file of the request's tickers)
-  const late = { ...q, period: { ...q.period, to: '2026-10-26' } }, r0 = fake.requests.length;
-  const after = await call('POST', '/v1/validate', { request: late });
-  assert.equal(after.status, 422, after.body.toString());
-  const job = await runJob(late, { prior_trials: [] }, refs, directEnv()).catch(e => e);
-  assert.deepEqual([after.json().error.code, after.json().error.field, after.json().error.message], ['PERIOD_AFTER_DATA', 'period.to', job.message]);
-  const seen = fake.requests.slice(r0).map(x => x.path);
-  assert.deepEqual(seen.filter(x => x.startsWith('/api/terminal/v1/')).sort(), ['/api/terminal/v1/bundle', '/api/terminal/v1/reference/brokers', '/api/terminal/v1/reference/tickers']);
-  assert.ok(seen.every(x => !x.startsWith('/bucket/v1/') || x.startsWith('/bucket/v1/ref/') || x.includes('/IHSG/')), seen.join(' '));
+  // the published data (lead decision 2026-10-26): PERIOD_AFTER_DATA with the job's code, field and message, on IHSG's
+  // manifest alone: no /bundle (terminal-api counts every file it grants in the quota and writes an audit row), no file
+  // but the reference lists
+  for (const to of ['2026-10-26', '2026-10-24']) {                     // the day after IHSG's last bar (a Saturday) is after it too
+    const late = { ...q, period: { ...q.period, to } }, r0 = fake.requests.length;
+    const after = await call('POST', '/v1/validate', { request: late });
+    const seen = fake.requests.slice(r0).map(x => x.path);
+    assert.equal(after.status, 422, after.body.toString());
+    assert.deepEqual(seen.filter(x => x.startsWith('/api/terminal/v1/')).sort(), ['/api/terminal/v1/manifest/IHSG', '/api/terminal/v1/reference/brokers', '/api/terminal/v1/reference/tickers']);
+    assert.deepEqual(seen.filter(x => x.startsWith('/bucket/v1/')).sort(), ['/bucket/v1/ref/brokers.json.gz', '/bucket/v1/ref/tickers.json.gz']);
+    const job = await runJob(late, { prior_trials: [] }, refs, directEnv()).catch(e => e);
+    assert.deepEqual([after.json().error.code, after.json().error.field, after.json().error.message], ['PERIOD_AFTER_DATA', 'period.to', job.message]);
+    assert.equal(job.message, `period.to is after the latest published bar (${FX.get('IHSG')!.T.at(-1)}).`);
+  }
   assert.equal((await call('POST', '/v1/validate', { request: { ...q, period: { ...q.period, to: THROUGH } } })).status, 200, 'period.to on the last bar');
 });
 
-test('validate with flow on: FLOW_DATA_THROUGH on every stock\'s manifest (the catalog\'s date) before PERIOD_AFTER_DATA, as the job', async () => {
+test('validate with flow on: FLOW_DATA_THROUGH on the stocks\' manifests (the catalog\'s date) before PERIOD_AFTER_DATA, as the job', async () => {
   const t = createApp(loadConfig(ENV({ BACKTEST_FLOW_ENABLED: '1' })));
   try {
     const at = `http://127.0.0.1:${await t.listen(0, '127.0.0.1')}`, q = pageDefault('UNVR');
     const flow = { ...q, entry: { ...q.entry, conditions: [...q.entry.conditions, legacyToCondition(legacyCard('fnet', 'f1', { len: 5, val: 0 }))] } };
-    const manifests = () => fake.requests.filter(r => r.path.startsWith('/api/terminal/v1/manifest/')).length, m0 = manifests();
-    // UNVR's manifest says THROUGH, BBCA's 2026-10-20: the broker data is published through THROUGH
-    assert.equal((await call('POST', '/v1/validate', { request: flow }, { at })).status, 200);
-    assert.equal(manifests() - m0, STOCKS.length, 'every stock\'s manifest, as the catalog');
-    const late = await call('POST', '/v1/validate', { request: { ...flow, period: { ...flow.period, to: '2026-10-26' } } }, { at });
-    assert.equal(late.status, 422, late.body.toString());
-    assert.deepEqual([late.json().error.code, late.json().error.field, late.json().error.message], ['FLOW_DATA_THROUGH', 'period.to',
+    const asked = async (request: unknown) => {
+      const r0 = fake.requests.length, a = await call('POST', '/v1/validate', { request }, { at }), seen = fake.requests.slice(r0).map(x => x.path);
+      assert.ok(!seen.includes('/api/terminal/v1/bundle') && seen.every(x => !x.startsWith('/bucket/v1/') || x.startsWith('/bucket/v1/ref/')), seen.join(' '));
+      return { a, manifests: seen.filter(x => x.startsWith('/api/terminal/v1/manifest/')).map(x => x.slice('/api/terminal/v1/manifest/'.length)) };
+    };
+    // UNVR's manifest says THROUGH, BBCA's 2026-10-20: the broker data is published through THROUGH. UNVR's own
+    // manifest reaches period.to, so no other stock's is asked; then IHSG's for PERIOD_AFTER_DATA
+    const ok = await asked(flow);
+    assert.equal(ok.a.status, 200, ok.a.body.toString());
+    assert.deepEqual(ok.manifests, ['UNVR', 'IHSG']);
+    // a sector: its stocks' manifests first (UNVR among them)
+    const sector = await asked({ ...portfolioDefault('sector:Sector A'), entry: flow.entry });
+    assert.equal(sector.a.status, 200, sector.a.body.toString());
+    assert.deepEqual(sector.manifests.sort(), ['BBCA', 'GOTO', 'IHSG', 'UNVR']);
+    // after the broker date: every stock's manifest is asked (none reaches period.to), and the date named is the catalog's
+    const late = await asked({ ...flow, period: { ...flow.period, to: '2026-10-26' } });
+    assert.equal(late.a.status, 422, late.a.body.toString());
+    assert.deepEqual(late.manifests.sort(), STOCKS);
+    assert.deepEqual([late.a.json().error.code, late.a.json().error.field, late.a.json().error.message], ['FLOW_DATA_THROUGH', 'period.to',
       `The broker data is published through ${THROUGH}: a run with flow conditions or ranked by foreign net flow must end on or before it (period.to is 2026-10-26).`]);
-    // without a flow condition the broker date is not asked: PERIOD_AFTER_DATA
-    const m1 = manifests(), plain = await call('POST', '/v1/validate', { request: { ...q, period: { ...q.period, to: '2026-10-26' } } }, { at });
-    assert.deepEqual([plain.json().error.code, manifests() - m1], ['PERIOD_AFTER_DATA', 0]);
+    assert.equal((await call('GET', '/v1/catalog', undefined, { at })).json().flow.data_through, THROUGH);
+    // without a flow condition the broker date is not asked: PERIOD_AFTER_DATA on IHSG's manifest
+    const plain = await asked({ ...q, period: { ...q.period, to: '2026-10-26' } });
+    assert.deepEqual([plain.a.json().error.code, plain.manifests], ['PERIOD_AFTER_DATA', ['IHSG']]);
   } finally { await t.close() }
 });
 

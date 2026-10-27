@@ -38,6 +38,10 @@ export const priceDoc = (ticker, year, rows) => ({
   columns: ['d', 'o', 'h', 'l', 'c', 'v'], ...columnar(rows, ['d', 'o', 'h', 'l', 'c', 'v']),
 });
 export const pricePack = (ticker, rows) => ({ ...priceDoc(ticker, null, rows), dataset: 'price-pack' });
+/** The yearly price files the publisher writes next to the pack (publish: one file per calendar year of the rows), as
+    file entries; /manifest lists them, /bundle with packs: true hands out the pack instead. */
+export const priceYears = (ticker, rows) => [...new Set(rows.map(r => r[0].slice(0, 4)))].sort()
+  .map(y => ({ year: +y, doc: priceDoc(ticker, +y, rows.filter(r => r[0].startsWith(y))) }));
 /** rows: [d, b, i, m, bv, sv, bl, sl, gap] (gap: source_balance_gap of the row) */
 export const brokerDoc = (ticker, year, rows) => {
   const gaps = [...new Set(rows.filter(r => r[8]).map(r => JSON.stringify([r[0], r[3]])))].sort().map(g => JSON.parse(g));

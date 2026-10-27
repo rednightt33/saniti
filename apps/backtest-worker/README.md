@@ -10,7 +10,8 @@ Private HTTP service that computes the EDGE backtests. It is part of the backtes
   chart and the worker therefore share one formula per indicator.
 - **Data access.** The worker reads market data only through terminal-api: `/bundle` and the presigned file URLs it
   returns, `/manifest/{ticker}` (dates only, no file granted) and `/reference/{tickers|brokers}`. It holds no Postgres
-  and no bucket credentials.
+  and no bucket credentials. terminal-api counts every file `/bundle` and `/reference` grant in the gateway account's
+  quota and writes an audit row for each answer; `/manifest` grants nothing, has no quota and writes no audit row.
 
 ## Layout
 
@@ -37,7 +38,7 @@ worker answers `401 {"error":{"code":"UNAUTHORIZED"}}`.
 |---|---|
 | `GET /health` | `{ok: true, engine_version, registry_version}` |
 | `GET /v1/catalog` | `Catalog` (contract.ts) |
-| `POST /v1/validate {request}` | `200 {ok: true, lineage_key, variant_hash, tickers}`, or `422` with the error |
+| `POST /v1/validate {request}` | `200 {ok: true, lineage_key, variant_hash, tickers}`, or `422` with the error: the request checks (`validate.ts`), then `FLOW_DATA_THROUGH` and `PERIOD_AFTER_DATA` with the code, field and message the job would fail with, read from terminal-api's manifests only (no `/bundle`, no file) |
 | `POST /v1/signals` | the body is a `SignalsPreviewRequest`; the answer is a `SignalsPreview` |
 | `POST /v1/jobs {job_id, request, context}` | `202 {job_id}`, `409 BUSY` or `422` |
 | `GET /v1/jobs/{id}` | `JobStatus`, or `404 UNKNOWN_JOB` |
@@ -49,6 +50,11 @@ worker answers `401 {"error":{"code":"UNAUTHORIZED"}}`.
 - Previews run on the preview thread while the caller waits.
 - One preview computes at a time; the others wait in arrival order.
 - When the caller disconnects, its preview is cancelled.
+- A preview leaves out the tickers the run leaves out, with the run's shared code (`signals.ts`): a ticker without
+  published files, or whose own data cannot serve the entry rule. They are listed in `warnings` as the result's
+  `TICKERS_EXCLUDED` (`count`, `tickers`, `reasons`). When none is left the preview is refused with `UNIVERSE_EMPTY`, as
+  the run is, and a preview that reads broker files is held to `FLOW_DATA_THROUGH`. A preview never fails where the
+  matching run succeeds (lead decision 2026-10-26).
 
 ### Jobs
 
@@ -78,7 +84,7 @@ Errors have the shape `{"error": {code, field?, message?, details?}}`.
 
 | Status | Codes |
 |---|---|
-| 422 | validation errors (among them `UNKNOWN_FIELD`, `UNKNOWN_BROKER`, `FLOW_UNAVAILABLE`, `FLOW_OUTPUT_EMPTY`, `INDICATOR_OUTPUT_EMPTY`, `PERIOD_AFTER_DATA`, `PERIOD_BEFORE_DATA`, `FLOW_DATA_THROUGH`), `LIMIT_EXCEEDED`, `INVALID_JSON`, `INVALID_JOB_ID`, `INVALID_CONTEXT` |
+| 422 | validation errors (among them `UNKNOWN_FIELD`, `INVALID_CONDITION`, `UNKNOWN_BROKER`, `FLOW_UNAVAILABLE`, `FLOW_OUTPUT_EMPTY`, `INDICATOR_OUTPUT_EMPTY`, `PERIOD_AFTER_DATA`, `PERIOD_BEFORE_DATA`, `FLOW_DATA_THROUGH`, `UNIVERSE_EMPTY`), `LIMIT_EXCEEDED` (`details.limit`: `max_download_bytes`, `max_broker_rows`, `max_conditions`, `max_result_bytes`), `INVALID_JSON`, `INVALID_JOB_ID`, `INVALID_CONTEXT` |
 | 424 | data errors: `DATA_MISSING`, `DATA_INTEGRITY`, `DATA_UNAVAILABLE` |
 | 409 | `BUSY`, `NOT_FINISHED` |
 | 404 | `UNKNOWN_JOB`, `NOT_FOUND` |
@@ -94,7 +100,9 @@ A job's error is the same object, carried in `JobStatus.error`.
 1. **Check the request** (`validate.ts`). Any field the page does not send is refused with `UNKNOWN_FIELD` and its
    path; `client_request_id` is edge-bff's, which takes it out before calling the worker. The checks include the
    page's options, the core's `validateRun`, the registry parameters and the condition shapes. A broker condition's
-   code must be in terminal-api's broker reference list (`UNKNOWN_BROKER`).
+   code must be in terminal-api's broker reference list (`UNKNOWN_BROKER`). A condition id has the page's shape (1 to 6
+   base-36 digits, `INVALID_CONDITION`), a list has at most `BACKTEST_MAX_CONDITIONS` enabled conditions
+   (`LIMIT_EXCEEDED`), and a disabled condition is held to the same shape as an enabled one (it is stored with the job).
 2. **Resolve the tickers.**
    - Single mode: the one ticker, which must be of type `stock`.
    - Portfolio mode: universe `all` is every stock of terminal-api's reference ticker list; `sector:<name>` is the
@@ -113,7 +121,8 @@ A job's error is the same object, carried in `JobStatus.error`.
      the date the broker data is published through. That date is the newest broker `data_through` of the stocks'
      manifests (`catalog.flow.data_through`): the publisher writes its date into the manifest of each stock whose files
      changed, so a stock without new files keeps an older one. When no loaded ticker's manifest reaches `period.to`,
-     every stock's manifest is asked.
+     the other stocks' manifests are asked until one does; the run is refused only when none does, so exactly when
+     `catalog.flow.data_through` is before `period.to`.
    - `PERIOD_AFTER_DATA`: `period.to` is after IHSG's last published bar.
    - `DATA_MISSING`: in single mode, no bar of the ticker falls inside the period.
    - Single mode: a `period.from` before the ticker's first published bar starts the run on that bar, with the warning
@@ -125,12 +134,15 @@ A job's error is the same object, carried in `JobStatus.error`.
    `FLOW_OUTPUT_EMPTY`) or no broker row on its bars (`FLOW_UNAVAILABLE`). The warning `TICKERS_EXCLUDED` lists every
    left-out ticker with its error (`count`, `tickers`, `reasons`); `meta.tickers` holds the tickers the run ran on. A
    request error still fails the run, and in single mode these data errors do too. A broker without any row on a
-   ticker's bars has a net of 0 there.
+   ticker's bars has a net of 0 there. When every ticker of the universe is left out the run is refused with
+   `UNIVERSE_EMPTY` (field `portfolio.universe`; the message gives the count and the reasons by code), never a
+   cash-only result (lead decision 2026-10-26).
 6. **Sensitivity:** 25 reruns from `sensitivityPlan` (`robustness.ts`) on the same prepared data. Identical cells run
    once.
 7. **Build the result:** `buildResult` (`result.ts`), which computes the statistics, tables, trials and the Monte
    Carlo. The result also carries `variant_hash`, `lineage_key` and `request_hash`, plus the versions (`hash.ts`).
-8. **Pack the result:** JSON, then gzip, on the job thread.
+8. **Pack the result:** JSON, then gzip, on the job thread. A result over `BACKTEST_MAX_RESULT_BYTES` of JSON is
+   refused (`LIMIT_EXCEEDED`, `details.limit: max_result_bytes`) before it is packed: edge-bff would not store it.
 
 The same request on the same published files gives the same result, except `meta.duration_ms`.
 
@@ -163,9 +175,13 @@ variable and never its value.
 | `BACKTEST_DOWNLOAD_RETRIES` | required | 3 | retries of a network error or 5xx answer |
 | `BACKTEST_RETRY_BASE_MS` | required | 500 | backoff `base × 2^k` between retries |
 | `BACKTEST_HTTP_TIMEOUT_MS` | required | 60000 | per HTTP request |
+| `BACKTEST_FILE_ORIGIN` | required | `https://*.t3.storageapi.dev` (the host edge-bff's CSP allows for the same presigned downloads, `app/main.py`) | the origin every file and reference URL must have: scheme, host (a leading `*.` matches subdomains) and port; any other URL is `DATA_INTEGRITY` and never requested |
+| `BACKTEST_MAX_FILE_BYTES` | required | measure in dev | the most bytes one file may inflate to, and the most bytes of a body that is not a data file (a reference file, a terminal-api answer) |
 | `BACKTEST_MAX_DOWNLOAD_BYTES` | required | 1500000000 | bytes of published files one job or preview may read |
 | `BACKTEST_MAX_BROKER_ROWS` | required | 20000000 | broker rows one job or preview may read |
 | `BACKTEST_TIMEOUT_SECONDS` | required | 900 | longest job, preview, validation or catalog |
+| `BACKTEST_MAX_CONDITIONS` | required | measure in dev | enabled conditions one list (entry, exit signals) may have; reported as `catalog.limits.max_conditions` |
+| `BACKTEST_MAX_RESULT_BYTES` | required | measure in dev; the same value as edge-bff's `BACKTEST_MAX_RESULT_BYTES` | the most JSON a job's result may have |
 | `BACKTEST_MAX_POSITIONS` | 10 | 10 (default) | ≤ 10, the page's input and `engine.ts` MAX_POSITIONS; may only be lowered |
 | `BACKTEST_MONTE_CARLO_RUNS` | 1000 | 1000 (default) | the page's `monteCarlo(…, runs = 1000)`; a request asks for exactly this or 0 |
 | `BACKTEST_QUEUED_PER_OWNER` | 3 | 3 (default) | reported in the catalog; edge-bff enforces it |
@@ -187,8 +203,18 @@ included. At that deadline edge-bff ends the job `TIMEOUT` and sends the worker 
 plus the HTTP thread's IHSG files for the catalog.
 
 **Catalog cost with flow on.** `catalog.flow.data_through` asks terminal-api for the manifest of every published stock
-(`/manifest`, no file granted, no quota), `BACKTEST_DOWNLOAD_CONCURRENCY` at a time. terminal-api keeps manifests in
-memory until the publisher's next run; edge-bff keeps the catalog for a minute.
+(`/manifest`, no file granted, no quota), `BACKTEST_DOWNLOAD_CONCURRENCY` at a time, on every catalog build.
+terminal-api keeps manifests in memory until the publisher's next run; edge-bff keeps the catalog for a minute. The
+worker does not cache the value: none of terminal-api's answers marks a publish exactly (`load.ts brokerDataThrough`
+gives the reasons from `apps/terminal-publisher/publisher.py`), so a cache could keep an old date after a publish. A
+check (job, preview, validation) asks no further manifest once one reaches `period.to`.
+
+**What the worker accepts from terminal-api and the bucket.** A file or reference URL off `BACKTEST_FILE_ORIGIN` is
+`DATA_INTEGRITY` and never requested; redirects are refused. Bodies are read as streams and dropped at their size: a
+data file at its manifest `bytes` (`DATA_INTEGRITY`), anything else at `BACKTEST_MAX_FILE_BYTES`. A file never
+inflates past `BACKTEST_MAX_FILE_BYTES` (`DATA_INTEGRITY`); the reference files, which have no manifest and are
+decoded on the HTTP thread, are bounded the same way. A `TERMINAL_URL` with a user name or password is refused at
+start, and the start log names its origin only.
 
 ## Logs
 
@@ -241,21 +267,25 @@ Terminal parity fixtures (real stored bars of 7 stocks and IHSG) in the publishe
 - determinism, with a cold and a warm cache;
 - 29 refusals, none of which reads any market data;
 - the period and data checks, `PERIOD_CLIPPED` with either benchmark;
-- a portfolio that leaves out a stock without published files and a stock with too short a history (`TICKERS_EXCLUDED`);
+- a portfolio that leaves out a stock without published files and a stock with too short a history (`TICKERS_EXCLUDED`),
+  and `UNIVERSE_EMPTY` when every ticker is left out;
 - the limits, refused before any download;
 - flow and broker files: `FLOW_DATA_THROUGH` before any download, the manifest scan, `UNKNOWN_BROKER`, a listed
   broker without rows, a portfolio that leaves out stocks without broker data; corporate actions;
 - cancellation in every phase;
-- an expired presigned URL.
+- an expired presigned URL;
+- previews: the run's exclusions in the run's warning, `UNIVERSE_EMPTY`, `FLOW_DATA_THROUGH`, the run's signal counts.
 
 **`tests/validate.test.ts`** builds requests the way the page does, with every card the page can make (every legacy
 card and operator, the templates, every registry indicator, every price line), and checks that the worker accepts each
-of them field for field; `client_request_id` and any other extra key are refused; broker codes are checked.
+of them field for field; `client_request_id` and any other extra key are refused; broker codes are checked; condition
+ids, the enabled-condition limit and disabled conditions are checked.
 
 **`tests/server.test.ts`** drives the HTTP API the way edge-bff does. It covers:
 
 - authentication on every route; health and the catalog;
-- validation and its errors;
+- validation and its errors; `PERIOD_AFTER_DATA` and `FLOW_DATA_THROUGH` from the manifests only (no `/bundle`, no
+  file), with the job's code, field and message;
 - single, portfolio and identical-request jobs through the gzip result, which must equal `runJob` in the test process;
 - `BUSY`, the same id again, `UNKNOWN_JOB`, `NOT_FINISHED`; a result fetched again, then `RESULT_GONE` once a newer job
   started;
@@ -266,6 +296,10 @@ of them field for field; `client_request_id` and any other extra key are refused
 - previews, including one the caller abandons;
 - log lines without secrets;
 - start-up as the image runs it, including exit 1 on a bad configuration.
+
+**`tests/terminal.test.ts`** covers the terminal-api client: loads, data errors, retries, the cache, concurrency, the
+manifest and the broker date scan, secrets kept out of messages and logs, the bucket origin, the body and inflate caps,
+and no Postgres client anywhere in the worker.
 
 ## Durations observed
 
