@@ -4684,3 +4684,9 @@ User 2026-10-26: "A1 OK / B1 OK, batasi 2 tahun. / C1 OK / D1 OK / Rel anotasi .
 dahulu as usual." Infra checked first (EXEC.md EXEC-TERMINAL-PANELS). `main` `4544983` (with `main`'s ERRORS M241/M242
 merged): edge-bff `b78ff0a6` SUCCESS 18:34 UTC; live `index`, `style` and `worker` assets equal the build (sha256). No
 variable or other service changed.
+
+## 2026-10-27 — edge-bff: EXEC-TERMINAL-PANELS-2
+
+User 2026-10-27 (B, D, E, calendar, one-day chart pick, annotation hover; EXEC.md EXEC-TERMINAL-PANELS-2). `main`
+`18de6e8`: edge-bff `e09717e2` SUCCESS 08:02 UTC; live `index`, `style` and `worker` assets equal the build (sha256). No
+variable or other service changed.
