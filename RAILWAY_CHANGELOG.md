@@ -4684,3 +4684,44 @@ User 2026-10-26: "A1 OK / B1 OK, batasi 2 tahun. / C1 OK / D1 OK / Rel anotasi .
 dahulu as usual." Infra checked first (EXEC.md EXEC-TERMINAL-PANELS). `main` `4544983` (with `main`'s ERRORS M241/M242
 merged): edge-bff `b78ff0a6` SUCCESS 18:34 UTC; live `index`, `style` and `worker` assets equal the build (sha256). No
 variable or other service changed.
+
+## 2026-10-27 — EDGE backtest: backtest-worker service, migration 005, publisher industry column, edge-bff (dev)
+
+User 2026-10-26: "Jalankan langsung 1-5. Saya setujui untuk step 3,4 dan 5." User N 2026-10-27 02:38 UTC on the
+decision cards: "Lanjut di dev" (migration, worker and edge-bff deploys, then E2E) and "Ya, upload setelah dites"
+(terminal-publisher with the industry column). Branch `claude/project-thread-k91bfk` (not merged to `main`).
+
+- **New service `backtest-worker`** (`9156a5c3-c8a4-49b8-9172-ea6eb95157d2`, created 02:20 UTC): region `sfo`, 1
+  replica, restart `ON_FAILURE` (10), no domain (private network only). It holds no Postgres or bucket credential.
+  Variables (names; values are the measurement-phase limits in `apps/backtest-worker/README.md`):
+  `BACKTEST_WORKER_KEY` (random 64 characters, never printed), `TERMINAL_URL`
+  (`http://terminal-api.railway.internal:8080`), `TERMINAL_PROXY_KEY` (`${{terminal-api.TERMINAL_PROXY_KEY}}`),
+  `BACKTEST_CACHE_BYTES`, `BACKTEST_DOWNLOAD_CONCURRENCY`, `BACKTEST_DOWNLOAD_RETRIES`, `BACKTEST_RETRY_BASE_MS`,
+  `BACKTEST_HTTP_TIMEOUT_MS`, `BACKTEST_FILE_ORIGIN`, `BACKTEST_MAX_FILE_BYTES`, `BACKTEST_MAX_DOWNLOAD_BYTES`,
+  `BACKTEST_MAX_BROKER_ROWS`, `BACKTEST_TIMEOUT_SECONDS`, `BACKTEST_MAX_CONDITIONS`, `BACKTEST_MAX_RESULT_BYTES`,
+  `BACKTEST_FLOW_ENABLED`. Deployed 07:48 UTC by CLI upload of a clean `git archive` of `40673b6` holding only the
+  worker's build context (the paths its `Dockerfile` copies, with the `Dockerfile` at the upload root; `--path-as-root`
+  is right here because the service has no root directory or watch path): `f06fd2eb-1231-4387-af00-197ddd045942`
+  SUCCESS, builder `DOCKERFILE`; start log `event=start` on port 8080, `engine_version` `f90df68947560923` (equal to
+  the repository's), `registry_version` `b6a8dc0ba206ed65`. Its JSON log lines carry no `message` key, so Railway
+  shows an empty message with the fields as attributes.
+- **Migration** `20261026_005_edge_bff_backtest.sql`: DRYRUN then APPLY (job `89375eb2`) on orc-test-runner,
+  `DATABASE_URL` removed after (VAR_REMOVED); `DATABASE_CHANGELOG.md` 2026-10-27.
+- **terminal-publisher** `82447144-cc2e-4043-9621-99b5b599e57b` SUCCESS 02:40 UTC: CLI upload of `d495854` (`main`'s
+  publisher plus the `industry` column in `ref/tickers.json.gz`), outside the 00:00–01:00 and 12:00–13:00 UTC
+  windows. The upload does not run the job (ERRORS M229): the column is published by the 12:00 UTC run. Rollback:
+  `4a4124a8`. The 00:31 UTC run before it crashed on a botocore `RequestCanceled` (manifest GetObject at 00:36:14)
+  while a local load test ran; no file was lost (the manifests were from 2026-10-26 17:37–17:44).
+- **edge-bff** variables (`skipDeploys`, then deployed with the upload): `BACKTEST_WORKER_URL`
+  (`http://backtest-worker.railway.internal:8080`), `BACKTEST_WORKER_KEY` (`${{backtest-worker.BACKTEST_WORKER_KEY}}`),
+  `BACKTEST_TIMEOUT_SECONDS` (`${{backtest-worker.BACKTEST_TIMEOUT_SECONDS}}`), `BACKTEST_MAX_RESULT_BYTES`
+  (`${{backtest-worker.BACKTEST_MAX_RESULT_BYTES}}`); the references keep both sides equal. Deployed 07:52 UTC by CLI
+  upload of a clean `git archive` of `40673b6` with its repository layout (`apps/edge-bff/...`, so the service root
+  directory `/apps/edge-bff` and its watch path apply; R23): `5c3c6e69-f458-420c-b545-7b75f48d582f` SUCCESS, `/ready`
+  200, `/backtest-app/` serves the same `index` and `style` assets as the local build. The branch holds all of `main`
+  up to `25a3bbb`, so nothing of `main` was rolled back. Rollback: `b78ff0a6` (`main` `4544983`).
+  - A later push of `main` that touches `/apps/edge-bff/**` redeploys `main`'s edge-bff over this upload (watch path)
+    and removes the backtest from dev until the branch is merged; the coordinator was told.
+- `.railway/railway.ts`: the `backtest-worker` service and the four edge-bff variable names added by hand as
+  `preserve()`. A full `railway config pull --force --variables=managed` would also rewrite every other service
+  (branch fields, functions, the Postgres memory comment) and own every variable, so it was not kept.
