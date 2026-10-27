@@ -8378,3 +8378,16 @@ Dijeda user 2026-10-27 ("Sebentar, sebelum kamu proceed") untuk membahas metode 
 2026-10-27: "Oke, kalau gitu kita ganti saja dengan metode C1."
 Status 2026-10-27: selesai (ERRORS M244).
 
+## EXEC-TERMINAL-POPOUT — filter Broker inventory; jendela panel kanan yang bisa diperbesar (2026-10-27)
+
+User 2026-10-27: "untuk panel broker inventory juga mesti dibuatkan filter group by market board dan investor type.
+Setelah ini saya minta untuk didesain. A pop-up menu, which is setiap panel di sebelah kanan harus bisa di-expand ...
+ada window terpisah di dalam browsernya, yang goalnya adalah panel dynamic agar bisa melihat data tersebut dengan lebih
+besar." Jawaban atas pilihan: "broker inventory di filter. Jendela di dalam halaman terminal. Yes, diperbesar dan
+ditambahkan fungsi-fungsi lain yang lebih detail. + W1 + I2".
+- F1 (dikerjakan): Broker inventory mendapat filter jenis investor (All/Foreign/Domestic) dan papan (All/Regular/Nego/
+  Cash); garis tetap satu per broker.
+- W1 + I2 (rancangan dulu, mockup untuk disetujui user sebelum kode): setiap panel kanan bisa dibuka sebagai jendela
+  mengambang di dalam halaman (geser, ubah ukuran, beberapa sekaligus, tetap terhubung dengan chart), isinya lebih
+  besar dan lebih rinci.
+
