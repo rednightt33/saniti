@@ -2510,6 +2510,10 @@ change yet.
 - **Solution:** keputusan user 2026-10-27: "Untuk papan bawaan, kita tetap semua papan" (tidak diubah). Titik awal
   kumulatif: menunggu keputusan. Level kumulatif halaman BMRI 23 Oct (semua papan, Foreign, sejak sesi chart pertama
   2018-01-02, harga mulai 2018): −22.54T; Stockbit (Regular, sejak 28 Sep 2026): −2.66T.
+  User 2026-10-27: "kita bicara hanya papan reguler saja sekarang. Tapi yang di display tetap nego dan tunai juga ...
+  Kita menggunakan acuan papan reguler untuk menyamakan dengan value stock bit": pembanding = Regular; tampilan
+  bawaan tetap semua papan. Titik awal F Flow Stockbit di screenshot = 0 pada awal periode (28 Sep 2026), jadi tidak
+  perlu saldo awal; data kita: net harian BMRI Feature 05 sejak 2016-01-04, sesi chart sejak 2018-01-02.
 - **Status:** OPEN (titik awal kumulatif, keputusan user); data cocok, tidak ada salah hitung.
 
 ## Fixed-income selected-date repair — 2026-10-20 status
