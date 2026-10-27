@@ -8266,3 +8266,24 @@ Mencakup: 779 saham, kira-kira 2018 sampai hari ini. Tidak mencakup: 65 saham ta
 (perubahan di tengah kuartal seperti right issue atau IPO tercatat terlambat sampai satu kuartal), dan harga tersimpan
 yang mentah (ketidaksesuaian itu masalah tabel harga sendiri, perlu rencana terpisah). Permanen untuk riwayat; batas
 kuartalan dicatat di katalog kolom.
+
+## EXEC-TERMINAL-PANELS-2 — masukan sesudah EXEC-TERMINAL-PANELS (2026-10-27)
+
+User 2026-10-27 (dengan tangkapan layar A–E): "A: boleh cek kalau screen 100% pakai laptop 14" maka tampilan yang saya
+kotakin jadi seperti di SS / B: tidak align antara tulisan Net buy Net sell dengan badge cumulative. / C: Buat broker
+inventory boleh perlakuannya sama seperti statistics? Jadi mengikuti apa yang chart kita display + ada Y axis horizontal
+sesuai dengan cross hair yang ada di main chart. hilangkan opsi 30D / D: ... boleh dibuat tidak perlu klik titik" di
+pojok kiri? Dibuat kalau kita klik dan hold di column header saja maka bisa menaikan/ menurunkan. / E: bisa buat kalau
+top accumulators dan distributoors digabung saja tidak usah pakai switcher. Jadi dibuat kira2 seperti: Top
+accumulators|Value|Bar Buy (ke kiri)|Bar Sell (ke kanan)|Sell|Top Distributors / F: boleh buat untuk annotations / Untuk
+semua calendar pada custom mode saat ini kalau tidak ada trading days maka warna akan digyered out: we do not need that
+buat saja warnananya normal dan clickable. / Untuk select on chart saat ini harus 2 data point berbeda, buat juga bisa
+hanya 1 tanggal saja.. jadi ketika di click "select on chart" maka tinggal click sekali dan click sekali lagi pada
+tanggal yang sama. / Untuk annotations saat ini kalau seandainya crosshair kita hover/ stay ke tanggal yang bermaksud,
+boleh dikasih efek untuk buletannya?"
+
+Dikerjakan langsung (permintaan jelas): B, D, E, kalender tanpa hari redup, pilih di chart dengan dua klik (boleh tanggal
+yang sama), efek penanda anotasi saat crosshair di tanggalnya (F). Live saja; fixture referensi tetap 1:1.
+Menunggu jawaban user: A (cara memperbaiki: direproduksi di 1270×618 skala 1,5 — judul Flow dua baris 89 px, grafik
+Flow 90 px) dan C (arti "Y axis horizontal" dan nasib 10D/20D/Custom bila mengikuti chart).
+
