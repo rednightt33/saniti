@@ -4827,3 +4827,59 @@ another session's work; waiting for the user's decision. No variable changed.
 Daily run of the 12:00 UTC tick: `event="done"` 13:03 UTC, 2,492 files, 64.4 MB, 835 tickers, 3,496.5 s,
 `broker_behind_sessions=0`; `v1/state.json` price and broker through 2026-10-27, `broker_behind_sessions` 0. Nothing
 behind, so no Telegram request was made (as designed). No variable or deployment changed.
+
+## 2026-10-27 — EDGE backtest: preview order (ERRORS M247), worker module loader (M249), page downloads (M251), redeploys over `main`, E2E (dev)
+
+Same approvals as the backtest entries above (N 02:38 UTC "Lanjut di dev"; N 09:08 UTC: merge to `main` by PR once the
+dev E2E passes). Branch `claude/project-thread-k91bfk`; nothing in production.
+
+- **Migration `20261027_005`** (the comment of `edge_bff.backtest_jobs.error`, ERRORS M246): DRYRUN job `3119da7b`
+  (rolled back), APPLY job `9862ff6b`, on orc-test-runner 11:24–11:26 UTC; its `DATABASE_URL` set only for each run and
+  removed after (VAR_REMOVED). Detail in DATABASE_CHANGELOG.
+- **edge-bff after `main` replaced the branch again** (ERRORS M248): `main` `2932c87` -> `78b16952` 10:23 UTC, `736f99a`
+  -> `81ae2893` 10:46, `712e258` -> `7654e6fa` 11:06; branch merge `83b8f1a` -> `d4d1d729` (created 11:37); `main`
+  `ddb8497` -> `e9868143` 11:56 and `2760476` -> `567fcf45` 12:11 replaced it; branch `997f941` (merge `57e27c8`, M247
+  `fe11180`, M249) -> `8c2ecc55` (created 12:45:31).
+- **The branch upload replaced `main`'s newer work once:** `main` `bb24f9c` -> `d34c40f2` (created 12:44:42); `8c2ecc55`,
+  built from the branch merged with `main` `2760476`, replaced it, so `main`'s Terminal windows were not live 12:45–12:56
+  UTC (the POPOUT W1 + I2 entry above). Branch merge `5e71cc5` (`main` `28b4cbc`) -> `4bcea256` FAILED 12:54 (the app
+  folder uploaded as the archive's root; the service's `rootDirectory` `/apps/edge-bff` is looked up inside the archive;
+  the running deployment was not affected) -> `e2c02222-ba11-4430-b471-70d2b56d2032` SUCCESS 12:56 UTC in repository
+  layout: `/ready`, `/backtest-app/`, `/terminal-app/` 200; the live terminal `index`, `style`, `worker` and backtest
+  `index`, `style` assets equal the build of `5e71cc5` (sha256), whose `apps/edge-bff/terminal` equals `main` `28b4cbc`.
+  The windows have been live again since then (and in `390eca4b` below); the user's later choice in
+  EXEC-TERMINAL-POPOUT (B, wait; `main` `85e952f`) needs no redeploy: edge-bff goes back to `main`'s own build once
+  this branch is merged to `main`. Procedure since: fetch `main` right before an upload and again after SUCCESS.
+- **edge-bff `390eca4b-3177-43d0-85f3-fb561c94b206`** (branch `69e9f9f`, ERRORS M251: the page asks a file download cut
+  off on the way again): SUCCESS 13:26 UTC; `main` unchanged before and after the upload; live terminal and backtest
+  assets equal the local builds (sha256). Rollback: `e2c02222`; `main`'s own build: `d34c40f2` (`bb24f9c`, without the
+  backtest). Branch merge `106387b` (`main` `85e952f`, documents only) needed no upload: nothing under
+  `apps/edge-bff` changed.
+- **backtest-worker `97dd49ce-509a-43fb-bfce-5c3c649d5c19`** (ERRORS M249: the image's command loads the Terminal's
+  sources as Vite resolves them; `loader/` copied into the image): CLI upload of the build context the Dockerfile's
+  COPY lines name, SUCCESS 12:44 UTC, region `sfo`; start log `engine_version` `beb81eb55a13293f`, registry
+  `b6a8dc0ba206ed65`, flow enabled. Its build inputs did not change after `997f941`. Rollback: `96d0e990`.
+- **E2E** (`verification/backtest/e2e_dev.py`):
+  - 11:39–11:57 UTC on `d4d1d729` + `96d0e990`: every job ended as expected, but the portfolio's signals preview
+    answered 409 (ERRORS M247; the script did not check it then).
+  - 13:00:31 UTC on `e2c02222` + `97dd49ce`: stopped at the catalog, 424 `DATA_INTEGRITY` (IHSG's price pack larger than
+    its manifest says) while the publisher's 12:00 UTC run was still writing (`done` 13:03:23): ERRORS M250. The user
+    chose (13:27 UTC) a separate publisher PR after this one; until then a dev E2E runs outside the publisher's
+    runs (TEMPORARY).
+  - 13:08 UTC: the portfolio preview answered 200 and the table showed it (12 asked in order 1–12, 11 aborted by the
+    page), page clean, single, repeat, refusal and cancel passed; the portfolio job FINISHED (13:10:13, 12.8 s in the
+    worker, cold cache after the publish) but the script's own status poll lost one request to a tunnel the container's
+    egress proxy closed at 13:10:13 (proxy status). The script now asks such a GET again twice, as the page does.
+  - 13:13 UTC: every job passed; the page's download of BBRI's broker archive was cut off (ERR_CONTENT_LENGTH_MISMATCH)
+    and the page did not ask it again (ERRORS M251).
+  - 13:27:10–13:28:54 UTC on `390eca4b` + `97dd49ce`: every step passed (`failed` empty, exit 0); the page clean (no
+    console or HTTP error, no download asked again) and no status GET asked again. Catalog 845 tickers, data through
+    2026-10-27. Single (MAPI) 5.31 s from submit to end, 966 ms in the worker, 95,446 B stored, 67 trades; the
+    repeat equal (determinism). Both refusals 422 without a job. Portfolio preview 200 in 10.4 s (12 asked in order
+    1–12, 11 aborted by the page; the table equals the answer); portfolio of 12 tickers 13.38 s, 10,344 ms in the
+    worker, 279,777 B, 559 trades; every reconcile and robustness check passed. Cancel: CANCELLED 8.03 s after the
+    cancel. edge-bff logs since the deploy: start-up only. The worker's 183 published-file reads of the run all came
+    from its memory cache.
+- Outputs: project folder `backtest/e2e-2026-10-27/`: `dev9-1327/` (report, calls, the three results and 38
+  screenshots of the 13:27 run) and `runs-1300-1315-summary.json` (the 13:00, 13:08 and 13:13 runs, chosen fields
+  only: the 13:08 report's exception text carried request headers, so that report is not copied).

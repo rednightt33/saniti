@@ -2538,7 +2538,8 @@ change yet.
 - **Not covered:** dua tab yang sama-sama aktif tetap saling mengganti (desain PAGE-V3: tidak ada urutan bersama), dan
   tab yang kalah menampilkan "—" sampai aksi pengguna lalu redraw; pratinjau basi dari halaman yang sudah dimuat ulang
   yang tiba setelah pratinjau pertama halaman baru (butuh keterlambatan detik).
-- **Status:** FIXED di kode; bukti dev menunggu E2E setelah deploy (di luar jam publisher).
+- **Status:** RESOLVED di dev. E2E 13:08 dan 13:27 UTC (edge-bff `e2c02222` lalu `390eca4b`): pratinjau portofolio 200
+  dan tabelnya sama dengan jawaban (12 diminta berurutan 1–12, 11 dibatalkan halaman). Masuk `main` lewat PR backtest.
 - **Lesson for new data:** "yang terbaru menang" diputuskan dari urutan yang dikirim klien, bukan urutan tiba; dan E2E
   memeriksa apa yang tampil di layar, tidak hanya mencatatnya.
 
@@ -2604,7 +2605,8 @@ change yet.
 - **Not covered:** impor Terminal yang bukan relatif (alias path) atau sintaks TypeScript yang tidak bisa dibuang Node
   (enum, parameter property) tetap gagal di Node; tidak ada pemeriksaan di sisi Terminal saat Terminal berubah (butuh
   CI yang menjalankan tes worker, di luar lingkup ini).
-- **Status:** FIXED di kode; worker dev di-deploy ulang dengan perintah baru (RAILWAY_CHANGELOG).
+- **Status:** RESOLVED di dev: backtest-worker `97dd49ce` (SUCCESS 12:44 UTC) berjalan dengan perintah baru;
+  `engine_version` `beb81eb55a13293f`; E2E 13:27 UTC lulus (RAILWAY_CHANGELOG).
 - **Lesson for new data:** sumber yang dipakai halaman (Vite) dan layanan Node dimuat dengan aturan yang sama di
   keduanya, dan tes konsumen menjalankan perintah image yang sebenarnya.
 
@@ -2643,8 +2645,10 @@ change yet.
 - **Not covered:** jawaban `/bundle` yang dipegang klien lebih dari umur URL-nya tetap 403 (sudah ditangani: worker dan
   halaman meminta jawaban baru); data di bucket tetap baru setelah publisher menulisnya, jadi pembaca bisa melihat
   manifest lama sampai run selesai (sesuai desain cache).
-- **Status:** OPEN, menunggu keputusan user. Sementara (TEMPORARY): E2E dan pengukuran backtest dijalankan di luar run
-  publisher. Pengguna yang menjalankan backtest selama run tetap mendapat `DATA_INTEGRITY` untuk ticker yang berubah.
+- **Status:** OPEN. User 2026-10-27 13:27 UTC memilih A dari 3 pilihan: "Ya, PR terpisah setelah PR backtest" (kunci
+  berisi hash isi, file lama tidak ditimpa, file basi dihapus pada run berikutnya; diuji di dev pada run 07:30 WIB).
+  Sementara (TEMPORARY): E2E dan pengukuran backtest dijalankan di luar run publisher. Pengguna yang menjalankan
+  backtest selama run tetap mendapat `DATA_INTEGRITY` untuk ticker yang berubah, sampai PR publisher masuk.
 - **Lesson for new data:** objek yang dirujuk metadata (sha256, ukuran) tidak ditimpa di kunci yang sama; kunci yang
   memuat hash isinya membuat setiap cache metadata aman.
 
@@ -2675,7 +2679,9 @@ change yet.
   tertangkap.
 - **Not covered:** halaman Terminal (`terminal/src/data/worker.ts download`) punya pola yang sama (isi dibaca tanpa
   ulang); milik pekerjaan Terminal, dicatat di sini.
-- **Status:** FIXED di kode; bukti dev menunggu deploy dan E2E berikutnya.
+- **Status:** FIXED di kode, deploy dev edge-bff `390eca4b` (SUCCESS 13:26 UTC). E2E 13:27 UTC lulus dengan halaman
+  bersih (tidak ada unduhan yang perlu diulang pada run itu, jadi jalur ulang dibuktikan oleh tes halaman, bukan oleh
+  E2E). Masuk `main` lewat PR backtest.
 - **Lesson for new data:** transfer yang putus adalah gangguan jaringan (diulang), file utuh yang tidak cocok adalah data
   rusak (tidak diulang); pembaca membedakan keduanya di tempat isi dibaca.
 
