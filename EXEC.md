@@ -8318,10 +8318,13 @@ untuk future improvement/ efisiensi akan lebih mudah. Dari awal data, sampai loa
 - Masalah yang ditemukan: ERRORS M248 (dua sumber deploy edge-bff; semula M244), M245 (unduhan ganda preview lalu run, FIXED),
   M246 (hasil gagal disimpan, MITIGATED, penyebab OPEN), M247 (pratinjau lama menyalip yang baru, RESOLVED di dev),
   M249 (worker tidak memuat sumber Terminal tanpa ekstensi, RESOLVED di dev), M250 (publisher menimpa file di kunci
-  yang sama, OPEN: PR terpisah), M251 (unduhan halaman yang terpotong tidak diulang, FIXED).
+  yang sama, OPEN: PR terpisah), M251 (unduhan halaman yang terpotong tidak diulang, FIXED), M252 (merge PR tidak
+  memicu deploy edge-bff, MITIGATED).
 - E2E dev 2026-10-27 13:27 UTC (edge-bff `390eca4b`, worker `97dd49ce`) lulus semua langkah (RAILWAY_CHANGELOG).
-- Sisa: PR ke main (pilihan N), lalu dokumen end-to-end (permintaan N 13:37 UTC) dan PR publisher M250 (pilihan N
-  13:27 UTC); produksi tidak disentuh.
+- PR #39 digabung ke main 2026-10-27 13:55 UTC (`fdd00e7`); deploy otomatisnya dilewati Railway (ERRORS M252), jadi
+  edge-bff dev dideploy dari commit itu (`43e5b185`, SUCCESS 14:00 UTC).
+- Sisa: dokumen end-to-end (permintaan N 13:37 UTC) dan PR publisher M250 (pilihan N 13:27 UTC); produksi tidak
+  disentuh.
 
 ## EXEC-TERMINAL-FRESH — broker tertinggal tampil jujur, alat gambar di Flow, kepala tabel Top brokers (go 2026-10-27)
 
