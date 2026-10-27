@@ -4,6 +4,7 @@ import { brokerData, panelStart, PANEL_YEARS } from '../../src/data/worker';
 import { monthGrid } from '../../src/ui/calendar';
 import { sessionsBetween } from '../../src/app/rangeSelect';
 import { orderedKeys } from '../../src/ui/reorder';
+import { niceTicks } from '../../src/app/broker';
 
 const doc = (d: string[]) => ({ columns:['d', 'b', 'i', 'm', 'bv', 'sv', 'bl', 'sl'], d, b:d.map(() => 'YP'),
   i:d.map(() => 'Domestic'), m:d.map(() => 'RG'), bv:d.map(() => 10), sv:d.map(() => 4), bl:d.map(() => 1), sl:d.map(() => 1) });
@@ -55,5 +56,15 @@ describe('panel order (A1)', () => {
     expect(orderedKeys(['bs', 'acc', 'inv', 'bd'], ['acc', 'bs'])).toEqual(['acc', 'bs', 'inv', 'bd']);
     expect(orderedKeys(['bs', 'acc'], ['gone', 'acc'])).toEqual(['acc', 'bs']);
     expect(orderedKeys(['bs', 'acc'], [])).toEqual(['bs', 'acc']);
+  });
+});
+
+describe('Broker inventory y-axis ticks (C3)', () => {
+  it('gives round steps that include zero and stay inside the range', () => {
+    expect(niceTicks(-11500, 121000)).toEqual([0, 25000, 50000, 75000, 100000]);
+    expect(niceTicks(-3, 9)).toEqual([-2, 0, 2, 4, 6, 8]);
+    expect(niceTicks(-900000, 1700000)).toEqual([-500000, 0, 500000, 1000000, 1500000]);
+    const t = niceTicks(0, 1);
+    expect(t[0]).toBe(0); expect(t.at(-1)).toBeLessThanOrEqual(1);
   });
 });

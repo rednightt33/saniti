@@ -4725,3 +4725,14 @@ decision cards: "Lanjut di dev" (migration, worker and edge-bff deploys, then E2
 - `.railway/railway.ts`: the `backtest-worker` service and the four edge-bff variable names added by hand as
   `preserve()`. A full `railway config pull --force --variables=managed` would also rewrite every other service
   (branch fields, functions, the Postgres memory comment) and own every variable, so it was not kept.
+
+## 2026-10-27 — edge-bff: EXEC-TERMINAL-PANELS-2
+
+User 2026-10-27 (B, D, E, calendar, one-day chart pick, annotation hover; EXEC.md EXEC-TERMINAL-PANELS-2). `main`
+`18de6e8`: edge-bff `e09717e2` SUCCESS 08:02 UTC; live `index`, `style` and `worker` assets equal the build (sha256). No
+variable or other service changed.
+
+## 2026-10-27 — edge-bff: Broker inventory follows the chart (EXEC-TERMINAL-PANELS-2 C)
+
+User 2026-10-27: "Kita mulai dari C saja dulu / C2 / C3 + ...". `main` `16bfad3`: edge-bff `90532d14` SUCCESS 08:32 UTC;
+live `index`, `style` and `worker` assets equal the build (sha256). No variable or other service changed.

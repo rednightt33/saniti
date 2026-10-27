@@ -8271,6 +8271,11 @@ kuartalan dicatat di katalog kolom.
 
 Status 2026-10-27: B, D, E, kalender, pilih satu hari di chart dan F selesai (ERRORS "EXEC-TERMINAL-PANELS-2"); A dan C
 menunggu jawaban user.
+Jawaban user 2026-10-27: "Kita mulai dari C saja dulu / C2 / C3 + begitupun kalau kita hover di broker inventory,
+crosshair di main chart kalau bisa juga boleh gerak". C selesai 2026-10-27 (ERRORS entri yang sama). A masih menunggu.
+Pertanyaan user yang sama: alat gambar di panel Flow (hanya kelompok Lines: trend line, horizontal line, horizontal ray,
+ray, vertical line) — masih prototipe `?drawpanes=1` (EXEC-TERMINAL-1026C C4); dan data broker yang tertinggal (ERRORS
+M243) — usulan, menunggu keputusan.
 
 User 2026-10-27 (dengan tangkapan layar A–E): "A: boleh cek kalau screen 100% pakai laptop 14" maka tampilan yang saya
 kotakin jadi seperti di SS / B: tidak align antara tulisan Net buy Net sell dengan badge cumulative. / C: Buat broker
