@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CatalogResponse, ConditionDef } from '../../src/core/contract.ts';
 import { entriesOf, paramError, type Entry } from '../../src/entries.ts';
-import { cardErrors, condText, fromWire, newCard, toWire, type Card } from '../../src/forms.ts';
+import { cardErrors, condText, defaultOffered, fromWire, isCustom, newCard, toWire, type Card } from '../../src/forms.ts';
 import { fixtureApi } from '../fixture/api.ts';
 
 const api = fixtureApi();
@@ -83,6 +83,32 @@ describe('toWire / fromWire (forms.ts)', () => {
   });
 });
 
+describe('a registry default the screener does not offer (P17 a: I43 anchor Session; catalog default_offered)', () => {
+  const vwap = byKey.get('I43')!, sma = byKey.get('I01')!;
+  it('opens at the catalog start values, as Custom, with no Default chip to go back to', () => {
+    expect(defaultOffered(vwap)).toBe(false);
+    expect(defaultOffered(sma)).toBe(true);
+    const c = newCard(vwap, []);
+    expect(c.params.anchor).toBe('Week');
+    expect(vwap.params.find(p => p.key === 'anchor')!.options).not.toContain('Session');
+    expect(isCustom(vwap, c)).toBe(true);
+    expect(isCustom(sma, newCard(sma, []))).toBe(false);
+  });
+  it('sends every parameter, so the worker never takes the registry default it refuses', () => {
+    const t = toWire(vwap, newCard(vwap, [])).test as any;
+    const ref = t.metric?.of ?? t.metric ?? t.rhs ?? t.lhs ?? t.signal?.rhs;
+    expect(ref.params).toEqual(Object.fromEntries(vwap.params.map(p => [p.key, p.default])));
+    expect(ref.params.anchor).toBe('Week');
+    expect((toWire(sma, newCard(sma, [])).test as any).rhs.params).toBeUndefined();     // offered defaults stay implicit
+  });
+  it('maps its wire form back onto the same card', () => {
+    const c = newCard(vwap, [], { params:{ anchor:'Month' } as any });
+    const back = fromWire(toWire(vwap, c), byKey);
+    expect(back.raw).toBeUndefined();
+    expect(back.params).toEqual(c.params);
+  });
+});
+
 describe('refused in place (report 9.2)', () => {
   const rsi = byKey.get('I13')!;
   it('refuses between with value > value2 instead of reordering', () => {
@@ -107,12 +133,15 @@ describe('refused in place (report 9.2)', () => {
   });
 });
 
-/** the wire as toWire writes it: parameters only where they differ from the default (missing ones take the default) */
+/** the wire as toWire writes it: parameters only where they differ from the default (missing ones take the default),
+    every parameter where the registry default is not offered (P17 a) */
 function normalize(cd: ConditionDef): unknown {
   const fix = (r: any): any => {
     if (!r || typeof r !== 'object') return r;
     if (r.kind === 'indicator') {
-      const e = byKey.get(r.indicator)!, p = Object.fromEntries(Object.entries(r.params || {}).filter(([k, v]) => String(e.params.find(x => x.key === k)?.default) !== String(v)));
+      const e = byKey.get(r.indicator)!, all = !defaultOffered(e);
+      const p = all ? Object.fromEntries(e.params.map(x => [x.key, (r.params || {})[x.key] ?? x.default]))
+        : Object.fromEntries(Object.entries(r.params || {}).filter(([k, v]) => String(e.params.find(x => x.key === k)?.default) !== String(v)));
       return Object.keys(p).length ? { kind:'indicator', indicator:r.indicator, params:p, output:r.output } : { kind:'indicator', indicator:r.indicator, output:r.output };
     }
     const id = r.kind === 'pattern' ? r.type : r.kind === 'xsection' ? r.metric : null, e = id ? byKey.get(id) : undefined;

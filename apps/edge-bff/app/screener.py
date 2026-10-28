@@ -867,28 +867,35 @@ class Screeners:
         """SavedItem of each row with needs_review (report 8.7): an item saved under the registry versions the worker
         has now passed its validation then and needs none; one saved under others is validated again, and each refusal
         is listed with its field. Nothing is adjusted: the stored definition stays as saved. While the worker cannot
-        answer an item is not reviewed (needs_review empty, nothing kept)."""
+        answer an item is not reviewed (needs_review empty, nothing kept); once one question goes unanswered (the worker
+        down, busy, not ready or past its deadline), the rest are listed unreviewed without asking, so the page's boot
+        list (PAGE LOAD SEQUENCE 6c S2, GET items) waits for at most one unanswered call, not one per saved item."""
         current = await self.versions_now() if rows else None
-        out = []
+        out, answering = [], True
         for row in rows:
             review = []
             if isinstance(current, dict) and (row['registry_version'], row['screener_registry_version']) != (
                     current.get('registry'), current.get('screener_registry')):
-                review = await self.review(row, current)
+                key = (row['kind'], hashlib.sha256(dumps(row['definition'])).hexdigest(), current.get('registry'),
+                       current.get('screener_registry'))
+                if key in self.reviews:
+                    review = self.reviews[key]
+                elif answering:
+                    found = await self.review(row, key)
+                    answering = found is not None
+                    review = found or []
             out.append(item_of(row, review))
         return out
 
-    async def review(self, row, current):
-        key = (row['kind'], hashlib.sha256(dumps(row['definition'])).hexdigest(), current.get('registry'),
-               current.get('screener_registry'))
-        if key in self.reviews:
-            return self.reviews[key]
+    async def review(self, row, key):
+        """needs_review of one row validated again (kept per definition and versions), or None when the worker did not
+        answer the question (nothing kept)."""
         try:
             await self.validated(row['kind'], row['definition'])
             found = []
         except ScreenerError as e:
             if e.status != 422:
-                return []                  # not reviewed now: the worker did not answer the question
+                return None                # not reviewed now: the worker did not answer the question
             error = e.error
             found = [{'field': error.get('field') or 'definition', 'reason': error['code'],
                       **{k: error[k] for k in ('message', 'details') if error.get(k) is not None}}]

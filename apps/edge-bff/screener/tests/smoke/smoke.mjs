@@ -46,7 +46,7 @@ const idle = () => page.waitForFunction(() => !document.querySelector('#resMeta 
 const clearStore = () => page.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith('scr.')) localStorage.removeItem(k) });
 /* a fresh start: the page writes its last open screen when it is left (pagehide), so the store is cleared after the
    previous page is gone and its own writes are done, then the page is opened */
-const fresh = async q => { await go(); await ready(); await page.waitForTimeout(500); await fresh(q); };
+const fresh = async q => { await go(); await ready(); await page.waitForTimeout(500); await clearStore(); await go(q); };
 
 await open();
 await at('boot: first paint is the layout with rings, then results', async () => {

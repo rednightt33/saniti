@@ -6,7 +6,8 @@
    - INVALID_INPUT: an unknown field (every object is closed), a wrong JSON type, schema_version other than 1;
    - INVALID_CONDITION: a wrong test shape; between with value > value2 (field value2; value = value2 is accepted); an
      operator or test form the output does not allow (the catalog's tests[].ops); price vs an output that is not
-     level_comparable; a within that is not a whole number of at least 1; a duplicate or malformed condition id; logic
+     level_comparable; an output the chosen options leave without any value (registry.ts inputsOf empty: I43 upper1 or
+     lower1 at bands_mode None), naming that parameter, so no cell is NA for a reason that is not the ticker's; a within that is not a whole number of at least 1; a duplicate or malformed condition id; logic
      at_least without a whole at_least >= 1; an unknown sector, industry or ticker (refused by name, with the allowed
      list);
    - UNKNOWN_INDICATOR / PARAM_OUT_OF_RANGE: through registry.ts (resolveScreenerParams; the backtest core's

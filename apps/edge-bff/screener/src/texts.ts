@@ -26,6 +26,8 @@ export const T = {
   noNotation: 'No data: special notation / FCA flags are not in the market database, so this filter is off (P11).',
   noFundamentals: 'No data: fundamentals wait for a data source and its own decision (P11).',
   sendPhase: 'Send to Backtest comes with Phase 1b (its rules, P13, are confirmed first).',
+  // P17 consequence (catalog default_offered false: I43 VWAP, whose registry default anchor Session is not offered)
+  noDefault: 'The screener does not offer this indicator\'s registry default, so the card opens at the starting parameters shown; change them here.',
   noWatchlistPage: 'Saved in your EDGE watchlist.',
 } as const;
 

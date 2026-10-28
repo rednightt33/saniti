@@ -180,7 +180,8 @@ metric (`kind` `metric`, `definition` `{test}`, validated as the one condition o
 fields; the worker's field is then named from the test). A definition is stored as the page sent it, with the
 worker's `definition_hash` and the registry versions of that validation, and never adjusted: on load, an item saved
 under other registry versions than the worker's current ones is validated again and each refusal is listed in
-`needs_review` with its field (kept per definition and versions; not listed while the worker cannot answer). Limits
+`needs_review` with its field (kept per definition and versions; not listed while the worker cannot answer, and after
+one unanswered question the rest of that list is not asked either, so the list waits for one call at most). Limits
 (`app/screener.py`, the `PIN_LIMIT` precedent; values set in Phase 1, to be recorded in `EXEC.md`): `SCREEN_LIMIT` 50
 saved screens and 50 My metrics per owner (so the worker's counts call takes every saved screen at once),
 `WATCHLIST_LIMIT` 500 tickers, a definition at most 65,536 bytes of JSON as the table's CHECK measures its jsonb text

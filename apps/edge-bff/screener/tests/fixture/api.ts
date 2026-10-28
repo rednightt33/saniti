@@ -1,6 +1,6 @@
 /* FIXTURE ONLY: a ScreenerApi on the prototype's synthetic market (data.ts), for the visual check and the Chromium
-   smoke run (report FRONTEND INTEGRATION 9.1, TEST PLAN 10b.12). The catalog's indicators are the generated screener
-   registry (src/core/screener-registry.json, the worker's catalog source); metrics, fundamentals and presets are a
+   smoke run (report FRONTEND INTEGRATION 9.1, TEST PLAN 10b.12). The catalog's indicators are the worker's own view of
+   the generated screener registry (src/core/registry.ts catalogIndicators); metrics, fundamentals and presets are a
    small hand-kept set in the contract's shape; values are computed by engine.ts. Saved items and the watchlist live in
    this browser's storage under scr.fixture.* (the production page keeps none of them there). `opts` adds latency and
    failures for the late-data smoke run (ERRORS M253). Never part of the production bundle (tests/bundle). */
@@ -11,6 +11,8 @@ import { ApiFailure, isAbort, type CallOpts, type Conditional, type ScreenerApi 
 import { errorText } from '../../src/texts.ts';
 import { sha256Hex } from '../../../terminal/src/data/rack.ts';
 import reg from '../../src/core/screener-registry.json' with { type: 'json' };
+import { catalogIndicators, resolveScreenerParams, screenerIndicator } from '../../src/core/registry.ts';
+import { isScreenerError } from '../../src/core/errors.ts';
 import { DAYS, IHSG, LISTINGS, T as TK } from './data.ts';
 import { preview as pv, run as runDef, universeRow, type Market, type Tk } from './engine.ts';
 
@@ -31,6 +33,27 @@ export function market(): Market {
 
 /* ---- the catalog ----------------------------------------------------------------------------------------------- */
 const R = reg as any;
+/** the indicators[] of GET /catalog as the worker builds them (registry.ts catalogIndicators: the start values and
+    default_offered of P17 a, the derived caps), at the budget the core tests use (SCREENER_CAP_BUDGET_MS has no default) */
+const CAP_BUDGET_MS = 2000;
+/** the worker's parameter refusals (registry.ts resolveScreenerParams: ranges, whole numbers, caps, options the
+    screener does not offer, P17 a), so the page meets them in the fixture as it would on the wire; the rest of the
+    worker's validation is not mirrored here */
+function checkParams(definition: Definition) {
+  const walk = (x: any, path: string) => {
+    if (!x || typeof x !== 'object') return;
+    if (Array.isArray(x)) { x.forEach((y, i) => walk(y, `${path}[${i}]`)); return }
+    if (x.kind === 'indicator' && typeof x.indicator === 'string') {
+      try { resolveScreenerParams(screenerIndicator(x.indicator, `${path}.indicator`), x.params ?? {}, `${path}.params`, { capBudgetMs:CAP_BUDGET_MS }) }
+      catch (e) {
+        if (!isScreenerError(e)) throw e;
+        throw new ApiFailure(errorText(e.code, { field:e.field, details:e.details as Record<string, unknown>, server:e.message }) || e.message, e.code, e.status, e.field, null, (e.details as Record<string, unknown>) ?? null);
+      }
+    }
+    for (const [k, v] of Object.entries(x)) walk(v, `${path}.${k}`);
+  };
+  walk(definition, 'definition');
+}
 const P = (key: string, label: string, def: number, min = 1, max?: number) => ({ key, type:'integer' as const, label, default:def, min, ...(max ? { max } : {}), exclusive_min:false, integer:true, step:1 });
 const metric = (id: string, group: string, kind: CatalogMetric['kind'], label: string, unit: string | null, tests: CatalogMetric['tests'], extra: Record<string, unknown> = {}): CatalogMetric & Record<string, unknown> => ({
   id, group, kind, params:[], tests, unit, formula:'', interpretation:label, misuse:'', availability:'AVAILABLE', reason:null, applies_to:null, label, ...extra });
@@ -133,7 +156,7 @@ export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Mark
       return { ...p, match_count:r.match_count, near_count:r.near_count };
     });
     return { versions:v, data:{ ...d, refresh:'ready' }, limits:LIMITS,
-      indicators:R.indicators.map((x: any) => ({ ...x, synonyms:x.overlay?.synonyms || [], overlay:{ shape:x.overlay?.shape, default_test:x.overlay?.default_test ?? null } })),
+      indicators:catalogIndicators({ capBudgetMs:CAP_BUDGET_MS }),
       metrics:METRICS, fundamentals:FUNDAMENTALS, periods, groupings:[grouping('sector', m.tickers), grouping('industry', m.tickers)], presets };
   };
   const counters: Record<string, number> = {};
@@ -166,6 +189,7 @@ export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Mark
     async run(req, o: CallOpts = {}) {
       count('run'); await wait('run', o.signal); if (o.signal?.aborted) throw new DOMException('aborted', 'AbortError');
       failing('run');
+      checkParams(req.definition);
       runs++; if (opts.newPublicationAfterRuns && runs > opts.newPublicationAfterRuns) pub = 2;
       const v = { ...versions(), definition_hash:await hash(req.definition) }, body = runDef(m, req.definition, v, data());
       const bytes = enc(body);
@@ -174,6 +198,7 @@ export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Mark
     async preview(req, o: CallOpts = {}) {
       count('preview'); await wait('preview', o.signal); if (o.signal?.aborted) throw new DOMException('aborted', 'AbortError');
       failing('preview');
+      checkParams(req.definition);
       if (req.data_version !== versions().price_data) throw new ApiFailure('New data was published; the screen is re-run.', 'DATA_VERSION_CHANGED', 409);
       return pv(m, req.definition, req.ticker, versions(), data(), id => shape.get(id), periods);
     },

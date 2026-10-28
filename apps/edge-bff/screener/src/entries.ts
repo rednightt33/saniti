@@ -53,7 +53,7 @@ function outLabel(ind: CatalogIndicator, o: CatalogOutput | undefined, key: stri
 }
 /** the indicator's short name: the catalog's `short` (additive, the generated registry's), else its first upper-case
     synonym, else its key */
-export const shortOf = (ind: CatalogIndicator) => (ind as any).short || (ind.synonyms || []).find(s => /^[A-Z%][A-Za-z0-9 %/+-]{0,11}$/.test(s)) || ind.key.toUpperCase();
+export const shortOf = (ind: CatalogIndicator) => (ind as any).short || (ind.synonyms || []).find(s => /^[A-Z%][A-Za-z0-9 %/+()-]{0,11}$/.test(s)) || ind.key.replace(/_/g, ' ').toUpperCase();
 
 /** the label of an indicator test option when the overlay gives none (the prototype's words where it had them) */
 function optLabel(ind: CatalogIndicator, o: CatalogOutput, spec: TestFormSpec, op: TestOp, valueOuts: number): string {

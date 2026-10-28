@@ -15,8 +15,8 @@ import type { Bars, Num, Params } from '../../../terminal/src/calc/indicators.ts
 import type { HistoryClass, IndicatorRef, MetricKind, MetricRef, PriceField, PriceRef } from './contract.ts';
 import { PRICE_FIELDS } from './contract.ts';
 import { ScreenerError } from './errors.ts';
-import { isDefaultParams, resolveScreenerParams, screenerIndicator, screenerOutput } from './registry.ts';
-import type { ParamOptions, ScreenerIndicator, ScreenerOutput, Unit } from './registry.ts';
+import { inputsOf, isDefaultParams, resolveScreenerParams, screenerIndicator, screenerOutput } from './registry.ts';
+import type { BarField, ParamOptions, ScreenerIndicator, ScreenerOutput, Unit } from './registry.ts';
 import { resolveTransform } from './transforms.ts';
 
 /* ---- a ticker's data ------------------------------------------------------------------------------------------- */
@@ -41,6 +41,11 @@ export interface ResolvedSeries {
   /** The history class of the series (report 6.8): decides the PRICE_BREAK_IN_LOOKBACK rule (report 6.12). null for a
       bar field (it reads one bar). */
   readonly historyClass: HistoryClass | null;
+  /** The bar fields the series needs (registry.ts inputsOf for an indicator; the field itself for a bar field; the
+      union of its operands' for a transform): a ticker that lacks one (missingInput) is NA NULL_AT_EVALUATION, not
+      INSUFFICIENT_HISTORY (report 6.8, 6.9; TEST PLAN 10b.3 IHSG volume). [] only for an output the chosen options
+      leave without any value, which validate.ts refuses before any compute. */
+  readonly inputs: readonly BarField[];
   full(t: TickerCalc): ArrayLike<Num | undefined>;
 }
 export interface ResolvedIndicator extends ResolvedSeries {
@@ -58,22 +63,37 @@ export function resolveIndicator(ref: IndicatorRef, field: string, opts: ParamOp
   const params = resolveScreenerParams(indicator, ref.params, `${field}.params`, opts);
   const key = canonicalJson({ kind: 'indicator', indicator: indicator.id, params, output: output.key });
   return {
-    kind: 'indicator', key, unit: output.unit, historyClass: output.history_class, indicator, output, params,
-    isDefault: isDefaultParams(indicator, params),
+    kind: 'indicator', key, unit: output.unit, historyClass: output.history_class, inputs: inputsOf(output, params),
+    indicator, output, params, isDefault: isDefaultParams(indicator, params),
     full: t => t.calc.out(indicator.key, params)[output.key],
   };
 }
 
-const BAR: Record<PriceField, keyof Bars> = { open: 'O', high: 'H', low: 'L', close: 'C', volume: 'V' };
+const BAR: Record<PriceField, BarField> = { open: 'O', high: 'H', low: 'L', close: 'C', volume: 'V' };
 /** A bar field of the ticker's own bars (unit price, or volume). */
 export function resolvePrice(ref: PriceRef, field: string): ResolvedPrice {
   if (!PRICE_FIELDS.includes(ref.field)) throw new ScreenerError('INVALID_CONDITION', `${field}.field must be one of ${PRICE_FIELDS.join(', ')}.`, `${field}.field`, { allowed: [...PRICE_FIELDS] });
   const col = BAR[ref.field];
   return {
     kind: 'price', key: canonicalJson({ kind: 'price', field: ref.field }), field: ref.field,
-    unit: ref.field === 'volume' ? 'volume' : 'price', historyClass: null,
+    unit: ref.field === 'volume' ? 'volume' : 'price', historyClass: null, inputs: [col],
     full: t => t.bars[col] as ArrayLike<Num | undefined>,
   };
+}
+
+/** The first field of `inputs` the ticker lacks up to bar `at` (no finite non-zero value on bars 0..at: IHSG's volume,
+    which is null), or null when it has them all (rows without four finite prices are already dropped by
+    datafile.priceSeries, so in practice only volume can be missing). A cell on a series that needs it is NA
+    NULL_AT_EVALUATION (evaluate.ts BarView.inputMissing; report 6.8 "each option's volume need"); the worker may hold
+    the answer per ticker and field in its snapshot instead of scanning per condition. */
+export function missingInput(t: TickerBars, inputs: readonly BarField[], at: number): BarField | null {
+  for (const f of inputs) {
+    const xs = t.bars[f] as ArrayLike<number | null | undefined>;
+    let has = false;
+    for (let i = 0; i <= at && i < xs.length && !has; i++) { const v = xs[i]; has = typeof v === 'number' && Number.isFinite(v) && v !== 0 }
+    if (!has) return f;
+  }
+  return null;
 }
 
 /** Any metric reference that is a numeric series on the ticker's bars: indicator and price here, transform through

@@ -6,7 +6,8 @@ import { describe, expect, it } from 'vitest';
 import { F } from '../../../terminal/src/calc/indicators.ts';
 import * as G from '../../scripts/build-screener-registry.mjs';      // the generator's deterministic fixture
 import { INDICATORS, defaultParams, capOf, screenerIndicator, startParams } from '../../src/core/registry.ts';
-import { SeriesCache, resolveIndicator, resolvePrice, resolveSeries, series, seriesKey, tailLength, tailOf, tickerCalc } from '../../src/core/metrics.ts';
+import { SeriesCache, missingInput, resolveIndicator, resolvePrice, resolveSeries, series, seriesKey, tailLength, tailOf, tickerCalc } from '../../src/core/metrics.ts';
+import { naReason, viewOfTail } from '../../src/core/evaluate.ts';
 import { ScreenerError } from '../../src/core/errors.ts';
 
 const OPTS = { capBudgetMs: 2000 };
@@ -67,6 +68,23 @@ describe('series()', () => {
     const short = tailOf([null, null, 3, null], 131);
     expect([short.from, short.firstValid, short.lastValid, Number.isNaN(short.values[3])]).toEqual([0, 2, 2, true]);
     expect(() => tailLength(0)).toThrow(RangeError);
+  });
+
+  it('an instrument without volume: a VWMA-basis I27 cell is NA NULL_AT_EVALUATION, the SMA basis has a value; a short history is INSUFFICIENT_HISTORY (TEST PLAN 10b.3)', () => {
+    const IX = { ticker: 'IHSG', dates: B.T as string[], bars: { ...B, V: B.V.map(() => null) } };   // IHSG publishes no volume
+    const ref = (basis: string) => resolveIndicator({ kind: 'indicator', indicator: 'I27', params: { basis_ma_type: basis }, output: 'basis' }, 'm', OPTS);
+    const vwma = ref('VWMA'), sma = ref('SMA'), at = B.C.length - 1;
+    expect([vwma.inputs, sma.inputs]).toEqual([['C', 'V'], ['C']]);
+    expect([missingInput(IX, vwma.inputs, at), missingInput(IX, sma.inputs, at), missingInput(T, vwma.inputs, at)]).toEqual(['V', null, null]);
+    const tv = series(ctx(), tickerCalc(IX), vwma).tail, ts = series(ctx(), tickerCalc(IX), sma).tail;
+    expect(naReason(viewOfTail(tv, missingInput(IX, vwma.inputs, at) !== null), at)).toBe('NULL_AT_EVALUATION');
+    expect(naReason(viewOfTail(ts, missingInput(IX, sma.inputs, at) !== null), at)).toBe(null);
+    const short = { ticker: 'RANS', dates: (B.T as string[]).slice(0, 15), bars: { O: B.O.slice(0, 15), H: B.H.slice(0, 15), L: B.L.slice(0, 15), C: B.C.slice(0, 15), V: B.V.slice(0, 15), T: (B.T as string[]).slice(0, 15) } };
+    const tr = series(ctx(), tickerCalc(short), sma).tail;
+    expect(naReason(viewOfTail(tr, missingInput(short, sma.inputs, 14) !== null), 14)).toBe('INSUFFICIENT_HISTORY');   // 15 bars < length 20
+    const upper = resolveIndicator({ kind: 'indicator', indicator: 'I43', params: { anchor: 'Week', bands_mode: 'None' }, output: 'upper1' }, 'm', OPTS);
+    expect(upper.inputs).toEqual([]);                                // no value at these options: validate.ts refuses it
+    expect(resolveIndicator({ kind: 'indicator', indicator: 'I43', params: { anchor: 'Week' }, output: 'upper1' }, 'm', OPTS).inputs).toEqual(['H', 'L', 'C', 'V']);
   });
 
   it('price fields are series of the bars; flow, xsection and universe values are refused as series', () => {

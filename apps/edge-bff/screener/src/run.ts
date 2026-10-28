@@ -5,7 +5,7 @@
    Failures follow report 6c.6: BUSY retries twice (1 s, 2 s), NOT_READY after Retry-After, an unreachable service
    once after 2 s, then a message and a Retry button; refusals are shown with the field and the fix (report 8.8). */
 import { ApiFailure, isAbort } from './api/types.ts';
-import { activeCards, canonical, ctx, definitionOf, rowOfResult, rowOfUniverse, S, ui, type Result } from './state.ts';
+import { activeCards, canonical, cardOfField, ctx, definitionOf, rowOfResult, rowOfUniverse, S, ui, type Result } from './state.ts';
 import { universeView } from './universe-view.ts';
 import { errorText, T } from './texts.ts';
 import type { Definition, RunResponse } from './core/contract.ts';
@@ -35,6 +35,7 @@ export function schedule(now = false) {
   clearTimeout(timer);
   if (!ctx.catalog) return;
   const def = definitionOf(), key = canonical(def);
+  if (key !== wantKey) ctx.refused = null;                    // an edit: the refusal of the previous definition goes
   const lim = ctx.catalog.limits.find(l => l.name === 'max_conditions');
   if (Object.keys(S.errors).length) {
     ctl?.abort(); ctl = null; ctx.running = false; ctx.stale = !!ctx.R; ctx.runError = 'Fix the highlighted field of a condition; the screen runs once every field is valid.';
@@ -81,7 +82,9 @@ async function send(def: Definition, key: string) {
     if (f.code === 'SCREENER_NOT_READY') return again(Math.max(1, f.retryAfter ?? 5) * 1000, f.message);
     if ((f.code === 'SCREENER_UNAVAILABLE' || f.code === 'NETWORK') && attempt < 1) return again(2000, T.unreachable);
     ctx.running = false; ctx.runError = f.message || T.unreachable;
-    ui.refresh('results');
+    const card = cardOfField(f.field);
+    ctx.refused = card ? { id:card.id, message:f.message || T.unreachable } : null;
+    ui.refresh(card ? 'conds' : 'results');
   }
 }
 /** forget the in-flight run (a new catalog or a reset) */

@@ -52,10 +52,17 @@ export function newCard(e: Entry, taken: Iterable<string>, over: Partial<Card> =
 const pick = (d: Record<string, ParamValue>, e: Entry) => Object.fromEntries(Object.entries(d).filter(([k]) => e.params.some(p => p.key === k)));
 
 export const optOf = (e: Entry, c: Card): Opt | undefined => e.opts.find(o => o.key === c.opt);
-/** Custom = some parameter differs from its default (the prototype's isCustom) */
-export const isCustom = (e: Entry, c: Card) => e.params.some(p => !isDefP(p, c.params[p.key]));
-/** only the parameters that differ from the registry default: what the wire needs (missing ones take the default) */
-const changed = (e: Entry, p: ParamMap): ParamMap => Object.fromEntries(e.params.filter(x => !isDefP(x, p[x.key])).map(x => [x.key, p[x.key]]));
+/** The entry's registry defaults are offered (catalog default_offered; P17 a: false for I43, whose registry default
+    anchor Session the screener does not offer, so its card has no Default chip and its params' `default` is the value a
+    card opens with, not the registry default). Metrics and indicators of an older catalog without the field: true. */
+export const defaultOffered = (e: Entry | undefined) => (e?.indicator as { default_offered?: boolean } | undefined)?.default_offered !== false;
+/** Custom = some parameter differs from its default (the prototype's isCustom), or the registry defaults are not
+    offered (P17 consequence: such a card is always Custom) */
+export const isCustom = (e: Entry, c: Card) => !defaultOffered(e) || e.params.some(p => !isDefP(p, c.params[p.key]));
+/** the parameters the wire needs: those that differ from the registry default (missing ones take it). Where the
+    registry default is not offered (default_offered false) every parameter is sent, because a missing one would take
+    the registry default the worker refuses (registry.ts resolveScreenerParams, P17 a). */
+const changed = (e: Entry, p: ParamMap): ParamMap => Object.fromEntries(e.params.filter(x => !defaultOffered(e) || !isDefP(x, p[x.key])).map(x => [x.key, p[x.key]]));
 
 const ind = (e: Entry, params: ParamMap, output: string): IndicatorRef => {
   const ch = changed(e, params);

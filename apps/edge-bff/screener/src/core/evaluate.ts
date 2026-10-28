@@ -13,8 +13,9 @@
      state, and core combineEntry is deliberately not used (its window turns states into "true on any of the last W
      bars", conditions.ts:269-292);
    - NA: a cell is NA only with a reason (I5): INSUFFICIENT_HISTORY when the series has no value on any bar up to
-     `at`, NULL_AT_EVALUATION when it has values earlier but none at `at` (naReason); the flow, applicability and
-     integrity reasons come from their own modules. NA never fails the whole screen;
+     `at`, NULL_AT_EVALUATION when it has values earlier but none at `at`, or when the ticker lacks a bar field the
+     series needs (IHSG volume; naReason); the flow, applicability and integrity reasons come from their own modules.
+     NA never fails the whole screen;
    - remarks: a cell on a PRICE_BREAK row whose lookback contains an ex-date keeps its value and its pass or fail and
      carries PRICE_BREAK_IN_LOOKBACK (P4.1 A; user 2026-10-28; where the TEST PLAN still says NA, P4.1 A wins).
    Evaluating on a tail (metrics.ts Tail, within_max + 1 bars) equals evaluating on the full series at every tail bar:
@@ -35,15 +36,17 @@ import type { Tail } from './metrics.ts';
 
 /** A metric's values on one ticker's bars, read by the ticker's bar index: a full series or a tail. get(i) is NaN for a
     missing value and for a bar the view does not hold (i < from or i >= n). firstValid / lastValid: the first and last
-    bar of the full series with a value (-1 when none). */
-export interface BarView { readonly n: number; readonly from: number; readonly firstValid: number; readonly lastValid: number; get(i: number): number }
-export function viewOfTail(t: Tail): BarView {
-  return { n: t.n, from: t.from, firstValid: t.firstValid, lastValid: t.lastValid, get: i => (i >= t.from && i < t.n ? t.values[i - t.from] : NaN) };
+    bar of the full series with a value (-1 when none). inputMissing: the ticker lacks a bar field the series needs
+    (metrics.ts missingInput over ResolvedSeries.inputs: volume on IHSG for an I27 VWMA basis), so a missing value is
+    NULL_AT_EVALUATION, never INSUFFICIENT_HISTORY (naReason; TEST PLAN 10b.3). */
+export interface BarView { readonly n: number; readonly from: number; readonly firstValid: number; readonly lastValid: number; readonly inputMissing: boolean; get(i: number): number }
+export function viewOfTail(t: Tail, inputMissing = false): BarView {
+  return { n: t.n, from: t.from, firstValid: t.firstValid, lastValid: t.lastValid, inputMissing, get: i => (i >= t.from && i < t.n ? t.values[i - t.from] : NaN) };
 }
-export function viewOfSeries(s: ArrayLike<Num | undefined>): BarView {
+export function viewOfSeries(s: ArrayLike<Num | undefined>, inputMissing = false): BarView {
   let firstValid = -1, lastValid = -1;
   for (let i = 0; i < s.length; i++) if (typeof s[i] === 'number' && Number.isFinite(s[i])) { if (firstValid < 0) firstValid = i; lastValid = i }
-  return { n: s.length, from: 0, firstValid, lastValid, get: i => { const v = s[i]; return typeof v === 'number' && Number.isFinite(v) ? v : NaN } };
+  return { n: s.length, from: 0, firstValid, lastValid, inputMissing, get: i => { const v = s[i]; return typeof v === 'number' && Number.isFinite(v) ? v : NaN } };
 }
 /** One side of a comparison: a series view, or a constant (contract.ts ValueSide). */
 export type Operand = BarView | number;
@@ -61,10 +64,14 @@ export function compareAt(lhs: Operand, op: Op, rhs: Operand, i: number): boolea
 /** The cross of EventCross as a signal by bar (compareAt with crosses_above / crosses_below). */
 export const crossSignal = (lhs: Operand, op: 'crosses_above' | 'crosses_below', rhs: Operand) => (i: number): boolean => compareAt(lhs, op, rhs, i);
 
-/** Why a series has no value at `at` (null when it has one): INSUFFICIENT_HISTORY when it has no value on any bar up to
-    `at` (the core's INDICATOR_OUTPUT_EMPTY, per ticker); NULL_AT_EVALUATION when it had values before. */
+/** Why a series has no value at `at` (null when it has one), report 6.9 NA reason codes and TEST PLAN 10b.3:
+    NULL_AT_EVALUATION when the ticker lacks a bar field the series needs (v.inputMissing: "an option that needs volume
+    on an instrument without volume (IHSG)", whatever its history); else INSUFFICIENT_HISTORY when it has no value on
+    any bar up to `at` (the core's INDICATOR_OUTPUT_EMPTY, per ticker: too few bars, RANS with 74); NULL_AT_EVALUATION
+    when it had values before (zero band width, flat window, zero volume on the bar). */
 export function naReason(v: BarView, at: number): NaReason | null {
   if (Number.isFinite(v.get(at))) return null;
+  if (v.inputMissing) return 'NULL_AT_EVALUATION';
   return v.firstValid < 0 || v.firstValid > at ? 'INSUFFICIENT_HISTORY' : 'NULL_AT_EVALUATION';
 }
 
@@ -115,9 +122,10 @@ export function evaluateStatePattern(signal: ArrayLike<number>, at: number): Eva
 
 /** EVENT (report 6.9): signalAt(i) for i in [at-within+1, at]; j = the largest such i where it is true -> pass with
     eventBar j and barsAgo at - j; lastEventBar = the largest i in [at-withinMax+1, at] where it is true (null if none).
-    current: the sides of a cross, whose values at `at` are returned as lhs and rhs. When no event is found: NA with the
-    first side's naReason at `at` if a side of the cross is INSUFFICIENT_HISTORY there (it could never cross), else fail
-    (a side without a value only at `at` cannot hide an earlier cross; a pattern event is never NA).
+    current: the sides of a cross, whose values at `at` are returned as lhs and rhs. When no event is found: NA if a side
+    of the cross could never have crossed (no value on any bar up to `at`: INSUFFICIENT_HISTORY, or NULL_AT_EVALUATION
+    when its input is missing, naReason of that side, lhs first), else fail (a side without a value only at `at` cannot
+    hide an earlier cross; a pattern event is never NA).
     within: 1..withinMax (validate.ts refuses others; RangeError here). Reads bars at-withinMax..at only, so a tail of
     withinMax + 1 bars suffices. */
 export function evaluateEvent(signalAt: (i: number) => boolean, within: number, withinMax: number, at: number, current?: { lhs: Operand; rhs: Operand }): Evaluation {
@@ -129,7 +137,9 @@ export function evaluateEvent(signalAt: (i: number) => boolean, within: number, 
 /** The first bar a series' value at `at` depends on (report 6.12 lookback): window class -> at - window + 1, where window
     = the series' firstValid + 1 on this ticker (its first full window), plus `extra` bars before (an EVENT searches
     `within` bars back, so its sides' lookback extends by within); recursive, cumulative and calendar -> null (they read
-    the whole history); a bar field (historyClass null) -> at - extra. */
+    the whole history, report 6.12); a bar field (historyClass null) -> at - extra. On a ticker whose early bars lack an
+    input, firstValid comes later than the window needs and the lookback is overstated: the remark may then be set where
+    the window is already clear of the ex-date, never left out where it is not (a remark never changes a result). */
 export function lookbackStart(historyClass: HistoryClass | null, firstValid: number, at: number, extra = 0): number | null {
   throw new Error('not implemented: lookbackStart');
 }

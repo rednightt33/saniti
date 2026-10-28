@@ -416,13 +416,13 @@ export interface CatalogOutput {
   unit: string;                      // derived by the scaling and shift probes (registry.ts UNITS)
   level_comparable: boolean;
   price_compare_lag: { gt: 0 | 1; lt: 0 | 1 };
-  inputs_by_source: Record<string, Record<string, string[]>>;   // enum parameter -> option -> needed fields (O H L C V)
+  inputs_by_source: Record<string, Record<string, string[]>>;   // enum parameter -> option -> needed fields (O H L C V); [] = no value at that option
   label: string | null;              // additive (6.8 overlay "display labels"; indRegistry outs[].label)
   display_unit: string | null;       // additive: the workbook's unit (indRegistry.json), for display
   comparable_with: 'close' | 'volume' | null;   // additive: what level_comparable compares with (6.8 scaling probe)
   disabled_tests: DisabledTestForm[];           // additive: forms shown disabled with a reason (6.9.1 cum rows)
   history_class: HistoryClass;                  // additive: per output (6.8 cut probe "for all 76 outputs")
-  first_valid_bar: number | null;               // additive: at registry defaults (6.8 "first_valid_bar per output")
+  first_valid_bar: number | null;               // additive: at the start configuration, the registry defaults except I43 at Week (6.8 "first_valid_bar per output")
 }
 export interface CatalogIndicator {
   id: string; key: string; name: string; category: string; synonyms: string[]; formula_version: string;

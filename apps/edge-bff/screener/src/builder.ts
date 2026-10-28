@@ -10,7 +10,7 @@ import { esc, nf } from './format.ts';
 import { COLORS, IC, ico } from './icons.ts';
 import { activeCards, ctx, entryOf, S, ui } from './state.ts';
 import { byGroup, defaultParams, GHEAD, GL, isDefP, matches, paramError, rangeText, type Entry } from './entries.ts';
-import { cardErrors, cardName, condText, displayUnit, fromWire, isCustom, newCard, newCardId, optOf, paramSummary, type Card } from './forms.ts';
+import { cardErrors, cardName, condText, defaultOffered, displayUnit, fromWire, isCustom, newCard, newCardId, optOf, paramSummary, type Card } from './forms.ts';
 import { confirmDialog, openSaveMetric, toast } from './dialogs.ts';
 import { openBrowser } from './browser.ts';
 import { spin } from '../../terminal/src/ui/spin.ts';
@@ -34,7 +34,8 @@ function condRow(c: Card): string {
   const e = entryOf(c), col = colorOf(c), errs = S.errors[c.id] || {};
   const head = `<div class="mrow"><i class="cdot" style="background:${col}"></i><b data-nm="${c.id}" title="${esc(e?.desc || '')}">${esc(cardName(e, c))}</b><span class="sw" title="Enable / disable"><input type="checkbox" data-c="${c.id}" data-k="on" ${c.on ? 'checked' : ''} aria-label="Enable condition"><span></span></span><button class="iconbtn sm mx" data-del="${c.id}" title="Remove condition" aria-label="Remove condition">${ico(IC.x, 's')}</button></div>`;
   const review = c.review?.length ? `<span class="pill t-warning" title="${esc(c.review.join('\n'))}">Needs review</span>` : '';
-  const pt = passText(c), pass = `<div class="note cnt" data-pass="${c.id}" ${pt ? `title="${esc(pt.title)}"` : ''}>${pt ? esc(pt.txt) : ''}</div>`;
+  const pt = passText(c), pass = `<div class="note cnt" data-pass="${c.id}" ${pt ? `title="${esc(pt.title)}"` : ''}>${pt ? esc(pt.txt) : ''}</div>`
+    + (ctx.refused?.id === c.id ? `<span class="ferr" role="alert" data-refused="${c.id}">${esc(ctx.refused.message)}</span>` : '');
   if (!e || c.raw) return `<div class="mc ${c.on ? '' : 'off'}" data-card="${c.id}">${head}<div class="note msum" data-sum="${c.id}">${esc(condText(e, c))}</div>${review}${pass}</div>`;
   const o = optOf(e, c), cus = isCustom(e, c) || S.open.has(c.id);
   const u = displayUnit(o?.unit);
@@ -47,10 +48,13 @@ function condRow(c: Card): string {
     const field = p.options ? `<select class="sel" data-c="${c.id}" ${attr}="${p.key}">${p.options.map(x => `<option value="${esc(x)}" ${String(x) === String(v) ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>`
       : p.type === 'boolean' ? `<select class="sel" data-c="${c.id}" ${attr}="${p.key}"><option value="true" ${v === true ? 'selected' : ''}>true</option><option value="false" ${v === false ? 'selected' : ''}>false</option></select>`
       : `<input class="inp" type="number" ${p.min != null ? `min="${p.min}"` : ''} ${p.max != null ? `max="${p.max}"` : ''} step="${p.step ?? (p.integer ? 1 : 'any')}" data-c="${c.id}" ${attr}="${p.key}" value="${esc(v)}" ${inv(k)} title="${esc(rangeText(p))}">`;
-    return `<label class="pf ${isDefP(p, v) ? '' : 'chg'}" data-pf="${c.id}|${k}"><span>${esc((second ? '2nd ' : '') + (p.label || p.key))}</span>${field}<small>${errs[k] ? `<b class="down">${esc(errs[k])}</b>` : `default ${esc(p.default)}`}</small></label>`;
+    return `<label class="pf ${isDefP(p, v) ? '' : 'chg'}" data-pf="${c.id}|${k}"><span>${esc((second ? '2nd ' : '') + (p.label || p.key))}</span>${field}<small>${errs[k] ? `<b class="down">${esc(errs[k])}</b>` : `${defaultOffered(e) ? 'default' : 'opens at'} ${esc(p.default)}`}</small></label>`;
   };
   const twoLines = o && (o.form === 'state_instance' || o.form === 'event_instance');
-  const mode = e.params.length ? `<span class="seg sm mseg"><button class="${cus ? '' : 'on'}" data-segd="${c.id}" title="Use the standard parameters (the registry's defaults)">Default</button><button class="${cus ? 'on' : ''}" data-segc="${c.id}" title="Set your own parameters">Custom</button></span>` : `<span class="note">No parameters</span>`;
+  // P17 consequence (catalog default_offered false, I43): no Default chip, the card is Custom with its reason
+  const mode = !e.params.length ? `<span class="note">No parameters</span>`
+    : !defaultOffered(e) ? `<span class="seg sm mseg"><button class="on" data-segc="${c.id}" title="${esc(T.noDefault)}">Custom</button></span>`
+    : `<span class="seg sm mseg"><button class="${cus ? '' : 'on'}" data-segd="${c.id}" title="Use the standard parameters (the registry's defaults)">Default</button><button class="${cus ? 'on' : ''}" data-segc="${c.id}" title="Set your own parameters">Custom</button></span>`;
   const grid = e.params.length && (cus || twoLines) ? `<div class="pgrid">${e.params.map(p => pf(p)).join('')}${twoLines ? e.params.map(p => pf(p, true)).join('') : ''}</div><div class="mrow"><span class="pbadge my" data-pm="${c.id}" ${c.metric ? '' : 'hidden'}>★ ${esc(c.metric?.name || '')}</span><button class="link" data-savem="${c.id}">${ico(IC.star, 's')}Save as My metric</button></div>` : '';
   const ops = `<select class="sel" data-c="${c.id}" data-k="op" aria-label="Condition">${e.opts.map(x => `<option value="${esc(x.key)}" ${x.key === c.opt ? 'selected' : ''} ${x.disabled ? `disabled title="${esc(x.disabled)}"` : ''}>${esc(x.label)}${x.disabled ? ' — not offered' : ''}</option>`).join('')}</select>${err('op')}`;
   return `<div class="mc ${c.on ? '' : 'off'} ${cus ? 'cus' : ''}" data-card="${c.id}">${head}

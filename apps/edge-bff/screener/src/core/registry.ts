@@ -41,9 +41,11 @@ export interface ScreenerOutput {
   unit: Unit; level_comparable: boolean; comparable_with: 'close' | 'volume' | null;
   price_compare_lag: { gt: 0 | 1; lt: 0 | 1 };
   history_class: HistoryClass;
-  first_valid_bar: number | null;    // at the registry defaults, on the probe fixture
-  inputs: string[];                  // O H L C V needed at the registry defaults (poison probe)
-  inputs_by_source: Record<string, Record<string, string[]>>;   // enum parameter -> option -> fields
+  first_valid_bar: number | null;    // at the start configuration (start_params), on the probe fixture
+  inputs: string[];                  // O H L C V needed at the start configuration (poison probe)
+  /** enum parameter -> option -> the fields needed with that option and the other parameters at the start
+      configuration; [] when the option leaves the output without any value (I43 upper1 / lower1 at bands_mode None). */
+  inputs_by_source: Record<string, Record<string, string[]>>;
   tests: TestFormSpec[]; disabled_tests: DisabledTestForm[];
 }
 export interface OracleRow { output: string; params: ParamMap; table: string; column?: string; expr?: string; columns?: string[] }
@@ -120,6 +122,21 @@ export function screenerOutput(ind: ScreenerIndicator, output: unknown, field = 
   const o = ind.outputs.find(x => x.key === output);
   if (!o) throw new ScreenerError('INVALID_CONDITION', `${field}: ${JSON.stringify(output)} is not an output of ${ind.id} ${ind.name}; use one of ${ind.outputs.map(x => x.key).join(', ')}.`, field, { allowed: ind.outputs.map(x => x.key) });
   return o;
+}
+
+/** The bar fields (O H L C V) an output needs at resolved parameters (report 6.8 poison probe, "each option's volume
+    need"): the union over the indicator's enum parameters of inputs_by_source[key][value], or the output's inputs when
+    it has none; [] when one of the chosen options leaves the output without any value (validate.ts refuses such a
+    condition). A ticker without one of these fields (IHSG has no volume: an I27 VWMA basis) has no value for reasons
+    other than its history, so its NA is NULL_AT_EVALUATION (metrics.ts missingInput, evaluate.ts naReason; TEST PLAN
+    10b.3), while the same cell at an SMA basis has a value. */
+export type BarField = 'O' | 'H' | 'L' | 'C' | 'V';
+export const BAR_FIELDS: readonly BarField[] = ['O', 'H', 'L', 'C', 'V'];
+export function inputsOf(output: ScreenerOutput, params: Params): BarField[] {
+  const per = Object.entries(output.inputs_by_source).map(([k, byOption]) => byOption[params[k] as string]);
+  if (!per.length) return BAR_FIELDS.filter(f => output.inputs.includes(f));
+  if (per.some(f => !f || !f.length)) return [];
+  return BAR_FIELDS.filter(f => per.some(x => x.includes(f)));
 }
 
 /* ---- caps (report 6.8 "Caps") ------------------------------------------------------------------------------------ */

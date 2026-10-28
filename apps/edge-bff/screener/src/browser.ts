@@ -7,7 +7,8 @@ import { esc } from './format.ts';
 import { IC, ico } from './icons.ts';
 import { ctx } from './state.ts';
 import { byGroup, GHEAD, GL, GORD, matches, rangeText, type Entry } from './entries.ts';
-import { condText, fromWire, newCard } from './forms.ts';
+import { condText, defaultOffered, fromWire, newCard } from './forms.ts';
+import { T } from './texts.ts';
 import { closeDialog, dialog } from './dialogs.ts';
 
 type Item = [key: string, e: Entry, m?: SavedItem];
@@ -72,7 +73,7 @@ function draw() {
   const fact = (pp: Entry['params'][number]) => `<div><span>${esc(pp.label || pp.key)}${rangeText(pp) ? ` <small class="muted">${esc(rangeText(pp))}</small>` : ''}</span><b>${esc(p[pp.key])}${pp.options ? ` <small class="muted">of ${pp.options.length}</small>` : ''}</b></div>`;
   $('bDet').innerHTML = `<div class="ib-h"><span class="tag ${esc(e.group)}">${esc(GL(e.group))}</span>${e.xid ? `<span class="muted">${esc(e.xid)}</span>` : ''}</div><h4>${esc(m ? m.name : e.label)}</h4><p class="muted">${esc(e.desc)}</p>
     ${e.available ? '' : `<p class="note down">${esc(e.reason || 'Not available.')}</p>`}${e.history ? `<p class="note">${esc(e.history)}</p>` : ''}
-    <div class="sec-title">${m ? 'Saved parameters' : 'Default parameters'}</div>${e.params.length ? `<div class="facts">${e.params.map(fact).join('')}</div>` : '<p class="muted">Fixed definition — nothing to tune.</p>'}
+    <div class="sec-title">${m ? 'Saved parameters' : defaultOffered(e) ? 'Default parameters' : 'Starting parameters'}</div>${!m && !defaultOffered(e) ? `<p class="note">${esc(T.noDefault)}</p>` : ''}${e.params.length ? `<div class="facts">${e.params.map(fact).join('')}</div>` : '<p class="muted">Fixed definition — nothing to tune.</p>'}
     <div class="sec-title">Conditions you can test</div><ul class="ib-ops">${e.opts.map(o => `<li${o.disabled ? ` class="muted" title="${esc(o.disabled)}"` : ''}>${esc(o.label)}${o.disabled ? ' — not offered' : ''}</li>`).join('')}</ul>
     <div class="sec-title">Starts as</div><p class="ib-start">${esc(condText(e, card))}</p>
     <div class="ib-foot"><button class="btn primary" data-badd="${esc(k)}" style="width:100%" ${e.available ? '' : `disabled title="${esc(e.reason || '')}"`}>${ico(IC.plus, 's')}Add to screen</button><p class="note" style="margin:4px 0 0">Enter adds the highlighted indicator · ↑ ↓ to move</p></div>`;

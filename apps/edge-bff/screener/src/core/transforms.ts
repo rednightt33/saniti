@@ -61,8 +61,9 @@ export function vsIndex(close: In, indexAligned: In, d: number): Series { throw 
     screener-metrics.json (unknown fn -> INVALID_CONDITION with the allowed ids; a range -> PARAM_OUT_OF_RANGE), `of`
     (and a reference argument such as ratio's denominator) resolved through metrics.ts resolveSeries, key = canonical
     JSON of the resolved transform, historyClass: 'window' for rolling_max / rolling_min / ma SMA / lag / change over
-    a window-class or bar input, else the inner series' class (the PRICE_BREAK_IN_LOOKBACK rule reads it). `index`
-    (IHSG's bars) serves vs_index. */
+    a window-class or bar input, else the inner series' class (the PRICE_BREAK_IN_LOOKBACK rule reads it); inputs: the
+    union of its operands' inputs (vs_index adds nothing: the index is IHSG's close). `index` (IHSG's bars) serves
+    vs_index. */
 export function resolveTransform(ref: TransformRef, field: string, ctx: ParamOptions & { index: TickerBars }): ResolvedSeries {
   throw new Error('not implemented: resolveTransform');
 }

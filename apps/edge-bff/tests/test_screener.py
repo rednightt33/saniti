@@ -964,9 +964,12 @@ def test_an_item_saved_under_other_registry_versions_is_validated_again_on_load(
     assert again == items and len(worker.called('/v1/validate')) == calls   # kept per definition and versions
     c.app.state.screeners.reviews.clear()
     worker.down = True
+    calls = len(worker.called('/v1/validate'))
     unreviewed = c.get('/api/v1/screener/items')
     assert unreviewed.status_code == 200 and all(x['needs_review'] == [] for x in unreviewed.json()['items'])
     assert c.app.state.screeners.reviews == {}                              # nothing kept from an unanswered question
+    # review 2026-10-28: one unanswered question ends the reviews of this load (the three items asked once, not thrice)
+    assert len(worker.called('/v1/validate')) == calls + 1
     # saving again under the new versions clears the review
     worker.down, worker.max_length = False, 1000
     assert put(c, 1, screen_item(length=600, revision=1)).json()['screener_registry_version'] == 'sregistry-b'

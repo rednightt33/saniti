@@ -59,6 +59,8 @@ export interface Ctx {
   entries: Entry[]; byKey: Map<string, Entry>;
   R: Result | null;
   running: boolean; runError: string | null; updating: boolean; stale: boolean;
+  /** the worker's refusal of the last run, on the card its field names (report 8.8: where and how to fix) */
+  refused: { id: string; message: string } | null;
   saved: SavedItem[] | null; metrics: SavedItem[] | null; watch: Set<string> | null;
   counts: Map<string, { match: number; near: number } | { error: string }>;
   login: string;
@@ -66,7 +68,7 @@ export interface Ctx {
 }
 export const ctx: Ctx = {
   api:null as unknown as ScreenerApi, catalog:null, universe:null, entries:[], byKey:new Map(), R:null,
-  running:false, runError:null, updating:false, stale:false, saved:null, metrics:null, watch:null, counts:new Map(), login:'', bootState:'skeleton',
+  running:false, runError:null, updating:false, stale:false, refused:null, saved:null, metrics:null, watch:null, counts:new Map(), login:'', bootState:'skeleton',
 };
 
 /** The renderers and actions the modules register (app.ts wires them). */
@@ -78,6 +80,12 @@ export const ui = {
 };
 
 export const activeCards = (cards = S.cards) => cards.filter(c => c.on);
+/** The card a refusal's field names: `definition.conditions[i]...` is the i-th card (definitionOf keeps card order,
+    switched-off cards included); null for any other field (universe, logic). */
+export function cardOfField(field: string | undefined, cards: Card[] = S.cards): Card | null {
+  const m = field ? /^(?:definition\.)?conditions\[(\d+)\]/.exec(field) : null;
+  return m ? cards[Number(m[1])] ?? null : null;
+}
 export const entryOf = (c: Card) => c.entry ? ctx.byKey.get(c.entry) : undefined;
 
 /** The portable definition of the page state (report 6.15): universe, conditions in card order, logic. */

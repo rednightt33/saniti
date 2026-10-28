@@ -41,6 +41,11 @@ describe('naReason, evaluationBar, round12', () => {
     expect([naReason(v, 1), naReason(v, 2), naReason(v, 3)]).toEqual(['INSUFFICIENT_HISTORY', null, 'NULL_AT_EVALUATION']);
     expect(naReason(viewOfSeries([null, null]), 1)).toBe('INSUFFICIENT_HISTORY');
   });
+  it('a series whose input the ticker lacks is NULL_AT_EVALUATION, never INSUFFICIENT_HISTORY (TEST PLAN 10b.3 IHSG volume)', () => {
+    expect(naReason(viewOfSeries([null, null, null], true), 2)).toBe('NULL_AT_EVALUATION');
+    expect(naReason(viewOfTail(tailOf([null, null, null], 131), true), 2)).toBe('NULL_AT_EVALUATION');
+    expect(naReason(viewOfSeries([null, 4], true), 1)).toBe(null);                  // a value is a value
+  });
   it('the evaluation bar is the ticker\'s last bar on or before E (a stale ticker: its own last bar)', () => {
     const dates = ['2026-08-20', '2026-08-21'];
     expect([evaluationBar(dates, '2026-10-27'), evaluationBar(dates, '2026-08-21'), evaluationBar(dates, '2026-08-01')]).toEqual([1, 1, -1]);
