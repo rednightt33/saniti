@@ -46,9 +46,9 @@ import { catalogDoc, metricAvailability, universeDoc } from './catalog.ts';
 import type { Doc } from './catalog.ts';
 import { cacheShare, describeConfig, loadConfig } from './config.ts';
 import type { Config } from './config.ts';
-import { HttpError, refuse, toApiError } from './errors.ts';
+import { HttpError, fromSerial, refuse, toApiError } from './errors.ts';
 import { REPLICA, errorFields, log } from './log.ts';
-import { OwnerBudget, Pool, SYSTEM, ThreadStopped } from './pool.ts';
+import { OwnerBudget, Pool, SYSTEM, TaskFailed, ThreadStopped } from './pool.ts';
 import type { ComputeThread } from './pool.ts';
 import type { PreviewOutcome, PreviewTask } from './preview.ts';
 import { Refresher, TerminalApi } from './refresh.ts';
@@ -200,6 +200,15 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
   const countsKey = (s: Snap, hash: string) => resultKey(s.desc, hash, NO_OPTIONS, 'counts');
 
   /* ---- the refresh host (refresh.ts drives it) ------------------------------------------------------------------ */
+  /** A builder thread's failure as the error it was: a file or snapshot problem is the DataError the refresh classifies
+      (DATA_INTEGRITY keeps the previous snapshot and is reported as such; anything else is DATA_UNAVAILABLE). */
+  const builderError = (e: unknown): unknown => {
+    if (!(e instanceof TaskFailed)) return e;
+    const x = e.serial.error;
+    if (x.code === 'DATA_INTEGRITY' || x.code === 'DATA_UNAVAILABLE' || x.code === 'DATA_MISSING') return new DataError(x.code, x.message ?? x.code, x.field, x.details);
+    return fromSerial(e.serial);
+  };
+  const onBuilder = async <T>(work: () => Promise<T>): Promise<T> => { try { return await work() } catch (e) { throw builderError(e) } };
   let builder: ComputeThread | null = null, staged: { desc: SnapshotDesc; entries: TickerEntry[]; stats: BuildStats; ref: TickerReference } | null = null;
   const lruBytes = cacheShare(cfg);
   const host: RefreshHost = {
@@ -208,11 +217,12 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       builder = pool.builder('builder', { role: 'builder', env, terminal, ...engineData });
       const task: BuildTask = { kind: 'build', files: input.files, ref: input.ref, state: input.state, engine: engineVersions, tailLength: TAIL, presets: presetDefs };
       const { done } = await builder.run(task);
-      const out = await done as { desc: SnapshotDesc; entries: TickerEntry[]; stats: BuildStats; download_ms: number; decode_ms: number; download_bytes: number };
+      const out = await onBuilder(() => done) as { desc: SnapshotDesc; entries: TickerEntry[]; stats: BuildStats; download_ms: number; decode_ms: number; download_bytes: number };
       staged = { desc: out.desc, entries: out.entries, stats: out.stats, ref: input.ref };
       const st = out.stats;
       return { entries: out.entries, stats: { download_ms: out.download_ms, decode_ms: out.decode_ms, downloaded_bytes: out.download_bytes, tickers: st.tickers, stocks: st.stocks,
-        bars: st.bars, dropped_rows: st.dropped, no_price: st.no_price, actions: st.actions, pinned_series: st.series, pinned_skipped: st.skipped } };
+        bars: st.bars, dropped_rows: st.dropped, no_price: st.no_price, actions: st.actions, pinned_series: st.series,
+        pinned_skipped: st.skipped.length, pinned_skipped_first: st.skipped.slice(0, 3) } };
     },
     async complete(input) {
       if (!staged || !builder) throw new Error('complete: nothing staged');
@@ -223,7 +233,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       const T = desc.tickers.length, size = Math.max(1, Math.ceil(T / (workers.length * 4))), chunks: [number, number][] = [];
       for (let a = 0; a < T; a += size) chunks.push([a, Math.min(T, a + size)]);
       await Promise.all(workers.map(async w => {
-        for (let c = chunks.shift(); c; c = chunks.shift()) { const { done } = await w.run({ kind: 'prewarm', desc, from: c[0], to: c[1] }); await done }
+        for (let c = chunks.shift(); c; c = chunks.shift()) { const { done } = await w.run({ kind: 'prewarm', desc, from: c[0], to: c[1] }); await onBuilder(() => done) }
       }));
       fields.defaults_ms = Math.round(performance.now() - t0);
       const { done } = await b.run({ kind: 'digest', desc });

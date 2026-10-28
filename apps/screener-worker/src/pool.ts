@@ -62,12 +62,14 @@ export class ComputeThread {
       if (m.type === 'installed' || m.type === 'install_failed') {
         const a = this.acks.get(m.sid);
         this.acks.delete(m.sid);
+        this.hold();
         if (a) { if (m.type === 'installed') a.resolve(); else a.reject(fromSerial(m.error)) }
         return;
       }
       const p = this.pending.get(m.seq);
       if (!p) return;
       this.pending.delete(m.seq);
+      this.hold();
       if (m.type === 'done') p.resolve(m.outcome); else p.reject(new TaskFailed(m.error));
     });
     w.on('error', e => { log('error', 'thread_error', { thread: this.name, ...errorFields(e, true) }); this.lost(w, new ThreadStopped('crashed', (e as { code?: string }).code ?? null)) });
@@ -84,6 +86,8 @@ export class ComputeThread {
     this.acks.clear();
   }
   private post(m: ToThread, transfer: ArrayBuffer[] = []): void { (this.worker as Worker).postMessage(m, transfer) }
+  /** A thread with work in flight keeps the process alive; an idle one does not (it never blocks an exit). */
+  private hold(): void { const w = this.worker; if (!w) return; if (this.pending.size || this.acks.size) w.ref(); else w.unref() }
   /** The thread running, with every snapshot of the pool installed (a new or restarted thread installs them first). */
   async ready(): Promise<void> {
     if (this.worker && !this.installing) return;
@@ -97,7 +101,7 @@ export class ComputeThread {
   private installOne(sid: string): Promise<void> {
     const it = this.installs.get(sid);
     if (!it) return Promise.resolve();
-    return new Promise<void>((resolve, reject) => { this.acks.set(sid, { resolve, reject }); this.post({ type: 'install', sid, desc: it.desc, lruBytes: it.lruBytes }) });
+    return new Promise<void>((resolve, reject) => { this.acks.set(sid, { resolve, reject }); this.hold(); this.post({ type: 'install', sid, desc: it.desc, lruBytes: it.lruBytes }) });
   }
   /** Installs one snapshot the pool registered (the thread must be running). */
   async install(sid: string): Promise<void> { await this.ready(); await this.installOne(sid) }
@@ -107,6 +111,7 @@ export class ComputeThread {
     await this.ready();
     const seq = ++this.seq;
     const done = new Promise<unknown>((resolve, reject) => this.pending.set(seq, { resolve, reject }));
+    this.hold();
     this.post({ type: 'task', seq, task });
     return { seq, done };
   }

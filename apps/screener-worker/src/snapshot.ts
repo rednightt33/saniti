@@ -278,16 +278,23 @@ export function resolvePinned(ref: MetricRef, field: string, opts: ParamOptions 
 /* ---- reading the bars back -------------------------------------------------------------------------------------- */
 type BarsDesc = Pick<SnapshotDesc, 'offsets' | 'O' | 'H' | 'L' | 'C' | 'V' | 'T' | 'dates' | 'tickers'>;
 /** Ticker j's bars as plain arrays, value for value what priceSeries gave (header): O H L C numbers, V a number or
-    null, T and `dates` the ticker's own dates. */
+    null, T and `dates` the ticker's own dates. The dates are built at once (every evaluation reads them); each price
+    column on its first read (a screen of pre-warmed series reads none of them), then kept. */
 export function materialize(d: BarsDesc, j: number): TickerBars {
   const a = d.offsets[j], n = d.offsets[j + 1] - a;
-  const O = new Array<number>(n), H = new Array<number>(n), L = new Array<number>(n), C = new Array<number>(n), V = new Array<number | null>(n), T = new Array<string>(n);
-  for (let i = 0; i < n; i++) {
-    O[i] = d.O[a + i]; H[i] = d.H[a + i]; L[i] = d.L[a + i]; C[i] = d.C[a + i];
-    const v = d.V[a + i]; V[i] = Number.isNaN(v) ? null : v;
-    T[i] = d.dates[d.T[a + i]];
-  }
-  const bars: Bars = { O, H, L, C, V, T };
+  const T = new Array<string>(n);
+  for (let i = 0; i < n; i++) T[i] = d.dates[d.T[a + i]];
+  const cols: Partial<Record<'O' | 'H' | 'L' | 'C' | 'V', (number | null)[]>> = {};
+  const col = (k: 'O' | 'H' | 'L' | 'C' | 'V'): (number | null)[] => {
+    let out = cols[k];
+    if (out) return out;
+    const src = d[k];
+    out = new Array<number | null>(n);
+    if (k === 'V') for (let i = 0; i < n; i++) { const v = src[a + i]; out[i] = Number.isNaN(v) ? null : v }
+    else for (let i = 0; i < n; i++) out[i] = src[a + i];
+    return cols[k] = out;
+  };
+  const bars: Bars = { get O() { return col('O') }, get H() { return col('H') }, get L() { return col('L') }, get C() { return col('C') }, get V() { return col('V') }, T };
   return { ticker: d.tickers[j], dates: T, bars };
 }
 export const barCount = (d: Pick<SnapshotDesc, 'offsets'>, j: number): number => d.offsets[j + 1] - d.offsets[j];
