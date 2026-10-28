@@ -8484,3 +8484,27 @@ persis dengan menekan Custom → Select on chart di panel kanan", lalu "Coba dul
   kembali normal saat selesai atau Esc.
 - Infra: hanya front-end Terminal di edge-bff (deploy otomatis dari `main`); tanpa perubahan database, rak atau layanan
   lain.
+
+## EXEC-TERMINAL-ASSETS — tambah aset, legend + pengaturan, Flow Timeline per aset, Brush/Text di Flow (go 2026-10-28)
+
+User 2026-10-28, atas PLAN.md TERMINAL-ASSETS: "1. OK 2. Yes 3. A 4. Yes 5. OK" lalu "Coba jalankan dulu".
+- A1: tombol + membuka dialog search ticker yang sama (label "Add asset"; tanda Current / Added); memilih menambah
+  aset tanpa memuat ulang halaman; maksimal 2, tombol + redup dengan keterangan saat penuh. Panel Add Series reference
+  tetap untuk fixture.
+- A2: legend per aset di bawah baris tooltip chart: logo, nama · IDX, perubahan % dari candle sebelumnya pada posisi
+  crosshair (Return dari candle pertama di mode Return), warna aset; tombol mata, pengaturan, hapus saat hover;
+  klik ganda membuka pengaturan.
+- A3: dialog pengaturan (tampilan dialog indikator): Inputs (Symbol, ganti aset lewat search), Style (Line, Step line,
+  Area, Bars, Candles; Price source; warna dan tebal; Price line; Scale: sumbu kanan / sumbu kiri utama / skala sendiri;
+  Override min tick), Visibility (tampil di chart, Flow Timeline di bawah chart); Defaults (reset, simpan sebagai
+  default), Cancel mengembalikan, Ok menyimpan. Aset dan pengaturannya diingat browser (`ml.assets.v1`).
+- A4: Flow Timeline per aset di bawah Flow Timeline chart, urut sesuai aset: badge berwarna aset (titik, logo, ticker,
+  nama); Flow Timeline chart diberi badge ticker chart saat ada aset; filter Broker/Board/Investor sendiri (default
+  Foreign); ringkasan, tooltip, garis kumulatif (ikut toggle Cumulative), dilipat per aset; rentang waktu, crosshair
+  dan lebar sumbu terkunci dengan chart. Data: file broker ticker aset dari rak (`/bundle`), dihitung worker pada sesi
+  ticker chart (`dates`). Aset tanpa data broker (indeks) hanya satu baris keterangan. Panel kanan tetap ticker chart.
+- A5: alat gambar Flow: Brush dan Text bergabung dengan kelompok Lines, di Flow chart dan di setiap Flow aset; gambar
+  Flow aset disimpan di bawah ticker aset (`ml.drawings.flow.<ticker>`, kunci yang sama saat ticker itu jadi ticker
+  chart); undo bersama; menu klik kanan Reset + Remove drawings di setiap Flow.
+- Infra: hanya front-end Terminal di edge-bff (deploy otomatis dari `main`); tanpa perubahan database, rak, terminal-api
+  atau layanan lain. Unduhan per aset memakai kuota unduhan akun terminal yang sama.

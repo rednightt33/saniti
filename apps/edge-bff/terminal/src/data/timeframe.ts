@@ -4,6 +4,7 @@
    the Monday), a month is a calendar month. The candle carries the date of its first session (`starts`) and of its last
    one (`ends`); the running week or month is shown as it stands (K1). */
 import type { PriceRow } from './worker';
+import type { Bar } from './types';
 
 export type Timeframe = 'D' | 'W' | 'M';
 export const TIMEFRAMES: Timeframe[] = ['D', 'W', 'M'];
@@ -59,4 +60,24 @@ export function candleOf(date: string, b: Buckets, sessions: string[]): string |
   let lo = 0, hi = sessions.length;                       // first session on or after `date`
   while (lo < hi) { const m = (lo + hi) >> 1; if (sessions[m] < date) lo = m + 1; else hi = m }
   return lo >= sessions.length ? b.starts[b.starts.length - 1] : b.starts[b.of[lo]];
+}
+
+/** EXEC-TERMINAL-ASSETS: another ticker's daily rows as candles of the chart (`starts`: each candle's date, `of`: the
+    candle of each chart session). A session the ticker did not trade repeats its last close; candles before its first
+    row are left out. */
+export function alignCandles(sessions: string[], groups: { starts: string[]; of: number[] }, rows: PriceRow[]): Bar[] {
+  const byDate = new Map(rows.map(r => [r.d, r]));
+  const out: Bar[] = [];
+  let last: number | null = null, k = 0;
+  while (k < rows.length && rows[k].d < sessions[0]) last = rows[k++].c;       // a close before the chart's first session
+  sessions.forEach((d, i) => {
+    const r = byDate.get(d);
+    const bar = r ? { o:r.o, h:r.h, l:r.l, c:r.c } : last !== null ? { o:last, h:last, l:last, c:last } : null;
+    if (!bar) return;
+    last = bar.c;
+    const time = groups.starts[groups.of[i]], cur = out[out.length - 1];
+    if (cur && cur.time === time) { cur.high = Math.max(cur.high, bar.h); cur.low = Math.min(cur.low, bar.l); cur.close = bar.c }
+    else out.push({ time, open:bar.o, high:bar.h, low:bar.l, close:bar.c });
+  });
+  return out;
 }

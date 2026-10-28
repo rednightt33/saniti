@@ -11,7 +11,11 @@ export function initSearch(ctx: Ctx) {
   document.title = `${SYMBOL} · Market Lab`;
   const ICON = '<svg viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="M13.2 13.2L17 17"/></svg>';
   let layer = null, opener = null;
-  function openSearch(from?, seed?) {
+  /* EXEC-TERMINAL-ASSETS (user 2026-10-28: "ketika kita add asset, maka yang keluar adalah search box exactly sama seperti
+     kalau kita search ticker"): the same dialog adds an asset; `pick` receives the chosen row instead of opening the
+     ticker, `tag` names a row's badge (Current, Added) */
+  interface SearchUse { pick?: (r: any) => void; tag?: (ticker: string) => string; label?: string }
+  function openSearch(from?, seed?, use: SearchUse = {}) {
     if(layer) return;
     opener = from || document.activeElement;
     let query = seed || '', grouped = false, active = 0;
@@ -28,6 +32,8 @@ export function initSearch(ctx: Ctx) {
     const esc = t => t.replace(/[&<>]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[c]));
     const matches = () => { const n = query.trim().toLowerCase(); return INSTRUMENTS.filter(r => `${r[0]} ${r[1]} ${r[2]}`.toLowerCase().includes(n)) };
     let shown = [];
+    const tagOf = use.tag || (t => t === SYMBOL ? 'Current' : '');
+    if(use.label) layer.querySelector('.gp-dialog').setAttribute('aria-label', use.label);
     function render() {
       const found = matches();
       const groups = grouped ? [...found.reduce((m, r) => m.set(r[2], [...(m.get(r[2]) || []), r]), new Map())] : [];
@@ -36,15 +42,15 @@ export function initSearch(ctx: Ctx) {
       const row = r => { const i = shown.indexOf(r);
         return `<button type="button" class="gp-row${i === active ? ' is-active' : ''}" role="option" aria-selected="${i === active}" data-i="${i}">
             ${hasLogos() ? `<span class="gp-avatar has-logo">${logoHtml(r[0])}</span>` : `<span class="gp-avatar">${r[0].slice(0, 2)}</span>`}
-            <span class="gp-meta"><span class="gp-ticker">${r[0]}${r[0] === SYMBOL ? '<span class="gp-cur">Current</span>' : ''}</span><span class="gp-company">${esc(r[1])}</span></span>
+            <span class="gp-meta"><span class="gp-ticker">${r[0]}${tagOf(r[0]) ? `<span class="gp-cur">${tagOf(r[0])}</span>` : ''}</span><span class="gp-company">${esc(r[1])}</span></span>
             <span class="gp-rightmeta">${grouped ? '' : `<span class="gp-sector">${esc(r[2])}</span>`}<span class="gp-market">IDX · Equity</span></span></button>` };
       results.innerHTML = !shown.length ? '<p class="gp-empty">No instruments found</p>'
         : grouped ? groups.map(([sec, rows]) => `<div class="gp-group">${esc(sec)}</div>` + rows.map(row).join('')).join('') : found.map(row).join('');
-      layer.querySelector('.gp-label').textContent = query ? 'Results' : 'Available instruments';
+      layer.querySelector('.gp-label').textContent = query ? 'Results' : use.label || 'Available instruments';
       toggle.classList.toggle('active', grouped); toggle.setAttribute('aria-pressed', String(grouped));
       const cur = results.querySelector('.is-active'); if(cur) cur.scrollIntoView({ block:'nearest' });
     }
-    const choose = r => { close(); if(r && r[0] !== SYMBOL){ store.set('ml.symbol', r[0]); location.reload() } };
+    const choose = r => { close(); if(use.pick){ if(r) use.pick(r); return } if(r && r[0] !== SYMBOL){ store.set('ml.symbol', r[0]); location.reload() } };
     function close() { if(!layer) return; layer.remove(); layer = null; document.removeEventListener('keydown', onKey, true); if(opener && opener.focus) opener.focus() }
     const onKey = (e: any) => { if(e.key === 'Escape'){ e.preventDefault(); e.stopPropagation(); close() } else if(e.key === 'Tab'){ e.preventDefault(); input.focus() } };
     document.addEventListener('keydown', onKey, true);
@@ -60,6 +66,7 @@ export function initSearch(ctx: Ctx) {
     layer.addEventListener('mousedown', (e: any) => { if(e.target === layer) close() });
     input.value = query; render(); input.focus(); input.setSelectionRange(query.length, query.length);
   }
+  ctx.openTickerSearch = (from: HTMLElement | null, use: SearchUse) => openSearch(from, '', use);
   $('symSearch').addEventListener('click', (e: any) => openSearch(e.currentTarget));
   const pill = $('symbolPill');
   pill.addEventListener('click', () => openSearch(pill));

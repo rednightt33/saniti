@@ -229,16 +229,18 @@ export function initFlow(ctx: Ctx) {
   flowChart.timeScale().subscribeVisibleLogicalRangeChange(() => pushRange(flowChart,chart));
 
   // Same left/right axis widths in both charts => identical plot area => bars sit exactly under their candles.
-  const axisW: Record<string, number> = { left:112, right:0 };   // 112 = toolbar (41) + breathing room before the price labels
+  const axisW = ctx.axisWidths = { left:112, right:0 };   // 112 = toolbar (41) + breathing room before the price labels
   [chart,flowChart].forEach(c => c.applyOptions({ leftPriceScale:{ minimumWidth:axisW.left } }));
+  // EXEC-TERMINAL-ASSETS: the asset Flow Timelines under this one share the widths too
+  const aligned = () => [chart, flowChart, ...(ctx.extraFlowCharts?.() || [])];
   const syncAxisWidths = ctx.syncAxisWidths = () => {
     (['left','right'] as const).forEach(side => {
       let w = 0;
-      try{ w = Math.max(chart.priceScale(side).width(), flowChart.priceScale(side).width()) }catch(e){ return }
+      try{ w = Math.max(...aligned().map(c => c.priceScale(side).width())) }catch(e){ return }
       if(w > axisW[side]){
         axisW[side] = w;
         const opt = { [side+'PriceScale']:{ minimumWidth:w } };
-        chart.applyOptions(opt); flowChart.applyOptions(opt);
+        aligned().forEach(c => c.applyOptions(opt));
       }
     });
     document.documentElement.style.setProperty('--ax-l', (axisW.left + 8) + 'px'); document.documentElement.style.setProperty('--ax-r', axisW.right + 'px'); document.documentElement.style.setProperty('--lab-l', Math.max(10, axisW.left - 64) + 'px');   // left edge of the Y-axis labels   // overlays (legend, tooltip) sit just right of the left axis
@@ -401,7 +403,7 @@ export function initFlow(ctx: Ctx) {
   const FIT = document.documentElement.classList.contains('fit');
   const FLOW_MIN = FIT ? 180 : 260, FLOW_MAX = 346, FLOW_RATIO = .3, CHART_MIN = 240 + 46;   // 46 = toolbar row inside the centre column
   const avail = () => Math.max(1, mainCol.clientHeight - 46);
-  const maxFlow = () => Math.max(FLOW_MIN, mainCol.clientHeight - CHART_MIN);
+  const maxFlow = () => Math.max(FLOW_MIN, mainCol.clientHeight - CHART_MIN - (ctx.extraFlowHeight?.() || 0));   // EXEC-TERMINAL-ASSETS: below them, the asset Flow Timelines
   const saveFlowH = (h: number) => FIT ? store.set('ml.flow.ratio', (h / avail()).toFixed(4)) : store.set('ml.flow.h', String(h));
   const setFlowH = (h: number, save = true) => {
     h = Math.round(Math.max(FLOW_MIN, Math.min(maxFlow(), h)));
@@ -413,6 +415,7 @@ export function initFlow(ctx: Ctx) {
   const fitFlowH = () => setFlowH(Math.min(FLOW_MAX, avail() * (Number(store.get('ml.flow.ratio')) || FLOW_RATIO)), false);
   if(FIT){ fitFlowH(); new ResizeObserver(() => { if(!drag) fitFlowH() }).observe(mainCol) }
   else setFlowH(Number(store.get('ml.flow.h')) || FLOW_MAX, false);
+  ctx.refitFlow = () => { if(FIT) fitFlowH(); else setFlowH(flowPanel.getBoundingClientRect().height, false) };   // EXEC-TERMINAL-ASSETS
   let drag: { y: number; h: number; el: HTMLElement } | null = null;
   const startDrag = (e: any) => {
     if(e.button !== undefined && e.button !== 0) return;
@@ -469,7 +472,7 @@ export function finishFlow(ctx: Ctx, flow: ReturnType<typeof initFlow>) {
   // Re-measure the right axis from its real labels once, so the gutter fits the text.
   setTimeout(() => {
     axisW.right = 0; const o = { rightPriceScale:{ minimumWidth:0 } };
-    chart.applyOptions(o); flowChart.applyOptions(o);
+    [chart, flowChart, ...(ctx.extraFlowCharts?.() || [])].forEach(c => c.applyOptions(o));
     requestAnimationFrame(() => { syncAxisWidths(); requestAnimationFrame(syncAxisWidths) });
   }, 200);
 }

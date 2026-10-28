@@ -2856,6 +2856,36 @@ change yet.
 - **Pelajaran:** posisi awal beberapa jendela harus dihitung dari satu titik acuan, bukan dari ukuran tiap jendela.
 - **Status:** RESOLVED; live sejak edge-bff `43e5b185` (`main` `fdd00e7`), aset terminal = build (RAILWAY_CHANGELOG).
 
+### EXEC-TERMINAL-ASSETS — aset tambahan dan Flow Timeline per aset (2026-10-28)
+
+- **User:** "ketika kita add asset, maka yang keluar adalah search box exactly sama seperti kalau kita search ticker ...
+  maksimal 2"; "flow timeline juga keluar di bagian bawahnya"; "brush function-nya tidak tersedia di panel yang bawah";
+  "panel sebelah kanan adalah belongs untuk main ticker".
+- **Ditemukan saat uji (server tiruan lokal, sebelum deploy):**
+  1. Panel Flow aset yang baru dibuat (belum ada data) mengirim rentang waktu bawaannya ke chart: semua candle terjepit di
+     kiri. Penyebab: chart kosong punya rentang sendiri dan sinkronisasi dua arah meneruskannya. Solusi: panel diisi titik
+     waktu kosong sesi chart sejak dibuat, menerima rentang chart dulu, baru sesudah itu boleh menggerakkan chart; data
+     baru tidak menggeser rentang.
+  2. "Value is null" (lightweight-charts) saat crosshair dipasang di Flow aset tanpa data broker (IHSG): seri yang semua
+     titiknya kosong tidak punya nilai. Solusi: crosshair panel seperti itu dibersihkan, bukan dipasang.
+  3. Aset di skala sendiri menampilkan label harga terakhir di sumbu kiri chart (seolah harga ticker chart). Solusi:
+     label harga terakhir hanya untuk aset di sumbu kanan / kiri.
+- **Class:** chart yang disinkronkan dua arah harus mulai dari rentang chart induk; chart tanpa nilai tidak boleh
+  dijadikan sasaran posisi crosshair dari kode.
+- **Bukti (lokal, data sintetis berbentuk file rak, `verification/terminal_api/assets_check/`):** + membuka search "Add
+  asset" (Current/Added), panel Add Series tetap tertutup; 2 aset, + penuh; BBCA sumbu kanan, BBRI skala sendiri; hover
+  chart menggerakkan legend dan kedua Flow aset, hover Flow aset menggerakkan chart; dialog Inputs/Style/Visibility,
+  Candles mematikan Price source, Flow off lalu Cancel mengembalikan, Ok menyimpan Area; Return mode; Brush di Flow BBCA
+  dan Flow chart, Text "akumulasi", undo; Alt+T dari chart ke Flow aset; menu klik kanan Flow aset; lipat, hapus, reload
+  mengembalikan; Weekly; IHSG tanpa data broker; ganti simbol lewat Inputs; tanpa error halaman. Lebar sumbu kiri semua
+  chart 112 px. vitest 696 (6 baru). Piksel fixture main vs baru: 0 px di 7 langkah; live tanpa aset main vs baru: 0 px
+  (satu putaran sempat beda 2 px lebar sumbu kanan saat mesin sibuk, tiga putaran berikutnya 0 px).
+- **Tidak diuji:** data live sungguhan (penyimpanan kunci proxy terminal-api ke disk ditolak oleh pengaman sesi);
+  `tests/test_terminal.py` (gateway, tidak berubah; pytest tidak terpasang di container).
+- **Pelajaran:** sebelum menyambung sinkronisasi dua arah, isi chart baru dengan sumbu waktu yang sama dan tahan arah
+  balik sampai rentang induk diterapkan.
+- **Status:** RESOLVED setelah deploy edge-bff (RAILWAY_CHANGELOG).
+
 ### EXEC-TERMINAL-BS-SIDE — Broker summary kiri-kanan, Alt+B, crosshair biru (2026-10-28)
 
 - **User:** "Boleh nggak kita buat sama seperti top brokers. Jadi dijajarin aja kiri dan kanan"; "Bisa nggak dibuatkan

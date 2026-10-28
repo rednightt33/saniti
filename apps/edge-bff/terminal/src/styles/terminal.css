@@ -927,3 +927,39 @@ body.fw-dragging,body.fw-dragging *{cursor:grabbing!important;user-select:none}
 .pw-svg text{font:10.5px var(--sans);fill:var(--text-3)}
 .rp-dot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:-1px}
 .pw-fl .fl-pop{left:0;right:auto;width:272px;z-index:80}
+/* EXEC-TERMINAL-ASSETS (user 2026-10-28, live): added assets. The + button opens the ticker search (at most 2); each asset
+   has a legend row under the chart's tooltip row and, below the chart's own Flow Timeline, a Flow Timeline of its own whose
+   badge names it in its colour; the chart's own Flow Timeline then names its ticker too. */
+.add-series-btn.as-full{opacity:.4;cursor:not-allowed}
+.as-rows{display:grid;gap:3px;justify-items:start}
+.as-rows:empty{display:none}
+.as-row .as-name{color:var(--text);font-weight:500}
+.as-row .as-chg{font-family:var(--mono);font-weight:500}
+.as-row .tk-sm,.af-badge .tk-sm{width:16px;height:16px;flex:0 0 16px}
+.idlg-in.as-sym{width:auto;min-width:128px;display:inline-flex;align-items:center;gap:8px;cursor:pointer;text-align:left}
+.idlg-in.as-sym:hover{background:var(--hover)}
+.idlg-in.as-defaults{width:auto;min-width:112px}
+.af-badge{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px 0 6px;border-radius:999px;background:var(--sel);font-size:12px;color:var(--text);white-space:nowrap;max-width:280px;overflow:hidden}
+.af-badge i{width:8px;height:8px;border-radius:50%;background:var(--c,#171717);flex:0 0 8px}
+.af-badge b{font-weight:600;font-family:var(--mono)}
+.af-badge small{font-size:11px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis}
+.af-badge:not(.main){box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 45%,transparent);background:color-mix(in srgb,var(--c) 9%,var(--surface))}
+.bottom.af{height:var(--af-h,170px);border-top:1px solid var(--border)}
+.bottom.af .flow-head{cursor:default;padding-top:7px;padding-bottom:7px}
+.bottom.af.collapsed{height:auto}
+.main-col .bottom.af .flow-wrap{display:block}
+.main-col .bottom.af .flow-filters{display:flex}
+.main-col .bottom.af .flow-head{border-bottom:1px solid var(--border)}
+.main-col .bottom.af .flow-collapse{margin-left:2px}
+.main-col .bottom.af .flow-collapse svg{transform:none}
+.main-col .bottom.af.collapsed .flow-wrap,.main-col .bottom.af.collapsed .flow-filters{display:none}
+.main-col .bottom.af.collapsed .flow-head{border-bottom:0}
+.main-col .bottom.af.collapsed .flow-collapse{margin-left:auto}
+.main-col .bottom.af.collapsed .flow-collapse svg{transform:rotate(180deg)}
+.af .fl-pop{top:auto;bottom:calc(100% + 6px)}
+.af-tip{position:absolute;z-index:5;top:5px;left:var(--ax-l,94px)}
+.flow-wrap.dr-tool .af-chart *{cursor:crosshair!important}
+.af .flow-note{font-size:12px}
+.main-col .bottom.af.nodata{height:auto}
+.main-col .bottom.af.nodata .flow-wrap,.main-col .bottom.af.nodata .flow-filters,.main-col .bottom.af.nodata .flow-summary,.main-col .bottom.af.nodata .flow-collapse{display:none}
+.main-col .bottom.af.nodata .flow-head{border-bottom:0}

@@ -129,6 +129,14 @@ export interface Ctx {
   /* EXEC-TERMINAL-WM: each candle's last session date (= dates for daily candles); the first view of the timeframe */
   endDates: string[];
   resetRange: () => void;
+  /* EXEC-TERMINAL-ASSETS, live: the ticker search used to add an asset (search.ts), the drawings of an asset's Flow
+     Timeline (drawings.ts), the charts and heights the asset Flow Timelines add below the chart's own (assets.ts) */
+  openTickerSearch?: (from: HTMLElement | null, use: { pick?: (r: Instrument) => void; tag?: (ticker: string) => string; label?: string }) => void;
+  attachFlowDrawings?: (chart: LWC.IChartApi, series: LWC.ISeriesApi<any>, el: HTMLElement, ticker: string) => { manager: any; detach(): void };
+  extraFlowCharts?: () => LWC.IChartApi[];
+  extraFlowHeight?: () => number;
+  axisWidths?: { left: number; right: number };
+  refitFlow?: () => void;
   /* EXEC-TERMINAL-POPOUT (broker.ts): what Broker activity shares with its windows (popout.ts), live */
   brokerShared?: BrokerShared;
 }

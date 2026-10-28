@@ -225,3 +225,23 @@ Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
   position set from code fires no `subscribeCrosshairMove` (lightweight-charts 5.2.1 synthetic position), so the legend,
   the Flow chart and Broker inventory are moved through `ctx.crosshairAt` (flow.ts) first.
 - Live check: `verification/terminal_api/bs_side_live_check.py`.
+
+## 17. Added assets and their Flow Timelines (EXEC-TERMINAL-ASSETS, 2026-10-28)
+
+- `src/app/assets.ts` (live only): the + button opens the ticker search (`search.ts` `ctx.openTickerSearch`, `pick` and
+  `tag`); at most `MAX_ASSETS` = 2 besides the chart's ticker. Each asset: a legend row (`.as-rows` after `#flowTip`),
+  one series (Line, Step line, Area, Bars, Candles; price source; colour, width; price line; scale right / left / own;
+  min tick), the settings dialog (the indicators' `.idlg` look: Inputs, Style, Visibility, Defaults), saved in
+  `ml.assets.v1` (defaults in `ml.assets.defaults`).
+- Data (`live.ts`): `loadAsset(ticker)` = its daily prices as candles of the chart (`timeframe.ts alignCandles`: a session
+  it did not trade repeats its last close, nothing before its first close); `loadAssetFlow(ticker)` = its broker files
+  from `/bundle`, read by the worker on the chart's daily sessions (`WorkerJob.dates`), recent years first.
+- Flow pane per asset (`.bottom.af`, after `#flowPanel`, a grid row of its own of height `--af-h`): badge in the asset's
+  colour, its own Broker / Board / Investor filters, summary, tooltip, cumulative line (the Cumulative toggle), fold.
+  Locked to the chart: time range both ways (a new pane takes the chart's range first), crosshair (`ctx.crosshairAt` also
+  moves the panes), axis widths (`flow.ts` aligns `ctx.extraFlowCharts`); the chart's Flow height leaves room for them
+  (`ctx.extraFlowHeight`, `ctx.refitFlow`). With panes, the chart's Flow title shows its ticker badge too.
+- Drawings (`drawings.ts`): every Flow chart is a host (`attachFlow`); Flow tools = the Lines group + Brush + Text; an armed
+  Flow tool moves to the Flow chart pressed; drawings of an asset's Flow are kept under `ml.drawings.flow.<ticker>`.
+- Check: `verification/terminal_api/assets_check/` (`mock_server.py` serves a build and stands in for EDGE and
+  terminal-api with synthetic files of the rack's shape; `check_assets.mjs`, `check2.mjs`).
