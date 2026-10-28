@@ -977,3 +977,31 @@ terlalu lama."
   dipending.
 - **Langkah:** rancangan arsitektur dan model biaya disusun dulu (read-only), lalu diajukan ke user untuk "go" sebelum ada
   perubahan pada Backtest atau Terminal.
+
+**Ide user, 2026-10-28 (kata user):** "jika screener, backtest, dan terminal adalah idle, dalam artian ketika user tidak
+mengakses maka tidak ada biaya, we might as well to create more the same service. Jadi misalkan ada service, kita duplicate
+service yang sama untuk serve user ID 123, kemudian kita duplicate lagi service yang sama untuk serve user 456 dan seterusnya.
+Coba saja di explore pakai benchmark yang best practice."
+
+**Rancangan disusun, 2026-10-28 (read-only; belum "go"):** `verification/edge_multiuser/runtime/` (`RUNTIME.md`,
+`SILO_VS_POOL.md`, ringkasan `RINGKASAN_RUNTIME.md` dan `RINGKASAN_SILO.md`, studi `backtest.md`, `terminal.md`,
+`silo_research.md`, `silo_bench.md`, model dan benchmark).
+- **Satu service per user (silo) vs satu service bersama (pool):** rekomendasi pool per service, user dipisah lewat `owner_key`
+  (antrean adil, batas per user, cache bersama tanpa data user). Biaya nol saat idle datang dari fitur tidur Railway, bukan dari
+  duplikasi; pool juga bisa tidur. Salinan per user membuat Screener menunggu ±20-27 s di tiap sesi (pool hangat 0,003-0,26 s),
+  mentok di batas 100 service per project dan 20 koneksi database terminal-api, dan versi data bisa berbeda antar user.
+  Perkiraan biaya 10/50/200 user: silo USD 3,5/12,7/48,3; pool menyala terus USD 15,8/16,0/17,9; pool tidur saat idle
+  USD 3,5/4,4/6,4. Salinan khusus hanya sebagai pengecualian (user berat atau berbayar: mesin Backtest sendiri ±USD 4/bulan).
+- **Temuan diverifikasi di kode `main` `15ec418`:** Backtest satu job dan satu preview untuk seluruh EDGE, urut kedatangan
+  (`apps/backtest-worker/src/server.ts:270`, `apps/edge-bff/app/backtest.py:516-527`); halaman Terminal menggambar file yang
+  checksum-nya tidak cocok (`apps/edge-bff/terminal/src/data/worker.ts:36-42`, usulan T7); tidak ada service EDGE yang tidur
+  (`.railway/railway.ts:113,147` hanya Telegram); satu switch `EDGE_WORKER_ENABLED` menyalakan loop AI Orc dan Backtest di
+  setiap proses edge-bff (`apps/edge-bff/app/main.py:180,183`), jadi edge-bff kedua butuh pemisahan loop dulu; Backtest worker
+  dan semua user berbagi satu akun terminal-api (T1 atau B7 sebelum Backtest menjalankan 4 job atau lebih sekaligus).
+- **Urutan usulan (tiap tahap butuh "go"):** (0) ukur dulu; (1) bersama Screener: T1 akun layanan worker, T3, T5 file referensi
+  ber-content-key, T7 cek sha256 sebelum menggambar, healthcheck; (2) Backtest: B1+B2 (tanpa polling tetap, cache seri yang
+  sudah di-decode), lalu K thread dengan klaim adil, deploy aman, sisanya; (3) Terminal: satu grant per buka ticker, tampil dari
+  cache dulu; (4) syarat sebelum user eksternal pertama.
+- **Pertanyaan terbuka (RT1-RT15, `RUNTIME.md` §12; rekomendasi di sana):** yang terpenting RT1 pool bersama, bukan salinan per
+  user; RT2 "go" Tahap 0 + 1 bersama Screener; RT3 target waktu; RT14 service menyala terus saat peluncuran (tidur di luar
+  08:10-22:10 WIB hanya hemat ±USD 8,6/bulan, user pertama menunggu 14-27 s, dan kode harus diubah dulu).
