@@ -11,7 +11,8 @@ import { sha256Hex, type FileCache } from '../../../terminal/src/data/rack.ts';
 import { cellKey, sortRows } from '../../src/results.ts';
 import { hiddenCounts, universeView } from '../../src/universe-view.ts';
 import { remarkCsv, remarkText, T } from '../../src/texts.ts';
-import type { Row } from '../../src/state.ts';
+import { cardOfField, type Row } from '../../src/state.ts';
+import type { Card } from '../../src/forms.ts';
 
 const row = (ticker: string, over: Partial<Row> = {}): Row => ({ ticker, name:ticker + ' Tbk', sector:'Financials', industry:'Banks', last:1000, chg_1d_pct:1.5, adv20_idr:2e9,
   status:'match', met:1, need:1, remarks:[], cells:[], stale:false, last_bar_date:'2026-10-27', ...over });
@@ -187,5 +188,16 @@ describe('remarks (P4)', () => {
     expect(remarkText({ code:'STALE', last_bar_date:'2026-10-20' })).toBe('Stale: last trade 2026-10-20');
     expect(remarkText({ code:'PRICE_BREAK', action:'STOCK_SPLIT', ex_date:'2026-10-01', ratio_old:1, ratio_new:5, close_ratio:0.2 })).toBe('Price break: stock split (1:5) ex 2026-10-01, history not adjusted');
     expect(remarkCsv([{ code:'STALE', last_bar_date:'2026-10-20' }])).toBe('STALE 2026-10-20');
+  });
+});
+
+describe('a worker refusal on its card (report 8.8: where and how to fix)', () => {
+  const cards = ['a', 'b', 'c'].map(id => ({ id }) as unknown as Card);
+  it('finds the card a condition field names, switched-off cards counted (definitionOf keeps card order)', () => {
+    expect(cardOfField('definition.conditions[1].test.metric.params.length', cards)?.id).toBe('b');
+    expect(cardOfField('conditions[2].test.within', cards)?.id).toBe('c');
+    expect(cardOfField('definition.conditions[7].test', cards)).toBeNull();
+    expect(cardOfField('definition.universe.metric_filters[0].value', cards)).toBeNull();
+    expect(cardOfField(undefined, cards)).toBeNull();
   });
 });

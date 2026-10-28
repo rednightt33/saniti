@@ -166,6 +166,9 @@ describe('probes on the synthetic series (report 6.8)', () => {
     expect(at('bollinger', { basis_ma_type: 'VWMA' }, ['basis']).basis).toEqual(['C', 'V']);
     expect(SBY_ID.I27.outputs[0].inputs_by_source.basis_ma_type.VWMA).toEqual(['C', 'V']);
     expect(SBY_ID.I27.outputs[0].inputs_by_source.basis_ma_type.SMA).toEqual(['C']);
+    // an empty list means "no value at this option" and nothing else (registry.ts inputsOf, validate.ts)
+    expect(at('vwap', { anchor: 'Week', bands_mode: 'None' }, ['vwap', 'upper1'])).toEqual({ vwap: ['H', 'L', 'C', 'V'], upper1: [] });
+    expect(() => G.inputsProbe(() => ({ x: B.C.map(() => 1) }), B, ['x'])).toThrow(/inputs cannot be derived/);
   });
 
   it('degeneracy: I19 constant 0, I50 initial_value 0 and I11 multiplier 0 are degenerate; I23 weight 0 and I09 factor 0 are not', () => {

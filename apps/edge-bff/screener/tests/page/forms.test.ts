@@ -4,6 +4,7 @@
    place, never rounded (report 9.2). */
 import { describe, expect, it } from 'vitest';
 import type { CatalogResponse, ConditionDef } from '../../src/core/contract.ts';
+import { UNIVERSE_DEFAULTS } from '../../src/core/contract.ts';
 import { entriesOf, paramError, type Entry } from '../../src/entries.ts';
 import { cardErrors, condText, defaultOffered, fromWire, isCustom, newCard, toWire, type Card } from '../../src/forms.ts';
 import { fixtureApi } from '../fixture/api.ts';
@@ -100,6 +101,13 @@ describe('a registry default the screener does not offer (P17 a: I43 anchor Sess
     expect(ref.params).toEqual(Object.fromEntries(vwap.params.map(p => [p.key, p.default])));
     expect(ref.params.anchor).toBe('Week');
     expect((toWire(sma, newCard(sma, [])).test as any).rhs.params).toBeUndefined();     // offered defaults stay implicit
+  });
+  it('is refused when anchor is left out (the fixture refuses parameters with the worker\'s registry.ts)', async () => {
+    const def = (rhs: any) => ({ universe:{ ...UNIVERSE_DEFAULTS }, logic:'all' as const,
+      conditions:[{ id:'a', enabled:true, test:{ kind:'state' as const, lhs:{ kind:'price' as const, field:'close' as const }, op:'gt' as const, rhs } }] });
+    await expect(api.run({ schema_version:1, definition:def({ kind:'indicator', indicator:'I43', output:'vwap' }) }))
+      .rejects.toMatchObject({ code:'INVALID_CONDITION', field:'definition.conditions[0].test.rhs.params.anchor' });
+    await expect(api.run({ schema_version:1, definition:def((toWire(vwap, newCard(vwap, [])).test as any).rhs) })).resolves.toBeDefined();
   });
   it('maps its wire form back onto the same card', () => {
     const c = newCard(vwap, [], { params:{ anchor:'Month' } as any });

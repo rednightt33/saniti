@@ -17,7 +17,7 @@ const { chromium } = createRequire(import.meta.url)('playwright');
 
 const srv = await serve('dist-smoke');
 const browser = await chromium.launch();
-const errors = [], steps = [], longest = { ms:0, step:'' };
+const errors = [], steps = [], longest = { ms:0, step:'' }, longestAll = { ms:0, step:'' };
 let step = 'boot', ctx, page;
 async function open(viewport = { width:1440, height:950 }, keep = false) {
   if (!keep) { await ctx?.close(); ctx = await browser.newContext({ viewport, acceptDownloads:true }) }
@@ -26,14 +26,23 @@ async function open(viewport = { width:1440, height:950 }, keep = false) {
   page.on('console', m => { if (m.type() === 'error') errors.push(`[${step}] console: ${m.text()}`) });
   page.on('pageerror', e => errors.push(`[${step}] page: ${e.message}`));
   await page.addInitScript(() => {
-    window.__long = 0;
-    try { new PerformanceObserver(l => { for (const e of l.getEntries()) window.__long = Math.max(window.__long, e.duration) }).observe({ type:'longtask', buffered:true }) } catch {}
+    window.__long = [];
+    try { new PerformanceObserver(l => { for (const e of l.getEntries()) window.__long.push([e.startTime, e.duration]) }).observe({ type:'longtask', buffered:true }) } catch {}
   });
 }
 const at = async (name, fn) => {
   step = name; const before = errors.length;
   try { await fn() } catch (e) { errors.push(`[${name}] ${process.env.SMOKE_DEBUG ? e.message.slice(0, 2500) : e.message.split('\n')[0]}`) }
-  try { const l = await page.evaluate(() => window.__long || 0); if (l > longest.ms) { longest.ms = l; longest.step = name } } catch {}
+  try {
+    // the page's own long tasks: those that do not overlap the fixture's compute (the worker's work in production)
+    const l = await page.evaluate(() => {
+      const busy = window.__fixture?.busy || [];
+      const own = (window.__long || []).filter(([s, d]) => !busy.some(([a, b]) => s < b && a < s + d));
+      return { own:Math.max(0, ...own.map(x => x[1])), all:Math.max(0, ...(window.__long || []).map(x => x[1])) };
+    });
+    if (l.own > longest.ms) { longest.ms = l.own; longest.step = name }
+    if (l.all > longestAll.ms) { longestAll.ms = l.all; longestAll.step = name }
+  } catch {}
   steps.push(`${errors.length === before ? 'ok  ' : 'FAIL'} ${name}`);
   if (process.env.SMOKE_PROGRESS) console.log(steps[steps.length - 1]);
 };
@@ -105,6 +114,30 @@ await at('refused in place: between with value > value2, a fraction in an intege
   await len.fill('14.5'); await len.dispatchEvent('change'); await page.waitForTimeout(150);
   expect(/whole number/.test(await page.locator('#condList').innerText()), 'a fraction in an integer parameter was not refused');
   await len.fill('14'); await len.dispatchEvent('change'); await idle();
+});
+await at('a worker refusal names its card and is not sent again until the card changes', async () => {
+  await fresh('?fail=' + encodeURIComponent('run:PARAM_OUT_OF_RANGE:422:1::definition.conditions[1].test.metric.params.length')); await ready();
+  await page.click('[data-open="p:oversold"]');
+  await page.waitForSelector('[data-refused]', { timeout:5000 });
+  const card = page.locator('#condList .mc').nth(1);
+  expect(await card.locator('[data-refused]').count() === 1, 'the refusal is not on the second card');
+  expect(/out of range \(definition\.conditions\[1\]/.test(await card.innerText()), 'the refusal does not name its field: ' + await card.innerText());
+  const n = (await counters()).run;
+  await page.evaluate(() => document.getElementById('nearT')?.click()); await page.click('[data-act="drawer"]'); await page.keyboard.press('Escape'); await page.waitForTimeout(600);
+  expect((await counters()).run === n, 'the refused definition was sent again without a change');
+  const v = card.locator('[data-k="value"]'); await v.fill('41'); await v.dispatchEvent('change'); await idle();
+  expect(await page.locator('[data-refused]').count() === 0 && /match/.test(await text('#resMeta')), 'the refusal stayed after the card changed');
+});
+await at('P17: VWAP opens as Custom at anchor Week, without a Default chip, and runs', async () => {
+  await fresh(); await ready();
+  await page.focus('#adderQ'); await page.keyboard.type('vwap'); await page.keyboard.press('Enter'); await idle();
+  const card = page.locator('#condList .mc[data-card]').first();
+  expect(/VWAP|Volume Weighted/i.test(await card.innerText()), 'the VWAP card was not added: ' + await card.innerText());
+  expect(await card.locator('[data-segd]').count() === 0, 'the VWAP card offers a Default chip');
+  expect(await card.locator('[data-segc].on').count() === 1, 'the VWAP card is not Custom');
+  expect(await card.locator('[data-p="anchor"]').inputValue() === 'Week', 'anchor does not open at Week');
+  expect(!(await card.locator('[data-p="anchor"] option').allInnerTexts()).includes('Session'), 'Session is offered');
+  expect(!/could not run|not offered/.test(await text('#resPane')) && /match|near/i.test(await text('#resMeta')), 'the VWAP screen did not run: ' + await text('#resMeta'));
 });
 await at('slow run: old rows stay, marked out of date, with the ring', async () => {
   await fresh('?slow=run:2000'); await ready();
@@ -271,6 +304,6 @@ await at('phone width: no horizontal page scroll', async () => {
 
 await ctx?.close(); await browser.close(); await srv.close();
 console.log(steps.join('\n'));
-console.log(`longest main-thread task: ${Math.round(longest.ms)} ms (${longest.step})`);
+console.log(`longest main-thread task of the page: ${Math.round(longest.ms)} ms (${longest.step}); with the fixture's own compute: ${Math.round(longestAll.ms)} ms (${longestAll.step})`);
 if (errors.length) { console.error(`\n${errors.length} failure(s):\n` + errors.join('\n')); process.exit(1) }
 console.log('\nsmoke: all steps passed');

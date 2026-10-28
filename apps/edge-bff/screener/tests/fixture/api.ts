@@ -133,17 +133,19 @@ export interface FixtureOpts {
   /** extra milliseconds per call (smoke: late answers, ERRORS M253) */
   delay?: Partial<Record<'session' | 'catalog' | 'universe' | 'run' | 'preview' | 'items' | 'watchlist', number>>;
   /** fail a call: code and how many times (then it answers) */
-  fail?: Partial<Record<'catalog' | 'run' | 'preview', { code: string; status: number; times: number; retryAfter?: number }>>;
+  fail?: Partial<Record<'catalog' | 'run' | 'preview', { code: string; status: number; times: number; retryAfter?: number; field?: string }>>;
   /** a second publication after N runs (smoke: an answer newer than the catalog) */
   newPublicationAfterRuns?: number;
+  /** the publication the page load starts at (smoke: a cached paint followed by a newer publication, 6c.9 item 2) */
+  publication?: number;
   /** markup in the names (smoke: no element is made from them, report 9.1 text rendering) */
   hostile?: boolean;
 }
 
-export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Market; counters: Record<string, number> } {
+export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Market; counters: Record<string, number>; busy: [number, number][] } {
   const m = market();
   if (opts.hostile) { const t = m.byTicker.get('BBCA')!; t.name = '<img src=x onerror="window.__xss=1">Bank "Central" Asia'; t.sector = '<b id="xss">Financials</b>' }
-  let pub = 1;
+  let pub = opts.publication ?? 1;
   const versions = (): Versions => ({ screener_engine:'0a1b2c3d4e5f6071', registry:R.registry_version, screener_registry:R.screener_registry_version, price_data:'fixture-' + String(pub).padStart(58, '0'), flow_data:null });
   const data = () => ({ evaluation_date:m.evalDate, price_through:m.evalDate, flow_through:null, broker_behind_sessions:0, published_at:pub === 1 ? `${m.evalDate}T12:03:23Z` : `${m.evalDate}T23:59:00Z` });
   const shape = new Map<string, string>(R.indicators.map((x: any) => [x.id, x.overlay?.shape]));
@@ -160,15 +162,21 @@ export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Mark
       metrics:METRICS, fundamentals:FUNDAMENTALS, periods, groupings:[grouping('sector', m.tickers), grouping('industry', m.tickers)], presets };
   };
   const counters: Record<string, number> = {};
+  /** the fixture's own main-thread compute ([start, end] in performance.now() ms): the worker's work in production,
+      left out of the smoke run's long-task check of the page */
+  const busy: [number, number][] = [];
+  const timed = <T>(f: () => T): T => { const t0 = performance.now(); try { return f() } finally { busy.push([t0, performance.now()]) } };
+  /** answer in a later task, as a network answer arrives: the page's own work on it is then a task of its own */
+  const later = () => new Promise<void>(ok => setTimeout(ok, 0));
   const count = (k: string) => { counters[k] = (counters[k] || 0) + 1 };
   const wait = (k: keyof NonNullable<FixtureOpts['delay']>, signal?: AbortSignal) => new Promise<void>((ok, no) => {
-    const ms = opts.delay?.[k] ?? 0; if (!ms) return ok();
-    const t = setTimeout(ok, ms);
+    const ms = opts.delay?.[k] ?? 0;
+    const t = setTimeout(ok, ms);                 // a later task even without a delay, as a network answer arrives
     signal?.addEventListener('abort', () => { clearTimeout(t); no(new DOMException('aborted', 'AbortError')) });
   });
   const failing = (k: 'catalog' | 'run' | 'preview') => {
     const f = opts.fail?.[k]; if (!f || f.times <= 0) return;
-    f.times--; throw new ApiFailure(errorText(f.code, { retryAfter:f.retryAfter ?? null }) || `fixture failure ${f.code}`, f.code, f.status, undefined, f.retryAfter ?? null);
+    f.times--; throw new ApiFailure(errorText(f.code, { field:f.field, retryAfter:f.retryAfter ?? null }) || `fixture failure ${f.code}`, f.code, f.status, f.field, f.retryAfter ?? null);
   };
   const enc = (x: unknown) => new TextEncoder().encode(JSON.stringify(x));
   async function conditional<T>(k: string, body: T, inm?: string | null): Promise<Conditional<T>> {
@@ -182,17 +190,17 @@ export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Mark
   const hash = async (x: unknown) => sha256Hex(enc(x));
   let runs = 0;
   return {
-    kind:'fixture', market:m, counters,
+    kind:'fixture', market:m, counters, busy,
     async session() { count('session'); await wait('session'); return { login:'fixture', csrf:'fixture-csrf' } },
-    async catalog(inm) { count('catalog'); await wait('catalog'); failing('catalog'); return conditional('catalog', catalog(), inm) },
+    async catalog(inm) { count('catalog'); await wait('catalog'); failing('catalog'); const c = timed(catalog); await later(); return conditional('catalog', c, inm) },
     async universe(inm) { count('universe'); await wait('universe'); return conditional<UniverseResponse>('universe', { versions:versions(), data:data(), rows:m.tickers.map(t => universeRow(m, t)) }, inm) },
     async run(req, o: CallOpts = {}) {
       count('run'); await wait('run', o.signal); if (o.signal?.aborted) throw new DOMException('aborted', 'AbortError');
       failing('run');
       checkParams(req.definition);
       runs++; if (opts.newPublicationAfterRuns && runs > opts.newPublicationAfterRuns) pub = 2;
-      const v = { ...versions(), definition_hash:await hash(req.definition) }, body = runDef(m, req.definition, v, data());
-      const bytes = enc(body);
+      const v = { ...versions(), definition_hash:await hash(req.definition) }, body = timed(() => runDef(m, req.definition, v, data()));
+      const bytes = enc(body); await later();
       return { body:JSON.parse(new TextDecoder().decode(bytes)), bytes };
     },
     async preview(req, o: CallOpts = {}) {
@@ -200,13 +208,14 @@ export function fixtureApi(opts: FixtureOpts = {}): ScreenerApi & { market: Mark
       failing('preview');
       checkParams(req.definition);
       if (req.data_version !== versions().price_data) throw new ApiFailure('New data was published; the screen is re-run.', 'DATA_VERSION_CHANGED', 409);
-      return pv(m, req.definition, req.ticker, versions(), data(), id => shape.get(id), periods);
+      const a = timed(() => pv(m, req.definition, req.ticker, versions(), data(), id => shape.get(id), periods)); await later(); return a;
     },
     async validate(definition) { return { valid:true, definition_hash:await hash(definition), normalized:definition } },
     async counts(req) {
       count('counts');
       const v = versions(), d = data();
-      return { versions:v, data:d, counts:req.definitions.map(x => { try { const r = runDef(m, x.definition, v, d); return { item_id:x.item_id, match_count:r.match_count, near_count:r.near_count } } catch (e) { return { item_id:x.item_id, error:{ code:'INVALID_CONDITION', message:String((e as Error).message) } } } }) };
+      const counts = timed(() => req.definitions.map(x => { try { const r = runDef(m, x.definition, v, d); return { item_id:x.item_id, match_count:r.match_count, near_count:r.near_count } } catch (e) { return { item_id:x.item_id, error:{ code:'INVALID_CONDITION', message:String((e as Error).message) } } } }));
+      await later(); return { versions:v, data:d, counts };
     },
     async items(kind: ItemKind) { count('items'); await wait('items'); return { items:load<SavedItem[]>('items', []).filter(i => i.kind === kind) } },
     async putItem(id: string, req: PutItemRequest) {

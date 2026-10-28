@@ -29,7 +29,10 @@ export function percentRank(values: ReadonlyMap<string, number>, population: Rea
 
 /** return_rank {window}: each ticker's return over `window` of its own bars at its evaluation bar,
     (close[at] / close[at - window] - 1) x 100, ranked with percentRank on the population. The default windows are
-    pre-warmed per publication (report 6.7); the window's range comes from screener-metrics.json. */
+    pre-warmed per publication (report 6.7); the window's range comes from screener-metrics.json. It is price-derived
+    with a window (not a flow cell, ADV20 or universe attribute), so on a PRICE_BREAK row shown through the chip its cell
+    carries PRICE_BREAK_IN_LOOKBACK when the ex-date falls in (at - window, at] (evaluate.ts priceBreakRemark with start
+    at - window); the rank is shown (P4.1 A), and the ticker stays outside the population, so no other rank moves. */
 export function returnRank(closes: ReadonlyMap<string, { at: number; close: ArrayLike<number | null> }>, window: number, population: ReadonlySet<string>): Map<string, number | null> {
   throw new Error('not implemented: returnRank');
 }

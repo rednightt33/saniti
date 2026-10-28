@@ -181,13 +181,17 @@ export function compareLag(field, output) {
   return { gt: gt ? 0 : 1, lt: lt ? 0 : 1 };
 }
 
-/** Poison probe: the bar fields (O H L C V) whose loss (all NaN) empties the output are its inputs. */
+/** Poison probe: the bar fields (O H L C V) whose loss (all NaN) empties the output are its inputs. An output with
+    values always has at least one (it is computed from the bars), so an empty list means exactly "no value at this
+    configuration" (I43 upper1 / lower1 at bands_mode None), which registry.ts inputsOf and validate.ts rely on; an
+    output that keeps values whichever field is lost stops the build instead of being listed as needing nothing. */
 export function inputsProbe(run, B, outputs) {
   const base = run(B), out = Object.fromEntries(outputs.map(o => [o, []]));
   for (const f of ['O', 'H', 'L', 'C', 'V']) {
     const poisoned = run({ ...B, [f]: B[f].map(() => NaN) });
     for (const o of outputs) if (finite(base[o]).length && !finite(poisoned[o]).length) out[o].push(f);
   }
+  for (const o of outputs) if (finite(base[o]).length && !out[o].length) throw new Error(`poison probe: ${o} keeps values whichever bar field is lost, so its inputs cannot be derived`);
   return out;
 }
 
