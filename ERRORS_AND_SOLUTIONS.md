@@ -2683,7 +2683,11 @@ change yet.
   `state.json`, grace sama). Pack harga yang diperbaiki dari irisan `price` juga lewat `store`, jadi tidak lagi ditimpa
   di kunci tetap. Pruning xsection sesudah `state.json` (rancangan awal Screener) dihapus: tidak ada tulis atau hapus
   sesudah `state.json`. Tes tambahan: grace untuk dua run berdekatan, objek xsection lebih baru/kunci lain/tanpa indeks
-  tidak dihapus, isi yang kembali ke objek yang baru dihapus ditulis lagi.
+  tidak dihapus, isi yang kembali ke objek yang baru dihapus ditulis lagi, listing `xsection/` hanya dengan prefiksnya
+  dan sesudah listing cleanup. Bucket yang ditulis publisher `main` (kunci tetap) lalu PR #41 (`6051f4d`, dev
+  `4c2c3823`) diuji lokal dengan publisher terintegrasi: pembaca manifest dan indeks lama tetap utuh selama dan sesudah
+  run, pack dari publisher lama tidak diterbitkan ulang, rollback ke PR #41 lalu kembali tidak menghapus file xsection
+  yang masih dirujuk.
 - **Not covered:** logo (`logo/{ticker}.*`) dan `ref/*` tetap kunci tetap: tidak ada pembaca yang mencocokkan byte-nya
   dengan manifest, jadi bukan kelas ini. Jawaban `/bundle` yang dipegang klien lebih dari umur URL-nya tetap 403 (sudah
   ditangani pembaca). Dua run publisher bersamaan tidak dikunci (sudah begitu sebelumnya); cleanup aman karena objek
@@ -2693,6 +2697,8 @@ change yet.
   00:30 UTC 2026-10-28: log `gc` atau `gc_skipped`/`gc_failed`, objek baru berkunci sha256, tidak ada `DATA_INTEGRITY`.
   Run pertama hanya menulis kunci baru untuk file yang berubah; file lama berkunci tetap dihapus pada run daily
   berikutnya setelah grace. TEMPORARY sampai terverifikasi: E2E dan pengukuran backtest tetap di luar run publisher.
+  Run 00:30 UTC 2026-10-28 crash di tahap perencanaan, sebelum cleanup dan sebelum tulis pertama (M263), jadi belum
+  memverifikasi apa pun; cek di atas berlaku untuk run pertama dengan kode ini yang selesai.
 - **Lesson for new data:** objek yang dirujuk metadata (sha256, ukuran) tidak ditimpa di kunci yang sama; kunci yang
   memuat hash isinya membuat setiap cache metadata aman.
 
@@ -3153,6 +3159,9 @@ change yet.
   berhenti di tengah tidak dilanjutkan otomatis (restart `NEVER`, M229).
 - **Status:** OPEN, menunggu pilihan user (kartu 2026-10-28 01:2x UTC). Branch Screener: kode ada lewat cherry-pick
   (pilihan A user 2026-10-28), belum di-deploy dari branch ini.
+- **Lesson for new data:** setiap panggilan bucket dari kode yang menerbitkan data (dataset, pack, file xsection, dan
+  data makro atau lintas aset berikutnya) lewat `Bucket` publisher, jadi lewat `retried`; listing dibaca per halaman
+  supaya tiap halaman bisa diulang. Tes `test_every_bucket_call_is_asked_again_after_a_canceled_answer` mengunci itu.
 
 ## Fixed-income selected-date repair — 2026-10-20 status
 

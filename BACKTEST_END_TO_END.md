@@ -256,9 +256,11 @@ Modes (`TERMINAL_PUBLISH_MODE` or `argv[1]`):
   writer, deletes no xsection object); that manifest and the object are no newer than `state.json` (the last finished
   run; anything newer may belong to a run that did not finish); and that run finished at least `GC_GRACE_SECONDS`
   (3600) ago, which exceeds the manifest cache check (60 s), the URL lifetime (120 s) and a download. So an object
-  goes in the first daily run that starts an hour or more after the run that stopped naming it: a reader holding the
-  previous manifest or index keeps its files, and two runs minutes apart (a manual run right after a scheduled one)
-  delete nothing. What a `backfill`, `packs` or `events` run replaces goes in the next daily run. A listing longer than
+  goes in the first daily run that starts an hour or more after the last finished run, once no manifest or index of
+  that run names it: never sooner than an hour after the run that stopped naming it, and later when another run
+  finished in between (each finished run starts the hour again). A reader holding the previous manifest or index keeps
+  its files, and two runs minutes apart (a manual run right after a scheduled one) delete nothing. What a `backfill`,
+  `packs` or `events` run replaces goes in a later daily run under the same rule. A listing longer than
   `GC_LIST_SECONDS` (900) is abandoned. A failure is logged (`gc_failed`, class only) and the run goes on: cleanup
   never stops a publication. Its log line `gc` gives `deleted`, `not_deleted`, `mb`, `kept_newer_than_last_run`,
   `tickers_skipped`, `families`, `xsection_named`.
@@ -318,8 +320,8 @@ The manifest:
   `ref/tickers.json.gz` for names, types, sectors and industries; it is not copied into them.
 - **xsection objects are immutable.** `<sha16>` is the first 16 hex of the file's sha256, so a key names one content and
   is written once; readers check bytes and sha256 against the `state.json` index (terminal-api `/state`, `/xsection`).
-  The bucket holds the objects of the current index and, until the first daily run an hour or more after the run that
-  replaced them, those of the previous one (section 4.3, Cleanup). Their long `max-age` is correct for that reason.
+  The bucket holds the objects of the current index and, until a daily run starts an hour or more after the last
+  finished run, those of earlier ones (section 4.3, Cleanup). Their long `max-age` is correct for that reason.
 - **Cache-Control is not used.** The `max-age` of a year has no effect today: every presigned URL is new, and readers
   keep their own sha256-keyed caches. With content keys a long max-age is also correct.
 - **Keys are never built by a reader.** Every reader takes `key` from the manifest (terminal-api presigns it verbatim),
@@ -633,7 +635,7 @@ only for the visual and numeric comparison with `backtest.html`, and is checked 
 
 | Where | What | Key | Lifetime |
 |---|---|---|---|
-| Bucket (publisher) | data files, packs, xsection files | key with the content's sha256 (`content_key`; xsection: its first 16 hex) | never rewritten; deleted by the first daily run an hour or more after the last run that named it (`collect_garbage`, section 4.3) |
+| Bucket (publisher) | data files, packs, xsection files | key with the content's sha256 (`content_key`; xsection: its first 16 hex) | never rewritten; deleted by the first daily run that starts an hour or more after the last finished run, once no manifest or index of that run names it (`collect_garbage`, section 4.3) |
 | terminal-api process | manifests, "not found" too | ticker | until `state.json` `finished_at` changes (checked every 60 s) |
 | terminal-api process | `state.json`: the `/state` answer and the xsection index `/xsection` grants from | — | read again at most every 60 s; an unreadable `state.json` keeps the last one |
 | Presigned URL | access to one key | — | 120 s |
@@ -703,7 +705,7 @@ in the worker, class names only in the publisher).
 
 | Item | Status | Where |
 |---|---|---|
-| Files overwritten in place during publisher runs → `DATA_INTEGRITY` | FIXED in code (content keys + cleanup); verified in dev on the first scheduled run, see ERRORS M250 | ERRORS M250 |
+| Files overwritten in place during publisher runs → `DATA_INTEGRITY` | FIXED in code (content keys + cleanup); dev verification PENDING: the first scheduled run with it (00:30 UTC 2026-10-28, `4c2c3823`) crashed in planning before the cleanup and before any write (ERRORS M263) | ERRORS M250, M263 |
 | Database connection lost mid-write in edge-bff | cause UNKNOWN; retried until the deadline | ERRORS M246 |
 | Merge deploy skipped by Railway | MITIGATED by hand; automatic check PROPOSED | ERRORS M252 |
 | Terminal page download has no retry | not covered (the backtest page has it) | ERRORS M251 |

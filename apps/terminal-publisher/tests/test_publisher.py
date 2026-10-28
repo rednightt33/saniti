@@ -935,6 +935,17 @@ def test_content_that_returns_to_an_object_still_in_the_bucket_is_not_put_again(
     assert price_key(bucket) == k1 and xsection_puts(bucket, n) == [] and k1 not in bucket.deleted
 
 
+def test_the_cleanup_lists_the_whole_bucket_and_the_xsection_files_their_prefix_only():
+    """The xsection listing asks for `xsection/` only (listing the whole dev bucket took more than 6 minutes, and this
+    listing has no deadline), and it comes after the cleanup's listing of the whole bucket."""
+    conn = FakeConn(PRICES, BROKERS, UNIVERSE)
+    bucket = FakeBucket()
+    at(bucket, conn, 'backfill', 0)
+    asked, whole = [], bucket.list
+    bucket.list = lambda deadline=None, prefix='': asked.append(prefix) or whole(deadline, prefix)
+    at(bucket, conn, 'daily', 2)
+    assert asked == ['', 'xsection/']
+
 # ---- bucket retries (ERRORS M263; M253 on PR #41's branch) ----------------------------------------------------------
 def client_error(code):
     from botocore.exceptions import ClientError
@@ -994,3 +1005,35 @@ def test_the_xsection_listing_asks_the_bucket_for_its_prefix_only():
     assert b.list(prefix='xsection/') == {'xsection/price.0123456789abcdef.json.gz': (at, 3)} and asked == ['v1/xsection/']
     b.list()
     assert asked[-1] == 'v1/'
+
+
+def test_every_bucket_call_is_asked_again_after_a_canceled_answer(monkeypatch):
+    """ERRORS M263: put, get and delete go through `retried` as the listing does; a missing object is None at once."""
+    monkeypatch.setattr(pub.time, 'sleep', lambda s: None)
+    from botocore.exceptions import ClientError
+    class NoSuchKey(ClientError):
+        pass
+    calls = []
+    class S3:
+        exceptions = type('Exceptions', (), {'NoSuchKey': NoSuchKey})
+        def once(self, op):
+            calls.append(op)
+            if calls.count(op) == 1:
+                raise client_error('RequestCanceled')
+        def put_object(self, **kw):
+            self.once('put')
+        def get_object(self, Bucket, Key):
+            if Key == 'v1/manifest/NONE.json':
+                calls.append('missing')
+                raise NoSuchKey({'Error': {'Code': 'NoSuchKey', 'Message': 'x'}}, 'GetObject')
+            self.once('get')
+            return {'Body': type('Body', (), {'read': lambda self: b'{"a": 1}'})()}
+        def delete_objects(self, Bucket, Delete):
+            self.once('delete')
+            return {}
+    b = pub.Bucket.__new__(pub.Bucket)
+    b.name, b.s3 = 'bucket', S3()
+    b.put('state.json', b'{}', 'application/json')
+    assert b.get_json('state.json') == {'a': 1} and b.get_raw('manifest/NONE.json') is None
+    assert b.delete(['price/BBCA/2026.json.gz']) == []
+    assert calls == ['put', 'put', 'get', 'get', 'missing', 'delete', 'delete']
