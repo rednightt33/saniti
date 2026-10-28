@@ -281,7 +281,8 @@ export function xsectionNeed(m: XsectionRef, field: string, catalog: MetricsCata
 }
 function unavailableFlow(metric: unknown, field: string, catalog: MetricsCatalog): ScreenerError {
   const spec = metricSpec('flow', metric, `${field}.metric`, catalog);
-  return new ScreenerError('METRIC_UNAVAILABLE', `${field}: ${spec.id} is not available yet: ${spec.unavailable_reason || spec.decision || 'flow arrives with Phase 2'}.`, field,
+  const why = (spec.decision || spec.unavailable_reason || 'Flow arrives with Phase 2').replace(/\.$/, '');
+  return new ScreenerError('METRIC_UNAVAILABLE', `${field}: ${spec.id} is not available yet: ${why}.`, field,
     { metric: spec.id, availability: spec.decision ? 'REQUIRES_DECISION' : 'REQUIRES_DATA', reason: spec.decision || spec.unavailable_reason || '' });
 }
 

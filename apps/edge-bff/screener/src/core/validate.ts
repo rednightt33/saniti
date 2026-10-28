@@ -34,7 +34,7 @@ import type {
 } from './contract.ts';
 import { CONDITION_ID } from './contract.ts';
 import { ScreenerError } from './errors.ts';
-import { METRICS_CATALOG, PRESETS, metricSpec, transformSpec } from './catalog.ts';
+import { METRICS_CATALOG, PRESETS, metricSpec, resolveCatalogParams, transformSpec } from './catalog.ts';
 import type { MetricDefinition, MetricsCatalog, PresetDefinition, TransformDefinition } from './catalog.ts';
 import { bindTest } from './condition.ts';
 import { resolveIndicator } from './metrics.ts';
@@ -290,6 +290,7 @@ export function validateTest(input: unknown, field: string, ctx: ValidateContext
   } else throw new ScreenerError('INVALID_CONDITION', `${field}.kind must be value, state or event.`, `${field}.kind`, { allowed: ['value', 'state', 'event'] });
   // normalize through the binding: every reference resolved (parameters, arguments), and a bar field compared with a
   // transform only where the transform is a level of that field
+  if (!enabled) return normalizeTest(input as unknown as Test, field, ctx);   // switched off: never bound, shape and parameters only
   const b = bindTest('v', input as unknown as Test, field, { capBudgetMs: ctx.capBudgetMs, withinMax: ctx.limits.within_max, catalog: ctx.metrics });
   if (b.test.kind === 'state' || b.test.kind === 'event') {
     const s = (b.test.kind === 'state' ? b.test : b.test.signal) as { lhs?: Side; rhs?: Side };
@@ -301,6 +302,35 @@ export function validateTest(input: unknown, field: string, ctx: ValidateContext
     }
   }
   return b.test;
+}
+/** A reference with its parameters and arguments complete, without binding it to a computation (a switched-off
+    condition may name a metric that has no data yet, report 6.12). */
+function normalizeRef(r: MetricRef, field: string, ctx: ValidateContext): MetricRef {
+  switch (r.kind) {
+    case 'indicator': return resolveIndicator(r, field, { capBudgetMs: ctx.capBudgetMs }).ref;
+    case 'price': return { kind: 'price', field: r.field };
+    case 'transform': {
+      const spec = transformSpec(r.fn, `${field}.fn`), refKeys = spec.ref_args.map(a => a.key), given = (r.args || {}) as Record<string, unknown>;
+      const args: Record<string, unknown> = resolveCatalogParams(spec.args, Object.fromEntries(Object.entries(given).filter(([k]) => !refKeys.includes(k))), `${field}.args`, refKeys);
+      for (const k of refKeys) if (has(given, k)) args[k] = normalizeRef(given[k] as MetricRef, `${field}.args.${k}`, ctx);
+      return { kind: 'transform', fn: spec.fn, of: normalizeRef(r.of, `${field}.of`, ctx), args } as MetricRef;
+    }
+    case 'pattern': case 'flow': case 'xsection': {
+      const id = r.kind === 'pattern' ? r.type : r.metric, spec = metricSpec(r.kind, id, `${field}.${r.kind === 'pattern' ? 'type' : 'metric'}`, ctx.metrics);
+      const params = resolveCatalogParams(spec.params, r.params, `${field}.params`);
+      return (r.kind === 'pattern' ? { kind: 'pattern', type: spec.id, params } : { kind: r.kind, metric: spec.id, params }) as MetricRef;
+    }
+    case 'universe': return { kind: 'universe', attr: metricSpec('universe', r.attr, `${field}.attr`, ctx.metrics).id };
+  }
+}
+function normalizeTest(t: Test, field: string, ctx: ValidateContext): Test {
+  const side = (s: Side, f: string): Side => isObj(s) && !has(s as Record<string, unknown>, 'kind') ? { value: (s as { value: number }).value } : normalizeRef(s as MetricRef, f, ctx);
+  if (t.kind === 'value') return { kind: 'value', metric: normalizeRef(t.metric, `${field}.metric`, ctx), op: t.op, value: t.value, ...(t.op === 'between' ? { value2: t.value2 } : {}) };
+  if (t.kind === 'state') return 'pattern' in t && t.pattern ? { kind: 'state', pattern: normalizeRef(t.pattern, `${field}.pattern`, ctx) as never }
+    : { kind: 'state', lhs: side((t as { lhs: Side }).lhs, `${field}.lhs`), op: (t as { op: 'gt' | 'lt' }).op, rhs: side((t as { rhs: Side }).rhs, `${field}.rhs`) };
+  const s = t.signal as { pattern?: MetricRef; lhs?: Side; op?: 'crosses_above' | 'crosses_below'; rhs?: Side };
+  return s.pattern ? { kind: 'event', signal: { pattern: normalizeRef(s.pattern, `${field}.signal.pattern`, ctx) as never }, within: t.within }
+    : { kind: 'event', signal: { lhs: side(s.lhs!, `${field}.signal.lhs`), op: s.op!, rhs: side(s.rhs!, `${field}.signal.rhs`) }, within: t.within };
 }
 function sides(t: Record<string, unknown>, field: string, refs: (ref: unknown, f: string) => void): void {
   for (const k of ['lhs', 'rhs'] as const) {

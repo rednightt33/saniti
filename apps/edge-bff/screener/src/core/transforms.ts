@@ -337,7 +337,7 @@ export const IMPLEMENTED_PATTERNS: readonly string[] = Object.keys(PATTERNS);
 export function resolveSignal(ref: PatternRef, field: string, opts: ParamOptions): ResolvedSeries & { window: number } {
   if (!isObj(ref)) throw new ScreenerError('INVALID_CONDITION', `${field} must be a pattern reference.`, field);
   const spec = metricSpec('pattern', ref.type, `${field}.type`, METRICS_CATALOG), impl = PATTERNS[spec.id];
-  if (!impl || spec.decision) throw new ScreenerError('METRIC_UNAVAILABLE', `${field}.type: ${spec.id} is not available: ${spec.decision || spec.unavailable_reason || 'it has no implementation yet'}.`, `${field}.type`, { metric: spec.id, availability: 'REQUIRES_DECISION', reason: spec.decision || spec.unavailable_reason || '' });
+  if (!impl || spec.decision) throw new ScreenerError('METRIC_UNAVAILABLE', `${field}.type: ${spec.id} is not available: ${(spec.decision || spec.unavailable_reason || 'it has no implementation yet').replace(/\.$/, '')}.`, `${field}.type`, { metric: spec.id, availability: 'REQUIRES_DECISION', reason: spec.decision || spec.unavailable_reason || '' });
   const params = resolveCatalogParams(spec.params, ref.params, `${field}.params`);
   const norm = { kind: 'pattern', type: spec.id, params } as PatternRef;
   return {
