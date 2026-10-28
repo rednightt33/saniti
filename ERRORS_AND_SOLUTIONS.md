@@ -2863,7 +2863,10 @@ change yet.
   header panel yang sama.
 - **Solution:** grip Flow aset z-index 25. Bukti: `assets_check/check3.mjs` (tarik naik/turun, simpan, reload, klik
   ganda; arsiran tampil; tanpa error), vitest 696, piksel fixture dan live tanpa aset 0 px.
-- **Status:** RESOLVED setelah deploy edge-bff (RAILWAY_CHANGELOG).
+- **Status:** RESOLVED; live sejak edge-bff `7b05b9fd` (`main` `baa0903`).
+- **Catatan:** commit `baa0903` sempat mengosongkan EXEC.md dan FRONTEND_ARCHITECTURE.md (skrip saya membuka file untuk
+  ditulis sebelum membacanya); dipulihkan di `4f17e4d` dari `c6602d5` ditambah catatan baru. Pelajaran: baca isi file
+  ke variabel dulu, baru buka untuk menulis; periksa `git diff --stat` sebelum commit.
 
 ### EXEC-TERMINAL-ASSETS — aset tambahan dan Flow Timeline per aset (2026-10-28)
 

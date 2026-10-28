@@ -4942,3 +4942,12 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
   accepting deploys (last edge-bff deployment SUCCESS), no active EDGE run in market-ai-orc logs.
 - Verified: the live `/terminal-app/` serves `assets/index-DN7dbRLJ.js`, the same build checked locally
   (`verification/terminal_api/assets_check/`); `/ready` 200.
+
+## 2026-10-28 — edge-bff `7b05b9fd` (EXEC-TERMINAL-ASSETS-2)
+
+- Service edge-bff, environment dev, from GitHub `main` `baa0903` (auto-deploy). Status SUCCESS. The docs-only commit
+  `4f17e4d` after it was SKIPPED (watch paths).
+- Change: Terminal front-end only (asset Flow Timelines: grip to raise and lower, the chart ticker's badge style, the
+  hatch after the asset's broker data). No variable, database or other service changed.
+- Verified: the live `/terminal-app/` serves `assets/index-Slzh3Atp.js`, the same build checked locally
+  (`verification/terminal_api/assets_check/check3.mjs`).
