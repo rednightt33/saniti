@@ -41,7 +41,7 @@ export interface Versions {
   screener_registry: string;          // 16 hex: screener_registry_version of screener-registry.json, sha256 over base + overlay + derived fields (report 6.8 Versions; 8.3 abbreviates it as base + overlay)
   price_data: string;                 // 64 hex: datafile.dataVersion over (ticker, 'price', pack sha256) of every ticker
   flow_data: string | null;           // the same over the flow files; null before Phase 2
-  definition_hash?: string;           // 64 hex, run and counts only: sha256 of canonicalJson(definition, params resolved, labels removed)
+  definition_hash?: string;           // 64 hex: sha256 of canonicalJson(definition, params resolved, labels removed); set on run. Report 8.3 also names counts, but a counts answer covers up to max_counts definitions, which one hash cannot name: its versions leave it out (each entry is keyed by item_id; the worker caches per definition_hash, report 8.6)
 }
 
 /** The publication's outcome as the catalog reports it (report 8.3): equal on every worker replica, so the catalog

@@ -1,7 +1,8 @@
 /* The one error class of the screener core (EXEC-SCREENER; report API CONTRACT 8.8). Every refusal names the field
    where there is one and says how to fix it (AGENTS.md "Gates and evidence" (d)); its code is one of contract.ts
    ErrorCode (or the worker-only DATA_VERSION_PENDING), so the worker answers it as it is: status
-   WORKER_ERROR_STATUS[code], body {"error": {code, field, message, details}}. The backtest core's ValidationError codes never travel: registry.ts mapCoreError translates them.
+   WORKER_ERROR_STATUS[code], body {"error": {code, field, message, details}}. The backtest core's ValidationError
+   codes never travel: registry.ts mapCoreError translates them.
    Pure module (no DOM, no Node API): the page may import it to read an error body the same way. */
 import { WORKER_ERROR_STATUS } from './contract.ts';
 import type { ApiError, WorkerErrorCode } from './contract.ts';
