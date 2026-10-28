@@ -110,12 +110,7 @@ function bindSide(s: Side, field: string, ctx: BindContext): BoundSide {
 
 /** The display name of a side (report 8.5 conditions[].metric: '<id>.<output>', '<lhs> x <rhs>'). */
 const nameOf = (s: BoundSide) => s.kind === 'value' ? String(s.value) : s.r.label;
-const indicatorsOf = (rs: readonly ResolvedSeries[]): ResolvedIndicator[] => {
-  const out: ResolvedIndicator[] = [];
-  const walk = (r: ResolvedSeries) => { if (r.kind === 'indicator') out.push(r as ResolvedIndicator) };
-  rs.forEach(walk);
-  return out;
-};
+const indicatorsOf = (rs: readonly ResolvedSeries[]): ResolvedIndicator[] => rs.filter(r => r.kind === 'indicator') as ResolvedIndicator[];
 
 /** A condition (normalized by validate.ts, or a preset's) bound to its series. `field` is its path in the request
     ('definition.conditions[2]'); a reference problem is the ScreenerError naming it. */
@@ -129,9 +124,9 @@ export function bindTest(id: string, test: Test, f: string, ctx: BindContext): B
   if (!isObj(t)) throw new ScreenerError('INVALID_CONDITION', `${f} must be a test.`, f);
   if (t.kind === 'value') return bindValue(id, t, f, ctx, catalog);
   if (t.kind === 'state') {
-    if ('pattern' in t && t.pattern) return bindPattern(id, 'state', t.pattern as PatternRef, 0, `${f}.pattern`, ctx, t);
+    if ('pattern' in t && t.pattern) return bindPattern(id, 'state', t.pattern as PatternRef, 0, `${f}.pattern`, ctx);
     const st = t as Extract<Test, { kind: 'state'; lhs: Side }>;
-    return bindCompare(id, 'state', st.lhs, st.op, st.rhs, 0, f, ctx, t);
+    return bindCompare(id, 'state', st.lhs, st.op, st.rhs, 0, f, ctx);
   }
   if (t.kind === 'event') {
     const within = t.within;
@@ -139,8 +134,8 @@ export function bindTest(id: string, test: Test, f: string, ctx: BindContext): B
       throw new ScreenerError('INVALID_CONDITION', `${f}.within must be a whole number of sessions from 1 to ${ctx.withinMax}.`, `${f}.within`);
     const sig = t.signal as unknown as Record<string, unknown>;
     if (!isObj(sig)) throw new ScreenerError('INVALID_CONDITION', `${f}.signal must be a cross or a pattern.`, `${f}.signal`);
-    if ('pattern' in sig) return bindPattern(id, 'event', sig.pattern as PatternRef, within, `${f}.signal.pattern`, ctx, t);
-    return bindCompare(id, 'event', sig.lhs as Side, sig.op as 'crosses_above' | 'crosses_below', sig.rhs as Side, within, `${f}.signal`, ctx, t);
+    if ('pattern' in sig) return bindPattern(id, 'event', sig.pattern as PatternRef, within, `${f}.signal.pattern`, ctx);
+    return bindCompare(id, 'event', sig.lhs as Side, sig.op as 'crosses_above' | 'crosses_below', sig.rhs as Side, within, `${f}.signal`, ctx);
   }
   throw new ScreenerError('INVALID_CONDITION', `${f}.kind must be value, state or event.`, `${f}.kind`, { allowed: ['value', 'state', 'event'] });
 }
@@ -194,7 +189,7 @@ function bindValue(id: string, t: ValueTest, f: string, ctx: BindContext, catalo
   };
 }
 
-function bindCompare(id: string, kind: 'state' | 'event', lhs: Side, op: string, rhs: Side, within: number, f: string, ctx: BindContext, t: Test): BoundCondition {
+function bindCompare(id: string, kind: 'state' | 'event', lhs: Side, op: string, rhs: Side, within: number, f: string, ctx: BindContext): BoundCondition {
   const ops = kind === 'state' ? ['gt', 'lt'] : ['crosses_above', 'crosses_below'];
   if (!ops.includes(op)) throw new ScreenerError('INVALID_CONDITION', `${f}.op must be ${ops.join(' or ')}.`, `${f}.op`, { allowed: ops });
   if (!isObj(lhs) || !isObj(rhs)) throw new ScreenerError('INVALID_CONDITION', `${f}: lhs and rhs are both required.`, f);
@@ -213,7 +208,6 @@ function bindCompare(id: string, kind: 'state' | 'event', lhs: Side, op: string,
   const test: Test = kind === 'state'
     ? { kind: 'state', lhs: norm(L0), op: op as 'gt' | 'lt', rhs: norm(R0) }
     : { kind: 'event', signal: { lhs: norm(L0), op: op as 'crosses_above' | 'crosses_below', rhs: norm(R0) }, within };
-  void t;
   // report 8.5: '<id>.<output>' for a level against the price (the example's condition b), '<lhs> x <rhs>' for two
   // references, the reference alone against a value
   const name = isBar(L0) && R0.kind === 'series' ? R0.r.label : isBar(R0) && L0.kind === 'series' ? L0.r.label
@@ -238,13 +232,12 @@ function bindCompare(id: string, kind: 'state' | 'event', lhs: Side, op: string,
   };
 }
 
-function bindPattern(id: string, kind: 'state' | 'event', p: PatternRef, within: number, f: string, ctx: BindContext, t: Test): BoundCondition {
+function bindPattern(id: string, kind: 'state' | 'event', p: PatternRef, within: number, f: string, ctx: BindContext): BoundCondition {
   if (!isObj(p) || (p as { kind?: unknown }).kind !== 'pattern') throw new ScreenerError('INVALID_CONDITION', `${f} must be a pattern reference {"kind":"pattern","type":...}.`, f);
   const r = resolveSignal(p, f, ctx);
   const spec = metricSpec('pattern', r.ref && (r.ref as PatternRef).type, f, ctx.catalog ?? METRICS_CATALOG);
   if (!spec.tests.includes(kind)) throw new ScreenerError('INVALID_CONDITION', `${f}: ${spec.id} is offered as ${spec.tests.join(' or ')}, not as ${kind}.`, f, { allowed: spec.tests });
   const test: Test = kind === 'state' ? { kind: 'state', pattern: r.ref as PatternRef } : { kind: 'event', signal: { pattern: r.ref as PatternRef }, within };
-  void t;
   const params = (r.ref as PatternRef).params || {};
   return {
     id, kind, test, series: [r], xsection: null, universeAttr: null,

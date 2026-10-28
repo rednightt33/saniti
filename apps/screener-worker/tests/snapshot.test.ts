@@ -10,6 +10,7 @@ import { F } from '../../edge-bff/terminal/src/calc/indicators.ts';
 import { INDICATORS, startParams } from '../../edge-bff/screener/src/core/registry.ts';
 import { SeriesCache, resolveSeries, series, seriesKey, tailLength, tickerCalc, universeAttributes } from '../../edge-bff/screener/src/core/metrics.ts';
 import { presetDefinitions } from '../../edge-bff/screener/src/core/validate.ts';
+import { round12 } from '../../edge-bff/screener/src/core/evaluate.ts';
 import { groupingsOf as backtestGroupings } from '../../backtest-worker/src/catalog.ts';
 import type { TickerReference } from '../../backtest-worker/src/terminal.ts';
 import { classification } from '../../backtest-worker/src/terminal.ts';
@@ -74,7 +75,8 @@ test('the snapshot: price_data over every ticker\'s pack sha256, E = price_throu
   assert.ok(!desc.rows.some(r => r.ticker === 'IHSG'), 'IHSG is never a stock row');
   for (const r of desc.rows) {
     const j = desc.tickers.indexOf(r.ticker), a = universeAttributes(tickerCalc(materialize(desc, j)), '2026-10-27');
-    assert.deepEqual({ last: r.last, chg_1d_pct: r.chg_1d_pct, adv20_idr: r.adv20_idr, bars: r.bars, stale: r.stale, last_bar: r.last_bar }, { last: a.last, chg_1d_pct: a.chg_1d_pct, adv20_idr: a.adv20_idr, bars: a.bars, stale: a.stale, last_bar: a.last_bar });
+    assert.deepEqual({ last: r.last, chg_1d_pct: r.chg_1d_pct, adv20_idr: r.adv20_idr, bars: r.bars, stale: r.stale, last_bar: r.last_bar },
+      { last: round12(a.last), chg_1d_pct: round12(a.chg_1d_pct), adv20_idr: round12(a.adv20_idr), bars: a.bars, stale: a.stale, last_bar: a.last_bar }, 'the core\'s attributes at 12 significant digits (the wire)');
   }
   const stale = desc.rows.find(r => r.ticker === 'STALE')!;
   assert.deepEqual(stale.remarks, [{ code: 'STALE', last_bar_date: '2026-08-21' }]);

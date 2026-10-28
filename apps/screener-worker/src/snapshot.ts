@@ -40,6 +40,7 @@ import type { DataVersions, ResolvedSeries, Tail, TickerBars } from '../../edge-
 import type { ParamOptions } from '../../edge-bff/screener/src/core/registry.ts';
 import { INDICATORS, startParams } from '../../edge-bff/screener/src/core/registry.ts';
 import { resolveSignal } from '../../edge-bff/screener/src/core/transforms.ts';
+import { round12 } from '../../edge-bff/screener/src/core/evaluate.ts';
 import { priceBreakRemarks } from '../../edge-bff/screener/src/core/universe.ts';
 import type { ActionRow } from '../../edge-bff/screener/src/core/universe.ts';
 import type { TickerReference } from '../../backtest-worker/src/terminal.ts';
@@ -223,9 +224,10 @@ export async function buildSnapshot(input: BuildInput): Promise<{ desc: Snapshot
       const breaks: PriceBreakRemark[] = priceBreakRemarks(own, s.dates, b.C, { boundary: ADJUSTED_HISTORY_BOUNDARY, priceActionTypes: PRICE_ACTION_TYPES });
       remarks.push(...breaks);
     }
+    // the wire's numbers (round12, report 8.5): the page applies universe.ts to these very rows, the worker's S0 too
     rows.push({
       ticker: e.t, name: r.name, sector: r.groups.sector ?? null, industry: r.groups.industry ?? null,
-      last: a.last, chg_1d_pct: a.chg_1d_pct, adv20_idr: a.adv20_idr, first_bar: a.first_bar, last_bar: a.last_bar, bars: a.bars, stale: a.stale, remarks,
+      last: round12(a.last), chg_1d_pct: round12(a.chg_1d_pct), adv20_idr: round12(a.adv20_idr), first_bar: a.first_bar, last_bar: a.last_bar, bars: a.bars, stale: a.stale, remarks,
     });
   }
   offsets[T] = w;
