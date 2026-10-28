@@ -32,4 +32,3 @@ test('typed views: the bars read back from the shared columns equal priceSeries 
   const ihsg = materialize(desc, desc.index);
   assert.ok(ihsg.bars.V.every(v => v === null), 'IHSG keeps a null volume, never 0 or NaN');
 });
-
