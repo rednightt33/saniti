@@ -136,8 +136,13 @@ export function renderResults() {
   $('resMeta').innerHTML = metaL; $('resTools').innerHTML = metaR; $('resPane').innerHTML = body; $('tqClear').hidden = !S.q;
   $('preview').hidden = !S.preview; document.body.classList.toggle('has-pv', S.preview); sizePreview();
 }
-/** the detail panel runs from its top edge to the bottom of the window (the prototype) */
+/** the detail panel runs from its top edge to the bottom of the window (the prototype). It reads the layout, so it
+    runs once per frame after the frame's DOM writes, never as a forced layout inside a render (6c.9 long tasks). */
+let sizeFrame = 0;
 export function sizePreview() {
+  if (!sizeFrame) sizeFrame = requestAnimationFrame(() => { sizeFrame = 0; sizeNow() });
+}
+function sizeNow() {
   const el = $('preview');
   if (el.hidden || innerWidth <= 900) { el.style.height = ''; return }
   const top = Math.max(16, el.getBoundingClientRect().top);
