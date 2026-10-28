@@ -909,7 +909,7 @@ Dieksekusi dan selesai: EXEC.md EXEC-BACKTEST-SPIN, ERRORS "EXEC-BACKTEST-SPIN".
 Dipindah ke `EXEC.md` EXEC-SCREENER pada 2026-10-28 setelah "go" user (persetujuan, jawaban P1-P23 dan pertanyaan yang
 masih terbuka ikut dipindah). Laporan: `verification/screener/AUDIT.md`.
 
-## EDGE-MULTIUSER — EDGE untuk user eksternal di semua tab (disetujui sebagai syarat 2026-10-28; rencana belum disusun, belum "go")
+## EDGE-MULTIUSER — EDGE untuk user eksternal di semua tab (disetujui sebagai syarat 2026-10-28; rencana disusun; DIPENDING 2026-10-28)
 
 **Persetujuan, 2026-10-28 (kata user):** "Also, ini nanti akan multiuse,r jadi infrastruktur harus bisa di scale UP + efficient
 cost wise." Lalu atas pertanyaan P29 (siapa "banyak user"): "External / Ini termasuk tab2 lagi ya monitor, terminal, backtest juga".
@@ -939,3 +939,7 @@ model biaya, keputusan MU1-MU26) dan ringkasan `verification/edge_multiuser/RING
 - **Pertanyaan paling mendesak:** MU1 (setujui rencana, "go" Tahap 1 saja), MU2 (izin data tertulis dari TradingView, Stockbit,
   IDX/KSEI sebelum user eksternal), MU5 (perkiraan jumlah user), MU6 (chat AI untuk user eksternal), MU20 (environment
   produksi sebelum peluncuran terbuka).
+
+**Dipending, 2026-10-28 (kata user):** "Untuk saat ini, rencana untuk multi-user bisa dipending dulu. Jadi please continue
+sampai screener selesai terlebih dahulu." Keputusan MU1-MU26 tidak ditanyakan sekarang. Screener tetap dibangun sesuai
+P29-P34 (data berkunci `owner_key`, batas per user, cache bersama tanpa data user).
