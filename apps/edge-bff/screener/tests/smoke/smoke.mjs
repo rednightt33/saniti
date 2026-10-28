@@ -7,7 +7,8 @@
    marks; disabled-with-reason controls; CSV export; saved screens, My metrics and the watchlist through the API, with
    delete confirmation; the cached paint on a second open (304s, no run when the cached result is current); no
    IndexedDB; a run answer newer than the catalog; keyboard; markup in names rendered as text. Fails on any console
-   error or page error, and reports the longest main-thread task.
+   error or page error, and on a long task of the page over 50 ms (SMOKE_LONG_MS; 6c.9 item 2): the fixture's own
+   compute, the worker's work in production, is timed by the fixture (api.busy) and left out.
    Usage: npm run build:smoke && node tests/smoke/smoke.mjs  (SMOKE_DEBUG=1 prints whole failure messages).
    Uses the preinstalled Playwright; installs no browser. */
 import { createRequire } from 'node:module';
@@ -262,6 +263,17 @@ await at('cached paint: a second open of the same publication gets 304s and runs
   expect(!c.run, `a run was sent although the cached result is current: ${JSON.stringify(c)}`);
   expect(await page.inputValue('#titleIn') === 'Golden Cross' && /match/.test(await text('#resMeta')), 'the last screen and its result were not restored');
 });
+await at('cached paint, then a newer publication: the drawing is replaced and "Updating…" goes', async () => {
+  // the previous step left the Golden Cross screen and its result in the cache, at the first publication
+  await go('?pub=2&slow=catalog:1200,universe:1200');
+  await page.waitForFunction(() => /12:03/.test(document.getElementById('pageHead').innerText) && /Updating/.test(document.getElementById('pageHead').innerText), null, { timeout:5000 });
+  expect(await page.inputValue('#titleIn') === 'Golden Cross', 'the cached paint did not restore the last screen');
+  await page.waitForFunction(() => /23:59/.test(document.getElementById('pageHead').innerText) && !/Updating/.test(document.getElementById('pageHead').innerText), null, { timeout:8000 });
+  await idle();
+  const c = await counters();
+  expect(c.catalog304 === undefined && c.run === 1, `a new publication must be fetched in full and the screen run once: ${JSON.stringify(c)}`);
+  expect(/match/.test(await text('#resMeta')), 'no results after the new publication');
+});
 await at('no IndexedDB: the page works without its cache', async () => {
   await go('?noidb=1'); await ready();
   expect(/match|instruments/.test(await text('#resMeta')), 'no results without IndexedDB');
@@ -305,5 +317,8 @@ await at('phone width: no horizontal page scroll', async () => {
 await ctx?.close(); await browser.close(); await srv.close();
 console.log(steps.join('\n'));
 console.log(`longest main-thread task of the page: ${Math.round(longest.ms)} ms (${longest.step}); with the fixture's own compute: ${Math.round(longestAll.ms)} ms (${longestAll.step})`);
+// report 6c.9 item 2: "no long task over 50 ms" for the page itself (the fixture's compute is the worker's in production)
+const LONG_MS = Number(process.env.SMOKE_LONG_MS || 50);
+if (longest.ms > LONG_MS) errors.push(`[long tasks] the page blocked the main thread for ${Math.round(longest.ms)} ms in "${longest.step}" (limit ${LONG_MS} ms)`);
 if (errors.length) { console.error(`\n${errors.length} failure(s):\n` + errors.join('\n')); process.exit(1) }
 console.log('\nsmoke: all steps passed');
