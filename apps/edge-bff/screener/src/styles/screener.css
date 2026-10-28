@@ -567,3 +567,6 @@ body{min-height:100vh}
 /* rows are keyboard-reachable (tabindex): the focus ring of a row */
 .res tbody tr:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
 .res tbody tr:focus-visible td{background:var(--surface-2)}
+/* phone width: the page actions get their own row under the page head (the prototype keeps them in a second column,
+   where they overlap the screen name and data line at 390 px; same CSS in the prototype, fixed here) */
+@media (max-width:760px){.page-head{grid-column:1/-1}.page-acts{grid-column:1/-1;grid-row:2;justify-self:start;margin:-6px 0 16px}.maincol{grid-row:3}}

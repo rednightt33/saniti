@@ -211,7 +211,8 @@ export async function bootPage(api: ScreenerApi, opts: { cache?: FileCache } = {
   if (!ctx.catalog) { bootFailed(T.unreachable, true); return }
   confirmed = true;
   if (!restored) restoreLast(cached.catalog && cat.status === 304 ? cached.result : null);
-  else refresh('all');
+  else if (cat.status === 200 || uni.status === 200) refresh('all');
+  else renderHeader();                  // both 304: the cached paint is confirmed as drawn; only "Updating…" goes
 }
 
 /* ---- events (the prototype's delegated listeners) ---------------------------------------------------------- */

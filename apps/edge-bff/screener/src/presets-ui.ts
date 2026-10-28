@@ -56,7 +56,14 @@ export function renderPresets() {
   if (S.pcat === 'My screens') askCounts();
 }
 /** one row of presets until the round button expands them; the active preset moves to the front while collapsed */
+/** fit the preset chips to one row (the prototype's fitPresets). It reads the layout, so it runs once per frame, after
+    the frame's DOM writes, instead of forcing a layout inside every render. */
+let fitFrame = 0;
 export function fitPresets() {
+  if (fitFrame) return;
+  fitFrame = requestAnimationFrame(() => { fitFrame = 0; fitNow() });
+}
+function fitNow() {
   const row = $('pRow'), btn = $('pMore'); if (!row || !btn) return;
   if (!S.pexp) { const on = row.querySelector('.pchip.on') as HTMLElement | null; if (on && row.firstElementChild && on.offsetTop > (row.firstElementChild as HTMLElement).offsetTop) row.prepend(on) }
   btn.hidden = !S.pexp && row.scrollHeight <= row.clientHeight + 2;

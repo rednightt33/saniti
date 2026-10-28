@@ -1,10 +1,14 @@
 /* Number, money and text formatting of the prototype (screener EDGE layout.html, "formatting"), kept 1:1, plus the
    page's display of a cell value from its unit. Display only: no formula. */
 
+/** one en-US formatter per number of decimals (toLocaleString with options builds a new one on every call, the page's
+    largest cost when it draws a table) */
+const NF = new Map<number, Intl.NumberFormat>();
+const fmtOf = (d: number) => NF.get(d) ?? (NF.set(d, new Intl.NumberFormat('en-US', { minimumFractionDigits:d, maximumFractionDigits:d })), NF.get(d)!);
 /** a number with d decimals, en-US grouping, the minus as U+2212; '—' when missing */
 export const nf = (v: number | null | undefined, d = 0): string => {
   if (v == null || !isFinite(v)) return '—';
-  const s = v.toLocaleString('en-US', { minimumFractionDigits:d, maximumFractionDigits:d });
+  const s = fmtOf(d).format(v);
   return /^-0(\.0+)?$/.test(s) ? s.slice(1) : s.replace('-', '−');
 };
 /** a signed number with its unit ('+1.25%') */
