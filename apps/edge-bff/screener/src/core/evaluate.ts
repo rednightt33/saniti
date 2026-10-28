@@ -24,8 +24,7 @@
    metrics.ts (computed on the full series, then tailed), never a view shifted over the unlagged tail: a shifted read
    of a cross at the window's first bar (at - within_max + 1) would need bar at - within_max - 1, one bar before the
    tail, and would silently miss that event.
-   Pure module (no DOM, no Node API). Implemented here: the bar views, compareAt, crossSignal, naReason,
-   evaluationBar, round12. The evaluators are typed stubs for the core-logic agent. */
+   Pure module (no DOM, no Node API). */
 import { compare } from '../../../backtest/src/core/conditions.ts';
 import type { Op } from '../../../backtest/src/core/conditions.ts';
 import type { Num } from '../../../terminal/src/calc/indicators.ts';
@@ -104,21 +103,40 @@ export interface Evaluation {
     x < value (lt) or value <= x <= value2 (between, inclusive; value > value2 is refused by validate.ts with field
     value2, never reordered here; value = value2 is accepted). value: x. */
 export function evaluateValue(v: BarView, test: Pick<ValueTest, 'op' | 'value' | 'value2'>, at: number): Evaluation {
-  throw new Error('not implemented: evaluateValue');
+  const x = v.get(at);
+  if (!Number.isFinite(x)) return { status: 'na', reason: naReason(v, at) ?? 'NULL_AT_EVALUATION', value: null };
+  return { status: valuePasses(x, test) ? 'pass' : 'fail', reason: null, value: x };
+}
+/** The VALUE rule on one number (gt, lt strict; between inclusive); universe.ts applies the same rule to row attributes. */
+export function valuePasses(x: number, test: Pick<ValueTest, 'op' | 'value' | 'value2'>): boolean {
+  switch (test.op) {
+    case 'gt': return x > test.value;
+    case 'lt': return x < test.value;
+    case 'between': return x >= test.value && x <= (test.value2 as number);
+  }
+  throw new RangeError(`evaluateValue: op ${JSON.stringify(test.op)} is not gt, lt or between`);
 }
 
 /** STATE compare (report 6.9): pass iff compareAt(lhs, op, rhs, at). lhs and rhs: the current values (null for a
     missing value; a constant side is its value). NA only when a series side has no value at `at`: the reason of the
     lhs first, then of the rhs (naReason); otherwise pass or fail. */
 export function evaluateState(lhs: Operand, op: 'gt' | 'lt', rhs: Operand, at: number): Evaluation {
-  throw new Error('not implemented: evaluateState');
+  const a = valueAt(lhs, at), b = valueAt(rhs, at);
+  const reason = (typeof lhs === 'number' ? null : naReason(lhs, at)) ?? (typeof rhs === 'number' ? null : naReason(rhs, at));
+  if (reason) return { status: 'na', reason, lhs: num(a), rhs: num(b) };
+  return { status: compareAt(lhs, op, rhs, at) ? 'pass' : 'fail', reason: null, lhs: a, rhs: b };
 }
+const num = (x: number): number | null => Number.isFinite(x) ? x : null;
 
 /** STATE pattern (report 6.9): pass iff signal[at] === 1, else fail (a pattern signal is 0 where its inputs are missing,
     as the core's PRICE_ACTION conditions are; it is never NA). */
-export function evaluateStatePattern(signal: ArrayLike<number>, at: number): Evaluation {
-  throw new Error('not implemented: evaluateStatePattern');
+export function evaluateStatePattern(signal: ArrayLike<number> | BarView, at: number): Evaluation {
+  return { status: signalAt(signal, at) ? 'pass' : 'fail', reason: null };
 }
+/** A 0/1 signal at bar i, from an array indexed by bar or a view (a cached tail of the pattern series); a bar it does
+    not hold, or a missing value, is 0. */
+export const signalAt = (signal: ArrayLike<number> | BarView, i: number): boolean =>
+  i >= 0 && ('get' in signal && typeof (signal as BarView).get === 'function' ? (signal as BarView).get(i) === 1 : (signal as ArrayLike<number>)[i] === 1);
 
 /** EVENT (report 6.9): signalAt(i) for i in [at-within+1, at]; j = the largest such i where it is true -> pass with
     eventBar j and barsAgo at - j; lastEventBar = the largest i in [at-withinMax+1, at] where it is true (null if none).
@@ -129,7 +147,18 @@ export function evaluateStatePattern(signal: ArrayLike<number>, at: number): Eva
     within: 1..withinMax (validate.ts refuses others; RangeError here). Reads bars at-withinMax..at only, so a tail of
     withinMax + 1 bars suffices. */
 export function evaluateEvent(signalAt: (i: number) => boolean, within: number, withinMax: number, at: number, current?: { lhs: Operand; rhs: Operand }): Evaluation {
-  throw new Error('not implemented: evaluateEvent');
+  if (!(Number.isInteger(withinMax) && withinMax >= 1)) throw new RangeError(`evaluateEvent: withinMax must be a whole number of at least 1, not ${withinMax}`);
+  if (!(Number.isInteger(within) && within >= 1 && within <= withinMax)) throw new RangeError(`evaluateEvent: within must be a whole number from 1 to ${withinMax}, not ${within}`);
+  let eventBar: number | null = null, lastEventBar: number | null = null;
+  for (let i = at; i > at - withinMax && i >= 0; i--) if (signalAt(i)) { lastEventBar = i; if (i > at - within) eventBar = i; break }
+  const sides = current ? { lhs: num(valueAt(current.lhs, at)), rhs: num(valueAt(current.rhs, at)) } : {};
+  if (eventBar !== null) return { status: 'pass', reason: null, ...sides, eventBar, barsAgo: at - eventBar, lastEventBar };
+  if (current) for (const s of [current.lhs, current.rhs]) {
+    if (typeof s === 'number') continue;
+    const never = s.inputMissing || s.firstValid < 0 || s.firstValid > at;      // no value on any bar up to `at`
+    if (never) return { status: 'na', reason: s.inputMissing ? 'NULL_AT_EVALUATION' : 'INSUFFICIENT_HISTORY', ...sides, eventBar: null, barsAgo: null, lastEventBar };
+  }
+  return { status: 'fail', reason: null, ...sides, eventBar: null, barsAgo: null, lastEventBar };
 }
 
 /* ---- remarks and the wire cell -------------------------------------------------------------------------------------- */
@@ -141,8 +170,13 @@ export function evaluateEvent(signalAt: (i: number) => boolean, within: number, 
     input, firstValid comes later than the window needs and the lookback is overstated: the remark may then be set where
     the window is already clear of the ex-date, never left out where it is not (a remark never changes a result). */
 export function lookbackStart(historyClass: HistoryClass | null, firstValid: number, at: number, extra = 0): number | null {
-  throw new Error('not implemented: lookbackStart');
+  if (historyClass === null) return at - extra;
+  if (historyClass !== 'window' || firstValid < 0) return null;            // the whole history (or no value: no window to bound)
+  return at - firstValid - extra;                                           // window = firstValid + 1 bars ending at `at`
 }
+/** lookbackStart with the window a reference states exactly (a pattern's, metrics.ts ResolvedSeries.window): the
+    value at `at` reads bars [at - window + 1, at]; an infinite window (a recursive pattern) reads the whole history. */
+export const lookbackStartOfWindow = (window: number, at: number, extra = 0): number | null => Number.isFinite(window) ? at - window + 1 - extra : null;
 
 /** PRICE_BREAK_IN_LOOKBACK (P4.1 A; report 6.9 Remarks, 6.12): for a ticker with PRICE_BREAK remarks, the cell remark
     when any side's lookback contains an ex-date: with d = the index of the ticker's first bar on or after the ex-date,
@@ -150,7 +184,24 @@ export function lookbackStart(historyClass: HistoryClass | null, firstValid: num
     sides of the break. Never for flow cells, ADV20 or universe attributes (their callers pass no start). The value,
     pass and fail are unchanged; this only marks them. */
 export function priceBreakRemark(starts: readonly (number | null)[], dates: readonly string[], at: number, exDates: readonly string[]): CellRemark | null {
-  throw new Error('not implemented: priceBreakRemark');
+  if (!starts.length || !exDates.length) return null;
+  for (const ex of exDates) {
+    const d = firstOnOrAfter(dates, ex);
+    if (d < 0 || d > at) continue;                                          // the ex-date is not in the ticker's bars up to `at`
+    for (const s of starts) if (s === null ? d <= at : s < d) return 'PRICE_BREAK_IN_LOOKBACK';
+  }
+  return null;
+}
+/** Index of the first date on or after `date` (dates ascending), -1 when none. */
+function firstOnOrAfter(dates: readonly string[], date: string): number {
+  let lo = 0, hi = dates.length - 1, j = -1;
+  while (lo <= hi) { const mid = (lo + hi) >> 1; if (dates[mid] >= date) { j = mid; hi = mid - 1 } else lo = mid + 1 }
+  return j;
+}
+/** The number of calendar dates d with from < d <= to (the IHSG calendar, ascending): market_sessions_ago. */
+export function sessionsBetween(calendar: readonly string[], from: string, to: string): number {
+  const upper = (x: string) => { let lo = 0, hi = calendar.length; while (lo < hi) { const m = (lo + hi) >> 1; if (calendar[m] <= x) lo = m + 1; else hi = m } return lo };
+  return Math.max(0, upper(to) - upper(from));
 }
 
 /** The wire cell of one evaluation (report 8.5): dates from the ticker's bars (eval_date = dates[at], event_date =
@@ -159,5 +210,20 @@ export function priceBreakRemark(starts: readonly (number | null)[], dates: read
     status is 'na', remark as priceBreakRemark gave it. A condition the planner did not evaluate for a ticker is
     status 'not_evaluated' with reason null (never shown on a displayed row: S4 completes them, report 6.10). */
 export function toCell(id: string, e: Evaluation, ctx: { dates: readonly string[]; at: number; ihsgCalendar: readonly string[]; unit: string | null; remark: CellRemark | null }): Cell {
-  throw new Error('not implemented: toCell');
+  const evalDate = ctx.dates[ctx.at] ?? null;
+  const cell: Cell = { id, status: e.status, eval_date: evalDate, unit: ctx.unit, reason: e.status === 'na' ? e.reason ?? 'NULL_AT_EVALUATION' : null, remark: ctx.remark };
+  if (e.value !== undefined) cell.value = e.status === 'na' ? null : round12(e.value);
+  if (e.lhs !== undefined) cell.lhs = round12(e.lhs);
+  if (e.rhs !== undefined) cell.rhs = round12(e.rhs);
+  if (e.eventBar !== undefined) {
+    const j = e.eventBar, k = e.lastEventBar ?? null;
+    cell.event_date = j === null ? null : ctx.dates[j] ?? null;
+    cell.bars_ago = j === null ? null : ctx.at - j;
+    cell.market_sessions_ago = j === null || evalDate === null ? null : sessionsBetween(ctx.ihsgCalendar, ctx.dates[j], evalDate);
+    cell.last_event_date = k === null ? null : ctx.dates[k] ?? null;
+  }
+  return cell;
 }
+/** The cell of a condition the planner did not evaluate for a ticker (report 8.5 status not_evaluated; never on a
+    displayed row: S4 completes them, report 6.10). */
+export const notEvaluatedCell = (id: string, evalDate: string | null): Cell => ({ id, status: 'not_evaluated', eval_date: evalDate, reason: null, remark: null });
