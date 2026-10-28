@@ -8552,6 +8552,11 @@ diatas (P1-P4 dan P12). / BIsa pakai agents sesuai requirement. Tidak usah pakai
   perbaikan retry bucket (di branch itu bernomor M253, bentrok dengan M253 di `main`). Pilihan A: commit `6051f4d`, `cf60fed`
   dan `f98cc3d` ditarik (cherry-pick `-x`) ke branch Screener, penulis xsection disusun di atasnya, dan entri retry diberi
   nomor baru di branch ini; pemilik PR #41 diberi tahu bahwa perubahan publisher yang sama sudah ada di branch Screener.
+  Dikerjakan 2026-10-28: ketiga commit masuk lewat `41f14b7` (entri retry menjadi M263); file per-ticker dan file
+  xsection kini memakai satu mekanisme (content key, `collect_garbage` pada run harian berikutnya, retry setiap panggilan
+  bucket). Tinjauan: publisher 66 lulus, terminal-api 40, backtest-worker 186, 20 dari 20 mutasi tertangkap, uji
+  kompatibilitas lokal dengan bucket dari publisher `main` dan PR #41 serta rollback ke PR #41 lulus. Belum deploy.
+  Pemberitahuan ke pemilik PR #41 menunggu deploy publisher ke dev.
 - **Keputusan lanjutan, 2026-10-28 (kata user):** atas P29 "External / Ini termasuk tab2 lagi ya monitor, terminal, backtest
   juga"; atas pertanyaan apakah rekomendasi juga berlaku untuk keputusan flow D1-D14 dan P24-P34: "YEs".
   - **P29:** pengguna EDGE adalah user eksternal, untuk semua tab (Monitor, Terminal, Backtest, Screener).
