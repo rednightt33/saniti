@@ -1,0 +1,3153 @@
+{
+  "schema_version": 1,
+  "note": "Hand-kept product data of the EDGE Screener (EXEC-SCREENER, report TARGET ARCHITECTURE 6.12): the non-indicator metrics with the Feature_Catalog fields, the transform functions and their argument ranges, and the periods block (P23 a). Availability is derived at run time from `requires` against the state.json xsection index and `decision` (validate.ts availabilityOf); nothing here is enumerated in code. Ranges marked by the cost note are provisional.",
+  "cost_note": "PROVISIONAL (P5, decided with the go 2026-10-28): replaced by the Phase 17 measurement",
+  "periods": {
+    "1M": 21,
+    "3M": 63,
+    "6M": 126,
+    "1Y": 252
+  },
+  "transforms": [
+    {
+      "fn": "pct_distance",
+      "label": "Distance from a price level, %",
+      "args": [],
+      "ref_args": [],
+      "tests": [
+        "value"
+      ],
+      "formula": "(close / x - 1) x 100 on each bar; null where x is missing or 0",
+      "interpretation": "How far the close is above (positive) or below (negative) a price level such as a moving average or a 52-week high.",
+      "misuse": "Only for a price level (an output comparable with close); a percent distance from an oscillator has no meaning.",
+      "evidence": "report TARGET ARCHITECTURE 6.9.1 line and price_ma rows; verification/screener/audit/html_model.md section 2.1"
+    },
+    {
+      "fn": "band_position",
+      "label": "Position in the band, %",
+      "args": [],
+      "ref_args": [],
+      "tests": [
+        "value"
+      ],
+      "formula": "(close - lower) / (upper - lower) x 100 on each bar, upper and lower of the same band instance; null at zero width (raw doubles, no epsilon)",
+      "interpretation": "0 at the lower band, 100 at the upper band, 50 at the middle; below 0 or above 100 outside the band.",
+      "misuse": "Undefined (NA NULL_AT_EVALUATION) when the band has zero width, for example on a flat window.",
+      "evidence": "report TARGET ARCHITECTURE 6.9.1 band row (changed: NA only at zero width, R14)"
+    },
+    {
+      "fn": "lag",
+      "label": "Value N sessions earlier",
+      "args": [
+        {
+          "key": "bars",
+          "type": "integer",
+          "label": "Sessions back",
+          "default": 5,
+          "min": 1,
+          "max": 260,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "ref_args": [],
+      "tests": [
+        "state",
+        "event"
+      ],
+      "formula": "x[i - bars] on the ticker's own bars; null before",
+      "interpretation": "The same series shifted back; \"rising\" is x above its own value N sessions earlier.",
+      "misuse": "Counts the ticker's own sessions, not calendar days.",
+      "evidence": "report TARGET ARCHITECTURE 6.9.1 rising rows (5 for lines, 21 for price_ma, 20 for cumulative lines)"
+    },
+    {
+      "fn": "change",
+      "label": "Change over N sessions",
+      "args": [
+        {
+          "key": "bars",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 5,
+          "min": 1,
+          "max": 260,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "ref_args": [],
+      "tests": [
+        "value",
+        "state",
+        "event"
+      ],
+      "formula": "x[i] - x[i - bars] (absolute); null when either is missing",
+      "interpretation": "Positive when the series rose over the last N sessions. On a cumulative line it is offset-invariant, so it does not depend on where history starts.",
+      "misuse": "An absolute change: compare it only with values of the same unit.",
+      "evidence": "report TARGET ARCHITECTURE 6.7 (cumulative lines offered only as change, ratio, N-bar high and level vs its own MA)"
+    },
+    {
+      "fn": "rolling_max",
+      "label": "Highest value of the last N sessions",
+      "args": [
+        {
+          "key": "length",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 252,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "ref_args": [],
+      "tests": [
+        "value",
+        "state",
+        "event"
+      ],
+      "formula": "max of x over [i - length + 1, i], today included; a missing value restarts the window (the indicators.ts roll rule)",
+      "interpretation": "The N-session high; the 52-week high is rolling_max(high, 252) (P23 a).",
+      "misuse": "Includes today, so a close can never be above rolling_max(high) on the same bar: as the right side of a price comparison it is read on the previous bar (compare_lag, derived by the lag probe).",
+      "evidence": "report TARGET ARCHITECTURE 6.8 lag probe, 6.9.1 hi52 row; TEST PLAN 10b.3 same-bar comparison lag",
+      "compare_lag": {
+        "open": {
+          "gt": 0,
+          "lt": 0
+        },
+        "high": {
+          "gt": 1,
+          "lt": 0
+        },
+        "low": {
+          "gt": 0,
+          "lt": 0
+        },
+        "close": {
+          "gt": 1,
+          "lt": 0
+        },
+        "volume": {
+          "gt": 1,
+          "lt": 0
+        }
+      }
+    },
+    {
+      "fn": "rolling_min",
+      "label": "Lowest value of the last N sessions",
+      "args": [
+        {
+          "key": "length",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 252,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "ref_args": [],
+      "tests": [
+        "value",
+        "state",
+        "event"
+      ],
+      "formula": "min of x over [i - length + 1, i], today included; a missing value restarts the window",
+      "interpretation": "The N-session low; the 52-week low is rolling_min(low, 252) (P23 a).",
+      "misuse": "Includes today, so a close can never be below rolling_min(low) on the same bar: as the right side of a price comparison it is read on the previous bar (compare_lag).",
+      "evidence": "report TARGET ARCHITECTURE 6.8 lag probe, 6.9.1 lo52 row",
+      "compare_lag": {
+        "open": {
+          "gt": 0,
+          "lt": 0
+        },
+        "high": {
+          "gt": 0,
+          "lt": 0
+        },
+        "low": {
+          "gt": 0,
+          "lt": 1
+        },
+        "close": {
+          "gt": 0,
+          "lt": 1
+        },
+        "volume": {
+          "gt": 0,
+          "lt": 1
+        }
+      }
+    },
+    {
+      "fn": "rising_run",
+      "label": "Consecutive rising sessions",
+      "args": [],
+      "ref_args": [],
+      "tests": [
+        "value",
+        "state"
+      ],
+      "formula": "number of consecutive bars ending at i with x[t] > x[t - 1]; 0 when x[i] <= x[i - 1]; null when x[i] or x[i - 1] is missing",
+      "interpretation": "The MACD histogram \"rising 3 sessions\" of the prototype is rising_run(histogram) above 2.",
+      "misuse": "Counts sessions, not size: a run of tiny increases counts as much as a run of large ones.",
+      "evidence": "report TARGET ARCHITECTURE 6.9.1 macd hup row"
+    },
+    {
+      "fn": "ma",
+      "label": "Moving average of a series",
+      "args": [
+        {
+          "key": "ma",
+          "type": "enum",
+          "label": "Average",
+          "default": "EMA",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "SMA",
+            "EMA"
+          ]
+        },
+        {
+          "key": "length",
+          "type": "integer",
+          "label": "Length",
+          "default": 20,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "ref_args": [],
+      "tests": [
+        "state",
+        "event"
+      ],
+      "formula": "indicators.ts sma (SMA) or ema (EMA, seeded with the SMA of its first n valid values) of x, the reference helpers, never a copy",
+      "interpretation": "A line above its own average is trending up; the prototype's \"above its N-session average\" for OBV, PVT and A/D is this EMA (label changed from \"average\" to \"EMA\").",
+      "misuse": "An EMA of a cumulative line is computed on full history and depends on its start (labelled, report 6.7).",
+      "evidence": "report TARGET ARCHITECTURE 6.9.1 cum row; verification/screener/audit/html_model.md section 2.2 obv"
+    },
+    {
+      "fn": "ratio",
+      "label": "Ratio of two series",
+      "args": [],
+      "ref_args": [
+        {
+          "key": "by",
+          "label": "Divided by"
+        }
+      ],
+      "tests": [
+        "value",
+        "state",
+        "event"
+      ],
+      "formula": "x / by on each bar; null where by is 0 or either is missing",
+      "interpretation": "The volume spike ratio is ratio(volume, lag(ma(volume, SMA, 20), 1)): today's volume over the average of the previous 20 sessions.",
+      "misuse": "Small denominators give extreme values.",
+      "evidence": "report TARGET ARCHITECTURE 6.9.1 volspike rows"
+    },
+    {
+      "fn": "vs_index",
+      "label": "Return minus IHSG return",
+      "args": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 63,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "ref_args": [],
+      "tests": [
+        "value"
+      ],
+      "formula": "(close[i] / close[i - window] - IHSG[i] / IHSG[i - window]) x 100 on the ticker's own bars, IHSG close aligned to the ticker's dates by datafile.asOf",
+      "interpretation": "Points by which the stock beat (positive) or lagged (negative) the index over the window.",
+      "misuse": "Not a percentile: use return_rank to compare across stocks.",
+      "evidence": "report TARGET ARCHITECTURE 6.9 rs row; verification/screener/audit/html_model.md section 2.1 rs"
+    }
+  ],
+  "metrics": [
+    {
+      "id": "hi52",
+      "group": "Technical",
+      "kind": "transform",
+      "label": "Distance from 52W high",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "(close / highest high of the last 252 sessions, today included - 1) x 100",
+      "interpretation": "Near 0: at the 52-week high; -25: 25% below it.",
+      "misuse": "Uses 252 sessions as one year (P23 a), not the prototype's 250. A stock with fewer than 252 bars has no value (NA INSUFFICIENT_HISTORY).",
+      "evidence": "verification/screener/audit/html_model.md section 2.1 hi52; report TARGET ARCHITECTURE 6.9.1 hi52 row",
+      "requires": null,
+      "decision": null,
+      "applies_to": null,
+      "short": "52W high",
+      "ref": {
+        "kind": "transform",
+        "fn": "pct_distance",
+        "of": {
+          "kind": "transform",
+          "fn": "rolling_max",
+          "of": {
+            "kind": "price",
+            "field": "high"
+          },
+          "args": {
+            "length": 252
+          }
+        },
+        "args": {}
+      },
+      "default_test": {
+        "op": "gt",
+        "value": -10,
+        "value2": 0
+      }
+    },
+    {
+      "id": "lo52",
+      "group": "Technical",
+      "kind": "transform",
+      "label": "Distance from 52W low",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "(close / lowest low of the last 252 sessions, today included - 1) x 100",
+      "interpretation": "How far the stock is above its 52-week low; 30 means 30% above it.",
+      "misuse": "Uses 252 sessions as one year (P23 a). A stock with fewer than 252 bars has no value.",
+      "evidence": "verification/screener/audit/html_model.md section 2.1 lo52; report TARGET ARCHITECTURE 6.9.1 lo52 row",
+      "requires": null,
+      "decision": null,
+      "applies_to": null,
+      "short": "52W low",
+      "ref": {
+        "kind": "transform",
+        "fn": "pct_distance",
+        "of": {
+          "kind": "transform",
+          "fn": "rolling_min",
+          "of": {
+            "kind": "price",
+            "field": "low"
+          },
+          "args": {
+            "length": 252
+          }
+        },
+        "args": {}
+      },
+      "default_test": {
+        "op": "gt",
+        "value": 30,
+        "value2": 100
+      }
+    },
+    {
+      "id": "rs",
+      "group": "Technical",
+      "kind": "transform",
+      "label": "Relative strength vs IHSG",
+      "params": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 63,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "tests": [
+        "value"
+      ],
+      "unit": "pts",
+      "formula": "(close[t] / close[t - N] - IHSG[t] / IHSG[t - N]) x 100 over N of the ticker's sessions",
+      "interpretation": "Positive: the stock beat the index over the window, in percentage points.",
+      "misuse": "Point difference, not a rank; IHSG is aligned to the ticker's dates (asOf).",
+      "evidence": "verification/screener/audit/html_model.md section 2.1 rs; report TARGET ARCHITECTURE 6.9.1 rs row",
+      "requires": null,
+      "decision": null,
+      "applies_to": null,
+      "short": "RS",
+      "ref": {
+        "kind": "transform",
+        "fn": "vs_index",
+        "of": {
+          "kind": "price",
+          "field": "close"
+        },
+        "args": {
+          "window": 63
+        }
+      },
+      "default_test": {
+        "op": "gt",
+        "value": 0,
+        "value2": 20
+      }
+    },
+    {
+      "id": "vol_ratio",
+      "group": "Technical",
+      "kind": "transform",
+      "label": "Volume vs prior 20-session average",
+      "params": [],
+      "tests": [
+        "value",
+        "event"
+      ],
+      "unit": "x",
+      "formula": "volume[t] / SMA(volume, 20)[t - 1]: today's volume over the average of the previous 20 sessions (the Backtest volspike ratio)",
+      "interpretation": "Above 1: more volume than usual; 2: twice the usual.",
+      "misuse": "The average excludes today (as the Backtest's volspike); registry RVOL (I37) includes it, so the two differ.",
+      "evidence": "verification/screener/audit/html_model.md section 2.1 volspike; report TARGET ARCHITECTURE 6.9.1 volspike lt/between/xa row",
+      "requires": null,
+      "decision": null,
+      "applies_to": null,
+      "short": "Vol ratio",
+      "ref": {
+        "kind": "transform",
+        "fn": "ratio",
+        "of": {
+          "kind": "price",
+          "field": "volume"
+        },
+        "args": {
+          "by": {
+            "kind": "transform",
+            "fn": "lag",
+            "of": {
+              "kind": "transform",
+              "fn": "ma",
+              "of": {
+                "kind": "price",
+                "field": "volume"
+              },
+              "args": {
+                "ma": "SMA",
+                "length": 20
+              }
+            },
+            "args": {
+              "bars": 1
+            }
+          }
+        }
+      },
+      "default_test": {
+        "op": "gt",
+        "value": 2,
+        "value2": 5,
+        "within": 3
+      }
+    },
+    {
+      "id": "return_rank",
+      "group": "Technical",
+      "kind": "xsection",
+      "label": "RS rank (percentile)",
+      "params": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 252,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "tests": [
+        "value"
+      ],
+      "unit": "rank",
+      "formula": "100 x (number of population returns strictly lower) / (P - 1), return = (close[t] / close[t - N] - 1) x 100 at each ticker's evaluation bar",
+      "interpretation": "Percentile of the N-session return among active, non-stale stocks without a price break (P7 a); 100 is the strongest.",
+      "misuse": "The population is fixed before any filter, so filters never move a rank; a shown stale or price-break ticker is ranked against it without joining it.",
+      "evidence": "verification/screener/audit/html_model.md section 2.1 rs_rank; report TARGET ARCHITECTURE 6.9 rs_rank (P7)",
+      "requires": null,
+      "decision": null,
+      "applies_to": null,
+      "short": "RS rank",
+      "default_test": {
+        "op": "gt",
+        "value": 70,
+        "value2": 100
+      }
+    },
+    {
+      "id": "breakout",
+      "group": "Technical",
+      "kind": "pattern",
+      "label": "Breakout above prior N-session high",
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 20,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "tests": [
+        "state",
+        "event"
+      ],
+      "unit": null,
+      "formula": "close > highest high of the previous N sessions (backtest core PRICE_ACTION breakout)",
+      "interpretation": "A close above the range of the last N sessions.",
+      "misuse": "Today's high is not in the window, so a close can exceed it; equal to the Donchian upper band read on the previous bar.",
+      "evidence": "verification/screener/audit/html_model.md section 2.1 breakout; apps/edge-bff/backtest/src/core/conditions.ts PRICE_ACTION.breakout",
+      "requires": null,
+      "decision": null,
+      "applies_to": null,
+      "default_test": {
+        "test": "event",
+        "within": 3
+      }
+    },
+    {
+      "id": "breakdown",
+      "group": "Technical",
+      "kind": "pattern",
+      "label": "Breakdown below prior N-session low",
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 20,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "tests": [
+        "state",
+        "event"
+      ],
+      "unit": null,
+      "formula": "close < lowest low of the previous N sessions (the Donchian lower band I10 at the lag the probe derives, 1)",
+      "interpretation": "A close below the range of the last N sessions.",
+      "misuse": "Symmetric to breakout; not a Backtest condition (Send to Backtest leaves it out).",
+      "evidence": "verification/screener/audit/html_model.md section 2.1 breakout dn; report TARGET ARCHITECTURE 6.9.1 breakout row",
+      "requires": null,
+      "decision": null,
+      "applies_to": null,
+      "default_test": {
+        "test": "event",
+        "within": 3
+      }
+    },
+    {
+      "id": "volspike",
+      "group": "Technical",
+      "kind": "pattern",
+      "label": "Volume spike",
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "label": "Average of",
+          "default": 20,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "threshold",
+          "type": "number",
+          "label": "Above (x average)",
+          "default": 2,
+          "min": 0,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": false,
+          "step": 0.1
+        }
+      ],
+      "tests": [
+        "state",
+        "event"
+      ],
+      "unit": null,
+      "formula": "volume / SMA(volume, N) of the previous bar > threshold (backtest core PRICE_ACTION volspike)",
+      "interpretation": "Volume well above the average of the previous N sessions.",
+      "misuse": "The average excludes today; threshold is a ratio (2 = twice the average), not a percent.",
+      "evidence": "verification/screener/audit/html_model.md section 2.1 volspike; apps/edge-bff/backtest/src/core/conditions.ts PRICE_ACTION.volspike",
+      "requires": null,
+      "decision": null,
+      "applies_to": null,
+      "default_test": {
+        "test": "state"
+      }
+    },
+    {
+      "id": "macross",
+      "group": "Technical",
+      "kind": "pattern",
+      "label": "SMA golden cross",
+      "params": [
+        {
+          "key": "fast_length",
+          "type": "integer",
+          "label": "Fast",
+          "default": 20,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "slow_length",
+          "type": "integer",
+          "label": "Slow",
+          "default": 50,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "tests": [
+        "state",
+        "event"
+      ],
+      "unit": null,
+      "formula": "SMA(fast) crosses above SMA(slow) (backtest core PRICE_ACTION macross golden_cross)",
+      "interpretation": "The fast average moved above the slow one on that bar.",
+      "misuse": "SMA only; an EMA or mixed cross is a cross between two I01 / I02 instances.",
+      "evidence": "verification/screener/audit/html_model.md section 2.1 ma_cross; apps/edge-bff/backtest/src/core/conditions.ts PRICE_ACTION.macross",
+      "requires": null,
+      "decision": null,
+      "applies_to": null,
+      "default_test": {
+        "test": "event",
+        "within": 20
+      }
+    },
+    {
+      "id": "macd_divergence",
+      "group": "Technical",
+      "kind": "pattern",
+      "label": "MACD bullish divergence",
+      "params": [
+        {
+          "key": "fast_length",
+          "type": "integer",
+          "label": "Fast",
+          "default": 12,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "slow_length",
+          "type": "integer",
+          "label": "Slow",
+          "default": 26,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "signal_length",
+          "type": "integer",
+          "label": "Signal",
+          "default": 9,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "tests": [
+        "state",
+        "event"
+      ],
+      "unit": null,
+      "formula": "a swing low (3 bars each side) lower than the previous swing low within 40 bars while the MACD line makes a higher low; flagged 3 bars after the low (backtest core bullishDivergence)",
+      "interpretation": "Price makes a lower low while momentum does not: selling pressure fading.",
+      "misuse": "Flagged with a 3-bar delay by construction (it uses no later data); a signal on the evaluation bar refers to a low 3 sessions earlier.",
+      "evidence": "verification/screener/audit/html_model.md section 2.1 macd bdiv; apps/edge-bff/backtest/src/core/conditions.ts bullishDivergence",
+      "requires": null,
+      "decision": null,
+      "applies_to": null,
+      "default_test": {
+        "test": "event",
+        "within": 10
+      }
+    },
+    {
+      "id": "squeeze",
+      "group": "Technical",
+      "kind": "pattern",
+      "label": "Bollinger squeeze",
+      "params": [
+        {
+          "key": "length",
+          "type": "integer",
+          "label": "Length",
+          "default": 20,
+          "min": 2,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "std_dev",
+          "type": "number",
+          "label": "Std dev",
+          "default": 2,
+          "min": 0.0001,
+          "max": 50,
+          "exclusive_min": false,
+          "integer": false,
+          "step": 0.1
+        },
+        {
+          "key": "lookback",
+          "type": "integer",
+          "label": "Look-back",
+          "default": 120,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "tests": [
+        "state",
+        "event"
+      ],
+      "unit": null,
+      "formula": "I29 bandwidth (length, std_dev, close, SMA basis) <= its lowest value of the last `lookback` sessions, today included",
+      "interpretation": "Bands at their narrowest of the look-back: volatility contracted, often before a larger move.",
+      "misuse": "Says nothing about the direction of the next move; combine with a breakout.",
+      "evidence": "verification/screener/audit/html_model.md section 2.1 bb squeeze; report TARGET ARCHITECTURE 6.9.1 bb squeeze row",
+      "requires": null,
+      "decision": null,
+      "applies_to": null,
+      "default_test": {
+        "test": "event",
+        "within": 15
+      }
+    },
+    {
+      "id": "stoch_cross_in_zone",
+      "group": "Technical",
+      "kind": "pattern",
+      "label": "Stochastic %K crosses above %D below the zone",
+      "params": [
+        {
+          "key": "k_length",
+          "type": "integer",
+          "label": "%K length",
+          "default": 14,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "smooth_k",
+          "type": "integer",
+          "label": "%K smoothing",
+          "default": 3,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "d_length",
+          "type": "integer",
+          "label": "%D length",
+          "default": 3,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "zone_max",
+          "type": "number",
+          "label": "%K below",
+          "default": 25,
+          "min": 0,
+          "max": 100,
+          "exclusive_min": false,
+          "integer": false,
+          "step": 1
+        }
+      ],
+      "tests": [
+        "state",
+        "event"
+      ],
+      "unit": null,
+      "formula": "I15 %K crosses above %D on a bar where %K < zone_max",
+      "interpretation": "A bullish stochastic cross while still oversold.",
+      "misuse": "zone_max defaults to 25 as the prototype coded it; its label said \"below 20\" and is corrected to the coded test (P22 item 8).",
+      "evidence": "verification/screener/audit/html_model.md section 2.1 stoch kxd_os; report UNKNOWNS P22 item 8",
+      "requires": null,
+      "decision": null,
+      "applies_to": null,
+      "default_test": {
+        "test": "event",
+        "within": 5
+      }
+    },
+    {
+      "id": "new_high",
+      "group": "Technical",
+      "kind": "pattern",
+      "label": "New N-session high of a line",
+      "params": [
+        {
+          "key": "of",
+          "type": "enum",
+          "label": "Line",
+          "default": "I40.obv",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "I40.obv",
+            "I41.pvt",
+            "I44.adl",
+            "I50.nvi",
+            "I51.pvi",
+            "close",
+            "volume"
+          ]
+        },
+        {
+          "key": "length",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 20,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "tests": [
+        "state",
+        "event"
+      ],
+      "unit": null,
+      "formula": "x > the highest x of the previous `length` sessions, on every such bar; x = the chosen bar field or registry output at its start parameters",
+      "interpretation": "The prototype's \"OBV makes an N-session high\": a line above its recent range.",
+      "misuse": "Offset-invariant on cumulative lines (it compares the line with its own recent values), so it does not depend on where history starts.",
+      "evidence": "verification/screener/audit/html_model.md section 2.2 obv high; report TARGET ARCHITECTURE 6.9.1 obv high row",
+      "requires": null,
+      "decision": null,
+      "applies_to": null,
+      "default_test": {
+        "test": "event",
+        "within": 5
+      }
+    },
+    {
+      "id": "silent",
+      "group": "Flow",
+      "kind": "pattern",
+      "label": "Silent accumulation",
+      "params": [
+        {
+          "key": "days",
+          "type": "integer",
+          "label": "Recent sessions",
+          "default": 5,
+          "min": 1,
+          "max": 60,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "length",
+          "type": "integer",
+          "label": "Baseline sessions",
+          "default": 20,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "volx",
+          "type": "number",
+          "label": "Volume x",
+          "default": 1.5,
+          "min": 0,
+          "max": 100,
+          "exclusive_min": false,
+          "integer": false,
+          "step": 0.1
+        },
+        {
+          "key": "move",
+          "type": "number",
+          "label": "Max move %",
+          "default": 3,
+          "min": 0,
+          "max": 100,
+          "exclusive_min": false,
+          "integer": false,
+          "step": 0.5
+        }
+      ],
+      "tests": [
+        "state",
+        "event"
+      ],
+      "unit": null,
+      "formula": "SMA(volume, days)[t] / SMA(volume, length)[t - days] >= volx and |close[t] / close[t - days] - 1| x 100 <= move",
+      "interpretation": "Volume picks up while price barely moves: possible quiet accumulation.",
+      "misuse": "A price-and-volume pattern only; it does not read broker data.",
+      "evidence": "verification/screener/audit/html_model.md section 2.2 silent; report TARGET ARCHITECTURE 6.9.1 silent row",
+      "requires": null,
+      "decision": null,
+      "applies_to": null,
+      "default_test": {
+        "test": "state"
+      }
+    },
+    {
+      "id": "ichimoku_above",
+      "group": "Technical",
+      "kind": "pattern",
+      "label": "Close above the Ichimoku cloud",
+      "params": [
+        {
+          "key": "tenkan",
+          "type": "integer",
+          "label": "Tenkan",
+          "default": 9,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "kijun",
+          "type": "integer",
+          "label": "Kijun",
+          "default": 26,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "span_b",
+          "type": "integer",
+          "label": "Span B",
+          "default": 52,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "tests": [
+        "state"
+      ],
+      "unit": null,
+      "formula": "close > max(span A, span B) of the cloud computed 26 bars earlier (prototype ICHI)",
+      "interpretation": "Price above the cloud: an established uptrend in Ichimoku terms.",
+      "misuse": "Not offered until the registry release adds Ichimoku to F (P6).",
+      "evidence": "verification/screener/audit/html_model.md section 2.1 ichimoku; report TARGET ARCHITECTURE 6.9.1 ichimoku row",
+      "requires": null,
+      "decision": "Ichimoku is not among the 53 registry indicators: it needs a registry release (P6, decided with the go 2026-10-28)",
+      "applies_to": null
+    },
+    {
+      "id": "ichimoku_tk_cross",
+      "group": "Technical",
+      "kind": "pattern",
+      "label": "Tenkan crosses above Kijun",
+      "params": [
+        {
+          "key": "tenkan",
+          "type": "integer",
+          "label": "Tenkan",
+          "default": 9,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "kijun",
+          "type": "integer",
+          "label": "Kijun",
+          "default": 26,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "span_b",
+          "type": "integer",
+          "label": "Span B",
+          "default": 52,
+          "min": 1,
+          "max": 1000,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "tests": [
+        "event"
+      ],
+      "unit": null,
+      "formula": "Tenkan (midpoint of 9) crosses above Kijun (midpoint of 26) (prototype ICHI)",
+      "interpretation": "A short-term Ichimoku buy signal.",
+      "misuse": "Not offered until the registry release adds Ichimoku to F (P6).",
+      "evidence": "verification/screener/audit/html_model.md section 2.1 ichimoku; report TARGET ARCHITECTURE 6.9.1 ichimoku row",
+      "requires": null,
+      "decision": "Ichimoku is not among the 53 registry indicators: it needs a registry release (P6, decided with the go 2026-10-28)",
+      "applies_to": null
+    },
+    {
+      "id": "last",
+      "group": "Universe",
+      "kind": "universe",
+      "label": "Last close",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "IDR per share",
+      "formula": "close of the ticker's evaluation bar (its last bar on or before E)",
+      "interpretation": "The price the screen evaluates at.",
+      "misuse": "A stale ticker's last close is older than E (row remark STALE).",
+      "evidence": "report TARGET ARCHITECTURE 6.7 universe attributes, 6.12; API CONTRACT 8.4 universe body",
+      "requires": null,
+      "decision": null,
+      "applies_to": null,
+      "short": "Last"
+    },
+    {
+      "id": "chg_1d_pct",
+      "group": "Universe",
+      "kind": "universe",
+      "label": "1-day change",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "(close[at] / close[at - 1] - 1) x 100",
+      "interpretation": "The last session's move.",
+      "misuse": "On an ex-date of an unadjusted action the move is distorted (row remark PRICE_BREAK).",
+      "evidence": "report TARGET ARCHITECTURE 6.7 universe attributes, 6.12; API CONTRACT 8.4 universe body",
+      "requires": null,
+      "decision": null,
+      "applies_to": null,
+      "short": "1D"
+    },
+    {
+      "id": "adv20_idr",
+      "group": "Flow",
+      "kind": "universe",
+      "label": "Average daily value (20 sessions)",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "IDR",
+      "formula": "SMA(close x volume, 20) at the evaluation bar (backtest core signals.ts liquidity)",
+      "interpretation": "Liquidity: the average rupiah traded per session over 20 sessions.",
+      "misuse": "Close x volume approximates traded value (median ratio 1.0001 to the Regular value); never broker-lagged.",
+      "evidence": "report TARGET ARCHITECTURE 6.7 universe attributes, 6.12; API CONTRACT 8.4 universe body; verification/screener/audit/fundamentals_universe.md section 4.1",
+      "requires": null,
+      "decision": null,
+      "applies_to": null,
+      "short": "ADV20",
+      "default_test": {
+        "op": "gt",
+        "value": 10000000000,
+        "value2": 100000000000
+      }
+    },
+    {
+      "id": "bars",
+      "group": "Universe",
+      "kind": "universe",
+      "label": "History length",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "sessions",
+      "formula": "number of the ticker's published bars",
+      "interpretation": "How much price history the ticker has; censored at the first price year (2018-01-02).",
+      "misuse": "Not the listing age: history before 2018 is not published.",
+      "evidence": "report TARGET ARCHITECTURE 6.7 universe attributes, 6.12; API CONTRACT 8.4 universe body",
+      "requires": null,
+      "decision": null,
+      "applies_to": null,
+      "short": "Bars"
+    },
+    {
+      "id": "index_membership",
+      "group": "Universe",
+      "kind": "universe",
+      "label": "Index membership (LQ45, IDX30, IDX80, ISSI)",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": null,
+      "formula": "effective-dated index constituents",
+      "interpretation": "Membership of a stock index on the evaluation date.",
+      "misuse": "No source exists: no table or column holds constituents.",
+      "evidence": "verification/screener/audit/fundamentals_universe.md section 4.1; report TARGET ARCHITECTURE 6.12 \"shown disabled\"",
+      "requires": {
+        "file": "index_constituents",
+        "columns": [
+          "index",
+          "ticker",
+          "from",
+          "to"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "No index constituent data exists yet (P11)."
+    },
+    {
+      "id": "listing_board",
+      "group": "Universe",
+      "kind": "universe",
+      "label": "Listing board (Main, Development)",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": null,
+      "formula": "the stock's listing board",
+      "interpretation": "Main or Development board.",
+      "misuse": "market_board (Regular, Nego, Tunai) is the trading board and must not be used for it.",
+      "evidence": "verification/screener/audit/fundamentals_universe.md section 4.1; report TARGET ARCHITECTURE 6.12 \"shown disabled\"",
+      "requires": {
+        "file": "listing_board",
+        "columns": [
+          "ticker",
+          "board"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "No listing-board data exists yet (P11)."
+    },
+    {
+      "id": "special_notation",
+      "group": "Universe",
+      "kind": "universe",
+      "label": "Special notation / FCA",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": null,
+      "formula": "IDX special notation and full call auction flags",
+      "interpretation": "Stocks under special notation.",
+      "misuse": "No source exists; the prototype's default-on filter is off (P22 item 7) so it is never a silent no-op.",
+      "evidence": "verification/screener/audit/fundamentals_universe.md section 4.1; report TARGET ARCHITECTURE 6.12 \"shown disabled\"",
+      "requires": {
+        "file": "special_notation",
+        "columns": [
+          "ticker",
+          "notation"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "No special-notation data exists yet (P11)."
+    },
+    {
+      "id": "fnet",
+      "group": "Flow",
+      "kind": "flow",
+      "label": "Foreign net value",
+      "params": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 20,
+          "min": 1,
+          "max": 60,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "board",
+          "type": "enum",
+          "label": "Board",
+          "default": "all",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "all",
+            "regular"
+          ]
+        }
+      ],
+      "tests": [
+        "value",
+        "state",
+        "event"
+      ],
+      "unit": "IDR",
+      "formula": "sum over the last D sessions of the all-board foreign investor net (F03 foreign_net_value)",
+      "interpretation": "Positive: foreign investors absorbed shares.",
+      "misuse": "Investor type, not broker domicile; rupiah amounts scale with liquidity (use fpct to compare stocks); one Nego block can dominate.",
+      "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL01",
+      "requires": {
+        "file": "flow_series",
+        "columns": [
+          "d",
+          "foreign_net_value"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "fl": "FL01",
+      "short": "Foreign net",
+      "default_test": {
+        "op": "gt",
+        "value": 0,
+        "value2": 10000000000
+      }
+    },
+    {
+      "id": "fpct",
+      "group": "Flow",
+      "kind": "flow",
+      "label": "Foreign net intensity",
+      "params": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 20,
+          "min": 1,
+          "max": 60,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "board",
+          "type": "enum",
+          "label": "Board",
+          "default": "all",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "all",
+            "regular"
+          ]
+        }
+      ],
+      "tests": [
+        "value",
+        "event"
+      ],
+      "unit": "%",
+      "formula": "100 x sum of foreign net / sum of traded value over D sessions",
+      "interpretation": "Comparable across stocks: +10 means foreign investors net took a tenth of all traded value.",
+      "misuse": "Small denominators give extremes: use with the ADV floor.",
+      "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL02",
+      "requires": {
+        "file": "flow_series",
+        "columns": [
+          "d",
+          "foreign_net_value",
+          "total_buy_value"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "fl": "FL02",
+      "short": "Foreign %"
+    },
+    {
+      "id": "fpart",
+      "group": "Flow",
+      "kind": "flow",
+      "label": "Foreign participation",
+      "params": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 20,
+          "min": 1,
+          "max": 20,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "board",
+          "type": "enum",
+          "label": "Board",
+          "default": "all",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "all",
+            "regular"
+          ]
+        }
+      ],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "100 x sum(foreign buy + foreign sell) / (2 x sum of traded value) over D sessions",
+      "interpretation": "How much of the trading involves foreign investors on either side.",
+      "misuse": "Participation is not demand.",
+      "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL03",
+      "requires": {
+        "file": "broker_window",
+        "columns": [
+          "d",
+          "b",
+          "i",
+          "m",
+          "bv",
+          "sv",
+          "bl",
+          "sl"
+        ]
+      },
+      "decision": "Phase 2b list: not in the first Phase 2 set (FLOW INDICATOR PROPOSALS 16.11 D1, decided as recommended 2026-10-28)",
+      "applies_to": null,
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "fl": "FL03"
+    },
+    {
+      "id": "fstreak",
+      "group": "Flow",
+      "kind": "flow",
+      "label": "Foreign net streak",
+      "params": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Cap (sessions)",
+          "default": 60,
+          "min": 1,
+          "max": 60,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "board",
+          "type": "enum",
+          "label": "Board",
+          "default": "all",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "all",
+            "regular"
+          ]
+        }
+      ],
+      "tests": [
+        "value",
+        "event"
+      ],
+      "unit": "sessions",
+      "formula": "signed count of consecutive sessions up to today with foreign net > 0 (positive) or < 0 (negative), capped at 60",
+      "interpretation": "Persistence of foreign demand.",
+      "misuse": "A streak of tiny amounts means little: combine with fpct.",
+      "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL04",
+      "requires": {
+        "file": "flow_series",
+        "columns": [
+          "d",
+          "foreign_net_value"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "fl": "FL04",
+      "short": "F streak",
+      "default_test": {
+        "op": "gt",
+        "value": 4
+      }
+    },
+    {
+      "id": "fsurprise",
+      "group": "Flow",
+      "kind": "flow",
+      "label": "Foreign flow surprise",
+      "params": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 20,
+          "min": 1,
+          "max": 20,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "board",
+          "type": "enum",
+          "label": "Board",
+          "default": "all",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "all",
+            "regular"
+          ]
+        }
+      ],
+      "tests": [
+        "value"
+      ],
+      "unit": "rank",
+      "formula": "percentile of the 20-session foreign net among its own previous 252 values (mid-rank rule)",
+      "interpretation": "How unusual the foreign flow is for this stock.",
+      "misuse": "A single Nego block on a quiet history gives extreme values.",
+      "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL05",
+      "requires": {
+        "file": "flow_series",
+        "columns": [
+          "d",
+          "foreign_net_value"
+        ]
+      },
+      "decision": "Phase 2b list: not in the first Phase 2 set (FLOW INDICATOR PROPOSALS 16.11 D1, decided as recommended 2026-10-28)",
+      "applies_to": null,
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "fl": "FL05"
+    },
+    {
+      "id": "broker",
+      "group": "Flow",
+      "kind": "flow",
+      "label": "Broker net (chosen broker)",
+      "params": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 5,
+          "min": 1,
+          "max": 20,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "broker",
+          "type": "enum",
+          "label": "Broker",
+          "default": "YP",
+          "exclusive_min": false,
+          "integer": false,
+          "options_source": "the published broker list (Phase 2)"
+        },
+        {
+          "key": "board",
+          "type": "enum",
+          "label": "Board",
+          "default": "all",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "all",
+            "regular"
+          ]
+        }
+      ],
+      "tests": [
+        "value",
+        "event"
+      ],
+      "unit": "IDR",
+      "formula": "sum over D sessions of one broker's net value over both investor types and all boards",
+      "interpretation": "Follows a broker known for a client base.",
+      "misuse": "A broker's net is all its clients together (YP is retail-heavy with broker type Foreign).",
+      "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL06",
+      "requires": {
+        "file": "broker_window",
+        "columns": [
+          "d",
+          "b",
+          "i",
+          "m",
+          "bv",
+          "sv",
+          "bl",
+          "sl"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "fl": "FL06",
+      "short": "Broker",
+      "default_test": {
+        "op": "gt",
+        "value": 1000000000
+      }
+    },
+    {
+      "id": "topacc",
+      "group": "Flow",
+      "kind": "flow",
+      "label": "Top-N broker net accumulation",
+      "params": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 10,
+          "min": 1,
+          "max": 20,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "top",
+          "type": "integer",
+          "label": "Top N brokers",
+          "default": 5,
+          "min": 1,
+          "max": 10,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "board",
+          "type": "enum",
+          "label": "Board",
+          "default": "all",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "all",
+            "regular"
+          ]
+        }
+      ],
+      "tests": [
+        "value",
+        "event"
+      ],
+      "unit": "IDR",
+      "formula": "B_N + S_N over D sessions (top-N net buyers plus bottom-N net sellers); N = 5 is the Backtest top5",
+      "interpretation": "A positive value means the rest of the market sold to the top buyers.",
+      "misuse": "Rupiah amounts scale with liquidity: use bandar (FL09) to compare stocks.",
+      "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL07",
+      "requires": {
+        "file": "broker_window",
+        "columns": [
+          "d",
+          "b",
+          "i",
+          "m",
+          "bv",
+          "sv",
+          "bl",
+          "sl"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "fl": "FL07",
+      "short": "Top-N net"
+    },
+    {
+      "id": "buy_intensity",
+      "group": "Flow",
+      "kind": "flow",
+      "label": "Buy intensity (top-N net buyers)",
+      "params": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 10,
+          "min": 1,
+          "max": 20,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "top",
+          "type": "integer",
+          "label": "Top N brokers",
+          "default": 3,
+          "min": 1,
+          "max": 10,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "board",
+          "type": "enum",
+          "label": "Board",
+          "default": "all",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "all",
+            "regular"
+          ]
+        }
+      ],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "100 x B_N / traded value over D sessions",
+      "interpretation": "The share of trading net absorbed by the N biggest net buyers.",
+      "misuse": "Mechanically higher for illiquid stocks: read with bandar and the ADV floor.",
+      "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL08",
+      "requires": {
+        "file": "broker_window",
+        "columns": [
+          "d",
+          "b",
+          "i",
+          "m",
+          "bv",
+          "sv",
+          "bl",
+          "sl"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "fl": "FL08"
+    },
+    {
+      "id": "bandar",
+      "group": "Flow",
+      "kind": "flow",
+      "label": "Bandar balance (top-N)",
+      "params": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 10,
+          "min": 1,
+          "max": 20,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "top",
+          "type": "integer",
+          "label": "Top N brokers",
+          "default": 3,
+          "min": 1,
+          "max": 10,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "board",
+          "type": "enum",
+          "label": "Board",
+          "default": "all",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "all",
+            "regular"
+          ]
+        }
+      ],
+      "tests": [
+        "value",
+        "state",
+        "event"
+      ],
+      "unit": "%",
+      "formula": "100 x (B_N + S_N) / traded value over D sessions; states Big Acc >= 10, Acc >= 6, Dist <= -6, Big Dist <= -10 as per-condition thresholds",
+      "interpretation": "Whether the biggest buying brokers took in more than the biggest sellers let go, as a share of all trading (P9 = FL09).",
+      "misuse": "Thresholds are a prototype heuristic with no validation; larger for illiquid stocks; a Nego block counts as accumulation.",
+      "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL09",
+      "requires": {
+        "file": "broker_window",
+        "columns": [
+          "d",
+          "b",
+          "i",
+          "m",
+          "bv",
+          "sv",
+          "bl",
+          "sl"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "fl": "FL09",
+      "short": "Bandar",
+      "default_test": {
+        "op": "between",
+        "value": 6,
+        "value2": 100
+      }
+    },
+    {
+      "id": "net_buy_hhi",
+      "group": "Flow",
+      "kind": "flow",
+      "label": "Net-buy concentration (HHI)",
+      "params": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 20,
+          "min": 1,
+          "max": 20,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "board",
+          "type": "enum",
+          "label": "Board",
+          "default": "all",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "all",
+            "regular"
+          ]
+        }
+      ],
+      "tests": [
+        "value"
+      ],
+      "unit": "x",
+      "formula": "sum over net buyers of (n_b / sum of positive n_b)^2 over D sessions",
+      "interpretation": "Near 1: one broker holds the net buying; near 0: spread over many.",
+      "misuse": "Merger-guideline levels do not apply; higher for illiquid stocks.",
+      "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL10",
+      "requires": {
+        "file": "broker_window",
+        "columns": [
+          "d",
+          "b",
+          "i",
+          "m",
+          "bv",
+          "sv",
+          "bl",
+          "sl"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "fl": "FL10"
+    },
+    {
+      "id": "conc_gap",
+      "group": "Flow",
+      "kind": "flow",
+      "label": "Buy-vs-sell concentration gap",
+      "params": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 20,
+          "min": 1,
+          "max": 20,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "board",
+          "type": "enum",
+          "label": "Board",
+          "default": "all",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "all",
+            "regular"
+          ]
+        }
+      ],
+      "tests": [
+        "value"
+      ],
+      "unit": "x",
+      "formula": "HHI of gross buys - HHI of gross sells over D sessions",
+      "interpretation": "Few buyers absorbing from many sellers when positive.",
+      "misuse": "Small values dominated by large retail brokers.",
+      "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL11",
+      "requires": {
+        "file": "broker_window",
+        "columns": [
+          "d",
+          "b",
+          "i",
+          "m",
+          "bv",
+          "sv",
+          "bl",
+          "sl"
+        ]
+      },
+      "decision": "Phase 2b list: not in the first Phase 2 set (FLOW INDICATOR PROPOSALS 16.11 D1, decided as recommended 2026-10-28)",
+      "applies_to": null,
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "fl": "FL11"
+    },
+    {
+      "id": "breadth",
+      "group": "Flow",
+      "kind": "flow",
+      "label": "Broker breadth",
+      "params": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 20,
+          "min": 1,
+          "max": 20,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "board",
+          "type": "enum",
+          "label": "Board",
+          "default": "all",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "all",
+            "regular"
+          ]
+        }
+      ],
+      "tests": [
+        "value",
+        "event"
+      ],
+      "unit": "x",
+      "formula": "buyers / (buyers + sellers) counted on each broker's D-session net (zero nets left out)",
+      "interpretation": "The share of active brokers that were net buyers; liquidity-neutral.",
+      "misuse": "Ambiguous alone: read with bandar.",
+      "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL12",
+      "requires": {
+        "file": "broker_window",
+        "columns": [
+          "d",
+          "b",
+          "i",
+          "m",
+          "bv",
+          "sv",
+          "bl",
+          "sl"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "fl": "FL12"
+    },
+    {
+      "id": "bavg",
+      "group": "Flow",
+      "kind": "flow",
+      "label": "Top-buyer cost distance",
+      "params": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 10,
+          "min": 1,
+          "max": 20,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "top",
+          "type": "integer",
+          "label": "Top N brokers",
+          "default": 3,
+          "min": 1,
+          "max": 10,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "board",
+          "type": "enum",
+          "label": "Board",
+          "default": "regular",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "all",
+            "regular"
+          ]
+        }
+      ],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "100 x (close / VWAP - 1), VWAP = sum of buy value / (sum of buy lots x 100) of the top-N net buyers over D sessions",
+      "interpretation": "Near 0: price is at the top buyers' cost.",
+      "misuse": "On all boards a Nego price can be far from the market, so it defaults to Regular (D7).",
+      "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL13",
+      "requires": {
+        "file": "broker_window",
+        "columns": [
+          "d",
+          "b",
+          "i",
+          "m",
+          "bv",
+          "sv",
+          "bl",
+          "sl"
+        ]
+      },
+      "decision": "Phase 2b list: not in the first Phase 2 set (FLOW INDICATOR PROPOSALS 16.11 D1, decided as recommended 2026-10-28)",
+      "applies_to": null,
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "fl": "FL13"
+    },
+    {
+      "id": "dominant_persistence",
+      "group": "Flow",
+      "kind": "flow",
+      "label": "Dominant-buyer persistence",
+      "params": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 20,
+          "min": 1,
+          "max": 20,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "board",
+          "type": "enum",
+          "label": "Board",
+          "default": "all",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "all",
+            "regular"
+          ]
+        }
+      ],
+      "tests": [
+        "value"
+      ],
+      "unit": "x",
+      "formula": "share of the last D sessions on which the biggest net buyer was buying",
+      "interpretation": "Steady buying every session (1.0) versus one or two block days.",
+      "misuse": "Says nothing about size.",
+      "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL14",
+      "requires": {
+        "file": "broker_window",
+        "columns": [
+          "d",
+          "b",
+          "i",
+          "m",
+          "bv",
+          "sv",
+          "bl",
+          "sl"
+        ]
+      },
+      "decision": "Phase 2b list: not in the first Phase 2 set (FLOW INDICATOR PROPOSALS 16.11 D1, decided as recommended 2026-10-28)",
+      "applies_to": null,
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "fl": "FL14"
+    },
+    {
+      "id": "acc_days",
+      "group": "Flow",
+      "kind": "flow",
+      "label": "Accumulation-day ratio",
+      "params": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 20,
+          "min": 1,
+          "max": 20,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "top",
+          "type": "integer",
+          "label": "Top N brokers",
+          "default": 3,
+          "min": 1,
+          "max": 10,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "board",
+          "type": "enum",
+          "label": "Board",
+          "default": "all",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "all",
+            "regular"
+          ]
+        }
+      ],
+      "tests": [
+        "value"
+      ],
+      "unit": "x",
+      "formula": "share of the last D sessions with a daily top-N balance above x",
+      "interpretation": "A steady accumulation versus one large day.",
+      "misuse": "Daily balances are noisy.",
+      "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL15",
+      "requires": {
+        "file": "broker_window",
+        "columns": [
+          "d",
+          "b",
+          "i",
+          "m",
+          "bv",
+          "sv",
+          "bl",
+          "sl"
+        ]
+      },
+      "decision": "Phase 2b list: not in the first Phase 2 set (FLOW INDICATOR PROPOSALS 16.11 D1, decided as recommended 2026-10-28)",
+      "applies_to": null,
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "fl": "FL15"
+    },
+    {
+      "id": "freq",
+      "group": "Flow",
+      "kind": "flow",
+      "label": "Trade-count spike",
+      "params": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 20,
+          "min": 1,
+          "max": 40,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "board",
+          "type": "enum",
+          "label": "Board",
+          "default": "all",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "all",
+            "regular"
+          ]
+        }
+      ],
+      "tests": [
+        "value",
+        "event"
+      ],
+      "unit": "x",
+      "formula": "trades today / mean trades of the previous N sessions (buy_freq summed over brokers)",
+      "interpretation": "Attention or news: unusually many trades.",
+      "misuse": "Counts trades, not value.",
+      "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL16",
+      "requires": {
+        "file": "broker_window",
+        "columns": [
+          "d",
+          "b",
+          "i",
+          "m",
+          "bv",
+          "sv",
+          "bl",
+          "sl",
+          "buy_freq",
+          "sell_freq"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "fl": "FL16",
+      "short": "Freq x",
+      "default_test": {
+        "op": "gt",
+        "value": 2.5,
+        "within": 3
+      }
+    },
+    {
+      "id": "trade_size_change",
+      "group": "Flow",
+      "kind": "flow",
+      "label": "Average trade size change",
+      "params": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Recent sessions",
+          "default": 5,
+          "min": 1,
+          "max": 20,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        },
+        {
+          "key": "board",
+          "type": "enum",
+          "label": "Board",
+          "default": "regular",
+          "exclusive_min": false,
+          "integer": false,
+          "options": [
+            "all",
+            "regular"
+          ]
+        }
+      ],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "100 x (value per trade over 5 sessions / value per trade over the 20 before - 1)",
+      "interpretation": "Larger tickets suggest larger participants.",
+      "misuse": "On all boards a Nego block dominates, so it defaults to Regular (D7).",
+      "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL17",
+      "requires": {
+        "file": "broker_window",
+        "columns": [
+          "d",
+          "b",
+          "i",
+          "m",
+          "bv",
+          "sv",
+          "bl",
+          "sl",
+          "buy_freq",
+          "sell_freq"
+        ]
+      },
+      "decision": "Phase 2b list: not in the first Phase 2 set (FLOW INDICATOR PROPOSALS 16.11 D1, decided as recommended 2026-10-28)",
+      "applies_to": null,
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "fl": "FL17"
+    },
+    {
+      "id": "crossing_share",
+      "group": "Flow",
+      "kind": "flow",
+      "label": "Crossing share (Nego + Tunai)",
+      "params": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 20,
+          "min": 1,
+          "max": 60,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "tests": [
+        "value",
+        "event"
+      ],
+      "unit": "%",
+      "formula": "100 x Nego and Tunai value / all-board value over D sessions",
+      "interpretation": "How much trading went through negotiated deals.",
+      "misuse": "A crossing is neither accumulation nor distribution by itself.",
+      "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL18",
+      "requires": {
+        "file": "flow_series",
+        "columns": [
+          "d",
+          "nego_tunai_value",
+          "total_buy_value"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "fl": "FL18"
+    },
+    {
+      "id": "inst_retail",
+      "group": "Flow",
+      "kind": "flow",
+      "label": "Institutional vs retail broker net",
+      "params": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 20,
+          "min": 1,
+          "max": 60,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "100 x (institutional-heavy net - retail-heavy net) / traded value over D sessions",
+      "interpretation": "Institutions in, retail out when positive.",
+      "misuse": "Broker class is current-state (not point-in-time): current date only.",
+      "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL19",
+      "requires": {
+        "file": "flow_series",
+        "columns": [
+          "d",
+          "institutional_net_value",
+          "retail_net_value"
+        ]
+      },
+      "decision": "Phase 2b list: not in the first Phase 2 set (FLOW INDICATOR PROPOSALS 16.11 D1, decided as recommended 2026-10-28)",
+      "applies_to": null,
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "fl": "FL19"
+    },
+    {
+      "id": "insider_net",
+      "group": "Flow",
+      "kind": "flow",
+      "label": "Insider and major-holder net change",
+      "params": [
+        {
+          "key": "window",
+          "type": "integer",
+          "label": "Sessions",
+          "default": 20,
+          "min": 1,
+          "max": 60,
+          "exclusive_min": false,
+          "integer": true,
+          "step": 1
+        }
+      ],
+      "tests": [
+        "value",
+        "event"
+      ],
+      "unit": "IDR",
+      "formula": "insider BUY value - SELL value with transaction date in the last D sessions",
+      "interpretation": "Insiders buying their own stock.",
+      "misuse": "Reports come later than the transaction date: not point-in-time.",
+      "evidence": "report FLOW INDICATOR PROPOSALS (PHASE 2) 16.5 FL20",
+      "requires": {
+        "file": "actions",
+        "columns": [
+          "insider"
+        ]
+      },
+      "decision": "Phase 2b list: not in the first Phase 2 set (FLOW INDICATOR PROPOSALS 16.11 D1, decided as recommended 2026-10-28)",
+      "applies_to": null,
+      "unavailable_reason": "Flow metrics arrive with Phase 2 (all boards by default, P8).",
+      "fl": "FL20"
+    },
+    {
+      "id": "cap",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "Market cap",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "IDR",
+      "formula": "close x shares outstanding on the same split basis",
+      "interpretation": "Company size.",
+      "misuse": "Shares must be on the price's split basis; EXEC-MCAP waits for its go.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#1)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "cap"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "Market cap waits for EXEC-MCAP (planned, awaiting go) and its bucket decision (P11)."
+    },
+    {
+      "id": "pe",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "P/E",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "x",
+      "formula": "price / EPS (TTM or FY)",
+      "interpretation": "Price paid per rupiah of earnings.",
+      "misuse": "A loss gives no meaningful P/E; EPS must be from reports published by the evaluation date.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#2)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "pe"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "pb",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "P/B",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "x",
+      "formula": "price / book value per share (equity attributable to the parent)",
+      "interpretation": "Price relative to book value.",
+      "misuse": "Equity from the latest published report only.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#3)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "pb"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "peg",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "PEG",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "x",
+      "formula": "P/E / 3-year EPS CAGR",
+      "interpretation": "P/E adjusted for growth.",
+      "misuse": "Needs 4 fiscal years of EPS kept as vintages.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#4)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "peg"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "evEbitda",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "EV/EBITDA",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "x",
+      "formula": "(market cap + debt - cash + minorities) / EBITDA",
+      "interpretation": "Valuation independent of capital structure.",
+      "misuse": "Not meaningful for banks.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#5)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "evEbitda"
+        ]
+      },
+      "decision": null,
+      "applies_to": "Industry != Banks",
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "divYield",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "Dividend yield",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "trailing 12-month cash dividends per share (by ex-date) / close x 100",
+      "interpretation": "Cash return from dividends.",
+      "misuse": "Amounts and price must be on the same split basis (P11: NA MIXED_ADJUSTMENT_BASIS across a price-affecting action).",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#6)",
+      "requires": {
+        "file": "dividends",
+        "columns": [
+          "divYield"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "Dividends come with Phase 2, after validation against an independent sample and the adjustment-basis rule (P11)."
+    },
+    {
+      "id": "payout",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "Payout ratio",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "dividends / net income x 100",
+      "interpretation": "Share of earnings paid out.",
+      "misuse": "Needs net income from published reports.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#7)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "payout"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "divYears",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "Years of dividends",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "years",
+      "formula": "number of calendar years with a cash dividend ex-date before the evaluation date",
+      "interpretation": "Dividend track record.",
+      "misuse": "Consecutive or total years is a decision (P11).",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#8)",
+      "requires": {
+        "file": "dividends",
+        "columns": [
+          "divYears"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "Dividends come with Phase 2, after validation (P11)."
+    },
+    {
+      "id": "roe",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "ROE",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "net income (TTM) / average equity x 100",
+      "interpretation": "Return on shareholders' equity.",
+      "misuse": "Two balance sheets and TTM income as published by the evaluation date.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#9)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "roe"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "roa",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "ROA",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "net income (TTM) / average assets x 100",
+      "interpretation": "Return on assets.",
+      "misuse": "As ROE.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#10)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "roa"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "roic",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "ROIC",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "NOPAT / invested capital x 100",
+      "interpretation": "Return on invested capital.",
+      "misuse": "Not meaningful for banks.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#11)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "roic"
+        ]
+      },
+      "decision": null,
+      "applies_to": "Industry != Banks",
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "netMargin",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "Net margin",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "net income / revenue x 100 (TTM)",
+      "interpretation": "Profit per rupiah of revenue.",
+      "misuse": "Bank \"revenue\" needs its own definition.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#12)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "netMargin"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "grossMargin",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "Gross margin",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "gross profit / revenue x 100 (TTM)",
+      "interpretation": "Pricing power.",
+      "misuse": "Not defined for Financials.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#13)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "grossMargin"
+        ]
+      },
+      "decision": null,
+      "applies_to": "Sector != Financials",
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "revG",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "Revenue growth YoY",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "(revenue / revenue a year earlier - 1) x 100",
+      "interpretation": "Top-line growth.",
+      "misuse": "Both periods as published by the evaluation date.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#14)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "revG"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "epsG",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "EPS growth YoY",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "(EPS / EPS a year earlier - 1) x 100",
+      "interpretation": "Earnings growth.",
+      "misuse": "A loss in either period makes it not meaningful.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#15)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "epsG"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "epsGq",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "EPS growth, latest quarter YoY",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "(quarter EPS / same quarter a year earlier - 1) x 100, quarters de-cumulated",
+      "interpretation": "Recent earnings momentum.",
+      "misuse": "IDX interim reports are cumulative: quarters must be de-cumulated.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#16)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "epsGq"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "epsG3y",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "EPS CAGR 3Y",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "((EPS / EPS 3 years earlier)^(1/3) - 1) x 100",
+      "interpretation": "Sustained earnings growth.",
+      "misuse": "Needs 4 fiscal years as published.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#17)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "epsG3y"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "der",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "Debt / equity",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "x",
+      "formula": "interest-bearing debt (or total liabilities) / equity",
+      "interpretation": "Leverage.",
+      "misuse": "Not meaningful for banks; its definition is a decision.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#18)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "der"
+        ]
+      },
+      "decision": null,
+      "applies_to": "Industry != Banks",
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "curr",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "Current ratio",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "x",
+      "formula": "current assets / current liabilities",
+      "interpretation": "Short-term liquidity.",
+      "misuse": "Not defined for Financials.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#19)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "curr"
+        ]
+      },
+      "decision": null,
+      "applies_to": "Sector != Financials",
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "intCov",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "Interest coverage",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "x",
+      "formula": "EBIT / interest expense (TTM)",
+      "interpretation": "Ability to service debt.",
+      "misuse": "Not meaningful for banks.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#20)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "intCov"
+        ]
+      },
+      "decision": null,
+      "applies_to": "Industry != Banks",
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "fcfYield",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "FCF yield",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "(operating cash flow - capex) / market cap x 100 (TTM)",
+      "interpretation": "Cash generation relative to price.",
+      "misuse": "Needs market cap (EXEC-MCAP).",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#21)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "fcfYield"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "piotroski",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "Piotroski F-score (0-9)",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "x",
+      "formula": "nine binary tests on two fiscal years (profitability, leverage, efficiency)",
+      "interpretation": "Improving fundamentals score high.",
+      "misuse": "Two tests are undefined for banks.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#22)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "piotroski"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "altman",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "Altman Z-score",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "x",
+      "formula": "1.2 WC/TA + 1.4 RE/TA + 3.3 EBIT/TA + 0.6 MVE/TL + 1.0 Sales/TA",
+      "interpretation": "Bankruptcy risk (higher is safer).",
+      "misuse": "Not defined for Financials.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#23)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "altman"
+        ]
+      },
+      "decision": null,
+      "applies_to": "Sector != Financials",
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "grahamRatio",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "Price / Graham number",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "x",
+      "formula": "sqrt(P/E x P/B / 22.5)",
+      "interpretation": "Below 1: inside Graham's value bound.",
+      "misuse": "Inherits the P/E and P/B caveats.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#24)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "grahamRatio"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "magicRank",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "Magic Formula rank",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "rank",
+      "formula": "rank of earnings yield + rank of ROIC over the ranking population",
+      "interpretation": "Greenblatt's cheap-and-good ranking.",
+      "misuse": "The prototype ranked EV/EBITDA instead of EBIT/EV and before the universe filter; the ranking universe is a decision.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#25)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "magicRank"
+        ]
+      },
+      "decision": null,
+      "applies_to": "Sector != Financials",
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "freeFloat",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "Free float",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "float shares / shares outstanding x 100",
+      "interpretation": "Tradable share of the company.",
+      "misuse": "Not in the EXEC-MCAP plan.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#26)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "freeFloat"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "foreignOwn",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "Foreign ownership",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "shares held by foreign investors / shares outstanding x 100 (a registry such as KSEI)",
+      "interpretation": "Foreign holding level.",
+      "misuse": "Broker foreign flow is not ownership.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#27)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "foreignOwn"
+        ]
+      },
+      "decision": null,
+      "applies_to": null,
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "nim",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "NIM (banks)",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "net interest income / average earning assets x 100",
+      "interpretation": "Bank lending margin.",
+      "misuse": "Banks only.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#28)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "nim"
+        ]
+      },
+      "decision": null,
+      "applies_to": "Industry = Banks",
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "npl",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "Gross NPL (banks)",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "non-performing loans / gross loans x 100",
+      "interpretation": "Loan quality.",
+      "misuse": "Banks only; gross or net is a decision.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#29)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "npl"
+        ]
+      },
+      "decision": null,
+      "applies_to": "Industry = Banks",
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "car",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "CAR (banks)",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "capital / risk-weighted assets x 100 (capital-adequacy disclosure)",
+      "interpretation": "Bank capital buffer.",
+      "misuse": "Banks only; not a standard statement line.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#30)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "car"
+        ]
+      },
+      "decision": null,
+      "applies_to": "Industry = Banks",
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "casa",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "CASA (banks)",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "(current + savings accounts) / total deposits x 100",
+      "interpretation": "Cheap funding share.",
+      "misuse": "Banks only.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#31)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "casa"
+        ]
+      },
+      "decision": null,
+      "applies_to": "Industry = Banks",
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    },
+    {
+      "id": "ldr",
+      "group": "Fundamental",
+      "kind": "universe",
+      "label": "LDR (banks)",
+      "params": [],
+      "tests": [
+        "value"
+      ],
+      "unit": "%",
+      "formula": "loans / deposits x 100",
+      "interpretation": "Funding usage.",
+      "misuse": "Banks only; the regulator's variant may differ.",
+      "evidence": "report APPENDIX C.3; verification/screener/audit/fundamentals_universe.md section 3.1 (#32)",
+      "requires": {
+        "file": "fundamentals",
+        "columns": [
+          "ldr"
+        ]
+      },
+      "decision": null,
+      "applies_to": "Industry = Banks",
+      "unavailable_reason": "No fundamental data source exists yet; fundamentals wait for a source and their own decision (P11)."
+    }
+  ]
+}

@@ -8516,6 +8516,9 @@ diatas (P1-P4 dan P12). / BIsa pakai agents sesuai requirement. Tidak usah pakai
     P10 (a) evaluasi pada tanggal as-of broker, berlabel.
   - **Belum diketahui, harus dijawab sebelum user eksternal:** izin data (apakah harga, broker summary Stockbit dan event boleh
     ditampilkan ke banyak user eksternal; AUDIT.md 6d, E6).
+- **Batas penyimpanan P12 (nilai awal, 2026-10-28):** 50 saved screens dan 50 My metrics per owner, 500 ticker per
+  watchlist (konstanta edge-bff; preseden `PIN_LIMIT` 500; 50 dipilih agar semua saved screen muat dalam satu panggilan
+  counts). Disebutkan ke user; bisa diubah.
 
 ### Riwayat persetujuan dan keputusan (dipindah dari PLAN.md SCREENER)
 
