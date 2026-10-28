@@ -2884,7 +2884,7 @@ change yet.
   `tests/test_terminal.py` (gateway, tidak berubah; pytest tidak terpasang di container).
 - **Pelajaran:** sebelum menyambung sinkronisasi dua arah, isi chart baru dengan sumbu waktu yang sama dan tahan arah
   balik sampai rentang induk diterapkan.
-- **Status:** RESOLVED setelah deploy edge-bff (RAILWAY_CHANGELOG).
+- **Status:** RESOLVED; live sejak edge-bff `04248ae3` (`main` `54b198a`), aset terminal = build (RAILWAY_CHANGELOG).
 
 ### EXEC-TERMINAL-BS-SIDE — Broker summary kiri-kanan, Alt+B, crosshair biru (2026-10-28)
 

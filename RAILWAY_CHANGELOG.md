@@ -4933,3 +4933,12 @@ page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: 
   chart). No variable, database or other service changed.
 - Verified: the live `/terminal-app/` serves `assets/index-BEOCbHT-.js`, the same build checked locally against live
   data (`verification/terminal_api/bs_side_live_check.py`, WIFI).
+
+## 2026-10-28 — edge-bff `04248ae3` (EXEC-TERMINAL-ASSETS)
+
+- Service edge-bff, environment dev, from GitHub `main` `54b198a` (auto-deploy). Status SUCCESS.
+- Change: Terminal front-end only (added assets from the ticker search, max 2; legend and settings; a Flow Timeline per
+  asset; Brush and Text on Flow charts). No variable, database or other service changed. Before the push: Railway
+  accepting deploys (last edge-bff deployment SUCCESS), no active EDGE run in market-ai-orc logs.
+- Verified: the live `/terminal-app/` serves `assets/index-DN7dbRLJ.js`, the same build checked locally
+  (`verification/terminal_api/assets_check/`); `/ready` 200.
