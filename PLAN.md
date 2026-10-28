@@ -925,3 +925,17 @@ cost wise." Lalu atas pertanyaan P29 (siapa "banyak user"): "External / Ini term
   kuota berbeda per user; izin data untuk tampilan ke user eksternal (harga, broker summary Stockbit, corporate action,
   insider); target jumlah user harian dan user bersamaan; apakah AI EDGE (chat) juga terbuka untuk user eksternal dan
   anggarannya per user.
+
+**Rencana disusun, 2026-10-28 (read-only; belum "go"):** `verification/edge_multiuser/AUDIT.md` (rencana lengkap, enam tahap,
+model biaya, keputusan MU1-MU26) dan ringkasan `verification/edge_multiuser/RINGKASAN.md`; bukti per area di folder yang sama.
+- **Temuan utama:** chat AI (Monitor) memproses satu pesan untuk semua user (rata-rata 100-200 s per run); Backtest satu job
+  untuk semua user, urut kedatangan; satu akun terminal untuk semua user dengan kuota dimatikan sementara; mode "manual" bisa
+  memperlihatkan pertanyaan user lain begitu ada user kedua (M259 terkait); pembatas salah sandi berbagi alamat proxy; tidak
+  ada anggaran AI per user; izin data per sumber belum tercatat.
+- **Tahap:** (1) pengamanan, (2) akun user dengan undangan admin, `edge-private` menjadi admin, (3) akun terminal per user
+  plus akun layanan worker, (4) keadilan dan anggaran per user, (5) privasi dan izin data, (6) siap luncur.
+- **Biaya (perkiraan):** sekarang sekitar USD 33/bulan; sekitar USD 115 (10 user), 415 (50 user), 1.445 (200 user) per bulan
+  dengan chat AI; tanpa chat AI sekitar USD 50, 80, 140.
+- **Pertanyaan paling mendesak:** MU1 (setujui rencana, "go" Tahap 1 saja), MU2 (izin data tertulis dari TradingView, Stockbit,
+  IDX/KSEI sebelum user eksternal), MU5 (perkiraan jumlah user), MU6 (chat AI untuk user eksternal), MU20 (environment
+  produksi sebelum peluncuran terbuka).
