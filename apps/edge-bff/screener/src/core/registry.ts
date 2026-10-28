@@ -51,6 +51,8 @@ export interface ScreenerOutput {
 export interface OracleRow { output: string; params: ParamMap; table: string; column?: string; expr?: string; columns?: string[] }
 export interface ScreenerIndicator {
   id: string; key: string; name: string; category: string; short: string | null; formula_version: string;
+  /** one plain-English line (screener-overlay.json): the catalog's tooltip and search text */
+  description: string;
   params: ScreenerParam[];
   /** The start configuration, complete: the registry defaults, with each parameter's `start` where the registry default
       is not offered (I43: anchor Week). A new card opens with it and the snapshot pre-warms it (report 6.7); the derived
@@ -103,6 +105,7 @@ export function registryProblems(): string[] {
         out.push(`${s.id}.${p.key}: start must be an offered option exactly when the registry default is not offered`);
     }
     if (s.default_offered !== s.params.every(p => p.start === undefined)) out.push(`${s.id}: default_offered disagrees with its parameters`);
+    if (typeof s.description !== 'string' || !s.description.trim()) out.push(`${s.id}: description is missing (screener-overlay.json)`);
   }
   return out;
 }
@@ -270,7 +273,7 @@ export function catalogIndicator(ind: ScreenerIndicator, opts: ParamOptions): Ca
     id: ind.id, key: ind.key, name: ind.name, category: ind.category, synonyms: ind.overlay.synonyms,
     formula_version: ind.formula_version, params, outputs, history_class: ind.history_class, cost_class: ind.cost_class,
     overlay: { shape: ind.overlay.shape, default_test: ind.overlay.default_test },
-    default_offered: ind.default_offered,
+    default_offered: ind.default_offered, short: ind.short, description: ind.description,
   };
 }
 export const catalogIndicators = (opts: ParamOptions): CatalogIndicator[] => INDICATORS.map(r => catalogIndicator(r, opts));

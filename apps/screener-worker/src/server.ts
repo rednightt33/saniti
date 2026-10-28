@@ -13,7 +13,7 @@
    GET  /v1/universe   every listed stock's attributes and remarks, ETag
    POST /v1/run        RunRequest -> RunResponse (gzip); POST /v1/preview PreviewRequest -> PreviewResponse (gzip);
    POST /v1/counts     CountsRequest -> CountsResponse (gzip); POST /v1/validate {schema_version, definition} ->
-                       {valid, definition_hash, normalized}
+                       {valid, definition_hash, normalized, versions}
    Versions (6d.4): data_version pins run, counts and preview to a snapshot: the current one, or the previous one for
    SCREENER_PREVIOUS_GRACE_S after a swap; a version older than both answers 409 DATA_VERSION_CHANGED; one the replica
    has not loaded yet (terminal-api names a newer publication) 409 DATA_VERSION_PENDING, which edge-bff retries.
@@ -159,7 +159,6 @@ const budgetRefusal = (what: string, e: Estimate, max: number) => refuse('LIMIT_
 
 export interface AppOptions {
   engine?: Engine;                       // tests
-  threadEngine?: string;                 // tests: thread.ts ThreadData.engine
   metrics?: MetricsCatalog; presets?: PresetDefinition[];
   pollMs?: number;
   now?: () => number;
@@ -182,8 +181,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
   const { fetch: _f, log: _l, ...terminal } = cfg.terminal;
   const script = new URL('./thread.ts', import.meta.url);
   const budget = new OwnerBudget(L.owner_cpu_ms, now);
-  const engineData = opts.threadEngine ? { engine: opts.threadEngine } : {};
-  const pool = new Pool({ threads: cfg.threads, queue: L.queue, ownerInflight: L.owner_inflight, quantumMs: L.max_cpu_ms / 4, script, data: { env, terminal: null, ...engineData }, budget });
+  const pool = new Pool({ threads: cfg.threads, queue: L.queue, ownerInflight: L.owner_inflight, quantumMs: L.max_cpu_ms / 4, script, data: { env, terminal: null }, budget });
   const results = new ResultCache(cacheShare(cfg));
   const counts = new Map<string, { match_count: number; near_count: number; sid: string }>();
   const key = Buffer.from(cfg.workerKey);
@@ -214,7 +212,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
   const host: RefreshHost = {
     held: (): Held | null => current && { finished_at: current.finished_at, files: current.files, refHash: current.refHash, price_data: current.price_data },
     async build(input) {
-      builder = pool.builder('builder', { role: 'builder', env, terminal, ...engineData });
+      builder = pool.builder('builder', { role: 'builder', env, terminal });
       const task: BuildTask = { kind: 'build', files: input.files, ref: input.ref, state: input.state, engine: engineVersions, tailLength: TAIL, presets: presetDefs };
       const { done } = await builder.run(task);
       const out = await onBuilder(() => done) as { desc: SnapshotDesc; entries: TickerEntry[]; stats: BuildStats; download_ms: number; decode_ms: number; download_bytes: number };
@@ -307,7 +305,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
       before the swap. */
   async function presets(s: Snap): Promise<CatalogPreset[]> {
     return Promise.all(presetDefs.map(async (p): Promise<CatalogPreset> => {
-      const base = { id: p.id, category: p.category, name: p.name, why: p.why, definition: p.definition };
+      const base = { id: p.id, category: p.category, name: p.name, why: p.why, definition: p.definition, ...(p.view ? { view: p.view } : {}) };
       const a = presetAvailability(p, s.availability, metrics);
       if (a.availability !== 'AVAILABLE') return { ...base, availability: a.availability, reason: a.reason, match_count: null, near_count: null, unavailable_legs: a.unavailable_legs };
       try {
@@ -394,9 +392,11 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
     if (path === '/v1/validate') {
       allow('POST');
       const e = validateEnvelope(parseJson(raw));
-      if (!current) throw notReady();
-      const n = await engine.normalize(e.definition, current);
-      return sendJson(res, 200, { valid: true, definition_hash: n.hash, normalized: n.normalized });
+      const s = current;
+      if (!s) throw notReady();
+      const n = await engine.normalize(e.definition, s);
+      // versions (additive): the registries the definition was checked against, so edge-bff stores them with the item
+      return sendJson(res, 200, { valid: true, definition_hash: n.hash, normalized: n.normalized, versions: { ...s.desc.versions } });
     }
     if (path === '/v1/run') {
       allow('POST');
@@ -517,7 +517,7 @@ export function createApp(cfg: Config, opts: AppOptions = {}): WorkerApp {
     let size = 0, over = false;
     req.on('data', (c: Buffer) => { if (!keep || over) return; size += c.length; if (size > L.max_request_bytes) { over = true; parts.length = 0 } else parts.push(c) });
     req.on('end', () => {
-      if (over) return failed(refuse('REQUEST_TOO_LARGE', `The request has more than ${L.max_request_bytes} bytes: remove conditions or filters.`, 'body', { limit: 'max_request_bytes', allowed: L.max_request_bytes }));
+      if (over) return failed(refuse('REQUEST_TOO_LARGE', `The request has more than ${L.max_request_bytes} bytes: remove conditions or filters.`, 'body', { limit: 'request_bytes', allowed: L.max_request_bytes }));
       route(req, res, path, keep && parts.length ? Buffer.concat(parts) : null, performance.now()).catch(failed);
     });
     req.on('error', () => res.destroy());

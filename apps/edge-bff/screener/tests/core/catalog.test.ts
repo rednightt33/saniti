@@ -82,6 +82,25 @@ describe('presets.json', () => {
     expect([status.qflow.availability, status.qflow.unavailable_legs]).toEqual(['REQUIRES_DATA', ['a', 'b', 'c']]);      // the MA50 leg is available
     expect([status.bavg.availability, status.bavg.unavailable_legs]).toEqual(['REQUIRES_DECISION', ['a', 'b']]);
     expect(status.magic.unavailable_legs).toEqual(['a', 'metric_filters[0]']);
-    for (const p of PRESETS.presets) expect(Object.keys(p).sort()).toEqual(['category', 'definition', 'id', 'name', 'why']);
+    for (const p of PRESETS.presets) expect(Object.keys(p).filter(k => k !== 'view').sort()).toEqual(['category', 'definition', 'id', 'name', 'why']);
+  });
+  it('carries the prototype\'s default sort of the eight presets that had one (page O2), as a sort the page offers', () => {
+    const sorts = Object.fromEntries(PRESETS.presets.filter(p => p.view).map(p => [p.id, p.view!.sort]));
+    expect(sorts).toEqual({
+      bigacc: { key: 'c:a', dir: 'desc' }, fstreak: { key: 'c:a', dir: 'desc' }, freq: { key: 'c:a', dir: 'desc' }, follow: { key: 'c:a', dir: 'desc' },
+      oversold: { key: 'c:b', dir: 'asc' }, piotroski: { key: 'c:a', dir: 'desc' }, magic: { key: 'c:a', dir: 'asc' }, dividend: { key: 'c:a', dir: 'desc' },
+    });
+    // oversold sorts by its RSI leg (the prototype's c1), the lowest RSI first
+    const oversold = PRESETS.presets.find(p => p.id === 'oversold')!;
+    expect((oversold.definition.conditions.find(c => c.id === 'b')!.test as { metric: { indicator: string } }).metric.indicator).toBe('I13');
+    // a sort on a condition the preset does not have, or another direction, is refused at import
+    const keep = oversold.view;
+    try {
+      oversold.view = { sort: { key: 'c:z', dir: 'asc' } };
+      expect(catalogProblems().join()).toMatch(/preset oversold: view.sort must be \{key, dir\} with key one of match, sym, last, d1, adv, c:a, c:b/);
+      oversold.view = { sort: { key: 'c:a', dir: 'up' as 'asc' } };
+      expect(catalogProblems().join()).toMatch(/preset oversold: view.sort/);
+    } finally { oversold.view = keep }
+    expect(catalogProblems()).toEqual([]);
   });
 });

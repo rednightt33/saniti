@@ -5,7 +5,8 @@
       for ids, keys, parameters, types, defaults, min, max, options, not_accepted and outputs (labels and the workbook
       unit come from the Terminal's indRegistry.json it is built from);
    2. the hand-kept src/core/screener-overlay.json: product choices only (shape, allowed test forms per output with
-      the prototype's operators and labels, search synonyms, the card a new condition opens with, the options of an
+      the prototype's operators and labels, search synonyms, a one-line description in our own plain English (the
+      catalog's tooltip and search text), the card a new condition opens with, the options of an
       enum parameter a user decision narrows with its start value, today P17 a for the I43 anchor), explicit
       overrides with their evidence, and the provisional cost model of the caps (P5);
    3. fields derived here by running the Terminal's own formulas F (apps/edge-bff/terminal/src/calc/indicators.ts) on
@@ -253,6 +254,9 @@ export function overlayProblems(overlay, base) {
     const e = oi[r.id]; if (!e) continue;
     if (!SHAPES.includes(e.shape)) out.push(`overlay ${r.id}: shape ${e.shape} is not one of ${SHAPES}`);
     if (!Array.isArray(e.synonyms) || e.synonyms.some(s => typeof s !== 'string' || !s)) out.push(`overlay ${r.id}: synonyms must be a list of words`);
+    // the catalog's one-line description (page tooltip and search text; our own plain English): one line of 20-160 characters
+    if (typeof e.description !== 'string' || e.description.length < 20 || e.description.length > 160 || /[\r\n]/.test(e.description) || e.description !== e.description.trim())
+      out.push(`overlay ${r.id}: description must be one line of 20-160 characters`);
     const keys = Object.keys(e.outputs || {});
     for (const o of r.outputs) if (!keys.includes(o)) out.push(`overlay ${r.id}: output ${o} has no entry`);
     for (const o of keys) if (!r.outputs.includes(o)) out.push(`overlay ${r.id}: ${o} is not an output of ${r.key}`);
@@ -429,6 +433,7 @@ export async function build() {
       fixed_params: r.not_accepted.filter(n => n.reason !== 'not read by the calculation module').map(n => ({ key: n.key, value: n.value, reason: n.reason })),
       outputs, history_class: history,
       cost_class: params.some(p => p.cost_class === 'O(N·n)') ? 'O(N·n)' : 'O(N)',
+      description: ov.description,
       overlay: { shape: ov.shape, synonyms: ov.synonyms, default_test: ov.default_test },
       probe_params: ov.probe ? { params: probeParams, evidence: ov.probe.evidence } : null,
       oracle: oracleRows, oracle_note: orc.oracle_note ?? null,

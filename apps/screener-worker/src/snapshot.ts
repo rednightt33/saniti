@@ -20,7 +20,8 @@
    or null, so the encoding is lossless; T as Int32 indexes into one date table). F never runs on a typed view: a
    ticker's bars are materialized back into plain arrays equal value for value to priceSeries' (materialize), so every
    formula sees exactly what the Backtest's would (typed_views.test.ts holds the round trip and F bit for bit). The
-   pre-warmed series (the 53 indicators at registry.ts startParams, 76 outputs, plus every series the presets name)
+   pre-warmed series (the 53 indicators at registry.ts startParams, 76 outputs, the core's declared derived series of
+   the default cards (condition.ts declaredDerivedSeries), plus every series the presets name)
    are tails of tailLength(SCREENER_WITHIN_MAX) bars per (series, ticker) in one shared Float64Array, written by the
    pre-warm through the one series() path (metrics.ts) and installed in each thread's SeriesCache as pinned views.
    snapshot_digest = sha256 over the series keys, the tickers and every tail and its header (6.7 Auditability): two
@@ -34,7 +35,7 @@ import type { Bars } from '../../edge-bff/terminal/src/calc/indicators.ts';
 import type { DataStatus, Grouping, MetricRef, PatternRef, PriceBreakRemark, RowRemark, UniverseRow, Versions } from '../../edge-bff/screener/src/core/contract.ts';
 import { METRICS_CATALOG } from '../../edge-bff/screener/src/core/catalog.ts';
 import type { PresetDefinition } from '../../edge-bff/screener/src/core/catalog.ts';
-import { bindCondition } from '../../edge-bff/screener/src/core/condition.ts';
+import { bindCondition, declaredDerivedSeries } from '../../edge-bff/screener/src/core/condition.ts';
 import { SeriesCache, resolveSeries, series, seriesKey, tickerCalc, universeAttributes } from '../../edge-bff/screener/src/core/metrics.ts';
 import type { DataVersions, ResolvedSeries, Tail, TickerBars } from '../../edge-bff/screener/src/core/metrics.ts';
 import type { ParamOptions } from '../../edge-bff/screener/src/core/registry.ts';
@@ -256,6 +257,10 @@ export async function buildSnapshot(input: BuildInput): Promise<{ desc: Snapshot
     const params = startParams(ind, opts);
     for (const o of ind.outputs) add(resolveSeries({ kind: 'indicator', indicator: ind.id, params, output: o.key }, `start.${ind.id}.${o.key}`, opts));
   }
+  // the contract-declared derived series (core condition.ts declaredDerivedSeries: the five bar fields, the prior bar
+  // of the Donchian bands a price comparison reads, the lag and moving average the rising and vs-MA forms open with),
+  // so every default card is a snapshot lookup (stage S2, 6.7)
+  for (const r of declaredDerivedSeries(opts)) add(r);
   for (const p of input.presets) {
     p.definition.conditions.forEach((c, k) => {
       if (!c.enabled) return;

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "about": "Hand-kept product choices of the EDGE Screener (report TARGET ARCHITECTURE 6.8, 6.9.1): per registry indicator the prototype shape, the test forms each output allows (with the prototype operators and labels), search synonyms, the card a new condition opens with and, where a user decision narrows them, the offered options of an enum parameter with the value a card opens with (params; today P17 a for the I43 anchor); plus explicit overrides with evidence and the provisional cost model of the caps. Never a parameter range, unit, lag or input list: those come from backtest-registry.json or are derived by scripts/build-screener-registry.mjs.",
+  "about": "Hand-kept product choices of the EDGE Screener (report TARGET ARCHITECTURE 6.8, 6.9.1): per registry indicator the prototype shape, the test forms each output allows (with the prototype operators and labels), search synonyms, a one-line plain-English description (the catalog's tooltip and search text), the card a new condition opens with and, where a user decision narrows them, the offered options of an enum parameter with the value a card opens with (params; today P17 a for the I43 anchor); plus explicit overrides with evidence and the provisional cost model of the caps. Never a parameter range, unit, lag or input list: those come from backtest-registry.json or are derived by scripts/build-screener-registry.mjs.",
   "cost_model": {
     "status": "PROVISIONAL (P5): replaced by the Phase 17 measurement on the service, recorded in verification/screener/BENCHMARK.md with CPU and Node version",
     "rule": "cap = floor(SCREENER_CAP_BUDGET_MS * 1e6 / (ns_per_bar_length * reference_bars)) for a parameter whose cost_class is O(N·n); none for O(N)",
@@ -26,6 +26,7 @@
         "death",
         "cross"
       ],
+      "description": "The plain average of the source price over the last N sessions, every session weighted the same.",
       "default_test": {
         "form": "state_level",
         "output": "sma",
@@ -109,6 +110,7 @@
         "death",
         "cross"
       ],
+      "description": "An average of the source price over N sessions that weights recent sessions more, so it turns sooner than the SMA.",
       "default_test": {
         "form": "state_level",
         "output": "ema",
@@ -189,6 +191,7 @@
       "synonyms": [
         "WMA"
       ],
+      "description": "An average of the source price over N sessions with linearly rising weights: the newest session counts most.",
       "default_test": {
         "form": "state_level",
         "output": "wma",
@@ -249,6 +252,7 @@
       "synonyms": [
         "HMA"
       ],
+      "description": "A moving average built from weighted averages over N and N/2 sessions, so it follows price closely with little lag.",
       "default_test": {
         "form": "state_level",
         "output": "hma",
@@ -309,6 +313,7 @@
       "synonyms": [
         "KAMA"
       ],
+      "description": "A moving average that speeds up while price trends cleanly and slows down while it moves sideways (efficiency over N sessions).",
       "default_test": {
         "form": "state_level",
         "output": "kama",
@@ -370,6 +375,7 @@
         "MACD",
         "divergence"
       ],
+      "description": "The gap between a fast and a slow EMA of price, with a signal line (an EMA of the gap) and their difference as the histogram.",
       "default_test": {
         "form": "event_output",
         "output": "macd",
@@ -441,6 +447,7 @@
         "DMI",
         "trend"
       ],
+      "description": "Trend strength (ADX, 0 to 100) with the directional lines +DI and -DI that show whether up moves or down moves dominate.",
       "default_test": {
         "form": "value",
         "output": "adx",
@@ -503,6 +510,7 @@
       "synonyms": [
         "Aroon"
       ],
+      "description": "How recently the N-session high (Aroon Up) and the N-session low (Aroon Down) were set, scaled 0 to 100.",
       "default_test": {
         "form": "event_output",
         "output": "aroon_up",
@@ -561,6 +569,7 @@
       "synonyms": [
         "Supertrend"
       ],
+      "description": "A trailing line a multiple of the average true range below price in an uptrend or above it in a downtrend, with its direction.",
       "default_test": {
         "form": "state_value",
         "output": "direction",
@@ -619,6 +628,7 @@
         "DC",
         "breakout"
       ],
+      "description": "The highest high and the lowest low of the last N sessions, with their midpoint.",
       "default_test": {
         "form": "state_level",
         "output": "upper",
@@ -698,6 +708,7 @@
       "synonyms": [
         "KC"
       ],
+      "description": "A moving average with bands a multiple of the average true range (or of the bar range) above and below it.",
       "default_test": {
         "form": "state_level",
         "output": "upper",
@@ -777,6 +788,7 @@
       "synonyms": [
         "SAR"
       ],
+      "description": "A stop-and-reverse level that trails price and accelerates as a trend extends; its direction flips when price crosses it.",
       "default_test": {
         "form": "state_value",
         "output": "direction",
@@ -835,6 +847,7 @@
         "RSI",
         "momentum"
       ],
+      "description": "Average gains against average losses over N sessions, on a 0 to 100 scale.",
       "default_test": {
         "form": "value",
         "output": "rsi",
@@ -870,6 +883,7 @@
       "synonyms": [
         "Stoch RSI"
       ],
+      "description": "The stochastic oscillator applied to RSI: where RSI sits within its own N-session range, 0 to 100, with a smoothed signal.",
       "default_test": {
         "form": "value",
         "output": "k",
@@ -930,6 +944,7 @@
       "synonyms": [
         "Stoch"
       ],
+      "description": "Where the close sits within the high-low range of the last N sessions, 0 to 100 (%K), with its moving average (%D).",
       "default_test": {
         "form": "value",
         "output": "k",
@@ -990,6 +1005,7 @@
       "synonyms": [
         "%R"
       ],
+      "description": "Where the close sits against the N-session range: 0 at the highest high, -100 at the lowest low.",
       "default_test": {
         "form": "value",
         "output": "williams_r",
@@ -1025,6 +1041,7 @@
       "synonyms": [
         "ROC"
       ],
+      "description": "The percent change of the source price over N sessions.",
       "default_test": {
         "form": "value",
         "output": "roc",
@@ -1060,6 +1077,7 @@
       "synonyms": [
         "Mom"
       ],
+      "description": "The change of the source price over N sessions, in price units.",
       "default_test": {
         "form": "value",
         "output": "momentum",
@@ -1094,6 +1112,7 @@
       "synonyms": [
         "CCI"
       ],
+      "description": "How far the typical price is from its N-session average, in units of its mean deviation.",
       "default_test": {
         "form": "value",
         "output": "cci",
@@ -1129,6 +1148,7 @@
       "synonyms": [
         "CMO"
       ],
+      "description": "Up moves minus down moves over N sessions as a share of all moves, from -100 to 100.",
       "default_test": {
         "form": "value",
         "output": "cmo",
@@ -1164,6 +1184,7 @@
       "synonyms": [
         "TSI"
       ],
+      "description": "A double-smoothed ratio of price change to absolute price change, with a signal line.",
       "default_test": {
         "form": "event_output",
         "output": "tsi",
@@ -1222,6 +1243,7 @@
       "synonyms": [
         "TRIX"
       ],
+      "description": "The one-session percent change of a triple-smoothed EMA of price.",
       "default_test": {
         "form": "value",
         "output": "trix",
@@ -1256,6 +1278,7 @@
       "synonyms": [
         "UO"
       ],
+      "description": "A weighted blend of buying pressure over a short, a middle and a long window, 0 to 100.",
       "default_test": {
         "form": "value",
         "output": "uo",
@@ -1291,6 +1314,7 @@
       "synonyms": [
         "AO"
       ],
+      "description": "A fast minus a slow simple average of the bar midpoint (high plus low, halved).",
       "default_test": {
         "form": "value",
         "output": "ao",
@@ -1325,6 +1349,7 @@
       "synonyms": [
         "PPO"
       ],
+      "description": "The gap between a fast and a slow EMA of price in percent of the slow one, with a signal line and a histogram.",
       "default_test": {
         "form": "event_output",
         "output": "ppo",
@@ -1386,6 +1411,7 @@
       "synonyms": [
         "BOP"
       ],
+      "description": "Close minus open as a share of the bar's high-low range, from -1 to 1.",
       "default_test": {
         "form": "value",
         "output": "bop",
@@ -1422,6 +1448,7 @@
         "BB",
         "squeeze"
       ],
+      "description": "A moving average with bands a multiple of the standard deviation of price above and below it.",
       "default_test": {
         "form": "state_level",
         "output": "upper",
@@ -1501,6 +1528,7 @@
       "synonyms": [
         "%B"
       ],
+      "description": "Where price sits between the lower Bollinger Band (0) and the upper one (1).",
       "default_test": {
         "form": "value",
         "output": "percent_b",
@@ -1537,6 +1565,7 @@
         "BBW",
         "squeeze"
       ],
+      "description": "The distance between the Bollinger Bands relative to their middle line; low values mark a squeeze.",
       "default_test": {
         "form": "value",
         "output": "bandwidth",
@@ -1572,6 +1601,7 @@
       "synonyms": [
         "ATR"
       ],
+      "description": "The average true range of the bars over N sessions, in price units.",
       "default_test": {
         "form": "value",
         "output": "atr",
@@ -1606,6 +1636,7 @@
       "synonyms": [
         "NATR"
       ],
+      "description": "The average true range as a percent of the close.",
       "default_test": {
         "form": "value",
         "output": "natr",
@@ -1641,6 +1672,7 @@
       "synonyms": [
         "StdDev"
       ],
+      "description": "The standard deviation of the source price over N sessions, in price units.",
       "default_test": {
         "form": "value",
         "output": "stddev",
@@ -1675,6 +1707,7 @@
       "synonyms": [
         "HV"
       ],
+      "description": "The annualized standard deviation of returns over N sessions, in percent.",
       "default_test": {
         "form": "value",
         "output": "historical_volatility",
@@ -1710,6 +1743,7 @@
       "synonyms": [
         "ADR"
       ],
+      "description": "The average of high minus low over N sessions, in price units.",
       "default_test": {
         "form": "value",
         "output": "adr",
@@ -1744,6 +1778,7 @@
       "synonyms": [
         "Vol SMA"
       ],
+      "description": "The simple average of volume over N sessions.",
       "default_test": {
         "form": "state_level",
         "output": "volume_sma",
@@ -1788,6 +1823,7 @@
       "synonyms": [
         "Vol EMA"
       ],
+      "description": "The exponential average of volume over N sessions.",
       "default_test": {
         "form": "state_level",
         "output": "volume_ema",
@@ -1832,6 +1868,7 @@
       "synonyms": [
         "RVOL"
       ],
+      "description": "The session's volume divided by its average volume over N sessions.",
       "default_test": {
         "form": "value",
         "output": "rvol",
@@ -1867,6 +1904,7 @@
       "synonyms": [
         "PVO"
       ],
+      "description": "The gap between a fast and a slow EMA of volume in percent of the slow one, with a signal line and a histogram.",
       "default_test": {
         "form": "event_output",
         "output": "pvo",
@@ -1928,6 +1966,7 @@
       "synonyms": [
         "VROC"
       ],
+      "description": "The percent change of volume over N sessions.",
       "default_test": {
         "form": "value",
         "output": "volume_roc",
@@ -1963,6 +2002,7 @@
       "synonyms": [
         "OBV"
       ],
+      "description": "A running total that adds the session's volume when the close rises and subtracts it when the close falls.",
       "default_test": {
         "form": "state_vs_ma",
         "output": "obv",
@@ -2025,6 +2065,7 @@
       "synonyms": [
         "PVT"
       ],
+      "description": "A running total of volume weighted by each session's percent price change.",
       "default_test": {
         "form": "state_vs_ma",
         "output": "pvt",
@@ -2087,6 +2128,7 @@
       "synonyms": [
         "VWMA"
       ],
+      "description": "An average of the source price over N sessions weighted by each session's volume.",
       "default_test": {
         "form": "state_level",
         "output": "vwma",
@@ -2147,6 +2189,7 @@
       "synonyms": [
         "VWAP"
       ],
+      "description": "The volume-weighted average price since the start of the chosen week, month, quarter or year, with optional bands.",
       "default_test": {
         "form": "state_level",
         "output": "vwap",
@@ -2244,6 +2287,7 @@
       "synonyms": [
         "ADL"
       ],
+      "description": "A running total of volume weighted by where each close falls within its bar's range.",
       "default_test": {
         "form": "state_vs_ma",
         "output": "adl",
@@ -2306,6 +2350,7 @@
       "synonyms": [
         "CMF"
       ],
+      "description": "The money-flow volume of the last N sessions divided by their total volume, from -1 to 1.",
       "default_test": {
         "form": "value",
         "output": "cmf",
@@ -2341,6 +2386,7 @@
       "synonyms": [
         "Chaikin Osc"
       ],
+      "description": "A fast minus a slow EMA of the accumulation/distribution line.",
       "default_test": {
         "form": "value",
         "output": "chaikin_osc",
@@ -2375,6 +2421,7 @@
       "synonyms": [
         "MFI"
       ],
+      "description": "An RSI-like 0 to 100 oscillator of the typical price weighted by volume over N sessions.",
       "default_test": {
         "form": "value",
         "output": "mfi",
@@ -2410,6 +2457,7 @@
       "synonyms": [
         "EFI"
       ],
+      "description": "The price change times volume, smoothed by an EMA over N sessions.",
       "default_test": {
         "form": "value",
         "output": "force_index",
@@ -2444,6 +2492,7 @@
       "synonyms": [
         "EOM"
       ],
+      "description": "The move of the bar midpoint times the bar's range per unit of volume, averaged over N sessions.",
       "default_test": {
         "form": "value",
         "output": "eom",
@@ -2478,6 +2527,7 @@
       "synonyms": [
         "NVI"
       ],
+      "description": "A running index that moves only on sessions when volume falls, by that session's percent price change.",
       "default_test": {
         "form": "state_vs_ma",
         "output": "nvi",
@@ -2540,6 +2590,7 @@
       "synonyms": [
         "PVI"
       ],
+      "description": "A running index that moves only on sessions when volume rises, by that session's percent price change.",
       "default_test": {
         "form": "state_vs_ma",
         "output": "pvi",
@@ -2602,6 +2653,7 @@
       "synonyms": [
         "KVO"
       ],
+      "description": "A fast minus a slow EMA of volume signed by the direction of the typical price, with a signal line.",
       "default_test": {
         "form": "event_output",
         "output": "kvo",
@@ -2660,6 +2712,7 @@
       "synonyms": [
         "MFI (BW)"
       ],
+      "description": "The bar's high-low range divided by its volume: how far price moved per unit traded.",
       "default_test": {
         "form": "value",
         "output": "market_fi",

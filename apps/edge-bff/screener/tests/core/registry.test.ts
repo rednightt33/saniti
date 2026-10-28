@@ -82,6 +82,14 @@ describe('overlay', () => {
     expect(problems.some(p => p.includes('I06.macd state_output: label for lt'))).toBe(true);
     expect(problems.some(p => p.includes('I53 has no entry'))).toBe(true);
   });
+  it('refuses an indicator without a one-line description (overlay, page O1)', () => {
+    const broken = structuredClone(overlay);
+    delete broken.indicators.I13.description;
+    broken.indicators.I01.description = 'two\nlines of description text';
+    const problems: string[] = G.overlayProblems(broken, base);
+    expect(problems).toContain('overlay I13: description must be one line of 20-160 characters');
+    expect(problems).toContain('overlay I01: description must be one line of 20-160 characters');
+  });
   it('narrows an enum only to a subset of the base with the decision, and names a start exactly when the default is left out', () => {
     const broken = structuredClone(overlay);
     broken.indicators.I43.params.anchor.options = ['Week', 'Fortnight'];                                   // not a base option
@@ -293,5 +301,13 @@ describe('registry.ts parameters (report 6.8 narrowing, I7)', () => {
     expect([vwap.default_offered, vwap.params[0]]).toEqual([false, expect.objectContaining({ key: 'anchor', default: 'Week', options: ['Week', 'Month', 'Quarter', 'Year'] })]);
     expect(cat.filter(c => !c.default_offered).map(c => c.id)).toEqual(['I43']);
     expect(isDefaultParams(ind('I43'), startParams(ind('I43'), OPTS))).toBe(false);   // opens as Custom (P17 consequence)
+    // page O5 / O1: the registry's short name and the overlay's one-line description, for every indicator
+    expect(cat.find(c => c.id === 'I15')!.short).toBe('Stoch');
+    expect(cat.find(c => c.id === 'I01')!.short).toBe('SMA');
+    for (const c of cat) {
+      expect([c.id, c.short]).toEqual([c.id, SBY_ID[c.id].short]);
+      expect([c.id, typeof c.description, c.description.length >= 20 && c.description.length <= 160]).toEqual([c.id, 'string', true]);
+    }
+    expect(new Set(cat.map(c => c.description)).size).toBe(53);
   });
 });

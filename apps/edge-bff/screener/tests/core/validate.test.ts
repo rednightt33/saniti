@@ -208,3 +208,12 @@ describe('the universe', () => {
     expect([e.code, e.field, (e.details as any).allowed]).toEqual(['INVALID_CONDITION', 't.metric.attr', expect.arrayContaining(['last', 'adv20_idr'])]);
   });
 });
+
+describe('a switched-off condition normalizes as an enabled one', () => {
+  it('the same test gives the same normalized test whether the condition is on or off (only `enabled` differs)', () => {
+    for (const p of PRESETS.presets.filter(x => x.category === 'Technical' && x.id !== 'ichi')) for (const cd of p.definition.conditions) {
+      const on = validateTest(cd.test, 't', CTX, true), off = validateTest(cd.test, 't', CTX, false);
+      expect([p.id, cd.id, off]).toEqual([p.id, cd.id, on]);
+    }
+  });
+});

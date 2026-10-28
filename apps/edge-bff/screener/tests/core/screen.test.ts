@@ -16,7 +16,7 @@ import { PRESETS } from '../../src/core/catalog.ts';
 import { bindCondition } from '../../src/core/condition.ts';
 import { ScreenerError } from '../../src/core/errors.ts';
 import { previewCells, runScreen } from '../../src/core/screen.ts';
-import { validateDefinition } from '../../src/core/validate.ts';
+import { validateDefinition, validateTest } from '../../src/core/validate.ts';
 import { OPTS, WITHIN_MAX, headBars, memoryEnv, rowOf, synth, tailBars, vctx } from './helpers.ts';
 import type { MemoryEnv } from './helpers.ts';
 
@@ -173,5 +173,38 @@ describe('presets on the synthetic market', () => {
       expect([p.id, a.rows]).toEqual([p.id, b.rows]);
     }
     void OPTS; void WITHIN_MAX;
+  });
+});
+
+describe('the snapshot\'s declared series', () => {
+  it('pre-warming the declared series makes the default cards of rising, vs-MA and the Donchian prior band snapshot lookups', async () => {
+    const { declaredDerivedSeries } = await import('../../src/core/condition.ts');
+    const d = declaredDerivedSeries(OPTS);
+    expect(d.map(r => r.label)).toEqual(expect.arrayContaining(['lag(I10.upper, 1)', 'lag(I10.lower, 1)', 'lag(I01.sma, 5)', 'ma(I40.obv, EMA, 20)', 'ma(I50.nvi, EMA, 255)', 'lag(I40.obv, 20)']));
+    const env = memoryEnv(TICKERS, IX, rows, E);
+    const start = (await import('../../src/core/registry.ts')).INDICATORS.flatMap(r => r.outputs.map(o => bindCondition({ id: 'x', enabled: true,
+      test: { kind: 'value', op: 'gt', value: 0, metric: { kind: 'indicator', indicator: r.id, output: o.key, params: { ...r.start_params } } } }, 'c', env).series)).flat();
+    env.prewarm([...start, ...d]);
+    const card = norm({ universe: U, logic: 'all', conditions: [
+      { id: 'a', enabled: true, test: { kind: 'state', lhs: close, op: 'gt', rhs: ind('I10', 'upper') } },
+      { id: 'b', enabled: true, test: { kind: 'state', lhs: ind('I40', 'obv'), op: 'gt', rhs: { kind: 'transform', fn: 'ma', of: ind('I40', 'obv') } } }] });
+    const r = runScreen(card, env);
+    expect(r.conditions.map(c => c.source)).toEqual(['precomputed', 'precomputed']);
+    expect(env.computed).toBe(0);
+  });
+});
+
+describe('is_default and params_resolved (report 8.5)', () => {
+  it('are taken through transforms: the indicator inside at registry defaults, every argument at the catalog default', () => {
+    const summary = (test: unknown) => bindCondition({ id: 'x', enabled: true, test: validateTest(test, 't', CTX) }, 'c', { ...OPTS, withinMax: WITHIN_MAX }).summary;
+    const pd = (params?: Record<string, unknown>) => ({ kind: 'value', op: 'gt', value: 0, metric: { kind: 'transform', fn: 'pct_distance', of: ind('I01', 'sma', params) } });
+    expect([summary(pd()).is_default, summary(pd()).params_resolved]).toEqual([true, { length: 20, source: 'close' }]);
+    expect([summary(pd({ length: 50 })).is_default, summary(pd({ length: 50 })).params_resolved]).toEqual([false, { length: 50, source: 'close' }]);
+    const hi52 = { kind: 'value', op: 'gt', value: -25, metric: { kind: 'transform', fn: 'pct_distance', of: { kind: 'transform', fn: 'rolling_max', of: { kind: 'price', field: 'high' }, args: { length: 252 } } } };
+    expect(summary(hi52).is_default).toBe(true);
+    const rising = (bars: number) => ({ kind: 'state', lhs: ind('I01', 'sma'), op: 'gt', rhs: { kind: 'transform', fn: 'lag', of: ind('I01', 'sma'), args: { bars } } });
+    expect([summary(rising(5)).is_default, summary(rising(21)).is_default]).toEqual([true, false]);
+    expect(summary({ kind: 'state', lhs: close, op: 'gt', rhs: ind('I43', 'vwap', { anchor: 'Week' }) }).is_default).toBe(false);   // P17: never the registry default
+    expect(summary({ kind: 'event', within: 3, signal: { pattern: { kind: 'pattern', type: 'breakout', params: { length: 252 } } } })).toMatchObject({ is_default: false, metric: 'breakout', params_resolved: { length: 252 } });
   });
 });

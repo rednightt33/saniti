@@ -99,6 +99,9 @@ test('the catalog: versions and data first, every worker limit with its rule and
     assert.ok(l.rule.includes(String(l.value)), `${name}: the rule names the value`);
   }
   assert.equal(c.body.indicators.length, 53);
+  assert.ok(c.body.indicators.every((i: any) => typeof i.description === 'string' && i.description.length >= 20 && 'short' in i), 'description and short (page O1, O5)');
+  assert.deepEqual(c.body.presets.find((p: any) => p.id === 'oversold').view, { sort: { key: 'c:b', dir: 'asc' } }, 'a preset\'s default sort (page O2)');
+  assert.equal(c.body.presets.find((p: any) => p.id === 'golden').view, undefined);
   assert.ok(c.body.presets.length > 0 && c.body.presets.every((p: any) => 'availability' in p && 'match_count' in p));
   assert.ok(c.body.presets.some((p: any) => p.availability === 'AVAILABLE' && typeof p.match_count === 'number'));
   assert.ok(c.body.presets.filter((p: any) => p.availability !== 'AVAILABLE').every((p: any) => p.reason && p.match_count === null));
@@ -216,6 +219,9 @@ test('counts: each definition counted (cached per definition), an invalid one is
   const v = await call(port, 'POST', '/v1/validate', { schema_version: 1, definition: RSI(11) }, auth(OWNER_A));
   assert.equal(v.status, 200); assert.equal(v.body.valid, true); assert.equal(v.body.definition_hash, run.body.versions.definition_hash);
   assert.equal(v.body.normalized.conditions[0].test.metric.params.source, 'close', 'parameters completed');
+  // the versions it was checked against (edge-bff stores registry and screener_registry with a saved item from them)
+  const { definition_hash: _h, ...runVersions } = run.body.versions;
+  assert.deepEqual(v.body.versions, runVersions);
 });
 
 test('preview: one ticker\'s cells and status (match.ts), bars, IHSG aligned, overlays, markers, perf; pinned to its data_version; an unknown ticker is refused', async () => {

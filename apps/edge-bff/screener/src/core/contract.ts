@@ -184,10 +184,10 @@ export interface UniverseDef {
 }
 /** Defaults of the universe chips (P4 decided; prototype liquidity defaults kept: price >= Rp 50, ADV20 >= Rp 1 B;
     report 6.12, 9.2). "Clear all" returns to these (report 9.2). */
-export const UNIVERSE_DEFAULTS: Readonly<UniverseDef> = Object.freeze({
+export const UNIVERSE_DEFAULTS: Readonly<UniverseDef> = Object.freeze<UniverseDef>({
   security_types: ['stock'], include_unclassified: false, price_min: 50, adv20_min_idr: 1e9, min_history_bars: null,
   traded_on_eval_date: true, exclude_price_breaks: true, tickers: null, metric_filters: [],
-}) as Readonly<UniverseDef>;
+});
 
 export type Logic = 'all' | 'any' | 'at_least';
 /** The portable definition (screen/v1): one object for run, save, CSV metadata and Send to Backtest (report 6.15).
@@ -340,7 +340,12 @@ export interface PreviewResponse {
 export const PREVIEW_BARS = 260;
 export interface ValidateRequest { schema_version: 1; definition: Definition }
 /** valid: the definition with parameters resolved (normalized) and its hash; a refusal is the 422 of the first problem. */
-export interface ValidateResponse { valid: true; definition_hash: string; normalized: Definition }
+export interface ValidateResponse {
+  valid: true; definition_hash: string; normalized: Definition;
+  /** additive (integration 2026-10-28): the worker's versions when it validated (edge-bff stores registry and
+      screener_registry with a saved item from this same answer, not from a later /health read) */
+  versions?: Versions;
+}
 /** data_version as in RunRequest (report 8.6). At most max_counts definitions. */
 export interface CountsRequest { schema_version: 1; data_version?: string; definitions: { item_id: string; definition: Definition }[] }
 export type CountsEntry = { item_id: string; match_count: number; near_count: number } | { item_id: string; error: ApiError['error'] };
@@ -354,11 +359,12 @@ export interface CountsResponse { versions: Versions; data: DataStatus; counts: 
     refusal points at the published rule). Worker limits are each an environment variable with no default
     (SCREENER_MAX_CONDITIONS -> max_conditions, SCREENER_MAX_CPU_MS -> compute_budget, the name report 6.10 and 8.8 give
     its refusal, ...); edge-bff's follow its own config (request_bytes, saved_definition_bytes, saved_items, watchlist,
-    inflight_per_page). The refresh caps (max_file_bytes, max_inflated_bytes, max_refresh_bytes) never refuse a request:
+    inflight_per_page). owner_cpu_budget (SCREENER_OWNER_CPU_MS, P33 built in Phase 1, user 2026-10-28): one owner tag's
+    compute per sliding minute on a replica; its refusal is LIMIT_EXCEEDED with details.retry_after_seconds. The refresh caps (max_file_bytes, max_inflated_bytes, max_refresh_bytes) never refuse a request:
     they fail a refresh (REFRESH_FAILED in the log), so they are listed for transparency only. The flow `within` +
     window row of 8.9 joins in Phase 2. */
 export type LimitName = 'max_conditions' | 'max_metric_filters' | 'within_max' | 'cap_budget_ms' | 'compute_budget' | 'deadline_ms'
-  | 'inflight_per_page' | 'owner_inflight' | 'previous_grace_s' | 'queue' | 'request_bytes' | 'saved_definition_bytes'
+  | 'inflight_per_page' | 'owner_inflight' | 'owner_cpu_budget' | 'previous_grace_s' | 'queue' | 'request_bytes' | 'saved_definition_bytes'
   | 'saved_items' | 'watchlist' | 'max_counts' | 'max_response_bytes' | 'max_file_bytes' | 'max_inflated_bytes'
   | 'max_refresh_bytes';
 /** A limit as the page shows it before the user meets it (AGENTS.md "Gates and evidence": the rule, how to pass it,
@@ -437,6 +443,11 @@ export interface CatalogIndicator {
       anchor Session, P17 a), so the card has no "Default" chip and opens as Custom at the params' `default` values
       (anchor Week); every condition on it has is_default false. True for the other 52. */
   default_offered: boolean;
+  /** additive (page O5): the registry's short name (indRegistry.json `short`, e.g. 'SMA', 'Stoch'); null when it has none */
+  short: string | null;
+  /** additive (page O1): one plain-English sentence on what the indicator measures (screener-overlay.json, our own
+      wording), the page's tooltip and search text */
+  description: string;
 }
 /** A non-indicator metric (screener-metrics.json; report 6.12): the Feature_Catalog fields, so a later AI onboarding can
     reuse them. */
@@ -457,6 +468,9 @@ export interface CatalogPreset {
   availability: Availability; reason: string | null;
   match_count: number | null; near_count: number | null;   // at versions.price_data; null when unavailable
   unavailable_legs: string[];        // additive: condition ids of the unavailable legs (6.12, 9.2 "naming the unavailable legs")
+  /** additive (page O2): the table's default sort when the preset opens (the prototype's per-preset sort; key 'c:<condition
+      id>' or a column key); absent = the page's default (match first) */
+  view?: SavedView;
 }
 export interface CatalogResponse {
   versions: Versions; data: DataStatus;

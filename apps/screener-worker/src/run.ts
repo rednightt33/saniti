@@ -186,7 +186,7 @@ export function estimateCost(def: Definition, held: CostView, tracker: CostTrack
   const avg = survivors.length ? bars / survivors.length : 0;
   const dv = { price_data: held.desc.versions.price_data, screener_engine: held.desc.versions.screener_engine };
   const ctx: BindContext = { capBudgetMs: env.capBudgetMs, index: held.index, withinMax: env.withinMax, catalog: METRICS_CATALOG };
-  const pinned = (r: ResolvedSeries) => held.pinned.has(seriesKey(dv, r));
+  const pinned = (r: ResolvedSeries) => r.kind === 'price' || held.pinned.has(seriesKey(dv, r));   // a bar field is the snapshot itself (screen.ts)
   const conds: PlanCondition[] = def.conditions.flatMap((c, k) => {
     if (!c.enabled) return [];
     const b = bindCondition(c, `definition.conditions[${k}]`, ctx);

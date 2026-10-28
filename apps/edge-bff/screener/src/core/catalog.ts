@@ -7,7 +7,7 @@
    in code (report 6.9); transforms.ts implements what each fn and pattern type computes, and catalogProblems() fails
    when the two disagree.
    Worker-side module (the page reads the same entries from GET /catalog and never imports this file). */
-import type { CatalogParam, Definition, MetricKind, ParamMap, ParamValue, Periods, PriceField, TestKind } from './contract.ts';
+import type { CatalogParam, Definition, MetricKind, ParamMap, ParamValue, Periods, PriceField, SavedView, TestKind } from './contract.ts';
 import { ScreenerError } from './errors.ts';
 import metricsDoc from './screener-metrics.json' with { type: 'json' };
 import presetsDoc from './presets.json' with { type: 'json' };
@@ -63,7 +63,13 @@ export interface MetricsCatalog {
 /** One preset of src/core/presets.json (report 6.12 "Presets"; APPENDIX A.2): the prototype's presets remapped onto
     the registry and the catalog. Availability, the unavailable legs and the match / near counts are derived at run time
     (validate.ts presetAvailability; the worker's snapshot), never stored. */
-export interface PresetDefinition { id: string; category: string; name: string; why: string; definition: Definition }
+export interface PresetDefinition {
+  id: string; category: string; name: string; why: string; definition: Definition;
+  /** the table's default sort when the preset opens (the prototype's per-preset sort), sent in the catalog as is */
+  view?: SavedView;
+}
+/** The keys a preset's view.sort may name besides 'c:<condition id>' (the page's result columns). */
+export const VIEW_SORT_COLUMNS: readonly string[] = ['match', 'sym', 'last', 'd1', 'adv'];
 export interface PresetsDoc { schema_version: number; note?: string; presets: PresetDefinition[] }
 
 export const METRICS_CATALOG = metricsDoc as unknown as MetricsCatalog;
@@ -202,6 +208,14 @@ export function catalogProblems(implemented?: { transforms: readonly string[]; p
     if (pids.has(p.id)) out.push(`preset ${p.id}: repeated id`); pids.add(p.id);
     if (!p.name || !p.why || !p.category) out.push(`preset ${p.id}: name, category and why are required`);
     if (!p.definition || !Array.isArray(p.definition.conditions)) out.push(`preset ${p.id}: definition.conditions is required`);
+    if (p.view !== undefined) {
+      const v = p.view as unknown as Record<string, unknown>, sort = v?.sort as { key?: unknown; dir?: unknown } | undefined;
+      const ids = (p.definition?.conditions || []).map(c => `c:${c.id}`);
+      if (!v || typeof v !== 'object' || Object.keys(v).some(k => k !== 'sort' && k !== 'show_near')) out.push(`preset ${p.id}: view holds only sort and show_near`);
+      else if (v.show_near !== undefined && typeof v.show_near !== 'boolean') out.push(`preset ${p.id}: view.show_near must be true or false`);
+      if (sort !== undefined && (typeof sort.key !== 'string' || !(VIEW_SORT_COLUMNS.includes(sort.key) || ids.includes(sort.key)) || (sort.dir !== 'asc' && sort.dir !== 'desc')))
+        out.push(`preset ${p.id}: view.sort must be {key, dir} with key one of ${[...VIEW_SORT_COLUMNS, ...ids].join(', ')} and dir asc or desc`);
+    }
   }
   return out;
 }

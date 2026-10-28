@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "screener_registry_version": "afddc54dee5fa148",
+  "screener_registry_version": "0bc46ac2a39d7c21",
   "registry_version": "b6a8dc0ba206ed65",
   "generated_by": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
   "sources": [
@@ -22,7 +22,7 @@
     {
       "role": "overlay",
       "file": "apps/edge-bff/screener/src/core/screener-overlay.json",
-      "sha256": "140ef134c0c247f1b80ad655379125b561804483cb85e4be702f4f28aa64ad41"
+      "sha256": "1d32c37391368b15373ce965629c495ba81b43670ca08a5156e4a49e554489aa"
     },
     {
       "role": "oracle",
@@ -32,7 +32,7 @@
     {
       "role": "generator",
       "file": "apps/edge-bff/screener/scripts/build-screener-registry.mjs",
-      "sha256": "c0dcce558f09af83f457cee87a82b362f9f1f50766f221f3de8785c89232fcb5"
+      "sha256": "bc971a14a1e630cf868f45f5c7498b9aae14ce8732bec91db0c863494d1a6148"
     }
   ],
   "probe": {
@@ -224,6 +224,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N)",
+      "description": "The plain average of the source price over the last N sessions, every session weighted the same.",
       "overlay": {
         "shape": "line",
         "synonyms": [
@@ -425,6 +426,7 @@
       ],
       "history_class": "recursive",
       "cost_class": "O(N)",
+      "description": "An average of the source price over N sessions that weights recent sessions more, so it turns sooner than the SMA.",
       "overlay": {
         "shape": "line",
         "synonyms": [
@@ -624,6 +626,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N)",
+      "description": "An average of the source price over N sessions with linearly rising weights: the newest session counts most.",
       "overlay": {
         "shape": "line",
         "synonyms": [
@@ -783,6 +786,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N·n)",
+      "description": "A moving average built from weighted averages over N and N/2 sessions, so it follows price closely with little lag.",
       "overlay": {
         "shape": "line",
         "synonyms": [
@@ -968,6 +972,7 @@
       ],
       "history_class": "recursive",
       "cost_class": "O(N)",
+      "description": "A moving average that speeds up while price trends cleanly and slows down while it moves sideways (efficiency over N sessions).",
       "overlay": {
         "shape": "line",
         "synonyms": [
@@ -1263,6 +1268,7 @@
       ],
       "history_class": "recursive",
       "cost_class": "O(N)",
+      "description": "The gap between a fast and a slow EMA of price, with a signal line (an EMA of the gap) and their difference as the histogram.",
       "overlay": {
         "shape": "pair",
         "synonyms": [
@@ -1461,6 +1467,7 @@
       ],
       "history_class": "recursive",
       "cost_class": "O(N)",
+      "description": "Trend strength (ADX, 0 to 100) with the directional lines +DI and -DI that show whether up moves or down moves dominate.",
       "overlay": {
         "shape": "adx",
         "synonyms": [
@@ -1601,6 +1608,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N·n)",
+      "description": "How recently the N-session high (Aroon Up) and the N-session low (Aroon Down) were set, scaled 0 to 100.",
       "overlay": {
         "shape": "pair",
         "synonyms": [
@@ -1746,6 +1754,7 @@
       ],
       "history_class": "recursive",
       "cost_class": "O(N)",
+      "description": "A trailing line a multiple of the average true range below price in an uptrend or above it in a downtrend, with its direction.",
       "overlay": {
         "shape": "dir",
         "synonyms": [
@@ -1913,6 +1922,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N·n)",
+      "description": "The highest high and the lowest low of the last N sessions, with their midpoint.",
       "overlay": {
         "shape": "band",
         "synonyms": [
@@ -2329,6 +2339,7 @@
       ],
       "history_class": "recursive",
       "cost_class": "O(N)",
+      "description": "A moving average with bands a multiple of the average true range (or of the bar range) above and below it.",
       "overlay": {
         "shape": "band",
         "synonyms": [
@@ -2477,6 +2488,7 @@
       ],
       "history_class": "recursive",
       "cost_class": "O(N)",
+      "description": "A stop-and-reverse level that trails price and accelerates as a trend extends; its direction flips when price crosses it.",
       "overlay": {
         "shape": "dir",
         "synonyms": [
@@ -2610,6 +2622,7 @@
       ],
       "history_class": "recursive",
       "cost_class": "O(N)",
+      "description": "Average gains against average losses over N sessions, on a 0 to 100 scale.",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -2872,6 +2885,7 @@
       ],
       "history_class": "recursive",
       "cost_class": "O(N·n)",
+      "description": "The stochastic oscillator applied to RSI: where RSI sits within its own N-session range, 0 to 100, with a smoothed signal.",
       "overlay": {
         "shape": "pair",
         "synonyms": [
@@ -3029,6 +3043,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N·n)",
+      "description": "Where the close sits within the high-low range of the last N sessions, 0 to 100 (%K), with its moving average (%D).",
       "overlay": {
         "shape": "pair",
         "synonyms": [
@@ -3171,6 +3186,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N·n)",
+      "description": "Where the close sits against the N-session range: 0 at the highest high, -100 at the lowest low.",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -3305,6 +3321,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N)",
+      "description": "The percent change of the source price over N sessions.",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -3467,6 +3484,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N)",
+      "description": "The change of the source price over N sessions, in price units.",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -3577,6 +3595,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N·n)",
+      "description": "How far the typical price is from its N-session average, in units of its mean deviation.",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -3711,6 +3730,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N)",
+      "description": "Up moves minus down moves over N sessions as a share of all moves, from -100 to 100.",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -3943,6 +3963,7 @@
       ],
       "history_class": "recursive",
       "cost_class": "O(N)",
+      "description": "A double-smoothed ratio of price change to absolute price change, with a signal line.",
       "overlay": {
         "shape": "pair",
         "synonyms": [
@@ -4075,6 +4096,7 @@
       ],
       "history_class": "recursive",
       "cost_class": "O(N)",
+      "description": "The one-session percent change of a triple-smoothed EMA of price.",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -4223,6 +4245,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N)",
+      "description": "A weighted blend of buying pressure over a short, a middle and a long window, 0 to 100.",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -4322,6 +4345,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N)",
+      "description": "A fast minus a slow simple average of the bar midpoint (high plus low, halved).",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -4609,6 +4633,7 @@
       ],
       "history_class": "recursive",
       "cost_class": "O(N)",
+      "description": "The gap between a fast and a slow EMA of price in percent of the slow one, with a signal line and a histogram.",
       "overlay": {
         "shape": "pair",
         "synonyms": [
@@ -4702,6 +4727,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N)",
+      "description": "Close minus open as a share of the bar's high-low range, from -1 to 1.",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -5066,6 +5092,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N)",
+      "description": "A moving average with bands a multiple of the standard deviation of price above and below it.",
       "overlay": {
         "shape": "band",
         "synonyms": [
@@ -5282,6 +5309,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N)",
+      "description": "Where price sits between the lower Bollinger Band (0) and the upper one (1).",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -5482,6 +5510,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N)",
+      "description": "The distance between the Bollinger Bands relative to their middle line; low values mark a squeeze.",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -5626,6 +5655,7 @@
       ],
       "history_class": "recursive",
       "cost_class": "O(N)",
+      "description": "The average true range of the bars over N sessions, in price units.",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -5761,6 +5791,7 @@
       ],
       "history_class": "recursive",
       "cost_class": "O(N)",
+      "description": "The average true range as a percent of the close.",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -5937,6 +5968,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N·n)",
+      "description": "The standard deviation of the source price over N sessions, in price units.",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -6131,6 +6163,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N·n)",
+      "description": "The annualized standard deviation of returns over N sessions, in percent.",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -6222,6 +6255,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N)",
+      "description": "The average of high minus low over N sessions, in price units.",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -6317,6 +6351,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N)",
+      "description": "The simple average of volume over N sessions.",
       "overlay": {
         "shape": "vol",
         "synonyms": [
@@ -6420,6 +6455,7 @@
       ],
       "history_class": "recursive",
       "cost_class": "O(N)",
+      "description": "The exponential average of volume over N sessions.",
       "overlay": {
         "shape": "vol",
         "synonyms": [
@@ -6518,6 +6554,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N)",
+      "description": "The session's volume divided by its average volume over N sessions.",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -6706,6 +6743,7 @@
       ],
       "history_class": "recursive",
       "cost_class": "O(N)",
+      "description": "The gap between a fast and a slow EMA of volume in percent of the slow one, with a signal line and a histogram.",
       "overlay": {
         "shape": "pair",
         "synonyms": [
@@ -6789,6 +6827,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N)",
+      "description": "The percent change of volume over N sessions.",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -6894,6 +6933,7 @@
       ],
       "history_class": "cumulative",
       "cost_class": "O(N)",
+      "description": "A running total that adds the session's volume when the close rises and subtracts it when the close falls.",
       "overlay": {
         "shape": "cum",
         "synonyms": [
@@ -6997,6 +7037,7 @@
       ],
       "history_class": "cumulative",
       "cost_class": "O(N)",
+      "description": "A running total of volume weighted by each session's percent price change.",
       "overlay": {
         "shape": "cum",
         "synonyms": [
@@ -7164,6 +7205,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N)",
+      "description": "An average of the source price over N sessions weighted by each session's volume.",
       "overlay": {
         "shape": "line",
         "synonyms": [
@@ -7637,6 +7679,7 @@
       ],
       "history_class": "calendar",
       "cost_class": "O(N)",
+      "description": "The volume-weighted average price since the start of the chosen week, month, quarter or year, with optional bands.",
       "overlay": {
         "shape": "band",
         "synonyms": [
@@ -7750,6 +7793,7 @@
       ],
       "history_class": "cumulative",
       "cost_class": "O(N)",
+      "description": "A running total of volume weighted by where each close falls within its bar's range.",
       "overlay": {
         "shape": "cum",
         "synonyms": [
@@ -7836,6 +7880,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N)",
+      "description": "The money-flow volume of the last N sessions divided by their total volume, from -1 to 1.",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -7937,6 +7982,7 @@
       ],
       "history_class": "recursive",
       "cost_class": "O(N)",
+      "description": "A fast minus a slow EMA of the accumulation/distribution line.",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -8024,6 +8070,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N)",
+      "description": "An RSI-like 0 to 100 oscillator of the typical price weighted by volume over N sessions.",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -8110,6 +8157,7 @@
       ],
       "history_class": "recursive",
       "cost_class": "O(N)",
+      "description": "The price change times volume, smoothed by an EMA over N sessions.",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -8214,6 +8262,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N)",
+      "description": "The move of the bar midpoint times the bar's range per unit of volume, averaged over N sessions.",
       "overlay": {
         "shape": "osc",
         "synonyms": [
@@ -8332,6 +8381,7 @@
       ],
       "history_class": "cumulative",
       "cost_class": "O(N)",
+      "description": "A running index that moves only on sessions when volume falls, by that session's percent price change.",
       "overlay": {
         "shape": "cum",
         "synonyms": [
@@ -8449,6 +8499,7 @@
       ],
       "history_class": "cumulative",
       "cost_class": "O(N)",
+      "description": "A running index that moves only on sessions when volume rises, by that session's percent price change.",
       "overlay": {
         "shape": "cum",
         "synonyms": [
@@ -8606,6 +8657,7 @@
       ],
       "history_class": "recursive",
       "cost_class": "O(N)",
+      "description": "A fast minus a slow EMA of volume signed by the direction of the typical price, with a signal line.",
       "overlay": {
         "shape": "pair",
         "synonyms": [
@@ -8696,6 +8748,7 @@
       ],
       "history_class": "window",
       "cost_class": "O(N)",
+      "description": "The bar's high-low range divided by its volume: how far price moved per unit traded.",
       "overlay": {
         "shape": "osc",
         "synonyms": [

@@ -68,6 +68,8 @@ export class TerminalApi {
   private o: ApiOptions; private fetch: typeof fetch; private gate: Gate;
   stats = { requests: 0, retries: 0 };
   constructor(o: ApiOptions) { this.o = { ...o, url: o.url.replace(/\/+$/, '') }; this.fetch = o.fetch ?? globalThis.fetch; this.gate = new Gate(o.concurrency) }
+  get retries(): number { return this.o.retries }
+  get retryBaseMs(): number { return this.o.retryBaseMs }
 
   /** One call with the retry rule (network errors and 5xx retried; any other status answered as it is). */
   private async call(method: 'GET' | 'POST', p: string, body: unknown, what: string, field?: string): Promise<any> {
@@ -348,8 +350,8 @@ export class Refresher {
       });
       if (!skew) return g;
       log('warn', 'refresh_skew', { attempt: attempt + 1, state_finished_at: st.finished_at, xsection_finished_at: g.finished_at });
-      if (attempt >= this.api['o'].retries) throw new Deferred(`terminal-api /xsection answered the publication of ${g.finished_at}, /state names ${st.finished_at}`);
-      await sleep(this.api['o'].retryBaseMs * 2 ** attempt);
+      if (attempt >= this.api.retries) throw new Deferred(`terminal-api /xsection answered the publication of ${g.finished_at}, /state names ${st.finished_at}`);
+      await sleep(this.api.retryBaseMs * 2 ** attempt);
     }
   }
   /** Rule 5's cross-check: every ticker of the price file against its /manifest (rows and last date). */

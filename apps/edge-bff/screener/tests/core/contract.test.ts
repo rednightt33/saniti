@@ -90,6 +90,9 @@ describe('contract', () => {
     const refused: LimitExceededDetails = { limit: 'compute_budget', allowed: 20000, needed: 31000, costliest: 'c' };
     const published: LimitEntry = { name: refused.limit, value: 20000, unit: 'ms', rule: 'r', example_ok: 'ok', example_refused: 'no' };
     expect(published.name).toBe('compute_budget');
+    // the per-owner budget (P33, built in Phase 1) is a published limit name too; its refusal carries the wait
+    const owner: LimitExceededDetails = { limit: 'owner_cpu_budget', allowed: 120000, needed: 121000 };
+    expect(owner.limit).toBe('owner_cpu_budget');
     expect(contractSource).not.toMatch(/'max_cpu_ms'/);
   });
 

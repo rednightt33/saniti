@@ -30,7 +30,9 @@ test('an owner never runs more than SCREENER_OWNER_INFLIGHT at once; the rest wa
   await sleep(60);
   assert.deepEqual(p.lanesView().A, { waiting: 2, running: 2 }, 'two run, two wait though a thread is free');
   await Promise.all(runs.map(r => r.promise));
-  assert.deepEqual(order(), ['a1', 'a2', 'a3', 'a4']);
+  // a1 and a2 start on two threads at once, so their start lines may arrive in either order; a3 and a4 likewise
+  const o = order();
+  assert.deepEqual([o.slice(0, 2).sort(), o.slice(2).sort()], [['a1', 'a2'], ['a3', 'a4']], `the lane keeps its order: ${o}`);
 });
 
 test('round robin: a light owner starts within one turn while a heavy owner loops costly requests', async () => {

@@ -117,8 +117,9 @@ export function runScreen(def: Definition, env: ScreenEnv, options: ScreenOption
   const sources = new Map<string, { precomputed: number; dynamic: number }>();
   const inputs = new Map(survivors.map(s => [s.row.ticker, inputOf(env, s.row, s.t, xs)]));
   const planConds: PlanCondition[] = bound.map(b => {
-    const stage = b.xsection ? 'S1' : b.universeAttr !== null || b.series.every(r => env.isPrewarmed(r)) ? 'S2' : 'S3';
-    const predictedMs = stage === 'S3' ? b.series.filter(r => !env.isPrewarmed(r)).reduce((ms, r) => ms + (env.predictMs?.(r, avgBars) ?? 0), 0) : 0;
+    const pinned = (r: ResolvedSeries) => r.kind === 'price' || env.isPrewarmed(r);    // a bar field is the snapshot itself
+    const stage = b.xsection ? 'S1' : b.universeAttr !== null || b.series.every(pinned) ? 'S2' : 'S3';
+    const predictedMs = stage === 'S3' ? b.series.filter(r => !pinned(r)).reduce((ms, r) => ms + (env.predictMs?.(r, avgBars) ?? 0), 0) : 0;
     const tally = { precomputed: 0, dynamic: 0 };
     sources.set(b.id, tally);
     return {

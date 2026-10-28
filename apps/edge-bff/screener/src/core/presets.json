@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "note": "The prototype's 26 presets (report APPENDIX A.2; evidence/html_model/presets_resolved.txt) remapped onto the registry and screener-metrics.json as report TARGET ARCHITECTURE 6.9.1 and 6.12 decide (P6 a: F conventions; P23 a: one year = 252 sessions, so 52W is 252 where the prototype had 250; P9 = FL09 bandar, states as per-condition thresholds; P8 all boards). The why texts state exactly what the definition tests. A preset is AVAILABLE only when every leg is (validate.ts presetAvailability); it never runs with a leg removed. Availability and counts are derived at run time.",
+  "note": "The prototype's 26 presets (report APPENDIX A.2; evidence/html_model/presets_resolved.txt) remapped onto the registry and screener-metrics.json as report TARGET ARCHITECTURE 6.9.1 and 6.12 decide (P6 a: F conventions; P23 a: one year = 252 sessions, so 52W is 252 where the prototype had 250; P9 = FL09 bandar, states as per-condition thresholds; P8 all boards). The why texts state exactly what the definition tests. A preset is AVAILABLE only when every leg is (validate.ts presetAvailability); it never runs with a leg removed. Availability and counts are derived at run time. `view.sort` is the prototype's default sort of the eight presets that had one (bigacc, fstreak, freq, follow, oversold, piotroski, magic, dividend; its condition index mapped to the condition id, key \"c:<id>\"), kept on the unavailable ones too so it applies when they are enabled.",
   "presets": [
     {
       "id": "brk52",
@@ -112,6 +112,12 @@
           }
         ],
         "logic": "all"
+      },
+      "view": {
+        "sort": {
+          "key": "c:b",
+          "dir": "asc"
+        }
       }
     },
     {
@@ -749,6 +755,12 @@
           }
         ],
         "logic": "all"
+      },
+      "view": {
+        "sort": {
+          "key": "c:a",
+          "dir": "desc"
+        }
       }
     },
     {
@@ -804,6 +816,12 @@
           }
         ],
         "logic": "all"
+      },
+      "view": {
+        "sort": {
+          "key": "c:a",
+          "dir": "desc"
+        }
       }
     },
     {
@@ -922,6 +940,12 @@
           }
         ],
         "logic": "all"
+      },
+      "view": {
+        "sort": {
+          "key": "c:a",
+          "dir": "desc"
+        }
       }
     },
     {
@@ -1041,6 +1065,12 @@
           }
         ],
         "logic": "all"
+      },
+      "view": {
+        "sort": {
+          "key": "c:a",
+          "dir": "desc"
+        }
       }
     },
     {
@@ -1178,6 +1208,12 @@
           }
         ],
         "logic": "all"
+      },
+      "view": {
+        "sort": {
+          "key": "c:a",
+          "dir": "desc"
+        }
       }
     },
     {
@@ -1228,6 +1264,12 @@
           }
         ],
         "logic": "all"
+      },
+      "view": {
+        "sort": {
+          "key": "c:a",
+          "dir": "asc"
+        }
       }
     },
     {
@@ -1365,6 +1407,12 @@
           }
         ],
         "logic": "all"
+      },
+      "view": {
+        "sort": {
+          "key": "c:a",
+          "dir": "desc"
+        }
       }
     },
     {

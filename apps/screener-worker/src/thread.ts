@@ -34,9 +34,7 @@ export interface PrewarmTask { kind: 'prewarm'; desc: SnapshotDesc; from: number
 export interface DigestTask { kind: 'digest'; desc: SnapshotDesc }
 export type Task = RunTask | CountsTask | PreviewTask | BuildTask | PrewarmTask | DigestTask;
 
-/** engine: an optional module URL whose runTask / runPreview replace run.ts's and preview.ts's (the worker's tests
-    of lanes, budgets and versions run on it; production never sets it). */
-export interface ThreadData { role: 'compute' | 'builder'; name: string; env: ThreadEnv; terminal: Omit<TerminalOptions, 'fetch' | 'log'> | null; flag: Int32Array; engine?: string }
+export interface ThreadData { role: 'compute' | 'builder'; name: string; env: ThreadEnv; terminal: Omit<TerminalOptions, 'fetch' | 'log'> | null; flag: Int32Array }
 export type ToThread =
   | { type: 'install'; sid: string; desc: SnapshotDesc; lruBytes: number }
   | { type: 'drop'; sid: string }
@@ -53,10 +51,7 @@ function start(d: ThreadData): void {
   setLogSink(line => port.postMessage({ type: 'log', line } satisfies FromThread));
   const snapshots = new Map<string, ThreadSnapshot>();
   const client = d.terminal ? new TerminalClient({ ...d.terminal, log: (event, fields) => log('info', event, { thread: d.name, ...fields }) }) : null;
-  let engine = { runTask, runPreview };
-  let chain: Promise<void> = d.engine
-    ? import(d.engine).then((m: Partial<typeof engine>) => { engine = { runTask: m.runTask ?? runTask, runPreview: m.runPreview ?? runPreview } })
-    : Promise.resolve();
+  let chain: Promise<void> = Promise.resolve();
   port.on('message', (m: ToThread) => { chain = chain.then(() => handle(m)) });
 
   async function handle(m: ToThread): Promise<void> {
@@ -100,15 +95,15 @@ function start(d: ThreadData): void {
       }
       case 'prewarm': return prewarmChunk(task.desc, task.from, task.to, d.env.capBudgetMs);
       case 'digest': return { digest: snapshotDigest(task.desc) };
-      case 'run': case 'counts': return engine.runTask(task, snapshot(task.sid), d.env, cancelled);
-      case 'preview': return engine.runPreview(task, snapshot(task.sid), d.env);
+      case 'run': case 'counts': return runTask(task, snapshot(task.sid), d.env, cancelled);
+      case 'preview': return runPreview(task, snapshot(task.sid), d.env);
       case 'counts_list': {
         // each definition on its own; a failure is that entry's error, the others are still counted (8.6)
         const snap = snapshot(task.sid), out: CountsEntryOut[] = [];
         for (const item of task.items) {
           if (cancelled()) throw new CancelledRun();
           try {
-            const o = engine.runTask({ ...item, kind: 'counts', sid: task.sid, options: { exhaustive: false, explain: false }, queue_ms: 0, s0_ms: 0, versions: snap.desc.versions, data: snap.desc.data }, snap, d.env, cancelled);
+            const o = runTask({ ...item, kind: 'counts', sid: task.sid, options: { exhaustive: false, explain: false }, queue_ms: 0, s0_ms: 0, versions: snap.desc.versions, data: snap.desc.data }, snap, d.env, cancelled);
             out.push({ item_id: item.item_id, match_count: o.match_count, near_count: o.near_count, busy_ms: o.busy_ms });
           } catch (e) {
             if (cancelled() || isCancelled(e)) throw e;

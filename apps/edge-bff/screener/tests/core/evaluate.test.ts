@@ -221,3 +221,14 @@ describe('price-break cell remarks through the binding (P4.1 A: values shown, ce
     expect(plain.remark).toBe(null);                                                               // no PRICE_BREAK row remark
   });
 });
+
+describe('NOT_APPLICABLE (report 6.9, 6.12: bank metrics outside Banks)', () => {
+  it('a metric whose applies_to excludes the ticker is NA NOT_APPLICABLE; inside its scope the value is tested', () => {
+    // the binding does not decide availability (validate.ts refuses npl today: no data); here the row carries a value
+    const b = bindCondition(cond({ kind: 'value', op: 'lt', value: 3, metric: { kind: 'universe', attr: 'npl' } }), 'd', { ...OPTS, withinMax: WITHIN_MAX });
+    const t = synth('BANK', 21, 120), bank = { ...rowOf(t, E, { sector: 'Financials', industry: 'Banks' }), npl: 2.1 } as UniverseRow;
+    const coal = { ...rowOf(t, E, { sector: 'Energy', industry: 'Coal' }), npl: 2.1 } as UniverseRow;
+    expect(b.evaluate(inputFor(t, undefined, bank)).cell).toMatchObject({ status: 'pass', value: 2.1, reason: null, remark: null });
+    expect(b.evaluate(inputFor(t, undefined, coal)).cell).toMatchObject({ status: 'na', reason: 'NOT_APPLICABLE', value: null });
+  });
+});

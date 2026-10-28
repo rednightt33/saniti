@@ -3,66 +3,19 @@
    against the backtest core's own decoding and the screener core's own functions. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { DataError, dataVersion, inflateVerified, priceSeries } from '../../edge-bff/backtest/src/core/datafile.ts';
-import type { Columnar } from '../../edge-bff/backtest/src/core/datafile.ts';
+import { DataError, dataVersion } from '../../edge-bff/backtest/src/core/datafile.ts';
 import { ADJUSTED_HISTORY_BOUNDARY } from '../../edge-bff/backtest/src/core/engine.ts';
-import { F } from '../../edge-bff/terminal/src/calc/indicators.ts';
-import { INDICATORS, startParams } from '../../edge-bff/screener/src/core/registry.ts';
-import { SeriesCache, resolveSeries, series, seriesKey, tailLength, tickerCalc, universeAttributes } from '../../edge-bff/screener/src/core/metrics.ts';
+import { SeriesCache, series, seriesKey, tickerCalc, universeAttributes } from '../../edge-bff/screener/src/core/metrics.ts';
 import { presetDefinitions } from '../../edge-bff/screener/src/core/validate.ts';
+import { declaredDerivedSeries } from '../../edge-bff/screener/src/core/condition.ts';
 import { round12 } from '../../edge-bff/screener/src/core/evaluate.ts';
 import { groupingsOf as backtestGroupings } from '../../backtest-worker/src/catalog.ts';
-import type { TickerReference } from '../../backtest-worker/src/terminal.ts';
-import { classification } from '../../backtest-worker/src/terminal.ts';
 import { ThreadSnapshot, buildSnapshot, groupingsOf, materialize, pinnedTail, prewarmChunk, resolvePinned, snapshotDigest } from '../src/snapshot.ts';
-import type { BuildInput, PublicationState } from '../src/snapshot.ts';
-import { encode, pricePack, tickersRef } from '../../backtest-worker/tests/fake-terminal.mjs';
-import { universe, walk, xsectionActionsDoc, xsectionPriceDoc } from './fake-terminal.mjs';
+import { encode, pricePack } from '../../backtest-worker/tests/fake-terminal.mjs';
+import { xsectionPriceDoc } from './fake-terminal.mjs';
+import { CAP, decode, input, market, refOf, state } from './fixtures.ts';
 
-const CAP = 10000, WITHIN = 130;
-const decode = async (doc: object): Promise<Columnar> => { const { body, sha256 } = encode(doc); return inflateVerified(new Uint8Array(body), { sha256, bytes: body.length }) };
-const refOf = (rows: unknown[][]): TickerReference => {
-  const doc = tickersRef(rows) as Record<string, unknown[]>, groupings = ['sector', 'industry'];
-  return { groupings, tickers: (doc.ticker as string[]).map((t, i) => ({ ticker: t, name: doc.name[i] as string, type: doc.type[i] as string, groups: { sector: classification(doc.sector[i]), industry: classification(doc.industry[i]) } })) };
-};
-const state = (over: Partial<PublicationState> = {}): PublicationState => ({ finished_at: '2026-10-27T13:03:23Z', price_through: '2026-10-27', broker_through: null, broker_behind_sessions: 0, xsection: null, ...over });
-async function input(prices: Record<string, unknown[][]>, ref: unknown[][], actions: unknown[][] = [], over: Partial<BuildInput> = {}): Promise<BuildInput> {
-  return { price: await decode(xsectionPriceDoc(prices)), actions: await decode(xsectionActionsDoc(actions)), ref: refOf(ref), state: state(),
-    engine: { screener_engine: 'e'.repeat(16), registry: 'r'.repeat(16), screener_registry: 's'.repeat(16) }, tailLength: tailLength(WITHIN), capBudgetMs: CAP, withinMax: WITHIN, presets: [], ...over };
-}
 const integrity = (field?: string) => (e: unknown) => { assert.ok(e instanceof DataError && e.code === 'DATA_INTEGRITY', String(e)); if (field) assert.equal((e as DataError).field, field); return true };
-
-/* a small market with the cases the rules name: a short history (74 bars, RANS), a flat window, IHSG without volume,
-   a stock that stopped trading before E (stale) */
-function market() {
-  const u = universe(5, 320);
-  u.prices.SHORT = walk(3, 74);
-  u.prices.FLAT = walk(4, 300).map(([d], i) => [d, 500, 500, 500, 500, i % 2 ? 0 : 1000]);
-  u.prices.STALE = walk(5, 300, { last: '2026-08-21' });
-  u.ref.push(['SHORT', 'Short history', 'stock', 'Energy', 'Coal'], ['FLAT', 'Flat', 'stock', 'Undefined', 'Undefined'], ['STALE', 'Stale', 'stock', 'Energy', 'Coal']);
-  return u;
-}
-
-test('typed views: the bars read back from the shared columns equal priceSeries value for value, and F gives bit-identical outputs on them (TEST PLAN 10b.1)', async () => {
-  const u = market(), { desc } = await buildSnapshot(await input(u.prices, u.ref));
-  const same = (a: ArrayLike<unknown>, b: ArrayLike<unknown>, what: string) => {
-    assert.equal(a.length, b.length, what);
-    for (let i = 0; i < a.length; i++) if (!Object.is(a[i], b[i])) assert.fail(`${what}[${i}]: ${String(a[i])} vs ${String(b[i])}`);
-  };
-  let compared = 0;
-  for (const [j, t] of desc.tickers.entries()) {
-    const want = priceSeries(t, [JSON.parse(JSON.stringify(pricePack(t, u.prices[t])))]), got = materialize(desc, j);
-    assert.deepEqual(got.dates, want.dates);
-    for (const k of ['O', 'H', 'L', 'C', 'V', 'T'] as const) same(got.bars[k] as ArrayLike<unknown>, want.bars[k] as ArrayLike<unknown>, `${t}.${k}`);
-    for (const ind of INDICATORS) {
-      const p = startParams(ind, { capBudgetMs: CAP }), a = F[ind.key](want.bars, p), b = F[ind.key](got.bars, p);
-      for (const o of ind.outputs) { same(b[o.key], a[o.key], `${t} ${ind.id}.${o.key}`); compared++ }
-    }
-  }
-  assert.equal(compared, desc.tickers.length * 76);
-  const ihsg = materialize(desc, desc.index);
-  assert.ok(ihsg.bars.V.every(v => v === null), 'IHSG keeps a null volume, never 0 or NaN');
-});
 
 test('the snapshot: price_data over every ticker\'s pack sha256, E = price_through, the stock rows from the core\'s own functions, IHSG apart', async () => {
   const u = market(), inp = await input(u.prices, u.ref), { desc, entries, stats } = await buildSnapshot(inp);
@@ -97,7 +50,7 @@ test('version stability: the same files give the same price_data, sid and digest
   assert.notEqual(c.v, a.v); assert.notEqual(c.digest, a.digest);
 });
 
-test('the pre-warm: the 53 at their start configuration (76 outputs) and the presets\' series, each tail equal to the dynamic series() on the same bars', async () => {
+test('the pre-warm: the 53 at their start configuration (76 outputs), the declared derived series and the presets\' series, each tail equal to the dynamic series() on the same bars', async () => {
   const u = market(), presets = presetDefinitions().filter(p => ['golden', 'brk52', 'squeeze', 'minervini'].includes(p.id));
   const { desc, stats } = await buildSnapshot(await input(u.prices, u.ref, [], { presets: [...presets] }));
   assert.ok(stats.series > 76, `the presets add series: ${stats.series}`);
@@ -119,8 +72,13 @@ test('the pre-warm: the 53 at their start configuration (76 outputs) and the pre
     }
   }
   assert.ok(patterns > 0, 'the presets\' pattern signals are pinned too');
+  // every series a default card reads is pinned (core condition.ts declaredDerivedSeries: bar fields, the Donchian
+  // prior bands, the rising lags and vs-MA averages), so a default card is a snapshot lookup (stage S2)
+  const pinnedKeys = new Set(desc.series.map(x => x.key)), declared = declaredDerivedSeries({ capBudgetMs: CAP, index: ihsg });
+  assert.ok(declared.some(r => r.label === 'lag(I10.upper, 1)'), 'the Donchian prior band is declared');
+  for (const r of declared) assert.ok(pinnedKeys.has(seriesKey(dv, r)), `${r.label} is pinned`);
   // a thread installs them as pinned entries: a lookup is 'precomputed'
-  const snap = new ThreadSnapshot(desc, 1e6), r0 = resolveSeries(desc.series[0].ref, 'x', { capBudgetMs: CAP, index: ihsg });
+  const snap = new ThreadSnapshot(desc, 1e6), r0 = resolvePinned(desc.series[0].ref, 'x', { capBudgetMs: CAP, index: ihsg });
   const hit = series({ versions: snap.dv, tailLength: desc.tailLength, cache: snap.cache }, tickerCalc(snap.bars('T001')), r0);
   assert.equal(hit.source, 'precomputed');
 });

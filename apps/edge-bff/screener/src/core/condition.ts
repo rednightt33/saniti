@@ -33,9 +33,10 @@ import {
 } from './evaluate.ts';
 import type { BarView, Evaluation, Operand } from './evaluate.ts';
 import { laggedSeries, missingInput, resolveSeries } from './metrics.ts';
-import type { ResolvedIndicator, ResolvedSeries, SeriesSource, Tail, TickerBars } from './metrics.ts';
+import type { ResolvedSeries, SeriesSource, Tail, TickerBars } from './metrics.ts';
 import { canonicalJson } from '../../../backtest/src/core/hash.ts';
 import { resolveSignal } from './transforms.ts';
+import { INDICATORS, SBY_ID, isDefaultParams } from './registry.ts';
 import type { ParamOptions } from './registry.ts';
 import { priceBreakDates } from './universe.ts';
 
@@ -110,7 +111,6 @@ function bindSide(s: Side, field: string, ctx: BindContext): BoundSide {
 
 /** The display name of a side (report 8.5 conditions[].metric: '<id>.<output>', '<lhs> x <rhs>'). */
 const nameOf = (s: BoundSide) => s.kind === 'value' ? String(s.value) : s.r.label;
-const indicatorsOf = (rs: readonly ResolvedSeries[]): ResolvedIndicator[] => rs.filter(r => r.kind === 'indicator') as ResolvedIndicator[];
 
 /** A condition (normalized by validate.ts, or a preset's) bound to its series. `field` is its path in the request
     ('definition.conditions[2]'); a reference problem is the ScreenerError naming it. */
@@ -180,7 +180,7 @@ function bindValue(id: string, t: ValueTest, f: string, ctx: BindContext, catalo
   const r = resolveSeries(m, `${f}.metric`, ctx);
   return {
     id, kind: 'value', test: testOf(r.ref), series: [r], xsection: null, universeAttr: null,
-    summary: summaryOf([{ kind: 'series', r }], r.label, r.unit),
+    summary: summaryOf([{ kind: 'series', r }], r.label, r.unit, catalog),
     evaluate: input => {
       const { view, tail, source } = read(input, r, 0);
       const e = evaluateValue(view, rule, input.at);
@@ -217,7 +217,7 @@ function bindCompare(id: string, kind: 'state' | 'event', lhs: Side, op: string,
   const reach = kind === 'event' ? ctx.withinMax : 0;
   return {
     id, kind, test, series, xsection: null, universeAttr: null,
-    summary: summaryOf([L0, R0], name, unit),
+    summary: summaryOf([L0, R0], name, unit, ctx.catalog ?? METRICS_CATALOG),
     evaluate: input => {
       const reads = sides.map(s => s.kind === 'value' ? null : read(input, s.r, reach));
       const operand = (k: number): Operand => sides[k].kind === 'value' ? (sides[k] as { value: number }).value : reads[k]!.view;
@@ -226,7 +226,8 @@ function bindCompare(id: string, kind: 'state' | 'event', lhs: Side, op: string,
         ? evaluateState(lv, op as 'gt' | 'lt', rv, input.at)
         : evaluateEvent(crossSignal(lv, op as 'crosses_above' | 'crosses_below', rv), within, ctx.withinMax, input.at, { lhs: lv, rhs: rv });
       const starts = sides.flatMap((s, k) => s.kind === 'value' ? [] : [startOf(s.r, reads[k]!.tail, input.at, kind === 'event' ? within : 0)]);
-      const source: SeriesSource = reads.every(x => !x || x.source === 'precomputed') ? 'precomputed' : 'dynamic';
+      // a bar field is the snapshot itself (never computed for a request), so only the other sides decide the source
+      const source: SeriesSource = reads.every((x, k) => !x || x.source === 'precomputed' || (sides[k] as { r: ResolvedSeries }).r.kind === 'price') ? 'precomputed' : 'dynamic';
       return { cell: cellOf(id, e, input, unit, starts), source };
     },
   };
@@ -258,10 +259,38 @@ function cellOf(id: string, e: Evaluation, input: TickerInput, unit: string | nu
   return toCell(id, e, { dates: input.dates, at: input.at, ihsgCalendar: input.ihsgCalendar, unit: unit as string | null, remark });
 }
 const defaultsOf = (m: MetricDefinition): ParamMap => Object.fromEntries(m.params.map(p => [p.key, p.default]));
-function summaryOf(sides: BoundSide[], metric: string, unit: string | null): BoundCondition['summary'] {
-  const rs = sides.flatMap(s => s.kind === 'series' ? [s.r] : []);
-  const inds = indicatorsOf(rs), main = inds[0];
-  return { metric, params_resolved: main ? (main.params as ParamMap) : {}, is_default: inds.every(r => r.isDefault) && rs.every(r => r.kind === 'indicator' || r.kind === 'price'), unit: unit as string | null };
+/** Whether a normalized reference is at its defaults all the way down (report 8.5 is_default: "whether the parameters
+    are the registry's"): every indicator at its registry defaults, every transform argument, pattern and cross-section
+    parameter at the catalog's default; bar fields and universe attributes have none. */
+function refIsDefault(r: unknown, catalog: MetricsCatalog): boolean {
+  if (!isObj(r)) return true;
+  switch (r.kind) {
+    case 'indicator': { const ind = SBY_ID[r.indicator as string]; return !!ind && isDefaultParams(ind, (r.params || {}) as ParamMap) }
+    case 'transform': {
+      const spec = catalog.transforms.find(t => t.fn === r.fn), args = (r.args || {}) as Record<string, unknown>;
+      if (!spec || spec.args.some(a => args[a.key] !== a.default)) return false;
+      return refIsDefault(r.of, catalog) && spec.ref_args.every(a => refIsDefault(args[a.key], catalog));
+    }
+    case 'pattern': case 'xsection': {
+      const m = catalog.metrics.find(x => x.kind === r.kind && x.id === (r.kind === 'pattern' ? r.type : r.metric));
+      return !!m && canonicalJson(r.params || {}) === canonicalJson(defaultsOf(m));
+    }
+  }
+  return true;
+}
+/** The first indicator a reference reads, depth first (its parameters are the summary's params_resolved). */
+function firstIndicator(r: unknown): { params: ParamMap } | null {
+  if (!isObj(r)) return null;
+  if (r.kind === 'indicator') return { params: (r.params || {}) as ParamMap };
+  if (r.kind === 'transform') return firstIndicator(r.of) ?? Object.values((r.args || {}) as Record<string, unknown>).map(firstIndicator).find(Boolean) ?? null;
+  return null;
+}
+function summaryOf(sides: BoundSide[], metric: string, unit: string | null, catalog: MetricsCatalog = METRICS_CATALOG): BoundCondition['summary'] {
+  const refs = sides.flatMap(s => s.kind === 'series' ? [s.r.ref] : []);
+  const main = refs.map(firstIndicator).find(Boolean);
+  const top = refs.find(r => r.kind === 'transform') as { args?: ParamMap } | undefined;
+  return { metric, params_resolved: main ? main.params : top?.args ? Object.fromEntries(Object.entries(top.args).filter(([, v]) => typeof v !== 'object')) as ParamMap : {},
+    is_default: refs.every(r => refIsDefault(r, catalog)), unit: unit as string | null };
 }
 function universeSpec(attr: unknown, field: string, catalog: MetricsCatalog): MetricDefinition {
   return metricSpec('universe', attr, field, catalog);
@@ -302,4 +331,26 @@ export function conditionSignal(b: BoundCondition, full: (r: ResolvedSeries) => 
   for (const s of [sig.lhs, sig.rhs]) views.push(isValueSide(s) ? s.value : viewOfSeries(full(rs.shift()!) as ArrayLike<number | null>));
   for (let i = 0; i < n; i++) out[i] = +compareAt(views[0], sig.op, views[1], i);
   return out;
+}
+
+/* ---- the snapshot's declared series (report 6.7 "Pre-warmed at each publication") ----------------------------------- */
+
+/** Every series a default card reads, besides the 53 outputs themselves (report 6.7 "contract-declared derived series,
+    computed on the full series and then tailed"): at each indicator's start parameters, the prior bar of every output
+    a bar-field comparison reads one bar late (lag(x, 1) where price_compare_lag is 1: Donchian upper and lower), and the
+    lag and moving average the overlay's rising and vs-MA forms open with (state_rising bars, state_vs_ma / event_vs_ma
+    ma and length), and the five bar fields themselves (a bar field is never computed). The worker pins them with series(..., true), so a default card is a snapshot lookup (stage S2). */
+export function declaredDerivedSeries(opts: ParamOptions & { index?: TickerBars }): ResolvedSeries[] {
+  const out = new Map<string, ResolvedSeries>(), add = (r: ResolvedSeries) => out.set(r.key, r);
+  for (const field of ['open', 'high', 'low', 'close', 'volume'] as const) add(resolveSeries({ kind: 'price', field }, 'declared', opts));
+  for (const ind of INDICATORS) for (const o of ind.outputs) {
+    const r = resolveSeries({ kind: 'indicator', indicator: ind.id, output: o.key, params: { ...ind.start_params } }, `declared.${ind.id}.${o.key}`, opts);
+    if (r.compareLag.gt === 1 || r.compareLag.lt === 1) add(laggedSeries(r, `declared.${ind.id}.${o.key}`, opts));
+    for (const t of o.tests) {
+      const d = t.defaults || {};
+      if (t.form === 'state_rising') add(resolveSeries({ kind: 'transform', fn: 'lag', of: r.ref, args: { bars: Number(d.bars ?? 5) } }, 'declared', opts));
+      if (t.form === 'state_vs_ma' || t.form === 'event_vs_ma') add(resolveSeries({ kind: 'transform', fn: 'ma', of: r.ref, args: { ma: String(d.ma ?? 'EMA'), length: Number(d.length ?? 20) } }, 'declared', opts));
+    }
+  }
+  return [...out.values()];
 }

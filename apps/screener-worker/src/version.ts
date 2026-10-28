@@ -9,14 +9,18 @@
      repository layout, so the same files give the same version in the repository and in the image;
    - registry: the backtest registry_version, passed through; screener_registry: screener-registry.json's own hash.
    Start-up (checkStartup): the backtest registry artifact must match its sources in the image (the backtest worker's
-   own check, through build-registry.mjs), and every source screener-registry.json names, except the build-only oracle
-   script, must be in the image with the sha256 the file records; otherwise the worker refuses to start. */
+   own check, through build-registry.mjs), every source screener-registry.json names, except the build-only oracle
+   script, must be in the image with the sha256 the file records, and screener-metrics.json and presets.json must
+   pass catalog.ts catalogProblems with the transform functions and pattern types transforms.ts computes; otherwise
+   the worker refuses to start. */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { REGISTRY_VERSION } from '../../edge-bff/backtest/src/core/registry.ts';
 import { SCREENER_REGISTRY_VERSION, SOURCES, registryProblems } from '../../edge-bff/screener/src/core/registry.ts';
+import { catalogProblems } from '../../edge-bff/screener/src/core/catalog.ts';
+import { IMPLEMENTED_PATTERNS, IMPLEMENTED_TRANSFORMS } from '../../edge-bff/screener/src/core/transforms.ts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(HERE, '../../..');
@@ -50,7 +54,9 @@ export { REGISTRY_VERSION, SCREENER_REGISTRY_VERSION };
 
 /** The start-up checks; problems = what disagrees (empty when the worker may start). */
 export async function checkStartup(root = REPO_ROOT): Promise<{ ok: boolean; problems: string[] }> {
-  const problems = [...registryProblems()];
+  // the screener registry, then screener-metrics.json and presets.json against what transforms.ts computes (catalog.ts
+  // checks the files alone at import; the transform and pattern lists need transforms.ts, which it cannot import)
+  const problems = [...registryProblems(), ...catalogProblems({ transforms: IMPLEMENTED_TRANSFORMS, patterns: IMPLEMENTED_PATTERNS })];
   const { registryVersion } = await import('../../backtest-worker/scripts/build-registry.mjs') as { registryVersion: () => string };
   const found = registryVersion();
   if (found !== REGISTRY_VERSION) problems.push(`backtest-registry.json has registry_version ${REGISTRY_VERSION}, its sources hash to ${found}`);

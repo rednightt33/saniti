@@ -7,6 +7,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { describeConfig, loadConfig } from '../src/config.ts';
 import { ENGINE_VERSION, REPO_ROOT, checkStartup, engineVersion } from '../src/version.ts';
+import { PRESETS } from '../../edge-bff/screener/src/core/catalog.ts';
 import { KEY, PROXY, envFor } from './helpers.ts';
 
 const URL0 = 'http://127.0.0.1:9';
@@ -69,4 +70,11 @@ test('the start-up check passes on this tree and names a source whose hash diffe
   assert.ok(bad.problems.some(p => /screener-overlay\.json \(overlay\) has sha256/.test(p)), bad.problems.join('; '));
   assert.ok(bad.problems.some(p => /build-screener-registry\.mjs \(generator\) is not in the image/.test(p)));
   fs.rmSync(tmp, { recursive: true, force: true });
+  // screener-metrics.json and presets.json against what transforms.ts computes (core catalogProblems): a preset whose
+  // default sort names a condition it does not have stops the start
+  const oversold = PRESETS.presets.find(p => p.id === 'oversold')!, keep = oversold.view;
+  try {
+    oversold.view = { sort: { key: 'c:z', dir: 'asc' } };
+    assert.ok((await checkStartup()).problems.some(p => /preset oversold: view\.sort/.test(p)));
+  } finally { oversold.view = keep }
 });
