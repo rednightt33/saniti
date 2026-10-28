@@ -9,7 +9,9 @@ import { fetchFile, fileCache, sha256Hex } from './rack';
 
 /** one file to read: its presigned URL and, from /bundle, the sha256 of its bytes (the browser cache key) */
 export interface FileRef { url: string; sha?: string; name?: string }
-export interface WorkerJob { id: number; price: FileRef[]; broker: FileRef[]; events: FileRef[]; tf?: Timeframe }
+/** `dates` (EXEC-TERMINAL-ASSETS): the daily sessions of the chart's own ticker; with it the broker files of another ticker
+    (an added asset's Flow Timeline) are put on those sessions, and its price is not read */
+export interface WorkerJob { id: number; price: FileRef[]; broker: FileRef[]; events: FileRef[]; tf?: Timeframe; dates?: string[] }
 /** EXEC-TERMINAL-SPEED step 1: what each download cost, for ?perf=1 */
 export interface FileStat { name: string; ms: number; bytes: number; cached: boolean }
 export interface PriceRow { d: string; o: number; h: number; l: number; c: number; v: number | null }
@@ -102,7 +104,7 @@ export const rowsOf = (doc: Columnar) => {
 const scope = globalThis as any;
 if (typeof scope.WorkerGlobalScope !== 'undefined' && scope instanceof scope.WorkerGlobalScope) {
   scope.onmessage = async (e: MessageEvent<WorkerJob>) => {
-    const { id, price, broker, events, tf } = e.data;
+    const { id, price, broker, events, tf, dates:onto } = e.data;
     const post = (answer: WorkerAnswer, transfer: Transferable[] = []) => scope.postMessage(answer, transfer);
     const fail = (err: any) => post({ id, type:'error', message:err?.message || 'The terminal could not read its data.', status:err?.status || 0 });
     /* EXEC-TERMINAL-1026B F5 (user 2026-10-26: "dimuat di awal tahun, tapi setelah terload maka sistem akan otomatis meload
@@ -117,7 +119,7 @@ if (typeof scope.WorkerGlobalScope !== 'undefined' && scope instanceof scope.Wor
     let rows: PriceRow[];
     try { rows = priceRows(await Promise.all(price.map(download))) } catch (err) { return fail(err) }
     post({ id, type:'price', rows });
-    const dates = rows.map(r => r.d), groups = tf && tf !== 'D' ? buckets(dates, tf) : null;
+    const dates = onto || rows.map(r => r.d), groups = tf && tf !== 'D' ? buckets(dates, tf) : null;
     let latest: Columnar[];
     try {
       latest = await recentDocs;

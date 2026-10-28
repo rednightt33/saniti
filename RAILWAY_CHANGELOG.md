@@ -4937,3 +4937,29 @@ User 2026-10-27: "S1 dan S2 yes sesuai yang kamu sarankan / S3 - OK ya", "Go". `
 18:22 UTC; live Backtest and Terminal assets equal the builds (sha256). Live check: `#chartLoading` "Loading MAPI", one
 turn 0.15s, gone when the candles are drawn (3.9 s from the sandbox), three lane rings while the broker data loads, no
 page error. The documents commit `3569d6d` rebuilt edge-bff with the same code: `d2e3aa1f` SUCCESS 18:23 UTC. No variable changed.
+
+## 2026-10-28 — edge-bff `32a25029` (EXEC-TERMINAL-BS-SIDE)
+
+- Service edge-bff, environment dev, from GitHub `main` `f265ae4` (auto-deploy). Status SUCCESS.
+- Change: Terminal front-end only (Broker summary window side by side, Alt+B, blue crosshair while choosing on the
+  chart). No variable, database or other service changed.
+- Verified: the live `/terminal-app/` serves `assets/index-BEOCbHT-.js`, the same build checked locally against live
+  data (`verification/terminal_api/bs_side_live_check.py`, WIFI).
+
+## 2026-10-28 — edge-bff `04248ae3` (EXEC-TERMINAL-ASSETS)
+
+- Service edge-bff, environment dev, from GitHub `main` `54b198a` (auto-deploy). Status SUCCESS.
+- Change: Terminal front-end only (added assets from the ticker search, max 2; legend and settings; a Flow Timeline per
+  asset; Brush and Text on Flow charts). No variable, database or other service changed. Before the push: Railway
+  accepting deploys (last edge-bff deployment SUCCESS), no active EDGE run in market-ai-orc logs.
+- Verified: the live `/terminal-app/` serves `assets/index-DN7dbRLJ.js`, the same build checked locally
+  (`verification/terminal_api/assets_check/`); `/ready` 200.
+
+## 2026-10-28 — edge-bff `7b05b9fd` (EXEC-TERMINAL-ASSETS-2)
+
+- Service edge-bff, environment dev, from GitHub `main` `baa0903` (auto-deploy). Status SUCCESS. The docs-only commit
+  `4f17e4d` after it was SKIPPED (watch paths).
+- Change: Terminal front-end only (asset Flow Timelines: grip to raise and lower, the chart ticker's badge style, the
+  hatch after the asset's broker data). No variable, database or other service changed.
+- Verified: the live `/terminal-app/` serves `assets/index-Slzh3Atp.js`, the same build checked locally
+  (`verification/terminal_api/assets_check/check3.mjs`).

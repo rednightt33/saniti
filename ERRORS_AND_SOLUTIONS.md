@@ -2904,6 +2904,74 @@ change yet.
 - **Pelajaran:** posisi awal beberapa jendela harus dihitung dari satu titik acuan, bukan dari ukuran tiap jendela.
 - **Status:** RESOLVED; live sejak edge-bff `43e5b185` (`main` `fdd00e7`), aset terminal = build (RAILWAY_CHANGELOG).
 
+### EXEC-TERMINAL-ASSETS-2 — grip Flow aset tertutup header (2026-10-28)
+
+- **Symptom (uji lokal sebelum deploy):** grip baru di tepi atas Flow aset tidak bisa diklik; header panel menerima klik.
+- **Verified cause:** `.flow-head` z-index 20, grip z-index 8 (nilai grip Flow chart); separuh bawah grip ada di atas
+  header panel yang sama.
+- **Solution:** grip Flow aset z-index 25. Bukti: `assets_check/check3.mjs` (tarik naik/turun, simpan, reload, klik
+  ganda; arsiran tampil; tanpa error), vitest 696, piksel fixture dan live tanpa aset 0 px.
+- **Status:** RESOLVED; live sejak edge-bff `7b05b9fd` (`main` `baa0903`).
+- **Catatan:** commit `baa0903` sempat mengosongkan EXEC.md dan FRONTEND_ARCHITECTURE.md (skrip saya membuka file untuk
+  ditulis sebelum membacanya); dipulihkan di `4f17e4d` dari `c6602d5` ditambah catatan baru. Pelajaran: baca isi file
+  ke variabel dulu, baru buka untuk menulis; periksa `git diff --stat` sebelum commit.
+
+### EXEC-TERMINAL-ASSETS — aset tambahan dan Flow Timeline per aset (2026-10-28)
+
+- **User:** "ketika kita add asset, maka yang keluar adalah search box exactly sama seperti kalau kita search ticker ...
+  maksimal 2"; "flow timeline juga keluar di bagian bawahnya"; "brush function-nya tidak tersedia di panel yang bawah";
+  "panel sebelah kanan adalah belongs untuk main ticker".
+- **Ditemukan saat uji (server tiruan lokal, sebelum deploy):**
+  1. Panel Flow aset yang baru dibuat (belum ada data) mengirim rentang waktu bawaannya ke chart: semua candle terjepit di
+     kiri. Penyebab: chart kosong punya rentang sendiri dan sinkronisasi dua arah meneruskannya. Solusi: panel diisi titik
+     waktu kosong sesi chart sejak dibuat, menerima rentang chart dulu, baru sesudah itu boleh menggerakkan chart; data
+     baru tidak menggeser rentang.
+  2. "Value is null" (lightweight-charts) saat crosshair dipasang di Flow aset tanpa data broker (IHSG): seri yang semua
+     titiknya kosong tidak punya nilai. Solusi: crosshair panel seperti itu dibersihkan, bukan dipasang.
+  3. Aset di skala sendiri menampilkan label harga terakhir di sumbu kiri chart (seolah harga ticker chart). Solusi:
+     label harga terakhir hanya untuk aset di sumbu kanan / kiri.
+- **Class:** chart yang disinkronkan dua arah harus mulai dari rentang chart induk; chart tanpa nilai tidak boleh
+  dijadikan sasaran posisi crosshair dari kode.
+- **Bukti (lokal, data sintetis berbentuk file rak, `verification/terminal_api/assets_check/`):** + membuka search "Add
+  asset" (Current/Added), panel Add Series tetap tertutup; 2 aset, + penuh; BBCA sumbu kanan, BBRI skala sendiri; hover
+  chart menggerakkan legend dan kedua Flow aset, hover Flow aset menggerakkan chart; dialog Inputs/Style/Visibility,
+  Candles mematikan Price source, Flow off lalu Cancel mengembalikan, Ok menyimpan Area; Return mode; Brush di Flow BBCA
+  dan Flow chart, Text "akumulasi", undo; Alt+T dari chart ke Flow aset; menu klik kanan Flow aset; lipat, hapus, reload
+  mengembalikan; Weekly; IHSG tanpa data broker; ganti simbol lewat Inputs; tanpa error halaman. Lebar sumbu kiri semua
+  chart 112 px. vitest 696 (6 baru). Piksel fixture main vs baru: 0 px di 7 langkah; live tanpa aset main vs baru: 0 px
+  (satu putaran sempat beda 2 px lebar sumbu kanan saat mesin sibuk, tiga putaran berikutnya 0 px).
+- **Tidak diuji:** data live sungguhan (penyimpanan kunci proxy terminal-api ke disk ditolak oleh pengaman sesi);
+  `tests/test_terminal.py` (gateway, tidak berubah; pytest tidak terpasang di container).
+- **Pelajaran:** sebelum menyambung sinkronisasi dua arah, isi chart baru dengan sumbu waktu yang sama dan tahan arah
+  balik sampai rentang induk diterapkan.
+- **Status:** RESOLVED; live sejak edge-bff `04248ae3` (`main` `54b198a`), aset terminal = build (RAILWAY_CHANGELOG).
+
+### EXEC-TERMINAL-BS-SIDE — Broker summary kiri-kanan, Alt+B, crosshair biru (2026-10-28)
+
+- **User:** "Boleh nggak kita buat sama seperti top brokers. Jadi dijajarin aja kiri dan kanan"; "Bisa nggak dibuatkan
+  shortcut seperti alt apa kek?"; "pas kita select on chart, hover state-nya currently di mana ... sama seperti
+  crosshair? Tapi ya warna biru aja"; pilihan "Opsi B: Ringkas + % of value", "Opsi A: Panel kanan saja", lalu "go".
+- **Symptom (hover):** saat Select on chart, posisi mouse tidak terlihat sampai klik pertama.
+- **Verified cause:** lapisan pilih (`rangeSelect.ts`, `.rs-layer` z-index 30 di atas chart) menangkap setiap gerakan
+  mouse, sehingga crosshair chart diam.
+- **Class:** setiap lapisan yang mengambil pointer di atas chart (pilih periode sekarang, alat lain nanti) mematikan
+  crosshair dan legenda yang mengikutinya.
+- **Solution:** lapisan meneruskan posisi ke crosshair chart (biru selama memilih, opsi lama dikembalikan). Ditemukan
+  saat uji: posisi dari kode (`setCrosshairPosition`, lightweight-charts 5.2.1) tidak memicu event crosshair, jadi
+  legenda, Flow dan Broker inventory tetap di tanggal terakhir; dialihkan lewat `ctx.crosshairAt` seperti hover dari
+  Broker inventory. Broker summary jendela: `sidesTable` menggantikan `summaryTable`; Alt+B memanggil jalur yang sama
+  dengan Custom → Select on chart panel kanan.
+- **Bukti (lokal, data live WIFI 21–27 Okt 2026, `verification/terminal_api/bs_side_live_check.py`):** Net Top 20: 20
+  dari 41 net buyer, 18 dari 18 net seller, kedua sisi menurun dan bertanda benar; XL +15.3B kiri, MG −38.5B kanan
+  (sama dengan Top brokers); Total +52.1B / −52.1B, ±489.5K lot; Gross Top 10: 58 buyer / 53 seller, total 280.7B. Cari
+  "Y": YP, YU, YJ. Klik MG di kanan masuk Broker inventory. CSV 42 baris dengan kolom Side. Alt+B dari panel tertutup:
+  lapisan muncul, crosshair biru (piksel 38,133,245) mengikuti mouse, legenda 24 Jun lalu 31 Agu 2026, Inventory 24 Jun;
+  dua klik: panel terbuka, keempat panel 24 Jun – 12 Agu 2026 Custom; sesudahnya tanpa piksel biru; Esc batal; Alt+B di
+  kotak teks diabaikan; tanpa error halaman. vitest 690; 1:1 Terminal fixture tidak berubah.
+- **Pelajaran:** posisi crosshair yang diatur dari kode tidak memberi tahu pendengar hover; yang perlu ikut harus
+  digerakkan lewat satu jalur bersama (`ctx.crosshairAt`).
+- **Status:** RESOLVED; live sejak edge-bff `32a25029` (`main` `f265ae4`), aset terminal = build yang diuji (RAILWAY_CHANGELOG).
+
 ### EXEC-BACKTEST-LOAD — halaman Backtest lambat tampil (2026-10-27)
 
 - **Symptom:** user 2026-10-27: "di Edge ada kata-kata which is backtest ... proses display ke front end-nya sangat

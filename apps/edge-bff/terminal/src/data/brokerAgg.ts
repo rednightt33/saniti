@@ -34,34 +34,33 @@ export function sessionSpan(dates: string[], from: string, to: string): [number,
 /* ---- Broker summary table ---- */
 export type SumKey = 'b' | 'bl' | 'bv' | 'ba' | 'sl' | 'sv' | 'sa' | 'nv' | 'nl' | 'share';
 export interface SumRow extends Agg { ba: number | null; sa: number | null; nv: number; nl: number; share: number }
-export interface SumTable { rows: SumRow[]; split: number; total: SumRow; count: number }
+export interface SumSide { rows: SumRow[]; count: number; total: SumRow }
+export interface SumSides { left: SumSide; right: SumSide; total: SumRow }
 
-const value = (r: SumRow, k: SumKey): number | string => k === 'b' ? r.b : (r[k] ?? -Infinity);
+const sumRow = (b: string, list: Agg[], gross: number): SumRow => {
+  const s = (k: 'bv' | 'sv' | 'bl' | 'sl') => list.reduce((t, x) => t + x[k], 0);
+  const bv = s('bv'), sv = s('sv'), bl = s('bl'), sl = s('sl');
+  return { b, bv, sv, bl, sl, ba:avgPrice(bv, bl), sa:avgPrice(sv, sl), nv:bv - sv, nl:bl - sl, share:gross ? (bv + sv) / gross * 100 : 0 };
+};
 
-/** the rows of the Broker summary window. `share` is the broker's buy plus sell value over the period's buy plus sell
-    value (the column sums to 100%). Sorted by `sort`; with a `limit` on a net column, the first `limit` rows (net
-    buyers) and the last `limit` rows (net sellers) are kept and `split` is where the sellers start (-1: one list). */
-export function summaryTable(list: Agg[], o: { sort: SumKey; desc: boolean; limit: number | null; search?: string }): SumTable {
+/** EXEC-TERMINAL-BS-SIDE (user 2026-10-28: "dijajarin aja kiri dan kanan. Kalau semakin scroll down, ya berarti
+    value-nya semakin kecil"): the two sides of the Broker summary window, largest first. Net: the net buyers by net
+    value (left) and the net sellers by how much they sold net (right); a broker with no net stays on neither side.
+    Gross: the buyers by buy value (left) and the sellers by sell value (right); a broker who bought and sold is on
+    both. `share` is the broker's buy plus sell value over the period's (the shares of all brokers sum to 100%). Each
+    side keeps its first `limit` rows (null: all) of those matching `search`; its `count` and `total` cover every
+    matching broker of that side, `total` (outside the sides) every broker of the period. */
+export function sidesTable(list: Agg[], o: { mode: 'net' | 'gross'; limit: number | null; search?: string }): SumSides {
   const gross = list.reduce((s, x) => s + x.bv + x.sv, 0);
-  const all: SumRow[] = list.map(x => ({ ...x, ba:avgPrice(x.bv, x.bl), sa:avgPrice(x.sv, x.sl), nv:x.bv - x.sv, nl:x.bl - x.sl,
-    share:gross ? (x.bv + x.sv) / gross * 100 : 0 }));
-  const sum = (k: 'bv' | 'sv' | 'bl' | 'sl') => all.reduce((s, x) => s + x[k], 0);
-  const T = { b:'Total', bv:sum('bv'), sv:sum('sv'), bl:sum('bl'), sl:sum('sl') };
-  const total: SumRow = { ...T, ba:avgPrice(T.bv, T.bl), sa:avgPrice(T.sv, T.sl), nv:T.bv - T.sv, nl:T.bl - T.sl, share:gross ? 100 : 0 };
   const q = (o.search || '').trim().toUpperCase();
-  const rows = (q ? all.filter(x => x.b.includes(q)) : all).sort((a, b) => {
-    const va = value(a, o.sort), vb = value(b, o.sort);
-    const c = typeof va === 'string' ? va.localeCompare(vb as string) : (va as number) - (vb as number);
-    return (o.desc ? -c : c) || a.b.localeCompare(b.b);
-  });
-  const count = rows.length;
-  if (o.limit == null || rows.length <= o.limit) return { rows, split:-1, total, count };
-  if ((o.sort === 'nv' || o.sort === 'nl') && !q) {
-    const sign = (r: SumRow) => Math.sign(r[o.sort as 'nv' | 'nl']) * (o.desc ? 1 : -1);
-    const head = rows.filter(r => sign(r) > 0).slice(0, o.limit), tail = rows.filter(r => sign(r) < 0).slice(-o.limit);
-    return { rows:[...head, ...tail], split:tail.length ? head.length : -1, total, count };
-  }
-  return { rows:rows.slice(0, o.limit), split:-1, total, count };
+  const all = list.filter(x => !q || x.b.includes(q)).map(x => sumRow(x.b, [x], gross));
+  const net = o.mode === 'net';
+  const key = (r: SumRow, left: boolean) => net ? (left ? r.nv : -r.nv) : (left ? r.bv : r.sv);
+  const side = (left: boolean): SumSide => {
+    const rows = all.filter(r => key(r, left) > 0).sort((a, b) => key(b, left) - key(a, left) || a.b.localeCompare(b.b));
+    return { rows:o.limit == null ? rows : rows.slice(0, o.limit), count:rows.length, total:sumRow('Total', rows, gross) };
+  };
+  return { left:side(true), right:side(false), total:sumRow('Total', list, gross) };
 }
 
 /* ---- Broker inventory ---- */

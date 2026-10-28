@@ -3,7 +3,7 @@
    Everything is mapped into the reference page's own shapes (types.ts). */
 import type { Bar, Combo, CompareSpec, Instrument, MarketData, MarketEvent, Point, VolumePoint } from './types';
 import { brokerData, download, priceRows, rowsOf, type FileRef, type PriceRow, type WorkerAnswer } from './worker';
-import { aggregateRows, buckets, candleOf, type Timeframe } from './timeframe';
+import { aggregateRows, alignCandles, buckets, candleOf, type Timeframe } from './timeframe';
 import { fileStats, mark } from '../app/perf';
 
 const API = '/api/terminal/v1';
@@ -95,14 +95,14 @@ type BrokerAnswer = Omit<Extract<WorkerAnswer, { type:'broker' | 'brokerAll' }>,
 interface Job { price: Promise<PriceRow[]>; broker: Promise<BrokerAnswer>; brokerAll: Promise<BrokerAnswer>; events: Promise<Record<string, unknown>[]> }
 let worker: Worker | null = null, jobs = 0;
 const waiting = new Map<number, Record<string, [(v: any) => void, (e: any) => void]>>();
-function run(files: { price: FileRef[]; broker: FileRef[]; events: FileRef[] }, tf: Timeframe = 'D'): Job {
+function run(files: { price: FileRef[]; broker: FileRef[]; events: FileRef[] }, tf: Timeframe = 'D', onto?: string[]): Job {
   const stage = <T>() => { let ok!: (v: T) => void, no!: (e: any) => void; const p = new Promise<T>((a, b) => { ok = a; no = b }); p.catch(() => {}); return { p, ok, no } };
   const price = stage<PriceRow[]>(), broker = stage<any>(), brokerAll = stage<any>(), events = stage<Record<string, unknown>[]>();
   if (typeof Worker === 'undefined') {
     (async () => {
       const brokerDocs = Promise.all(files.broker.map(download)), eventDocs = Promise.all(files.events.map(download));
       const rows = priceRows(await Promise.all(files.price.map(download))); price.ok(rows);
-      const ds = rows.map(r => r.d), all = brokerData(await brokerDocs, ds, tf === 'D' ? null : buckets(ds, tf)); broker.ok(all); brokerAll.ok(all);
+      const ds = onto || rows.map(r => r.d), all = brokerData(await brokerDocs, ds, tf === 'D' ? null : buckets(ds, tf)); broker.ok(all); brokerAll.ok(all);
       events.ok((await eventDocs).flatMap(rowsOf));
     })().catch(e => [price, broker, brokerAll, events].forEach(s => s.no(e)));
     return { price:price.p, broker:broker.p, brokerAll:brokerAll.p, events:events.p };
@@ -123,7 +123,7 @@ function run(files: { price: FileRef[]; broker: FileRef[]; events: FileRef[] }, 
   }
   const id = ++jobs;
   waiting.set(id, { price:[price.ok, price.no], broker:[broker.ok, broker.no], brokerAll:[brokerAll.ok, brokerAll.no], events:[events.ok, events.no] });
-  worker.postMessage({ id, ...files, tf });
+  worker.postMessage({ id, ...files, tf, dates:onto });
   return { price:price.p, broker:broker.p, brokerAll:brokerAll.p, events:events.p };
 }
 
@@ -205,6 +205,27 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D'): Prom
     return alignTo(dates, series, ends);
   };
 
+  /* EXEC-TERMINAL-ASSETS (user 2026-10-28: "ketika kita add asset, maka yang keluar adalah search box exactly sama seperti
+     kalau kita search ticker ... maksimal 2"; "Menambah aset hanya menambah flow timeline di bawah"): any published ticker
+     as candles on the chart's candles, and its broker files as Flow Timeline combos on the chart's sessions (the worker
+     puts them there, `dates`); the right panel stays the chart's own ticker */
+  const loadAsset = async (ticker: string): Promise<Bar[]> => {
+    if (!known.has(ticker)) return [];
+    const daily = ticker === SYMBOL ? rows : await run(await bundle(ticker, ['price'], csrf)).price;
+    return alignCandles(sessions, groups, daily);
+  };
+  const loadAssetFlow = async (ticker: string) => {
+    const files = await bundle(ticker, ['broker'], csrf);
+    const asset = run({ price:[], broker:files.broker, events:[] }, tf, sessions);
+    const part = async (stage: Promise<BrokerAnswer>) => {
+      const b = await stage;
+      return { combos:b.combos.map(c => ({ ...c, tilt:0 })) as Combo[], flowFrom:b.flowFrom, flowTo:b.flowTo };
+    };
+    const recent = part(asset.broker), all = part(asset.brokerAll);
+    recent.catch(() => {}); all.catch(() => {});
+    return { recent, all, through:files.through.broker };
+  };
+
   const loadEvents = async (): Promise<MarketEvent[]> => (await job.events).flatMap((r: any, k) => {
     const type = r.family === 'CORPORATE_ACTION' ? EVENT_TYPE[r.type] : undefined;
     if (!type || r.d < sessions[0]) return [];
@@ -220,6 +241,7 @@ export async function liveData(stored: string | null, tf: Timeframe = 'D'): Prom
 
   return {
     mode:'live', symbol:SYMBOL, instruments, ohlc, volume, lineData, catalog, loadCompare, ihsg:[], loadIhsg, logos:await logosP,
+    loadAsset, loadAssetFlow,
     combos:[], flowSource:'real', flowFrom:N,
     broker: { dates:[], rows:() => [], label:SYMBOL, category:() => 'L' },
     later: { broker, brokerAll },

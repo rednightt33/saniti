@@ -41,6 +41,22 @@ export function initBroker(ctx: Ctx) {
     pick(b){ RS.broker = b; if(!invSel.has(b)){ if(invSel.size >= INV_MAX) invSel.delete(invSel.values().next().value!); invSel.add(b) } changed() },
     listen:fn => { listeners.push(fn) }, ready:() => ready, selected:() => RS.broker };
   let applyChartRange = (_f: string, _t: string) => {};
+  /* EXEC-TERMINAL-BS-SIDE (user 2026-10-28: "Bisa nggak dibuatkan shortcut seperti alt apa kek? ... tombol select on
+     chart buat lihat broker summary keluar"; "Alt+B sama persis dengan menekan Custom → Select on chart di panel kanan"),
+     live: Alt+B starts choosing a period on the chart for the right panel's four panels, then shows Broker summary.
+     Not while typing, and not before the broker data has come. Pop-out windows keep their own Custom button. */
+  const showBS = () => {
+    if($('workspace').classList.contains('right-collapsed')) $('rpExpand').click();
+    const sec = $('bsBody').closest('.st') as HTMLElement | null;
+    if(sec?.classList.contains('collapsed')) (sec.querySelector('.st-head') as HTMLElement).click();
+    sec?.scrollIntoView({ block:'nearest', behavior:'smooth' });
+  };
+  if(live) document.addEventListener('keydown', (e: any) => {
+    if(!e.altKey || e.ctrlKey || e.metaKey || e.code !== 'KeyB' || e.repeat || !ready) return;
+    if(/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+    e.preventDefault(); closeRangeCalendar();
+    ctx.selectRangeOnChart((f, t) => { showBS(); applyChartRange(f, t) });   // a collapsed panel draws itself on opening
+  });
   /* EXEC-TERMINAL-PANELS-2 C: Broker inventory follows the chart (its visible range and its crosshair), live */
   let invFollow: (() => void) | null = null, invOnCross: ((t: string | null) => void) | null = null, invRaf = 0;
   if(live){
@@ -173,7 +189,7 @@ export function initBroker(ctx: Ctx) {
     /* live (EXEC-TERMINAL-PANELS D1): Custom opens one range calendar (with "Select on chart"); the fixture keeps the
        reference's two date fields (1:1 check) */
     root.innerHTML = `${nav ? `<div class="rp-ctl"><button class="rp-btn" data-act="prev" aria-label="Previous period" title="Previous period">‹</button><span class="rp-date"></span><button class="rp-btn" data-act="next" aria-label="Next period" title="Next period">›</button></div>` : ''}
-      <div class="rp-ctl"><div class="seg" role="group" aria-label="Period">${presets.map(n => `<button data-n="${n}">${n}D</button>`).join('')}<button data-n="custom"${live ? ' aria-haspopup="dialog"' : ''}>Custom</button></div></div>
+      <div class="rp-ctl"><div class="seg" role="group" aria-label="Period">${presets.map(n => `<button data-n="${n}">${n}D</button>`).join('')}<button data-n="custom"${live ? ' aria-haspopup="dialog" title="Choose a period · Alt + B: select it on the chart"' : ''}>Custom</button></div></div>
       ${live ? '<div class="rp-note" hidden></div>' : '<div class="rp-ctl rp-custom" hidden><input class="rp-sel" type="date" aria-label="From date"><span class="rp-dash">–</span><input class="rp-sel" type="date" aria-label="To date"></div>'}`;
     const $q = s => root.querySelector(s), from = $q('input:first-of-type'), to = root.querySelectorAll('input')[1];
     const days = () => st.bt - st.bf + 1;

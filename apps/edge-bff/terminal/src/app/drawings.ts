@@ -57,8 +57,11 @@ export function initDrawings(ctx: Ctx) {
   });
   const dm = new LibAny.DrawingManager(chart, candle, { magnet: prefs.magnet ? 'weak' : 'off', stayInDrawingMode: false });
   const listeners: ((json: string) => void)[] = [];
-  let fdm: any = null;                                        // live: the Flow chart's drawings (EXEC-TERMINAL-FRESH)
-  const fwrapEl = document.getElementById('flowChart')!.parentElement as HTMLElement;
+  /* live: the drawings of each Flow Timeline (EXEC-TERMINAL-FRESH: the chart's own; EXEC-TERMINAL-ASSETS: one more per added
+     asset), each with its chart, plot element and .flow-wrap */
+  interface FlowHost { m: any; chart: any; el: HTMLElement; wrap: HTMLElement; input: HTMLInputElement }
+  const hosts = new Set<FlowHost>();
+  const flowArmed = () => [...hosts].find(h => h.m.tool()) || null;
 
   /* ---- history: one snapshot per finished gesture / command ---- */
   let base = dm.exportJSON(), pressed = false, timer: any = 0;
@@ -137,10 +140,10 @@ export function initDrawings(ctx: Ctx) {
   const magnet = button('Magnet', svg('<path d="M9 7v7a5 5 0 0 0 10 0V7"/><path d="M9 7h3.5v7a1.5 1.5 0 0 0 3 0V7H19"/>'), () => { prefs.magnet = !prefs.magnet; store.set('ml.draw.magnet', prefs.magnet ? '1' : '0'); syncMagnet() });
   separator();
   const rm = button('Remove drawings', svg('<path d="M8.5 10h11M12 10V8h4v2M10 10l.8 10h6.4l.8-10"/>'), () => {
-    const fsel = fdm ? fdm.selection() : [], sel = dm.selection();
-    if(fsel.length) fsel.forEach((id: string) => fdm.remove(id));
+    const fsel = [...hosts].filter(h => h.m.selection().length), sel = dm.selection();
+    if(fsel.length) fsel.forEach(h => h.m.selection().forEach((id: string) => h.m.remove(id)));
     else if(sel.length) sel.forEach((id: string) => dm.remove(id));
-    else { dm.clear(); if(fdm) fdm.clear() }
+    else { dm.clear(); hosts.forEach(h => h.m.clear()) }
   });
   wrap.appendChild(bar);
 
@@ -149,7 +152,7 @@ export function initDrawings(ctx: Ctx) {
     const inGroup = (id: string | undefined) => id === 'trend-line' && LINES.some(l => l.id === kind);
     bar.querySelectorAll<HTMLElement>('.dr-btn[data-tool]').forEach(b => { const on = b.dataset.tool === (kind || '') || inGroup(b.dataset.tool); b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)) });
     wrap.classList.toggle('dr-tool', !!kind);
-    if(fdm) fwrapEl.classList.toggle('dr-tool', !!kind && LINES.some(l => l.id === kind));   // the Flow takes the line tools only
+    hosts.forEach(h => h.wrap.classList.toggle('dr-tool', !!kind && FLOW_TOOLS.has(kind)));   // the Flow takes FLOW_TOOLS only
     applyCursor();
   }
   function syncMagnet() {
@@ -158,7 +161,7 @@ export function initDrawings(ctx: Ctx) {
     magnet.dataset.label = prefs.magnet ? 'Magnet on (snaps to candles)' : 'Magnet off';
   }
   function syncRemove() {
-    const sel = dm.selection().length > 0 || (!!fdm && fdm.selection().length > 0), any = dm.drawings().length > 0 || (!!fdm && fdm.drawings().length > 0);
+    const sel = dm.selection().length > 0 || [...hosts].some(h => h.m.selection().length > 0), any = dm.drawings().length > 0 || [...hosts].some(h => h.m.drawings().length > 0);
     rm.disabled = !sel && !any;
     rm.dataset.label = sel ? 'Remove selected drawing' : 'Remove all drawings'; rm.setAttribute('aria-label', rm.dataset.label);
   }
@@ -221,7 +224,8 @@ export function initDrawings(ctx: Ctx) {
   function applyCursor() {
     const t = effCursor(), lines = t === 'cross', labels = t === 'cross' || t === 'dot';
     chart.applyOptions({ crosshair:{ vertLine:{ visible:lines, labelVisible:labels }, horzLine:{ visible:lines, labelVisible:labels } } });
-    ctx.flowChart.applyOptions({ crosshair:{ vertLine:{ visible:lines, labelVisible:labels }, horzLine:{ visible:lines } } });
+    const fx = { crosshair:{ vertLine:{ visible:lines, labelVisible:labels }, horzLine:{ visible:lines } } };
+    ctx.flowChart.applyOptions(fx); hosts.forEach(h => { if(h.chart !== ctx.flowChart) h.chart.applyOptions(fx) });
     CURSORS.forEach(c => wrap.classList.toggle('cur-' + c.id, c.id === t));
     const cur = CURSORS.find(c => c.id === cursorType)!;
     cb.innerHTML = cur.icon; cb.dataset.label = 'Cursor: ' + cur.label; cb.setAttribute('aria-label', cb.dataset.label);
@@ -296,16 +300,26 @@ export function initDrawings(ctx: Ctx) {
 
   /* EXEC-TERMINAL-FRESH 3 (user 2026-10-27, "GO": "di Flow hanya kelompok Lines yang tersedia (Trend line, Horizontal line,
      Horizontal ray, Ray, Vertical line), gambar disimpan per ticker, bisa di-undo, dan garis bisa ditarik"), live: the Flow
-     Timeline has its own drawing manager. A press on the Flow chart while a line tool is armed moves that tool to it (other
+     Timeline has its own drawing manager. A press on the Flow chart while a Flow tool is armed moves that tool to it (other
      tools stay on the price chart); its drawings are kept per ticker under their own key, share the undo history and
-     finish a 2-point line on drag-release like the price chart. Replaces the C4 prototype for the Flow chart. */
-  if(ctx.M.mode === 'live') {
-    const fEl = document.getElementById('flowChart') as HTMLElement, fkey = `flow.${SYMBOL}`;
-    const FLOW_TOOLS = new Set(LINES.map(l => l.id));
-    fdm = new LibAny.DrawingManager(ctx.flowChart, (ctx as any).flowSeries, { magnet:'off', stayInDrawingMode:false });
-    let fbase = fdm.exportJSON(), fpressed = false, ftimer: any = 0;
-    const fset = (json: string) => { fdm.importJSON(json); fbase = fdm.exportJSON(); repo.save(fkey, fbase); syncRemove() };
+     finish a 2-point line on drag-release like the price chart. Replaces the C4 prototype for the Flow chart.
+     EXEC-TERMINAL-ASSETS (user 2026-10-28: "untuk draw dan lain-lain, brush function-nya tidak tersedia di panel yang bawah";
+     Brush and Text approved, Fib / XABCD / Long position stay on the price chart): Brush and Text join the line tools, and
+     every added asset's Flow Timeline gets a manager too (attachFlowDrawings), its drawings kept under that asset's ticker
+     (the same key as when it is the chart's own ticker). */
+  const FLOW_TOOLS = new Set([...LINES.map(l => l.id), 'brush', 'text']);
+  function attachFlow(fchart: any, fseries: any, fEl: HTMLElement, fkey: string) {
+    const fwrap = fEl.parentElement as HTMLElement;
+    const fdm = new LibAny.DrawingManager(fchart, fseries, { magnet:'off', stayInDrawingMode:false });
+    const finput = document.createElement('input');
+    finput.className = 'dr-text'; finput.hidden = true; finput.placeholder = 'Text'; finput.setAttribute('aria-label', 'Drawing text');
+    fwrap.appendChild(finput);
+    const host: FlowHost = { m:fdm, chart:fchart, el:fEl, wrap:fwrap, input:finput };
+    hosts.add(host);
+    let fbase = fdm.exportJSON(), fpressed = false, ftimer: any = 0, alive = true;
+    const fset = (json: string) => { if(!alive) return; fdm.importJSON(json); fbase = fdm.exportJSON(); repo.save(fkey, fbase); syncRemove() };
     const fsettle = () => {
+      if(!alive) return;
       const now = fdm.exportJSON();
       if(now === fbase) return;
       const before = fbase; fbase = now;
@@ -315,20 +329,47 @@ export function initDrawings(ctx: Ctx) {
     const fqueue = () => { clearTimeout(ftimer); ftimer = setTimeout(fsettle, 0) };
     fdm.on('change', () => { if(!fpressed) fqueue() });
     fEl.addEventListener('pointerdown', () => { fpressed = true }, true);
-    window.addEventListener('pointerup', () => { if(fpressed){ fpressed = false; fqueue() } });
+    const onUp = () => { if(fpressed){ fpressed = false; fqueue() } };
+    window.addEventListener('pointerup', onUp);
     dragFinish(fdm, fEl);
-    fdm.on('tool', (k: any) => { if(!k && !dm.tool()) syncTool(null) });
+    fdm.on('tool', (k: any) => { if(!k && !dm.tool() && !flowArmed()) syncTool(null) });
     fdm.on('selection', syncRemove);
-    fwrapEl.addEventListener('pointerdown', (e: PointerEvent) => {
-      const kind = dm.tool();
-      if(e.button === 0 && kind && FLOW_TOOLS.has(kind)){ dm.setTool(null); fdm.setTool(kind); syncTool(kind) }
+    /* the Text tool's editor, as on the price chart */
+    let fediting: { id: string } | null = null;
+    const fclose = (save: boolean) => {
+      if(!fediting) return;
+      const { id } = fediting, v = finput.value.trim(); fediting = null; finput.hidden = true;
+      const cur = fdm.get(id); if(!cur) return;
+      if(save && v) fdm.update({ ...cur, text:v }); else if(!cur.text) fdm.remove(id);
+    };
+    fdm.on('textEdit', (d: any, at: any) => {
+      fediting = { id:d.id };
+      finput.style.left = (fchart.priceScale('left').width() + at.x) + 'px'; finput.style.top = at.y + 'px';
+      finput.value = d.text || ''; finput.hidden = false; setTimeout(() => { finput.focus(); finput.select() }, 0);
+    });
+    finput.addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); fclose(true) } else if(e.key === 'Escape'){ e.stopPropagation(); fclose(false) } });
+    finput.addEventListener('blur', () => fclose(true));
+    /* an armed Flow tool moves to the Flow chart that is pressed (from the price chart or another Flow) */
+    fwrap.addEventListener('pointerdown', (e: PointerEvent) => {
+      if(e.button !== 0 || (e.target as HTMLElement).closest('.dr-menu,.dr-text')) return;
+      const other = flowArmed(), kind = dm.tool() || (other && other !== host ? other.m.tool() : null);
+      if(!kind || !FLOW_TOOLS.has(kind)) return;
+      dm.setTool(null); if(other && other !== host) other.m.setTool(null);
+      fdm.setTool(kind); syncTool(kind);
     }, true);
-    container.addEventListener('pointerdown', (e: PointerEvent) => {        // and back to the price chart
-      const kind = fdm.tool();
-      if(e.button === 0 && kind){ fdm.setTool(null); dm.setTool(kind); syncTool(kind) }
-    }, true);
-    repo.load(fkey).then(json => { fdm.importJSON(json); fbase = fdm.exportJSON(); syncRemove() });
+    flowMenu(host);
+    repo.load(fkey).then(json => { if(!alive) return; fdm.importJSON(json); fbase = fdm.exportJSON(); syncRemove() });
+    return { manager:fdm, detach(){
+      alive = false; clearTimeout(ftimer); window.removeEventListener('pointerup', onUp);
+      if(fdm.tool()){ fdm.setTool(null); if(!dm.tool() && !flowArmed()) syncTool(null) }
+      hosts.delete(host); try{ fdm.destroy?.() }catch(_){}
+      finput.remove(); syncRemove();
+    } };
   }
+  container.addEventListener('pointerdown', (e: PointerEvent) => {        // and back to the price chart
+    const h = flowArmed();
+    if(e.button === 0 && h){ const kind = h.m.tool(); h.m.setTool(null); dm.setTool(kind); syncTool(kind) }
+  }, true);
   let lastPtr: { x: number; y: number; t: number } | null = null;
   document.addEventListener('keydown', (e: any) => {
     if(!e.altKey || e.ctrlKey || e.metaKey || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
@@ -433,9 +474,10 @@ export function initDrawings(ctx: Ctx) {
 
   /* EXEC-TERMINAL-UI-1026 U2 (user 2026-10-26: "klik kanan reset chart view di panel flow timeline maka akan reset chart
      dibawah agar rapih"; option A): the Flow Timeline's own menu resets its value scales only; the price chart and the
-     shared time range stay as they are */
-  {
-    const fwrap = document.getElementById('flowChart')!.parentElement as HTMLElement;   // .flow-wrap
+     shared time range stay as they are. Live, every Flow Timeline (the chart's own and each asset's) has it with its
+     drawings (flowMenu); the fixture keeps the reset alone. */
+  function flowMenu(host: { chart: any; wrap: HTMLElement; m?: any }) {
+    const fwrap = host.wrap;                                  // .flow-wrap
     let fmenu: HTMLElement | null = null;                     // built on the first right-click (the page's markup stays the reference's)
     const menu = () => {
       if(fmenu) return fmenu;
@@ -446,10 +488,11 @@ export function initDrawings(ctx: Ctx) {
       window.addEventListener('blur', () => { el.hidden = true }); window.addEventListener('resize', () => { el.hidden = true });
       return el;
     };
-    const resetFlow = () => ['left', 'right'].forEach(id => ctx.flowChart.priceScale(id).applyOptions({ autoScale:true }));
+    const resetFlow = () => ['left', 'right'].forEach(id => host.chart.priceScale(id).applyOptions({ autoScale:true }));
     fwrap.addEventListener('contextmenu', (e: any) => {
       if(e.target.closest('.dr-menu')) return;
       e.preventDefault(); closeCtx(); menus.forEach(m => m.close(false));
+      const fdm = host.m;
       if(fdm && fdm.tool()){ fdm.setTool(null); syncTool(null); return }      // C5 on the Flow chart too
       const el = menu();
       el.innerHTML = ''; ctxItem(iconReset, 'Reset chart view', '', true, resetFlow, el);
@@ -466,6 +509,10 @@ export function initDrawings(ctx: Ctx) {
       el.focus({ preventScroll:true });
     });
   }
+  if(ctx.M.mode === 'live'){
+    attachFlow(ctx.flowChart, (ctx as any).flowSeries, document.getElementById('flowChart') as HTMLElement, `flow.${SYMBOL}`);
+    ctx.attachFlowDrawings = (c, series, el, ticker) => attachFlow(c, series, el, `flow.${ticker}`);
+  } else flowMenu({ chart:ctx.flowChart, wrap:document.getElementById('flowChart')!.parentElement as HTMLElement });
   document.addEventListener('keydown', (e: any) => { if(e.altKey && e.code === 'KeyR' && !e.ctrlKey && !e.metaKey && !/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)){ e.preventDefault(); resetView() } });
 
   /* EXEC-TERMINAL-1026C C4 PROTOTYPE (user 2026-10-26: "trendline, horizontal ray ... Bisa juga digambar di bagian

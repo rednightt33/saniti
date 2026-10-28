@@ -8475,6 +8475,55 @@ User 2026-10-27, atas PLAN.md BACKTEST-SPIN: "S1 dan S2 yes sesuai yang kamu sar
 - Uji: smoke dengan harga, katalog dan broker lambat, kecepatan putaran, gerak dikurangi; vitest; piksel fixture
   Backtest lama/baru dan 1:1 Terminal 0 px; ukur live.
 
+## EXEC-TERMINAL-BS-SIDE — Broker summary kiri-kanan, Alt+B, crosshair biru (go 2026-10-28)
+
+User 2026-10-28, atas PLAN.md TERMINAL-BS-SIDE: "Opsi B: Ringkas + % of value", "Opsi A: Panel kanan saja ... Alt+B sama
+persis dengan menekan Custom → Select on chart di panel kanan", lalu "Coba dulu saja, go".
+- BS-1: jendela Broker summary: net buyer kiri, net seller kanan, berjajar seperti Top brokers, makin ke bawah makin
+  kecil; tiap sisi Broker, Net value, Net lot, Buy avg, Sell avg, % of value; Top 10/20/All per sisi; Total per sisi;
+  CSV lengkap; tanpa urut per kolom. Gross (default tidak dibantah): kiri Buy value terbesar, kanan Sell value terbesar.
+- BS-2: Alt+B = Custom → Select on chart di panel kanan (keempat panel), lalu Broker summary diperlihatkan.
+- BS-3: selama Select on chart, crosshair chart mengikuti mouse dan berwarna biru (garis tegak + datar, label);
+  kembali normal saat selesai atau Esc.
+- Infra: hanya front-end Terminal di edge-bff (deploy otomatis dari `main`); tanpa perubahan database, rak atau layanan
+  lain.
+
+## EXEC-TERMINAL-ASSETS — tambah aset, legend + pengaturan, Flow Timeline per aset, Brush/Text di Flow (go 2026-10-28)
+
+User 2026-10-28, atas PLAN.md TERMINAL-ASSETS: "1. OK 2. Yes 3. A 4. Yes 5. OK" lalu "Coba jalankan dulu".
+- A1: tombol + membuka dialog search ticker yang sama (label "Add asset"; tanda Current / Added); memilih menambah
+  aset tanpa memuat ulang halaman; maksimal 2, tombol + redup dengan keterangan saat penuh. Panel Add Series reference
+  tetap untuk fixture.
+- A2: legend per aset di bawah baris tooltip chart: logo, nama · IDX, perubahan % dari candle sebelumnya pada posisi
+  crosshair (Return dari candle pertama di mode Return), warna aset; tombol mata, pengaturan, hapus saat hover;
+  klik ganda membuka pengaturan.
+- A3: dialog pengaturan (tampilan dialog indikator): Inputs (Symbol, ganti aset lewat search), Style (Line, Step line,
+  Area, Bars, Candles; Price source; warna dan tebal; Price line; Scale: sumbu kanan / sumbu kiri utama / skala sendiri;
+  Override min tick), Visibility (tampil di chart, Flow Timeline di bawah chart); Defaults (reset, simpan sebagai
+  default), Cancel mengembalikan, Ok menyimpan. Aset dan pengaturannya diingat browser (`ml.assets.v1`).
+- A4: Flow Timeline per aset di bawah Flow Timeline chart, urut sesuai aset: badge berwarna aset (titik, logo, ticker,
+  nama); Flow Timeline chart diberi badge ticker chart saat ada aset; filter Broker/Board/Investor sendiri (default
+  Foreign); ringkasan, tooltip, garis kumulatif (ikut toggle Cumulative), dilipat per aset; rentang waktu, crosshair
+  dan lebar sumbu terkunci dengan chart. Data: file broker ticker aset dari rak (`/bundle`), dihitung worker pada sesi
+  ticker chart (`dates`). Aset tanpa data broker (indeks) hanya satu baris keterangan. Panel kanan tetap ticker chart.
+- A5: alat gambar Flow: Brush dan Text bergabung dengan kelompok Lines, di Flow chart dan di setiap Flow aset; gambar
+  Flow aset disimpan di bawah ticker aset (`ml.drawings.flow.<ticker>`, kunci yang sama saat ticker itu jadi ticker
+  chart); undo bersama; menu klik kanan Reset + Remove drawings di setiap Flow.
+- Infra: hanya front-end Terminal di edge-bff (deploy otomatis dari `main`); tanpa perubahan database, rak, terminal-api
+  atau layanan lain. Unduhan per aset memakai kuota unduhan akun terminal yang sama.
+
+## EXEC-TERMINAL-ASSETS-2 — Flow aset bisa dinaikkan/diturunkan, badge sama, arsiran data belum ada (2026-10-28)
+
+User 2026-10-28: "flow timeline, aset kedua dan aset ketiga, bisa juga dinaikkan dan diturunkan. Ada toggle seperti kotak
+merah"; "ticker badge bisa disamakan saja dengan ticker main asset"; "broker data not yet loaded juga bisa ditambahkan di
+flow timeline aset kedua atau aset ketiga".
+- B1: grip di tepi atas setiap Flow aset (seperti Flow chart): tarik naik/turun, panah atas/bawah, klik ganda kembali ke
+  tinggi bersama; tinggi diingat per ticker (`ml.assets.flow.h.<ticker>`); chart minimal 240 px.
+- B2: badge Flow aset = badge ticker chart (abu-abu, logo, ticker), tanpa titik warna dan nama.
+- B3: sesi sesudah tanggal data broker aset diarsir "Broker data not yet loaded" seperti Flow chart; tooltip "No broker
+  data yet (through …)".
+- Infra: hanya front-end Terminal di edge-bff.
+
 ## EXEC-SCREENER — EDGE Screener dari prototipe `screener EDGE layout.html` (go 2026-10-28)
 
 **Go, 2026-10-28 (kata user):** "P4 - pakai A / Arti gas maksudnya tetap jalankan sesuai fsae, take into account jawaban saya

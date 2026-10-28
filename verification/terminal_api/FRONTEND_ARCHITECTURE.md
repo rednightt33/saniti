@@ -194,7 +194,8 @@ Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
   (`ml.winst.<id>`) come back after a reload. Each window draws from `M.broker`; periods 1D/5D/20D, Chart (the
   visible sessions, redrawn on every range change) or Custom (the range calendar, "Select on chart").
 - `src/data/brokerAgg.ts`: `aggregate` (sums per broker for an investor type and board), `avgPrice` (value ÷ lots ×
-  100), `sessionSpan`, `summaryTable` (sort, Top N as N net buyers + N net sellers, search, total row, % of value),
+  100), `sessionSpan`, `sidesTable` (EXEC-TERMINAL-BS-SIDE: buyers left, sellers right, largest first; Net or Gross; Top N
+  per side, search, a total per side and for the period, % of value),
   `inventory` (daily net and running sum per broker with its period sums), `invStats`, `toCsv`.
 - `broker.ts` shares `ctx.brokerShared`: the Broker inventory brokers (one set for the panel and the window), `pick`
   (highlight and add), `changed` (the panel and every window redraw), `ensureDefaults` (three largest net buyers of the
@@ -209,3 +210,41 @@ Parallel downloads of one ticker: 26 files, 1.55 MB, about 5 s from the sandbox.
   only does not store it); the Backtest page refuses it (`inflateVerified`, CONTRACT).
 - EXEC-BACKTEST-SPIN: the loading ring is `src/styles/spin.css` and `src/ui/spin.ts` (`context.ts` re-exports `spin`),
   imported by the Terminal and the Backtest page; one speed (0.15 s, 1.6 s with reduced motion).
+
+## 16. Broker summary side by side, Alt+B, blue crosshair (EXEC-TERMINAL-BS-SIDE, 2026-10-28)
+
+- The Broker summary window (`popout.ts renderBS`) is a paired table like Top brokers: net buyers left, net sellers
+  right (Gross: buy value left, sell value right), largest first; per side Broker, the two values, Buy avg, Sell avg,
+  % of value, mirrored around the middle line; a Total per side; no column sorting. The CSV keeps every column with a
+  Side column. A window remembered with the old column sort keeps its Net or Gross choice (`sort: 'share'` = Gross).
+- `broker.ts`: Alt+B (live, not while typing, once the broker data has come) is Custom → Select on chart of the right
+  panel: the chosen period goes to its four panels and Broker summary is shown (a collapsed panel opens). Windows keep
+  their own Custom button.
+- `rangeSelect.ts`: while choosing, the layer hands the pointer to the chart's crosshair (`SEL_LINE`, the band's blue;
+  the session under the pointer at the pointer's price) and puts the crosshair options back on finish or Esc. A
+  position set from code fires no `subscribeCrosshairMove` (lightweight-charts 5.2.1 synthetic position), so the legend,
+  the Flow chart and Broker inventory are moved through `ctx.crosshairAt` (flow.ts) first.
+- Live check: `verification/terminal_api/bs_side_live_check.py`.
+
+## 17. Added assets and their Flow Timelines (EXEC-TERMINAL-ASSETS, 2026-10-28)
+
+- `src/app/assets.ts` (live only): the + button opens the ticker search (`search.ts` `ctx.openTickerSearch`, `pick` and
+  `tag`); at most `MAX_ASSETS` = 2 besides the chart's ticker. Each asset: a legend row (`.as-rows` after `#flowTip`),
+  one series (Line, Step line, Area, Bars, Candles; price source; colour, width; price line; scale right / left / own;
+  min tick), the settings dialog (the indicators' `.idlg` look: Inputs, Style, Visibility, Defaults), saved in
+  `ml.assets.v1` (defaults in `ml.assets.defaults`).
+- Data (`live.ts`): `loadAsset(ticker)` = its daily prices as candles of the chart (`timeframe.ts alignCandles`: a session
+  it did not trade repeats its last close, nothing before its first close); `loadAssetFlow(ticker)` = its broker files
+  from `/bundle`, read by the worker on the chart's daily sessions (`WorkerJob.dates`), recent years first.
+- Flow pane per asset (`.bottom.af`, after `#flowPanel`, a grid row of its own of height `--af-h`): badge in the asset's
+  colour, its own Broker / Board / Investor filters, summary, tooltip, cumulative line (the Cumulative toggle), fold.
+  Locked to the chart: time range both ways (a new pane takes the chart's range first), crosshair (`ctx.crosshairAt` also
+  moves the panes), axis widths (`flow.ts` aligns `ctx.extraFlowCharts`); the chart's Flow height leaves room for them
+  (`ctx.extraFlowHeight`, `ctx.refitFlow`). With panes, the chart's Flow title shows its ticker badge too.
+- Drawings (`drawings.ts`): every Flow chart is a host (`attachFlow`); Flow tools = the Lines group + Brush + Text; an armed
+  Flow tool moves to the Flow chart pressed; drawings of an asset's Flow are kept under `ml.drawings.flow.<ticker>`.
+- Check: `verification/terminal_api/assets_check/` (`mock_server.py` serves a build and stands in for EDGE and
+  terminal-api with synthetic files of the rack's shape; `check_assets.mjs`, `check2.mjs`).
+- EXEC-TERMINAL-ASSETS-2: each asset pane has a grip (`.af-grip`, the chart Flow's look; height per ticker in
+  `ml.assets.flow.h.<ticker>`, double-click resets, the chart keeps 240 px), the chart ticker's badge style, and the
+  hatch after its broker data's last date (`.flow-nodata`, placed like `flow.ts placeNoData`). Check: `check3.mjs`.

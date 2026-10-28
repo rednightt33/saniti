@@ -895,6 +895,29 @@ sah), penanganan berkas yang berganti sha256 sesudah publikasi, dan daftar refer
 Pertanyaan terbuka: apakah data lama boleh tampil sebelum sesi diperiksa (keamanan: perangkat bersama), dan bentuk tanda
 "memperbarui…".
 
+## TERMINAL-ASSETS — tambah aset lewat search, legend + pengaturan, Flow Timeline per aset, Brush/Text di Flow (dieksekusi 2026-10-28)
+
+**Permintaan, 2026-10-28 (kata user):** "Saat ini yes, kita bisa gambar trendline langsung di panel bawah. Tapi untuk draw
+dan lain-lain, brush function-nya tidak tersedia di panel yang bawah. ... ketika kita add asset, maka yang keluar adalah
+search box exactly sama seperti kalau kita search ticker. Dan kemudian kalau kita add di asset, maksimal 2 lah ya.
+Tampilannya seperti screenshot terlampir. ... gimana caranya kita bisa edit aset tersebut? Mau display it as a line
+chart dan lain sebagainya. ... ketika kita add satu aset, maka saya minta untuk flow timeline juga keluar di bagian
+bawahnya." Jawaban atas konfirmasi: "1. OK 2. Yes 3. A 4. Yes 5. OK", lalu "Coba jalankan dulu ... panel sebelah kanan
+adalah belongs untuk main ticker. Menambah aset hanya menambah flow timeline di bawah. Badge untuk aset flow timeline
+juga harus jelas."
+
+Keputusan: (1) Brush dan Text ditambahkan ke Flow (Fib, XABCD, Long position tetap di chart harga); (2) maksimal 2 aset
+selain ticker chart; (3) opsi A: setiap aset punya Flow Timeline sendiri, bertumpuk; (4) filter Flow aset diatur
+sendiri, default sama; (5) setiap aset skala sendiri (aset pertama sumbu kanan, berikutnya skala sendiri tanpa label;
+pilihan Scale di tab Style). Default yang saya pakai karena tidak dijawab: persentase legend = perubahan dari candle
+sebelumnya (Return di mode Return); hanya mode live, fixture tetap 1:1.
+
+Dieksekusi: EXEC.md EXEC-TERMINAL-ASSETS, ERRORS "EXEC-TERMINAL-ASSETS".
+
+## TERMINAL-BS-SIDE — Broker summary kiri-kanan, Alt+B, crosshair biru (dieksekusi 2026-10-28)
+
+Dieksekusi: EXEC.md EXEC-TERMINAL-BS-SIDE, ERRORS "EXEC-TERMINAL-BS-SIDE".
+
 ## BACKTEST-LOAD — halaman Backtest secepat Terminal (selesai 2026-10-27)
 
 Dieksekusi dan selesai: EXEC.md EXEC-BACKTEST-LOAD, ERRORS "EXEC-BACKTEST-LOAD", M253, M254, BACKTEST_END_TO_END.md

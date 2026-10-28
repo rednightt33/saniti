@@ -13,6 +13,10 @@ export function sessionsBetween(dates: string[], a: number, b: number): [string,
   return lo > hi ? null : [dates[lo], dates[hi]];
 }
 
+/** the crosshair while a period is chosen: its usual lines in the band's blue (terminal.css .rs-band) */
+export const SEL_LINE = { color:'rgba(0,112,243,.85)', labelBackgroundColor:'#0070f3' };
+const pick = (l: any) => ({ color:l.color, labelBackgroundColor:l.labelBackgroundColor });
+
 export function initRangeSelect(ctx: Ctx) {
   const { chart } = ctx;
   const wrap = $('chart').parentElement as HTMLElement;
@@ -26,7 +30,12 @@ export function initRangeSelect(ctx: Ctx) {
     layer.append(band, hint); wrap.appendChild(layer); wrap.classList.add('rs-on');
     // a deep copy: applyOptions merges into the chart's own option objects, so a reference would turn off too
     const opts: any = chart.options(), keep = JSON.parse(JSON.stringify({ handleScroll:opts.handleScroll, handleScale:opts.handleScale }));
-    chart.applyOptions({ handleScroll:false, handleScale:false });
+    /* EXEC-TERMINAL-BS-SIDE (user 2026-10-28: "pas kita select on chart, hover state-nya currently di mana. Boleh nggak
+       dibuat hover state-nya sama seperti crosshair? Tapi ya warna biru aja"): the layer takes every pointer move, so the
+       chart's own crosshair would stand still; while choosing, the pointer is handed to it (on the session under the
+       pointer, at the pointer's price) and it is drawn in the band's blue, then put back as it was. */
+    const keepXh = JSON.parse(JSON.stringify({ crosshair:{ vertLine:pick(opts.crosshair.vertLine), horzLine:pick(opts.crosshair.horzLine) } }));
+    chart.applyOptions({ handleScroll:false, handleScale:false, crosshair:{ vertLine:{ ...SEL_LINE }, horzLine:{ ...SEL_LINE } } } as any);
     const left = () => chart.priceScale('left').width();
     const xOf = (e: PointerEvent) => e.clientX - $('chart').getBoundingClientRect().left - left();
     const logical = (x: number) => chart.timeScale().coordinateToLogical(x) as number | null;
@@ -54,7 +63,17 @@ export function initRangeSelect(ctx: Ctx) {
       e.preventDefault(); layer.setPointerCapture(e.pointerId); pressed = true;
       if (!firstClick) { x0 = xOf(e); paint(x0) }
     };
-    const move = (e: PointerEvent) => { if (x0 !== null && (pressed || firstClick)) paint(xOf(e)) };
+    const main = () => ctx.displayMode === 'return' || ctx.chartStyle === 'line' ? ctx.mainLine : ctx.candle;
+    // a position set from code fires no crosshair event, so the legend and the Flow chart are moved the way a hover on
+    // Broker inventory moves them (flow.ts crosshairAt), then the line is put at the pointer's price
+    const cross = (i: number | null) => ctx.crosshairAt ? ctx.crosshairAt(i) : i === null && chart.clearCrosshairPosition();
+    const follow = (e: PointerEvent) => {
+      const i = Math.round(logical(xOf(e)) ?? NaN), s = main();
+      const price = s.coordinateToPrice(e.clientY - $('chart').getBoundingClientRect().top);
+      if (!(i >= 0 && i < ctx.dates.length) || price == null) return cross(null);
+      cross(i); chart.setCrosshairPosition(price as number, ctx.dates[i] as any, s as any);
+    };
+    const move = (e: PointerEvent) => { follow(e); if (x0 !== null && (pressed || firstClick)) paint(xOf(e)) };
     const up = (e: PointerEvent) => {
       if (x0 === null || !pressed) return;
       pressed = false;
@@ -66,9 +85,10 @@ export function initRangeSelect(ctx: Ctx) {
     const key = (e: KeyboardEvent) => { if (e.key === 'Escape') stop() };
     function stop() {
       layer.remove(); wrap.classList.remove('rs-on'); document.removeEventListener('keydown', key);
-      chart.applyOptions(keep as any); active = null;
+      cross(null); chart.applyOptions({ ...keep, ...keepXh } as any); active = null;
     }
     layer.addEventListener('pointerdown', down); layer.addEventListener('pointermove', move);
+    layer.addEventListener('pointerleave', () => cross(null));
     layer.addEventListener('pointerup', up); layer.addEventListener('pointercancel', stop);
     document.addEventListener('keydown', key);
     active = stop;

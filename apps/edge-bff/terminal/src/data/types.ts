@@ -22,6 +22,10 @@ export interface MarketEvent { id: string; type: string; date: string; at?: stri
   /** the date as the tooltip writes it (live: "03 December 2025"); the fixture shows `date` as the reference does */
   label?: string }
 
+/** EXEC-TERMINAL-ASSETS: an added asset's broker flow on the chart's sessions, the recent years first (as LateBroker) */
+export interface AssetFlowPart { combos: Combo[]; flowFrom: number; flowTo: number }
+export interface AssetFlow { recent: Promise<AssetFlowPart>; all: Promise<AssetFlowPart>; through?: string }
+
 /** live broker data that arrives after the first draw: the recent years first, then the whole history (F5) */
 export interface LateBroker { combos: Combo[]; flowFrom: number; flowTo: number; broker: MarketData['broker'] }
 
@@ -60,6 +64,10 @@ export interface MarketData {
   /** live (EXEC-TERMINAL-FRESH): each dataset's last date from the manifest; sessions after `broker` have no broker
       data yet. Absent in the fixture. */
   through?: { price?: string; broker?: string };
+  /** live (EXEC-TERMINAL-ASSETS): an added asset's candles on the chart's candles, and its Flow Timeline data; absent in
+      the fixture (its Add Series panel stays the reference's) */
+  loadAsset?(ticker: string): Promise<Bar[]>;
+  loadAssetFlow?(ticker: string): Promise<AssetFlow>;
   /** what the live page cannot show yet (approved formulas pending); the fixture shows everything */
   hide: { brokerGauge: boolean; bandar: boolean };
 }

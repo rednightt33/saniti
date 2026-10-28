@@ -10,7 +10,7 @@ import type { Ctx } from './context';
 import { $, keyOf, nfCompact, spin, store } from './context';
 import { longDay, openRangeCalendar } from '../ui/calendar';
 import { getWin, isWinOpen, openWin, type Win } from '../ui/floatwin';
-import { aggregate, avgPrice, inventory, invStats, sessionSpan, summaryTable, toCsv, type SumKey } from '../data/brokerAgg';
+import { aggregate, avgPrice, inventory, invStats, sessionSpan, sidesTable, toCsv, type SumKey, type SumRow } from '../data/brokerAgg';
 import { niceTicks } from './broker';
 
 type Key = 'bs' | 'acc' | 'inv';
@@ -39,11 +39,14 @@ export function initPopout(ctx: Ctx) {
   if (ctx.M.mode !== 'live' || !S) return;
   const B = () => ctx.M.broker;
   const state: Record<Key, any> = {
-    bs:{ p:{ n:'5' }, inv:'All', board:'All', sort:'nv', desc:true, limit:'20', q:'' },
+    bs:{ p:{ n:'5' }, inv:'All', board:'All', mode:'net', limit:'20', q:'' },
     acc:{ p:{ n:'5' }, inv:'All', board:'All', unit:'value', limit:'10' },
     inv:{ inv:'All', board:'All', unit:'lot', view:'cum' }
   };
   (Object.keys(state) as Key[]).forEach(k => { try { Object.assign(state[k], JSON.parse(store.get('ml.winst.' + k) || '{}') || {}) } catch { /* the defaults */ } });
+  // EXEC-TERMINAL-BS-SIDE: a Broker summary window remembered before the two sides (sorted by a column) keeps its
+  // Net or Gross choice: "% of value" was Gross
+  if ('sort' in state.bs) { state.bs.mode = state.bs.sort === 'share' ? 'gross' : 'net'; delete state.bs.sort; delete state.bs.desc }
   const keep = (k: Key) => store.set('ml.winst.' + k, JSON.stringify({ ...state[k], q:'' }));
   const remember = () => store.set(OPEN_KEY, JSON.stringify((['bs', 'acc', 'inv'] as Key[]).filter(isWinOpen)));
   const renders: Partial<Record<Key, () => void>> = {};
@@ -88,16 +91,20 @@ export function initPopout(ctx: Ctx) {
     w.body.querySelectorAll('[data-b]').forEach((el: any) => el.onclick = () => S.pick(el.dataset.b));
   };
 
-  /* ---- Broker summary: every broker of the period, sortable, with totals ---- */
+  /* ---- Broker summary (EXEC-TERMINAL-BS-SIDE, user 2026-10-28: "dijajarin aja kiri dan kanan"; "Opsi B: Ringkas +
+     % of value"): every broker of the period, the buyers on the left beside the sellers on the right like Top brokers,
+     the largest first; per side the broker, its two values, the average prices and its share of the period's value.
+     The CSV keeps every column. ---- */
   const COLS: [SumKey, string, string][] = [['b', 'Broker', ''], ['bl', 'Buy lot', 'Lots bought'], ['bv', 'Buy value', 'Value bought (Rp)'],
     ['ba', 'Buy avg', 'Average buy price = buy value ÷ (buy lots × 100)'], ['sl', 'Sell lot', 'Lots sold'], ['sv', 'Sell value', 'Value sold (Rp)'],
     ['sa', 'Sell avg', 'Average sell price = sell value ÷ (sell lots × 100)'], ['nv', 'Net value', 'Buy value − sell value'],
     ['nl', 'Net lot', 'Buy lots − sell lots'], ['share', '% of value', "The broker's buy + sell value ÷ the period's buy + sell value"]];
-  let bsTable: ReturnType<typeof summaryTable> | null = null;
+  const colOf = (k: SumKey) => COLS.find(c => c[0] === k)!;
+  let bsTable: ReturnType<typeof sidesTable> | null = null;
   function renderBS(w: Win) {
-    const st = state.bs, msg = blocked();
+    const st = state.bs, msg = blocked(), net = st.mode !== 'gross';
     const head = `<div class="pw-ctl">${periodCtl('bs')}${select('inv', st.inv, INVESTORS, 'All investors', 'Investor type')}${select('board', st.board, BOARDS, 'All boards', 'Board')}
-      ${seg('mode', st.sort === 'nv' ? 'net' : st.sort === 'share' ? 'gross' : '', [['net', 'Net'], ['gross', 'Gross']], 'Net or gross')}
+      ${seg('mode', net ? 'net' : 'gross', [['net', 'Net'], ['gross', 'Gross']], 'Net or gross')}
       ${seg('limit', st.limit, [['10', 'Top 10'], ['20', 'Top 20'], ['all', 'All']], 'Rows')}
       <input class="rp-sel pw-search" type="search" placeholder="Search broker…" aria-label="Search broker" value="${esc(st.q)}" autocomplete="off"></div>`;
     const span = msg ? null : resolve(st.p);
@@ -106,35 +113,43 @@ export function initPopout(ctx: Ctx) {
       w.setSub(B().label + tf); bsTable = null; wire(); return;
     }
     const [f, t] = span;
-    bsTable = summaryTable(aggregate(B().rows, f, t, st.inv, st.board), { sort:st.sort, desc:st.desc, limit:st.limit === 'all' ? null : +st.limit, search:st.q });
-    const T = bsTable, sel = S.selected();
-    const cell = (r: any, k: SumKey) => k === 'b' ? `<td>${r.b === 'Total' ? 'Total' : bkTag(r.b)}</td>`
-      : k === 'ba' || k === 'sa' ? `<td>${price(r[k])}</td>`
-      : k === 'share' ? `<td>${r.share.toFixed(1)}%</td>`
-      : k === 'nv' || k === 'nl' ? `<td class="${r[k] >= 0 ? 'up' : 'down'}">${sgn(r[k])}</td>` : `<td>${cv(r[k])}</td>`;
-    const th = COLS.map(([k, label, tip]) => `<th aria-sort="${st.sort === k ? (st.desc ? 'descending' : 'ascending') : 'none'}"${tip ? ` data-tip="${label}|${tip}"` : ''}><button type="button" data-sort="${k}">${label}${st.sort === k ? (st.desc ? ' ▾' : ' ▴') : ''}</button></th>`).join('');
-    const rows = T.rows.map((r, i) => (i === T.split ? `<tr class="pw-gap"><td colspan="${COLS.length}">· · · ${T.count - T.rows.length} brokers between · net sellers below · · ·</td></tr>` : '')
-      + `<tr data-b="${r.b}" class="${r.b === sel ? 'sel' : ''}">${COLS.map(([k]) => cell(r, k)).join('')}</tr>`).join('')
-      || `<tr><td colspan="${COLS.length}" class="rp-empty">No broker</td></tr>`;
-    w.body.innerHTML = head + `<div class="pw-scroll"><table class="rp-t pw-t"><thead><tr>${th}</tr></thead><tbody>${rows}</tbody>
-      <tfoot><tr>${COLS.map(([k]) => cell(T.total, k)).join('')}</tr></tfoot></table></div>
-      <div class="pw-foot">${T.rows.length} of ${T.count} brokers · click a column to sort · click a broker to add it to Broker inventory · the Total row sums every broker of the period</div>`;
+    bsTable = sidesTable(aggregate(B().rows, f, t, st.inv, st.board), { mode:net ? 'net' : 'gross', limit:st.limit === 'all' ? null : +st.limit, search:st.q });
+    const { left, right } = bsTable, sel = S.selected();
+    // the left side reads outward from its broker; the right side is its mirror, its broker on the far right
+    const L: SumKey[] = net ? ['b', 'nv', 'nl', 'ba', 'sa', 'share'] : ['b', 'bv', 'bl', 'ba', 'sa', 'share'];
+    const R: SumKey[] = (net ? ['b', 'nv', 'nl', 'ba', 'sa', 'share'] : ['b', 'sv', 'sl', 'ba', 'sa', 'share']).reverse() as SumKey[];
+    const cell = (r: SumRow | undefined, k: SumKey, edge = '') => {
+      if (!r) return `<td${edge}></td>`;
+      const tot = r.b === 'Total', on = !tot && r.b === sel ? ' sel' : '', at = tot ? '' : ` data-b="${r.b}"`;
+      const cls = (k === 'nv' || k === 'nl' ? (r[k] >= 0 ? 'up' : 'down') : '') + on;
+      const v = k === 'b' ? (tot ? 'Total' : bkTag(r.b)) : k === 'ba' || k === 'sa' ? price(r[k]) : k === 'share' ? r.share.toFixed(1) + '%'
+        : k === 'nv' || k === 'nl' ? sgn(r[k]) : cv(r[k]);
+      return `<td class="${cls.trim()}${edge}"${at}>${v}</td>`;
+    };
+    const half = (r: SumRow | undefined, keys: SumKey[], right: boolean) => keys.map((k, j) => cell(r, k, right && j === 0 ? ' pw-mid' : '')).join('');
+    const th = (k: SumKey, right: boolean, j: number) => { const [, label, tip] = colOf(k), mid = right && j === 0 ? ' pw-mid' : '';
+      if (k === 'b') return `<th class="${right ? 'r' : 'l'}">${right ? `${net ? 'Net sellers' : 'Sellers'}<i class="down"></i>` : `<i class="up"></i>${net ? 'Net buyers' : 'Buyers'}`}</th>`;
+      return `<th class="${mid.trim()}"${tip ? ` data-tip="${label}|${tip}"` : ''}>${label}</th>` };
+    const n = Math.max(left.rows.length, right.rows.length);
+    const rows = Array.from({ length:n }, (_, i) => `<tr><td class="pw-rank">${i + 1}</td>${half(left.rows[i], L, false)}${half(right.rows[i], R, true)}</tr>`).join('');
+    const word = net ? ['net buyers', 'net sellers'] : ['buyers', 'sellers'];
+    w.body.innerHTML = head + (n ? `<div class="pw-scroll"><table class="pw-t pw-acc pw-bs"><thead><tr><th></th>${L.map((k, j) => th(k, false, j)).join('')}${R.map((k, j) => th(k, true, j)).join('')}</tr></thead>
+      <tbody>${rows}</tbody><tfoot><tr><td class="pw-rank"></td>${half(left.total, L, false)}${half(right.total, R, true)}</tr></tfoot></table></div>
+      <div class="pw-foot">${left.rows.length} of ${left.count} ${word[0]} · ${right.rows.length} of ${right.count} ${word[1]} · largest first${net ? '' : ' (buy value, sell value)'} · each Total sums every broker of its side · click a broker to add it to Broker inventory</div>`
+      : `<div class="rp-empty">${st.q ? 'No broker matches the search' : `No ${word[0]} or ${word[1]} in this period`}</div>`);
     w.setSub(`${B().label} · ${spanText(f, t)}${st.p.n === 'view' ? ' · follows chart' : ''}${tf}`);
     wire();
     function wire() {
       wireCtl('bs', w, () => renderBS(w));
-      w.body.querySelectorAll('button[data-k=mode]').forEach((b: any) => b.onclick = () => { st.sort = b.dataset.v === 'net' ? 'nv' : 'share'; st.desc = true; keep('bs'); renderBS(w) });
-      w.body.querySelectorAll('button[data-sort]').forEach((b: any) => b.onclick = () => {
-        const k = b.dataset.sort; st.desc = st.sort === k ? !st.desc : k !== 'b'; st.sort = k; keep('bs'); renderBS(w);
-      });
       const q = w.body.querySelector('.pw-search') as HTMLInputElement | null;
       if (q) q.oninput = () => { st.q = q.value; renderBS(w); const n = w.body.querySelector('.pw-search') as HTMLInputElement; n.focus(); n.setSelectionRange(n.value.length, n.value.length) };
     }
   }
   const csvBS = () => {
     if (!bsTable) return '';
-    const num = (r: any) => [r.b, r.bl, r.bv, r.ba == null ? '' : +r.ba.toFixed(2), r.sl, r.sv, r.sa == null ? '' : +r.sa.toFixed(2), r.nv, r.nl, +r.share.toFixed(4)];
-    return toCsv(COLS.map(c => c[1]), [...bsTable.rows.map(num), num(bsTable.total)]);
+    const num = (side: string) => (r: SumRow) => [side, r.b, r.bl, r.bv, r.ba == null ? '' : +r.ba.toFixed(2), r.sl, r.sv, r.sa == null ? '' : +r.sa.toFixed(2), r.nv, r.nl, +r.share.toFixed(4)];
+    const net = state.bs.mode !== 'gross', [lw, rw] = net ? ['Net buyer', 'Net seller'] : ['Buyer', 'Seller'];
+    return toCsv(['Side', ...COLS.map(c => c[1])], [...bsTable.left.rows.map(num(lw)), num(lw)(bsTable.left.total), ...bsTable.right.rows.map(num(rw)), num(rw)(bsTable.right.total), num('All')(bsTable.total)]);
   };
 
   /* ---- Top brokers: the period's largest net buyers beside its largest net sellers ---- */
