@@ -2700,6 +2700,32 @@ change yet.
 - **Lesson for new data:** transfer yang putus adalah gangguan jaringan (diulang), file utuh yang tidak cocok adalah data
   rusak (tidak diulang); pembaca membedakan keduanya di tempat isi dibaca.
 
+### M253 — Run publisher berhenti total karena satu permintaan bucket dibatalkan (`RequestCanceled`) (2026-10-28)
+
+- **Symptom:** run terjadwal 00:30 UTC 2026-10-28 (deploy `4c2c3823`) CRASHED pukul 00:32:09 UTC, di tahap perencanaan
+  (`run` → `changed_prices` → `manifest` → `Bucket.get_raw`): `botocore ClientError (RequestCanceled) when calling the
+  GetObject operation`. Tidak ada file yang ditulis; `state.json` tetap dari run 12:00 UTC 2026-10-27, jadi pembaca
+  memakai data itu. Run 00:31 UTC 2026-10-27 crash dengan error yang sama (RAILWAY_CHANGELOG 2026-10-27).
+- **Verified (FACT):** traceback di log deploy; crash terjadi sebelum `collect_garbage` dan sebelum tulis pertama, di
+  kode yang tidak diubah M250. `Bucket` memakai botocore `retries={'max_attempts': 5}` (mode legacy), yang tidak
+  menganggap `RequestCanceled` sementara; publisher tidak punya coba-ulang sendiri, dan restart policy `NEVER`.
+- **Suspected (not verified):** penyedia bucket membatalkan permintaan sesaat (kedua kejadian sekitar 00:3x UTC).
+  Cek yang mengonfirmasi: log `bucket_retry` pada run berikutnya dan status penyedia pada jam itu.
+- **Root cause (verified part):** satu permintaan bucket yang gagal sesaat menghentikan seluruh run (sekitar 1 jam
+  kerja, dua kali sehari), tanpa coba-ulang.
+- **Class:** setiap panggilan bucket dari publisher (GetObject manifest/ref, PutObject data/manifest/state, listing dan
+  hapus milik `collect_garbage`), untuk semua dataset sekarang dan yang akan datang. Pembaca (worker, halaman) sudah
+  mengulang unduhan sendiri (M251); terminal-api belum ditinjau untuk kelas ini.
+- **Solution (IMPLEMENTED, belum di-deploy):** di lapisan klien bucket (`publisher.py` `transient`, `retried`): setiap
+  panggilan bucket diulang setelah 2, 4 dan 8 s bila gagal sementara (kode `BUCKET_TRANSIENT_CODES`: RequestCanceled,
+  RequestTimeout, InternalError, ServiceUnavailable, SlowDown, Throttling, 5xx; atau koneksi putus/timeout baca), dengan
+  log `bucket_retry` (kelas saja). Error lain (AccessDenied, NoSuchKey, ...) tetap seperti sebelumnya. Listing kini per
+  halaman dengan coba-ulang per halaman. Tes: `tests/test_publisher.py` (empat jenis error sementara, error yang
+  menetap, error lain, halaman listing yang dibatalkan).
+- **Not covered:** gangguan yang lebih lama dari 14 s tetap menghentikan run (lalu menunggu run berikutnya); run yang
+  berhenti di tengah tidak dilanjutkan otomatis (restart `NEVER`, M229).
+- **Status:** OPEN, menunggu pilihan user (kartu 2026-10-28 01:2x UTC).
+
 ### M252 — Merge PR ke main tidak memicu deploy edge-bff: Railway melewati deploy "No changes to watched files" (2026-10-27)
 
 - **Symptom:** setelah PR #39 digabung ke main (merge commit `fdd00e7`, 13:55:19 UTC), deployment edge-bff `75dae88b`
